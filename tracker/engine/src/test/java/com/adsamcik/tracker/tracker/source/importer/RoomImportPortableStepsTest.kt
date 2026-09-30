@@ -112,6 +112,36 @@ class RoomImportPortableStepsTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `stale file epochs cannot become current legacy v1 or v2 Steps imports`() = runTest {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 3L))
+		val expected = ImportPortableStepsResult.RetryableFailure(
+			PortableStepsTransferRetryableReason.CONCURRENT_STATE_CHANGE,
+		)
+		val importer = subject()
+		importer.importEntry(entry(), expectedCollectedDataEpoch = 2L) shouldBe expected
+		importer.importEntry(entry(), receipt(0), 0, expectedCollectedDataEpoch = 2L) shouldBe expected
+		importer.importEntry(v2Request(authenticatedV2Entry())
+			.copy(expectedCollectedDataEpoch = 2L)) shouldBe expected
+		assertNoImportedPayload()
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe 3L
+		dirtyTracker.marked shouldBe emptyList()
+	}
+
+	@Test
+	fun `file import epoch change during mutation rolls back payload and summary`() = runTest {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 3L))
+		val importer = subject(afterPayloadInserted = {
+			lifecycle.update(CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = null))
+		})
+		importer.importEntry(entry(), receipt(0), 0, expectedCollectedDataEpoch = 3L) shouldBe
+			ImportPortableStepsResult.RetryableFailure(PortableStepsTransferRetryableReason.CONCURRENT_STATE_CHANGE)
+		assertNoImportedPayload()
+		database.dailySummaryDao().getByDay(ENTRY_DAY) shouldBe null
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe 3L
+		dirtyTracker.marked shouldBe emptyList()
+	}
+
+	@Test
 	fun `applied import preserves portable attribution without fabricating live authority`() = runTest {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(collectedDataEpoch = 3L),
@@ -188,7 +218,7 @@ class RoomImportPortableStepsTest {
 		tableCount("source_service_run") shouldBe 0L
 		tableCount("logical_tracking_session") shouldBe 0L
 		dirtyTracker.marked.shouldContainExactly(
-			setOf(MetricKeys.TABLE_SESSION_SEGMENT, MetricKeys.TABLE_DAILY_SUMMARY),
+			listOf(setOf(MetricKeys.TABLE_SESSION_SEGMENT, MetricKeys.TABLE_DAILY_SUMMARY)),
 		)
 	}
 
@@ -219,7 +249,8 @@ class RoomImportPortableStepsTest {
 			dirtyTracker.marked.clear()
 			var drainRequests = 0
 
-			deletionSubject { drainRequests++ }.deleteSelectedSession(selectedSegmentId) shouldBe
+			deletionSubject(requestStepsDrain = { drainRequests++ })
+				.deleteSelectedSession(selectedSegmentId) shouldBe
 				StepsSessionDeletionResult.Deleted
 
 			tableCount("imported_steps_entry") shouldBe 0L
@@ -267,7 +298,7 @@ class RoomImportPortableStepsTest {
 			database.dailySummaryDao().getByDay(ENTRY_DAY) shouldBe null
 			drainRequests shouldBe 0
 			dirtyTracker.marked.shouldContainExactly(
-				setOf(MetricKeys.TABLE_SESSION_SEGMENT, MetricKeys.TABLE_DAILY_SUMMARY),
+				listOf(setOf(MetricKeys.TABLE_SESSION_SEGMENT, MetricKeys.TABLE_DAILY_SUMMARY)),
 			)
 
 			dirtyTracker.marked.clear()
@@ -581,9 +612,9 @@ class RoomImportPortableStepsTest {
 			val candidate = entry()
 			val importer = subject()
 			val first = receipt(0)
-			importer.importEntry(candidate, first, 0) shouldBe
+			importer.importEntry(candidate, first, 0, 3L) shouldBe
 				ImportPortableStepsResult.Applied(1, 1)
-			importer.importEntry(candidate, first, 0) shouldBe ImportPortableStepsResult.Duplicate
+			importer.importEntry(candidate, first, 0, 3L) shouldBe ImportPortableStepsResult.Duplicate
 			val graph = candidate.withExplicitUnprovenCountDomain().countDomainGraph
 			(1 until ImportedPortableStepsCountDomainDao.MAX_FILE_RECEIPTS_PER_ENTRY)
 				.chunked(256)
@@ -600,10 +631,11 @@ class RoomImportPortableStepsTest {
 				candidate,
 				receipt(ImportedPortableStepsCountDomainDao.MAX_FILE_RECEIPTS_PER_ENTRY),
 				0,
+				3L,
 			) shouldBe ImportPortableStepsResult.Unverifiable(
 				PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
 			)
-			importer.importEntry(candidate, first, 0) shouldBe ImportPortableStepsResult.Duplicate
+			importer.importEntry(candidate, first, 0, 3L) shouldBe ImportPortableStepsResult.Duplicate
 			database.importedPortableStepsCountDomainDao()
 				.fileReceiptCountForEntry(candidate.identity.value) shouldBe
 				ImportedPortableStepsCountDomainDao.MAX_FILE_RECEIPTS_PER_ENTRY
@@ -1157,13 +1189,14 @@ class RoomImportPortableStepsTest {
 	}
 
 	private fun v2Request(entry: PortableStepsEntryV2): ImportPortableStepsV2Request {
-		val archiveChecksum = PortableStepsDigest("b".repeat(64))
+		val archiveChecksum = PortableStepsDigest("sha256:${"b".repeat(64)}")
 		val graph = entry.countDomainGraph
 		return ImportPortableStepsV2Request(
 			archiveContentChecksum = archiveChecksum,
 			entryOrdinal = 0,
 			entry = entry,
 			receipt = receipt(0),
+			expectedCollectedDataEpoch = 3L,
 			metadata = PortableStepsImportMetadataV2(
 				encodedByteCount = 1L,
 				archiveContentChecksum = archiveChecksum,

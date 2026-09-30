@@ -67,14 +67,18 @@ internal class PortablePressureFileImport(
 	): ImportResult {
 		val fileReceipt = stream.importReceipt
 			?: throw PortablePressureImportReceiptContextException()
+		val epoch = stream.requireOriginalDataEpoch()
 		val dependencies = dependenciesProvider(context)
+		if (dependencies.lifecycleStore.snapshot().epoch != epoch) return ImportResult(
+			failedCount = 1, errors = listOf("Import stopped because recorded data was cleared"),
+		)
 		var aggregate = ImportResult.EMPTY
 		try {
 			codec.decode(stream) { entry ->
 				val request = ImportPortablePressureRequest(
 					entry = entry,
 					receipt = PortablePressureFileReceipt.create(fileReceipt, entry),
-					expectedCollectedDataEpoch = dependencies.lifecycleStore.snapshot().epoch,
+					expectedCollectedDataEpoch = epoch,
 				)
 				aggregate += dependencies.importer.importEntry(request).toFileResult()
 			}
@@ -141,7 +145,7 @@ internal class PortablePressureImportReceiptContextException :
 	}
 }
 
-private object PortablePressureFileReceipt {
+internal object PortablePressureFileReceipt {
 	private const val ENTRY_NAMESPACE = "tracker-portable-pressure-file-entry-v1"
 	private const val HASH_PREFIX = "sha256:"
 

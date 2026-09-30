@@ -135,6 +135,7 @@ class PortableStepsFileImportTest {
 	fun `v1 and v2 archives dispatch only to their version owned importers`() = runTest {
 		val entry = entry("dispatch", 1_000L)
 		val v1Requests = mutableListOf<PortableStepsEntryV1>()
+		val v1Epochs = mutableListOf<Long>()
 		val v2Requests = mutableListOf<ImportPortableStepsV2Request>()
 		val importer = PortableStepsFileImport(
 			dependenciesProvider = {
@@ -147,8 +148,10 @@ class PortableStepsFileImportTest {
 							entry: PortableStepsEntryV1,
 							receipt: PortableStepsImportReceipt,
 							entryOrdinal: Int,
+							expectedCollectedDataEpoch: Long,
 						): ImportPortableStepsResult {
 							v1Requests += entry
+							v1Epochs += expectedCollectedDataEpoch
 							return ImportPortableStepsResult.Applied(1, 1)
 						}
 					},
@@ -180,7 +183,9 @@ class PortableStepsFileImportTest {
 			ImportResult(successCount = 1)
 
 		v1Requests shouldContainExactly listOf(entry)
+		v1Epochs shouldContainExactly listOf(3L)
 		v2Requests.map { it.entry.product } shouldContainExactly listOf(entry)
+		v2Requests.map { it.expectedCollectedDataEpoch } shouldContainExactly listOf(3L)
 	}
 
 	@Test
@@ -195,6 +200,7 @@ class PortableStepsFileImportTest {
 							entry: PortableStepsEntryV1,
 							receipt: PortableStepsImportReceipt,
 							entryOrdinal: Int,
+							expectedCollectedDataEpoch: Long,
 						): ImportPortableStepsResult = error("V1 must not run")
 					},
 					v2Importer = object : ImportPortableStepsV2 {
@@ -449,7 +455,7 @@ class PortableStepsFileImportTest {
 				),
 				transactionMode = transportImporter.transactionMode,
 			) { source ->
-				transportImporter.import(context, database, source)
+				transportImporter.import(context, database, source.withOriginalDataEpoch(3L))
 			}
 		}
 
@@ -510,17 +516,20 @@ class PortableStepsFileImportTest {
 	private fun stream(bytes: ByteArray) = FileImportStream(
 		ByteArrayInputStream(bytes),
 		"steps.trackersteps",
-	).withImportReceipt("direct-test-job", 1_000L)
+	).withImportReceipt("direct-test-job", 1_000L).withOriginalDataEpoch(3L)
 
 	private fun stream(bytes: ByteArray, fileName: String) = FileImportStream(
 		ByteArrayInputStream(bytes),
 		fileName,
-	)
+	).withOriginalDataEpoch(3L)
 
 	private fun sourceImporter(
 		block: suspend (PortableStepsEntryV1) -> ImportPortableStepsResult,
 	): ImportPortableSteps = object : ImportPortableSteps {
-		override suspend fun importEntry(entry: PortableStepsEntryV1): ImportPortableStepsResult = block(entry)
+		override suspend fun importEntry(
+			entry: PortableStepsEntryV1,
+			expectedCollectedDataEpoch: Long?,
+		): ImportPortableStepsResult = block(entry)
 	}
 
 	private suspend fun encode(entries: List<PortableStepsEntryV1>): ByteArray {

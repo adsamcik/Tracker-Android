@@ -58,8 +58,11 @@ data class ImportPortableStepsV2Request(
 	val entry: PortableStepsEntryV2,
 	val receipt: PortableStepsImportReceipt,
 	val metadata: PortableStepsImportMetadataV2,
+	/** Original file-job epoch, checked again by the source writer inside its transaction. */
+	val expectedCollectedDataEpoch: Long,
 ) {
 	init {
+		require(expectedCollectedDataEpoch >= 0L)
 		require(entryOrdinal in 0 until metadata.entryCount)
 		require(archiveContentChecksum == metadata.archiveContentChecksum)
 	}
@@ -76,6 +79,7 @@ interface ImportPortableStepsV1WithReceipt {
 		entry: PortableStepsEntryV1,
 		receipt: PortableStepsImportReceipt,
 		entryOrdinal: Int,
+		expectedCollectedDataEpoch: Long,
 	): ImportPortableStepsResult
 }
 

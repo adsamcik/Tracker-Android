@@ -118,25 +118,31 @@ internal class RoomImportPortableSteps internal constructor(
 		afterPayloadInserted = {},
 	)
 
-	override suspend fun importEntry(entry: PortableStepsEntryV1): ImportPortableStepsResult =
+	override suspend fun importEntry(
+		entry: PortableStepsEntryV1,
+		expectedCollectedDataEpoch: Long?,
+	): ImportPortableStepsResult =
 		importPrepared(
 			entry.withExplicitUnprovenCountDomain(),
 			sourceSchemaVersion = 1,
 			fileReceipt = null,
 			entryOrdinal = 0,
 			sourcePayloadChecksum = entry.contentChecksum.value,
+			expectedCollectedDataEpoch = expectedCollectedDataEpoch,
 		)
 
 	override suspend fun importEntry(
 		entry: PortableStepsEntryV1,
 		receipt: PortableStepsImportReceipt,
 		entryOrdinal: Int,
+		expectedCollectedDataEpoch: Long,
 	): ImportPortableStepsResult = importPrepared(
 		entry.withExplicitUnprovenCountDomain(),
 		sourceSchemaVersion = 1,
 		fileReceipt = receipt,
 		entryOrdinal = entryOrdinal,
 		sourcePayloadChecksum = entry.contentChecksum.value,
+		expectedCollectedDataEpoch = expectedCollectedDataEpoch,
 	)
 
 	override suspend fun importEntry(
@@ -161,6 +167,7 @@ internal class RoomImportPortableSteps internal constructor(
 			fileReceipt = request.receipt,
 			entryOrdinal = request.entryOrdinal,
 			sourcePayloadChecksum = expected.archiveContentChecksum.value,
+			expectedCollectedDataEpoch = request.expectedCollectedDataEpoch,
 		)
 	}
 
@@ -170,8 +177,10 @@ internal class RoomImportPortableSteps internal constructor(
 		fileReceipt: PortableStepsImportReceipt?,
 		entryOrdinal: Int,
 		sourcePayloadChecksum: String,
+		expectedCollectedDataEpoch: Long?,
 	): ImportPortableStepsResult =
 		withContext(ioDispatcher) {
+			require(expectedCollectedDataEpoch == null || expectedCollectedDataEpoch >= 0L)
 			val startup = try {
 				startupGate.reconcile()
 			} catch (cancelled: CancellationException) {
@@ -193,6 +202,7 @@ internal class RoomImportPortableSteps internal constructor(
 					fileReceipt,
 					entryOrdinal,
 					sourcePayloadChecksum,
+					expectedCollectedDataEpoch,
 				)
 			} ?: concurrentState()
 			if (result is ImportPortableStepsResult.Applied) {
@@ -209,6 +219,7 @@ internal class RoomImportPortableSteps internal constructor(
 		fileReceipt: PortableStepsImportReceipt?,
 		entryOrdinal: Int,
 		sourcePayloadChecksum: String,
+		expectedCollectedDataEpoch: Long?,
 	): ImportPortableStepsResult {
 		val callerEntry = callerEntryV2.product
 		val prepared = try {
@@ -249,6 +260,9 @@ internal class RoomImportPortableSteps internal constructor(
 			throw cancelled
 		} catch (_: Exception) {
 			return storageUnavailable()
+		}
+		if (expectedCollectedDataEpoch != null && lifecycle.epoch != expectedCollectedDataEpoch) {
+			return concurrentState()
 		}
 		if (entry.isOutsideRetention(lifecycle.retainedFromMs)) {
 			return ImportPortableStepsResult.OutsideRetention
@@ -349,7 +363,8 @@ internal class RoomImportPortableSteps internal constructor(
 						updatedAtMs = appliedAtMs,
 					)
 					val evidence = requireNotNull(evidenceDao.get())
-					if (evidence.collectedDataEpoch != lifecycle.epoch ||
+					if (expectedCollectedDataEpoch?.let { evidence.collectedDataEpoch != it } == true ||
+						evidence.collectedDataEpoch != lifecycle.epoch ||
 						evidence.retainedFromMs != lifecycle.retainedFromMs
 					) {
 						throw PortableStepsConcurrentStateException()

@@ -54,6 +54,7 @@ internal class PortableActivityFileImport(
 			failedCount = 1,
 			errors = listOf("Portable Activity import is missing durable file-job provenance."),
 		)
+		val epoch = stream.requireOriginalDataEpoch()
 		val envelope = try {
 			PortableActivityJsonV1Codec().decode(stream)
 		} catch (cancelled: CancellationException) {
@@ -76,6 +77,10 @@ internal class PortableActivityFileImport(
 			failedCount = envelope.entries.size,
 			errors = listOf("Portable Activity source evidence is unavailable."),
 		)
+		if (state.collectedDataEpoch != epoch) return ImportResult(
+			failedCount = 1,
+			errors = listOf("Import stopped because recorded data was cleared"),
+		)
 		val importer = importerProvider(context)
 		var aggregate = ImportResult.EMPTY
 		envelope.entries.forEach { entry ->
@@ -92,7 +97,7 @@ internal class PortableActivityFileImport(
 							sourceName = fileReceipt.sourceName,
 							receivedAtMs = fileReceipt.receivedAtMs,
 						),
-						expectedCollectedDataEpoch = state.collectedDataEpoch,
+						expectedCollectedDataEpoch = epoch,
 					),
 				).toFileResult()
 			} catch (cancelled: CancellationException) {
@@ -131,7 +136,7 @@ internal class PortableActivityFileImport(
 		const val EXTENSION = ActivityCapturedPortableFormatV1.FILE_EXTENSION
 		const val MAX_FILE_BYTES = ActivityCapturedPortableFormatV1.MAX_FILE_BYTES
 
-		private fun subordinateEntryKey(
+		internal fun subordinateEntryKey(
 			fileEntryKey: String,
 			sourceIdentity: String,
 		): String {

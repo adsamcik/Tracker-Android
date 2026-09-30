@@ -102,6 +102,7 @@ class ImportWorker @AssistedInject constructor(
 		importJobRunner = ImportJobRunner(
 			receiptStore = RoomImportReceiptStore(database),
 			verifyCollectedDataAccess = ::requireCurrentImportAuthority,
+			originalDataEpoch = originalDataEpoch,
 		)
 
         showNotification(
@@ -253,6 +254,7 @@ class ImportWorker @AssistedInject constructor(
 		if (!isCurrentDataEpoch()) {
 			throw IOException("Import stopped because recorded data was cleared")
 		}
+		stream.withOriginalDataEpoch(originalDataEpoch)
         val importer = importerFor(stream)
 
         if (importer != null) {

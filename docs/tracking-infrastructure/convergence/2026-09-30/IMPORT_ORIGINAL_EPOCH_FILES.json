@@ -1,0 +1,69 @@
+{
+  "date": "2026-09-30",
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "owner": "/root/adversary_product_0930",
+  "purpose": "Exact-path selection aid for original typed-file import-job epoch fencing. Source inspection and authored tests only; not a convergence freeze or executed evidence.",
+  "production_changes": [
+    "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/FileImportStream.kt",
+    "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/DataImporter.kt",
+    "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt",
+    "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/LocationFileImport.kt",
+    "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/PortableActivityFileImport.kt",
+    "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/PortablePressureFileImport.kt",
+    "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/PortableAmbientStepsFileImport.kt",
+    "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/PortableRadioSourceFileImport.kt",
+    "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/PortableStepsFileImport.kt",
+    "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/StepsPortableTransfer.kt",
+    "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/StepsPortableTransferV2.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/importer/RoomImportPortableSteps.kt"
+  ],
+  "test_source_changes": [
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/FileImportStreamTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/ImportJobRunnerTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/LocationFileImportTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/PortableStepsFileImportTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/PortablePressureFileImportTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/PortableAmbientStepsFileImportTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/PortableActivityFileImportTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/TypedFileImportEpochTest.kt",
+    "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/PortableRadioFileImportEpochTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/importer/RoomImportPortableStepsTest.kt"
+  ],
+  "mixed_draft_selection": {
+    "FileImportStream.kt": "Added originalDataEpoch property, withOriginalDataEpoch and requireOriginalDataEpoch; preserve pre-existing Location review context.",
+    "DataImporter.kt": "Added optional originalDataEpoch before nowMs, null/nonnegative init guard, and receiptBoundStream binding beside its receipt. Existing bundle transport draft is required separately for R17 and is not authored by this slice. File released to R17 owner after these changes.",
+    "ImportWorker.kt": "Added named originalDataEpoch argument to ImportJobRunner and idempotent stream.withOriginalDataEpoch in common tryImport after authority check. Preserve pre-existing Location review, radio registry and cancellation drafts; file released to R17 owner.",
+    "LocationFileImport.kt": "Pre-existing untracked adapter draft: added original epoch requirement before staging and matching Room checks before/after staging; existing point transactions use the same pinned value. Replace remains rejected pending approved source correction design.",
+    "PortableRadioSourceFileImport.kt": "Pre-existing untracked radio adapter draft: both Wi-Fi and Cell require original epoch before decoding, forward it to captured/background source requests and child attachment, and no longer adopt the Room epoch after decoding.",
+    "LocationFileImportTest.kt": "Pre-existing untracked test draft: added missing/stale epoch, read-time clear, cleanup and direct/archive cases; updated helpers to bind original epoch.",
+    "ImportJobRunnerTest.kt": "Pre-existing mixed bundle test draft: this slice adds pinned epoch assertions to direct retry, direct/ZIP receipt route, and bundle child retry tests. Preserve other receipt/bundle test authorship."
+  },
+  "required_preserved_drafts": [
+    "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/LocationFileImportPreview.kt",
+    "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/ImportedRadioChildAttachment.kt"
+  ],
+  "static_source_trace": [
+    "Worker original data epoch is captured before file reads; common adapter dispatch and runner direct/archive/bundle child paths bind it without opening bytes.",
+    "All seven typed adapters require this original value before decoding or staging; each source request retains it across prefixes and retries.",
+    "Location checks the original value inside each existing 256-point Room batch at admission and completion.",
+    "Activity, Pressure, ambient Steps and captured/background radio source writers already compare expectedCollectedDataEpoch inside their owning Room transactions; radio child attachment repeats it for every bounded batch.",
+    "Session Steps v1 receipt and v2 contracts now require the original epoch; the existing Room importer compares it inside the transaction and preserves its existing lifecycle/retention rollback guards.",
+    "The legacy direct Steps API remains source-compatible through an optional epoch; file dispatch always supplies the required pinned value. No alternate import pipeline, schema, file format or consent grant was added."
+  ],
+  "authored_scenarios": [
+    "Missing original epoch rejects all seven typed adapters before bytes or writer resolution.",
+    "Lazy direct/archive stream binding, idempotence, rebinding rejection, closed stream and negative epoch.",
+    "Location stale direct/archive input, clear while staging, no inserted points and staged file cleanup.",
+    "Pressure prefix import keeps its initial epoch after a clear instead of admitting later entries under the new epoch.",
+    "Activity and ambient Steps reject stale original epochs rather than adopting post-decode current state.",
+    "Wi-Fi and Cell decoding preserves the original epoch through source requests and retries; rejected sources cannot attach children.",
+    "Session Steps stale legacy/v1/v2 file requests and lifecycle change after payload insertion roll back payload, summary and dirty effects.",
+    "Direct retry, ZIP dispatch and bundle child retry keep one original epoch alongside durable file receipts."
+  ],
+  "remaining": [
+    "No tests, compilation, schema checks or device gates executed.",
+    "R16 user-edited Location replacement requires the pending approved durable correction/rebuild path; no Replace UI enabled here.",
+    "R17 production bundle route remains owned by completion_wiring; the shared runner now supplies its child epoch context.",
+    "R18 physical transfer cancellation and draining remain a separate pending architecture slice."
+  ]
+}

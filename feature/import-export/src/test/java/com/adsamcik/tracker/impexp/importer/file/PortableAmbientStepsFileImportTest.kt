@@ -56,7 +56,7 @@ class PortableAmbientStepsFileImportTest {
 	private val database = mockk<AppDatabase>()
 
 	@Test
-	fun `complete archive uses exact metadata durable receipt and current epoch`() = runTest {
+	fun `complete archive uses exact metadata durable receipt and original epoch`() = runTest {
 		val archive = ambientArchive(
 			completeAmbientDay(LocalDate.of(2026, 1, 1), 0L),
 			completeAmbientDay(LocalDate.of(2026, 1, 2), 12L),
@@ -77,7 +77,7 @@ class PortableAmbientStepsFileImportTest {
 		importer.import(
 			context,
 			database,
-			stream(bytes, "archive-entry", "content-job", 900L),
+			stream(bytes, "archive-entry", "content-job", 900L, dataEpoch = 7L),
 		) shouldBe ImportResult(successCount = 2)
 
 		val request = requests.single()
@@ -94,6 +94,20 @@ class PortableAmbientStepsFileImportTest {
 		request.receipt.archiveKey.length shouldBe 64
 		importer.supportedExtensions shouldContainExactly listOf("trackerambientsteps")
 		importer.transactionMode shouldBe ImportTransactionMode.IMPORTER_MANAGED
+	}
+
+	@Test
+	fun `a stale original job epoch cannot become a current background Steps archive`() = runTest {
+		var calls = 0
+		val importer = adapter(FakeAmbientLifecycleStore(8L)) {
+			calls++
+			ImportPortableAmbientStepsResult.Applied(it.archive.identity, 1, 1, 1, 0)
+		}
+		val archive = ambientArchive(completeAmbientDay(LocalDate.of(2026, 1, 1), 4L))
+		val result = importer.import(context, database,
+			stream(encodeAmbientStepsArchive(archive), "entry", dataEpoch = 7L))
+		result.failedCount shouldBe 1
+		calls shouldBe 0
 	}
 
 	@Test
@@ -140,7 +154,7 @@ class PortableAmbientStepsFileImportTest {
 		importer.import(
 			context,
 			database,
-			stream(output.toByteArray(), "v2-entry", "v2-job", 900L),
+			stream(output.toByteArray(), "v2-entry", "v2-job", 900L, dataEpoch = 8L),
 		) shouldBe ImportResult(successCount = 1)
 		requests.single().archive shouldBe archive
 		requests.single().receipt.jobId shouldBe "v2-job"
@@ -178,7 +192,7 @@ class PortableAmbientStepsFileImportTest {
 			"contentChecksum":"sha256:${"a".repeat(64)}","days":[}
 		""".trimIndent().encodeToByteArray()
 
-		importer.import(context, database, stream(malformed, "malformed-v2")) shouldBe
+		importer.import(context, database, stream(malformed, "malformed-v2", dataEpoch = 8L)) shouldBe
 			ImportResult(
 				failedCount = 1,
 				errors = listOf(PortableAmbientStepsFileImport.PERMANENT_FORMAT_ERROR),
@@ -204,9 +218,9 @@ class PortableAmbientStepsFileImportTest {
 				)
 			}
 
-			importer.import(context, database, stream(compact, "compact")) shouldBe
+			importer.import(context, database, stream(compact, "compact", dataEpoch = 8L)) shouldBe
 				ImportResult(skippedCount = 1)
-			importer.import(context, database, stream(spaced, "spaced")) shouldBe
+			importer.import(context, database, stream(spaced, "spaced", dataEpoch = 8L)) shouldBe
 				ImportResult(skippedCount = 1)
 
 			requests.map { it.archive.identity }.distinct() shouldBe listOf(archive.identity)
@@ -275,7 +289,7 @@ class PortableAmbientStepsFileImportTest {
 					FileImportStream(
 						fileName = "ambient.trackerambientsteps",
 						streamProvider = { FailingAmbientImportStream() },
-					).withImportReceipt("job", 1L),
+					).withImportReceipt("job", 1L).withOriginalDataEpoch(1L),
 				)
 			}.message shouldBe "transport failed"
 			calls shouldBe 0
@@ -294,7 +308,7 @@ class PortableAmbientStepsFileImportTest {
 						streamProvider = {
 							PrefixThenFailingAmbientImportStream(valid, transportEof)
 						},
-					).withImportReceipt("eof-job", 2L),
+					).withImportReceipt("eof-job", 2L).withOriginalDataEpoch(1L),
 				)
 			}
 			(propagatedEof === transportEof) shouldBe true
@@ -389,7 +403,7 @@ class PortableAmbientStepsFileImportTest {
 			context,
 			database,
 			FileImportStream(underlying, "ambient.trackerambientsteps")
-				.withImportReceipt("job", 1L),
+				.withImportReceipt("job", 1L).withOriginalDataEpoch(1L),
 		) shouldBe ImportResult(successCount = 1)
 		underlying.closed shouldBe false
 	}
@@ -433,7 +447,7 @@ class PortableAmbientStepsFileImportTest {
 			extractor = extractor,
 			transactionModeForEntry = { ImportTransactionMode.IMPORTER_MANAGED },
 		) { bound ->
-			importer.import(context, database, bound)
+			importer.import(context, database, bound.withOriginalDataEpoch(5L))
 		}
 
 		runArchive() shouldBe ImportResult(
@@ -487,7 +501,7 @@ class PortableAmbientStepsFileImportTest {
 				streamProvider = { ByteArrayInputStream(bytes) },
 			),
 			transactionMode = ImportTransactionMode.IMPORTER_MANAGED,
-		) { bound -> importer.import(context, database, bound) }
+		) { bound -> importer.import(context, database, bound.withOriginalDataEpoch(2L)) }
 
 		shouldThrow<PortableAmbientStepsRetryableImportException> { runImport() }
 		runImport() shouldBe ImportResult(successCount = 1)
@@ -515,11 +529,12 @@ class PortableAmbientStepsFileImportTest {
 		entryKey: String,
 		jobId: String = "content-job",
 		receivedAtMs: Long = 100L,
+		dataEpoch: Long = 1L,
 	): FileImportStream = FileImportStream(
 		fileName = "ambient.trackerambientsteps",
 		receiptKey = entryKey,
 		streamProvider = { ByteArrayInputStream(bytes) },
-	).withImportReceipt(jobId, receivedAtMs)
+	).withImportReceipt(jobId, receivedAtMs).withOriginalDataEpoch(dataEpoch)
 }
 
 private data class AmbientArchiveEntry(

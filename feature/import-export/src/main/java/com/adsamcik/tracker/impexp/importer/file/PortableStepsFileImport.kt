@@ -67,6 +67,7 @@ internal class PortableStepsFileImport(
 		stream: FileImportStream,
 	): ImportResult {
 		val fileReceipt = stream.importReceipt ?: throw PortableStepsImportReceiptContextException()
+		val epoch = stream.requireOriginalDataEpoch()
 		val bytes = try {
 			readPortableBytes(stream, MAX_FILE_BYTES)
 		} catch (_: PortableStepsJsonException) {
@@ -80,13 +81,14 @@ internal class PortableStepsFileImport(
 						entry: PortableStepsEntryV1,
 						receipt: PortableStepsImportReceipt,
 						entryOrdinal: Int,
-					): ImportPortableStepsResult = legacy.importEntry(entry)
+						expectedCollectedDataEpoch: Long,
+					): ImportPortableStepsResult = legacy.importEntry(entry, expectedCollectedDataEpoch)
 				},
 				v2Importer = object : ImportPortableStepsV2 {
 					override suspend fun importEntry(
 						request: ImportPortableStepsV2Request,
 					): ImportPortableStepsResult =
-						legacy.importEntry(request.entry.product)
+						legacy.importEntry(request.entry.product, request.expectedCollectedDataEpoch)
 				},
 			)
 		} ?: dependenciesProvider(context)
@@ -103,6 +105,7 @@ internal class PortableStepsFileImport(
 							entry,
 							fileReceipt.forEntry(entry),
 							ordinal,
+							epoch,
 						).toFileResult()
 						ordinal++
 					}
@@ -117,6 +120,7 @@ internal class PortableStepsFileImport(
 								entry = entry,
 								receipt = fileReceipt.forEntry(entry.product),
 								metadata = decoded.metadata,
+								expectedCollectedDataEpoch = epoch,
 							),
 						).toFileResult()
 					}
@@ -183,12 +187,12 @@ private fun FileImportReceiptContext.forEntry(
 	entry: PortableStepsEntryV1,
 ): PortableStepsImportReceipt = PortableStepsImportReceipt(
 		jobId = jobId,
-		entryKey = subordinateEntryKey(entryKey, entry.identity.value),
+		entryKey = portableStepsEntryKey(entryKey, entry.identity.value),
 		sourceName = sourceName,
 		receivedAtMs = receivedAtMs,
 	)
 
-private fun subordinateEntryKey(fileEntryKey: String, entryIdentity: String): String {
+internal fun portableStepsEntryKey(fileEntryKey: String, entryIdentity: String): String {
 	val canonical = listOf(
 		"tracker-portable-steps-subordinate-entry-receipt-v2",
 		fileEntryKey,

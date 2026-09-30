@@ -58,7 +58,7 @@ class PortablePressureFileImportTest {
 	}
 
 	@Test
-	fun `duplicate and correction imports use stable content receipts and current epoch`() = runTest {
+	fun `duplicate and correction imports use stable content receipts and original epoch`() = runTest {
 		val original = pressureEntry("logical", meanHectopascals = 1_000.25)
 		val correction = pressureEntry("logical", meanHectopascals = 1_000.5)
 		val lifecycle = FakeLifecycleStore(7L)
@@ -87,6 +87,7 @@ class PortablePressureFileImportTest {
 				encodePressureEntries(listOf(original)),
 				jobId = "original-content-job",
 				receivedAtMs = 123L,
+				dataEpoch = 7L,
 			),
 		) shouldBe ImportResult(successCount = 1)
 		importer.import(
@@ -96,6 +97,7 @@ class PortablePressureFileImportTest {
 				encodePressureEntries(listOf(original)),
 				jobId = "original-content-job",
 				receivedAtMs = 123L,
+				dataEpoch = 7L,
 			),
 		) shouldBe ImportResult(skippedCount = 1)
 		importer.import(
@@ -105,6 +107,7 @@ class PortablePressureFileImportTest {
 				encodePressureEntries(listOf(correction)),
 				jobId = "corrected-content-job",
 				receivedAtMs = 456L,
+				dataEpoch = 7L,
 			),
 		) shouldBe ImportResult(successCount = 1)
 
@@ -120,7 +123,7 @@ class PortablePressureFileImportTest {
 	}
 
 	@Test
-	fun `durable epoch is read again immediately before every source transaction`() = runTest {
+	fun `every source transaction keeps the original epoch after a partial import`() = runTest {
 		val entries = listOf(
 			pressureEntry("first", 1_000L),
 			pressureEntry("second", 5_000L),
@@ -131,13 +134,21 @@ class PortablePressureFileImportTest {
 		val importer = adapter(lifecycle) { request ->
 			epochs += request.expectedCollectedDataEpoch
 			receipts += request.receipt
-			if (epochs.size == 1) lifecycle.epoch = 5L
+			if (epochs.size == 1) {
+				lifecycle.epoch = 5L
+			} else {
+				return@adapter ImportPortablePressureResult.Blocked(
+					PortablePressureImportBlockedReason.COLLECTED_DATA_EPOCH_CHANGED,
+				)
+			}
 			ImportPortablePressureResult.Applied(1L, 1, 1)
 		}
 
-		importer.import(context, database, stream(encodePressureEntries(entries))) shouldBe
-			ImportResult(successCount = 2)
-		epochs shouldContainExactly listOf(4L, 5L)
+		val result = importer.import(context, database,
+			stream(encodePressureEntries(entries), dataEpoch = 4L))
+		result.successCount shouldBe 1
+		result.failedCount shouldBe 1
+		epochs shouldContainExactly listOf(4L, 4L)
 		receipts.map { it.jobId }.distinct() shouldContainExactly listOf(DEFAULT_JOB_ID)
 		receipts.map { it.receivedAtMs }.distinct() shouldContainExactly
 			listOf(DEFAULT_RECEIVED_AT_MS)
@@ -165,6 +176,7 @@ class PortablePressureFileImportTest {
 					entryKey = maximumEntryKey,
 					jobId = "real-content-job",
 					receivedAtMs = 789L,
+					dataEpoch = 2L,
 				),
 			)
 		}
@@ -306,7 +318,7 @@ class PortablePressureFileImportTest {
 			context,
 			database,
 			FileImportStream(underlying, "pressure.trackerpressure")
-				.withImportReceipt(DEFAULT_JOB_ID, DEFAULT_RECEIVED_AT_MS),
+				.withImportReceipt(DEFAULT_JOB_ID, DEFAULT_RECEIVED_AT_MS).withOriginalDataEpoch(1L),
 		)
 		result shouldBe ImportResult(
 			successCount = 1,
@@ -351,7 +363,7 @@ class PortablePressureFileImportTest {
 			),
 			transactionMode = ImportTransactionMode.IMPORTER_MANAGED,
 		) { boundStream ->
-			importer.import(context, database, boundStream)
+			importer.import(context, database, boundStream.withOriginalDataEpoch(9L))
 		}
 
 		importThroughRunner() shouldBe ImportResult(
@@ -384,7 +396,7 @@ class PortablePressureFileImportTest {
 		val stream = FileImportStream(
 			fileName = "pressure.trackerpressure",
 			streamProvider = { FailingPressureInputStream(IOException("transport failed")) },
-		).withImportReceipt(DEFAULT_JOB_ID, DEFAULT_RECEIVED_AT_MS)
+		).withImportReceipt(DEFAULT_JOB_ID, DEFAULT_RECEIVED_AT_MS).withOriginalDataEpoch(1L)
 
 		shouldThrow<IOException> {
 			importer.import(context, database, stream)
@@ -402,7 +414,7 @@ class PortablePressureFileImportTest {
 					streamProvider = {
 						PrefixThenFailingPressureInputStream(valid, transportEof)
 					},
-				).withImportReceipt(DEFAULT_JOB_ID, DEFAULT_RECEIVED_AT_MS),
+				).withImportReceipt(DEFAULT_JOB_ID, DEFAULT_RECEIVED_AT_MS).withOriginalDataEpoch(1L),
 			)
 		}
 		(propagatedEof === transportEof) shouldBe true
@@ -456,11 +468,12 @@ class PortablePressureFileImportTest {
 		entryKey: String = "direct-source-v1",
 		jobId: String = DEFAULT_JOB_ID,
 		receivedAtMs: Long = DEFAULT_RECEIVED_AT_MS,
+		dataEpoch: Long = 1L,
 	): FileImportStream = FileImportStream(
 		fileName = "pressure.trackerpressure",
 		receiptKey = entryKey,
 		streamProvider = { ByteArrayInputStream(bytes) },
-	).withImportReceipt(jobId, receivedAtMs)
+	).withImportReceipt(jobId, receivedAtMs).withOriginalDataEpoch(dataEpoch)
 
 	private companion object {
 		const val DEFAULT_JOB_ID = "content-addressed-job"

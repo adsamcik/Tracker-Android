@@ -80,8 +80,13 @@ interface ImportPortableSteps {
 	 * identity, deletion-fence, retention, or destination mutation. They must durably preserve the
 	 * already-portable opaque identities and each original deletion-scope digest verbatim; deriving
 	 * either value again from a local imported identity would break replay and no-resurrection.
+	 * File callers supply their original job epoch. A direct source call without a file job captures
+	 * the current lifecycle once; neither form may adopt a later epoch during admission.
 	 */
-	suspend fun importEntry(entry: PortableStepsEntryV1): ImportPortableStepsResult
+	suspend fun importEntry(
+		entry: PortableStepsEntryV1,
+		expectedCollectedDataEpoch: Long? = null,
+	): ImportPortableStepsResult
 }
 
 /** Import outcomes remain distinct so replay, privacy fences, and conflicts cannot be collapsed. */

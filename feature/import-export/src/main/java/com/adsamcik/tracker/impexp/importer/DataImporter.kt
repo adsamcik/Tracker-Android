@@ -180,8 +180,13 @@ internal class PermanentImportInputException(
 internal class ImportJobRunner(
 	private val receiptStore: ImportReceiptStore,
 	private val verifyCollectedDataAccess: suspend () -> Unit = {},
+	private val originalDataEpoch: Long? = null,
 	private val nowMs: () -> Long = System::currentTimeMillis,
 ) {
+	init {
+		require(originalDataEpoch == null || originalDataEpoch >= 0L)
+	}
+
 	// One runner belongs to one uniquely scheduled ImportWorker. Completion cannot race its imports.
 	private val operationMutex = Mutex()
 
@@ -321,7 +326,9 @@ internal class ImportJobRunner(
 			throw ImportReceiptPreconditionException("Source import requires the current in-progress file job")
 		}
 		verifyCollectedDataAccess()
-		return stream.withImportReceipt(jobId, job.startedAt)
+		return stream.withImportReceipt(jobId, job.startedAt).also { boundStream ->
+			originalDataEpoch?.let(boundStream::withOriginalDataEpoch)
+		}
 	}
 
 	suspend fun completeIfSuccessful(jobId: String, result: ImportResult): Unit = operationMutex.withLock {

@@ -39,7 +39,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class PortableActivityFileImportTest {
 	@Test
-	fun `complete file decodes before mutation and uses current durable epoch`() = runTest {
+	fun `complete file decodes before mutation and keeps the original durable epoch`() = runTest {
 		val requests = mutableListOf<ImportPortableCapturedActivityRequest>()
 		val importer = PortableActivityFileImport(
 			importerProvider = {
@@ -63,6 +63,7 @@ class PortableActivityFileImportTest {
 				"receipt-a",
 				jobId = "content-job",
 				receivedAtMs = 9_000L,
+				dataEpoch = 7L,
 			),
 		)
 
@@ -77,6 +78,22 @@ class PortableActivityFileImportTest {
 		requests.map { it.receipt.receivedAtMs }.toSet() shouldBe setOf(9_000L)
 		importer.supportedExtensions shouldBe listOf(PortableActivityFileImport.EXTENSION)
 		importer.transactionMode shouldBe ImportTransactionMode.IMPORTER_MANAGED
+	}
+
+	@Test
+	fun `an epoch changed during decoding cannot be adopted by the Activity writer`() = runTest {
+		var calls = 0
+		val importer = PortableActivityFileImport {
+			fakeImporter {
+				calls++
+				ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+			}
+		}
+		val result = importer.import(mockk(relaxed = true), database(epoch = 2L),
+			stream(encode(activityEnvelope(activityEntry())), "activity.trackeractivity", "entry",
+				dataEpoch = 1L))
+		result.failedCount shouldBe 1
+		calls shouldBe 0
 	}
 
 	@Test
@@ -121,7 +138,7 @@ class PortableActivityFileImportTest {
 					streamProvider = {
 						FailingSourceInputStream(bytes.dropLast(1).toByteArray(), original)
 					},
-				).withImportReceipt("raw-eof-job", 100L),
+				).withImportReceipt("raw-eof-job", 100L).withOriginalDataEpoch(1L),
 			)
 		}
 		(rawFailure === original) shouldBe true
@@ -171,6 +188,7 @@ class PortableActivityFileImportTest {
 				"same-receipt",
 				jobId = "same-job",
 				receivedAtMs = 10_000L,
+				dataEpoch = 2L,
 			),
 		).successCount shouldBe 1
 		importer.import(
@@ -182,6 +200,7 @@ class PortableActivityFileImportTest {
 				"same-receipt",
 				jobId = "same-job",
 				receivedAtMs = 10_000L,
+				dataEpoch = 2L,
 			),
 		).failedCount shouldBe 1
 	}
@@ -278,7 +297,7 @@ class PortableActivityFileImportTest {
 			),
 			transactionMode = ImportTransactionMode.IMPORTER_MANAGED,
 		) { stream ->
-			importer.import(mockk(relaxed = true), database(epoch = 1L), stream)
+			importer.import(mockk(relaxed = true), database(epoch = 1L), stream.withOriginalDataEpoch(1L))
 		}
 
 		truncated.failedCount shouldBe 1
@@ -303,7 +322,7 @@ class PortableActivityFileImportTest {
 				stream = transport,
 				transactionMode = ImportTransactionMode.IMPORTER_MANAGED,
 			) { stream ->
-				importer.import(mockk(relaxed = true), database(epoch = 1L), stream)
+				importer.import(mockk(relaxed = true), database(epoch = 1L), stream.withOriginalDataEpoch(1L))
 			}
 		}
 		(transportFailure === original) shouldBe true
@@ -320,7 +339,7 @@ class PortableActivityFileImportTest {
 			),
 			transactionMode = ImportTransactionMode.IMPORTER_MANAGED,
 		) { stream ->
-			importer.import(mockk(relaxed = true), database(epoch = 1L), stream)
+			importer.import(mockk(relaxed = true), database(epoch = 1L), stream.withOriginalDataEpoch(1L))
 		}
 		lexical.failedCount shouldBe 1
 		store.entry("lexical-job", "direct-entry")?.status shouldBe
@@ -349,7 +368,9 @@ class PortableActivityFileImportTest {
 		receipt: String,
 		jobId: String = "job",
 		receivedAtMs: Long = 100L,
+		dataEpoch: Long = 1L,
 	) = unboundStream(bytes, name, receipt).withImportReceipt(jobId, receivedAtMs)
+		.withOriginalDataEpoch(dataEpoch)
 
 	private fun unboundStream(
 		bytes: ByteArray,

@@ -140,7 +140,7 @@ class ImportJobRunnerTest {
 	@Test
 	fun `bundle retries failed child without repeating a committed sibling or publishing metadata early`() = runTest {
 		val store = FakeImportReceiptStore()
-		val runner = ImportJobRunner(store)
+		val runner = ImportJobRunner(store, originalDataEpoch = 7L)
 		val firstFile = File(cacheDir, "first.bin").apply { writeText("one") }
 		val secondFile = File(cacheDir, "second.bin").apply { writeText("two") }
 		val manifest = SessionBundleManifestV1("Walk", null, 100, 200, "UTC",
@@ -158,6 +158,7 @@ class ImportJobRunnerTest {
 			bundle = bundle,
 			transactionModeForChild = { ImportTransactionMode.IMPORTER_MANAGED },
 			importChild = { stream ->
+				stream.requireOriginalDataEpoch() shouldBe 7L
 				calls[stream.receiptKey] = calls.getOrDefault(stream.receiptKey, 0) + 1
 				if (stream.receiptKey == "child-2" && calls.getValue("child-2") == 1)
 					ImportResult(failedCount = 1, errors = listOf("second failed"))
@@ -423,7 +424,7 @@ class ImportJobRunnerTest {
 	fun `source receipt uses durable job start across failed import retries`() = runTest {
 		val store = FakeImportReceiptStore()
 		var now = 100L
-		val runner = ImportJobRunner(store, nowMs = { now })
+		val runner = ImportJobRunner(store, originalDataEpoch = 7L, nowMs = { now })
 		runner.start(JOB_ID, "pressure.trackerpressure", 10L)
 		val receipts = mutableListOf<FileImportReceiptContext>()
 
@@ -433,6 +434,7 @@ class ImportJobRunnerTest {
 				FileImportStream("pressure.trackerpressure", "direct-entry", { ByteArrayInputStream(byteArrayOf(1)) }),
 				ImportTransactionMode.IMPORTER_MANAGED,
 			) { stream ->
+				stream.requireOriginalDataEpoch() shouldBe 7L
 				receipts += requireNotNull(stream.importReceipt)
 				stream.read() shouldBe 1
 				throw IOException("source failure")
@@ -445,6 +447,7 @@ class ImportJobRunnerTest {
 			FileImportStream("pressure.trackerpressure", "direct-entry", { ByteArrayInputStream(byteArrayOf(1)) }),
 			ImportTransactionMode.IMPORTER_MANAGED,
 		) { stream ->
+			stream.requireOriginalDataEpoch() shouldBe 7L
 			receipts += requireNotNull(stream.importReceipt)
 			ImportResult(successCount = 1)
 		}
@@ -481,7 +484,7 @@ class ImportJobRunnerTest {
 	fun `registered Ambient direct and ZIP routes retain original durable file receipt context`() =
 		runTest {
 			val store = FakeImportReceiptStore()
-			val runner = ImportJobRunner(store, nowMs = { 900L })
+			val runner = ImportJobRunner(store, originalDataEpoch = 7L, nowMs = { 900L })
 			val importer = FormatRegistry.importerForExtension("trackerambientsteps")
 			(importer is PortableAmbientStepsFileImport) shouldBe true
 			importer?.transactionMode shouldBe ImportTransactionMode.IMPORTER_MANAGED
@@ -497,6 +500,7 @@ class ImportJobRunnerTest {
 				),
 				transactionMode = requireNotNull(importer).transactionMode,
 			) { stream ->
+				stream.requireOriginalDataEpoch() shouldBe 7L
 				directReceipts += requireNotNull(stream.importReceipt)
 				ImportResult(successCount = 1)
 			} shouldBe ImportResult(successCount = 1)
@@ -529,6 +533,7 @@ class ImportJobRunnerTest {
 						.transactionMode
 				},
 			) { stream ->
+				stream.requireOriginalDataEpoch() shouldBe 7L
 				zipEntryKey = stream.receiptKey
 				zipReceipts += requireNotNull(stream.importReceipt)
 				ImportResult(successCount = 1)

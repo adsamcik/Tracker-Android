@@ -77,6 +77,7 @@ internal class PortableAmbientStepsFileImport(
 	): ImportResult {
 		val fileReceipt = stream.importReceipt
 			?: throw PortableAmbientStepsImportReceiptContextException()
+		val epoch = stream.requireOriginalDataEpoch()
 		val bytes = try {
 			readPortableBytes(stream, MAX_FILE_BYTES)
 		} catch (cancelled: CancellationException) {
@@ -88,6 +89,9 @@ internal class PortableAmbientStepsFileImport(
 			)
 		}
 		val dependencies = dependenciesProvider(context)
+		if (dependencies.lifecycleStore.snapshot().epoch != epoch) return ImportResult(
+			failedCount = 1, errors = listOf("Import stopped because recorded data was cleared"),
+		)
 		return try {
 			when (portableAmbientStepsSchemaVersion(bytes)) {
 				AmbientStepsPortableFormatV1.SCHEMA_VERSION -> {
@@ -97,7 +101,7 @@ internal class PortableAmbientStepsFileImport(
 						archive = decoded.archive,
 						receipt = decoded.archive.toReceipt(fileReceipt),
 						metadata = decoded.metadata,
-						expectedCollectedDataEpoch = dependencies.lifecycleStore.snapshot().epoch,
+						expectedCollectedDataEpoch = epoch,
 					)
 					dependencies.importer.importArchive(request)
 						.toFileResult(decoded.archive.days.size)
@@ -109,7 +113,7 @@ internal class PortableAmbientStepsFileImport(
 						archive = decoded.archive,
 						receipt = decoded.archive.toReceipt(fileReceipt),
 						metadata = decoded.metadata,
-						expectedCollectedDataEpoch = dependencies.lifecycleStore.snapshot().epoch,
+						expectedCollectedDataEpoch = epoch,
 					)
 					dependencies.importerV2.importArchive(request)
 						.toFileResult(decoded.archive.days.size)
@@ -185,7 +189,7 @@ private fun PortableAmbientStepsArchiveV1.toReceipt(
 	fileReceipt: FileImportReceiptContext,
 ): PortableAmbientStepsImportReceipt = PortableAmbientStepsImportReceipt(
 	jobId = fileReceipt.jobId,
-	archiveKey = subordinateArchiveKey(fileReceipt.entryKey, identity.value),
+	archiveKey = portableAmbientStepsArchiveKey(fileReceipt.entryKey, identity.value),
 	sourceName = fileReceipt.sourceName,
 	receivedAtMs = fileReceipt.receivedAtMs,
 )
@@ -194,12 +198,12 @@ private fun PortableAmbientStepsArchiveV2.toReceipt(
 	fileReceipt: FileImportReceiptContext,
 ): PortableAmbientStepsImportReceipt = PortableAmbientStepsImportReceipt(
 	jobId = fileReceipt.jobId,
-	archiveKey = subordinateArchiveKey(fileReceipt.entryKey, identity.value),
+	archiveKey = portableAmbientStepsArchiveKey(fileReceipt.entryKey, identity.value),
 	sourceName = fileReceipt.sourceName,
 	receivedAtMs = fileReceipt.receivedAtMs,
 )
 
-private fun subordinateArchiveKey(fileEntryKey: String, archiveIdentity: String): String {
+internal fun portableAmbientStepsArchiveKey(fileEntryKey: String, archiveIdentity: String): String {
 	val canonical = listOf(SUBORDINATE_RECEIPT_DOMAIN, fileEntryKey, archiveIdentity)
 		.joinToString(separator = "") { "${it.length}:$it" }
 	return MessageDigest.getInstance("SHA-256")
