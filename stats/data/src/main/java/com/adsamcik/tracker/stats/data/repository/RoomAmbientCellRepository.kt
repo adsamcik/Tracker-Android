@@ -158,7 +158,9 @@ internal class RoomAmbientCellRepository @Inject constructor(
 		val localFacts = local.map { row ->
 			val base = row.toApiFact() ?: return AmbientCellReadResult.StorageUnavailable
 			val children = localChildren[row.fact.logicalFactId to row.fact.semanticRevision].orEmpty()
-			if (children.isNotEmpty() && children.size != base.observationCount) {
+			if ((row.fact.purposeDemandId != null || children.isNotEmpty()) &&
+				children.size != base.observationCount
+			) {
 				return AmbientCellReadResult.StorageUnavailable
 			}
 			if (children.any { child ->

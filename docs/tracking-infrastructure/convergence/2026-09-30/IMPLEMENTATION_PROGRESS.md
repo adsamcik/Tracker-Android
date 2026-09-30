@@ -30,6 +30,10 @@ description of its earlier input; this file records subsequent repair progress.
   move actions, with resource text for all declared locales.
 - `9adeadd2fa`: independently qualified background radio groups, distinct detail
   identities/replay, physical-retirement subset filtering and rollback test source.
+- `e385265795`: independent optional radio notification hosting, default-off
+  migration, all locales and sessionless Steps motion hints.
+- `6da005060f`: retained Wi-Fi per-reading qualification with its reviewed
+  writer, child reader, imported-detail and deletion companions.
 
 All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 
@@ -53,19 +57,21 @@ All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
   settings/notification recovery and bounded export/Activity period queries.
 - [x] Independent source review and commit of background radio grouping, including
   the physical-retirement/transaction correction. Midnight handling remains open.
-- [ ] Commit reviewed retained Wi-Fi qualification with its required companions.
+- [x] Commit reviewed retained Wi-Fi qualification with its required companions.
+- [x] Strict native ambient radio detail reads, including missing-all and
+  missing-part child rows; eight real Room scenario sources, legacy summaries kept.
 
 ## Remaining in these slices
 
 - [ ] Connect background radio writers to delivery and recovery using independent
   progress. A tool proposal is pending; no dependent change is authorized yet.
-- [ ] Propagate v6 item qualification through retained capture maintenance,
+- [x] Propagate current-tuple v6 item qualification through retained capture maintenance,
   portable replay and history; preserve v5 contracts.
 - [ ] Recheck the ambient physical-lifetime correction and implement correct local
-  day grouping after the pending user answer; finish strict native detail reads.
+  day grouping after the pending user answer.
 - [ ] Complete historical session radio capture groups after the pending contract
   answer; a single current callback capture tuple remains insufficient.
-- [ ] Review and commit independent optional Wi-Fi/Cell service hosting and
+- [x] Review and commit independent optional Wi-Fi/Cell service hosting and
   sessionless Steps motion hints; add the host preference migration/default.
 - [ ] Review and commit original-job epoch propagation through every source import.
 - [ ] Complete period discovery streak and revisit season counting after the

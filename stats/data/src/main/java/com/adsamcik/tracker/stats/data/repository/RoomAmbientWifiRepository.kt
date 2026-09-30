@@ -155,7 +155,9 @@ internal class RoomAmbientWifiRepository @Inject constructor(
 		val localFacts = local.map { row ->
 			val base = row.toApiFact() ?: return AmbientWifiReadResult.StorageUnavailable
 			val children = localChildren[row.fact.logicalFactId to row.fact.semanticRevision].orEmpty()
-			if (children.isNotEmpty() && children.size != base.observationCount) {
+			if ((row.fact.purposeDemandId != null || children.isNotEmpty()) &&
+				children.size != base.observationCount
+			) {
 				return AmbientWifiReadResult.StorageUnavailable
 			}
 			if (children.any { child ->

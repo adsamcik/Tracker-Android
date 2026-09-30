@@ -1,0 +1,36 @@
+{
+  "date": "2026-09-30",
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "owner": "/root/adversary_product_0930",
+  "purpose": "Native ambient Wi-Fi and Cell detail completeness in the existing range and day readers. Source and test authorship only.",
+  "production": [
+    "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt",
+    "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt"
+  ],
+  "production_hunk": "Require exact child count for native facts whose existing purposeDemandId marker is non-null, including when every child is missing. Preserve null-marker legacy summaries without children and the existing count check on legacy facts with children.",
+  "test_source": [
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt"
+  ],
+  "authored_scenarios": [
+    "Wi-Fi: start with a valid v6 current fact and two detail children, delete all children through the real DAO, and require StorageUnavailable from range and day readers.",
+    "Cell: the same missing-all scenario through real Room joins.",
+    "Wi-Fi: delete one of two current detail children and require StorageUnavailable from both readers.",
+    "Cell: the same missing-part scenario through real Room joins.",
+    "Wi-Fi: a valid v6 detail group exposes the exact names, access-point IDs and observation times through both readers.",
+    "Cell: a valid v6 detail group exposes the exact tower IDs, registered state and observation times through both readers.",
+    "Wi-Fi: a null-marker legacy summary without children remains readable through both readers.",
+    "Cell: a null-marker legacy summary without children remains readable through both readers."
+  ],
+  "preserved_reader_review": [
+    "Public reads use the injected IO dispatcher and one Room transaction; cancellation is rethrown and storage/integrity failures return the existing unavailable result.",
+    "Existing internal readInTransaction and readDayInTransaction remain available without a second collection or qualification pipeline.",
+    "Current native children are loaded in bounded current-cursor chunks and checked against parent owner, revision, checksum and exact count.",
+    "Imported correction history, identity checks, child checksums and summary-only compatibility remain unchanged."
+  ],
+  "boundaries": [
+    "No new entity, schema, format, marker or abstraction. Uses the already-approved native v6 purposeDemandId marker.",
+    "This reader slice checks native detail completeness; it does not add full WAL, provider, policy or sequence authority authentication. Paired retained map qualification is owned by the R13 implementation.",
+    "Midnight grouping, historical capture-group authority, imported format detail completeness and whole-source acceptance remain outside this slice.",
+    "No compilation, test execution, resource validation, schema gate, device/UI evidence or integration performed."
+  ]
+}

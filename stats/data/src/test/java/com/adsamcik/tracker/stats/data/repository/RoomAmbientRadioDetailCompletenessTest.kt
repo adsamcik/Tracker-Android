@@ -1,0 +1,260 @@
+package com.adsamcik.tracker.stats.data.repository
+
+import android.app.Application
+import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellChildEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiChildEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.CellChildChecksumInput
+import com.adsamcik.tracker.shared.base.database.data.RadioChildOwner
+import com.adsamcik.tracker.shared.base.database.data.RadioChildPurpose
+import com.adsamcik.tracker.shared.base.database.data.RadioObservationChildIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.WifiChildChecksumInput
+import com.adsamcik.tracker.stats.api.repository.AmbientCellDayReadRequest
+import com.adsamcik.tracker.stats.api.repository.AmbientCellOrigin
+import com.adsamcik.tracker.stats.api.repository.AmbientCellReadRequest
+import com.adsamcik.tracker.stats.api.repository.AmbientCellReadResult
+import com.adsamcik.tracker.stats.api.repository.AmbientWifiDayReadRequest
+import com.adsamcik.tracker.stats.api.repository.AmbientWifiOrigin
+import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadRequest
+import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadResult
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+/** Real Room current-fact and child joins, rather than a duplicate of the reader predicate. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class RoomAmbientRadioDetailCompletenessTest {
+	private lateinit var database: AppDatabase
+	private val dispatcher = UnconfinedTestDispatcher()
+
+	@Before
+	fun setUp() {
+		val context: Application = ApplicationProvider.getApplicationContext()
+		database = AppDatabase.testDatabase(context)
+	}
+
+	@After
+	fun tearDown() = database.close()
+
+	@Test
+	fun `Wi-Fi v6 becomes unavailable when every current detail is missing`() = runTest {
+		val fact = insertWifi(detailGroup = true)
+		val repository = RoomAmbientWifiRepository(database, dispatcher)
+		assertEquals(2, assertIs<AmbientWifiReadResult.Snapshot>(repository.read(wifiWindow()))
+			.facts.single().networks.size)
+		assertEquals(2, database.radioObservationChildDao().deleteWifiBackgroundRevision(
+			fact.writerId, fact.writerVersion, fact.logicalFactId, fact.semanticRevision))
+		assertWifiUnavailable(repository)
+	}
+
+	@Test
+	fun `Cell v6 becomes unavailable when every current detail is missing`() = runTest {
+		val fact = insertCell(detailGroup = true)
+		val repository = RoomAmbientCellRepository(database, dispatcher)
+		assertEquals(2, assertIs<AmbientCellReadResult.Snapshot>(repository.read(cellWindow()))
+			.facts.single().towers.size)
+		assertEquals(2, database.radioObservationChildDao().deleteCellBackgroundRevision(
+			fact.writerId, fact.writerVersion, fact.logicalFactId, fact.semanticRevision))
+		assertCellUnavailable(repository)
+	}
+
+	@Test
+	fun `Wi-Fi v6 cannot present a partly missing set as complete details`() = runTest {
+		insertWifi(detailGroup = true)
+		database.openHelper.writableDatabase.execSQL("DELETE FROM ambient_wifi_child WHERE item_index = 1")
+		assertWifiUnavailable(RoomAmbientWifiRepository(database, dispatcher))
+	}
+
+	@Test
+	fun `Cell v6 cannot present a partly missing set as complete details`() = runTest {
+		insertCell(detailGroup = true)
+		database.openHelper.writableDatabase.execSQL("DELETE FROM ambient_cell_child WHERE item_index = 1")
+		assertCellUnavailable(RoomAmbientCellRepository(database, dispatcher))
+	}
+
+	@Test
+	fun `Wi-Fi v6 exposes complete exact details through range and day readers`() = runTest {
+		insertWifi(detailGroup = true)
+		val repository = RoomAmbientWifiRepository(database, dispatcher)
+		for (result in listOf(repository.read(wifiWindow()), repository.readDay(wifiDay()))) {
+			val fact = assertIs<AmbientWifiReadResult.Snapshot>(result).facts.single()
+			assertEquals(2, fact.observationCount)
+			assertEquals(listOf("Home", "Cafe"), fact.networks.map { it.ssid })
+			assertEquals(listOf("aa:bb:cc:dd:ee:f0", "aa:bb:cc:dd:ee:f1"), fact.networks.map { it.bssid })
+			assertEquals(listOf(1_900L, 2_000L), fact.networks.map { it.observedTimeMs })
+		}
+	}
+
+	@Test
+	fun `Cell v6 exposes complete exact details through range and day readers`() = runTest {
+		insertCell(detailGroup = true)
+		val repository = RoomAmbientCellRepository(database, dispatcher)
+		for (result in listOf(repository.read(cellWindow()), repository.readDay(cellDay()))) {
+			val fact = assertIs<AmbientCellReadResult.Snapshot>(result).facts.single()
+			assertEquals(2, fact.observationCount)
+			assertEquals(listOf("LTE:123", "NR:456"), fact.towers.map { it.identity })
+			assertEquals(listOf(true, false), fact.towers.map { it.registered })
+			assertEquals(listOf(1_900L, 2_000L), fact.towers.map { it.observedTimeMs })
+		}
+	}
+
+	@Test
+	fun `legacy Wi-Fi summary without any child remains readable`() = runTest {
+		insertWifi(detailGroup = false)
+		val repository = RoomAmbientWifiRepository(database, dispatcher)
+		for (result in listOf(repository.read(wifiWindow()), repository.readDay(wifiDay()))) {
+			val fact = assertIs<AmbientWifiReadResult.Snapshot>(result).facts.single()
+			assertEquals(2, fact.observationCount)
+			assertEquals(emptyList(), fact.networks)
+		}
+	}
+
+	@Test
+	fun `legacy Cell summary without any child remains readable`() = runTest {
+		insertCell(detailGroup = false)
+		val repository = RoomAmbientCellRepository(database, dispatcher)
+		for (result in listOf(repository.read(cellWindow()), repository.readDay(cellDay()))) {
+			val fact = assertIs<AmbientCellReadResult.Snapshot>(result).facts.single()
+			assertEquals(2, fact.observationCount)
+			assertEquals(emptyList(), fact.towers)
+		}
+	}
+
+	private suspend fun assertWifiUnavailable(repository: RoomAmbientWifiRepository) {
+		assertEquals(AmbientWifiReadResult.StorageUnavailable, repository.read(wifiWindow()))
+		assertEquals(AmbientWifiReadResult.StorageUnavailable, repository.readDay(wifiDay()))
+	}
+
+	private suspend fun assertCellUnavailable(repository: RoomAmbientCellRepository) {
+		assertEquals(AmbientCellReadResult.StorageUnavailable, repository.read(cellWindow()))
+		assertEquals(AmbientCellReadResult.StorageUnavailable, repository.readDay(cellDay()))
+	}
+
+	private fun wifiWindow() = AmbientWifiReadRequest(0L, 3_000L, setOf(AmbientWifiOrigin.LOCAL_DEVICE), 10)
+	private fun cellWindow() = AmbientCellReadRequest(0L, 3_000L, setOf(AmbientCellOrigin.LOCAL_DEVICE), 10)
+	private fun wifiDay() = AmbientWifiDayReadRequest(0L, "UTC", setOf(AmbientWifiOrigin.LOCAL_DEVICE), 10)
+	private fun cellDay() = AmbientCellDayReadRequest(0L, "UTC", setOf(AmbientCellOrigin.LOCAL_DEVICE), 10)
+
+	@Suppress("LongMethod")
+	private suspend fun insertWifi(detailGroup: Boolean): AmbientWifiFactRevisionEntity {
+		val demand = "wifi-demand".takeIf { detailGroup }
+		val delivery = "a".repeat(64)
+		val id = AmbientWifiFactIntegrity.logicalFactId(delivery, 1L, 0L, 0L, demand)
+		val unsigned = AmbientWifiFactRevisionEntity(
+			writerId = AmbientWifiFactRevisionEntity.WRITER_ID,
+			writerVersion = AmbientWifiFactRevisionEntity.WRITER_VERSION,
+			writerOwnerGeneration = 1L, logicalFactId = id, semanticRevision = 1L,
+			supersedesSemanticRevision = null, mutationId = AmbientWifiFactIntegrity.mutationId(id, 1L),
+			factKind = AmbientWifiFactRevisionEntity.FACT_KIND_AGGREGATE,
+			aggregateOwnerLogicalFactId = null, aggregateOwnerSemanticRevision = null,
+			sourceEventId = "wifi-event", sourceAdmissionOrdinal = 1L,
+			walIntegrityIdentity = "b".repeat(64), payloadChecksum = "c".repeat(64),
+			sourceDeliveryIdentity = delivery, sourceInstanceId = "wifi-instance", registrationGeneration = 1L,
+			configurationRevision = 1L, physicalConfigurationFingerprint = "wifi-passive",
+			authorizationRevision = 1L, authorizationFingerprint = "d".repeat(64),
+			purposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+			sourcePolicyRevision = 1L, ambientConsentEpoch = 1L, retentionPolicyId = "wifi-retention",
+			retentionApprovalRevision = 1L, collectedDataEpoch = 0L, scopeDeletionGeneration = 0L,
+			clockDomainId = "boot", storedZoneId = "UTC", structuralEpochDay = 0L,
+			structuralDayStartTimeMs = 0L, structuralDayEndTimeMs = 86_400_000L,
+			observedIntervalStartNanos = 1_000_000_000L, observedElapsedNanos = 1_100_000_000L,
+			receivedElapsedNanos = 1_200_000_000L, coverageStartTimeMs = 1_900L,
+			observedWallTimeMs = 2_000L, wallTimeUncertaintyMs = 1L,
+			coverageCompleteness = AmbientWifiFactRevisionEntity.COMPLETENESS_COMPLETE,
+			observationCount = 2, twoPointFourGhzCount = 1, fiveGhzCount = 1,
+			sixGhzCount = 0, otherBandCount = 0, strongestSignalDbm = -40, weakestSignalDbm = -70,
+			signalSumDbm = -110L, qualityFlags = 0L, qualityConfidence = null,
+			effectChecksum = "0".repeat(64), appliedAtMs = 2_100L, purposeDemandId = demand,
+		)
+		val fact = unsigned.copy(effectChecksum = AmbientWifiFactIntegrity.effectChecksum(unsigned))
+		database.ambientWifiFactDao().insertRevision(fact)
+		database.ambientWifiFactDao().insertCursor(AmbientWifiFactCursorEntity(
+			fact.writerId, fact.writerVersion, id, 1L, fact.mutationId, fact.effectChecksum,
+			1L, 0L, 0L, 1L, 2_100L))
+		if (detailGroup) database.radioObservationChildDao().insertWifiBackground((0..1).map { index ->
+			val providerTime = 1_000_000_000L + index * 100_000_000L
+			val wall = 1_900L + index * 100L
+			val bssid = "aa:bb:cc:dd:ee:f$index"
+			val name = if (index == 0) "Home" else "Cafe"
+			val frequency = if (index == 0) 2_412 else 5_180
+			val signal = if (index == 0) -70 else -40
+			val owner = RadioChildOwner(RadioChildPurpose.BACKGROUND, fact.writerId, fact.writerVersion, id, 1L, index)
+			AmbientWifiChildEntity(fact.writerId, fact.writerVersion, id, 1L, index, providerTime,
+				wall, 1L, bssid, name, frequency, signal,
+				RadioObservationChildIntegrity.wifi(WifiChildChecksumInput(owner, providerTime, wall, 1L,
+					bssid, name, frequency, signal)))
+		})
+		return fact
+	}
+
+	@Suppress("LongMethod")
+	private suspend fun insertCell(detailGroup: Boolean): AmbientCellFactRevisionEntity {
+		val demand = "cell-demand".takeIf { detailGroup }
+		val delivery = "e".repeat(64)
+		val id = AmbientCellFactIntegrity.logicalFactId(delivery, 1L, 0L, 0L, demand)
+		val unsigned = AmbientCellFactRevisionEntity(
+			writerId = AmbientCellFactRevisionEntity.WRITER_ID,
+			writerVersion = AmbientCellFactRevisionEntity.WRITER_VERSION,
+			writerOwnerGeneration = 1L, logicalFactId = id, semanticRevision = 1L,
+			supersedesSemanticRevision = null, mutationId = AmbientCellFactIntegrity.mutationId(id, 1L),
+			factKind = AmbientCellFactRevisionEntity.FACT_KIND_AGGREGATE,
+			aggregateOwnerLogicalFactId = null, aggregateOwnerSemanticRevision = null,
+			sourceEventId = "cell-event", sourceAdmissionOrdinal = 1L,
+			walIntegrityIdentity = "b".repeat(64), payloadChecksum = "c".repeat(64),
+			sourceDeliveryIdentity = delivery, sourceInstanceId = "cell-instance", registrationGeneration = 1L,
+			configurationRevision = 1L, physicalConfigurationFingerprint = "cell-passive",
+			authorizationRevision = 1L, authorizationFingerprint = "d".repeat(64),
+			purposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+			sourcePolicyRevision = 1L, ambientConsentEpoch = 1L, retentionPolicyId = "cell-retention",
+			retentionApprovalRevision = 1L, collectedDataEpoch = 0L, scopeDeletionGeneration = 0L,
+			clockDomainId = "boot", storedZoneId = "UTC", structuralEpochDay = 0L,
+			structuralDayStartTimeMs = 0L, structuralDayEndTimeMs = 86_400_000L,
+			observedIntervalStartNanos = 1_000_000_000L, observedElapsedNanos = 1_100_000_000L,
+			receivedElapsedNanos = 1_200_000_000L, coverageStartTimeMs = 1_900L,
+			observedWallTimeMs = 2_000L, wallTimeUncertaintyMs = 1L,
+			coverageCompleteness = AmbientCellFactRevisionEntity.COMPLETENESS_COMPLETE,
+			subscriptionCompleteness = AmbientCellFactRevisionEntity.SUBSCRIPTION_COMPLETE,
+			observationCount = 2, registeredObservationCount = 1,
+			gsmCount = 0, cdmaCount = 0, wcdmaCount = 0, tdscdmaCount = 0, lteCount = 1, nrCount = 1,
+			qualityUnknownCount = 0, qualityNoneOrUnknownCount = 0, qualityPoorCount = 1,
+			qualityModerateCount = 0, qualityGoodCount = 1, qualityGreatCount = 0,
+			qualityFlags = 0L, qualityConfidence = null, effectChecksum = "0".repeat(64),
+			appliedAtMs = 2_100L, purposeDemandId = demand,
+		)
+		val fact = unsigned.copy(effectChecksum = AmbientCellFactIntegrity.effectChecksum(unsigned))
+		database.ambientCellFactDao().insertRevision(fact)
+		database.ambientCellFactDao().insertCursor(AmbientCellFactCursorEntity(
+			fact.writerId, fact.writerVersion, id, 1L, fact.mutationId, fact.effectChecksum,
+			1L, 0L, 0L, 1L, 2_100L))
+		if (detailGroup) database.radioObservationChildDao().insertCellBackground((0..1).map { index ->
+			val providerTime = 1_000_000_000L + index * 100_000_000L
+			val wall = 1_900L + index * 100L
+			val tower = if (index == 0) "LTE:123" else "NR:456"
+			val radio = if (index == 0) "LTE" else "NR"
+			val registered = index == 0
+			val signal = if (index == 0) -72 else -90
+			val owner = RadioChildOwner(RadioChildPurpose.BACKGROUND, fact.writerId, fact.writerVersion, id, 1L, index)
+			AmbientCellChildEntity(fact.writerId, fact.writerVersion, id, 1L, index, providerTime,
+				wall, 1L, tower, radio, registered, signal,
+				RadioObservationChildIntegrity.cell(CellChildChecksumInput(owner, providerTime, wall, 1L,
+					tower, radio, registered, signal)))
+		})
+		return fact
+	}
+}
