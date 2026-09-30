@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -55,6 +56,7 @@ import com.adsamcik.tracker.tracker.api.ManualTrackingStartRepairNavigation
 import com.adsamcik.tracker.tracker.api.ManualTrackingStartResult
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -104,6 +106,30 @@ fun DashboardRoute(
 	}
 	var manualStartPermissionDenied by remember { mutableStateOf(false) }
 	var pendingLocationServicesRepair by remember { mutableStateOf(false) }
+	var pendingManualStartGeneration by rememberSaveable { mutableStateOf<Long?>(null) }
+	val restoredManualStartGeneration = remember { pendingManualStartGeneration }
+	var manualStartRequestVersion by remember { mutableStateOf(0L) }
+	val manualStartRequests = remember { mutableSetOf<Job>() }
+
+	fun cancelPendingManualStart(generation: Long? = pendingManualStartGeneration) {
+		if (pendingManualStartGeneration == generation) {
+			manualStartRequestVersion++
+			pendingManualStartGeneration = null
+		}
+		if (generation != null) coroutineScope.launch {
+			TrackerServiceApi.cancelManualTrackingStart(context, generation)
+		}
+	}
+
+	fun endTracking() {
+		// Fence callbacks immediately; the durable Stop follows on the application scope.
+		manualStartRequestVersion++
+		manualStartPermissionRequest = null
+		pendingLocationServicesRepair = false
+		manualStartRequests.toList().forEach { it.cancel() }
+		cancelPendingManualStart()
+		TrackerServiceApi.stopService(context)
+	}
 
 	DashboardPermissionResumeEffect(viewModel, context)
 
@@ -158,41 +184,58 @@ fun DashboardRoute(
 		)
 	}
 
-	fun requestManualStart() {
-		coroutineScope.launch {
-			when (val result = TrackerServiceApi.requestManualTrackingStart(context)) {
-				ManualTrackingStartResult.ENQUEUED -> Unit
-				is ManualTrackingStartResult.RepairRequired -> when (result.prerequisite) {
-					ManualTrackingStartPrerequisite.LOCATION_SERVICES -> {
-						val action = snackbarHostState.showSnackbar(
-							message = context.getString(
-								com.adsamcik.tracker.tracker.R.string
-									.manual_tracking_location_services_required,
-							),
-							actionLabel = context.getString(
-								com.adsamcik.tracker.shared.utils.R.string
-									.permission_denied_settings_action,
-							),
-						)
-						if (action == SnackbarResult.ActionPerformed) {
-							pendingLocationServicesRepair = true
-							if (!ManualTrackingStartRepairNavigation
-									.openLocationServicesSettings(context)
-							) {
-								pendingLocationServicesRepair = false
-								showTrackingUnavailable()
+	fun requestManualStart(continuationGeneration: Long? = null) {
+		val requestVersion = ++manualStartRequestVersion
+		val request = coroutineScope.launch {
+			val result = TrackerServiceApi.requestManualTrackingStart(context, continuationGeneration)
+			if (requestVersion != manualStartRequestVersion) return@launch
+			when (result) {
+				ManualTrackingStartResult.ENQUEUED -> pendingManualStartGeneration = null
+				is ManualTrackingStartResult.RepairRequired -> {
+					pendingManualStartGeneration = result.continuationGeneration
+					when (result.prerequisite) {
+						ManualTrackingStartPrerequisite.LOCATION_SERVICES -> {
+							val action = snackbarHostState.showSnackbar(
+								message = context.getString(
+									com.adsamcik.tracker.tracker.R.string
+										.manual_tracking_location_services_required,
+								),
+								actionLabel = context.getString(
+									com.adsamcik.tracker.shared.utils.R.string
+										.permission_denied_settings_action,
+								),
+							)
+							if (requestVersion != manualStartRequestVersion) {
+								cancelPendingManualStart(result.continuationGeneration)
+								return@launch
 							}
+							if (action == SnackbarResult.ActionPerformed) {
+								pendingLocationServicesRepair = true
+								if (!ManualTrackingStartRepairNavigation
+										.openLocationServicesSettings(context)
+								) {
+									pendingLocationServicesRepair = false
+									cancelPendingManualStart(result.continuationGeneration)
+									showTrackingUnavailable()
+								}
+							} else cancelPendingManualStart(result.continuationGeneration)
 						}
+						else -> manualStartPermissionRequest = result.prerequisite
 					}
-					else -> manualStartPermissionRequest = result.prerequisite
 				}
-				ManualTrackingStartResult.TRACKING_UNAVAILABLE ->
+				ManualTrackingStartResult.TRACKING_UNAVAILABLE -> {
+					pendingManualStartGeneration = null
 					showTrackingUnavailable()
-				ManualTrackingStartResult.NO_AVAILABLE_CAPTURE_SOURCE ->
+				}
+				ManualTrackingStartResult.NO_AVAILABLE_CAPTURE_SOURCE -> {
+					pendingManualStartGeneration = null
 					showNoAvailableCaptureSource()
+				}
 			}
 			manualStartReadiness = TrackerServiceApi.readManualTrackingStartReadiness(context)
 		}
+		manualStartRequests += request
+		request.invokeOnCompletion { manualStartRequests -= request }
 	}
 
 	val manualStartPermissionSatisfied =
@@ -205,16 +248,20 @@ fun DashboardRoute(
 		onReadiness = { manualStartReadiness = it },
 		onLocationServicesRepairCompleted = {
 			pendingLocationServicesRepair = false
-			requestManualStart()
+			pendingManualStartGeneration?.let { requestManualStart(it) }
 		},
-		onLocationServicesRepairUnchanged = { pendingLocationServicesRepair = false },
+		onLocationServicesRepairUnchanged = {
+			pendingLocationServicesRepair = false
+			cancelPendingManualStart()
+		},
+		onStartContinuation = { requestManualStart(it) },
 	)
 
 	LaunchedEffect(context) {
 		val intent = (context as? Activity)?.intent
-		if (ManualTrackingStartRepairNavigation.consumeDashboardReevaluationRequest(intent)) {
-			requestManualStart()
-		}
+		val generation = ManualTrackingStartRepairNavigation.consumeDashboardStartContinuation(intent)
+			?: restoredManualStartGeneration
+		if (generation != null) requestManualStart(generation)
 	}
 
 	// Observe daily/gamification state
@@ -360,22 +407,29 @@ fun DashboardRoute(
 	// Contextual permission request dialog. Only an explicit start attempt reaches this state.
 	val permissionRequest = manualStartPermissionRequest?.toDashboardPermissionRequest()
 	if (permissionRequest != null) {
-		val onPermissionResult: (Boolean) -> Unit = {
+		val onPermissionResult: (Boolean) -> Unit = { granted ->
+			val generation = pendingManualStartGeneration
+			val requestVersion = manualStartRequestVersion
 			val repairedPrerequisite = permissionRequest.prerequisite
 			manualStartPermissionRequest = null
 			coroutineScope.launch {
 				val updated = TrackerServiceApi.readManualTrackingStartReadiness(context)
+				if (requestVersion != manualStartRequestVersion) return@launch
 				manualStartReadiness = updated
 				val sameRepair = (updated as? ManualTrackingStartReadiness.RepairRequired)
 					?.prerequisite == repairedPrerequisite
-				if (sameRepair) {
+				if (!granted || sameRepair) {
 					manualStartPermissionDenied = true
-				} else {
-					requestManualStart()
+					cancelPendingManualStart(generation)
+				} else if (generation != null) {
+					requestManualStart(generation)
 				}
 			}
 		}
-		val onDismiss = { manualStartPermissionRequest = null }
+		val onDismiss = {
+			manualStartPermissionRequest = null
+			cancelPendingManualStart()
+		}
 		if (permissionRequest.permissions.size == 1) {
 			ContextualPermissionRequest(
 				permissionType = permissionRequest.type,
@@ -435,7 +489,7 @@ fun DashboardRoute(
 				showStopOptions = true
 			} else {
 				userRequestedStop = true
-				TrackerServiceApi.stopService(context)
+				endTracking()
 			}
 		},
 		onRequestPermission = { requestManualStart() },
@@ -465,7 +519,7 @@ fun DashboardRoute(
 		onStopForMinutes = {
 			userRequestedStop = true
 			lockManager.lockTimeLock(context, STOP_LOCK_MINUTES * Time.MINUTE_IN_MILLISECONDS)
-			TrackerServiceApi.stopService(context)
+			endTracking()
 			showStopOptions = false
 			coroutineScope.launch {
 				snackbarHostState.showSnackbar(
@@ -480,7 +534,7 @@ fun DashboardRoute(
 		onStopUntilCharging = {
 			userRequestedStop = true
 			lockManager.lockUntilRecharge(context)
-			TrackerServiceApi.stopService(context)
+			endTracking()
 			showStopOptions = false
 			coroutineScope.launch {
 				snackbarHostState.showSnackbar(
@@ -490,7 +544,7 @@ fun DashboardRoute(
 		},
 		onJustStop = {
 			userRequestedStop = true
-			TrackerServiceApi.stopService(context)
+			endTracking()
 			showStopOptions = false
 		},
 		onDismiss = { showStopOptions = false },
@@ -567,6 +621,7 @@ internal fun DashboardManualStartResumeEffect(
 	onReadiness: (ManualTrackingStartReadiness) -> Unit,
 	onLocationServicesRepairCompleted: () -> Unit,
 	onLocationServicesRepairUnchanged: () -> Unit,
+	onStartContinuation: (Long) -> Unit = {},
 ) {
 	val lifecycleOwner = LocalLifecycleOwner.current
 	val coroutineScope = rememberCoroutineScope()
@@ -575,10 +630,15 @@ internal fun DashboardManualStartResumeEffect(
 	val currentOnReadiness by rememberUpdatedState(onReadiness)
 	val currentOnRepairCompleted by rememberUpdatedState(onLocationServicesRepairCompleted)
 	val currentOnRepairUnchanged by rememberUpdatedState(onLocationServicesRepairUnchanged)
+	val currentOnStartContinuation by rememberUpdatedState(onStartContinuation)
 
 	DisposableEffect(lifecycleOwner) {
 		val observer = LifecycleEventObserver { _, event ->
 			if (event == Lifecycle.Event.ON_RESUME) {
+				val generation = ManualTrackingStartRepairNavigation.consumeDashboardStartContinuation(
+					(currentContext as? Activity)?.intent,
+				)
+				if (generation != null) currentOnStartContinuation(generation)
 				coroutineScope.launch {
 					val readiness = TrackerServiceApi.readManualTrackingStartReadiness(currentContext)
 					currentOnReadiness(readiness)

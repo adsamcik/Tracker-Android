@@ -5,9 +5,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import io.mockk.every
 import io.mockk.mockk
-import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -25,16 +25,16 @@ class ManualTrackingStartRepairNavigationTest {
         every { context.packageManager } returns packageManager
         val launchIntent = Intent("com.example.tracker.OPEN")
             .putExtra("com.adsamcik.tracker.extra.REEVALUATE_MANUAL_START", true)
+            .putExtra("com.adsamcik.tracker.extra.MANUAL_START_GENERATION", 17L)
         every { packageManager.getLaunchIntentForPackage("com.example.tracker") } returns launchIntent
 
         val intent = assertNotNull(
             ManualTrackingStartRepairNavigation.createDashboardIntent(
                 context,
-                reevaluateManualStart = false,
             ),
         )
 
-        assertFalse(ManualTrackingStartRepairNavigation.consumeDashboardReevaluationRequest(intent))
+        assertNull(ManualTrackingStartRepairNavigation.consumeDashboardStartContinuation(intent))
     }
 
     @Test
@@ -44,9 +44,9 @@ class ManualTrackingStartRepairNavigationTest {
         every { packageManager.getLaunchIntentForPackage("com.example.tracker") } returns
             Intent("com.example.tracker.OPEN")
 
-        val intent = assertNotNull(ManualTrackingStartRepairNavigation.createDashboardIntent(context))
+        val intent = assertNotNull(ManualTrackingStartRepairNavigation.createDashboardIntent(context, 17L))
 
-        assertTrue(ManualTrackingStartRepairNavigation.consumeDashboardReevaluationRequest(intent))
-        assertFalse(ManualTrackingStartRepairNavigation.consumeDashboardReevaluationRequest(intent))
+        assertEquals(17L, ManualTrackingStartRepairNavigation.consumeDashboardStartContinuation(intent))
+        assertNull(ManualTrackingStartRepairNavigation.consumeDashboardStartContinuation(intent))
     }
 }

@@ -20,9 +20,12 @@ import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
+import com.adsamcik.tracker.tracker.api.manualStartSelection
 import com.adsamcik.tracker.tracker.api.SourceCallerGuardResult
 import com.adsamcik.tracker.tracker.api.SourceCallerManifestIdentity
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayKind
@@ -114,6 +117,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		TrackingPurposeReconciliationRetryScheduler { false },
 	private val activeTrackingSessionCallerAuthorityReconciler:
 		ActiveTrackingSessionCallerAuthorityReconciler,
+	private val sourcePolicyRepository: SourcePolicyRepository,
 	private val batteryAwarePolicy: BatteryAwarePolicy = BatteryAwarePolicy(context),
 ) : TrackingStartRequestCoordinator {
 	private val powerManager: PowerManager = context.getSystemServiceTyped(Context.POWER_SERVICE)
@@ -235,6 +239,13 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 				exactContinuationAuthority.previousServiceRunId
 		) return TrackingStartPreparationResult.Rejected("REDELIVERY_DESCRIPTOR_CHANGED")
 		val settings = trackingParamsRepository.data.first()
+		request.manualSourceSelection?.let { originalSelection ->
+			val policy = sourcePolicyRepository.currentState() as? SourcePolicyAuthorityState.Active
+				?: return TrackingStartPreparationResult.Rejected("MANUAL_START_SELECTION_UNAVAILABLE")
+			if (settings.sourcePolicyRevision != policy.snapshot.revision ||
+				policy.snapshot.manualStartSelection() != originalSelection
+			) return TrackingStartPreparationResult.Rejected("MANUAL_START_SELECTION_CHANGED")
+		}
 		if (!trackingStartupGate.isReady ||
 			trackingStartupGate.currentGeneration != startupGeneration ||
 			bootClockDomainProvider.current() != bootId
@@ -317,6 +328,8 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 					foregroundCapabilityFlags = foregroundMask,
 					planInputs = planInputs,
 					ownerToken = "prepared-start:${token.value}",
+					requiredSourcePolicyRevision = settings.sourcePolicyRevision
+						.takeIf { request.manualSourceSelection != null },
 				),
 				AndroidStartDeliveryMetadata(
 					token = token,

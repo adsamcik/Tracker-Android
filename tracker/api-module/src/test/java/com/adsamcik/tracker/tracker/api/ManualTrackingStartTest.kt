@@ -180,14 +180,18 @@ class ManualTrackingStartTest {
 
 	@Test
 	fun `only an acknowledged durable enqueue reports success`() = runTest {
-		executeManualTrackingStart(
-			readReadiness = { ManualTrackingStartReadiness.Ready(1L) },
-			enqueuePreparedStart = { false },
+		executeManualTrackingStartContinuation(
+			continuationGeneration = null,
+			authority = ManualStartTestAuthority(),
+			readPreflight = { testManualStartPreflight(ManualTrackingStartReadiness.Ready(1L)) },
+			enqueue = { false },
 		) shouldBe ManualTrackingStartResult.TRACKING_UNAVAILABLE
 
-		executeManualTrackingStart(
-			readReadiness = { ManualTrackingStartReadiness.Ready(1L) },
-			enqueuePreparedStart = { true },
+		executeManualTrackingStartContinuation(
+			continuationGeneration = null,
+			authority = ManualStartTestAuthority(),
+			readPreflight = { testManualStartPreflight(ManualTrackingStartReadiness.Ready(1L)) },
+			enqueue = { true },
 		) shouldBe ManualTrackingStartResult.ENQUEUED
 	}
 
@@ -195,15 +199,17 @@ class ManualTrackingStartTest {
 	fun `repair preserves the prerequisite and never attempts Android enqueue`() = runTest {
 		var enqueueCalls = 0
 		val prerequisite = ManualTrackingStartPrerequisite.READ_PHONE_STATE_PERMISSION
-		val result = executeManualTrackingStart(
-			readReadiness = { ManualTrackingStartReadiness.RepairRequired(prerequisite) },
-			enqueuePreparedStart = {
+		val result = executeManualTrackingStartContinuation(
+			continuationGeneration = null,
+			authority = ManualStartTestAuthority(),
+			readPreflight = { testManualStartPreflight(ManualTrackingStartReadiness.RepairRequired(prerequisite)) },
+			enqueue = {
 				enqueueCalls += 1
 				true
 			},
 		)
 
-		result shouldBe ManualTrackingStartResult.RepairRequired(prerequisite)
+		result shouldBe ManualTrackingStartResult.RepairRequired(prerequisite, 1L)
 		enqueueCalls shouldBe 0
 	}
 

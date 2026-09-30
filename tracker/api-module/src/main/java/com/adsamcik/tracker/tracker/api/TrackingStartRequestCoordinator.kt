@@ -20,8 +20,12 @@ data class TrackingStartRequest(
 	val isAmbient: Boolean,
 	val automaticTrigger: AutomaticTrackingStartTrigger? = null,
 	val recoveryDescriptor: ActiveTrackingSessionDescriptor? = null,
+	/** A repaired Start must retain the original selected sources through Room PREPARE. */
+	val manualSourceSelection: ManualTrackingStartSelection? = null,
 ) {
 	init {
+		require(manualSourceSelection == null || (isUserInitiated && !isAmbient &&
+			automaticTrigger == null && recoveryDescriptor == null))
 		require(!isUserInitiated || automaticTrigger == null) {
 			"A user-initiated start cannot carry automatic trigger evidence"
 		}

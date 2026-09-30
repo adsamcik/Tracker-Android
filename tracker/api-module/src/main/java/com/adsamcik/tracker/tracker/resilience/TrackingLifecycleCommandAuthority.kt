@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.tracker.resilience
 
 import com.adsamcik.tracker.shared.base.startup.TrackingCollectionResumeBoundary
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartContinuation
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartSelection
 
 /** One durably ordered request to enter the tracker foreground runtime. */
 data class TrackingStartCommand(
@@ -51,6 +53,7 @@ data class TrackingLifecycleCommandState(
 	val handledUserExitId: String? = null,
 	val collectionResumeRequired: Boolean = false,
 	val collectionResumeBoundary: TrackingCollectionResumeBoundary? = null,
+	val pendingManualStart: ManualTrackingStartContinuation? = null,
 ) {
 	init {
 		require(lastGeneration >= 0L)
@@ -75,7 +78,19 @@ data class TrackingLifecycleCommandState(
 		return copy(
 			lastGeneration = next,
 			latestStartGeneration = next,
+			pendingManualStart = null,
 		) to TrackingStartCommand(next)
+	}
+
+	fun issueManualStart(selection: ManualTrackingStartSelection): TrackingLifecycleCommandState {
+		val (next, command) = issueStart()
+		return next.copy(pendingManualStart = ManualTrackingStartContinuation(command, selection))
+	}
+
+	fun isPendingManualStart(generation: Long, selection: ManualTrackingStartSelection): Boolean {
+		val pending = pendingManualStart ?: return false
+		return pending.command.generation == generation && pending.selection == selection &&
+			lastGeneration == generation && resolveStart(pending.command) == TrackingStartCommandDisposition.Allowed
 	}
 
 	fun observeUserExit(exitId: String): TrackingLifecycleCommandState {
@@ -89,7 +104,7 @@ data class TrackingLifecycleCommandState(
 		)) return this
 		return if (handledUserExitId == exitId) this else copy(
 			lastGeneration = nextGeneration(),
-			handledUserExitId = exitId, collectionResumeRequired = true)
+			handledUserExitId = exitId, collectionResumeRequired = true, pendingManualStart = null)
 	}
 
 	fun resumeCollection(expectedExitId: String, boundary: TrackingCollectionResumeBoundary): TrackingLifecycleCommandState =
@@ -124,6 +139,7 @@ data class TrackingLifecycleCommandState(
 			latestStopRequestedAtEpochMs = requestedAtEpochMs,
 			latestStopRequestedBootId = requestedBootId,
 			latestStopRequestedElapsedRealtimeNanos = requestedElapsedRealtimeNanos,
+			pendingManualStart = null,
 		) to TrackingStopCommand(
 			next,
 			reason,
@@ -243,6 +259,21 @@ interface TrackingLifecycleCommandAuthority {
 	/** Null means no explicit tracker resume is currently required; app launch is not a resume. */
 	val pendingCollectionResumeExitId: String? get() = null
 	val collectionResumeBoundary: TrackingCollectionResumeBoundary? get() = null
+	val pendingManualStart: ManualTrackingStartContinuation? get() = null
+
+	/** Persist the original tap only if End/Off/another Start did not arrive during preflight. */
+	suspend fun reserveManualStartIfGeneration(
+		expectedGeneration: Long,
+		selection: ManualTrackingStartSelection,
+	): ManualTrackingStartContinuation? = null
+
+	/** Remove the exact pending tap durably before dispatch, so repeated callbacks cannot replay it. */
+	suspend fun consumeManualStart(
+		generation: Long,
+		selection: ManualTrackingStartSelection,
+	): TrackingStartCommand? = null
+
+	suspend fun cancelManualStart(generation: Long): Boolean = false
 	suspend fun recordUserRequestedExit(exitId: String): Boolean = false
 	/** Holds the command gate from durable Off through the all-source Room fence and STOP reservation. */
 	suspend fun reserveTurnOff(

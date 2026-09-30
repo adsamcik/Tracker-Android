@@ -7,6 +7,8 @@ import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.base.time.AndroidBootClockDomainProvider
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.api.TRACKING_TURN_OFF_EXIT_PREFIX
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartContinuation
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartSelection
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.NonCancellable
@@ -32,6 +34,31 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 		get() = commandState.handledUserExitId.takeIf { commandState.collectionResumeRequired }
 	override val collectionResumeBoundary: TrackingCollectionResumeBoundary?
 		get() = commandState.collectionResumeBoundary
+	override val pendingManualStart: ManualTrackingStartContinuation?
+		get() = commandState.pendingManualStart
+
+	override suspend fun reserveManualStartIfGeneration(
+		expectedGeneration: Long,
+		selection: ManualTrackingStartSelection,
+	): ManualTrackingStartContinuation? = commandGate.withLock {
+		if (commandState.lastGeneration != expectedGeneration) return@withLock null
+		val updated = commandState.issueManualStart(selection)
+		updated.pendingManualStart.takeIf { writeState(updated) }
+	}
+
+	override suspend fun consumeManualStart(
+		generation: Long,
+		selection: ManualTrackingStartSelection,
+	): TrackingStartCommand? = commandGate.withLock {
+		if (!commandState.isPendingManualStart(generation, selection)) return@withLock null
+		val pending = requireNotNull(commandState.pendingManualStart)
+		pending.command.takeIf { writeState(commandState.copy(pendingManualStart = null)) }
+	}
+
+	override suspend fun cancelManualStart(generation: Long): Boolean = commandGate.withLock {
+		if (commandState.pendingManualStart?.command?.generation != generation) return@withLock false
+		writeState(commandState.copy(pendingManualStart = null))
+	}
 
 	override suspend fun recordUserRequestedExit(exitId: String): Boolean = commandGate.withLock {
 		val updated = commandState.observeUserExit(exitId)
@@ -265,7 +292,18 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 			handledUserExitId = preferences.getString(KEY_HANDLED_USER_EXIT, null),
 			collectionResumeRequired = preferences.getBoolean(KEY_COLLECTION_RESUME_REQUIRED, false),
 			collectionResumeBoundary = persistedResumeBoundary(),
+			pendingManualStart = persistedManualStart(),
 		)
+	}
+
+	private fun persistedManualStart(): ManualTrackingStartContinuation? {
+		val generation = preferences.getLong(KEY_MANUAL_START_GENERATION, -1L)
+		if (generation <= 0L || generation != preferences.getLong(KEY_LAST_GENERATION, 0L) ||
+			generation != preferences.getLong(KEY_LATEST_START_GENERATION, 0L)
+		) return null
+		val selection = preferences.getString(KEY_MANUAL_START_SELECTION, null)
+			?.let(ManualTrackingStartSelection::decode) ?: return null
+		return ManualTrackingStartContinuation(TrackingStartCommand(generation), selection)
 	}
 
 	private fun persistedResumeBoundary(): TrackingCollectionResumeBoundary? {
@@ -299,6 +337,13 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 				.putLong(KEY_LATEST_STOP_REQUESTED_AT_MS, state.latestStopRequestedAtEpochMs)
 				.putString(KEY_HANDLED_USER_EXIT, state.handledUserExitId)
 				.putBoolean(KEY_COLLECTION_RESUME_REQUIRED, state.collectionResumeRequired)
+			val pending = state.pendingManualStart
+			if (pending == null) {
+				editor.remove(KEY_MANUAL_START_GENERATION).remove(KEY_MANUAL_START_SELECTION)
+			} else {
+				editor.putLong(KEY_MANUAL_START_GENERATION, pending.command.generation)
+					.putString(KEY_MANUAL_START_SELECTION, pending.selection.encode())
+			}
 			state.collectionResumeBoundary?.let { boundary ->
 				editor.putString(KEY_RESUME_BOOT, boundary.bootId)
 					.putLong(KEY_RESUME_WALL, boundary.wallTimeMs)
@@ -323,6 +368,8 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 
 	private companion object {
 		const val PREFERENCES_NAME = "tracking_lifecycle_commands"
+		const val KEY_MANUAL_START_GENERATION = "manual_start_generation"
+		const val KEY_MANUAL_START_SELECTION = "manual_start_selection"
 		const val KEY_HANDLED_USER_EXIT = "handled_user_exit"
 		const val KEY_COLLECTION_RESUME_REQUIRED = "collection_resume_required"
 		const val KEY_RESUME_BOOT = "collection_resume_boot"

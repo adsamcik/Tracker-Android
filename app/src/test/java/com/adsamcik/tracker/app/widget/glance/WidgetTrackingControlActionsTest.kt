@@ -5,6 +5,8 @@ import android.content.Intent
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import com.adsamcik.tracker.tracker.api.ManualTrackingStartRepairNavigation
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartResult
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartPrerequisite
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.api.TrackingStopQuiescenceResult
 import com.adsamcik.tracker.tracker.api.TrackingTurnOffResult
@@ -71,7 +73,7 @@ class WidgetTrackingControlActionsTest {
             coEvery { TrackerServiceApi.turnOffTrackingAndAwait(context, any()) } returns
                 TrackingTurnOffResult.UNAVAILABLE
             every {
-                ManualTrackingStartRepairNavigation.createDashboardIntent(context, false)
+                ManualTrackingStartRepairNavigation.createDashboardIntent(context, null)
             } returns mockk<Intent>()
             coEvery { WidgetUpdateScheduler.updateAllWidgets(context) } returns Unit
 
@@ -79,7 +81,7 @@ class WidgetTrackingControlActionsTest {
             TurnOffTrackingAction().onAction(context, glanceId, parameters)
 
             verify(exactly = 2) {
-                ManualTrackingStartRepairNavigation.createDashboardIntent(context, false)
+                ManualTrackingStartRepairNavigation.createDashboardIntent(context, null)
             }
             coVerify(exactly = 0) { TrackerServiceApi.requestManualTrackingStart(context) }
         } finally {
@@ -97,16 +99,53 @@ class WidgetTrackingControlActionsTest {
                 TrackingStopQuiescenceResult.HANDLED
             }
             every {
-                ManualTrackingStartRepairNavigation.createDashboardIntent(context, false)
+                ManualTrackingStartRepairNavigation.createDashboardIntent(context, null)
             } returns mockk<Intent>()
             coEvery { WidgetUpdateScheduler.updateAllWidgets(context) } returns Unit
 
             ToggleTrackingAction().onAction(context, glanceId, parameters)
 
             verify(exactly = 1) {
-                ManualTrackingStartRepairNavigation.createDashboardIntent(context, false)
+                ManualTrackingStartRepairNavigation.createDashboardIntent(context, null)
             }
             coVerify(exactly = 0) { TrackerServiceApi.requestManualTrackingStart(context) }
+        } finally {
+            unmockkObject(TrackerServiceApi, WidgetUpdateScheduler, ManualTrackingStartRepairNavigation)
+        }
+    }
+
+    @Test
+    fun `widget permission repair hands the original Start to Dashboard`() = runTest {
+        mockkObject(TrackerServiceApi, WidgetUpdateScheduler, ManualTrackingStartRepairNavigation)
+        try {
+            every { TrackerServiceApi.hasLiveCapture(context) } returns false
+            coEvery { TrackerServiceApi.requestManualTrackingStart(context) } returns
+                ManualTrackingStartResult.RepairRequired(ManualTrackingStartPrerequisite.READ_PHONE_STATE_PERMISSION, 17L)
+            every { ManualTrackingStartRepairNavigation.createDashboardIntent(context, 17L) } returns mockk<Intent>()
+            coEvery { WidgetUpdateScheduler.updateAllWidgets(context) } returns Unit
+
+            ToggleTrackingAction().onAction(context, glanceId, parameters)
+
+            verify(exactly = 1) { ManualTrackingStartRepairNavigation.createDashboardIntent(context, 17L) }
+            coVerify(exactly = 1) { TrackerServiceApi.requestManualTrackingStart(context) }
+        } finally {
+            unmockkObject(TrackerServiceApi, WidgetUpdateScheduler, ManualTrackingStartRepairNavigation)
+        }
+    }
+
+    @Test
+    fun `widget failed Start opens repair without inventing a continuation`() = runTest {
+        mockkObject(TrackerServiceApi, WidgetUpdateScheduler, ManualTrackingStartRepairNavigation)
+        try {
+            every { TrackerServiceApi.hasLiveCapture(context) } returns false
+            coEvery { TrackerServiceApi.requestManualTrackingStart(context) } returns ManualTrackingStartResult.TRACKING_UNAVAILABLE
+            every { ManualTrackingStartRepairNavigation.createDashboardIntent(context, null) } returns mockk<Intent>()
+            coEvery { WidgetUpdateScheduler.updateAllWidgets(context) } returns Unit
+
+            ToggleTrackingAction().onAction(context, glanceId, parameters)
+
+            verify(exactly = 1) { ManualTrackingStartRepairNavigation.createDashboardIntent(context, null) }
+            coVerify(exactly = 1) { TrackerServiceApi.requestManualTrackingStart(context) }
         } finally {
             unmockkObject(TrackerServiceApi, WidgetUpdateScheduler, ManualTrackingStartRepairNavigation)
         }

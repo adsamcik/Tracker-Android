@@ -113,6 +113,7 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
             trackingLifecycleCommandAuthority = authority,
             sourceCallerDemandDispatcher = mockk(),
             activeTrackingSessionCallerAuthorityReconciler = mockk(),
+            sourcePolicyRepository = mockk(),
             batteryAwarePolicy = mockk(),
         )
     }

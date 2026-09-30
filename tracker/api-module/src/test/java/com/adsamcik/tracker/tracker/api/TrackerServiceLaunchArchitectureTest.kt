@@ -103,11 +103,11 @@ class TrackerServiceLaunchArchitectureTest {
 				"ManualTrackingStartRepairNavigation.createDashboardIntent("
 		}
 		projectRoot.resolve(entryPoints.first()).readText() shouldContain
-			"ManualTrackingStartRepairNavigation.consumeDashboardReevaluationRequest(intent)"
+			"ManualTrackingStartRepairNavigation.consumeDashboardStartContinuation(intent)"
 		val navigation = projectRoot.resolve(
 			"tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/ManualTrackingStart.kt",
 		).readText()
-		navigation shouldContain "putExtra(EXTRA_REEVALUATE_MANUAL_START, true)"
+		navigation shouldContain "putExtra(EXTRA_MANUAL_START_GENERATION, continuationGeneration)"
 		navigation shouldNotContain "putExtra(EXTRA_REEVALUATE_MANUAL_START, prerequisite.ordinal)"
 		navigation shouldContain "Settings.ACTION_LOCATION_SOURCE_SETTINGS"
 		navigation shouldContain "catch (_: ActivityNotFoundException)"

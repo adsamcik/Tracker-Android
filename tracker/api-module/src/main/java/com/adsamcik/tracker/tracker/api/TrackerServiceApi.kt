@@ -60,6 +60,9 @@ internal interface TrackerServiceApiEntryPoint {
 
 object TrackerServiceContract {
 	const val SERVICE_CLASS_NAME = "com.adsamcik.tracker.tracker.service.TrackerService"
+	const val ACTION_ACQUIRE_BACKGROUND_LOCATION_HOST =
+		"com.adsamcik.tracker.action.ACQUIRE_BACKGROUND_LOCATION_HOST"
+	const val ARG_BACKGROUND_LOCATION_HOST_TICKET = "background_location_host_ticket"
 	const val ACTION_PREPARED_START =
 		"com.adsamcik.tracker.tracker.action.PREPARED_TRACKING_START"
 	const val ARG_LIFECYCLE_COMMAND_GENERATION = "trackingLifecycleCommandGeneration"
@@ -105,10 +108,10 @@ fun activityTransitionCallbackCleanupDeadlineElapsedRealtimeNanos(
  * Public API for Tracker Service.
  */
 object TrackerServiceApi {
+	private val turnOffRecoveryInFlight = mutableSetOf<String>()
 	@Volatile
 	private var cachedEntryPoint: TrackerServiceApiEntryPoint? = null
 
-	private val turnOffRecoveryInFlight = mutableSetOf<String>()
 	private fun getEntryPoint(context: Context): TrackerServiceApiEntryPoint {
 		cachedEntryPoint?.let { return it }
 		return synchronized(this) {
@@ -240,6 +243,18 @@ object TrackerServiceApi {
 		createPreparedStartIntent(context.applicationContext, prepared, command.generation),
 	)
 
+	/** Enqueues an in-process Location host ticket without creating a tracking session. */
+	fun enqueueBackgroundLocationHost(context: Context, ticket: String): Boolean {
+		require(ticket.isNotBlank())
+		val appContext = context.applicationContext
+		return startForegroundServiceSafely(
+			appContext,
+			Intent(TrackerServiceContract.ACTION_ACQUIRE_BACKGROUND_LOCATION_HOST)
+				.setClassName(appContext, TrackerServiceContract.SERVICE_CLASS_NAME)
+				.putExtra(TrackerServiceContract.ARG_BACKGROUND_LOCATION_HOST_TICKET, ticket),
+		)
+	}
+
 	/**
 	 * Delivers a replacement start ID to an already-running foreground TrackerService. This does
 	 * not attempt to spend a new background foreground-service exemption; the current service has
@@ -321,6 +336,11 @@ object TrackerServiceApi {
 			}
 			val dispatchContext = currentCoroutineContext()
 			when (val result = lifecycleAuthority.withCurrentStart(request.command) {
+				// User-requested process exit advances the command fence without issuing a STOP.
+				// A consumed manual tap must still be current at Android delivery.
+				if (request.manualSourceSelection != null &&
+					lifecycleAuthority.latestCommandGeneration() != request.command.generation
+				) return@withCurrentStart false
 				coordinator.withStartupEnqueuePermit(preparedStartupGeneration) {
 					dispatchContext.ensureActive()
 					if (enqueueDeadline != null && elapsedRealtimeNanos() >= enqueueDeadline) {
@@ -571,13 +591,23 @@ object TrackerServiceApi {
 	 * immediate Android enqueue acknowledgement. Callers must not infer success from a queued
 	 * coroutine or a platform service call alone.
 	 */
-	suspend fun requestManualTrackingStart(context: Context): ManualTrackingStartResult = try {
-		executeManualTrackingStart(
-			readReadiness = { readManualTrackingStartReadiness(context) },
-			enqueuePreparedStart = {
-				startServiceAndAwaitEnqueue(
-					context = context,
-					isUserInitiated = true,
+	suspend fun requestManualTrackingStart(
+		context: Context,
+		continuationGeneration: Long? = null,
+	): ManualTrackingStartResult = try {
+		val appContext = context.applicationContext
+		val entryPoint = getEntryPoint(appContext)
+		val authority = entryPoint.trackingLifecycleCommandAuthority()
+		executeManualTrackingStartContinuation(
+			continuationGeneration = continuationGeneration,
+			authority = authority,
+			readPreflight = { entryPoint.manualTrackingStartReadinessReader().readPreflight() },
+			enqueue = { continuation ->
+				dispatchPreparedStart(
+					TrackingStartRequest(continuation.command, isUserInitiated = true,
+						isAmbient = false, manualSourceSelection = continuation.selection),
+					entryPoint.trackingStartRequestCoordinator(), authority,
+					platformEnqueue = { prepared, command -> enqueuePreparedStart(appContext, prepared, command) },
 				)
 			},
 		)
@@ -585,6 +615,17 @@ object TrackerServiceApi {
 		throw cancelled
 	} catch (_: RuntimeException) {
 		ManualTrackingStartResult.TRACKING_UNAVAILABLE
+	}
+
+	/** A dismissed/denied repair cannot turn a later permission change into a new Start. */
+	suspend fun cancelManualTrackingStart(context: Context, generation: Long) {
+		try {
+			getEntryPoint(context).trackingLifecycleCommandAuthority().cancelManualStart(generation)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			// The UI drops its handoff; a later explicit Start replaces any unconsumed request.
+		}
 	}
 
 	/**
@@ -621,21 +662,6 @@ object TrackerServiceApi {
 		}
 	}
 
-	/**
-	 * Reserves one durable STOP and does not return until that exact generation has crossed the
-	 * runtime/provider teardown boundary. This is intentionally separate from the fire-and-forget
-	 * UI API above: destructive maintenance must not infer quiescence from presentation state.
-	 *
-	 * The caller owns the timeout. A timeout or cancellation leaves the durable STOP actionable so
-	 * startup reconciliation can finish it before writers are reopened.
-	 */
-	suspend fun stopServiceAndAwaitQuiescence(
-		context: Context,
-		reason: TrackingStopCandidateReason = TrackingStopCandidateReason.EXPLICIT_REQUEST,
-	): TrackingStopQuiescenceResult {
-		val appContext = context.applicationContext
-		val entryPoint = getEntryPoint(appContext)
-		val authority = entryPoint.trackingLifecycleCommandAuthority()
 	/** Stops every tracking purpose while retaining the person's source choices and saved data. */
 	fun turnOffTracking(context: Context) {
 		val entryPoint = getEntryPoint(context.applicationContext)
@@ -776,6 +802,21 @@ object TrackerServiceApi {
 		}
 	}
 
+	/**
+	 * Reserves one durable STOP and does not return until that exact generation has crossed the
+	 * runtime/provider teardown boundary. This is intentionally separate from the fire-and-forget
+	 * UI API above: destructive maintenance must not infer quiescence from presentation state.
+	 *
+	 * The caller owns the timeout. A timeout or cancellation leaves the durable STOP actionable so
+	 * startup reconciliation can finish it before writers are reopened.
+	 */
+	suspend fun stopServiceAndAwaitQuiescence(
+		context: Context,
+		reason: TrackingStopCandidateReason = TrackingStopCandidateReason.EXPLICIT_REQUEST,
+	): TrackingStopQuiescenceResult {
+		val appContext = context.applicationContext
+		val entryPoint = getEntryPoint(appContext)
+		val authority = entryPoint.trackingLifecycleCommandAuthority()
 		return reserveRouteAndAwaitDurableStop(
 			reserve = {
 				authority.reserveStop(

@@ -1017,6 +1017,50 @@ class TrackerServiceSourceSessionTest {
 	}
 
 	@Test
+	fun `prepared original Start cannot adopt newer pending source choices`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val checked = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
+		val changed = settings(SourceCollectionFrequency.OFF, sourcePolicyRevision = 2L)
+		subject.reconfigure(inputs(changed)) shouldBe SourceSessionReconfigureOutcome.NotActive
+		val result = subject.prepareAndroidStartUnderReadyGeneration(
+			SourceSessionStartRequest(
+				rollout = rollout, ownership = TrackingSessionOwnership.resolve(rollout, checked),
+				logicalTrackingId = "logical", serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START, foregroundCapabilityFlags = 1L,
+				planInputs = inputs(checked), ownerToken = "owner", requiredSourcePolicyRevision = 1L,
+			),
+			AndroidStartDeliveryMetadata(PreparedTrackingStartToken("original"), 1L, true, false),
+			startupGate.currentGeneration,
+		)
+		result shouldBe SessionStartPreparationResult.Rejected("MANUAL_START_SELECTION_CHANGED")
+		coVerify(exactly = 0) { lifecycle.prepareAndroidStart(any(), any()) }
+		database.sourceSessionDao().activeSession() shouldBe null
+		database.sourcePlanStateDao().latestRevision() shouldBe null
+	}
+
+	@Test
+	fun `prepared original Start uses quality revision rechecked after permission repair`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val earlier = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
+		val checked = settings(SourceCollectionFrequency.BATTERY_SAVER, sourcePolicyRevision = 2L)
+		subject.reconfigure(inputs(earlier)) shouldBe SourceSessionReconfigureOutcome.NotActive
+		val request = slot<SessionStartRequest>()
+		coEvery { lifecycle.prepareAndroidStart(capture(request), any()) } returns SessionStartPreparationResult.Rejected("FIXTURE_END")
+		subject.prepareAndroidStartUnderReadyGeneration(
+			SourceSessionStartRequest(
+				rollout = rollout, ownership = TrackingSessionOwnership.resolve(rollout, checked),
+				logicalTrackingId = "logical", serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START, foregroundCapabilityFlags = 1L,
+				planInputs = inputs(checked), ownerToken = "owner", requiredSourcePolicyRevision = 2L,
+			),
+			AndroidStartDeliveryMetadata(PreparedTrackingStartToken("original"), 1L, true, false),
+			startupGate.currentGeneration,
+		) shouldBe SessionStartPreparationResult.Rejected("FIXTURE_END")
+		request.captured.plan.sourcePolicyRevision shouldBe 2L
+		coVerify(exactly = 1) { lifecycle.prepareAndroidStart(any(), any()) }
+	}
+
+	@Test
 	fun `latest environment wins when pending inputs share a policy revision`() = runTest {
 		val rollout = allEventCanonical(revision = 5)
 		val captured = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 2)

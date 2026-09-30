@@ -5,6 +5,8 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
+import com.adsamcik.tracker.tracker.resilience.TrackingStartCommand
 
 /** The finite set of user-repairable prerequisites understood by manual tracking start. */
 enum class ManualTrackingStartPrerequisite {
@@ -22,7 +24,11 @@ sealed interface ManualTrackingStartResult {
 	/** A foreground Activity may repair this known prerequisite and retry the same operation. */
 	data class RepairRequired(
 		val prerequisite: ManualTrackingStartPrerequisite,
-	) : ManualTrackingStartResult
+		/** Original durable Start, reused after repair rather than issuing a new command. */
+		val continuationGeneration: Long,
+	) : ManualTrackingStartResult {
+		init { require(continuationGeneration > 0L) }
+	}
 
 	/** Settings are enabled, but no enabled and reachable source can run on this device right now. */
 	data object NO_AVAILABLE_CAPTURE_SOURCE : ManualTrackingStartResult
@@ -50,6 +56,98 @@ sealed interface ManualTrackingStartReadiness {
 /** Engine boundary that evaluates current policy, rollout, permission, and hardware state. */
 fun interface ManualTrackingStartReadinessReader {
 	suspend fun read(): ManualTrackingStartReadiness
+
+	/** The readiness and chosen sources are read from the same policy snapshot. */
+	suspend fun readPreflight(): ManualTrackingStartPreflight =
+		ManualTrackingStartPreflight(read(), null)
+}
+
+/** Only source participation/consent is pinned; changing collection quality remains allowed. */
+data class ManualTrackingStartSelection(
+	val captureConsentEpochs: Map<TrackingCaptureSource, Long>,
+) {
+	init { require(captureConsentEpochs.values.all { it >= 0L }) }
+
+	fun encode(): String = TrackingCaptureSource.entries.mapNotNull { source ->
+		captureConsentEpochs[source]?.let { "${source.name}:$it" }
+	}.joinToString(",")
+
+	companion object {
+		fun decode(value: String): ManualTrackingStartSelection? {
+			return try {
+				val rows = if (value.isEmpty()) emptyList() else value.split(',')
+				if (rows.size > TrackingCaptureSource.entries.size) return null
+				val pairs = rows.map { row ->
+					val parts = row.split(':')
+					require(parts.size == 2)
+					TrackingCaptureSource.valueOf(parts[0]) to parts[1].toLong()
+				}
+				if (pairs.map { it.first }.distinct().size != pairs.size) return null
+				ManualTrackingStartSelection(pairs.toMap())
+			} catch (_: IllegalArgumentException) { null }
+		}
+	}
+}
+
+data class ManualTrackingStartPreflight(
+	val readiness: ManualTrackingStartReadiness,
+	val selection: ManualTrackingStartSelection?,
+)
+
+data class ManualTrackingStartContinuation(
+	val command: TrackingStartCommand,
+	val selection: ManualTrackingStartSelection,
+)
+
+/** Shared by app screens and external entry points; a repaired Start never reserves a new command. */
+internal suspend fun executeManualTrackingStartContinuation(
+	continuationGeneration: Long?,
+	authority: TrackingLifecycleCommandAuthority,
+	readPreflight: suspend () -> ManualTrackingStartPreflight,
+	enqueue: suspend (ManualTrackingStartContinuation) -> Boolean,
+): ManualTrackingStartResult {
+	val generationBeforeRead = authority.latestCommandGeneration()
+	val original = if (continuationGeneration == null) {
+		authority.pendingManualStart?.let { authority.cancelManualStart(it.command.generation) }
+		null
+	} else {
+		authority.pendingManualStart?.takeIf { it.command.generation == continuationGeneration }
+			?: return ManualTrackingStartResult.TRACKING_UNAVAILABLE
+	}
+	val preflight = readPreflight()
+	val selection = preflight.selection
+	if (selection == null || (original != null && original.selection != selection)) {
+		original?.let { authority.cancelManualStart(it.command.generation) }
+		return ManualTrackingStartResult.TRACKING_UNAVAILABLE
+	}
+	when (preflight.readiness) {
+		ManualTrackingStartReadiness.NoAvailableCaptureSource -> {
+			original?.let { authority.cancelManualStart(it.command.generation) }
+			return ManualTrackingStartResult.NO_AVAILABLE_CAPTURE_SOURCE
+		}
+		ManualTrackingStartReadiness.TrackingUnavailable -> {
+			original?.let { authority.cancelManualStart(it.command.generation) }
+			return ManualTrackingStartResult.TRACKING_UNAVAILABLE
+		}
+		else -> Unit
+	}
+	val request = original ?: authority.reserveManualStartIfGeneration(generationBeforeRead, selection)
+		?: return ManualTrackingStartResult.TRACKING_UNAVAILABLE
+	return when (val readiness = preflight.readiness) {
+		is ManualTrackingStartReadiness.RepairRequired -> {
+			if (authority.pendingManualStart != request ||
+				authority.latestCommandGeneration() != request.command.generation
+			) ManualTrackingStartResult.TRACKING_UNAVAILABLE else
+				ManualTrackingStartResult.RepairRequired(readiness.prerequisite, request.command.generation)
+		}
+		is ManualTrackingStartReadiness.Ready -> {
+			val command = authority.consumeManualStart(request.command.generation, selection)
+				?: return ManualTrackingStartResult.TRACKING_UNAVAILABLE
+			if (enqueue(request.copy(command = command))) ManualTrackingStartResult.ENQUEUED
+			else ManualTrackingStartResult.TRACKING_UNAVAILABLE
+		}
+		else -> error("Unavailable preflight cannot reserve a Start")
+	}
 }
 
 /** Shared app-navigation contract for non-Activity surfaces that cannot repair start prerequisites. */
@@ -58,26 +156,30 @@ object ManualTrackingStartRepairNavigation {
 	private const val TARGET_DASHBOARD = "dashboard"
 	private const val EXTRA_REEVALUATE_MANUAL_START =
 		"com.adsamcik.tracker.extra.REEVALUATE_MANUAL_START"
+	private const val EXTRA_MANUAL_START_GENERATION =
+		"com.adsamcik.tracker.extra.MANUAL_START_GENERATION"
 
 	fun createDashboardIntent(
 		context: Context,
-		reevaluateManualStart: Boolean = true,
+		continuationGeneration: Long? = null,
 	): Intent? =
 		context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
 			addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
 			putExtra(EXTRA_NAVIGATE_TO, TARGET_DASHBOARD)
-			if (reevaluateManualStart) {
-				putExtra(EXTRA_REEVALUATE_MANUAL_START, true)
-			} else {
-				removeExtra(EXTRA_REEVALUATE_MANUAL_START)
+			// A navigation hint can never create recording authority.
+			removeExtra(EXTRA_REEVALUATE_MANUAL_START)
+			removeExtra(EXTRA_MANUAL_START_GENERATION)
+			if (continuationGeneration != null && continuationGeneration > 0L) {
+				putExtra(EXTRA_MANUAL_START_GENERATION, continuationGeneration)
 			}
 		}
 
-	/** Consumes the one-shot request while leaving the stable Dashboard destination untouched. */
-	fun consumeDashboardReevaluationRequest(intent: Intent?): Boolean {
-		if (intent?.getBooleanExtra(EXTRA_REEVALUATE_MANUAL_START, false) != true) return false
-		intent.removeExtra(EXTRA_REEVALUATE_MANUAL_START)
-		return true
+	/** Removes the handoff extra once; the lifecycle store separately enforces one-use dispatch. */
+	fun consumeDashboardStartContinuation(intent: Intent?): Long? {
+		val generation = intent?.getLongExtra(EXTRA_MANUAL_START_GENERATION, -1L) ?: -1L
+		intent?.removeExtra(EXTRA_MANUAL_START_GENERATION)
+		intent?.removeExtra(EXTRA_REEVALUATE_MANUAL_START)
+		return generation.takeIf { it > 0L }
 	}
 
 	/** Opens the platform repair surface without assuming the caller is an Activity or OEM support. */
@@ -161,20 +263,3 @@ private fun missingPrerequisites(
 	}
 }
 
-/** Maps readiness plus the authoritative enqueue acknowledgement to the public result. */
-internal suspend fun executeManualTrackingStart(
-	readReadiness: suspend () -> ManualTrackingStartReadiness,
-	enqueuePreparedStart: suspend () -> Boolean,
-): ManualTrackingStartResult = when (val readiness = readReadiness()) {
-	is ManualTrackingStartReadiness.Ready -> if (enqueuePreparedStart()) {
-		ManualTrackingStartResult.ENQUEUED
-	} else {
-		ManualTrackingStartResult.TRACKING_UNAVAILABLE
-	}
-	is ManualTrackingStartReadiness.RepairRequired ->
-		ManualTrackingStartResult.RepairRequired(readiness.prerequisite)
-	ManualTrackingStartReadiness.NoAvailableCaptureSource ->
-		ManualTrackingStartResult.NO_AVAILABLE_CAPTURE_SOURCE
-	ManualTrackingStartReadiness.TrackingUnavailable ->
-		ManualTrackingStartResult.TRACKING_UNAVAILABLE
-}

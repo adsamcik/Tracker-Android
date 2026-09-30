@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.dashboard.ui.compose
 
 import android.content.Context
+import android.content.Intent
+import android.app.Activity
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -8,8 +10,14 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import com.adsamcik.tracker.dashboard.ui.DashboardViewModel
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartReadiness
+import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
@@ -51,6 +59,48 @@ class DashboardLifecycleEffectsTest {
 
         verify(exactly = 1) {
             viewModel.checkPermission(context)
+        }
+    }
+
+    @Test
+    fun `resuming existing Dashboard hands off each original Start once and does not create a Start on reopen`() {
+        val owner = TestLifecycleOwner()
+        val context = mockk<Activity>()
+        var launchIntent = Intent().putExtra("com.adsamcik.tracker.extra.MANUAL_START_GENERATION", 17L)
+        every { context.intent } answers { launchIntent }
+        val continued = mutableListOf<Long>()
+        mockkObject(TrackerServiceApi)
+        try {
+            coEvery { TrackerServiceApi.readManualTrackingStartReadiness(context) } returns ManualTrackingStartReadiness.Ready(1L)
+            composeRule.setContent {
+                CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+                    DashboardManualStartResumeEffect(
+                        context = context, pendingLocationServicesRepair = false, onReadiness = {},
+                        onLocationServicesRepairCompleted = { error("No Location repair was requested") },
+                        onLocationServicesRepairUnchanged = { error("No Location repair was requested") },
+                        onStartContinuation = { continued += it },
+                    )
+                }
+            }
+            composeRule.runOnIdle {
+                owner.moveTo(Lifecycle.Event.ON_CREATE)
+                owner.moveTo(Lifecycle.Event.ON_START)
+                owner.moveTo(Lifecycle.Event.ON_RESUME)
+            }
+            composeRule.runOnIdle { continued shouldBe listOf(17L) }
+            composeRule.runOnIdle {
+                owner.moveTo(Lifecycle.Event.ON_PAUSE)
+                owner.moveTo(Lifecycle.Event.ON_RESUME)
+            }
+            composeRule.runOnIdle { continued shouldBe listOf(17L) }
+            composeRule.runOnIdle {
+                owner.moveTo(Lifecycle.Event.ON_PAUSE)
+                launchIntent = Intent().putExtra("com.adsamcik.tracker.extra.MANUAL_START_GENERATION", 29L)
+                owner.moveTo(Lifecycle.Event.ON_RESUME)
+            }
+            composeRule.runOnIdle { continued shouldBe listOf(17L, 29L) }
+        } finally {
+            unmockkObject(TrackerServiceApi)
         }
     }
 

@@ -24,6 +24,24 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrackerServiceApiTest {
 	@Test
+	fun `user exit after manual preparation prevents Android delivery of the original command`() = runTest {
+		val events = mutableListOf<String>()
+		var currentGeneration = 1L
+		val request = TrackingStartRequest(TrackingStartCommand(1L), true, false,
+			manualSourceSelection = ManualTrackingStartSelection(mapOf(TrackingCaptureSource.WIFI to 1L)))
+		val token = PreparedTrackingStartToken("original-manual-start")
+		val coordinator = RecordingStartCoordinator(
+			TrackingStartPreparationResult.Prepared(token, preparedSourceMaskHint = 2L), events,
+		)
+		val authority = DispositionAuthority(TrackingStartCommandDisposition.Allowed, events,
+			beforeAction = { currentGeneration = 2L }, currentGeneration = { currentGeneration })
+		TrackerServiceApi.dispatchPreparedStartResult(request, coordinator, authority,
+			platformEnqueue = { _, _ -> error("A later user exit forbids Android enqueue") })
+			.shouldBe(TrackingStartDispatchResult.Terminal("ANDROID_FOREGROUND_SERVICE_START_NOT_ENQUEUED"))
+		events shouldBe listOf("prepare", "resolve", "compensate:ANDROID_FOREGROUND_SERVICE_START_NOT_ENQUEUED")
+	}
+
+	@Test
 	fun `typed start dispatch preserves retryable versus terminal preparation failure`() = runTest {
 		val command = TrackingStartCommand(1L)
 		val request = TrackingStartRequest(command, isUserInitiated = false, isAmbient = false)
@@ -547,7 +565,9 @@ class TrackerServiceApiTest {
 		private val disposition: TrackingStartCommandDisposition,
 		private val events: MutableList<String>,
 		private val beforeAction: suspend () -> Unit = {},
+		private val currentGeneration: () -> Long = { 1L },
 	) : TrackingLifecycleCommandAuthority {
+		override fun latestCommandGeneration(): Long = currentGeneration()
 		override suspend fun reserveStart(): TrackingStartCommand? = null
 		override suspend fun reserveRedeliveryRecoveryStart(
 			redeliveredCommand: TrackingStartCommand,

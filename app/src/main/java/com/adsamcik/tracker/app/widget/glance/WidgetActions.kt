@@ -21,7 +21,6 @@ class ToggleTrackingAction : ActionCallback {
         glanceId: GlanceId,
         parameters: ActionParameters,
     ) {
-        var attemptedStart = false
         try {
             val isRunning = TrackerServiceApi.hasLiveCapture(context)
             if (isRunning) {
@@ -29,14 +28,13 @@ class ToggleTrackingAction : ActionCallback {
                     TrackerServiceApi.stopServiceAndAwaitQuiescence(context)
                 } !=
                     TrackingStopQuiescenceResult.HANDLED
-                ) openDashboard(context, reevaluateManualStart = false)
+                ) openDashboard(context)
             } else {
-                attemptedStart = true
                 val result = TrackerServiceApi.requestManualTrackingStart(context)
                 if (result != ManualTrackingStartResult.ENQUEUED) {
-                    openDashboard(context, reevaluateManualStart = true)
+                    openDashboard(context, (result as? ManualTrackingStartResult.RepairRequired)
+                        ?.continuationGeneration)
                 }
-                attemptedStart = false
             }
             // Allow state to propagate before refreshing widgets.
             delay(STATE_PROPAGATION_DELAY_MS)
@@ -45,7 +43,7 @@ class ToggleTrackingAction : ActionCallback {
             throw cancelled
         } catch (_: Exception) {
             // Bring the user to the foreground repair surface when background prerequisites fail.
-            openDashboard(context, reevaluateManualStart = attemptedStart)
+            openDashboard(context)
         }
     }
 
@@ -66,24 +64,24 @@ class TurnOffTrackingAction : ActionCallback {
             when (TrackerServiceApi.turnOffTrackingAndAwait(context)) {
                 TrackingTurnOffResult.UNAVAILABLE,
                 TrackingTurnOffResult.SUPERSEDED_BY_NEW_START ->
-                    openDashboard(context, reevaluateManualStart = false)
+                    openDashboard(context)
                 TrackingTurnOffResult.COMPLETE,
                 TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING -> Unit
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            openDashboard(context, reevaluateManualStart = false)
+            openDashboard(context)
         } finally {
             WidgetUpdateScheduler.updateAllWidgets(context)
         }
     }
 }
 
-private fun openDashboard(context: Context, reevaluateManualStart: Boolean) {
+private fun openDashboard(context: Context, continuationGeneration: Long? = null) {
     ManualTrackingStartRepairNavigation.createDashboardIntent(
         context,
-        reevaluateManualStart = reevaluateManualStart,
+        continuationGeneration = continuationGeneration,
     )?.let { context.startActivity(it) }
 }
 

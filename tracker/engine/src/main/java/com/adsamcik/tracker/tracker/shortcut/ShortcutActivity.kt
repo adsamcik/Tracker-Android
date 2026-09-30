@@ -36,7 +36,7 @@ class ShortcutActivity : ComponentActivity() {
 			} catch (cancelled: CancellationException) {
 				throw cancelled
 			} catch (_: RuntimeException) {
-				openDashboardForRepair(reevaluateManualStart = action == ShortcutAction.START_COLLECTION)
+				openDashboardForRepair()
 			}
 			finish()
 		}
@@ -47,7 +47,8 @@ class ShortcutActivity : ComponentActivity() {
 			ShortcutAction.START_COLLECTION -> {
 				val result = TrackerServiceApi.requestManualTrackingStart(this)
 				if (result != ManualTrackingStartResult.ENQUEUED) {
-					openDashboardForRepair(reevaluateManualStart = true)
+					openDashboardForRepair((result as? ManualTrackingStartResult.RepairRequired)
+						?.continuationGeneration)
 				}
 			}
 			ShortcutAction.STOP_COLLECTION -> {
@@ -55,13 +56,13 @@ class ShortcutActivity : ComponentActivity() {
 					TrackerServiceApi.stopServiceAndAwaitQuiescence(this@ShortcutActivity)
 				} !=
 					TrackingStopQuiescenceResult.HANDLED
-				) openDashboardForRepair(reevaluateManualStart = false)
+				) openDashboardForRepair()
 			}
 			ShortcutAction.TURN_OFF_TRACKING -> {
 				when (TrackerServiceApi.turnOffTrackingAndAwait(this)) {
 					TrackingTurnOffResult.UNAVAILABLE,
 					TrackingTurnOffResult.SUPERSEDED_BY_NEW_START ->
-						openDashboardForRepair(reevaluateManualStart = false)
+						openDashboardForRepair()
 					TrackingTurnOffResult.COMPLETE,
 					TrackingTurnOffResult.DURABLY_OFF_CLEANUP_PENDING -> Unit
 				}
@@ -69,10 +70,10 @@ class ShortcutActivity : ComponentActivity() {
 		}
 	}
 
-	private fun openDashboardForRepair(reevaluateManualStart: Boolean) {
+	private fun openDashboardForRepair(continuationGeneration: Long? = null) {
 		ManualTrackingStartRepairNavigation.createDashboardIntent(
 			this,
-			reevaluateManualStart = reevaluateManualStart,
+			continuationGeneration = continuationGeneration,
 		)?.let { startActivity(it) }
 	}
 

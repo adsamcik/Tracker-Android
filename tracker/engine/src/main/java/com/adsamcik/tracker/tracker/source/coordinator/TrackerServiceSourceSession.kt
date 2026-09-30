@@ -97,6 +97,8 @@ data class SourceSessionStartRequest(
 	val foregroundCapabilityFlags: Long,
 	val planInputs: SourceSessionPlanInputs,
 	val ownerToken: String,
+	/** Current revision captured after original manual choices are rechecked, not at the tap. */
+	val requiredSourcePolicyRevision: Long? = null,
 )
 
 sealed interface SourceSessionStartOutcome {
@@ -179,6 +181,9 @@ class TrackerServiceSourceSession @Inject constructor(
 		val planInputs = preStartInputs
 			?.takeIf { pending -> pending.isAtLeastAsCurrentAs(request.planInputs) }
 			?: request.planInputs
+		if (request.requiredSourcePolicyRevision != null &&
+			planInputs.settings.sourcePolicyRevision != request.requiredSourcePolicyRevision
+		) return@withLock SessionStartPreparationResult.Rejected("MANUAL_START_SELECTION_CHANGED")
 		val ownership = TrackingSessionOwnership.resolve(
 			request.rollout,
 			planInputs.settings,

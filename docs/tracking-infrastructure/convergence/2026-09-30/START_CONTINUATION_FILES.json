@@ -1,0 +1,32 @@
+{
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "base": "413d818263e4091f98ccf43e08d9c18b63a753a5",
+  "reviewer": "/root/adversary_product_0930",
+  "scope": "Original manual Start survives permission repair as a one-use request; selected sources and consent remain exact; End/Off/user-stop invalidate it.",
+  "evidence": "Independent static source review; tests authored, none executed. Subset tests prove selection preservation only.",
+  "paths": [
+    "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/ManualTrackingStart.kt",
+    "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackerServiceApi.kt",
+    "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackingStartRequestCoordinator.kt",
+    "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/resilience/TrackingLifecycleCommandAuthority.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/api/DefaultManualTrackingStartReadinessReader.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/SharedPreferencesTrackingLifecycleCommandAuthority.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinator.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSession.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/shortcut/ShortcutActivity.kt",
+    "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt",
+    "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt",
+    "app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetActions.kt",
+    "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/api/ManualTrackingStartContinuationTest.kt",
+    "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/api/ManualTrackingStartTest.kt",
+    "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/api/ManualTrackingStartRepairNavigationTest.kt",
+    "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/api/TrackerServiceApiTest.kt",
+    "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/api/TrackerServiceLaunchArchitectureTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/resilience/ManualTrackingStartPersistenceTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/api/ManualTrackingStartSelectionTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinatorResumeTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSessionTest.kt",
+    "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardLifecycleEffectsTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/widget/glance/WidgetTrackingControlActionsTest.kt"
+  ]
+}
