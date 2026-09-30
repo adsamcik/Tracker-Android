@@ -271,6 +271,8 @@ internal class RoomAmbientWifiRepository @Inject constructor(
 internal fun AmbientWifiEffectiveLocalRow.toApiFact(): AmbientWifiFact? {
 	val source = fact
 	if (source.effectChecksum != AmbientWifiFactIntegrity.effectChecksum(source)) return null
+	val measuredStart = Math.subtractExact(source.coverageStartTimeMs, source.wallTimeUncertaintyMs)
+	if (measuredStart < 0L) return null
 	val count = source.observationCount ?: ownerObservationCount ?: return null
 	val two = source.twoPointFourGhzCount ?: ownerTwoPointFourGhzCount ?: return null
 	val five = source.fiveGhzCount ?: ownerFiveGhzCount ?: return null
@@ -282,7 +284,7 @@ internal fun AmbientWifiEffectiveLocalRow.toApiFact(): AmbientWifiFact? {
 	return AmbientWifiFact(
 		source.logicalFactId,
 		AmbientWifiOrigin.LOCAL_DEVICE,
-		source.coverageStartTimeMs,
+		measuredStart,
 		source.observedWallTimeMs,
 		Math.addExact(source.observedWallTimeMs, source.wallTimeUncertaintyMs),
 		source.structuralEpochDay,

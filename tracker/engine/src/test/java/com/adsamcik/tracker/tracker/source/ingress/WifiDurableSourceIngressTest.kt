@@ -762,6 +762,29 @@ class WifiDurableSourceIngressTest {
 	}
 
 	@Test
+	fun `background Wi-Fi parent bounds preserve rounding of a near-latest sibling`() = runTest {
+		installAmbientWifiProduct()
+		val ordinal = ingress.admit(wifiDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION,
+			10_000_000L, accessPoints = listOf(
+				WifiAccessPointEvidence("rounded-ap", 2_412, -61, 7_999_000L),
+				WifiAccessPointEvidence("latest-ap", 5_180, -45, 8_000_000L)),
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION)).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+			.units.single().admissionOrdinal
+		val projector = AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
+		projector.project(ordinal).shouldBeInstanceOf<AmbientWifiProjectionResult.FactWritten>()
+		val fact = database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single().fact
+		val children = database.radioObservationChildDao().wifiBackgroundChildren(fact.writerId,
+			fact.writerVersion, fact.logicalFactId, fact.semanticRevision, 65)
+		children.size shouldBe 2
+		(fact.observedWallTimeMs + fact.wallTimeUncertaintyMs) shouldBe
+			children.maxOf { it.observedWallTimeMs + it.wallTimeUncertaintyMs }
+		children.all { it.observedWallTimeMs - it.wallTimeUncertaintyMs >=
+			fact.coverageStartTimeMs - fact.wallTimeUncertaintyMs } shouldBe true
+		projector.project(ordinal).shouldBeInstanceOf<AmbientWifiProjectionResult.Duplicate>()
+	}
+
+	@Test
 	fun `v6 Wi-Fi admits readings across an authorization revision without changing the carrier`() = runTest {
 		installWifiAuthorization(1L, 2L, 7_000_000L)
 		val points = listOf(

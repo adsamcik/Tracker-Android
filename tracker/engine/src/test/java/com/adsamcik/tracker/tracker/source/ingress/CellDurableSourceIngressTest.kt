@@ -297,6 +297,29 @@ class CellDurableSourceIngressTest {
 	}
 
 	@Test
+	fun `background Cell parent bounds preserve rounding of a near-latest sibling`() = runTest {
+		installAmbientCellProduct()
+		val ordinal = ingress.admit(cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION,
+			100_000_000L, payloadVersion = CELL_WAL_PAYLOAD_VERSION, observationZoneId = "UTC",
+			observationsOverride = listOf(
+				CellObservationEvidence("rounded-tower", "LTE", true, -91, 79_999_999L),
+				CellObservationEvidence("latest-tower", "LTE", true, -85, 80_000_000L))))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>().units.single().admissionOrdinal
+		val projector = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
+		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.FactWritten>()
+		val fact = database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single().fact
+		val children = database.radioObservationChildDao().cellBackgroundChildren(fact.writerId,
+			fact.writerVersion, fact.logicalFactId, fact.semanticRevision, 65)
+		children.size shouldBe 2
+		(fact.observedWallTimeMs + fact.wallTimeUncertaintyMs) shouldBe
+			children.maxOf { it.observedWallTimeMs + it.wallTimeUncertaintyMs }
+		children.all { it.observedWallTimeMs - it.wallTimeUncertaintyMs >=
+			fact.coverageStartTimeMs - fact.wallTimeUncertaintyMs } shouldBe true
+		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.Duplicate>()
+	}
+
+	@Test
 	fun `background Cell gaps keep each qualified groups observation time`() = runTest {
 		installAmbientCellProduct()
 		val broker = database.sourceBrokerDao()

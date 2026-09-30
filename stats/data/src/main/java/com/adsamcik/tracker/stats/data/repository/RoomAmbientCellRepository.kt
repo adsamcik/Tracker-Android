@@ -286,11 +286,13 @@ internal fun ImportedAmbientCellChildEntity.toObservedTowerIfValid(
 internal fun AmbientCellEffectiveLocalRow.toApiFact(): AmbientCellFact? {
 	val source = fact
 	if (source.effectChecksum != AmbientCellFactIntegrity.effectChecksum(source)) return null
+	val measuredStart = Math.subtractExact(source.coverageStartTimeMs, source.wallTimeUncertaintyMs)
+	if (measuredStart < 0L) return null
 	val count = source.observationCount ?: ownerObservationCount ?: return null
 	return AmbientCellFact(
 		source.logicalFactId,
 		AmbientCellOrigin.LOCAL_DEVICE,
-		source.coverageStartTimeMs,
+		measuredStart,
 		source.observedWallTimeMs,
 		Math.addExact(source.observedWallTimeMs, source.wallTimeUncertaintyMs),
 		source.structuralEpochDay,

@@ -1,0 +1,33 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "scope": "Native ambient radio measured lower-bound conversion only",
+  "evidence": "Static inspection and authored source only",
+  "authoredTestMethodCount": 3,
+  "productionSelection": "Only native toApiFact measuredStart calculation and argument replacement; other concurrent repository hunks excluded",
+  "paths": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt",
+      "sha256": "fd342fed74489c3fb7345f3775428707542a23aaf83daf66830cdf8cd19e9327",
+      "scope": "Native toApiFact lower-bound hunk only"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt",
+      "sha256": "0f1d364560f6889296db4487a83cafd124dcbf7d671c091c5d81800748c25417",
+      "scope": "Native toApiFact lower-bound hunk only"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientRadioMeasuredBoundsRoomTest.kt",
+      "sha256": "7decc645f5316bac5382df3a21bbf71c5863dcfce362697999dcb8f9c44c6fae",
+      "scope": "Entire new focused conversion/portable interval test"
+    }
+  ],
+  "excludedChanges": [
+    "DAO observation-date and structural-day predicates",
+    "Imported toApiFact conversion",
+    "Requirements-agent ordinary retained-reader wiring",
+    "Root ambient projector rounding implementation",
+    "Schema and module dependencies"
+  ],
+  "gateExecution": "None",
+  "commitOwner": "Coordinator"
+}

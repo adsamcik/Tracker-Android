@@ -320,7 +320,9 @@ internal class AmbientWifiFactProjector @Inject constructor(
 			?: return unverifiable(AmbientWifiProjectionUnverifiableReason.CLOCK_UNVERIFIABLE)
 		val acceptedWallUncertaintyMs = runCatching {
 			Math.addExact(wal.wallTimeUncertaintyMs ?: 0L,
-				if (acceptedAgeNanos % NANOS_PER_MILLISECOND == 0L) 0L else 1L)
+				if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
+					if (acceptedTimes.any { (wal.observedElapsedNanos - it) % NANOS_PER_MILLISECOND != 0L }) 1L else 0L
+				} else if (acceptedAgeNanos % NANOS_PER_MILLISECOND == 0L) 0L else 1L)
 		}.getOrNull()
 			?: return unverifiable(AmbientWifiProjectionUnverifiableReason.CLOCK_UNVERIFIABLE)
 		val payload = runCatching {

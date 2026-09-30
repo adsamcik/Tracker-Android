@@ -425,7 +425,9 @@ internal class AmbientCellFactProjector @Inject constructor(
 			coverageStartTimeMs = coverageStart,
 			observedWallTimeMs = wallTimeMs,
 			wallTimeUncertaintyMs = Math.addExact(wal.wallTimeUncertaintyMs ?: 0L,
-				if ((wal.observedElapsedNanos - productObservedElapsedNanos) % NANOS_PER_MILLISECOND == 0L) 0L else 1L),
+				if (wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+					if (acceptedTimes.any { (wal.observedElapsedNanos - it) % NANOS_PER_MILLISECOND != 0L }) 1L else 0L
+				} else if ((wal.observedElapsedNanos - productObservedElapsedNanos) % NANOS_PER_MILLISECOND == 0L) 0L else 1L),
 			coverageCompleteness =
 				AmbientCellFactRevisionEntity.COMPLETENESS_UNVERIFIABLE,
 			subscriptionCompleteness = AmbientCellFactRevisionEntity.SUBSCRIPTION_UNKNOWN,
