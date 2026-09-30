@@ -68,6 +68,26 @@ description of its earlier input; this file records subsequent repair progress.
 - `63e99b5827`: incomplete JSON paging becomes failure with existing cleanup;
   existing vertical/speed accuracy survives roundtrip, with negative Double
   underflow rejected before Float conversion. Fresh static review closed the slice.
+- `e95aa36311`: session bundle import uses one owned copy and the original job
+  epoch; exact source receipts are resolved before atomic metadata publication.
+  Partial retry, cancellation and stale-epoch test sources are authored. Native
+  Steps duplicate membership and overlapping radio-file membership remain open.
+- `4adf2e5248`: source-only lifetime coverage adds all 64 capture join/leave
+  combinations, independent temporary Location leases and Activity End/Off cases.
+  These are authored Room/contract fixtures, not Hilt or device evidence.
+- `5a05ca9150`: imported radio details use only surviving exact owners and bounded
+  queries, preserving older summary-only files and cancellation propagation.
+- `809b0ccf72`: existing private export staging/copy propagates caller cancellation
+  before committing staged data and during destination copy; cleanup sources authored.
+- `321dc35db0`: bounded background radio detail collector checks each remaining
+  allowance before accumulation, with six real Room raw-collector scenarios.
+  Whole radio exporter drafts remain held.
+- `5baa8f2060`: conservative native radio date/source discovery, including
+  malformed clocks, and 12 dependency-complete Room scenario sources. Exporter
+  callers and four feature routing scenarios remain held with their definitions.
+- `29abb0fb07`: session bundle prehash and ZIP copying stop on caller cancellation;
+  oversized child growth is bounded before hashing, with two authored cancellation
+  scenarios and independent static review.
 
 All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 
@@ -115,6 +135,17 @@ All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
   cancellation with owned staging cleanup; whole bundle remains separate.
 - [x] Preserve existing JSON accuracy fields and reject invalidated page prefixes;
   manual Room roundtrip/partial-file cleanup regression sources authored.
+- [x] Select bundle import dispatch, original-epoch child retry and atomic metadata
+  publication with exact available source receipts; partial failure test sources authored.
+- [x] Author and review source lifetime subset and independent-lease scenarios.
+- [x] Select bounded surviving-owner imported radio details and editable legacy
+  summary compatibility, with independently reviewed regression sources.
+- [x] Select existing spool cancellation and bounded background child collector
+  foundations. Radio exporter call sites remain separate held inputs.
+- [x] Select conservative native radio export candidate query foundations and
+  their real Room fixtures; no payload authority is granted by discovery.
+- [x] Select cooperative session bundle hashing/ZIP-loop cancellation, preserving
+  existing owned cleanup and caller destination ownership.
 
 ## Remaining in these slices
 
@@ -135,8 +166,8 @@ All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 - [ ] Preserve exact membership of overlapping imported background radio files;
   a new file-to-reading/gap list proposal is awaiting the user answer.
 - [x] Repair typed Steps/Pressure annotation identity validation without changing IDs.
-- [ ] Finish bundle metadata publication, cancellation, exact source membership and
-  missing subordinate-receipt handling; select bounded worker/runner hunks.
+- [ ] Finish bundle exact membership for native Steps duplicates and overlapping
+  imported radio files; the selected metadata path refuses missing receipts.
 - [ ] Complete period discovery streak and revisit season counting after the
   precise period rules are settled; finish the longest-trip period scope.
 - [ ] Close all remaining runtime/history/map/effect/transfer/cleanup gaps from
@@ -150,3 +181,10 @@ All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 
 No executed validation, final schema generation, provider activation, merge or
 push is claimed by this continuation.
+
+## Released baseline clarification
+
+The user said only `master` was released. This checkout and the read-only remote
+head inventory contain `main`, with no `master` ref. Mapping that branch to the
+released baseline is awaiting the user's answer; older notes calling schema 12
+on `main` the released baseline are not independent confirmation of that mapping.

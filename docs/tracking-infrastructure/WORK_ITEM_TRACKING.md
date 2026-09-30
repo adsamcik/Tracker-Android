@@ -640,6 +640,28 @@ authored source and static review only, **IMPLEMENTED_UNVALIDATED**.
 - [ ] Review the final one-input assembly, run the deferred convergence gates, and establish
   emulator and on-device proof before marking any prerequisite complete.
 
+### Selected source repairs (2026-09-30 continuation)
+
+- [x] Select session-bundle import dispatch, original-epoch retry and atomic exact
+  metadata receipt publication (`e95aa36311`); unresolved membership stays a failure.
+- [x] Author and independently review 64 capture join/leave vectors, temporary
+  Location sibling leases and Activity End/Off lifetime fixtures (`4adf2e5248`).
+- [x] Select bounded surviving-owner imported radio detail queries and editable
+  older summary compatibility (`5a05ca9150`).
+- [x] Select existing export spool cancellation (`809b0ccf72`) and bounded raw
+  background detail collection before accumulation (`321dc35db0`).
+- [x] Select conservative native radio export candidate query foundations
+  (`5baa8f2060`) and cooperative bundle hashing/ZIP cancellation (`29abb0fb07`).
+- [ ] Resolve exact duplicate/overlapping file membership and finish whole radio
+  exporters, bundle export, history and cleanup/restore chains.
+- [ ] Confirm which present ref is the user-named released `master` baseline;
+  the current local and remote head inventory contain `main` and no `master`.
+- [ ] Freeze all production/test inputs, execute convergence and independent final
+  review, obtain device evidence and integrate locally only after the result is ready.
+
+Checked items mean authored source plus static review, **IMPLEMENTED_UNVALIDATED**.
+All 25 full-chain prerequisites remain open. No validation or integration ran.
+
 
 ### Settings and product surfaces continuation (2026-09-27)
 

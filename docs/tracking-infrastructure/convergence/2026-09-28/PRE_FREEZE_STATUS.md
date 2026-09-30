@@ -6,6 +6,17 @@ The exact machine-readable inventory is [PRE_FREEZE_INPUT_AUDIT.json](PRE_FREEZE
 
 ## Inspected refs and selection state
 
+### September 30 attribution correction
+
+The user's original correction named **master**, not main: “nothing that is not
+on master was ever released.” The table below incorrectly attributed a main
+baseline decision to that message. Main and origin/main currently resolve to the
+recorded `59fda665c7` snapshot; a read-only remote heads lookup found main and no
+master. Whether main is the branch the user meant is awaiting clarification.
+Keep the recorded snapshot and schema inputs as audit evidence, but do not treat
+this earlier wording as approval of the released migration baseline. No schema
+generation, migration execution or validation was performed for this correction.
+
 | Ref or input | Exact inspected commit | Disposition |
 | --- | --- | --- |
 | Clean local `dev/v10` | `13f1a99871b59d29b3d059f374fc415490da6943` | Intended integration base; unchanged. |

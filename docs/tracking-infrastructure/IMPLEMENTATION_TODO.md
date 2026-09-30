@@ -32,6 +32,16 @@ Further selected source repairs cover radio child-table map invalidation
 and JSON paging failure plus measurement-accuracy preservation (`63e99b5827`).
 Fresh static review receipts record the repaired findings. No tests or gates ran.
 
+Later selected source slices include session-bundle import dispatch and atomic
+metadata receipts (`e95aa36311`), lifetime subset test authorship (`4adf2e5248`),
+surviving-owner imported radio details (`5a05ca9150`), existing spool cancellation
+(`809b0ccf72`) and bounded background detail reads (`321dc35db0`). Whole radio
+exporters, exact overlapping-file membership and complete bundle export remain open.
+Native export candidate query foundations (`5baa8f2060`) and bundle hashing/ZIP
+cancellation (`29abb0fb07`) are also selected and independently source-reviewed.
+The user-named released `master` baseline has no current ref; confirmation whether
+that means `main` is pending before treating its schema as the released baseline.
+
 History/bundle callers, complete backup restore/cleanup and remaining radio
 lifecycle work are still being assembled. None of these marks claims a gate pass.
 
