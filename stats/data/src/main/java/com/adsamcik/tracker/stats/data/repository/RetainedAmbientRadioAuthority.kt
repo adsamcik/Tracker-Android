@@ -76,19 +76,20 @@ internal class RetainedAmbientRadioAuthority private constructor(
         suspend fun load(database: AppDatabase, source: Int, inputs: List<RetainedRadioAuthorityInput>,
             currentClock: String): RetainedAmbientRadioAuthority? {
             val generations = inputs.map { it.registration }.distinct()
-            if (generations.size > MAX_CONTEXT_POINTS) return null
+            if (generations.size > MAX_CONTEXT_POINTS) throw RetainedRadioDependencyLimitExceeded()
             val dao = database.wifiCapturedFactDao()
             val registrations = mutableListOf<ProviderRegistrationGenerationEntity>()
             val rows = mutableListOf<SourceAuthorizationEntity>()
             for (chunk in generations.chunked(QUERY_CHUNK)) {
                 registrations += dao.historyProviderRegistrations(source, chunk, MAX_CONTEXT_DEPENDENCIES - registrations.size + 1)
                 rows += dao.historyAuthorizations(source, chunk, MAX_CONTEXT_DEPENDENCIES - rows.size + 1)
-                if (registrations.size > MAX_CONTEXT_DEPENDENCIES || rows.size > MAX_CONTEXT_DEPENDENCIES) return null
+                if (registrations.size > MAX_CONTEXT_DEPENDENCIES || rows.size > MAX_CONTEXT_DEPENDENCIES)
+                    throw RetainedRadioDependencyLimitExceeded()
             }
             val current = database.sourceBrokerDao().currentPhysicalRegistrationsBounded(source, MAX_CONTEXT_POINTS + 1)
-            if (current.size > MAX_CONTEXT_POINTS) return null
+            if (current.size > MAX_CONTEXT_POINTS) throw RetainedRadioDependencyLimitExceeded()
             val demandIds = rows.mapNotNull { it.demandId }.distinct()
-            if (demandIds.size > MAX_CONTEXT_DEPENDENCIES) return null
+            if (demandIds.size > MAX_CONTEXT_DEPENDENCIES) throw RetainedRadioDependencyLimitExceeded()
             val demands = demandIds.chunked(QUERY_CHUNK).flatMap { dao.historyDemands(it, it.size + 1) }
             if (demands.size != demandIds.size) return null
             val snapshots = rows.groupBy { it.registrationGeneration }.mapValues { (_, group) ->
@@ -107,3 +108,6 @@ internal class RetainedAmbientRadioAuthority private constructor(
         }
     }
 }
+
+/** Distinguishes a bounded snapshot from missing or malformed recording authority. */
+internal class RetainedRadioDependencyLimitExceeded : IllegalStateException("Radio authority dependency limit exceeded")

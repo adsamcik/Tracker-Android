@@ -17,6 +17,8 @@ import com.adsamcik.tracker.shared.base.database.data.RadioChildPurpose
 import com.adsamcik.tracker.shared.base.database.data.RadioObservationChildIntegrity
 import com.adsamcik.tracker.shared.base.database.data.WifiChildChecksumInput
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.stats.api.repository.RadioContextReadGapReason
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiAvailability
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiCoverage
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiDayReadRequest
@@ -36,10 +38,15 @@ import kotlinx.coroutines.withContext
 
 /** Fixed-query Ambient Wi-Fi reader. Local and imported origins are always explicit. */
 @Singleton
-internal class RoomAmbientWifiRepository @Inject constructor(
+internal class RoomAmbientWifiRepository(
 	private val database: AppDatabase,
-	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+	private val ioDispatcher: CoroutineDispatcher,
+	private val retained: RetainedAmbientRadioReader = RetainedAmbientRadioReader(database),
+	private val importedRetained: RetainedImportedAmbientRadioReader = RetainedImportedAmbientRadioReader(database),
 ) : AmbientWifiRepository {
+	@Inject constructor(database: AppDatabase, @IoDispatcher ioDispatcher: CoroutineDispatcher,
+		boot: BootClockDomainProvider) : this(database, ioDispatcher, RetainedAmbientRadioReader(database, boot))
+
 	override suspend fun read(request: AmbientWifiReadRequest): AmbientWifiReadResult =
 		withContext(ioDispatcher) {
 			try {
@@ -52,7 +59,11 @@ internal class RoomAmbientWifiRepository @Inject constructor(
 		}
 
 	/** Caller owns the snapshot when it also needs the source lineage for export. */
-	internal suspend fun readInTransaction(request: AmbientWifiReadRequest): AmbientWifiReadResult {
+	internal suspend fun readInTransaction(request: AmbientWifiReadRequest): AmbientWifiReadResult =
+		readQualifiedInTransaction(request).strictResult()
+
+	/** Optional paired consumers keep independently qualified rows and the explicit read gaps. */
+	internal suspend fun readQualifiedInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult> {
 		val dao = database.ambientWifiFactDao()
 		val local = if (AmbientWifiOrigin.LOCAL_DEVICE in request.origins) {
 			dao.effectiveLocalOverWindow(
@@ -82,7 +93,7 @@ internal class RoomAmbientWifiRepository @Inject constructor(
 				request.limit + 1,
 			)
 		} else emptyList()
-		return compose(local, imported, gaps, importedGaps, request.limit)
+		return qualifyAndCompose(local, imported, gaps, importedGaps, request.limit)
 	}
 
 	override suspend fun readDay(request: AmbientWifiDayReadRequest): AmbientWifiReadResult =
@@ -129,7 +140,33 @@ internal class RoomAmbientWifiRepository @Inject constructor(
 				request.limit + 1,
 			)
 		} else emptyList()
-		return compose(local, imported, gaps, importedGaps, request.limit)
+		return qualifyAndCompose(local, imported, gaps, importedGaps, request.limit).strictResult()
+	}
+
+	private suspend fun qualifyAndCompose(local: List<AmbientWifiEffectiveLocalRow>,
+		imported: List<ImportedAmbientWifiFactEntity>, gaps: List<AmbientWifiGapEntity>,
+		importedGaps: List<ImportedAmbientWifiGapEntity>, limit: Int): RetainedAmbientRead<AmbientWifiReadResult> {
+		if (local.size > limit || imported.size > limit || gaps.size > limit || importedGaps.size > limit ||
+			local.size + imported.size > limit || gaps.size + importedGaps.size > limit) {
+			return RetainedAmbientRead(AmbientWifiReadResult.DependencyOverflow)
+		}
+		val native = retained.qualifyWifiInTransaction(local, limit)
+		val nativeGaps = retained.qualifyWifiGapsInTransaction(gaps, limit)
+		val history = mutableListOf<ImportedAmbientWifiFactEntity>()
+		for (ids in imported.map { it.factId }.distinct().chunked(SQLITE_ID_CHUNK_SIZE)) {
+			history += database.ambientWifiFactDao().importedFactRevisions(ids,
+				MAX_IMPORTED_WIFI_REVISIONS_PER_READ - history.size + 1)
+			if (history.size > MAX_IMPORTED_WIFI_REVISIONS_PER_READ) return RetainedAmbientRead(AmbientWifiReadResult.DependencyOverflow)
+		}
+		val portable = importedRetained.wifiInTransaction(imported, history, importedGaps)
+		return RetainedAmbientRead(compose(native.rows, portable.facts, nativeGaps.rows, portable.gaps, limit),
+			native.gaps + nativeGaps.gaps + portable.readGaps)
+	}
+
+	private fun RetainedAmbientRead<AmbientWifiReadResult>.strictResult(): AmbientWifiReadResult = when {
+		RadioContextReadGapReason.DEPENDENCY_LIMIT in readGaps -> AmbientWifiReadResult.DependencyOverflow
+		readGaps.any { it != RadioContextReadGapReason.RETENTION_BOUNDARY } -> AmbientWifiReadResult.StorageUnavailable
+		else -> result
 	}
 
 	private suspend fun compose(
@@ -162,6 +199,8 @@ internal class RoomAmbientWifiRepository @Inject constructor(
 			}
 			if (children.any { child ->
 				child.writerId != row.fact.writerId || child.writerVersion != row.fact.writerVersion ||
+					!radioChildFitsMeasuredInterval(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
+						base.coverageStartTimeMs, base.latestPossibleTimeMs) ||
 					child.logicalFactId != row.fact.logicalFactId ||
 					child.semanticRevision != row.fact.semanticRevision ||
 					child.contentChecksum != RadioObservationChildIntegrity.wifi(WifiChildChecksumInput(
@@ -179,34 +218,6 @@ internal class RoomAmbientWifiRepository @Inject constructor(
 				child.frequencyMhz, child.signalDbm,
 			) })
 		}
-		val importedHistory = if (imported.isEmpty()) emptyList() else {
-			buildList {
-				imported.map(ImportedAmbientWifiFactEntity::factId).distinct()
-					.chunked(SQLITE_ID_CHUNK_SIZE).forEach { factIds ->
-						addAll(
-							database.ambientWifiFactDao().importedFactRevisions(
-								factIds,
-								MAX_IMPORTED_WIFI_REVISIONS_PER_READ + 1 - size,
-							),
-						)
-						if (size > MAX_IMPORTED_WIFI_REVISIONS_PER_READ) return@buildList
-					}
-			}
-		}
-		if (importedHistory.size > MAX_IMPORTED_WIFI_REVISIONS_PER_READ) {
-			return AmbientWifiReadResult.DependencyOverflow
-		}
-		val importedHistoryByFact = importedHistory.groupBy(ImportedAmbientWifiFactEntity::factId)
-		if (imported.any { latest ->
-				val history = importedHistoryByFact[latest.factId].orEmpty()
-				history.size.toLong() != latest.semanticRevision ||
-					history.withIndex().any { (index, revision) ->
-						revision.semanticRevision != index.toLong() + 1L
-					} ||
-					history.lastOrNull() != latest ||
-					history.any { it.toApiFact() == null }
-			}
-		) return AmbientWifiReadResult.StorageUnavailable
 		val importedIds = imported.map(ImportedAmbientWifiFactEntity::factId).distinct()
 		val importedChildRows = importedIds.chunked(SQLITE_ID_CHUNK_SIZE).flatMap { ids ->
 			val rows = database.importedRadioChildDao()
@@ -229,6 +240,8 @@ internal class RoomAmbientWifiRepository @Inject constructor(
 				children.map(ImportedAmbientWifiChildEntity::itemIndex).distinct().size != children.size
 			) return AmbientWifiReadResult.StorageUnavailable
 			val networks = children.map { child ->
+				if (!radioChildFitsMeasuredInterval(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
+					base.coverageStartTimeMs, base.latestPossibleTimeMs)) return AmbientWifiReadResult.StorageUnavailable
 				child.toObservedNetworkIfValid(parent)
 					?: return AmbientWifiReadResult.StorageUnavailable
 			}

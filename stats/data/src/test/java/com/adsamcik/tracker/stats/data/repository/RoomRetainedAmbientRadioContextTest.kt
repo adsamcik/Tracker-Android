@@ -134,12 +134,146 @@ class RoomRetainedAmbientRadioContextTest {
         for (source in RadioContextSource.entries) assertTrue(read(source).observations.isEmpty())
     }
 
+    @Test fun `native effective corrections survive the current retention cutoff with their lineage`() = runTest {
+        installAuthority(WIFI)
+        installAuthority(CELL)
+        val wifiOriginal = wifi()
+        val cellOriginal = cell()
+        insert(wifiOriginal)
+        insert(cellOriginal)
+        val wifiUnsigned = wifiOriginal.copy(semanticRevision = 2, supersedesSemanticRevision = 1,
+            mutationId = AmbientWifiFactIntegrity.mutationId(wifiOriginal.logicalFactId, 2),
+            coverageStartTimeMs = 2_400, observedWallTimeMs = 2_500, appliedAtMs = 2_600)
+        val wifiCurrent = wifiUnsigned.copy(effectChecksum = AmbientWifiFactIntegrity.effectChecksum(wifiUnsigned))
+        val cellUnsigned = cellOriginal.copy(semanticRevision = 2, supersedesSemanticRevision = 1,
+            mutationId = AmbientCellFactIntegrity.mutationId(cellOriginal.logicalFactId, 2),
+            coverageStartTimeMs = 2_400, observedWallTimeMs = 2_500, appliedAtMs = 2_600)
+        val cellCurrent = cellUnsigned.copy(effectChecksum = AmbientCellFactIntegrity.effectChecksum(cellUnsigned))
+        // Replace only fixture cursors; the original revisions remain the required lineage.
+        database.ambientWifiFactDao().deleteLocalCursors(listOf(wifiOriginal.logicalFactId))
+        database.ambientCellFactDao().deleteLocalCursors(listOf(cellOriginal.logicalFactId))
+        insert(wifiCurrent)
+        insert(cellCurrent)
+        database.sourceEvidenceStateDao().updateLifecycle(0, 2_200, 2_800)
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val wifiRepository = RoomAmbientWifiRepository(database, dispatcher)
+        val cellRepository = RoomAmbientCellRepository(database, dispatcher)
+        val wifiReads = listOf(wifiRepository.read(AmbientWifiReadRequest(0, 3_000,
+            setOf(AmbientWifiOrigin.LOCAL_DEVICE), 10)), wifiRepository.readDay(AmbientWifiDayReadRequest(
+            0, "UTC", setOf(AmbientWifiOrigin.LOCAL_DEVICE), 10)))
+        val cellReads = listOf(cellRepository.read(AmbientCellReadRequest(0, 3_000,
+            setOf(AmbientCellOrigin.LOCAL_DEVICE), 10)), cellRepository.readDay(AmbientCellDayReadRequest(
+            0, "UTC", setOf(AmbientCellOrigin.LOCAL_DEVICE), 10)))
+        wifiReads.forEach { assertEquals(2L, assertIs<AmbientWifiReadResult.Snapshot>(it).facts.single().semanticRevision) }
+        cellReads.forEach { assertEquals(2L, assertIs<AmbientCellReadResult.Snapshot>(it).facts.single().semanticRevision) }
+        for (source in RadioContextSource.entries) assertEquals(1, read(source).observations.size)
+        assertIs<ExportPortableAmbientWifiResult.Exported>(RoomAmbientWifiPortableTransfer(database, wifiRepository, dispatcher)
+            .export(ExportPortableAmbientWifiRequest(2_200, 3_000, setOf(AmbientWifiOrigin.LOCAL_DEVICE))) {
+                assertEquals(listOf(1L, 2L), it.facts.map { fact -> fact.semanticRevision })
+            })
+        assertIs<ExportPortableAmbientCellResult.Exported>(RoomAmbientCellPortableTransfer(database, cellRepository, dispatcher)
+            .export(ExportPortableAmbientCellRequest(2_200, 3_000, setOf(AmbientCellOrigin.LOCAL_DEVICE))) {
+                assertEquals(listOf(1L, 2L), it.facts.map { fact -> fact.semanticRevision })
+            })
+    }
+
+    @Test fun `ordinary range and day history keep the historical grant after recording is off`() = runTest {
+        installAuthority(WIFI)
+        installAuthority(CELL)
+        insert(wifi())
+        insert(cell())
+        for (source in listOf(WIFI, CELL)) database.sourcePolicyDao().insertPolicies(listOf(
+            SourcePolicyEntity(2, source, false, 1, null, null, null, false, false, false,
+                null, null, 1, "boot", 3_000_000_000, 3_000, "USER")))
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val wifi = RoomAmbientWifiRepository(database, dispatcher)
+        val cell = RoomAmbientCellRepository(database, dispatcher)
+        assertEquals(1, assertIs<AmbientWifiReadResult.Snapshot>(wifi.read(AmbientWifiReadRequest(
+            0, 3_000, setOf(AmbientWifiOrigin.LOCAL_DEVICE), 10))).facts.size)
+        assertEquals(1, assertIs<AmbientWifiReadResult.Snapshot>(wifi.readDay(AmbientWifiDayReadRequest(
+            0, "UTC", setOf(AmbientWifiOrigin.LOCAL_DEVICE), 10))).facts.size)
+        assertEquals(1, assertIs<AmbientCellReadResult.Snapshot>(cell.read(AmbientCellReadRequest(
+            0, 3_000, setOf(AmbientCellOrigin.LOCAL_DEVICE), 10))).facts.size)
+        assertEquals(1, assertIs<AmbientCellReadResult.Snapshot>(cell.readDay(AmbientCellDayReadRequest(
+            0, "UTC", setOf(AmbientCellOrigin.LOCAL_DEVICE), 10))).facts.size)
+        for (source in RadioContextSource.entries) assertEquals(1, read(source).observations.size)
+    }
+
+    @Test fun `ordinary readers filter the previous epoch before consulting removed recording context`() = runTest {
+        installAuthority(WIFI)
+        installAuthority(CELL)
+        insert(wifi())
+        insert(cell())
+        database.sourceEvidenceStateDao().updateAfterFullDeletion(1, null, 2, 3_000)
+        database.openHelper.writableDatabase.execSQL("DELETE FROM source_demand")
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        assertTrue(assertIs<AmbientWifiReadResult.Snapshot>(RoomAmbientWifiRepository(database, dispatcher).read(
+            AmbientWifiReadRequest(0, 3_000, setOf(AmbientWifiOrigin.LOCAL_DEVICE), 10))).facts.isEmpty())
+        assertTrue(assertIs<AmbientCellReadResult.Snapshot>(RoomAmbientCellRepository(database, dispatcher).read(
+            AmbientCellReadRequest(0, 3_000, setOf(AmbientCellOrigin.LOCAL_DEVICE), 10))).facts.isEmpty())
+        for (source in RadioContextSource.entries) assertTrue(read(source).observations.isEmpty())
+    }
+
+    @Test fun `ordinary history and paired context reject a changed native cursor independently`() = runTest {
+        installAuthority(WIFI)
+        installAuthority(CELL)
+        insert(wifi())
+        insert(cell())
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE ambient_wifi_fact_cursor SET latest_effect_checksum = ?", arrayOf("0".repeat(64)))
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        assertEquals(AmbientWifiReadResult.StorageUnavailable, RoomAmbientWifiRepository(database, dispatcher).read(
+            AmbientWifiReadRequest(0, 3_000, setOf(AmbientWifiOrigin.LOCAL_DEVICE), 10)))
+        val wifi = read(RadioContextSource.WIFI)
+        assertTrue(wifi.observations.isEmpty())
+        assertTrue(wifi.gaps.any { it.reason == RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE })
+        assertEquals(1, read(RadioContextSource.CELL).observations.size)
+        assertEquals(1, assertIs<AmbientCellReadResult.Snapshot>(RoomAmbientCellRepository(database, dispatcher).read(
+            AmbientCellReadRequest(0, 3_000, setOf(AmbientCellOrigin.LOCAL_DEVICE), 10))).facts.size)
+    }
+
+    @Test fun `active native history uses the injected current boot and rejects an old boot`() = runTest {
+        installAuthority(WIFI)
+        installAuthority(CELL)
+        insert(wifi())
+        insert(cell())
+        database.openHelper.writableDatabase.execSQL("UPDATE provider_registration_generation " +
+            "SET status = 'ACTIVE', retired_at_ms = NULL, retired_elapsed_realtime_nanos = NULL")
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val wifiWindow = AmbientWifiReadRequest(0, 3_000, setOf(AmbientWifiOrigin.LOCAL_DEVICE), 10)
+        val cellWindow = AmbientCellReadRequest(0, 3_000, setOf(AmbientCellOrigin.LOCAL_DEVICE), 10)
+        assertEquals(1, assertIs<AmbientWifiReadResult.Snapshot>(RoomAmbientWifiRepository(database, dispatcher,
+            BootClockDomainProvider { "boot" }).read(wifiWindow)).facts.size)
+        assertEquals(1, assertIs<AmbientCellReadResult.Snapshot>(RoomAmbientCellRepository(database, dispatcher,
+            BootClockDomainProvider { "boot" }).read(cellWindow)).facts.size)
+        assertEquals(AmbientWifiReadResult.StorageUnavailable, RoomAmbientWifiRepository(database, dispatcher,
+            BootClockDomainProvider { "new-boot" }).read(wifiWindow))
+        assertEquals(AmbientCellReadResult.StorageUnavailable, RoomAmbientCellRepository(database, dispatcher,
+            BootClockDomainProvider { "new-boot" }).read(cellWindow))
+    }
+
+    @Test fun `ordinary native discovery limits report overflow without a truncated snapshot`() = runTest {
+        installAuthority(WIFI)
+        installAuthority(CELL)
+        val wifiOwner = wifi()
+        val cellOwner = cell()
+        insert(wifiOwner)
+        insert(wifiCoverage(wifiOwner))
+        insert(cellOwner)
+        insert(cellCoverage(cellOwner))
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        assertEquals(AmbientWifiReadResult.DependencyOverflow, RoomAmbientWifiRepository(database, dispatcher).read(
+            AmbientWifiReadRequest(0, 3_000, setOf(AmbientWifiOrigin.LOCAL_DEVICE), 1)))
+        assertEquals(AmbientCellReadResult.DependencyOverflow, RoomAmbientCellRepository(database, dispatcher).read(
+            AmbientCellReadRequest(0, 3_000, setOf(AmbientCellOrigin.LOCAL_DEVICE), 1)))
+    }
+
     private suspend fun read(source: RadioContextSource): RadioLocationContextReadResult.Ready {
         val dispatcher = UnconfinedTestDispatcher()
         // Capture repositories are never invoked: this fixture has no native capture candidates.
         val repository = RoomRadioLocationContextRepository(database, mockk(), mockk(),
             RoomAmbientWifiRepository(database, dispatcher), RoomAmbientCellRepository(database, dispatcher),
-            RetainedLocationContextReader(database), BootClockDomainProvider { "boot" }, dispatcher)
+            RetainedLocationContextReader(database), dispatcher)
         return assertIs(repository.read(RadioLocationContextRequest(source, 0L, 3_000L)))
     }
 

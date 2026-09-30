@@ -16,6 +16,14 @@ import com.adsamcik.tracker.shared.base.database.data.RadioChildOwner
 import com.adsamcik.tracker.shared.base.database.data.RadioChildPurpose
 import com.adsamcik.tracker.shared.base.database.data.RadioObservationChildIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.WifiChildChecksumInput
 import com.adsamcik.tracker.stats.api.repository.AmbientCellDayReadRequest
 import com.adsamcik.tracker.stats.api.repository.AmbientCellOrigin
@@ -61,6 +69,13 @@ class RoomAmbientRadioDetailCompletenessTest {
 		assertEquals(2, database.radioObservationChildDao().deleteWifiBackgroundRevision(
 			fact.writerId, fact.writerVersion, fact.logicalFactId, fact.semanticRevision))
 		assertWifiUnavailable(repository)
+	}
+
+	@Test fun `complete native details outside their parent time bounds are unavailable`() = runTest {
+		insertWifi(detailGroup = true, firstChildTimeMs = 1_800L)
+		insertCell(detailGroup = true, firstChildTimeMs = 2_100L)
+		assertWifiUnavailable(RoomAmbientWifiRepository(database, dispatcher))
+		assertCellUnavailable(RoomAmbientCellRepository(database, dispatcher))
 	}
 
 	@Test
@@ -152,8 +167,9 @@ class RoomAmbientRadioDetailCompletenessTest {
 	private fun cellDay() = AmbientCellDayReadRequest(0L, "UTC", setOf(AmbientCellOrigin.LOCAL_DEVICE), 10)
 
 	@Suppress("LongMethod")
-	private suspend fun insertWifi(detailGroup: Boolean): AmbientWifiFactRevisionEntity {
+	private suspend fun insertWifi(detailGroup: Boolean, firstChildTimeMs: Long = 1_900L): AmbientWifiFactRevisionEntity {
 		val demand = "wifi-demand".takeIf { detailGroup }
+		val authorization = installAuthority(SourceDestinationOwnerEntity.SOURCE_WIFI, "wifi", demand)
 		val delivery = "a".repeat(64)
 		val id = AmbientWifiFactIntegrity.logicalFactId(delivery, 1L, 0L, 0L, demand)
 		val unsigned = AmbientWifiFactRevisionEntity(
@@ -167,7 +183,7 @@ class RoomAmbientRadioDetailCompletenessTest {
 			walIntegrityIdentity = "b".repeat(64), payloadChecksum = "c".repeat(64),
 			sourceDeliveryIdentity = delivery, sourceInstanceId = "wifi-instance", registrationGeneration = 1L,
 			configurationRevision = 1L, physicalConfigurationFingerprint = "wifi-passive",
-			authorizationRevision = 1L, authorizationFingerprint = "d".repeat(64),
+			authorizationRevision = 1L, authorizationFingerprint = authorization,
 			purposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
 			sourcePolicyRevision = 1L, ambientConsentEpoch = 1L, retentionPolicyId = "wifi-retention",
 			retentionApprovalRevision = 1L, collectedDataEpoch = 0L, scopeDeletionGeneration = 0L,
@@ -189,7 +205,7 @@ class RoomAmbientRadioDetailCompletenessTest {
 			1L, 0L, 0L, 1L, 2_100L))
 		if (detailGroup) database.radioObservationChildDao().insertWifiBackground((0..1).map { index ->
 			val providerTime = 1_000_000_000L + index * 100_000_000L
-			val wall = 1_900L + index * 100L
+			val wall = if (index == 0) firstChildTimeMs else 2_000L
 			val bssid = "aa:bb:cc:dd:ee:f$index"
 			val name = if (index == 0) "Home" else "Cafe"
 			val frequency = if (index == 0) 2_412 else 5_180
@@ -204,8 +220,9 @@ class RoomAmbientRadioDetailCompletenessTest {
 	}
 
 	@Suppress("LongMethod")
-	private suspend fun insertCell(detailGroup: Boolean): AmbientCellFactRevisionEntity {
+	private suspend fun insertCell(detailGroup: Boolean, firstChildTimeMs: Long = 1_900L): AmbientCellFactRevisionEntity {
 		val demand = "cell-demand".takeIf { detailGroup }
+		val authorization = installAuthority(SourceDestinationOwnerEntity.SOURCE_CELL, "cell", demand)
 		val delivery = "e".repeat(64)
 		val id = AmbientCellFactIntegrity.logicalFactId(delivery, 1L, 0L, 0L, demand)
 		val unsigned = AmbientCellFactRevisionEntity(
@@ -219,7 +236,7 @@ class RoomAmbientRadioDetailCompletenessTest {
 			walIntegrityIdentity = "b".repeat(64), payloadChecksum = "c".repeat(64),
 			sourceDeliveryIdentity = delivery, sourceInstanceId = "cell-instance", registrationGeneration = 1L,
 			configurationRevision = 1L, physicalConfigurationFingerprint = "cell-passive",
-			authorizationRevision = 1L, authorizationFingerprint = "d".repeat(64),
+			authorizationRevision = 1L, authorizationFingerprint = authorization,
 			purposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
 			sourcePolicyRevision = 1L, ambientConsentEpoch = 1L, retentionPolicyId = "cell-retention",
 			retentionApprovalRevision = 1L, collectedDataEpoch = 0L, scopeDeletionGeneration = 0L,
@@ -244,7 +261,7 @@ class RoomAmbientRadioDetailCompletenessTest {
 			1L, 0L, 0L, 1L, 2_100L))
 		if (detailGroup) database.radioObservationChildDao().insertCellBackground((0..1).map { index ->
 			val providerTime = 1_000_000_000L + index * 100_000_000L
-			val wall = 1_900L + index * 100L
+			val wall = if (index == 0) firstChildTimeMs else 2_000L
 			val tower = if (index == 0) "LTE:123" else "NR:456"
 			val radio = if (index == 0) "LTE" else "NR"
 			val registered = index == 0
@@ -256,5 +273,37 @@ class RoomAmbientRadioDetailCompletenessTest {
 					tower, radio, registered, signal)))
 		})
 		return fact
+	}
+
+	/** Exact historical grant; detail tests must not fail merely because authority is absent. */
+	private suspend fun installAuthority(source: Int, name: String, factDemandId: String?): String {
+		database.sourceEvidenceStateDao().ensure()
+		database.sourcePolicyDao().insertPolicies(listOf(SourcePolicyEntity(1, source, true, 1,
+			null, null, null, false, false, true, null, null, 1, "boot", 0, 0, "USER")))
+		database.sourcePolicyDao().insertConsentEpochs(listOf(SourceConsentEpochEntity(source,
+			SourceBrokerPurpose.AMBIENT_PRODUCT, 1, true, true, 1, "boot", 0, 0, "USER")))
+		database.sourceBrokerDao().insertRegistration(ProviderRegistrationGenerationEntity(source, 1,
+			"$name-instance", "owner", "boot", "$name-passive", 0,
+			ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND, "process",
+			ProviderRegistrationGenerationEntity.STATUS_RETIRED, 0, 0, 0, 0, 3_000, 3_000_000_000, null))
+		val demand = SourceDemandEntity(demandId = factDemandId ?: "$name-legacy-demand",
+			consumerId = "$name-consumer", sourceKind = source, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+			logicalTrackingId = null, serviceRunId = null, manifestRevision = null, lifecycleLeaseGeneration = null,
+			sourcePolicyRevision = 1, consentEpoch = 1, persistenceEligible = true, qosCode = 1,
+			maximumAgeMs = 60_000, desiredLatencyMs = 0, requestedBootId = "boot",
+			requestedElapsedRealtimeNanos = 0, requestedAtMs = 0, status = "ACTIVE", retireBootId = null,
+			retireElapsedRealtimeNanos = null, retiredAtMs = null,
+			liveAmbientRetentionPolicyId = "$name-retention", liveAmbientRetentionApprovalRevision = 1)
+		database.sourceBrokerDao().insertDemands(listOf(demand))
+		val authorization = SourceBrokerAuthorization.rows(source, 1, 1, listOf(demand), "boot", 0, 0)
+		database.sourceBrokerDao().insertAuthorizations(authorization)
+		if (source == SourceDestinationOwnerEntity.SOURCE_WIFI) {
+			database.ambientWifiFactDao().insertRetentionAuthority(AmbientWifiRetentionAuthorityIntegrity.create(
+				"LIVE_AMBIENT", 1, "ACTIVE", "$name-retention", 1, 1, 0, "boot", 0, 0))
+		} else {
+			database.ambientCellFactDao().insertRetentionAuthority(AmbientCellRetentionAuthorityIntegrity.create(
+				"LIVE_AMBIENT", 1, "ACTIVE", "$name-retention", 1, 1, 0, "boot", 0, 0))
+		}
+		return authorization.first().authorizationFingerprint
 	}
 }

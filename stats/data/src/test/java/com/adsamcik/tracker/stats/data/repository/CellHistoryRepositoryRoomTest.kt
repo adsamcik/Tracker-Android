@@ -131,7 +131,7 @@ class CellHistoryRepositoryRoomTest {
 			authorityChecks += 1
 			database.inTransaction()
 		}, RoomAmbientWifiRepository(database, dispatcher), RoomAmbientCellRepository(database, dispatcher),
-			RetainedLocationContextReader(database), BootClockDomainProvider { BOOT_ID }, dispatcher)
+			RetainedLocationContextReader(database), dispatcher)
 		val result = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(
 			paired.read(com.adsamcik.tracker.stats.api.repository.RadioLocationContextRequest(
 				com.adsamcik.tracker.stats.api.repository.RadioContextSource.CELL, 0L, Long.MAX_VALUE)))
@@ -155,7 +155,7 @@ class CellHistoryRepositoryRoomTest {
 		val dispatcher = UnconfinedTestDispatcher(testScheduler)
 		val paired = RoomRadioLocationContextRepository(database, io.mockk.mockk(), repository(BOOT_ID) { database.inTransaction() },
 			RoomAmbientWifiRepository(database, dispatcher), RoomAmbientCellRepository(database, dispatcher),
-			RetainedLocationContextReader(database), BootClockDomainProvider { BOOT_ID }, dispatcher)
+			RetainedLocationContextReader(database), dispatcher)
 		val request = com.adsamcik.tracker.stats.api.repository.RadioLocationContextRequest(
 			com.adsamcik.tracker.stats.api.repository.RadioContextSource.CELL, 0L, Long.MAX_VALUE)
 		val ready = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(paired.read(request))
@@ -193,7 +193,7 @@ class CellHistoryRepositoryRoomTest {
 		val dispatcher = UnconfinedTestDispatcher(testScheduler)
 		val paired = RoomRadioLocationContextRepository(database, io.mockk.mockk(), repository(BOOT_ID) { database.inTransaction() },
 			RoomAmbientWifiRepository(database, dispatcher), RoomAmbientCellRepository(database, dispatcher),
-			RetainedLocationContextReader(database), BootClockDomainProvider { BOOT_ID }, dispatcher)
+			RetainedLocationContextReader(database), dispatcher)
 		val request = com.adsamcik.tracker.stats.api.repository.RadioLocationContextRequest(
 			com.adsamcik.tracker.stats.api.repository.RadioContextSource.CELL, 0L, Long.MAX_VALUE, 1)
 		val limited = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(paired.read(request))

@@ -17,6 +17,8 @@ import com.adsamcik.tracker.shared.base.database.data.RadioChildPurpose
 import com.adsamcik.tracker.shared.base.database.data.RadioObservationChildIntegrity
 import com.adsamcik.tracker.shared.base.database.data.PortableRadioChildIntegrity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.stats.api.repository.RadioContextReadGapReason
 import com.adsamcik.tracker.stats.api.repository.AmbientCellAvailability
 import com.adsamcik.tracker.stats.api.repository.AmbientCellCoverage
 import com.adsamcik.tracker.stats.api.repository.AmbientCellDayReadRequest
@@ -39,10 +41,15 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 
 @Singleton
-internal class RoomAmbientCellRepository @Inject constructor(
+internal class RoomAmbientCellRepository(
 	private val database: AppDatabase,
-	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+	private val ioDispatcher: CoroutineDispatcher,
+	private val retained: RetainedAmbientRadioReader = RetainedAmbientRadioReader(database),
+	private val importedRetained: RetainedImportedAmbientRadioReader = RetainedImportedAmbientRadioReader(database),
 ) : AmbientCellRepository {
+	@Inject constructor(database: AppDatabase, @IoDispatcher ioDispatcher: CoroutineDispatcher,
+		boot: BootClockDomainProvider) : this(database, ioDispatcher, RetainedAmbientRadioReader(database, boot))
+
 	override suspend fun read(request: AmbientCellReadRequest): AmbientCellReadResult =
 		withContext(ioDispatcher) {
 			try {
@@ -55,7 +62,11 @@ internal class RoomAmbientCellRepository @Inject constructor(
 		}
 
 	/** Caller owns the snapshot when it also needs the source lineage for export. */
-	internal suspend fun readInTransaction(request: AmbientCellReadRequest): AmbientCellReadResult {
+	internal suspend fun readInTransaction(request: AmbientCellReadRequest): AmbientCellReadResult =
+		readQualifiedInTransaction(request).strictResult()
+
+	/** Optional paired consumers keep independently qualified rows and the explicit read gaps. */
+	internal suspend fun readQualifiedInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult> {
 		val dao = database.ambientCellFactDao()
 		val local = if (AmbientCellOrigin.LOCAL_DEVICE in request.origins) {
 			dao.effectiveLocalOverWindow(
@@ -85,7 +96,7 @@ internal class RoomAmbientCellRepository @Inject constructor(
 				request.limit + 1,
 			)
 		} else emptyList()
-		return compose(local, imported, gaps, importedGaps, request.limit)
+		return qualifyAndCompose(local, imported, gaps, importedGaps, request.limit)
 	}
 
 	override suspend fun readDay(request: AmbientCellDayReadRequest): AmbientCellReadResult =
@@ -132,7 +143,33 @@ internal class RoomAmbientCellRepository @Inject constructor(
 				request.limit + 1,
 			)
 		} else emptyList()
-		return compose(local, imported, gaps, importedGaps, request.limit)
+		return qualifyAndCompose(local, imported, gaps, importedGaps, request.limit).strictResult()
+	}
+
+	private suspend fun qualifyAndCompose(local: List<AmbientCellEffectiveLocalRow>,
+		imported: List<ImportedAmbientCellFactEntity>, gaps: List<AmbientCellGapEntity>,
+		importedGaps: List<ImportedAmbientCellGapEntity>, limit: Int): RetainedAmbientRead<AmbientCellReadResult> {
+		if (local.size > limit || imported.size > limit || gaps.size > limit || importedGaps.size > limit ||
+			local.size + imported.size > limit || gaps.size + importedGaps.size > limit) {
+			return RetainedAmbientRead(AmbientCellReadResult.DependencyOverflow)
+		}
+		val native = retained.qualifyCellInTransaction(local, limit)
+		val nativeGaps = retained.qualifyCellGapsInTransaction(gaps, limit)
+		val history = mutableListOf<ImportedAmbientCellFactEntity>()
+		for (ids in imported.map { it.factId }.distinct().chunked(CELL_SQLITE_ID_CHUNK_SIZE)) {
+			history += database.ambientCellFactDao().importedFactRevisions(ids,
+				MAX_IMPORTED_CELL_REVISIONS_PER_READ - history.size + 1)
+			if (history.size > MAX_IMPORTED_CELL_REVISIONS_PER_READ) return RetainedAmbientRead(AmbientCellReadResult.DependencyOverflow)
+		}
+		val portable = importedRetained.cellInTransaction(imported, history, importedGaps)
+		return RetainedAmbientRead(compose(native.rows, portable.facts, nativeGaps.rows, portable.gaps, limit),
+			native.gaps + nativeGaps.gaps + portable.readGaps)
+	}
+
+	private fun RetainedAmbientRead<AmbientCellReadResult>.strictResult(): AmbientCellReadResult = when {
+		RadioContextReadGapReason.DEPENDENCY_LIMIT in readGaps -> AmbientCellReadResult.DependencyOverflow
+		readGaps.any { it != RadioContextReadGapReason.RETENTION_BOUNDARY } -> AmbientCellReadResult.StorageUnavailable
+		else -> result
 	}
 
 	private suspend fun compose(
@@ -165,6 +202,8 @@ internal class RoomAmbientCellRepository @Inject constructor(
 			}
 			if (children.any { child ->
 				child.writerId != row.fact.writerId || child.writerVersion != row.fact.writerVersion ||
+					!radioChildFitsMeasuredInterval(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
+						base.coverageStartTimeMs, base.latestPossibleTimeMs) ||
 					child.contentChecksum != RadioObservationChildIntegrity.cell(CellChildChecksumInput(
 						RadioChildOwner(RadioChildPurpose.BACKGROUND, child.writerId,
 							child.writerVersion, child.logicalFactId, child.semanticRevision, child.itemIndex),
@@ -178,34 +217,6 @@ internal class RoomAmbientCellRepository @Inject constructor(
 				CellHistoryTechnology.valueOf(child.radioType), child.registered, child.signalDbm,
 			) })
 		}
-		val importedHistory = if (imported.isEmpty()) emptyList() else {
-			buildList {
-				imported.map(ImportedAmbientCellFactEntity::factId).distinct()
-					.chunked(CELL_SQLITE_ID_CHUNK_SIZE).forEach { factIds ->
-						addAll(
-							database.ambientCellFactDao().importedFactRevisions(
-								factIds,
-								MAX_IMPORTED_CELL_REVISIONS_PER_READ + 1 - size,
-							),
-						)
-						if (size > MAX_IMPORTED_CELL_REVISIONS_PER_READ) return@buildList
-					}
-			}
-		}
-		if (importedHistory.size > MAX_IMPORTED_CELL_REVISIONS_PER_READ) {
-			return AmbientCellReadResult.DependencyOverflow
-		}
-		val importedHistoryByFact = importedHistory.groupBy(ImportedAmbientCellFactEntity::factId)
-		if (imported.any { latest ->
-				val history = importedHistoryByFact[latest.factId].orEmpty()
-				history.size.toLong() != latest.semanticRevision ||
-					history.withIndex().any { (index, revision) ->
-						revision.semanticRevision != index.toLong() + 1L
-					} ||
-					history.lastOrNull() != latest ||
-					history.any { it.toApiFact() == null }
-			}
-		) return AmbientCellReadResult.StorageUnavailable
 		val importedChildren = imported.map(ImportedAmbientCellFactEntity::factId).distinct()
 			.chunked(CELL_SQLITE_ID_CHUNK_SIZE).flatMap { ids ->
 				val rows = database.importedRadioChildDao().cellCurrentBackgroundChildrenForFactIds(
@@ -230,6 +241,8 @@ internal class RoomAmbientCellRepository @Inject constructor(
 				return AmbientCellReadResult.StorageUnavailable
 			}
 			val towers = children.map { child ->
+				if (!radioChildFitsMeasuredInterval(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
+					base.coverageStartTimeMs, base.latestPossibleTimeMs)) return AmbientCellReadResult.StorageUnavailable
 				child.toObservedTowerIfValid(row)
 					?: return AmbientCellReadResult.StorageUnavailable
 			}

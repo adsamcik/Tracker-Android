@@ -121,7 +121,7 @@ class WifiHistoryRepositoryRoomTest {
 			database.inTransaction()
 		}, io.mockk.mockk(), RoomAmbientWifiRepository(database, dispatcher),
 			RoomAmbientCellRepository(database, dispatcher), RetainedLocationContextReader(database),
-			BootClockDomainProvider { BOOT_ID }, dispatcher)
+			dispatcher)
 		val result = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(
 			paired.read(com.adsamcik.tracker.stats.api.repository.RadioLocationContextRequest(
 				com.adsamcik.tracker.stats.api.repository.RadioContextSource.WIFI, 0L, Long.MAX_VALUE)))
@@ -159,7 +159,7 @@ class WifiHistoryRepositoryRoomTest {
 		val dispatcher = UnconfinedTestDispatcher(testScheduler)
 		val paired = RoomRadioLocationContextRepository(database, repository { database.inTransaction() },
 			io.mockk.mockk(), RoomAmbientWifiRepository(database, dispatcher), RoomAmbientCellRepository(database, dispatcher),
-			location, BootClockDomainProvider { BOOT_ID }, dispatcher)
+			location, dispatcher)
 		val result = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(
 			paired.read(com.adsamcik.tracker.stats.api.repository.RadioLocationContextRequest(
 				com.adsamcik.tracker.stats.api.repository.RadioContextSource.WIFI, 0L, Long.MAX_VALUE)))
@@ -181,7 +181,7 @@ class WifiHistoryRepositoryRoomTest {
 		val dispatcher = UnconfinedTestDispatcher(testScheduler)
 		val paired = RoomRadioLocationContextRepository(database, repository { database.inTransaction() },
 			io.mockk.mockk(), RoomAmbientWifiRepository(database, dispatcher), RoomAmbientCellRepository(database, dispatcher),
-			RetainedLocationContextReader(database), BootClockDomainProvider { BOOT_ID }, dispatcher)
+			RetainedLocationContextReader(database), dispatcher)
 		val request = com.adsamcik.tracker.stats.api.repository.RadioLocationContextRequest(
 			com.adsamcik.tracker.stats.api.repository.RadioContextSource.WIFI, 0L, Long.MAX_VALUE)
 		val ready = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(paired.read(request))
@@ -219,7 +219,7 @@ class WifiHistoryRepositoryRoomTest {
 		val dispatcher = UnconfinedTestDispatcher(testScheduler)
 		val paired = RoomRadioLocationContextRepository(database, repository { database.inTransaction() },
 			io.mockk.mockk(), RoomAmbientWifiRepository(database, dispatcher), RoomAmbientCellRepository(database, dispatcher),
-			RetainedLocationContextReader(database), BootClockDomainProvider { BOOT_ID }, dispatcher)
+			RetainedLocationContextReader(database), dispatcher)
 		val request = com.adsamcik.tracker.stats.api.repository.RadioLocationContextRequest(
 			com.adsamcik.tracker.stats.api.repository.RadioContextSource.WIFI, 0L, Long.MAX_VALUE, 1)
 		val limited = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(paired.read(request))

@@ -40,6 +40,20 @@ data class AmbientCellEffectiveLocalRow(
 /** Bounded source-local storage boundary for Ambient Cell product evidence. */
 @Dao
 interface AmbientCellFactDao {
+	@Query("SELECT * FROM ambient_cell_fact_cursor WHERE logical_fact_id IN (:ids) ORDER BY logical_fact_id LIMIT :limit")
+	suspend fun retainedCursors(ids: List<String>, limit: Int): List<AmbientCellFactCursorEntity>
+
+	@Query("SELECT * FROM imported_ambient_cell_receipt WHERE archive_id IN (:ids) " +
+		"ORDER BY archive_id, import_job_id, import_entry_key LIMIT :limit")
+	suspend fun retainedImportReceipts(ids: List<String>, limit: Int): List<ImportedAmbientCellReceiptEntity>
+
+	@Query("SELECT * FROM imported_ambient_cell_tombstone WHERE archive_id IN (:ids) ORDER BY archive_id LIMIT :limit")
+	suspend fun retainedImportTombstones(ids: List<String>, limit: Int): List<ImportedAmbientCellTombstoneEntity>
+
+	@Query("SELECT * FROM ambient_cell_retention_authority WHERE scope = :scope AND approval_revision IN (:revisions) " +
+		"ORDER BY approval_revision LIMIT :limit")
+	suspend fun retainedApprovals(scope: String, revisions: List<Long>, limit: Int): List<AmbientCellRetentionAuthorityEntity>
+
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertAuthority(value: AmbientCellAuthorityEntity)
 

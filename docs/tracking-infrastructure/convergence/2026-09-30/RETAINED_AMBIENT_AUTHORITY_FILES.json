@@ -1,0 +1,76 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "scope": "Shared ordinary and paired retained radio readers plus independent-review repairs",
+  "phase": "Implementation only: no executed gates or assembly completion",
+  "paths": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientWifiFactDao.kt",
+      "sha256": "1d3381f2799524ea352bc3fa5262096d0379c17d91dd73a18493ab44a51d56cd"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientCellFactDao.kt",
+      "sha256": "f1a8b6adf026afdb743824a45d0318c8e615249a85915d26fd2e0d21213dfbfa"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioReader.kt",
+      "sha256": "544246343ba56c5564ceae2a95b24c6bcef184af2b398ec7822771610421c1ea"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedImportedAmbientRadioReader.kt",
+      "sha256": "0e13532a730f43cb08fb9e2fa9dc31e04d60fda2e4ad8847c441f386962be97c"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioAuthority.kt",
+      "sha256": "f57ce97d9ce31017edce9eca2a5538e7142aab447f939bf527e58dd8a4f38e72"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt",
+      "sha256": "3a0433bb8a7e89cfcf89ff706fcf722ccc0cfa3584216fd537d110153b642958"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt",
+      "sha256": "3c2cd08929a943a72331bd5d6b3d7104820553e96b83528c2239d5a9604b1529"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomRadioLocationContextRepository.kt",
+      "sha256": "c987ac44edcff99b0e9eae7cc9944db0def12a34bfcc254fecab80a6d96f0d1a"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedImportedAmbientRadioReaderTest.kt",
+      "sha256": "635bb85de6a62c0a2d782d7e92a0dbc240259cb9faa27949247a6b438618ac5e"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioGapReaderTest.kt",
+      "sha256": "a6197c7f913e976189872441e5c63e42c2aafe59dc932def418f31dc1bafbb28"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt",
+      "sha256": "7fae60625fb3fb1fae685c18dac2c40f9834589d634542a86d6a2b95829f6724"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "sha256": "64e8c3a30249a262b34ac79198966d9dac143ddc73bd21c90180ac064faa580b"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+      "sha256": "8f788cc12c0cb454632c8c313844f0e8db73739fd2b3d87f6b24083087965ef2"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "sha256": "a505a45b494ae9e6eb6aa31afc654a442cabd1d3414b64d7cbea2aad9ff1ff2a"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioAuthorityTest.kt",
+      "sha256": "9b371247e4314bbce2b897f1769561ed1f050bb6bdb592fc4b8c8aa08c531627"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioPortableTransferTest.kt",
+      "sha256": "d9c4aa1b88a17bc99a2bcb95e493d1ad4990bd0795388157d549e231d3c8cb2b"
+    }
+  ],
+  "remaining": [
+    "Exact overlapping archive membership",
+    "Partial map notice decision",
+    "Full R11 callers and deferred convergence"
+  ]
+}

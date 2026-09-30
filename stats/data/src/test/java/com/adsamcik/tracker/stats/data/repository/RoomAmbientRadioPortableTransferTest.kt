@@ -163,13 +163,13 @@ class RoomAmbientRadioPortableTransferTest {
 		// Older summary-only data stays usable when it contains no detail rows.
 		assertEquals(emptyList(), assertIs<AmbientWifiReadResult.Snapshot>(
 			repository.read(request)).facts.single().networks)
-		fun child(archiveId: String, revision: Long, index: Int, name: String) =
+		fun child(archiveId: String, revision: Long, index: Int, name: String, wallMs: Long = 2_000L) =
 			ImportedAmbientWifiChildEntity(
 				archiveId, corrected.facts.last().identity, revision, index,
-				7_000L + index, 2_000L, 1L, "aa:bb:cc:dd:ee:f$index", name,
+				7_000L + index, wallMs, 1L, "aa:bb:cc:dd:ee:f$index", name,
 				2_412, -55,
 				PortableRadioChildIntegrity.digest("wifi", listOf(corrected.facts.last().identity),
-					listOf(revision, index, 7_000L + index, 2_000L, 1L,
+					listOf(revision, index, 7_000L + index, wallMs, 1L,
 						"aa:bb:cc:dd:ee:f$index", name, 2_412, -55)),
 			)
 		database.importedRadioChildDao().insertWifiBackground(listOf(
@@ -184,6 +184,21 @@ class RoomAmbientRadioPortableTransferTest {
 		val read = assertIs<AmbientWifiReadResult.Snapshot>(repository.read(request))
 		assertEquals(2L, read.facts.single().semanticRevision)
 		assertEquals(listOf("Current", "Current second"), read.facts.single().networks.map { it.ssid })
+		// A complete, checksum-valid set still cannot claim a time outside its parent reading.
+		database.importedRadioChildDao().deleteWifiBackground(corrected.archiveId)
+		database.importedRadioChildDao().insertWifiBackground(listOf(
+			child(corrected.archiveId, 2L, 0, "Outside", wallMs = 3_000L),
+			child(corrected.archiveId, 2L, 1, "Current second")))
+		assertEquals(AmbientWifiReadResult.StorageUnavailable, repository.read(request))
+		assertEquals(AmbientWifiReadResult.StorageUnavailable, repository.readDay(AmbientWifiDayReadRequest(
+			0L, "UTC", setOf(AmbientWifiOrigin.PORTABLE_IMPORT), 10)))
+		assertEquals(ExportPortableAmbientWifiResult.StorageUnavailable, transfer.export(
+			ExportPortableAmbientWifiRequest(0L, 20_000L, setOf(AmbientWifiOrigin.PORTABLE_IMPORT))) {
+			error("Invalid measured details must not reach the output")
+		})
+		database.importedRadioChildDao().deleteWifiBackground(corrected.archiveId)
+		database.importedRadioChildDao().insertWifiBackground(listOf(
+			child(corrected.archiveId, 2L, 0, "Current"), child(corrected.archiveId, 2L, 1, "Current second")))
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE imported_ambient_wifi_child SET ssid = 'Changed' WHERE semantic_revision = 2 AND item_index = 0",
 		)
@@ -381,6 +396,18 @@ class RoomAmbientRadioPortableTransferTest {
 			},
 		)
 		assertEquals(archive.facts.single().contentChecksum, exportedChecksum)
+		val outside = children.first().copy(observedWallTimeMs = 900L, contentChecksum =
+			PortableRadioChildIntegrity.digest("cell", listOf(fact.identity),
+				listOf(1L, 0, 7_000L, 900L, 1L, "LTE:123", "LTE", true, -72)))
+		database.importedRadioChildDao().deleteCellBackground(archive.archiveId)
+		database.importedRadioChildDao().insertCellBackground(listOf(outside, children.last()))
+		assertEquals(AmbientCellReadResult.StorageUnavailable, repository.read(detailRequest))
+		assertEquals(ExportPortableAmbientCellResult.StorageUnavailable, transfer.export(
+			ExportPortableAmbientCellRequest(0L, 20_000L, setOf(AmbientCellOrigin.PORTABLE_IMPORT))) {
+			error("Invalid measured details must not reach the output")
+		})
+		database.importedRadioChildDao().deleteCellBackground(archive.archiveId)
+		database.importedRadioChildDao().insertCellBackground(children)
 		assertFailsWith<IOException> {
 			transfer.export(
 				ExportPortableAmbientCellRequest(
@@ -471,6 +498,20 @@ class RoomAmbientRadioPortableTransferTest {
 					request.receipt.entryKey,
 				)?.archiveId,
 			)
+			val range = assertIs<AmbientWifiReadResult.Snapshot>(repository.read(AmbientWifiReadRequest(
+				1_500L, 3_000L, setOf(AmbientWifiOrigin.PORTABLE_IMPORT), 10,
+			)))
+			assertEquals(listOf(correctedIdentity to 2L), range.facts.map { it.identity to it.semanticRevision })
+			val day = assertIs<AmbientWifiReadResult.Snapshot>(repository.readDay(AmbientWifiDayReadRequest(
+				correctionV2.structuralEpochDay, correctionV2.storedZoneId, setOf(AmbientWifiOrigin.PORTABLE_IMPORT), 10,
+			)))
+			assertEquals(listOf(correctedIdentity to 2L), day.facts.map { it.identity to it.semanticRevision })
+			assertIs<ExportPortableAmbientWifiResult.Exported>(transfer.export(ExportPortableAmbientWifiRequest(
+				1_500L, 3_000L, setOf(AmbientWifiOrigin.PORTABLE_IMPORT),
+			)) { output ->
+				assertEquals(listOf(correctedIdentity to 1L, correctedIdentity to 2L),
+					output.facts.map { it.identity to it.semanticRevision })
+			})
 		}
 
 	@Test

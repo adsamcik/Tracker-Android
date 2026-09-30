@@ -9,6 +9,21 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class RetainedAmbientRadioAuthorityTest {
+    @Test fun `provider discovery overflow is distinct from absent authority`() = runTest {
+        val database = mockk<AppDatabase>()
+        val inputs = (0..MAX_CONTEXT_POINTS).map { input().copy(registration = it.toLong()) }
+        assertFailsWith<RetainedRadioDependencyLimitExceeded> {
+            RetainedAmbientRadioAuthority.load(database, SOURCE, inputs, "boot")
+        }
+    }
+
+    @Test fun `authorization dependency overflow is distinct from absent authority`() = runTest {
+        val row = rows(1, listOf(demand()), 0).single()
+        assertFailsWith<RetainedRadioDependencyLimitExceeded> {
+            load(List(MAX_CONTEXT_DEPENDENCIES + 1) { row })
+        }
+    }
+
     @Test fun `later deny callback keeps independently authorized earlier ambient reading`() = runTest {
         val granted = rows(1, listOf(demand()), 0)
         val denied = rows(2, emptyList(), 11)

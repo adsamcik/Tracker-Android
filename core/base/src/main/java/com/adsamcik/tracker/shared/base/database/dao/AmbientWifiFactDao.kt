@@ -33,6 +33,21 @@ data class AmbientWifiEffectiveLocalRow(
 /** Bounded source-local storage boundary for Ambient Wi-Fi product evidence. */
 @Dao
 interface AmbientWifiFactDao {
+	/** Bounded retained-reader dependencies; discovery alone never authenticates a product. */
+	@Query("SELECT * FROM ambient_wifi_fact_cursor WHERE logical_fact_id IN (:ids) ORDER BY logical_fact_id LIMIT :limit")
+	suspend fun retainedCursors(ids: List<String>, limit: Int): List<AmbientWifiFactCursorEntity>
+
+	@Query("SELECT * FROM imported_ambient_wifi_receipt WHERE archive_id IN (:ids) " +
+		"ORDER BY archive_id, import_job_id, import_entry_key LIMIT :limit")
+	suspend fun retainedImportReceipts(ids: List<String>, limit: Int): List<ImportedAmbientWifiReceiptEntity>
+
+	@Query("SELECT * FROM imported_ambient_wifi_tombstone WHERE archive_id IN (:ids) ORDER BY archive_id LIMIT :limit")
+	suspend fun retainedImportTombstones(ids: List<String>, limit: Int): List<ImportedAmbientWifiTombstoneEntity>
+
+	@Query("SELECT * FROM ambient_wifi_retention_authority WHERE scope = :scope AND approval_revision IN (:revisions) " +
+		"ORDER BY approval_revision LIMIT :limit")
+	suspend fun retainedApprovals(scope: String, revisions: List<Long>, limit: Int): List<AmbientWifiRetentionAuthorityEntity>
+
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertAuthority(value: AmbientWifiAuthorityEntity)
 
