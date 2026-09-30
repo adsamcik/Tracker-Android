@@ -18,7 +18,8 @@ one delivery. Routine implementation of these decisions needs no new approval.
 Selected September 30 source repairs now also cover independent radio hosting,
 retained per-reading Wi-Fi qualification, strict native radio detail reads,
 Pressure export headers, exact Location-file membership/retained origin and
-original-job epoch propagation through existing typed import adapters. Exact
+original-job epoch propagation through existing typed import adapters, exact
+imported session annotation membership and native Cell per-reading history. Exact
 commit receipts and still-open source slices are in the current progress file.
 History/maps/bundle callers, complete backup restore/cleanup and remaining radio
 lifecycle work are still being assembled. None of these marks claims a gate pass.

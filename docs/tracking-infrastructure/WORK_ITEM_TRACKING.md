@@ -23,6 +23,10 @@ not supersede later user answers or the selected source commits.
   `ac9f242199`; ordinary backups still include older points with honest labels.
 - [x] Original job epoch through common import dispatch and existing typed
   Activity/Pressure/Steps adapters: `93b7a908b1`; radio selection remains separate.
+- [x] Exact imported session annotation membership/storage: `d2d36bbc19`;
+  bundle publication and export UI remain separate.
+- [x] Native Cell per-reading writer, child cleanup and retained history:
+  `21649b9643`; physical-retirement siblings and rounding scenarios authored.
 
 All marks above are **IMPLEMENTED_UNVALIDATED source slices**. The 25 complete
 prerequisite chains, final assembly freeze, convergence gates, device evidence and

@@ -41,6 +41,11 @@ description of its earlier input; this file records subsequent repair progress.
   source lookup and bounded replay/full-clear test sources.
 - `93b7a908b1`: common job/worker original epoch plus existing typed
   Activity/Pressure/Steps API, adapter and owning Room transaction boundaries.
+- `d2d36bbc19`: exact imported session annotation selectors, bounded codec and
+  owning Room storage/migration/preflight test sources. Bundle publication is separate.
+- `21649b9643`: native Cell per-reading admission, child storage/cleanup and
+  bounded retained history; physical-retirement siblings and millisecond rounding
+  source scenarios. Imported Cell details and final independent review remain open.
 
 All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 
@@ -72,13 +77,18 @@ All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 - [x] Exact Location-file membership and retained future-point origin source,
   with original-epoch fencing, bounded retries, missing-member preservation and
   development migration/test sources. Map/bundle callers remain separate work.
+- [x] Native Cell writer, maintenance and history reuse the same uninterrupted
+  purpose window; preserve valid siblings across physical retirement and actual
+  rounding uncertainty. Focused Room/replay test sources are authored, unexecuted.
+- [x] Persist exact typed membership on imported session annotations, distinct
+  from editable local time-range groups; no date fallback or global label creation.
 
 ## Remaining in these slices
 
 - [ ] Connect background radio writers to delivery and recovery using independent
   progress. A tool proposal is pending; no dependent change is authorized yet.
-- [x] Propagate current-tuple v6 item qualification through retained capture maintenance,
-  portable replay and history; preserve v5 contracts.
+- [x] Propagate current-tuple v6 item qualification through native writers,
+  retained capture maintenance and history; preserve v5 contracts.
 - [ ] Recheck the ambient physical-lifetime correction and implement correct local
   day grouping after the pending user answer.
 - [ ] Complete historical session radio capture groups after the pending contract
@@ -88,6 +98,10 @@ All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 - [x] Review and commit common original-job epoch plus existing Activity/Pressure/
   Steps adapters; Location was selected with membership. Radio remains separate.
 - [ ] Select complete radio adapters/child attachment with their epoch scenarios.
+- [ ] Preserve exact membership of overlapping imported background radio files;
+  a new file-to-reading/gap list proposal is awaiting the user answer.
+- [ ] Repair typed Steps annotation identity validation without changing real IDs;
+  finish bundle metadata publication, cancellation and source adapter selection.
 - [ ] Complete period discovery streak and revisit season counting after the
   precise period rules are settled; finish the longest-trip period scope.
 - [ ] Close all remaining runtime/history/map/effect/transfer/cleanup gaps from
