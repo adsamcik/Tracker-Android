@@ -37,6 +37,10 @@ description of its earlier input; this file records subsequent repair progress.
 - `24f5c220bb`: native ambient detail completeness, with eight real Room
   scenario sources and legacy summary compatibility.
 - `af9a9e73b4`: original Pressure portable headers and unresolved-header sources.
+- `ac9f242199`: exact Location-file membership, future-point origin, migration,
+  source lookup and bounded replay/full-clear test sources.
+- `93b7a908b1`: common job/worker original epoch plus existing typed
+  Activity/Pressure/Steps API, adapter and owning Room transaction boundaries.
 
 All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 
@@ -81,7 +85,9 @@ All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
   answer; a single current callback capture tuple remains insufficient.
 - [x] Review and commit independent optional Wi-Fi/Cell service hosting and
   sessionless Steps motion hints; add the host preference migration/default.
-- [ ] Review and commit original-job epoch propagation through every source import.
+- [x] Review and commit common original-job epoch plus existing Activity/Pressure/
+  Steps adapters; Location was selected with membership. Radio remains separate.
+- [ ] Select complete radio adapters/child attachment with their epoch scenarios.
 - [ ] Complete period discovery streak and revisit season counting after the
   precise period rules are settled; finish the longest-trip period scope.
 - [ ] Close all remaining runtime/history/map/effect/transfer/cleanup gaps from

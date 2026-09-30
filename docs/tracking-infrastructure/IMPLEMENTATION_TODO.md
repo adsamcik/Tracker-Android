@@ -1,6 +1,27 @@
 # Tracking Infrastructure Completion TODO
 
-Last updated: 2026-09-27
+Last updated: 2026-09-30
+
+## Current continuation
+
+The current source-assembly progress is maintained in
+`convergence/2026-09-30/IMPLEMENTATION_PROGRESS.md`; the dated sections below are
+historical checkpoints. Their pending-question text does not supersede later user
+answers. The complete 25 prerequisite chains and final convergence/integration
+remain open. No validation or provider activation has begun.
+
+Settled on September 30: hourly background Steps copies plus enable/open, each
+bounded to 30 seconds; failed notification-save exit offers Retry or Leave without
+saving; Wi-Fi/Cell save every independently valid historical background group in
+one delivery. Routine implementation of these decisions needs no new approval.
+
+Selected September 30 source repairs now also cover independent radio hosting,
+retained per-reading Wi-Fi qualification, strict native radio detail reads,
+Pressure export headers, exact Location-file membership/retained origin and
+original-job epoch propagation through existing typed import adapters. Exact
+commit receipts and still-open source slices are in the current progress file.
+History/maps/bundle callers, complete backup restore/cleanup and remaining radio
+lifecycle work are still being assembled. None of these marks claims a gate pass.
 
 ## 2026-09-27 optional map enrichment continuation
 

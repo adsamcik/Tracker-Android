@@ -1,6 +1,33 @@
 # Tracking Infrastructure Work-Item Tracking
 
-Last updated: 2026-09-29
+Last updated: 2026-09-30
+
+## Current September 30 source milestones
+
+The current source checklist and exact commit receipts are maintained in
+`convergence/2026-09-30/IMPLEMENTATION_PROGRESS.md`. The older item descriptions
+below are retained as historical checkpoints; their pending-question text does
+not supersede later user answers or the selected source commits.
+
+- [x] Original Start continuation and entry-point Stop/Off structure: `dbd21b4b41`.
+- [x] All-day Steps scheduler/enable/open copies and ordered settings recovery:
+  `c808b3af1f`; approved hourly cadence, thirty-second attempts.
+- [x] Notification failed-save recovery and accessible move actions: `65a9be4125`.
+- [x] Independently authorized background radio groups and exact details: `9adeadd2fa`.
+- [x] Independent optional background radio notification hosts, migration and
+  localized accessible switches: `e385265795`.
+- [x] Retained per-reading Wi-Fi qualification and downstream companions: `6da005060f`.
+- [x] Missing native ambient radio details are reported incomplete: `24f5c220bb`.
+- [x] Pressure portable headers retain original closed bounds: `af9a9e73b4`.
+- [x] Exact Location-file membership, retained future-point origin and migration:
+  `ac9f242199`; ordinary backups still include older points with honest labels.
+- [x] Original job epoch through common import dispatch and existing typed
+  Activity/Pressure/Steps adapters: `93b7a908b1`; radio selection remains separate.
+
+All marks above are **IMPLEMENTED_UNVALIDATED source slices**. The 25 complete
+prerequisite chains, final assembly freeze, convergence gates, device evidence and
+local `dev/v10` integration remain open. History/maps/bundles/restore/cleanup and
+the remaining radio lifecycle decisions are not closed by these source receipts.
 
 ## Current provider completion checklist
 
