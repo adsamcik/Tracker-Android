@@ -28,6 +28,8 @@ import com.adsamcik.tracker.shared.base.database.RoomDeleteSelectedImportedCell
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellHistoryCandidate
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellChildEntity
+import com.adsamcik.tracker.shared.base.database.data.PortableRadioChildIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
@@ -890,6 +892,147 @@ class ImportedCellHistoryMapperTest {
 		SourceProductLaneExecutionAuthority { false },
 		Dispatchers.Unconfined,
 	)
+
+	@Test
+	fun `imported Cell details retain exact towers through detail and shared page`() = runTest {
+		val value = importCellDetailsParent()
+		database.importedRadioChildDao().insertCellSession(cellDetails(value))
+		val repository = repository()
+		val public = (repository.imported(value.toSelection()) as CellHistoryQuery.Found).entry
+		public.observations.single().towers.map { it.identity } shouldBe
+			listOf("tower-0", "tower-1")
+		public.observations.single().towers.map { it.observedTimeMs } shouldBe listOf(100L, 112L)
+		(repository.detail(requireNotNull(public.selection)) as CellHistoryQuery.Found).entry shouldBe public
+		val shared = database.withTransaction { repository.recentCellHistoryInTransaction(10) }
+			as CellSourceComposedPage.Available
+		(shared.entries.single() as CellSourceComposedEntry.Imported).entry shouldBe public
+	}
+
+	@Test
+	fun `imported Cell without a detail group remains a useful summary`() = runTest {
+		val value = importCellDetailsParent()
+		val public = (repository().imported(value.toSelection()) as CellHistoryQuery.Found).entry
+		public.observations.single().acceptedChildCount shouldBe 2
+		public.observations.single().towers shouldBe emptyList()
+		public.causes.contains(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE) shouldBe false
+	}
+
+	@Test
+	fun `partial imported Cell detail group is unavailable rather than a truncated tower list`() = runTest {
+		val value = importCellDetailsParent()
+		database.importedRadioChildDao().insertCellSession(cellDetails(value).take(1))
+		assertCellDetailsUnavailable(value)
+	}
+
+	@Test
+	fun `imported Cell details must match the parent semantic revision`() = runTest {
+		val value = importCellDetailsParent()
+		val rows = cellDetails(value)
+		database.importedRadioChildDao().insertCellSession(rows.mapIndexed { index, row ->
+			if (index == 0) row.copy(contentChecksum = cellDetailChecksum(row, semanticRevision = 2L))
+			else row
+		})
+		assertCellDetailsUnavailable(value)
+	}
+
+	@Test
+	fun `rehashing imported Cell children does not allow measured time outside their parent`() = runTest {
+		val value = importCellDetailsParent()
+		listOf(99L to 0L, 113L to 0L, 100L to 1L, 112L to 1L,
+			Long.MAX_VALUE to 1L).forEach { (time, uncertainty) ->
+			database.importedRadioChildDao().deleteCellSession(value.identity.value, 1L)
+			val rows = cellDetails(value).mapIndexed { index, row ->
+				if (index == 0) row.copy(observedWallTimeMs = time,
+					wallTimeUncertaintyMs = uncertainty).let { it.copy(contentChecksum = cellDetailChecksum(it)) }
+				else row
+			}
+			database.importedRadioChildDao().insertCellSession(rows)
+			assertCellDetailsUnavailable(value)
+		}
+	}
+
+	@Test
+	fun `deleted imported Cell run details cannot leak or invalidate surviving towers`() = runTest {
+		val old = cellRun("deleted-details", "old", listOf(cellObservation("old-observation")),
+			startTimeMs = 10L, endTimeMs = 20L)
+		val current = cellRun("deleted-details", "current", listOf(cellObservation("current-observation")),
+			startTimeMs = 30L, endTimeMs = 40L)
+		val value = importCellDetailsParent(cellEntryFromRuns("deleted-details", listOf(old, current)))
+		val deletedRows = cellDetails(value, old).map { row -> row.copy(observedWallTimeMs = 999L)
+			.let { it.copy(contentChecksum = cellDetailChecksum(it)) } }
+		database.importedRadioChildDao().insertCellSession(deletedRows + cellDetails(value, current))
+		val evaluation = readable(value, candidate(value), deletedRunIdentities = setOf(old.identity.value))
+		val public = database.withTransaction {
+			database.withImportedCellDetails(evaluation, evaluation.toPublicCellEntry())
+		}
+		public.observations shouldHaveSize 1
+		public.observations.single().towers shouldHaveSize 2
+		public.observations.single().towers.map { it.observedTimeMs } shouldBe listOf(100L, 112L)
+	}
+
+	@Test
+	fun `deleted Cell details do not spend the surviving observation read budget`() = runTest {
+		val old = cellRun("large-deleted-details", "old", (0 until 2_049).map { cellObservation("old-$it") },
+			startTimeMs = 10L, endTimeMs = 20L)
+		val current = cellRun("large-deleted-details", "current", listOf(cellObservation("current")),
+			startTimeMs = 30L, endTimeMs = 40L)
+		val value = importCellDetailsParent(cellEntryFromRuns("large-deleted-details", listOf(old, current)))
+		database.importedRadioChildDao().insertCellSession(old.observations.flatMap {
+			cellDetails(value, old, it) } + cellDetails(value, current))
+		val evaluation = readable(value, candidate(value), deletedRunIdentities = setOf(old.identity.value))
+		val public = database.withTransaction { database.withImportedCellDetails(evaluation, evaluation.toPublicCellEntry()) }
+		public.observations.single().towers shouldHaveSize 2
+		public.causes.contains(CellHistoryCause.READ_BUDGET_EXCEEDED) shouldBe false
+	}
+
+	@Test
+	fun `genuine Cell detail overflow reports the source read budget rather than damaged data`() = runTest {
+		val run = cellRun("detail-overflow", "run", (0 until 2_049).map { cellObservation("fact-$it") },
+			startTimeMs = 10L, endTimeMs = 20L)
+		val value = importCellDetailsParent(cellEntryFromRuns("detail-overflow", listOf(run)))
+		database.importedRadioChildDao().insertCellSession(run.observations.flatMap { cellDetails(value, run, it) })
+		val public = (repository().imported(value.toSelection()) as CellHistoryQuery.Found).entry
+		public.state shouldBe CellHistoryProductState.FAILED
+		public.causes shouldBe setOf(CellHistoryCause.READ_BUDGET_EXCEEDED)
+		public.observations shouldBe emptyList()
+		(database.withTransaction { repository().recentImportedEligibleForSharedHistoryInTransaction(1) }
+			as ImportedHistoryEligiblePage.Unavailable).reason shouldBe
+			SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
+	}
+
+	private suspend fun importCellDetailsParent(
+		value: PortableCapturedCellEntryV1 = cellEntry(logicalLocal = "cell-details"),
+	): PortableCapturedCellEntryV1 {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+		RoomImportPortableCapturedCell(database, Dispatchers.Unconfined).importEntry(importRequest(value)) shouldBe
+			ImportPortableCapturedCellResult.Applied(1L, value.runs.size,
+				value.runs.sumOf { it.observations.size })
+		return value
+	}
+
+	private suspend fun assertCellDetailsUnavailable(value: PortableCapturedCellEntryV1) {
+		val public = (repository().imported(value.toSelection()) as CellHistoryQuery.Found).entry
+		public.state shouldBe CellHistoryProductState.UNVERIFIABLE
+		public.causes shouldBe setOf(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		public.observations shouldBe emptyList()
+	}
+
+	private fun cellDetails(value: PortableCapturedCellEntryV1,
+		run: PortableCapturedCellRunV1 = value.runs.single(),
+		observation: PortableCapturedCellObservationV1 = run.observations.single()): List<ImportedCellChildEntity> =
+		listOf(100L, 112L).mapIndexed { index, time ->
+			ImportedCellChildEntity(value.identity.value, 1L, run.identity.value,
+				observation.identity.value, index, 1_000L + index, time, 0L,
+				"tower-$index", if (index == 0) "LTE" else "NR", true, -80,
+				contentChecksum = "").let { it.copy(contentChecksum = cellDetailChecksum(it)) }
+		}
+
+	private fun cellDetailChecksum(row: ImportedCellChildEntity, semanticRevision: Long = 1L) =
+		PortableRadioChildIntegrity.digest("cell",
+			listOf(row.entryIdentity, row.runIdentity, row.observationIdentity),
+			listOf(semanticRevision, row.itemIndex, row.providerTimestampNanos,
+				row.observedWallTimeMs, row.wallTimeUncertaintyMs, row.towerIdentity,
+				row.radioType, row.registered, row.signalDbm))
 
 	private fun importRequest(
 		entry: PortableCapturedCellEntryV1,

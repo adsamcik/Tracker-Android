@@ -92,6 +92,21 @@ interface ImportedRadioChildDao {
 		"AND entry_import_revision = :revision ORDER BY run_identity, observation_identity, item_index LIMIT :limit")
 	suspend fun cellSessionChildren(entryIdentity: String, revision: Long, limit: Int): List<ImportedCellChildEntity>
 
+	/** Bounded details only for the qualified, surviving observation owners in this snapshot. */
+	@Query("SELECT * FROM imported_wifi_child WHERE entry_identity = :entryIdentity " +
+		"AND entry_import_revision = :revision AND run_identity = :runIdentity " +
+		"AND observation_identity IN (:observationIds) " +
+		"ORDER BY run_identity, observation_identity, item_index LIMIT :limit")
+	suspend fun wifiSessionChildrenForObservations(entryIdentity: String, revision: Long, runIdentity: String,
+		observationIds: List<String>, limit: Int): List<ImportedWifiChildEntity>
+
+	@Query("SELECT * FROM imported_cell_child WHERE entry_identity = :entryIdentity " +
+		"AND entry_import_revision = :revision AND run_identity = :runIdentity " +
+		"AND observation_identity IN (:observationIds) " +
+		"ORDER BY run_identity, observation_identity, item_index LIMIT :limit")
+	suspend fun cellSessionChildrenForObservations(entryIdentity: String, revision: Long, runIdentity: String,
+		observationIds: List<String>, limit: Int): List<ImportedCellChildEntity>
+
 	@Query("SELECT * FROM imported_ambient_wifi_child WHERE archive_id = :archiveId " +
 		"ORDER BY fact_id, semantic_revision, item_index LIMIT :limit")
 	suspend fun wifiBackgroundChildren(archiveId: String, limit: Int): List<ImportedAmbientWifiChildEntity>

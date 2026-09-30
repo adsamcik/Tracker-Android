@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.data.PortableRadioChildIntegrit
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientCellArchiveV1
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientWifiArchiveV1
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
+import com.adsamcik.tracker.stats.api.repository.CellHistoryTechnology
 
 /** One chosen source per file; sessions and separately consented background retain their labels. */
 internal object RadioSourceFileV2 {
@@ -249,6 +250,7 @@ private fun requireCellChild(
 ) {
 	requireChildBase(identities, revision, itemIndex, providerNanos, wallMs, uncertaintyMs)
 	require(tower?.length?.let { it <= 256 } != false && radioType.isNotBlank() && radioType.length <= 32)
+	require(CellHistoryTechnology.entries.any { it.name == radioType })
 	require(signal?.let { it in -200..100 } != false)
 	require(checksum == radioChildDigest("cell", identities, listOf(revision, itemIndex,
 		providerNanos, wallMs, uncertaintyMs, tower, radioType, registered, signal)))

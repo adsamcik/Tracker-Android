@@ -22,6 +22,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableWifiOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.PortableWifiResultCompleteness
 import com.adsamcik.tracker.stats.api.repository.PortableWifiRunAvailability
 import com.adsamcik.tracker.stats.api.repository.PortableWifiSessionMode
+import com.adsamcik.tracker.stats.api.repository.CellHistoryTechnology
 import com.google.gson.JsonParser
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -147,6 +148,16 @@ class RadioSourceFileJsonV2CodecTest {
 			background = archive, backgroundChildren = listOf(child(1_000L, 100L)))
 		val bytes = ByteArrayOutputStream().also { codec.writeCell(it, file) }.toByteArray()
 		assertEquals(file, codec.readCell(ByteArrayInputStream(bytes)))
+		listOf("FUTURE_RADIO", "lte", "").forEach { technology ->
+			val root = JsonParser.parseString(bytes.toString(Charsets.UTF_8)).asJsonObject
+			val edited = root.getAsJsonArray("backgroundChildren")[0].asJsonObject
+			edited.addProperty("radioType", technology)
+			edited.addProperty("contentChecksum", radioChildDigest("cell", listOf(fact.identity),
+				listOf(1L, 0, 1L, 1_000L, 100L, "tower", technology, true, -60)))
+			assertThrows(RadioSourceFileFormatException::class.java) {
+				runBlocking { codec.readCell(ByteArrayInputStream(root.toString().toByteArray())) }
+			}
+		}
 		listOf(899L to 0L, 1_101L to 0L, 1_000L to 101L).forEach { (time, uncertainty) ->
 			assertThrows(IllegalArgumentException::class.java) {
 				file.copy(backgroundChildren = listOf(child(time, uncertainty)))
@@ -176,6 +187,28 @@ class RadioSourceFileJsonV2CodecTest {
 	@Test fun `child bounds never wrap a future uncertainty into an earlier timestamp`() {
 		assertEquals(false, radioChildFitsCoverage(Long.MAX_VALUE, 1, 0, Long.MAX_VALUE))
 		assertEquals(true, radioChildFitsCoverage(Long.MAX_VALUE, 0, 0, Long.MAX_VALUE))
+	}
+
+	@Test fun `session and background Cell children use the same six supported technologies as history`() {
+		val entry = "a".repeat(64)
+		val run = "b".repeat(64)
+		val observation = "c".repeat(64)
+		fun session(technology: String) = CellSessionChildV2(entry, run, observation, 1L, 0, 1L,
+			1_000L, 0L, "tower", technology, true, -60,
+			radioChildDigest("cell", listOf(entry, run, observation),
+				listOf(1L, 0, 1L, 1_000L, 0L, "tower", technology, true, -60)))
+		fun background(technology: String) = CellBackgroundChildV2(observation, 1L, 0, 1L,
+			1_000L, 0L, "tower", technology, true, -60,
+			radioChildDigest("cell", listOf(observation),
+				listOf(1L, 0, 1L, 1_000L, 0L, "tower", technology, true, -60)))
+		CellHistoryTechnology.entries.forEach { technology ->
+			assertEquals(technology.name, session(technology.name).radioType)
+			assertEquals(technology.name, background(technology.name).radioType)
+		}
+		listOf("FUTURE_RADIO", "lte", "").forEach { technology ->
+			assertThrows(IllegalArgumentException::class.java) { session(technology) }
+			assertThrows(IllegalArgumentException::class.java) { background(technology) }
+		}
 	}
 
 	@Test fun `Cell gap-only file round trips without inventing a tower or coordinate`() = runBlocking {

@@ -1,0 +1,74 @@
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt
+index e78e20b4d1..78f6d8b916 100644
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt
+@@ -299,10 +334,10 @@ internal class DefaultCellHistoryRepository internal constructor(
+ 							evaluation.localOriginHandle != null
+ 					}
+ 					CellHistoryQuery.Found(
+-						evaluation.toPublicCellEntry(
++						database.withImportedCellDetails(evaluation, evaluation.toPublicCellEntry(
+ 							overrideFailure = CellHistoryCause.ORIGIN_IDENTITY_CONFLICT
+ 								.takeIf { originConflict },
+-						),
++						)),
+ 					)
+ 				}
+ 			} catch (cancelled: kotlinx.coroutines.CancellationException) {
+@@ -448,6 +483,12 @@ internal class DefaultCellHistoryRepository internal constructor(
+ 			}
+ 		}
+ 		val combined = try {
++			val importedBySelection = imported.filterIsInstance<ImportedCellProductEvaluation.Readable>()
++				.associateBy { evaluation -> ImportedCellHistorySelection(
++					ImportedCellHistoryIdentity(evaluation.candidate.identity),
++					evaluation.candidate.importRevision,
++					ImportedCellHistoryDigest(evaluation.candidate.contentChecksum),
++				) }
+ 			CellHistoryOriginComposer.compose(
+ 				live = local.map(ComposedCellEntry::entry),
+ 				visibleLocalEntryIdentities = visibleLocalEntryIdentities,
+@@ -462,7 +503,9 @@ internal class DefaultCellHistoryRepository internal constructor(
+ 							?: throw ImportedCellHistoryCompositionFailure(),
+ 					)
+ 					is CellHistoryOrigin.Imported -> CellSourceComposedEntry.Imported(
+-						entry = entry,
++						entry = importedBySelection[origin.selection]?.let { evaluation ->
++							database.withImportedCellDetails(evaluation, entry)
++						} ?: entry,
+ 						selection = origin.selection,
+ 						recency = importedRecencyBySelection[origin.selection]
+ 							?: throw ImportedCellHistoryCompositionFailure(),
+@@ -471,6 +514,10 @@ internal class DefaultCellHistoryRepository internal constructor(
+ 			}
+ 		} catch (_: ImportedCellHistoryCompositionFailure) {
+ 			return CellSourceComposedPage.Failed(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
++		} catch (cancelled: kotlinx.coroutines.CancellationException) {
++			throw cancelled
++		} catch (_: RuntimeException) {
++			return CellSourceComposedPage.Failed(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+ 		}
+ 		val selected = combined.sortedWith(cellSourceCompositionOrder)
+ 			.take(limit)
+@@ -631,7 +678,9 @@ internal class DefaultCellHistoryRepository internal constructor(
+ 					}
+ 				}
+ 				val entry = try {
+-					readable.toPublicCellEntry()
++					database.withImportedCellDetails(readable, readable.toPublicCellEntry())
++				} catch (cancelled: kotlinx.coroutines.CancellationException) {
++					throw cancelled
+ 				} catch (_: RuntimeException) {
+ 					return importedEligibleUnavailable(
+ 						SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+@@ -642,7 +691,9 @@ internal class DefaultCellHistoryRepository internal constructor(
+ 					entry.causes.any { it.isIntegrityFailure }
+ 				) {
+ 					return importedEligibleUnavailable(
+-						SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
++						if (CellHistoryCause.READ_BUDGET_EXCEEDED in entry.causes)
++							SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
++						else SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+ 					)
+ 				}
+ 				val selection = ImportedCellHistorySelection(

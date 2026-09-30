@@ -307,6 +307,8 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 							row.entry)) else row
 				})
 			} else composed
+		} catch (cancelled: kotlinx.coroutines.CancellationException) {
+			throw cancelled
 		} catch (_: ImportedWifiHistoryCompositionFailure) {
 			WifiSourceRecentPage.Failed(WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT)
 		} catch (_: ArithmeticException) {

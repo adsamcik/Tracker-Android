@@ -1,0 +1,13 @@
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt
+index da05d4b0ee..59d08a2846 100644
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt
+@@ -307,6 +336,8 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
+ 							row.entry)) else row
+ 				})
+ 			} else composed
++		} catch (cancelled: kotlinx.coroutines.CancellationException) {
++			throw cancelled
+ 		} catch (_: ImportedWifiHistoryCompositionFailure) {
+ 			WifiSourceRecentPage.Failed(WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+ 		} catch (_: ArithmeticException) {

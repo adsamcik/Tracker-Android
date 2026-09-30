@@ -1,0 +1,63 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "scope": "Optional imported radio details with exact parent bounds, surviving-owner budget, cancellation and Cell technology admission; R11 bridges excluded",
+  "ownedPaths": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedCellHistoryDetails.kt",
+      "sha256": "b0919d6ad540ac2e4b09b59e6968b2665847aa6f1a5abe0c9c7abaa4ca23b6de",
+      "selection": "whole path; current diff is this radio detail slice only"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedWifiHistoryDetails.kt",
+      "sha256": "643e2def6b9ab57e4f27e77f9cfbc680089cb8e76e911b54f477fcdf3da3c105",
+      "selection": "whole path; current diff is this radio detail slice only"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedCellHistoryMapperTest.kt",
+      "sha256": "4f01126e0f11fe9e1ac7fb1e81899af31c311a452e11a6273a5a8c463e5ca24a",
+      "selection": "whole path; current diff is this radio detail slice only"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedWifiHistoryDetailsRoomTest.kt",
+      "sha256": "9a7131460eeee65fa7c219ca2e1ce5c52ae308900eac7902967f1d08e52c2203",
+      "selection": "whole path; current diff is this radio detail slice only"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ImportedRadioChildDao.kt",
+      "sha256": "bbb13cdbad10a10e4cc6373bca6b13dc7a8b12a36561497457131a5a5ea67e73",
+      "selection": "whole path; current diff is this radio detail slice only"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/portable/RadioSourceFileV2.kt",
+      "sha256": "22438dd71425932f38983b8ae12d1b159e10a2a288bc72c4a4bea6b47fdc6168",
+      "selection": "whole path; current diff is this radio detail slice only"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/portable/RadioSourceFileJsonV2CodecTest.kt",
+      "sha256": "abc6b7ccdb184f5d4429a577cba4d0a8b5700f956bf034643d51d638e581e22f",
+      "selection": "whole path; current diff is this radio detail slice only"
+    }
+  ],
+  "mixedPaths": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt",
+      "patch": "docs/tracking-infrastructure/convergence/2026-09-30/CELL_PRESERVED_DETAILS.patch",
+      "patchSha256": "92a5ca9d2ca9dfaac37ef5c7f6d32fdd3e45b420440c8d707253717e9d17f52a",
+      "selection": "only named patch, excludes selectedImportedInTransaction R11 bridge"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt",
+      "patch": "docs/tracking-infrastructure/convergence/2026-09-30/WIFI_IMPORTED_DETAILS_RECOVERY.patch",
+      "patchSha256": "96a387bdb1e13aa676d4bbe080af011a124cffbd156f21e68b79276db927e50b",
+      "selection": "only named patch, excludes selectedImportedInTransaction R11 bridge"
+    }
+  ],
+  "receipt": "docs/tracking-infrastructure/convergence/2026-09-30/CELL_PRESERVED_DETAILS_REVIEW.md",
+  "dependencies": [
+    "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/ImportedRadioChildren.kt",
+    "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/CellHistoryRepository.kt",
+    "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/WifiHistoryRepository.kt"
+  ],
+  "evidence": "Static source review and test authorship only; no gates or Git mutations",
+  "executedGates": []
+}
