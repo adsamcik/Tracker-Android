@@ -220,10 +220,10 @@ class WifiSourceRuntimeTest {
 	}
 
 	@Test
-	fun `provider identity is stable across runtime registrations and excludes raw identity`() {
+	fun `provider identity is stable across runtime registrations and distinguishes networks`() {
 		val evidence = listOf(
-			WifiAccessPointEvidence("", 2_412, -50, 9_000_000L),
-			WifiAccessPointEvidence("", 5_180, -60, 9_500_000L),
+			WifiAccessPointEvidence("aa:bb:cc:dd:ee:ff", 2_412, -50, 9_000_000L, "Home Wi-Fi"),
+			WifiAccessPointEvidence("11:22:33:44:55:66", 5_180, -60, 9_500_000L, null),
 		)
 
 		val first = wifiProviderDeliveryIdentity("boot-1", evidence)
@@ -245,12 +245,16 @@ class WifiSourceRuntimeTest {
 				},
 			),
 		)
-		assertFailsWith<IllegalArgumentException> {
-			wifiProviderDeliveryIdentity(
-				"boot-1",
-				evidence.map { it.copy(identifierToken = "aa:bb:cc:dd:ee:ff") },
-			)
-		}
+		assertFalse(first == wifiProviderDeliveryIdentity(
+			"boot-1", evidence.mapIndexed { index, item ->
+				if (index == 0) item.copy(networkName = "Other Wi-Fi") else item
+			},
+		))
+		assertFalse(first == wifiProviderDeliveryIdentity(
+			"boot-1", evidence.mapIndexed { index, item ->
+				if (index == 0) item.copy(identifierToken = "ff:ee:dd:cc:bb:aa") else item
+			},
+		))
 	}
 
 	@Test
@@ -278,10 +282,12 @@ class WifiSourceRuntimeTest {
 		val firstDelivery = resultEvent(
 			receivedNanos = 10_000_000L,
 			providerTimestampMicros = 9_000L,
+			networkName = "Home Wi-Fi",
 		)
 		val laterReplay = resultEvent(
 			receivedNanos = 12_000_000L,
 			providerTimestampMicros = 9_000L,
+			networkName = "Home Wi-Fi",
 		)
 
 		first.start(sink)
@@ -306,6 +312,10 @@ class WifiSourceRuntimeTest {
 				candidates[1].receivedElapsedRealtimeNanos,
 		)
 		assertEquals(candidates[0].payload, candidates[1].payload)
+		assertEquals("aa:bb:cc:dd:ee:ff",
+			(candidates[0].payload as WifiResultSnapshotPayload).accessPoints.single().identifierToken)
+		assertEquals("Home Wi-Fi",
+			(candidates[0].payload as WifiResultSnapshotPayload).accessPoints.single().networkName)
 		assertNull((candidates[0].payload as WifiResultSnapshotPayload).resultAgeMs)
 		assertEquals(41L, firstAck.lastAdmissionOrdinal)
 		assertEquals(41L, duplicateAck.lastAdmissionOrdinal)
@@ -1160,16 +1170,6 @@ class WifiSourceRuntimeTest {
 	}
 
 	@Test
-	fun `old Wi-Fi authorization wakeup cannot spend a successor allowance`() = runTest {
-		val initialPlan = plan(1L).copy(mode = WifiMode.ACTIVE_ATTEMPTS)
-		val successorPlan = initialPlan.copy(revision = 2L)
-		val initial = registration(initialPlan, 1L)
-		val successor = registration(successorPlan, 2L)
-		val fixture = runtimeFixture(this, initialPlan, listOf(initial))
-		coEvery { fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any()) } returns successor
-		every { fixture.backend.requestScan() } returns WifiRequestOutcome.ACCEPTED
-		val actions = mutableListOf<suspend () -> Unit>()
-	@Test
 	fun `spent durable Wi-Fi allowance does not call the active provider but keeps passive results`() = runTest {
 		val allowance = testRadioActiveRequestAllowance()
 		coEvery { allowance.reserve(any(), any(), any(), any(), any(), any()) } returns
@@ -1187,6 +1187,16 @@ class WifiSourceRuntimeTest {
 		fixture.runtime.close()
 	}
 
+	@Test
+	fun `old Wi-Fi authorization wakeup cannot spend a successor allowance`() = runTest {
+		val initialPlan = plan(1L).copy(mode = WifiMode.ACTIVE_ATTEMPTS)
+		val successorPlan = initialPlan.copy(revision = 2L)
+		val initial = registration(initialPlan, 1L)
+		val successor = registration(successorPlan, 2L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial))
+		coEvery { fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any()) } returns successor
+		every { fixture.backend.requestScan() } returns WifiRequestOutcome.ACCEPTED
+		val actions = mutableListOf<suspend () -> Unit>()
 		coEvery { fixture.wakeups.schedule(any(), any()) } answers { actions += secondArg<suspend () -> Unit>(); Unit }
 		val sink = wifiCandidateSink { SourceAdmissionHandoff.Durable(1L) }
 		fixture.start(sink)
@@ -2029,6 +2039,7 @@ class WifiSourceRuntimeTest {
 		scope: kotlinx.coroutines.CoroutineScope,
 		runtimePlan: WifiPlan = plan(1L),
 		registrationsToReturn: List<SourceRegistration> = listOf(registration(runtimePlan, 1L)),
+		allowance: RadioActiveRequestAllowance = testRadioActiveRequestAllowance(),
 	): RuntimeFixture {
 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
 		val backend = mockk<AndroidWifiSourceBackend>(relaxed = true)
@@ -2039,7 +2050,6 @@ class WifiSourceRuntimeTest {
 		var scheduledAction: (suspend () -> Unit)? = null
 		every { stateProvider.wifi() } answers { state }
 		coEvery { registrations.begin(any(), any(), any(), any(), any()) } returnsMany registrationsToReturn
-		allowance: RadioActiveRequestAllowance = testRadioActiveRequestAllowance(),
 		coEvery { registrations.pendingRetirements(SourceKind.WIFI) } returns emptyList()
 		coEvery {
 			registrations.beginRetirement(any(), any(), any(), any())
@@ -2104,6 +2114,7 @@ class WifiSourceRuntimeTest {
 			resultsUpdated: Boolean? = true,
 			receivedNanos: Long,
 			providerTimestampMicros: Long = (receivedNanos - 1_000_000L) / 1_000L,
+			networkName: String? = null,
 		) = WifiBackendEvent.Results(
 			snapshot = WifiBackendSnapshot(
 				listOf(
@@ -2112,6 +2123,7 @@ class WifiSourceRuntimeTest {
 						frequencyMhz = frequencyMhz,
 						signalLevelDbm = -50,
 						platformTimestampMicros = providerTimestampMicros,
+						networkName = networkName,
 					),
 				),
 			),

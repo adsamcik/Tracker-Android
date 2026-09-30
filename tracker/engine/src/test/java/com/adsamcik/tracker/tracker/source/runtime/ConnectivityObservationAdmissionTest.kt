@@ -67,20 +67,20 @@ class ConnectivityObservationAdmissionTest {
 	}
 
 	@Test
-	fun `radio persistence withholds raw provider and subscription identities`() {
+	fun `radio persistence keeps available tower details without subscription identity`() {
 		val rawBssid = "aa:bb:cc:dd:ee:ff"
-		val wifi = WifiBackendAccessPoint(rawBssid, 2_412, -50, 10L).toMinimizedEvidence()
+		val wifi = WifiBackendAccessPoint(rawBssid, 2_412, -50, 10L).toSourceEvidence()
 		val rawCellIdentity = "310:260:123:456"
 		val cell = CellBackendObservation(rawCellIdentity, "LTE", true, -90, 10_000L)
-			.toMinimizedEvidence()
-		val cellPayload = minimizedCellSnapshotPayload(
+			.toDurableEvidence()
+		val cellPayload = cellSnapshotPayload(
 			listOf(cell),
 			CellRefreshOutcome.CALLBACK,
 			"UTC",
 		)
 
-		assertEquals(WITHHELD_RADIO_IDENTIFIER_TOKEN, wifi.identifierToken)
-		assertEquals(WITHHELD_RADIO_IDENTIFIER_TOKEN, cell.identifierToken)
+		assertEquals(rawBssid, wifi.identifierToken)
+		assertEquals(rawCellIdentity, cell.identifierToken)
 		assertNull(cellPayload.subscriptionId)
 		assertFalse(wifi.toString().contains(rawBssid))
 		assertFalse(cellPayload.toString().contains(rawCellIdentity))

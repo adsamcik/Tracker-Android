@@ -4,6 +4,9 @@ package com.adsamcik.tracker.tracker.source.ingress
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationFactWindow
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
+import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthenticator
 import com.adsamcik.tracker.shared.base.database.markStepsRetentionTruncation
 import com.adsamcik.tracker.shared.base.database.dao.SourceBrokerDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
@@ -13,6 +16,15 @@ import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEnti
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadDecodeResult
+import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadDecodeResult
+import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemAuthority
+import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemQualification
+import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemQualifier
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
@@ -53,7 +65,6 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
-import com.adsamcik.tracker.tracker.source.model.RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.sourceQualityFromStableFlags
@@ -718,6 +729,7 @@ class RoomDurableSourceIngress @Inject constructor(
 				var emptyDeliveryFailure = AdmissionFailureCode.STALE_SOURCE_POLICY
 				for (unit in encodedUnits) {
 					val evidence = unit.sourceUnit.evidence
+					val perItemRadio = evidence.usesPerItemRadioAdmission()
 					if (evidence.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch) {
 						return@transaction DeliveryAdmissionResult.PermanentFailure(
 							AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH,
@@ -733,7 +745,8 @@ class RoomDurableSourceIngress @Inject constructor(
 						?: return@transaction DeliveryAdmissionResult.PermanentFailure(
 							AdmissionFailureCode.STALE_REGISTRATION_GENERATION,
 						)
-					val registration = brokerDao.registrationAtObservedTime(
+					val registration = if (perItemRadio) loadRadioDeliveryRegistration(evidence, brokerDao)
+						else brokerDao.registrationAtObservedTime(
 						evidence.source.stableCode,
 						evidence.registrationGeneration,
 						evidence.sourceInstanceId.value,
@@ -742,7 +755,7 @@ class RoomDurableSourceIngress @Inject constructor(
 						evidence.observedElapsedRealtimeNanos,
 					)
 					val intervalStart = unit.sourceUnit.observedIntervalStartElapsedRealtimeNanos
-					val startRegistration = if (intervalStart < evidence.observedElapsedRealtimeNanos) {
+					val startRegistration = if (!perItemRadio && intervalStart < evidence.observedElapsedRealtimeNanos) {
 						brokerDao.registrationAtObservedTime(
 							evidence.source.stableCode,
 							evidence.registrationGeneration,
@@ -768,16 +781,24 @@ class RoomDurableSourceIngress @Inject constructor(
 							AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH,
 						)
 					}
-					val observedTimeAuthorizationRows = brokerDao.authorizationAt(
+					val observedTimeAuthorizationRows = if (perItemRadio) {
+						brokerDao.authorizationAtBounded(evidence.source.stableCode,
+							evidence.registrationGeneration, evidence.clockDomainId,
+							evidence.receivedElapsedRealtimeNanos, MAX_RADIO_AUTHORIZATION_MEMBERS + 1)
+					} else brokerDao.authorizationAt(
 						evidence.source.stableCode,
 						evidence.registrationGeneration,
 						evidence.clockDomainId,
 						evidence.observedElapsedRealtimeNanos,
 					)
+					if (perItemRadio && observedTimeAuthorizationRows.size > MAX_RADIO_AUTHORIZATION_MEMBERS) {
+						return@transaction DeliveryAdmissionResult.PermanentFailure(
+							AdmissionFailureCode.STALE_SOURCE_POLICY)
+					}
 					var observedTimeAuthorization = runCatchingNonCancellation {
 						observedTimeAuthorizationRows.toAuthorizationSnapshotOrNull()
 					}.getOrNull()
-					if (evidence.source == SourceKind.WIFI &&
+					if (!perItemRadio && evidence.source == SourceKind.WIFI &&
 						(observedTimeAuthorization == null ||
 							observedTimeAuthorization.isDenied ||
 							!observedTimeAuthorization.matchesCapturedEnvelope(evidence))
@@ -800,7 +821,7 @@ class RoomDurableSourceIngress @Inject constructor(
 							}
 						}
 					}
-					if (intervalStart < evidence.observedElapsedRealtimeNanos) {
+					if (!perItemRadio && intervalStart < evidence.observedElapsedRealtimeNanos) {
 						val startAuthorizationRows = brokerDao.authorizationAt(
 							evidence.source.stableCode,
 							evidence.registrationGeneration,
@@ -819,7 +840,8 @@ class RoomDurableSourceIngress @Inject constructor(
 						}
 					}
 					val qualifiedTimeAuthorization = observedTimeAuthorization
-					if (qualifiedTimeAuthorization == null || qualifiedTimeAuthorization.isDenied) {
+					if (qualifiedTimeAuthorization == null ||
+						!perItemRadio && qualifiedTimeAuthorization.isDenied) {
 						emptyDeliveryFailure = AdmissionFailureCode.STALE_SOURCE_POLICY
 						continue
 					}
@@ -854,7 +876,15 @@ class RoomDurableSourceIngress @Inject constructor(
 							AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED,
 						)
 					}
-					val authorization = qualifiedTimeAuthorization.qualifiedForFreshness(
+					val radioItems = if (perItemRadio) qualifyRadioDeliveryItems(
+						unit, registration, qualifiedTimeAuthorization, brokerDao,
+					) else null
+					// The v6 carrier keeps the exact callback authorization. Its destinations
+					// independently select fresh items; narrowing this header would fabricate
+					// a revision and let one purpose discard a sibling's valid observations.
+					val authorization = if (perItemRadio) {
+						qualifiedTimeAuthorization.takeIf { radioItems?.items?.unionIndexes?.isNotEmpty() == true }
+					} else qualifiedTimeAuthorization.qualifiedForFreshness(
 						brokerDao = brokerDao,
 						observedElapsedRealtimeNanos = evidence.observedElapsedRealtimeNanos,
 						receivedElapsedRealtimeNanos = evidence.receivedElapsedRealtimeNanos,
@@ -863,7 +893,12 @@ class RoomDurableSourceIngress @Inject constructor(
 						emptyDeliveryFailure = AdmissionFailureCode.STALE_OBSERVATION
 						continue
 					}
-					if (authorization.hasCapturePurpose() &&
+					val hasQualifiedCaptureItems = if (perItemRadio) radioItems?.hasCaptureItems == true
+						else authorization.hasCapturePurpose()
+					// Ambient delivery has never depended on session admission. Keep that
+					// independent path when a raw callback also carries unusable capture items.
+					val requiresCaptureAdmission = !perItemRadio || radioItems?.hasAmbientItems != true
+					if (requiresCaptureAdmission && hasQualifiedCaptureItems &&
 						!isCaptureAdmissionExecutable(evidence.source.stableCode)
 					) {
 						return@transaction DeliveryAdmissionResult.PermanentFailure(
@@ -873,7 +908,7 @@ class RoomDurableSourceIngress @Inject constructor(
 					val captureMembers = authorization.authorizedMembers.filter { member ->
 						member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
 					}
-					if (captureMembers.size > 1) {
+					if (requiresCaptureAdmission && captureMembers.size > 1) {
 						return@transaction DeliveryAdmissionResult.PermanentFailure(
 							AdmissionFailureCode.STALE_SESSION_MANIFEST,
 						)
@@ -890,7 +925,9 @@ class RoomDurableSourceIngress @Inject constructor(
 						emptyDeliveryFailure = AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY
 						continue
 					}
-					if (captureAuthorization != null) {
+					if (requiresCaptureAdmission && captureAuthorization != null && (!perItemRadio ||
+						radioItems?.items?.acceptedIndexesByDemandId?.get(captureAuthorization.demandId)
+							?.isNotEmpty() == true)) {
 						val key = captureKey
 							?: return@transaction DeliveryAdmissionResult.PermanentFailure(
 								AdmissionFailureCode.STALE_SESSION_MANIFEST,
@@ -1852,6 +1889,116 @@ private data class ObservedTimeInterval(
 	val endElapsedRealtimeNanos: Long,
 )
 
+/** Only the newly versioned radio contract changes admission; old receipts keep their meaning. */
+private fun SourceEvidenceCandidate<*>.usesPerItemRadioAdmission(): Boolean =
+	(source == SourceKind.WIFI && payloadVersion == WIFI_WAL_PAYLOAD_VERSION) ||
+		(source == SourceKind.CELL && payloadVersion == CELL_WAL_PAYLOAD_VERSION)
+
+/** Authenticate the physical lifetime once; cached children are qualified inside that lifetime. */
+private suspend fun loadRadioDeliveryRegistration(
+	evidence: SourceEvidenceCandidate<*>,
+	brokerDao: SourceBrokerDao,
+): ProviderRegistrationGenerationEntity? {
+	val registration = brokerDao.registration(evidence.source.stableCode, evidence.registrationGeneration)
+		?: return null
+	val start = registration.acceptedElapsedRealtimeNanos?.takeIf { it < Long.MAX_VALUE } ?: return null
+	val current = brokerDao.currentPhysicalRegistrationsBounded(evidence.source.stableCode,
+		MAX_RADIO_CURRENT_REGISTRATIONS + 1)
+	if (current.size > MAX_RADIO_CURRENT_REGISTRATIONS) return null
+	val authenticated = runCatchingNonCancellation {
+		ProviderRegistrationIntervalAuthenticator.authenticateFactWindow(
+			registration, evidence.source.stableCode, evidence.registrationGeneration,
+			evidence.sourceInstanceId.value, evidence.clockDomainId,
+			evidence.physicalConfigurationFingerprint ?: return null, evidence.capturedCollectedDataEpoch,
+			ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+			ProviderRegistrationFactWindow(start, start + 1L, emptyList()),
+			evidence.clockDomainId, current,
+		)
+	}.getOrNull() as? ProviderRegistrationIntervalAuthentication.Authenticated
+	return authenticated?.registration
+}
+
+/** Caller owns the WAL transaction; never substitutes today's demands for a missing revision. */
+private suspend fun qualifyRadioDeliveryItems(
+	unit: EncodedDeliveryUnit,
+	registration: ProviderRegistrationGenerationEntity,
+	callback: SourceAuthorizationSnapshot,
+	brokerDao: SourceBrokerDao,
+): QualifiedRadioDelivery? {
+	val evidence = unit.sourceUnit.evidence
+	val firstRows = brokerDao.authorizationAtBounded(evidence.source.stableCode,
+		evidence.registrationGeneration, evidence.clockDomainId,
+		unit.sourceUnit.observedIntervalStartElapsedRealtimeNanos, MAX_RADIO_AUTHORIZATION_MEMBERS + 1)
+	if (firstRows.size > MAX_RADIO_AUTHORIZATION_MEMBERS) return null
+	var current = if (firstRows.isNotEmpty()) runCatchingNonCancellation {
+		firstRows.toAuthorizationSnapshotOrNull()
+	}.getOrNull() else {
+		val next = brokerDao.nextAuthorizationRevisionBounded(evidence.source.stableCode,
+			evidence.registrationGeneration, 0L, MAX_RADIO_AUTHORIZATION_MEMBERS + 1)
+		if (next.size > MAX_RADIO_AUTHORIZATION_MEMBERS) return null
+		runCatchingNonCancellation { next.toAuthorizationSnapshotOrNull() }.getOrNull()
+	} ?: return null
+	val timeline = mutableListOf<SourceAuthorizationSnapshot>()
+	while (timeline.size < MAX_RADIO_AUTHORIZATION_REVISIONS) {
+		if (current.authorizationRevision > callback.authorizationRevision ||
+			current.effectiveBootId != evidence.clockDomainId ||
+			current.effectiveElapsedRealtimeNanos > evidence.receivedElapsedRealtimeNanos
+		) return null
+		timeline += current
+		if (current.authorizationRevision == callback.authorizationRevision) break
+		val next = brokerDao.nextAuthorizationRevisionBounded(evidence.source.stableCode,
+			evidence.registrationGeneration, current.authorizationRevision, MAX_RADIO_AUTHORIZATION_MEMBERS + 1)
+		if (next.size > MAX_RADIO_AUTHORIZATION_MEMBERS) return null
+		current = runCatchingNonCancellation { next.toAuthorizationSnapshotOrNull() }.getOrNull()
+			?: return null
+	}
+	if (timeline.lastOrNull() != callback) return null
+	val ids = timeline.flatMap { it.authorizedMembers.mapNotNull(SourceAuthorizationEntity::demandId) }
+		.distinct()
+	val demands = ids.chunked(RADIO_DEMAND_QUERY_CHUNK).flatMap { brokerDao.demandsByIds(it) }
+	if (demands.size != ids.size) return null
+	val authority = RadioPurposeItemAuthority(
+		evidence.source.stableCode, evidence.registrationGeneration, evidence.clockDomainId,
+		registration.acceptedElapsedRealtimeNanos ?: return null,
+		registration.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE,
+		evidence.receivedElapsedRealtimeNanos, timeline, demands,
+	)
+	val result = when (evidence.source) {
+		SourceKind.WIFI -> {
+			val decoded = WifiWalPayloadCodec.decodeCanonical(evidence.payloadVersion, unit.payload.bytes)
+				as? WifiWalPayloadDecodeResult.Decoded ?: return null
+			RadioPurposeItemQualifier.wifi(decoded.payload, authority, evidence.payloadVersion)
+		}
+		SourceKind.CELL -> {
+			val decoded = CellWalPayloadCodec.decodeCanonical(evidence.payloadVersion, unit.payload.bytes)
+				as? CellWalPayloadDecodeResult.Decoded ?: return null
+			RadioPurposeItemQualifier.cell(decoded.payload, authority, evidence.payloadVersion)
+		}
+		else -> return null
+	}
+	val items = result as? RadioPurposeItemQualification.Qualified ?: return null
+	val captureDemandIds = demands.filter { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+		.mapTo(mutableSetOf()) { it.demandId }
+	val ambientDemandIds = demands.filter { it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT }
+		.mapTo(mutableSetOf()) { it.demandId }
+	return QualifiedRadioDelivery(items, items.acceptedIndexesByDemandId.any { (id, indexes) ->
+		id in captureDemandIds && indexes.isNotEmpty()
+	}, items.acceptedIndexesByDemandId.any { (id, indexes) ->
+		id in ambientDemandIds && indexes.isNotEmpty()
+	})
+}
+
+private data class QualifiedRadioDelivery(
+	val items: RadioPurposeItemQualification.Qualified,
+	val hasCaptureItems: Boolean,
+	val hasAmbientItems: Boolean,
+)
+
+private const val MAX_RADIO_AUTHORIZATION_REVISIONS = 256
+private const val MAX_RADIO_AUTHORIZATION_MEMBERS = 64
+private const val MAX_RADIO_CURRENT_REGISTRATIONS = 64
+private const val RADIO_DEMAND_QUERY_CHUNK = 400
+
 /** Suppressed observations are terminally omitted; a later resume cannot turn a retry into backfill. */
 internal fun TrackingStartupGate.permitsNewEvidence(candidate: SourceEvidenceCandidate<*>): Boolean {
 	if (!permitsNewCollection) return false
@@ -2077,7 +2224,7 @@ private const val RAW_PAYLOAD_DECODE_FAILURE = "RAW_PAYLOAD_DECODE"
 private const val NANOS_PER_MILLISECOND = 1_000_000L
 private const val MAX_RADIO_ZONE_WRAPPER_BYTES = 65_537
 private val RADIO_ZONE_COMPATIBLE_PAYLOAD_VERSIONS =
-	4..RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
+	4..maxOf(WIFI_WAL_PAYLOAD_VERSION, CELL_WAL_PAYLOAD_VERSION)
 
 class CorruptSourceEventException(
 	val admissionOrdinal: Long,

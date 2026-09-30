@@ -170,7 +170,7 @@ object CellWalCarrierAuthenticator {
 		if (wal.sourceKind != SourceDestinationOwnerEntity.SOURCE_CELL) {
 			return rejected(CellWalCarrierFailure.WRONG_SOURCE)
 		}
-		if (wal.payloadVersion != CELL_WAL_PAYLOAD_VERSION) {
+		if (wal.payloadVersion !in LEGACY_CELL_WAL_PAYLOAD_VERSION..CELL_WAL_PAYLOAD_VERSION) {
 			return rejected(CellWalCarrierFailure.UNSUPPORTED_PAYLOAD_VERSION)
 		}
 		if (!LOWERCASE_SHA_256.matches(wal.payloadChecksum) ||
@@ -216,7 +216,9 @@ object CellWalCarrierAuthenticator {
 		if (payload.observations.size > MAX_CELL_WAL_CHILDREN) {
 			return rejected(CellWalCarrierFailure.TOO_MANY_CHILDREN)
 		}
-		if (payload.observations.any { it.identifierToken.isNotEmpty() }) {
+		if (wal.payloadVersion == LEGACY_CELL_WAL_PAYLOAD_VERSION &&
+			payload.observations.any { it.identifierToken.isNotEmpty() }
+		) {
 			return rejected(CellWalCarrierFailure.IDENTITY_BEARING_CHILD)
 		}
 		if (payload.observations.any { observation ->
@@ -254,8 +256,10 @@ object CellWalCarrierAuthenticator {
 						providerTimestampNanos = requireNotNull(
 							observation.providerTimestampNanos,
 						),
+						identifierToken = observation.identifierToken,
 					)
 				},
+				wal.payloadVersion,
 			)
 		}.getOrNull()
 		if (deliveryIdentity == null || deliveryIdentity != wal.deliveryIdentity) {
@@ -294,6 +298,23 @@ object CellWalCarrierAuthenticator {
 		if (!fact.hasExactPayloadSemantics(authenticated.carrier)) {
 			return rejected(CellWalCarrierFailure.FACT_SEMANTICS_MISMATCH)
 		}
+		return authenticated
+	}
+
+	/** History and export must prove that every displayed v6 tower belongs to this exact fact. */
+	fun authenticate(
+		fact: CellCapturedFactRevisionEntity,
+		wal: SourceEventWalEntity,
+		children: List<CellCapturedChildEntity>,
+	): CellWalCarrierAuthentication {
+		val authenticated = authenticate(fact, wal)
+		if (authenticated !is CellWalCarrierAuthentication.Authenticated) return authenticated
+		if (wal.payloadVersion == LEGACY_CELL_WAL_PAYLOAD_VERSION && children.isEmpty()) {
+			return authenticated
+		}
+		if (wal.payloadVersion != CELL_WAL_PAYLOAD_VERSION ||
+			!children.authenticateFor(fact, wal, authenticated.carrier)
+		) return rejected(CellWalCarrierFailure.FACT_SEMANTICS_MISMATCH)
 		return authenticated
 	}
 
@@ -400,6 +421,48 @@ object CellWalCarrierAuthenticator {
 			providerWallInterval = providerWallInterval,
 			aggregate = accepted.map(CellWalQualifiedChild::observation).toAggregate(),
 		)
+	}
+}
+
+private fun List<CellCapturedChildEntity>.authenticateFor(
+	fact: CellCapturedFactRevisionEntity,
+	wal: SourceEventWalEntity,
+	carrier: AuthenticatedCellWalCarrier,
+): Boolean {
+	val acceptedIndexes = carrier.childQualification?.children?.withIndex()
+		?.filter { it.value.disposition == CellWalChildDisposition.ACCEPTED }
+		?.map { it.index }?.toSet() ?: return false
+	if (isEmpty() || size != fact.acceptedChildCount || size > MAX_CELL_WAL_CHILDREN ||
+		map(CellCapturedChildEntity::itemIndex).toSet() != acceptedIndexes
+	) return false
+	val wallAnchor = wal.wallTimeMs ?: return false
+	val uncertaintyAnchor = wal.wallTimeUncertaintyMs ?: return false
+	return all { child ->
+		val item = carrier.payload.observations.getOrNull(child.itemIndex) ?: return@all false
+		val providerTime = item.providerTimestampNanos ?: return@all false
+		val age = wal.observedElapsedNanos - providerTime
+		if (age < 0L || child.writerProjectionId != fact.writerProjectionId ||
+			child.writerProjectionVersion != fact.writerProjectionVersion ||
+			child.logicalFactId != fact.logicalFactId ||
+			child.semanticRevision != fact.semanticRevision
+		) return@all false
+		val wall = runCatching { Math.subtractExact(wallAnchor, age / NANOS_PER_MILLISECOND) }
+			.getOrNull() ?: return@all false
+		val uncertainty = runCatching { Math.addExact(uncertaintyAnchor,
+			if (age % NANOS_PER_MILLISECOND == 0L) 0L else 1L) }
+			.getOrNull() ?: return@all false
+		val identity = item.identifierToken.ifEmpty { null }
+		val input = CellChildChecksumInput(
+			RadioChildOwner(RadioChildPurpose.SESSION, fact.writerProjectionId,
+				fact.writerProjectionVersion, fact.logicalFactId, fact.semanticRevision, child.itemIndex),
+			providerTime, wall, uncertainty, identity, item.radioType,
+			item.registered, item.signalLevelDbm,
+		)
+		child.providerTimestampNanos == providerTime && child.observedWallTimeMs == wall &&
+			child.wallTimeUncertaintyMs == uncertainty && child.towerIdentity == identity &&
+			child.radioType == item.radioType && child.registered == item.registered &&
+			child.signalDbm == item.signalLevelDbm &&
+			child.contentChecksum == RadioObservationChildIntegrity.cell(input)
 	}
 }
 
@@ -530,7 +593,8 @@ private fun CellCapturedFactRevisionEntity.hasExactWalLink(
 	carrier: AuthenticatedCellWalCarrier,
 ): Boolean =
 	purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
-		payloadVersion == CELL_WAL_PAYLOAD_VERSION &&
+		payloadVersion == wal.payloadVersion &&
+		payloadVersion in LEGACY_CELL_WAL_PAYLOAD_VERSION..CELL_WAL_PAYLOAD_VERSION &&
 		sourceEventId == wal.eventId &&
 		sourceAdmissionOrdinal == wal.admissionOrdinal &&
 		walIntegrityIdentity == wal.integrityIdentity &&
@@ -664,6 +728,7 @@ private fun rejected(reason: CellWalCarrierFailure) =
 
 private val CELL_WAL_OBSERVATION_ORDER = compareBy<CellWalPayloadObservation>(
 	CellWalPayloadObservation::radioType,
+	CellWalPayloadObservation::identifierToken,
 	CellWalPayloadObservation::registered,
 	CellWalPayloadObservation::signalLevelDbm,
 	CellWalPayloadObservation::providerTimestampNanos,

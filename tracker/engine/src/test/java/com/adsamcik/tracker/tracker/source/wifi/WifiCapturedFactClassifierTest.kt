@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.wifi
 
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.LEGACY_WIFI_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
@@ -20,6 +21,7 @@ import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprin
 import com.adsamcik.tracker.tracker.source.runtime.wifiProviderDeliveryIdentity
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.Test
 import java.security.MessageDigest
 
@@ -308,15 +310,14 @@ class WifiCapturedFactClassifierTest {
 	}
 
 	@Test
-	fun `identity bearing payload and missing delivery identity are rejected`() {
+	fun `v6 retains network identity while legacy identity and missing delivery identity are rejected`() {
 		val authority = authority()
-		classify(
-			input(
-				authority,
-				accessPoints = listOf(accessPoint(2_412, -50, 1_000_000_000L, "ssid-or-bssid")),
-			),
-			authority,
-		) shouldBe rejected(WifiFactRejection.IDENTITY_BEARING_INPUT)
+		val identified = listOf(accessPoint(2_412, -50, 1_000_000_000L, "aa:bb:cc:dd:ee:ff"))
+		classify(input(authority, accessPoints = identified), authority)
+			.shouldBeInstanceOf<WifiCapturedFactClassification.FreshChanged>()
+		classify(input(authority, accessPoints = identified,
+			payloadVersion = LEGACY_WIFI_WAL_PAYLOAD_VERSION), authority) shouldBe
+			rejected(WifiFactRejection.IDENTITY_BEARING_INPUT)
 		val noDelivery = input(authority).let {
 			it.copy(
 				walEvidence = it.walEvidence!!.copy(sourceDeliveryIdentity = null).withValidWalIntegrity(),
@@ -821,6 +822,7 @@ class WifiCapturedFactClassifierTest {
 		receivedElapsedRealtimeNanos: Long = 1_100_000_000L,
 		observedWallTimeMs: Long = DEFAULT_WALL_TIME_MS,
 		wallTimeUncertaintyMs: Long = DEFAULT_UNCERTAINTY_MS,
+		payloadVersion: Int = WIFI_WAL_PAYLOAD_VERSION,
 	): WifiObservationInput {
 		if (outcome != WifiProviderOutcome.RESULTS_UPDATED) {
 			return WifiObservationInput(origin, outcome, null)
@@ -830,6 +832,8 @@ class WifiCapturedFactClassifierTest {
 				WifiAccessPointEvidence::frequencyMhz,
 				WifiAccessPointEvidence::signalLevelDbm,
 				WifiAccessPointEvidence::providerTimestampNanos,
+				WifiAccessPointEvidence::identifierToken,
+				WifiAccessPointEvidence::networkName,
 			),
 		)
 		val providerTimes = canonicalAccessPoints.mapNotNull(
@@ -843,9 +847,9 @@ class WifiCapturedFactClassifierTest {
 			resultAgeMs = null,
 			observationZoneId = authority.zoneId,
 		)
-		val encoded = DefaultSourcePayloadCodec().encode(payload, WIFI_WAL_PAYLOAD_VERSION)
+		val encoded = DefaultSourcePayloadCodec().encode(payload, payloadVersion)
 		val deliveryIdentity = runCatching {
-			wifiProviderDeliveryIdentity(authority.clockDomainId, canonicalAccessPoints)
+			wifiProviderDeliveryIdentity(authority.clockDomainId, canonicalAccessPoints, payloadVersion)
 		}.getOrElse { identity(delivery) }
 		val wal = WifiWalObservationEvidence(
 			sourceEventId = SourceEventId("wifi-event-$delivery"),
@@ -885,7 +889,7 @@ class WifiCapturedFactClassifierTest {
 			acquiredAtMs = observedWallTimeMs,
 			qualityFlags = 0L,
 			qualityConfidence = 0.9f,
-			payloadVersion = WIFI_WAL_PAYLOAD_VERSION,
+			payloadVersion = payloadVersion,
 			payloadBytes = encoded.bytes.toList(),
 			payloadChecksum = encoded.checksum,
 		)

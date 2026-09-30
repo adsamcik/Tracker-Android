@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.source.ingress
 
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.CellObservationEvidence
@@ -178,6 +180,44 @@ class SourcePayloadCodecTest {
 				codec.encode(payload, RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION).bytes,
 			) shouldBe payload
 		}
+	}
+
+	@Test
+	fun `version six retains available radio details while version five keeps its old shape`() {
+		val wifi = WifiResultSnapshotPayload(
+			accessPoints = listOf(
+				WifiAccessPointEvidence(
+					identifierToken = "aa:bb:cc:dd:ee:ff",
+					frequencyMhz = 2_412,
+					signalLevelDbm = -45,
+					providerTimestampNanos = 100L,
+					networkName = "Cafe",
+				),
+			),
+			platformTimestampMs = 0L,
+			resultAgeMs = null,
+			observationZoneId = "Europe/Prague",
+		)
+		val cell = CellSnapshotPayload(
+			subscriptionId = null,
+			observations = listOf(
+				CellObservationEvidence("230:01:42:100", "LTE", true, -90, 100L),
+			),
+			refreshOutcome = CellRefreshOutcome.CALLBACK,
+			observationZoneId = "Europe/Prague",
+		)
+
+		codec.decode(wifi.source, WIFI_WAL_PAYLOAD_VERSION,
+			codec.encode(wifi, WIFI_WAL_PAYLOAD_VERSION).bytes) shouldBe wifi
+		codec.decode(cell.source, CELL_WAL_PAYLOAD_VERSION,
+			codec.encode(cell, CELL_WAL_PAYLOAD_VERSION).bytes) shouldBe cell
+		shouldThrow<IllegalArgumentException> {
+			codec.encode(wifi, RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION)
+		}
+		// Cell keeps its original byte layout. Legacy product admission rejects tower IDs;
+		// decoding an existing structurally valid carrier must not rewrite its bytes.
+		codec.decode(cell.source, RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+			codec.encode(cell, RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION).bytes) shouldBe cell
 	}
 
 	@Test

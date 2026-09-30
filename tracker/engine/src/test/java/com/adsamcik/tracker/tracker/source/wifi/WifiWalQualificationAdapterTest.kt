@@ -27,7 +27,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionProofE
 import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionScopeProofEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
-import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.LEGACY_WIFI_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
@@ -3887,7 +3887,7 @@ class WifiWalQualificationAdapterTest {
 		val unsigned = first.copy(
 			admissionOrdinal = 0L,
 			eventId = "wifi-event-$index",
-			deliveryIdentity = wifiProviderDeliveryIdentity(BOOT_ID, accessPoints).value,
+			deliveryIdentity = wifiProviderDeliveryIdentity(BOOT_ID, accessPoints, PAYLOAD_VERSION).value,
 			sourceSequence = SOURCE_SEQUENCE + index - 1L,
 			observedIntervalStartNanos = observedStart,
 			observedElapsedNanos = observedEnd,
@@ -3961,7 +3961,7 @@ class WifiWalQualificationAdapterTest {
 		val unsigned = SourceEventWalEntity(
 			eventId = "wifi-noncapture-event-$index",
 			providerDedupKey = null,
-			deliveryIdentity = wifiProviderDeliveryIdentity(BOOT_ID, accessPoints).value,
+			deliveryIdentity = wifiProviderDeliveryIdentity(BOOT_ID, accessPoints, PAYLOAD_VERSION).value,
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 1,
 			logicalTrackingId = null,
@@ -4338,6 +4338,7 @@ class WifiWalQualificationAdapterTest {
 		val deliveryIdentity = deliveryIdentityOverride ?: wifiProviderDeliveryIdentity(
 			BOOT_ID,
 			accessPoints,
+			PAYLOAD_VERSION,
 		).value
 		val unsignedWal = SourceEventWalEntity(
 			eventId = EVENT_ID.value,
@@ -4753,7 +4754,7 @@ class WifiWalQualificationAdapterTest {
 		const val SEGMENT_ID = 1L
 		const val REPLACEMENT_SEGMENT_ID = 2L
 		const val SOURCE_SEQUENCE = 1L
-		const val PAYLOAD_VERSION = WIFI_WAL_PAYLOAD_VERSION
+		const val PAYLOAD_VERSION = LEGACY_WIFI_WAL_PAYLOAD_VERSION
 		const val QOS_CODE = 2
 		const val QOS_OFF = 0
 		const val START_ORIGIN = "MANUAL_FOREGROUND_START"

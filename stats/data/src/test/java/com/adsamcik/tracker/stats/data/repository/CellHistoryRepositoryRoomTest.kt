@@ -20,7 +20,7 @@ import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIn
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedDeletedRunEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.CELL_REFRESH_OUTCOME_CALLBACK
-import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.LEGACY_CELL_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.CellProviderDeliveryIdentityFact
 import com.adsamcik.tracker.shared.base.database.data.CellWalPayload
 import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadCodec
@@ -1416,7 +1416,7 @@ class CellHistoryRepositoryRoomTest {
 			deliveryUnitCount = 1,
 			sourceSequence = admissionOrdinal,
 			planAttribution = CellCapturedFactRevisionEntity.PLAN_ATTRIBUTION_CAPTURED_REGISTRATION,
-			payloadVersion = CELL_WAL_PAYLOAD_VERSION,
+			payloadVersion = LEGACY_CELL_WAL_PAYLOAD_VERSION,
 			canonicalProviderSemanticsDigest = deliveryIdentity,
 			sourceInstanceId = "cell-instance-${authority.spec.globalRevision}",
 			registrationGeneration = authority.spec.globalRevision,
@@ -1684,7 +1684,7 @@ class CellHistoryRepositoryRoomTest {
 
 	private fun walFor(fact: CellCapturedFactRevisionEntity): SourceEventWalEntity {
 		val payload = cellPayload(fact.observedElapsedNanos)
-		val encoded = CellWalPayloadCodec.encode(payload)
+		val encoded = CellWalPayloadCodec.encode(payload, LEGACY_CELL_WAL_PAYLOAD_VERSION)
 		val unsigned = SourceEventWalEntity(
 			admissionOrdinal = fact.sourceAdmissionOrdinal,
 			eventId = fact.sourceEventId,
@@ -1753,6 +1753,7 @@ class CellHistoryRepositoryRoomTest {
 					providerTimestampNanos = requireNotNull(observation.providerTimestampNanos),
 				)
 			},
+			LEGACY_CELL_WAL_PAYLOAD_VERSION,
 		)
 
 	private suspend fun assertRecentFactIntegrityFailure() {

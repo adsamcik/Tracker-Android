@@ -39,7 +39,7 @@ import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEnti
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.MAX_WIFI_WAL_PAYLOAD_BYTES
-import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.isSupportedWifiWalPayloadVersion
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.stats.api.repository.WifiCapturedPortableFormatV1
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
@@ -871,7 +871,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 			}
 			if (payload.accessPoints.isNotEmpty() &&
-				wifiProviderDeliveryIdentity(wal.clockDomainId, payload.accessPoints).value !=
+				wifiProviderDeliveryIdentity(wal.clockDomainId, payload.accessPoints, wal.payloadVersion).value !=
 					wal.deliveryIdentity
 			) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 			if (!captureEligible) {
@@ -1514,7 +1514,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 					!wal.hasExactSequenceAndDelivery()
 				) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 				if (payload.accessPoints.isNotEmpty() &&
-					wifiProviderDeliveryIdentity(wal.clockDomainId, payload.accessPoints).value !=
+					wifiProviderDeliveryIdentity(wal.clockDomainId, payload.accessPoints, wal.payloadVersion).value !=
 						wal.deliveryIdentity
 				) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 				if (!captureEligible) {
@@ -1541,7 +1541,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 	}
 
 	private fun decodeCanonicalPayload(wal: SourceEventWalEntity): WifiResultSnapshotPayload? {
-		if (wal.payloadVersion != WIFI_PAYLOAD_VERSION ||
+		if (!isSupportedWifiWalPayloadVersion(wal.payloadVersion) ||
 			wal.payload.size > MAX_CANONICAL_WIFI_PAYLOAD_BYTES
 		) return null
 		val payload = runCatching {
@@ -3525,7 +3525,6 @@ private const val WRITER_VERSION = SourceDestinationOwnerEntity.WIFI_FACT_PROJEC
 private const val CAPTURED_PLAN_ATTRIBUTION = 0
 private const val RECEIVE_TIME_ONLY_PLAN_ATTRIBUTION = 1
 private const val PLAN_PAYLOAD_VERSION = 1
-private const val WIFI_PAYLOAD_VERSION = WIFI_WAL_PAYLOAD_VERSION
 private const val FIRST_DELETION_GENERATION = 1L
 private const val INSERT_IGNORED = -1L
 private const val DELETE_BATCH_SIZE = 128

@@ -356,7 +356,9 @@ class SharedWifiSourceController @Inject constructor(
 			mode = mode,
 			minimumAttemptIntervalMs = capturePlan?.minimumAttemptIntervalMs ?: Long.MAX_VALUE,
 			maximumAcceptableResultAgeMs =
-				demands.minOf(SourceDemandEntity::maximumAgeMs),
+				// Preserve any reading still useful to one owner. Each product separately
+				// enforces its own age during historical per-item qualification.
+				demands.maxOf(SourceDemandEntity::maximumAgeMs),
 			unchangedResultDedupeWindowMs = capturePlan?.unchangedResultDedupeWindowMs
 				?: demands.minOf(SourceDemandEntity::maximumAgeMs),
 			backoff = capturePlan?.backoff ?: RetryBackoff(0L, 0L),

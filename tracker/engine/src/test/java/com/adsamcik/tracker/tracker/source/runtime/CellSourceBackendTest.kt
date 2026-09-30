@@ -25,6 +25,23 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class CellSourceBackendTest {
 	@Test
+	fun `provider observation diagnostics do not print tower identity`() {
+		val observation = CellBackendObservation("310:260:123:456", "LTE", true, -82, 123L)
+
+		assertFalse(observation.toString().contains("310:260:123:456"))
+		assertFalse(CellBackendSnapshot(1, listOf(observation)).toString()
+			.contains("310:260:123:456"))
+	}
+
+	@Test
+	fun `tower identity retains available fields and leaves unknown cell ID empty`() {
+		assertEquals("310:260:123:456", cellTowerIdentifier(456L, "310:260", 123, 456))
+		assertEquals(":260::456", cellTowerIdentifier(456L, "null:260", Int.MAX_VALUE, 456))
+		assertEquals("", cellTowerIdentifier(Int.MAX_VALUE.toLong(), "310:260", 123, Int.MAX_VALUE))
+		assertEquals("", cellTowerIdentifier(Long.MAX_VALUE, "310:260", 123, Long.MAX_VALUE))
+	}
+
+	@Test
 	fun `provider start propagates cancellation and fatal errors`() {
 		val baseManager = mockk<TelephonyManager>(relaxed = true)
 		val subscriptionManager = mockk<TelephonyManager>(relaxed = true)

@@ -1250,8 +1250,6 @@ class WifiSourceRuntime @Inject internal constructor(
 			maximumAcceptableResultAgeMs = plan.maximumAcceptableResultAgeMs,
 			providerAcceptedElapsedRealtimeNanos =
 				registration.providerAcceptedElapsedRealtimeNanos,
-			authorizationEffectiveElapsedRealtimeNanos =
-				registration.authorization.effectiveElapsedRealtimeNanos,
 			cutoffElapsedRealtimeNanos = cutoffElapsedRealtimeNanos,
 		)
 		if (eligibleAccessPoints.isEmpty()) {
@@ -1260,11 +1258,13 @@ class WifiSourceRuntime @Inject internal constructor(
 			// repeatedly turn unchanged emptiness into fabricated new product evidence.
 			return null
 		}
-		val normalized = eligibleAccessPoints.map(WifiBackendAccessPoint::toMinimizedEvidence).sortedWith(
+		val normalized = eligibleAccessPoints.map(WifiBackendAccessPoint::toSourceEvidence).sortedWith(
 			compareBy<WifiAccessPointEvidence>(
 				WifiAccessPointEvidence::frequencyMhz,
 				WifiAccessPointEvidence::signalLevelDbm,
 				WifiAccessPointEvidence::providerTimestampNanos,
+				WifiAccessPointEvidence::identifierToken,
+				WifiAccessPointEvidence::networkName,
 			),
 		)
 		val observed = requireNotNull(
@@ -1544,17 +1544,15 @@ internal suspend fun retryWifiDeliveryAdmission(
 	}
 }
 
-/** Keeps one callback unit inside its exact physical-registration, authorization, and stop bounds. */
+/** Preserve the physical callback; each destination applies its own historical item authorization. */
 internal fun qualifiedWifiProviderObservations(
 	accessPoints: List<WifiBackendAccessPoint>,
 	receivedElapsedRealtimeNanos: Long,
 	maximumAcceptableResultAgeMs: Long,
 	providerAcceptedElapsedRealtimeNanos: Long?,
-	authorizationEffectiveElapsedRealtimeNanos: Long,
 	cutoffElapsedRealtimeNanos: Long?,
 ): List<WifiBackendAccessPoint> {
 	val providerBoundary = providerAcceptedElapsedRealtimeNanos ?: return emptyList()
-	val effectiveStart = maxOf(providerBoundary, authorizationEffectiveElapsedRealtimeNanos)
 	return freshProviderObservations(
 		accessPoints,
 		receivedElapsedRealtimeNanos,
@@ -1562,18 +1560,19 @@ internal fun qualifiedWifiProviderObservations(
 		WifiBackendAccessPoint::providerTimestampNanos,
 	).filter { accessPoint ->
 		val providerTimestamp = accessPoint.providerTimestampNanos ?: return@filter false
-		providerTimestamp >= effectiveStart &&
+		providerTimestamp >= providerBoundary &&
 			cutoffElapsedRealtimeNanos?.let { providerTimestamp <= it } != false
 	}
 }
 
 /**
- * Process-independent identity for a qualified provider delivery. It uses only the boot clock
- * domain and minimized product evidence; raw BSSID and runtime registration identity are absent.
+ * Process-independent identity for a qualified provider delivery. It includes each observed
+ * network identity, but never the runtime registration or receipt time.
  */
 internal fun wifiProviderDeliveryIdentity(
 	clockDomainId: String,
 	accessPoints: List<WifiAccessPointEvidence>,
+	payloadVersion: Int = WIFI_WAL_PAYLOAD_VERSION,
 ): SourceDeliveryIdentity {
 	return SourceDeliveryIdentity(
 		canonicalWifiProviderDeliveryIdentity(
@@ -1584,8 +1583,10 @@ internal fun wifiProviderDeliveryIdentity(
 					frequencyMhz = observation.frequencyMhz,
 					signalLevelDbm = observation.signalLevelDbm,
 					providerTimestampNanos = observation.providerTimestampNanos,
+					networkName = observation.networkName,
 				)
 			},
+			payloadVersion,
 		),
 	)
 }
@@ -1603,9 +1604,10 @@ private fun WifiPlan.canRetainWifiProviderFor(successor: WifiPlan): Boolean =
 private const val WIFI_CALLBACK_BUFFER_CAPACITY = 64
 private val WIFI_ADMISSION_RETRY_DELAYS_MS = longArrayOf(25L, 250L, 1_000L)
 
-internal fun WifiBackendAccessPoint.toMinimizedEvidence() = WifiAccessPointEvidence(
-	identifierToken = WITHHELD_RADIO_IDENTIFIER_TOKEN,
+internal fun WifiBackendAccessPoint.toSourceEvidence() = WifiAccessPointEvidence(
+	identifierToken = bssid,
 	frequencyMhz = frequencyMhz,
 	signalLevelDbm = signalLevelDbm,
 	providerTimestampNanos = requireNotNull(providerTimestampNanos),
+	networkName = networkName,
 )

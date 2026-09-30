@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.tracker.source.model
 
-import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 
 interface SourcePayload {
@@ -255,7 +254,11 @@ data class WifiAccessPointEvidence(
 	val signalLevelDbm: Int,
 	/** Elapsed-realtime timestamp at which this individual AP was last seen by the provider. */
 	val providerTimestampNanos: Long? = null,
-)
+	/** Network name when the platform supplies one; null means unavailable or hidden. */
+	val networkName: String? = null,
+) {
+	override fun toString(): String = "WifiAccessPointEvidence(<redacted>)"
+}
 
 data class CellSnapshotPayload(
 	val subscriptionId: Int?,
@@ -271,7 +274,7 @@ data class CellSnapshotPayload(
 }
 
 /** First payload revision that freezes the observation-time structural zone for radio products. */
-internal const val RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION = CELL_WAL_PAYLOAD_VERSION
+internal const val RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION = 5
 
 data class CellObservationEvidence(
 	val identifierToken: String,
@@ -279,7 +282,9 @@ data class CellObservationEvidence(
 	val registered: Boolean,
 	val signalLevelDbm: Int?,
 	val providerTimestampNanos: Long?,
-)
+) {
+	override fun toString(): String = "CellObservationEvidence(<redacted>)"
+}
 
 enum class CellRefreshOutcome {
 	CALLBACK,

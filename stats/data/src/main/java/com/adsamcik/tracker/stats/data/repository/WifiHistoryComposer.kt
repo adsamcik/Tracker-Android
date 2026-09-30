@@ -31,7 +31,7 @@ import com.adsamcik.tracker.shared.base.database.data.WifiCaptureDeletionGenerat
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIntegrity
-import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.isSupportedWifiWalPayloadVersion
 import com.adsamcik.tracker.shared.base.database.data.WifiWalCarrierAuthentication
 import com.adsamcik.tracker.shared.base.database.data.WifiWalCarrierAuthenticator
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryAvailability
@@ -464,7 +464,7 @@ internal object WifiHistoryComposer {
 			capturedCollectedDataEpoch == evidence.collectedDataEpoch &&
 			admissionOrdinal > evidence.deletedSourceEventHighWaterOrdinal && deliveryUnitIndex == 0 &&
 			deliveryUnitCount == 1 && LOWERCASE_SHA_256.matches(deliveryIdentity.orEmpty()) &&
-			payloadVersion == WIFI_WAL_PAYLOAD_VERSION && hasQualifiedIntegrity() &&
+			isSupportedWifiWalPayloadVersion(payloadVersion) && hasQualifiedIntegrity() &&
 			provider.sourceKind == WIFI_SOURCE && provider.sourceInstanceId == sourceInstanceId &&
 			provider.ownerScope == "source-broker:$WIFI_SOURCE" &&
 			provider.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&

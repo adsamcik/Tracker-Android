@@ -20,7 +20,6 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.MAX_WIFI_WAL_PAYLOAD_BYTES
-import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.WifiWalCarrierAuthentication
 import com.adsamcik.tracker.shared.base.database.data.WifiWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.WifiWalCarrierFailure
@@ -145,7 +144,7 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 
 		val payload = authenticatedCarrier.payload.toSourcePayload()
 		val productionEncoding = runCatching {
-			payloadCodec.encode(payload, WIFI_WAL_PAYLOAD_VERSION)
+			payloadCodec.encode(payload, wal.payloadVersion)
 		}.getOrNull()
 		if (productionEncoding == null ||
 			!productionEncoding.bytes.contentEquals(wal.payload) ||

@@ -6,6 +6,34 @@ import org.junit.Test
 
 class RadioPurposeItemQualifierTest {
 	@Test
+	fun `v6 qualifies available radio identity while v5 keeps the historical empty-only rule`() {
+		for (source in SOURCES) {
+			val ambient = demand(source, "ambient", SourceBrokerPurpose.AMBIENT_PRODUCT, 600_000L)
+			val authority = authority(source, listOf(ambient), listOf(
+				snapshot(source, 1L, 0L, listOf(ambient)),
+			))
+			val v6 = if (source == SourceDestinationOwnerEntity.SOURCE_WIFI) {
+				val payload = WifiWalPayload(listOf(WifiWalPayloadObservation(
+					"aa:bb:cc:dd:ee:ff", 2_412, -60, nanos(570_000L), "Home Wi-Fi",
+				)), null, null, "UTC")
+				assertEquals(emptyList(), assertIs<RadioPurposeItemQualification.Qualified>(
+					RadioPurposeItemQualifier.wifi(payload, authority, LEGACY_WIFI_WAL_PAYLOAD_VERSION),
+				).unionIndexes)
+				RadioPurposeItemQualifier.wifi(payload, authority, WIFI_WAL_PAYLOAD_VERSION)
+			} else {
+				val payload = CellWalPayload(null, listOf(CellWalPayloadObservation(
+					"310:260:123:456", "LTE", true, -90, nanos(570_000L),
+				)), 0, "UTC")
+				assertEquals(emptyList(), assertIs<RadioPurposeItemQualification.Qualified>(
+					RadioPurposeItemQualifier.cell(payload, authority, LEGACY_CELL_WAL_PAYLOAD_VERSION),
+				).unionIndexes)
+				RadioPurposeItemQualifier.cell(payload, authority, CELL_WAL_PAYLOAD_VERSION)
+			}
+			assertEquals(listOf(0), assertIs<RadioPurposeItemQualification.Qualified>(v6).unionIndexes)
+		}
+	}
+
+	@Test
 	fun `two minute item remains background eligible while one minute session gets only fresh item`() {
 		for (source in SOURCES) {
 			val ambient = demand(source, "ambient", SourceBrokerPurpose.AMBIENT_PRODUCT, 600_000L)
@@ -35,7 +63,7 @@ class RadioPurposeItemQualifierTest {
 
 			assertEquals(before.acceptedIndexesByDemandId[ambient.demandId], during.acceptedIndexesByDemandId[ambient.demandId])
 			assertEquals(before.acceptedIndexesByDemandId[ambient.demandId], after.acceptedIndexesByDemandId[ambient.demandId])
-			assertEquals(null, after.acceptedIndexesByDemandId[capture.demandId])
+			assertEquals(listOf(1), after.acceptedIndexesByDemandId[capture.demandId])
 		}
 	}
 
@@ -47,36 +75,37 @@ class RadioPurposeItemQualifierTest {
 			val result = qualify(source, listOf(480_000L, 570_000L), authority(source, listOf(old, replacement),
 				listOf(snapshot(source, 1L, 0L, listOf(old)), snapshot(source, 2L, 550_000L, listOf(replacement)))))
 
-			assertEquals(mapOf(replacement.demandId to listOf(1)), result.acceptedIndexesByDemandId)
+			assertEquals(mapOf(old.demandId to listOf(0), replacement.demandId to listOf(1)),
+				result.acceptedIndexesByDemandId)
 		}
 	}
 
 	@Test
-	fun `same demand disappearing at an intermediate revision cannot authorize pre-revocation items`() {
+	fun `same demand disappearing at an intermediate revision keeps only items from active spans`() {
 		for (source in SOURCES) {
 			val ambient = demand(source, "ambient", SourceBrokerPurpose.AMBIENT_PRODUCT, 600_000L)
-			val result = qualify(source, listOf(480_000L, 570_000L), authority(source, listOf(ambient), listOf(
+			val result = qualify(source, listOf(480_000L, 530_000L, 570_000L), authority(source, listOf(ambient), listOf(
 				snapshot(source, 1L, 0L, listOf(ambient)), snapshot(source, 2L, 500_000L, emptyList()),
 				snapshot(source, 3L, 550_000L, listOf(ambient)))))
 
-			assertEquals(mapOf(ambient.demandId to listOf(1)), result.acceptedIndexesByDemandId)
+			assertEquals(mapOf(ambient.demandId to listOf(0, 2)), result.acceptedIndexesByDemandId)
 		}
 	}
 
 	@Test
-	fun `latest authorization wins at equal elapsed boundaries without admitting earlier items`() {
+	fun `latest authorization wins at equal elapsed boundaries while keeping earlier authorized items`() {
 		for (source in SOURCES) {
 			val ambient = demand(source, "ambient", SourceBrokerPurpose.AMBIENT_PRODUCT, 600_000L)
 			val result = qualify(source, listOf(549_999L, 550_000L), authority(source, listOf(ambient), listOf(
 				snapshot(source, 1L, 0L, listOf(ambient)), snapshot(source, 2L, 550_000L, emptyList()),
 				snapshot(source, 3L, 550_000L, listOf(ambient)))))
 
-			assertEquals(listOf(1), result.unionIndexes)
+			assertEquals(listOf(0, 1), result.unionIndexes)
 		}
 	}
 
 	@Test
-	fun `current deny and missing historical authority yield no invented zero observation`() {
+	fun `callback deny preserves earlier authorized item but missing historical authority yields no item`() {
 		for (source in SOURCES) {
 			val ambient = demand(source, "ambient", SourceBrokerPurpose.AMBIENT_PRODUCT, 600_000L)
 			val denied = qualify(source, listOf(480_000L), authority(source, listOf(ambient), listOf(
@@ -84,8 +113,8 @@ class RadioPurposeItemQualifierTest {
 			val beforeConsent = qualify(source, listOf(480_000L), authority(source, listOf(ambient), listOf(
 				snapshot(source, 2L, 550_000L, listOf(ambient)))))
 
-			assertEquals(emptyList(), denied.unionIndexes)
-			assertEquals(emptyMap(), denied.acceptedIndexesByDemandId)
+			assertEquals(listOf(0), denied.unionIndexes)
+			assertEquals(mapOf(ambient.demandId to listOf(0)), denied.acceptedIndexesByDemandId)
 			assertEquals(emptyList(), beforeConsent.unionIndexes)
 		}
 	}

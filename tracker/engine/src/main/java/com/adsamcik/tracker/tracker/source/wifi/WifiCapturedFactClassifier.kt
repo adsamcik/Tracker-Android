@@ -2,7 +2,8 @@ package com.adsamcik.tracker.tracker.source.wifi
 
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.MAX_WIFI_WAL_PAYLOAD_BYTES
-import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.LEGACY_WIFI_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.isSupportedWifiWalPayloadVersion
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
@@ -235,7 +236,9 @@ internal object WifiCapturedFactClassifier {
 		if (payload.accessPoints.size > resultContract.maximumAccessPointCount) {
 			return rejected(WifiFactRejection.TOO_MANY_ACCESS_POINTS)
 		}
-		if (payload.accessPoints.any { it.identifierToken.isNotEmpty() }) {
+		if (wal.payloadVersion == LEGACY_WIFI_WAL_PAYLOAD_VERSION &&
+			payload.accessPoints.any { it.identifierToken.isNotEmpty() || it.networkName != null }
+		) {
 			return rejected(WifiFactRejection.IDENTITY_BEARING_INPUT)
 		}
 		if (payload.platformTimestampMs?.let { it < 0L } == true ||
@@ -248,13 +251,15 @@ internal object WifiCapturedFactClassifier {
 			// empty result. Receipt or WAL time cannot manufacture a captured zero.
 			return WifiCapturedFactClassification.ClockUnverifiable
 		}
-		if (!payload.hasCanonicalProviderDeliveryShape()) {
+		if (!payload.hasCanonicalProviderDeliveryShape(wal.payloadVersion)) {
 			return rejected(WifiFactRejection.PROVIDER_DELIVERY_SHAPE_UNVERIFIABLE)
 		}
 		val deliveryIdentity = wal.sourceDeliveryIdentity
 			?: return rejected(WifiFactRejection.DELIVERY_IDENTITY_UNVERIFIABLE)
 		val calculatedDeliveryIdentity = runCatching {
-			wifiProviderDeliveryIdentity(expectedAuthority.clockDomainId, payload.accessPoints)
+			wifiProviderDeliveryIdentity(
+				expectedAuthority.clockDomainId, payload.accessPoints, wal.payloadVersion,
+			)
 		}.getOrNull() ?: return rejected(WifiFactRejection.DELIVERY_IDENTITY_UNVERIFIABLE)
 		if (deliveryIdentity != calculatedDeliveryIdentity) {
 			return when {
@@ -457,14 +462,14 @@ internal object WifiCapturedFactClassifier {
 		val bytes = wal.payloadBytes.toByteArray()
 		if (bytes.sha256() != wal.payloadChecksum ||
 			wal.calculatedWalIntegrityIdentity() != wal.walIntegrityIdentity ||
-			wal.payloadVersion != WIFI_WAL_PAYLOAD_VERSION
+			!isSupportedWifiWalPayloadVersion(wal.payloadVersion)
 		) {
 			return null
 		}
 		return runCatching {
 			val decoded = payloadCodec.decode(SourceKind.WIFI, wal.payloadVersion, bytes)
 				as? WifiResultSnapshotPayload ?: return@runCatching null
-			val canonical = payloadCodec.encode(decoded, WIFI_WAL_PAYLOAD_VERSION).bytes
+			val canonical = payloadCodec.encode(decoded, wal.payloadVersion).bytes
 			decoded.takeIf { canonical.contentEquals(bytes) }
 		}.getOrNull()
 	}
@@ -623,9 +628,16 @@ internal object WifiCapturedFactClassifier {
 			providerTimes.maxOrNull() == clock.observedElapsedRealtimeNanos
 	}
 
-	private fun WifiResultSnapshotPayload.hasCanonicalProviderDeliveryShape(): Boolean {
+	private fun WifiResultSnapshotPayload.hasCanonicalProviderDeliveryShape(payloadVersion: Int): Boolean {
 		if (accessPoints.isEmpty() || resultAgeMs != null) return false
-		if (accessPoints.any { it.identifierToken.isNotEmpty() || it.providerTimestampNanos == null }) {
+		if (accessPoints.any { accessPoint ->
+			accessPoint.providerTimestampNanos == null ||
+				payloadVersion == LEGACY_WIFI_WAL_PAYLOAD_VERSION &&
+				(accessPoint.identifierToken.isNotEmpty() || accessPoint.networkName != null) ||
+				accessPoint.identifierToken.length > 64 ||
+				accessPoint.networkName?.let { it.isEmpty() ||
+					it.toByteArray(Charsets.UTF_8).size > 128 } == true
+		}) {
 			return false
 		}
 		if (accessPoints != accessPoints.sortedWith(WIFI_PROVIDER_ITEM_ORDER)) return false
@@ -765,5 +777,7 @@ internal object WifiCapturedFactClassifier {
 		WifiAccessPointEvidence::frequencyMhz,
 		WifiAccessPointEvidence::signalLevelDbm,
 		WifiAccessPointEvidence::providerTimestampNanos,
+		WifiAccessPointEvidence::identifierToken,
+		WifiAccessPointEvidence::networkName,
 	)
 }

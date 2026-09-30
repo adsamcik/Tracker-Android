@@ -40,7 +40,9 @@ internal data class CellBackendObservation(
 	val registered: Boolean,
 	val signalLevelDbm: Int?,
 	val providerTimestampNanos: Long?,
-)
+) {
+	override fun toString(): String = "CellBackendObservation"
+}
 
 internal enum class CellRefreshRequestOutcome { REQUESTED, NOT_SUPPORTED, PERMISSION_BLOCKED, PROVIDER_FAILED }
 
@@ -251,8 +253,10 @@ private fun CellInfo.toBackendObservation(): CellBackendObservation? {
 	if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && this is CellInfoTdscdma) {
 		val identity = cellIdentity
 		return backendObservation(
-			identity = "${identity.mccString}:${identity.mncString}:${identity.lac}:" +
-				"${identity.cid}:${identity.cpid}",
+			identity = cellTowerIdentifier(
+				identity.cid.toLong(), identity.mccString, identity.mncString,
+				identity.lac, identity.cid, identity.cpid,
+			),
 			radioType = "TDSCDMA",
 			signalLevelDbm = cellSignalStrength.dbm,
 		)
@@ -260,24 +264,26 @@ private fun CellInfo.toBackendObservation(): CellBackendObservation? {
 	if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && this is CellInfoNr) {
 		val identity = cellIdentity as CellIdentityNr
 		return backendObservation(
-			identity = "${identity.mccString}:${identity.mncString}:${identity.tac}:" +
-				"${identity.nci}:${identity.pci}",
+			identity = nrCellTowerIdentifier(
+				identity.nci, identity.mccString, identity.mncString,
+				identity.tac, identity.nci, identity.pci,
+			),
 			radioType = "NR",
 			signalLevelDbm = cellSignalStrength.dbm,
 		)
 	}
 	val identityAndType = when (this) {
 		is CellInfoGsm -> (cellIdentity as CellIdentityGsm).let {
-			"${it.operatorToken()}:${it.lac}:${it.cid}" to "GSM"
+			cellTowerIdentifier(it.cid.toLong(), it.operatorToken(), it.lac, it.cid) to "GSM"
 		}
 		is CellInfoWcdma -> (cellIdentity as CellIdentityWcdma).let {
-			"${it.operatorToken()}:${it.lac}:${it.cid}:${it.psc}" to "WCDMA"
+			cellTowerIdentifier(it.cid.toLong(), it.operatorToken(), it.lac, it.cid, it.psc) to "WCDMA"
 		}
 		is CellInfoLte -> (cellIdentity as CellIdentityLte).let {
-			"${it.operatorToken()}:${it.tac}:${it.ci}:${it.pci}" to "LTE"
+			cellTowerIdentifier(it.ci.toLong(), it.operatorToken(), it.tac, it.ci, it.pci) to "LTE"
 		}
 		is CellInfoCdma -> (cellIdentity as CellIdentityCdma).let {
-			"${it.systemId}:${it.networkId}:${it.basestationId}" to "CDMA"
+			cellTowerIdentifier(it.basestationId.toLong(), it.systemId, it.networkId, it.basestationId) to "CDMA"
 		}
 		else -> return null
 	}
@@ -293,6 +299,34 @@ private fun CellInfo.toBackendObservation(): CellBackendObservation? {
 		radioType = identityAndType.second,
 		signalLevelDbm = signal,
 	)
+}
+
+/** An unavailable cell ID is absence, not a tower named after Android's sentinel value. */
+internal fun cellTowerIdentifier(primaryCellId: Long, vararg parts: Any?): String {
+	return canonicalCellTowerIdentifier(primaryCellId, Int.MAX_VALUE.toLong(), parts)
+}
+
+private fun nrCellTowerIdentifier(primaryCellId: Long, vararg parts: Any?): String =
+	canonicalCellTowerIdentifier(primaryCellId, Long.MAX_VALUE, parts)
+
+private fun canonicalCellTowerIdentifier(
+	primaryCellId: Long,
+	unavailableCellId: Long,
+	parts: Array<out Any?>,
+): String {
+	if (primaryCellId < 0L || primaryCellId == unavailableCellId || primaryCellId == Long.MAX_VALUE) return ""
+	return parts.joinToString(":") { part ->
+		when (part) {
+			is Int -> part.takeUnless { it < 0 || it == Int.MAX_VALUE }?.toString().orEmpty()
+			is Long -> part.takeUnless { it < 0L || it == Long.MAX_VALUE }?.toString().orEmpty()
+			is String -> part.split(':').joinToString(":") { component ->
+				component.takeUnless {
+					it == "null" || it == Int.MAX_VALUE.toString() || it == "-1"
+				}.orEmpty()
+			}
+			else -> ""
+		}
+	}
 }
 
 @Suppress("DEPRECATION")

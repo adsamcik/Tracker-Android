@@ -648,27 +648,29 @@ class CellSourceRuntimeTest {
 	}
 
 	@Test
-	fun `cell delivery identity is stable across order and raw provider identifiers`() {
+	fun `cell delivery identity is stable across order and binds tower identifiers`() {
 		val firstQualified = qualifiedCellSnapshot("raw-cell-a", "raw-cell-b")
-		val renamedAndReordered = qualifiedCellSnapshot(
-			"different-raw-a",
-			"different-raw-b",
+		val reordered = qualifiedCellSnapshot(
+			"raw-cell-a",
+			"raw-cell-b",
 			reverseProviderOrder = true,
 		)
+		val renamed = qualifiedCellSnapshot("different-raw-a", "raw-cell-b")
 		val first = cellProviderDeliveryIdentity(
 			"boot-1",
 			firstQualified.observations,
 		)
 		val sameProviderFact = cellProviderDeliveryIdentity(
 			"boot-1",
-			renamedAndReordered.observations,
+			reordered.observations,
 		)
 
 		assertEquals(first, sameProviderFact)
-		assertEquals(firstQualified.snapshotIdentity, renamedAndReordered.snapshotIdentity)
+		assertEquals(firstQualified.snapshotIdentity, reordered.snapshotIdentity)
+		assertFalse(firstQualified.snapshotIdentity == renamed.snapshotIdentity)
+		assertFalse(first == cellProviderDeliveryIdentity("boot-1", renamed.observations))
 		assertTrue(first.value.matches(Regex("[0-9a-f]{64}")))
-		assertFalse(firstQualified.observations.toString().contains("raw-cell-a"))
-		assertFalse(renamedAndReordered.observations.toString().contains("different-raw-a"))
+		assertEquals("raw-cell-a", firstQualified.observations.single { it.radioType == "LTE" }.identifierToken)
 	}
 
 	@Test
@@ -701,7 +703,7 @@ class CellSourceRuntimeTest {
 	}
 
 	@Test
-	fun `cell delivery identity includes minimized content and rejects raw identity`() {
+	fun `cell delivery identity includes signal and tower identity`() {
 		val qualified = qualifiedCellSnapshot("raw-cell-a", "raw-cell-b")
 		val first = cellProviderDeliveryIdentity(
 			"boot-1",
@@ -717,12 +719,26 @@ class CellSourceRuntimeTest {
 				changedSignal,
 			),
 		)
-		assertFailsWith<IllegalArgumentException> {
-			cellProviderDeliveryIdentity(
-				"boot-1",
-				qualified.observations.map { it.copy(identifierToken = "raw-cell") },
-			)
-		}
+		assertFalse(first == cellProviderDeliveryIdentity(
+			"boot-1",
+			qualified.observations.map { it.copy(identifierToken = "different-tower") },
+		))
+	}
+
+	@Test
+	fun `distinct towers with identical signal and provider time stay distinct`() {
+		val providerTime = 90L * NANOS_PER_MILLISECOND
+		val first = requireNotNull(qualifyCellSnapshot(
+			CellBackendSnapshot(1, listOf(CellBackendObservation("tower-a", "LTE", true, -91, providerTime))),
+			CellRefreshOutcome.CALLBACK, 100L * NANOS_PER_MILLISECOND, 100L,
+		))
+		val second = requireNotNull(qualifyCellSnapshot(
+			CellBackendSnapshot(1, listOf(CellBackendObservation("tower-b", "LTE", true, -91, providerTime))),
+			CellRefreshOutcome.CALLBACK, 100L * NANOS_PER_MILLISECOND, 100L,
+		))
+		assertFalse(first.snapshotIdentity == second.snapshotIdentity)
+		assertFalse(cellProviderDeliveryIdentity("boot-1", first.observations) ==
+			cellProviderDeliveryIdentity("boot-1", second.observations))
 	}
 
 	@Test
@@ -1405,22 +1421,6 @@ class CellSourceRuntimeTest {
 	}
 
 	@Test
-	fun `passive callback cannot settle requested refresh and duplicate wakeup cannot spend twice`() = runTest {
-		val fixture = runtimeFixture(this, cellPlan(mode = CellMode.OBSERVE_AND_SPARSE_REFRESH))
-		val actions = mutableMapOf<String, suspend () -> Unit>()
-		val cancelled = mutableListOf<String>()
-		coEvery { fixture.wakeups.schedule(any(), any()) } answers {
-			actions[firstArg<com.adsamcik.tracker.tracker.source.coordinator.WakeupRequest>().id] = secondArg()
-			Unit
-		}
-		coEvery { fixture.wakeups.cancel(any()) } answers { cancelled += firstArg<String>(); Unit }
-		var response: ((CellBackendSnapshot) -> Unit)? = null
-		every { fixture.backend.registeredSubscriptionIds } returns setOf(1)
-		every { fixture.backend.requestRefresh(any()) } answers {
-			response = firstArg()
-			CellRefreshRequestOutcome.REQUESTED
-		}
-	@Test
 	fun `spent durable Cell allowance blocks refresh while callbacks remain admitted`() = runTest {
 		val allowance = testRadioActiveRequestAllowance()
 		coEvery { allowance.reserve(any(), any(), any(), any(), any(), any()) } returns
@@ -1440,6 +1440,22 @@ class CellSourceRuntimeTest {
 		fixture.runtime.close()
 	}
 
+	@Test
+	fun `passive callback cannot settle requested refresh and duplicate wakeup cannot spend twice`() = runTest {
+		val fixture = runtimeFixture(this, cellPlan(mode = CellMode.OBSERVE_AND_SPARSE_REFRESH))
+		val actions = mutableMapOf<String, suspend () -> Unit>()
+		val cancelled = mutableListOf<String>()
+		coEvery { fixture.wakeups.schedule(any(), any()) } answers {
+			actions[firstArg<com.adsamcik.tracker.tracker.source.coordinator.WakeupRequest>().id] = secondArg()
+			Unit
+		}
+		coEvery { fixture.wakeups.cancel(any()) } answers { cancelled += firstArg<String>(); Unit }
+		var response: ((CellBackendSnapshot) -> Unit)? = null
+		every { fixture.backend.registeredSubscriptionIds } returns setOf(1)
+		every { fixture.backend.requestRefresh(any()) } answers {
+			response = firstArg()
+			CellRefreshRequestOutcome.REQUESTED
+		}
 		fixture.start(cellCandidateSink { SourceAdmissionHandoff.Durable(1L) })
 		runCurrent()
 		val attempt = requireNotNull(actions["cell-sparse-refresh"])
@@ -1584,6 +1600,7 @@ class CellSourceRuntimeTest {
 		scope: kotlinx.coroutines.CoroutineScope,
 		runtimePlan: CellPlan = cellPlan(),
 		registrationsToReturn: List<SourceRegistration> = listOf(registration(runtimePlan, 1L)),
+		allowance: RadioActiveRequestAllowance = testRadioActiveRequestAllowance(),
 	): RuntimeFixture {
 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
 		val backend = mockk<AndroidCellSourceBackend>(relaxed = true)
@@ -1600,7 +1617,6 @@ class CellSourceRuntimeTest {
 		coEvery {
 			registrations.beginRetirement(any(), any(), any(), any())
 		} answers {
-		allowance: RadioActiveRequestAllowance = testRadioActiveRequestAllowance(),
 			retirementToken(firstArg(), secondArg(), thirdArg(), arg(3))
 		}
 		coEvery { registrations.completeRetirement(any()) } returns true

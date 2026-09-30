@@ -7,7 +7,8 @@ import java.io.DataOutputStream
 import java.security.MessageDigest
 import java.time.ZoneId
 
-const val CELL_WAL_PAYLOAD_VERSION = 5
+const val LEGACY_CELL_WAL_PAYLOAD_VERSION = 5
+const val CELL_WAL_PAYLOAD_VERSION = 6
 
 data class CellWalPayloadObservation(
 	val identifierToken: String,
@@ -15,7 +16,9 @@ data class CellWalPayloadObservation(
 	val registered: Boolean,
 	val signalLevelDbm: Int?,
 	val providerTimestampNanos: Long?,
-)
+) {
+	override fun toString(): String = "CellWalPayloadObservation"
+}
 
 data class CellWalPayload(
 	val subscriptionId: Int?,
@@ -35,6 +38,8 @@ data class EncodedCellWalPayload internal constructor(
 	val checksum: String,
 ) {
 	fun toByteArray(): ByteArray = bytes.toByteArray()
+
+	override fun toString(): String = "EncodedCellWalPayload"
 }
 
 enum class CellWalPayloadDecodeFailure {
@@ -56,7 +61,11 @@ sealed interface CellWalPayloadDecodeResult {
  * byte lists instead of the mutable Room payload array.
  */
 object CellWalPayloadCodec {
-	fun encode(payload: CellWalPayload): EncodedCellWalPayload {
+	fun encode(
+		payload: CellWalPayload,
+		payloadVersion: Int = CELL_WAL_PAYLOAD_VERSION,
+	): EncodedCellWalPayload {
+		require(payloadVersion in LEGACY_CELL_WAL_PAYLOAD_VERSION..CELL_WAL_PAYLOAD_VERSION)
 		require(payload.observations.size <= MAX_CELL_WAL_CHILDREN)
 		val bytes = ByteArrayOutputStream().use { buffer ->
 			DataOutputStream(buffer).use { output ->
@@ -83,7 +92,7 @@ object CellWalPayloadCodec {
 		payloadVersion: Int,
 		bytes: ByteArray,
 	): CellWalPayloadDecodeResult {
-		if (payloadVersion != CELL_WAL_PAYLOAD_VERSION) {
+		if (payloadVersion !in LEGACY_CELL_WAL_PAYLOAD_VERSION..CELL_WAL_PAYLOAD_VERSION) {
 			return CellWalPayloadDecodeResult.Rejected(
 				CellWalPayloadDecodeFailure.UNSUPPORTED_PAYLOAD_VERSION,
 			)
@@ -122,7 +131,7 @@ object CellWalPayloadCodec {
 				CellWalPayloadDecodeFailure.MALFORMED_PAYLOAD,
 			)
 		}
-		val canonical = runCatching { encode(payload).toByteArray() }.getOrElse {
+		val canonical = runCatching { encode(payload, payloadVersion).toByteArray() }.getOrElse {
 			return CellWalPayloadDecodeResult.Rejected(
 				CellWalPayloadDecodeFailure.MALFORMED_PAYLOAD,
 			)

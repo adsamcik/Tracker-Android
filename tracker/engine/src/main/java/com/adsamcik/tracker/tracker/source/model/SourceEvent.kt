@@ -1,5 +1,8 @@
 package com.adsamcik.tracker.tracker.source.model
 
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
+
 data class SourceEvidenceCandidate<T : SourcePayload>(
 	val providerDedupKey: String?,
 	val logicalTrackingId: LogicalTrackingId?,
@@ -41,7 +44,11 @@ data class SourceEvidenceCandidate<T : SourcePayload>(
 		require(physicalConfigurationFingerprint == null || physicalConfigurationFingerprint.isNotBlank())
 		require(authorizationRevision == null || authorizationRevision > 0L)
 		require(registrationPurposeEligibilityMask >= 0L) { "Registration purpose mask must not be negative" }
-		require((registrationPurposeEligibilityMask == 0L) == (registrationEligibilityFingerprint == null)) {
+		val hasVersionedRadioAuthorization = authorizationRevision != null &&
+			((source == SourceKind.WIFI && payloadVersion == WIFI_WAL_PAYLOAD_VERSION) ||
+				(source == SourceKind.CELL && payloadVersion == CELL_WAL_PAYLOAD_VERSION))
+		require((registrationPurposeEligibilityMask == 0L) == (registrationEligibilityFingerprint == null) ||
+			hasVersionedRadioAuthorization && registrationEligibilityFingerprint != null) {
 			"Registration purpose mask and eligibility fingerprint must be stamped together"
 		}
 		require(registrationEligibilityFingerprint == null || registrationEligibilityFingerprint.isNotBlank())

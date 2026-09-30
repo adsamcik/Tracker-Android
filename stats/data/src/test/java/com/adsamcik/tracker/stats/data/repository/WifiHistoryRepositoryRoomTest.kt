@@ -30,7 +30,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessE
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIntegrity
-import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.LEGACY_WIFI_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.WifiWalPayload
 import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadCodec
 import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadObservation
@@ -1304,8 +1304,8 @@ class WifiHistoryRepositoryRoomTest {
 			partial = partial,
 			zoneId = ZONE_ID,
 		)
-		val encoded = WifiWalPayloadCodec.encode(payload)
-		val delivery = canonicalWifiProviderDeliveryIdentity(BOOT_ID, payload.observations)
+		val encoded = WifiWalPayloadCodec.encode(payload, LEGACY_WIFI_WAL_PAYLOAD_VERSION)
+		val delivery = canonicalWifiProviderDeliveryIdentity(BOOT_ID, payload.observations, LEGACY_WIFI_WAL_PAYLOAD_VERSION)
 		val logicalFactId = WifiCapturedFactRevisionIntegrity.logicalFactId(delivery, logicalId,
 			spec.runId, segmentId, spec.manifestRevision, 0L, 0L)
 		val unsigned = WifiCapturedFactRevisionEntity(
@@ -1404,6 +1404,7 @@ class WifiHistoryRepositoryRoomTest {
 				partial = fact.submittedResultCount > fact.acceptedResultCount,
 				zoneId = fact.storedZoneId,
 			),
+			LEGACY_WIFI_WAL_PAYLOAD_VERSION,
 		)
 		val unsigned = SourceEventWalEntity(
 			admissionOrdinal = fact.sourceAdmissionOrdinal,
@@ -1441,7 +1442,7 @@ class WifiHistoryRepositoryRoomTest {
 			acquiredAtMs = fact.acquiredAtMs,
 			qualityFlags = fact.qualityFlags,
 			qualityConfidence = fact.qualityConfidence,
-			payloadVersion = WIFI_WAL_PAYLOAD_VERSION,
+			payloadVersion = LEGACY_WIFI_WAL_PAYLOAD_VERSION,
 			payload = payload.toByteArray(),
 			payloadChecksum = fact.payloadChecksum,
 			createdAtMs = fact.appliedAtMs,
@@ -1623,11 +1624,11 @@ class WifiHistoryRepositoryRoomTest {
 			partial = false,
 			zoneId = ZONE_ID,
 		)
-		val encoded = WifiWalPayloadCodec.encode(payload)
+		val encoded = WifiWalPayloadCodec.encode(payload, LEGACY_WIFI_WAL_PAYLOAD_VERSION)
 		val unsigned = SourceEventWalEntity(
 			eventId = "wifi-pending-event-${spec.globalRevision}",
 			providerDedupKey = null,
-			deliveryIdentity = canonicalWifiProviderDeliveryIdentity(BOOT_ID, payload.observations),
+			deliveryIdentity = canonicalWifiProviderDeliveryIdentity(BOOT_ID, payload.observations, LEGACY_WIFI_WAL_PAYLOAD_VERSION),
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 1,
 			logicalTrackingId = logicalId,
@@ -1658,7 +1659,7 @@ class WifiHistoryRepositoryRoomTest {
 			acquiredAtMs = spec.startWallMs + 200L,
 			qualityFlags = 0L,
 			qualityConfidence = null,
-			payloadVersion = WIFI_WAL_PAYLOAD_VERSION,
+			payloadVersion = LEGACY_WIFI_WAL_PAYLOAD_VERSION,
 			payload = encoded.toByteArray(),
 			payloadChecksum = encoded.checksum,
 			createdAtMs = spec.startWallMs + 201L,

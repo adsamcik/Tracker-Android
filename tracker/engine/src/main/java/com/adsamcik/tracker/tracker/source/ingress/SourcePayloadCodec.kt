@@ -66,7 +66,9 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 		require(payloadVersion in MINIMUM_VERSION..CURRENT_VERSION) {
 			"Unsupported source payload version $payloadVersion"
 		}
-		if (payload is CellSnapshotPayload && payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+		if (payload is CellSnapshotPayload &&
+			payloadVersion in 5..CELL_WAL_PAYLOAD_VERSION
+		) {
 			val encoded = CellWalPayloadCodec.encode(
 				CellWalPayload(
 					subscriptionId = payload.subscriptionId,
@@ -82,15 +84,19 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 					refreshOutcomeCode = payload.refreshOutcome.ordinal,
 					observationZoneId = requireNotNull(payload.observationZoneId),
 				),
+				payloadVersion,
 			)
 			return EncodedSourcePayload(encoded.toByteArray(), encoded.checksum)
 		}
-		if (payload is WifiResultSnapshotPayload && payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
+		if (payload is WifiResultSnapshotPayload &&
+			payloadVersion in 5..WIFI_WAL_PAYLOAD_VERSION
+		) {
 			val encoded = WifiWalPayloadCodec.encode(
 				WifiWalPayload(
 					observations = payload.accessPoints.map { observation ->
 						WifiWalPayloadObservation(
 							identifierToken = observation.identifierToken,
+							networkName = observation.networkName,
 							frequencyMhz = observation.frequencyMhz,
 							signalLevelDbm = observation.signalLevelDbm,
 							providerTimestampNanos = observation.providerTimestampNanos,
@@ -100,6 +106,7 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 					resultAgeMs = payload.resultAgeMs,
 					observationZoneId = requireNotNull(payload.observationZoneId),
 				),
+				payloadVersion,
 			)
 			return EncodedSourcePayload(encoded.toByteArray(), encoded.checksum)
 		}
@@ -143,7 +150,9 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 		require(payloadVersion in MINIMUM_VERSION..CURRENT_VERSION) {
 			"Unsupported source payload version $payloadVersion"
 		}
-		if (source == SourceKind.CELL && payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+		if (source == SourceKind.CELL &&
+			payloadVersion in 5..CELL_WAL_PAYLOAD_VERSION
+		) {
 			val decoded = CellWalPayloadCodec.decodeCanonical(payloadVersion, bytes)
 			require(decoded is CellWalPayloadDecodeResult.Decoded) {
 				"Invalid canonical Cell WAL payload"
@@ -165,7 +174,9 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 				)
 			}
 		}
-		if (source == SourceKind.WIFI && payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
+		if (source == SourceKind.WIFI &&
+			payloadVersion in 5..WIFI_WAL_PAYLOAD_VERSION
+		) {
 			val decoded = WifiWalPayloadCodec.decodeCanonical(payloadVersion, bytes)
 			require(decoded is WifiWalPayloadDecodeResult.Decoded) {
 				"Invalid canonical Wi-Fi WAL payload"
@@ -174,6 +185,7 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 				accessPoints = decoded.payload.observations.map { observation ->
 					WifiAccessPointEvidence(
 						identifierToken = observation.identifierToken,
+						networkName = observation.networkName,
 						frequencyMhz = observation.frequencyMhz,
 						signalLevelDbm = observation.signalLevelDbm,
 						providerTimestampNanos = observation.providerTimestampNanos,

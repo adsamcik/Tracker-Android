@@ -25,6 +25,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.LEGACY_WIFI_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
@@ -82,7 +83,7 @@ import com.adsamcik.tracker.tracker.source.runtime.WifiBackendSnapshot
 import com.adsamcik.tracker.tracker.source.runtime.WifiDeviceState
 import com.adsamcik.tracker.tracker.source.runtime.WifiSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.qualifiedWifiProviderObservations
-import com.adsamcik.tracker.tracker.source.runtime.toMinimizedEvidence
+import com.adsamcik.tracker.tracker.source.runtime.toSourceEvidence
 import com.adsamcik.tracker.tracker.source.runtime.wifiProviderDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiFactProjector
 import com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiProjectionResult
@@ -676,25 +677,156 @@ class WifiDurableSourceIngressTest {
 	}
 
 	@Test
-	fun `Wi-Fi mixed pre-boundary snapshot admits only its post-boundary provider fact`() = runTest {
+	fun `v6 Wi-Fi admits readings across an authorization revision without changing the carrier`() = runTest {
+		installWifiAuthorization(1L, 2L, 7_000_000L)
+		val points = listOf(
+			WifiAccessPointEvidence("first", 2_412, -61, 6_500_000L),
+			WifiAccessPointEvidence("second", 5_180, -45, 7_500_000L),
+		)
+		val candidate = wifiDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION, 10_000_000L,
+			accessPoints = points, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		ingress.admit(candidate).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		val stored = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		stored.authorizationRevision shouldBe 2L
+		stored.authorizationFingerprint shouldBe ambientEligibilityFingerprint
+		stored.authorizationPurposeEligibilityMask shouldBe SourceBrokerPurpose.MASK_AMBIENT_PRODUCT
+		stored.observedIntervalStartNanos shouldBe 6_500_000L
+		(ingress.committedBatch(0L, 10).single().evidence.payload as WifiResultSnapshotPayload)
+			.accessPoints shouldBe points
+		ingress.admit(candidate).shouldBeInstanceOf<DeliveryAdmissionResult.Duplicate>()
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `legacy Wi-Fi still requires a single authorization revision for the whole batch`() = runTest {
+		installWifiAuthorization(1L, 2L, 7_000_000L)
+		ingress.admit(wifiDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION, 10_000_000L,
+			accessPoints = listOf(
+				WifiAccessPointEvidence("", 2_412, -61, 6_500_000L),
+				WifiAccessPointEvidence("", 5_180, -45, 7_500_000L),
+			), payloadVersion = LEGACY_WIFI_WAL_PAYLOAD_VERSION)) shouldBe
+			DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `v6 Wi-Fi callback may use a revision newer than its latest reading`() = runTest {
+		installWifiAuthorization(1L, 2L, 8_000_000L)
+		val candidate = wifiDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION, 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("network", 2_412, -61, 7_000_000L)),
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		ingress.admit(candidate).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		database.sourceEventWalDao().eventsAfter(0L, 10).single().authorizationRevision shouldBe 2L
+	}
+
+	@Test
+	fun `v6 Wi-Fi stale capture cannot discard fresh ambient readings through capture gates`() = runTest {
+		installWifiSessionCaptureAuthority()
+		// Rebuild the historical fixture with the production fingerprint, while leaving only
+		// the ambient executable lane installed. Capture has no fresh readings in this callback.
+		val authorization = rebuildWifiCaptureAuthorization()
+		corruptWifiManifest(1L)
+		val candidate = wifiDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION, 20_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("network", 2_412, -61, 7_000_000L)),
+			purposeEligibilityMask = authorization.purposeEligibilityMask,
+			eligibilityFingerprint = authorization.authorizationFingerprint,
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		ingress.admit(candidate).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		val stored = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		stored.authorizationPurposeEligibilityMask shouldBe authorization.purposeEligibilityMask
+		stored.authorizationFingerprint shouldBe authorization.authorizationFingerprint
+	}
+
+	@Test
+	fun `v6 Wi-Fi fresh ambient survives an invalid fresh capture session`() = runTest {
+		installWifiSessionCaptureAuthority()
+		upgradeWifiCaptureLaneForManualSession()
+		val authorization = rebuildWifiCaptureAuthorization()
+		corruptWifiManifest(1L)
+		ingress.admit(wifiDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION, 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("network", 2_412, -61, 7_000_000L)),
+			purposeEligibilityMask = authorization.purposeEligibilityMask,
+			eligibilityFingerprint = authorization.authorizationFingerprint,
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `v6 Wi-Fi fresh ambient survives closed capture admission`() = runTest {
+		installWifiSessionCaptureAuthority()
+		val authorization = rebuildWifiCaptureAuthorization()
+		database.sourceProjectionStateDao().retireProductLane(SourceKind.WIFI.stableCode, 1L,
+			WIFI_PROJECTION_ID, 1, 0L, 2L) shouldBe 1
+		database.sourceProjectionStateDao().isCaptureAdmissionOpen(SourceKind.WIFI.stableCode) shouldBe false
+		ingress.admit(wifiDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION, 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("network", 2_412, -61, 7_000_000L)),
+			purposeEligibilityMask = authorization.purposeEligibilityMask,
+			eligibilityFingerprint = authorization.authorizationFingerprint,
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `v6 Wi-Fi denied callback keeps only historically authorized readings`() = runTest {
+		val denied = SourceBrokerAuthorization.rows(SourceKind.WIFI.stableCode, 1L, 2L,
+			emptyList(), BOOT_CLOCK_DOMAIN_ID, 8_000_000L, 8L)
+		database.sourceBrokerDao().insertAuthorizations(denied)
+		val fingerprint = denied.single().authorizationFingerprint
+		ingress.admit(wifiDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION, 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("before", 2_412, -61, 7_000_000L)),
+			purposeEligibilityMask = 0L, eligibilityFingerprint = fingerprint,
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		database.sourceEventWalDao().eventsAfter(0L, 10).single()
+			.authorizationPurposeEligibilityMask shouldBe 0L
+		ingress.admit(wifiDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION, 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("after", 2_412, -61, 9_000_000L)),
+			purposeEligibilityMask = 0L, eligibilityFingerprint = fingerprint,
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION)) shouldBe
+			DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_OBSERVATION)
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `v6 Wi-Fi malformed historical authorization is rejected without appending evidence`() = runTest {
+		installWifiAuthorization(1L, 2L, 7_000_000L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_authorization SET authorization_fingerprint = 'corrupt' " +
+				"WHERE source_kind = ? AND authorization_revision = 1",
+			arrayOf(SourceKind.WIFI.stableCode),
+		)
+		ingress.admit(wifiDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION, 10_000_000L,
+			accessPoints = listOf(
+				WifiAccessPointEvidence("first", 2_412, -61, 6_500_000L),
+				WifiAccessPointEvidence("second", 5_180, -45, 7_500_000L),
+			), payloadVersion = WIFI_WAL_PAYLOAD_VERSION)) shouldBe
+			DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_OBSERVATION)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `Wi-Fi snapshot preserves pre-join provider item for independent purpose qualification`() = runTest {
 		val qualified = qualifiedWifiProviderObservations(
 			accessPoints = listOf(
 				WifiBackendAccessPoint("pre-boundary", 2_412, -65, 4_000L),
+				WifiBackendAccessPoint("background-before-join", 2_412, -61, 5_500L),
 				WifiBackendAccessPoint("post-boundary", 5_180, -45, 7_000L),
 			),
 			receivedElapsedRealtimeNanos = 10_000_000L,
 			maximumAcceptableResultAgeMs = 1_000L,
 			providerAcceptedElapsedRealtimeNanos = 5_000_000L,
-			authorizationEffectiveElapsedRealtimeNanos = 6_000_000L,
 			cutoffElapsedRealtimeNanos = null,
-		).map(WifiBackendAccessPoint::toMinimizedEvidence)
-		qualified.map(WifiAccessPointEvidence::frequencyMhz) shouldBe listOf(5_180)
+		).map(WifiBackendAccessPoint::toSourceEvidence)
+		qualified.map(WifiAccessPointEvidence::frequencyMhz) shouldBe listOf(2_412, 5_180)
 		val delivery = wifiDeliveryCandidate(
 			registrationGeneration = 1L,
 			authorizationRevision = 1L,
 			physicalConfigurationFingerprint = FIRST_PHYSICAL_CONFIGURATION,
 			receivedElapsedRealtimeNanos = 10_000_000L,
 			accessPoints = qualified,
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION,
 		)
 
 		DurableSourceEventSinkFactory(ingress).unbound.admit(delivery)
@@ -702,10 +834,10 @@ class WifiDurableSourceIngressTest {
 
 		database.sourceEventWalDao().countAll() shouldBe 1L
 		val storedRow = database.sourceEventWalDao().eventsAfter(0L, 10).single()
-		storedRow.observedIntervalStartNanos shouldBe 7_000_000L
+		storedRow.observedIntervalStartNanos shouldBe 5_500_000L
 		val storedPayload = ingress.committedBatch(0L, 10).single().evidence.payload
 			.shouldBeInstanceOf<WifiResultSnapshotPayload>()
-		storedPayload.accessPoints.map(WifiAccessPointEvidence::frequencyMhz) shouldBe listOf(5_180)
+		storedPayload.accessPoints.map(WifiAccessPointEvidence::frequencyMhz) shouldBe listOf(2_412, 5_180)
 	}
 
 	@Test
@@ -1489,7 +1621,7 @@ class WifiDurableSourceIngressTest {
 			),
 		)
 		return SourceDeliveryCandidate(
-			identity = wifiProviderDeliveryIdentity(BOOT_CLOCK_DOMAIN_ID, accessPoints),
+			identity = wifiProviderDeliveryIdentity(BOOT_CLOCK_DOMAIN_ID, accessPoints, payloadVersion),
 			units = listOf(
 				SourceDeliveryUnit(
 					unitIndex = 0,
@@ -1521,6 +1653,17 @@ class WifiDurableSourceIngressTest {
 				physical.acceptedElapsedRealtimeNanos,
 			),
 		)
+	}
+
+	private suspend fun rebuildWifiCaptureAuthorization() = run {
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_authorization WHERE source_kind = ? AND authorization_revision = 2",
+			arrayOf(SourceKind.WIFI.stableCode))
+		val rows = SourceBrokerAuthorization.rows(SourceKind.WIFI.stableCode, 1L, 2L,
+			database.sourceBrokerDao().demandsByIds(listOf(WIFI_DEMAND_ID, WIFI_CAPTURE_DEMAND_ID)),
+			BOOT_CLOCK_DOMAIN_ID, 6_000_000L, 1_000L)
+		database.sourceBrokerDao().insertAuthorizations(rows)
+		requireNotNull(rows.toAuthorizationSnapshotOrNull())
 	}
 
 	private suspend fun installWifiCaptureLane() {
@@ -2197,7 +2340,8 @@ class WifiDurableSourceIngressTest {
 		const val BOOT_CLOCK_DOMAIN_ID = "boot"
 		const val PROVIDER_TIMESTAMP_NANOS = 100_000_000L
 		const val NANOS_PER_MILLISECOND = 1_000_000L
-		const val WIFI_PAYLOAD_VERSION = WIFI_WAL_PAYLOAD_VERSION
+		// Existing receipt and inclusive-cutoff fixtures keep the legacy v5 contract.
+		const val WIFI_PAYLOAD_VERSION = LEGACY_WIFI_WAL_PAYLOAD_VERSION
 		const val WIFI_SOURCE_INSTANCE_ID = "wifi-source-instance"
 		const val WIFI_DEMAND_ID = "wifi-ambient-demand"
 		const val WIFI_CAPTURE_DEMAND_ID = "wifi-session-demand"

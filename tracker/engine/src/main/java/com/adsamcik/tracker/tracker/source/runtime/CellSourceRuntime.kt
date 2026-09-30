@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.runtime
 
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.database.data.CellProviderDeliveryIdentityFact
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.canonicalCellProviderDeliveryIdentity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
@@ -13,7 +14,6 @@ import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprin
 import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
-import com.adsamcik.tracker.tracker.source.model.RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
@@ -1252,8 +1252,8 @@ class CellSourceRuntime @Inject internal constructor(
 			capturedCollectedDataEpoch = registration.state.collectedDataEpoch,
 			acquiredAtMs = wallTime,
 			quality = SourceQuality(),
-			payloadVersion = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
-			payload = minimizedCellSnapshotPayload(
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION,
+			payload = cellSnapshotPayload(
 				observations,
 				CellRefreshOutcome.CALLBACK,
 				ZoneId.systemDefault().id,
@@ -1504,10 +1504,11 @@ internal fun qualifyCellSnapshot(
 	if (eligible.isEmpty()) return null
 	val providerTime = eligible.mapNotNull(CellBackendObservation::providerTimestampNanos)
 		.maxOrNull() ?: return null
-	val observations = eligible.map(CellBackendObservation::toMinimizedEvidence)
+	val observations = eligible.map(CellBackendObservation::toDurableEvidence)
 		.sortedWith(CELL_OBSERVATION_ORDER)
 	val identity = observations.joinToString("|") {
-		"${it.radioType.length}:${it.radioType}:${it.registered}:${it.signalLevelDbm}:" +
+		"${it.radioType.length}:${it.radioType}:${it.identifierToken.length}:${it.identifierToken}:" +
+			"${it.registered}:${it.signalLevelDbm}:" +
 			it.providerTimestampNanos
 	}
 	return QualifiedCellSnapshot(observations, providerTime, identity)
@@ -1608,8 +1609,8 @@ internal fun cellCapabilities(state: CellDeviceState): SourceCapabilities {
 internal const val CELL_CALLBACK_BUFFER_CAPACITY = 64
 private val CELL_ADMISSION_RETRY_DELAYS_MS = longArrayOf(10L, 50L, 250L)
 
-internal fun CellBackendObservation.toMinimizedEvidence() = CellObservationEvidence(
-	identifierToken = WITHHELD_RADIO_IDENTIFIER_TOKEN,
+internal fun CellBackendObservation.toDurableEvidence() = CellObservationEvidence(
+	identifierToken = identity,
 	radioType = radioType,
 	registered = registered,
 	signalLevelDbm = signalLevelDbm,
@@ -1617,17 +1618,14 @@ internal fun CellBackendObservation.toMinimizedEvidence() = CellObservationEvide
 )
 
 /**
- * Process-independent identity for one qualified Cell provider delivery. Only the boot clock
- * domain and minimized timestamped provider facts are used; raw cell/subscription identity and
- * runtime registration state never enter the durable digest.
+ * Process-independent identity for one qualified Cell provider delivery. Available tower identity
+ * is bound to version 6 observations; subscription identity and registration state are excluded.
  */
 internal fun cellProviderDeliveryIdentity(
 	clockDomainId: String,
 	observations: List<CellObservationEvidence>,
+	payloadVersion: Int = CELL_WAL_PAYLOAD_VERSION,
 ): SourceDeliveryIdentity {
-	require(observations.all { it.identifierToken == WITHHELD_RADIO_IDENTIFIER_TOKEN }) {
-		"Cell delivery identity accepts minimized observations only"
-	}
 	return SourceDeliveryIdentity(
 		canonicalCellProviderDeliveryIdentity(
 			clockDomainId,
@@ -1639,13 +1637,15 @@ internal fun cellProviderDeliveryIdentity(
 					providerTimestampNanos = requireNotNull(observation.providerTimestampNanos) {
 						"Qualified Cell evidence requires provider time"
 					},
+					identifierToken = observation.identifierToken,
 				)
 			},
+			payloadVersion,
 		),
 	)
 }
 
-internal fun minimizedCellSnapshotPayload(
+internal fun cellSnapshotPayload(
 	observations: List<CellObservationEvidence>,
 	outcome: CellRefreshOutcome,
 	observationZoneId: String,
@@ -1658,6 +1658,7 @@ internal fun minimizedCellSnapshotPayload(
 
 private val CELL_OBSERVATION_ORDER = compareBy<CellObservationEvidence>(
 	CellObservationEvidence::radioType,
+	CellObservationEvidence::identifierToken,
 	CellObservationEvidence::registered,
 	CellObservationEvidence::signalLevelDbm,
 	CellObservationEvidence::providerTimestampNanos,

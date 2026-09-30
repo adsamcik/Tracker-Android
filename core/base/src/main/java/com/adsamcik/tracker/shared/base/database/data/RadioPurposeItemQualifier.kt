@@ -20,6 +20,7 @@ data class RadioPurposeItemAuthority(
 
 enum class RadioPurposeItemFailure {
 	WRONG_SOURCE,
+	UNSUPPORTED_PAYLOAD_VERSION,
 	DEPENDENCY_OVERFLOW,
 	INVALID_PROVIDER_INTERVAL,
 	AUTHORIZATION_UNVERIFIABLE,
@@ -39,9 +40,13 @@ object RadioPurposeItemQualifier {
 	fun wifi(
 		payload: WifiWalPayload,
 		authority: RadioPurposeItemAuthority,
+		payloadVersion: Int = WIFI_WAL_PAYLOAD_VERSION,
 	): RadioPurposeItemQualification {
 		if (authority.sourceKind != SourceDestinationOwnerEntity.SOURCE_WIFI) {
 			return rejected(RadioPurposeItemFailure.WRONG_SOURCE)
+		}
+		if (!isSupportedWifiWalPayloadVersion(payloadVersion)) {
+			return rejected(RadioPurposeItemFailure.UNSUPPORTED_PAYLOAD_VERSION)
 		}
 		if (payload.observations.size > MAX_WIFI_WAL_CHILDREN) {
 			return rejected(RadioPurposeItemFailure.DEPENDENCY_OVERFLOW)
@@ -49,7 +54,9 @@ object RadioPurposeItemQualifier {
 		return qualify(
 			payload.observations.map { observation ->
 				Item(observation.providerTimestampNanos,
-					observation.identifierToken.isEmpty() && observation.hasSupportedWifiProductShape())
+					(payloadVersion != LEGACY_WIFI_WAL_PAYLOAD_VERSION ||
+						observation.identifierToken.isEmpty() && observation.networkName == null) &&
+						observation.hasSupportedWifiProductShape())
 			},
 			authority,
 		)
@@ -58,9 +65,13 @@ object RadioPurposeItemQualifier {
 	fun cell(
 		payload: CellWalPayload,
 		authority: RadioPurposeItemAuthority,
+		payloadVersion: Int = CELL_WAL_PAYLOAD_VERSION,
 	): RadioPurposeItemQualification {
 		if (authority.sourceKind != SourceDestinationOwnerEntity.SOURCE_CELL) {
 			return rejected(RadioPurposeItemFailure.WRONG_SOURCE)
+		}
+		if (payloadVersion !in LEGACY_CELL_WAL_PAYLOAD_VERSION..CELL_WAL_PAYLOAD_VERSION) {
+			return rejected(RadioPurposeItemFailure.UNSUPPORTED_PAYLOAD_VERSION)
 		}
 		if (payload.observations.size > MAX_CELL_WAL_CHILDREN) {
 			return rejected(RadioPurposeItemFailure.DEPENDENCY_OVERFLOW)
@@ -68,7 +79,9 @@ object RadioPurposeItemQualifier {
 		return qualify(
 			payload.observations.map { observation ->
 				Item(observation.providerTimestampNanos,
-					observation.identifierToken.isEmpty() && observation.hasSupportedCellProductShape())
+					(payloadVersion != LEGACY_CELL_WAL_PAYLOAD_VERSION ||
+						observation.identifierToken.isEmpty()) &&
+						observation.hasSupportedCellProductShape())
 			},
 			authority,
 		)
@@ -98,34 +111,27 @@ object RadioPurposeItemQualifier {
 			} || timeline.any { !it.isAuthenticFor(authority, demandsById) }
 		) return rejected(RadioPurposeItemFailure.AUTHORIZATION_UNVERIFIABLE)
 
-		val callback = timeline.last()
-		val demandIdsByRevision = timeline.map { revision ->
-			revision.authorizedMembers.mapNotNull(SourceAuthorizationEntity::demandId).toHashSet()
-		}
-		val accepted = linkedMapOf<String, List<Int>>()
-		for (member in callback.authorizedMembers) {
-			if (!member.persistenceEligible || member.purpose !in PRODUCT_PURPOSES) continue
-			val demand = demandsById.getValue(requireNotNull(member.demandId))
-			var continuousFromIndex = timeline.lastIndex
-			while (continuousFromIndex > 0 && demand.demandId in demandIdsByRevision[continuousFromIndex - 1]) {
-				continuousFromIndex--
-			}
-			// Every vector was reconstructed from the same immutable demand row above. The
-			// uninterrupted suffix prevents revoke/rejoin from lending consent to earlier items.
-			val continuousFromNanos = timeline[continuousFromIndex].effectiveElapsedRealtimeNanos
-			val indexes = items.indices.filter { index ->
-				val item = items[index]
-				val time = item.providerTimeNanos ?: return@filter false
-				if (!item.supportedShape || time <= 0L || time > authority.receivedElapsedNanos ||
-					time < authority.providerStartInclusiveNanos || time >= authority.providerEndExclusiveNanos ||
-					demand.requestedBootId != authority.clockDomainId || time < demand.requestedElapsedRealtimeNanos ||
+		val accepted = linkedMapOf<String, MutableList<Int>>()
+		items.forEachIndexed { index, item ->
+			val time = item.providerTimeNanos ?: return@forEachIndexed
+			if (!item.supportedShape || time <= 0L || time > authority.receivedElapsedNanos ||
+				time < authority.providerStartInclusiveNanos || time >= authority.providerEndExclusiveNanos
+			) return@forEachIndexed
+			// Resolve permission at the reading's time. A callback can arrive after one purpose
+			// retires while another still owns the physical provider.
+			val active = timeline.lastOrNull { it.effectiveElapsedRealtimeNanos <= time }
+				?: return@forEachIndexed
+			active.authorizedMembers.forEach memberLoop@ { member ->
+				if (!member.persistenceEligible || member.purpose !in PRODUCT_PURPOSES) return@memberLoop
+				val demand = demandsById.getValue(requireNotNull(member.demandId))
+				if (demand.requestedBootId != authority.clockDomainId ||
+					time < demand.requestedElapsedRealtimeNanos ||
 					(demand.retireBootId == authority.clockDomainId &&
 						demand.retireElapsedRealtimeNanos?.let { time >= it } == true) ||
 					authority.receivedElapsedNanos - time > demand.maximumAgeMs.toSaturatedNanos()
-				) return@filter false
-				time >= continuousFromNanos
+				) return@memberLoop
+				accepted.getOrPut(demand.demandId) { mutableListOf() } += index
 			}
-			if (indexes.isNotEmpty()) accepted[demand.demandId] = indexes
 		}
 		return RadioPurposeItemQualification.Qualified(accepted)
 	}

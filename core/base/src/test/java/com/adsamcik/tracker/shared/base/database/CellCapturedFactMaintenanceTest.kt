@@ -11,7 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIn
 import com.adsamcik.tracker.shared.base.database.data.CapturedRadioFactRetentionProofEntity
 import com.adsamcik.tracker.shared.base.database.data.CellProviderDeliveryIdentityFact
 import com.adsamcik.tracker.shared.base.database.data.CELL_REFRESH_OUTCOME_CALLBACK
-import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.LEGACY_CELL_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.CellWalPayload
 import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadCodec
 import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadObservation
@@ -360,6 +360,7 @@ class CellCapturedFactMaintenanceTest {
 		(canonicalCellProviderDeliveryIdentity(
 			BOOT_ID,
 			tamperedObservations.mapNotNull { it.toProviderDeliveryIdentityFactOrNull() },
+			LEGACY_CELL_WAL_PAYLOAD_VERSION,
 		) == original.sourceDeliveryIdentity) shouldBe false
 		val tamperedPayloadChecksum = sha256(tamperedPayload)
 		val tamperedWalUnsigned = originalWal.copy(
@@ -3417,6 +3418,7 @@ class CellCapturedFactMaintenanceTest {
 			deliveryIdentity = canonicalCellProviderDeliveryIdentity(
 				BOOT_ID,
 				observations.mapNotNull { it.toProviderDeliveryIdentityFactOrNull() },
+				LEGACY_CELL_WAL_PAYLOAD_VERSION,
 			),
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 1,
@@ -3446,7 +3448,7 @@ class CellCapturedFactMaintenanceTest {
 			acquiredAtMs = REPLACEMENT_WAL_WALL_MS,
 			qualityFlags = 0L,
 			qualityConfidence = null,
-			payloadVersion = CELL_WAL_PAYLOAD_VERSION,
+			payloadVersion = LEGACY_CELL_WAL_PAYLOAD_VERSION,
 			payload = payload,
 			payloadChecksum = sha256(payload),
 			createdAtMs = REPLACEMENT_WAL_WALL_MS,
@@ -3682,6 +3684,7 @@ class CellCapturedFactMaintenanceTest {
 		val deliveryIdentity = canonicalCellProviderDeliveryIdentity(
 			BOOT_ID,
 			observations.mapNotNull { it.toProviderDeliveryIdentityFactOrNull() },
+			LEGACY_CELL_WAL_PAYLOAD_VERSION,
 		)
 		val payloadChecksum = sha256(payload)
 		val observedIntervalStartNanos = observations.mapNotNull(
@@ -3720,7 +3723,7 @@ class CellCapturedFactMaintenanceTest {
 			acquiredAtMs = observedWallTimeMs,
 			qualityFlags = 0L,
 			qualityConfidence = null,
-			payloadVersion = CELL_WAL_PAYLOAD_VERSION,
+			payloadVersion = LEGACY_CELL_WAL_PAYLOAD_VERSION,
 			payload = payload,
 			payloadChecksum = payloadChecksum,
 			createdAtMs = observedWallTimeMs,
@@ -3765,7 +3768,7 @@ class CellCapturedFactMaintenanceTest {
 			deliveryUnitCount = 1,
 			sourceSequence = deliveryIndex.toLong(),
 			planAttribution = CellCapturedFactRevisionEntity.PLAN_ATTRIBUTION_CAPTURED_REGISTRATION,
-			payloadVersion = CELL_WAL_PAYLOAD_VERSION,
+			payloadVersion = LEGACY_CELL_WAL_PAYLOAD_VERSION,
 			canonicalProviderSemanticsDigest = deliveryIdentity,
 			sourceInstanceId = sourceInstanceId,
 			registrationGeneration = registrationGeneration,
@@ -4310,6 +4313,7 @@ class CellCapturedFactMaintenanceTest {
 			deliveryIdentity = canonicalCellProviderDeliveryIdentity(
 				BOOT_ID,
 				observations.mapNotNull { it.toProviderDeliveryIdentityFactOrNull() },
+				LEGACY_CELL_WAL_PAYLOAD_VERSION,
 			),
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 1,
@@ -4339,7 +4343,7 @@ class CellCapturedFactMaintenanceTest {
 			acquiredAtMs = CONTROL_WAL_CREATED_AT_MS,
 			qualityFlags = 0L,
 			qualityConfidence = null,
-			payloadVersion = CELL_WAL_PAYLOAD_VERSION,
+			payloadVersion = LEGACY_CELL_WAL_PAYLOAD_VERSION,
 			payload = payload,
 			payloadChecksum = sha256(payload),
 			createdAtMs = CONTROL_WAL_CREATED_AT_MS,
@@ -4365,6 +4369,7 @@ class CellCapturedFactMaintenanceTest {
 			deliveryIdentity = canonicalCellProviderDeliveryIdentity(
 				BOOT_ID,
 				observations.mapNotNull { it.toProviderDeliveryIdentityFactOrNull() },
+				LEGACY_CELL_WAL_PAYLOAD_VERSION,
 			),
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 1,
@@ -4394,7 +4399,7 @@ class CellCapturedFactMaintenanceTest {
 			acquiredAtMs = CONTROL_WAL_CREATED_AT_MS + 1L,
 			qualityFlags = 0L,
 			qualityConfidence = null,
-			payloadVersion = CELL_WAL_PAYLOAD_VERSION,
+			payloadVersion = LEGACY_CELL_WAL_PAYLOAD_VERSION,
 			payload = payload,
 			payloadChecksum = sha256(payload),
 			createdAtMs = CONTROL_WAL_CREATED_AT_MS + 1L,

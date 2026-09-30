@@ -6,12 +6,59 @@ import org.junit.Test
 
 class CellWalCarrierAuthenticatorTest {
 	@Test
-	fun `production version five payload is canonically authenticated`() {
+	fun `current Cell payload is canonically authenticated`() {
 		val result = CellWalCarrierAuthenticator.authenticate(validWal())
 
 		val authenticated = assertIs<CellWalCarrierAuthentication.Authenticated>(result)
 		assertEquals(2, authenticated.carrier.payload.observations.size)
 		assertEquals("Europe/Prague", authenticated.carrier.payload.observationZoneId)
+	}
+
+	@Test
+	fun `version five identity-free Cell payload remains authentic`() {
+		val authenticated = assertIs<CellWalCarrierAuthentication.Authenticated>(
+			CellWalCarrierAuthenticator.authenticate(validWal(payloadVersion = LEGACY_CELL_WAL_PAYLOAD_VERSION)),
+		)
+		assertEquals(2, authenticated.carrier.payload.observations.size)
+	}
+
+	@Test
+	fun `version five still rejects a tower identifier`() {
+		val original = validWal(payloadVersion = LEGACY_CELL_WAL_PAYLOAD_VERSION)
+		val payload = CellWalPayload(
+			subscriptionId = null,
+			observations = listOf(observation(
+				"LTE", true, -100, 1_500_000_000L, "310:260:123:456",
+			)),
+			refreshOutcomeCode = CELL_REFRESH_OUTCOME_CALLBACK,
+			observationZoneId = "Europe/Prague",
+		)
+		val rejected = assertIs<CellWalCarrierAuthentication.Rejected>(
+			CellWalCarrierAuthenticator.authenticate(
+				original.withPayload(CellWalPayloadCodec.encode(
+					payload, LEGACY_CELL_WAL_PAYLOAD_VERSION,
+				).toByteArray()),
+			),
+		)
+		assertEquals(CellWalCarrierFailure.IDENTITY_BEARING_CHILD, rejected.reason)
+	}
+
+	@Test
+	fun `version six retains tower identity and binds it to delivery identity`() {
+		val tower = observation("LTE", true, -100, 1_500_000_000L, "310:260:123:456")
+		val wal = validWal(observations = listOf(tower))
+		val authenticated = assertIs<CellWalCarrierAuthentication.Authenticated>(
+			CellWalCarrierAuthenticator.authenticate(wal),
+		)
+		assertEquals(tower.identifierToken, authenticated.carrier.payload.observations.single().identifierToken)
+		val changedTower = wal.withPayload(CellWalPayloadCodec.encode(
+			CellWalPayload(null, listOf(tower.copy(identifierToken = "310:260:123:457")),
+				CELL_REFRESH_OUTCOME_CALLBACK, "Europe/Prague"),
+		).toByteArray())
+		val rejected = assertIs<CellWalCarrierAuthentication.Rejected>(
+			CellWalCarrierAuthenticator.authenticate(changedTower),
+		)
+		assertEquals(CellWalCarrierFailure.DELIVERY_IDENTITY_MISMATCH, rejected.reason)
 	}
 
 	@Test
@@ -86,6 +133,7 @@ class CellWalCarrierAuthenticatorTest {
 			observation("LTE", true, -100, 1_500_000_000L),
 			observation("NR", false, -85, 1_600_000_000L),
 		),
+		payloadVersion: Int = CELL_WAL_PAYLOAD_VERSION,
 	): SourceEventWalEntity {
 		val payload = CellWalPayload(
 			subscriptionId = null,
@@ -93,7 +141,7 @@ class CellWalCarrierAuthenticatorTest {
 			refreshOutcomeCode = CELL_REFRESH_OUTCOME_CALLBACK,
 			observationZoneId = "Europe/Prague",
 		)
-		val encoded = CellWalPayloadCodec.encode(payload)
+		val encoded = CellWalPayloadCodec.encode(payload, payloadVersion)
 		val deliveryIdentity = canonicalCellProviderDeliveryIdentity(
 			"boot-1",
 			observations.map { observation ->
@@ -102,8 +150,10 @@ class CellWalCarrierAuthenticatorTest {
 					observation.registered,
 					observation.signalLevelDbm,
 					requireNotNull(observation.providerTimestampNanos),
+					observation.identifierToken,
 				)
 			},
+			payloadVersion,
 		)
 		val unsigned = SourceEventWalEntity(
 			admissionOrdinal = 1L,
@@ -143,7 +193,7 @@ class CellWalCarrierAuthenticatorTest {
 			acquiredAtMs = 1_700_000_000_000L,
 			qualityFlags = 0L,
 			qualityConfidence = null,
-			payloadVersion = CELL_WAL_PAYLOAD_VERSION,
+			payloadVersion = payloadVersion,
 			payload = encoded.toByteArray(),
 			payloadChecksum = encoded.checksum,
 			integrityIdentity = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM,
@@ -157,8 +207,9 @@ class CellWalCarrierAuthenticatorTest {
 		registered: Boolean,
 		signalLevelDbm: Int?,
 		providerTimestampNanos: Long,
+		identifierToken: String = "",
 	) = CellWalPayloadObservation(
-		identifierToken = "",
+		identifierToken = identifierToken,
 		radioType = radioType,
 		registered = registered,
 		signalLevelDbm = signalLevelDbm,

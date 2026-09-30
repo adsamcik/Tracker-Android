@@ -168,11 +168,23 @@ No box above is complete merely because an isolated source slice was committed.
   after the SSID correction. **IMPLEMENTED_UNVALIDATED**: no compilation, test,
   schema, device, or source activation commands were run. Native session readers,
   admission, writer/maintenance and actual file round trips remain open.
-- [ ] Repair the independent radio review findings: new shared deliveries still
-  encounter whole-batch authorization/freshness checks in ingress; background
-  projectors and Wi-Fi maintenance retain incompatible whole-batch predicates.
-  Apply the approved versioned per-reading rule without altering legacy receipt
-  meaning, then author join/leave, stale-session/fresh-background and replay cases.
+- [x] Source-authored the version-six radio provider-to-WAL admission foundation.
+  New callbacks retain available network/tower details and their exact callback
+  authorization; bounded historical qualification selects observations separately
+  for each purpose. A failing or closed session cannot discard an independently
+  qualified background observation. Physical lifetime, delayed callbacks, denied
+  callback authorization, stale session/fresh background, replay and malformed
+  history have focused regression sources. The shared Wi-Fi owner retains the
+  maximum age useful to any participating purpose; destinations enforce their
+  own age. Version-five codecs/digests, existing aggregate fixtures and narrow
+  retained-reader compatibility are preserved by their saved version. An
+  independent static review found no remaining blocker in this bounded raw
+  slice. **IMPLEMENTED_UNVALIDATED**: no compilation, tests or activation.
+- [ ] Finish downstream radio projection, native history, child propagation and
+  maintenance. Background projectors and Wi-Fi maintenance still have incompatible
+  whole-batch predicates. Multiple historical purpose intervals, lifecycle retraction
+  and actual UI/export round trips remain pending. The raw admission checkpoint
+  does not establish a complete version-six product chain.
 - [ ] Await the user choices for background Steps catch-up cadence and explicit
   Retry/Leave-without-saving behavior after notification customization save failure.
 

@@ -10,6 +10,8 @@ import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenera
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.LEGACY_CELL_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellReplayFootprintEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
@@ -114,6 +116,79 @@ class CellDurableSourceIngressTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `v6 Cell reading before physical acceptance cannot discard its valid sibling`() = runTest {
+		ingress.admit(cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 110L,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION, observationZoneId = "UTC",
+			observationsOverride = listOf(
+				CellObservationEvidence("cached", "LTE", true, -91, 40L),
+				CellObservationEvidence("current", "LTE", true, -85, 100L),
+			))).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		database.sourceEventWalDao().eventsAfter(0L, 10).single().observedIntervalStartNanos shouldBe 40L
+	}
+
+	@Test
+	fun `v6 Cell retirement excludes later readings without discarding earlier authorized data`() = runTest {
+		database.sourceBrokerDao().finishRegistration(SourceKind.CELL.stableCode, 1L,
+			CELL_SOURCE_INSTANCE_ID, ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			200L, 200L, "STOPPED") shouldBe 1
+		ingress.admit(cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 230L,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION, observationZoneId = "UTC",
+			observationsOverride = listOf(
+				CellObservationEvidence("before", "LTE", true, -91, 100L),
+				CellObservationEvidence("after", "LTE", true, -85, 220L),
+			))).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		ingress.admit(cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 230L,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION, observationZoneId = "UTC",
+			providerTimestampNanos = 220L, towerIdentifierToken = "after")) shouldBe
+			DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_OBSERVATION)
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `v6 Cell admits a mixed revision delivery without changing its raw readings`() = runTest {
+		installCellAuthorization(1L, 2L, 75L)
+		val observations = listOf(
+			CellObservationEvidence("tower-one", "LTE", true, -91, 60L),
+			CellObservationEvidence("tower-two", "LTE", true, -85, 100L),
+		)
+		val candidate = cellDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION, 110L,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION, observationZoneId = "UTC",
+			observationsOverride = observations)
+		ingress.admit(candidate).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		val stored = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		stored.authorizationRevision shouldBe 2L
+		stored.authorizationFingerprint shouldBe ambientEligibilityFingerprint
+		stored.observedIntervalStartNanos shouldBe 60L
+		(ingress.committedBatch(0L, 10).single().evidence.payload as CellSnapshotPayload)
+			.observations shouldBe observations
+		ingress.admit(candidate).shouldBeInstanceOf<DeliveryAdmissionResult.Duplicate>()
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `legacy Cell rejects a mixed authorization revision batch`() = runTest {
+		installCellAuthorization(1L, 2L, 75L)
+		ingress.admit(cellDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION, 110L,
+			payloadVersion = LEGACY_CELL_WAL_PAYLOAD_VERSION, observationZoneId = "UTC",
+			observationsOverride = listOf(
+				CellObservationEvidence("", "LTE", true, -91, 60L),
+				CellObservationEvidence("", "LTE", true, -85, 100L),
+			))) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `v6 Cell permits a callback authorization newer than its reading`() = runTest {
+		installCellAuthorization(1L, 2L, 105L)
+		ingress.admit(cellDeliveryCandidate(1L, 2L, FIRST_PHYSICAL_CONFIGURATION, 110L,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION, observationZoneId = "UTC",
+			towerIdentifierToken = "tower"))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		database.sourceEventWalDao().eventsAfter(0L, 10).single().authorizationRevision shouldBe 2L
+	}
 
 	@Test
 	fun `ambient Cell rejects provider acceptance after the observation wall time`() = runTest {
@@ -428,6 +503,30 @@ class CellDurableSourceIngressTest {
 			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID },
 		).project(freshUnchanged.admissionOrdinals.single())
 			.shouldBeInstanceOf<AmbientCellProjectionResult.CoverageCompacted>()
+		val identified = sinkFactory.unbound.admit(
+			cellDeliveryCandidate(
+				1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 112L,
+				CELL_WAL_PAYLOAD_VERSION, "Europe/Prague", 101L,
+				towerIdentifierToken = "310:260:123:456",
+			),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		val identifiedWal = requireNotNull(database.sourceEventWalDao()
+			.getByAdmissionOrdinal(identified.admissionOrdinals.single()))
+		val identifiedPayload = DefaultSourcePayloadCodec().decode(
+			SourceKind.CELL, identifiedWal.payloadVersion, identifiedWal.payload,
+		) as CellSnapshotPayload
+		identifiedPayload.observations.single().identifierToken shouldBe "310:260:123:456"
+		val identifiedResult = AmbientCellFactProjector(
+			database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID },
+		).project(identified.admissionOrdinals.single())
+			.shouldBeInstanceOf<AmbientCellProjectionResult.CoverageCompacted>()
+		val identifiedChildren = database.radioObservationChildDao().cellBackgroundChildren(
+			com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity.WRITER_ID,
+			com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity.WRITER_VERSION,
+			identifiedResult.logicalFactId, 1L, 10,
+		)
+		identifiedChildren.single().towerIdentity shouldBe "310:260:123:456"
 		val gapDelivery = sinkFactory.unbound.admit(
 			cellDeliveryCandidate(
 				1L,
@@ -515,10 +614,12 @@ class CellDurableSourceIngressTest {
 		observationZoneId: String? = null,
 		providerTimestampNanos: Long = PROVIDER_TIMESTAMP_NANOS,
 		subscriptionId: Int? = null,
+		towerIdentifierToken: String = WITHHELD_RADIO_IDENTIFIER_TOKEN,
+		observationsOverride: List<CellObservationEvidence>? = null,
 	): SourceDeliveryCandidate {
-		val observations = listOf(
+		val observations = observationsOverride ?: listOf(
 			CellObservationEvidence(
-				identifierToken = WITHHELD_RADIO_IDENTIFIER_TOKEN,
+				identifierToken = towerIdentifierToken,
 				radioType = "LTE",
 				registered = true,
 				signalLevelDbm = -91,
@@ -541,7 +642,7 @@ class CellDurableSourceIngressTest {
 			configRevision = authorizationRevision,
 			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
 			clockDomainId = BOOT_CLOCK_DOMAIN_ID,
-			observedElapsedRealtimeNanos = providerTimestampNanos,
+			observedElapsedRealtimeNanos = observations.maxOf { requireNotNull(it.providerTimestampNanos) },
 			receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
 			wallTimeMs = 100L,
 			wallTimeUncertaintyMs = 1L,
@@ -557,12 +658,22 @@ class CellDurableSourceIngressTest {
 			),
 		)
 		return SourceDeliveryCandidate(
-			identity = cellProviderDeliveryIdentity(BOOT_CLOCK_DOMAIN_ID, observations),
+			identity = cellProviderDeliveryIdentity(
+				BOOT_CLOCK_DOMAIN_ID,
+				observations,
+				if (payloadVersion >= CELL_WAL_PAYLOAD_VERSION) {
+					CELL_WAL_PAYLOAD_VERSION
+				} else {
+					LEGACY_CELL_WAL_PAYLOAD_VERSION
+				},
+			),
 			units = listOf(
 				SourceDeliveryUnit(
 					unitIndex = 0,
 					evidence = evidence,
-					observedIntervalStartElapsedRealtimeNanos = providerTimestampNanos,
+					observedIntervalStartElapsedRealtimeNanos = observations.minOf {
+						requireNotNull(it.providerTimestampNanos)
+					},
 				),
 			),
 		)

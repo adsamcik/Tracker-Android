@@ -2,20 +2,136 @@ package com.adsamcik.tracker.shared.base.database.data
 
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
 import org.junit.Test
 
 class WifiWalCarrierAuthenticatorTest {
+	@Test
+	fun `one malformed Wi-Fi child does not discard its valid sibling in either version`() {
+		for (version in listOf(LEGACY_WIFI_WAL_PAYLOAD_VERSION, WIFI_WAL_PAYLOAD_VERSION)) {
+			val mixed = payload(listOf(
+				observation(1, -60, 1_500_000_000L),
+				observation(5_180, -40, 1_600_000_000L),
+			))
+			val encoded = WifiWalPayloadCodec.encode(mixed, version)
+			val unsignedWal = validWal(version).copy(payload = encoded.toByteArray(),
+				payloadChecksum = encoded.checksum,
+				deliveryIdentity = canonicalWifiProviderDeliveryIdentity(BOOT_ID, mixed.observations, version))
+			val wal = unsignedWal.copy(integrityIdentity = unsignedWal.calculatedIntegrityIdentity())
+			assertIs<WifiWalCarrierAuthentication.Authenticated>(WifiWalCarrierAuthenticator.authenticate(wal))
+			val unsignedFact = validFact(wal).copy(acceptedResultCount = 1,
+				malformedResultCount = 1, coverageCompleteness = WifiCapturedFactRevisionEntity.COVERAGE_PARTIAL,
+				observationCount = 1, twoPointFourGhzCount = 0, fiveGhzCount = 1,
+				strongestSignalDbm = -40, weakestSignalDbm = -40, signalSumDbm = -40L,
+				coverageIntervalStartNanos = 1_600_000_000L)
+			val fact = unsignedFact.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsignedFact))
+			val children = if (version == WIFI_WAL_PAYLOAD_VERSION) validChildren(fact, wal).drop(1) else null
+			val authenticated = assertIs<WifiWalCarrierAuthentication.Authenticated>(
+				WifiWalCarrierAuthenticator.authenticate(fact, wal, children))
+			assertEquals(1, authenticated.carrier.coverage?.acceptedResultCount)
+			assertEquals(1, authenticated.carrier.coverage?.malformedResultCount)
+		}
+	}
+
 	@Test
 	fun `canonical production Wi-Fi payload and fact authenticate`() {
 		val wal = validWal()
 		val fact = validFact(wal)
 
 		val authenticated = assertIs<WifiWalCarrierAuthentication.Authenticated>(
-			WifiWalCarrierAuthenticator.authenticate(fact, wal),
+			WifiWalCarrierAuthenticator.authenticate(fact, wal, validChildren(fact, wal)),
 		)
 
 		assertEquals(2, authenticated.carrier.coverage?.acceptedResultCount)
 		assertEquals("Europe/Prague", authenticated.carrier.payload.observationZoneId)
+	}
+
+	@Test
+	fun `legacy v5 Wi-Fi payload remains byte exact and authentic`() {
+		val historical = WifiWalPayload(
+			observations = listOf(WifiWalPayloadObservation("", 2_412, -50, 1_000L)),
+			platformTimestampMs = 0L,
+			resultAgeMs = null,
+			observationZoneId = "UTC",
+		)
+		val encoded = WifiWalPayloadCodec.encode(historical, LEGACY_WIFI_WAL_PAYLOAD_VERSION)
+		assertEquals(
+			"000000070000000100000000096cffffffce0100000000000003e8010000000000000000000003555443",
+			encoded.toByteArray().joinToString("") { "%02x".format(it) },
+		)
+		assertEquals(
+			historical,
+			assertIs<WifiWalPayloadDecodeResult.Decoded>(
+				WifiWalPayloadCodec.decodeCanonical(LEGACY_WIFI_WAL_PAYLOAD_VERSION, encoded.toByteArray()),
+			).payload,
+		)
+		val wal = validWal(LEGACY_WIFI_WAL_PAYLOAD_VERSION)
+		assertIs<WifiWalCarrierAuthentication.Authenticated>(
+			WifiWalCarrierAuthenticator.authenticate(validFact(wal), wal),
+		)
+	}
+
+	@Test
+	fun `v6 network identity and name are retained and distinguish provider deliveries`() {
+		val wal = validWal(withNetworkIdentity = true)
+		val authenticated = assertIs<WifiWalCarrierAuthentication.Authenticated>(
+			WifiWalCarrierAuthenticator.authenticate(wal),
+		).carrier
+		assertEquals("aa:bb:cc:dd:ee:ff", authenticated.payload.observations.first().identifierToken)
+		assertEquals("Home Wi-Fi", authenticated.payload.observations.first().networkName)
+		assertEquals("WifiWalPayloadObservation", authenticated.payload.observations.first().toString())
+		assertNotEquals(
+			wal.deliveryIdentity,
+			canonicalWifiProviderDeliveryIdentity(
+				BOOT_ID,
+				authenticated.payload.observations.mapIndexed { index, observation ->
+					if (index == 0) observation.copy(networkName = "Another network") else observation
+				},
+			),
+		)
+	}
+
+	@Test
+	fun `v6 fact requires exact purpose-owned children and rejects a changed network name`() {
+		val wal = validWal(withNetworkIdentity = true)
+		val fact = validFact(wal)
+		val children = validChildren(fact, wal)
+		assertEquals(WifiWalCarrierFailure.CHILD_EVIDENCE_MISMATCH,
+			assertIs<WifiWalCarrierAuthentication.Rejected>(
+				WifiWalCarrierAuthenticator.authenticate(fact, wal),
+			).reason)
+		assertIs<WifiWalCarrierAuthentication.Authenticated>(
+			WifiWalCarrierAuthenticator.authenticate(fact, wal, children),
+		)
+		assertEquals(WifiWalCarrierFailure.CHILD_EVIDENCE_MISMATCH,
+			assertIs<WifiWalCarrierAuthentication.Rejected>(
+				WifiWalCarrierAuthenticator.authenticate(fact, wal,
+					listOf(children.first().copy(ssid = "forged")) + children.drop(1)),
+			).reason)
+	}
+
+	@Test
+	fun `v6 full callback fits the bounded WAL with worst-case encoded names`() {
+		val observations = List(MAX_WIFI_WAL_CHILDREN) { index ->
+			WifiWalPayloadObservation(
+				identifierToken = "\u0800".repeat(64),
+				frequencyMhz = 2_412,
+				signalLevelDbm = -50,
+				providerTimestampNanos = 1_000_000_000L + index,
+				networkName = "\u0000".repeat(128),
+			)
+		}
+		val payload = payload(observations)
+		val encoded = WifiWalPayloadCodec.encode(payload)
+
+		assertEquals(true, encoded.bytes.size <= MAX_WIFI_WAL_PAYLOAD_BYTES)
+		assertEquals("EncodedWifiWalPayload", encoded.toString())
+		assertEquals(
+			payload,
+			assertIs<WifiWalPayloadDecodeResult.Decoded>(
+				WifiWalPayloadCodec.decodeCanonical(WIFI_WAL_PAYLOAD_VERSION, encoded.toByteArray()),
+			).payload,
+		)
 	}
 
 	@Test
@@ -62,10 +178,10 @@ class WifiWalCarrierAuthenticatorTest {
 		}
 
 		val rejected = assertIs<WifiWalCarrierAuthentication.Rejected>(
-			WifiWalCarrierAuthenticator.authenticate(inconsistent, wal),
+			WifiWalCarrierAuthenticator.authenticate(inconsistent, wal, validChildren(original, wal)),
 		)
 
-		assertEquals(WifiWalCarrierFailure.FACT_SEMANTICS_MISMATCH, rejected.reason)
+		assertEquals(WifiWalCarrierFailure.CHILD_EVIDENCE_MISMATCH, rejected.reason)
 	}
 
 	@Test
@@ -83,7 +199,7 @@ class WifiWalCarrierAuthenticatorTest {
 		)
 
 		assertIs<WifiWalCarrierAuthentication.Authenticated>(
-			WifiWalCarrierAuthenticator.authenticate(correction, wal),
+			WifiWalCarrierAuthenticator.authenticate(correction, wal, validChildren(correction, wal)),
 		)
 	}
 
@@ -107,15 +223,25 @@ class WifiWalCarrierAuthenticatorTest {
 		assertEquals(WifiWalCarrierFailure.EMPTY_PROVIDER_DELIVERY, rejected.reason)
 	}
 
-	private fun validWal(): SourceEventWalEntity {
+	private fun validWal(
+		payloadVersion: Int = WIFI_WAL_PAYLOAD_VERSION,
+		withNetworkIdentity: Boolean = false,
+	): SourceEventWalEntity {
 		val payload = payload(
 			listOf(
-				observation(2_412, -60, 1_500_000_000L),
+				observation(2_412, -60, 1_500_000_000L).let { observation ->
+					if (withNetworkIdentity) observation.copy(
+						identifierToken = "aa:bb:cc:dd:ee:ff",
+						networkName = "Home Wi-Fi",
+					) else observation
+				},
 				observation(5_180, -40, 1_600_000_000L),
 			),
 		)
-		val encoded = WifiWalPayloadCodec.encode(payload)
-		val deliveryIdentity = canonicalWifiProviderDeliveryIdentity(BOOT_ID, payload.observations)
+		val encoded = WifiWalPayloadCodec.encode(payload, payloadVersion)
+		val deliveryIdentity = canonicalWifiProviderDeliveryIdentity(
+			BOOT_ID, payload.observations, payloadVersion,
+		)
 		val unsigned = SourceEventWalEntity(
 			admissionOrdinal = 1L,
 			eventId = EVENT_ID,
@@ -151,7 +277,7 @@ class WifiWalCarrierAuthenticatorTest {
 			acquiredAtMs = 1_700_000_000_000L,
 			qualityFlags = 0L,
 			qualityConfidence = null,
-			payloadVersion = WIFI_WAL_PAYLOAD_VERSION,
+			payloadVersion = payloadVersion,
 			payload = encoded.toByteArray(),
 			payloadChecksum = encoded.checksum,
 			integrityIdentity = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM,
@@ -256,6 +382,33 @@ class WifiWalCarrierAuthenticatorTest {
 		return unsigned.copy(
 			effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsigned),
 		)
+	}
+
+	private fun validChildren(
+		fact: WifiCapturedFactRevisionEntity,
+		wal: SourceEventWalEntity,
+	): List<WifiCapturedChildEntity> {
+		val payload = assertIs<WifiWalPayloadDecodeResult.Decoded>(
+			WifiWalPayloadCodec.decodeCanonical(wal.payloadVersion, wal.payload),
+		).payload
+		return payload.observations.mapIndexed { index, observation ->
+			val providerNanos = requireNotNull(observation.providerTimestampNanos)
+			val age = wal.observedElapsedNanos - providerNanos
+			val wall = requireNotNull(wal.wallTimeMs) - age / 1_000_000L
+			val uncertainty = requireNotNull(wal.wallTimeUncertaintyMs) +
+				if (age % 1_000_000L == 0L) 0L else 1L
+			val bssid = observation.identifierToken.takeIf(String::isNotEmpty)
+			val owner = RadioChildOwner(RadioChildPurpose.SESSION, fact.writerProjectionId,
+				fact.writerProjectionVersion, fact.logicalFactId, fact.semanticRevision, index)
+			WifiCapturedChildEntity(
+				fact.writerProjectionId, fact.writerProjectionVersion, fact.logicalFactId,
+				fact.semanticRevision, index, providerNanos, wall, uncertainty, bssid,
+				observation.networkName, observation.frequencyMhz, observation.signalLevelDbm,
+				RadioObservationChildIntegrity.wifi(WifiChildChecksumInput(owner, providerNanos,
+					wall, uncertainty, bssid, observation.networkName,
+					observation.frequencyMhz, observation.signalLevelDbm)),
+			)
+		}
 	}
 
 	private fun payload(observations: List<WifiWalPayloadObservation>) = WifiWalPayload(

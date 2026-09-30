@@ -30,11 +30,14 @@ internal data class WifiBackendAccessPoint(
 	val frequencyMhz: Int,
 	val signalLevelDbm: Int,
 	val platformTimestampMicros: Long,
+	val networkName: String? = null,
 ) {
 	val providerTimestampNanos: Long?
 		get() = platformTimestampMicros
 			.takeIf { it > 0L && it <= Long.MAX_VALUE / MICROS_TO_NANOS }
 			?.times(MICROS_TO_NANOS)
+
+	override fun toString(): String = "WifiBackendAccessPoint"
 
 	private companion object { const val MICROS_TO_NANOS = 1_000L }
 }
@@ -160,10 +163,16 @@ internal class AndroidWifiSourceBackend internal constructor(
 			null
 		}
 
+	@Suppress("DEPRECATION")
 	private fun ScanResult.toBackendAccessPoint() = WifiBackendAccessPoint(
-		bssid = BSSID.orEmpty(),
+		bssid = BSSID.orEmpty().takeUnless { it.equals(REDACTED_BSSID, ignoreCase = true) }.orEmpty(),
 		frequencyMhz = frequency,
 		signalLevelDbm = level,
 		platformTimestampMicros = timestamp.coerceAtLeast(0L),
+		networkName = SSID?.takeUnless { it.isEmpty() || it == WifiManager.UNKNOWN_SSID },
 	)
+
+	private companion object {
+		const val REDACTED_BSSID = "02:00:00:00:00:00"
+	}
 }
