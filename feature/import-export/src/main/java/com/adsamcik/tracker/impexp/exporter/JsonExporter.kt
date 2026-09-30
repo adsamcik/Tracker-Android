@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.model.Trip
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import java.io.BufferedWriter
+import java.io.IOException
 import java.io.OutputStream
 import java.io.OutputStreamWriter
 import javax.inject.Inject
@@ -348,7 +349,7 @@ class JsonExporter @JvmOverloads @Inject constructor(
 						firstLoad = false
 					}
 					is PagingSource.LoadResult.Error -> throw result.throwable
-					is PagingSource.LoadResult.Invalid -> return
+					is PagingSource.LoadResult.Invalid -> throw IOException("Saved data changed during export")
 				}
 			}
 		} finally {

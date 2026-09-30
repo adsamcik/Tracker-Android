@@ -272,6 +272,8 @@ internal class JsonImport(
 		var altitudeCalibrationVersion = 0
 		var speed: Float? = null
 		var accuracy: Float? = null
+		var verticalAccuracy: Float? = null
+		var speedAccuracy: Float? = null
 		var reportedQuality: SampleQuality? = null
 
 		reader.beginObject()
@@ -298,6 +300,10 @@ internal class JsonImport(
 				"altitudeCalibrationVersion" -> altitudeCalibrationVersion = reader.nextInt()
 				"spd", "speedMps" -> speed = readNullableDouble(reader)?.toFloat()
 				"acc", "horizontalAccuracyM" -> accuracy = readNullableDouble(reader)?.toFloat()
+				"verticalAccuracyM" -> verticalAccuracy = readNullableDouble(reader)
+					?.takeIf { it.isFinite() && it >= 0.0 }?.toFloat()
+				"speedAccuracyMps" -> speedAccuracy = readNullableDouble(reader)
+					?.takeIf { it.isFinite() && it >= 0.0 }?.toFloat()
 				"quality" -> reportedQuality = readNullableString(reader)?.let { value ->
 					SampleQuality.entries.firstOrNull { it.name.equals(value, ignoreCase = true) }
 				}
@@ -327,9 +333,9 @@ internal class JsonImport(
 			altitudeM = alt?.takeIf(Double::isFinite)?.toFloat(),
 			rawGpsAltitudeM = rawGpsAltitude?.takeIf(Double::isFinite)?.toFloat(),
 			hAccM = measuredAccuracy,
-			vAccM = null,
+			vAccM = verticalAccuracy?.takeIf { it.isFinite() && it >= 0f },
 			speedMps = speed,
-			speedAccuracyMps = null,
+			speedAccuracyMps = speedAccuracy?.takeIf { it.isFinite() && it >= 0f },
 			provider = "import",
 			quality = quality,
 			motionState = null,

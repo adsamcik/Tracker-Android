@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import com.adsamcik.tracker.impexp.importer.FileImportStream
+import com.adsamcik.tracker.impexp.importer.file.JsonImport
 import com.adsamcik.tracker.shared.base.database.dao.LocationPurposeDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
 import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity
@@ -206,6 +208,46 @@ class JsonExporterRoomIntegrationTest {
 		session.has("steps") shouldBe false
 		record.getJSONArray("wifiObservations").getJSONObject(0).getString("bssid") shouldBe "00:11:22:33:44:55"
 		record.getJSONArray("cellSamples").getJSONObject(0).getLong("cellId") shouldBe 1234L
+	}
+
+	@Test
+	fun `Room JSON round trip retains optional vertical and speed accuracy`() = runTest {
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val timeMs = 1_725_000_000_000L
+		val samples = listOf(
+			createLocationSample(timeMs, 50.0, 14.0, 100f, 1f, 5f)
+				.copy(vAccM = null, speedAccuracyMps = null),
+			createLocationSample(timeMs + 1, 50.1, 14.1, 101f, 2f, 6f)
+				.copy(vAccM = 0f, speedAccuracyMps = 0f),
+			createLocationSample(timeMs + 2, 50.2, 14.2, 102f, 3f, 7f)
+				.copy(vAccM = 2.5f, speedAccuracyMps = 0.4f),
+		)
+		locationSampleDao.insert(samples)
+		sessionSegmentDao.insert(createSessionSegment(timeMs, timeMs + 2, samples.size, 10f, 0))
+		val output = createTempExportFile()
+		output.outputStream().use { stream ->
+			JsonExporter(dispatchers).export(context, emptySequence(), stream, timeMs..(timeMs + 2))
+				.shouldBeInstanceOf<ExportResult.Success>()
+		}
+
+		val restoredDatabase = AppDatabase.testDatabase(context)
+		try {
+			val result = JsonImport(dispatchers).import(
+				context, restoredDatabase, FileImportStream(output.inputStream(), output.name),
+			)
+			result.successCount shouldBe samples.size + 1 // The existing session record is also imported.
+			val restored = restoredDatabase.locationSampleDao().getChunkBetweenOrdered(
+				timeMs, timeMs + 2, null, null, 10,
+			)
+			restored.map { it.timeMs } shouldBe samples.map { it.timeMs }
+			restored.map { it.vAccM } shouldBe samples.map { it.vAccM }
+			restored.map { it.speedAccuracyMps } shouldBe samples.map { it.speedAccuracyMps }
+			restored.map { it.hAccM } shouldBe samples.map { it.hAccM }
+			restored.map { it.speedMps } shouldBe samples.map { it.speedMps }
+			restored.map { it.quality } shouldBe samples.map { it.quality }
+		} finally {
+			restoredDatabase.close()
+		}
 	}
 
 	@Test

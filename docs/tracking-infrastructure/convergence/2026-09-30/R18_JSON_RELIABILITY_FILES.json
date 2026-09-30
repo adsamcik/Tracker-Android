@@ -1,0 +1,35 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "evidence": "Source authorship and static inspection only; no executed gates",
+  "productionFiles": 2,
+  "testFiles": 3,
+  "authoredNewTestMethods": 3,
+  "paths": [
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/JsonExporter.kt",
+      "sha256": "15a31f1472f94ca2c4e59c0efdcb3564e7ce63a83168ddf4e88470bc788e4e9d",
+      "selection": "IOException import and Invalid paging failure only"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/JsonImport.kt",
+      "sha256": "56a8d172ef4d769a5260efad4b8e0e0cf9459dc938f6e96536355665335f3710",
+      "selection": "Optional existing measurement accuracy parsing and finite/nonnegative assignments only"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/JsonImportTest.kt",
+      "sha256": "9dca836936202ed53aaacd55bda4defd02af515cd3e869ab4da8caee703b78e0",
+      "selection": "One accuracy codec test and old-schema absence assertions only"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/JsonExporterRoomIntegrationTest.kt",
+      "sha256": "2efbd74a3de826c4f9f7324b1b41d808c5053e224e74865775b31046bf8ffc8c",
+      "selection": "One actual Room JSON roundtrip test and related imports only"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ExportDocumentCleanupTest.kt",
+      "sha256": "b7bbdff0f29ea30633f839300e9a9dec231909bc3d7e777ff7b0a35d367a5353",
+      "selection": "One actual Room emitted-prefix Invalid-page document cleanup test and related imports only"
+    }
+  ],
+  "commitOwner": "Coordinator"
+}

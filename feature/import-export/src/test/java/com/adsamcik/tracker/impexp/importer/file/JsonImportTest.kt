@@ -187,6 +187,8 @@ class JsonImportTest {
 		capturedSamples[0].lonE7 shouldBe (14.0 * 1e7).roundToInt()
 		capturedSamples[0].altitudeM shouldBe 200.0f
 		capturedSamples[0].speedMps shouldBe 3.5f
+		capturedSamples.map { it.vAccM } shouldBe listOf(null, null)
+		capturedSamples.map { it.speedAccuracyMps } shouldBe listOf(null, null)
 		capturedSamples[0].quality.name shouldBe "MEDIUM"
 		capturedSamples[1].latE7 shouldBe (50.1 * 1e7).roundToInt()
 		capturedSamples[1].quality.name shouldBe "HIGH"
@@ -197,6 +199,31 @@ class JsonImportTest {
 		val json = """[{"schemaVersion":3,"locations":[{"timeMs":1700000000000,"quality":"LOW"},{"timeMs":1700000000001}]}]"""
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 		capturedSamples.map { it.quality.name } shouldBe listOf("LOW", "COARSE")
+	}
+
+	@Test
+	fun `JSON preserves optional finite nonnegative vertical and speed accuracy without inventing absent values`() = runTest {
+		val fields = listOf(
+			"",
+			",\"verticalAccuracyM\":null,\"speedAccuracyMps\":null",
+			",\"verticalAccuracyM\":0,\"speedAccuracyMps\":0",
+			",\"verticalAccuracyM\":2.5,\"speedAccuracyMps\":0.4",
+			",\"verticalAccuracyM\":-1,\"speedAccuracyMps\":-0.1",
+			",\"verticalAccuracyM\":\"NaN\",\"speedAccuracyMps\":\"Infinity\"",
+			",\"verticalAccuracyM\":1e100,\"speedAccuracyMps\":1e400",
+			",\"verticalAccuracyM\":-1e-100,\"speedAccuracyMps\":-1e-100",
+		)
+		val points = fields.mapIndexed { index, optional ->
+			"""{"timeMs":${1_700_000_000_000L + index},"latitude":50,"longitude":14,"speedMps":3,"quality":"HIGH"$optional}"""
+		}.joinToString(",")
+		val result = jsonImport.import(
+			mockContext, mockDatabase, jsonStream("""[{"schemaVersion":3,"locations":[$points]}]"""),
+		)
+		result.successCount shouldBe fields.size
+		capturedSamples.map { it.vAccM } shouldBe listOf(null, null, 0f, 2.5f, null, null, null, null)
+		capturedSamples.map { it.speedAccuracyMps } shouldBe listOf(null, null, 0f, 0.4f, null, null, null, null)
+		capturedSamples.map { it.speedMps }.distinct() shouldBe listOf(3f)
+		capturedSamples.map { it.quality.name }.distinct() shouldBe listOf("HIGH")
 	}
 
 	@Test
