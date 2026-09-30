@@ -26,7 +26,43 @@ data class OrganizedSession(
 	val timeUncertain: Boolean,
 	/** Opens the original recording; edited bounds do not reattribute its source evidence. */
 	val originalSegmentId: Long? = null,
+	/** Null groups locally by interval; an imported bundle selects only these exact source records. */
+	val importedSourceSelection: List<OrganizationSourceSelector>? = null,
 )
+
+/** Exact organization membership only. Source readers still own retention, corrections and payload access. */
+sealed interface OrganizationSourceSelector {
+	val source: HistorySource
+
+	data class LocationFile(val archiveIdentity: String) : OrganizationSourceSelector {
+		override val source = HistorySource.LOCATION
+		init { requireOrganizationIdentity(archiveIdentity) }
+	}
+
+	data class CapturedEntry(override val source: HistorySource, val entryIdentity: String) : OrganizationSourceSelector {
+		init {
+			require(source != HistorySource.LOCATION)
+			requireOrganizationIdentity(entryIdentity)
+		}
+	}
+
+	data class BackgroundStepsDay(val dayIdentity: String) : OrganizationSourceSelector {
+		override val source = HistorySource.STEPS
+		init { requireOrganizationIdentity(dayIdentity) }
+	}
+
+	data class BackgroundRadioArchive(override val source: HistorySource, val archiveIdentity: String) : OrganizationSourceSelector {
+		init {
+			require(source == HistorySource.WIFI || source == HistorySource.CELL)
+			requireOrganizationIdentity(archiveIdentity)
+		}
+	}
+
+	companion object { const val MAX_COUNT = 4_096 }
+}
+
+private val organizationIdentity = Regex("[0-9a-f]{64}")
+private fun requireOrganizationIdentity(value: String) { require(organizationIdentity.matches(value)) }
 
 sealed interface SessionOrganizationRead {
 	data class Content(val sessions: List<OrganizedSession>, val hasMore: Boolean,

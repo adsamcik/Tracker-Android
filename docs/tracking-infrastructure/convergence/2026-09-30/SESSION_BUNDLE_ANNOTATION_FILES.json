@@ -1,0 +1,56 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "date": "2026-09-30",
+  "owner": "/root/completion_wiring_0930",
+  "scope": "Approved annotation representation, typed identity codec, Room projection/read/edit and focused test sources only",
+  "phase": "Implementation only; no executed validation, activation, integration or Git",
+  "selectedPaths": [
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SessionOrganizationRepository.kt",
+      "sha256": "49422efacebd0eaa52ba23bfd59913fc1284681481a9641090ea591d5df396ca"
+    },
+    {
+      "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/OrganizationSourceSelectionCodec.kt",
+      "sha256": "cb49e68df8b8c902524912084f6a33d2fad25b2a33bc15206391a5853c9f2ac1"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/OrganizationAnnotationEntity.kt",
+      "sha256": "21f1ba1a7b06b6f93c82d51523d1e455ab54e47848957b1add85d4056711b2c7"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/OrganizationAnnotationDao.kt",
+      "sha256": "3301eacc43ed21f0a1aa16e28ea07cb0c72b18e31c1bec9a160ed295ab06d288"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomSessionOrganizationRepository.kt",
+      "sha256": "2c14a5eb9e36df4d29be70087024025500bcd7ba9c0737eaafd9f17902efaa11"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SessionOrganizationRoomTest.kt",
+      "sha256": "11200fe883dfddb12c3a3f26acbf370de69c0534920cc4a9a33857ef5a38dc56"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/OrganizationSourceSelectionCodecTest.kt",
+      "sha256": "2288b382c8cdbb289142a5817653936d0521321f7bbb060ae9497c5c52acc1be"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-09-30/SESSION_BUNDLE_ANNOTATION_SOURCE_REVIEW.md",
+      "sha256": "ca64f29113bf0036976b985bb95ea1b998cc9b0400c9a3f82cedd3dbf9b73a85"
+    }
+  ],
+  "sharedFileBoundaries": {
+    "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/OrganizationAnnotationDao.kt": "Own two-column UNION/retention/projection change; product agent's byAdapters/byIds batch reads preserved and separately reviewed by coordinator."
+  },
+  "schemaSql": [
+    "ALTER TABLE organization_annotation ADD COLUMN imported_source_selection TEXT;",
+    "ALTER TABLE organization_annotation ADD COLUMN imported_activity_label TEXT;"
+  ],
+  "schemaCompanion": "Root-owned migration/preflight and migration/containment tests statically inspected for exact parity; not a passing generated schema gate.",
+  "excluded": "All session bundle worker/runner/source adapters/metadata importer changes; independent manifest to follow.",
+  "remaining": [
+    "Fresh independent source review",
+    "Bundle callers and source-owned membership read/export assembly",
+    "User answer for export UI placement and source chooser",
+    "Deferred compile/Hilt/Room/generated schema/ciUnitTest/ciCheck/device evidence"
+  ]
+}

@@ -45,6 +45,8 @@ class RadioObservationChildMigrationTest {
 						db.execSQL("INSERT INTO location_sample VALUES (1)")
 						db.execSQL("INSERT INTO location_accepted_receipt VALUES (1)")
 						db.execSQL("INSERT INTO location_sample_purpose_authority VALUES (1, 'SESSION_CAPTURE', 'original')")
+						db.execSQL("CREATE TABLE organization_annotation (local_id TEXT NOT NULL PRIMARY KEY, name TEXT)")
+						db.execSQL("INSERT INTO organization_annotation VALUES ('local-session', 'Morning walk')")
 						db.execSQL("CREATE TABLE source_policy (policy_revision INTEGER NOT NULL, source_kind INTEGER NOT NULL, " +
 							"PRIMARY KEY(policy_revision, source_kind))")
 						db.execSQL("INSERT INTO source_policy VALUES (1, 4), (1, 5)")
@@ -77,6 +79,12 @@ class RadioObservationChildMigrationTest {
 			readLong(db, "SELECT retained_proof_version FROM location_accepted_receipt WHERE sample_id=1") shouldBe 0L
 			readString(db, "SELECT retained_proof_checksum FROM location_accepted_receipt WHERE sample_id=1") shouldBe ""
 			readString(db, "SELECT retained_proof_checksum FROM location_sample_purpose_authority WHERE sample_id=1") shouldBe ""
+			readString(db, "SELECT name FROM organization_annotation WHERE local_id='local-session'") shouldBe "Morning walk"
+			readLong(db, "SELECT count(*) FROM organization_annotation WHERE imported_source_selection IS NULL " +
+				"AND imported_activity_label IS NULL") shouldBe 1L
+			readLong(db, "SELECT count(*) FROM pragma_table_info('organization_annotation') WHERE " +
+				"name IN ('imported_source_selection', 'imported_activity_label') AND type='TEXT' " +
+				"AND \"notnull\"=0 AND dflt_value IS NULL") shouldBe 2L
 			readLong(db, "SELECT count(*) FROM location_file_archive") shouldBe 0L
 			db.execSQL("INSERT INTO location_file_archive VALUES ('archive', 'tracker-location', 1, 0, 2)")
 			db.execSQL("INSERT INTO location_file_archive_point VALUES ('archive', 0, 'point-1', 1), ('archive', 1, 'missing-point', NULL)")

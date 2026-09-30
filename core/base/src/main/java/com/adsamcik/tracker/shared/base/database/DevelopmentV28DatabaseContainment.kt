@@ -1193,6 +1193,8 @@ private val FINAL_V29_ADDITIONAL_COLUMNS = listOf(
 	FinalV28ColumnSentinel("location_accepted_receipt", "retained_proof_version", "INTEGER", true, defaultValue = "0"),
 	FinalV28ColumnSentinel("location_accepted_receipt", "retained_proof_checksum", "TEXT", true, defaultValue = "''"),
 	FinalV28ColumnSentinel("location_sample_purpose_authority", "retained_proof_checksum", "TEXT", true, defaultValue = "''"),
+	FinalV28ColumnSentinel("organization_annotation", "imported_source_selection", "TEXT", false),
+	FinalV28ColumnSentinel("organization_annotation", "imported_activity_label", "TEXT", false),
 	FinalV28ColumnSentinel("location_file_archive", "identity", "TEXT", true, primaryKeyPosition = 1),
 	FinalV28ColumnSentinel("location_file_archive", "source_format", "TEXT", true),
 	FinalV28ColumnSentinel("location_file_archive", "source_schema_version", "INTEGER", true),

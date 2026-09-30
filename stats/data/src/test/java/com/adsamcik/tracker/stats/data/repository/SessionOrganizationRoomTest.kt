@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEnti
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
@@ -18,6 +19,9 @@ import com.adsamcik.tracker.stats.api.repository.OrganizationEditProblem
 import com.adsamcik.tracker.stats.api.repository.OrganizationInterval
 import com.adsamcik.tracker.stats.api.repository.OrganizationMutationResult
 import com.adsamcik.tracker.stats.api.repository.OrganizationSessionId
+import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelector
+import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelectionCodec
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.OrganizedSession
 import com.adsamcik.tracker.stats.api.repository.SessionOrganizationRead
 import io.kotest.matchers.shouldBe
@@ -208,6 +212,71 @@ class SessionOrganizationRoomTest {
 		repository.edit(wrongId, null, "UTC", "Wrong namespace", null) shouldBe rejected(OrganizationEditProblem.NOT_FOUND)
 		repository.remove(wrongId) shouldBe rejected(OrganizationEditProblem.NOT_FOUND)
 		content().sessions.single().id shouldBe linked.id
+	}
+
+	@Test fun `imported exact selection survives interval name and zone edits without claiming nearby records`() = runTest {
+		guard()
+		val selectors = listOf(
+			OrganizationSourceSelector.LocationFile("a".repeat(64)),
+			OrganizationSourceSelector.CapturedEntry(HistorySource.WIFI, "b".repeat(64)),
+			OrganizationSourceSelector.BackgroundStepsDay("c".repeat(64)),
+			OrganizationSourceSelector.BackgroundRadioArchive(HistorySource.CELL, "d".repeat(64)),
+		)
+		imported(selectors, "Hike")
+		val unrelatedSegment = segment()
+		val session = (repository.find(OrganizationSessionId.Annotation("imported")) as SessionOrganizationRead.Content).sessions.single()
+		session.importedSourceSelection shouldBe selectors
+		session.activityLabelName shouldBe "Hike"
+		session.activityLabelId shouldBe null
+		repository.edit(session, OrganizationInterval(300, 400), "Europe/Prague", "New name", null) shouldBe OrganizationMutationResult.Saved
+		val edited = (repository.find(session.id) as SessionOrganizationRead.Content).sessions.single()
+		edited.fromMs shouldBe 300L
+		edited.importedSourceSelection shouldBe selectors
+		edited.activityLabelName shouldBe "Hike"
+		db.sessionSegmentDao().getById(unrelatedSegment)?.steps shouldBe 25
+		count("source_event_wal") shouldBe 0L
+	}
+
+	@Test fun `metadata only imported group stays different from a local interval and creates no global label`() = runTest {
+		guard()
+		imported(emptyList(), "Holiday")
+		repository.create(0, OrganizationInterval(100, 200), "UTC", "Local", null) shouldBe OrganizationMutationResult.Saved
+		val sessions = content().sessions
+		sessions.single { it.id == OrganizationSessionId.Annotation("imported") }.importedSourceSelection shouldBe emptyList()
+		sessions.single { it.name == "Local" }.importedSourceSelection shouldBe null
+		db.activityDao().getAllUser() shouldBe emptyList()
+		count("source_service_run") shouldBe 0L
+	}
+
+	@Test fun `malformed or unknown stored selection is unavailable rather than interval grouping`() = runTest {
+		guard()
+		imported(emptyList())
+		listOf("not json", "null", "[{\"kind\":\"future\",\"source\":\"WIFI\",\"identity\":\"${"a".repeat(64)}\"}]")
+			.forEach { malformed ->
+				val row = db.organizationAnnotationDao().byId("imported")!!
+				db.organizationAnnotationDao().update(row.copy(importedSourceSelection = malformed)) shouldBe 1
+				repository.find(OrganizationSessionId.Annotation("imported")) shouldBe SessionOrganizationRead.Unavailable
+			}
+	}
+
+	@Test fun `choosing a local activity replaces descriptive import text and removal preserves source records`() = runTest {
+		guard()
+		imported(listOf(OrganizationSourceSelector.CapturedEntry(HistorySource.STEPS, "a".repeat(64))), "Walking")
+		val segment = segment()
+		val localActivity = db.activityDao().insert(SessionActivity(name = "Dog walk"))
+		val selected = (repository.find(OrganizationSessionId.Annotation("imported")) as SessionOrganizationRead.Content).sessions.single()
+		repository.edit(selected, null, "UTC", null, localActivity) shouldBe OrganizationMutationResult.Saved
+		val changed = (repository.find(selected.id) as SessionOrganizationRead.Content).sessions.single()
+		changed.activityLabelName shouldBe "Dog walk"
+		db.organizationAnnotationDao().byId("imported")?.importedActivityLabel shouldBe null
+		repository.remove(changed) shouldBe OrganizationMutationResult.Saved
+		db.sessionSegmentDao().getById(segment)?.steps shouldBe 25
+	}
+
+	private suspend fun imported(selectors: List<OrganizationSourceSelector>, label: String? = null) {
+		db.organizationAnnotationDao().insert(OrganizationAnnotationEntity("imported", 1, 100, 100, null,
+			100, 200, "UTC", "Imported", null, false,
+			OrganizationSourceSelectionCodec.encode(selectors), label))
 	}
 
 	private suspend fun guard() { db.sourceEvidenceStateDao().ensure(SourceEvidenceState()) }

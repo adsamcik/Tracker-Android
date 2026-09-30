@@ -1009,6 +1009,21 @@ class DevelopmentV28DatabaseContainmentTest {
 		)
 	}
 
+	@Test
+	fun `v29 database missing imported annotation selection is blocked before Room opens`() {
+		val database = AppDatabase.fileBuilder(context, DATABASE_NAME).allowMainThreadQueries().build()
+		try {
+			database.openHelper.writableDatabase.execSQL(
+				"ALTER TABLE organization_annotation RENAME COLUMN imported_source_selection TO missing_imported_selection",
+			)
+		} finally {
+			database.close()
+		}
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA,
+		)
+	}
+
 	private fun createFixture(
 		version: Int,
 		includeBaseline: Boolean = true,

@@ -25,6 +25,8 @@ val MIGRATION_28_29: Migration = object : Migration(28, 29) {
 		db.execSQL("ALTER TABLE location_accepted_receipt ADD COLUMN retained_proof_version INTEGER NOT NULL DEFAULT 0")
 		db.execSQL("ALTER TABLE location_accepted_receipt ADD COLUMN retained_proof_checksum TEXT NOT NULL DEFAULT ''")
 		db.execSQL("ALTER TABLE location_sample_purpose_authority ADD COLUMN retained_proof_checksum TEXT NOT NULL DEFAULT ''")
+		db.execSQL("ALTER TABLE organization_annotation ADD COLUMN imported_source_selection TEXT")
+		db.execSQL("ALTER TABLE organization_annotation ADD COLUMN imported_activity_label TEXT")
 		createLocationFileArchiveTables(db)
 		createRadioObservationChildTables(db)
 		copyKnownLegacyRadioRows(db)

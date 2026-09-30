@@ -22,6 +22,7 @@ import com.adsamcik.tracker.stats.api.repository.OrganizationEditProblem
 import com.adsamcik.tracker.stats.api.repository.OrganizationInterval
 import com.adsamcik.tracker.stats.api.repository.OrganizationMutationResult
 import com.adsamcik.tracker.stats.api.repository.OrganizationSessionId
+import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelectionCodec
 import com.adsamcik.tracker.stats.api.repository.OrganizedSession
 import com.adsamcik.tracker.stats.api.repository.SessionOrganizationRead
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -92,15 +93,21 @@ class RoomSessionOrganizationRepository @Inject constructor(
 				SessionOrganizationRead.Content(rows.take(limit).map { row ->
 					val start = row.fromMs?.takeIf { it >= 0L }
 					val end = row.toMs?.takeIf { start != null && it > start }
+					val importedSelection = row.importedSourceSelection?.let(OrganizationSourceSelectionCodec::decode)
+					check(importedSelection == null || row.adapterKey == null)
+					check(row.importedActivityLabel == null || importedSelection != null)
+					check(row.importedActivityLabel?.let { it.codePointCount(0, it.length) > 200 } != true)
 					OrganizedSession(
 						id = row.adapterKey?.let { OrganizationSessionId.Recording(it) }
 							?: OrganizationSessionId.Annotation(requireNotNull(row.localId)),
 						revision = row.revision, collectedDataEpoch = epoch, name = row.name,
-						activityLabelId = row.activityLabelId, activityLabelName = labels[row.activityLabelId],
+						activityLabelId = row.activityLabelId,
+						activityLabelName = labels[row.activityLabelId] ?: row.importedActivityLabel,
 						displayZoneId = (row.displayZoneId ?: ZoneId.systemDefault().id).also { ZoneId.of(it) },
 						fromMs = start, toMs = end, isActive = row.isActive,
 						timeUncertain = row.timeUncertain || start == null || (!row.isActive && end == null),
 						originalSegmentId = row.originalSegmentId,
+						importedSourceSelection = importedSelection,
 					)
 				}, rows.size > limit, epoch)
 				} }
@@ -176,7 +183,9 @@ class RoomSessionOrganizationRepository @Inject constructor(
 			Math.addExact(selection.revision, 1L), existing?.createdAtMs ?: now, now,
 			(selection.id as? OrganizationSessionId.Recording)?.adapterKey,
 			intervalChange?.fromMs ?: existing?.startTimeMs,
-			intervalChange?.toMs ?: existing?.endTimeMs, displayZoneId, name.normalized(), activityLabelId, false)
+			intervalChange?.toMs ?: existing?.endTimeMs, displayZoneId, name.normalized(), activityLabelId, false,
+			importedSourceSelection = existing?.importedSourceSelection,
+			importedActivityLabel = existing?.importedActivityLabel.takeIf { activityLabelId == existing?.activityLabelId })
 		if (existing == null) dao.insert(row) else check(dao.update(row) == 1)
 		OrganizationMutationResult.Saved
 	}

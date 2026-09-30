@@ -26,4 +26,8 @@ data class OrganizationAnnotationEntity(
 	val name: String?,
 	@ColumnInfo(name = "activity_label_id") val activityLabelId: Long?,
 	val hidden: Boolean,
+	/** Null is ordinary interval grouping; a stored empty array is an imported metadata-only group. */
+	@ColumnInfo(name = "imported_source_selection") val importedSourceSelection: String? = null,
+	/** Descriptive bundle text, never a foreign Activity ID or a new global Activity label. */
+	@ColumnInfo(name = "imported_activity_label") val importedActivityLabel: String? = null,
 )
