@@ -192,14 +192,16 @@ internal class PortablePressureRoomReader @Inject constructor(
 
 		val runs = entry.physicalMembers.map(::portableRun).sortedWith(PORTABLE_PRESSURE_RUN_ORDER)
 		if (runs.none { it.windows.isNotEmpty() || it.retentionLoss }) return null
+		val bounds = entry.originalClosedBounds
+			?: abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 		return portableValue {
 			PortablePressureEntryV1.create(
 				identity = PortablePressureOpaqueIdentity.derive(
 					PortablePressureIdentityKind.LOGICAL_ENTRY,
 					identity.logicalTrackingId,
 				),
-				startTimeMs = runs.minOf(PortablePressureRunV1::startTimeMs),
-				endTimeMs = runs.maxOf(PortablePressureRunV1::endTimeMs),
+				startTimeMs = bounds.startTimeMs,
+				endTimeMs = bounds.endTimeMs,
 				runs = runs,
 			)
 		}

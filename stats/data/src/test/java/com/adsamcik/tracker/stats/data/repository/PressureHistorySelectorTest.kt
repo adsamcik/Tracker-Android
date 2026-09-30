@@ -216,6 +216,12 @@ class PressureHistorySelectorTest {
 		after.qualifiedSources shouldBe before.qualifiedSources
 		after.recencyMember shouldBe before.recencyMember
 		public.pressure.hasQualifiedRetainedProof shouldBe true
+		val portable = requireNotNull(PortablePressureRoomReader(database, selector)
+			.portableEntryForComparison(after))
+		portable.startTimeMs shouldBe originalStart
+		portable.endTimeMs shouldBe originalCutoff
+		portable.runs.single().startTimeMs shouldBe before.physicalMembers.single().segment.startTimeMs
+		portable.runs.single().endTimeMs shouldBe before.physicalMembers.single().segment.endTimeMs
 	}
 
 	@Test
@@ -243,6 +249,7 @@ class PressureHistorySelectorTest {
 			entry.windows shouldBe selected.windows
 			entry.summary shouldBe selected.summary
 			entry.qualifiedSources shouldBe selected.qualifiedSources
+			PortablePressureRoomReader(database, selector).portableEntryForComparison(entry) shouldBe null
 		}
 	}
 
