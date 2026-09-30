@@ -14,6 +14,11 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.MessageDigest
 import java.util.zip.ZipInputStream
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -82,6 +87,71 @@ class SessionBundleArchiveWriterTest {
 				entry.method shouldBe java.util.zip.ZipEntry.STORED
 				entry.size shouldBe source.length()
 			}
+		} finally { cache.deleteRecursively() }
+	}
+
+	@Test
+	fun `already cancelled export does not inspect its child or touch output`() = runTest {
+		val cache = File("build/test-session-write-${System.nanoTime()}").apply { mkdirs() }
+		try {
+			val context = mockk<Context> { every { cacheDir } returns cache }
+			val source = File(cache, "source.trackersteps").apply { writeText("source") }
+			val path = "sources/0/steps.trackersteps"
+			val details = manifest(path, source)
+			var inspections = 0
+			val child = object : File(source.path) {
+				override fun isFile(): Boolean {
+					inspections++
+					return true
+				}
+			}
+			val output = ByteArrayOutputStream()
+			val attempt = async {
+				currentCoroutineContext().cancel()
+				SessionBundleArchiveWriter().write(context, details, mapOf(path to child), output)
+			}
+			assertFailsWith<CancellationException> { attempt.await() }
+			inspections shouldBe 0
+			output.size() shouldBe 0
+			File(cache, "portable-export-spool").exists() shouldBe false
+		} finally { cache.deleteRecursively() }
+	}
+
+	@Test
+	fun `cancellation at archive source open stops before a later size error and deletes spool`() = runTest {
+		val cache = File("build/test-session-write-${System.nanoTime()}").apply { mkdirs() }
+		try {
+			val context = mockk<Context> { every { cacheDir } returns cache }
+			val source = File(cache, "source.trackersteps").apply { writeText("source") }
+			val empty = File(cache, "empty").apply { writeText("") }
+			val path = "sources/0/steps.trackersteps"
+			val details = manifest(path, source)
+			val output = ByteArrayOutputStream()
+			var opens = 0
+			var returned = false
+			val attempt = async {
+				val caller = currentCoroutineContext()
+				val child = object : File(source.path) {
+					override fun isFile(): Boolean = true
+					override fun length(): Long = details.children.single().sizeBytes
+					override fun getPath(): String {
+						opens++
+						// The first open validates the hash; the second begins ZIP copying.
+						if (opens == 2) {
+							caller.cancel()
+							return empty.path
+						}
+						return source.path
+					}
+				}
+				SessionBundleArchiveWriter().write(context, details, mapOf(path to child), output)
+				returned = true
+			}
+			assertFailsWith<CancellationException> { attempt.await() }
+			opens shouldBe 2
+			returned shouldBe false
+			output.size() shouldBe 0
+			File(cache, "portable-export-spool").listFiles().orEmpty().size shouldBe 0
 		} finally { cache.deleteRecursively() }
 	}
 
