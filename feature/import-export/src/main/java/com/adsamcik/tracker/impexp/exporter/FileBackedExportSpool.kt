@@ -9,6 +9,8 @@ import java.io.FilterOutputStream
 import java.io.IOException
 import java.io.OutputStream
 import java.util.UUID
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 internal data class FileBackedExportSpoolLimits(
 	val maximumFileCount: Int = 8,
@@ -86,26 +88,34 @@ internal class FileBackedExportSpool(
 	}
 
 	suspend fun <T> write(block: suspend (OutputStream) -> T): T {
+		val caller = currentCoroutineContext()
+		caller.ensureActive()
 		check(!closed)
 		check(!writeCompleted)
 		val result = FileOutputStream(backingFile).buffered().use { output ->
-			block(BoundedSpoolOutputStream(output))
+			block(BoundedSpoolOutputStream(output)).also { caller.ensureActive() }
 		}
+		caller.ensureActive()
 		writeCompleted = true
 		return result
 	}
 
-	fun copyTo(destination: OutputStream) {
+	suspend fun copyTo(destination: OutputStream) {
+		val caller = currentCoroutineContext()
+		caller.ensureActive()
 		check(!closed)
 		check(writeCompleted)
 		check(backingFile.length() == writtenBytes)
 		backingFile.inputStream().buffered().use { input ->
 			val buffer = ByteArray(COPY_BUFFER_SIZE)
 			while (true) {
+				caller.ensureActive()
 				val read = input.read(buffer)
+				caller.ensureActive()
 				if (read < 0) break
 				if (read == 0) continue
 				destination.write(buffer, 0, read)
+				caller.ensureActive()
 			}
 		}
 	}

@@ -4,6 +4,12 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import io.kotest.matchers.shouldBe
 import java.io.File
+import java.io.ByteArrayOutputStream
+import java.io.OutputStream
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -133,6 +139,72 @@ class FileBackedExportSpoolTest {
 			spool.close()
 		}
 		file.exists() shouldBe false
+	}
+
+	@Test
+	fun `copy preserves completed bytes and leaves destination ownership with caller`() = runTest {
+		var destinationClosed = false
+		val destination = object : ByteArrayOutputStream() {
+			override fun close() { destinationClosed = true; super.close() }
+		}
+		val bytes = ByteArray(20_000) { (it % 251).toByte() }
+		FileBackedExportSpool(ApplicationProvider.getApplicationContext(), "portable-steps-v2-",
+			bytes.size.toLong()).use { spool ->
+			spool.write { it.write(bytes) }
+			spool.copyTo(destination)
+			destination.toByteArray().contentEquals(bytes) shouldBe true
+		}
+		destinationClosed shouldBe false
+		directory.listFiles().orEmpty().isEmpty() shouldBe true
+	}
+
+	@Test
+	fun `copy stops after destination write cancellation and removes owned spool`() = runTest {
+		var writes = 0
+		var returned = false
+		var file: File? = null
+		val job = launch(start = CoroutineStart.UNDISPATCHED) {
+			FileBackedExportSpool(ApplicationProvider.getApplicationContext(), "portable-steps-v2-",
+				20_000L).use { spool ->
+				file = spool.backingFile
+				spool.write { it.write(ByteArray(20_000)) }
+				val caller = currentCoroutineContext()
+				spool.copyTo(object : OutputStream() {
+					override fun write(value: Int) = error("Expected buffered copy")
+					override fun write(buffer: ByteArray, offset: Int, length: Int) {
+						writes++
+						caller.cancel()
+					}
+				})
+				returned = true
+			}
+		}
+		job.join()
+		job.isCancelled shouldBe true
+		writes shouldBe 1
+		returned shouldBe false
+		requireNotNull(file).exists() shouldBe false
+	}
+
+	@Test
+	fun `cancelled final stage cannot become a completed spool`() = runTest {
+		var returned = false
+		var file: File? = null
+		val job = launch(start = CoroutineStart.UNDISPATCHED) {
+			FileBackedExportSpool(ApplicationProvider.getApplicationContext(), "portable-steps-v2-",
+				16L).use { spool ->
+				file = spool.backingFile
+				spool.stage {
+					it.write(byteArrayOf(1, 2, 3))
+					currentCoroutineContext().cancel()
+				}
+				returned = true
+			}
+		}
+		job.join()
+		job.isCancelled shouldBe true
+		returned shouldBe false
+		requireNotNull(file).exists() shouldBe false
 	}
 
 	private fun abandoned(
