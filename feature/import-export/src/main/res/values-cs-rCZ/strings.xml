@@ -40,6 +40,9 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Záloha databáze (ZIP)</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Mobilní síť</string>
+    <string name="format_portable_location">Poloha</string>
     <string name="settings_import_summary">Import dat z podporovaných formátů (%1$s) a archivů (%2$s)</string>
     <string name="settings_import_title">Import</string>
 </resources>

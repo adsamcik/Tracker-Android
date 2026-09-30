@@ -285,6 +285,7 @@ internal class ImportJobRunner(
 		transactionModeForChild: (FileImportStream) -> ImportTransactionMode,
 		importChild: suspend (FileImportStream) -> ImportResult,
 		importMetadata: suspend () -> ImportResult,
+		prepareMetadata: suspend () -> Unit = {},
 	): ImportResult = operationMutex.withLock {
 		var aggregate = ImportResult.EMPTY
 		try {
@@ -298,6 +299,9 @@ internal class ImportJobRunner(
 				if (aggregate.failedCount > 0) return@withLock aggregate
 			}
 			bundle.metadataStream().use { metadata ->
+				successfulEntryResult(jobId, metadata.receiptKey)?.let { return@withLock aggregate + it }
+				// Decode only bounded identity claims outside Room, after each child keeps its own prefix contract.
+				prepareMetadata()
 				aggregate + processEntry(jobId, metadata.receiptKey, metadata.fileName,
 					ImportTransactionMode.WORKER_MANAGED) {
 					val job = receiptStore.getJob(jobId)
@@ -531,8 +535,10 @@ internal fun computeImportJobId(
 	context: Context,
 	file: DocumentFile,
 	maxBytes: Long = Long.MAX_VALUE,
+	sourceExtension: String? = null,
+	checkCancelled: () -> Unit = {},
 ): String {
-	val extension = file.name.orEmpty().substringAfterLast('.', "").lowercase()
+	val extension = (sourceExtension ?: file.name.orEmpty().substringAfterLast('.', "")).lowercase()
 	val digest = MessageDigest.getInstance("SHA-256")
 	digest.update("tracker-import-job-v1\u0000".toByteArray())
 	digest.update(extension.toByteArray())
@@ -543,8 +549,23 @@ internal fun computeImportJobId(
 		val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
 		var totalBytes = 0L
 		while (true) {
+			checkCancelled()
 			val read = it.read(buffer)
-			if (read <= 0) break
+			checkCancelled()
+			if (read < 0) break
+			if (read == 0) {
+				val single = it.read()
+				checkCancelled()
+				if (single < 0) break
+				totalBytes++
+				if (totalBytes > maxBytes) {
+					throw PermanentImportInputException(
+						"Import source exceeds its size limit ($maxBytes bytes).",
+					)
+				}
+				digest.update(single.toByte())
+				continue
+			}
 			totalBytes += read
 			if (totalBytes > maxBytes) {
 				throw PermanentImportInputException(

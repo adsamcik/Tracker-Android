@@ -1,0 +1,288 @@
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/DataImporter.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/DataImporter.kt
+index 8a7189be60..71d5dd75c9 100644
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/DataImporter.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/DataImporter.kt
+@@ -285,6 +285,7 @@ internal class ImportJobRunner(
+ 		transactionModeForChild: (FileImportStream) -> ImportTransactionMode,
+ 		importChild: suspend (FileImportStream) -> ImportResult,
+ 		importMetadata: suspend () -> ImportResult,
++		prepareMetadata: suspend () -> Unit = {},
+ 	): ImportResult = operationMutex.withLock {
+ 		var aggregate = ImportResult.EMPTY
+ 		try {
+@@ -298,6 +299,9 @@ internal class ImportJobRunner(
+ 				if (aggregate.failedCount > 0) return@withLock aggregate
+ 			}
+ 			bundle.metadataStream().use { metadata ->
++				successfulEntryResult(jobId, metadata.receiptKey)?.let { return@withLock aggregate + it }
++				// Decode only bounded identity claims outside Room, after each child keeps its own prefix contract.
++				prepareMetadata()
+ 				aggregate + processEntry(jobId, metadata.receiptKey, metadata.fileName,
+ 					ImportTransactionMode.WORKER_MANAGED) {
+ 					val job = receiptStore.getJob(jobId)
+@@ -531,8 +535,10 @@ internal fun computeImportJobId(
+ 	context: Context,
+ 	file: DocumentFile,
+ 	maxBytes: Long = Long.MAX_VALUE,
++	sourceExtension: String? = null,
++	checkCancelled: () -> Unit = {},
+ ): String {
+-	val extension = file.name.orEmpty().substringAfterLast('.', "").lowercase()
++	val extension = (sourceExtension ?: file.name.orEmpty().substringAfterLast('.', "")).lowercase()
+ 	val digest = MessageDigest.getInstance("SHA-256")
+ 	digest.update("tracker-import-job-v1\u0000".toByteArray())
+ 	digest.update(extension.toByteArray())
+@@ -543,8 +549,23 @@ internal fun computeImportJobId(
+ 		val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+ 		var totalBytes = 0L
+ 		while (true) {
++			checkCancelled()
+ 			val read = it.read(buffer)
+-			if (read <= 0) break
++			checkCancelled()
++			if (read < 0) break
++			if (read == 0) {
++				val single = it.read()
++				checkCancelled()
++				if (single < 0) break
++				totalBytes++
++				if (totalBytes > maxBytes) {
++					throw PermanentImportInputException(
++						"Import source exceeds its size limit ($maxBytes bytes).",
++					)
++				}
++				digest.update(single.toByte())
++				continue
++			}
+ 			totalBytes += read
+ 			if (totalBytes > maxBytes) {
+ 				throw PermanentImportInputException(
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt
+index 947bac4cce..d9bfd1ddb5 100644
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt
+@@ -4,6 +4,7 @@ import android.app.Notification
+ import android.app.NotificationManager
+ import android.content.Context
+ import android.database.sqlite.SQLiteCantOpenDatabaseException
++import android.database.sqlite.SQLiteException
+ import android.net.Uri
+ import androidx.annotation.AnyThread
+ import androidx.annotation.WorkerThread
+@@ -26,7 +27,11 @@ import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
+ import com.adsamcik.tracker.impexp.importer.archive.ArchiveEntryMetadata
+ import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveClassification
+ import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
++import com.adsamcik.tracker.impexp.importer.archive.SessionBundleStager
++import com.adsamcik.tracker.impexp.importer.archive.SessionBundleMetadataImport
++import com.adsamcik.tracker.impexp.importer.archive.PreparedSessionBundleMetadata
+ import com.adsamcik.tracker.impexp.portable.InvalidSessionBundle
++import com.adsamcik.tracker.impexp.portable.SessionBundleManifestCodecV1
+ import com.adsamcik.tracker.impexp.importer.file.DatabaseImportFailure
+ import com.adsamcik.tracker.impexp.importer.file.FileImport
+ import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
+@@ -47,6 +52,8 @@ import java.util.Locale
+ import dagger.assisted.Assisted
+ import dagger.assisted.AssistedInject
+ import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
+ import kotlinx.coroutines.withContext
+ import javax.inject.Provider
+ 
+@@ -112,27 +119,11 @@ class ImportWorker @AssistedInject constructor(
+ 
+         return try {
+             val fileName = file.name ?: throw IOException("Missing import file name")
+-            val sourceReadLimit = importSourceReadLimit(file.extension)
+-            val jobId = computeImportJobId(context, file, sourceReadLimit)
+-			requireReadyGeneration()
+-			if (!isCurrentDataEpoch()) {
+-				showErrorNotification(context.getString(R.string.import_cleared_error))
+-				return Result.failure()
+-			}
+-            if (!importJobRunner.start(jobId, fileName, file.length())) {
+-                val alreadyImported = ImportResult(skippedCount = 1)
+-                showNotification(buildNotificationText(alreadyImported), false)
+-                return Result.success()
+-            }
+-            val importResult = handleFile(file, jobId)
+-			requireReadyGeneration()
+-			if (!isCurrentDataEpoch()) {
+-				showErrorNotification(context.getString(R.string.import_cleared_error))
+-				return Result.failure()
+-			}
+-            importJobRunner.completeIfSuccessful(jobId, importResult)
+-
+-            finishImport(importResult)
++			if (file.extension.equals(SessionBundleManifestCodecV1.EXTENSION, ignoreCase = true)) {
++				SessionBundleStager().stageSource(context, file).use { source ->
++					importPickedFile(source.document, fileName)
++				}
++			} else importPickedFile(file, fileName)
+         } catch (e: CancellationException) {
+             throw e
+ 		} catch (_: StartupGenerationChangedException) {
+@@ -155,6 +146,23 @@ class ImportWorker @AssistedInject constructor(
+         }
+     }
+ 
++	/** Session job identity and dispatch use the same owned copy; ordinary source imports retain their flow. */
++	private suspend fun importPickedFile(file: DocumentFile, fileName: String): Result {
++		val importContext = currentCoroutineContext()
++		val jobId = computeImportJobId(context, file, importSourceReadLimit(file.extension)) {
++			importContext.ensureActive()
++		}
++		requireCurrentImportAuthority()
++		if (!importJobRunner.start(jobId, fileName, file.length())) {
++			showNotification(buildNotificationText(ImportResult(skippedCount = 1)), false)
++			return Result.success()
++		}
++		val result = handleFile(file, jobId)
++		requireCurrentImportAuthority()
++		importJobRunner.completeIfSuccessful(jobId, result)
++		return finishImport(result)
++	}
++
+ 	private fun finishImport(importResult: ImportResult): Result {
+ 		showNotification(buildNotificationText(importResult), false)
+ 		if (importResult.failedCount > 0) {
+@@ -313,6 +321,28 @@ class ImportWorker @AssistedInject constructor(
+     private suspend fun handleFile(file: DocumentFile, jobId: String): ImportResult {
+ 		requireReadyGeneration()
+         val extension = file.extension?.lowercase(Locale.ROOT)
++		if (extension == SessionBundleManifestCodecV1.EXTENSION) {
++			return try { SessionBundleStager().stage(context, file).use { bundle ->
++				var prepared: PreparedSessionBundleMetadata? = null
++				requireCurrentImportAuthority()
++				importJobRunner.importSessionBundle(jobId, bundle,
++					transactionModeForChild = { child -> importerFor(child)?.transactionMode
++						?: throw InvalidSessionBundle("Unsupported session source file") },
++					importChild = ::tryImport,
++					importMetadata = {
++						requireCurrentImportAuthority()
++						SessionBundleMetadataImport.publish(database, jobId, originalDataEpoch,
++							System.currentTimeMillis(), checkNotNull(prepared))
++							.also { requireCurrentImportAuthority() }
++					}, prepareMetadata = {
++						requireCurrentImportAuthority()
++						prepared = SessionBundleMetadataImport.prepare(context, bundle)
++						requireCurrentImportAuthority()
++					})
++			} } catch (failure: SQLiteException) {
++				throw IOException("Session import storage is temporarily unavailable", failure)
++			}
++		}
+         val extractor = import.activeArchiveExtractorList
+             .find { it.supportedExtensions.contains(extension) }
+ 
+@@ -388,6 +418,7 @@ internal fun importWorkerResult(result: ImportResult): ListenableWorker.Result =
+ 	}
+ 
+ internal fun importSourceReadLimit(extension: String?): Long = when {
++	extension.equals(SessionBundleManifestCodecV1.EXTENSION, ignoreCase = true) -> SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES
+ 	extension.equals("zip", ignoreCase = true) -> ZipArchiveExtractor.MAX_COMPRESSED_INPUT_BYTES
+ 	extension.equals(PortableStepsFileImport.EXTENSION, ignoreCase = true) ->
+ 		PortableStepsFileImport.MAX_FILE_BYTES
+@@ -397,5 +428,10 @@ internal fun importSourceReadLimit(extension: String?): Long = when {
+ 		PortableActivityFileImport.MAX_FILE_BYTES
+ 	extension.equals(PortablePressureFileImport.EXTENSION, ignoreCase = true) ->
+ 		PortablePressureFileImport.MAX_FILE_BYTES
++	extension.equals("trackerwifi", ignoreCase = true) ||
++		extension.equals("trackercell", ignoreCase = true) ->
++		com.adsamcik.tracker.impexp.portable.RadioSourceFileV2.MAX_FILE_BYTES
++	extension.equals("trackerlocation", ignoreCase = true) ->
++		com.adsamcik.tracker.impexp.portable.LocationFileJsonV1.MAX_FILE_BYTES
+ 	else -> Long.MAX_VALUE
+ }
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/format/FormatRegistry.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/format/FormatRegistry.kt
+index f2de65537c..01a1bf5dfb 100644
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/format/FormatRegistry.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/format/FormatRegistry.kt
+@@ -10,6 +10,12 @@ import com.adsamcik.tracker.impexp.exporter.PortableAmbientStepsExporter
+ import com.adsamcik.tracker.impexp.exporter.PortableStepsExporter
+ import com.adsamcik.tracker.impexp.exporter.PortableActivityExporter
+ import com.adsamcik.tracker.impexp.exporter.PortablePressureExporter
++import com.adsamcik.tracker.impexp.exporter.LocationFileExporter
++import com.adsamcik.tracker.impexp.portable.LocationFileJsonV1
++import com.adsamcik.tracker.impexp.importer.file.LocationFileImport
++import com.adsamcik.tracker.impexp.importer.file.PortableWifiSourceFileImport
++import com.adsamcik.tracker.impexp.importer.file.PortableCellSourceFileImport
++import com.adsamcik.tracker.impexp.portable.RadioSourceFileV2
+ import com.adsamcik.tracker.impexp.importer.file.DatabaseImport
+ import com.adsamcik.tracker.impexp.importer.file.FileImport
+ import com.adsamcik.tracker.impexp.importer.file.GpxImport
+@@ -212,5 +218,43 @@ object FormatRegistry {
+ 			exporter = pressureExporter,
+ 			importer = PortablePressureFileImport(),
+ 		)
++
++		register(
++			descriptor = FormatDescriptor(
++				id = RadioSourceFileV2.WIFI_FORMAT,
++				displayNameRes = R.string.format_portable_wifi,
++				mimeType = RadioSourceFileV2.WIFI_MIME,
++				extensions = setOf(RadioSourceFileV2.WIFI_EXTENSION),
++				supportsExport = false,
++				supportsImport = true,
++				supportsDateRange = true,
++			),
++			importer = PortableWifiSourceFileImport(),
++		)
++		register(
++			descriptor = FormatDescriptor(
++				id = RadioSourceFileV2.CELL_FORMAT,
++				displayNameRes = R.string.format_portable_cell,
++				mimeType = RadioSourceFileV2.CELL_MIME,
++				extensions = setOf(RadioSourceFileV2.CELL_EXTENSION),
++				supportsExport = false,
++				supportsImport = true,
++				supportsDateRange = true,
++			),
++			importer = PortableCellSourceFileImport(),
++		)
++		register(
++			descriptor = FormatDescriptor(
++				id = LocationFileJsonV1.FORMAT,
++				displayNameRes = R.string.format_portable_location,
++				mimeType = LocationFileJsonV1.MIME_TYPE,
++				extensions = setOf(LocationFileJsonV1.EXTENSION),
++				supportsExport = true,
++				supportsImport = true,
++				supportsDateRange = true,
++			),
++			exporter = LocationFileExporter(),
++			importer = LocationFileImport(),
++		)
+ 	}
+ }
+diff --git a/feature/import-export/src/main/res/values/strings.xml b/feature/import-export/src/main/res/values/strings.xml
+index 8e11af6aad..9b75339355 100644
+--- a/feature/import-export/src/main/res/values/strings.xml
++++ b/feature/import-export/src/main/res/values/strings.xml
+@@ -55,6 +55,9 @@
+     <string name="format_kml">KML</string>
+     <string name="format_json">JSON</string>
+     <string name="format_database">Database backup (ZIP)</string>
++    <string name="format_portable_wifi">Wi-Fi</string>
++    <string name="format_portable_cell">Cell</string>
++    <string name="format_portable_location">Location</string>
+     <string name="format_portable_steps">Portable Steps</string>
+     <string name="format_portable_activity">Portable Activity</string>
+     <string name="format_portable_pressure">Portable Pressure</string>
+diff --git a/feature/import-export/src/main/res/values-cs-rCZ/strings.xml b/feature/import-export/src/main/res/values-cs-rCZ/strings.xml
+index f5a9628d61..7ab7c79f22 100644
+--- a/feature/import-export/src/main/res/values-cs-rCZ/strings.xml
++++ b/feature/import-export/src/main/res/values-cs-rCZ/strings.xml
+@@ -40,6 +40,9 @@
+     <string name="format_kml">KML</string>
+     <string name="format_json">JSON</string>
+     <string name="format_database">Záloha databáze (ZIP)</string>
++    <string name="format_portable_wifi">Wi-Fi</string>
++    <string name="format_portable_cell">Mobilní síť</string>
++    <string name="format_portable_location">Poloha</string>
+     <string name="settings_import_summary">Import dat z podporovaných formátů (%1$s) a archivů (%2$s)</string>
+     <string name="settings_import_title">Import</string>
+-</resources>
+\ No newline at end of file
++</resources>

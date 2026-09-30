@@ -4,6 +4,7 @@ import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.file.FileImport
+import com.adsamcik.tracker.impexp.portable.SessionBundleManifestCodecV1
 
 /**
  * Takes care of data importing.
@@ -34,7 +35,7 @@ class DataImport {
 	 * List of all supported extensions (import + archive).
 	 */
 	val supportedExtensions: Collection<String>
-		get() = supportedImporterExtensions.union(supportedArchiveExtractorExtensions)
+		get() = supportedImporterExtensions.union(supportedArchiveExtractorExtensions) + SessionBundleManifestCodecV1.EXTENSION
 
 	init {
 		this.activeImporterList = FormatRegistry.allImporters()

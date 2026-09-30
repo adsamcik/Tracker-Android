@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
 import android.database.sqlite.SQLiteCantOpenDatabaseException
+import android.database.sqlite.SQLiteException
 import android.net.Uri
 import androidx.annotation.AnyThread
 import androidx.annotation.WorkerThread
@@ -26,7 +27,11 @@ import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveEntryMetadata
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveClassification
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
+import com.adsamcik.tracker.impexp.importer.archive.SessionBundleStager
+import com.adsamcik.tracker.impexp.importer.archive.SessionBundleMetadataImport
+import com.adsamcik.tracker.impexp.importer.archive.PreparedSessionBundleMetadata
 import com.adsamcik.tracker.impexp.portable.InvalidSessionBundle
+import com.adsamcik.tracker.impexp.portable.SessionBundleManifestCodecV1
 import com.adsamcik.tracker.impexp.importer.file.DatabaseImportFailure
 import com.adsamcik.tracker.impexp.importer.file.FileImport
 import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
@@ -47,6 +52,8 @@ import java.util.Locale
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import javax.inject.Provider
 
@@ -112,27 +119,11 @@ class ImportWorker @AssistedInject constructor(
 
         return try {
             val fileName = file.name ?: throw IOException("Missing import file name")
-            val sourceReadLimit = importSourceReadLimit(file.extension)
-            val jobId = computeImportJobId(context, file, sourceReadLimit)
-			requireReadyGeneration()
-			if (!isCurrentDataEpoch()) {
-				showErrorNotification(context.getString(R.string.import_cleared_error))
-				return Result.failure()
-			}
-            if (!importJobRunner.start(jobId, fileName, file.length())) {
-                val alreadyImported = ImportResult(skippedCount = 1)
-                showNotification(buildNotificationText(alreadyImported), false)
-                return Result.success()
-            }
-            val importResult = handleFile(file, jobId)
-			requireReadyGeneration()
-			if (!isCurrentDataEpoch()) {
-				showErrorNotification(context.getString(R.string.import_cleared_error))
-				return Result.failure()
-			}
-            importJobRunner.completeIfSuccessful(jobId, importResult)
-
-            finishImport(importResult)
+			if (file.extension.equals(SessionBundleManifestCodecV1.EXTENSION, ignoreCase = true)) {
+				SessionBundleStager().stageSource(context, file).use { source ->
+					importPickedFile(source.document, fileName)
+				}
+			} else importPickedFile(file, fileName)
         } catch (e: CancellationException) {
             throw e
 		} catch (_: StartupGenerationChangedException) {
@@ -154,6 +145,23 @@ class ImportWorker @AssistedInject constructor(
             Result.failure()
         }
     }
+
+	/** Session job identity and dispatch use the same owned copy; ordinary source imports retain their flow. */
+	private suspend fun importPickedFile(file: DocumentFile, fileName: String): Result {
+		val importContext = currentCoroutineContext()
+		val jobId = computeImportJobId(context, file, importSourceReadLimit(file.extension)) {
+			importContext.ensureActive()
+		}
+		requireCurrentImportAuthority()
+		if (!importJobRunner.start(jobId, fileName, file.length())) {
+			showNotification(buildNotificationText(ImportResult(skippedCount = 1)), false)
+			return Result.success()
+		}
+		val result = handleFile(file, jobId)
+		requireCurrentImportAuthority()
+		importJobRunner.completeIfSuccessful(jobId, result)
+		return finishImport(result)
+	}
 
 	private fun finishImport(importResult: ImportResult): Result {
 		showNotification(buildNotificationText(importResult), false)
@@ -313,6 +321,28 @@ class ImportWorker @AssistedInject constructor(
     private suspend fun handleFile(file: DocumentFile, jobId: String): ImportResult {
 		requireReadyGeneration()
         val extension = file.extension?.lowercase(Locale.ROOT)
+		if (extension == SessionBundleManifestCodecV1.EXTENSION) {
+			return try { SessionBundleStager().stage(context, file).use { bundle ->
+				var prepared: PreparedSessionBundleMetadata? = null
+				requireCurrentImportAuthority()
+				importJobRunner.importSessionBundle(jobId, bundle,
+					transactionModeForChild = { child -> importerFor(child)?.transactionMode
+						?: throw InvalidSessionBundle("Unsupported session source file") },
+					importChild = ::tryImport,
+					importMetadata = {
+						requireCurrentImportAuthority()
+						SessionBundleMetadataImport.publish(database, jobId, originalDataEpoch,
+							System.currentTimeMillis(), checkNotNull(prepared))
+							.also { requireCurrentImportAuthority() }
+					}, prepareMetadata = {
+						requireCurrentImportAuthority()
+						prepared = SessionBundleMetadataImport.prepare(context, bundle)
+						requireCurrentImportAuthority()
+					})
+			} } catch (failure: SQLiteException) {
+				throw IOException("Session import storage is temporarily unavailable", failure)
+			}
+		}
         val extractor = import.activeArchiveExtractorList
             .find { it.supportedExtensions.contains(extension) }
 
@@ -388,6 +418,7 @@ internal fun importWorkerResult(result: ImportResult): ListenableWorker.Result =
 	}
 
 internal fun importSourceReadLimit(extension: String?): Long = when {
+	extension.equals(SessionBundleManifestCodecV1.EXTENSION, ignoreCase = true) -> SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES
 	extension.equals("zip", ignoreCase = true) -> ZipArchiveExtractor.MAX_COMPRESSED_INPUT_BYTES
 	extension.equals(PortableStepsFileImport.EXTENSION, ignoreCase = true) ->
 		PortableStepsFileImport.MAX_FILE_BYTES
@@ -397,5 +428,10 @@ internal fun importSourceReadLimit(extension: String?): Long = when {
 		PortableActivityFileImport.MAX_FILE_BYTES
 	extension.equals(PortablePressureFileImport.EXTENSION, ignoreCase = true) ->
 		PortablePressureFileImport.MAX_FILE_BYTES
+	extension.equals("trackerwifi", ignoreCase = true) ||
+		extension.equals("trackercell", ignoreCase = true) ->
+		com.adsamcik.tracker.impexp.portable.RadioSourceFileV2.MAX_FILE_BYTES
+	extension.equals("trackerlocation", ignoreCase = true) ->
+		com.adsamcik.tracker.impexp.portable.LocationFileJsonV1.MAX_FILE_BYTES
 	else -> Long.MAX_VALUE
 }

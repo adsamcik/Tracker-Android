@@ -154,13 +154,13 @@ internal object PortablePressureFileReceipt {
 		entry: PortablePressureEntryV1,
 	): PortablePressureImportReceipt = PortablePressureImportReceipt(
 		jobId = fileReceipt.jobId,
-		entryKey = digest(
-			ENTRY_NAMESPACE,
-			listOf(fileReceipt.entryKey, entry.identity.value),
-		),
+		entryKey = entryKey(fileReceipt.entryKey, entry.identity.value),
 		sourceName = fileReceipt.sourceName,
 		receivedAtMs = fileReceipt.receivedAtMs,
 	)
+
+	fun entryKey(fileEntryKey: String, entryIdentity: String): String =
+		digest(ENTRY_NAMESPACE, listOf(fileEntryKey, entryIdentity))
 
 	private fun digest(namespace: String, values: List<String>): String {
 		val digest = MessageDigest.getInstance("SHA-256")

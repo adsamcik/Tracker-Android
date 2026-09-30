@@ -10,6 +10,12 @@ import com.adsamcik.tracker.impexp.exporter.PortableAmbientStepsExporter
 import com.adsamcik.tracker.impexp.exporter.PortableStepsExporter
 import com.adsamcik.tracker.impexp.exporter.PortableActivityExporter
 import com.adsamcik.tracker.impexp.exporter.PortablePressureExporter
+import com.adsamcik.tracker.impexp.exporter.LocationFileExporter
+import com.adsamcik.tracker.impexp.portable.LocationFileJsonV1
+import com.adsamcik.tracker.impexp.importer.file.LocationFileImport
+import com.adsamcik.tracker.impexp.importer.file.PortableWifiSourceFileImport
+import com.adsamcik.tracker.impexp.importer.file.PortableCellSourceFileImport
+import com.adsamcik.tracker.impexp.portable.RadioSourceFileV2
 import com.adsamcik.tracker.impexp.importer.file.DatabaseImport
 import com.adsamcik.tracker.impexp.importer.file.FileImport
 import com.adsamcik.tracker.impexp.importer.file.GpxImport
@@ -211,6 +217,44 @@ object FormatRegistry {
 			),
 			exporter = pressureExporter,
 			importer = PortablePressureFileImport(),
+		)
+
+		register(
+			descriptor = FormatDescriptor(
+				id = RadioSourceFileV2.WIFI_FORMAT,
+				displayNameRes = R.string.format_portable_wifi,
+				mimeType = RadioSourceFileV2.WIFI_MIME,
+				extensions = setOf(RadioSourceFileV2.WIFI_EXTENSION),
+				supportsExport = false,
+				supportsImport = true,
+				supportsDateRange = true,
+			),
+			importer = PortableWifiSourceFileImport(),
+		)
+		register(
+			descriptor = FormatDescriptor(
+				id = RadioSourceFileV2.CELL_FORMAT,
+				displayNameRes = R.string.format_portable_cell,
+				mimeType = RadioSourceFileV2.CELL_MIME,
+				extensions = setOf(RadioSourceFileV2.CELL_EXTENSION),
+				supportsExport = false,
+				supportsImport = true,
+				supportsDateRange = true,
+			),
+			importer = PortableCellSourceFileImport(),
+		)
+		register(
+			descriptor = FormatDescriptor(
+				id = LocationFileJsonV1.FORMAT,
+				displayNameRes = R.string.format_portable_location,
+				mimeType = LocationFileJsonV1.MIME_TYPE,
+				extensions = setOf(LocationFileJsonV1.EXTENSION),
+				supportsExport = true,
+				supportsImport = true,
+				supportsDateRange = true,
+			),
+			exporter = LocationFileExporter(),
+			importer = LocationFileImport(),
 		)
 	}
 }

@@ -9,6 +9,8 @@ import com.adsamcik.tracker.impexp.importer.computeImportJobId
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.file.PortableAmbientStepsFileImport
 import com.adsamcik.tracker.impexp.portable.InvalidSessionBundle
+import com.adsamcik.tracker.impexp.portable.LocationFileJsonV1
+import com.adsamcik.tracker.impexp.portable.SessionBundleManifestCodecV1
 import com.adsamcik.tracker.shared.base.extension.openInputStream
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -23,12 +25,26 @@ import java.io.IOException
 import java.io.InputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
 class ImportWorkerFailureTest {
+	@Test fun `session source hash uses its finite wrapper size limit`() {
+		importSourceReadLimit("TRACKERSESSION") shouldBe SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES
+	}
+	@Test fun `staged Location temp file reuses the existing source-format content key`() {
+		val bytes = "same bounded source bytes".encodeToByteArray()
+		val original = mockFile(bytes, "source.trackerlocation")
+		val staged = mockFile(bytes, "session-child.tmp")
+		computeImportJobId(context, staged, sourceExtension = LocationFileJsonV1.EXTENSION) shouldBe
+			computeImportJobId(context, original)
+	}
+	@Test fun `exact Location file hash is bounded to the format limit`() {
+		importSourceReadLimit("TRACKERLOCATION") shouldBe LocationFileJsonV1.MAX_FILE_BYTES
+	}
 	@Test
 	fun `malformed session file is terminal instead of retrying forever`() {
 		classifyImportWorkerIOException(InvalidSessionBundle("Session data file was changed")) shouldBe
@@ -70,6 +86,60 @@ class ImportWorkerFailureTest {
 				errors = listOf("Import source exceeds its size limit (4 bytes)."),
 			),
 		)
+	}
+
+	@Test
+	fun `import job hash reads through a zero length stream response`() {
+		val bytes = "location file bytes".encodeToByteArray()
+		val normal = mockFile(bytes, "saved.trackerlocation")
+		val intermittent = mockStreamFile("saved.trackerlocation") {
+			object : ByteArrayInputStream(bytes) {
+				private var zeroOnce = true
+				override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+					if (zeroOnce) {
+						zeroOnce = false
+						0
+					} else {
+						super.read(buffer, offset, length)
+					}
+			}
+		}
+
+		computeImportJobId(context, intermittent, bytes.size.toLong()) shouldBe
+			computeImportJobId(context, normal, bytes.size.toLong())
+	}
+
+	@Test
+	fun `import job hash honors worker cancellation before reading further`() {
+		val source = mockStreamFile("saved.trackerlocation") {
+			object : InputStream() {
+				override fun read(): Int = error("Cancelled import must not read")
+			}
+		}
+		shouldThrow<CancellationException> {
+			computeImportJobId(context, source, LocationFileJsonV1.MAX_FILE_BYTES) {
+				throw CancellationException("Import stopped")
+			}
+		}
+	}
+
+	@Test
+	fun `import job hash propagates cancellation during the final read and closes its stream`() {
+		var cancelled = false
+		var closed = false
+		val source = mockStreamFile("saved.trackerlocation") {
+			object : ByteArrayInputStream("saved point".encodeToByteArray()) {
+				override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+					super.read(buffer, offset, length).also { cancelled = true }
+				override fun close() { closed = true; super.close() }
+			}
+		}
+		shouldThrow<CancellationException> {
+			computeImportJobId(context, source, LocationFileJsonV1.MAX_FILE_BYTES) {
+				if (cancelled) throw CancellationException("Import stopped during read")
+			}
+		}
+		closed shouldBe true
 	}
 
 	@Test
@@ -162,9 +232,12 @@ class ImportWorkerFailureTest {
 		return file
 	}
 
-	private fun mockStreamFile(streamProvider: () -> InputStream): DocumentFile {
+	private fun mockStreamFile(
+		name: String = "source.trackersteps",
+		streamProvider: () -> InputStream,
+	): DocumentFile {
 		val file = mockk<DocumentFile> {
-			every { this@mockk.name } returns "source.trackersteps"
+			every { this@mockk.name } returns name
 			every { isDirectory } returns false
 			every { length() } returns 100L
 		}

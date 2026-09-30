@@ -1,0 +1,64 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "selectedPatch": "bundle-import-selection/BUNDLE_CALLER_REGISTRY_SELECTION.patch",
+  "review": "SESSION_BUNDLE_FRESH_REVIEW_0930.md",
+  "paths": [
+    {
+      "sha256NormalizedLf": "9a287eae1e0719f2c521d740173c8944098875dff1f44fdde91ecd7f2106a8c1",
+      "selection": "Exact source snapshot selected by BUNDLE_CALLER_REGISTRY_SELECTION.patch",
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/DataImporter.kt"
+    },
+    {
+      "sha256NormalizedLf": "7dd7d93069674ef6f720f9f11eba85049d0b36df87caef348bdc4b0fdf984cbc",
+      "selection": "Exact source snapshot selected by BUNDLE_CALLER_REGISTRY_SELECTION.patch",
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt"
+    },
+    {
+      "sha256NormalizedLf": "14c6d3bfb987350b24046c1fdb7421e0cc29076d5d2eb129e861e4468bb29cc6",
+      "selection": "Exact source snapshot selected by BUNDLE_CALLER_REGISTRY_SELECTION.patch",
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/format/FormatRegistry.kt"
+    },
+    {
+      "sha256NormalizedLf": "4b0cbbcf980cd0caae6b21235ea836b97b82350f907c73c111562e92ae8c8ef8",
+      "selection": "Exact source snapshot selected by BUNDLE_CALLER_REGISTRY_SELECTION.patch",
+      "path": "feature/import-export/src/main/res/values/strings.xml"
+    },
+    {
+      "sha256NormalizedLf": "aa2950440e5ce728951f8cd58d905c31313375d7e2fb41617e1e1cce73cb41a8",
+      "selection": "Exact source snapshot selected by BUNDLE_CALLER_REGISTRY_SELECTION.patch",
+      "path": "feature/import-export/src/main/res/values-cs-rCZ/strings.xml"
+    },
+    {
+      "sha256": "b4eea52d2533b7b138ccb9ed57031c7d73daa7ef500d0859a7cd2bd494e71ae0",
+      "selection": "Whole current scoped path",
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/DataImport.kt"
+    },
+    {
+      "sha256": "f734fb25ddb8bc8665064eede99d35839bb9a891a856c0853581e2dcaa00415f",
+      "selection": "Whole current scoped path",
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/PortablePressureFileImport.kt"
+    },
+    {
+      "sha256": "2120794d1fb8ccc0094f65e4c9e73cb6542c2a0df998481ff0c2bad30ca01bb8",
+      "selection": "Whole current scoped path",
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/archive/SessionBundleMetadataImport.kt"
+    },
+    {
+      "sha256": "e55d9d267f1e6be0ae88a276509f4f8edbfbe04ac40505b25d13752a665c3390",
+      "selection": "Whole current scoped path",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/archive/SessionBundleMetadataRoomTest.kt"
+    },
+    {
+      "sha256": "fc63235430031030b4cb870727f408109227cdec32fb80771d07d89cb67bfe33",
+      "selection": "Whole current scoped path",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorkerFailureTest.kt"
+    }
+  ],
+  "remaining": [
+    "Native Steps duplicate file membership awaiting approval",
+    "Overlapping radio archive membership awaiting approval",
+    "Bundle export caller and full product flow",
+    "Convergence and device evidence"
+  ],
+  "phase": "Implementation only; no executed validation"
+}
