@@ -39,6 +39,8 @@ surviving-owner imported radio details (`5a05ca9150`), existing spool cancellati
 exporters, exact overlapping-file membership and complete bundle export remain open.
 Native export candidate query foundations (`5baa8f2060`) and bundle hashing/ZIP
 cancellation (`29abb0fb07`) are also selected and independently source-reviewed.
+The independent imported-radio child mapping foundation (`0e66e216b1`) preserves
+row order and exact owners while avoiding repeated scans; full callers stay held.
 The user-named released `master` baseline has no current ref; confirmation whether
 that means `main` is pending before treating its schema as the released baseline.
 

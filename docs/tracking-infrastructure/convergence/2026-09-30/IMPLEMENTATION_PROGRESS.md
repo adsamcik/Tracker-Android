@@ -88,6 +88,10 @@ description of its earlier input; this file records subsequent repair progress.
 - `29abb0fb07`: session bundle prehash and ZIP copying stop on caller cancellation;
   oversized child growth is bounded before hashing, with two authored cancellation
   scenarios and independent static review.
+- `0e66e216b1`: two internal imported-radio child mappers index selected owners
+  once, keep row order and revision-bound checksums, and check cancellation;
+  six portable-contract scenario sources are selected. Full exporter caller and
+  background-loop hunks remain held.
 
 All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 
@@ -146,6 +150,8 @@ All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
   their real Room fixtures; no payload authority is granted by discovery.
 - [x] Select cooperative session bundle hashing/ZIP-loop cancellation, preserving
   existing owned cleanup and caller destination ownership.
+- [x] Select linear imported radio child mapping with original identities/order
+  and focused owner, revision/checksum and cancellation contract sources.
 
 ## Remaining in these slices
 

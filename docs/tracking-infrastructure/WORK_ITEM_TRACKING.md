@@ -652,6 +652,8 @@ authored source and static review only, **IMPLEMENTED_UNVALIDATED**.
   background detail collection before accumulation (`321dc35db0`).
 - [x] Select conservative native radio export candidate query foundations
   (`5baa8f2060`) and cooperative bundle hashing/ZIP cancellation (`29abb0fb07`).
+- [x] Select imported radio mapping once per exact owner, preserving original row
+  order/checksums and cancellation (`0e66e216b1`); full exporter callers stay held.
 - [ ] Resolve exact duplicate/overlapping file membership and finish whole radio
   exporters, bundle export, history and cleanup/restore chains.
 - [ ] Confirm which present ref is the user-named released `master` baseline;
