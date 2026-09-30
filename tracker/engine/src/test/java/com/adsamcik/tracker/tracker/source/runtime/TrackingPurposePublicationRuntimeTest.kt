@@ -64,7 +64,7 @@ import javax.inject.Provider
 @Suppress("LargeClass", "LongMethod")
 class TrackingPurposePublicationRuntimeTest {
 	@Test
-	fun `Turn off gate denies new ambient and automatic owner leases before policy reads`() = runTest {
+	fun `Turn off gate denies all supported source purpose leases before policy reads`() = runTest {
 		val gate = mockk<TrackingStartupGate>()
 		every { gate.permitsNewCollection } returns false
 		val policies = mockk<SourcePolicyRepository>()
@@ -75,8 +75,11 @@ class TrackingPurposePublicationRuntimeTest {
 			mockk(),
 			Provider { gate },
 		)
-		reader.read(TrackingSource.STEPS.forPurpose(TrackingPurpose.AMBIENT_PRODUCT), 1L) shouldBe null
-		reader.read(TrackingSource.ACTIVITY.forPurpose(TrackingPurpose.CONTROL), 1L) shouldBe null
+		TrackingSource.entries.forEach { source ->
+			TrackingPurpose.entries.filter(source::supports).forEach { purpose ->
+				reader.read(source.forPurpose(purpose), 1L) shouldBe null
+			}
+		}
 		coVerify(exactly = 0) { policies.currentState() }
 	}
 	@Test

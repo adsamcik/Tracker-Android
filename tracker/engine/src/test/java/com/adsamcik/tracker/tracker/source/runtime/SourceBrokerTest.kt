@@ -1194,6 +1194,103 @@ class SourceBrokerTest {
 			StoredSourceCallerAuthorityLoadResult.Missing
 	}
 
+	@Test
+	fun `every capture subset joins and leaves without replacing background or automatic authority`() = runTest {
+		val policy = RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
+		}
+		val snapshot = policy.bootstrapFromLegacy(TrackingParamsState(
+			legacySettingsMigrationCompleted = true, balanceProfileVersion = 1, overallBalanceLevel = 3,
+			locationProfileVersion = 1, locationBalanceLevel = 3,
+			locationEnabled = true, activityEnabled = true, stepsEnabled = true,
+			barometerEnabled = true, wifiEnabled = true, cellEnabled = true,
+		))
+		val policies = database.sourcePolicyDao().policiesAtRevision(snapshot.revision).associateBy { it.sourceKind }
+		val siblings = listOf(SourceKind.WIFI, SourceKind.CELL, SourceKind.ACTIVITY).map { source ->
+			val purpose = if (source == SourceKind.ACTIVITY) SourceBrokerPurpose.CONTROL_AUTOSTART
+				else SourceBrokerPurpose.AMBIENT_PRODUCT
+			val contract = SourceDemandContractFactory.forQos(source, 0,
+				if (source == SourceKind.ACTIVITY) DirectSourceDemandPurpose.CONTROL_AUTOSTART
+				else DirectSourceDemandPurpose.AMBIENT_PRODUCT)
+			// Persisted sibling fixtures isolate the broker's replacement/retirement boundary.
+			purposeDemand("independent-${source.name}", "app:independent:${source.name}", source,
+				purpose, SourceDemandEntity.STATUS_ACTIVE, null).copy(
+				minimumAcquisitionSpec = contract.encodeFloor(),
+				maximumAgeMs = contract.maximumProviderItemAgeMs,
+				desiredLatencyMs = contract.targetPlanningLatencyMs,
+				requestedDeliveryLatencyMs = contract.requestedDeliveryLatencyMs,
+				adaptiveReductionAllowed = contract.adaptiveReductionAllowed,
+			)
+		}
+		database.sourceBrokerDao().insertDemands(siblings)
+		SourceKind.entries.forEach { source ->
+			database.sourceBrokerDao().insertRegistration(ProviderRegistrationGenerationEntity(
+				sourceKind = source.stableCode, registrationGeneration = 1,
+				sourceInstanceId = "${source.name}-shared", ownerScope = "source-broker:${source.stableCode}",
+				providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+				providerProcessIncarnationId = "test-process", clockDomainId = "boot-1",
+				physicalConfigurationFingerprint = "${source.name}-physical", collectedDataEpoch = 3,
+				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+				reservedAtMs = 90, reservedElapsedRealtimeNanos = 90,
+				acceptedAtMs = 90, acceptedElapsedRealtimeNanos = 90,
+				retiredAtMs = null, retiredElapsedRealtimeNanos = null, failureCode = null,
+			))
+			database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(
+				source.stableCode, 1, 1, siblings.filter { it.sourceKind == source.stableCode },
+				"boot-1", 90, 90,
+			))
+		}
+		for (mask in 0..63) {
+			val selected = SourceKind.entries.filterIndexed { index, _ -> mask and (1 shl index) != 0 }.toSet()
+			val revision = mask + 1L
+			val boundary = 1_000L + mask * 10L
+			val bindings = selected.map { source ->
+				val row = policies.getValue(source.stableCode)
+				binding(source, SourceBrokerPurpose.SESSION_CAPTURE, requireNotNull(row.captureConsentEpoch), true)
+					.copy(manifestRevision = revision, qosCode = row.qosCode)
+			}
+			val demands = subject.buildSessionDemands("session-1", "shared-run", revision, revision,
+				snapshot.revision, bindings, "boot-1", boundary, boundary, policies = policies)
+			database.withTransaction {
+				subject.replaceSessionDemandsInTransaction("session-1", demands, "boot-1", boundary, boundary)
+			}
+			database.sourceBrokerDao().currentDemands("session:session-1").map { it.sourceKind }.toSet() shouldBe
+				selected.map { it.stableCode }.toSet()
+			SourceKind.entries.forEach { source ->
+				val expected = siblings.filter { it.sourceKind == source.stableCode } +
+					demands.filter { it.sourceKind == source.stableCode }
+				subject.authorizationDemands(source).map { it.demandId }.toSet() shouldBe expected.map { it.demandId }.toSet()
+				val authorization = requireNotNull(database.sourceBrokerDao().latestAuthorization(source.stableCode, 1)
+					.toAuthorizationSnapshotOrNull())
+				authorization.authorizationFingerprint shouldBe SourceBrokerAuthorization.fingerprint(expected)
+				database.sourceBrokerDao().maximumRegistrationGeneration(source.stableCode) shouldBe 1L
+			}
+			database.sourceBrokerDao().demandsByIds(siblings.map { it.demandId }).toSet() shouldBe siblings.toSet()
+			if (SourceKind.LOCATION !in selected) subject.authorizationDemands(SourceKind.LOCATION).shouldBeEmpty()
+		}
+		// Ending the final all-source session retires its capture vector, retaining sibling authority.
+		val finalDemands = database.sourceBrokerDao().currentDemands("session:session-1")
+		finalDemands.size shouldBe SourceKind.entries.size
+		subject.markSessionDemandsRetiring("session-1", "boot-1", 2_000, 2_000)
+		val retiringDemands = database.sourceBrokerDao().currentDemands("session:session-1")
+		retiringDemands.size shouldBe SourceKind.entries.size
+		retiringDemands.map { it.demandId }.toSet() shouldBe finalDemands.map { it.demandId }.toSet()
+		retiringDemands.all {
+			it.status == SourceDemandEntity.STATUS_RETIRING
+		} shouldBe true
+		SourceKind.entries.forEach { source ->
+			subject.authorizationDemands(source).toSet() shouldBe siblings.filter { it.sourceKind == source.stableCode }.toSet()
+		}
+		subject.retireSessionDemands("session-1", "boot-1", 2_001, 2_001)
+		database.sourceBrokerDao().currentDemands("session:session-1").shouldBeEmpty()
+		SourceKind.entries.forEach { source ->
+			subject.authorizationDemands(source).toSet() shouldBe siblings.filter { it.sourceKind == source.stableCode }.toSet()
+		}
+		val captureHistory = database.sourceBrokerDao().demandHistory("session:session-1")
+		captureHistory.size shouldBe (0..63).sumOf { Integer.bitCount(it) }
+		captureHistory.all { it.status == SourceDemandEntity.STATUS_RETIRED } shouldBe true
+	}
+
     @Test
     fun `six source manifest demands retain exact profile floors and only selected bindings gain live preference`() = runTest {
         val repository = RoomSourcePolicyRepository(database) { SourcePolicyEffectiveTime("boot-1", 10, 10) }

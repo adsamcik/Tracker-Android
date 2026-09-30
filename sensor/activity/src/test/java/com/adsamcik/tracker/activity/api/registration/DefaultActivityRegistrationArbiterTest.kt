@@ -1259,6 +1259,28 @@ class DefaultActivityRegistrationArbiterTest {
 		}
 		checkNotNull(callbackAdmissionBarrier.tryEnter(identity)).complete()
 		coVerify(exactly = 0) { backend.removeRegistration(identity) }
+
+		// End retained the separate automatic trigger; Turn off now removes that last owner.
+		database.sourceBrokerDao().retireConsumer("app:auto", "boot-1", 400L, 400L)
+		val off = subject.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+		off.status shouldBe ActivityRegistrationStatus.APPLIED
+		off.snapshot.active shouldBe false
+		off.snapshot.owners shouldBe emptySet()
+		callbackAdmissionBarrier.tryEnter(identity) shouldBe null
+		val denied = requireNotNull(database.sourceBrokerDao().latestAuthorization(
+			ACTIVITY_SOURCE_KIND,
+			identity.registrationGeneration,
+		).toAuthorizationSnapshotOrNull())
+		denied.isDenied shouldBe true
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)?.status shouldBe
+			ProviderRegistrationGenerationEntity.STATUS_RETIRED
+		database.sourceBrokerDao().maximumRegistrationGeneration(ACTIVITY_SOURCE_KIND) shouldBe
+			identity.registrationGeneration
+		removedIdentities shouldBe listOf(identity)
+
+		val repeatedOff = subject.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+		repeatedOff.snapshot.active shouldBe false
+		removedIdentities shouldBe listOf(identity)
 	}
 
 	@Test

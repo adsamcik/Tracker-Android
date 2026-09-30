@@ -21,6 +21,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 
@@ -80,6 +81,36 @@ class SharedLocationSourceControllerTest {
 		coVerify(exactly = 0) { physical.refreshShared(any(), any(), any(), any()) }
 		subject.releaseUiLease(id)
 		coVerify(exactly = 1) { physical.closeShared() }
+	}
+
+	@Test
+	fun `map and game leases release independently without creating a tracking purpose`() = runTest {
+		val subject = subject()
+		val plans = mutableListOf<LocationPlan>()
+		coEvery { physical.applyUiOnly(any()) } answers {
+			plans += firstArg<LocationPlan>()
+			true
+		}
+		coEvery { physical.closeShared() } returns completeAck()
+		val map = requireNotNull(subject.acquireUiLease(
+			UiLocationRequest("my-location", 2_000L, 500L, highAccuracy = true, maximumAgeMillis = 10_000L),
+		))
+		val game = requireNotNull(subject.acquireUiLease(
+			UiLocationRequest("game", 1_000L, 250L, highAccuracy = true, maximumAgeMillis = 5_000L),
+		))
+		assertEquals(listOf(2_000L, 1_000L), plans.map { it.requestedIntervalMs })
+		subject.releaseUiLease(map)
+		assertEquals(1_000L, plans.last().requestedIntervalMs)
+		assertEquals(250L, plans.last().minimumUpdateIntervalMs)
+		coVerify(exactly = 0) { physical.closeShared() }
+		val callsAfterMapRelease = plans.size
+		subject.releaseUiLease(map) // A repeated/stale release cannot change the surviving game lease.
+		assertEquals(callsAfterMapRelease, plans.size)
+		subject.releaseUiLease(game)
+		coVerify(exactly = 1) { physical.closeShared() }
+		coVerify(exactly = 0) { physical.refreshShared(any(), any(), any(), any()) }
+		assertEquals(emptyList<SourceDemandEntity>(), demands)
+		assertTrue(plans.all { it.mode == LocationMode.HIGH_ACCURACY && it.maximumBatchDelayMs == 0L })
 	}
 
 	@Test

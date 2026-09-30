@@ -1,0 +1,36 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "evidence": "Test-source authorship and static inspection only; no executed gates",
+  "productionFiles": 0,
+  "testFiles": 5,
+  "authoredNewTestMethods": 3,
+  "extendedExistingTestMethods": 2,
+  "paths": [
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceBrokerTest.kt",
+      "sha256": "a64b7f5de8dfe811aa47df3835e45dbdbaef57d84b840f16ddb9e20a142149ba",
+      "selection": "One new all-64-vector Room broker join/leave method only"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/catalog/DefaultSourceImplementationCatalogTest.kt",
+      "sha256": "93bdb253dc6420f4d20b4d157d98a5a32754155eebcb05022b39000bd0293114",
+      "selection": "One new all-64-selection lazy runtime lookup method only"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedLocationSourceControllerTest.kt",
+      "sha256": "532ccc558349e52954012d315cf90b17391a55909e3ccf7345ac3bcf249624fa",
+      "selection": "One new simultaneous map/game lease lifetime method and assertTrue import only"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/TrackingPurposePublicationRuntimeTest.kt",
+      "sha256": "6fcf5bdee55b250ae8cc09c7b6a15cad73afac9632dfcdd8eac1e1a96af102da",
+      "selection": "Existing Turn-off method name and all-supported-purpose assertions only"
+    },
+    {
+      "path": "sensor/activity/src/test/java/com/adsamcik/tracker/activity/api/registration/DefaultActivityRegistrationArbiterTest.kt",
+      "sha256": "a1227d5d52e4bf2209f4f6d3f0d5e9af43777215c6ae2ebe151ff653097a1fd5",
+      "selection": "Existing capture callback drain method tail End-to-Off assertions only"
+    }
+  ],
+  "commitOwner": "Coordinator"
+}

@@ -98,6 +98,23 @@ class DefaultSourceImplementationCatalogTest {
 	}
 
 	@Test
+	fun `every selected subset resolves one lazy owner per source without resolving siblings`() {
+		for (mask in 0..63) {
+			val fixture = fixture()
+			val selected = SourceKind.entries.filterIndexed { index, _ -> mask and (1 shl index) != 0 }.toSet()
+			selected.forEach { source ->
+				val owner = requireNotNull(fixture.registry.runtime(source))
+				owner.source shouldBe source
+				(fixture.registry.runtime(source) === owner) shouldBe true
+			}
+			fixture.providerCreations() shouldBe SourceKind.entries.associateWith { source ->
+				if (source in selected) 1 else 0
+			}
+			fixture.availabilityReads() shouldBe 0
+		}
+	}
+
+	@Test
 	fun `all four semantic tiers delegate every source plan to the shared plan factory`() {
 		val fixture = fixture()
 		val expectedFactory = SemanticAcquisitionPlanFactory()
