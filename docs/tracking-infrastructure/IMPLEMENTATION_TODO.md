@@ -1665,6 +1665,14 @@ inspected commits, live drafts, schema inputs and authored test-source inventory
 assembly incomplete and did **not** freeze inputs or lift this stop. Keep TODO-ASSEMBLY-001 through
 TODO-ASSEMBLY-009 unchecked until their production and test-source requirements are actually met.
 
+The 2026-09-30 [adversarial and completion review](convergence/2026-09-30/ADVERSARIAL_AND_COMPLETION_REVIEW.md)
+and [fresh 25-prerequisite matrix](convergence/2026-09-30/PREREQUISITE_COMPLETION_REVIEW.md)
+inspect candidate `bd55222095c81a5cf9c68ac98898492ef85c1697` plus 139 preserved
+source/test drafts. Five independent reviewers and an additional Git/evidence pass found
+unfinished production paths and draft-only dependencies. No prerequisite received full-chain
+sign-off, no convergence gate ran in this review, and local `dev/v10` remains unchanged. This review is
+complete as static review work; it is not the assembly freeze or final evidence review.
+
 ## Deferred validation and correction phase
 
 Do not execute any item in this section until TODO-ASSEMBLY-001 through TODO-ASSEMBLY-009 are
@@ -1676,11 +1684,17 @@ complete and the implementation-only stop is explicitly lifted.
 - [ ] TODO-VERIFY-002 Run the focused unit, contract, Robolectric, in-memory Room, and architecture
   tests authored for each source and fix failures.
 - [ ] TODO-VERIFY-003 Run complete affected-module test suites and fix cross-module failures.
-- [ ] TODO-VERIFY-004 Run the populated v27-to-v28 migration, production reopen, backup or restore,
-  import, query, deletion, and no-resurrection cases on one representative emulator.
+- [ ] TODO-VERIFY-004 Pin the actual released baseline (the user identifies master as released;
+  available historical main is schema 12), then run its populated conversion to the frozen final
+  schema, production reopen, backup/restore, import, query, deletion and no-resurrection cases on
+  one representative emulator. Separately cover recognized development databases and preserve
+  unknown files; v27/v28/v29 are not released baselines.
 - [ ] TODO-VERIFY-005 Run root Detekt and affected-module lint; fix new findings without absorbing
   unrelated baseline debt or weakening rules.
-- [ ] TODO-VERIFY-006 Run checkRoomSchemaDrift and review the exact committed v28 schema.
+- [ ] TODO-VERIFY-006 Generate and review the exact frozen final schema, then run
+  checkRoomSchemaDrift. Current source is v29 while the latest checked-in schema is v28;
+  resolve this during convergence after source assembly, without treating a handwritten schema
+  or a development migration as released-data evidence.
 - [ ] TODO-VERIFY-007 Run ciUnitTest on the frozen convergence commit and fix all attributable
   failures.
 - [ ] TODO-VERIFY-008 Run ciCheck --continue on the frozen convergence commit and fix all

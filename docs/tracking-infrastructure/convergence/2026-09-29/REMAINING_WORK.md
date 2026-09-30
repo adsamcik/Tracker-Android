@@ -203,3 +203,40 @@ No box above is complete merely because an isolated source slice was committed.
   not yet selected the exit behavior.
 
 All 25 full-chain prerequisites and final convergence/integration remain pending.
+
+## 2026-09-30 adversarial and completion review
+
+- [x] Complete three adversarial passes (runtime, retained data/transfers, product)
+  and two fresh completion passes (requirements, wiring), plus a separate Git and
+  evidence pass by the product reviewer. Five independent reviewers were used;
+  the tool's agent-thread limit prevented a sixth fresh reviewer. Root independently
+  checked source anchors and unchanged draft hashes. This is **static review only**.
+  The [consolidated report](../2026-09-30/ADVERSARIAL_AND_COMPLETION_REVIEW.md),
+  [fresh 25-row matrix](../2026-09-30/PREREQUISITE_COMPLETION_REVIEW.md) and
+  [exact review input](../2026-09-30/REVIEW_INPUT.json) are the continuation records.
+- [ ] Close downstream radio per-reading/child/history/maintenance and legacy-detail
+  access; independent notification hosting and no-Location Steps motion feedback.
+- [ ] Finish all-day Steps production execution/permission repair, original one-use
+  Start continuation, passive Location delivery-gap handling and supported ambient
+  lifecycle-proof/retained-read paths.
+- [ ] Connect unified history, mixed non-Location detail/actions, retained radio
+  map enrichment, requested-period metrics and qualified correction/retraction effects.
+- [ ] Complete data-only backup snapshot/replacement restore, edited Location Replace,
+  bundle dispatch and interactive-export/full-clear cancellation/residual notices.
+- [ ] Finish settings recovery, editable unavailable-source choices, concise localized
+  copy/accessibility and the pending notification failed-save exit decision.
+- [ ] Review and coherently commit the draft tracking API repair and companion
+  source-transfer adapters/bindings; reconcile all 139 source/test drafts and the
+  22 local branch tips outside candidate ancestry with explicit dispositions.
+- [ ] Finish the three full-chain review gaps (automatic Steps, Activity and every
+  guarded caller), required composed scenario authorship and final schema inputs.
+  The refreshed matrix records 22 partial chains and three uninspected full chains;
+  an uninspected chain is unverified, not proven absent.
+- [ ] Freeze the complete committed input only after source closure; then run the
+  corrected final-schema/released-data gates, host/CI checks, bounded device proof
+  and fresh final evidence review before local `dev/v10` integration.
+
+The main checkout is clean and unchanged at
+`13f1a99871b59d29b3d059f374fc415490da6943`. The reviewed candidate contains it
+with 178 additional commits, but ancestry does not establish integration readiness.
+Every assembly prerequisite, execution gate and integration box remains open.
