@@ -398,10 +398,21 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 		SELECT COUNT(DISTINCT primary_activity)
 		FROM session_segment
 		WHERE primary_activity IS NOT NULL
+			AND sample_count > 0
 			AND start_time_ms < :toMs AND end_time_ms > :fromMs
 		"""
 	)
 	suspend fun countDistinctActivitiesBetween(fromMs: Long, toMs: Long): Long
+
+	/** Activity variety for the inclusive bounds used by TimeWindow.Interval. */
+	@Query(
+		"""
+		SELECT COUNT(DISTINCT primary_activity) FROM session_segment
+		WHERE primary_activity IS NOT NULL AND sample_count > 0
+			AND start_time_ms <= :toMs AND end_time_ms >= :fromMs
+		""",
+	)
+	suspend fun countDistinctActivitiesInClosedInterval(fromMs: Long, toMs: Long): Long
 
 	/** Earliest start time among recorded segments, excluding preinserted placeholders. */
 	@Query("SELECT MIN(start_time_ms) FROM session_segment WHERE sample_count > 0")

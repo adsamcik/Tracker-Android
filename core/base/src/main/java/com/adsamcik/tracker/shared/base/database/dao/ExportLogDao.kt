@@ -42,6 +42,10 @@ interface ExportLogDao {
 	@Query("SELECT COUNT(*) FROM export_log")
 	suspend fun countTotal(): Long
 
+	/** Count successful exports completed within the requested closed interval. */
+	@Query("SELECT COUNT(*) FROM export_log WHERE status = 'SUCCESS' AND completed_at BETWEEN :fromMs AND :toMs")
+	suspend fun countCompletedBetween(fromMs: Long, toMs: Long): Long
+
 	/**
 	 * Count distinct export formats used (gpx / kml / json / sqlite / …).
 	 */

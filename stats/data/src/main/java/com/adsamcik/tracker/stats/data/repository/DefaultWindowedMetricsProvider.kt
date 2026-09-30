@@ -19,8 +19,8 @@ import javax.inject.Inject
  * Collects metric values for cumulative and bounded windows using pre-aggregated tables only.
  *
  * Metrics that do not have a meaningful bounded-window interpretation currently return their
- * cumulative value regardless of [window] (streaks, seasonal coverage, transport mode variety,
- * export totals and longest trip). Steps require the separate source-qualified numeric repository.
+ * cumulative value regardless of [window] (streaks, seasonal coverage and longest trip).
+ * Steps require the separate source-qualified numeric repository.
  */
 class DefaultWindowedMetricsProvider @Inject constructor(
 	private val dailySummaryDao: DailySummaryDao,
@@ -110,12 +110,13 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 			MetricKeys.SESSIONS_TOTAL -> dailySummaryDao.sumTripsBetween(fromDay, toDay)
 			MetricKeys.ACTIVE_DAYS_TOTAL -> dailySummaryDao.countActiveDaysBetween(fromDay, toDay, MetricKeys.MIN_DAILY_TRIPS)
 
+			MetricKeys.ACTIVITY_TYPES_USED -> sessionSegmentDao.countDistinctActivitiesInClosedInterval(fromMs, toMs)
+			MetricKeys.TOTAL_EXPORTS -> exportLogDao.countCompletedBetween(fromMs, toMs)
+
 			MetricKeys.LONGEST_TRIP_KM,
-			MetricKeys.ACTIVITY_TYPES_USED,
 			MetricKeys.SEASONS_EXPLORED,
 			MetricKeys.DAILY_STREAK,
 			MetricKeys.WEEKLY_STREAK,
-			MetricKeys.TOTAL_EXPORTS,
 			-> collectCumulative(metric)
 
 			else -> null

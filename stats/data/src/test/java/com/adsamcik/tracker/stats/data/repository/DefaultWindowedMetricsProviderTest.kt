@@ -157,6 +157,28 @@ class DefaultWindowedMetricsProviderTest {
 	}
 
 	@Test
+	fun `interval activity variety queries only the selected period`() = runTest {
+		coEvery { sessionSegmentDao.countDistinctActivitiesInClosedInterval(1_000L, 2_000L) } returns 2L
+		provider.collect(MetricKeys.ACTIVITY_TYPES_USED, TimeWindow.Interval(1_000L, 2_000L)) shouldBe 2L.right()
+		coVerify(exactly = 0) { sessionSegmentDao.countDistinctActivities() }
+	}
+
+	@Test
+	fun `interval export count uses completion timestamps within that period`() = runTest {
+		coEvery { exportLogDao.countCompletedBetween(1_000L, 2_000L) } returns 3L
+		provider.collect(MetricKeys.TOTAL_EXPORTS, TimeWindow.Interval(1_000L, 2_000L)) shouldBe 3L.right()
+		coVerify(exactly = 0) { exportLogDao.countTotal() }
+	}
+
+	@Test
+	fun `rolling export count uses the same bounded query`() = runTest {
+		coEvery { exportLogDao.countCompletedBetween(any(), any()) } returns 1L
+		provider.collect(MetricKeys.TOTAL_EXPORTS, TimeWindow.Rolling(60_000L)) shouldBe 1L.right()
+		coVerify(exactly = 1) { exportLogDao.countCompletedBetween(any(), any()) }
+		coVerify(exactly = 0) { exportLogDao.countTotal() }
+	}
+
+	@Test
 	fun `collect returns cumulative for non windowable streak metric`() = runTest {
 		coEvery { explorationStreakDao.getByType("DAILY_DISCOVERY") } returns ExplorationStreakEntity(
 			type = "DAILY_DISCOVERY",

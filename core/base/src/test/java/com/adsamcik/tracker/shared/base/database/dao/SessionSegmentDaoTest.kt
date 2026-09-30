@@ -37,6 +37,19 @@ class SessionSegmentDaoTest {
 	}
 
 	@Test
+	fun `period activity variety excludes placeholders and respects closed boundaries`() = runBlocking {
+		dao.insert(createSegment(100L, 200L, 100f, DetectedActivity.WALKING.value))
+		dao.insert(createSegment(1_000L, 2_000L, 100f, DetectedActivity.RUNNING.value))
+		dao.insert(createSegment(2_000L, 3_000L, 100f, DetectedActivity.ON_BICYCLE.value))
+		dao.insert(createSegment(1_500L, 1_600L, 100f, DetectedActivity.IN_VEHICLE.value).copy(sampleCount = 0))
+		dao.insert(createSegment(1_500L, 1_600L, 100f, null))
+		assertEquals(2L, dao.countDistinctActivitiesInClosedInterval(1_000L, 2_000L))
+		assertEquals(2L, dao.countDistinctActivitiesInClosedInterval(2_000L, 2_000L))
+		assertEquals(0L, dao.countDistinctActivitiesInClosedInterval(4_000L, 5_000L))
+		assertEquals(1L, dao.countDistinctActivitiesBetween(1_000L, 2_000L))
+	}
+
+	@Test
 	fun `getSummary includes grouped on-foot and vehicle distances`() = runBlocking {
 		dao.insert(createSegment(1_000L, 2_000L, 100f, DetectedActivity.WALKING.value))
 		dao.insert(createSegment(2_000L, 3_000L, 200f, DetectedActivity.RUNNING.value))
