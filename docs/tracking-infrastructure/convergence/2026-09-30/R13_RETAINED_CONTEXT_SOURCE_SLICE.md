@@ -143,3 +143,12 @@ Narrow methods in shared existing fixtures:
   this receipt makes no claim of unlimited map materialization or device performance evidence.
 - User-facing partial map notice and the full independent R13 review remain pending. Source-authored
   tests must be compiled/executed only after the complete convergence input has been frozen.
+
+## Retained child invalidation companion
+
+The map observer now also watches native captured/background Wi-Fi and Cell
+child tables. Exact child rows are dependencies of the retained reader; an
+independent child correction or removal must invalidate existing radio layers
+even when the parent revision is unchanged. The existing observer contract test
+source covers these four source-specific tables. This companion adds no layer,
+request, UI copy or provider demand. It remains IMPLEMENTED_UNVALIDATED.

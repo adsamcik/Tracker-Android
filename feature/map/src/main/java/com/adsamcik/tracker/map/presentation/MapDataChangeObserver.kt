@@ -64,12 +64,14 @@ class MapDataChangeObserver private constructor(databaseProvider: () -> AppDatab
         private val wifiTables = setOf(
             "wifi_observation", "wifi_captured_fact_revision", "wifi_captured_fact_cursor",
             "wifi_capture_deletion_generation", "ambient_wifi_fact_revision", "ambient_wifi_fact_cursor",
+            "wifi_captured_child", "ambient_wifi_child",
             "ambient_wifi_gap", "ambient_wifi_deletion_marker", "ambient_wifi_replay_footprint",
             "ambient_wifi_authority", "ambient_wifi_retention_authority",
         )
         private val cellTables = setOf(
             "cell_sample", "cell_captured_fact_revision", "cell_captured_fact_cursor",
             "cell_capture_deletion_generation", "ambient_cell_fact_revision", "ambient_cell_fact_cursor",
+            "cell_captured_child", "ambient_cell_child",
             "ambient_cell_gap", "ambient_cell_deletion_marker", "ambient_cell_replay_footprint",
             "ambient_cell_authority", "ambient_cell_retention_authority",
         )
