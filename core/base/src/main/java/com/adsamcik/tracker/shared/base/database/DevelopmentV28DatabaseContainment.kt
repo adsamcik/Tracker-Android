@@ -207,7 +207,9 @@ class ActiveDatabasePreflight internal constructor(
 			)
 		}
 		if (version == 28) return ActiveDatabasePreflightResult.FinalV28
-		if (!FINAL_V29_RADIO_ADDITIONAL_COLUMNS.all(database::hasExactColumn) ||
+		if (!FINAL_V29_ADDITIONAL_COLUMNS.all(database::hasExactColumn) ||
+			!FINAL_V29_LOCATION_ARCHIVE_COLUMNS.all { (table, columns) -> database.hasExactColumns(table, columns) } ||
+			!FINAL_V29_LOCATION_ARCHIVE_INDEXES.all(database::hasExactIndex) ||
 			!FINAL_V29_RADIO_CHILD_COLUMNS.all { (table, columns) -> database.hasExactColumns(table, columns) } ||
 			!FINAL_V29_RADIO_CHILD_INDEXES.all(database::hasExactIndex) ||
 			!FINAL_V29_RADIO_MIRROR_TRIGGERS.all(database::hasTrigger)
@@ -1184,10 +1186,31 @@ private val FINAL_V28_STEPS_TRIGGERS = listOf(
 	),
 )
 
-private val FINAL_V29_RADIO_ADDITIONAL_COLUMNS = listOf(
+private val FINAL_V29_ADDITIONAL_COLUMNS = listOf(
 	FinalV28ColumnSentinel("ambient_wifi_fact_revision", "purpose_demand_id", "TEXT", false, defaultValue = "NULL"),
 	FinalV28ColumnSentinel("ambient_cell_fact_revision", "purpose_demand_id", "TEXT", false, defaultValue = "NULL"),
 	FinalV28ColumnSentinel("source_policy", "background_notification_host_enabled", "INTEGER", true, defaultValue = "0"),
+	FinalV28ColumnSentinel("location_accepted_receipt", "retained_proof_version", "INTEGER", true, defaultValue = "0"),
+	FinalV28ColumnSentinel("location_accepted_receipt", "retained_proof_checksum", "TEXT", true, defaultValue = "''"),
+	FinalV28ColumnSentinel("location_sample_purpose_authority", "retained_proof_checksum", "TEXT", true, defaultValue = "''"),
+	FinalV28ColumnSentinel("location_file_archive", "identity", "TEXT", true, primaryKeyPosition = 1),
+	FinalV28ColumnSentinel("location_file_archive", "source_format", "TEXT", true),
+	FinalV28ColumnSentinel("location_file_archive", "source_schema_version", "INTEGER", true),
+	FinalV28ColumnSentinel("location_file_archive", "collected_data_epoch", "INTEGER", true),
+	FinalV28ColumnSentinel("location_file_archive", "point_count", "INTEGER", true),
+	FinalV28ColumnSentinel("location_file_archive_point", "archive_identity", "TEXT", true, primaryKeyPosition = 1),
+	FinalV28ColumnSentinel("location_file_archive_point", "ordinal", "INTEGER", true, primaryKeyPosition = 2),
+	FinalV28ColumnSentinel("location_file_archive_point", "portable_id", "TEXT", true),
+	FinalV28ColumnSentinel("location_file_archive_point", "sample_id", "INTEGER", false),
+)
+
+private val FINAL_V29_LOCATION_ARCHIVE_COLUMNS = mapOf(
+	"location_file_archive" to listOf("identity", "source_format", "source_schema_version", "collected_data_epoch", "point_count"),
+	"location_file_archive_point" to listOf("archive_identity", "ordinal", "portable_id", "sample_id"),
+)
+private val FINAL_V29_LOCATION_ARCHIVE_INDEXES = listOf(
+	FinalV28IndexSentinel("location_file_archive_point", "idx_location_archive_point_identity", listOf("archive_identity", "portable_id"), true),
+	FinalV28IndexSentinel("location_file_archive_point", "idx_location_archive_point_sample", listOf("sample_id"), false),
 )
 
 private val FINAL_V29_LEGACY_STAMP_COLUMNS = listOf(

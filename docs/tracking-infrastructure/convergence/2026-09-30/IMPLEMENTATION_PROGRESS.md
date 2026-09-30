@@ -36,6 +36,7 @@ description of its earlier input; this file records subsequent repair progress.
   writer, child reader, imported-detail and deletion companions.
 - `24f5c220bb`: native ambient detail completeness, with eight real Room
   scenario sources and legacy summary compatibility.
+- `af9a9e73b4`: original Pressure portable headers and unresolved-header sources.
 
 All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 
@@ -64,6 +65,9 @@ All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
   missing-part child rows; eight real Room scenario sources, legacy summaries kept.
 - [x] Pressure portable headers reuse original closed session bounds without
   replacing physical/window times; unresolved header scenarios authored and reviewed.
+- [x] Exact Location-file membership and retained future-point origin source,
+  with original-epoch fencing, bounded retries, missing-member preservation and
+  development migration/test sources. Map/bundle callers remain separate work.
 
 ## Remaining in these slices
 

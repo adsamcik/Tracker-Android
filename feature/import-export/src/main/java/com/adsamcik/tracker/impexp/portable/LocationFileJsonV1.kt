@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.model.AltitudeSource
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.MotionState
 import com.adsamcik.tracker.shared.model.SampleQuality
+import com.adsamcik.tracker.shared.base.database.data.LocationFileArchiveEntity
 import java.io.BufferedInputStream
 import java.io.BufferedWriter
 import java.io.ByteArrayOutputStream
@@ -233,13 +234,13 @@ internal class LocationFileJsonV1 {
 	}
 
 	internal companion object {
-		const val FORMAT = "tracker-location"
-		const val VERSION = 1
+		const val FORMAT = LocationFileArchiveEntity.FORMAT
+		const val VERSION = LocationFileArchiveEntity.VERSION
 		const val EXTENSION = "trackerlocation"
 		const val MIME_TYPE = "application/x-ndjson"
 		const val MAX_LINE_BYTES = 16_384
 		const val MAX_FILE_BYTES = 256L * 1024L * 1024L
-		const val MAX_POINTS = 2_000_000
+		const val MAX_POINTS = LocationFileArchiveEntity.MAX_POINTS
 		const val MAX_POINT_TEXT_LENGTH = 1_024
 	}
 }

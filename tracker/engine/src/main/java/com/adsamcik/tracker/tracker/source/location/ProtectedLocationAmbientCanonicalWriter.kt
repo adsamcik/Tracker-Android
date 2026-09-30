@@ -226,20 +226,22 @@ internal suspend fun AppDatabase.recordLocationAmbientReceipt(write: ProtectedLo
 internal suspend fun AppDatabase.recordLocationAmbientPurpose(command: LocationAmbientFactCommand, sample: LocationSample) {
 	val wal = command.wal
 	val a = command.authority
-	val common = LocationAcceptedReceiptEntity(sample.id, wal.eventId, requireNotNull(sample.sourceSignalId),
+	val common = LocationAcceptedReceiptIntegrity.seal(LocationAcceptedReceiptEntity(sample.id, wal.eventId, requireNotNull(sample.sourceSignalId),
 		wal.admissionOrdinal, wal.integrityIdentity, LocationAcceptedReceiptIntegrity.canonicalChecksum(sample),
 		wal.sourceInstanceId, wal.registrationGeneration, wal.sourceSequence, requireNotNull(wal.deliveryIdentity),
 		requireNotNull(wal.deliveryUnitIndex), requireNotNull(wal.deliveryUnitCount), ProtectedLocationCanonicalHandoff.WRITER_ID,
 		ProtectedLocationCanonicalHandoff.WRITER_VERSION, requireNotNull(wal.configRevision), requireNotNull(wal.physicalConfigurationFingerprint),
 		requireNotNull(wal.authorizationRevision), requireNotNull(wal.authorizationFingerprint), wal.clockDomainId, wal.clockDomainId,
 		wal.observedElapsedNanos, wal.receivedElapsedNanos, requireNotNull(wal.wallTimeMs), wal.receivedWallTimeMs,
-		requireNotNull(wal.wallTimeUncertaintyMs), wal.capturedCollectedDataEpoch)
+		requireNotNull(wal.wallTimeUncertaintyMs), wal.capturedCollectedDataEpoch))
 	val dao = locationPurposeDao()
-	if (dao.insertReceiptIfAbsent(common) == -1L) check(dao.receipt(sample.id) == common && dao.receiptByEvent(wal.eventId) == common)
-	val purpose = LocationSamplePurposeAuthorityEntity(sample.id, SourceBrokerPurpose.AMBIENT_PRODUCT, a.demandId,
+	if (dao.insertReceiptIfAbsent(common) == -1L) check(LocationAcceptedReceiptIntegrity.compatibleStoredReceipt(dao.receipt(sample.id), common) &&
+		LocationAcceptedReceiptIntegrity.compatibleStoredReceipt(dao.receiptByEvent(wal.eventId), common))
+	val purpose = LocationAcceptedReceiptIntegrity.seal(LocationSamplePurposeAuthorityEntity(sample.id, SourceBrokerPurpose.AMBIENT_PRODUCT, a.demandId,
 		a.sourcePolicyRevision, a.consentEpoch, wal.observedElapsedNanos, Math.addExact(wal.observedElapsedNanos, 1),
-		null, null, null, null, null, a.demandId, a.retentionPolicyId, a.retentionApprovalRevision, 0, null)
-	if (dao.insertPurposeIfAbsent(purpose) == -1L) check(dao.purpose(sample.id, purpose.purpose, purpose.authorityId) == purpose)
+		null, null, null, null, null, a.demandId, a.retentionPolicyId, a.retentionApprovalRevision, 0, null), common)
+	if (dao.insertPurposeIfAbsent(purpose) == -1L) check(LocationAcceptedReceiptIntegrity.compatibleStoredPurpose(
+		dao.purpose(sample.id, purpose.purpose, purpose.authorityId), purpose))
 }
 
 private fun ambientStateKey(c: LocationAmbientFactCommand) = "ambient-curation:${c.authority.consentEpoch}:${c.wal.clockDomainId}:${c.wal.sourceInstanceId}:${c.wal.registrationGeneration}"

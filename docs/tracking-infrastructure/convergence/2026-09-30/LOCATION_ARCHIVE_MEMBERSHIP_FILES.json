@@ -1,0 +1,97 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "date": "2026-09-30",
+  "owner": "/root/completion_wiring_0930",
+  "phase": "implementation-only production and test-source authorship; no validation, activation or integration",
+  "purpose": "Source-owned exact Location-file membership and approved current bundle-format alignment",
+  "selectedPaths": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationFileArchiveEntity.kt",
+      "sha256": "14f1f53740a9df74bdeb4b5d909b8482bdf82919aa158a9ccafef07039605e69"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationFileIdentityDao.kt",
+      "sha256": "eb6b0eee50e2edbf22217233e0b45148bcdbd84fa4e5b49edfde62adb0686e8d"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "sha256": "02b735c3f1329937fda2ea88c30439f311236ffe4d6e2f6834549eb5715f07ba"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/LocationFileImport.kt",
+      "sha256": "cef505c2cad52d462f8abc77e23e281d0b441bfdca782fc807041a9582c01f46"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/portable/LocationFileJsonV1.kt",
+      "sha256": "b4af5475b38bc7021c1e645e70f097481ce3d973459b1350f9b0537472e7e1c3"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/archive/SessionBundleStager.kt",
+      "sha256": "ed7364586dedd646115c59be61c07e75f42b915d50df659288fa16dca531cfd7"
+    },
+    {
+      "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/LocationFileArchiveRepository.kt",
+      "sha256": "9ae465a599353e032f52fe8354682fb89f28aa2fa05bbd3bd031b0f217ff5f7a"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomLocationFileArchiveRepository.kt",
+      "sha256": "73fda421a9a2f7193d6cd45b49a0f03ece597ce9d1cb69adde5d529a3b3ea370"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt",
+      "sha256": "744ea7adba7bdd0293e2b1b86b26fb1d65b444df6278d3cfa20d854c7b38dc2d"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/LocationFileImportTest.kt",
+      "sha256": "ad35936128128177222ac879e44f72c5a66f2e636f4cd36c40908fe6c579e5c3"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/archive/SessionBundleStagerTest.kt",
+      "sha256": "2745d8ee2c20d6625b149c90f594c6c72f3dfdef84411af2ec9749f82d617a8f"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomLocationFileArchiveRepositoryTest.kt",
+      "sha256": "a5c3e467592a6a29a7274bf0907075764d597ce9011ae03ea927731a4706c958"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-09-30/LOCATION_ARCHIVE_MEMBERSHIP_SCHEMA.md",
+      "sha256": "da3389892aa54f10ab095b8fad4f900f151331fd03cac279185e2dc5a40a8183"
+    }
+  ],
+  "sharedFileBoundaries": {
+    "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt": "Two archive entities in Room registration and one deleteAllArchives call in actual collected-data clear; existing draft content preserved.",
+    "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt": "One binding for LocationFileArchiveRepository; existing draft bindings preserved.",
+    "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/LocationFileImport.kt": "Existing original-data-epoch and conflict-review behavior preserved. Full validated content identity/point count creates archive, each existing 256-point transaction adds ordinal and portable-ID associations including duplicates and retention skips.",
+    "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/portable/LocationFileJsonV1.kt": "Existing format/version/point cap reference source archive constants without changing their values.",
+    "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/archive/SessionBundleStager.kt": "Allowlist uses actual registered Location, Wi-Fi and Cell format constants; all other staging logic preserved."
+  },
+  "sourceDependencies": [
+    "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/LocationFileImportPreview.kt supplies existing verified child-content identity independent of outer job.",
+    "Existing FileImportStream, ImportJobRunner and generic job/entry receipts own original epoch and completion.",
+    "Root-owned RadioObservationChildMigration.kt and DevelopmentV28DatabaseContainment.kt plus corresponding test sources provide exact v29 tables/indexes/preflight; independently inspected statically.",
+    "Existing LocationFileIdentityDao binding is reused; no new DAO service factory or provider owner."
+  ],
+  "authoredScenarios": [
+    "Real Location and combined Wi-Fi/Cell staged ZIP children use their registered formats/extensions and decode identically; wrong radio extension rejects before dispatch and staging is cleaned.",
+    "One Location-file content identity reuses identical existing point membership across different outer jobs.",
+    "Retention-skipped points preserve declared ordinal/portable-ID membership with unavailable sample.",
+    "Second 256-point association batch failure rolls back its points and retries without duplicating the durable prefix.",
+    "Actual full collected-data clear removes archive parent/member rows and points.",
+    "Source lookup and bounded exact DAO pages exclude unrelated points with identical timestamps.",
+    "Sample deletion sets old membership to null; replay does not reconnect a replacement point.",
+    "Current retention, incomplete association, explicit empty file and original-epoch change produce honest lookup outcomes."
+  ],
+  "boundaries": [
+    "No new file-job, import status, content hash or revision protocol; archive identity reuses verified Location preview fingerprint.",
+    "No timestamp/count selector fallback, provider activation or foreign recording authority.",
+    "Pending user-edited native Location replacement behavior is preserved unchanged.",
+    "Current standalone Location caps are unchanged; stricter bundle child caps remain unchanged.",
+    "No Gradle, compilation, tests, lint, schema generation/drift, diff check, device, CI or Git operations executed."
+  ],
+  "remaining": [
+    "Independent production review and source fixes if findings exist.",
+    "Full bundle annotation/selectors/import/export caller assembly remains pending.",
+    "Export UI placement/source chooser requires the pending user answer.",
+    "Checked-in Room schema and convergence/device gates remain deferred."
+  ]
+}

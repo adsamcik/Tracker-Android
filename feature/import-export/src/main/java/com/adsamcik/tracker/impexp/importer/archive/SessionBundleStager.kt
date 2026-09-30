@@ -5,6 +5,8 @@ import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.portable.InvalidSessionBundle
+import com.adsamcik.tracker.impexp.portable.RadioSourceFileV2
+import com.adsamcik.tracker.impexp.portable.LocationFileJsonV1
 import com.adsamcik.tracker.impexp.portable.SessionBundleManifestCodecV1
 import com.adsamcik.tracker.impexp.portable.SessionBundleManifestV1
 import com.adsamcik.tracker.shared.base.extension.openInputStream
@@ -140,9 +142,9 @@ internal class SessionBundleStager(
 		private const val STALE_CHILD_AGE_MS = 24L * 60L * 60L * 1_000L
 		private val OWNED_FILE = Regex("(?:session-child-[-0-9]+\\.tmp|session-source-[-0-9]+\\.trackersession)")
 		val TYPED_SOURCE_FORMAT_IDS = setOf(
-			"tracker-portable-location", "portable-steps-v1", "portable-ambient-steps-v1",
-			"portable-activity-v1", "portable-pressure-v1", "portable-wifi-v1",
-			"portable-cell-v1",
+			LocationFileJsonV1.FORMAT, "portable-steps-v1", "portable-ambient-steps-v1",
+			"portable-activity-v1", "portable-pressure-v1", RadioSourceFileV2.WIFI_FORMAT,
+			RadioSourceFileV2.CELL_FORMAT,
 		)
 
 		/** Full clear calls this after WorkManager has acknowledged import cancellation. */

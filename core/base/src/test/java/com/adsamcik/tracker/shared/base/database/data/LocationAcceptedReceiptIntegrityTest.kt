@@ -8,6 +8,53 @@ import kotlin.test.assertTrue
 
 class LocationAcceptedReceiptIntegrityTest {
 	@Test
+	fun `retained receipt binds provider identity authorization delivery clock and epoch`() {
+		val original = LocationAcceptedReceiptIntegrity.seal(receipt(sample()))
+		assertTrue(LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(original))
+		val changes = listOf(original.copy(sourceSequence = 99), original.copy(authorizationRevision = 7),
+			original.copy(sourceInstanceId = "other"), original.copy(registrationGeneration = 2),
+			original.copy(deliveryIdentity = "other"), original.copy(sourceAdmissionOrdinal = 2),
+			original.copy(walIntegrityIdentity = "b".repeat(64)), original.copy(configurationRevision = 2),
+			original.copy(physicalConfigurationFingerprint = "other"), original.copy(authorizationFingerprint = "other"),
+			original.copy(clockDomainId = "other"), original.copy(bootId = "other"),
+			original.copy(collectedDataEpoch = 1), original.copy(canonicalContentChecksum = "c".repeat(64)),
+			original.copy(receivedWallTimeMs = 1_011), original.copy(wallTimeUncertaintyMs = 11))
+		changes.forEach { assertFalse(LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(it)) }
+	}
+
+	@Test
+	fun `purpose binding survives raw log absence without lending consent to a sibling`() {
+		val receipt = LocationAcceptedReceiptIntegrity.seal(receipt(sample()))
+		val purpose = LocationAcceptedReceiptIntegrity.seal(ambientPurpose(), receipt)
+		assertTrue(LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(purpose, receipt))
+		val changes = listOf(purpose.copy(consentEpoch = 2), purpose.copy(sourcePolicyRevision = 2),
+			purpose.copy(authorityId = "other"), purpose.copy(ambientIntentId = "other"),
+			purpose.copy(retentionPolicyId = "other"), purpose.copy(retentionApprovalRevision = 2),
+			purpose.copy(effectiveUntilElapsedNanos = 12), purpose.copy(scopeDeletionGeneration = 1))
+		changes.forEach { assertFalse(LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(it, receipt)) }
+		val different = LocationAcceptedReceiptIntegrity.seal(receipt.copy(sourceSequence = 1))
+		assertFalse(LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(purpose, different))
+		assertFalse(LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(purpose, receipt(sample())))
+	}
+
+	@Test
+	fun `legacy replay equality never upgrades blank proof or accepts a conflicting tuple`() {
+		val oldReceipt = receipt(sample())
+		val sealed = LocationAcceptedReceiptIntegrity.seal(oldReceipt)
+		assertTrue(LocationAcceptedReceiptIntegrity.compatibleStoredReceipt(oldReceipt, sealed))
+		assertFalse(LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(oldReceipt))
+		assertFalse(LocationAcceptedReceiptIntegrity.compatibleStoredReceipt(oldReceipt.copy(sourceSequence = 9), sealed))
+		val oldPurpose = ambientPurpose()
+		assertTrue(LocationAcceptedReceiptIntegrity.compatibleStoredPurpose(oldPurpose,
+			LocationAcceptedReceiptIntegrity.seal(oldPurpose, sealed)))
+		assertEquals("", oldPurpose.retainedProofChecksum)
+		assertFalse(LocationAcceptedReceiptIntegrity.compatibleStoredPurpose(oldPurpose.copy(consentEpoch = 9),
+			LocationAcceptedReceiptIntegrity.seal(oldPurpose, sealed)))
+	}
+
+	private fun ambientPurpose() = LocationSamplePurposeAuthorityEntity(1, SourceBrokerPurpose.AMBIENT_PRODUCT,
+		"ambient", 1, 1, 10, 11, null, null, null, null, null, "ambient", "retention", 1, 0, null)
+	@Test
 	fun `checksum preserves the existing protected writer encoding`() {
 		val sample = sample()
 		val previousWriterChecksum = MessageDigest.getInstance("SHA-256")

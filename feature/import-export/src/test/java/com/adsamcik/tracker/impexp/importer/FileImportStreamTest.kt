@@ -91,6 +91,38 @@ class FileImportStreamTest {
 	}
 
 	@Nested
+	@DisplayName("Original data epoch")
+	inner class OriginalDataEpoch {
+		@Test
+		fun `binding pins the job epoch without opening its direct or archive entry`() {
+			listOf("direct-entry", "archive-entry-2").forEach { entryKey ->
+				var opens = 0
+				val stream = FileImportStream("saved.trackerlocation", entryKey, {
+					opens++
+					ByteArrayInputStream(byteArrayOf())
+				})
+				stream.withOriginalDataEpoch(7L) shouldBe stream
+				stream.originalDataEpoch shouldBe 7L
+				stream.importReceipt shouldBe null
+				opens shouldBe 0
+				stream.withOriginalDataEpoch(7L) shouldBe stream
+				assertFailsWith<IllegalArgumentException> { stream.withOriginalDataEpoch(8L) }
+				stream.originalDataEpoch shouldBe 7L
+				stream.close()
+			}
+		}
+
+		@Test
+		fun `a closed stream or invalid epoch cannot be bound`() {
+			val stream = createStream()
+			assertFailsWith<IllegalArgumentException> { stream.withOriginalDataEpoch(-1L) }
+			stream.originalDataEpoch shouldBe null
+			stream.close()
+			assertFailsWith<IllegalStateException> { stream.withOriginalDataEpoch(0L) }
+		}
+	}
+
+	@Nested
 	@DisplayName("Durable receipt provenance")
 	inner class DurableReceiptProvenance {
 		@Test

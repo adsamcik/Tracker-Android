@@ -16,16 +16,45 @@ private val legacyStampColumnDefinitions = legacyStampFields.joinToString(",\n")
 	"$field ${if (field in setOf("clock_domain_id", "boot_clock_domain_id", "capability_flags", "permission_precision")) "TEXT" else "INTEGER"}"
 }
 
-/** Add purpose-owned radio children without changing the meaning of existing aggregate facts. */
+/** Complete the unshipped v29 data model while preserving existing observation meaning. */
 val MIGRATION_28_29: Migration = object : Migration(28, 29) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		db.execSQL("ALTER TABLE ambient_wifi_fact_revision ADD COLUMN purpose_demand_id TEXT DEFAULT NULL")
 		db.execSQL("ALTER TABLE ambient_cell_fact_revision ADD COLUMN purpose_demand_id TEXT DEFAULT NULL")
 		db.execSQL("ALTER TABLE source_policy ADD COLUMN background_notification_host_enabled INTEGER NOT NULL DEFAULT 0")
+		db.execSQL("ALTER TABLE location_accepted_receipt ADD COLUMN retained_proof_version INTEGER NOT NULL DEFAULT 0")
+		db.execSQL("ALTER TABLE location_accepted_receipt ADD COLUMN retained_proof_checksum TEXT NOT NULL DEFAULT ''")
+		db.execSQL("ALTER TABLE location_sample_purpose_authority ADD COLUMN retained_proof_checksum TEXT NOT NULL DEFAULT ''")
+		createLocationFileArchiveTables(db)
 		createRadioObservationChildTables(db)
 		copyKnownLegacyRadioRows(db)
 		installLegacyRadioChildMirrors(db)
 	}
+}
+
+internal fun createLocationFileArchiveTables(db: SupportSQLiteDatabase) {
+	db.execSQL("""
+		CREATE TABLE IF NOT EXISTS location_file_archive (
+			identity TEXT NOT NULL, source_format TEXT NOT NULL,
+			source_schema_version INTEGER NOT NULL, collected_data_epoch INTEGER NOT NULL,
+			point_count INTEGER NOT NULL, PRIMARY KEY(identity)
+		)
+	""".trimIndent())
+	db.execSQL("""
+		CREATE TABLE IF NOT EXISTS location_file_archive_point (
+			archive_identity TEXT NOT NULL, ordinal INTEGER NOT NULL,
+			portable_id TEXT NOT NULL, sample_id INTEGER,
+			PRIMARY KEY(archive_identity, ordinal),
+			FOREIGN KEY(archive_identity) REFERENCES location_file_archive(identity)
+			ON UPDATE NO ACTION ON DELETE CASCADE,
+			FOREIGN KEY(sample_id) REFERENCES location_sample(id)
+			ON UPDATE NO ACTION ON DELETE SET NULL
+		)
+	""".trimIndent())
+	db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_location_archive_point_identity " +
+		"ON location_file_archive_point(archive_identity, portable_id)")
+	db.execSQL("CREATE INDEX IF NOT EXISTS idx_location_archive_point_sample " +
+		"ON location_file_archive_point(sample_id)")
 }
 
 /** Room creates new v29 tables itself; the released-data importer runs later in onCreate. */

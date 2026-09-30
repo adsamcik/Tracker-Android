@@ -94,11 +94,13 @@ class ProtectedLocationCanonicalHandoffTest {
 		assertEquals(5_000L, receipt.observation.deliveryAgeMs)
 		val sample = requireNotNull(receipt.acceptedSample)
 		val common = requireNotNull(database.locationPurposeDao().receipt(sample.id))
+		assertTrue(com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(common))
 		assertEquals(EVENT_ID, common.sourceEventId)
 		assertEquals(command.productEffect.durableEvidence.walIntegrityIdentity, common.walIntegrityIdentity)
 		val purposes = database.locationPurposeDao().purposes(sample.id, 3)
 		assertEquals(1, purposes.size)
 		assertEquals(SourceBrokerPurpose.SESSION_CAPTURE, purposes.single().purpose)
+		assertTrue(com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(purposes.single(), common))
 		assertEquals(RUN_ID, purposes.single().serviceRunId)
 		assertNull(purposes.single().ambientIntentId)
 		val decision = requireNotNull(

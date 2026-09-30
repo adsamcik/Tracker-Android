@@ -46,6 +46,8 @@ data class LocationAcceptedReceiptEntity(
 	@ColumnInfo(name = "received_wall_time_ms") val receivedWallTimeMs: Long?,
 	@ColumnInfo(name = "wall_time_uncertainty_ms") val wallTimeUncertaintyMs: Long,
 	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "retained_proof_version", defaultValue = "0") val retainedProofVersion: Int = 0,
+	@ColumnInfo(name = "retained_proof_checksum", defaultValue = "''") val retainedProofChecksum: String = "",
 ) {
 	init {
 		require(sampleId > 0 && sourceAdmissionOrdinal > 0 && registrationGeneration > 0)
@@ -58,6 +60,8 @@ data class LocationAcceptedReceiptEntity(
 		require(observedElapsedRealtimeNanos > 0 && receivedElapsedRealtimeNanos >= observedElapsedRealtimeNanos)
 		require(observedWallTimeMs >= 0 && wallTimeUncertaintyMs >= 0)
 		require(receivedWallTimeMs == null || receivedWallTimeMs >= 0)
+		require(retainedProofVersion in 0..1)
+		require(if (retainedProofVersion == 0) retainedProofChecksum.isEmpty() else DIGEST.matches(retainedProofChecksum))
 	}
 	private companion object { val DIGEST = Regex("[0-9a-f]{64}") }
 }
@@ -90,12 +94,14 @@ data class LocationSamplePurposeAuthorityEntity(
 	@ColumnInfo(name = "retention_approval_revision") val retentionApprovalRevision: Long?,
 	@ColumnInfo(name = "scope_deletion_generation") val scopeDeletionGeneration: Long,
 	@ColumnInfo(name = "zone_id") val zoneId: String?,
+	@ColumnInfo(name = "retained_proof_checksum", defaultValue = "''") val retainedProofChecksum: String = "",
 ) {
 	init {
 		require(sampleId > 0 && authorityId.isNotBlank() && sourcePolicyRevision > 0 && consentEpoch >= 0)
 		require(effectiveFromElapsedNanos >= 0 && effectiveUntilElapsedNanos > effectiveFromElapsedNanos)
 		require(scopeDeletionGeneration >= 0)
 		require(zoneId == null || runCatching { java.time.ZoneId.of(zoneId) }.isSuccess)
+		require(retainedProofChecksum.isEmpty() || retainedProofChecksum.matches(Regex("[0-9a-f]{64}")))
 		when (purpose) {
 			SourceBrokerPurpose.SESSION_CAPTURE -> {
 				require(zoneId != null)

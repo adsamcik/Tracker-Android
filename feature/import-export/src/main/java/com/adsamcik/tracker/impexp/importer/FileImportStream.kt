@@ -2,6 +2,7 @@ package com.adsamcik.tracker.impexp.importer
 
 import java.io.IOException
 import java.io.InputStream
+import com.adsamcik.tracker.impexp.importer.file.LocationFileImportReview
 
 /**
  * Provides stream with a filename.
@@ -41,6 +42,36 @@ class FileImportStream private constructor(
 	@Volatile
 	internal var importReceipt: FileImportReceiptContext? = null
 		private set
+	@Volatile
+	internal var originalDataEpoch: Long? = null
+		private set
+
+	internal var locationReview: LocationFileImportReview? = null
+		private set
+
+	@Synchronized
+	internal fun withLocationReview(review: LocationFileImportReview): FileImportStream {
+		check(!closed && locationReview == null)
+		locationReview = review
+		return this
+	}
+
+	/** Keeps every source-owned batch in the data set in which this import job was started. */
+	@Synchronized
+	internal fun withOriginalDataEpoch(epoch: Long): FileImportStream {
+		check(!closed) { "Cannot bind a closed import stream" }
+		require(epoch >= 0L) { "Import data epoch cannot be negative" }
+		originalDataEpoch?.let { existing ->
+			require(existing == epoch) { "Import stream already belongs to another data epoch" }
+			return this
+		}
+		originalDataEpoch = epoch
+		return this
+	}
+
+	/** Requires the original job boundary; this does not grant recording permission. */
+	internal fun requireOriginalDataEpoch(): Long = originalDataEpoch
+		?: throw IOException("Import needs its original data epoch")
 
 	/** Binds durable file-job provenance without opening, copying, or re-identifying the content. */
 	@Synchronized

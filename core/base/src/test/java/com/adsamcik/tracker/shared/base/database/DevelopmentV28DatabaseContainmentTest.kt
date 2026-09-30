@@ -968,6 +968,47 @@ class DevelopmentV28DatabaseContainmentTest {
 		)
 	}
 
+	@Test
+	fun `v29 database missing Location archive membership is blocked before Room opens`() {
+		val database = AppDatabase.fileBuilder(context, DATABASE_NAME).allowMainThreadQueries().build()
+		try {
+			database.openHelper.writableDatabase.execSQL("DROP TABLE location_file_archive_point")
+		} finally {
+			database.close()
+		}
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `v29 database with nullable Location proof is blocked before Room opens`() {
+		val database = AppDatabase.fileBuilder(context, DATABASE_NAME).allowMainThreadQueries().build()
+		try {
+			val db = database.openHelper.writableDatabase
+			db.execSQL("ALTER TABLE location_accepted_receipt RENAME COLUMN retained_proof_checksum TO old_proof_checksum")
+			db.execSQL("ALTER TABLE location_accepted_receipt ADD COLUMN retained_proof_checksum TEXT DEFAULT ''")
+		} finally {
+			database.close()
+		}
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA,
+		)
+	}
+
+	@Test
+	fun `v29 database missing archive identity index is blocked before Room opens`() {
+		val database = AppDatabase.fileBuilder(context, DATABASE_NAME).allowMainThreadQueries().build()
+		try {
+			database.openHelper.writableDatabase.execSQL("DROP INDEX idx_location_archive_point_identity")
+		} finally {
+			database.close()
+		}
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA,
+		)
+	}
+
 	private fun createFixture(
 		version: Int,
 		includeBaseline: Boolean = true,

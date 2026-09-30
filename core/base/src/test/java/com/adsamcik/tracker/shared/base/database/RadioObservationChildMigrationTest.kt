@@ -31,9 +31,20 @@ class RadioObservationChildMigrationTest {
 		val helper = FrameworkSQLiteOpenHelperFactory().create(
 			SupportSQLiteOpenHelper.Configuration.builder(context).name(DATABASE_NAME)
 				.callback(object : SupportSQLiteOpenHelper.Callback(28) {
+					override fun onConfigure(db: SupportSQLiteDatabase) {
+						db.setForeignKeyConstraintsEnabled(true)
+					}
+
 					override fun onCreate(db: SupportSQLiteDatabase) {
 						createLegacyRadioTables(db)
 						createPurposeParentTables(db)
+						db.execSQL("CREATE TABLE location_sample (id INTEGER NOT NULL PRIMARY KEY)")
+						db.execSQL("CREATE TABLE location_accepted_receipt (sample_id INTEGER NOT NULL PRIMARY KEY)")
+						db.execSQL("CREATE TABLE location_sample_purpose_authority (sample_id INTEGER NOT NULL, " +
+							"purpose TEXT NOT NULL, authority_id TEXT NOT NULL, PRIMARY KEY(sample_id, purpose, authority_id))")
+						db.execSQL("INSERT INTO location_sample VALUES (1)")
+						db.execSQL("INSERT INTO location_accepted_receipt VALUES (1)")
+						db.execSQL("INSERT INTO location_sample_purpose_authority VALUES (1, 'SESSION_CAPTURE', 'original')")
 						db.execSQL("CREATE TABLE source_policy (policy_revision INTEGER NOT NULL, source_kind INTEGER NOT NULL, " +
 							"PRIMARY KEY(policy_revision, source_kind))")
 						db.execSQL("INSERT INTO source_policy VALUES (1, 4), (1, 5)")
@@ -62,6 +73,18 @@ class RadioObservationChildMigrationTest {
 				"name = 'background_notification_host_enabled' AND type = 'INTEGER' AND \"notnull\" = 1 AND dflt_value = '0'") shouldBe 1L
 			readLong(db, "SELECT count(*) FROM pragma_table_info('ambient_wifi_fact_revision') WHERE name='purpose_demand_id'") shouldBe 1L
 			readLong(db, "SELECT count(*) FROM pragma_table_info('ambient_cell_fact_revision') WHERE name='purpose_demand_id'") shouldBe 1L
+			// Migration preserves old provenance as unknown; only new qualified writes can seal it.
+			readLong(db, "SELECT retained_proof_version FROM location_accepted_receipt WHERE sample_id=1") shouldBe 0L
+			readString(db, "SELECT retained_proof_checksum FROM location_accepted_receipt WHERE sample_id=1") shouldBe ""
+			readString(db, "SELECT retained_proof_checksum FROM location_sample_purpose_authority WHERE sample_id=1") shouldBe ""
+			readLong(db, "SELECT count(*) FROM location_file_archive") shouldBe 0L
+			db.execSQL("INSERT INTO location_file_archive VALUES ('archive', 'tracker-location', 1, 0, 2)")
+			db.execSQL("INSERT INTO location_file_archive_point VALUES ('archive', 0, 'point-1', 1), ('archive', 1, 'missing-point', NULL)")
+			db.execSQL("DELETE FROM location_sample WHERE id=1")
+			readLong(db, "SELECT count(*) FROM location_file_archive_point WHERE sample_id IS NULL") shouldBe 2L
+			readString(db, "SELECT portable_id FROM location_file_archive_point WHERE ordinal=0") shouldBe "point-1"
+			db.execSQL("DELETE FROM location_file_archive WHERE identity='archive'")
+			readLong(db, "SELECT count(*) FROM location_file_archive_point") shouldBe 0L
 			readString(db, "SELECT bssid FROM legacy_wifi_child WHERE legacy_row_id=7") shouldBe "aa:bb"
 			readString(db, "SELECT ssid FROM legacy_wifi_child WHERE legacy_row_id=7") shouldBe "Cafe"
 			readLong(db, "SELECT lat_e7 FROM legacy_wifi_child WHERE legacy_row_id=7") shouldBe 500000000L

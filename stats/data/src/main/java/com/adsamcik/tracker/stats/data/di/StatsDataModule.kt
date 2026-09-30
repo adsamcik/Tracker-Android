@@ -71,6 +71,11 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class StatsDataModule {
+	@Binds
+	@Singleton
+	abstract fun bindLocationFileArchiveRepository(
+		impl: com.adsamcik.tracker.stats.data.repository.RoomLocationFileArchiveRepository,
+	): com.adsamcik.tracker.stats.api.repository.LocationFileArchiveRepository
 
 	@Binds
 	@Singleton

@@ -329,6 +329,8 @@ internal const val CURRENT_DATABASE_VERSION = 29
 			// Sessionless architecture entities
 			LocationSample::class,
 			com.adsamcik.tracker.shared.base.database.data.LocationFileIdentityEntity::class,
+			com.adsamcik.tracker.shared.base.database.data.LocationFileArchiveEntity::class,
+			com.adsamcik.tracker.shared.base.database.data.LocationFileArchivePointEntity::class,
 			LocationObservation::class,
 			LocationProjectionObservationEntity::class,
 			LocationProjectionPointEntity::class,
@@ -1243,6 +1245,7 @@ abstract class AppDatabase : RoomDatabase() {
 			database.capturedRadioFactRetentionProofDao().deleteAll()
 
 			// Sessionless architecture tables
+			database.locationFileIdentityDao().deleteAllArchives()
 			database.locationSampleDao().deleteAll()
 			database.locationObservationDao().deleteAll()
 			database.locationObservationDecisionDao().deleteAll()

@@ -1226,6 +1226,8 @@ class LocationWalQualificationAdapterTest {
 		assertEquals(1, database.locationPurposeDao().visiblePathChunk(0, Long.MAX_VALUE, null, null, 10).size)
 		val receipt = requireNotNull(database.locationPurposeDao().receiptByEvent(EVENT_ID.value))
 		val purpose = database.locationPurposeDao().purposes(receipt.sampleId, 3).single()
+		assertTrue(com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(receipt))
+		assertTrue(com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(purpose, receipt))
 		assertEquals(SourceBrokerPurpose.AMBIENT_PRODUCT, purpose.purpose)
 		assertEquals(null, purpose.zoneId)
 		assertEquals(null, purpose.sessionSegmentId)

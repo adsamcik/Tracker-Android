@@ -1369,7 +1369,7 @@ private suspend fun AppDatabase.recordLocationCapturePurposeInCurrentTransaction
 	check(current.retainedFromMs?.let {
 		command.productEffect.derivedQualification.earliestPossibleWallTimeMs >= it
 	} != false)
-	val common = LocationAcceptedReceiptEntity(
+	val common = LocationAcceptedReceiptIntegrity.seal(LocationAcceptedReceiptEntity(
 		sampleId = sample.id,
 		sourceEventId = evidence.sourceEventId.value,
 		sourceSignalId = requireNotNull(sample.sourceSignalId),
@@ -1396,8 +1396,8 @@ private suspend fun AppDatabase.recordLocationCapturePurposeInCurrentTransaction
 		receivedWallTimeMs = clock.receivedWallTimeMs,
 		wallTimeUncertaintyMs = clock.wallTimeUncertaintyMs,
 		collectedDataEpoch = authority.capturedCollectedDataEpoch,
-	)
-	val association = LocationSamplePurposeAuthorityEntity(
+	))
+	val association = LocationAcceptedReceiptIntegrity.seal(LocationSamplePurposeAuthorityEntity(
 		sampleId = sample.id,
 		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
 		authorityId = authority.serviceRunId.value,
@@ -1417,15 +1417,17 @@ private suspend fun AppDatabase.recordLocationCapturePurposeInCurrentTransaction
 		retentionApprovalRevision = null,
 		scopeDeletionGeneration = 0,
 		zoneId = authority.zoneId,
-	)
+	), common)
 	val dao = locationPurposeDao()
 	if (dao.insertReceiptIfAbsent(common) == -1L) {
-		check(dao.receipt(common.sampleId) == common && dao.receiptByEvent(common.sourceEventId) == common) {
+		check(LocationAcceptedReceiptIntegrity.compatibleStoredReceipt(dao.receipt(common.sampleId), common) &&
+			LocationAcceptedReceiptIntegrity.compatibleStoredReceipt(dao.receiptByEvent(common.sourceEventId), common)) {
 			"Location accepted receipt collision"
 		}
 	}
 	if (dao.insertPurposeIfAbsent(association) == -1L) {
-		check(dao.purpose(sample.id, association.purpose, association.authorityId) == association) {
+		check(LocationAcceptedReceiptIntegrity.compatibleStoredPurpose(
+			dao.purpose(sample.id, association.purpose, association.authorityId), association)) {
 			"Location purpose authority collision"
 		}
 	}
