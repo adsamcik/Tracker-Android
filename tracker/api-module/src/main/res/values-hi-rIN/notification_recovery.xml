@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">ऊपर ले जाएँ</string>
+    <string name="settings_notification_move_down">नीचे ले जाएँ</string>
+    <string name="settings_notification_load_failed">सूचना सेटिंग लोड नहीं हो सकीं।</string>
+    <string name="settings_notification_save_failed">बदलाव सहेजे नहीं गए।</string>
+    <string name="settings_notification_retry">फिर कोशिश करें</string>
+    <string name="settings_notification_unsaved_exit">बदलाव सहेजने के लिए फिर कोशिश करें या बिना सहेजे बाहर जाएँ।</string>
+    <string name="settings_notification_leave_without_saving">बिना सहेजे बाहर जाएँ</string>
+</resources>

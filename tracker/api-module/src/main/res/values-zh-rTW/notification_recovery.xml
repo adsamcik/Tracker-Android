@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">上移</string>
+    <string name="settings_notification_move_down">下移</string>
+    <string name="settings_notification_load_failed">無法載入通知設定。</string>
+    <string name="settings_notification_save_failed">變更未儲存。</string>
+    <string name="settings_notification_retry">重試</string>
+    <string name="settings_notification_unsaved_exit">重試儲存變更，或不儲存並離開。</string>
+    <string name="settings_notification_leave_without_saving">不儲存並離開</string>
+</resources>

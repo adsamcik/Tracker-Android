@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Mută în sus</string>
+    <string name="settings_notification_move_down">Mută în jos</string>
+    <string name="settings_notification_load_failed">Setările notificărilor nu au putut fi încărcate.</string>
+    <string name="settings_notification_save_failed">Modificările nu au fost salvate.</string>
+    <string name="settings_notification_retry">Reîncearcă</string>
+    <string name="settings_notification_unsaved_exit">Încearcă din nou să salvezi modificările sau ieși fără să salvezi.</string>
+    <string name="settings_notification_leave_without_saving">Ieși fără salvare</string>
+</resources>

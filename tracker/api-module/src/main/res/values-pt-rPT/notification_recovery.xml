@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Mover para cima</string>
+    <string name="settings_notification_move_down">Mover para baixo</string>
+    <string name="settings_notification_load_failed">Não foi possível carregar as definições de notificações.</string>
+    <string name="settings_notification_save_failed">As alterações não foram guardadas.</string>
+    <string name="settings_notification_retry">Tentar novamente</string>
+    <string name="settings_notification_unsaved_exit">Tente guardar as alterações novamente ou saia sem guardar.</string>
+    <string name="settings_notification_leave_without_saving">Sair sem guardar</string>
+</resources>

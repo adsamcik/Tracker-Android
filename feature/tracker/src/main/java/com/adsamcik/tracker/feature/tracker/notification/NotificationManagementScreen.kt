@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.feature.tracker.notification
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
@@ -39,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,7 +63,10 @@ import com.adsamcik.tracker.tracker.notification.TrackerNotificationSetting
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationSettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -78,8 +83,12 @@ class NotificationManagementViewModel @Inject constructor(
 		private set
 	internal var saveFailed by mutableStateOf(false)
 		private set
+	internal var unsavedExitRequested by mutableStateOf(false)
+		private set
 	private var revision = 0L
 	private val saves = Channel<Pair<Long, List<TrackerNotificationSetting>>>(Channel.CONFLATED)
+	private val saveCompletion = MutableStateFlow(SaveCompletion(0L, succeeded = true))
+	private var exitJob: Job? = null
 
 	init {
 		viewModelScope.launch(dispatchers.io) {
@@ -88,12 +97,14 @@ class NotificationManagementViewModel @Inject constructor(
 					settingsRepository.saveSettings(settings)
 					withContext(dispatchers.main) {
 						if (savedRevision == revision) saveFailed = false
+						saveCompletion.value = SaveCompletion(savedRevision, succeeded = true)
 					}
 				} catch (cancelled: CancellationException) {
 					throw cancelled
 				} catch (_: Exception) {
 					withContext(dispatchers.main) {
 						if (savedRevision == revision) saveFailed = true
+						saveCompletion.value = SaveCompletion(savedRevision, succeeded = false)
 					}
 				}
 			}
@@ -152,6 +163,34 @@ class NotificationManagementViewModel @Inject constructor(
 		if (saveFailed) persist(items)
 	}
 
+	/** The route stays alive until its latest queued edit is saved or a visible failure occurs. */
+	fun exitWhenSaved(onBack: () -> Unit) {
+		if (exitJob?.isActive == true) return
+		if (saveFailed) {
+			unsavedExitRequested = true
+			return
+		}
+		exitJob = viewModelScope.launch {
+			val completion = saveCompletion.first { it.revision >= revision }
+			if (completion.succeeded) onBack() else unsavedExitRequested = true
+		}
+	}
+
+	fun dismissUnsavedExit() { unsavedExitRequested = false }
+
+	fun retrySaveAndExit(onBack: () -> Unit) {
+		unsavedExitRequested = false
+		retrySave()
+		exitWhenSaved(onBack)
+	}
+
+	fun leaveWithoutSaving(onBack: () -> Unit) {
+		if (!unsavedExitRequested || !saveFailed) return
+		unsavedExitRequested = false
+		exitJob?.cancel()
+		onBack()
+	}
+
 	fun updateFlags(id: String, inTitle: Boolean, inContent: Boolean) {
 		val updatedItems = items.map { item ->
 			if (item.id == id) {
@@ -167,9 +206,12 @@ class NotificationManagementViewModel @Inject constructor(
 	private fun persist(settings: List<TrackerNotificationSetting>) {
 		revision += 1
 		saveFailed = false
+		unsavedExitRequested = false
 		saves.trySend(revision to settings)
 	}
 }
+
+private data class SaveCompletion(val revision: Long, val succeeded: Boolean)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -179,14 +221,17 @@ fun NotificationManagementRoute(
 	val viewModel: NotificationManagementViewModel = hiltViewModel()
 	LaunchedEffect(viewModel) { viewModel.load() }
 	val items: List<TrackerNotificationSetting> = viewModel.items
+	val currentItems by rememberUpdatedState(items)
 	var editTarget by remember { mutableStateOf<TrackerNotificationSetting?>(null) }
+	val requestBack = { viewModel.exitWhenSaved(onBack) }
+	BackHandler(onBack = requestBack)
 
 	Scaffold(
 		topBar = {
 			TopAppBar(
 				title = { Text(stringResource(id = R.string.settings_notification_customize_title)) },
 				navigationIcon = {
-					IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_navigate_back)) }
+					IconButton(onClick = requestBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_navigate_back)) }
 				}
 			)
 		}
@@ -242,21 +287,37 @@ fun NotificationManagementRoute(
 									canMoveDown = index < items.lastIndex,
 									onMoveUp = { viewModel.moveItemAndPersist(index, index - 1) },
 									onMoveDown = { viewModel.moveItemAndPersist(index, index + 1) },
-									modifier = Modifier.pointerInput(items) {
+									modifier = Modifier.pointerInput(rowHeightPx) {
+										var dragDistance = 0f
+										var moved = false
 										detectDragGesturesAfterLongPress(
-											onDragStart = { viewModel.setDragging(index) },
-											onDragEnd = {
-												viewModel.setDragging(null)
-												viewModel.persistOrder()
+											onDragStart = {
+												dragDistance = 0f
+												moved = false
+												viewModel.setDragging(index)
 											},
-											onDragCancel = { viewModel.setDragging(null) },
+											onDragEnd = {
+												dragDistance = 0f
+												viewModel.setDragging(null)
+												if (moved) viewModel.persistOrder()
+											},
+											onDragCancel = {
+												dragDistance = 0f
+												viewModel.setDragging(null)
+												if (moved) viewModel.persistOrder()
+											},
 											onDrag = { change, dragAmount ->
 												change.consume()
 												val current = viewModel.draggingIndex ?: return@detectDragGesturesAfterLongPress
-												if (dragAmount.y > rowHeightPx / 2 && current < items.lastIndex) {
+												dragDistance += dragAmount.y
+												if (dragDistance > rowHeightPx / 2 && current < currentItems.lastIndex) {
 													viewModel.moveItem(current, current + 1)
-												} else if (dragAmount.y < -rowHeightPx / 2 && current > 0) {
+													moved = true
+													dragDistance = 0f
+												} else if (dragDistance < -rowHeightPx / 2 && current > 0) {
 													viewModel.moveItem(current, current - 1)
+													moved = true
+													dragDistance = 0f
 												}
 											},
 										)
@@ -277,6 +338,13 @@ fun NotificationManagementRoute(
 	}
 
 	val target = editTarget
+	if (viewModel.unsavedExitRequested) {
+		NotificationUnsavedExitDialog(
+			onDismiss = viewModel::dismissUnsavedExit,
+			onRetry = { viewModel.retrySaveAndExit(onBack) },
+			onLeave = { viewModel.leaveWithoutSaving(onBack) },
+		)
+	}
 	if (target != null) {
 		var inTitle by remember(target) { mutableStateOf(target.isInTitle) }
 		var inContent by remember(target) { mutableStateOf(target.isInContent) }
@@ -306,6 +374,25 @@ fun NotificationManagementRoute(
 			}
 		)
 	}
+}
+
+@Composable
+internal fun NotificationUnsavedExitDialog(
+	onDismiss: () -> Unit,
+	onRetry: () -> Unit,
+	onLeave: () -> Unit,
+) {
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		title = { Text(stringResource(R.string.settings_notification_save_failed)) },
+		text = { Text(stringResource(R.string.settings_notification_unsaved_exit)) },
+		confirmButton = {
+			TextButton(onClick = onRetry) { Text(stringResource(R.string.settings_notification_retry)) }
+		},
+		dismissButton = {
+			TextButton(onClick = onLeave) { Text(stringResource(R.string.settings_notification_leave_without_saving)) }
+		},
+	)
 }
 
 @Composable

@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.unit.dp
@@ -29,6 +30,35 @@ import org.robolectric.annotation.Config
 class NotificationManagementAccessibilityTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun failedSaveDialogOffersBothLocalizedActions() {
+        val application = ApplicationProvider.getApplicationContext<Context>()
+        val context = application.createConfigurationContext(
+            Configuration(application.resources.configuration).apply {
+                setLocales(LocaleList(Locale.forLanguageTag("cs-CZ")))
+            },
+        )
+        var retries = 0
+        var leaves = 0
+        composeRule.setContent {
+            CompositionLocalProvider(LocalContext provides context) {
+                MaterialTheme {
+                    NotificationUnsavedExitDialog(
+                        onDismiss = {},
+                        onRetry = { retries += 1 },
+                        onLeave = { leaves += 1 },
+                    )
+                }
+            }
+        }
+        composeRule.onNodeWithText(context.getString(R.string.settings_notification_unsaved_exit))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.settings_notification_retry)).performClick()
+        composeRule.onNodeWithText(context.getString(R.string.settings_notification_leave_without_saving)).performClick()
+        assertEquals(1, retries)
+        assertEquals(1, leaves)
+    }
 
     @Test
     fun activeFlagsAndEditUseAppResourcesAndEditInvokesItsAction() {

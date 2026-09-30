@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_unsaved_exit">Retry to save your changes, or leave without saving.</string>
+    <string name="settings_notification_leave_without_saving">Leave without saving</string>
+</resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Monter</string>
+    <string name="settings_notification_move_down">Descendre</string>
+    <string name="settings_notification_load_failed">Impossible de charger les paramètres de notification.</string>
+    <string name="settings_notification_save_failed">Les modifications n’ont pas été enregistrées.</string>
+    <string name="settings_notification_retry">Réessayer</string>
+    <string name="settings_notification_unsaved_exit">Réessayez d’enregistrer vos modifications ou quittez sans enregistrer.</string>
+    <string name="settings_notification_leave_without_saving">Quitter sans enregistrer</string>
+</resources>

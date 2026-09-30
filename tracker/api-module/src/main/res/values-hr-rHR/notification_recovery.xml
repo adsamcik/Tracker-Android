@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Pomakni gore</string>
+    <string name="settings_notification_move_down">Pomakni dolje</string>
+    <string name="settings_notification_load_failed">Postavke obavijesti nije moguće učitati.</string>
+    <string name="settings_notification_save_failed">Promjene nisu spremljene.</string>
+    <string name="settings_notification_retry">Pokušaj ponovno</string>
+    <string name="settings_notification_unsaved_exit">Pokušajte ponovno spremiti promjene ili izađite bez spremanja.</string>
+    <string name="settings_notification_leave_without_saving">Izađi bez spremanja</string>
+</resources>

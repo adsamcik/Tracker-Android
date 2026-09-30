@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Nach oben</string>
+    <string name="settings_notification_move_down">Nach unten</string>
+    <string name="settings_notification_load_failed">Benachrichtigungseinstellungen konnten nicht geladen werden.</string>
+    <string name="settings_notification_save_failed">Änderungen wurden nicht gespeichert.</string>
+    <string name="settings_notification_retry">Erneut versuchen</string>
+    <string name="settings_notification_unsaved_exit">Versuche erneut, deine Änderungen zu speichern, oder verlasse die Seite ohne zu speichern.</string>
+    <string name="settings_notification_leave_without_saving">Ohne Speichern verlassen</string>
+</resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Mexxi ’l fuq</string>
+    <string name="settings_notification_move_down">Mexxi ’l isfel</string>
+    <string name="settings_notification_load_failed">Ma setgħux jitgħabbew is-settings tan-notifiki.</string>
+    <string name="settings_notification_save_failed">Il-bidliet ma ġewx salvati.</string>
+    <string name="settings_notification_retry">Erġa’ pprova</string>
+    <string name="settings_notification_unsaved_exit">Erġa’ pprova ssalva l-bidliet, jew oħroġ mingħajr ma ssalva.</string>
+    <string name="settings_notification_leave_without_saving">Oħroġ mingħajr ma ssalva</string>
+</resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Liiguta üles</string>
+    <string name="settings_notification_move_down">Liiguta alla</string>
+    <string name="settings_notification_load_failed">Teavituste seadeid ei saanud laadida.</string>
+    <string name="settings_notification_save_failed">Muudatusi ei salvestatud.</string>
+    <string name="settings_notification_retry">Proovi uuesti</string>
+    <string name="settings_notification_unsaved_exit">Proovi muudatusi uuesti salvestada või lahku salvestamata.</string>
+    <string name="settings_notification_leave_without_saving">Lahku salvestamata</string>
+</resources>

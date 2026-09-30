@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Sposta su</string>
+    <string name="settings_notification_move_down">Sposta giù</string>
+    <string name="settings_notification_load_failed">Impossibile caricare le impostazioni delle notifiche.</string>
+    <string name="settings_notification_save_failed">Le modifiche non sono state salvate.</string>
+    <string name="settings_notification_retry">Riprova</string>
+    <string name="settings_notification_unsaved_exit">Riprova a salvare le modifiche oppure esci senza salvare.</string>
+    <string name="settings_notification_leave_without_saving">Esci senza salvare</string>
+</resources>

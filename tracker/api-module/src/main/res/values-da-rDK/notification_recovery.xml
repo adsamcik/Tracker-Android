@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Flyt op</string>
+    <string name="settings_notification_move_down">Flyt ned</string>
+    <string name="settings_notification_load_failed">Kunne ikke indlæse indstillinger for notifikationer.</string>
+    <string name="settings_notification_save_failed">Ændringerne blev ikke gemt.</string>
+    <string name="settings_notification_retry">Prøv igen</string>
+    <string name="settings_notification_unsaved_exit">Prøv at gemme ændringerne igen, eller forlad uden at gemme.</string>
+    <string name="settings_notification_leave_without_saving">Forlad uden at gemme</string>
+</resources>

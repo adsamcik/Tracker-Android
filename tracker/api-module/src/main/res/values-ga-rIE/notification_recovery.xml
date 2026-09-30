@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Bog suas</string>
+    <string name="settings_notification_move_down">Bog síos</string>
+    <string name="settings_notification_load_failed">Níorbh fhéidir socruithe fógraí a lódáil.</string>
+    <string name="settings_notification_save_failed">Níor sábháladh na hathruithe.</string>
+    <string name="settings_notification_retry">Bain triail eile as</string>
+    <string name="settings_notification_unsaved_exit">Bain triail eile as na hathruithe a shábháil, nó fág gan sábháil.</string>
+    <string name="settings_notification_leave_without_saving">Fág gan sábháil</string>
+</resources>

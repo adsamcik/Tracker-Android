@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Нагоре</string>
+    <string name="settings_notification_move_down">Надолу</string>
+    <string name="settings_notification_load_failed">Настройките за известия не могат да се заредят.</string>
+    <string name="settings_notification_save_failed">Промените не са запазени.</string>
+    <string name="settings_notification_retry">Опитайте отново</string>
+    <string name="settings_notification_unsaved_exit">Опитайте да запазите промените отново или излезте без запазване.</string>
+    <string name="settings_notification_leave_without_saving">Изход без запазване</string>
+</resources>

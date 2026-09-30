@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Premakni gor</string>
+    <string name="settings_notification_move_down">Premakni dol</string>
+    <string name="settings_notification_load_failed">Nastavitev obvestil ni bilo mogoče naložiti.</string>
+    <string name="settings_notification_save_failed">Spremembe niso bile shranjene.</string>
+    <string name="settings_notification_retry">Poskusi znova</string>
+    <string name="settings_notification_unsaved_exit">Poskusite znova shraniti spremembe ali zapustite brez shranjevanja.</string>
+    <string name="settings_notification_leave_without_saving">Zapusti brez shranjevanja</string>
+</resources>

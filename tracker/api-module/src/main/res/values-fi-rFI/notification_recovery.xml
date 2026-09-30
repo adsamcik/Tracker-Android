@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Siirrä ylös</string>
+    <string name="settings_notification_move_down">Siirrä alas</string>
+    <string name="settings_notification_load_failed">Ilmoitusasetuksia ei voitu ladata.</string>
+    <string name="settings_notification_save_failed">Muutoksia ei tallennettu.</string>
+    <string name="settings_notification_retry">Yritä uudelleen</string>
+    <string name="settings_notification_unsaved_exit">Yritä tallentaa muutokset uudelleen tai poistu tallentamatta.</string>
+    <string name="settings_notification_leave_without_saving">Poistu tallentamatta</string>
+</resources>

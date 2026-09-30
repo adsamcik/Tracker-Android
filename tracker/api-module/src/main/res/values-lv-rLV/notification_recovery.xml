@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Pārvietot augšup</string>
+    <string name="settings_notification_move_down">Pārvietot lejup</string>
+    <string name="settings_notification_load_failed">Neizdevās ielādēt paziņojumu iestatījumus.</string>
+    <string name="settings_notification_save_failed">Izmaiņas netika saglabātas.</string>
+    <string name="settings_notification_retry">Mēģināt vēlreiz</string>
+    <string name="settings_notification_unsaved_exit">Mēģiniet saglabāt izmaiņas vēlreiz vai izejiet bez saglabāšanas.</string>
+    <string name="settings_notification_leave_without_saving">Iziet bez saglabāšanas</string>
+</resources>

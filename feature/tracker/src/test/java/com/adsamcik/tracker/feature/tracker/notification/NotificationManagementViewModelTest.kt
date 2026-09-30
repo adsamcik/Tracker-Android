@@ -74,6 +74,21 @@ class NotificationManagementViewModelTest {
 	}
 
 	@Test
+	fun `a multi-step drag saves its final order on release`() = runTest(dispatcher) {
+		val repository = FakeTrackerNotificationSettingsRepository(settings())
+		val viewModel = viewModel(repository)
+		viewModel.load()
+		viewModel.setDragging(0)
+		viewModel.moveItem(0, 1)
+		viewModel.moveItem(1, 2)
+		repository.saved.size shouldBe 0
+		viewModel.setDragging(null)
+		viewModel.persistOrder()
+		repository.saved.single().map(TrackerNotificationSetting::id)
+			.shouldContainExactly("altitude", "battery", "activity")
+	}
+
+	@Test
 	fun `failed load can be retried without losing the screen`() = runTest(dispatcher) {
 		val repository = FakeTrackerNotificationSettingsRepository(settings()).apply { failNextLoad = true }
 		val viewModel = viewModel(repository)
@@ -112,6 +127,117 @@ class NotificationManagementViewModelTest {
 			.shouldContainExactly("altitude", "battery", "activity")
 		repository.saved.size shouldBe 2
 		repository.saved.last().shouldContainExactly(viewModel.items)
+	}
+
+	@Test
+	fun `an older failed save does not prompt when the latest queued choices save`() = runTest(dispatcher) {
+		val firstSave = CompletableDeferred<Unit>()
+		val repository = FakeTrackerNotificationSettingsRepository(settings()).apply {
+			firstSaveGate = firstSave
+			failNextSave = true
+		}
+		val viewModel = viewModel(repository)
+		var exits = 0
+		viewModel.load()
+		viewModel.moveItemAndPersist(0, 1)
+		viewModel.moveItemAndPersist(1, 2)
+		viewModel.exitWhenSaved { exits += 1 }
+		firstSave.complete(Unit)
+		exits shouldBe 1
+		viewModel.unsavedExitRequested shouldBe false
+		viewModel.saveFailed shouldBe false
+		repository.saved.single().shouldContainExactly(viewModel.items)
+	}
+
+	@Test
+	fun `Back waits for the latest pending save before leaving`() = runTest(dispatcher) {
+		val firstSave = CompletableDeferred<Unit>()
+		val repository = FakeTrackerNotificationSettingsRepository(settings()).apply { firstSaveGate = firstSave }
+		val viewModel = viewModel(repository)
+		var exits = 0
+		viewModel.load()
+		viewModel.moveItemAndPersist(0, 1)
+		viewModel.exitWhenSaved { exits += 1 }
+		exits shouldBe 0
+		viewModel.unsavedExitRequested shouldBe false
+		firstSave.complete(Unit)
+		exits shouldBe 1
+		viewModel.unsavedExitRequested shouldBe false
+		repository.saved.single().shouldContainExactly(viewModel.items)
+	}
+
+	@Test
+	fun `failed pending save keeps the screen open with retry available`() = runTest(dispatcher) {
+		val firstSave = CompletableDeferred<Unit>()
+		val repository = FakeTrackerNotificationSettingsRepository(settings()).apply {
+			firstSaveGate = firstSave
+			failNextSave = true
+		}
+		val viewModel = viewModel(repository)
+		var exits = 0
+		viewModel.load()
+		viewModel.moveItemAndPersist(0, 1)
+		viewModel.exitWhenSaved { exits += 1 }
+		firstSave.complete(Unit)
+		exits shouldBe 0
+		viewModel.saveFailed shouldBe true
+		viewModel.unsavedExitRequested shouldBe true
+		viewModel.retrySave()
+		viewModel.saveFailed shouldBe false
+		repository.saved.single().shouldContainExactly(viewModel.items)
+	}
+
+	@Test
+	fun `failed save prompts on Back and Retry saves edits before leaving`() = runTest(dispatcher) {
+		val repository = FakeTrackerNotificationSettingsRepository(settings()).apply { failNextSave = true }
+		val viewModel = viewModel(repository)
+		var exits = 0
+		viewModel.load()
+		viewModel.moveItemAndPersist(0, 2)
+		viewModel.unsavedExitRequested shouldBe false
+		viewModel.exitWhenSaved { exits += 1 }
+		viewModel.unsavedExitRequested shouldBe true
+		exits shouldBe 0
+		viewModel.retrySaveAndExit { exits += 1 }
+		exits shouldBe 1
+		viewModel.unsavedExitRequested shouldBe false
+		repository.saved.single().shouldContainExactly(viewModel.items)
+	}
+
+	@Test
+	fun `Leave without saving requires a failed save and keeps edits until chosen`() = runTest(dispatcher) {
+		val repository = FakeTrackerNotificationSettingsRepository(settings()).apply { failNextSave = true }
+		val viewModel = viewModel(repository)
+		var exits = 0
+		viewModel.load()
+		viewModel.moveItemAndPersist(0, 2)
+		viewModel.leaveWithoutSaving { exits += 1 }
+		exits shouldBe 0
+		viewModel.exitWhenSaved { exits += 1 }
+		viewModel.items.map(TrackerNotificationSetting::id)
+			.shouldContainExactly("altitude", "battery", "activity")
+		viewModel.leaveWithoutSaving { exits += 1 }
+		exits shouldBe 1
+		viewModel.unsavedExitRequested shouldBe false
+		repository.saved shouldBe emptyList()
+	}
+
+	@Test
+	fun `dismissing failed-save exit keeps edits and a repeated failure asks again`() = runTest(dispatcher) {
+		val repository = FakeTrackerNotificationSettingsRepository(settings()).apply { failNextSave = true }
+		val viewModel = viewModel(repository)
+		var exits = 0
+		viewModel.load()
+		viewModel.updateFlags("activity", inTitle = true, inContent = true)
+		viewModel.exitWhenSaved { exits += 1 }
+		viewModel.dismissUnsavedExit()
+		viewModel.unsavedExitRequested shouldBe false
+		viewModel.items.first().isInTitle shouldBe true
+		viewModel.exitWhenSaved { exits += 1 }
+		repository.failNextSave = true
+		viewModel.retrySaveAndExit { exits += 1 }
+		viewModel.unsavedExitRequested shouldBe true
+		exits shouldBe 0
 	}
 
 	private fun viewModel(

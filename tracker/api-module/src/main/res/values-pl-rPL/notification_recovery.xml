@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Przenieś w górę</string>
+    <string name="settings_notification_move_down">Przenieś w dół</string>
+    <string name="settings_notification_load_failed">Nie udało się wczytać ustawień powiadomień.</string>
+    <string name="settings_notification_save_failed">Zmiany nie zostały zapisane.</string>
+    <string name="settings_notification_retry">Spróbuj ponownie</string>
+    <string name="settings_notification_unsaved_exit">Spróbuj ponownie zapisać zmiany lub wyjdź bez zapisywania.</string>
+    <string name="settings_notification_leave_without_saving">Wyjdź bez zapisywania</string>
+</resources>

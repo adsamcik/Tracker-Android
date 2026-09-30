@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Omhoog</string>
+    <string name="settings_notification_move_down">Omlaag</string>
+    <string name="settings_notification_load_failed">Meldingsinstellingen konden niet worden geladen.</string>
+    <string name="settings_notification_save_failed">Wijzigingen zijn niet opgeslagen.</string>
+    <string name="settings_notification_retry">Opnieuw proberen</string>
+    <string name="settings_notification_unsaved_exit">Probeer je wijzigingen opnieuw op te slaan of verlaat dit scherm zonder op te slaan.</string>
+    <string name="settings_notification_leave_without_saving">Verlaten zonder opslaan</string>
+</resources>

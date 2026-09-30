@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Perkelti aukštyn</string>
+    <string name="settings_notification_move_down">Perkelti žemyn</string>
+    <string name="settings_notification_load_failed">Nepavyko įkelti pranešimų nustatymų.</string>
+    <string name="settings_notification_save_failed">Pakeitimai neišsaugoti.</string>
+    <string name="settings_notification_retry">Bandyti dar kartą</string>
+    <string name="settings_notification_unsaved_exit">Bandykite dar kartą išsaugoti pakeitimus arba išeikite neišsaugoję.</string>
+    <string name="settings_notification_leave_without_saving">Išeiti neišsaugojus</string>
+</resources>

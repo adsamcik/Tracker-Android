@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">上へ移動</string>
+    <string name="settings_notification_move_down">下へ移動</string>
+    <string name="settings_notification_load_failed">通知設定を読み込めませんでした。</string>
+    <string name="settings_notification_save_failed">変更は保存されませんでした。</string>
+    <string name="settings_notification_retry">再試行</string>
+    <string name="settings_notification_unsaved_exit">変更の保存を再試行するか、保存せずに戻ってください。</string>
+    <string name="settings_notification_leave_without_saving">保存せずに戻る</string>
+</resources>

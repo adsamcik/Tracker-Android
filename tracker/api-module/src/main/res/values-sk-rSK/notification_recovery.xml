@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_move_up">Posunúť nahor</string>
+    <string name="settings_notification_move_down">Posunúť nadol</string>
+    <string name="settings_notification_load_failed">Nastavenia oznámení sa nepodarilo načítať.</string>
+    <string name="settings_notification_save_failed">Zmeny sa nepodarilo uložiť.</string>
+    <string name="settings_notification_retry">Skúsiť znova</string>
+    <string name="settings_notification_unsaved_exit">Skúste zmeny uložiť znova alebo odíďte bez uloženia.</string>
+    <string name="settings_notification_leave_without_saving">Odísť bez uloženia</string>
+</resources>

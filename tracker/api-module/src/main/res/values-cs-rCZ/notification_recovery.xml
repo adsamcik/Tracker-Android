@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_notification_unsaved_exit">Zkuste změny uložit znovu, nebo odejděte bez uložení.</string>
+    <string name="settings_notification_leave_without_saving">Odejít bez uložení</string>
+</resources>
