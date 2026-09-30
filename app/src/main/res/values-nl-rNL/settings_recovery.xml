@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Wijzigingen zijn niet opgeslagen. Je keuzes blijven hier behouden.</string>
+    <string name="settings_save_retry">Opnieuw proberen</string>
+    <string name="settings_choices_not_applied">Tracking kon je opgeslagen keuzes nog niet toepassen.</string>
+    <string name="settings_source_policy_unavailable_title">Trackinginstellingen niet beschikbaar</string>
+    <string name="settings_source_policy_unavailable_summary">Je opgeslagen keuzes blijven behouden. Tracking is gepauzeerd totdat de instellingen beschikbaar zijn.</string>
+    <string name="settings_steps_allow_background_updates">Sta stapupdates op de achtergrond toe</string>
+</resources>

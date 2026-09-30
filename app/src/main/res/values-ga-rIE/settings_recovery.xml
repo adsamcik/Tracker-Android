@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Níor sábháladh na hathruithe. Coinnítear do roghanna anseo.</string>
+    <string name="settings_save_retry">Bain triail eile as</string>
+    <string name="settings_choices_not_applied">Níorbh fhéidir leis an rianú do roghanna sábháilte a chur i bhfeidhm fós.</string>
+    <string name="settings_source_policy_unavailable_title">Níl socruithe rianaithe ar fáil</string>
+    <string name="settings_source_policy_unavailable_summary">Coinnítear do roghanna sábháilte. Tá an rianú ar sos go dtí go mbeidh na socruithe ar fáil.</string>
+    <string name="settings_steps_allow_background_updates">Ceadaigh nuashonruithe céimeanna sa chúlra</string>
+</resources>

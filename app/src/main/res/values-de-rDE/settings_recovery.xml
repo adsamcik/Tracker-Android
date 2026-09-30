@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Änderungen wurden nicht gespeichert. Deine Auswahl bleibt hier erhalten.</string>
+    <string name="settings_save_retry">Erneut versuchen</string>
+    <string name="settings_choices_not_applied">Tracking konnte deine gespeicherte Auswahl noch nicht anwenden.</string>
+    <string name="settings_source_policy_unavailable_title">Tracking-Einstellungen nicht verfügbar</string>
+    <string name="settings_source_policy_unavailable_summary">Deine gespeicherte Auswahl bleibt erhalten. Tracking ist pausiert, bis die Einstellungen verfügbar sind.</string>
+    <string name="settings_steps_allow_background_updates">Schrittupdates im Hintergrund erlauben</string>
+</resources>

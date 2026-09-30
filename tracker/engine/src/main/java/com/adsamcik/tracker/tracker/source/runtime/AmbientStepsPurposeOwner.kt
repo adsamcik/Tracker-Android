@@ -8,9 +8,12 @@ import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsDemandBlockReason
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsDemandReconciliation
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsImportAccess
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsPermission
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProvider
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProviderLifecycleOwner
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProviderRegistrationResult
+import com.adsamcik.tracker.tracker.worker.AmbientStepsImportWorkScheduler
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,12 +40,17 @@ internal interface AmbientStepsPurposeOwner {
 @Singleton
 internal class DefaultAmbientStepsPurposeOwner @Inject constructor(
 	private val lifecycleOwner: AmbientStepsProviderLifecycleOwner,
+	private val importScheduler: AmbientStepsImportWorkScheduler,
 ) : AmbientStepsPurposeOwner {
+	private var scheduledRegistrationGeneration: Long? = null
+
 	override suspend fun reconcile(
 		lease: AmbientReconciliationLease,
 	): AmbientSourceOperationalAvailability {
 		require(lease.identity.source == AmbientTrackingSource.STEPS)
-		return lifecycleOwner.reconcile(lease).toPurposeAvailability(lease)
+		val result = lifecycleOwner.reconcile(lease)
+		updateImportWork(result)
+		return result.toPurposeAvailability(lease)
 	}
 
 	override suspend fun reconcileForRetentionFloor(
@@ -51,10 +59,12 @@ internal class DefaultAmbientStepsPurposeOwner @Inject constructor(
 	): AmbientSourceOperationalAvailability {
 		require(lease.identity.source == AmbientTrackingSource.STEPS)
 		require(settlementOperationId.isNotBlank())
-		return lifecycleOwner.reconcileForRetentionFloor(
+		val result = lifecycleOwner.reconcileForRetentionFloor(
 			lease,
 			settlementOperationId,
-		).toPurposeAvailability(lease)
+		)
+		updateImportWork(result)
+		return result.toPurposeAvailability(lease)
 	}
 
 	override suspend fun retireAfterRetentionAuthorityFailure(
@@ -62,19 +72,55 @@ internal class DefaultAmbientStepsPurposeOwner @Inject constructor(
 	): Boolean {
 		previousLease?.let { require(it.identity.source == AmbientTrackingSource.STEPS) }
 		val result = lifecycleOwner.retireAfterRetentionAuthorityFailure(previousLease)
+		importScheduler.cancel()
+		scheduledRegistrationGeneration = null
 		return result.complete && !result.operational
 	}
 
 	override suspend fun closeForCollectedDataDeletion(
 		previousLease: AmbientReconciliationLease?,
-	): Boolean = lifecycleOwner.closeForCollectedDataDeletion().complete
+	): Boolean {
+		importScheduler.cancel()
+		scheduledRegistrationGeneration = null
+		return lifecycleOwner.closeForCollectedDataDeletion().complete
+	}
+
+	private suspend fun updateImportWork(result: AmbientStepsProviderRegistrationResult) {
+		when (result) {
+			is AmbientStepsProviderRegistrationResult.Active -> {
+				importScheduler.reconcile(
+					backgroundAllowed = result.importAccess == AmbientStepsImportAccess.BACKGROUND_ALLOWED,
+					requestNow = scheduledRegistrationGeneration != result.registrationGeneration ||
+						result.rearmedInThisProcess,
+				)
+				scheduledRegistrationGeneration = result.registrationGeneration
+			}
+			is AmbientStepsProviderRegistrationResult.Inactive -> {
+				importScheduler.cancel()
+				scheduledRegistrationGeneration = null
+			}
+			is AmbientStepsProviderRegistrationResult.Degraded,
+			is AmbientStepsProviderRegistrationResult.Failed -> Unit
+		}
+	}
 }
 
 private fun AmbientStepsProviderRegistrationResult.toPurposeAvailability(
 	lease: AmbientReconciliationLease,
 ): AmbientSourceOperationalAvailability = when (this) {
-	is AmbientStepsProviderRegistrationResult.Active ->
-		AmbientSourceOperationalAvailability.ready(
+	is AmbientStepsProviderRegistrationResult.Active -> if (
+		provider == AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS &&
+		importAccess == AmbientStepsImportAccess.FOREGROUND_ONLY &&
+		AmbientStepsPermission.HEALTH_CONNECT_BACKGROUND_READ in optionalPermissions
+	) {
+		AmbientSourceOperationalAvailability(
+			source = AmbientTrackingSource.STEPS,
+			state = AmbientSourceOperationalState.DEGRADED,
+			mechanism = AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+			reason = AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL,
+			operationalIdentity = lease.purposeLeaseIdentity,
+		)
+	} else AmbientSourceOperationalAvailability.ready(
 			AmbientTrackingSource.STEPS,
 			provider.toPurposeMechanism(),
 			lease.purposeLeaseIdentity,

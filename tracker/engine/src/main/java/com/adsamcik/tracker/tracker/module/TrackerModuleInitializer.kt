@@ -1,11 +1,16 @@
 package com.adsamcik.tracker.tracker.module
 
 import android.content.Context
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticFailureCode
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticWarningCode
 import com.adsamcik.tracker.diagnostics.TrackingDiagnosticFailureReason
 import com.adsamcik.tracker.shared.base.Process
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -26,6 +31,7 @@ import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProviderReg
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
+import com.adsamcik.tracker.tracker.worker.AmbientStepsImportWorkScheduler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -34,6 +40,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
@@ -53,6 +60,8 @@ class TrackerModuleInitializer @Inject constructor(
 	private val trackingPurposeSettingsReconciler: TrackingPurposeSettingsReconciler,
 	private val sourcePolicyRevisionReconciliationCoordinator:
 		SourcePolicyRevisionReconciliationCoordinator,
+	private val ambientStepsImportScheduler: AmbientStepsImportWorkScheduler,
+	private val dispatchers: DispatchersProvider,
 ) : ModuleInitializer {
 	override val priority: Int = 20
 	private val initializationGate = TrackerModuleInitializationGate()
@@ -62,6 +71,13 @@ class TrackerModuleInitializer @Inject constructor(
 		if (!initializationGate.tryStart()) return
 
 		applicationScope.launch {
+			// Register independently of another source's repair debt. The worker checks startup,
+			// user-stop and Steps authority before any provider access.
+			withContext(dispatchers.main) {
+				registerAmbientStepsForegroundImports(
+					ProcessLifecycleOwner.get().lifecycle, applicationScope, ambientStepsImportScheduler,
+				)
+			}
 			while (true) {
 				try {
 					handoffTrackerInitializationAfterAuthorization(
@@ -201,6 +217,27 @@ internal suspend fun reconcileStartupAndPendingTurnOff(
 		throw TrackerTurnOffRecoveryPendingException()
 	}
 	return startup
+}
+
+/** An open/reopen requests a bounded copy; the worker retains all collection authority checks. */
+internal fun registerAmbientStepsForegroundImports(
+	lifecycle: Lifecycle,
+	scope: CoroutineScope,
+	scheduler: AmbientStepsImportWorkScheduler,
+) {
+	lifecycle.addObserver(object : DefaultLifecycleObserver {
+		override fun onStart(owner: LifecycleOwner) {
+			scope.launch {
+				try {
+					scheduler.requestNow()
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (_: Exception) {
+					// A later foreground/hourly opportunity retries the same saved cursor.
+				}
+			}
+		}
+	})
 }
 
 private const val STARTUP_AUTHORITY_RETRY_DELAY_MS = 1_000L

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">變更未儲存。您的選擇仍保留在此頁面。</string>
+    <string name="settings_save_retry">重試</string>
+    <string name="settings_choices_not_applied">追蹤暫時無法套用您已儲存的選擇。</string>
+    <string name="settings_source_policy_unavailable_title">追蹤設定無法使用</string>
+    <string name="settings_source_policy_unavailable_summary">已儲存的選擇仍會保留。設定可用之前，追蹤會暫停。</string>
+    <string name="settings_steps_allow_background_updates">允許背景更新步數</string>
+</resources>

@@ -5,10 +5,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Explicit, dormant command for one already-accepted Ambient Steps provider replacement.
+ * One already-accepted Ambient Steps provider replacement.
  *
  * The provider-registration owner must invoke this before removing the RETIRING predecessor. It is
- * deliberately not wired to lifecycle scheduling yet: activation remains a separate rollout gate.
+ * drained before its provider is removed; an unavailable reader leaves an explicit gap.
  */
 internal data class AmbientStepsProviderHandoffCommand(
 	val predecessorRegistrationGeneration: Long,
@@ -17,6 +17,7 @@ internal data class AmbientStepsProviderHandoffCommand(
 	val observedElapsedRealtimeNanos: Long,
 	val observedAtMs: Long,
 	val zoneId: ZoneId,
+	val predecessorReadAllowed: Boolean = true,
 ) {
 	init {
 		require(predecessorRegistrationGeneration > 0L)

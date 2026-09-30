@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">A módosítások nem lettek mentve. A választásaid itt megmaradnak.</string>
+    <string name="settings_save_retry">Újrapróbálás</string>
+    <string name="settings_choices_not_applied">A követés még nem tudta alkalmazni a mentett választásaidat.</string>
+    <string name="settings_source_policy_unavailable_title">A követési beállítások nem érhetők el</string>
+    <string name="settings_source_policy_unavailable_summary">A mentett választásaid megmaradnak. A követés szünetel, amíg a beállítások elérhetővé nem válnak.</string>
+    <string name="settings_steps_allow_background_updates">Lépésadatok frissítése a háttérben</string>
+</resources>

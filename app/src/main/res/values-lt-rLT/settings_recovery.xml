@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Pakeitimai neišsaugoti. Jūsų pasirinkimai išlieka čia.</string>
+    <string name="settings_save_retry">Bandyti dar kartą</string>
+    <string name="settings_choices_not_applied">Sekimas dar negalėjo pritaikyti jūsų išsaugotų pasirinkimų.</string>
+    <string name="settings_source_policy_unavailable_title">Sekimo nustatymai nepasiekiami</string>
+    <string name="settings_source_policy_unavailable_summary">Išsaugoti pasirinkimai išlieka. Sekimas pristabdytas, kol nustatymai bus pasiekiami.</string>
+    <string name="settings_steps_allow_background_updates">Leisti žingsnių duomenų atnaujinimus fone</string>
+</resources>

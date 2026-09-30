@@ -202,6 +202,44 @@ class AmbientStepsProviderHandoffCoordinatorTest {
 	}
 
 	@Test
+	fun `no predecessor read permission records a gap without calling the provider`() = runTest {
+		val reader = HandoffRecordingReader { _, _ -> error("read is not permitted") }
+		val importer = subject(reader)
+		primeZone(importer)
+		val successor = acceptReplacement(5_501L)
+
+		val result = AmbientStepsProviderHandoffCoordinator(importer).execute(
+			handoffCommand(successor, observedAtMs = 7_000L).copy(predecessorReadAllowed = false),
+		) as AmbientStepsProviderHandoffResult.Completed
+
+		result.drainDisposition shouldBe AmbientStepsProviderDrainDisposition.UNAVAILABLE
+		reader.windows shouldBe emptyList()
+		database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
+		val gap = database.ambientStepsImportStateDao().gaps(predecessor.state.registrationGeneration).single()
+		gap.gapStartTimeMs shouldBe 2_000L
+		gap.gapEndTimeMs shouldBe 6_000L
+	}
+
+	@Test
+	fun `permission revoked during final read permits retirement with honest undrained gap`() = runTest {
+		val reader = HandoffRecordingReader { _, _ -> throw SecurityException("permission revoked") }
+		val importer = subject(reader)
+		primeZone(importer)
+		val successor = acceptReplacement(5_501L)
+
+		val result = AmbientStepsProviderHandoffCoordinator(importer).execute(
+			handoffCommand(successor, observedAtMs = 7_000L),
+		) as AmbientStepsProviderHandoffResult.Completed
+
+		result.drainDisposition shouldBe AmbientStepsProviderDrainDisposition.UNAVAILABLE
+		reader.windows.size shouldBe 1
+		database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
+		val gap = database.ambientStepsImportStateDao().gaps(predecessor.state.registrationGeneration).single()
+		gap.gapStartTimeMs shouldBe 2_000L
+		gap.gapEndTimeMs shouldBe 6_000L
+	}
+
+	@Test
 	fun `one bounded old-provider read leaves a multi-day tail as a gap`() = runTest {
 		val reader = HandoffRecordingReader { window, observedAtMs ->
 			AmbientStepsProviderAggregate(

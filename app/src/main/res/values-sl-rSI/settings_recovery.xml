@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Spremembe niso bile shranjene. Vaše izbire ostanejo tukaj.</string>
+    <string name="settings_save_retry">Poskusi znova</string>
+    <string name="settings_choices_not_applied">Sledenje še ni moglo uporabiti vaših shranjenih izbir.</string>
+    <string name="settings_source_policy_unavailable_title">Nastavitve sledenja niso na voljo</string>
+    <string name="settings_source_policy_unavailable_summary">Shranjene izbire so ohranjene. Sledenje je začasno ustavljeno, dokler nastavitve niso na voljo.</string>
+    <string name="settings_steps_allow_background_updates">Dovoli posodabljanje korakov v ozadju</string>
+</resources>

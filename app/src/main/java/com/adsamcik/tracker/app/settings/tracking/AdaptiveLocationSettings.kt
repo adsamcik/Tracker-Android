@@ -109,7 +109,7 @@ internal fun AdaptiveLocationSettings(
 				}
 			}
 		}
-		if (state.locationSettingsSaveFailed) {
+		if (state.locationSettingsSaveFailed && !state.settingsSaveFailed) {
 			Text(stringResource(R.string.settings_location_save_failed), color = MaterialTheme.colorScheme.error)
 		}
 	}

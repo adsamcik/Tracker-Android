@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">बदलाव सहेजे नहीं गए। आपकी पसंद इस स्क्रीन पर बनी हुई है।</string>
+    <string name="settings_save_retry">फिर कोशिश करें</string>
+    <string name="settings_choices_not_applied">ट्रैकिंग अभी आपकी सहेजी गई पसंद लागू नहीं कर सकी।</string>
+    <string name="settings_source_policy_unavailable_title">ट्रैकिंग सेटिंग उपलब्ध नहीं हैं</string>
+    <string name="settings_source_policy_unavailable_summary">सहेजी गई पसंद बनी रहती है। सेटिंग उपलब्ध होने तक ट्रैकिंग रुकी हुई है।</string>
+    <string name="settings_steps_allow_background_updates">बैकग्राउंड में कदमों की संख्या अपडेट करने दें</string>
+</resources>

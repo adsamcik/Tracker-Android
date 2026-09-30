@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Οι αλλαγές δεν αποθηκεύτηκαν. Οι επιλογές σας διατηρούνται εδώ.</string>
+    <string name="settings_save_retry">Δοκιμή ξανά</string>
+    <string name="settings_choices_not_applied">Η παρακολούθηση δεν μπόρεσε ακόμη να εφαρμόσει τις αποθηκευμένες επιλογές σας.</string>
+    <string name="settings_source_policy_unavailable_title">Οι ρυθμίσεις παρακολούθησης δεν είναι διαθέσιμες</string>
+    <string name="settings_source_policy_unavailable_summary">Οι αποθηκευμένες επιλογές διατηρούνται. Η παρακολούθηση είναι σε παύση μέχρι να είναι διαθέσιμες οι ρυθμίσεις.</string>
+    <string name="settings_steps_allow_background_updates">Να επιτρέπονται ενημερώσεις βημάτων στο παρασκήνιο</string>
+</resources>

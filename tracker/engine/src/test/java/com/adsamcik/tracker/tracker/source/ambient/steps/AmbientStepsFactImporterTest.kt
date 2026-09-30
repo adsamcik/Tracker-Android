@@ -2,8 +2,11 @@ package com.adsamcik.tracker.tracker.source.ambient.steps
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.ListenableWorker
+import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingCollectionResumeBoundary
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerLookupKey
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerRead
@@ -33,11 +36,18 @@ import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
 import com.adsamcik.tracker.tracker.source.runtime.TestLiveAmbientRetentionAuthorityReader
 import com.adsamcik.tracker.tracker.source.runtime.LiveAmbientRetentionSnapshot
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
+import com.adsamcik.tracker.tracker.worker.AmbientStepsImportWorker
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.coEvery
+import io.mockk.coVerify
 import java.time.ZoneId
+import java.util.TimeZone
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
@@ -673,11 +683,15 @@ class AmbientStepsFactImporterTest {
 			val prague = ZoneId.of("Europe/Prague")
 
 			importer.importNext(
-				importBoundary(through = 5_000L, observedAt = 8_000L, zoneId = prague),
+				importBoundary(
+					through = ZONE_CASE_DAY_START_MS + 5_000L,
+					observedAt = ZONE_CASE_DAY_START_MS + 8_000L,
+					zoneId = prague,
+				),
 			) shouldBe AmbientStepsImportResult.Gap(
 				reason = AmbientStepsImportGapReason.INITIAL_ZONE_AUTHORITY_UNOBSERVED,
 				fromTimeMs = 2_000L,
-				toTimeMs = 5_000L,
+				toTimeMs = ZONE_CASE_DAY_START_MS + 5_000L,
 			)
 
 			reader.windows shouldBe emptyList()
@@ -690,20 +704,23 @@ class AmbientStepsFactImporterTest {
 			val cursor = requireNotNull(
 				database.ambientStepsImportStateDao().cursor(registration.state.registrationGeneration),
 			)
-			cursor.segmentStartTimeMs shouldBe 5_000L
-			cursor.importedThroughTimeMs shouldBe 5_000L
+			cursor.segmentStartTimeMs shouldBe ZONE_CASE_DAY_START_MS + 5_000L
+			cursor.importedThroughTimeMs shouldBe ZONE_CASE_DAY_START_MS + 5_000L
 			cursor.lastObservedZoneId shouldBe prague.id
 
-			clock.setTime(9_000L)
+			clock.setTime(ZONE_CASE_DAY_START_MS + 9_000L)
 			val applied = importer.importNext(
 				importBoundary(
-					through = 7_000L,
-					observedAt = 9_000L,
-					observedElapsed = 9_000L,
+					through = ZONE_CASE_DAY_START_MS + 7_000L,
+					observedAt = ZONE_CASE_DAY_START_MS + 9_000L,
+					observedElapsed = ZONE_CASE_DAY_START_MS + 9_000L,
 					zoneId = prague,
 				),
 			) as AmbientStepsImportResult.Applied
-			applied.window shouldBe AmbientStepsProviderReadWindow(5_000L, 7_000L)
+			applied.window shouldBe AmbientStepsProviderReadWindow(
+				ZONE_CASE_DAY_START_MS + 5_000L,
+				ZONE_CASE_DAY_START_MS + 7_000L,
+			)
 		}
 
 	@Test
@@ -713,40 +730,43 @@ class AmbientStepsFactImporterTest {
 		}
 		val importer = subject(reader)
 		primeZone(importer)
-		importer.importNext(importBoundary()) as AmbientStepsImportResult.Applied
+		advanceUtcCursorToNextDay(importer)
 		val readsBefore = reader.windows.size
 		val prague = ZoneId.of("Europe/Prague")
 
 		importer.importNext(
 			importBoundary(
-				through = 7_000L,
-				observedAt = 8_000L,
+				through = ZONE_CASE_DAY_START_MS + 7_000L,
+				observedAt = ZONE_CASE_DAY_START_MS + 9_000L,
 				zoneId = prague,
 			),
 		) shouldBe AmbientStepsImportResult.Gap(
 			reason = AmbientStepsImportGapReason.ZONE_CHANGED,
-			fromTimeMs = 5_000L,
-			toTimeMs = 7_000L,
+			fromTimeMs = ZONE_CASE_DAY_START_MS + 5_000L,
+			toTimeMs = ZONE_CASE_DAY_START_MS + 7_000L,
 		)
 		reader.windows.size shouldBe readsBefore
 		val gap = database.ambientStepsImportStateDao().gaps(
 			registration.state.registrationGeneration,
 		).single()
-		gap.gapStartTimeMs shouldBe 5_000L
-		gap.gapEndTimeMs shouldBe 7_000L
+		gap.gapStartTimeMs shouldBe ZONE_CASE_DAY_START_MS + 5_000L
+		gap.gapEndTimeMs shouldBe ZONE_CASE_DAY_START_MS + 7_000L
 		gap.previousZoneId shouldBe "UTC"
 		gap.nextZoneId shouldBe prague.id
 
-		clock.setTime(9_000L)
+		clock.setTime(ZONE_CASE_DAY_START_MS + 10_000L)
 		val resumed = importer.importNext(
 			importBoundary(
-				through = 8_000L,
-				observedAt = 9_000L,
-				observedElapsed = 9_000L,
+				through = ZONE_CASE_DAY_START_MS + 8_000L,
+				observedAt = ZONE_CASE_DAY_START_MS + 10_000L,
+				observedElapsed = ZONE_CASE_DAY_START_MS + 10_000L,
 				zoneId = prague,
 			),
 		) as AmbientStepsImportResult.Applied
-		resumed.window shouldBe AmbientStepsProviderReadWindow(7_000L, 8_000L)
+		resumed.window shouldBe AmbientStepsProviderReadWindow(
+			ZONE_CASE_DAY_START_MS + 7_000L,
+			ZONE_CASE_DAY_START_MS + 8_000L,
+		)
 	}
 
 	@Test
@@ -756,36 +776,43 @@ class AmbientStepsFactImporterTest {
 		}
 		val importer = subject(reader)
 		primeZone(importer)
-		importer.importNext(importBoundary()) as AmbientStepsImportResult.Applied
+		advanceUtcCursorToNextDay(importer)
 		val prague = ZoneId.of("Europe/Prague")
 
 		importer.importNext(
-			importBoundary(through = 5_000L, observedAt = 8_000L, zoneId = prague),
+			importBoundary(
+				through = ZONE_CASE_DAY_START_MS + 5_000L,
+				observedAt = ZONE_CASE_DAY_START_MS + 9_000L,
+				zoneId = prague,
+			),
 		) shouldBe AmbientStepsImportResult.Gap(
 			reason = AmbientStepsImportGapReason.ZONE_CHANGED,
-			fromTimeMs = 5_000L,
-			toTimeMs = 5_000L,
+			fromTimeMs = ZONE_CASE_DAY_START_MS + 5_000L,
+			toTimeMs = ZONE_CASE_DAY_START_MS + 5_000L,
 		)
 		val cursor = requireNotNull(
 			database.ambientStepsImportStateDao().cursor(registration.state.registrationGeneration),
 		)
-		cursor.importedThroughTimeMs shouldBe 5_000L
-		cursor.segmentStartTimeMs shouldBe 5_000L
+		cursor.importedThroughTimeMs shouldBe ZONE_CASE_DAY_START_MS + 5_000L
+		cursor.segmentStartTimeMs shouldBe ZONE_CASE_DAY_START_MS + 5_000L
 
-		clock.setTime(9_000L)
+		clock.setTime(ZONE_CASE_DAY_START_MS + 10_000L)
 		val resumed = importer.importNext(
 			importBoundary(
-				through = 7_000L,
-				observedAt = 9_000L,
-				observedElapsed = 9_000L,
+				through = ZONE_CASE_DAY_START_MS + 7_000L,
+				observedAt = ZONE_CASE_DAY_START_MS + 10_000L,
+				observedElapsed = ZONE_CASE_DAY_START_MS + 10_000L,
 				zoneId = prague,
 			),
 		) as AmbientStepsImportResult.Applied
-		resumed.window shouldBe AmbientStepsProviderReadWindow(5_000L, 7_000L)
+		resumed.window shouldBe AmbientStepsProviderReadWindow(
+			ZONE_CASE_DAY_START_MS + 5_000L,
+			ZONE_CASE_DAY_START_MS + 7_000L,
+		)
 	}
 
 	@Test
-	fun `retention discontinuity is durable and resumes from rounded retained floor`() = runTest {
+	fun `unapproved retained floor blocks import without changing cursor or coverage`() = runTest {
 		val reader = RecordingAmbientReader { window, observedAtMs ->
 			AmbientStepsProviderAggregate(PROVIDER, window, 10L, observedAtMs)
 		}
@@ -793,6 +820,9 @@ class AmbientStepsFactImporterTest {
 		primeZone(importer)
 		importer.importNext(importBoundary()) as AmbientStepsImportResult.Applied
 		val readsBefore = reader.windows.size
+		val cursorBefore = database.ambientStepsImportStateDao().cursor(
+			registration.state.registrationGeneration,
+		)
 		lifecycleStore.set(
 			CollectedDataLifecycleSnapshot(
 				epoch = COLLECTED_DATA_EPOCH,
@@ -801,26 +831,124 @@ class AmbientStepsFactImporterTest {
 		)
 		importer.importNext(
 			importBoundary(through = 8_000L, observedAt = 9_000L, observedElapsed = 9_000L),
-		) shouldBe AmbientStepsImportResult.Gap(
-			reason = AmbientStepsImportGapReason.RETENTION_ADVANCED,
-			fromTimeMs = 5_000L,
-			toTimeMs = 7_000L,
+		) shouldBe AmbientStepsImportResult.Ineligible(
+			AmbientStepsImportIneligibleReason.RETENTION_AUTHORITY_UNAVAILABLE,
 		)
 
 		reader.windows.size shouldBe readsBefore
 		database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
-		val gap = database.ambientStepsImportStateDao().gaps(
+		database.ambientStepsImportStateDao().gaps(
 			registration.state.registrationGeneration,
-		).single()
-		gap.reason shouldBe AmbientStepsImportGapEntity.REASON_PROVIDER_RETENTION_LOSS
-		gap.gapStartTimeMs shouldBe 5_000L
-		gap.gapEndTimeMs shouldBe 7_000L
+		) shouldBe emptyList()
+		database.ambientStepsImportStateDao().cursor(
+			registration.state.registrationGeneration,
+		) shouldBe cursorBefore
+	}
 
-		clock.setTime(10_000L)
-		val resumed = importer.importNext(
-			importBoundary(through = 8_000L, observedAt = 10_000L, observedElapsed = 10_000L),
-		) as AmbientStepsImportResult.Applied
-		resumed.window shouldBe AmbientStepsProviderReadWindow(7_000L, 8_000L)
+	@Test
+	fun `bounded all day runner passes a missing day and stores only real current day counts without a session`() = runTest {
+		var reads = 0
+		val reader = RecordingAmbientReader { window, observedAtMs ->
+			if (reads++ == 0) null else AmbientStepsProviderAggregate(PROVIDER, window, 17L, observedAtMs)
+		}
+		val importer = subject(reader)
+		primeZone(importer)
+		clock.setTime(86_405_000L)
+		val runner = AmbientStepsImportRunner(
+			prepare = { true }, importAllowed = { true },
+			boundary = { importBoundary(through = 86_404_000L, observedAt = 86_405_000L) },
+			importNext = importer::importNext,
+		)
+
+		runner.run() shouldBe AmbientStepsImportAttemptResult.COMPLETE
+		reader.windows shouldBe listOf(
+			AmbientStepsProviderReadWindow(2_000L, 86_400_000L),
+			AmbientStepsProviderReadWindow(86_400_000L, 86_404_000L),
+		)
+		database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
+		val cursor = requireNotNull(database.ambientStepsImportStateDao().cursor(registration.state.registrationGeneration))
+		cursor.importedThroughTimeMs shouldBe 86_404_000L
+		val gap = database.ambientStepsImportStateDao().gaps(registration.state.registrationGeneration).single()
+		gap.reason shouldBe AmbientStepsImportGapEntity.REASON_PROVIDER_NO_EVIDENCE
+		gap.gapStartTimeMs shouldBe 2_000L
+		gap.gapEndTimeMs shouldBe 86_400_000L
+
+		// The next open/hourly copy replays the same provider window; it is not a second step total.
+		runner.run() shouldBe AmbientStepsImportAttemptResult.COMPLETE
+		database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `cold worker uses production runner preparation and resumes retained provider cursor without a session`() = runTest {
+		withUtcCalendar {
+			val gate = readyImportGate { true }
+			val reconciler = importReconciler()
+			val capability = readyImportCapability()
+			val reader = RecordingAmbientReader { window, observedAtMs ->
+				AmbientStepsProviderAggregate(PROVIDER, window, 17L, observedAtMs)
+			}
+			val importer = subject(reader, gate)
+			primeZone(importer)
+
+			// A fresh Worker and Runner reuse durable Room progress; no Activity/session exists.
+			productionWorker(gate, reconciler, capability, importer).doWork() shouldBe ListenableWorker.Result.success()
+			reader.windows shouldBe listOf(AmbientStepsProviderReadWindow(2_000L, OBSERVED_AT_MS))
+			val firstCursor = requireNotNull(database.ambientStepsImportStateDao()
+				.cursor(registration.state.registrationGeneration))
+			firstCursor.importedThroughTimeMs shouldBe OBSERVED_AT_MS
+			database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
+
+			productionWorker(gate, reconciler, capability, importer).doWork() shouldBe ListenableWorker.Result.success()
+			database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
+			coVerify(exactly = 2) { gate.reconcile() }
+			coVerify(exactly = 2) { reconciler.reconcileCurrentSettings() }
+		}
+	}
+
+	@Test
+	fun `cold worker with user stop never reconciles a source reads provider or advances cursor`() = runTest {
+		withUtcCalendar {
+			val gate = readyImportGate { false }
+			val reconciler = importReconciler()
+			val capability = readyImportCapability()
+			val reader = RecordingAmbientReader { _, _ -> error("Stopped worker must not read") }
+			val importer = subject(reader, gate)
+			val evidenceBefore = database.sourceEvidenceStateDao().get()
+
+			productionWorker(gate, reconciler, capability, importer).doWork() shouldBe ListenableWorker.Result.success()
+
+			reader.windows shouldBe emptyList()
+			database.ambientStepsImportStateDao().countCursors() shouldBe 0L
+			database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
+			database.sourceEvidenceStateDao().get() shouldBe evidenceBefore
+			coVerify(exactly = 0) { reconciler.reconcileCurrentSettings() }
+			coVerify(exactly = 0) { capability.resolve() }
+		}
+	}
+
+	@Test
+	fun `user stop during composed worker provider read withholds returned counts and leaves cursor resumable`() = runTest {
+		withUtcCalendar {
+			var allowed = true
+			val gate = readyImportGate { allowed }
+			val reader = RecordingAmbientReader { window, observedAtMs ->
+				allowed = false
+				AmbientStepsProviderAggregate(PROVIDER, window, 17L, observedAtMs)
+			}
+			val importer = subject(reader, gate)
+			primeZone(importer)
+			val cursorBefore = database.ambientStepsImportStateDao()
+				.cursor(registration.state.registrationGeneration)
+			val evidenceBefore = database.sourceEvidenceStateDao().get()
+
+			productionWorker(gate, importReconciler(), readyImportCapability(), importer)
+				.doWork() shouldBe ListenableWorker.Result.success()
+
+			reader.windows shouldBe listOf(AmbientStepsProviderReadWindow(2_000L, OBSERVED_AT_MS))
+			database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
+			database.ambientStepsImportStateDao().cursor(registration.state.registrationGeneration) shouldBe cursorBefore
+			database.sourceEvidenceStateDao().get() shouldBe evidenceBefore
+		}
 	}
 
 	@Test
@@ -908,12 +1036,61 @@ class AmbientStepsFactImporterTest {
 		startupGate = gate,
 	)
 
+	private fun readyImportGate(allowed: () -> Boolean): TrackingStartupGate = mockk {
+		coEvery { reconcile() } returns TrackingStartupResult.Ready(false, 0L)
+		every { permitsNewCollection } answers { allowed() }
+		every { collectionResumeBoundary } returns null
+	}
+
+	private fun importReconciler(): TrackingPurposeSettingsReconciler = mockk {
+		coEvery { reconcileCurrentSettings() } returns
+			TrackingPurposeSettingsReconciliationResult.Complete(setOf(AmbientTrackingSource.STEPS))
+	}
+
+	private fun readyImportCapability(): AndroidAmbientStepsCapabilityResolver = mockk {
+		coEvery { resolve() } returns AmbientStepsCapability.ReadyForRegistration(
+			PROVIDER, AmbientStepsImportAccess.BACKGROUND_ALLOWED,
+		)
+	}
+
+	private fun productionWorker(
+		gate: TrackingStartupGate,
+		reconciler: TrackingPurposeSettingsReconciler,
+		capability: AndroidAmbientStepsCapabilityResolver,
+		importer: AmbientStepsFactImporter,
+	): AmbientStepsImportWorker = AmbientStepsImportWorker(
+		ApplicationProvider.getApplicationContext<Application>(),
+		mockk<WorkerParameters>(relaxed = true),
+		AmbientStepsImportRunner(gate, reconciler, capability, clock,
+			BootClockDomainProvider { BOOT_ID }, importer),
+	)
+
+	private suspend fun withUtcCalendar(action: suspend () -> Unit) {
+		val previousZone = TimeZone.getDefault()
+		try {
+			TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+			action()
+		} finally {
+			TimeZone.setDefault(previousZone)
+		}
+	}
+
 	private suspend fun primeZone(importer: AmbientStepsFactImporter) {
 		importer.importNext(
 			importBoundary(through = 2_000L, observedAt = 2_000L, observedElapsed = 2_000L),
 		) shouldBe AmbientStepsImportResult.NoEvidence(
 			AmbientStepsImportNoEvidenceReason.NO_WINDOW_AVAILABLE,
 		)
+	}
+
+	private suspend fun advanceUtcCursorToNextDay(importer: AmbientStepsFactImporter) {
+		clock.setTime(ZONE_CASE_DAY_START_MS + 8_000L)
+		val boundary = importBoundary(
+			through = ZONE_CASE_DAY_START_MS + 5_000L,
+			observedAt = ZONE_CASE_DAY_START_MS + 8_000L,
+		)
+		importer.importNext(boundary) as AmbientStepsImportResult.Applied
+		importer.importNext(boundary) as AmbientStepsImportResult.Applied
 	}
 
 	private suspend fun activateDemand(
@@ -953,6 +1130,7 @@ class AmbientStepsFactImporterTest {
 		const val BOOT_ID = "boot-ambient-import"
 		const val COLLECTED_DATA_EPOCH = 3L
 		const val OBSERVED_AT_MS = 8_000L
+		const val ZONE_CASE_DAY_START_MS = 86_400_000L
 	}
 }
 

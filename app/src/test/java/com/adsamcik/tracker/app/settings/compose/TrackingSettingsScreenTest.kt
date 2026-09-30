@@ -28,6 +28,8 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequenc
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionSettings
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationDebt
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationFailure
 import com.adsamcik.tracker.tracker.source.battery.BatteryImpactEstimate
 import com.adsamcik.tracker.tracker.source.battery.EstimateConfidence
 import com.adsamcik.tracker.tracker.source.battery.EstimateTarget
@@ -133,6 +135,66 @@ class TrackingSettingsScreenTest {
         (1..5).forEach { composeTestRule.onNodeWithTag("trackingBalance-$it").assertIsDisplayed() }
         composeTestRule.onNodeWithTag("trackingBalance-2").performClick()
         selected shouldBe 2
+    }
+
+    @Test
+    fun unavailablePressureCanStillBeTurnedOff() {
+        var chosen: Boolean? = null
+        composeTestRule.setContent {
+            AppTheme {
+                TrackingSettingsContent(defaultUiState.copy(barometerAvailable = false, barometerEnabled = true),
+                    onBarometerEnabledChanged = { chosen = it })
+            }
+        }
+        scrollTo("Barometer")
+        composeTestRule.onNodeWithText("Barometer").performClick()
+        chosen shouldBe false
+    }
+
+    @Test
+    fun failedSettingsSaveKeepsSourceChoiceAndProvidesRetry() {
+        var retries = 0
+        composeTestRule.setContent {
+            AppTheme {
+                TrackingSettingsContent(defaultUiState.copy(settingsSaveFailed = true, cellEnabled = true),
+                    onRetrySettingsSave = { retries += 1 })
+            }
+        }
+        composeTestRule.onNodeWithTag("trackingSettingsSaveFailure").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("trackingSettingsSaveRetry").performClick()
+        retries shouldBe 1
+    }
+
+    @Test
+    fun savedChoicesWithRuntimeFailureOfferRepairWithoutChangingParticipation() {
+        var retries = 0
+        var choiceChanges = 0
+        val debt = SourcePolicyRevisionReconciliationDebt(1L,
+            listOf(SourcePolicyRevisionReconciliationFailure.SourcePolicyUnavailable))
+        composeTestRule.setContent {
+            AppTheme {
+                TrackingSettingsContent(defaultUiState.copy(sourcePolicyReconciliationDebt = debt),
+                    onRetrySourceRecovery = { retries += 1 },
+                    onLocationEnabledChanged = { choiceChanges += 1 })
+            }
+        }
+        composeTestRule.onNodeWithTag("trackingSourceRecoveryFailure").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("trackingSourceRecoveryRetry").performClick()
+        retries shouldBe 1
+        choiceChanges shouldBe 0
+    }
+
+    @Test
+    fun unavailableSettingsOfferTheExistingRepairAction() {
+        var retries = 0
+        composeTestRule.setContent {
+            AppTheme {
+                TrackingSettingsContent(defaultUiState.copy(sourcePolicyAvailable = false),
+                    onRetrySourceRecovery = { retries += 1 })
+            }
+        }
+        composeTestRule.onNodeWithTag("trackingSourceRecoveryRetry").performClick()
+        retries shouldBe 1
     }
 
     @Test
@@ -569,6 +631,7 @@ class TrackingSettingsScreenTest {
 
 	@Test
 	fun HealthConnectForegroundReadyStateExplainsOptionalBackgroundGaps() {
+		var repairRequested = false
 		val availability = defaultUiState.ambientSourceAvailability +
 			(
 				AmbientTrackingSource.STEPS to AmbientSourceOperationalAvailability(
@@ -588,6 +651,7 @@ class TrackingSettingsScreenTest {
 						stepsEnabled = true,
 						ambientSourceAvailability = availability,
 					),
+					onHealthConnectStepsPermission = { repairRequested = true },
 				)
 			}
 		}
@@ -598,6 +662,9 @@ class TrackingSettingsScreenTest {
 			"Background access may reduce gaps",
 			substring = true,
 		).assertIsDisplayed()
+		scrollTo("Allow background step updates")
+		composeTestRule.onNodeWithTag("stepsHealthConnectRepair").performScrollTo().performClick()
+		repairRequested shouldBe true
 	}
 
 	@Test

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Muutoksia ei tallennettu. Valintasi säilyvät tässä.</string>
+    <string name="settings_save_retry">Yritä uudelleen</string>
+    <string name="settings_choices_not_applied">Seuranta ei vielä voinut ottaa tallennettuja valintojasi käyttöön.</string>
+    <string name="settings_source_policy_unavailable_title">Seuranta-asetukset eivät ole saatavilla</string>
+    <string name="settings_source_policy_unavailable_summary">Tallennetut valintasi säilyvät. Seuranta on keskeytetty, kunnes asetukset ovat saatavilla.</string>
+    <string name="settings_steps_allow_background_updates">Salli askeltietojen päivitykset taustalla</string>
+</resources>

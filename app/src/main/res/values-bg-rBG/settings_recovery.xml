@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Промените не са запазени. Изборите ви остават тук.</string>
+    <string name="settings_save_retry">Опитайте отново</string>
+    <string name="settings_choices_not_applied">Проследяването все още не може да приложи запазените ви избори.</string>
+    <string name="settings_source_policy_unavailable_title">Настройките за проследяване не са налични</string>
+    <string name="settings_source_policy_unavailable_summary">Запазените избори се пазят. Проследяването е на пауза, докато настройките станат налични.</string>
+    <string name="settings_steps_allow_background_updates">Разрешаване на обновяването на стъпките във фонов режим</string>
+</resources>

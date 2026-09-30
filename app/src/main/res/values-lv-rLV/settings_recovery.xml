@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Izmaiņas netika saglabātas. Jūsu izvēles paliek šeit.</string>
+    <string name="settings_save_retry">Mēģināt vēlreiz</string>
+    <string name="settings_choices_not_applied">Izsekošana vēl nevarēja piemērot jūsu saglabātās izvēles.</string>
+    <string name="settings_source_policy_unavailable_title">Izsekošanas iestatījumi nav pieejami</string>
+    <string name="settings_source_policy_unavailable_summary">Saglabātās izvēles tiek paturētas. Izsekošana ir apturēta, līdz iestatījumi būs pieejami.</string>
+    <string name="settings_steps_allow_background_updates">Atļaut soļu atjaunināšanu fonā</string>
+</resources>

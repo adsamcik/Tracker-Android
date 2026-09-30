@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
@@ -22,9 +23,13 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
 import com.adsamcik.tracker.tracker.source.runtime.TestLiveAmbientRetentionAuthorityReader
 import com.adsamcik.tracker.tracker.source.runtime.LiveAmbientRetentionSnapshot
 import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -159,6 +164,40 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 	}
 
 	@Test
+	fun `hung native subscription is bounded and its reserved authority is compensated`() = runTest {
+		local.onEnsure = { delay(60_000L) }
+
+		val result = subject.reconcile(ready(AmbientStepsProvider.LOCAL_RECORDING_STEPS, 100L), boundary(110L))
+
+		(result is AmbientStepsProviderRegistrationResult.Failed) shouldBe true
+		testScheduler.currentTime shouldBe 30_000L
+		local.removeCalls shouldBe 1
+		registrations.currentActive() shouldBe null
+		registrations.pendingReservations() shouldBe emptyList()
+		cleanupStore.read().pending shouldBe emptySet()
+	}
+
+	@Test
+	fun `hung native removal retains durable cleanup debt for the next bounded attempt`() = runTest {
+		subject.reconcile(ready(AmbientStepsProvider.LOCAL_RECORDING_STEPS, 100L), boundary(110L))
+		retireDemand(120L)
+		local.onRemove = { delay(60_000L) }
+
+		val result = subject.reconcile(
+			AmbientStepsDemandReconciliation.PolicyBlocked(
+				provider = null, reason = AmbientStepsDemandBlockReason.REQUEST_DISABLED,
+				retirementComplete = true,
+			),
+			boundary(130L),
+		)
+
+		(result is AmbientStepsProviderRegistrationResult.Failed) shouldBe true
+		testScheduler.currentTime shouldBe 30_000L
+		registrations.pendingRetirements().size shouldBe 1
+		cleanupStore.read().pending shouldBe setOf(AmbientStepsProvider.LOCAL_RECORDING_STEPS)
+	}
+
+	@Test
 	fun `authority loss during provider activation removes provider and rejects acceptance`() = runTest {
 		val demand = ready(AmbientStepsProvider.LOCAL_RECORDING_STEPS, 100L)
 		local.onEnsure = {
@@ -218,17 +257,129 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 	}
 
 	@Test
-	fun `same global provider replacement never removes newly accepted subscription`() = runTest {
+	fun `provider replacement drains accepted predecessor before removing its global subscription`() = runTest {
+		val events = mutableListOf<String>()
+		val coordinator = AmbientStepsProviderRegistrationCoordinator(
+			registrations, cleanupStore, setOf(local, health),
+			drainPredecessor = { previous, current ->
+				previous.ambientStepsProviderOrNull() shouldBe AmbientStepsProvider.LOCAL_RECORDING_STEPS
+				current.ambientStepsProviderOrNull() shouldBe AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS
+				registrations.currentActive()?.registrationGeneration shouldBe current.registrationGeneration
+				events += "drained"
+				true
+			},
+		)
+		coordinator.reconcile(ready(AmbientStepsProvider.LOCAL_RECORDING_STEPS, 100L), boundary(110L))
+		local.onRemove = { events += "removed" }
+
+		coordinator.reconcile(ready(AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS, 200L), boundary(210L))
+
+		events shouldBe listOf("drained", "removed")
+		registrations.pendingRetirements() shouldBe emptyList()
+	}
+
+	@Test
+	fun `failed handoff preserves predecessor subscription and resumes before retirement`() = runTest {
+		var drained = false
+		var attempts = 0
+		val coordinator = AmbientStepsProviderRegistrationCoordinator(
+			registrations, cleanupStore, setOf(local, health),
+			drainPredecessor = { _, _ -> attempts++; drained },
+		)
+		coordinator.reconcile(ready(AmbientStepsProvider.LOCAL_RECORDING_STEPS, 100L), boundary(110L))
+		val replacement = ready(AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS, 200L)
+
+		val failure = coordinator.reconcile(replacement, boundary(210L))
+		(failure is AmbientStepsProviderRegistrationResult.Degraded) shouldBe true
+		local.removeCalls shouldBe 0
+		registrations.pendingRetirements().size shouldBe 1
+		drained = true
+		val success = coordinator.reconcile(replacement, boundary(220L))
+
+		(success is AmbientStepsProviderRegistrationResult.Active) shouldBe true
+		attempts shouldBe 2
+		local.removeCalls shouldBe 1
+		health.ensureCalls shouldBe 1
+		registrations.pendingRetirements() shouldBe emptyList()
+	}
+
+	@Test
+	fun `production handoff bounds permission probing before any old provider removal`() = runTest {
+		val capability = mockk<AndroidAmbientStepsCapabilityResolver>()
+		coEvery { capability.snapshot() } coAnswers { delay(60_000L); error("must be cancelled") }
+		val handoff = mockk<AmbientStepsProviderHandoffCoordinator>()
+		var localRemovals = 0
+		val coordinator = AmbientStepsProviderRegistrationCoordinator(
+			registrations, cleanupStore,
+			HealthConnectAmbientStepsProviderBackend {
+				AmbientStepsCapability.ReadyForRegistration(AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS,
+					AmbientStepsImportAccess.BACKGROUND_ALLOWED)
+			},
+			LocalRecordingAmbientStepsProviderBackend({}, { localRemovals++ }),
+			handoff, capability, FixedClock(5_000L, 5_000L), BootClockDomainProvider { BOOT_ID },
+		)
+		coordinator.reconcile(ready(AmbientStepsProvider.LOCAL_RECORDING_STEPS, 100L), boundary(110L))
+
+		val result = coordinator.reconcile(ready(AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS, 200L), boundary(210L))
+
+		(result is AmbientStepsProviderRegistrationResult.Degraded) shouldBe true
+		testScheduler.currentTime shouldBe 30_000L
+		localRemovals shouldBe 0
+		coVerify(exactly = 0) { handoff.execute(any()) }
+		registrations.pendingRetirements().size shouldBe 1
+	}
+
+	@Test
+	fun `production final provider read is cancelled after thirty seconds without losing retry authority`() = runTest {
+		val capability = mockk<AndroidAmbientStepsCapabilityResolver>()
+		coEvery { capability.snapshot() } returns AmbientStepsPlatformSnapshot(
+			healthConnect = HealthConnectAmbientStepsAvailability.AVAILABLE,
+			healthConnectReadStepsGranted = true,
+			localRecording = LocalRecordingAmbientStepsAvailability.AVAILABLE,
+			activityRecognitionRequired = true, activityRecognitionGranted = true,
+		)
+		val handoff = mockk<AmbientStepsProviderHandoffCoordinator>()
+		var cancelled = false
+		coEvery { handoff.execute(any()) } coAnswers {
+			try { delay(60_000L); error("must be cancelled") } finally { cancelled = true }
+		}
+		var localRemovals = 0
+		val coordinator = AmbientStepsProviderRegistrationCoordinator(
+			registrations, cleanupStore,
+			HealthConnectAmbientStepsProviderBackend {
+				AmbientStepsCapability.ReadyForRegistration(AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS,
+					AmbientStepsImportAccess.BACKGROUND_ALLOWED)
+			},
+			LocalRecordingAmbientStepsProviderBackend({}, { localRemovals++ }),
+			handoff, capability, FixedClock(5_000L, 5_000L), BootClockDomainProvider { BOOT_ID },
+		)
+		coordinator.reconcile(ready(AmbientStepsProvider.LOCAL_RECORDING_STEPS, 100L), boundary(110L))
+
+		val result = coordinator.reconcile(ready(AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS, 200L), boundary(210L))
+
+		(result is AmbientStepsProviderRegistrationResult.Degraded) shouldBe true
+		cancelled shouldBe true
+		testScheduler.currentTime shouldBe 30_000L
+		localRemovals shouldBe 0
+		registrations.pendingRetirements().size shouldBe 1
+	}
+
+	@Test
+	fun `stale lifecycle cannot replace or remove the active global provider`() = runTest {
 		val demand = ready(AmbientStepsProvider.LOCAL_RECORDING_STEPS, 100L)
 		val first = subject.reconcile(demand, boundary(110L)) as
 			AmbientStepsProviderRegistrationResult.Active
 		lifecycleStore.set(CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = 120L))
 
-		val second = subject.reconcile(demand, boundary(130L)) as
-			AmbientStepsProviderRegistrationResult.Active
+		val second = subject.reconcile(demand, boundary(130L))
 
-		second.registrationGeneration shouldBe first.registrationGeneration + 1L
-		local.ensureCalls shouldBe 2
+		second shouldBe AmbientStepsProviderRegistrationResult.Degraded(
+			selectedProvider = AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+			activeRegistrationGeneration = first.registrationGeneration,
+			failure = AmbientStepsProviderRegistrationFailure.DURABLE_AUTHORITY_REJECTED,
+			retryable = true,
+		)
+		local.ensureCalls shouldBe 1
 		local.removeCalls shouldBe 0
 		registrations.pendingRetirements() shouldBe emptyList()
 		cleanupStore.read().pending shouldBe
@@ -236,7 +387,7 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 		database.sourceBrokerDao().registration(
 			SourceKind.STEPS.stableCode,
 			first.registrationGeneration,
-		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRED
+		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
 	}
 
 	@Test

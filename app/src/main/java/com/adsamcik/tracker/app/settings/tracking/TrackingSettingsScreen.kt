@@ -8,6 +8,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.HealthConnectFeatures
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.StepsRecord
@@ -183,6 +184,7 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
     TrackingSettingsContent(
         uiState = uiState,
         onTurnOffTracking = trackingVm::turnOffTracking,
+        onRetrySourceRecovery = trackingVm::retrySourcePolicyReconciliation,
         onPresetSelected = { trackingVm.applyPreset(it) },
 		onBalanceSelected = trackingVm::adoptBalanceProfile,
 		onSourceBalanceSelected = trackingVm::setSourceBalanceOverride,
@@ -229,8 +231,10 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
 		onHealthConnectStepsPermission = {
 			val current = trackingVm.uiState.value
 			if (current.stepsEnabled &&
-				current.ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).reason ==
-					AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED &&
+				current.ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).reason in setOf(
+					AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED,
+					AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL,
+				) &&
 				lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
 			) {
 				val available = try {
@@ -242,9 +246,16 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
 				}
 				if (available) {
 					try {
-						healthConnectStepsLauncher.launch(setOf(
-							HealthPermission.getReadPermission(StepsRecord::class),
-						))
+						val client = HealthConnectClient.getOrCreate(context)
+						val permissions = buildSet {
+							add(HealthPermission.getReadPermission(StepsRecord::class))
+							if (client.features.getFeatureStatus(
+								HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_IN_BACKGROUND,
+							) == HealthConnectFeatures.FEATURE_STATUS_AVAILABLE) {
+								add(HealthPermission.PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND)
+							}
+						}
+						healthConnectStepsLauncher.launch(permissions)
 					} catch (_: RuntimeException) {
 						trackingVm.refreshStepsProviderPermissionState()
 					} catch (_: LinkageError) {
@@ -254,6 +265,7 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
 			}
 		},
         onBarometerEnabledChanged = { trackingVm.setBarometerEnabled(it) },
+        onRetrySettingsSave = trackingVm::retryFailedSettings,
 		onAmbientLocationEnabledChanged = { trackingVm.setAmbientLocationEnabled(it) },
 		onLocationModeChanged = trackingVm::setLocationBackgroundMode,
 		onLocationBalanceChanged = trackingVm::adoptLocationProfile,
@@ -296,6 +308,7 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
 internal fun TrackingSettingsContent(
     uiState: TrackingSettingsUiState,
     onTurnOffTracking: () -> Unit = {},
+    onRetrySourceRecovery: () -> Unit = {},
     onPresetSelected: (TrackingPreset) -> Unit = {},
 	onBalanceSelected: (Int) -> Unit = {},
 	onSourceBalanceSelected: (TrackingSourceComponent, Int?) -> Unit = { _, _ -> },
@@ -310,6 +323,7 @@ internal fun TrackingSettingsContent(
     onStepsEnabledChanged: (Boolean) -> Unit = {},
 	onHealthConnectStepsPermission: () -> Unit = {},
     onBarometerEnabledChanged: (Boolean) -> Unit = {},
+    onRetrySettingsSave: () -> Unit = {},
 	onAmbientLocationEnabledChanged: (Boolean) -> Unit = {},
 	onLocationModeChanged: (LocationBackgroundMode) -> Unit = {},
 	onLocationBalanceChanged: (Int) -> Unit = {},
@@ -364,6 +378,9 @@ internal fun TrackingSettingsContent(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onErrorContainer,
                             )
+                            TextButton(onClick = onRetrySourceRecovery, modifier = Modifier.testTag("trackingSourceRecoveryRetry")) {
+                                Text(stringResource(com.adsamcik.tracker.R.string.settings_save_retry))
+                            }
                         }
                     }
                 }
@@ -388,6 +405,36 @@ internal fun TrackingSettingsContent(
             .testTag("trackingSettingsList"),
         contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
     ) {
+        if (uiState.settingsSaveFailed) item {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                    .testTag("trackingSettingsSaveFailure"),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(stringResource(com.adsamcik.tracker.R.string.settings_changes_not_saved),
+                        color = MaterialTheme.colorScheme.onErrorContainer)
+                    TextButton(onClick = onRetrySettingsSave, modifier = Modifier.testTag("trackingSettingsSaveRetry")) {
+                        Text(stringResource(com.adsamcik.tracker.R.string.settings_save_retry))
+                    }
+                }
+            }
+        }
+        if (uiState.sourcePolicyReconciliationDebt != null) item {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                    .testTag("trackingSourceRecoveryFailure"),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(stringResource(com.adsamcik.tracker.R.string.settings_choices_not_applied),
+                        color = MaterialTheme.colorScheme.onErrorContainer)
+                    TextButton(onClick = onRetrySourceRecovery, modifier = Modifier.testTag("trackingSourceRecoveryRetry")) {
+                        Text(stringResource(com.adsamcik.tracker.R.string.settings_save_retry))
+                    }
+                }
+            }
+        }
         // Changes reconcile into the active source flow; status below reports any blockers.
         if (uiState.trackingActive) item {
             Card(
@@ -744,7 +791,6 @@ private fun SimpleDataSourceSettings(
             iconRes = com.adsamcik.tracker.R.drawable.ic_tracking_source_pressure,
             checked = uiState.barometerEnabled,
             onCheckedChange = onBarometerEnabledChanged,
-            enabled = uiState.barometerAvailable,
         )
 
 		SourceBalanceOverrideItem(TrackingSourceComponent.PRESSURE, uiState, onSourceBalanceSelected)
@@ -785,15 +831,18 @@ private fun StepsHealthConnectRepair(
 	uiState: TrackingSettingsUiState,
 	onClick: () -> Unit,
 ) {
-	if (!uiState.stepsEnabled ||
-		uiState.ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).reason !=
-			AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED
-	) return
+	val reason = uiState.ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).reason
+	if (!uiState.stepsEnabled || reason !in setOf(
+		AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED,
+		AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL,
+	)) return
 	TextButton(
 		onClick = onClick,
 		modifier = Modifier.testTag("stepsHealthConnectRepair"),
 	) {
-		Text(stringResource(com.adsamcik.tracker.R.string.settings_steps_allow_health_connect))
+		Text(stringResource(if (reason == AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL) {
+			com.adsamcik.tracker.R.string.settings_steps_allow_background_updates
+		} else com.adsamcik.tracker.R.string.settings_steps_allow_health_connect))
 	}
 	if (uiState.stepsProviderRepairFailed) {
 		Text(

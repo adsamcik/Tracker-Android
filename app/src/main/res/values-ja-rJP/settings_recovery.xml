@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">変更は保存されませんでした。選択内容はこの画面に保持されています。</string>
+    <string name="settings_save_retry">再試行</string>
+    <string name="settings_choices_not_applied">保存した選択内容をトラッキングにまだ適用できませんでした。</string>
+    <string name="settings_source_policy_unavailable_title">トラッキング設定を利用できません</string>
+    <string name="settings_source_policy_unavailable_summary">保存した選択内容は保持されています。設定が利用可能になるまでトラッキングは一時停止します。</string>
+    <string name="settings_steps_allow_background_updates">バックグラウンドで歩数を更新</string>
+</resources>

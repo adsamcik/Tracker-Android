@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Ändringarna sparades inte. Dina val behålls här.</string>
+    <string name="settings_save_retry">Försök igen</string>
+    <string name="settings_choices_not_applied">Spårningen kunde ännu inte tillämpa dina sparade val.</string>
+    <string name="settings_source_policy_unavailable_title">Spårningsinställningar är inte tillgängliga</string>
+    <string name="settings_source_policy_unavailable_summary">Dina sparade val behålls. Spårningen är pausad tills inställningarna är tillgängliga.</string>
+    <string name="settings_steps_allow_background_updates">Tillåt steguppdateringar i bakgrunden</string>
+</resources>

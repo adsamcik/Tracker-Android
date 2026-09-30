@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Los cambios no se guardaron. Tus elecciones se conservan aquí.</string>
+    <string name="settings_save_retry">Reintentar</string>
+    <string name="settings_choices_not_applied">El seguimiento aún no pudo aplicar tus elecciones guardadas.</string>
+    <string name="settings_source_policy_unavailable_title">Ajustes de seguimiento no disponibles</string>
+    <string name="settings_source_policy_unavailable_summary">Tus elecciones guardadas se conservan. El seguimiento está pausado hasta que los ajustes estén disponibles.</string>
+    <string name="settings_steps_allow_background_updates">Permitir actualizaciones de pasos en segundo plano</string>
+</resources>

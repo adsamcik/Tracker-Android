@@ -1,0 +1,129 @@
+{
+  "date": "2026-09-30",
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "owner": "/root/adversary_product_0930",
+  "purpose": "Exact-path selection aid for approved recovery slices and partial requested-period metrics. Not a convergence freeze, evidence receipt, or complete R14 declaration.",
+  "production_changes": [
+    "feature/tracker/src/main/java/com/adsamcik/tracker/feature/tracker/notification/NotificationManagementScreen.kt",
+    "app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt",
+    "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt",
+    "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/AdaptiveLocationSettings.kt",
+    "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ExportLogDao.kt",
+    "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SessionSegmentDao.kt",
+    "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProvider.kt"
+  ],
+  "test_source_changes": [
+    "feature/tracker/src/test/java/com/adsamcik/tracker/feature/tracker/notification/NotificationManagementViewModelTest.kt",
+    "feature/tracker/src/test/java/com/adsamcik/tracker/feature/tracker/notification/NotificationManagementAccessibilityTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModelTest.kt",
+    "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProviderTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/SessionSegmentDaoTest.kt",
+    "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/ExportLogDaoTest.kt"
+  ],
+  "new_resource_files": [
+    "app/src/main/res/values/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values/notification_recovery.xml",
+    "app/src/main/res/values-bg-rBG/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-bg-rBG/notification_recovery.xml",
+    "app/src/main/res/values-hr-rHR/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-hr-rHR/notification_recovery.xml",
+    "app/src/main/res/values-cs-rCZ/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-cs-rCZ/notification_recovery.xml",
+    "app/src/main/res/values-da-rDK/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-da-rDK/notification_recovery.xml",
+    "app/src/main/res/values-nl-rNL/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-nl-rNL/notification_recovery.xml",
+    "app/src/main/res/values-et-rEE/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-et-rEE/notification_recovery.xml",
+    "app/src/main/res/values-fi-rFI/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-fi-rFI/notification_recovery.xml",
+    "app/src/main/res/values-fr-rFR/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-fr-rFR/notification_recovery.xml",
+    "app/src/main/res/values-de-rDE/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-de-rDE/notification_recovery.xml",
+    "app/src/main/res/values-el-rGR/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-el-rGR/notification_recovery.xml",
+    "app/src/main/res/values-ga-rIE/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-ga-rIE/notification_recovery.xml",
+    "app/src/main/res/values-hu-rHU/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-hu-rHU/notification_recovery.xml",
+    "app/src/main/res/values-it-rIT/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-it-rIT/notification_recovery.xml",
+    "app/src/main/res/values-lv-rLV/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-lv-rLV/notification_recovery.xml",
+    "app/src/main/res/values-lt-rLT/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-lt-rLT/notification_recovery.xml",
+    "app/src/main/res/values-mt-rMT/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-mt-rMT/notification_recovery.xml",
+    "app/src/main/res/values-pl-rPL/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-pl-rPL/notification_recovery.xml",
+    "app/src/main/res/values-pt-rPT/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-pt-rPT/notification_recovery.xml",
+    "app/src/main/res/values-ro-rRO/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-ro-rRO/notification_recovery.xml",
+    "app/src/main/res/values-sk-rSK/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-sk-rSK/notification_recovery.xml",
+    "app/src/main/res/values-sl-rSI/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-sl-rSI/notification_recovery.xml",
+    "app/src/main/res/values-es-rES/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-es-rES/notification_recovery.xml",
+    "app/src/main/res/values-sv-rSE/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-sv-rSE/notification_recovery.xml",
+    "app/src/main/res/values-ja-rJP/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-ja-rJP/notification_recovery.xml",
+    "app/src/main/res/values-zh-rCN/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-zh-rCN/notification_recovery.xml",
+    "app/src/main/res/values-zh-rTW/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-zh-rTW/notification_recovery.xml",
+    "app/src/main/res/values-hi-rIN/settings_recovery.xml",
+    "tracker/api-module/src/main/res/values-hi-rIN/notification_recovery.xml"
+  ],
+  "required_preexisting_drafts": [
+    {
+      "path": "feature/tracker/src/main/java/com/adsamcik/tracker/feature/tracker/notification/NotificationManagementScreen.kt",
+      "review_input_sha256": "6d46e7cda8a9163dacf4ae53e55ca150fd62061ec834b25f34d2bacd68f1746c",
+      "disposition": "Preserve serial latest-catalog saves, loading/saving recovery and accessible moves; add actual failed-save exit choice."
+    },
+    {
+      "path": "feature/tracker/src/test/java/com/adsamcik/tracker/feature/tracker/notification/NotificationManagementViewModelTest.kt",
+      "review_input_sha256": "0b21f8860b5302da9e09c8779c97a78a68d37c9cfb1baed0cab868a17e381366",
+      "disposition": "Preserve prior draft tests; append exit/retry cases."
+    }
+  ],
+  "shared_file_sections": [
+    {
+      "path": "app/src/main/res/values/strings.xml",
+      "review_input_sha256": "d0b6620345396aadf8f80cddc4f5345fb43dc923eb9560da50fb5c157185ad9e",
+      "owned_change": "Delete only settings_source_policy_unavailable_title and settings_source_policy_unavailable_summary (moved to localized settings_recovery.xml). Newly authored Steps key settings_steps_allow_background_updates was also moved out of this mixed draft into settings_recovery.xml.",
+      "excluded": "Unselected preexisting export strings and other agents' Steps copy; do not stage this whole file for this slice."
+    },
+    {
+      "path": "app/src/main/res/values-cs-rCZ/strings.xml",
+      "owned_change": "Move newly authored settings_steps_allow_background_updates to settings_recovery.xml. No existing translation changes belong to this slice."
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt",
+      "owned_change": "Pressure remains editable, ordinary settings save Retry, unavailable/debt recovery Retry.",
+      "other_owner": "Preserve completion_wiring_0930 Health Connect background-read repair row."
+    }
+  ],
+  "completed_slices": [
+    "Notification exit choice appears only after an actual failed save; Retry waits for current catalog, Leave exits on deliberate choice, edits remain until choice. Pending save does not prompt.",
+    "Tracking settings serial latest-choice saves with retained failed UI edits and Retry; committed mutations are not replayed; permission callbacks read committed repository state rather than wait for UI collector.",
+    "Unavailable Pressure is still editable; existing source-policy recovery has explicit Retry and concise supported-locale copy. The approved Health Connect background Steps repair label is localized in settings_recovery.xml for all 28 supported locales.",
+    "Bounded successful-export totals exclude FAILED, PARTIAL and NO_DATA completions; bounded observed activity-type counts use closed-window SQL queries and authored DAO/provider tests."
+  ],
+  "pending_period_decisions": [
+    "LONGEST_TRIP_KM period boundary meaning",
+    "DAILY_STREAK and WEEKLY_STREAK bounded definitions from retained discoveries",
+    "SEASONS_EXPLORED revisit-preserving bounded Location SQL aggregate changes existing preaggregate-only API contract"
+  ],
+  "schema_changes": false,
+  "executed_validation": [],
+  "limitations": [
+    "Tests and translations authored but not executed or externally reviewed.",
+    "R14 is partial; existing cumulative fallback remains for four undecided metrics.",
+    "Final whole-assembly compilation/Hilt/Room/ciUnitTest/ciCheck and device/UI evidence deferred."
+  ]
+}

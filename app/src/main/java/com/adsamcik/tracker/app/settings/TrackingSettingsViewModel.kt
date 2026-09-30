@@ -62,6 +62,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.channels.Channel
@@ -90,6 +91,7 @@ data class TrackingSettingsUiState(
 	val locationBackgroundMode: LocationBackgroundMode? = null,
 	val locationMotionAssistanceEnabled: Boolean = false,
 	val locationSettingsSaveFailed: Boolean = false,
+	val settingsSaveFailed: Boolean = false,
 	val ambientStepsEnabled: Boolean = stepsEnabled,
 	val ambientWifiEnabled: Boolean = false,
 	val ambientCellEnabled: Boolean = false,
@@ -189,12 +191,24 @@ class TrackingSettingsViewModel internal constructor(
 	private var locationIntentGeneration = 0L
 	private var automaticIntentGeneration = 0L
 	private val sourceIntentGenerations = mutableMapOf<TrackingSourceComponent, Long>()
+	private val pendingSettingsEdits = linkedMapOf<String, PendingSettingsEdit>()
+	private val settingsSaves = Channel<Unit>(Channel.CONFLATED)
 	private val locationPermissionRequests = Channel<LocationSettingsPermissionRequest>(Channel.BUFFERED)
 	val locationPermissionEvents = locationPermissionRequests.receiveAsFlow()
 	private var latestPurposeAvailability = purposeAvailabilityReader.availability.value
     private var permissionHistory = PermissionGrantHistory()
 
     init {
+        viewModelScope.launch {
+            while (true) {
+                settingsSaves.receive()
+                while (true) {
+                    val edit = pendingSettingsEdits.values.firstOrNull { !it.attempted } ?: break
+                    edit.attempted = true
+                    saveSettingsEdit(edit)
+                }
+            }
+        }
         viewModelScope.launch {
             combine(
                 trackingParamsRepository.data,
@@ -288,31 +302,31 @@ class TrackingSettingsViewModel internal constructor(
 	}
 
     fun setLocationEnabled(enabled: Boolean) {
-		launchSourcePolicyMutation(markCustomPreset = true) {
+		launchSourcePolicyMutation("location", { it.copy(locationEnabled = enabled) }, markCustomPreset = true) {
 			trackingParamsRepository.setLocationEnabled(enabled)
 		}
     }
 
     fun setActivityEnabled(enabled: Boolean, onSaved: () -> Unit = {}) {
-        mutateSourceSelection(TrackingSourceComponent.ACTIVITY, onSaved) {
+        mutateSourceSelection(TrackingSourceComponent.ACTIVITY, { it.copy(activityEnabled = enabled) }, onSaved) {
             trackingParamsRepository.setActivityEnabled(enabled)
         }
     }
 
     fun setStepsEnabled(enabled: Boolean, onSaved: () -> Unit = {}) {
-        mutateSourceSelection(TrackingSourceComponent.STEPS, onSaved) {
+        mutateSourceSelection(TrackingSourceComponent.STEPS, { it.copy(stepsEnabled = enabled, ambientStepsEnabled = enabled) }, onSaved) {
             trackingParamsRepository.setStepsEnabled(enabled)
         }
     }
 
     fun setWifiEnabled(enabled: Boolean, onSaved: () -> Unit = {}) {
-        mutateSourceSelection(TrackingSourceComponent.WIFI, onSaved) {
+        mutateSourceSelection(TrackingSourceComponent.WIFI, { it.copy(wifiEnabled = enabled) }, onSaved) {
             trackingParamsRepository.setWifiEnabled(enabled)
         }
     }
 
     fun setCellEnabled(enabled: Boolean, onSaved: () -> Unit = {}) {
-        mutateSourceSelection(TrackingSourceComponent.CELL, onSaved) {
+        mutateSourceSelection(TrackingSourceComponent.CELL, { it.copy(cellEnabled = enabled) }, onSaved) {
             trackingParamsRepository.setCellEnabled(enabled)
         }
     }
@@ -320,12 +334,15 @@ class TrackingSettingsViewModel internal constructor(
     /** Save participation before prompting; a superseding edit cancels the old prompt. */
     private fun mutateSourceSelection(
         source: TrackingSourceComponent,
+        preview: (TrackingSettingsUiState) -> TrackingSettingsUiState,
         onSaved: () -> Unit,
         mutation: suspend () -> Unit,
     ) {
         val generation = (sourceIntentGenerations[source] ?: 0L) + 1L
         sourceIntentGenerations[source] = generation
         launchSourcePolicyMutation(
+            key = source.name,
+            preview = preview,
             markCustomPreset = true,
             afterCommittedMutation = {
                 if (sourceIntentGenerations[source] == generation) {
@@ -338,13 +355,18 @@ class TrackingSettingsViewModel internal constructor(
     }
 
     fun setBarometerEnabled(enabled: Boolean) {
-		launchSourcePolicyMutation(markCustomPreset = true) {
+		launchSourcePolicyMutation("pressure", { it.copy(barometerEnabled = enabled) }, markCustomPreset = true) {
 			trackingParamsRepository.setBarometerEnabled(enabled)
 		}
     }
 
 	fun setAmbientLocationEnabled(enabled: Boolean) {
-		mutateLocationSettings(if (enabled) LocationSettingsPermissionKind.LOCATION else null, resumeAfterUserExit = enabled) {
+		mutateLocationSettings("location-ambient", { state ->
+            if (enabled) state.copy(ambientLocationEnabled = true, locationProfileVersion = 1,
+                locationBalanceLevel = state.locationBalanceLevel ?: LocationAdaptiveSettings.DEFAULT_BALANCE_LEVEL,
+                locationBackgroundMode = LocationBackgroundMode.ADAPTIVE)
+            else state.copy(ambientLocationEnabled = false)
+        }, if (enabled) LocationSettingsPermissionKind.LOCATION else null, resumeAfterUserExit = enabled) {
 			if (enabled) trackingParamsRepository.enableAdaptiveBackgroundLocation()
 			else trackingParamsRepository.setAmbientLocationEnabled(false)
 		}
@@ -352,32 +374,49 @@ class TrackingSettingsViewModel internal constructor(
 
 	fun setLocationBackgroundMode(mode: LocationBackgroundMode) {
 		mutateLocationSettings(
+			"location-mode", { state -> state.copy(locationBackgroundMode = mode,
+                locationProfileVersion = if (mode == LocationBackgroundMode.ADAPTIVE) 1 else state.locationProfileVersion,
+                locationBalanceLevel = if (mode == LocationBackgroundMode.ADAPTIVE)
+                    state.locationBalanceLevel ?: LocationAdaptiveSettings.DEFAULT_BALANCE_LEVEL else state.locationBalanceLevel) },
 			LocationSettingsPermissionKind.LOCATION.takeIf { _uiState.value.ambientLocationEnabled },
 			resumeAfterUserExit = mode == LocationBackgroundMode.ADAPTIVE,
 		) { trackingParamsRepository.setLocationBackgroundMode(mode) }
 	}
 
     fun adoptBalanceProfile(level: Int) {
-        launchSourcePolicyMutation { trackingParamsRepository.adoptBalanceProfile(level) }
+        launchSourcePolicyMutation("balance", {
+            val overrides = if (it.balanceProfileVersion == null && it.locationBalanceLevel != null)
+                it.sourceBalanceOverrides.copy(location = it.locationBalanceLevel) else it.sourceBalanceOverrides
+            it.copy(balanceProfileVersion = 1, overallBalanceLevel = level,
+                sourceBalanceOverrides = overrides, locationProfileVersion = 1,
+                locationBalanceLevel = overrides.location ?: level)
+        }) { trackingParamsRepository.adoptBalanceProfile(level) }
     }
 
     fun setSourceBalanceOverride(source: TrackingSourceComponent, level: Int?) {
-        launchSourcePolicyMutation { trackingParamsRepository.setSourceBalanceOverride(source, level) }
+        launchSourcePolicyMutation("balance-$source", {
+            val overrides = it.sourceBalanceOverrides.with(source, level)
+            it.copy(sourceBalanceOverrides = overrides,
+                locationBalanceLevel = overrides.location ?: it.overallBalanceLevel)
+        }) { trackingParamsRepository.setSourceBalanceOverride(source, level) }
     }
 
 	fun adoptLocationProfile(level: Int = LocationAdaptiveSettings.DEFAULT_BALANCE_LEVEL) {
-		mutateLocationSettings { trackingParamsRepository.adoptLocationProfile(level) }
+		mutateLocationSettings("location-balance", { it.copy(locationProfileVersion = 1, locationBalanceLevel = level,
+            sourceBalanceOverrides = if (it.balanceProfileVersion != null) it.sourceBalanceOverrides.copy(location = level)
+                else it.sourceBalanceOverrides) }) { trackingParamsRepository.adoptLocationProfile(level) }
 	}
 
 	fun setLocationMotionAssistanceEnabled(enabled: Boolean) {
-		mutateLocationSettings(if (enabled) LocationSettingsPermissionKind.MOTION else null) {
+		mutateLocationSettings("location-motion", { it.copy(locationMotionAssistanceEnabled = enabled) },
+            if (enabled) LocationSettingsPermissionKind.MOTION else null) {
 			trackingParamsRepository.setLocationMotionAssistanceEnabled(enabled)
 		}
 	}
 
 	/** Retry permissions for already saved intent; a platform result never changes source settings. */
 	fun requestSavedLocationPermission(kind: LocationSettingsPermissionKind) {
-		val state = _uiState.value
+		val state = latestParams ?: return
 		val eligible = when (kind) {
 			LocationSettingsPermissionKind.LOCATION -> state.ambientLocationEnabled
 			LocationSettingsPermissionKind.MOTION -> state.locationProfileVersion == 1 &&
@@ -390,6 +429,8 @@ class TrackingSettingsViewModel internal constructor(
 		request.intentGeneration == locationIntentGeneration
 
 	private fun mutateLocationSettings(
+		key: String,
+		preview: (TrackingSettingsUiState) -> TrackingSettingsUiState,
 		permission: LocationSettingsPermissionKind? = null,
 		resumeAfterUserExit: Boolean = false,
 		mutation: suspend () -> Unit,
@@ -398,50 +439,53 @@ class TrackingSettingsViewModel internal constructor(
 		val expectedExitId = lifecycleCommandAuthority?.pendingCollectionResumeExitId
 			?.takeIf { resumeAfterUserExit && !it.startsWith(TRACKING_TURN_OFF_EXIT_PREFIX) }
 		_uiState.update { it.copy(locationSettingsSaveFailed = false) }
-		viewModelScope.launch {
-			try {
-				mutation()
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (committed: SourcePolicyRevisionReconciliationException) {
-				// The policy committed. Permissions can resolve runtime debt; never resave on grant.
-				publishSourcePolicyReconciliationDebt(committed)
-			} catch (_: Exception) {
-				if (generation == locationIntentGeneration) {
-					_uiState.update { it.copy(locationSettingsSaveFailed = true) }
-				}
-				return@launch
+		launchSourcePolicyMutation(key, preview, runAfterCommittedWhenDebt = true, afterCommittedMutation = {
+			val saved = latestParams
+			val eligible = when (permission) {
+				LocationSettingsPermissionKind.LOCATION -> saved?.ambientLocationEnabled == true
+				LocationSettingsPermissionKind.MOTION -> saved?.locationMotionAssistanceEnabled == true
+				null -> false
 			}
-			if (permission != null && generation == locationIntentGeneration) {
+			if (permission != null && eligible && generation == locationIntentGeneration) {
 				if (expectedExitId != null && lifecycleCommandAuthority?.resumeCollectionAfterUserExit(expectedExitId) != true) {
 					_uiState.update { it.copy(locationSettingsSaveFailed = true) }
-					return@launch
+					return@launchSourcePolicyMutation
 				}
 				locationPermissionRequests.send(LocationSettingsPermissionRequest(permission, generation))
 			}
-		}
+		}, mutation = mutation)
 	}
 
 	fun setAmbientWifiEnabled(enabled: Boolean) {
-		launchSourcePolicyMutation {
+		launchSourcePolicyMutation("ambient-wifi", { it.copy(ambientWifiEnabled = enabled) }) {
 			trackingParamsRepository.setAmbientWifiEnabled(enabled)
 		}
 	}
 
 	fun setAmbientCellEnabled(enabled: Boolean) {
-		launchSourcePolicyMutation {
+		launchSourcePolicyMutation("ambient-cell", { it.copy(ambientCellEnabled = enabled) }) {
 			trackingParamsRepository.setAmbientCellEnabled(enabled)
 		}
 	}
 
     fun setAdvancedSourceControlsEnabled(enabled: Boolean) {
-        viewModelScope.launch {
+        launchSourcePolicyMutation("advanced", { it.copy(advancedSourceControlsEnabled = enabled) }) {
             trackingParamsRepository.setAdvancedSourceControlsEnabled(enabled)
         }
     }
 
     fun setSourceFrequency(component: TrackingSourceComponent, frequency: SourceCollectionFrequency) {
-		launchSourcePolicyMutation(markCustomPreset = true) {
+		launchSourcePolicyMutation("frequency-$component", { state ->
+            val settings = state.sourceCollectionSettings
+            state.copy(sourceCollectionSettings = when (component) {
+                TrackingSourceComponent.LOCATION -> settings.copy(location = frequency)
+                TrackingSourceComponent.ACTIVITY -> settings.copy(activity = frequency)
+                TrackingSourceComponent.STEPS -> settings.copy(steps = frequency)
+                TrackingSourceComponent.PRESSURE -> settings.copy(pressure = frequency)
+                TrackingSourceComponent.WIFI -> settings.copy(wifi = frequency)
+                TrackingSourceComponent.CELL -> settings.copy(cell = frequency)
+            })
+        }, markCustomPreset = true) {
 			trackingParamsRepository.setSourceFrequency(component, frequency)
 		}
     }
@@ -461,7 +505,7 @@ class TrackingSettingsViewModel internal constructor(
     }
 
     fun setTransitionDetectionEnabled(enabled: Boolean) {
-		launchSourcePolicyMutation {
+		launchSourcePolicyMutation("transitions", { it.copy(transitionDetectionEnabled = enabled) }) {
             trackingParamsRepository.setTransitionDetectionEnabled(enabled)
 		}
     }
@@ -481,6 +525,8 @@ class TrackingSettingsViewModel internal constructor(
         }
 		val intentGeneration = ++automaticIntentGeneration
 		launchSourcePolicyMutation(
+			key = "automatic",
+			preview = { it.copy(autoTrackingMode = mode, autoTrackingEnabled = mode > 0) },
 			afterCommittedMutation = {
 				if (intentGeneration != automaticIntentGeneration) return@launchSourcePolicyMutation
 				val published =
@@ -515,24 +561,24 @@ class TrackingSettingsViewModel internal constructor(
     }
 
     fun setNotificationStyled(enabled: Boolean) {
-        viewModelScope.launch {
+        launchSourcePolicyMutation("notification-style", { it.copy(notificationStyled = enabled) }) {
             trackingParamsRepository.setNotificationStyled(enabled)
         }
     }
     fun setMinDistance(distance: Int) {
-		launchSourcePolicyMutation(markCustomPreset = true) {
+		launchSourcePolicyMutation("distance", { it.copy(minDistance = distance) }, markCustomPreset = true) {
 			trackingParamsRepository.setMinDistanceMeters(distance)
 		}
     }
 
     fun setMinTime(time: Int) {
-		launchSourcePolicyMutation(markCustomPreset = true) {
+		launchSourcePolicyMutation("time", { it.copy(minTime = time) }, markCustomPreset = true) {
 			trackingParamsRepository.setMinTimeSeconds(time)
 		}
     }
 
     fun setRequiredAccuracy(accuracy: Int) {
-		launchSourcePolicyMutation(markCustomPreset = true) {
+		launchSourcePolicyMutation("accuracy", { it.copy(requiredAccuracy = accuracy) }, markCustomPreset = true) {
 			trackingParamsRepository.setRequiredAccuracyMeters(accuracy)
 		}
     }
@@ -550,7 +596,14 @@ class TrackingSettingsViewModel internal constructor(
 
 	fun retrySourcePolicyReconciliation() {
 		viewModelScope.launch {
-			sourcePolicyReconciliationCoordinator.reconcileCurrentPolicyRevision()
+			try {
+				sourcePolicyReconciliationCoordinator.reconcileCurrentPolicyRevision()
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				// The existing failure stays visible. Retrying does not rewrite source choices.
+			}
+			refreshPermissionState()
 		}
 	}
 
@@ -571,7 +624,7 @@ class TrackingSettingsViewModel internal constructor(
         val estimate = preview.batteryEstimate
 
         _uiState.update {
-            it.copy(
+            applyPendingSettingsEdits(it.copy(
                 isLoaded = true,
                 currentPreset = params.preset,
                 currentBatteryImpact = estimate.level.toUiImpact(),
@@ -639,7 +692,7 @@ class TrackingSettingsViewModel internal constructor(
                 appliedPlanRevision = runtimeStatus.appliedRevision,
                 runtimeFailureCode = runtimeStatus.failureCode,
                 runtimeTelemetry = telemetry,
-            )
+            ))
         }
     }
 
@@ -650,50 +703,113 @@ class TrackingSettingsViewModel internal constructor(
     }
 
 	private fun launchSourcePolicyMutation(
+		key: String,
+		preview: (TrackingSettingsUiState) -> TrackingSettingsUiState,
 		markCustomPreset: Boolean = false,
 		afterCommittedMutation: suspend () -> Unit = { },
-		onAfterCommittedMutationFailure: (Exception) -> Unit = { },
+		runAfterCommittedWhenDebt: Boolean = false,
 		mutation: suspend () -> Unit,
 	) {
-		viewModelScope.launch {
-			var committed = false
-			var postCommitDebt = false
+		pendingSettingsEdits.remove(key)
+		pendingSettingsEdits[key] = PendingSettingsEdit(key, preview, mutation, markCustomPreset,
+            afterCommittedMutation, runAfterCommittedWhenDebt)
+		_uiState.update(::applyPendingSettingsEdits)
+		settingsSaves.trySend(Unit)
+	}
+
+	/** Retry only the latest failed choice for each control; committed writes are never replayed. */
+	fun retryFailedSettings() {
+		if (pendingSettingsEdits.values.any { it.failed && it.key.startsWith("location-") }) {
+			_uiState.update { it.copy(locationSettingsSaveFailed = false) }
+		}
+		pendingSettingsEdits.values.filter { it.failed }.forEach {
+			it.failed = false
+			it.attempted = false
+		}
+		_uiState.update(::applyPendingSettingsEdits)
+		settingsSaves.trySend(Unit)
+	}
+
+	private fun applyPendingSettingsEdits(state: TrackingSettingsUiState): TrackingSettingsUiState =
+		pendingSettingsEdits.values.fold(state) { result, edit -> edit.preview(result) }
+			.copy(settingsSaveFailed = pendingSettingsEdits.values.any { it.failed },
+                locationSettingsSaveFailed = state.locationSettingsSaveFailed ||
+                    pendingSettingsEdits.values.any { it.failed && it.key.startsWith("location-") })
+
+	private suspend fun saveSettingsEdit(edit: PendingSettingsEdit) {
+		if (!edit.committed) {
 			try {
-				mutation()
-				committed = true
+				edit.mutation()
+				edit.committed = true
 			} catch (cancelled: CancellationException) {
 				throw cancelled
 			} catch (failure: SourcePolicyRevisionReconciliationException) {
-				committed = true
-				postCommitDebt = true
+				edit.committed = true
+				edit.reconciliationDebt = true
 				publishSourcePolicyReconciliationDebt(failure)
-			}
-			if (!committed) return@launch
-			if (markCustomPreset) {
-				try {
-					markCustomPreset()
-				} catch (cancelled: CancellationException) {
-					throw cancelled
-				} catch (failure: SourcePolicyRevisionReconciliationException) {
-					postCommitDebt = true
-					publishSourcePolicyReconciliationDebt(failure)
-				}
-			}
-			if (
-				postCommitDebt ||
-				sourcePolicyReconciliationCoordinator.reconciliationState.value is
-					SourcePolicyRevisionReconciliationState.Debt
-			) {
-				return@launch
-			}
-			try {
-				afterCommittedMutation()
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (failure: Exception) {
-				onAfterCommittedMutationFailure(failure)
+			} catch (_: Exception) {
+				edit.failed = true
+				_uiState.update(::applyPendingSettingsEdits)
+				return
 			}
 		}
+		if (edit.markCustomPreset && !edit.customPresetCommitted) {
+			try {
+				markCustomPreset()
+				edit.customPresetCommitted = true
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (failure: SourcePolicyRevisionReconciliationException) {
+				edit.customPresetCommitted = true
+				edit.reconciliationDebt = true
+				publishSourcePolicyReconciliationDebt(failure)
+			} catch (_: Exception) {
+				edit.failed = true
+				_uiState.update(::applyPendingSettingsEdits)
+				return
+			}
+		}
+		try {
+			latestParams = trackingParamsRepository.data.first()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			edit.failed = true
+			_uiState.update(::applyPendingSettingsEdits)
+			return
+		}
+		if (pendingSettingsEdits[edit.key] !== edit) return
+		pendingSettingsEdits.remove(edit.key)
+		refreshPermissionState()
+		_uiState.update(::applyPendingSettingsEdits)
+		if (
+			!edit.runAfterCommittedWhenDebt && (edit.reconciliationDebt ||
+				sourcePolicyReconciliationCoordinator.reconciliationState.value is
+				SourcePolicyRevisionReconciliationState.Debt)
+		) return
+		try {
+			edit.afterCommittedMutation()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			// The choice is saved. Permission repair must not replay recording intent.
+			refreshPermissionState()
+		}
+	}
+
+	private class PendingSettingsEdit(
+		val key: String,
+		val preview: (TrackingSettingsUiState) -> TrackingSettingsUiState,
+		val mutation: suspend () -> Unit,
+		val markCustomPreset: Boolean,
+		val afterCommittedMutation: suspend () -> Unit,
+		val runAfterCommittedWhenDebt: Boolean,
+	) {
+		var attempted = false
+		var failed = false
+		var committed = false
+		var customPresetCommitted = false
+		var reconciliationDebt = false
 	}
 
 	private fun publishSourcePolicyReconciliationDebt(

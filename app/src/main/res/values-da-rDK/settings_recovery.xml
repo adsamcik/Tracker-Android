@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Ændringerne blev ikke gemt. Dine valg bevares her.</string>
+    <string name="settings_save_retry">Prøv igen</string>
+    <string name="settings_choices_not_applied">Sporing kunne endnu ikke anvende dine gemte valg.</string>
+    <string name="settings_source_policy_unavailable_title">Sporingsindstillinger er ikke tilgængelige</string>
+    <string name="settings_source_policy_unavailable_summary">Dine gemte valg bevares. Sporing er sat på pause, indtil indstillingerne er tilgængelige.</string>
+    <string name="settings_steps_allow_background_updates">Tillad opdateringer af skridt i baggrunden</string>
+</resources>

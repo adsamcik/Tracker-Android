@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Les modifications n’ont pas été enregistrées. Vos choix sont conservés ici.</string>
+    <string name="settings_save_retry">Réessayer</string>
+    <string name="settings_choices_not_applied">Le suivi n’a pas encore pu appliquer vos choix enregistrés.</string>
+    <string name="settings_source_policy_unavailable_title">Paramètres de suivi indisponibles</string>
+    <string name="settings_source_policy_unavailable_summary">Vos choix enregistrés sont conservés. Le suivi est en pause jusqu’à ce que les paramètres soient disponibles.</string>
+    <string name="settings_steps_allow_background_updates">Autoriser les mises à jour des pas en arrière-plan</string>
+</resources>

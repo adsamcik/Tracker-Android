@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Zmeny sa nepodarilo uložiť. Vaše voľby zostávajú tu.</string>
+    <string name="settings_save_retry">Skúsiť znova</string>
+    <string name="settings_choices_not_applied">Sledovanie zatiaľ nemohlo použiť uložené voľby.</string>
+    <string name="settings_source_policy_unavailable_title">Nastavenia sledovania nie sú dostupné</string>
+    <string name="settings_source_policy_unavailable_summary">Uložené voľby zostávajú zachované. Sledovanie je pozastavené, kým nebudú nastavenia dostupné.</string>
+    <string name="settings_steps_allow_background_updates">Povoliť aktualizácie krokov na pozadí</string>
+</resources>

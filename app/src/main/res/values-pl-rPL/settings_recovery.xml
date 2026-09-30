@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Zmiany nie zostały zapisane. Twoje wybory pozostają tutaj.</string>
+    <string name="settings_save_retry">Spróbuj ponownie</string>
+    <string name="settings_choices_not_applied">Śledzenie nie mogło jeszcze zastosować zapisanych wyborów.</string>
+    <string name="settings_source_policy_unavailable_title">Ustawienia śledzenia są niedostępne</string>
+    <string name="settings_source_policy_unavailable_summary">Zapisane wybory pozostają zachowane. Śledzenie jest wstrzymane do czasu udostępnienia ustawień.</string>
+    <string name="settings_steps_allow_background_updates">Zezwól na aktualizację kroków w tle</string>
+</resources>

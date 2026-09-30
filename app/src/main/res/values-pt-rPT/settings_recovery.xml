@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">As alterações não foram guardadas. As suas escolhas ficam aqui.</string>
+    <string name="settings_save_retry">Tentar novamente</string>
+    <string name="settings_choices_not_applied">O registo ainda não conseguiu aplicar as suas escolhas guardadas.</string>
+    <string name="settings_source_policy_unavailable_title">Definições de registo indisponíveis</string>
+    <string name="settings_source_policy_unavailable_summary">As suas escolhas guardadas são mantidas. O registo está em pausa até as definições estarem disponíveis.</string>
+    <string name="settings_steps_allow_background_updates">Permitir atualizações de passos em segundo plano</string>
+</resources>

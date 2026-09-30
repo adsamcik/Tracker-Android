@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Modificările nu au fost salvate. Alegerile tale rămân aici.</string>
+    <string name="settings_save_retry">Reîncearcă</string>
+    <string name="settings_choices_not_applied">Urmărirea nu a putut aplica încă alegerile salvate.</string>
+    <string name="settings_source_policy_unavailable_title">Setările de urmărire nu sunt disponibile</string>
+    <string name="settings_source_policy_unavailable_summary">Alegerile salvate sunt păstrate. Urmărirea este întreruptă până când setările sunt disponibile.</string>
+    <string name="settings_steps_allow_background_updates">Permite actualizări ale pașilor în fundal</string>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Il-bidliet ma ġewx salvati. L-għażliet tiegħek jibqgħu hawn.</string>
+    <string name="settings_save_retry">Erġa’ pprova</string>
+    <string name="settings_choices_not_applied">It-traċċar għadu ma setax japplika l-għażliet salvati tiegħek.</string>
+    <string name="settings_source_policy_unavailable_title">Is-settings tat-traċċar mhumiex disponibbli</string>
+    <string name="settings_source_policy_unavailable_summary">L-għażliet salvati tiegħek jinżammu. It-traċċar jitwaqqaf sakemm is-settings ikunu disponibbli.</string>
+    <string name="settings_steps_allow_background_updates">Ippermetti aġġornamenti tal-passi fl-isfond</string>
+</resources>

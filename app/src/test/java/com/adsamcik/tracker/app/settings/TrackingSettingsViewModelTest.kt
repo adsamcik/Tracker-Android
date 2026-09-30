@@ -62,9 +62,11 @@ import io.mockk.unmockkStatic
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -310,7 +312,150 @@ class TrackingSettingsViewModelTest {
 		vm.setAmbientLocationEnabled(true)
 		advanceUntilIdle()
 		vm.uiState.value.locationSettingsSaveFailed shouldBe true
+		vm.uiState.value.settingsSaveFailed shouldBe true
+		vm.uiState.value.ambientLocationEnabled shouldBe true
 		paramsFlow.value.ambientLocationEnabled shouldBe false
+	}
+
+	@Test
+	fun `failed Location draft cannot prompt permission until Retry commits the choice`() = runTest(testDispatcher) {
+		val vm = createViewModel()
+		coEvery { trackingParamsRepository.enableAdaptiveBackgroundLocation() } throws IllegalStateException("write failed")
+		vm.setAmbientLocationEnabled(true)
+		advanceUntilIdle()
+		vm.requestSavedLocationPermission(LocationSettingsPermissionKind.LOCATION)
+		val permission = backgroundScope.async(testDispatcher) { vm.locationPermissionEvents.first() }
+		advanceUntilIdle()
+		permission.isCompleted shouldBe false
+		coEvery { trackingParamsRepository.enableAdaptiveBackgroundLocation() } answers {
+			paramsFlow.value = paramsFlow.value.copy(ambientLocationEnabled = true,
+				locationProfileVersion = 1, locationBalanceLevel = 3, locationBackgroundMode = LocationBackgroundMode.ADAPTIVE)
+		}
+		vm.retryFailedSettings()
+		advanceUntilIdle()
+		permission.await().kind shouldBe LocationSettingsPermissionKind.LOCATION
+		vm.uiState.value.settingsSaveFailed shouldBe false
+		vm.uiState.value.locationSettingsSaveFailed shouldBe false
+	}
+
+	@Test
+	fun `saved Location permission uses committed state before the UI collector catches up`() = runTest(testDispatcher) {
+		every { trackingParamsRepository.data } returns flow {
+			emit(paramsFlow.value)
+			awaitCancellation()
+		}
+		val vm = createViewModel()
+		advanceUntilIdle()
+		val permission = backgroundScope.async(testDispatcher) { vm.locationPermissionEvents.first() }
+
+		vm.setAmbientLocationEnabled(true)
+		advanceUntilIdle()
+
+		paramsFlow.value.ambientLocationEnabled shouldBe true
+		permission.await().kind shouldBe LocationSettingsPermissionKind.LOCATION
+		vm.uiState.value.ambientLocationEnabled shouldBe true
+		vm.uiState.value.settingsSaveFailed shouldBe false
+	}
+
+	@Test
+	fun `failed source save retains intended choice through refresh and Retry`() = runTest(testDispatcher) {
+		val vm = createViewModel()
+		coEvery { trackingParamsRepository.setCellEnabled(true) } throws IllegalStateException("write failed")
+		var permissionRequests = 0
+		vm.setCellEnabled(true) { permissionRequests += 1 }
+		advanceUntilIdle()
+		vm.refreshPermissionState()
+		vm.uiState.value.cellEnabled shouldBe true
+		vm.uiState.value.settingsSaveFailed shouldBe true
+		paramsFlow.value.cellEnabled shouldBe false
+		permissionRequests shouldBe 0
+		coEvery { trackingParamsRepository.setCellEnabled(true) } answers {
+			paramsFlow.value = paramsFlow.value.copy(cellEnabled = true)
+		}
+		vm.retryFailedSettings()
+		advanceUntilIdle()
+		paramsFlow.value.cellEnabled shouldBe true
+		vm.uiState.value.settingsSaveFailed shouldBe false
+		permissionRequests shouldBe 1
+	}
+
+	@Test
+	fun `superseding a failed choice prevents Retry from restoring old intent`() = runTest(testDispatcher) {
+		val vm = createViewModel()
+		coEvery { trackingParamsRepository.setCellEnabled(true) } throws IllegalStateException("write failed")
+		vm.setCellEnabled(true)
+		advanceUntilIdle()
+		vm.setCellEnabled(false)
+		vm.retryFailedSettings()
+		advanceUntilIdle()
+		vm.uiState.value.cellEnabled shouldBe false
+		vm.uiState.value.settingsSaveFailed shouldBe false
+		coVerify(exactly = 1) { trackingParamsRepository.setCellEnabled(true) }
+	}
+
+	@Test
+	fun `rapid settings saves are ordered and older completion cannot hide a newer choice`() = runTest(testDispatcher) {
+		val vm = createViewModel()
+		val firstSave = CompletableDeferred<Unit>()
+		val writes = mutableListOf<Boolean>()
+		coEvery { trackingParamsRepository.setCellEnabled(any()) } coAnswers {
+			val enabled = firstArg<Boolean>()
+			if (enabled) firstSave.await()
+			writes += enabled
+			paramsFlow.value = paramsFlow.value.copy(cellEnabled = enabled)
+		}
+		vm.setCellEnabled(true)
+		vm.setCellEnabled(false)
+		vm.uiState.value.cellEnabled shouldBe false
+		firstSave.complete(Unit)
+		advanceUntilIdle()
+		writes shouldBe listOf(true, false)
+		paramsFlow.value.cellEnabled shouldBe false
+		vm.uiState.value.cellEnabled shouldBe false
+	}
+
+	@Test
+	fun `a failed custom preset write retries only the preset not the saved source`() = runTest(testDispatcher) {
+		val vm = createViewModel()
+		coEvery { trackingParamsRepository.setPreset(TrackingPreset.CUSTOM) } throws IllegalStateException("write failed")
+		vm.setCellEnabled(true)
+		advanceUntilIdle()
+		paramsFlow.value.cellEnabled shouldBe true
+		vm.uiState.value.settingsSaveFailed shouldBe true
+		coEvery { trackingParamsRepository.setPreset(TrackingPreset.CUSTOM) } answers {
+			paramsFlow.value = paramsFlow.value.copy(presetName = TrackingPreset.CUSTOM.name)
+		}
+		vm.retryFailedSettings()
+		advanceUntilIdle()
+		coVerify(exactly = 1) { trackingParamsRepository.setCellEnabled(true) }
+		paramsFlow.value.preset shouldBe TrackingPreset.CUSTOM
+		vm.uiState.value.settingsSaveFailed shouldBe false
+	}
+
+	@Test
+	fun `Retry preserves separate failed choices and a successful sibling edit`() = runTest(testDispatcher) {
+		val vm = createViewModel()
+		coEvery { trackingParamsRepository.setCellEnabled(true) } throws IllegalStateException("cell write failed")
+		coEvery { trackingParamsRepository.setBarometerEnabled(false) } throws IllegalStateException("pressure write failed")
+		vm.setCellEnabled(true)
+		vm.setBarometerEnabled(false)
+		vm.setNotificationStyled(false)
+		advanceUntilIdle()
+		vm.uiState.value.cellEnabled shouldBe true
+		vm.uiState.value.barometerEnabled shouldBe false
+		paramsFlow.value.notificationStyled shouldBe false
+		coEvery { trackingParamsRepository.setCellEnabled(true) } answers {
+			paramsFlow.value = paramsFlow.value.copy(cellEnabled = true)
+		}
+		coEvery { trackingParamsRepository.setBarometerEnabled(false) } answers {
+			paramsFlow.value = paramsFlow.value.copy(barometerEnabled = false)
+		}
+		vm.retryFailedSettings()
+		advanceUntilIdle()
+		vm.uiState.value.settingsSaveFailed shouldBe false
+		paramsFlow.value.cellEnabled shouldBe true
+		paramsFlow.value.barometerEnabled shouldBe false
+		coVerify(exactly = 1) { trackingParamsRepository.setNotificationStyled(false) }
 	}
 
     private fun createViewModel(

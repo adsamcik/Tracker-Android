@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">更改未保存。您的选择仍保留在此页面。</string>
+    <string name="settings_save_retry">重试</string>
+    <string name="settings_choices_not_applied">跟踪暂时无法应用您已保存的选择。</string>
+    <string name="settings_source_policy_unavailable_title">跟踪设置不可用</string>
+    <string name="settings_source_policy_unavailable_summary">已保存的选择仍会保留。设置可用之前，跟踪会暂停。</string>
+    <string name="settings_steps_allow_background_updates">允许后台更新步数</string>
+</resources>

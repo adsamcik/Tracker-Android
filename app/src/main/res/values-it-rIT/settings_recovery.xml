@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Le modifiche non sono state salvate. Le tue scelte restano qui.</string>
+    <string name="settings_save_retry">Riprova</string>
+    <string name="settings_choices_not_applied">Il monitoraggio non ha ancora potuto applicare le tue scelte salvate.</string>
+    <string name="settings_source_policy_unavailable_title">Impostazioni di monitoraggio non disponibili</string>
+    <string name="settings_source_policy_unavailable_summary">Le tue scelte salvate vengono conservate. Il monitoraggio è in pausa finché le impostazioni non sono disponibili.</string>
+    <string name="settings_steps_allow_background_updates">Consenti aggiornamenti dei passi in background</string>
+</resources>

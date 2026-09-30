@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Promjene nisu spremljene. Vaši odabiri ostaju ovdje.</string>
+    <string name="settings_save_retry">Pokušaj ponovno</string>
+    <string name="settings_choices_not_applied">Praćenje još nije moglo primijeniti vaše spremljene odabire.</string>
+    <string name="settings_source_policy_unavailable_title">Postavke praćenja nisu dostupne</string>
+    <string name="settings_source_policy_unavailable_summary">Spremljeni odabiri ostaju sačuvani. Praćenje je pauzirano dok postavke ne budu dostupne.</string>
+    <string name="settings_steps_allow_background_updates">Omogući ažuriranje koraka u pozadini</string>
+</resources>

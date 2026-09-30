@@ -26,7 +26,7 @@ provider records into the Tracker database. It does not mean estimating missing 
 Health Connect has no new-data notification. The Recording API documentation explicitly
 recommends periodic WorkManager reads so its ten-day retention does not lose data.
 
-## Recommendation awaiting cadence approval
+## Approved cadence
 
 Keep the selected supported recorder subscribed throughout all-day Steps collection. Sessions
 should not turn that subscription on and off. Import when Steps is enabled and when Tracker
@@ -39,12 +39,16 @@ Retain the existing capability selection and visible permission repair. Do not a
 and provider counts for overlapping time unless their count-domain ownership establishes that
 they are different steps. Unsupported or missing periods remain gaps.
 
-## Current implementation gaps
+## Implementation status
 
-- `AmbientStepsFactImporter.importNext` has no production scheduler or app-open call site.
-- The provider handoff coordinator bounds handoff recovery; it is not a periodic import worker.
-- The proposed hourly scheduling cadence has not been approved yet. Do not treat this document
-  as implementation approval.
+The user explicitly approved hourly background copies plus enable/open, with each attempt
+bounded to thirty seconds (`call_m6KyKKq7xe8E3Jehybsm0eg7`, item 0). The candidate now
+contains the WorkManager scheduler/worker, bounded import runner, app foreground hook,
+accepted-provider scheduling, explicit optional Health Connect background permission repair,
+and predecessor handoff before provider removal. Focused source and Room test cases are
+written. This is **IMPLEMENTED_UNVALIDATED**: no compilation, tests or device/provider
+execution has occurred. The full Steps storage/history/statistics/export chain remains open
+until the assembly and convergence gates are complete.
 
 ## API-version detail
 

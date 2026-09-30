@@ -1,10 +1,16 @@
 package com.adsamcik.tracker.tracker.source.ambient.steps
 
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.time.Clock
+import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Provider calls are idempotent and global to one Ambient Steps mechanism. */
 internal interface AmbientStepsProviderBackend {
@@ -82,6 +88,10 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 	private val registrations: AmbientStepsProviderRegistrationRepository,
 	private val cleanupStore: AmbientStepsProviderCleanupStore,
 	providerBackends: Set<AmbientStepsProviderBackend>,
+	private val drainPredecessor: suspend (
+		ProviderRegistrationGenerationEntity,
+		ProviderRegistrationGenerationEntity,
+	) -> Boolean = { _, _ -> true },
 ) {
 	@Inject
 	constructor(
@@ -89,10 +99,41 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 		cleanupStore: AmbientStepsProviderCleanupStore,
 		healthConnectBackend: HealthConnectAmbientStepsProviderBackend,
 		localRecordingBackend: LocalRecordingAmbientStepsProviderBackend,
+		handoffCoordinator: AmbientStepsProviderHandoffCoordinator,
+		capabilityResolver: AndroidAmbientStepsCapabilityResolver,
+		clock: Clock,
+		bootClockDomainProvider: BootClockDomainProvider,
 	) : this(
 		registrations = registrations,
 		cleanupStore = cleanupStore,
 		providerBackends = setOf(healthConnectBackend, localRecordingBackend),
+		drainPredecessor = { predecessor, successor ->
+			withTimeoutOrNull(AmbientStepsImportRunner.ATTEMPT_TIMEOUT_MILLIS) {
+				val platform = capabilityResolver.snapshot()
+				val oldProvider = requireNotNull(predecessor.ambientStepsProviderOrNull())
+				val canRead = when (oldProvider) {
+					AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS ->
+						platform.healthConnect == HealthConnectAmbientStepsAvailability.AVAILABLE &&
+							platform.healthConnectReadStepsGranted &&
+							(platform.healthConnectBackgroundReadGranted || ProcessLifecycleOwner.get()
+								.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+					AmbientStepsProvider.LOCAL_RECORDING_STEPS ->
+						platform.localRecording == LocalRecordingAmbientStepsAvailability.AVAILABLE &&
+							(!platform.activityRecognitionRequired || platform.activityRecognitionGranted)
+				}
+				handoffCoordinator.execute(
+					AmbientStepsProviderHandoffCommand(
+						predecessorRegistrationGeneration = predecessor.registrationGeneration,
+						successorRegistrationGeneration = successor.registrationGeneration,
+						observedBootId = bootClockDomainProvider.current(),
+						observedElapsedRealtimeNanos = clock.elapsedRealtimeNanos(),
+						observedAtMs = clock.currentTimeMillis(),
+						zoneId = ZoneId.systemDefault(),
+						predecessorReadAllowed = canRead,
+					),
+				) is AmbientStepsProviderHandoffResult.Completed
+			} == true
+		},
 	)
 
 	private val mutex = Mutex()
@@ -179,7 +220,10 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 				return failureWithCurrent(demand.provider, error.toRegistrationFailure(), !error.corrupt)
 			}
 			try {
-				backend(demand.provider).ensureActive()
+				check(withTimeoutOrNull(AmbientStepsImportRunner.ATTEMPT_TIMEOUT_MILLIS) {
+					backend(demand.provider).ensureActive()
+					true
+				} == true) { "Ambient Steps provider activation timed out" }
 			} catch (cancellation: CancellationException) {
 				throw cancellation
 			} catch (_: Exception) {
@@ -459,6 +503,21 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 			AmbientStepsProviderRegistrationFailure.PROVIDER_IDENTITY_INVALID,
 		)
 		val currentProvider = current?.ambientStepsProviderOrNull()
+		if (current != null && currentProvider != provider &&
+			current.clockDomainId == registration.clockDomainId &&
+			current.collectedDataEpoch == registration.collectedDataEpoch
+		) {
+			val drained = try {
+				drainPredecessor(registration, current)
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				false
+			}
+			if (!drained) return failureWithCurrent(
+				currentProvider, AmbientStepsProviderRegistrationFailure.DURABLE_AUTHORITY_REJECTED,
+			)
+		}
 		val sharesGlobalProvider = current != null &&
 			current.registrationGeneration != registration.registrationGeneration &&
 			currentProvider == provider
@@ -489,8 +548,10 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 	}
 
 	private suspend fun callRemoveProvider(provider: AmbientStepsProvider): Boolean = try {
-		backend(provider).remove()
-		true
+		withTimeoutOrNull(AmbientStepsImportRunner.ATTEMPT_TIMEOUT_MILLIS) {
+			backend(provider).remove()
+			true
+		} == true
 	} catch (cancellation: CancellationException) {
 		throw cancellation
 	} catch (_: Exception) {

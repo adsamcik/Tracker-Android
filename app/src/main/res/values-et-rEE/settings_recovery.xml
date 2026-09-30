@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_changes_not_saved">Muudatusi ei salvestatud. Sinu valikud jäävad siia alles.</string>
+    <string name="settings_save_retry">Proovi uuesti</string>
+    <string name="settings_choices_not_applied">Jälgimine ei saanud veel sinu salvestatud valikuid rakendada.</string>
+    <string name="settings_source_policy_unavailable_title">Jälgimise seaded pole saadaval</string>
+    <string name="settings_source_policy_unavailable_summary">Salvestatud valikud säilivad. Jälgimine on peatatud, kuni seaded on saadaval.</string>
+    <string name="settings_steps_allow_background_updates">Luba sammude uuendamine taustal</string>
+</resources>

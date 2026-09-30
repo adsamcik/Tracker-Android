@@ -243,7 +243,7 @@ internal class AmbientStepsFactImporter internal constructor(
 
 	/**
 	 * Drains one already-retiring predecessor and partitions its coverage from the accepted
-	 * successor. This command is dormant until provider lifecycle explicitly wires the handoff.
+	 * successor before the provider lifecycle removes its system-owned subscription.
 	 */
 	internal suspend fun handoffAcceptedProvider(
 		command: AmbientStepsProviderHandoffCommand,
@@ -268,7 +268,9 @@ internal class AmbientStepsFactImporter internal constructor(
 		if (preflight is HandoffPreflight.Outcome) return preflight.result
 		preflight as HandoffPreflight.Ready
 
-		val aggregate = if (preflight.drainWindow == null || !collectionWindowAllowed(preflight.drainWindow.startTimeMs)) {
+		val aggregate = if (!command.predecessorReadAllowed || preflight.drainWindow == null ||
+			!collectionWindowAllowed(preflight.drainWindow.startTimeMs)
+		) {
 			null
 		} else {
 			val reader = readers[preflight.predecessor.provider]
@@ -284,6 +286,10 @@ internal class AmbientStepsFactImporter internal constructor(
 				reader.read(preflight.drainWindow.providerWindow, command.observedAtMs)
 			} catch (cancelled: CancellationException) {
 				throw cancelled
+			} catch (_: SecurityException) {
+				// The old permission may have been revoked since capability was inspected.
+				// Never estimate the missing predecessor count.
+				null
 			} catch (_: Exception) {
 				return AmbientStepsProviderHandoffResult.Retryable(
 					AmbientStepsProviderHandoffRetryableReason.PROVIDER_READ_FAILED,
