@@ -23,6 +23,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -72,7 +73,7 @@ class ImportWorkerFailureTest {
 	}
 
 	@Test
-	fun `ZIP structural and resource violations are terminal worker failures`() {
+	fun `ZIP structural and resource violations are terminal worker failures`() = runTest {
 		val extractor = ZipArchiveExtractor()
 		val failures = listOf(
 			shouldThrow<PermanentImportInputException> {

@@ -1,0 +1,8 @@
+diff --git a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorkerFailureTest.kt b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorkerFailureTest.kt
+--- a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorkerFailureTest.kt
++++ b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorkerFailureTest.kt
+@@ -25,0 +26 @@
++import kotlinx.coroutines.test.runTest
+@@ -75 +76 @@
+-	fun `ZIP structural and resource violations are terminal worker failures`() {
++	fun `ZIP structural and resource violations are terminal worker failures`() = runTest {

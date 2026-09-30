@@ -23,10 +23,11 @@ import kotlinx.coroutines.ensureActive
 
 /** Reuses the bounded ZIP extractor; no child reaches an importer before the whole wrapper checks. */
 internal class SessionBundleStager(
-	private val extractor: ArchiveExtractor = ZipArchiveExtractor(),
+	private val extractor: ArchiveExtractor? = null,
 ) {
 	/** Copy a picked document once; its private bytes supply both the job hash and child dispatch. */
 	suspend fun stageSource(context: Context, source: DocumentFile): StagedSessionSource {
+		currentCoroutineContext().ensureActive()
 		val directory = ownedDirectory(context)
 		val destination = File.createTempFile("session-source-", ".trackersession", directory)
 		try {
@@ -38,6 +39,7 @@ internal class SessionBundleStager(
 				while (true) {
 					currentCoroutineContext().ensureActive()
 					val read = stream.read(buffer)
+					currentCoroutineContext().ensureActive()
 					if (read < 0) break
 					count += read
 					if (count > SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES)
@@ -45,6 +47,7 @@ internal class SessionBundleStager(
 					output.write(buffer, 0, read)
 				}
 			} }
+			currentCoroutineContext().ensureActive()
 			return StagedSessionSource(destination)
 		} catch (failure: Throwable) {
 			if (destination.exists() && !destination.delete())
@@ -54,12 +57,32 @@ internal class SessionBundleStager(
 	}
 
 	suspend fun stage(context: Context, file: DocumentFile): StagedSessionBundle {
+		currentCoroutineContext().ensureActive()
 		val directory = ownedDirectory(context)
 		val staged = mutableMapOf<String, StagedSessionChild>()
 		var manifestBytes: ByteArray? = null
 		var totalBytes = 0L
+		val boundedExtractor = extractor ?: ZipArchiveExtractor(
+			maximumEntryBytes = { name ->
+				if (name == SessionBundleManifestCodecV1.MANIFEST_PATH)
+					SessionBundleManifestCodecV1.MAX_MANIFEST_BYTES.toLong()
+				else minOf(SessionBundleManifestCodecV1.MAX_CHILD_BYTES,
+					SessionBundleManifestCodecV1.MAX_TOTAL_BYTES - totalBytes)
+			},
+			maximumTotalBytes = SessionBundleManifestCodecV1.MAX_TOTAL_BYTES +
+				SessionBundleManifestCodecV1.MAX_MANIFEST_BYTES,
+			maximumCompressedInputBytes = SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES,
+		)
 		try {
-			val opened = extractor.extract(context, file, shouldExtract = { true }) { stream ->
+			val opened = boundedExtractor.extract(context, file, shouldExtract = { entry ->
+				currentCoroutineContext().ensureActive()
+				if (entry.fileName == SessionBundleManifestCodecV1.MANIFEST_PATH) {
+					if (manifestBytes != null) throw InvalidSessionBundle("Duplicate session details")
+				} else if (staged.size >= SessionBundleManifestCodecV1.MAX_CHILDREN || staged.containsKey(entry.fileName)) {
+					throw InvalidSessionBundle("Duplicate or excessive session data files")
+				}
+				true
+			}) { stream ->
 				stream.use { input ->
 					val name = input.fileName
 					if (name == SessionBundleManifestCodecV1.MANIFEST_PATH) {
@@ -89,6 +112,7 @@ internal class SessionBundleStager(
 					}
 				}
 			}
+			currentCoroutineContext().ensureActive()
 			if (!opened) throw InvalidSessionBundle("Cannot open session file")
 			val encodedManifest = manifestBytes
 				?: throw InvalidSessionBundle("Session details are missing")
@@ -96,6 +120,7 @@ internal class SessionBundleStager(
 			if (manifest.children.map { it.path }.toSet() != staged.keys)
 				throw InvalidSessionBundle("Session data files do not match the details")
 			manifest.children.forEach { declared ->
+				currentCoroutineContext().ensureActive()
 				val actual = staged.getValue(declared.path)
 				if (actual.sizeBytes != declared.sizeBytes || actual.sha256 != declared.sha256)
 					throw InvalidSessionBundle("Session data file was changed or damaged")
@@ -106,7 +131,19 @@ internal class SessionBundleStager(
 				}
 				if (declared.formatId !in TYPED_SOURCE_FORMAT_IDS || registered == null)
 					throw InvalidSessionBundle("Unsupported session data file")
+				val source = when (declared.formatId) {
+					LocationFileJsonV1.FORMAT -> "location"
+					"portable-steps-v1", "portable-ambient-steps-v1" -> "steps"
+					"portable-activity-v1" -> "activity"
+					"portable-pressure-v1" -> "pressure"
+					RadioSourceFileV2.WIFI_FORMAT -> "wifi"
+					RadioSourceFileV2.CELL_FORMAT -> "cell"
+					else -> throw InvalidSessionBundle("Unsupported session data file")
+				}
+				if (source !in manifest.selectedSources)
+					throw InvalidSessionBundle("Session contains an unselected source")
 			}
+			currentCoroutineContext().ensureActive()
 			return StagedSessionBundle(manifest, encodedManifest,
 				manifest.children.map { staged.getValue(it.path) })
 		} catch (failure: Throwable) {
@@ -118,7 +155,7 @@ internal class SessionBundleStager(
 		}
 	}
 
-	private fun copyBounded(
+	private suspend fun copyBounded(
 		input: FileImportStream,
 		output: java.io.OutputStream,
 		limit: Long,
@@ -127,7 +164,9 @@ internal class SessionBundleStager(
 		val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
 		var count = 0L
 		while (true) {
+			currentCoroutineContext().ensureActive()
 			val read = input.read(buffer)
+			currentCoroutineContext().ensureActive()
 			if (read < 0) break
 			count += read
 			if (count > limit) throw InvalidSessionBundle("Session data file is too large")

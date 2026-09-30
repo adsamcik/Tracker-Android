@@ -13,6 +13,8 @@ import com.adsamcik.tracker.impexp.portable.SessionBundleManifestV1
 import com.adsamcik.tracker.impexp.portable.WifiSourceFileV2
 import com.adsamcik.tracker.impexp.exporter.SessionBundleArchiveWriter
 import com.adsamcik.tracker.impexp.importer.computeImportJobId
+import com.adsamcik.tracker.impexp.importer.FileImportStream
+import com.adsamcik.tracker.impexp.importer.PermanentImportInputException
 import com.adsamcik.tracker.shared.base.extension.openInputStream
 import com.adsamcik.tracker.stats.api.repository.AmbientCellGap
 import com.adsamcik.tracker.stats.api.repository.AmbientCellOrigin
@@ -31,6 +33,8 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -91,6 +95,82 @@ class SessionBundleStagerTest {
 		val bundle = StagedSessionBundle(manifest, SessionBundleManifestCodecV1.encode(manifest),
 			listOf(StagedSessionChild("child", "receipt", nonEmptyDirectory, 1L, "a")))
 		shouldThrow<IOException> { bundle.close() }
+	}
+
+	@Test
+	fun `cancellation while the source closes does not return an unowned private copy`() = runTest {
+		val copyJob = Job()
+		val source = mockk<DocumentFile>()
+		val input = object : ByteArrayInputStream("source bytes".toByteArray()) {
+			override fun close() { super.close(); copyJob.cancel() }
+		}
+		every { source.openInputStream(context) } returns input
+		shouldThrow<CancellationException> {
+			withContext(copyJob) { SessionBundleStager().stageSource(context, source) }
+		}
+		File(cache, SessionBundleStager.CACHE_DIRECTORY).listFiles().orEmpty().size shouldBe 0
+	}
+
+	@Test
+	fun `session child and manifest limits reject declared entries before ZIP materialization`() = runTest {
+		val cases = listOf(
+			"sources/0/steps.trackersteps" to SessionBundleManifestCodecV1.MAX_CHILD_BYTES + 1L,
+			SessionBundleManifestCodecV1.MANIFEST_PATH to SessionBundleManifestCodecV1.MAX_MANIFEST_BYTES + 1L,
+		)
+		for ((name, size) in cases) {
+			val failure = shouldThrow<PermanentImportInputException> {
+				SessionBundleStager().stage(context, file(declaredStoredEntry(name, size)))
+			}
+			failure.message.orEmpty().contains("size limit") shouldBe true
+			File(cache, ZipArchiveExtractor.ZIP_IMPORT_CACHE_DIR).listFiles().orEmpty().size shouldBe 0
+			File(cache, SessionBundleStager.CACHE_DIRECTORY).listFiles().orEmpty().size shouldBe 0
+		}
+	}
+
+	@Test
+	fun `oversized session source is rejected before it is opened`() = runTest {
+		val source = file(byteArrayOf())
+		every { source.length() } returns SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES + 1L
+		shouldThrow<PermanentImportInputException> { SessionBundleStager().stage(context, source) }
+		verify(exactly = 0) { source.openInputStream(context) }
+		File(cache, SessionBundleStager.CACHE_DIRECTORY).listFiles().orEmpty().size shouldBe 0
+	}
+
+	@Test
+	fun `cancellation during child or manifest copy removes prior children and closes every input`() = runTest {
+		for (name in listOf("sources/1/steps.trackersteps", SessionBundleManifestCodecV1.MANIFEST_PATH)) {
+			val copyJob = Job()
+			var firstWasStaged = false
+			var inputsClosed = 0
+			val cancelling = object : ArchiveExtractor {
+				override val supportedExtensions = listOf("zip")
+				override suspend fun extract(context: Context, file: DocumentFile,
+					shouldExtract: suspend (ArchiveEntryMetadata) -> Boolean,
+					consume: suspend (FileImportStream) -> Unit): Boolean {
+					val first = "sources/0/steps.trackersteps"
+					FileImportStream(ByteArrayInputStream("saved child".toByteArray()), first,
+						onClose = { inputsClosed++ }).use { stream ->
+						if (shouldExtract(ArchiveEntryMetadata(first, first))) consume(stream)
+					}
+					firstWasStaged = File(cache, SessionBundleStager.CACHE_DIRECTORY).listFiles()
+						.orEmpty().single().length() > 0L
+					val input = object : ByteArrayInputStream("next block".toByteArray()) {
+						override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+							super.read(buffer, offset, length).also { copyJob.cancel() }
+					}
+					FileImportStream(input, name, onClose = { inputsClosed++ }).use { stream ->
+						if (shouldExtract(ArchiveEntryMetadata(name, name))) consume(stream)
+					}
+					error("Cancelled copy must not finish staging")
+				}
+			}
+			shouldThrow<CancellationException> {
+				withContext(copyJob) { SessionBundleStager(cancelling).stage(context, file(byteArrayOf())) }
+			}
+			firstWasStaged shouldBe true
+			inputsClosed shouldBe 2
+			File(cache, SessionBundleStager.CACHE_DIRECTORY).listFiles().orEmpty().size shouldBe 0
+		}
 	}
 
 	@Test
@@ -208,6 +288,21 @@ class SessionBundleStagerTest {
 	}
 
 	@Test
+	fun `unselected source child is rejected and cleaned before any source dispatch`() = runTest {
+		val payload = ByteArrayOutputStream().also { RadioSourceFileJsonV2Codec().writeWifi(it, wifiFile()) }.toByteArray()
+		val path = "sources/0/wifi.${RadioSourceFileV2.WIFI_EXTENSION}"
+		val child = SessionBundleChildV1(path, RadioSourceFileV2.WIFI_FORMAT, 2, payload.size.toLong(),
+			payload.sha256(), 100, 200, true)
+		val manifest = SessionBundleManifestV1("Cell only", null, 100, 200, "UTC", listOf("cell"),
+			listOf(child), emptyList())
+		shouldThrow<InvalidSessionBundle> {
+			SessionBundleStager().stage(context, file(zip(listOf(path to payload,
+				SessionBundleManifestCodecV1.MANIFEST_PATH to SessionBundleManifestCodecV1.encode(manifest)))))
+		}
+		File(cache, SessionBundleStager.CACHE_DIRECTORY).listFiles().orEmpty().size shouldBe 0
+	}
+
+	@Test
 	fun `damaged child leaves no staged payload`() = runTest {
 		val path = "sources/0/steps.trackersteps"
 		val child = SessionBundleChildV1(path, "portable-steps-v1", 1, 3,
@@ -277,6 +372,15 @@ class SessionBundleStagerTest {
 			zip.closeEntry()
 		} }
 	}.toByteArray()
+
+	/** A real STORED local header advertises its size before any body is needed or allocated. */
+	private fun declaredStoredEntry(name: String, size: Long): ByteArray {
+		val encodedName = name.toByteArray(Charsets.UTF_8)
+		return ByteBuffer.allocate(30 + encodedName.size).order(ByteOrder.LITTLE_ENDIAN)
+			.putInt(0x04034b50).putShort(20).putShort(0).putShort(0)
+			.putShort(0).putShort(0).putInt(0).putInt(size.toInt()).putInt(size.toInt())
+			.putShort(encodedName.size.toShort()).putShort(0).put(encodedName).array()
+	}
 
 	private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")
 		.digest(this).joinToString("") { "%02x".format(it.toInt() and 0xff) }

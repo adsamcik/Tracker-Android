@@ -16,6 +16,8 @@ import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipException
 import java.util.zip.ZipInputStream
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /**
  * Extracts zip archives one entry at a time.
@@ -30,7 +32,15 @@ internal class ZipArchiveExtractor(
 	},
 	private val tempInputStreamFactory: (File) -> InputStream = { it.inputStream() },
 	private val zipInputStreamFactory: (InputStream) -> ZipInputStream = ::ZipInputStream,
+	private val maximumEntryBytes: (String) -> Long = { MAX_ENTRY_BYTES },
+	private val maximumTotalBytes: Long = MAX_TOTAL_BYTES,
+	private val maximumCompressedInputBytes: Long = MAX_COMPRESSED_INPUT_BYTES,
 ) : ArchiveExtractor {
+	init {
+		require(maximumTotalBytes in 1..MAX_TOTAL_BYTES)
+		require(maximumCompressedInputBytes in 1..MAX_COMPRESSED_INPUT_BYTES)
+	}
+
 	override val supportedExtensions: Collection<String> = listOf("zip")
 
 	/**
@@ -38,29 +48,31 @@ internal class ZipArchiveExtractor(
 	 * exporter writes its manifest last, so classification must inspect the complete archive.
 	 */
 	@Suppress("LongMethod", "NestedBlockDepth")
-	fun classifyForMergeImport(
+	suspend fun classifyForMergeImport(
 		context: Context,
 		file: DocumentFile,
 	): ZipArchiveClassification {
+		currentCoroutineContext().ensureActive()
 		if (file.isDirectory) {
 			throw PermanentImportInputException("Import source is not a ZIP archive.")
 		}
 		val declaredSourceSize = file.length()
-		if (declaredSourceSize > MAX_COMPRESSED_INPUT_BYTES) {
+		if (declaredSourceSize > maximumCompressedInputBytes) {
 			throw PermanentImportInputException(
 				"Zip archive exceeds compressed input size limit " +
-					"($MAX_COMPRESSED_INPUT_BYTES bytes)."
+					"($maximumCompressedInputBytes bytes)."
 			)
 		}
 
 		val source = file.openInputStream(context) ?: return ZipArchiveClassification.GENERAL_IMPORT
 		try {
-			LimitedCountingInputStream(source, MAX_COMPRESSED_INPUT_BYTES).use { countedSource ->
+			LimitedCountingInputStream(source, maximumCompressedInputBytes).use { countedSource ->
 				val validated = validatedZipInputStream(countedSource)
 				validated.stream.use { zipStream ->
 				var totalBytesRead = 0L
 				var entryCount = 0
 				while (true) {
+					currentCoroutineContext().ensureActive()
 					val entry = nextZipEntry(zipStream) ?: break
 					entryCount++
 					if (entryCount > MAX_ENTRY_COUNT) {
@@ -72,12 +84,13 @@ internal class ZipArchiveExtractor(
 					var entryReadSuccessfully = false
 					var entryFailure: Throwable? = null
 					try {
-						validateDeclaredEntry(entry)
-						val budgetRemaining = MAX_TOTAL_BYTES - totalBytesRead
+						val entryLimit = entryLimit(entry)
+						validateDeclaredEntry(entry, entryLimit)
+						val budgetRemaining = maximumTotalBytes - totalBytesRead
 						if (budgetRemaining <= 0L) {
 							throw PermanentImportInputException(
 								"Zip archive exceeds total uncompressed size limit " +
-									"($MAX_TOTAL_BYTES bytes); refusing to inspect more."
+									"($maximumTotalBytes bytes); refusing to inspect more."
 							)
 						}
 
@@ -92,7 +105,7 @@ internal class ZipArchiveExtractor(
 							entry = entry,
 							output = output,
 							perEntryLimit = minOf(
-								MAX_ENTRY_BYTES,
+								entryLimit,
 								if (output is ByteArrayOutputStream) {
 									MAX_MANIFEST_BYTES
 								} else {
@@ -138,25 +151,27 @@ internal class ZipArchiveExtractor(
 		shouldExtract: suspend (ArchiveEntryMetadata) -> Boolean,
 		consume: suspend (FileImportStream) -> Unit,
 	): Boolean {
+		currentCoroutineContext().ensureActive()
 		if (file.isDirectory) {
 			throw PermanentImportInputException("Import source is not a ZIP archive.")
 		}
 		val declaredSourceSize = file.length()
-		if (declaredSourceSize > MAX_COMPRESSED_INPUT_BYTES) {
+		if (declaredSourceSize > maximumCompressedInputBytes) {
 			throw PermanentImportInputException(
 				"Zip archive exceeds compressed input size limit " +
-					"($MAX_COMPRESSED_INPUT_BYTES bytes)."
+					"($maximumCompressedInputBytes bytes)."
 			)
 		}
 
 		val source = file.openInputStream(context) ?: return false
 		try {
-			LimitedCountingInputStream(source, MAX_COMPRESSED_INPUT_BYTES).use { countedSource ->
+			LimitedCountingInputStream(source, maximumCompressedInputBytes).use { countedSource ->
 				val validated = validatedZipInputStream(countedSource)
 				validated.stream.use { zipStream ->
 				var totalBytesWritten = 0L
 				var entryCount = 0
 				while (true) {
+					currentCoroutineContext().ensureActive()
 					val entry = nextZipEntry(zipStream) ?: break
 					entryCount++
 					if (entryCount > MAX_ENTRY_COUNT) {
@@ -169,12 +184,13 @@ internal class ZipArchiveExtractor(
 					var entryFailure: Throwable? = null
 					try {
 						val entryName = entry.name
-						validateDeclaredEntry(entry)
-						val budgetRemaining = MAX_TOTAL_BYTES - totalBytesWritten
+						val entryLimit = entryLimit(entry)
+						validateDeclaredEntry(entry, entryLimit)
+						val budgetRemaining = maximumTotalBytes - totalBytesWritten
 						if (budgetRemaining <= 0L) {
 							throw PermanentImportInputException(
 								"Zip archive exceeds total uncompressed size limit " +
-									"($MAX_TOTAL_BYTES bytes); refusing to extract more."
+									"($maximumTotalBytes bytes); refusing to extract more."
 							)
 						}
 
@@ -184,7 +200,7 @@ internal class ZipArchiveExtractor(
 								zipStream = zipStream,
 								entry = entry,
 								output = DISCARDING_OUTPUT,
-								perEntryLimit = MAX_ENTRY_BYTES,
+								perEntryLimit = entryLimit,
 								remainingTotalBudget = budgetRemaining,
 								compressedBytesBefore = compressedBytesBefore,
 								compressedBytesRead = { countedSource.bytesRead },
@@ -203,7 +219,7 @@ internal class ZipArchiveExtractor(
 								zipStream = zipStream,
 								entry = entry,
 								output = DISCARDING_OUTPUT,
-								perEntryLimit = MAX_ENTRY_BYTES,
+								perEntryLimit = entryLimit,
 								remainingTotalBudget = budgetRemaining,
 								compressedBytesBefore = compressedBytesBefore,
 								compressedBytesRead = { countedSource.bytesRead },
@@ -218,7 +234,7 @@ internal class ZipArchiveExtractor(
 							zipStream = zipStream,
 							entry = entry,
 							metadata = metadata,
-							perEntryLimit = MAX_ENTRY_BYTES,
+							perEntryLimit = entryLimit,
 							remainingTotalBudget = budgetRemaining,
 							compressedBytesBefore = compressedBytesBefore,
 							compressedBytesRead = { countedSource.bytesRead },
@@ -246,16 +262,19 @@ internal class ZipArchiveExtractor(
 		return true
 	}
 
-	private fun validateDeclaredEntry(entry: ZipEntry) {
-		if (entry.size > MAX_ENTRY_BYTES) {
+	private fun entryLimit(entry: ZipEntry): Long =
+		maximumEntryBytes(entry.name).also { require(it >= 0L) }.coerceAtMost(MAX_ENTRY_BYTES)
+
+	private fun validateDeclaredEntry(entry: ZipEntry, entryLimit: Long) {
+		if (entry.size > entryLimit) {
 			throw PermanentImportInputException(
-				"Zip entry exceeds size limit ($MAX_ENTRY_BYTES bytes)."
+				"Zip entry exceeds size limit ($entryLimit bytes)."
 			)
 		}
-		if (entry.compressedSize > MAX_COMPRESSED_INPUT_BYTES) {
+		if (entry.compressedSize > maximumCompressedInputBytes) {
 			throw PermanentImportInputException(
 				"Zip entry exceeds compressed size limit " +
-					"($MAX_COMPRESSED_INPUT_BYTES bytes)."
+					"($maximumCompressedInputBytes bytes)."
 			)
 		}
 		if (entry.size > 0L && entry.compressedSize > 0L) {
@@ -263,7 +282,7 @@ internal class ZipArchiveExtractor(
 		}
 	}
 
-	private fun materializeEntry(
+	private suspend fun materializeEntry(
 		context: Context,
 		zipStream: ZipInputStream,
 		entry: ZipEntry,
@@ -273,6 +292,7 @@ internal class ZipArchiveExtractor(
 		compressedBytesBefore: Long,
 		compressedBytesRead: () -> Long,
 	): Pair<FileImportStream, Long> {
+		currentCoroutineContext().ensureActive()
 		val importCacheDir = File(context.cacheDir, ZIP_IMPORT_CACHE_DIR).apply { mkdirs() }
 		val tempFile = tempFileFactory(importCacheDir)
 		try {
@@ -299,7 +319,7 @@ internal class ZipArchiveExtractor(
 		}
 	}
 
-	private fun readEntryWithLimits(
+	private suspend fun readEntryWithLimits(
 		zipStream: ZipInputStream,
 		entry: ZipEntry,
 		output: OutputStream,
@@ -344,14 +364,16 @@ internal class ZipArchiveExtractor(
 			Long.MAX_VALUE
 		}
 
-	private fun ZipInputStream.copyToWithLimit(
+	private suspend fun ZipInputStream.copyToWithLimit(
 		out: OutputStream,
 		limit: Long,
 	): Long {
 		val buffer = ByteArray(BUFFER_SIZE)
 		var total = 0L
 		while (true) {
+			currentCoroutineContext().ensureActive()
 			val read = readZip { this.read(buffer) }
+			currentCoroutineContext().ensureActive()
 			if (read <= 0) break
 			val nextTotal = total + read
 			if (nextTotal > limit) {
@@ -365,8 +387,10 @@ internal class ZipArchiveExtractor(
 		return total
 	}
 
-	private fun nextZipEntry(zipStream: ZipInputStream): ZipEntry? =
-		readZip { zipStream.nextEntry }
+	private suspend fun nextZipEntry(zipStream: ZipInputStream): ZipEntry? {
+		currentCoroutineContext().ensureActive()
+		return readZip { zipStream.nextEntry }.also { currentCoroutineContext().ensureActive() }
+	}
 
 	private fun closeZipEntry(zipStream: ZipInputStream) {
 		readZip { zipStream.closeEntry() }
@@ -442,14 +466,16 @@ internal class ZipArchiveExtractor(
 		val hasLocalFileHeader: Boolean,
 	)
 
-	private fun validatedZipInputStream(
+	private suspend fun validatedZipInputStream(
 		countedSource: LimitedCountingInputStream,
 	): ValidatedZipInput {
 		val source = PushbackInputStream(countedSource, ZIP_SIGNATURE_BYTES)
 		val signature = ByteArray(ZIP_SIGNATURE_BYTES)
 		var offset = 0
 		while (offset < signature.size) {
+			currentCoroutineContext().ensureActive()
 			val read = source.read(signature, offset, signature.size - offset)
+			currentCoroutineContext().ensureActive()
 			if (read < 0) {
 				throw PermanentImportInputException("ZIP archive header is truncated.")
 			}

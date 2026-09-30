@@ -24,6 +24,8 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -119,6 +121,86 @@ class ZipArchiveExtractorTest {
 	}
 
 	private fun cachedFiles(): List<File> = cacheDir.walkTopDown().filter { it.isFile }.toList()
+
+	@Test
+	fun `caller entry cap rejects declared bytes before creating a ZIP temp and defaults remain unchanged`() = runTest {
+		val archive = buildStoredZipBytes("track.gpx", ByteArray(17) { it.toByte() })
+		var created = 0
+		val bounded = ZipArchiveExtractor(tempFileFactory = { directory ->
+			created++
+			File.createTempFile("bounded-", ".tmp", directory)
+		}, maximumEntryBytes = { 16L })
+		val failure = assertFailsWith<PermanentImportInputException> {
+			extractAll(bounded, mockFile(archive))
+		}
+		failure.message.orEmpty().contains("size limit (16 bytes)") shouldBe true
+		created shouldBe 0
+		cachedFiles().shouldBeEmpty()
+		extractAll(extractor, mockFile(archive)).single().second.size shouldBe 17
+	}
+
+	@Test
+	fun `unknown-size entry is stopped at the caller cap before dispatch and cleans its partial ZIP temp`() = runTest {
+		val archive = buildZipBytes(listOf("track.gpx" to ByteArray(32 * 1_024) { it.toByte() }))
+		var consumed = false
+		val bounded = ZipArchiveExtractor(maximumEntryBytes = { 16 * 1_024L })
+		val failure = assertFailsWith<PermanentImportInputException> {
+			bounded.extract(mockContext, mockFile(archive), { true }) { consumed = true }
+		}
+		failure.message.orEmpty().contains("extraction limit (16384 bytes)") shouldBe true
+		consumed shouldBe false
+		cachedFiles().shouldBeEmpty()
+	}
+
+	@Test
+	fun `caller remaining total budget rejects the next declared entry before materialization`() = runTest {
+		var remaining = 10L
+		var created = 0
+		val bounded = ZipArchiveExtractor(tempFileFactory = { directory ->
+			created++
+			File.createTempFile("bounded-", ".tmp", directory)
+		}, maximumEntryBytes = { remaining }, maximumTotalBytes = 10L)
+		val first = buildStoredZipBytes("first.json", ByteArray(6))
+		val second = buildStoredZipBytes("second.json", ByteArray(5))
+		// Each local entry has no data descriptor; omit its central-directory/footer suffix.
+		val archive = first.copyOf(30 + "first.json".length + 6) + second
+		val failure = assertFailsWith<PermanentImportInputException> {
+			bounded.extract(mockContext, mockFile(archive), { true }) { remaining -= it.readBytes().size }
+		}
+		failure.message.orEmpty().contains("size limit (4 bytes)") shouldBe true
+		created shouldBe 1
+		cachedFiles().shouldBeEmpty()
+	}
+
+	@Test
+	fun `cancellation during ZIP read stops extraction and classification at the first buffer`() = runTest {
+		val archive = buildZipBytes(listOf("track.gpx" to ByteArray(32 * 1_024) { it.toByte() }))
+		for (classify in listOf(false, true)) {
+			val copyJob = Job()
+			var reads = 0
+			var closed = false
+			var consumed = false
+			val cancelling = ZipArchiveExtractor(zipInputStreamFactory = { source ->
+				object : ZipInputStream(source) {
+					override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+						super.read(buffer, offset, length).also { count ->
+							if (count > 0) { reads++; copyJob.cancel() }
+						}
+					override fun close() { closed = true; super.close() }
+				}
+			})
+			assertFailsWith<CancellationException> {
+				withContext(copyJob) {
+					if (classify) cancelling.classifyForMergeImport(mockContext, mockFile(archive))
+					else cancelling.extract(mockContext, mockFile(archive), { true }) { consumed = true }
+				}
+			}
+			reads shouldBe 1
+			closed shouldBe true
+			consumed shouldBe false
+			cachedFiles().shouldBeEmpty()
+		}
+	}
 
 	private class CloseTrackingInputStream(delegate: InputStream) : FilterInputStream(delegate) {
 		var closed: Boolean = false
@@ -414,7 +496,7 @@ class ZipArchiveExtractorTest {
 	@DisplayName("Merge-import classification")
 	inner class MergeImportClassification {
 		@Test
-		fun `Tracker database backup is recognized even when manifest follows database entries`() {
+		fun `Tracker database backup is recognized even when manifest follows database entries`() = runTest {
 			val archive = buildZipBytes(
 				listOf(
 					"databases/main_database_v27" to "SQLite database bytes".toByteArray(),
@@ -429,7 +511,7 @@ class ZipArchiveExtractorTest {
 		}
 
 		@Test
-		fun `ordinary portable archive remains eligible for merge import`() {
+		fun `ordinary portable archive remains eligible for merge import`() = runTest {
 			val archive = buildZipBytes(
 				listOf(
 					"track.gpx" to "<gpx/>".toByteArray(),
@@ -446,7 +528,7 @@ class ZipArchiveExtractorTest {
 	@DisplayName("Resource limits")
 	inner class ResourceLimits {
 		@Test
-		fun `classification manifest rejection closes the ZIP without draining the entry`() {
+		fun `classification manifest rejection closes the ZIP without draining the entry`() = runTest {
 			val archive = buildStoredZipBytes(
 				"manifest.json",
 				ByteArray(1_024 * 1_024) { index -> index.toByte() },
@@ -510,7 +592,7 @@ class ZipArchiveExtractorTest {
 		}
 
 		@Test
-		fun `archive at the exact entry count boundary remains structurally valid`() {
+		fun `archive at the exact entry count boundary remains structurally valid`() = runTest {
 			val entries = (0 until ZipArchiveExtractor.MAX_ENTRY_COUNT).map { index ->
 				"entry-$index.json" to byteArrayOf()
 			}

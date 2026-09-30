@@ -1,0 +1,40 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "evidence": "Static inspection and source authorship only; no executed gates",
+  "authoredNewTestMethods": 8,
+  "productionFiles": 2,
+  "testFiles": 3,
+  "paths": [
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/archive/ZipArchiveExtractor.kt",
+      "sha256": "254b47f1e3b7bb821cd740caf5c1990acf40ad1ce01345dbb2006269a67adf12",
+      "selection": "Optional tighter constructor caps and cancellable extraction/classification helpers"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/archive/SessionBundleStager.kt",
+      "sha256": "791c627bb5bd739d48ba2dd288697a793826a3dc1828bcd68e6cb084461c6955",
+      "selection": "Only per-operation extractor caps, early selection checks and cancellation; exclude preserved selectedSources mapping draft"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/archive/ZipArchiveExtractorTest.kt",
+      "sha256": "e6a6a579d5d5625bc7350c10e42e1a75ac085c80f196c5d9e81a3538397bfbfc",
+      "selection": "Four new size/cancellation cases; four existing classification runTest wrappers; related imports"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/archive/SessionBundleStagerTest.kt",
+      "sha256": "126f3bb7f7616635b927ee2eae3cb83e34c1619883513d8e817aeb1f8a0ee79a",
+      "selection": "Four new size/cancellation cases, header helper and related imports; exclude preserved unselected source test"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorkerFailureTest.kt",
+      "sha256": "54e58aa0fc40a246d7ecc911897ee59ad3788f047a830f58e614381361123681",
+      "selection": "Only runTest import and ZIP structural/resource test wrapper"
+    }
+  ],
+  "preservedDraftsExcluded": [
+    "SessionBundleStager manifest.selectedSources check",
+    "SessionBundleStagerTest unselected source case",
+    "Other ImportWorkerFailureTest/Worker/Metadata/Registry drafts"
+  ],
+  "commitOwner": "Coordinator"
+}
