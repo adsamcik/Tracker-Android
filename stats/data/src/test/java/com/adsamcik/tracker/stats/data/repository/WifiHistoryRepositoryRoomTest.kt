@@ -111,6 +111,82 @@ class WifiHistoryRepositoryRoomTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `Wi-Fi export discovery excludes an unrelated unreadable old source cohort`() = runTest {
+		val old = buildGroup(910, 1, setOf(0))
+		val current = buildGroup(911, 1, setOf(0))
+		persist(listOf(old, current))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE wifi_captured_fact_revision SET effect_checksum = ? WHERE logical_tracking_id = ?",
+			arrayOf("f".repeat(64), old.session.logicalTrackingId))
+		val selected = database.wifiCapturedFactDao().completedExportCandidateIdsPage(
+			WIFI_SOURCE, current.runs.single().segment.startTimeMs,
+			current.runs.single().segment.endTimeMs, null, 100)
+		selected shouldBe listOf(current.session.logicalTrackingId)
+	}
+
+	@Test
+	fun `Wi-Fi export discovery retains uncertainty outside the original run header`() = runTest {
+		val group = buildGroup(911, 1, setOf(0))
+		persist(listOf(group))
+		val from = group.runs.single().segment.endTimeMs + 1L
+		database.wifiCapturedFactDao().completedExportCandidateIdsPage(
+			WIFI_SOURCE, from, from + 100, null, 100) shouldBe emptyList()
+		// Altered source clocks must still be qualified later; discovery grants no payload authority.
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE wifi_captured_fact_revision SET observed_wall_time_ms = ?, " +
+				"wall_time_uncertainty_ms = 2 WHERE logical_tracking_id = ?",
+			arrayOf(from - 1, group.session.logicalTrackingId))
+		database.wifiCapturedFactDao().completedExportCandidateIdsPage(
+			WIFI_SOURCE, from, from + 100, null, 100) shouldBe listOf(group.session.logicalTrackingId)
+	}
+
+	@Test
+	fun `Wi-Fi export discovery expands coverage with submillisecond rounding and retains bad clocks`() = runTest {
+		val group = buildGroup(911, 1, setOf(0))
+		persist(listOf(group))
+		val from = group.runs.single().segment.endTimeMs + 1L
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE wifi_captured_fact_revision SET observed_wall_time_ms = ?, wall_time_uncertainty_ms = 0, " +
+				"coverage_interval_end_nanos = coverage_interval_start_nanos + 100000001 " +
+				"WHERE logical_tracking_id = ?",
+			arrayOf(from + 200, group.session.logicalTrackingId))
+		// Rounded coverage starts at from + 99, just before this exclusive end.
+		database.wifiCapturedFactDao().completedExportCandidateIdsPage(
+			WIFI_SOURCE, from, from + 100, null, 100) shouldBe listOf(group.session.logicalTrackingId)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE wifi_captured_fact_revision SET wall_time_uncertainty_ms = -1 WHERE logical_tracking_id = ?",
+			arrayOf(group.session.logicalTrackingId))
+		database.wifiCapturedFactDao().completedExportCandidateIdsPage(
+			WIFI_SOURCE, from + 1_000, from + 2_000, null, 100) shouldBe listOf(group.session.logicalTrackingId)
+	}
+
+	@Test
+	fun `Wi-Fi export discovery keeps negative earliest clocks outside selected owner dates`() = runTest {
+		val group = buildGroup(911, 1, setOf(0))
+		persist(listOf(group))
+		val from = group.runs.single().segment.endTimeMs + 1L
+		val dao = database.wifiCapturedFactDao()
+		dao.completedExportCandidateIdsPage(WIFI_SOURCE, from, from + 100, null, 100) shouldBe emptyList()
+		val sqlite = database.openHelper.writableDatabase
+		// A valid earliest bound of exactly zero remains provably outside these future dates.
+		sqlite.execSQL("UPDATE wifi_captured_fact_revision SET observed_wall_time_ms = 2000, " +
+			"wall_time_uncertainty_ms = 1, coverage_interval_end_nanos = coverage_interval_start_nanos + 1999000000 " +
+			"WHERE logical_tracking_id = ?", arrayOf(group.session.logicalTrackingId))
+		dao.completedExportCandidateIdsPage(WIFI_SOURCE, from, from + 100, null, 100) shouldBe emptyList()
+		// One additional nanosecond rounds the span up and makes the canonical earliest bound negative.
+		sqlite.execSQL("UPDATE wifi_captured_fact_revision SET " +
+			"coverage_interval_end_nanos = coverage_interval_start_nanos + 1999000001 " +
+			"WHERE logical_tracking_id = ?", arrayOf(group.session.logicalTrackingId))
+		dao.completedExportCandidateIdsPage(WIFI_SOURCE, from, from + 100, null, 100) shouldBe
+			listOf(group.session.logicalTrackingId)
+		sqlite.execSQL("UPDATE wifi_captured_fact_revision SET " +
+			"coverage_interval_end_nanos = coverage_interval_start_nanos + 2000000000 " +
+			"WHERE logical_tracking_id = ?", arrayOf(group.session.logicalTrackingId))
+		dao.completedExportCandidateIdsPage(WIFI_SOURCE, from, from + 100, null, 100) shouldBe
+			listOf(group.session.logicalTrackingId)
+	}
+
+	@Test
 	fun `paired Wi-Fi map reader uses the real captured history snapshot without Location collection`() = runTest {
 		val group = buildGroup(911, 1, setOf(0))
 		persist(listOf(group))

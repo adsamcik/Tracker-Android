@@ -1,0 +1,61 @@
+{
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "mixedFileHashesAreSnapshotsNotWholePathApproval": true,
+  "paths": [
+    {
+      "selection": "Only completedExportCandidateIdsPage query and method; preserve separate range/history drafts.",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/WifiCapturedFactDao.kt",
+      "sha256": "bae9582fce08814fdfc8fc7d953e6f267ac466fb57b73a6c590778e31aa95890"
+    },
+    {
+      "selection": "Only completedExportCandidateIdsPage query and method; preserve separate range/history drafts.",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/CellCapturedFactDao.kt",
+      "sha256": "c5f78bdfa1b4f07043a0b454bb63146e18217ed4629db9676ac4c935bf6e2f90"
+    },
+    {
+      "selection": "Only SourceDestinationOwnerEntity import and writeFile candidate page call; localChildren/backgroundChildren owned by requirements agent.",
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableWifiSourceExporter.kt",
+      "sha256": "e05bd80a7b7d103cf25738c6ebe445dc14b521246b015127f28ec2df377ce354"
+    },
+    {
+      "selection": "Only SourceDestinationOwnerEntity import and writeFile candidate page call; localChildren/backgroundChildren owned by requirements agent.",
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableCellSourceExporter.kt",
+      "sha256": "605a2ab678b4218ffee5c9d226419f9b22ee65f4a529f94eb2338b20340353d2"
+    },
+    {
+      "selection": "Whole new test source.",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/RadioExportCandidateRoomTest.kt",
+      "sha256": "f44e26ab2e2d41e6148c7f4daabdf92e8f3faad8984f89b9142472ce7b8e60e5"
+    },
+    {
+      "selection": "Whole new test source.",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/RadioExportCandidateIntegrationRoomTest.kt",
+      "sha256": "bd3aaeb7ba1bf3b9b4ac9971d8ed22b485fff4c6205418a120f265df44df8611"
+    },
+    {
+      "selection": "Only four Wi-Fi export discovery tests immediately after tearDown; preserve other fixture and R13 drafts.",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+      "sha256": "982f3c69a0fdd279ef591bc2dc3b9c0a29efd75fd6e03e5b32de739d6dd41784"
+    },
+    {
+      "selection": "Only four Cell export discovery tests immediately before seedCapturedCell; preserve other test drafts.",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt",
+      "sha256": "df9ab6360bf3094eafb820d580a07294b79f1ac26fabc32071fa725d02ff4a1c"
+    }
+  ],
+  "scope": "Native radio export candidate isolation; source/test authorship and static inspection only",
+  "limitations": [
+    "No gates, compilation, Room query execution or provider activation",
+    "Query cost remains unvalidated; no index/schema added",
+    "Unknown or malformed owned timing remains candidate and can still refuse export",
+    "Imported header-only prefilter and Wi-Fi multi-run continuation require separate scoped repair"
+  ],
+  "unchangedContracts": [
+    "selectCapturedWifiEntry",
+    "selectCapturedCellEntry",
+    "Include sessions across dates behavior",
+    "outside-date counts",
+    "original source identities"
+  ],
+  "freshReviewRepair": "Both native DAO invalid-clock CASE branches keep a rounded coverage span exceeding observed wall minus uncertainty; two additional real Room test sources with outside-date owners cover zero, fractional-negative and whole-negative earliest bounds. Unexecuted."
+}

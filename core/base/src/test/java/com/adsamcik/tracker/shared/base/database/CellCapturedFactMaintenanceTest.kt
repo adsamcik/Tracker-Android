@@ -2916,6 +2916,69 @@ class CellCapturedFactMaintenanceTest {
 		sinkReached shouldBe false
 	}
 
+	@Test
+	fun `Cell export discovery ignores old unverifiable facts outside selected dates`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_captured_fact_revision SET effect_checksum = ?", arrayOf("f".repeat(64)))
+		database.cellCapturedFactDao().completedExportCandidateIdsPage(
+			CELL_SOURCE, SESSION_END_WALL_MS + 1, SESSION_END_WALL_MS + 100, null, 100) shouldBe emptyList()
+		(exportExpectingNoSink() is ExportPortableCapturedCellResult.Unverifiable) shouldBe true
+	}
+
+	@Test
+	fun `Cell export discovery retains uncertainty outside the original run header`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		val from = SESSION_END_WALL_MS + 1
+		database.cellCapturedFactDao().completedExportCandidateIdsPage(
+			CELL_SOURCE, from, from + 100, null, 100) shouldBe emptyList()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_captured_fact_revision SET observed_wall_time_ms = ?, wall_time_uncertainty_ms = 2",
+			arrayOf(from - 1))
+		database.cellCapturedFactDao().completedExportCandidateIdsPage(
+			CELL_SOURCE, from, from + 100, null, 100) shouldBe listOf(LOGICAL_TRACKING_ID)
+		// Candidate discovery does not let changed clocks bypass the owning exporter.
+		(exportExpectingNoSink() is ExportPortableCapturedCellResult.Unverifiable) shouldBe true
+	}
+
+	@Test
+	fun `Cell export discovery uses elapsed coverage and keeps invalid timing for qualification`() = runTest {
+		seedCapturedCell()
+		val from = SESSION_END_WALL_MS + 1
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_captured_fact_revision SET observed_wall_time_ms = ?, wall_time_uncertainty_ms = 0, " +
+				"observed_elapsed_nanos = coverage_interval_start_nanos + 100000001",
+			arrayOf(from + 200))
+		database.cellCapturedFactDao().completedExportCandidateIdsPage(
+			CELL_SOURCE, from, from + 100, null, 100) shouldBe listOf(LOGICAL_TRACKING_ID)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_captured_fact_revision SET observed_elapsed_nanos = coverage_interval_start_nanos - 1")
+		database.cellCapturedFactDao().completedExportCandidateIdsPage(
+			CELL_SOURCE, from + 1_000, from + 2_000, null, 100) shouldBe listOf(LOGICAL_TRACKING_ID)
+	}
+
+	@Test
+	fun `Cell export discovery keeps negative earliest clocks outside selected owner dates`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		val from = SESSION_END_WALL_MS + 1L
+		val dao = database.cellCapturedFactDao()
+		dao.completedExportCandidateIdsPage(CELL_SOURCE, from, from + 100, null, 100) shouldBe emptyList()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL("UPDATE cell_captured_fact_revision SET observed_wall_time_ms = 2000, " +
+			"wall_time_uncertainty_ms = 1, observed_elapsed_nanos = coverage_interval_start_nanos + 1999000000")
+		// Exactly zero is a valid conservative earliest bound, with no touch on the requested dates.
+		dao.completedExportCandidateIdsPage(CELL_SOURCE, from, from + 100, null, 100) shouldBe emptyList()
+		sqlite.execSQL("UPDATE cell_captured_fact_revision SET " +
+			"observed_elapsed_nanos = coverage_interval_start_nanos + 1999000001")
+		dao.completedExportCandidateIdsPage(CELL_SOURCE, from, from + 100, null, 100) shouldBe
+			listOf(LOGICAL_TRACKING_ID)
+		sqlite.execSQL("UPDATE cell_captured_fact_revision SET " +
+			"observed_elapsed_nanos = coverage_interval_start_nanos + 2000000000")
+		dao.completedExportCandidateIdsPage(CELL_SOURCE, from, from + 100, null, 100) shouldBe
+			listOf(LOGICAL_TRACKING_ID)
+		(exportExpectingNoSink() is ExportPortableCapturedCellResult.Unverifiable) shouldBe true
+	}
+
 	private suspend fun seedCapturedCell(
 		retainedFromMs: Long? = null,
 		semanticRevisions: Int = 1,

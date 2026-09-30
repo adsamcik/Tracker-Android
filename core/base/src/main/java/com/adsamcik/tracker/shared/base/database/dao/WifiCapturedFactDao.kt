@@ -48,6 +48,99 @@ data class WifiPortableWalIdentityRow(
 /** Bounded append-only storage boundary for dormant Wi-Fi captured facts. */
 @Dao
 interface WifiCapturedFactDao {
+
+	/**
+	 * Key-only conservative export discovery. Qualification and smart whole-entry selection remain
+	 * source-owned. Unknown owner timing is retained as a candidate, never treated as outside dates.
+	 */
+	@Query(
+		"""
+		SELECT session.logical_tracking_id
+		FROM logical_tracking_session AS session
+		WHERE session.state IN ('FINALIZED', 'CLOSED')
+		  AND (:afterId IS NULL OR session.logical_tracking_id > :afterId)
+		  AND (
+		    EXISTS (
+		      SELECT 1 FROM session_manifest_source AS source
+		      WHERE source.logical_tracking_id = session.logical_tracking_id
+		        AND source.source_kind = :sourceKind
+		        AND source.purpose = 'SESSION_CAPTURE' AND source.persistence_eligible = 1
+		    )
+		    OR EXISTS (
+		      SELECT 1 FROM source_service_run AS fact_run
+		      JOIN wifi_captured_fact_revision AS fact
+		        ON fact.service_run_id = fact_run.service_run_id
+		       AND fact.logical_tracking_id = fact_run.logical_tracking_id
+		       AND fact.session_segment_id = fact_run.session_segment_id
+		      WHERE fact_run.logical_tracking_id = session.logical_tracking_id
+		    )
+		    OR EXISTS (SELECT 1 FROM source_session_completeness AS completeness
+		      WHERE completeness.logical_tracking_id = session.logical_tracking_id
+		        AND completeness.source_kind = :sourceKind)
+		  )
+		  AND (
+		    :fromInclusiveMs IS NULL
+		    OR NOT EXISTS (SELECT 1 FROM source_service_run AS run
+		      WHERE run.logical_tracking_id = session.logical_tracking_id)
+		    OR EXISTS (
+		      SELECT 1 FROM source_service_run AS run
+		      LEFT JOIN session_segment AS segment
+		        ON segment.id = run.session_segment_id
+		       AND segment.service_run_id = run.service_run_id
+		       AND segment.logical_tracking_id = run.logical_tracking_id
+		      WHERE run.logical_tracking_id = session.logical_tracking_id
+		        AND (
+		          segment.id IS NULL
+		          OR typeof(segment.start_time_ms) != 'integer'
+		          OR typeof(segment.end_time_ms) != 'integer'
+		          OR segment.start_time_ms < 0 OR segment.end_time_ms < segment.start_time_ms
+		          OR (segment.start_time_ms < :toExclusiveMs AND
+		            (segment.end_time_ms > :fromInclusiveMs OR
+		              (segment.start_time_ms = segment.end_time_ms AND segment.start_time_ms >= :fromInclusiveMs)))
+		        )
+		    )
+		    OR EXISTS (
+		      SELECT 1 FROM source_service_run AS fact_run
+		      JOIN wifi_captured_fact_revision AS fact
+		        ON fact.service_run_id = fact_run.service_run_id
+		       AND fact.logical_tracking_id = fact_run.logical_tracking_id
+		       AND fact.session_segment_id = fact_run.session_segment_id
+		      WHERE fact_run.logical_tracking_id = session.logical_tracking_id
+		        AND CASE WHEN
+		      typeof(fact.observed_wall_time_ms) != 'integer'
+		      OR typeof(fact.wall_time_uncertainty_ms) != 'integer'
+		      OR typeof(fact.coverage_interval_start_nanos) != 'integer'
+		      OR typeof(fact.coverage_interval_end_nanos) != 'integer'
+		      OR fact.observed_wall_time_ms < 0 OR fact.wall_time_uncertainty_ms < 0
+		      OR fact.coverage_interval_start_nanos < 0
+		      OR fact.coverage_interval_end_nanos < fact.coverage_interval_start_nanos
+		      OR fact.wall_time_uncertainty_ms > fact.observed_wall_time_ms
+		      OR fact.wall_time_uncertainty_ms > 9223372036854775807 - fact.observed_wall_time_ms
+		      OR ((fact.coverage_interval_end_nanos - fact.coverage_interval_start_nanos) / 1000000 +
+		        CASE WHEN (fact.coverage_interval_end_nanos - fact.coverage_interval_start_nanos) % 1000000 != 0
+		          THEN 1 ELSE 0 END) > fact.observed_wall_time_ms - fact.wall_time_uncertainty_ms
+		    THEN 1
+		    ELSE (
+		      fact.observed_wall_time_ms - fact.wall_time_uncertainty_ms -
+		        ((fact.coverage_interval_end_nanos - fact.coverage_interval_start_nanos) / 1000000 +
+		          CASE WHEN (fact.coverage_interval_end_nanos - fact.coverage_interval_start_nanos) % 1000000 != 0
+		            THEN 1 ELSE 0 END) < :toExclusiveMs
+		      AND fact.observed_wall_time_ms + fact.wall_time_uncertainty_ms >= :fromInclusiveMs
+		    ) END
+		    )
+		  )
+		ORDER BY session.logical_tracking_id
+		LIMIT :limit
+		""",
+	)
+	suspend fun completedExportCandidateIdsPage(
+		sourceKind: Int,
+		fromInclusiveMs: Long?,
+		toExclusiveMs: Long?,
+		afterId: String?,
+		limit: Int,
+	): List<String>
+
 	/** Discovery only. The paired reader qualifies complete source history in the same snapshot. */
 	@Query("SELECT fact.* FROM wifi_captured_fact_revision fact JOIN wifi_captured_fact_cursor cursor " +
 		"ON cursor.writer_projection_id = fact.writer_projection_id AND cursor.writer_projection_version = fact.writer_projection_version " +
