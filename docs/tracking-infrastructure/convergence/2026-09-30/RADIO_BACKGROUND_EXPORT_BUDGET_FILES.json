@@ -1,0 +1,46 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "author": "/root/completion_requirements_0930",
+  "workspace": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/source-native-map-context-root",
+  "selection": "Only the named production function hunks and the new test source; preserve other untracked exporter drafts and concurrent writeFile candidate page edits.",
+  "files": [
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/CapturedRadioDateSelection.kt",
+      "sha256": "2059d0b15d7065120eefd5667b6a804c6c23543acfef8b7245c16d9b39659f75",
+      "kind": "existing shared production file",
+      "owned_hunks": ["RadioSourceFileV2/coroutine imports and new internal suspend readBoundedBackgroundRadioChildren only"],
+      "selection": "Shared helper plus six new Room tests can be selected without unfinished exporter drafts. Existing selector logic is unchanged."
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableWifiSourceExporter.kt",
+      "sha256": "1950fa7c638b04f691fda1af3298b128e1e37aea70688b944230d478d6ddeaf2",
+      "kind": "mixed untracked production draft",
+      "owned_hunks": [
+        "backgroundChildren: val rows and val importedRows collection only"
+      ],
+      "excluded": "writeFile page-call/date-selection changes and all other preserved exporter contents"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableCellSourceExporter.kt",
+      "sha256": "710e9ca1bad626c0ea6a6e92afbbabdf12baccdd64869f279a5274b67b63932e",
+      "kind": "mixed untracked production draft",
+      "owned_hunks": ["backgroundChildren: val rows and val importedRows collection only"],
+      "excluded": "writeFile page-call/date-selection changes, previous zero-child expectation repair and all other preserved exporter contents"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/RadioBackgroundExportBudgetRoomTest.kt",
+      "sha256": "f0d56ad109c73f82a9aad07752837a97686eabddfcf18bd586ca88aa7c2a6a05",
+      "kind": "new test source",
+      "owned_hunks": ["whole new file: six Room collector scenarios"],
+      "execution": "not executed"
+    }
+  ],
+  "source_dependencies": [
+    "existing exact native/imported radio child revision DAO queries",
+    "existing RadioSourceFileV2.MAX_CHILDREN and final writer ceiling",
+    "existing source-owned export selection, identity, checksum and cleanup contracts"
+  ],
+  "review_note": "Initial raw duplicate concern corrected: global imported fact/revision uniqueness plus child parent foreign key prevents duplicate archive ownership in conforming storage. Original defensive deduplication remains unchanged.",
+  "executed_validation": []
+}

@@ -1,9 +1,31 @@
 package com.adsamcik.tracker.impexp.exporter
 
+import com.adsamcik.tracker.impexp.portable.RadioSourceFileV2
 import com.adsamcik.tracker.shared.base.database.PortableCapturedCellEntryV1
 import com.adsamcik.tracker.shared.base.database.PortableCellCaptureCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableWifiCaptureCoverage
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+
+/** One shared raw-row ceiling across native and imported details; no partial owner is returned. */
+internal suspend fun <T> readBoundedBackgroundRadioChildren(
+	factRevisions: List<Pair<String, Long>>,
+	maximumRows: Int = RadioSourceFileV2.MAX_CHILDREN,
+	readRevision: suspend (factId: String, semanticRevision: Long, limit: Int) -> List<T>,
+): List<T> {
+	require(maximumRows in 0..RadioSourceFileV2.MAX_CHILDREN)
+	val rows = mutableListOf<T>()
+	for ((factId, revision) in factRevisions) {
+		currentCoroutineContext().ensureActive()
+		val remaining = maximumRows - rows.size
+		val page = readRevision(factId, revision, remaining + 1)
+		currentCoroutineContext().ensureActive()
+		require(page.size <= remaining) { "Too many background radio details" }
+		rows += page
+	}
+	return rows
+}
 
 /** The result describes selected data; it does not expand or alter a saved radio entry. */
 internal data class CapturedRadioDateDecision(
