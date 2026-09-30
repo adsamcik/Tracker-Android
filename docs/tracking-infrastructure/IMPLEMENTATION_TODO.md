@@ -21,7 +21,12 @@ Pressure export headers, exact Location-file membership/retained origin and
 original-job epoch propagation through existing typed import adapters, exact
 imported session annotation membership and native Cell per-reading history. Exact
 commit receipts and still-open source slices are in the current progress file.
-History/maps/bundle callers, complete backup restore/cleanup and remaining radio
+The September 30 continuation also selected shared optional radio map context
+(`3522f218f4`), radio import adapters (`f36310eb27`), exact Steps/Pressure selector
+IDs (`0cb7f6fcc6`) and full measured radio bounds (`c6c6b53f1f`). These are source
+milestones with authored tests; all 25 full-chain prerequisites remain open.
+
+History/bundle callers, complete backup restore/cleanup and remaining radio
 lifecycle work are still being assembled. None of these marks claims a gate pass.
 
 ## 2026-09-27 optional map enrichment continuation

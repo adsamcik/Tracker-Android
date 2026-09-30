@@ -47,6 +47,17 @@ description of its earlier input; this file records subsequent repair progress.
   bounded retained history; physical-retirement siblings and millisecond rounding
   source scenarios. Imported Cell details and final independent review remain open.
 
+- `0cb7f6fcc6`: exact annotation selectors keep real Steps and Pressure identity
+  prefixes, with contract/Room test sources; no ID rehashing or stripping.
+- `3522f218f4`: one bounded source-owned radio/Location snapshot, retained purpose
+  qualification, optional matching in five existing map views and Location/radio
+  invalidation; Wi-Fi malformed-count consistency and focused source scenarios.
+- `f36310eb27`: two single-source radio import adapters, original-epoch bound
+  child attachments/cleanup/retention and existing Hilt bindings, with codec/Room
+  test source. Exporter/format-registry selection remains separate.
+- `c6c6b53f1f`: native radio fractional rounding and full measured API/portable
+  bounds; independent static Cell review and five focused scenario sources.
+
 All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 
 - [x] Steps scheduler, worker and bounded runner; enable/rearm/open invocation;
@@ -83,25 +94,33 @@ All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 - [x] Persist exact typed membership on imported session annotations, distinct
   from editable local time-range groups; no date fallback or global label creation.
 
+- [x] Connect shared read-only optional Location enrichment to five existing radio
+  map views, preserving unchanged readings, uncertainty, source independence and
+  correction/deletion invalidation; authored source scenarios only.
+- [ ] Share retained native/imported ambient qualification with ordinary history
+  readers and the paired map snapshot; coherent reader-source repair is in progress.
+
 ## Remaining in these slices
 
 - [ ] Connect background radio writers to delivery and recovery using independent
   progress. A tool proposal is pending; no dependent change is authorized yet.
 - [x] Propagate current-tuple v6 item qualification through native writers,
   retained capture maintenance and history; preserve v5 contracts.
-- [ ] Recheck the ambient physical-lifetime correction and implement correct local
-  day grouping after the pending user answer.
+- [x] Recheck native physical-lifetime and full measured radio parent time bounds.
+- [ ] Implement correct local-day radio grouping after the pending user answer.
 - [ ] Complete historical session radio capture groups after the pending contract
   answer; a single current callback capture tuple remains insufficient.
 - [x] Review and commit independent optional Wi-Fi/Cell service hosting and
   sessionless Steps motion hints; add the host preference migration/default.
 - [x] Review and commit common original-job epoch plus existing Activity/Pressure/
   Steps adapters; Location was selected with membership. Radio remains separate.
-- [ ] Select complete radio adapters/child attachment with their epoch scenarios.
+- [x] Select radio import adapters/child attachment with their epoch scenarios;
+  exporter/registry and complete external file flow remain separate.
 - [ ] Preserve exact membership of overlapping imported background radio files;
   a new file-to-reading/gap list proposal is awaiting the user answer.
-- [ ] Repair typed Steps annotation identity validation without changing real IDs;
-  finish bundle metadata publication, cancellation and source adapter selection.
+- [x] Repair typed Steps/Pressure annotation identity validation without changing IDs.
+- [ ] Finish bundle metadata publication, cancellation, exact source membership and
+  missing subordinate-receipt handling; select bounded worker/runner hunks.
 - [ ] Complete period discovery streak and revisit season counting after the
   precise period rules are settled; finish the longest-trip period scope.
 - [ ] Close all remaining runtime/history/map/effect/transfer/cleanup gaps from

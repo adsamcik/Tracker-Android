@@ -28,6 +28,13 @@ not supersede later user answers or the selected source commits.
 - [x] Native Cell per-reading writer, child cleanup and retained history:
   `21649b9643`; physical-retirement siblings and rounding scenarios authored.
 
+- [x] Exact Steps/Pressure annotation selector ID shapes: `0cb7f6fcc6`.
+- [x] Shared optional radio/Location reader, existing map views and invalidation:
+  `3522f218f4`; ordinary retained-reader reuse and partial-map UX remain separate.
+- [x] Single-source radio file import adapters and bounded exact detail attachment:
+  `f36310eb27`; exporter/registry/file membership still being assembled.
+- [x] Full measured radio time bounds and fractional child rounding: `c6c6b53f1f`.
+
 All marks above are **IMPLEMENTED_UNVALIDATED source slices**. The 25 complete
 prerequisite chains, final assembly freeze, convergence gates, device evidence and
 local `dev/v10` integration remain open. History/maps/bundles/restore/cleanup and
