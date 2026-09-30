@@ -156,3 +156,24 @@ Authored tests, static review and isolated commits do not satisfy those chains.
   verify that integrated result. Do not push.
 
 No box above is complete merely because an isolated source slice was committed.
+
+## 2026-09-30 continuation
+
+- [x] Source-authored the shared Wi-Fi/network and Cell/tower detail API and the
+  bounded native/imported background readers. They retain available identifiers,
+  preserve older summary-only records, read only current corrections, and reject
+  partial or damaged detail sets. Whitespace-only network names are preserved.
+  Focused API, helper and Room regression sources cover these cases and cleanup.
+  An independent, review-only static pass accepted this isolated reader slice
+  after the SSID correction. **IMPLEMENTED_UNVALIDATED**: no compilation, test,
+  schema, device, or source activation commands were run. Native session readers,
+  admission, writer/maintenance and actual file round trips remain open.
+- [ ] Repair the independent radio review findings: new shared deliveries still
+  encounter whole-batch authorization/freshness checks in ingress; background
+  projectors and Wi-Fi maintenance retain incompatible whole-batch predicates.
+  Apply the approved versioned per-reading rule without altering legacy receipt
+  meaning, then author join/leave, stale-session/fresh-background and replay cases.
+- [ ] Await the user choices for background Steps catch-up cadence and explicit
+  Retry/Leave-without-saving behavior after notification customization save failure.
+
+All 25 full-chain prerequisites and final convergence/integration remain pending.

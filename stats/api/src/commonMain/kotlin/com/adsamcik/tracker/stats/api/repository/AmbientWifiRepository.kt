@@ -56,6 +56,7 @@ data class AmbientWifiFact(
 	val meanSignalDbm: Double,
 	val semanticRevision: Long = 1L,
 	val supersedesSemanticRevision: Long? = null,
+	val networks: List<WifiObservedNetwork> = emptyList(),
 ) {
 	init {
 		require(identity.isNotBlank())
@@ -70,6 +71,7 @@ data class AmbientWifiFact(
 			meanSignalDbm in weakestSignalDbm.toDouble()..strongestSignalDbm.toDouble())
 		require(semanticRevision in 1L..65_536L)
 		require(supersedesSemanticRevision == semanticRevision.takeIf { it > 1L }?.minus(1L))
+		require(networks.size <= observationCount)
 	}
 }
 

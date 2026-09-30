@@ -355,7 +355,7 @@ data class CellHistoryEntry(
 	}
 }
 
-/** One provider-confirmed delivery, minimized to product-safe counts and quality bands. */
+/** One provider-confirmed delivery with its available, locally retained tower readings. */
 data class CellHistoryObservation(
 	val intervalStartTime: EpochMs,
 	val observedTime: EpochMs,
@@ -376,6 +376,7 @@ data class CellHistoryObservation(
 	val storedZoneId: String,
 	/** Opaque native provider event used only to join independently retained optional context. */
 	val localSourceEventId: String? = null,
+	val towers: List<CellObservedTower> = emptyList(),
 ) {
 	init {
 		require(observedTime >= intervalStartTime)
@@ -392,7 +393,25 @@ data class CellHistoryObservation(
 		require(sourceQualityConfidence == null || sourceQualityConfidence in 0f..1f)
 		require(storedZoneId.isNotBlank())
 		require(localSourceEventId == null || localSourceEventId.isNotBlank())
+		require(towers.size <= acceptedChildCount)
 	}
+}
+
+/** The phone observed this Cell identity; it does not establish a tower position. */
+data class CellObservedTower(
+	val observedTimeMs: Long,
+	val wallTimeUncertaintyMs: Long,
+	val identity: String?,
+	val technology: CellHistoryTechnology,
+	val registered: Boolean,
+	val signalDbm: Int?,
+) {
+	init {
+		require(observedTimeMs >= 0L && wallTimeUncertaintyMs >= 0L)
+		require(identity == null || identity.isNotBlank())
+	}
+
+	override fun toString(): String = "CellObservedTower"
 }
 
 data class CellHistorySignalQuality(

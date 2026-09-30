@@ -10,6 +10,12 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEnt
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellGapEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellFactEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellGapEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellChildEntity
+import com.adsamcik.tracker.shared.base.database.data.CellChildChecksumInput
+import com.adsamcik.tracker.shared.base.database.data.RadioChildOwner
+import com.adsamcik.tracker.shared.base.database.data.RadioChildPurpose
+import com.adsamcik.tracker.shared.base.database.data.RadioObservationChildIntegrity
+import com.adsamcik.tracker.shared.base.database.data.PortableRadioChildIntegrity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.repository.AmbientCellAvailability
 import com.adsamcik.tracker.stats.api.repository.AmbientCellCoverage
@@ -24,6 +30,8 @@ import com.adsamcik.tracker.stats.api.repository.AmbientCellReadResult
 import com.adsamcik.tracker.stats.api.repository.AmbientCellRepository
 import com.adsamcik.tracker.stats.api.repository.AmbientCellSubscriptionCompleteness
 import com.adsamcik.tracker.stats.api.repository.AmbientCellTechnologyMix
+import com.adsamcik.tracker.stats.api.repository.CellHistoryTechnology
+import com.adsamcik.tracker.stats.api.repository.CellObservedTower
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -138,7 +146,36 @@ internal class RoomAmbientCellRepository @Inject constructor(
 			importedGaps.size > limit || local.size + imported.size > limit ||
 			gaps.size + importedGaps.size > limit
 		) return AmbientCellReadResult.DependencyOverflow
-		val localFacts = local.map { it.toApiFact() ?: return AmbientCellReadResult.StorageUnavailable }
+		val localChildren = local.map { it.fact.logicalFactId }.distinct()
+			.chunked(CELL_SQLITE_ID_CHUNK_SIZE).flatMap { ids ->
+				val rows = database.radioObservationChildDao().cellCurrentBackgroundChildrenForFactIds(
+					ids, ids.size * MAX_CELL_CHILDREN + 1)
+				if (rows.size > ids.size * MAX_CELL_CHILDREN) {
+					return AmbientCellReadResult.DependencyOverflow
+				}
+				rows
+			}.groupBy { it.logicalFactId to it.semanticRevision }
+		val localFacts = local.map { row ->
+			val base = row.toApiFact() ?: return AmbientCellReadResult.StorageUnavailable
+			val children = localChildren[row.fact.logicalFactId to row.fact.semanticRevision].orEmpty()
+			if (children.isNotEmpty() && children.size != base.observationCount) {
+				return AmbientCellReadResult.StorageUnavailable
+			}
+			if (children.any { child ->
+				child.writerId != row.fact.writerId || child.writerVersion != row.fact.writerVersion ||
+					child.contentChecksum != RadioObservationChildIntegrity.cell(CellChildChecksumInput(
+						RadioChildOwner(RadioChildPurpose.BACKGROUND, child.writerId,
+							child.writerVersion, child.logicalFactId, child.semanticRevision, child.itemIndex),
+						child.providerTimestampNanos, child.observedWallTimeMs,
+						child.wallTimeUncertaintyMs, child.towerIdentity, child.radioType,
+						child.registered, child.signalDbm))
+			}) return AmbientCellReadResult.StorageUnavailable
+			base.copy(towers = children.map { child -> CellObservedTower(
+				child.observedWallTimeMs, child.wallTimeUncertaintyMs,
+				child.towerIdentity?.takeIf(String::isNotBlank),
+				CellHistoryTechnology.valueOf(child.radioType), child.registered, child.signalDbm,
+			) })
+		}
 		val importedHistory = if (imported.isEmpty()) emptyList() else {
 			buildList {
 				imported.map(ImportedAmbientCellFactEntity::factId).distinct()
@@ -167,8 +204,34 @@ internal class RoomAmbientCellRepository @Inject constructor(
 					history.any { it.toApiFact() == null }
 			}
 		) return AmbientCellReadResult.StorageUnavailable
-		val importedFacts = imported.map {
-			it.toApiFact() ?: return AmbientCellReadResult.StorageUnavailable
+		val importedChildren = imported.map(ImportedAmbientCellFactEntity::factId).distinct()
+			.chunked(CELL_SQLITE_ID_CHUNK_SIZE).flatMap { ids ->
+				val rows = database.importedRadioChildDao().cellCurrentBackgroundChildrenForFactIds(
+					ids, ids.size * MAX_CELL_CHILDREN + 1)
+				if (rows.size > ids.size * MAX_CELL_CHILDREN) {
+					return AmbientCellReadResult.DependencyOverflow
+				}
+				rows
+			}.groupBy { Triple(it.archiveId, it.factId, it.semanticRevision) }
+		val importedKeys = imported.map { Triple(it.archiveId, it.factId, it.semanticRevision) }.toSet()
+		if (!importedKeys.containsAll(importedChildren.keys)) {
+			return AmbientCellReadResult.StorageUnavailable
+		}
+		val importedFacts = imported.map { row ->
+			val base = row.toApiFact() ?: return AmbientCellReadResult.StorageUnavailable
+			val children = importedChildren[Triple(row.archiveId, row.factId, row.semanticRevision)]
+				.orEmpty()
+			if (children.size > MAX_CELL_CHILDREN ||
+				children.isNotEmpty() && children.size != base.observationCount ||
+				children.map(ImportedAmbientCellChildEntity::itemIndex).distinct().size != children.size
+			) {
+				return AmbientCellReadResult.StorageUnavailable
+			}
+			val towers = children.map { child ->
+				child.toObservedTowerIfValid(row)
+					?: return AmbientCellReadResult.StorageUnavailable
+			}
+			base.copy(towers = towers)
 		}
 		val facts = (localFacts + importedFacts)
 			.sortedWith(compareBy<AmbientCellFact>(
@@ -202,6 +265,20 @@ internal class RoomAmbientCellRepository @Inject constructor(
 			availability,
 		)
 	}
+}
+
+internal fun ImportedAmbientCellChildEntity.toObservedTowerIfValid(
+	parent: ImportedAmbientCellFactEntity,
+): CellObservedTower? {
+	if (archiveId != parent.archiveId || factId != parent.factId ||
+		semanticRevision != parent.semanticRevision || itemIndex < 0 || providerTimestampNanos <= 0L ||
+		contentChecksum != PortableRadioChildIntegrity.digest("cell", listOf(factId),
+			listOf(semanticRevision, itemIndex, providerTimestampNanos, observedWallTimeMs,
+				wallTimeUncertaintyMs, towerIdentity, radioType, registered, signalDbm))
+	) return null
+	return runCatching { CellObservedTower(observedWallTimeMs, wallTimeUncertaintyMs,
+		towerIdentity?.takeIf(String::isNotBlank), CellHistoryTechnology.valueOf(radioType),
+		registered, signalDbm) }.getOrNull()
 }
 
 internal fun AmbientCellEffectiveLocalRow.toApiFact(): AmbientCellFact? {
@@ -307,3 +384,4 @@ private fun String.toSubscriptionCompleteness(): AmbientCellSubscriptionComplete
 
 private const val MAX_IMPORTED_CELL_REVISIONS_PER_READ = 65_536
 private const val CELL_SQLITE_ID_CHUNK_SIZE = 400
+private const val MAX_CELL_CHILDREN = 256

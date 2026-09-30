@@ -200,7 +200,7 @@ enum class WifiHistoryCause(val isIntegrityFailure: Boolean = false) {
 	VALUE_OVERFLOW(isIntegrityFailure = true),
 }
 
-/** One logical Wi-Fi entry without SSID, BSSID, route, or Location-derived values. */
+/** One logical Wi-Fi entry. Network details are device observations, never network positions. */
 data class WifiHistoryEntry(
 	val key: WifiHistoryEntryKey,
 	val startTime: EpochMs,
@@ -259,7 +259,7 @@ data class WifiHistoryEntry(
 	}
 }
 
-/** One qualified delivery reduced to count, band mix, quality, availability, and coverage. */
+/** One qualified delivery with its available network details. */
 data class WifiHistoryObservation(
 	val intervalStartTime: EpochMs,
 	val observedTime: EpochMs,
@@ -277,6 +277,7 @@ data class WifiHistoryObservation(
 	val storedZoneId: String,
 	/** Opaque native provider event used only to join independently retained optional context. */
 	val localSourceEventId: String? = null,
+	val networks: List<WifiObservedNetwork> = emptyList(),
 ) {
 	init {
 		require(observedTime >= intervalStartTime)
@@ -291,7 +292,27 @@ data class WifiHistoryObservation(
 		require(sourceQualityConfidence == null || sourceQualityConfidence in 0f..1f)
 		require(storedZoneId.isNotBlank())
 		require(localSourceEventId == null || localSourceEventId.isNotBlank())
+		require(networks.size <= acceptedResultCount)
 	}
+}
+
+/** A network seen by the phone at one time; either identifier may be hidden by Android. */
+data class WifiObservedNetwork(
+	val observedTimeMs: Long,
+	val wallTimeUncertaintyMs: Long,
+	val bssid: String?,
+	val ssid: String?,
+	val frequencyMhz: Int,
+	val signalDbm: Int,
+) {
+	init {
+		require(observedTimeMs >= 0L && wallTimeUncertaintyMs >= 0L)
+		require(bssid == null || bssid.isNotBlank())
+		require(ssid == null || ssid.isNotEmpty())
+		require(frequencyMhz > 0 && signalDbm in -200..100)
+	}
+
+	override fun toString(): String = "WifiObservedNetwork"
 }
 
 data class WifiHistorySignalQuality(

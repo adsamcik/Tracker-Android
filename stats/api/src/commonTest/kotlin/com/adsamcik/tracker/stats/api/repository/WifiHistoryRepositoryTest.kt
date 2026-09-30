@@ -33,6 +33,18 @@ class WifiHistoryRepositoryTest {
 	}
 
 	@Test
+	fun `network details retain available names without claiming a network position`() {
+		val network = WifiObservedNetwork(1_000L, 1L, "aa:bb:cc:dd:ee:ff", "Cafe", 2_412, -63)
+		val observation = observation().copy(networks = listOf(network))
+		assertEquals("Cafe", observation.networks.single().ssid)
+		assertEquals("aa:bb:cc:dd:ee:ff", observation.networks.single().bssid)
+		assertEquals("WifiObservedNetwork", network.toString())
+		assertFailsWith<IllegalArgumentException> {
+			observation.copy(networks = List(observation.acceptedResultCount + 1) { network })
+		}
+	}
+
+	@Test
 	fun `imported origin requires an opaque imported selection and cannot claim native membership`() {
 		val selection = WifiImportedHistorySelection(
 			WifiImportedHistorySelectionKey("a".repeat(64)),

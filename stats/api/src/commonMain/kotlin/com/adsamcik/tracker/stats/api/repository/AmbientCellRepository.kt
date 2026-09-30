@@ -95,6 +95,7 @@ data class AmbientCellFact(
 	val qualityDistribution: AmbientCellQualityDistribution,
 	val semanticRevision: Long = 1L,
 	val supersedesSemanticRevision: Long? = null,
+	val towers: List<CellObservedTower> = emptyList(),
 ) {
 	init {
 		require(identity.isNotBlank())
@@ -106,6 +107,7 @@ data class AmbientCellFact(
 		require(qualityDistribution.totalCount == observationCount)
 		require(semanticRevision in 1L..65_536L)
 		require(supersedesSemanticRevision == semanticRevision.takeIf { it > 1L }?.minus(1L))
+		require(towers.size <= observationCount)
 	}
 }
 

@@ -14,6 +14,9 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactIntegrity
 import com.adsamcik.tracker.shared.base.database.pruneAmbientWifi
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiChildEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellChildEntity
+import com.adsamcik.tracker.shared.base.database.data.PortableRadioChildIntegrity
 import com.adsamcik.tracker.stats.api.repository.AmbientCellCoverage
 import com.adsamcik.tracker.stats.api.repository.AmbientCellFact
 import com.adsamcik.tracker.stats.api.repository.AmbientCellOrigin
@@ -141,6 +144,53 @@ class RoomAmbientRadioPortableTransferTest {
 			wifiRequest(wifiArchive(latestRevision = 1L, includeGap = false), "denied", 10_000L),
 		) shouldBe ImportPortableAmbientWifiResult.RetentionAuthorityUnavailable
 		database.ambientWifiFactDao().importedFactCount() shouldBe 0L
+	}
+
+	@Test
+	fun `Wi-Fi history reads only current correction details and rejects incomplete details`() = runTest {
+		val repository = RoomAmbientWifiRepository(database, dispatcher)
+		val transfer = RoomAmbientWifiPortableTransfer(database, repository, dispatcher)
+		val original = wifiArchive(latestRevision = 1L, includeGap = false)
+		assertIs<ImportPortableAmbientWifiResult.Applied>(
+			transfer.importArchive(wifiRequest(original, "details-original", 10_000L)),
+		)
+		val corrected = wifiArchive(latestRevision = 2L, includeGap = false)
+		assertIs<ImportPortableAmbientWifiResult.Applied>(
+			transfer.importArchive(wifiRequest(corrected, "details-corrected", 10_100L)),
+		)
+		val request = AmbientWifiReadRequest(0L, 20_000L,
+			setOf(AmbientWifiOrigin.PORTABLE_IMPORT), 10)
+		// Older summary-only data stays usable when it contains no detail rows.
+		assertEquals(emptyList(), assertIs<AmbientWifiReadResult.Snapshot>(
+			repository.read(request)).facts.single().networks)
+		fun child(archiveId: String, revision: Long, index: Int, name: String) =
+			ImportedAmbientWifiChildEntity(
+				archiveId, corrected.facts.last().identity, revision, index,
+				7_000L + index, 2_000L, 1L, "aa:bb:cc:dd:ee:f$index", name,
+				2_412, -55,
+				PortableRadioChildIntegrity.digest("wifi", listOf(corrected.facts.last().identity),
+					listOf(revision, index, 7_000L + index, 2_000L, 1L,
+						"aa:bb:cc:dd:ee:f$index", name, 2_412, -55)),
+			)
+		database.importedRadioChildDao().insertWifiBackground(listOf(
+			child(original.archiveId, 1L, 0, "Old"),
+			child(original.archiveId, 1L, 1, "Old second"),
+			child(corrected.archiveId, 2L, 0, "Current"),
+		))
+		assertEquals(AmbientWifiReadResult.StorageUnavailable, repository.read(request))
+		database.importedRadioChildDao().insertWifiBackground(listOf(
+			child(corrected.archiveId, 2L, 1, "Current second"),
+		))
+		val read = assertIs<AmbientWifiReadResult.Snapshot>(repository.read(request))
+		assertEquals(2L, read.facts.single().semanticRevision)
+		assertEquals(listOf("Current", "Current second"), read.facts.single().networks.map { it.ssid })
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_ambient_wifi_child SET ssid = 'Changed' WHERE semantic_revision = 2 AND item_index = 0",
+		)
+		assertEquals(AmbientWifiReadResult.StorageUnavailable, repository.read(request))
+		database.clearAmbientWifiProductPreservingReplayFootprints(4L, 11_000L)
+		assertEquals(emptyList(), database.importedRadioChildDao()
+			.wifiBackgroundChildrenForRevision(corrected.facts.last().identity, 2L, 10))
 	}
 
 	@Test
@@ -301,6 +351,22 @@ class RoomAmbientRadioPortableTransferTest {
 			),
 		)
 		assertEquals(AmbientCellOrigin.PORTABLE_IMPORT, read.facts.single().origin)
+		assertEquals(emptyList(), read.facts.single().towers)
+		val children = listOf("LTE:123" to "LTE", "NR:456" to "NR")
+			.mapIndexed { index, (identity, radioType) -> ImportedAmbientCellChildEntity(
+				archive.archiveId, fact.identity, 1L, index, 7_000L + index,
+				2_000L, 1L, identity, radioType, index == 0, -72,
+				PortableRadioChildIntegrity.digest("cell", listOf(fact.identity),
+					listOf(1L, index, 7_000L + index, 2_000L, 1L,
+						identity, radioType, index == 0, -72)),
+			) }
+		database.importedRadioChildDao().insertCellBackground(children.take(1))
+		val detailRequest = AmbientCellReadRequest(0L, 20_000L,
+			setOf(AmbientCellOrigin.PORTABLE_IMPORT), 10)
+		assertEquals(AmbientCellReadResult.StorageUnavailable, repository.read(detailRequest))
+		database.importedRadioChildDao().insertCellBackground(children.drop(1))
+		val details = assertIs<AmbientCellReadResult.Snapshot>(repository.read(detailRequest))
+		assertEquals(listOf("LTE:123", "NR:456"), details.facts.single().towers.map { it.identity })
 		var exportedChecksum: String? = null
 		assertIs<ExportPortableAmbientCellResult.Exported>(
 			transfer.export(
@@ -327,6 +393,10 @@ class RoomAmbientRadioPortableTransferTest {
 			database.ambientCellFactDao().importedForArchive(archive.archiveId, 10)
 				.all(AmbientCellFactIntegrity::isAuthentic),
 		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_ambient_cell_child SET tower_identity = 'Changed' WHERE item_index = 0",
+		)
+		assertEquals(AmbientCellReadResult.StorageUnavailable, repository.read(detailRequest))
 	}
 
 	@Test

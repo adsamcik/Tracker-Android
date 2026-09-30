@@ -27,6 +27,18 @@ class CellHistoryRepositoryTest {
 	}
 
 	@Test
+	fun `tower readings retain available identity without implying a position`() {
+		val tower = CellObservedTower(2L, 1L, "310:260:123:456",
+			CellHistoryTechnology.LTE, true, -92)
+		val observation = observation().copy(towers = listOf(tower))
+		observation.towers.single().identity shouldBe "310:260:123:456"
+		tower.toString() shouldBe "CellObservedTower"
+		shouldThrow<IllegalArgumentException> {
+			observation.copy(towers = listOf(tower, tower))
+		}
+	}
+
+	@Test
 	fun `partial delivery cannot be published as ready without a named cause`() {
 		shouldThrow<IllegalArgumentException> {
 			CellHistoryEntry(

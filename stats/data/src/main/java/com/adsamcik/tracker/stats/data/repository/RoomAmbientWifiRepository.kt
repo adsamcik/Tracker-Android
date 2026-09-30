@@ -10,6 +10,12 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEnt
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiGapEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiFactEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiGapEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiChildEntity
+import com.adsamcik.tracker.shared.base.database.data.PortableRadioChildIntegrity
+import com.adsamcik.tracker.shared.base.database.data.RadioChildOwner
+import com.adsamcik.tracker.shared.base.database.data.RadioChildPurpose
+import com.adsamcik.tracker.shared.base.database.data.RadioObservationChildIntegrity
+import com.adsamcik.tracker.shared.base.database.data.WifiChildChecksumInput
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiAvailability
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiCoverage
@@ -21,6 +27,7 @@ import com.adsamcik.tracker.stats.api.repository.AmbientWifiPortableIntegrity
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadRequest
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadResult
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiRepository
+import com.adsamcik.tracker.stats.api.repository.WifiObservedNetwork
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -136,7 +143,40 @@ internal class RoomAmbientWifiRepository @Inject constructor(
 			importedGaps.size > limit || local.size + imported.size > limit ||
 			gaps.size + importedGaps.size > limit
 		) return AmbientWifiReadResult.DependencyOverflow
-		val localFacts = local.map { it.toApiFact() ?: return AmbientWifiReadResult.StorageUnavailable }
+		val localIds = local.map { it.fact.logicalFactId }.distinct()
+		val localChildren = localIds.chunked(SQLITE_ID_CHUNK_SIZE).flatMap { ids ->
+			val rows = database.radioObservationChildDao()
+				.wifiCurrentBackgroundChildrenForFactIds(ids, ids.size * MAX_WIFI_CHILDREN + 1)
+			if (rows.size > ids.size * MAX_WIFI_CHILDREN) {
+				return AmbientWifiReadResult.DependencyOverflow
+			}
+			rows
+		}.groupBy { it.logicalFactId to it.semanticRevision }
+		val localFacts = local.map { row ->
+			val base = row.toApiFact() ?: return AmbientWifiReadResult.StorageUnavailable
+			val children = localChildren[row.fact.logicalFactId to row.fact.semanticRevision].orEmpty()
+			if (children.isNotEmpty() && children.size != base.observationCount) {
+				return AmbientWifiReadResult.StorageUnavailable
+			}
+			if (children.any { child ->
+				child.writerId != row.fact.writerId || child.writerVersion != row.fact.writerVersion ||
+					child.logicalFactId != row.fact.logicalFactId ||
+					child.semanticRevision != row.fact.semanticRevision ||
+					child.contentChecksum != RadioObservationChildIntegrity.wifi(WifiChildChecksumInput(
+						RadioChildOwner(RadioChildPurpose.BACKGROUND, child.writerId,
+							child.writerVersion, child.logicalFactId, child.semanticRevision, child.itemIndex),
+						child.providerTimestampNanos, child.observedWallTimeMs,
+						child.wallTimeUncertaintyMs, child.bssid, child.ssid,
+						child.frequencyMhz, child.signalDbm,
+					))
+			}) return AmbientWifiReadResult.StorageUnavailable
+			base.copy(networks = children.map { child -> WifiObservedNetwork(
+				child.observedWallTimeMs, child.wallTimeUncertaintyMs,
+				child.bssid?.takeIf(String::isNotBlank),
+				child.ssid?.takeIf(String::isNotEmpty),
+				child.frequencyMhz, child.signalDbm,
+			) })
+		}
 		val importedHistory = if (imported.isEmpty()) emptyList() else {
 			buildList {
 				imported.map(ImportedAmbientWifiFactEntity::factId).distinct()
@@ -165,8 +205,32 @@ internal class RoomAmbientWifiRepository @Inject constructor(
 					history.any { it.toApiFact() == null }
 			}
 		) return AmbientWifiReadResult.StorageUnavailable
-		val importedFacts = imported.map {
-			it.toApiFact() ?: return AmbientWifiReadResult.StorageUnavailable
+		val importedIds = imported.map(ImportedAmbientWifiFactEntity::factId).distinct()
+		val importedChildRows = importedIds.chunked(SQLITE_ID_CHUNK_SIZE).flatMap { ids ->
+			val rows = database.importedRadioChildDao()
+				.wifiCurrentBackgroundChildrenForFactIds(ids, ids.size * MAX_WIFI_CHILDREN + 1)
+			if (rows.size > ids.size * MAX_WIFI_CHILDREN) {
+				return AmbientWifiReadResult.DependencyOverflow
+			}
+			rows
+		}.groupBy { Triple(it.archiveId, it.factId, it.semanticRevision) }
+		val importedKeys = imported.map { Triple(it.archiveId, it.factId, it.semanticRevision) }.toSet()
+		if (!importedKeys.containsAll(importedChildRows.keys)) {
+			return AmbientWifiReadResult.StorageUnavailable
+		}
+		val importedFacts = imported.map { parent ->
+			val base = parent.toApiFact() ?: return AmbientWifiReadResult.StorageUnavailable
+			val children = importedChildRows[Triple(parent.archiveId, parent.factId,
+				parent.semanticRevision)].orEmpty()
+			if (children.size > MAX_WIFI_CHILDREN ||
+				children.isNotEmpty() && children.size != base.observationCount ||
+				children.map(ImportedAmbientWifiChildEntity::itemIndex).distinct().size != children.size
+			) return AmbientWifiReadResult.StorageUnavailable
+			val networks = children.map { child ->
+				child.toObservedNetworkIfValid(parent)
+					?: return AmbientWifiReadResult.StorageUnavailable
+			}
+			base.copy(networks = networks)
 		}
 		val facts = (localFacts + importedFacts).sortedWith(
 			compareBy<AmbientWifiFact>(AmbientWifiFact::observedTimeMs, AmbientWifiFact::identity),
@@ -265,6 +329,24 @@ internal fun ImportedAmbientWifiFactEntity.toApiFact(): AmbientWifiFact? {
 	return sourceFact.copy(origin = AmbientWifiOrigin.PORTABLE_IMPORT)
 }
 
+internal fun ImportedAmbientWifiChildEntity.toObservedNetworkIfValid(
+	parent: ImportedAmbientWifiFactEntity,
+): WifiObservedNetwork? {
+	if (archiveId != parent.archiveId || factId != parent.factId ||
+		semanticRevision != parent.semanticRevision || itemIndex < 0 || providerTimestampNanos <= 0L ||
+		contentChecksum != PortableRadioChildIntegrity.digest(
+			"wifi", listOf(factId), listOf(semanticRevision, itemIndex,
+				providerTimestampNanos, observedWallTimeMs, wallTimeUncertaintyMs,
+				bssid, ssid, frequencyMhz, signalDbm),
+		)
+	) return null
+	return runCatching {
+		WifiObservedNetwork(observedWallTimeMs, wallTimeUncertaintyMs,
+			bssid?.takeIf(String::isNotBlank), ssid?.takeIf(String::isNotEmpty),
+			frequencyMhz, signalDbm)
+	}.getOrNull()
+}
+
 internal fun ImportedAmbientWifiGapEntity.toApiGap(): AmbientWifiGap? {
 	val sourceGap = AmbientWifiGap(
 		gapId,
@@ -290,4 +372,5 @@ private fun String.toCoverage(): AmbientWifiCoverage =
 	} else AmbientWifiCoverage.UNVERIFIABLE
 
 private const val MAX_IMPORTED_WIFI_REVISIONS_PER_READ = 65_536
+private const val MAX_WIFI_CHILDREN = 64
 private const val SQLITE_ID_CHUNK_SIZE = 400
