@@ -42,13 +42,14 @@ sealed interface OrganizationSourceSelector {
 	data class CapturedEntry(override val source: HistorySource, val entryIdentity: String) : OrganizationSourceSelector {
 		init {
 			require(source != HistorySource.LOCATION)
-			requireOrganizationIdentity(entryIdentity)
+			if (source == HistorySource.STEPS || source == HistorySource.PRESSURE) requireOrganizationPrefixedIdentity(entryIdentity)
+			else requireOrganizationIdentity(entryIdentity)
 		}
 	}
 
 	data class BackgroundStepsDay(val dayIdentity: String) : OrganizationSourceSelector {
 		override val source = HistorySource.STEPS
-		init { requireOrganizationIdentity(dayIdentity) }
+		init { requireOrganizationPrefixedIdentity(dayIdentity) }
 	}
 
 	data class BackgroundRadioArchive(override val source: HistorySource, val archiveIdentity: String) : OrganizationSourceSelector {
@@ -62,7 +63,9 @@ sealed interface OrganizationSourceSelector {
 }
 
 private val organizationIdentity = Regex("[0-9a-f]{64}")
+private val organizationPrefixedIdentity = Regex("sha256:[0-9a-f]{64}")
 private fun requireOrganizationIdentity(value: String) { require(organizationIdentity.matches(value)) }
+private fun requireOrganizationPrefixedIdentity(value: String) { require(organizationPrefixedIdentity.matches(value)) }
 
 sealed interface SessionOrganizationRead {
 	data class Content(val sessions: List<OrganizedSession>, val hasMore: Boolean,

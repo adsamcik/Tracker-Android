@@ -219,7 +219,7 @@ class SessionOrganizationRoomTest {
 		val selectors = listOf(
 			OrganizationSourceSelector.LocationFile("a".repeat(64)),
 			OrganizationSourceSelector.CapturedEntry(HistorySource.WIFI, "b".repeat(64)),
-			OrganizationSourceSelector.BackgroundStepsDay("c".repeat(64)),
+			OrganizationSourceSelector.BackgroundStepsDay("sha256:" + "c".repeat(64)),
 			OrganizationSourceSelector.BackgroundRadioArchive(HistorySource.CELL, "d".repeat(64)),
 		)
 		imported(selectors, "Hike")

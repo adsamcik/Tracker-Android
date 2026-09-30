@@ -1,0 +1,19 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "scope": "Exact source-owned Steps and Pressure identity validation; Activity/Wifi/Cell/Location checked unchanged",
+  "files": [
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SessionOrganizationRepository.kt",
+      "sha256": "7e1e84b8388ff2c805d645b48de99bd9897b45fff822b080a3f868fc7a1a8d5d"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/OrganizationSourceSelectionCodecTest.kt",
+      "sha256": "314019463adf2d72b7ce90284694316eb7f814e9858978360ded866d6daa4274"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SessionOrganizationRoomTest.kt",
+      "sha256": "d5a0c060301634f646a445090429e3ac643bab8d2f324f56deadafa972bc4f81"
+    }
+  ],
+  "executedGates": []
+}

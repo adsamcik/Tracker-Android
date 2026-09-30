@@ -17,15 +17,48 @@ class OrganizationSourceSelectionCodecTest {
 	@Test fun `all exact source shapes round trip without foreign runtime authority`() {
 		val selection = listOf(
 			OrganizationSourceSelector.LocationFile("a".repeat(64)),
-			OrganizationSourceSelector.BackgroundStepsDay("b".repeat(64)),
+			OrganizationSourceSelector.BackgroundStepsDay("sha256:" + "b".repeat(64)),
 			OrganizationSourceSelector.BackgroundRadioArchive(HistorySource.WIFI, "c".repeat(64)),
 			OrganizationSourceSelector.BackgroundRadioArchive(HistorySource.CELL, "d".repeat(64)),
 		) + HistorySource.entries.filter { it != HistorySource.LOCATION }.map { source ->
-			OrganizationSourceSelector.CapturedEntry(source, "e".repeat(64))
+			OrganizationSourceSelector.CapturedEntry(source,
+				(if (source == HistorySource.STEPS || source == HistorySource.PRESSURE) "sha256:" else "") + "e".repeat(64))
 		}
 		OrganizationSourceSelectionCodec.decode(OrganizationSourceSelectionCodec.encode(selection)) shouldBe selection
 		OrganizationSourceSelectionCodec.encode(emptyList()) shouldBe "[]"
 		OrganizationSourceSelectionCodec.decode("[]") shouldBe emptyList()
+	}
+
+	@Test fun `Steps and Pressure identities keep their real source prefix and other sources keep raw digests`() {
+		val digest = "a".repeat(64)
+		val identity = "sha256:$digest"
+		val selections = listOf(OrganizationSourceSelector.CapturedEntry(HistorySource.STEPS, identity),
+			OrganizationSourceSelector.CapturedEntry(HistorySource.PRESSURE, identity),
+			OrganizationSourceSelector.BackgroundStepsDay(identity))
+		val encoded = OrganizationSourceSelectionCodec.encode(selections)
+		OrganizationSourceSelectionCodec.decode(encoded) shouldBe selections
+		shouldThrow<IllegalArgumentException> { OrganizationSourceSelector.CapturedEntry(HistorySource.STEPS, digest) }
+		shouldThrow<IllegalArgumentException> { OrganizationSourceSelector.CapturedEntry(HistorySource.PRESSURE, digest) }
+		shouldThrow<IllegalArgumentException> { OrganizationSourceSelector.BackgroundStepsDay(digest) }
+		listOf("sha256:" + "A".repeat(64), "sha256:" + "a".repeat(63), "sha256:sha256:$digest").forEach { invalid ->
+			shouldThrow<IllegalArgumentException> { OrganizationSourceSelector.BackgroundStepsDay(invalid) }
+			shouldThrow<IllegalArgumentException> { OrganizationSourceSelector.CapturedEntry(HistorySource.STEPS, invalid) }
+			shouldThrow<IllegalArgumentException> { OrganizationSourceSelector.CapturedEntry(HistorySource.PRESSURE, invalid) }
+		}
+		listOf(HistorySource.ACTIVITY, HistorySource.WIFI, HistorySource.CELL).forEach { source ->
+			shouldThrow<IllegalArgumentException> { OrganizationSourceSelector.CapturedEntry(source, identity) }
+		}
+		shouldThrow<IllegalArgumentException> { OrganizationSourceSelector.LocationFile(identity) }
+		shouldThrow<IllegalArgumentException> { OrganizationSourceSelector.BackgroundRadioArchive(HistorySource.WIFI, identity) }
+		shouldThrow<IllegalArgumentException> { OrganizationSourceSelector.BackgroundRadioArchive(HistorySource.CELL, identity) }
+		listOf("captured-entry", "background-steps-day").forEach { kind ->
+			shouldThrow<IllegalArgumentException> {
+				OrganizationSourceSelectionCodec.decode("[{\"kind\":\"$kind\",\"source\":\"STEPS\",\"identity\":\"$digest\"}]")
+			}
+		}
+		shouldThrow<IllegalArgumentException> {
+			OrganizationSourceSelectionCodec.decode("[{\"kind\":\"captured-entry\",\"source\":\"PRESSURE\",\"identity\":\"$digest\"}]")
+		}
 	}
 
 	@Test fun `count identity type uniqueness and byte limits reject before storing`() {
