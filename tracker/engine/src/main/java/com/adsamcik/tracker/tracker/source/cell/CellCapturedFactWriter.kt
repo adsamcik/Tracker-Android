@@ -2,13 +2,22 @@ package com.adsamcik.tracker.tracker.source.cell
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.CellPurposeItems
+import com.adsamcik.tracker.shared.base.database.qualifyCellPurposeItems
 import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedChildEntity
+import com.adsamcik.tracker.shared.base.database.data.CellChildChecksumInput
+import com.adsamcik.tracker.shared.base.database.data.CellWalChildDisposition
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication
 import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.RadioChildOwner
+import com.adsamcik.tracker.shared.base.database.data.RadioChildPurpose
+import com.adsamcik.tracker.shared.base.database.data.RadioObservationChildIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -275,6 +284,7 @@ internal class CellCapturedFactWriter @Inject constructor(
 		if (dao.insertRevision(mapped) == INSERT_IGNORED) {
 			reject(CellCapturedWriteRejection.IDENTITY_COLLISION)
 		}
+		persistAcceptedChildren(mapped)
 		checkpoint(CellCapturedWriteCheckpoint.REVISION_INSERTED)
 		val nextCursorRevision = (current?.cursorRevision ?: 0L) + 1L
 		val nextCursor = mapped.toCursor(nextCursorRevision)
@@ -316,6 +326,67 @@ internal class CellCapturedFactWriter @Inject constructor(
 			mapped.semanticRevision,
 			nextCursorRevision,
 		)
+	}
+
+	private suspend fun persistAcceptedChildren(fact: CellCapturedFactRevisionEntity) {
+		if (fact.payloadVersion != CELL_WAL_PAYLOAD_VERSION) return
+		val wal = database.sourceEventWalDao().getByEventId(fact.sourceEventId)
+			?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		val carrier = when (val result = CellWalCarrierAuthenticator.authenticate(fact, wal)) {
+			is CellWalCarrierAuthentication.Authenticated -> result.carrier
+			is CellWalCarrierAuthentication.Rejected ->
+				reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
+		val callback = database.sourceBrokerDao().authorizationRevision(
+			SOURCE_KIND, fact.registrationGeneration, fact.authorizationRevision,
+		).toAuthorizationSnapshotOrNull() ?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		val demandId = callback.authorizedMembers.singleOrNull { member ->
+			member.purpose == PURPOSE && member.persistenceEligible &&
+				member.logicalTrackingId == fact.logicalTrackingId &&
+				member.serviceRunId == fact.serviceRunId &&
+				member.manifestRevision == fact.manifestRevision &&
+				member.consentEpoch == fact.captureConsentEpoch
+		}?.demandId ?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		val purpose = database.qualifyCellPurposeItems(
+			wal, carrier.payload, demandId,
+			fact.providerAcceptanceStartNanos, fact.providerAcceptanceEndNanos,
+		) as? CellPurposeItems.Qualified
+			?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		val accepted = requireNotNull(carrier.childQualification).children.withIndex()
+			.filter { it.value.disposition == CellWalChildDisposition.ACCEPTED }
+		if (accepted.isEmpty() || accepted.any { it.index !in purpose.indexes } ||
+			fact.authorizationEffectStartNanos != purpose.continuousFromNanos ||
+			fact.maximumObservationAgeNanos > purpose.demandMaximumAgeNanos
+		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		val children = accepted.map { (index, item) ->
+			val observation = item.observation
+			val providerTime = requireNotNull(observation.providerTimestampNanos)
+			val ageNanos = wal.observedElapsedNanos - providerTime
+			val ageMs = ageNanos / 1_000_000L
+			val itemWallTime = wal.wallTimeMs?.takeIf { it >= ageMs }?.minus(ageMs)
+				?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			val itemUncertainty = Math.addExact(
+				requireNotNull(wal.wallTimeUncertaintyMs),
+				if (ageNanos % 1_000_000L == 0L) 0L else 1L,
+			)
+			val owner = RadioChildOwner(
+				RadioChildPurpose.SESSION, fact.writerProjectionId, fact.writerProjectionVersion,
+				fact.logicalFactId, fact.semanticRevision, index,
+			)
+			val input = CellChildChecksumInput(
+				owner, providerTime, itemWallTime, itemUncertainty,
+				observation.identifierToken.ifEmpty { null }, observation.radioType,
+				observation.registered, observation.signalLevelDbm,
+			)
+			CellCapturedChildEntity(
+				fact.writerProjectionId, fact.writerProjectionVersion, fact.logicalFactId,
+				fact.semanticRevision, index, providerTime, itemWallTime,
+				itemUncertainty, input.towerIdentity, observation.radioType,
+				observation.registered, observation.signalLevelDbm,
+				RadioObservationChildIntegrity.cell(input),
+			)
+		}
+		database.radioObservationChildDao().insertCellSession(children)
 	}
 
 	private suspend fun writeReplay(
@@ -390,7 +461,9 @@ internal class CellCapturedFactWriter @Inject constructor(
 		requireExactRevisionLineage(row, cursor)
 		return try {
 			val authority = persistedAuthority(row)
-			val evidence = row.persistedEvidence(authority)
+			val rawUncertainty = requireNotNull(database.sourceEventWalDao()
+				.getByEventId(row.sourceEventId)?.wallTimeUncertaintyMs)
+			val evidence = row.persistedEvidence(authority, rawUncertainty)
 			val coverage = row.persistedCoverage()
 			val mutation = row.persistedMutation()
 			when (row.factKind) {
@@ -493,11 +566,13 @@ internal class CellCapturedFactWriter @Inject constructor(
 		requireCurrentWriteAuthority(row)
 		return try {
 			val authority = persistedAuthority(row)
+			val rawUncertainty = requireNotNull(database.sourceEventWalDao()
+				.getByEventId(row.sourceEventId)?.wallTimeUncertaintyMs)
 			CellReusableFact.DirectAggregateOwner.from(
 				CellCapturedFact.Aggregate(
 					mutation = row.persistedMutation(),
 					authority = authority,
-					evidenceBinding = row.persistedEvidence(authority),
+					evidenceBinding = row.persistedEvidence(authority, rawUncertainty),
 					observedWallTimeMs = row.observedWallTimeMs,
 					wallTimeUncertaintyMs = row.wallTimeUncertaintyMs,
 					availability = CellAvailability.valueOf(row.availability),
@@ -631,15 +706,38 @@ internal class CellCapturedFactWriter @Inject constructor(
 				effectiveWallTimeMs = authorization.members.first().effectiveWallTimeMs,
 			)
 		}.getOrNull()
+		val purpose = if (row.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+			val wal = database.sourceEventWalDao().getByEventId(row.sourceEventId)
+				?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			val carrier = when (val authentication = CellWalCarrierAuthenticator.authenticate(row, wal)) {
+				is CellWalCarrierAuthentication.Authenticated -> authentication.carrier
+				is CellWalCarrierAuthentication.Rejected ->
+					reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			}
+			val demandId = captureMember?.demandId
+				?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			val qualified = database.qualifyCellPurposeItems(
+				wal, carrier.payload, demandId, registrationStart, registrationEnd,
+			) as? CellPurposeItems.Qualified
+				?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			val accepted = carrier.childQualification?.children?.withIndex()
+				?.filter { it.value.disposition == CellWalChildDisposition.ACCEPTED }
+				?.map { it.index }.orEmpty()
+			if (qualified.indexes.isEmpty() || accepted.any { it !in qualified.indexes } ||
+				row.maximumObservationAgeNanos > qualified.demandMaximumAgeNanos
+			) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			qualified
+		} else null
 		if (authorization.isDenied || captureMember == null ||
-			startAuthorization != authorization || endAuthorization != authorization ||
+			(purpose == null && (startAuthorization != authorization || endAuthorization != authorization)) ||
 			demandIds.distinct().size != authorizationMembers.size ||
 			demands.size != authorizationMembers.size ||
 			recomputedAuthorization?.sortedBy { it.memberId } != authorization.members.sortedBy { it.memberId } ||
 			authorization.authorizationFingerprint != row.authorizationFingerprint ||
 			authorization.purposeEligibilityMask != row.purposeEligibilityMask ||
 			authorization.effectiveBootId != row.clockDomainId ||
-			authorization.effectiveElapsedRealtimeNanos > row.coverageIntervalStartNanos
+			(purpose?.continuousFromNanos ?: authorization.effectiveElapsedRealtimeNanos) >
+				row.coverageIntervalStartNanos
 		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 		val nextAuthorizationRows = brokerDao.nextAuthorizationRevision(
 			SOURCE_KIND,
@@ -709,7 +807,7 @@ internal class CellCapturedFactWriter @Inject constructor(
 			temporalAuthority = CellCaptureTemporalAuthority(
 				providerAcceptance = CellProviderTimeInterval(registrationStart, registrationEnd),
 				authorizationEffect = CellProviderTimeInterval(
-					authorization.effectiveElapsedRealtimeNanos,
+					purpose?.continuousFromNanos ?: authorization.effectiveElapsedRealtimeNanos,
 					authorizationEnd,
 				),
 				consentEffect = CellProviderTimeInterval(
@@ -1023,6 +1121,7 @@ private fun CellCapturedFactRevisionEntity.persistedMutation() = CellCapturedFac
 
 private fun CellCapturedFactRevisionEntity.persistedEvidence(
 	authority: CellCaptureAuthority,
+	rawWallTimeUncertaintyMs: Long,
 ) = CellCapturedEvidenceBinding(
 	sourceEventId = SourceEventId(sourceEventId),
 	sourceKind = SourceKind.CELL,
@@ -1041,7 +1140,7 @@ private fun CellCapturedFactRevisionEntity.persistedEvidence(
 	observedElapsedRealtimeNanos = observedElapsedNanos,
 	receivedElapsedRealtimeNanos = receivedElapsedNanos,
 	observedWallTimeMs = acquiredAtMs,
-	wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+	wallTimeUncertaintyMs = rawWallTimeUncertaintyMs,
 	acquiredAtMs = acquiredAtMs,
 	createdAtMs = createdAtMs,
 	qualityFlags = qualityFlags,

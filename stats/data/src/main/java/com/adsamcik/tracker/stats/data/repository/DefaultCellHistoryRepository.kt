@@ -22,6 +22,7 @@ import com.adsamcik.tracker.shared.base.database.authenticateDeletedCapturedCell
 import com.adsamcik.tracker.shared.base.database.dao.CellLogicalHistoryCandidate
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedChildEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -1119,6 +1120,23 @@ internal class DefaultCellHistoryRepository internal constructor(
 			MAX_CURSORS + 1,
 		)
 		val factIds = revisions.map(CellCapturedFactRevisionEntity::logicalFactId).distinct()
+		var childOverflow = false
+		val currentChildren = mutableListOf<CellCapturedChildEntity>()
+		for (ids in factIds.chunked(CELL_CHILD_FACT_CHUNK)) {
+			currentCoroutineContext().ensureActive()
+			val rows = database.radioObservationChildDao().cellCurrentSessionChildrenByFactIds(
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				ids, ids.size * MAX_CELL_CHILDREN + 1,
+			)
+			if (rows.size > ids.size * MAX_CELL_CHILDREN ||
+				currentChildren.size + rows.size > MAX_HISTORY_CHILDREN
+			) {
+				childOverflow = true
+				break
+			}
+			currentChildren += rows
+		}
 		val referencedCursors = factIds.chunked(SQL_ID_BATCH).flatMap { ids ->
 			currentCoroutineContext().ensureActive()
 			factDao.historyCursors(ids, MAX_CURSORS + 1)
@@ -1188,7 +1206,7 @@ internal class DefaultCellHistoryRepository internal constructor(
 				runIds, after, through, MAX_TERMINAL_FAILURES + 1)
 		val evidence = database.sourceEvidenceStateDao().get()
 		currentCoroutineContext().ensureActive()
-		val overflow = factLoad.overflow || runs.size > MAX_LOGICAL_MEMBERS ||
+		val overflow = factLoad.overflow || childOverflow || runs.size > MAX_LOGICAL_MEMBERS ||
 			sessions.size > MAX_SESSIONS || manifests.size > MAX_MANIFESTS ||
 			sources.size > MAX_MANIFEST_SOURCES || completeness.size > MAX_COMPLETENESS ||
 			policies.size > MAX_POLICIES || consents.size > MAX_CONSENTS ||
@@ -1215,6 +1233,7 @@ internal class DefaultCellHistoryRepository internal constructor(
 			completenessByRun = completeness.take(MAX_COMPLETENESS)
 				.groupBy { it.serviceRunId },
 			revisions = revisions.take(MAX_FACT_REVISIONS),
+			childrenByRevision = currentChildren.groupBy { it.logicalFactId to it.semanticRevision },
 			cursors = cursors.take(MAX_CURSORS),
 			deletionGenerations = generations.take(MAX_DELETION_GENERATIONS)
 				.associateBy { it.logicalTrackingId to it.serviceRunId },
@@ -1307,6 +1326,9 @@ internal class DefaultCellHistoryRepository internal constructor(
 		const val MAX_LOGICAL_MEMBERS = 128
 		const val FACT_PAGE_SIZE = 256
 		const val MAX_FACT_REVISIONS = 4_096
+		const val CELL_CHILD_FACT_CHUNK = 32
+		const val MAX_CELL_CHILDREN = 256
+		const val MAX_HISTORY_CHILDREN = 65_536
 		const val MAX_CURSORS = 4_096
 		const val MAX_SESSIONS = 128
 		const val MAX_MANIFESTS = 512

@@ -316,7 +316,7 @@ internal object CellCapturedFactClassifier {
 			authority = authority,
 			evidenceBinding = evidenceBinding,
 			observedWallTimeMs = requireNotNull(qualification.observedWallTimeMs),
-			wallTimeUncertaintyMs = evidenceBinding.wallTimeUncertaintyMs,
+			wallTimeUncertaintyMs = requireNotNull(qualification.observedWallTimeUncertaintyMs),
 			availability = CellAvailability.AVAILABLE,
 			coverage = coverage,
 			aggregate = CellIdentityFreeAggregate(

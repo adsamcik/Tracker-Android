@@ -24,9 +24,19 @@ suspend fun AppDatabase.qualifyCellPurposeItems(
 ): CellPurposeItems {
 	val qualified = qualifyCellPurposeItems(wal, payload, providerStartInclusiveNanos,
 		providerEndExclusiveNanos) ?: return CellPurposeItems.Unverifiable
-	val demand = qualified.immutableDemands[demandId] ?: return CellPurposeItems.Unverifiable
-	val indexes = qualified.forDemand(demandId)
-	val timeline = qualified.authorizationTimeline
+	return qualified.cellPurposeWindow(payload, demandId, providerEndExclusiveNanos)
+}
+
+/** Reuses the same uninterrupted demand window in retained history and the live writer. */
+fun RadioPurposeItems.cellPurposeWindow(
+	payload: CellWalPayload,
+	demandId: String,
+	providerEndExclusiveNanos: Long,
+): CellPurposeItems {
+	val demand = immutableDemands[demandId] ?: return CellPurposeItems.Unverifiable
+	val indexes = forDemand(demandId)
+	val timeline = authorizationTimeline
+	if (timeline.isEmpty()) return CellPurposeItems.Unverifiable
 	val latestItemTime = indexes.maxOfOrNull { index ->
 		requireNotNull(payload.observations[index].providerTimestampNanos)
 	}

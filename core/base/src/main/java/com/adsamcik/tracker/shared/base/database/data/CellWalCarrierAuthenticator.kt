@@ -110,6 +110,9 @@ data class CellWalChildQualification(
 	val providerWallInterval: LongRange?,
 	val aggregate: CellWalIdentityFreeAggregate?,
 ) {
+	val observedWallTimeUncertaintyMs: Long? = providerWallInterval?.let { interval ->
+		observedWallTimeMs?.let { observed -> Math.subtractExact(interval.last, observed) }
+	}
 	val submittedChildCount: Int = children.size
 	val acceptedChildCount: Int = children.count { it.disposition == CellWalChildDisposition.ACCEPTED }
 	val staleChildCount: Int = children.count { it.disposition == CellWalChildDisposition.STALE }
@@ -365,12 +368,14 @@ object CellWalCarrierAuthenticator {
 			observedWallTimeMs = requireNotNull(wal.wallTimeMs),
 			wallTimeUncertaintyMs = requireNotNull(wal.wallTimeUncertaintyMs),
 		)
-		return qualifyChildrenFromAuthenticatedCarrier(carrier, authority)
+		return qualifyChildrenFromAuthenticatedCarrier(carrier, authority,
+			preserveProviderRounding = wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION)
 	}
 
 	private fun qualifyChildrenFromAuthenticatedCarrier(
 		carrier: AuthenticatedCellWalCarrier,
 		authority: CellWalCaptureAuthority,
+		preserveProviderRounding: Boolean,
 	): CellWalChildQualification? {
 		if (authority.maximumObservationAgeNanos < 0L) return null
 		val children = carrier.payload.observations.map { observation ->
@@ -402,7 +407,13 @@ object CellWalCarrierAuthenticator {
 				walObservedElapsedRealtimeNanos = carrier.observedElapsedNanos,
 				coverageStartElapsedRealtimeNanos = coverageStart,
 			) ?: return null
-			val last = Math.addExact(observedWall, carrier.wallTimeUncertaintyMs)
+			val last = if (preserveProviderRounding) {
+				acceptedTimes.maxOf { providerTime ->
+					val wall = carrier.providerWallTime(providerTime) ?: return null
+					val rounding = if ((carrier.observedElapsedNanos - providerTime) % 1_000_000L == 0L) 0L else 1L
+					Math.addExact(wall, Math.addExact(carrier.wallTimeUncertaintyMs, rounding))
+				}
+			} else Math.addExact(observedWall, carrier.wallTimeUncertaintyMs)
 			first..last
 		}.getOrNull() ?: return null
 		val zone = runCatching { ZoneId.of(authority.zoneId) }.getOrNull() ?: return null
@@ -624,7 +635,7 @@ private fun CellCapturedFactRevisionEntity.hasExactWalLink(
 		observedIntervalStartNanos == wal.observedIntervalStartNanos &&
 		observedElapsedNanos == wal.observedElapsedNanos &&
 		receivedElapsedNanos == wal.receivedElapsedNanos &&
-		wallTimeUncertaintyMs == wal.wallTimeUncertaintyMs &&
+		wallTimeUncertaintyMs == carrier.childQualification?.observedWallTimeUncertaintyMs &&
 		acquiredAtMs == wal.acquiredAtMs &&
 		createdAtMs == wal.createdAtMs &&
 		qualityFlags == wal.qualityFlags &&

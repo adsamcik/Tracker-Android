@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIn
 import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication
 import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.CellWalIdentityFreeAggregate
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.CapturedRadioFactRetentionProofEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
@@ -352,6 +353,7 @@ suspend fun AppDatabase.deleteSelectedCapturedCellFactsInTransaction(
 		var deletedRevisionCount = 0
 		lineages.chunked(DELETE_BATCH_SIZE).forEach { batch ->
 			val ids = batch.map(CellCapturedLineage::logicalFactId)
+			ids.forEach { radioObservationChildDao().deleteCellSessionFact(WRITER_ID, WRITER_VERSION, it) }
 			if (cellCapturedFactDao().deleteExactCursors(WRITER_ID, WRITER_VERSION, ids) != ids.size) {
 				selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 			}
@@ -687,6 +689,7 @@ internal suspend fun AppDatabase.pruneCapturedCellFactsAffectedByRetentionFloor(
 			selected.chunked(DELETE_BATCH_SIZE).forEach { batch ->
 				currentCoroutineContext().ensureActive()
 				val ids = batch.map(CellCapturedLineage::logicalFactId)
+				ids.forEach { radioObservationChildDao().deleteCellSessionFact(WRITER_ID, WRITER_VERSION, it) }
 				if (dao.deleteExactCursors(WRITER_ID, WRITER_VERSION, ids) != batch.size) {
 					block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 				}
@@ -1001,6 +1004,7 @@ internal suspend fun AppDatabase.deleteCapturedCellFactsAfterConsentReset(
 			audit.lineages.chunked(DELETE_BATCH_SIZE).forEach { batch ->
 				currentCoroutineContext().ensureActive()
 				val ids = batch.map(CellCapturedLineage::logicalFactId)
+				ids.forEach { radioObservationChildDao().deleteCellSessionFact(WRITER_ID, WRITER_VERSION, it) }
 				if (dao.deleteExactCursors(WRITER_ID, WRITER_VERSION, ids) != batch.size ||
 					dao.deleteExactRevisionLineages(WRITER_ID, WRITER_VERSION, ids) !=
 						batch.sumOf { lineage -> lineage.revisions.size }
@@ -1452,7 +1456,9 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 		revision.physicalConfigurationFingerprint,
 		limits,
 	)
-	if (revision.maximumObservationAgeNanos != plan.maximumObservationAgeNanos()) {
+	val planMaximumAgeNanos = plan.maximumObservationAgeNanos()
+	if (revision.payloadVersion != CELL_WAL_PAYLOAD_VERSION &&
+		revision.maximumObservationAgeNanos != planMaximumAgeNanos) {
 		block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	}
 
@@ -1496,18 +1502,18 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 	)
 	val authorization = authorizationRows.toAuthorizationSnapshotOrNull()
 		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-	val startAuthorization = boundedAuthorizationAt(
-		revision.registrationGeneration,
-		revision.clockDomainId,
-		revision.coverageIntervalStartNanos,
-		limits,
-	)
-	val endAuthorization = boundedAuthorizationAt(
-		revision.registrationGeneration,
-		revision.clockDomainId,
-		revision.coverageIntervalEndNanos,
-		limits,
-	)
+	val startAuthorization = if (revision.payloadVersion != CELL_WAL_PAYLOAD_VERSION) {
+		boundedAuthorizationAt(
+			revision.registrationGeneration, revision.clockDomainId,
+			revision.coverageIntervalStartNanos, limits,
+		)
+	} else null
+	val endAuthorization = if (revision.payloadVersion != CELL_WAL_PAYLOAD_VERSION) {
+		boundedAuthorizationAt(
+			revision.registrationGeneration, revision.clockDomainId,
+			revision.coverageIntervalEndNanos, limits,
+		)
+	} else null
 	val nextRows = cellCapturedFactDao().maintenanceNextAuthorizationMembers(
 		CELL_SOURCE,
 		revision.registrationGeneration,
@@ -1548,15 +1554,35 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 			effectiveWallTimeMs = authorization.members.first().effectiveWallTimeMs,
 		)
 	}.getOrNull()
+	val purpose = if (revision.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+		qualifyCellPurposeItems(
+			wal, walAuthentication.carrier.payload,
+			captureMember?.demandId ?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE),
+			registrationStart, registrationEnd,
+		) as? CellPurposeItems.Qualified
+			?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	} else null
+	val acceptedIndexes = walAuthentication.carrier.childQualification?.children
+		?.withIndex()?.filter { it.value.disposition ==
+			com.adsamcik.tracker.shared.base.database.data.CellWalChildDisposition.ACCEPTED }
+		?.map { it.index }.orEmpty()
 	if (authorization.isDenied || captureMember == null ||
-		startAuthorization != authorization || endAuthorization != authorization ||
+		(revision.payloadVersion != CELL_WAL_PAYLOAD_VERSION &&
+			(startAuthorization != authorization || endAuthorization != authorization)) ||
 		demandIds.distinct().size != authorization.authorizedMembers.size ||
 		demands.size != authorization.authorizedMembers.size ||
 		recomputed?.sortedBy { it.memberId } != authorization.members.sortedBy { it.memberId } ||
 		authorization.authorizationFingerprint != revision.authorizationFingerprint ||
 		authorization.purposeEligibilityMask != revision.purposeEligibilityMask ||
 		authorization.effectiveBootId != revision.clockDomainId ||
-		authorization.effectiveElapsedRealtimeNanos != revision.authorizationEffectStartNanos ||
+		(if (purpose == null) {
+			authorization.effectiveElapsedRealtimeNanos != revision.authorizationEffectStartNanos
+		} else {
+			purpose.continuousFromNanos != revision.authorizationEffectStartNanos ||
+				purpose.indexes.isEmpty() || acceptedIndexes.any { it !in purpose.indexes } ||
+				revision.maximumObservationAgeNanos != minOf(
+					planMaximumAgeNanos, purpose.demandMaximumAgeNanos)
+		}) ||
 		!authorizationEnd.isExactSettlementOf(revision.authorizationEffectEndNanos) ||
 		!authorizationEnd.isExactSettlementOf(revision.consentEffectEndNanos)
 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)

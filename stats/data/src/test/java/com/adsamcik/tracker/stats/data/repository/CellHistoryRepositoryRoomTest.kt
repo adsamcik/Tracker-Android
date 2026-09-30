@@ -21,6 +21,12 @@ import com.adsamcik.tracker.shared.base.database.data.CellCapturedDeletedRunEnti
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.CELL_REFRESH_OUTCOME_CALLBACK
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedChildEntity
+import com.adsamcik.tracker.shared.base.database.data.CellChildChecksumInput
+import com.adsamcik.tracker.shared.base.database.data.RadioChildOwner
+import com.adsamcik.tracker.shared.base.database.data.RadioChildPurpose
+import com.adsamcik.tracker.shared.base.database.data.RadioObservationChildIntegrity
 import com.adsamcik.tracker.shared.base.database.data.CellProviderDeliveryIdentityFact
 import com.adsamcik.tracker.shared.base.database.data.CellWalPayload
 import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadCodec
@@ -1071,6 +1077,84 @@ class CellHistoryRepositoryRoomTest {
 		}
 	}
 
+	@Test
+	fun `version six Cell history retains exact towers across callback authorization rotation`() = runTest {
+		val group = perReadingGroup(buildGroup(244, 1, setOf(0)))
+		persist(listOf(group))
+		persistPerReadingChildren(group)
+		val entry = (repository { true }.recent(1) as CellHistoryPage.Available).entries.single()
+		entry.state shouldBe CellHistoryProductState.PARTIAL
+		entry.observations shouldHaveSize 2
+		entry.observations.all { it.towers.size == 1 } shouldBe true
+	}
+
+	@Test
+	fun `version six Cell history rejects a parent that claims permission before it began`() = runTest {
+		val authorized = perReadingGroup(buildGroup(245, 1, setOf(0)))
+		val group = authorized.copy(runs = authorized.runs.map { run ->
+			val first = run.authorizations.first { it.authorizationRevision == 1L }
+			val denied = SourceBrokerAuthorization.rows(CELL_SOURCE, first.registrationGeneration,
+				1L, emptyList(), BOOT_ID, first.effectiveElapsedRealtimeNanos, first.effectiveWallTimeMs)
+			run.copy(authorizations = denied + run.authorizations.filter { it.authorizationRevision != 1L })
+		})
+		persist(listOf(group))
+		persistPerReadingChildren(group)
+		val entry = (repository { true }.recent(1) as CellHistoryPage.Available).entries.single()
+		entry.state shouldBe CellHistoryProductState.FAILED
+		entry.causes shouldBe setOf(CellHistoryCause.WRITER_PROVENANCE_INVALID)
+		entry.observations shouldBe emptyList()
+	}
+
+	private fun perReadingGroup(group: Group) = group.copy(runs = group.runs.map { run ->
+		val provider = requireNotNull(run.provider)
+		val firstPoint = run.facts.minOf { it.coverageIntervalStartNanos }
+		val rotated = SourceBrokerAuthorization.rows(CELL_SOURCE, provider.registrationGeneration,
+			2L, run.demands, BOOT_ID, firstPoint - 1L, run.facts.minOf { it.observedWallTimeMs })
+		val closing = run.authorizations.first { it.authorizationRevision == 2L }.let { row ->
+			SourceBrokerAuthorization.rows(CELL_SOURCE, provider.registrationGeneration, 3L,
+				emptyList(), BOOT_ID, row.effectiveElapsedRealtimeNanos, row.effectiveWallTimeMs)
+		}
+		fun delivery(fact: CellCapturedFactRevisionEntity): String = canonicalCellProviderDeliveryIdentity(
+			BOOT_ID, cellPayload(fact.observedElapsedNanos).observations.map { item ->
+				CellProviderDeliveryIdentityFact(item.radioType, item.registered, item.signalLevelDbm,
+					requireNotNull(item.providerTimestampNanos), item.identifierToken)
+			}, CELL_WAL_PAYLOAD_VERSION)
+		val ids = run.facts.associate { original ->
+			original.logicalFactId to CellCapturedFactRevisionIntegrity.logicalFactId(delivery(original),
+				original.logicalTrackingId, original.serviceRunId, original.sessionSegmentId,
+				original.manifestRevision, original.collectedDataEpoch, original.scopeDeletionGeneration)
+		}
+		val facts = run.facts.map { original ->
+			val id = ids.getValue(original.logicalFactId)
+			val unsigned = original.copy(payloadVersion = CELL_WAL_PAYLOAD_VERSION,
+				logicalFactId = id, mutationId = CellCapturedFactRevisionIntegrity.mutationId(id, original.semanticRevision),
+				aggregateOwnerLogicalFactId = original.aggregateOwnerLogicalFactId?.let(ids::getValue),
+				sourceDeliveryIdentity = delivery(original), authorizationRevision = 2L,
+				authorizationFingerprint = rotated.first().authorizationFingerprint)
+			val wal = walFor(unsigned)
+			val withWal = unsigned.copy(walIntegrityIdentity = wal.integrityIdentity, payloadChecksum = wal.payloadChecksum)
+			withWal.copy(effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(withWal))
+		}
+		run.copy(authorizations = run.authorizations.filter { it.authorizationRevision == 1L } + rotated + closing,
+			facts = facts, cursors = facts.groupBy { it.logicalFactId }.values.map { lineage ->
+				cursor(lineage.maxBy { it.semanticRevision }) })
+	})
+
+	private suspend fun persistPerReadingChildren(group: Group) {
+		val children = group.runs.flatMap { it.facts }.map { fact ->
+			val item = cellPayload(fact.observedElapsedNanos).observations.single()
+			val owner = RadioChildOwner(RadioChildPurpose.SESSION, fact.writerProjectionId,
+				fact.writerProjectionVersion, fact.logicalFactId, fact.semanticRevision, 0)
+			val input = CellChildChecksumInput(owner, fact.observedElapsedNanos, fact.observedWallTimeMs,
+				fact.wallTimeUncertaintyMs, null, item.radioType, item.registered, item.signalLevelDbm)
+			CellCapturedChildEntity(fact.writerProjectionId, fact.writerProjectionVersion,
+				fact.logicalFactId, fact.semanticRevision, 0, fact.observedElapsedNanos,
+				fact.observedWallTimeMs, fact.wallTimeUncertaintyMs, null, item.radioType,
+				item.registered, item.signalLevelDbm, RadioObservationChildIntegrity.cell(input))
+		}
+		database.radioObservationChildDao().insertCellSession(children)
+	}
+
 	private fun repository(
 		currentClockDomainId: String? = null,
 		authority: () -> Boolean,
@@ -1684,7 +1768,7 @@ class CellHistoryRepositoryRoomTest {
 
 	private fun walFor(fact: CellCapturedFactRevisionEntity): SourceEventWalEntity {
 		val payload = cellPayload(fact.observedElapsedNanos)
-		val encoded = CellWalPayloadCodec.encode(payload, LEGACY_CELL_WAL_PAYLOAD_VERSION)
+		val encoded = CellWalPayloadCodec.encode(payload, fact.payloadVersion)
 		val unsigned = SourceEventWalEntity(
 			admissionOrdinal = fact.sourceAdmissionOrdinal,
 			eventId = fact.sourceEventId,

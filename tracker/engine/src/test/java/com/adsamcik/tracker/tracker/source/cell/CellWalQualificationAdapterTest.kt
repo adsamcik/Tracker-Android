@@ -11,7 +11,9 @@ import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEnt
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication
 import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -339,6 +341,244 @@ class CellWalQualificationAdapterTest {
 		assertEquals(0L, fact.scopeDeletionGeneration)
 		assertEquals("UNKNOWN", fact.subscriptionCompleteness)
 		assertEquals(beforeEvidenceRevision + 1L, database.sourceEvidenceStateDao().get()?.revision)
+	}
+
+	@Test
+	fun `version six Cell writer saves only authenticated tower readings under exact session fact`() = runTest {
+		val towers = observations().mapIndexed { index, observation ->
+			observation.copy(identifierToken = "310:260:123:${400 + index}")
+		}
+		installValidFixture(
+			candidateWriter = true,
+			observations = towers,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION,
+		)
+
+		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val children = database.radioObservationChildDao().cellSessionChildren(
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+			applied.logicalFactId,
+			applied.semanticRevision,
+			10,
+		)
+		assertEquals(towers.map(CellObservationEvidence::identifierToken),
+			children.map { it.towerIdentity })
+		assertEquals(listOf(0, 1), children.map { it.itemIndex })
+		val fact = fact(applied.logicalFactId, applied.semanticRevision)
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		assertIs<CellWalCarrierAuthentication.Authenticated>(
+			CellWalCarrierAuthenticator.authenticate(fact, wal, children))
+		assertIs<CellWalCarrierAuthentication.Rejected>(
+			CellWalCarrierAuthenticator.authenticate(fact, wal, children.dropLast(1)))
+		assertIs<CellWalCarrierAuthentication.Rejected>(
+			CellWalCarrierAuthenticator.authenticate(fact, wal,
+				children.map { it.copy(towerIdentity = "changed") }))
+	}
+
+	@Test
+	fun `version five Cell history remains valid without tower children`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = PAYLOAD_VERSION)
+		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val fact = fact(applied.logicalFactId, applied.semanticRevision)
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		assertIs<CellWalCarrierAuthentication.Authenticated>(
+			CellWalCarrierAuthenticator.authenticate(fact, wal, emptyList()))
+	}
+
+	@Test
+	fun `Cell child wall uncertainty includes fractional millisecond rounding`() = runTest {
+		val towers = observations().mapIndexed { index, item ->
+			item.copy(
+				providerTimestampNanos = requireNotNull(item.providerTimestampNanos) +
+					if (index == 0) 1L else 0L,
+				identifierToken = "tower-$index",
+			)
+		}
+		installValidFixture(candidateWriter = true, observations = towers,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION)
+		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val children = database.radioObservationChildDao().cellSessionChildren(
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+			applied.logicalFactId, applied.semanticRevision, 10,
+		)
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val first = children.single { it.providerTimestampNanos == towers[0].providerTimestampNanos }
+		assertEquals(requireNotNull(wal.wallTimeUncertaintyMs) + 1L, first.wallTimeUncertaintyMs)
+	}
+
+	@Test
+	fun `session keeps earlier authorized tower reading when callback authorization changes`() = runTest {
+		installValidFixture(
+			candidateWriter = true,
+			observations = observations().mapIndexed { index, item ->
+				item.copy(identifierToken = "310:260:123:${500 + index}")
+			},
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION,
+		)
+		val successor = SourceBrokerAuthorization.rows(
+			sourceKind = CELL_SOURCE,
+			registrationGeneration = REGISTRATION_GENERATION,
+			authorizationRevision = 2L,
+			demands = listOf(demand()),
+			effectiveBootId = BOOT_ID,
+			effectiveElapsedRealtimeNanos = 1_550_000_000L,
+			effectiveWallTimeMs = OBSERVED_WALL_MS,
+		)
+		database.sourceBrokerDao().insertAuthorizations(successor)
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val unsigned = original.copy(
+			authorizationRevision = 2L,
+			authorizationFingerprint = successor.first().authorizationFingerprint,
+			integrityIdentity = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM,
+		)
+		val updated = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_revision = ?, " +
+				"authorization_fingerprint = ?, integrity_identity = ? WHERE event_id = ?",
+			arrayOf(2L, updated.authorizationFingerprint, updated.integrityIdentity, EVENT_ID.value),
+		)
+
+		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val fact = requireNotNull(database.cellCapturedFactDao().revision(
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+			applied.logicalFactId, applied.semanticRevision,
+		))
+		assertEquals(AUTHORIZATION_START_NANOS, fact.authorizationEffectStartNanos)
+		assertEquals(2, database.radioObservationChildDao().cellSessionChildren(
+			fact.writerProjectionId, fact.writerProjectionVersion,
+			fact.logicalFactId, fact.semanticRevision, 10,
+		).size)
+		assertIs<CellCapturedWriteResult.Unchanged>(writer.write(EVENT_ID))
+	}
+
+	@Test
+	fun `version six new Cell capture cannot claim an earlier tower reading`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = CELL_WAL_PAYLOAD_VERSION)
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_authorization")
+		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(
+			CELL_SOURCE, REGISTRATION_GENERATION, AUTHORIZATION_REVISION, emptyList(),
+			BOOT_ID, AUTHORIZATION_START_NANOS, RUN_START_WALL_MS,
+		))
+		val joinedAt = OBSERVED_START_NANOS + 50_000_000L
+		rotatePerReadingCallback(joinedAt)
+
+		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val saved = fact(applied.logicalFactId, applied.semanticRevision)
+		assertEquals(1, saved.acceptedChildCount)
+		assertEquals(1, saved.staleChildCount)
+		assertEquals(joinedAt, saved.authorizationEffectStartNanos)
+		assertEquals(listOf(1), savedChildren(saved).map { it.itemIndex })
+		assertPerReadingCellRetentionAudit()
+	}
+
+	@Test
+	fun `version six cached Cell reading before registration preserves its valid sibling`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = CELL_WAL_PAYLOAD_VERSION,
+			observations = observations().mapIndexed { index, item ->
+				if (index == 0) item.copy(providerTimestampNanos = RUN_START_NANOS - 100_000_000L) else item
+			})
+		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val saved = fact(applied.logicalFactId, applied.semanticRevision)
+		assertEquals(1, saved.acceptedChildCount)
+		assertEquals(1, saved.staleChildCount)
+		assertEquals(listOf(1), savedChildren(saved).map { it.itemIndex })
+		assertPerReadingCellRetentionAudit()
+	}
+
+	@Test
+	fun `version six Cell reading after retirement preserves its earlier valid sibling`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = CELL_WAL_PAYLOAD_VERSION,
+			observations = observations().mapIndexed { index, item ->
+				if (index == 0) item.copy(providerTimestampNanos = OBSERVED_START_NANOS + 1L) else item
+			})
+		val retiredAt = OBSERVED_START_NANOS + 50_000_000L
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET retired_elapsed_realtime_nanos = ?, " +
+				"retired_at_ms = ? WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf(retiredAt, OBSERVED_WALL_MS - 50L, CELL_SOURCE, REGISTRATION_GENERATION))
+
+		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val saved = fact(applied.logicalFactId, applied.semanticRevision)
+		assertEquals(1, saved.acceptedChildCount)
+		assertEquals(1, saved.staleChildCount)
+		assertEquals(listOf(0), savedChildren(saved).map { it.itemIndex })
+		assertEquals(retiredAt, saved.providerAcceptanceEndNanos)
+		assertEquals(WALL_UNCERTAINTY_MS + 1L, saved.wallTimeUncertaintyMs)
+		assertEquals(saved.wallTimeUncertaintyMs, savedChildren(saved).single().wallTimeUncertaintyMs)
+		assertIs<CellCapturedWriteResult.Unchanged>(writer.write(EVENT_ID))
+		assertPerReadingCellRetentionAudit()
+	}
+
+	@Test
+	fun `version six Cell parent bounds include a rounded sibling close to the latest reading`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = CELL_WAL_PAYLOAD_VERSION,
+			observations = observations().mapIndexed { index, item ->
+				if (index == 0) item.copy(providerTimestampNanos = OBSERVED_END_NANOS - 1L) else item
+			})
+		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val saved = fact(applied.logicalFactId, applied.semanticRevision)
+		assertEquals(2, saved.acceptedChildCount)
+		assertEquals(WALL_UNCERTAINTY_MS + 1L, saved.wallTimeUncertaintyMs)
+		assertEquals(saved.observedWallTimeMs + saved.wallTimeUncertaintyMs,
+			savedChildren(saved).maxOf { it.observedWallTimeMs + it.wallTimeUncertaintyMs })
+		assertIs<CellCapturedWriteResult.Unchanged>(writer.write(EVENT_ID))
+		assertPerReadingCellRetentionAudit()
+	}
+
+	@Test
+	fun `version six Cell callback must carry the authorization effective at receipt`() = runTest {
+		installValidFixture(payloadVersion = CELL_WAL_PAYLOAD_VERSION)
+		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(
+			CELL_SOURCE, REGISTRATION_GENERATION, 2L, emptyList(), BOOT_ID,
+			OBSERVED_END_NANOS + 1L, OBSERVED_WALL_MS,
+		))
+		assertEquals(CellWalAdapterResult.Rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH),
+			subject.qualify(EVENT_ID))
+	}
+
+	@Test
+	fun `version six Cell retention removes tower children with their parent fact`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = CELL_WAL_PAYLOAD_VERSION)
+		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val saved = fact(applied.logicalFactId, applied.semanticRevision)
+		assertEquals(2, savedChildren(saved).size)
+		val floor = OBSERVED_WALL_MS + 1L
+		val markedAt = OBSERVED_WALL_MS + 10_000L
+		database.sourceEvidenceStateDao().updateLifecycle(0L, floor, markedAt)
+		assertIs<CellCapturedRetentionResult.Pruned>(database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			floor, 0L, 0L, markedAt))
+		assertEquals(emptyList(), savedChildren(saved))
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+	}
+
+	private suspend fun savedChildren(saved: CellCapturedFactRevisionEntity) =
+		database.radioObservationChildDao().cellSessionChildren(saved.writerProjectionId,
+			saved.writerProjectionVersion, saved.logicalFactId, saved.semanticRevision, 10)
+
+	private suspend fun assertPerReadingCellRetentionAudit() {
+		val floor = OBSERVED_WALL_MS - 1_000L
+		val markedAt = OBSERVED_WALL_MS + 10_000L
+		database.sourceEvidenceStateDao().updateLifecycle(0L, floor, markedAt)
+		assertEquals(CellCapturedRetentionResult.NoChange,
+			database.pruneCapturedCellFactsAffectedByRetentionFloor(floor, 0L, 0L, markedAt))
+	}
+
+	private suspend fun rotatePerReadingCallback(effectiveNanos: Long) {
+		val rows = SourceBrokerAuthorization.rows(CELL_SOURCE, REGISTRATION_GENERATION, 2L,
+			listOf(demand()), BOOT_ID, effectiveNanos, OBSERVED_WALL_MS)
+		database.sourceBrokerDao().insertAuthorizations(rows)
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val unsigned = wal.copy(authorizationRevision = 2L,
+			authorizationFingerprint = rows.first().authorizationFingerprint,
+			authorizationPurposeEligibilityMask = rows.first().purposeEligibilityMask)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_revision = ?, authorization_fingerprint = ?, " +
+				"authorization_purpose_eligibility_mask = ?, integrity_identity = ? WHERE event_id = ?",
+			arrayOf(2L, unsigned.authorizationFingerprint, unsigned.authorizationPurposeEligibilityMask,
+				unsigned.calculatedIntegrityIdentity(), EVENT_ID.value))
 	}
 
 	@Test
@@ -1239,6 +1479,7 @@ class CellWalQualificationAdapterTest {
 		deletionGeneration: Long? = null,
 		observations: List<CellObservationEvidence> = observations(),
 		openAuthority: Boolean = false,
+		payloadVersion: Int = PAYLOAD_VERSION,
 	) {
 		database.sourceEvidenceStateDao().ensure(evidenceState)
 		if (deletionGeneration != null) {
@@ -1290,10 +1531,11 @@ class CellWalQualificationAdapterTest {
 			CellRefreshOutcome.CALLBACK,
 			zoneId,
 		)
-		val encodedPayload = payloadCodec.encode(payload, PAYLOAD_VERSION)
+		val encodedPayload = payloadCodec.encode(payload, payloadVersion)
 		val deliveryIdentity = deliveryIdentityOverride ?: cellProviderDeliveryIdentity(
 			BOOT_ID,
 			observations,
+			payloadVersion,
 		).value
 		val unsignedWal = SourceEventWalEntity(
 			eventId = EVENT_ID.value,
@@ -1332,7 +1574,7 @@ class CellWalQualificationAdapterTest {
 			acquiredAtMs = observedWallMs,
 			qualityFlags = 0L,
 			qualityConfidence = null,
-			payloadVersion = PAYLOAD_VERSION,
+			payloadVersion = payloadVersion,
 			payload = encodedPayload.bytes,
 			payloadChecksum = encodedPayload.checksum,
 			createdAtMs = observedWallMs,
@@ -1363,7 +1605,7 @@ class CellWalQualificationAdapterTest {
 		val unsigned = original.copy(
 			admissionOrdinal = 0L,
 			eventId = eventId.value,
-			deliveryIdentity = cellProviderDeliveryIdentity(BOOT_ID, observations).value,
+			deliveryIdentity = cellProviderDeliveryIdentity(BOOT_ID, observations, PAYLOAD_VERSION).value,
 			sourceSequence = sourceSequence,
 			observedElapsedNanos = latestProviderTime,
 			observedIntervalStartNanos = requireNotNull(

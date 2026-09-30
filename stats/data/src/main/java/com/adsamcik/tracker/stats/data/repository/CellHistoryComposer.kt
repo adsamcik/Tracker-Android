@@ -2,11 +2,20 @@ package com.adsamcik.tracker.stats.data.repository
 
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthenticator
+import com.adsamcik.tracker.shared.base.database.CellPurposeItems
+import com.adsamcik.tracker.shared.base.database.RadioPurposeItems
+import com.adsamcik.tracker.shared.base.database.cellPurposeWindow
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemAuthority
+import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemQualification
+import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemQualifier
+import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.CellAggregateReuseAuthority
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedChildEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication
 import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
@@ -41,6 +50,7 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.CellHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.CellHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.CellHistoryObservation
+import com.adsamcik.tracker.stats.api.repository.CellObservedTower
 import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistorySignalQuality
 import com.adsamcik.tracker.stats.api.repository.CellHistorySubscriptionGrouping
@@ -247,7 +257,10 @@ internal object CellHistoryComposer {
 				?: return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED)
 			val wal = admissionsByEventId[latest.sourceEventId]
 				?: return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
-			val walAuthentication = CellWalCarrierAuthenticator.authenticate(latest, wal)
+			val walAuthentication = CellWalCarrierAuthenticator.authenticate(
+				latest, wal,
+				snapshot.childrenByRevision[latest.logicalFactId to latest.semanticRevision].orEmpty(),
+			)
 				as? CellWalCarrierAuthentication.Authenticated
 			val aggregateWal = admissionsByEventId[aggregate.sourceEventId]
 				?: return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
@@ -374,6 +387,9 @@ internal object CellHistoryComposer {
 					authenticated.fact,
 					authenticated.aggregate,
 					authenticated.coverageStartWallTimeMs,
+					snapshot.childrenByRevision[
+						authenticated.fact.logicalFactId to authenticated.fact.semanticRevision,
+					].orEmpty(),
 				)
 			}
 		}.getOrElse { return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED) }
@@ -532,6 +548,16 @@ internal object CellHistoryComposer {
 			currentProviderRegistrations = snapshot.currentProviderRegistrations,
 		) as? ProviderRegistrationIntervalAuthentication.Authenticated ?: return false
 		val providerEnd = providerAuthentication.interval.endExclusiveNanos
+		val perReading = fact.payloadVersion == CELL_WAL_PAYLOAD_VERSION
+		val purpose = if (perReading) {
+			qualifiedCellPurposeWindow(fact, snapshot, providerAuthentication.interval.startInclusiveNanos,
+				providerEnd) ?: return false
+		} else null
+		if (purpose != null && (purpose.indexes.isEmpty() ||
+			fact.authorizationEffectStartNanos != purpose.continuousFromNanos ||
+			fact.coverageIntervalEndNanos >= purpose.continuousUntilNanos ||
+			snapshot.childrenByRevision[fact.logicalFactId to fact.semanticRevision].orEmpty()
+				.any { it.itemIndex !in purpose.indexes })) return false
 		val consent = snapshot.consents[fact.captureConsentEpoch] ?: return false
 		val expectedManifestEnd = nextManifest?.effectiveElapsedRealtimeNanos
 			?: minOf(sessionEnd, providerEnd, fact.authorizationEffectEndNanos)
@@ -560,7 +586,8 @@ internal object CellHistoryComposer {
 			plan.revision == fact.configurationRevision &&
 			manifest.acquisitionPlanRevision == fact.configurationRevision &&
 			plan.physicalConfigurationFingerprint == fact.physicalConfigurationFingerprint &&
-			fact.maximumObservationAgeNanos == maximumObservationAgeNanos &&
+			fact.maximumObservationAgeNanos == minOf(maximumObservationAgeNanos,
+				purpose?.demandMaximumAgeNanos ?: maximumObservationAgeNanos) &&
 			provider.sourceKind == CELL_SOURCE && provider.registrationGeneration == fact.registrationGeneration &&
 			provider.sourceInstanceId == fact.sourceInstanceId && provider.clockDomainId == fact.clockDomainId &&
 			provider.ownerScope == "source-broker:$CELL_SOURCE" &&
@@ -568,7 +595,7 @@ internal object CellHistoryComposer {
 			provider.collectedDataEpoch == fact.collectedDataEpoch &&
 			provider.acceptedElapsedRealtimeNanos == fact.providerAcceptanceStartNanos &&
 			providerEnd == fact.providerAcceptanceEndNanos &&
-			hasExactAuthorization(fact, authorizations, providerEnd, snapshot.demands) &&
+			hasExactAuthorization(fact, authorizations, providerEnd, snapshot.demands, perReading) &&
 			fact.availability == CellCapturedFactRevisionEntity.AVAILABILITY_AVAILABLE &&
 			fact.subscriptionCompleteness == CellCapturedFactRevisionEntity.SUBSCRIPTION_COMPLETENESS_UNKNOWN &&
 			aggregate.aggregateShapeIsValid() &&
@@ -580,6 +607,7 @@ internal object CellHistoryComposer {
 		rows: List<SourceAuthorizationEntity>,
 		providerEnd: Long,
 		demands: Map<String, SourceDemandEntity>,
+		perReading: Boolean = false,
 	): Boolean {
 		val exact = rows.filter { it.authorizationRevision == fact.authorizationRevision }
 		if (exact.isEmpty() || exact.any { row ->
@@ -587,7 +615,7 @@ internal object CellHistoryComposer {
 				row.authorizationFingerprint != fact.authorizationFingerprint ||
 				row.purposeEligibilityMask != fact.purposeEligibilityMask ||
 				row.effectiveBootId != fact.clockDomainId ||
-				row.effectiveElapsedRealtimeNanos != fact.authorizationEffectStartNanos
+				(!perReading && row.effectiveElapsedRealtimeNanos != fact.authorizationEffectStartNanos)
 		}) return false
 		val demandIds = exact.mapNotNull(SourceAuthorizationEntity::demandId)
 		val exactDemands = demandIds.mapNotNull(demands::get)
@@ -615,19 +643,62 @@ internal object CellHistoryComposer {
 				row.sourcePolicyRevision == fact.sourcePolicyRevision && row.consentEpoch == fact.captureConsentEpoch
 		}
 		val nextAuthorizationStart = rows.asSequence().filter { row ->
-			row.effectiveBootId == fact.clockDomainId &&
-				(row.effectiveElapsedRealtimeNanos > fact.authorizationEffectStartNanos ||
+			row.effectiveBootId == fact.clockDomainId && (if (perReading) {
+				row.authorizationRevision > fact.authorizationRevision
+			} else {
+				row.effectiveElapsedRealtimeNanos > fact.authorizationEffectStartNanos ||
 					row.effectiveElapsedRealtimeNanos == fact.authorizationEffectStartNanos &&
-						row.authorizationRevision > fact.authorizationRevision)
+						row.authorizationRevision > fact.authorizationRevision
+			})
 		}.minWithOrNull(compareBy(SourceAuthorizationEntity::effectiveElapsedRealtimeNanos,
 			SourceAuthorizationEntity::authorizationRevision))?.effectiveElapsedRealtimeNanos ?: Long.MAX_VALUE
 		return memberMatches && minOf(providerEnd, nextAuthorizationStart) == fact.authorizationEffectEndNanos
+	}
+
+	/** The same per-reading rule and uninterrupted demand window used by the Cell writer. */
+	private fun qualifiedCellPurposeWindow(
+		fact: CellCapturedFactRevisionEntity,
+		snapshot: CellHistorySnapshot,
+		providerStart: Long,
+		providerEnd: Long,
+	): CellPurposeItems.Qualified? {
+		val wal = snapshot.admissions.singleOrNull { it.eventId == fact.sourceEventId } ?: return null
+		val carrier = (CellWalCarrierAuthenticator.authenticate(wal)
+			as? CellWalCarrierAuthentication.Authenticated)?.carrier ?: return null
+		val all = snapshot.authorizationsByRegistration[fact.registrationGeneration].orEmpty()
+			.groupBy(SourceAuthorizationEntity::authorizationRevision).values.map { rows ->
+				rows.toAuthorizationSnapshotOrNull() ?: return null
+			}.sortedBy { it.authorizationRevision }
+		val callback = all.singleOrNull { it.authorizationRevision == fact.authorizationRevision } ?: return null
+		if (all.lastOrNull { it.effectiveBootId == wal.clockDomainId &&
+			it.effectiveElapsedRealtimeNanos <= wal.receivedElapsedNanos } != callback ||
+			callback.authorizationFingerprint != wal.authorizationFingerprint ||
+			callback.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask) return null
+		val first = all.lastOrNull { it.effectiveElapsedRealtimeNanos <= requireNotNull(wal.observedIntervalStartNanos) }
+			?: all.firstOrNull() ?: return null
+		val timeline = all.filter { it.authorizationRevision in first.authorizationRevision..fact.authorizationRevision }
+		val ids = timeline.flatMap { it.authorizedMembers.mapNotNull { member -> member.demandId } }.distinct()
+		val demands = ids.map { snapshot.demands[it] ?: return null }
+		val qualified = RadioPurposeItemQualifier.cell(carrier.payload, RadioPurposeItemAuthority(
+			CELL_SOURCE, fact.registrationGeneration, fact.clockDomainId, providerStart, providerEnd,
+			wal.receivedElapsedNanos, timeline, demands), wal.payloadVersion)
+			as? RadioPurposeItemQualification.Qualified ?: return null
+		val member = callback.authorizedMembers.singleOrNull { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+			it.persistenceEligible && it.logicalTrackingId == fact.logicalTrackingId &&
+			it.serviceRunId == fact.serviceRunId && it.manifestRevision == fact.manifestRevision &&
+			it.lifecycleLeaseGeneration == fact.lifecycleLeaseGeneration &&
+			it.sourcePolicyRevision == fact.sourcePolicyRevision && it.consentEpoch == fact.captureConsentEpoch }
+			?: return null
+		return RadioPurposeItems(callback, timeline, demands.associateBy(SourceDemandEntity::demandId),
+			qualified.acceptedIndexesByDemandId).cellPurposeWindow(carrier.payload,
+				requireNotNull(member.demandId), providerEnd) as? CellPurposeItems.Qualified
 	}
 
 	private fun toObservation(
 		fact: CellCapturedFactRevisionEntity,
 		aggregate: CellCapturedFactRevisionEntity,
 		coverageStartWallTimeMs: Long,
+		children: List<CellCapturedChildEntity>,
 	): CellHistoryObservation {
 		val rejected = listOf(fact.staleChildCount, fact.futureTimeChildCount, fact.missingTimeChildCount,
 			fact.clockUnverifiableChildCount, fact.authorityMismatchChildCount,
@@ -666,6 +737,14 @@ internal object CellHistoryComposer {
 			sourceQualityConfidence = fact.qualityConfidence,
 			storedZoneId = fact.storedZoneId,
 			localSourceEventId = fact.sourceEventId,
+			towers = children.map { child -> CellObservedTower(
+				observedTimeMs = child.observedWallTimeMs,
+				wallTimeUncertaintyMs = child.wallTimeUncertaintyMs,
+				identity = child.towerIdentity,
+				technology = CellHistoryTechnology.valueOf(child.radioType),
+				registered = child.registered,
+				signalDbm = child.signalDbm,
+			) },
 		)
 	}
 
@@ -1000,6 +1079,7 @@ internal data class CellHistorySnapshot(
 	val consents: Map<Long, SourceConsentEpochEntity>,
 	val completenessByRun: Map<String, List<SourceSessionCompletenessEntity>>,
 	val revisions: List<CellCapturedFactRevisionEntity>,
+	val childrenByRevision: Map<Pair<String, Long>, List<CellCapturedChildEntity>> = emptyMap(),
 	val cursors: List<CellCapturedFactCursorEntity>,
 	val deletionGenerations: Map<Pair<String, String>, CellCaptureDeletionGenerationEntity>,
 	val deletedScopes: Set<Pair<String, String>>,
