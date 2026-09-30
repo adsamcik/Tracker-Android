@@ -1,0 +1,59 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "author": "/root/completion_requirements_0930",
+  "workspace": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/source-native-map-context-root",
+  "selection": "Select the whole ImportedRadioExportChildren.kt helper file and six-case test source only; held exporter caller/background cancellation hunks remain preserved.",
+  "files": [
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableWifiSourceExporter.kt",
+      "sha256": "1b0c27716f70d3901153e285dd5f949da446e4f6e8e51764389757d74739b840",
+      "kind": "mixed untracked production draft, held",
+      "owned_hunks": [
+        "appendImportedSessions: per-evaluation cancellation check and mapImportedWifiSessionChildren call replacing per-child run scans",
+        "backgroundChildren: cancellation context and checks during origin lookup, conversion and defensive deduplication only"
+      ],
+      "excluded": "frozen localChildren/native owner imports, candidate metadata/page calls, shared background budget call logic, all other preserved contents"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableCellSourceExporter.kt",
+      "sha256": "f1f27a3bf396961b9bbf68b9ef5b4bea4934b72315dd0933d22f4c84fdb03041",
+      "kind": "mixed untracked production draft, held",
+      "owned_hunks": [
+        "appendImportedSessions: per-evaluation cancellation check and mapImportedCellSessionChildren call replacing per-child run scans",
+        "backgroundChildren: cancellation context and checks during origin lookup, conversion and defensive deduplication only"
+      ],
+      "excluded": "frozen localChildren/native owner imports, candidate metadata/page calls, shared background budget call logic, requireCompleteCellDetails and all other preserved contents"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/ImportedRadioExportMappingTest.kt",
+      "sha256": "5e6ac239af91801f95170eff68cac34e71d705c6e52d8b01096c78835b01e239",
+      "owned_hunks": [
+        "whole new test source: six conversion and portable-contract scenarios"
+      ],
+      "execution": "not executed"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/ImportedRadioExportChildren.kt",
+      "sha256": "8fd32d464672a5e1d2ce03ec85a0972149156ea353b9b85de5b3c2dbaa365b01",
+      "kind": "new internal helper source, selected",
+      "owned_hunks": [
+        "whole file: exact two mapping functions relocated unchanged by coordinator; existing same-package calls"
+      ]
+    }
+  ],
+  "dependencies": [
+    "existing core/base imported child entities and captured Cell portable entry",
+    "existing stats/api captured Wi-Fi portable entry",
+    "existing V2 child checksum constructors and coroutine functions"
+  ],
+  "retention_scope_note": "Current re-export eligibility excludes deleted or retention-limited imported entries before child query; complete immutable imported entry membership is unchanged.",
+  "excluded_changes": [
+    "schema/public API/framework",
+    "date selection",
+    "snapshot/output boundary",
+    "child limits or output membership policy"
+  ],
+  "executed_validation": [],
+  "coordinator_relocation": "Two reviewed internal mapping functions moved without logic changes into one coherent source file; existing full exporter definitions and caller cancellation hunks stay held."
+}
