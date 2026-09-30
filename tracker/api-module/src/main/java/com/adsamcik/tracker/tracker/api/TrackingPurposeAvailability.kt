@@ -121,6 +121,7 @@ enum class AmbientSourceUnavailableReason(
 	PLATFORM_UNAVAILABLE("AMBIENT_PLATFORM_UNAVAILABLE"),
 	PROVIDER_UNAVAILABLE("AMBIENT_PROVIDER_UNAVAILABLE"),
 	LOCATION_REQUEST_ADJUSTED("LOCATION_REQUEST_ADJUSTED"),
+	FOREGROUND_HOST_UNAVAILABLE("FOREGROUND_HOST_UNAVAILABLE"),
 }
 
 data class AmbientSourceOperationalAvailability(
@@ -160,7 +161,10 @@ data class AmbientSourceOperationalAvailability(
 						(source == AmbientTrackingSource.LOCATION &&
 							mechanism in setOf(AmbientAcquisitionMechanism.ADAPTIVE_LOCATION,
 								AmbientAcquisitionMechanism.PASSIVE_LOCATION) &&
-							reason == AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED),
+							reason == AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED) ||
+						(source in setOf(AmbientTrackingSource.WIFI, AmbientTrackingSource.CELL) &&
+							mechanism in source.allowedMechanisms() &&
+							reason == AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE),
 				) {
 					"Operational degradation requires an acknowledged source-specific mechanism"
 				}
@@ -417,6 +421,8 @@ interface TrackingPurposeAvailabilityReporter {
 	): AmbientPublicationAcceptance
 	/** Trusted authority loss reset. It can only return one source to pending. */
 	fun invalidateAmbient(source: AmbientTrackingSource)
+	/** Host loss keeps independently authorized passive radio collection operational. */
+	fun reportAmbientForegroundHostLost(expectedIdentity: TrackingPurposeLeaseIdentity): Boolean = false
 	/** Trusted retention failure publication. It cannot carry or create operational authority. */
 	fun publishAmbientUnavailable(
 		source: AmbientTrackingSource,
@@ -1118,6 +1124,23 @@ class AtomicTrackingPurposeAvailabilityStore :
 				priorAvailability.operationalIdentity ?: priorAvailability.lastIdentity,
 			)
 		}
+	}
+
+	override fun reportAmbientForegroundHostLost(expectedIdentity: TrackingPurposeLeaseIdentity): Boolean = synchronized(lock) {
+		val source = when (expectedIdentity.source) {
+			TrackingSource.WIFI -> AmbientTrackingSource.WIFI
+			TrackingSource.CELL -> AmbientTrackingSource.CELL
+			else -> return@synchronized false
+		}
+		val previous = mutableAvailability.value.ambientSources.getValue(source)
+		if (!previous.isOperational || previous.operationalIdentity != expectedIdentity) return@synchronized false
+		mutableAvailability.value = mutableAvailability.value.copy(
+			ambientSources = mutableAvailability.value.ambientSources + (source to previous.copy(
+				state = AmbientSourceOperationalState.DEGRADED,
+				reason = AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE,
+			)),
+		)
+		true
 	}
 
 	override fun publishAmbientUnavailable(

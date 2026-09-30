@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Keep running with a notification</string>
+    <string name="settings_radio_notification_summary">Helps collect background readings while Tracker is closed. No extra scans.</string>
+    <string name="settings_radio_notification_unavailable">Background notification is unavailable. Readings may still arrive while Tracker is running.</string>
+</resources>

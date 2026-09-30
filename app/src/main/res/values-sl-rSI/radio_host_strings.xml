@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Nadaljuj z obvestilom</string>
+    <string name="settings_radio_notification_summary">Pomaga zbirati podatke v ozadju, ko je Tracker zaprt. Brez dodatnih pregledov.</string>
+    <string name="settings_radio_notification_unavailable">Obvestilo za delo v ozadju ni na voljo. Podatki lahko še vedno prihajajo, dokler Tracker deluje.</string>
+</resources>

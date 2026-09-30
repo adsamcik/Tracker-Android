@@ -72,6 +72,8 @@ data class SourcePolicyEntity(
 	@ColumnInfo(name = "location_background_mode") val locationBackgroundMode: Int? = null,
 	@ColumnInfo(name = "location_motion_assistance_enabled", defaultValue = "0")
 	val locationMotionAssistanceEnabled: Boolean = false,
+	@ColumnInfo(name = "background_notification_host_enabled", defaultValue = "0")
+	val backgroundNotificationHostEnabled: Boolean = false,
 )
 
 /**

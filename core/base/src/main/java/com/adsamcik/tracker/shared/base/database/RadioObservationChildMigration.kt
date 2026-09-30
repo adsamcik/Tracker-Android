@@ -21,6 +21,7 @@ val MIGRATION_28_29: Migration = object : Migration(28, 29) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		db.execSQL("ALTER TABLE ambient_wifi_fact_revision ADD COLUMN purpose_demand_id TEXT DEFAULT NULL")
 		db.execSQL("ALTER TABLE ambient_cell_fact_revision ADD COLUMN purpose_demand_id TEXT DEFAULT NULL")
+		db.execSQL("ALTER TABLE source_policy ADD COLUMN background_notification_host_enabled INTEGER NOT NULL DEFAULT 0")
 		createRadioObservationChildTables(db)
 		copyKnownLegacyRadioRows(db)
 		installLegacyRadioChildMirrors(db)

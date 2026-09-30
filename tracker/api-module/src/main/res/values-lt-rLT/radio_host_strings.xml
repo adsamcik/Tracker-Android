@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Sekimas fone</string>
+    <string name="notification_background_collection_text">Įjungta: %1$s. Atidarykite Tracker, kad tvarkytumėte sekimą.</string>
+    <string name="notification_background_source_location">Vieta</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Mobilusis tinklas</string>
+    <string name="notification_background_source_other">Sekimas</string>
+</resources>

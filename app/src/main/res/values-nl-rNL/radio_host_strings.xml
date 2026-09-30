@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Blijven werken met een melding</string>
+    <string name="settings_radio_notification_summary">Helpt gegevens op de achtergrond te verzamelen wanneer Tracker gesloten is. Geen extra scans.</string>
+    <string name="settings_radio_notification_unavailable">De achtergrondmelding is niet beschikbaar. Gegevens kunnen nog binnenkomen terwijl Tracker draait.</string>
+</resources>

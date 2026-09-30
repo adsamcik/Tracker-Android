@@ -35,6 +35,19 @@ class ForegroundServiceTypeCandidatesTest {
 	}
 
 	@Test
+	fun `independent WiFi and Cell hosts add only their actual Android type to a Steps session`() {
+		val capture = setOf(SourceKind.STEPS)
+		for (hosted in listOf(setOf(SourceKind.WIFI), setOf(SourceKind.CELL), setOf(SourceKind.WIFI, SourceKind.CELL))) {
+			foregroundServiceTypeCandidates(android14, hosted) shouldBe listOf(location)
+			foregroundServiceTypeCandidates(android14, capture + hosted) shouldBe listOf(location or health)
+			foregroundPromotionMatches(android14, capture, hosted, health.toLong(), capture + hosted,
+				(location or health).toLong()) shouldBe true
+			foregroundPromotionMatches(android14, capture, hosted, (location or health).toLong(), capture + hosted,
+				(location or health).toLong()) shouldBe false
+		}
+	}
+
+	@Test
 	fun `capture cannot borrow baseline capability or tolerate stale host membership`() {
 		val capture = setOf(SourceKind.STEPS)
 		val hosted = setOf(SourceKind.LOCATION)

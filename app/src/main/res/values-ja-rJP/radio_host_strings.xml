@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">通知を表示して継続</string>
+    <string name="settings_radio_notification_summary">Trackerを閉じている間もバックグラウンドでの収集を支援します。追加のスキャンは行いません。</string>
+    <string name="settings_radio_notification_unavailable">バックグラウンド通知を利用できません。Trackerの実行中は引き続きデータを受信できる場合があります。</string>
+</resources>

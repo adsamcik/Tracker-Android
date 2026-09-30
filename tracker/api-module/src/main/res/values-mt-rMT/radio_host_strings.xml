@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Traċċar fl-isfond</string>
+    <string name="notification_background_collection_text">Attivati: %1$s. Iftaħ Tracker biex timmaniġġja t-traċċar.</string>
+    <string name="notification_background_source_location">Post</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Netwerk mobbli</string>
+    <string name="notification_background_source_other">Traċċar</string>
+</resources>

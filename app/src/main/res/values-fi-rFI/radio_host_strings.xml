@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Jatka ilmoituksen avulla</string>
+    <string name="settings_radio_notification_summary">Auttaa keräämään tietoja taustalla, kun Tracker on suljettu. Ei lisäskannauksia.</string>
+    <string name="settings_radio_notification_unavailable">Taustailmoitus ei ole käytettävissä. Tietoja voi silti saapua, kun Tracker on käynnissä.</string>
+</resources>

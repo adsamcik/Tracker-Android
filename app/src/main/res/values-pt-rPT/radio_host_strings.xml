@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Continuar com uma notificação</string>
+    <string name="settings_radio_notification_summary">Ajuda a recolher dados em segundo plano quando o Tracker está fechado. Sem pesquisas adicionais.</string>
+    <string name="settings_radio_notification_unavailable">A notificação em segundo plano está indisponível. Podem continuar a chegar dados enquanto o Tracker está a funcionar.</string>
+</resources>

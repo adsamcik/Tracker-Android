@@ -794,6 +794,28 @@ class TrackingPurposeAvailabilityTest {
 		)
 	}
 
+	@Test
+	fun `radio host loss preserves exact passive availability without consuming a successor`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		for ((source, mechanism) in listOf(AmbientTrackingSource.WIFI to AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS,
+			AmbientTrackingSource.CELL to AmbientAcquisitionMechanism.CELL_CHANGE_CALLBACKS)) {
+			val old = AmbientReconciliationIdentity.from(purposeIdentity(source), "retention", 1L)
+			store.beginOrReplaceAmbientLease(old)
+			store.tryAccept(AmbientSourceReconciliationReport(old, ready(source, mechanism, old.purposeLeaseIdentity)))
+			store.reportAmbientForegroundHostLost(old.purposeLeaseIdentity) shouldBe true
+			val degraded = store.availability.value.ambientSources.getValue(source)
+			degraded.isOperational shouldBe true
+			degraded.state shouldBe AmbientSourceOperationalState.DEGRADED
+			degraded.operationalIdentity shouldBe old.purposeLeaseIdentity
+			val successor = old.copy(ownerCasToken = "successor-${source.name}")
+			store.beginOrReplaceAmbientLease(successor)
+			store.tryAccept(AmbientSourceReconciliationReport(successor, ready(source, mechanism, successor.purposeLeaseIdentity)))
+			store.reportAmbientForegroundHostLost(old.purposeLeaseIdentity) shouldBe false
+			store.availability.value.ambientSources.getValue(source).state shouldBe AmbientSourceOperationalState.READY
+			shouldThrow<IllegalArgumentException> { degraded.copy(operationalIdentity = null) }
+		}
+	}
+
 	private fun ready(
 		source: AmbientTrackingSource,
 		mechanism: AmbientAcquisitionMechanism,

@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.ambient
 
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.tracker.service.BackgroundLocationHost
 import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
@@ -678,6 +679,60 @@ class AmbientRadioDemandGateTest {
 				),
 			),
 		)
+	}
+
+	@Test
+	fun `optional Wifi hosting refusal preserves admitted passive collection`() = runTest {
+		val broker = mockk<SourceBroker>()
+		val controller = mockk<SharedWifiSourceController>()
+		val host = mockk<BackgroundLocationHost>()
+		val lease = lease(AmbientTrackingSource.WIFI)
+		coEvery { broker.withAmbientRadioMutationLease(lease.identity,
+			any<suspend () -> AmbientWifiDemandReconciliation>()) } coAnswers {
+			AmbientRadioLeaseMutation.Applied(secondArg<suspend () -> AmbientWifiDemandReconciliation>().invoke())
+		}
+		coEvery { broker.replaceAmbientWifiDemandUnderHeldLease(any(), true, lease.identity, 1L, any(), any(), any()) } returns
+			AmbientRadioDemandResult.Active(ambientDemand(SourceKind.WIFI, "wifi-exact-demand"), 7L, authority(SourceKind.WIFI))
+		coEvery { controller.reconcileAmbientJoin() } returns
+			AmbientWifiRuntimeJoinResult.Active(SourceInstanceId("wifi-instance"), 1L)
+		coEvery { host.reconcileRadio(lease.identity, true) } returns false
+		val subject = AmbientWifiDemandReconciler(broker,
+			com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher(broker),
+			controller, BootClockDomainProvider { "boot-1" }, host)
+		val prepared = assertIs<AmbientRadioReportPreparation.Prepared>(subject.reconcilePurposeAvailability(lease,
+			AmbientWifiActivationRequest(true)))
+		val report = assertIs<AmbientSourceReconciliationResult.Reconciled>(prepared.result).report
+		assertEquals(AmbientSourceOperationalState.DEGRADED, report.availability.state)
+		assertEquals(AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE, report.availability.reason)
+		assertEquals(lease.purposeLeaseIdentity, report.availability.operationalIdentity)
+		coVerify(exactly = 0) { controller.closeAmbientForCollectedDataDeletion() }
+	}
+
+	@Test
+	fun `optional Cell hosting failure preserves admitted passive collection`() = runTest {
+		val broker = mockk<SourceBroker>()
+		val controller = mockk<SharedCellSourceController>()
+		val host = mockk<BackgroundLocationHost>()
+		val lease = lease(AmbientTrackingSource.CELL)
+		coEvery { broker.withAmbientRadioMutationLease(lease.identity,
+			any<suspend () -> AmbientCellDemandReconciliation>()) } coAnswers {
+			AmbientRadioLeaseMutation.Applied(secondArg<suspend () -> AmbientCellDemandReconciliation>().invoke())
+		}
+		coEvery { broker.replaceAmbientCellDemandUnderHeldLease(any(), true, lease.identity, 1L, any(), any(), any()) } returns
+			AmbientRadioDemandResult.Active(ambientDemand(SourceKind.CELL, "cell-exact-demand"), 7L, authority(SourceKind.CELL))
+		coEvery { controller.reconcileAmbientJoin() } returns
+			AmbientCellRuntimeJoinResult.Active(SourceInstanceId("cell-instance"), 1L)
+		coEvery { host.reconcileRadio(lease.identity, true) } throws IllegalStateException("host unavailable")
+		val subject = AmbientCellDemandReconciler(broker,
+			com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher(broker),
+			controller, BootClockDomainProvider { "boot-1" }, host)
+		val prepared = assertIs<AmbientRadioReportPreparation.Prepared>(subject.reconcilePurposeAvailability(lease,
+			AmbientCellActivationRequest(true)))
+		val report = assertIs<AmbientSourceReconciliationResult.Reconciled>(prepared.result).report
+		assertEquals(AmbientSourceOperationalState.DEGRADED, report.availability.state)
+		assertEquals(AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE, report.availability.reason)
+		assertEquals(lease.purposeLeaseIdentity, report.availability.operationalIdentity)
+		coVerify(exactly = 0) { controller.closeAmbientForCollectedDataDeletion() }
 	}
 
 	private fun authority(

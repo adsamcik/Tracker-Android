@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Registo em segundo plano</string>
+    <string name="notification_background_collection_text">Ativos: %1$s. Abra o Tracker para gerir o registo.</string>
+    <string name="notification_background_source_location">Localização</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Rede móvel</string>
+    <string name="notification_background_source_other">Registo</string>
+</resources>

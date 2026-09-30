@@ -866,6 +866,41 @@ class RoomSourcePolicyRepositoryTest {
 		repository.currentState().shouldBeInstanceOf<SourcePolicyAuthorityState.Invalid>()
 	}
 
+	@Test
+	fun `radio hosting changes execution policy without adding or rotating recording consent`() = runTest {
+		val settings = readySettings().copy(ambientWifiEnabled = true, ambientCellEnabled = true)
+		val before = repository.bootstrapFromLegacy(settings)
+		val originalRows = database.sourcePolicyDao().policiesAtRevision(before.revision)
+		val hosted = repository.replaceCaptureSettings(before.revision,
+			settings.copy(backgroundWifiNotificationEnabled = true), "HOST_WIFI")
+		hosted[TrackingSourceComponent.WIFI].backgroundNotificationHostEnabled shouldBe true
+		hosted[TrackingSourceComponent.CELL].backgroundNotificationHostEnabled shouldBe false
+		hosted.policies.values.forEach { policy ->
+			policy.captureConsentEpoch shouldBe before[policy.source].captureConsentEpoch
+			policy.ambientConsentEpoch shouldBe before[policy.source].ambientConsentEpoch
+			policy.enabled shouldBe before[policy.source].enabled
+			policy.qos shouldBe before[policy.source].qos
+		}
+		database.sourcePolicyDao().policiesAtRevision(before.revision) shouldBe originalRows
+		val cell = repository.setNonCaptureConsent(hosted.revision, TrackingSourceComponent.CELL,
+			SourcePurpose.AMBIENT_PRODUCT, false, false, "CELL_OFF")
+		cell[TrackingSourceComponent.WIFI].backgroundNotificationHostEnabled shouldBe true
+	}
+
+	@Test
+	fun `default off radio choices preserve preexisting fingerprint and policy revision`() = runTest {
+		val settings = readySettings()
+		val before = repository.bootstrapFromLegacy(settings)
+		// Golden canonical input from the preceding policy format, before host choices existed.
+		val canonical = "1:true:2|2:true:2|3:true:2|4:true:2|5:false:0|6:false:0|location:10:2:50|" +
+			"automatic-control:true:mode:1:transitions:true|ambient-location:false|ambient-steps:true|ambient-wifi:false|ambient-cell:false"
+		val oldFingerprint = java.security.MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(Charsets.UTF_8))
+			.joinToString("") { "%02x".format(it) }
+		database.sourcePolicyDao().authority()?.legacySettingsFingerprint shouldBe oldFingerprint
+		repository.replaceCaptureSettings(before.revision, settings.copy(backgroundWifiNotificationEnabled = false,
+			backgroundCellNotificationEnabled = false), "UNCHANGED") shouldBe before
+	}
+
 	private fun readySettings(): TrackingParamsState = TrackingParamsState(
 		legacySettingsMigrationCompleted = true,
 	)

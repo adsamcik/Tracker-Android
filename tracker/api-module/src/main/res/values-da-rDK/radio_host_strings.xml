@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Baggrundssporing</string>
+    <string name="notification_background_collection_text">Aktiveret: %1$s. Åbn Tracker for at administrere sporing.</string>
+    <string name="notification_background_source_location">Placering</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Mobilnetværk</string>
+    <string name="notification_background_source_other">Sporing</string>
+</resources>

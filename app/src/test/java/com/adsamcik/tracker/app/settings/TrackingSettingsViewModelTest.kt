@@ -196,6 +196,12 @@ class TrackingSettingsViewModelTest {
 		coEvery { trackingParamsRepository.setAmbientCellEnabled(any()) } answers {
 			paramsFlow.value = paramsFlow.value.copy(ambientCellEnabled = firstArg())
 		}
+		coEvery { trackingParamsRepository.setBackgroundWifiNotificationEnabled(any()) } answers {
+			paramsFlow.value = paramsFlow.value.copy(backgroundWifiNotificationEnabled = firstArg())
+		}
+		coEvery { trackingParamsRepository.setBackgroundCellNotificationEnabled(any()) } answers {
+			paramsFlow.value = paramsFlow.value.copy(backgroundCellNotificationEnabled = firstArg())
+		}
         coEvery { trackingParamsRepository.setTransitionDetectionEnabled(any()) } answers {
             paramsFlow.value = paramsFlow.value.copy(transitionDetectionEnabled = firstArg())
         }
@@ -287,6 +293,42 @@ class TrackingSettingsViewModelTest {
 		advanceUntilIdle()
 		vm.uiState.value.locationSettingsSaveFailed shouldBe true
 		coVerify(exactly = 1) { lifecycle.resumeCollectionAfterUserExit("exit-1") }
+	}
+
+	@Test
+	fun `radio host choices save independently without granting background collection`() = runTest(testDispatcher) {
+		val vm = createViewModel()
+		advanceUntilIdle()
+		vm.setBackgroundWifiNotificationEnabled(true)
+		vm.setBackgroundCellNotificationEnabled(true)
+		vm.setBackgroundWifiNotificationEnabled(false)
+		advanceUntilIdle()
+		vm.uiState.value.backgroundWifiNotificationEnabled shouldBe false
+		vm.uiState.value.backgroundCellNotificationEnabled shouldBe true
+		vm.uiState.value.ambientWifiEnabled shouldBe false
+		vm.uiState.value.ambientCellEnabled shouldBe false
+		coVerify(exactly = 0) { trackingParamsRepository.setAmbientWifiEnabled(any()) }
+		coVerify(exactly = 0) { trackingParamsRepository.setAmbientCellEnabled(any()) }
+	}
+
+	@Test
+	fun `failed radio host choice retains the edit and Retry saves only that choice`() = runTest(testDispatcher) {
+		val vm = createViewModel()
+		advanceUntilIdle()
+		coEvery { trackingParamsRepository.setBackgroundWifiNotificationEnabled(true) } throws IllegalStateException("write failed")
+		vm.setBackgroundWifiNotificationEnabled(true)
+		advanceUntilIdle()
+		vm.uiState.value.backgroundWifiNotificationEnabled shouldBe true
+		vm.uiState.value.settingsSaveFailed shouldBe true
+		paramsFlow.value.backgroundWifiNotificationEnabled shouldBe false
+		coEvery { trackingParamsRepository.setBackgroundWifiNotificationEnabled(true) } answers {
+			paramsFlow.value = paramsFlow.value.copy(backgroundWifiNotificationEnabled = true)
+		}
+		vm.retryFailedSettings()
+		advanceUntilIdle()
+		vm.uiState.value.settingsSaveFailed shouldBe false
+		paramsFlow.value.backgroundWifiNotificationEnabled shouldBe true
+		paramsFlow.value.ambientWifiEnabled shouldBe false
 	}
 
 	@Test

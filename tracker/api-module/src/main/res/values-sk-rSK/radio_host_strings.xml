@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Sledovanie na pozadí</string>
+    <string name="notification_background_collection_text">Zapnuté zdroje: %1$s. Spravujte ich v aplikácii Tracker.</string>
+    <string name="notification_background_source_location">Poloha</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Mobilná sieť</string>
+    <string name="notification_background_source_other">Sledovanie</string>
+</resources>

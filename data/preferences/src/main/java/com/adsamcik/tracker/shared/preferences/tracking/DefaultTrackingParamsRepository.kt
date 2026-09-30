@@ -339,6 +339,8 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
 		ambientStepsEnabled = stepsEnabled,
 		ambientWifiEnabled = ambientWifiEnabled,
 		ambientCellEnabled = ambientCellEnabled,
+		backgroundWifiNotificationEnabled = backgroundWifiNotificationEnabled,
+		backgroundCellNotificationEnabled = backgroundCellNotificationEnabled,
         balanceProfileVersion = if (hasBalanceProfileVersion()) balanceProfileVersion else null,
         overallBalanceLevel = if (hasOverallBalanceLevel()) overallBalanceLevel else null,
         sourceBalanceOverrides = SourceBalanceOverrides(
@@ -407,6 +409,8 @@ private fun TrackingParamsState.toProto(): TrackingParamsProto =
 		.setAmbientStepsEnabled(stepsEnabled)
 		.setAmbientWifiEnabled(ambientWifiEnabled)
 		.setAmbientCellEnabled(ambientCellEnabled)
+		.setBackgroundWifiNotificationEnabled(backgroundWifiNotificationEnabled)
+		.setBackgroundCellNotificationEnabled(backgroundCellNotificationEnabled)
 		.apply {
             this@toProto.balanceProfileVersion?.let { setBalanceProfileVersion(it) }
             this@toProto.overallBalanceLevel?.let { setOverallBalanceLevel(it) }

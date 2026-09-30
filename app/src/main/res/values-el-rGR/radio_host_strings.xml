@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Συνέχιση με ειδοποίηση</string>
+    <string name="settings_radio_notification_summary">Βοηθά στη συλλογή δεδομένων στο παρασκήνιο όταν το Tracker είναι κλειστό. Χωρίς επιπλέον σαρώσεις.</string>
+    <string name="settings_radio_notification_unavailable">Η ειδοποίηση παρασκηνίου δεν είναι διαθέσιμη. Δεδομένα μπορεί να συνεχίσουν να λαμβάνονται όσο λειτουργεί το Tracker.</string>
+</resources>

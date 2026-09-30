@@ -951,6 +951,23 @@ class DevelopmentV28DatabaseContainmentTest {
 		)
 	}
 
+	@Test
+	fun `v29 database with a nonzero background hosting default is blocked before Room opens`() {
+		val database = AppDatabase.fileBuilder(context, DATABASE_NAME)
+			.allowMainThreadQueries()
+			.build()
+		try {
+			val db = database.openHelper.writableDatabase
+			db.execSQL("ALTER TABLE source_policy RENAME COLUMN background_notification_host_enabled TO old_host_enabled")
+			db.execSQL("ALTER TABLE source_policy ADD COLUMN background_notification_host_enabled INTEGER NOT NULL DEFAULT 1")
+		} finally {
+			database.close()
+		}
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA,
+		)
+	}
+
 	private fun createFixture(
 		version: Int,
 		includeBaseline: Boolean = true,

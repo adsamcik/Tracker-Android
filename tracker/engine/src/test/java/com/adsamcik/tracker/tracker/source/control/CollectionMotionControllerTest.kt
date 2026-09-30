@@ -163,6 +163,33 @@ class CollectionMotionControllerTest {
 		subject.policy.value.motionState shouldBe CollectionMotionState.UNKNOWN
 	}
 
+	@Test
+	fun `sessionless admitted hardware Steps adapt a non Location collection scope`() {
+		subject.configureScope("radio-collection", "boot", seconds(10))
+		val event = candidate(steps(delta = 2), seconds(11), 1).copy(logicalTrackingId = null, serviceRunId = null)
+		subject.onDurableEvidence(event)
+		subject.policy.value.motionState shouldBe CollectionMotionState.PEDESTRIAN
+		subject.policy.value.expensiveNetworkScansAllowed shouldBe true
+		// A live session joins the existing scope without resetting cheap motion continuity.
+		subject.configureScope("radio-collection", "boot", seconds(10))
+		subject.policy.value.motionState shouldBe CollectionMotionState.PEDESTRIAN
+		subject.stopScope("radio-collection")
+		subject.onDurableEvidence(event.copy(sourceSequence = 2L, observedElapsedRealtimeNanos = seconds(12),
+			receivedElapsedRealtimeNanos = seconds(12)))
+		subject.policy.value shouldBe CollectionMotionPolicy.unrestricted()
+	}
+
+	@Test
+	fun `unbound Steps from another boot or before collection began do not supply motion`() {
+		subject.configureScope("radio-collection", "boot", seconds(10))
+		val event = candidate(steps(delta = 3), seconds(11), 1).copy(logicalTrackingId = null, serviceRunId = null)
+		subject.onDurableEvidence(event.copy(clockDomainId = "other-boot"))
+		subject.onDurableEvidence(event.copy(observedElapsedRealtimeNanos = seconds(9), receivedElapsedRealtimeNanos = seconds(9)))
+		subject.policy.value shouldBe CollectionMotionPolicy.awaitingEvidence()
+		subject.onDurableEvidence(event)
+		subject.policy.value.motionState shouldBe CollectionMotionState.PEDESTRIAN
+	}
+
 	private fun location(speed: Float?) = LocationFixPayload(50.0, 14.0, 5f, null, null, speed, null, "gps")
 
 	private fun activity(type: Int, confidence: Int) = ActivityRecognitionPayload(type, confidence, null)

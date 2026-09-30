@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.test.core.app.ApplicationProvider
 import java.util.Locale
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasTestTag
@@ -895,6 +896,42 @@ class TrackingSettingsScreenTest {
         composeTestRule.onNodeWithText(distance).assertIsDisplayed()
         scrollTo(seconds)
         composeTestRule.onNodeWithText(seconds).assertIsDisplayed()
+    }
+
+    @Test
+    fun backgroundRadioNotificationsHaveIndependentAccessibleChoices() {
+		val context: Context = ApplicationProvider.getApplicationContext()
+		val wifiName = context.getString(com.adsamcik.tracker.tracker.R.string.notification_background_source_wifi)
+		val cellName = context.getString(com.adsamcik.tracker.tracker.R.string.notification_background_source_cell)
+        var wifi: Boolean? = null
+        var cell: Boolean? = null
+        composeTestRule.setContent {
+            AppTheme {
+                TrackingSettingsContent(uiState = defaultUiState.copy(ambientWifiEnabled = true, ambientCellEnabled = true,
+                    backgroundWifiNotificationEnabled = false, backgroundCellNotificationEnabled = true),
+                    onWifiNotificationChanged = { wifi = it }, onCellNotificationChanged = { cell = it })
+            }
+        }
+        composeTestRule.onNodeWithTag("trackingSettingsList").performScrollToNode(hasTestTag("backgroundNotification-wifi"))
+        composeTestRule.onNodeWithTag("backgroundNotification-wifi")
+			.assertContentDescriptionEquals(wifiName).assertIsOff().performClick()
+        wifi shouldBe true
+        cell shouldBe null
+        composeTestRule.onNodeWithTag("trackingSettingsList").performScrollToNode(hasTestTag("backgroundNotification-cell"))
+        composeTestRule.onNodeWithTag("backgroundNotification-cell")
+			.assertContentDescriptionEquals(cellName).performClick()
+        cell shouldBe false
+    }
+
+    @Test
+    fun disabledBackgroundRadioHidesItsDormantNotificationChoice() {
+        composeTestRule.setContent {
+            AppTheme { TrackingSettingsContent(uiState = defaultUiState.copy(ambientWifiEnabled = false,
+                ambientCellEnabled = false, backgroundWifiNotificationEnabled = true, backgroundCellNotificationEnabled = true)) }
+        }
+        scrollTo("Outside trips (optional)")
+        composeTestRule.onNodeWithTag("backgroundNotification-wifi").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("backgroundNotification-cell").assertDoesNotExist()
     }
 
     @Test

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Urmărire în fundal</string>
+    <string name="notification_background_collection_text">Activate: %1$s. Deschideți Tracker pentru a gestiona urmărirea.</string>
+    <string name="notification_background_source_location">Locație</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Rețea mobilă</string>
+    <string name="notification_background_source_other">Urmărire</string>
+</resources>

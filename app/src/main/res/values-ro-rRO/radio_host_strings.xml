@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Continuă cu o notificare</string>
+    <string name="settings_radio_notification_summary">Ajută la colectarea datelor în fundal când Tracker este închis. Fără scanări suplimentare.</string>
+    <string name="settings_radio_notification_unavailable">Notificarea în fundal nu este disponibilă. Datele pot sosi în continuare cât timp Tracker rulează.</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">顯示通知並繼續執行</string>
+    <string name="settings_radio_notification_summary">協助在關閉 Tracker 後於背景收集資料。不增加掃描。</string>
+    <string name="settings_radio_notification_unavailable">背景通知無法使用。Tracker 執行時仍可能收到資料。</string>
+</resources>

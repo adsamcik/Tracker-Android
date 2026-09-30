@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Taustajälgimine</string>
+    <string name="notification_background_collection_text">Lubatud: %1$s. Jälgimise haldamiseks ava Tracker.</string>
+    <string name="notification_background_source_location">Asukoht</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Mobiilivõrk</string>
+    <string name="notification_background_source_other">Jälgimine</string>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">バックグラウンド記録</string>
+    <string name="notification_background_collection_text">有効：%1$s。記録を管理するにはTrackerを開いてください。</string>
+    <string name="notification_background_source_location">位置情報</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">携帯電話網</string>
+    <string name="notification_background_source_other">記録</string>
+</resources>

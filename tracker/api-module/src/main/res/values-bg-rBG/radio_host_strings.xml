@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Проследяване във фонов режим</string>
+    <string name="notification_background_collection_text">Включени: %1$s. Отворете Tracker, за да управлявате проследяването.</string>
+    <string name="notification_background_source_location">Местоположение</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Мобилна мрежа</string>
+    <string name="notification_background_source_other">Проследяване</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">显示通知并继续运行</string>
+    <string name="settings_radio_notification_summary">帮助在关闭 Tracker 后于后台收集数据。不增加扫描。</string>
+    <string name="settings_radio_notification_unavailable">后台通知不可用。Tracker 运行时仍可能收到数据。</string>
+</resources>

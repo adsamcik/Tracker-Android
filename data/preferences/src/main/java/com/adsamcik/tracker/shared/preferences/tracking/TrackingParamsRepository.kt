@@ -96,6 +96,13 @@ interface TrackingParamsRepository {
 	suspend fun setAmbientCellEnabled(enabled: Boolean) {
 		update { copy(ambientCellEnabled = enabled) }
 	}
+	/** Hosting changes execution only, without granting recording consent or active scan budget. */
+	suspend fun setBackgroundWifiNotificationEnabled(enabled: Boolean) {
+		update { copy(backgroundWifiNotificationEnabled = enabled) }
+	}
+	suspend fun setBackgroundCellNotificationEnabled(enabled: Boolean) {
+		update { copy(backgroundCellNotificationEnabled = enabled) }
+	}
     suspend fun setTransitionDetectionEnabled(enabled: Boolean)
     suspend fun setNotificationStyled(enabled: Boolean)
     suspend fun setMinDistanceMeters(meters: Int)

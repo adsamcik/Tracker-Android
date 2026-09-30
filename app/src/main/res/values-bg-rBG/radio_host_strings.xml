@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Продължаване с известие</string>
+    <string name="settings_radio_notification_summary">Помага за събиране на данни във фонов режим, когато Tracker е затворен. Без допълнителни сканирания.</string>
+    <string name="settings_radio_notification_unavailable">Известието за работа във фонов режим е недостъпно. Данни може да продължат да пристигат, докато Tracker работи.</string>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Sledenje v ozadju</string>
+    <string name="notification_background_collection_text">Vključeno: %1$s. Odprite Tracker za upravljanje sledenja.</string>
+    <string name="notification_background_source_location">Lokacija</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Mobilno omrežje</string>
+    <string name="notification_background_source_other">Sledenje</string>
+</resources>

@@ -88,6 +88,9 @@ message TrackingParamsProto {
   optional int32 pressure_balance_override = 41;
   optional int32 wifi_balance_override = 42;
   optional int32 cell_balance_override = 43;
+  // Optional hosts for independently enabled all-day radios. No additional scans are granted.
+  bool background_wifi_notification_enabled = 44;
+  bool background_cell_notification_enabled = 45;
 
   // Internal migration marker so legacy Preferences import runs only once.
   bool legacy_migrated = 1000;

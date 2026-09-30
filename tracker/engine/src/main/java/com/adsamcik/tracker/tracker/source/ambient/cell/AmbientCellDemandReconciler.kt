@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.tracker.source.ambient.cell
 
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.tracker.service.BackgroundLocationHost
+import com.adsamcik.tracker.tracker.api.AmbientSourceReconciliationResult
 import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
@@ -43,6 +45,7 @@ class AmbientCellDemandReconciler @Inject internal constructor(
 	private val sourceCallerDemandDispatcher: SourceCallerDemandDispatcher,
 	private val sharedController: SharedCellSourceController,
 	private val clockDomainProvider: BootClockDomainProvider,
+	private val backgroundHost: BackgroundLocationHost? = null,
 ) {
 	private val reconciliationAttempts = AtomicLong(0L)
 
@@ -254,10 +257,41 @@ class AmbientCellDemandReconciler @Inject internal constructor(
 				reason = AmbientRadioReportPreparationRejection.SOURCE_MISMATCH,
 			)
 		}
-		return reconcile(lease, request).prepareReport(lease)
+		val prepared = reconcile(lease, request).prepareReport(lease)
+		if (prepared !is AmbientRadioReportPreparation.Prepared) {
+			backgroundHost?.releaseRadio(lease.identity)
+			return prepared
+		}
+		val report = when (val result = prepared.result) {
+			is AmbientSourceReconciliationResult.Reconciled -> result.report
+			is AmbientSourceReconciliationResult.Unavailable -> result.report
+		}
+		val hosted = try {
+			backgroundHost?.reconcileRadio(lease.identity, report.availability.isOperational) ?: true
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			// Optional notification failure cannot retire independently allowed passive collection.
+			false
+		}
+		return if (!hosted && report.availability.isOperational) prepared.copy(
+			result = AmbientSourceReconciliationResult.Reconciled(report.copy(
+				availability = report.availability.copy(state = AmbientSourceOperationalState.DEGRADED,
+					reason = AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE),
+			)),
+		) else prepared
 	}
 
 	suspend fun retireAfterRetentionAuthorityFailure(
+		previousLease: AmbientReconciliationLease?,
+	): Boolean {
+		val hostRetired = if (previousLease == null) backgroundHost?.releaseRadioSource(AmbientTrackingSource.CELL)
+			else backgroundHost?.releaseRadio(previousLease.identity)
+		val providerRetired = retireProviderAfterRetentionAuthorityFailure(previousLease)
+		return hostRetired != false && providerRetired
+	}
+
+	private suspend fun retireProviderAfterRetentionAuthorityFailure(
 		previousLease: AmbientReconciliationLease?,
 	): Boolean {
 		if (previousLease != null) {
@@ -301,6 +335,12 @@ class AmbientCellDemandReconciler @Inject internal constructor(
 	}
 
 	suspend fun closeForCollectedDataDeletion(): Boolean {
+		val hostRetired = backgroundHost?.releaseRadioSource(AmbientTrackingSource.CELL) != false
+		val providerRetired = closeProviderForCollectedDataDeletion()
+		return hostRetired && providerRetired
+	}
+
+	private suspend fun closeProviderForCollectedDataDeletion(): Boolean {
 		val plan = sourceBroker.ambientRadioRetirementPlan(SourceKind.CELL, CONSUMER_ID)
 		if (plan is AmbientRadioRetirementPlan.Unverifiable) {
 			val demandRetired = retireMalformedDemand()

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Pokračovať s oznámením</string>
+    <string name="settings_radio_notification_summary">Pomáha zbierať údaje na pozadí, aj keď je Tracker zatvorený. Bez ďalšieho skenovania.</string>
+    <string name="settings_radio_notification_unavailable">Oznámenie na pozadí nie je dostupné. Údaje môžu ďalej prichádzať, kým Tracker beží.</string>
+</resources>

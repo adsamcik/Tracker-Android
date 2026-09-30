@@ -40,6 +40,9 @@ data class TrackingParamsState(
 	val locationBackgroundMode: LocationBackgroundMode? = null,
 	/** Optional helper consent only; never Activity capture or automatic-start consent. */
 	val locationMotionAssistanceEnabled: Boolean = false,
+	/** Optional notification hosting; never recording consent or an active scan allowance. */
+	val backgroundWifiNotificationEnabled: Boolean = false,
+	val backgroundCellNotificationEnabled: Boolean = false,
 ) {
 	init {
 		SourceBalanceSettings.requireValid(balanceProfileVersion, overallBalanceLevel, sourceBalanceOverrides)

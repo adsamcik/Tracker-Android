@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">पृष्ठभूमि ट्रैकिंग</string>
+    <string name="notification_background_collection_text">चालू: %1$s। ट्रैकिंग प्रबंधित करने के लिए Tracker खोलें।</string>
+    <string name="notification_background_source_location">स्थान</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">मोबाइल नेटवर्क</string>
+    <string name="notification_background_source_other">ट्रैकिंग</string>
+</resources>

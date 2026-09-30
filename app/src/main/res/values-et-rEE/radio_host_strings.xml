@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Jätka teavitusega</string>
+    <string name="settings_radio_notification_summary">Aitab taustal andmeid koguda, kui Tracker on suletud. Lisaskaneerimisi ei tehta.</string>
+    <string name="settings_radio_notification_unavailable">Taustateavitus pole saadaval. Andmeid võib siiski saabuda, kui Tracker töötab.</string>
+</resources>

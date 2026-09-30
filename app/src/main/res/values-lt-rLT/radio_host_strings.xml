@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Tęsti su pranešimu</string>
+    <string name="settings_radio_notification_summary">Padeda rinkti duomenis fone, kai Tracker uždarytas. Be papildomų nuskaitymų.</string>
+    <string name="settings_radio_notification_unavailable">Fono pranešimas nepasiekiamas. Duomenys vis tiek gali būti gaunami, kol Tracker veikia.</string>
+</resources>

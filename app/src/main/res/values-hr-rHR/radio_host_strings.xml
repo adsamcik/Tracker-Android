@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Nastavi raditi uz obavijest</string>
+    <string name="settings_radio_notification_summary">Pomaže prikupljati podatke u pozadini dok je Tracker zatvoren. Bez dodatnih skeniranja.</string>
+    <string name="settings_radio_notification_unavailable">Obavijest za rad u pozadini nije dostupna. Podaci i dalje mogu stizati dok Tracker radi.</string>
+</resources>

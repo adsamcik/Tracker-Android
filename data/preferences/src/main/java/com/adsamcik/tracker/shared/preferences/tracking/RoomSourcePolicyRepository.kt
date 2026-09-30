@@ -189,7 +189,8 @@ class RoomSourcePolicyRepository(
 					old.overallBalanceLevel != next.overallBalanceLevel ||
 					old.sourceBalanceOverride != next.sourceBalanceOverride ||
 					old.locationBackgroundMode != next.locationBackgroundMode ||
-					old.locationMotionAssistanceEnabled != next.locationMotionAssistanceEnabled
+					old.locationMotionAssistanceEnabled != next.locationMotionAssistanceEnabled ||
+					old.backgroundNotificationHostEnabled != next.backgroundNotificationHostEnabled
 			}
 			val automaticControlChanged =
 				previousAutomaticControlEligible != automaticControlEligible
@@ -457,6 +458,7 @@ class RoomSourcePolicyRepository(
 						previous.locationMotionAssistanceEnabled,
 						previous.overallBalanceLevel,
 						previous.sourceBalanceOverride,
+						previous.backgroundNotificationHostEnabled,
 					),
 					captureConsentEpoch = previous.captureConsentEpoch,
 					controlConsentEpoch = when {
@@ -596,6 +598,7 @@ class RoomSourcePolicyRepository(
 				sourceBalanceOverride = entity.sourceBalanceOverride,
 				locationBackgroundMode = entity.locationBackgroundMode?.let(LocationBackgroundMode::fromStableCode),
 				locationMotionAssistanceEnabled = entity.locationMotionAssistanceEnabled,
+				backgroundNotificationHostEnabled = entity.backgroundNotificationHostEnabled,
 			)
 			validatePurposeMatrix(policy)
 			validateConsentReference(policy, SourcePurpose.SESSION_CAPTURE)
@@ -675,6 +678,11 @@ class RoomSourcePolicyRepository(
 			locationBackgroundMode = settings.locationBackgroundMode.takeIf { source == TrackingSourceComponent.LOCATION },
 			locationMotionAssistanceEnabled = source == TrackingSourceComponent.LOCATION &&
 				settings.locationMotionAssistanceEnabled,
+			backgroundNotificationHostEnabled = when (source) {
+				TrackingSourceComponent.WIFI -> settings.backgroundWifiNotificationEnabled
+				TrackingSourceComponent.CELL -> settings.backgroundCellNotificationEnabled
+				else -> false
+			},
 		)
 	}
 
@@ -713,6 +721,7 @@ class RoomSourcePolicyRepository(
 		sourceBalanceOverride = desired.sourceBalanceOverride,
 		locationBackgroundMode = desired.locationBackgroundMode?.stableCode,
 		locationMotionAssistanceEnabled = desired.locationMotionAssistanceEnabled,
+		backgroundNotificationHostEnabled = desired.backgroundNotificationHostEnabled,
 	)
 
 	private fun consentEntity(
@@ -749,6 +758,9 @@ class RoomSourcePolicyRepository(
 			"ambient-steps:${settings.stepsEnabled}|" +
 			"ambient-wifi:${settings.ambientWifiEnabled}|" +
 			"ambient-cell:${settings.ambientCellEnabled}" +
+			// Preserve the exact old fingerprint while both newly introduced choices are off.
+			(if (!settings.backgroundWifiNotificationEnabled && !settings.backgroundCellNotificationEnabled)
+				"" else "|radio-host:${settings.backgroundWifiNotificationEnabled}:${settings.backgroundCellNotificationEnabled}") +
 			(if (settings.locationProfileVersion == null && settings.locationBackgroundMode == null &&
 				!settings.locationMotionAssistanceEnabled
 			) "" else "|location-profile:${settings.locationProfileVersion}:${settings.locationBalanceLevel}:" +
@@ -773,6 +785,7 @@ class RoomSourcePolicyRepository(
 		val locationMotionAssistanceEnabled: Boolean = false,
 		val overallBalanceLevel: Int? = null,
 		val sourceBalanceOverride: Int? = null,
+		val backgroundNotificationHostEnabled: Boolean = false,
 	)
 
 	private companion object {

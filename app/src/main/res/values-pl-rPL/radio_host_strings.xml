@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Kontynuuj z powiadomieniem</string>
+    <string name="settings_radio_notification_summary">Pomaga zbierać dane w tle, gdy Tracker jest zamknięty. Bez dodatkowych skanów.</string>
+    <string name="settings_radio_notification_unavailable">Powiadomienie w tle jest niedostępne. Dane mogą nadal napływać, gdy Tracker działa.</string>
+</resources>

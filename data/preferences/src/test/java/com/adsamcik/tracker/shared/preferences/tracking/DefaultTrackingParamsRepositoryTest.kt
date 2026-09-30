@@ -45,6 +45,28 @@ class DefaultTrackingParamsRepositoryTest {
     }
 
     @Test
+    fun `radio notification choices default off and roundtrip independently of participation`() = runTest {
+        val repository = DefaultTrackingParamsRepository(context, Dispatchers.IO)
+        val initial = repository.data.first()
+        assertFalse(initial.backgroundWifiNotificationEnabled)
+        assertFalse(initial.backgroundCellNotificationEnabled)
+        repository.setBackgroundWifiNotificationEnabled(true)
+        var saved = repository.data.first()
+        assertTrue(saved.backgroundWifiNotificationEnabled)
+        assertFalse(saved.backgroundCellNotificationEnabled)
+        assertEquals(initial.ambientWifiEnabled, saved.ambientWifiEnabled)
+        assertEquals(initial.wifiEnabled, saved.wifiEnabled)
+        assertEquals(initial.sourceCollectionSettings, saved.sourceCollectionSettings)
+        repository.setBackgroundCellNotificationEnabled(true)
+        repository.setBackgroundWifiNotificationEnabled(false)
+        saved = repository.data.first()
+        assertFalse(saved.backgroundWifiNotificationEnabled)
+        assertTrue(saved.backgroundCellNotificationEnabled)
+        assertEquals(initial.ambientCellEnabled, saved.ambientCellEnabled)
+        assertEquals(initial.cellEnabled, saved.cellEnabled)
+    }
+
+    @Test
     fun `migration keeps string mode and wifi default`() = runTest {
         PreferenceManager.getDefaultSharedPreferences(context).edit()
             .putString(PreferenceKeys.TRACKING_ACTIVITY_MODE, "2")

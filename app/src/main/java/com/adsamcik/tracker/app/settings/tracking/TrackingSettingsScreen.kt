@@ -274,6 +274,8 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
 		onMotionPermission = { trackingVm.requestSavedLocationPermission(LocationSettingsPermissionKind.MOTION) },
 		onAmbientWifiEnabledChanged = { trackingVm.setAmbientWifiEnabled(it) },
 		onAmbientCellEnabledChanged = { trackingVm.setAmbientCellEnabled(it) },
+		onWifiNotificationChanged = trackingVm::setBackgroundWifiNotificationEnabled,
+		onCellNotificationChanged = trackingVm::setBackgroundCellNotificationEnabled,
         onAdvancedSourceControlsChanged = { trackingVm.setAdvancedSourceControlsEnabled(it) },
         onSourceFrequencyChanged = trackingVm::setSourceFrequency,
         onWifiEnabledChanged = { enabled ->
@@ -332,6 +334,8 @@ internal fun TrackingSettingsContent(
 	onMotionPermission: () -> Unit = {},
 	onAmbientWifiEnabledChanged: (Boolean) -> Unit = {},
 	onAmbientCellEnabledChanged: (Boolean) -> Unit = {},
+	onWifiNotificationChanged: (Boolean) -> Unit = {},
+	onCellNotificationChanged: (Boolean) -> Unit = {},
     onWifiEnabledChanged: (Boolean) -> Unit = {},
     onCellEnabledChanged: (Boolean) -> Unit = {},
     onAdvancedSourceControlsChanged: (Boolean) -> Unit = {},
@@ -666,6 +670,8 @@ internal fun TrackingSettingsContent(
 				onMotionPermission = onMotionPermission,
 				onWifiEnabledChanged = onAmbientWifiEnabledChanged,
 				onCellEnabledChanged = onAmbientCellEnabledChanged,
+				onWifiNotificationChanged = onWifiNotificationChanged,
+				onCellNotificationChanged = onCellNotificationChanged,
 			)
 		}
         item {

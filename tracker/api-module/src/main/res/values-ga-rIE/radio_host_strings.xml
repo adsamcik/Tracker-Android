@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Rianú sa chúlra</string>
+    <string name="notification_background_collection_text">Cumasaithe: %1$s. Oscail Tracker chun rianú a bhainistiú.</string>
+    <string name="notification_background_source_location">Suíomh</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Líonra soghluaiste</string>
+    <string name="notification_background_source_other">Rianú</string>
+</resources>

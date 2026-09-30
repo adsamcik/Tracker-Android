@@ -70,8 +70,10 @@ data class SourcePolicy(
 	val sourceBalanceOverride: Int? = null,
 	val locationBackgroundMode: LocationBackgroundMode? = null,
 	val locationMotionAssistanceEnabled: Boolean = false,
+	val backgroundNotificationHostEnabled: Boolean = false,
 ) {
 	init {
+		require(!backgroundNotificationHostEnabled || source in setOf(TrackingSourceComponent.WIFI, TrackingSourceComponent.CELL))
 		LocationAdaptiveSettings.requireValidProfile(balanceProfileVersion, balanceLevel)
         require(overallBalanceLevel == null || overallBalanceLevel in 1..5)
         require(sourceBalanceOverride == null || sourceBalanceOverride in 1..5)

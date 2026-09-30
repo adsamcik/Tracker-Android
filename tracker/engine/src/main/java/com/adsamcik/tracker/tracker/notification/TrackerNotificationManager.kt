@@ -59,7 +59,7 @@ class TrackerNotificationManager(
 		if (isUserInitiatedSession) {
 			addAction(
 				com.adsamcik.tracker.shared.base.R.drawable.ic_pause_circle_filled_black_24dp,
-				resources.getString(R.string.notification_stop),
+				resources.getString(R.string.notification_end_session),
 				stop
 			)
 		} else {
@@ -93,7 +93,7 @@ class TrackerNotificationManager(
 				stopForMinutesAction
 			)
 		}
-		return this
+		return addTurnOffAction(context)
 	}
 
 	fun notify(builder: NotificationCompat.Builder) {
@@ -110,11 +110,28 @@ class TrackerNotificationManager(
 
 		/** Background collection has no live session counters or live Stop action. */
 		fun getBackgroundLocationForegroundNotification(context: Context): Notification =
-			createBuilder(context, useStyle = false,
-				publicTitleRes = R.string.notification_background_location_title)
-				.setContentTitle(context.getString(R.string.notification_background_location_title))
-				.setContentText(context.getString(R.string.notification_background_location_text))
+			getBackgroundCollectionForegroundNotification(context,
+				setOf(com.adsamcik.tracker.tracker.source.model.SourceKind.LOCATION))
+
+		fun getBackgroundCollectionForegroundNotification(
+			context: Context,
+			sources: Set<com.adsamcik.tracker.tracker.source.model.SourceKind>,
+		): Notification {
+			val names = sources.sortedBy { it.stableCode }.map { source ->
+				context.getString(when (source) {
+					com.adsamcik.tracker.tracker.source.model.SourceKind.LOCATION -> R.string.notification_background_source_location
+					com.adsamcik.tracker.tracker.source.model.SourceKind.WIFI -> R.string.notification_background_source_wifi
+					com.adsamcik.tracker.tracker.source.model.SourceKind.CELL -> R.string.notification_background_source_cell
+					else -> R.string.notification_background_source_other
+				})
+			}.joinToString(", ")
+			return createBuilder(context, useStyle = false,
+				publicTitleRes = R.string.notification_background_collection_title)
+				.setContentTitle(context.getString(R.string.notification_background_collection_title))
+				.setContentText(context.getString(R.string.notification_background_collection_text, names))
+				.addTurnOffAction(context)
 				.build()
+		}
 
 		fun getForegroundNotification(
 			context: Context,
@@ -259,4 +276,22 @@ class TrackerNotificationManager(
 				}
 		}
 	}
+}
+
+private fun NotificationCompat.Builder.addTurnOffAction(context: Context): NotificationCompat.Builder {
+	val intent = Intent(context, TrackerNotificationReceiver::class.java).putExtra(
+		TrackerNotificationReceiver.ACTION_STRING,
+		TrackerNotificationReceiver.TURN_OFF_TRACKING_ACTION,
+	)
+	val pendingIntent = PendingIntent.getBroadcast(
+		context,
+		2,
+		intent,
+		PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_IMMUTABLE),
+	)
+	return addAction(
+		com.adsamcik.tracker.shared.base.R.drawable.ic_stop_black_24dp,
+		context.getString(R.string.notification_turn_off_tracking),
+		pendingIntent,
+	)
 }

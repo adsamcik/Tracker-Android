@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Fortsæt med en notifikation</string>
+    <string name="settings_radio_notification_summary">Hjælper med at indsamle data i baggrunden, når Tracker er lukket. Ingen ekstra scanninger.</string>
+    <string name="settings_radio_notification_unavailable">Baggrundsnotifikationen er ikke tilgængelig. Data kan stadig komme ind, mens Tracker kører.</string>
+</resources>

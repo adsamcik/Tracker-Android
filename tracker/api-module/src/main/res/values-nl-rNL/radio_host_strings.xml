@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Volgen op de achtergrond</string>
+    <string name="notification_background_collection_text">Ingeschakeld: %1$s. Open Tracker om het volgen te beheren.</string>
+    <string name="notification_background_source_location">Locatie</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Mobiel netwerk</string>
+    <string name="notification_background_source_other">Volgen</string>
+</resources>

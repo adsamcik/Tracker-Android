@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Hintergrundaufzeichnung</string>
+    <string name="notification_background_collection_text">Aktiviert: %1$s. Öffne Tracker, um die Aufzeichnung zu verwalten.</string>
+    <string name="notification_background_source_location">Standort</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Mobilfunk</string>
+    <string name="notification_background_source_other">Aufzeichnung</string>
+</resources>

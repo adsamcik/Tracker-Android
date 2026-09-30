@@ -207,7 +207,7 @@ class ActiveDatabasePreflight internal constructor(
 			)
 		}
 		if (version == 28) return ActiveDatabasePreflightResult.FinalV28
-		if (!FINAL_V29_RADIO_GROUP_COLUMNS.all(database::hasExactColumn) ||
+		if (!FINAL_V29_RADIO_ADDITIONAL_COLUMNS.all(database::hasExactColumn) ||
 			!FINAL_V29_RADIO_CHILD_COLUMNS.all { (table, columns) -> database.hasExactColumns(table, columns) } ||
 			!FINAL_V29_RADIO_CHILD_INDEXES.all(database::hasExactIndex) ||
 			!FINAL_V29_RADIO_MIRROR_TRIGGERS.all(database::hasTrigger)
@@ -1184,9 +1184,10 @@ private val FINAL_V28_STEPS_TRIGGERS = listOf(
 	),
 )
 
-private val FINAL_V29_RADIO_GROUP_COLUMNS = listOf(
+private val FINAL_V29_RADIO_ADDITIONAL_COLUMNS = listOf(
 	FinalV28ColumnSentinel("ambient_wifi_fact_revision", "purpose_demand_id", "TEXT", false, defaultValue = "NULL"),
 	FinalV28ColumnSentinel("ambient_cell_fact_revision", "purpose_demand_id", "TEXT", false, defaultValue = "NULL"),
+	FinalV28ColumnSentinel("source_policy", "background_notification_host_enabled", "INTEGER", true, defaultValue = "0"),
 )
 
 private val FINAL_V29_LEGACY_STAMP_COLUMNS = listOf(

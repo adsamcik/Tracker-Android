@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Lean ar aghaidh le fógra</string>
+    <string name="settings_radio_notification_summary">Cabhraíonn sé le sonraí a bhailiú sa chúlra nuair atá Tracker dúnta. Gan scanadh breise.</string>
+    <string name="settings_radio_notification_unavailable">Níl fógra cúlra ar fáil. D’fhéadfadh sonraí teacht isteach fós agus Tracker ag rith.</string>
+</resources>

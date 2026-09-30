@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Tracciamento in background</string>
+    <string name="notification_background_collection_text">Attivi: %1$s. Apri Tracker per gestire il tracciamento.</string>
+    <string name="notification_background_source_location">Posizione</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Rete mobile</string>
+    <string name="notification_background_source_other">Tracciamento</string>
+</resources>

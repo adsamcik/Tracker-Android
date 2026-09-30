@@ -28,6 +28,8 @@ description of its earlier input; this file records subsequent repair progress.
   independent static review and exact manifest in `STEPS_EXECUTION_SOURCE_REVIEW.md`.
 - `65a9be4125`: notification failed-save recovery, retained edits and accessible
   move actions, with resource text for all declared locales.
+- `9adeadd2fa`: independently qualified background radio groups, distinct detail
+  identities/replay, physical-retirement subset filtering and rollback test source.
 
 All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 
@@ -49,7 +51,9 @@ All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
   development migration and mixed-group/replay/legacy test source.
 - [x] Independent static review and coherent commits of Start, Steps execution,
   settings/notification recovery and bounded export/Activity period queries.
-- [ ] Commit reviewed background grouping and retained Wi-Fi qualification slices.
+- [x] Independent source review and commit of background radio grouping, including
+  the physical-retirement/transaction correction. Midnight handling remains open.
+- [ ] Commit reviewed retained Wi-Fi qualification with its required companions.
 
 ## Remaining in these slices
 

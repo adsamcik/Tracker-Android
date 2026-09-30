@@ -95,6 +95,8 @@ data class TrackingSettingsUiState(
 	val ambientStepsEnabled: Boolean = stepsEnabled,
 	val ambientWifiEnabled: Boolean = false,
 	val ambientCellEnabled: Boolean = false,
+	val backgroundWifiNotificationEnabled: Boolean = false,
+	val backgroundCellNotificationEnabled: Boolean = false,
 	val ambientSourceAvailability: Map<AmbientTrackingSource, AmbientSourceOperationalAvailability> =
 		TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.ambientSources,
     val barometerAvailable: Boolean = true,
@@ -468,6 +470,18 @@ class TrackingSettingsViewModel internal constructor(
 		}
 	}
 
+	fun setBackgroundWifiNotificationEnabled(enabled: Boolean) {
+		launchSourcePolicyMutation("wifi-notification", { it.copy(backgroundWifiNotificationEnabled = enabled) }) {
+			trackingParamsRepository.setBackgroundWifiNotificationEnabled(enabled)
+		}
+	}
+
+	fun setBackgroundCellNotificationEnabled(enabled: Boolean) {
+		launchSourcePolicyMutation("cell-notification", { it.copy(backgroundCellNotificationEnabled = enabled) }) {
+			trackingParamsRepository.setBackgroundCellNotificationEnabled(enabled)
+		}
+	}
+
     fun setAdvancedSourceControlsEnabled(enabled: Boolean) {
         launchSourcePolicyMutation("advanced", { it.copy(advancedSourceControlsEnabled = enabled) }) {
             trackingParamsRepository.setAdvancedSourceControlsEnabled(enabled)
@@ -646,6 +660,8 @@ class TrackingSettingsViewModel internal constructor(
 				ambientStepsEnabled = params.ambientStepsEnabled,
 				ambientWifiEnabled = params.ambientWifiEnabled,
 				ambientCellEnabled = params.ambientCellEnabled,
+				backgroundWifiNotificationEnabled = params.backgroundWifiNotificationEnabled,
+				backgroundCellNotificationEnabled = params.backgroundCellNotificationEnabled,
 				ambientSourceAvailability = purposeAvailability.ambientSources,
                 barometerAvailable = barometerAvailable,
                 activityPermissionGranted = activityPermissionGranted,

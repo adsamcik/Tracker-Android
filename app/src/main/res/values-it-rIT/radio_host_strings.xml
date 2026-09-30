@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Continua con una notifica</string>
+    <string name="settings_radio_notification_summary">Aiuta a raccogliere dati in background quando Tracker è chiuso. Nessuna scansione aggiuntiva.</string>
+    <string name="settings_radio_notification_unavailable">La notifica in background non è disponibile. I dati possono continuare ad arrivare mentre Tracker è in esecuzione.</string>
+</resources>

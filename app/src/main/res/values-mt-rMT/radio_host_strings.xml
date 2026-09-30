@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Kompli b’notifika</string>
+    <string name="settings_radio_notification_summary">Jgħin jiġbor id-dejta fl-isfond meta Tracker ikun magħluq. Ebda skans żejda.</string>
+    <string name="settings_radio_notification_unavailable">In-notifika tal-isfond mhix disponibbli. Id-dejta xorta tista’ tasal waqt li Tracker ikun qed jaħdem.</string>
+</resources>

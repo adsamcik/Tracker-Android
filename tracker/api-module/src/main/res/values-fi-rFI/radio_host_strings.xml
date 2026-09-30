@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Taustaseuranta</string>
+    <string name="notification_background_collection_text">Käytössä: %1$s. Hallitse seurantaa avaamalla Tracker.</string>
+    <string name="notification_background_source_location">Sijainti</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Matkapuhelinverkko</string>
+    <string name="notification_background_source_other">Seuranta</string>
+</resources>

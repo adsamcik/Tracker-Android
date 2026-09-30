@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">后台记录</string>
+    <string name="notification_background_collection_text">已启用：%1$s。打开 Tracker 管理记录。</string>
+    <string name="notification_background_source_location">位置</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">移动网络</string>
+    <string name="notification_background_source_other">记录</string>
+</resources>

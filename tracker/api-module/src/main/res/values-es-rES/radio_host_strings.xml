@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Seguimiento en segundo plano</string>
+    <string name="notification_background_collection_text">Activados: %1$s. Abre Tracker para gestionar el seguimiento.</string>
+    <string name="notification_background_source_location">Ubicación</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Red móvil</string>
+    <string name="notification_background_source_other">Seguimiento</string>
+</resources>

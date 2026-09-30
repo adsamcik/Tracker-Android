@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Folytatás értesítéssel</string>
+    <string name="settings_radio_notification_summary">Segíti a háttérbeli adatgyűjtést, amikor a Tracker be van zárva. Nincs további keresés.</string>
+    <string name="settings_radio_notification_unavailable">A háttérértesítés nem érhető el. Adatok továbbra is érkezhetnek, amíg a Tracker fut.</string>
+</resources>

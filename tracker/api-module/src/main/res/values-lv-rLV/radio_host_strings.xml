@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Izsekošana fonā</string>
+    <string name="notification_background_collection_text">Ieslēgts: %1$s. Atveriet Tracker, lai pārvaldītu izsekošanu.</string>
+    <string name="notification_background_source_location">Atrašanās vieta</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Mobilais tīkls</string>
+    <string name="notification_background_source_other">Izsekošana</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">Turpināt ar paziņojumu</string>
+    <string name="settings_radio_notification_summary">Palīdz vākt datus fonā, kad Tracker ir aizvērts. Bez papildu skenēšanas.</string>
+    <string name="settings_radio_notification_unavailable">Fona paziņojums nav pieejams. Dati joprojām var pienākt, kamēr Tracker darbojas.</string>
+</resources>

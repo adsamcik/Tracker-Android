@@ -34,6 +34,9 @@ class RadioObservationChildMigrationTest {
 					override fun onCreate(db: SupportSQLiteDatabase) {
 						createLegacyRadioTables(db)
 						createPurposeParentTables(db)
+						db.execSQL("CREATE TABLE source_policy (policy_revision INTEGER NOT NULL, source_kind INTEGER NOT NULL, " +
+							"PRIMARY KEY(policy_revision, source_kind))")
+						db.execSQL("INSERT INTO source_policy VALUES (1, 4), (1, 5)")
 						db.execSQL("INSERT INTO wifi_observation " +
 							"(id,time_ms,bssid,ssid,capabilities,frequency,level,lat_e7,lon_e7," +
 							"provenance,created_at,source_signal_id,source_item_index,source_time_ms," +
@@ -54,6 +57,9 @@ class RadioObservationChildMigrationTest {
 		try {
 			val db = helper.writableDatabase
 			MIGRATION_28_29.migrate(db)
+			readLong(db, "SELECT count(*) FROM source_policy WHERE background_notification_host_enabled = 0") shouldBe 2L
+			readLong(db, "SELECT count(*) FROM pragma_table_info('source_policy') WHERE " +
+				"name = 'background_notification_host_enabled' AND type = 'INTEGER' AND \"notnull\" = 1 AND dflt_value = '0'") shouldBe 1L
 			readLong(db, "SELECT count(*) FROM pragma_table_info('ambient_wifi_fact_revision') WHERE name='purpose_demand_id'") shouldBe 1L
 			readLong(db, "SELECT count(*) FROM pragma_table_info('ambient_cell_fact_revision') WHERE name='purpose_demand_id'") shouldBe 1L
 			readString(db, "SELECT bssid FROM legacy_wifi_child WHERE legacy_row_id=7") shouldBe "aa:bb"

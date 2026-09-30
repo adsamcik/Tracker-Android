@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Suivi en arrière-plan</string>
+    <string name="notification_background_collection_text">Activé : %1$s. Ouvrez Tracker pour gérer le suivi.</string>
+    <string name="notification_background_source_location">Position</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Réseau mobile</string>
+    <string name="notification_background_source_other">Suivi</string>
+</resources>

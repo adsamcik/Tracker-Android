@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_collection_title">Śledzenie w tle</string>
+    <string name="notification_background_collection_text">Włączone: %1$s. Otwórz Tracker, aby zarządzać śledzeniem.</string>
+    <string name="notification_background_source_location">Lokalizacja</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Sieć komórkowa</string>
+    <string name="notification_background_source_other">Śledzenie</string>
+</resources>

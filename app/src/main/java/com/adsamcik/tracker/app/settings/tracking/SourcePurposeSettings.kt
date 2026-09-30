@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
@@ -104,6 +105,8 @@ internal fun AmbientSourcePurposeSettings(
 	onLocationAssistanceChanged: (Boolean) -> Unit = {},
 	onLocationPermission: () -> Unit = {},
 	onMotionPermission: () -> Unit = {},
+	onWifiNotificationChanged: (Boolean) -> Unit = {},
+	onCellNotificationChanged: (Boolean) -> Unit = {},
 	modifier: Modifier = Modifier,
 ) {
 	Column(
@@ -143,6 +146,8 @@ internal fun AmbientSourcePurposeSettings(
 				),
 				onEnabledChanged = onWifiEnabledChanged,
 			)
+			if (uiState.ambientWifiEnabled) BackgroundRadioNotificationSetting(
+				AmbientTrackingSource.WIFI, uiState.backgroundWifiNotificationEnabled, onWifiNotificationChanged)
 			HorizontalDivider()
 			AmbientSourceSettingItem(
 				source = AmbientTrackingSource.CELL,
@@ -155,6 +160,8 @@ internal fun AmbientSourcePurposeSettings(
 				),
 				onEnabledChanged = onCellEnabledChanged,
 			)
+			if (uiState.ambientCellEnabled) BackgroundRadioNotificationSetting(
+				AmbientTrackingSource.CELL, uiState.backgroundCellNotificationEnabled, onCellNotificationChanged)
 		}
 		Text(
 			text = stringResource(com.adsamcik.tracker.R.string.settings_ambient_retention_summary),
@@ -162,6 +169,32 @@ internal fun AmbientSourcePurposeSettings(
 			color = MaterialTheme.colorScheme.onSurfaceVariant,
 			modifier = Modifier.testTag("ambientRetentionExplanation"),
 		)
+	}
+}
+
+@Composable
+private fun BackgroundRadioNotificationSetting(
+	source: AmbientTrackingSource,
+	enabled: Boolean,
+	onChanged: (Boolean) -> Unit,
+) {
+	val label = stringResource(com.adsamcik.tracker.R.string.settings_radio_notification_title)
+	val sourceName = stringResource(when (source) {
+		AmbientTrackingSource.WIFI -> com.adsamcik.tracker.tracker.R.string.notification_background_source_wifi
+		AmbientTrackingSource.CELL -> com.adsamcik.tracker.tracker.R.string.notification_background_source_cell
+		else -> com.adsamcik.tracker.tracker.R.string.notification_background_source_other
+	})
+	Row(Modifier.fillMaxWidth().toggleable(value = enabled, role = Role.Switch, onValueChange = onChanged)
+		.semantics { contentDescription = sourceName }
+		.heightIn(min = 64.dp).padding(horizontal = 24.dp, vertical = 12.dp)
+		.testTag("backgroundNotification-${source.name.lowercase()}"), verticalAlignment = Alignment.CenterVertically) {
+		Column(Modifier.weight(1f)) {
+			Text(label, style = MaterialTheme.typography.bodyLarge)
+			Text(stringResource(com.adsamcik.tracker.R.string.settings_radio_notification_summary),
+				style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+		}
+		Spacer(Modifier.width(16.dp))
+		Switch(checked = enabled, onCheckedChange = null)
 	}
 }
 
@@ -227,6 +260,9 @@ private fun AmbientSourceSettingItem(
 internal fun ambientOperationalSummary(
 	availability: AmbientSourceOperationalAvailability,
 ): String {
+	if (availability.reason == AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE) {
+		return stringResource(com.adsamcik.tracker.R.string.settings_radio_notification_unavailable)
+	}
 	if (availability.reason == AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED) {
 		return stringResource(com.adsamcik.tracker.R.string.settings_location_request_adjusted)
 	}
@@ -260,6 +296,8 @@ internal fun ambientOperationalSummary(
 	}
 	return stringResource(
 		when (availability.reason) {
+			AmbientSourceUnavailableReason.FOREGROUND_HOST_UNAVAILABLE ->
+				com.adsamcik.tracker.R.string.settings_radio_notification_unavailable
 			AmbientSourceUnavailableReason.USER_TURNED_OFF ->
 				com.adsamcik.tracker.R.string.settings_ambient_user_turned_off
 			AmbientSourceUnavailableReason.LOCATION_REQUEST_ADJUSTED ->

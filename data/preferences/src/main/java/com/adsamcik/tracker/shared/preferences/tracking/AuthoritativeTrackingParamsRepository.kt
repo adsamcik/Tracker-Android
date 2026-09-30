@@ -828,6 +828,8 @@ private fun TrackingParamsState.matchesSourceProjection(other: TrackingParamsSta
 		ambientStepsEnabled == other.ambientStepsEnabled &&
 		ambientWifiEnabled == other.ambientWifiEnabled &&
 		ambientCellEnabled == other.ambientCellEnabled &&
+		backgroundWifiNotificationEnabled == other.backgroundWifiNotificationEnabled &&
+		backgroundCellNotificationEnabled == other.backgroundCellNotificationEnabled &&
 		minTimeSeconds == other.minTimeSeconds &&
 		minDistanceMeters == other.minDistanceMeters &&
 		requiredAccuracyMeters == other.requiredAccuracyMeters &&
@@ -862,6 +864,8 @@ private fun TrackingParamsState.withPolicy(snapshot: SourcePolicySnapshot): Trac
 			wifi.ambientPersistenceEligible,
 		ambientCellEnabled = cell.ambientConsentEpoch != null &&
 			cell.ambientPersistenceEligible,
+		backgroundWifiNotificationEnabled = wifi.backgroundNotificationHostEnabled,
+		backgroundCellNotificationEnabled = cell.backgroundNotificationHostEnabled,
 		minTimeSeconds = requireNotNull(location.locationMinTimeSeconds),
 		minDistanceMeters = requireNotNull(location.locationMinDistanceMeters),
 		requiredAccuracyMeters = requireNotNull(location.locationRequiredAccuracyMeters),
@@ -890,6 +894,8 @@ private fun TrackingParamsState.withSourcesFailClosed(): TrackingParamsState = c
 	ambientStepsEnabled = false,
 	ambientWifiEnabled = false,
 	ambientCellEnabled = false,
+	backgroundWifiNotificationEnabled = false,
+	backgroundCellNotificationEnabled = false,
 	sourcePolicyRevision = null,
 	sourceCollectionSettings = SourceCollectionSettings(
 		location = SourceCollectionFrequency.OFF,

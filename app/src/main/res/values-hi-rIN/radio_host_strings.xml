@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_radio_notification_title">सूचना के साथ जारी रखें</string>
+    <string name="settings_radio_notification_summary">Tracker बंद होने पर भी पृष्ठभूमि में डेटा जुटाने में मदद करता है। कोई अतिरिक्त स्कैन नहीं।</string>
+    <string name="settings_radio_notification_unavailable">पृष्ठभूमि सूचना उपलब्ध नहीं है। Tracker चलने के दौरान डेटा फिर भी आ सकता है।</string>
+</resources>
