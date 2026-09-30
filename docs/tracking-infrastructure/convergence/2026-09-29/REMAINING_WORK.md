@@ -185,7 +185,21 @@ No box above is complete merely because an isolated source slice was committed.
   whole-batch predicates. Multiple historical purpose intervals, lifecycle retraction
   and actual UI/export round trips remain pending. The raw admission checkpoint
   does not establish a complete version-six product chain.
+- [x] Research native all-day Steps behavior in official Android/Google references
+  and trace the current capability/read/import code. Findings and the proposed
+  hourly bounded copy cadence are in
+  `../2026-09-30/STEPS_NATIVE_RESEARCH.md`. Native subscription continuity and
+  Tracker database imports are different responsibilities. This research does
+  not close scheduler wiring or prove device behavior.
 - [ ] Await the user choices for background Steps catch-up cadence and explicit
   Retry/Leave-without-saving behavior after notification customization save failure.
+
+  Notification preferences are written by
+  `DefaultTrackerNotificationSettingsRepository` through Room's
+  `NotificationPreferenceDao.upsert`. Full storage or an Android database/write
+  error can fail that operation; no such device failure has been observed in
+  this implementation-only run. Recovery is for an actual failed save, not a
+  new prompt on every Back action. The user asked why saving can fail and has
+  not yet selected the exit behavior.
 
 All 25 full-chain prerequisites and final convergence/integration remain pending.
