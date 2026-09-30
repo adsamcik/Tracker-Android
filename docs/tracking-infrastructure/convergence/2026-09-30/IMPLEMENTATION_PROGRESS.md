@@ -57,6 +57,17 @@ description of its earlier input; this file records subsequent repair progress.
   test source. Exporter/format-registry selection remains separate.
 - `c6c6b53f1f`: native radio fractional rounding and full measured API/portable
   bounds; independent static Cell review and five focused scenario sources.
+- `1d3100a9fb`: native radio child tables invalidate existing map views when
+  detail rows change; source mapping regression authored.
+- `6682365973`: bundle child/total caps apply during extraction, before large
+  temporary files are materialized; cancellation and owned cleanup sources.
+- `49ca76c435`: ordinary history/export and paired maps share retained ambient
+  authority; correction retention applies to effective facts, child uncertainty
+  stays inside parent bounds and discovery overflow keeps its existing typed result.
+  Fresh review findings and static repair closure are recorded in the source receipt.
+- `63e99b5827`: incomplete JSON paging becomes failure with existing cleanup;
+  existing vertical/speed accuracy survives roundtrip, with negative Double
+  underflow rejected before Float conversion. Fresh static review closed the slice.
 
 All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 
@@ -97,8 +108,13 @@ All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 - [x] Connect shared read-only optional Location enrichment to five existing radio
   map views, preserving unchanged readings, uncertainty, source independence and
   correction/deletion invalidation; authored source scenarios only.
-- [ ] Share retained native/imported ambient qualification with ordinary history
-  readers and the paired map snapshot; coherent reader-source repair is in progress.
+- [x] Share retained native/imported ambient qualification with ordinary history
+  readers and the paired map snapshot; correction, child-bounds and dependency
+  limit regression sources authored and independently statically reviewed.
+- [x] Bound bundle extraction before materialization and propagate cooperative
+  cancellation with owned staging cleanup; whole bundle remains separate.
+- [x] Preserve existing JSON accuracy fields and reject invalidated page prefixes;
+  manual Room roundtrip/partial-file cleanup regression sources authored.
 
 ## Remaining in these slices
 

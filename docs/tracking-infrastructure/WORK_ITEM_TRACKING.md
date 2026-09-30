@@ -34,6 +34,13 @@ not supersede later user answers or the selected source commits.
 - [x] Single-source radio file import adapters and bounded exact detail attachment:
   `f36310eb27`; exporter/registry/file membership still being assembled.
 - [x] Full measured radio time bounds and fractional child rounding: `c6c6b53f1f`.
+- [x] Radio child-only map invalidation: `1d3100a9fb`.
+- [x] Bundle extraction enforces child/total limits before materialization and
+  preserves cancellation cleanup: `6682365973`.
+- [x] Ordinary history and map snapshots share retained ambient qualification,
+  effective-correction retention and typed dependency limits: `49ca76c435`.
+- [x] JSON rejects invalidated paging and preserves optional measurement accuracy,
+  including negative underflow rejection: `63e99b5827`.
 
 All marks above are **IMPLEMENTED_UNVALIDATED source slices**. The 25 complete
 prerequisite chains, final assembly freeze, convergence gates, device evidence and

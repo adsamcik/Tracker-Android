@@ -26,6 +26,12 @@ The September 30 continuation also selected shared optional radio map context
 IDs (`0cb7f6fcc6`) and full measured radio bounds (`c6c6b53f1f`). These are source
 milestones with authored tests; all 25 full-chain prerequisites remain open.
 
+Further selected source repairs cover radio child-table map invalidation
+(`1d3100a9fb`), bundle extraction limits and cooperative cancellation
+(`6682365973`), shared ordinary/map retained ambient qualification (`49ca76c435`),
+and JSON paging failure plus measurement-accuracy preservation (`63e99b5827`).
+Fresh static review receipts record the repaired findings. No tests or gates ran.
+
 History/bundle callers, complete backup restore/cleanup and remaining radio
 lifecycle work are still being assembled. None of these marks claims a gate pass.
 
