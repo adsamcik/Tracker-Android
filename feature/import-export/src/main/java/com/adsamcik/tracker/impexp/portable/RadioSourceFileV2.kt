@@ -42,6 +42,12 @@ internal data class WifiSourceFileV2(
 		require(sessions.isNotEmpty() || background != null)
 		val backgroundFacts = background?.facts?.map { it.identity to it.semanticRevision }?.toSet().orEmpty()
 		require(backgroundChildren.all { (it.factIdentity to it.semanticRevision) in backgroundFacts })
+		val parents = background?.facts.orEmpty().associateBy { it.identity to it.semanticRevision }
+		require(backgroundChildren.all { child ->
+			val parent = parents.getValue(child.factIdentity to child.semanticRevision)
+			radioChildFitsCoverage(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
+				parent.coverageStartTimeMs, parent.latestPossibleTimeMs)
+		}) { "Wi-Fi details are outside their background observation" }
 		require(backgroundChildren.map { Triple(it.factIdentity, it.semanticRevision, it.itemIndex) }
 			.distinct().size == backgroundChildren.size)
 		val childCounts = backgroundChildren.groupingBy { it.factIdentity to it.semanticRevision }.eachCount()
@@ -73,6 +79,12 @@ internal data class CellSourceFileV2(
 		require(sessions.isNotEmpty() || background != null)
 		val backgroundFacts = background?.facts?.map { it.identity to it.semanticRevision }?.toSet().orEmpty()
 		require(backgroundChildren.all { (it.factIdentity to it.semanticRevision) in backgroundFacts })
+		val parents = background?.facts.orEmpty().associateBy { it.identity to it.semanticRevision }
+		require(backgroundChildren.all { child ->
+			val parent = parents.getValue(child.factIdentity to child.semanticRevision)
+			radioChildFitsCoverage(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
+				parent.coverageStartTimeMs, parent.latestPossibleTimeMs)
+		}) { "Cell details are outside their background observation" }
 		require(backgroundChildren.map { Triple(it.factIdentity, it.semanticRevision, it.itemIndex) }
 			.distinct().size == backgroundChildren.size)
 		val childCounts = backgroundChildren.groupingBy { it.factIdentity to it.semanticRevision }.eachCount()
@@ -92,6 +104,14 @@ internal data class WifiSessionFileV2(
 		} }.toSet()
 		require(children.all { it.entryIdentity == entry.identity.value &&
 			Triple(it.runIdentity, it.observationIdentity, it.semanticRevision) in observations })
+		val parents = entry.runs.flatMap { run -> run.observations.map { observation ->
+			Triple(run.identity.value, observation.identity.value, observation.semanticRevision) to observation
+		} }.toMap()
+		require(children.all { child ->
+			val parent = parents.getValue(Triple(child.runIdentity, child.observationIdentity, child.semanticRevision))
+			radioChildFitsCoverage(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
+				parent.coverageStartTimeMs, parent.latestPossibleTimeMs)
+		}) { "Wi-Fi details are outside their session observation" }
 		require(children.map { listOf(it.runIdentity, it.observationIdentity,
 			it.semanticRevision.toString(), it.itemIndex.toString()) }.distinct().size == children.size)
 		val childCounts = children.groupingBy { it.observationIdentity to it.semanticRevision }.eachCount()
@@ -112,6 +132,14 @@ internal data class CellSessionFileV2(
 		} }.toSet()
 		require(children.all { it.entryIdentity == entry.identity.value &&
 			Triple(it.runIdentity, it.observationIdentity, it.semanticRevision) in observations })
+		val parents = entry.runs.flatMap { run -> run.observations.map { observation ->
+			Triple(run.identity.value, observation.identity.value, observation.semanticRevision) to observation
+		} }.toMap()
+		require(children.all { child ->
+			val parent = parents.getValue(Triple(child.runIdentity, child.observationIdentity, child.semanticRevision))
+			radioChildFitsCoverage(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
+				parent.coverageStartTimeMs, parent.latestPossibleTimeMs)
+		}) { "Cell details are outside their session observation" }
 		require(children.map { listOf(it.runIdentity, it.observationIdentity,
 			it.semanticRevision.toString(), it.itemIndex.toString()) }.distinct().size == children.size)
 		val childCounts = children.groupingBy { it.observationIdentity to it.semanticRevision }.eachCount()
@@ -238,5 +266,12 @@ private fun requireChildBase(
 internal fun radioChildDigest(source: String, identities: List<String>, values: List<Any?>): String {
 	return PortableRadioChildIntegrity.digest(source, identities, values)
 }
+
+/** A detail inherits its parent's measured interval; a checksum never widens that interval. */
+internal fun radioChildFitsCoverage(wallMs: Long, uncertaintyMs: Long,
+	coverageStartMs: Long, latestPossibleMs: Long): Boolean =
+	uncertaintyMs >= 0L && wallMs >= uncertaintyMs &&
+		wallMs - uncertaintyMs >= coverageStartMs &&
+		wallMs <= Long.MAX_VALUE - uncertaintyMs && wallMs + uncertaintyMs <= latestPossibleMs
 
 private val DIGEST = Regex("[0-9a-f]{64}")

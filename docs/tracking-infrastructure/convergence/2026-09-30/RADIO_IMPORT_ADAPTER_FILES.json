@@ -1,0 +1,68 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "scope": "Radio file adapters and exact detail bounds/retention",
+  "editedPaths": [
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/ImportedRadioChildAttachment.kt",
+      "sha256": "2a1551ef88458c0f3b9bae536a8c30f8a4b12afe4ec8d0580d5bdf43f91e9992"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/portable/RadioSourceFileV2.kt",
+      "sha256": "b43573579b2a7b6e26ebdbda011a3cb50d2eccf41209d4219ce43c6dc2e0f8e0"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/portable/RadioSourceFileJsonV2Codec.kt",
+      "sha256": "5ae2c7334edab03cd0119ac3bd11a66ff059ae97e6033b2919e187bdefe229d9"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/portable/RadioSourceFileJsonV2CodecTest.kt",
+      "sha256": "7d803b15281dc44e5f39ad122e82579a70f29761df3fe45faa8a3315664e83ca"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/ImportedRadioChildAttachmentRoomTest.kt",
+      "sha256": "86b2f1037aa85108de32f0357691730bf96d900f257639518b68f77b6873583a"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/ImportedRadioChildBatchTest.kt",
+      "sha256": "1ca43b9086084b2c7854f928c951b100732b6dd9686d6cabfabb02fa30477cd2"
+    }
+  ],
+  "requiredCompanions": [
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/PortableRadioSourceFileImport.kt",
+      "disposition": "Preserved required adapter/test source; reviewed without editing",
+      "sha256": "0a9689e1cbedd3440038650f2781c5676d87332f0c3e39061131a4ef3ca72ed6"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/PortableRadioFileImportEpochTest.kt",
+      "disposition": "Preserved required adapter/test source; reviewed without editing",
+      "sha256": "6a6e2561f09c7d40e38d8cd68637b9486d165bf6beb87ed305cd468dff53eeda"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/AmbientRadioPortableTransferModule.kt",
+      "disposition": "Existing source-owned importer/exporter Hilt bindings, statically reviewed and selected by coordinator",
+      "sha256": "bbb14eb9f26421870947b018e8fac3025fe376d9d190caf17c4dfc52b6c4207d"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedPortableExportModule.kt",
+      "disposition": "Existing source-owned importer/exporter Hilt bindings, statically reviewed and selected by coordinator",
+      "sha256": "c2a889083b0ee0324867004b5f0d83ec283a0bba1f9c44fb3780c46f6b41fbc9"
+    }
+  ],
+  "sharedHunks": [
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/format/FormatRegistry.kt",
+      "scope": "Radio adapter/exporter imports and two WIFI_FORMAT/CELL_FORMAT registration blocks; final exporter selection remains separately owned"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt",
+      "scope": "Existing trackerwifi/trackercell bounded hashing branches only"
+    }
+  ],
+  "pending": [
+    "Exact background archive file-to-fact/gap membership awaiting approval",
+    "Legacy unknown-origin exporter semantics outside this slice",
+    "Background API/portable nominal coverage lower bound must expose measured uncertainty bound"
+  ],
+  "executedGates": []
+}

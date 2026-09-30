@@ -245,11 +245,13 @@ private fun validateWifiBackgroundChildren(
 	children: List<WifiBackgroundChildV2>, remaining: Long,
 ) {
 	require(children.size <= remaining)
-	val facts = background?.facts?.associate { it.identity to it.semanticRevision }.orEmpty()
+	val facts = background?.facts?.associateBy { it.identity to it.semanticRevision }.orEmpty()
 	val seen = HashSet<Triple<String, Long, Int>>()
 	val counts = HashMap<Pair<String, Long>, Int>()
 	children.forEach { child ->
-		require(facts[child.factIdentity] == child.semanticRevision)
+		val parent = requireNotNull(facts[child.factIdentity to child.semanticRevision])
+		require(radioChildFitsCoverage(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
+			parent.coverageStartTimeMs, parent.latestPossibleTimeMs))
 		require(seen.add(Triple(child.factIdentity, child.semanticRevision, child.itemIndex)))
 		val key = child.factIdentity to child.semanticRevision
 		counts[key] = (counts[key] ?: 0) + 1
@@ -266,11 +268,13 @@ private fun validateCellBackgroundChildren(
 	children: List<CellBackgroundChildV2>, remaining: Long,
 ) {
 	require(children.size <= remaining)
-	val facts = background?.facts?.associate { it.identity to it.semanticRevision }.orEmpty()
+	val facts = background?.facts?.associateBy { it.identity to it.semanticRevision }.orEmpty()
 	val seen = HashSet<Triple<String, Long, Int>>()
 	val counts = HashMap<Pair<String, Long>, Int>()
 	children.forEach { child ->
-		require(facts[child.factIdentity] == child.semanticRevision)
+		val parent = requireNotNull(facts[child.factIdentity to child.semanticRevision])
+		require(radioChildFitsCoverage(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
+			parent.coverageStartTimeMs, parent.latestPossibleTimeMs))
 		require(seen.add(Triple(child.factIdentity, child.semanticRevision, child.itemIndex)))
 		val key = child.factIdentity to child.semanticRevision
 		counts[key] = (counts[key] ?: 0) + 1
