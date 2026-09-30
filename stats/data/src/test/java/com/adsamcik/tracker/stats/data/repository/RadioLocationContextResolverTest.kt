@@ -1,4 +1,6 @@
-package com.adsamcik.tracker.map.data
+package com.adsamcik.tracker.stats.data.repository
+
+import com.adsamcik.tracker.stats.api.repository.RadioContextSource
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -10,7 +12,7 @@ class RadioLocationContextResolverTest {
 	private val ambient = RadioContextScope.Ambient(AmbientContextScope("boot", "clock", 3L))
 
 	private fun radio(
-		source: GeoSource = GeoSource.WIFI,
+		source: RadioContextSource = RadioContextSource.WIFI,
 		scope: RadioContextScope = capture,
 		elapsed: Long = 10_000_000_000L,
 		eligible: Boolean = true,
@@ -28,7 +30,7 @@ class RadioLocationContextResolverTest {
 
 	@Test
 	fun `wifi and cell independently gain context from an exact retained fix`() {
-		val inputs = listOf(radio(), radio(source = GeoSource.CELL).copy(sourceEventId = "cell"))
+		val inputs = listOf(radio(), radio(source = RadioContextSource.CELL).copy(sourceEventId = "cell"))
 		val points = RadioLocationContextResolver.resolve(inputs, listOf(fix()))
 		assertEquals(listOf("radio", "cell"), points.map { it.radioSourceEventId })
 		assertTrue(points.all { it.locationSourceEventId == "location" })
@@ -122,7 +124,7 @@ class RadioLocationContextResolverTest {
 
 	@Test
 	fun `cell uses only preceding fixes within sixty seconds`() {
-		val fact = radio(source = GeoSource.CELL, elapsed = 70_000_000_000L)
+		val fact = radio(source = RadioContextSource.CELL, elapsed = 70_000_000_000L)
 		val before = fix(elapsed = 10_000_000_000L, id = "before")
 		val future = fix(elapsed = 70_000_000_001L, id = "future")
 		assertTrue(RadioLocationContextResolver.resolve(listOf(fact), listOf(future)).isEmpty())
@@ -160,7 +162,7 @@ class RadioLocationContextResolverTest {
 	fun `equal time endpoint identities are deterministic for input order and both sources`() {
 		val a = fix(id = "a").copy(latitudeE7 = 400_000_000)
 		val b = fix(id = "b")
-		for (source in listOf(GeoSource.WIFI, GeoSource.CELL)) {
+		for (source in listOf(RadioContextSource.WIFI, RadioContextSource.CELL)) {
 			for (locations in listOf(listOf(a, b), listOf(b, a))) {
 				assertEquals("a", RadioLocationContextResolver.resolve(listOf(radio(source = source)), locations)
 					.single().locationSourceEventId)
@@ -170,7 +172,7 @@ class RadioLocationContextResolverTest {
 
 	@Test
 	fun `retired or erased endpoints retract derived points without changing primary radio observations`() {
-		val inputs = listOf(radio(), radio(source = GeoSource.CELL).copy(sourceEventId = "cell"))
+		val inputs = listOf(radio(), radio(source = RadioContextSource.CELL).copy(sourceEventId = "cell"))
 		assertEquals(2, RadioLocationContextResolver.resolve(inputs, listOf(fix())).size)
 		assertTrue(RadioLocationContextResolver.resolve(inputs, emptyList()).isEmpty())
 		assertTrue(RadioLocationContextResolver.resolve(inputs, listOf(fix(eligible = false))).isEmpty())
@@ -181,11 +183,11 @@ class RadioLocationContextResolverTest {
 
 	@Test
 	fun `clock extremes cannot overflow delta or round separation downward`() {
-		val fact = radio(source = GeoSource.CELL, elapsed = Long.MAX_VALUE)
+		val fact = radio(source = RadioContextSource.CELL, elapsed = Long.MAX_VALUE)
 		val location = fix(elapsed = Long.MAX_VALUE - 60_000_000_000L)
 		assertEquals(60_000L, RadioLocationContextResolver.resolve(listOf(fact), listOf(location)).single().separationMillis)
 		assertTrue(RadioLocationContextResolver.resolve(listOf(fact), listOf(fix(elapsed = 0L))).isEmpty())
-		assertEquals(1L, RadioLocationContextResolver.resolve(listOf(radio(source = GeoSource.CELL)),
+		assertEquals(1L, RadioLocationContextResolver.resolve(listOf(radio(source = RadioContextSource.CELL)),
 			listOf(fix(elapsed = 9_999_999_999L))).single().separationMillis)
 	}
 }

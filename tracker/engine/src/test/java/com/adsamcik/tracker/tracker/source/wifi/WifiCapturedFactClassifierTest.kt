@@ -219,6 +219,31 @@ class WifiCapturedFactClassifierTest {
 	}
 
 	@Test
+	fun `per-reading selection preserves malformed counts and accepted clocks`() {
+		val authority = authority()
+		val input = input(authority, accessPoints = listOf(
+			accessPoint(100, -60, 1_020_000_000L),
+			accessPoint(2_412, -50, 1_000_000_000L),
+			accessPoint(5_180, -60, 1_010_000_000L),
+		)).copy(qualifiedItemIndexes = setOf(1))
+		val result = classify(input, authority) as WifiCapturedFactClassification.FreshChanged
+		result.acceptedItemIndexes shouldBe listOf(1)
+		result.fact.aggregate.observationCount shouldBe 1
+		result.fact.coverage shouldBe WifiCoverageEvidence(
+			providerIntervalStartElapsedRealtimeNanos = 1_000_000_000L,
+			providerIntervalEndElapsedRealtimeNanos = 1_000_000_000L,
+			receivedElapsedRealtimeNanos = 1_100_000_000L,
+			submittedResultCount = 3,
+			acceptedResultCount = 1,
+			staleResultCount = 1,
+			clockUnverifiableResultCount = 0,
+			malformedResultCount = 1,
+			completeness = WifiCoverageCompleteness.PARTIAL,
+		)
+		result.fact.observedWallTimeMs shouldBe DEFAULT_WALL_TIME_MS - 20L
+	}
+
+	@Test
 	fun `immutable result contract bounds count frequency and signal`() {
 		val bounded = authority()
 		classify(

@@ -27,6 +27,14 @@ data class CellWalMaintenanceKey(
 /** Narrow source-local persistence boundary for dormant captured Cell facts. */
 @Dao
 interface CellCapturedFactDao {
+	/** Discovery only; capture qualification is reused inside the caller's paired Room snapshot. */
+	@Query("SELECT fact.* FROM cell_captured_fact_revision fact JOIN cell_captured_fact_cursor cursor " +
+		"ON cursor.writer_projection_id = fact.writer_projection_id AND cursor.writer_projection_version = fact.writer_projection_version " +
+		"AND cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = fact.semantic_revision " +
+		"WHERE fact.fact_kind IN ('AGGREGATE', 'COVERAGE_ONLY') AND fact.observed_wall_time_ms >= :fromMs " +
+		"AND fact.observed_wall_time_ms < :toMs ORDER BY fact.observed_wall_time_ms, fact.logical_fact_id LIMIT :limit")
+	suspend fun contextCandidates(fromMs: Long, toMs: Long, limit: Int): List<CellCapturedFactRevisionEntity>
+
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertEntryDeletionReceipt(receipt: CellCapturedEntryDeletionReceiptEntity)
 

@@ -111,6 +111,130 @@ class WifiHistoryRepositoryRoomTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `paired Wi-Fi map reader uses the real captured history snapshot without Location collection`() = runTest {
+		val group = buildGroup(911, 1, setOf(0))
+		persist(listOf(group))
+		var authorityChecks = 0
+		val dispatcher = UnconfinedTestDispatcher(testScheduler)
+		val paired = RoomRadioLocationContextRepository(database, repository {
+			authorityChecks += 1
+			database.inTransaction()
+		}, io.mockk.mockk(), RoomAmbientWifiRepository(database, dispatcher),
+			RoomAmbientCellRepository(database, dispatcher), RetainedLocationContextReader(database),
+			BootClockDomainProvider { BOOT_ID }, dispatcher)
+		val result = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(
+			paired.read(com.adsamcik.tracker.stats.api.repository.RadioLocationContextRequest(
+				com.adsamcik.tracker.stats.api.repository.RadioContextSource.WIFI, 0L, Long.MAX_VALUE)))
+		val observation = result.observations.single()
+		observation.sourceEventId shouldBe group.runs.single().facts.first().sourceEventId
+		observation.purpose shouldBe com.adsamcik.tracker.stats.api.repository.RadioContextPurpose.CAPTURE
+		(observation.signalQuality as com.adsamcik.tracker.stats.api.repository.RadioContextSignalQuality.Wifi)
+			.value.sampleCount shouldBe 2
+		observation.location shouldBe com.adsamcik.tracker.stats.api.repository.OptionalRetainedLocationContext.Unlocated(
+			com.adsamcik.tracker.stats.api.repository.RadioLocationContextGap.NO_COMPATIBLE_LOCATION)
+		result.gaps shouldBe emptySet()
+		authorityChecks shouldBe 1
+		database.locationSampleDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `paired Wi-Fi map reader uses accepted child clocks when the later callback reading is rejected`() = runTest {
+		val group = v6RotatedGroup(buildGroup(914, 1, setOf(0)), excludeLast = true)
+		persist(listOf(group))
+		persistV6Children(group)
+		val fact = group.runs.single().facts.maxBy { it.semanticRevision }
+		val wal = group.runs.single().admissions.single()
+		kotlin.test.assertTrue(fact.coverageIntervalEndNanos < wal.observedElapsedNanos)
+		kotlin.test.assertTrue(fact.observedWallTimeMs < requireNotNull(wal.wallTimeMs))
+		val inputs = io.mockk.slot<List<RadioContextInput>>()
+		val location = io.mockk.mockk<RetainedLocationContextReader>()
+		io.mockk.coEvery { location.readInTransaction(capture(inputs)) } coAnswers {
+			database.inTransaction() shouldBe true
+			RetainedLocationContextSnapshot(listOf(LocationContextInput("accepted-location",
+				RadioContextScope.Session(SessionContextScope(fact.logicalTrackingId, fact.serviceRunId,
+					fact.sessionSegmentId, BOOT_ID, fact.clockDomainId, fact.collectedDataEpoch)),
+				fact.coverageIntervalEndNanos, 500_000_000, 140_000_000, 1_200f, true,
+				fact.observedWallTimeMs)))
+		}
+		val dispatcher = UnconfinedTestDispatcher(testScheduler)
+		val paired = RoomRadioLocationContextRepository(database, repository { database.inTransaction() },
+			io.mockk.mockk(), RoomAmbientWifiRepository(database, dispatcher), RoomAmbientCellRepository(database, dispatcher),
+			location, BootClockDomainProvider { BOOT_ID }, dispatcher)
+		val result = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(
+			paired.read(com.adsamcik.tracker.stats.api.repository.RadioLocationContextRequest(
+				com.adsamcik.tracker.stats.api.repository.RadioContextSource.WIFI, 0L, Long.MAX_VALUE)))
+		inputs.captured.single().observedFromElapsedNanos shouldBe fact.coverageIntervalStartNanos
+		inputs.captured.single().observedElapsedNanos shouldBe fact.coverageIntervalEndNanos
+		val observation = result.observations.single()
+		(observation.signalQuality as com.adsamcik.tracker.stats.api.repository.RadioContextSignalQuality.Wifi)
+			.value.sampleCount shouldBe 1
+		val located = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.OptionalRetainedLocationContext.Located>(observation.location)
+		located.value.sourceEventId shouldBe "accepted-location"
+		located.value.separationMillis shouldBe 0L
+		result.gaps shouldBe emptySet()
+	}
+
+	@Test
+	fun `paired Wi-Fi map reader retains unchanged deliveries and retracts invalid aggregate owners`() = runTest {
+		val group = buildGroup(915, 1, setOf(0), includeReuse = true)
+		persist(listOf(group))
+		val dispatcher = UnconfinedTestDispatcher(testScheduler)
+		val paired = RoomRadioLocationContextRepository(database, repository { database.inTransaction() },
+			io.mockk.mockk(), RoomAmbientWifiRepository(database, dispatcher), RoomAmbientCellRepository(database, dispatcher),
+			RetainedLocationContextReader(database), BootClockDomainProvider { BOOT_ID }, dispatcher)
+		val request = com.adsamcik.tracker.stats.api.repository.RadioLocationContextRequest(
+			com.adsamcik.tracker.stats.api.repository.RadioContextSource.WIFI, 0L, Long.MAX_VALUE)
+		val ready = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(paired.read(request))
+		ready.observations shouldHaveSize 2
+		ready.observations.all { (it.signalQuality as com.adsamcik.tracker.stats.api.repository.RadioContextSignalQuality.Wifi)
+			.value.sampleCount == 2 } shouldBe true
+		val run = group.runs.single()
+		val owner = run.facts.filter { it.factKind == WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE }.maxBy { it.semanticRevision }
+		val dependent = run.facts.single { it.factKind == WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY }
+		val unsigned = owner.copy(semanticRevision = owner.semanticRevision + 1L,
+			supersedesSemanticRevision = owner.semanticRevision,
+			mutationId = WifiCapturedFactRevisionIntegrity.mutationId(owner.logicalFactId, owner.semanticRevision + 1L))
+		val corrected = unsigned.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsigned))
+		val dao = database.wifiCapturedFactDao()
+		database.withTransaction {
+			dao.insertRevision(corrected)
+			dao.deleteExactCursors(owner.writerProjectionId, owner.writerProjectionVersion, listOf(owner.logicalFactId))
+			dao.insertCursor(cursor(corrected))
+		}
+		val afterCorrection = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(paired.read(request))
+		afterCorrection.observations.none { it.sourceEventId == dependent.sourceEventId } shouldBe true
+		kotlin.test.assertTrue(afterCorrection.gaps.isNotEmpty())
+		database.withTransaction {
+			dao.deleteExactCursors(owner.writerProjectionId, owner.writerProjectionVersion, listOf(owner.logicalFactId))
+			dao.deleteExactRevisionLineages(owner.writerProjectionId, owner.writerProjectionVersion, listOf(owner.logicalFactId))
+		}
+		val afterDeletion = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(paired.read(request))
+		afterDeletion.observations.none { it.sourceEventId == dependent.sourceEventId } shouldBe true
+		kotlin.test.assertTrue(afterDeletion.gaps.isNotEmpty())
+	}
+
+	@Test
+	fun `paired Wi-Fi map reader rejects stale captured epoch and reports source limit explicitly`() = runTest {
+		persist(listOf(buildGroup(912, 1, setOf(0)), buildGroup(913, 1, setOf(0))))
+		val dispatcher = UnconfinedTestDispatcher(testScheduler)
+		val paired = RoomRadioLocationContextRepository(database, repository { database.inTransaction() },
+			io.mockk.mockk(), RoomAmbientWifiRepository(database, dispatcher), RoomAmbientCellRepository(database, dispatcher),
+			RetainedLocationContextReader(database), BootClockDomainProvider { BOOT_ID }, dispatcher)
+		val request = com.adsamcik.tracker.stats.api.repository.RadioLocationContextRequest(
+			com.adsamcik.tracker.stats.api.repository.RadioContextSource.WIFI, 0L, Long.MAX_VALUE, 1)
+		val limited = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(paired.read(request))
+		limited.observations shouldBe emptyList()
+		limited.gaps shouldBe setOf(com.adsamcik.tracker.stats.api.repository.RadioContextReadGap(
+			com.adsamcik.tracker.stats.api.repository.RadioContextPurpose.CAPTURE,
+			com.adsamcik.tracker.stats.api.repository.RadioContextReadGapReason.DEPENDENCY_LIMIT))
+		database.sourceEvidenceStateDao().updateLifecycle(1L, null, WALL_BASE_MS)
+		val cleared = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(
+			paired.read(request.copy(limit = 10)))
+		cleared.observations shouldBe emptyList()
+		kotlin.test.assertTrue(cleared.gaps.isNotEmpty())
+	}
+
+	@Test
 	fun `writer admission reverse lookup selects cursor authenticated revision two`() = runTest {
 		val run = buildGroup(901, 1, setOf(0)).runs.single()
 		val lineage = run.facts.groupBy(WifiCapturedFactRevisionEntity::logicalFactId)
@@ -813,7 +937,7 @@ class WifiHistoryRepositoryRoomTest {
 		assertRecentWriterFailure()
 	}
 
-	private fun v6RotatedGroup(group: Group, excludeFirst: Boolean = false): Group = group.copy(
+	private fun v6RotatedGroup(group: Group, excludeFirst: Boolean = false, excludeLast: Boolean = false): Group = group.copy(
 		runs = group.runs.map { run ->
 			val firstWal = run.admissions.single()
 			val midpoint = (requireNotNull(firstWal.observedIntervalStartNanos) + firstWal.observedElapsedNanos) / 2L
@@ -829,30 +953,45 @@ class WifiHistoryRepositoryRoomTest {
 					SourceBrokerAuthorization.rows(WIFI_SOURCE, firstWal.registrationGeneration,
 						3L, emptyList(), BOOT_ID, first.effectiveElapsedRealtimeNanos, first.effectiveWallTimeMs)
 				}
-			val payload = (WifiWalPayloadCodec.decodeCanonical(firstWal.payloadVersion, firstWal.payload)
+			val decoded = (WifiWalPayloadCodec.decodeCanonical(firstWal.payloadVersion, firstWal.payload)
 				as WifiWalPayloadDecodeResult.Decoded).payload
+			// A still-authorized callback can contain a later malformed network item. The real
+			// writer rejects that item's frequency while retaining the earlier valid reading.
+			val payload = if (excludeLast) decoded.copy(observations = decoded.observations.map { item ->
+				if (item.providerTimestampNanos == firstWal.observedElapsedNanos) item.copy(frequencyMhz = 100) else item
+			}.sortedBy { it.frequencyMhz }) else decoded
 			val encoded = WifiWalPayloadCodec.encode(payload, WIFI_WAL_PAYLOAD_VERSION)
 			val delivery = canonicalWifiProviderDeliveryIdentity(BOOT_ID, payload.observations, WIFI_WAL_PAYLOAD_VERSION)
 			val unsignedWal = firstWal.copy(payloadVersion = WIFI_WAL_PAYLOAD_VERSION,
 				payload = encoded.toByteArray(), payloadChecksum = encoded.checksum, deliveryIdentity = delivery,
-				authorizationRevision = 2L, authorizationFingerprint = rotated.first().authorizationFingerprint)
+				authorizationRevision = 2L, authorizationFingerprint = rotated.first().authorizationFingerprint,
+				authorizationPurposeEligibilityMask = rotated.first().purposeEligibilityMask)
 			val wal = unsignedWal.copy(integrityIdentity = unsignedWal.calculatedIntegrityIdentity())
 			val facts = run.facts.map { original ->
 				val id = WifiCapturedFactRevisionIntegrity.logicalFactId(delivery, original.logicalTrackingId,
 					original.serviceRunId, original.sessionSegmentId, original.manifestRevision,
 					original.collectedDataEpoch, original.scopeDeletionGeneration)
 				val selectedStart = if (excludeFirst) original.coverageIntervalEndNanos else original.coverageIntervalStartNanos
+				val selectedEnd = if (excludeLast) original.coverageIntervalStartNanos else original.coverageIntervalEndNanos
+				val partial = excludeFirst || excludeLast
 				val unsigned = original.copy(logicalFactId = id,
 					mutationId = WifiCapturedFactRevisionIntegrity.mutationId(id, original.semanticRevision),
 					sourceDeliveryIdentity = delivery, walIntegrityIdentity = wal.integrityIdentity,
 					payloadChecksum = encoded.checksum, authorizationRevision = 2L,
 					authorizationFingerprint = rotated.first().authorizationFingerprint,
+					purposeEligibilityMask = rotated.first().purposeEligibilityMask,
 					authorizationEffectStartNanos = selectedStart, coverageIntervalStartNanos = selectedStart,
-					acceptedResultCount = if (excludeFirst) 1 else 2, staleResultCount = if (excludeFirst) 1 else 0,
-					coverageCompleteness = if (excludeFirst) WifiCapturedFactRevisionEntity.COVERAGE_PARTIAL else
+					coverageIntervalEndNanos = selectedEnd,
+					observedWallTimeMs = original.observedWallTimeMs - (original.coverageIntervalEndNanos - selectedEnd) / 1_000_000L,
+					acceptedResultCount = if (partial) 1 else 2, staleResultCount = if (excludeFirst) 1 else 0,
+					malformedResultCount = if (excludeLast) 1 else 0,
+					coverageCompleteness = if (partial) WifiCapturedFactRevisionEntity.COVERAGE_PARTIAL else
 						WifiCapturedFactRevisionEntity.COVERAGE_COMPLETE,
-					observationCount = if (excludeFirst) 1 else 2, twoPointFourGhzCount = if (excludeFirst) 0 else 1,
-					weakestSignalDbm = if (excludeFirst) -40 else -60, signalSumDbm = if (excludeFirst) -40L else -100L)
+					observationCount = if (partial) 1 else 2, twoPointFourGhzCount = if (excludeFirst) 0 else 1,
+					fiveGhzCount = if (excludeLast) 0 else 1,
+					strongestSignalDbm = if (excludeLast) -60 else -40,
+					weakestSignalDbm = if (excludeFirst) -40 else -60,
+					signalSumDbm = if (excludeFirst) -40L else if (excludeLast) -60L else -100L)
 				unsigned.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsigned))
 			}
 			run.copy(authorizations = opening + rotated + closing, admissions = listOf(wal), facts = facts,
@@ -868,7 +1007,7 @@ class WifiHistoryRepositoryRoomTest {
 			run.facts.flatMap { fact ->
 				payload.observations.mapIndexedNotNull { index, item ->
 					val providerTime = requireNotNull(item.providerTimestampNanos)
-					if (providerTime < fact.coverageIntervalStartNanos) return@mapIndexedNotNull null
+					if (providerTime !in fact.coverageIntervalStartNanos..fact.coverageIntervalEndNanos) return@mapIndexedNotNull null
 					val age = wal.observedElapsedNanos - providerTime
 					val wall = requireNotNull(wal.wallTimeMs) - age / 1_000_000L
 					val uncertainty = requireNotNull(wal.wallTimeUncertaintyMs) + if (age % 1_000_000L == 0L) 0L else 1L

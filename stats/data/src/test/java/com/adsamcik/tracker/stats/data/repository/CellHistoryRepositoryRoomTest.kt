@@ -122,6 +122,93 @@ class CellHistoryRepositoryRoomTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `paired Cell map reader uses the real captured history snapshot without Location collection`() = runTest {
+		val group = buildGroup(911, 1, setOf(0))
+		persist(listOf(group))
+		var authorityChecks = 0
+		val dispatcher = UnconfinedTestDispatcher(testScheduler)
+		val paired = RoomRadioLocationContextRepository(database, io.mockk.mockk(), repository(BOOT_ID) {
+			authorityChecks += 1
+			database.inTransaction()
+		}, RoomAmbientWifiRepository(database, dispatcher), RoomAmbientCellRepository(database, dispatcher),
+			RetainedLocationContextReader(database), BootClockDomainProvider { BOOT_ID }, dispatcher)
+		val result = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(
+			paired.read(com.adsamcik.tracker.stats.api.repository.RadioLocationContextRequest(
+				com.adsamcik.tracker.stats.api.repository.RadioContextSource.CELL, 0L, Long.MAX_VALUE)))
+		result.observations shouldHaveSize 2
+		val observation = result.observations.single { it.sourceEventId == group.runs.single().facts.first().sourceEventId }
+		observation.sourceEventId shouldBe group.runs.single().facts.first().sourceEventId
+		observation.purpose shouldBe com.adsamcik.tracker.stats.api.repository.RadioContextPurpose.CAPTURE
+		observation.signalQuality shouldBe com.adsamcik.tracker.stats.api.repository.RadioContextSignalQuality.Cell(
+			com.adsamcik.tracker.stats.api.repository.CellHistorySignalQuality(0, 0, 0, 0, 1, 0))
+		observation.location shouldBe com.adsamcik.tracker.stats.api.repository.OptionalRetainedLocationContext.Unlocated(
+			com.adsamcik.tracker.stats.api.repository.RadioLocationContextGap.NO_COMPATIBLE_LOCATION)
+		result.gaps shouldBe emptySet()
+		authorityChecks shouldBe 1
+		database.locationSampleDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `paired Cell map reader retains unchanged deliveries and retracts invalid aggregate owners`() = runTest {
+		val group = buildGroup(914, 1, setOf(0))
+		persist(listOf(group))
+		val dispatcher = UnconfinedTestDispatcher(testScheduler)
+		val paired = RoomRadioLocationContextRepository(database, io.mockk.mockk(), repository(BOOT_ID) { database.inTransaction() },
+			RoomAmbientWifiRepository(database, dispatcher), RoomAmbientCellRepository(database, dispatcher),
+			RetainedLocationContextReader(database), BootClockDomainProvider { BOOT_ID }, dispatcher)
+		val request = com.adsamcik.tracker.stats.api.repository.RadioLocationContextRequest(
+			com.adsamcik.tracker.stats.api.repository.RadioContextSource.CELL, 0L, Long.MAX_VALUE)
+		val ready = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(paired.read(request))
+		ready.observations shouldHaveSize 2
+		ready.observations.all { (it.signalQuality as com.adsamcik.tracker.stats.api.repository.RadioContextSignalQuality.Cell)
+			.value.totalCount == 1 } shouldBe true
+		val run = group.runs.single()
+		val owner = run.facts.filter { it.factKind == CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE }.maxBy { it.semanticRevision }
+		val dependent = run.facts.single { it.factKind == CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY }
+		val unsigned = owner.copy(semanticRevision = owner.semanticRevision + 1L,
+			supersedesSemanticRevision = owner.semanticRevision,
+			mutationId = CellCapturedFactRevisionIntegrity.mutationId(owner.logicalFactId, owner.semanticRevision + 1L))
+		val corrected = unsigned.copy(effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(unsigned))
+		val dao = database.cellCapturedFactDao()
+		database.withTransaction {
+			dao.insertRevision(corrected)
+			dao.deleteExactCursors(owner.writerProjectionId, owner.writerProjectionVersion, listOf(owner.logicalFactId))
+			dao.insertCursor(cursor(corrected))
+		}
+		val afterCorrection = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(paired.read(request))
+		afterCorrection.observations.none { it.sourceEventId == dependent.sourceEventId } shouldBe true
+		kotlin.test.assertTrue(afterCorrection.gaps.isNotEmpty())
+		database.withTransaction {
+			dao.deleteExactCursors(owner.writerProjectionId, owner.writerProjectionVersion, listOf(owner.logicalFactId))
+			dao.deleteExactRevisionLineages(owner.writerProjectionId, owner.writerProjectionVersion, listOf(owner.logicalFactId))
+		}
+		val afterDeletion = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(paired.read(request))
+		afterDeletion.observations.none { it.sourceEventId == dependent.sourceEventId } shouldBe true
+		kotlin.test.assertTrue(afterDeletion.gaps.isNotEmpty())
+	}
+
+	@Test
+	fun `paired Cell map reader rejects stale captured epoch and reports source limit explicitly`() = runTest {
+		persist(listOf(buildGroup(912, 1, setOf(0)), buildGroup(913, 1, setOf(0))))
+		val dispatcher = UnconfinedTestDispatcher(testScheduler)
+		val paired = RoomRadioLocationContextRepository(database, io.mockk.mockk(), repository(BOOT_ID) { database.inTransaction() },
+			RoomAmbientWifiRepository(database, dispatcher), RoomAmbientCellRepository(database, dispatcher),
+			RetainedLocationContextReader(database), BootClockDomainProvider { BOOT_ID }, dispatcher)
+		val request = com.adsamcik.tracker.stats.api.repository.RadioLocationContextRequest(
+			com.adsamcik.tracker.stats.api.repository.RadioContextSource.CELL, 0L, Long.MAX_VALUE, 1)
+		val limited = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(paired.read(request))
+		limited.observations shouldBe emptyList()
+		limited.gaps shouldBe setOf(com.adsamcik.tracker.stats.api.repository.RadioContextReadGap(
+			com.adsamcik.tracker.stats.api.repository.RadioContextPurpose.CAPTURE,
+			com.adsamcik.tracker.stats.api.repository.RadioContextReadGapReason.DEPENDENCY_LIMIT))
+		database.sourceEvidenceStateDao().updateLifecycle(1L, null, WALL_BASE_MS)
+		val cleared = kotlin.test.assertIs<com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult.Ready>(
+			paired.read(request.copy(limit = 10)))
+		cleared.observations shouldBe emptyList()
+		kotlin.test.assertTrue(cleared.gaps.isNotEmpty())
+	}
+
+	@Test
 	fun `writer admission reverse lookup selects cursor authenticated revision two`() = runTest {
 		val run = buildGroup(901, 1, setOf(0)).runs.single()
 		val lineage = run.facts.groupBy(CellCapturedFactRevisionEntity::logicalFactId)

@@ -27,6 +27,25 @@ data class LocationPathSampleRow(
 /** Location authority only; this DAO never creates a canonical sample. */
 @Dao
 interface LocationPurposeDao {
+	/** Discovery only; source-owned reader qualifies the receipt and each purpose in the same snapshot. */
+	@Query("SELECT * FROM location_accepted_receipt WHERE observed_wall_time_ms >= :fromMs " +
+		"AND observed_wall_time_ms < :toMs ORDER BY observed_wall_time_ms, sample_id LIMIT :limit")
+	suspend fun contextReceiptsOverWindow(fromMs: Long, toMs: Long, limit: Int): List<LocationAcceptedReceiptEntity>
+	/** Bounded elapsed-clock candidates for optional radio context; wall clock jumps do not join. */
+	@Query("SELECT * FROM location_accepted_receipt WHERE boot_id = :bootId AND clock_domain_id = :clockDomainId " +
+		"AND observed_elapsed_realtime_nanos >= :fromNanos AND observed_elapsed_realtime_nanos <= :toNanos " +
+		"ORDER BY observed_elapsed_realtime_nanos, source_event_id LIMIT :limit")
+	suspend fun contextReceipts(bootId: String, clockDomainId: String, fromNanos: Long,
+		toNanos: Long, limit: Int): List<LocationAcceptedReceiptEntity>
+
+	@Query("SELECT * FROM location_sample_purpose_authority WHERE sample_id IN (:sampleIds) " +
+		"ORDER BY sample_id, purpose, authority_id LIMIT :limit")
+	suspend fun contextPurposes(sampleIds: List<Long>, limit: Int): List<LocationSamplePurposeAuthorityEntity>
+
+	@Query("SELECT * FROM ambient_location_retention_authority WHERE scope = 'LIVE_AMBIENT' " +
+		"AND approval_revision IN (:revisions) ORDER BY approval_revision LIMIT :limit")
+	suspend fun contextRetentionApprovals(revisions: List<Long>, limit: Int): List<AmbientLocationRetentionAuthorityEntity>
+
 	@Query("""SELECT event_id, admission_ordinal, source_kind, source_instance_id,
 		registration_generation, source_sequence, logical_tracking_id, service_run_id
 		FROM source_event_wal WHERE source_kind = 1 AND source_instance_id = :sourceInstanceId
@@ -73,6 +92,15 @@ interface LocationPurposeDao {
 	""")
 	suspend fun visiblePathChunk(fromMs: Long, toMs: Long, afterTimeMs: Long?, afterId: Long?, limit: Int,
 		ambientOnly: Boolean = false, northE7: Int? = null, southE7: Int? = null, eastE7: Int? = null, westE7: Int? = null): List<LocationPathSampleRow>
+
+	/** Historical file reads are fenced by erase/retention, not current recording settings. */
+	@Query("""SELECT COALESCE((SELECT collected_data_epoch || ':' || COALESCE(retained_from_ms, -1) || ':' ||
+		deleted_source_event_high_water_ordinal FROM source_evidence_state WHERE id = 1), 'missing') || '|' ||
+		EXISTS (SELECT 1 FROM collected_data_deletion_operation WHERE phase IN
+			('RETENTION_PREPARED', 'RETENTION_DATASTORE_ACKNOWLEDGED', 'RETENTION_ROOM_GUARD_COMMITTED',
+			'RETENTION_AUTHORITY_REISSUED', 'RETENTION_PROVIDER_RECONCILED',
+			'RETENTION_SOURCE_MAINTENANCE_COMPLETED'))""")
+	suspend fun savedFileExportAuthorityStamp(): String
 
 	@Query("""DELETE FROM location_sample_purpose_authority WHERE purpose = 'AMBIENT_PRODUCT' AND sample_id IN
 		(SELECT sample_id FROM location_accepted_receipt WHERE observed_wall_time_ms - wall_time_uncertainty_ms < :retainedFromMs)""")

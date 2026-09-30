@@ -474,6 +474,18 @@ class MapStoreTest {
         (layerId in MapStore.LIVE_REACTIVE_LAYER_IDS) shouldBe true
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = ["cell_heatmap", "signal_coverage", "signal_aurora", "wifi_heatmap", "wifi_count_heatmap"])
+    fun `optional context refreshes existing radio layers after Location correction or deletion`(layerId: String) = runTest {
+        mapStore.dispatch(MapEvent.SelectLayer(layerId))
+        testDispatcher.scheduler.advanceUntilIdle()
+        io.mockk.clearMocks(mockLayerEngine, answers = false)
+        mapDataChanges.emit(MapDataChange.Committed(setOf(MapDataSource.Location)))
+        testDispatcher.scheduler.advanceTimeBy(1_500)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 1) { mockLayerEngine.refreshLayersInPlace(any(), any(), any(), eq(true)) }
+    }
+
     @Test
     fun `database observer registration does not trigger a redundant refresh`() = runTest {
         testDispatcher.scheduler.advanceTimeBy(1_500)

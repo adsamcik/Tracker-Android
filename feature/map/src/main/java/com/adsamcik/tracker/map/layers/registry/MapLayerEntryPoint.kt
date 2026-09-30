@@ -20,6 +20,7 @@ import dagger.hilt.components.SingletonComponent
 interface MapLayerEntryPoint {
 	fun skiRunSegmentRepository(): SkiRunSegmentRepository
 	fun locationSampleRepository(): LocationSampleRepository
+	fun radioLocationContextRepository(): com.adsamcik.tracker.stats.api.repository.RadioLocationContextRepository
 }
 
 internal fun Context.mapLayerEntryPoint(): MapLayerEntryPoint =

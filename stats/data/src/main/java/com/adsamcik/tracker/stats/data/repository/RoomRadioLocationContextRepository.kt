@@ -1,0 +1,293 @@
+package com.adsamcik.tracker.stats.data.repository
+
+import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.*
+import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.stats.api.repository.*
+import javax.inject.Inject
+import kotlin.math.roundToInt
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.withContext
+
+/** Source qualification and optional Location qualification share exactly one read-only snapshot. */
+internal class RoomRadioLocationContextRepository @Inject constructor(
+    private val database: AppDatabase,
+    private val wifiHistory: DefaultWifiHistoryRepository,
+    private val cellHistory: DefaultCellHistoryRepository,
+    private val ambientWifi: RoomAmbientWifiRepository,
+    private val ambientCell: RoomAmbientCellRepository,
+    private val location: RetainedLocationContextReader,
+    private val boot: BootClockDomainProvider,
+    @IoDispatcher private val io: CoroutineDispatcher,
+) : RadioLocationContextRepository {
+    override suspend fun read(request: RadioLocationContextRequest): RadioLocationContextReadResult = withContext(io) {
+        try {
+            database.withTransaction { readInTransaction(request) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            RadioLocationContextReadResult.StorageUnavailable
+        }
+    }
+
+    internal suspend fun readInTransaction(request: RadioLocationContextRequest): RadioLocationContextReadResult {
+        val gaps = mutableSetOf<RadioContextReadGap>()
+        val captured = if (request.source == RadioContextSource.WIFI) capturedWifi(request, gaps) else capturedCell(request, gaps)
+        val ambient = if (request.source == RadioContextSource.WIFI) ambientWifi(request, gaps) else ambientCell(request, gaps)
+        val radios = consolidateRetainedRadioGroups(captured + ambient, gaps)
+        if (radios.size > request.limit) return RadioLocationContextReadResult.DependencyLimit
+        val context = location.readInTransaction(radios.map { it.input })
+        val matches = RadioLocationContextResolver.resolve(radios.map { it.input }, context.points)
+            .associateBy { it.radioSourceEventId to it.scope }
+        // Resolve each purpose separately: one physical event may have two different valid grants.
+        val observations = radios.map { radio ->
+            val match = matches[radio.input.sourceEventId to radio.input.scope]
+            val optional = match?.let {
+                OptionalRetainedLocationContext.Located(RetainedLocationContext(it.locationSourceEventId,
+                    (it.latitude * 10_000_000.0).roundToInt(), (it.longitude * 10_000_000.0).roundToInt(),
+                    it.locationObservedWallTimeMs, it.locationWallTimeUncertaintyMs,
+                    it.horizontalAccuracyMeters, it.separationMillis))
+            } ?: OptionalRetainedLocationContext.Unlocated(context.gaps.firstOrNull {
+                it == RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT
+            } ?: context.gaps.firstOrNull() ?: RadioLocationContextGap.NO_COMPATIBLE_LOCATION)
+            RadioContextObservation(radio.input.sourceEventId, radio.purpose, radio.intervalStartMs,
+                radio.input.observedWallTimeMs, radio.input.wallTimeUncertaintyMs, radio.quality, optional)
+        }
+        return RadioLocationContextReadResult.Ready(request.source, observations, gaps)
+    }
+
+    private suspend fun capturedWifi(request: RadioLocationContextRequest, gaps: MutableSet<RadioContextReadGap>): List<QualifiedRetainedRadio> {
+        val facts = database.wifiCapturedFactDao().contextCandidates(request.fromInclusiveMs, request.toExclusiveMs, request.limit + 1)
+        if (facts.size > request.limit) return gap(gaps, RadioContextPurpose.CAPTURE, RadioContextReadGapReason.DEPENDENCY_LIMIT)
+        if (facts.isEmpty()) return emptyList()
+        val segments = facts.map { it.sessionSegmentId }.distinct()
+        if (segments.size > MAX_CONTEXT_SEGMENTS) return gap(gaps, RadioContextPurpose.CAPTURE, RadioContextReadGapReason.DEPENDENCY_LIMIT)
+        val page = wifiHistory.selectBySegmentIdsInTransaction(segments)
+        if (page !is WifiComposedPage.Available) return gap(gaps, RadioContextPurpose.CAPTURE, RadioContextReadGapReason.SOURCE_AUTHORITY_UNAVAILABLE)
+        val factsByEvent = facts.groupBy { it.sourceEventId to it.logicalTrackingId }
+        val qualified = mutableListOf<QualifiedRetainedRadio>()
+        for (group in page.entries) {
+            if (group.entry.causes.any { it.isIntegrityFailure }) {
+                gaps += RadioContextReadGap(RadioContextPurpose.CAPTURE, RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE)
+                continue
+            }
+            for (observation in group.entry.observations) {
+                val event = observation.localSourceEventId ?: continue
+                for (fact in factsByEvent[event to group.logicalTrackingId].orEmpty()) {
+                    if (fact.observedWallTimeMs != observation.observedTime.raw || fact.wallTimeUncertaintyMs != observation.wallTimeUncertaintyMs) continue
+                    qualified += QualifiedRetainedRadio(RadioContextPurpose.CAPTURE,
+                        RadioContextInput(RadioContextSource.WIFI, event, fact.contextScope(), fact.coverageIntervalEndNanos,
+                            fact.observedWallTimeMs, true, fact.coverageIntervalStartNanos, fact.wallTimeUncertaintyMs),
+                        observation.intervalStartTime.raw, RadioContextSignalQuality.Wifi(observation.signalQuality),
+                        fact.aggregateOwnerLogicalFactId ?: fact.logicalFactId)
+                }
+            }
+        }
+        if (facts.any { fact -> qualified.none { it.input.sourceEventId == fact.sourceEventId } }) {
+            gaps += RadioContextReadGap(RadioContextPurpose.CAPTURE, RadioContextReadGapReason.MATERIALIZATION_BEHIND)
+        }
+        return qualified
+    }
+
+    private suspend fun capturedCell(request: RadioLocationContextRequest, gaps: MutableSet<RadioContextReadGap>): List<QualifiedRetainedRadio> {
+        val facts = database.cellCapturedFactDao().contextCandidates(request.fromInclusiveMs, request.toExclusiveMs, request.limit + 1)
+        if (facts.size > request.limit) return gap(gaps, RadioContextPurpose.CAPTURE, RadioContextReadGapReason.DEPENDENCY_LIMIT)
+        if (facts.isEmpty()) return emptyList()
+        val segments = facts.map { it.sessionSegmentId }.distinct()
+        if (segments.size > MAX_CONTEXT_SEGMENTS) return gap(gaps, RadioContextPurpose.CAPTURE, RadioContextReadGapReason.DEPENDENCY_LIMIT)
+        val page = cellHistory.selectBySegmentIdsInTransaction(segments)
+        if (page !is CellComposedPage.Available) return gap(gaps, RadioContextPurpose.CAPTURE, RadioContextReadGapReason.SOURCE_AUTHORITY_UNAVAILABLE)
+        val factsByEvent = facts.groupBy { it.sourceEventId to it.logicalTrackingId }
+        val qualified = mutableListOf<QualifiedRetainedRadio>()
+        for (group in page.entries) {
+            if (group.entry.causes.any { it.isIntegrityFailure }) {
+                gaps += RadioContextReadGap(RadioContextPurpose.CAPTURE, RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE)
+                continue
+            }
+            for (observation in group.entry.observations) {
+                val event = observation.localSourceEventId ?: continue
+                for (fact in factsByEvent[event to group.logicalTrackingId].orEmpty()) {
+                    if (fact.observedWallTimeMs != observation.observedTime.raw || fact.wallTimeUncertaintyMs != observation.wallTimeUncertaintyMs) continue
+                    qualified += QualifiedRetainedRadio(RadioContextPurpose.CAPTURE,
+                        RadioContextInput(RadioContextSource.CELL, event, fact.contextScope(), fact.coverageIntervalEndNanos,
+                            fact.observedWallTimeMs, true, fact.coverageIntervalStartNanos, fact.wallTimeUncertaintyMs),
+                        observation.intervalStartTime.raw, RadioContextSignalQuality.Cell(observation.signalQuality),
+                        fact.aggregateOwnerLogicalFactId ?: fact.logicalFactId)
+                }
+            }
+        }
+        if (facts.any { fact -> qualified.none { it.input.sourceEventId == fact.sourceEventId } }) {
+            gaps += RadioContextReadGap(RadioContextPurpose.CAPTURE, RadioContextReadGapReason.MATERIALIZATION_BEHIND)
+        }
+        return qualified
+    }
+
+    private suspend fun ambientWifi(request: RadioLocationContextRequest, gaps: MutableSet<RadioContextReadGap>): List<QualifiedRetainedRadio> {
+        val read = ambientWifi.readInTransaction(AmbientWifiReadRequest(request.fromInclusiveMs, request.toExclusiveMs,
+            setOf(AmbientWifiOrigin.LOCAL_DEVICE), request.limit))
+        if (read !is AmbientWifiReadResult.Snapshot) return gap(gaps, RadioContextPurpose.AMBIENT,
+            if (read == AmbientWifiReadResult.DependencyOverflow) RadioContextReadGapReason.DEPENDENCY_LIMIT else RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE)
+        if (read.gaps.isNotEmpty()) gaps += RadioContextReadGap(RadioContextPurpose.AMBIENT, RadioContextReadGapReason.ACQUISITION_PARTIAL)
+        val dao = database.ambientWifiFactDao()
+        val rows = dao.effectiveLocalOverWindow(request.fromInclusiveMs, request.toExclusiveMs, request.limit + 1)
+        if (rows.size > request.limit) return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.DEPENDENCY_LIMIT)
+        val ids = rows.flatMap { listOfNotNull(it.fact.logicalFactId, it.fact.aggregateOwnerLogicalFactId) }.distinct()
+        val lineage = mutableListOf<AmbientWifiFactRevisionEntity>()
+        for (chunk in ids.chunked(QUERY_CHUNK)) {
+            lineage += dao.localFactLineages(chunk, MAX_CONTEXT_DEPENDENCIES - lineage.size + 1)
+            if (lineage.size > MAX_CONTEXT_DEPENDENCIES) return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.DEPENDENCY_LIMIT)
+        }
+        val approvals = dao.retentionAuthorities(AmbientWifiRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT, MAX_CONTEXT_DEPENDENCIES + 1)
+        if (approvals.size > MAX_CONTEXT_DEPENDENCIES) return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.DEPENDENCY_LIMIT)
+        val authority = RetainedAmbientRadioAuthority.load(database, SourceDestinationOwnerEntity.SOURCE_WIFI,
+            lineage.map { it.authorityInput() }, boot.current())
+            ?: return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.SOURCE_AUTHORITY_UNAVAILABLE)
+        val state = database.sourceEvidenceStateDao().get() ?: return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.SOURCE_AUTHORITY_UNAVAILABLE)
+        val marker = dao.latestDeletionMarker(state.collectedDataEpoch)
+        if (marker != null && !AmbientWifiFactIntegrity.isAuthentic(marker)) return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.SOURCE_AUTHORITY_UNAVAILABLE)
+        val footprints = mutableListOf<AmbientWifiReplayFootprintEntity>()
+        for (chunk in ids.chunked(QUERY_CHUNK)) {
+            footprints += dao.replayFootprintsByIdentityDigests(chunk, MAX_CONTEXT_DEPENDENCIES - footprints.size + 1)
+            if (footprints.size > MAX_CONTEXT_DEPENDENCIES) return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.DEPENDENCY_LIMIT)
+        }
+        if (footprints.any { !AmbientWifiFactIntegrity.isAuthentic(it) }) return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.SOURCE_AUTHORITY_UNAVAILABLE)
+        val erased = footprints.filter { it.footprintKind == AmbientWifiReplayFootprintEntity.KIND_LOCAL_FACT }.map { it.identityDigest }.toSet()
+        val byId = lineage.groupBy { it.logicalFactId }
+        val qualified = mutableListOf<QualifiedRetainedRadio>()
+        for (row in rows) {
+            val fact = row.fact
+            val api = read.facts.singleOrNull { it.identity == fact.logicalFactId && it.semanticRevision == fact.semanticRevision } ?: continue
+            val revisions = byId[fact.logicalFactId].orEmpty().sortedBy { it.semanticRevision }
+            val owner = fact.aggregateOwnerLogicalFactId?.let { ownerId -> byId[ownerId]?.singleOrNull {
+                it.semanticRevision == fact.aggregateOwnerSemanticRevision } }
+            val ownerLineage = byId[fact.aggregateOwnerLogicalFactId].orEmpty().sortedBy { it.semanticRevision }
+            val dependencies = revisions + ownerLineage
+            // An unchanged reading cannot keep an erased or expired aggregate alive indirectly.
+            if (dependencies.any { revision -> revision.logicalFactId in erased ||
+                    marker?.let { revision.ambientConsentEpoch <= it.throughConsentEpoch } == true ||
+                    revision.collectedDataEpoch != state.collectedDataEpoch ||
+                    revision.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal ||
+                    state.retainedFromMs?.let { revision.coverageStartTimeMs - revision.wallTimeUncertaintyMs < it } == true }) {
+                gaps += RadioContextReadGap(RadioContextPurpose.AMBIENT, RadioContextReadGapReason.RETENTION_BOUNDARY)
+                continue
+            }
+            if (revisions.lastOrNull() != fact || fact.aggregateOwnerLogicalFactId != null && owner == null ||
+                owner != null && (!retainedWifiOwnerCompatible(fact, owner) || ownerLineage.lastOrNull() != owner ||
+                    ownerLineage.withIndex().any { (index, revision) -> revision.semanticRevision != index + 1L }) ||
+                revisions.withIndex().any { (index, revision) -> revision.semanticRevision != index + 1L } ||
+                dependencies.any { revision -> AmbientWifiFactIntegrity.effectChecksum(revision) != revision.effectChecksum ||
+                    !authority.qualifies(revision.authorityInput()) || approvals.none { it.isActive && AmbientWifiRetentionAuthorityIntegrity.isAuthentic(it) &&
+                    it.approvalRevision == revision.retentionApprovalRevision && it.opaquePolicyId == revision.retentionPolicyId &&
+                    it.collectedDataEpoch == revision.collectedDataEpoch && it.sourcePolicyRevision == revision.sourcePolicyRevision &&
+                    it.ambientConsentEpoch == revision.ambientConsentEpoch &&
+                    it.retainedFromMs?.let { floor -> revision.coverageStartTimeMs - revision.wallTimeUncertaintyMs >= floor } != false } }) {
+                gaps += RadioContextReadGap(RadioContextPurpose.AMBIENT, RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE)
+                continue
+            }
+            qualified += QualifiedRetainedRadio(RadioContextPurpose.AMBIENT,
+                RadioContextInput(RadioContextSource.WIFI, fact.sourceEventId, fact.contextScope(), fact.observedElapsedNanos,
+                    fact.observedWallTimeMs, true, fact.observedIntervalStartNanos, fact.wallTimeUncertaintyMs), api.coverageStartTimeMs,
+                RadioContextSignalQuality.Wifi(WifiHistorySignalQuality(api.strongestSignalDbm, api.weakestSignalDbm, api.meanSignalDbm, api.observationCount)),
+                fact.aggregateOwnerLogicalFactId ?: fact.logicalFactId)
+        }
+        return qualified
+    }
+
+    private suspend fun ambientCell(request: RadioLocationContextRequest, gaps: MutableSet<RadioContextReadGap>): List<QualifiedRetainedRadio> {
+        val read = ambientCell.readInTransaction(AmbientCellReadRequest(request.fromInclusiveMs, request.toExclusiveMs,
+            setOf(AmbientCellOrigin.LOCAL_DEVICE), request.limit))
+        if (read !is AmbientCellReadResult.Snapshot) return gap(gaps, RadioContextPurpose.AMBIENT,
+            if (read == AmbientCellReadResult.DependencyOverflow) RadioContextReadGapReason.DEPENDENCY_LIMIT else RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE)
+        if (read.gaps.isNotEmpty()) gaps += RadioContextReadGap(RadioContextPurpose.AMBIENT, RadioContextReadGapReason.ACQUISITION_PARTIAL)
+        val dao = database.ambientCellFactDao()
+        val rows = dao.effectiveLocalOverWindow(request.fromInclusiveMs, request.toExclusiveMs, request.limit + 1)
+        if (rows.size > request.limit) return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.DEPENDENCY_LIMIT)
+        val ids = rows.flatMap { listOfNotNull(it.fact.logicalFactId, it.fact.aggregateOwnerLogicalFactId) }.distinct()
+        val lineage = mutableListOf<AmbientCellFactRevisionEntity>()
+        for (chunk in ids.chunked(QUERY_CHUNK)) {
+            lineage += dao.localFactLineages(chunk, MAX_CONTEXT_DEPENDENCIES - lineage.size + 1)
+            if (lineage.size > MAX_CONTEXT_DEPENDENCIES) return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.DEPENDENCY_LIMIT)
+        }
+        val approvals = dao.retentionAuthorities(AmbientCellRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT, MAX_CONTEXT_DEPENDENCIES + 1)
+        if (approvals.size > MAX_CONTEXT_DEPENDENCIES) return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.DEPENDENCY_LIMIT)
+        val authority = RetainedAmbientRadioAuthority.load(database, SourceDestinationOwnerEntity.SOURCE_CELL,
+            lineage.map { it.authorityInput() }, boot.current())
+            ?: return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.SOURCE_AUTHORITY_UNAVAILABLE)
+        val state = database.sourceEvidenceStateDao().get() ?: return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.SOURCE_AUTHORITY_UNAVAILABLE)
+        val marker = dao.latestDeletionMarker(state.collectedDataEpoch)
+        if (marker != null && !AmbientCellFactIntegrity.isAuthentic(marker)) return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.SOURCE_AUTHORITY_UNAVAILABLE)
+        val footprints = mutableListOf<AmbientCellReplayFootprintEntity>()
+        for (chunk in ids.chunked(QUERY_CHUNK)) {
+            footprints += dao.replayFootprintsByIdentityDigests(chunk, MAX_CONTEXT_DEPENDENCIES - footprints.size + 1)
+            if (footprints.size > MAX_CONTEXT_DEPENDENCIES) return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.DEPENDENCY_LIMIT)
+        }
+        if (footprints.any { !AmbientCellFactIntegrity.isAuthentic(it) }) return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.SOURCE_AUTHORITY_UNAVAILABLE)
+        val erased = footprints.filter { it.footprintKind == AmbientCellReplayFootprintEntity.KIND_LOCAL_FACT }.map { it.identityDigest }.toSet()
+        val byId = lineage.groupBy { it.logicalFactId }
+        val qualified = mutableListOf<QualifiedRetainedRadio>()
+        for (row in rows) {
+            val fact = row.fact
+            val api = read.facts.singleOrNull { it.identity == fact.logicalFactId && it.semanticRevision == fact.semanticRevision } ?: continue
+            val revisions = byId[fact.logicalFactId].orEmpty().sortedBy { it.semanticRevision }
+            val owner = fact.aggregateOwnerLogicalFactId?.let { ownerId -> byId[ownerId]?.singleOrNull {
+                it.semanticRevision == fact.aggregateOwnerSemanticRevision } }
+            val ownerLineage = byId[fact.aggregateOwnerLogicalFactId].orEmpty().sortedBy { it.semanticRevision }
+            val dependencies = revisions + ownerLineage
+            if (dependencies.any { revision -> revision.logicalFactId in erased ||
+                    marker?.let { revision.ambientConsentEpoch <= it.throughConsentEpoch } == true ||
+                    revision.collectedDataEpoch != state.collectedDataEpoch ||
+                    revision.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal ||
+                    state.retainedFromMs?.let { revision.coverageStartTimeMs - revision.wallTimeUncertaintyMs < it } == true }) {
+                gaps += RadioContextReadGap(RadioContextPurpose.AMBIENT, RadioContextReadGapReason.RETENTION_BOUNDARY)
+                continue
+            }
+            if (revisions.lastOrNull() != fact || fact.aggregateOwnerLogicalFactId != null && owner == null ||
+                owner != null && (!retainedCellOwnerCompatible(fact, owner) || ownerLineage.lastOrNull() != owner ||
+                    ownerLineage.withIndex().any { (index, revision) -> revision.semanticRevision != index + 1L }) ||
+                revisions.withIndex().any { (index, revision) -> revision.semanticRevision != index + 1L } ||
+                dependencies.any { revision -> AmbientCellFactIntegrity.effectChecksum(revision) != revision.effectChecksum ||
+                    !authority.qualifies(revision.authorityInput()) || approvals.none { it.isActive && AmbientCellRetentionAuthorityIntegrity.isAuthentic(it) &&
+                    it.approvalRevision == revision.retentionApprovalRevision && it.opaquePolicyId == revision.retentionPolicyId &&
+                    it.collectedDataEpoch == revision.collectedDataEpoch && it.sourcePolicyRevision == revision.sourcePolicyRevision &&
+                    it.ambientConsentEpoch == revision.ambientConsentEpoch &&
+                    it.retainedFromMs?.let { floor -> revision.coverageStartTimeMs - revision.wallTimeUncertaintyMs >= floor } != false } }) {
+                gaps += RadioContextReadGap(RadioContextPurpose.AMBIENT, RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE)
+                continue
+            }
+            val quality = api.qualityDistribution
+            qualified += QualifiedRetainedRadio(RadioContextPurpose.AMBIENT,
+                RadioContextInput(RadioContextSource.CELL, fact.sourceEventId, fact.contextScope(), fact.observedElapsedNanos,
+                    fact.observedWallTimeMs, true, fact.observedIntervalStartNanos, fact.wallTimeUncertaintyMs), api.coverageStartTimeMs,
+                RadioContextSignalQuality.Cell(CellHistorySignalQuality(quality.unknownCount, quality.noneOrUnknownCount,
+                    quality.poorCount, quality.moderateCount, quality.goodCount, quality.greatCount)),
+                fact.aggregateOwnerLogicalFactId ?: fact.logicalFactId)
+        }
+        return qualified
+    }
+}
+
+internal data class QualifiedRetainedRadio(val purpose: RadioContextPurpose, val input: RadioContextInput,
+    val intervalStartMs: Long, val quality: RadioContextSignalQuality, val aggregateIdentity: String)
+
+private fun WifiCapturedFactRevisionEntity.contextScope() = RadioContextScope.Session(SessionContextScope(
+    logicalTrackingId, serviceRunId, sessionSegmentId, clockDomainId, clockDomainId, collectedDataEpoch))
+private fun CellCapturedFactRevisionEntity.contextScope() = RadioContextScope.Session(SessionContextScope(
+    logicalTrackingId, serviceRunId, sessionSegmentId, clockDomainId, clockDomainId, collectedDataEpoch))
+private fun AmbientWifiFactRevisionEntity.contextScope() = RadioContextScope.Ambient(AmbientContextScope(clockDomainId, clockDomainId, collectedDataEpoch))
+private fun AmbientCellFactRevisionEntity.contextScope() = RadioContextScope.Ambient(AmbientContextScope(clockDomainId, clockDomainId, collectedDataEpoch))
+private fun AmbientWifiFactRevisionEntity.authorityInput() = RetainedRadioAuthorityInput(registrationGeneration, sourceInstanceId,
+    clockDomainId, physicalConfigurationFingerprint, collectedDataEpoch, authorizationRevision, authorizationFingerprint, purposeEligibilityMask,
+    observedIntervalStartNanos, observedElapsedNanos, receivedElapsedNanos, observedWallTimeMs, sourcePolicyRevision,
+    ambientConsentEpoch, purposeDemandId, retentionPolicyId, retentionApprovalRevision)
+private fun AmbientCellFactRevisionEntity.authorityInput() = RetainedRadioAuthorityInput(registrationGeneration, sourceInstanceId,
+    clockDomainId, physicalConfigurationFingerprint, collectedDataEpoch, authorizationRevision, authorizationFingerprint, purposeEligibilityMask,
+    observedIntervalStartNanos, observedElapsedNanos, receivedElapsedNanos, observedWallTimeMs, sourcePolicyRevision,
+    ambientConsentEpoch, purposeDemandId, retentionPolicyId, retentionApprovalRevision)
+private fun gap(gaps: MutableSet<RadioContextReadGap>, purpose: RadioContextPurpose, reason: RadioContextReadGapReason): List<QualifiedRetainedRadio> {
+    gaps += RadioContextReadGap(purpose, reason)
+    return emptyList()
+}
+private const val MAX_CONTEXT_SEGMENTS = 100

@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.map.layers.registry
 
 import android.graphics.Color
+import com.adsamcik.tracker.map.viz.RetainedRadioContextLayer
+import com.adsamcik.tracker.stats.api.repository.RadioContextSource
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.data.GeoRepository
 import com.adsamcik.tracker.map.data.GeoRepositoryImpl
@@ -210,7 +212,7 @@ class DefaultLayerRegistry(
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            cellSignalHeatmap(repo).toLayer()
+                            RetainedRadioContextLayer(cellSignalHeatmap(repo), ctx.mapLayerEntryPoint().radioLocationContextRepository(), RadioContextSource.CELL)
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("CellHeatmapLayer", R.string.map_layer_cell_heatmap_title),
@@ -238,7 +240,7 @@ class DefaultLayerRegistry(
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            signalCoverageHeatmap(repo).toLayer()
+                            RetainedRadioContextLayer(signalCoverageHeatmap(repo), ctx.mapLayerEntryPoint().radioLocationContextRepository(), RadioContextSource.CELL)
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("SignalCoverageLayer", R.string.map_layer_signal_coverage_title),
@@ -265,7 +267,7 @@ class DefaultLayerRegistry(
                     LayerEntry(
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
-                            signalAurora(GeoRepositoryImpl(dao)).toLayer()
+                            RetainedRadioContextLayer(signalAurora(GeoRepositoryImpl(dao)), ctx.mapLayerEntryPoint().radioLocationContextRepository(), RadioContextSource.CELL)
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("SignalAurora", R.string.map_layer_signal_aurora_title),
@@ -295,7 +297,7 @@ class DefaultLayerRegistry(
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            wifiSignalHeatmap(repo).toLayer()
+                            RetainedRadioContextLayer(wifiSignalHeatmap(repo), ctx.mapLayerEntryPoint().radioLocationContextRepository(), RadioContextSource.WIFI)
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("WifiHeatmapLayer", R.string.map_layer_wifi_heatmap_title),
@@ -323,7 +325,7 @@ class DefaultLayerRegistry(
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            wifiCountHeatmap(repo).toLayer()
+                            RetainedRadioContextLayer(wifiCountHeatmap(repo), ctx.mapLayerEntryPoint().radioLocationContextRepository(), RadioContextSource.WIFI)
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("WifiCountHeatmapLayer", R.string.map_layer_wifi_count_heatmap_title),

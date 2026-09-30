@@ -328,20 +328,22 @@ internal object WifiCapturedFactClassifier {
 		qualifiedItemIndexes: Set<Int>?,
 	): WifiCapturedFactClassification {
 		val itemClassifications = payload.accessPoints.mapIndexed { index, accessPoint ->
-			accessPoint to if (qualifiedItemIndexes != null && index !in qualifiedItemIndexes) {
-				ProviderTimeClassification.STALE
-			} else if (authority.acquisitionConfiguration.resultContract.accepts(
+			// Keep rejection counts identical to the retained WAL carrier. Purpose qualification
+			// omits malformed items too; omission must not relabel their shape as stale data.
+			accessPoint to if (!authority.acquisitionConfiguration.resultContract.accepts(
 					accessPoint.frequencyMhz,
 					accessPoint.signalLevelDbm,
 				)
 			) {
+				ProviderTimeClassification.MALFORMED
+			} else if (qualifiedItemIndexes != null && index !in qualifiedItemIndexes) {
+				ProviderTimeClassification.STALE
+			} else {
 				authority.classifyProviderTime(
 					accessPoint.providerTimestampNanos,
 					wal.clock.receivedElapsedRealtimeNanos,
 					maximumObservationAgeNanos,
 				)
-			} else {
-				ProviderTimeClassification.MALFORMED
 			}
 		}
 		val acceptedIndexes = itemClassifications.indices.filter { index ->

@@ -1,4 +1,6 @@
-package com.adsamcik.tracker.map.data
+package com.adsamcik.tracker.stats.data.repository
+
+import com.adsamcik.tracker.stats.api.repository.RadioContextSource
 
 /** Exact retained capture ownership. Organization membership never relaxes this scope. */
 internal data class SessionContextScope(
@@ -34,7 +36,7 @@ internal sealed interface RadioContextScope {
 
 /** Qualified retained radio evidence. Its reference is not itself read/acquisition authority. */
 internal data class RadioContextInput(
-	val source: GeoSource,
+	val source: RadioContextSource,
 	val sourceEventId: String,
 	val scope: RadioContextScope,
 	val observedElapsedNanos: Long,
@@ -44,7 +46,7 @@ internal data class RadioContextInput(
 	val wallTimeUncertaintyMs: Long = 0L,
 ) {
 	init {
-		require(source == GeoSource.WIFI || source == GeoSource.CELL)
+		require(source == RadioContextSource.WIFI || source == RadioContextSource.CELL)
 		require(sourceEventId.isNotBlank() && observedWallTimeMs >= 0L)
 		require(observedFromElapsedNanos >= 0L && observedElapsedNanos >= observedFromElapsedNanos)
 		require(wallTimeUncertaintyMs >= 0L)
@@ -76,7 +78,8 @@ internal data class LocationContextInput(
  * or an interpolated device position at the radio time. Both wall-time uncertainties are retained.
  */
 internal data class RadioLocationContext(
-	val source: GeoSource,
+	val source: RadioContextSource,
+	val scope: RadioContextScope,
 	val radioSourceEventId: String,
 	val locationSourceEventId: String,
 	val latitude: Double,
@@ -123,8 +126,8 @@ internal object RadioLocationContextResolver {
 			val previous = endpointAt(fixes, previousIndex) ?: return@mapNotNull null
 			val previousDistance = fact.observedElapsedNanos - previous.observedElapsedNanos
 			val chosen = when (fact.source) {
-				GeoSource.CELL -> previous.takeIf { previousDistance <= CELL_MAX_SEPARATION_NANOS }
-				GeoSource.WIFI -> {
+				RadioContextSource.CELL -> previous.takeIf { previousDistance <= CELL_MAX_SEPARATION_NANOS }
+				RadioContextSource.WIFI -> {
 					val next = endpointAt(fixes, lowerBound(fixes, fact.observedElapsedNanos))
 						?: return@mapNotNull null
 					val nextDistance = next.observedElapsedNanos - fact.observedFromElapsedNanos
@@ -132,13 +135,13 @@ internal object RadioLocationContextResolver {
 						nextDistance > WIFI_MAX_SEPARATION_NANOS
 					) null else if (previousDistance <= nextDistance) previous else next
 				}
-				GeoSource.LOCATION -> null // Rejected by RadioContextInput's constructor.
 			} ?: return@mapNotNull null
 			val separationNanos = if (chosen.observedElapsedNanos <= fact.observedFromElapsedNanos) {
 				fact.observedElapsedNanos - chosen.observedElapsedNanos
 			} else chosen.observedElapsedNanos - fact.observedFromElapsedNanos
 			RadioLocationContext(
 				source = fact.source,
+				scope = fact.scope,
 				radioSourceEventId = fact.sourceEventId,
 				locationSourceEventId = chosen.sourceEventId,
 				latitude = chosen.latitudeE7 / E7_DIVISOR,
