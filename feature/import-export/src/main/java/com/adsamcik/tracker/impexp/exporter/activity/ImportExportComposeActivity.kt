@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.impexp.R
+import com.adsamcik.tracker.impexp.OwnedTransferFiles
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.impexp.exporter.JsonExporter
@@ -89,10 +90,7 @@ class ImportExportComposeActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        val legacyShareableDir = File(filesDir, SHARABLE_DIR_NAME)
-        cleanupShareableDirectory(legacyShareableDir, maxAgeMillis = 0L)
         shareableDir = File(cacheDir, SHARABLE_DIR_NAME)
-        cleanupShareableDirectory(shareableDir)
 
         val exporterType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.extras?.getSerializable(EXPORTER_KEY, Class::class.java) as? Class<*>
@@ -345,7 +343,7 @@ fun ExportScreen(
                             ) { result ->
                                 when (result) {
                                     is ExportDocumentResult.Success -> {
-                                        activity.finish()
+                                        viewModel.handOffExport(result) { activity.finish() }
                                     }
                                     is ExportDocumentResult.Failure -> {
                                         scope.launch {
@@ -369,9 +367,9 @@ fun ExportScreen(
                 }
 
                 fun startShareExport() {
-                    cleanupShareableDirectory(shareableDir)
-                    shareableDir.mkdirs()
-                    val directory = DocumentFile.fromFile(shareableDir)
+                    val requestDirectory = shareRequestDirectory(shareableDir)
+                    val directory = DocumentFile.fromFile(requestDirectory)
+                    var handedOff = false
                     val selectedRange = if (canSelectDateRange) rangeState.value else null
                     viewModel.exportToDocument(
                         directory = directory,
@@ -379,42 +377,47 @@ fun ExportScreen(
                         exporter = exporter,
                         fileName = fileNameState.value,
                         range = selectedRange,
+                        prepareDirectory = {
+                            prepareShareRequestDirectory(requestDirectory)
+                        },
+                        cleanupDirectory = {
+                            if (!handedOff) removeShareRequestDirectory(requestDirectory)
+                        },
                     ) { result ->
                         when (result) {
                             is ExportDocumentResult.Success -> {
-                                val file = File(shareableDir, result.fileNameWithExtension)
+                                val file = File(requestDirectory, result.fileNameWithExtension)
                                 val shareUri = FileProvider.getUriForFile(
                                     activity,
                                     "${activity.packageName}.fileprovider",
                                     file
                                 )
-                                viewModel.resolveShareTripSummary(
+                                val shareSummary = viewModel.resolveShareTripSummary(
                                     fallbackFileName = result.baseFileName,
-                                    range = selectedRange
-                                ) { shareSummary ->
-                                    val shareIntent = Intent().apply {
-                                        action = Intent.ACTION_SEND
-                                        putExtra(Intent.EXTRA_STREAM, shareUri)
-                                        putExtra(
-                                            Intent.EXTRA_SUBJECT,
-                                            "Trail: ${shareSummary.tripName} — ${shareSummary.formattedDate}"
-                                        )
-                                        putExtra(Intent.EXTRA_TEXT, buildShareText(shareSummary))
-                                        type = exporter.mimeType
-                                        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                    }
-                                    val chooser = Intent.createChooser(
-                                        shareIntent,
-                                        activity.getString(R.string.export_share_button)
+                                    range = selectedRange,
+                                )
+                                val shareIntent = Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    putExtra(Intent.EXTRA_STREAM, shareUri)
+                                    putExtra(
+                                        Intent.EXTRA_SUBJECT,
+                                        "Trail: ${shareSummary.tripName} — ${shareSummary.formattedDate}"
                                     )
-                                    try {
-                                        activity.startActivity(chooser)
-                                    } catch (_: Exception) {
-                                        scope.launch {
-                                            snackBarHostState.showSnackbar(
-                                                activity.getString(R.string.export_error_unknown)
-                                            )
-                                        }
+                                    putExtra(Intent.EXTRA_TEXT, buildShareText(shareSummary))
+                                    type = exporter.mimeType
+                                    flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                }
+                                val chooser = Intent.createChooser(
+                                    shareIntent,
+                                    activity.getString(R.string.export_share_button)
+                                )
+                                try {
+                                    handedOff = viewModel.handOffExport(result) { activity.startActivity(chooser) }
+                                } catch (_: Exception) {
+                                    scope.launch {
+                                        snackBarHostState.showSnackbar(
+                                            activity.getString(R.string.export_error_unknown)
+                                        )
                                     }
                                 }
                             }
@@ -716,12 +719,38 @@ internal fun cleanupShareableDirectory(
 ) {
     if (!directory.exists()) return
     directory.listFiles()?.forEach { file ->
-        if (file.isDirectory) return@forEach
         val ageMillis = nowMillis - file.lastModified()
+        if (OwnedTransferFiles.isShareRequestDirectoryName(file.name)) {
+            if (ageMillis >= maxAgeMillis) {
+                OwnedTransferFiles.removeShareRequestDirectory(file)
+            }
+            return@forEach
+        }
+        if (file.isDirectory) return@forEach
         if (ageMillis >= maxAgeMillis && !file.delete()) {
             file.deleteOnExit()
         }
     }
+}
+
+/** Ordinary export Share owns the cache route only; GPX/PNG share files belong to their callers. */
+internal fun prepareShareableDirectory(directory: File) {
+    cleanupShareableDirectory(directory)
+    check(directory.isDirectory || directory.mkdirs()) { "Could not create share directory" }
+}
+
+/** Allocation is memory-only; exclusive directory creation occurs inside the admitted transfer. */
+internal fun shareRequestDirectory(parent: File): File =
+    File(parent, "share_${java.util.UUID.randomUUID()}")
+
+internal fun prepareShareRequestDirectory(directory: File) {
+    require(OwnedTransferFiles.isShareRequestDirectoryName(directory.name))
+    prepareShareableDirectory(requireNotNull(directory.parentFile))
+    java.nio.file.Files.createDirectory(directory.toPath())
+}
+
+internal fun removeShareRequestDirectory(directory: File) {
+    OwnedTransferFiles.removeShareRequestDirectory(directory)
 }
 
 private const val SHAREABLE_MAX_AGE_MS = 24L * 60L * 60L * 1000L

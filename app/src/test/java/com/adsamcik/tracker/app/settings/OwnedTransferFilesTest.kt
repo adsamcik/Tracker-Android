@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import androidx.core.content.FileProvider
 import com.adsamcik.tracker.impexp.OwnedTransferFiles
+import com.adsamcik.tracker.impexp.OwnedTransferCleanupException
 import com.adsamcik.tracker.impexp.exporter.automation.ExportDestination
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -117,6 +118,32 @@ class OwnedTransferFilesTest {
         } finally {
             shareCopy.delete()
         }
+    }
+
+    @Test
+    fun `full clear revokes and removes files inside recognized independent share directories`() {
+        assumeTrue(File.separatorChar == '/')
+        ReflectionHelpers.getStaticField<MutableMap<String, *>>(FileProvider::class.java, "sCache")
+            .remove("${context.packageName}.fileprovider")
+        val copy = File(context.cacheDir, "sharable/share_${UUID.randomUUID()}/same-name.json").apply {
+            parentFile!!.mkdirs(); writeText("share")
+        }
+        try {
+            OwnedTransferFiles.clearForFullDeletion(context)
+            copy.exists() shouldBe false
+            copy.parentFile!!.exists() shouldBe false
+        } finally { copy.delete(); copy.parentFile!!.delete() }
+    }
+
+    @Test
+    fun `full clear preserves an unrecognized directory beside independent share requests`() {
+        val unknown = File(context.cacheDir, "sharable/unrelated/keep.txt").apply {
+            parentFile!!.mkdirs(); writeText("keep")
+        }
+        try {
+            shouldThrow<OwnedTransferCleanupException> { OwnedTransferFiles.clearForFullDeletion(context) }
+            unknown.readText() shouldBe "keep"
+        } finally { unknown.delete(); unknown.parentFile!!.delete(); unknown.parentFile!!.parentFile!!.delete() }
     }
 
     @Test

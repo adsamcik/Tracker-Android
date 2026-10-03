@@ -15,6 +15,8 @@ import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.openOutputStream
 import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,6 +33,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -50,6 +54,7 @@ internal sealed interface ExportDocumentResult {
     data class Success(
         val fileNameWithExtension: String,
         val baseFileName: String,
+        val startupGeneration: Long,
     ) : ExportDocumentResult
 
     data class Failure(val error: ExportResult.Error) : ExportDocumentResult
@@ -60,6 +65,7 @@ class ImportExportViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val dataRepository: ImportExportDataRepository,
     private val dispatchers: DispatchersProvider,
+    private val startupGate: TrackingStartupGate,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ImportExportUiState())
@@ -80,13 +86,57 @@ class ImportExportViewModel @Inject constructor(
         exporter: Exporter,
         fileName: String,
         range: ClosedRange<ZonedDateTime>?,
-        onResult: (ExportDocumentResult) -> Unit,
+        prepareDirectory: suspend () -> Unit = {},
+        cleanupDirectory: suspend () -> Unit = {},
+        onResult: suspend (ExportDocumentResult) -> Unit,
     ) {
+        val generation = startupGate.currentGeneration
         beginExport()
         viewModelScope.launch {
-            val result = exportDocument(directory, forceOverride, exporter, fileName, range)
-            completeExport(result)
-            onResult(result)
+            try {
+                if (startupGate.reconcile() !is TrackingStartupResult.Ready) {
+                    val result = ExportDocumentResult.Failure(ExportResult.Error())
+                    completeExport(result)
+                    onResult(result)
+                    return@launch
+                }
+                val delivered = startupGate.withReadyGenerationTransfer(generation) {
+                    try {
+                        val result = try {
+                            withContext(dispatchers.io) { prepareDirectory() }
+                            exportDocumentInTransfer(
+                                directory, forceOverride, exporter, fileName, range,
+                                generation,
+                            )
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            ExportDocumentResult.Failure(ExportResult.Error())
+                        }
+                        val deliveredResult = if (result is ExportDocumentResult.Success &&
+                            startupGate.withRetainedDataGeneration(generation) { completeExport(result); true } != true
+                        ) ExportDocumentResult.Failure(ExportResult.Error()) else result
+                        if (deliveredResult !is ExportDocumentResult.Success) completeExport(deliveredResult)
+                        currentCoroutineContext().ensureActive()
+                        onResult(deliveredResult)
+                        true
+                    } finally {
+                        withContext(NonCancellable + dispatchers.io) { cleanupDirectory() }
+                    }
+                }
+                if (delivered != true) {
+                    val result = ExportDocumentResult.Failure(ExportResult.Error())
+                    completeExport(result)
+                    onResult(result)
+                }
+            } catch (cancelled: CancellationException) {
+                completeExport(ExportDocumentResult.Failure(ExportResult.Error()))
+                throw cancelled
+            } catch (_: Exception) {
+                val result = ExportDocumentResult.Failure(ExportResult.Error())
+                completeExport(result)
+                onResult(result)
+            }
         }
     }
 
@@ -96,6 +146,24 @@ class ImportExportViewModel @Inject constructor(
         exporter: Exporter,
         fileName: String,
         range: ClosedRange<ZonedDateTime>?,
+    ): ExportDocumentResult {
+        val generation = startupGate.currentGeneration
+        if (startupGate.reconcile() !is TrackingStartupResult.Ready)
+            return ExportDocumentResult.Failure(ExportResult.Error())
+        return startupGate.withReadyGenerationTransfer(generation) {
+            exportDocumentInTransfer(directory, forceOverride, exporter, fileName, range,
+                generation)
+        } ?: ExportDocumentResult.Failure(ExportResult.Error())
+    }
+
+    /** Source reads, output closure and partial cleanup all belong to the admitted child job. */
+    private suspend fun exportDocumentInTransfer(
+        directory: DocumentFile,
+        forceOverride: Boolean,
+        exporter: Exporter,
+        fileName: String,
+        range: ClosedRange<ZonedDateTime>?,
+        generation: Long,
     ): ExportDocumentResult {
         var createdFile: DocumentFile? = null
         return try {
@@ -116,10 +184,13 @@ class ImportExportViewModel @Inject constructor(
                     )
                 createdFile = destinationFile
 
-                when (val exportResult = exportToFile(destinationFile, exporter, range)) {
+                when (val exportResult = exportToFile(
+                    destinationFile, exporter, range,
+                )) {
                     is ExportResult.Success -> ExportDocumentResult.Success(
                         fileNameWithExtension = fileNameWithExtension,
                         baseFileName = finalFileName,
+                        startupGeneration = generation,
                     )
                     is ExportResult.Error -> {
                         val removed = removePartialDocument(destinationFile)
@@ -166,58 +237,55 @@ class ImportExportViewModel @Inject constructor(
         }
     }
 
-    internal fun resolveShareTripSummary(
+    internal suspend fun resolveShareTripSummary(
         fallbackFileName: String,
         range: ClosedRange<ZonedDateTime>?,
-        onResult: (ShareTripSummary) -> Unit,
-    ) {
-        viewModelScope.launch {
-            val summary = withContext(dispatchers.io) {
-                val fallbackDate = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(
-                    (range?.start ?: Time.now).toLocalDate()
-                )
-                val fallbackName = fallbackFileName.replace('_', ' ').trim().ifEmpty { "Trip" }
-                val fallback = ShareTripSummary(
-                    tripName = fallbackName,
-                    formattedDate = fallbackDate,
-                    activityEmoji = "📍",
-                    formattedDistance = null,
-                    formattedDuration = null,
-                    formattedSteps = null
-                )
+    ): ShareTripSummary = withContext(dispatchers.io) {
+        val fallbackDate = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(
+            (range?.start ?: Time.now).toLocalDate()
+        )
+        val fallbackName = fallbackFileName.replace('_', ' ').trim().ifEmpty { "Trip" }
+        val fallback = ShareTripSummary(
+            tripName = fallbackName,
+            formattedDate = fallbackDate,
+            activityEmoji = "📍",
+            formattedDistance = null,
+            formattedDuration = null,
+            formattedSteps = null
+        )
 
-                val targetRange = range ?: return@withContext fallback
-                val fromMs = targetRange.start.toEpochMillis()
-                val toMs = targetRange.endInclusive.toEpochMillis()
+        val targetRange = range ?: return@withContext fallback
+        val fromMs = targetRange.start.toEpochMillis()
+        val toMs = targetRange.endInclusive.toEpochMillis()
 
-                val trip = dataRepository.loadTripShareSnapshot(fromMs, toMs)
-                    ?: return@withContext fallback
+        val trip = dataRepository.loadTripShareSnapshot(fromMs, toMs)
+            ?: return@withContext fallback
 
-                val tripName = trip.activityName?.takeIf { it.isNotBlank() } ?: fallbackName
-                val emoji = mapActivityToEmoji(trip.activityName, trip.activityId)
-                val date = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(
-                    Instant.ofEpochMilli(trip.startTimeMs).atZone(ZoneId.systemDefault()).toLocalDate()
-                )
-                val lengthSystem = TrackerSettingsQuick.lengthSystem(appContext)
-                val distance = appContext.resources.formatDistance(
-                    trip.totalDistanceM,
-                    digits = if (trip.totalDistanceM >= 1000f) 1 else 2,
-                    unit = lengthSystem
-                )
+        val tripName = trip.activityName?.takeIf { it.isNotBlank() } ?: fallbackName
+        val emoji = mapActivityToEmoji(trip.activityName, trip.activityId)
+        val date = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(
+            Instant.ofEpochMilli(trip.startTimeMs).atZone(ZoneId.systemDefault()).toLocalDate()
+        )
+        val lengthSystem = TrackerSettingsQuick.lengthSystem(appContext)
+        val distance = appContext.resources.formatDistance(
+            trip.totalDistanceM,
+            digits = if (trip.totalDistanceM >= 1000f) 1 else 2,
+            unit = lengthSystem
+        )
 
-                ShareTripSummary(
-                    tripName = tripName,
-                    formattedDate = date,
-                    activityEmoji = emoji,
-                    formattedDistance = distance,
-                    formattedDuration = trip.totalDurationMs.formatAsDuration(appContext),
-                    // Trip.steps is a legacy aggregate without exact capture/source authority.
-                    formattedSteps = null
-                )
-            }
-            onResult(summary)
-        }
+        ShareTripSummary(
+            tripName = tripName,
+            formattedDate = date,
+            activityEmoji = emoji,
+            formattedDistance = distance,
+            formattedDuration = trip.totalDurationMs.formatAsDuration(appContext),
+            // Trip.steps is a legacy aggregate without exact capture/source authority.
+            formattedSteps = null
+        )
     }
+
+    internal fun handOffExport(result: ExportDocumentResult.Success, handoff: () -> Unit): Boolean =
+        startupGate.withRetainedDataGeneration(result.startupGeneration) { handoff(); true } == true
 
     private suspend fun exportToFile(
         file: DocumentFile,

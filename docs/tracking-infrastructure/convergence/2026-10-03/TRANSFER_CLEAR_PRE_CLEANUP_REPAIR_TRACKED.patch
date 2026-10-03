@@ -1,0 +1,1453 @@
+diff --git a/app/src/main/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGate.kt b/app/src/main/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGate.kt
+index b135971001..06e09b8945 100644
+--- a/app/src/main/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGate.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGate.kt
+@@ -43,6 +43,12 @@ import kotlin.coroutines.AbstractCoroutineContextElement
+ import kotlin.coroutines.CoroutineContext
+ import kotlin.coroutines.cancellation.CancellationException
+ import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.CoroutineStart
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.async
++import kotlinx.coroutines.coroutineScope
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.joinAll
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
+ import kotlinx.coroutines.flow.asStateFlow
+@@ -166,6 +172,7 @@ class TrackingStartupDeletionBarrier internal constructor(
+ 	private val mutableOpenGenerations = MutableStateFlow(0L)
+ 	private val startupRecoveryMutex = Mutex()
+ 	private val admissionMonitor = Any()
++	private val transferJobs = linkedSetOf<Job>()
+ 	@Volatile private var closing = false
+ 
+ 	/**
+@@ -183,10 +190,12 @@ class TrackingStartupDeletionBarrier internal constructor(
+ 
+ 	/** Prevents new admission immediately without waiting for an admitted operation. */
+ 	internal fun beginCloseAdmission() {
+-		synchronized(admissionMonitor) {
+-			if (closed.get() || closing) return
++		val transfers = synchronized(admissionMonitor) {
+ 			closing = true
++			transferJobs.toList()
+ 		}
++		// Cancellation handlers may reenter admission; never cancel while holding the monitor.
++		transfers.forEach { it.cancel() }
+ 	}
+ 
+ 	/**
+@@ -199,7 +208,7 @@ class TrackingStartupDeletionBarrier internal constructor(
+ 			awaitQuiescence()
+ 		} catch (cancelled: CancellationException) {
+ 			synchronized(admissionMonitor) {
+-				if (!closed.get()) closing = false
++				if (!closed.get() && transferJobs.isEmpty()) closing = false
+ 			}
+ 			throw cancelled
+ 		}
+@@ -215,6 +224,8 @@ class TrackingStartupDeletionBarrier internal constructor(
+ 	/** Waits until pre-close operations exit, then atomically publishes the closed generation. */
+ 	internal suspend fun awaitQuiescence() {
+ 		val quiesced = withTimeoutOrNull(operationQuiescenceTimeoutMs) {
++			val transfers = synchronized(admissionMonitor) { transferJobs.toList() }
++			transfers.joinAll()
+ 			startupRecoveryMutex.withLock {
+ 				finishAdmissionClose()
+ 			}
+@@ -233,6 +244,7 @@ class TrackingStartupDeletionBarrier internal constructor(
+ 	suspend fun reopen() {
+ 		startupRecoveryMutex.withLock {
+ 			synchronized(admissionMonitor) {
++				check(transferJobs.isEmpty()) { "File transfers have not physically quiesced" }
+ 				closing = false
+ 				closed.set(false)
+ 				mutableOpenGenerations.value = generation.get()
+@@ -257,6 +269,26 @@ class TrackingStartupDeletionBarrier internal constructor(
+ 		if (closed.get() || closing || generation.get() != expectedGeneration) null else operation()
+ 	}
+ 
++	/** Registers only a transfer's dedicated structured child, never its owner's whole scope. */
++	internal suspend fun <T> withTransfer(
++		expectedGeneration: Long,
++		isReady: () -> Boolean,
++		operation: suspend () -> T,
++	): T? = coroutineScope {
++		val child = async(start = CoroutineStart.LAZY) { operation() }
++		val admitted = synchronized(admissionMonitor) {
++			if (closed.get() || closing || generation.get() != expectedGeneration || !isReady()) false
++			else { transferJobs.add(child); true }
++		}
++		if (!admitted) {
++			child.cancel()
++			return@coroutineScope null
++		}
++		child.invokeOnCompletion { synchronized(admissionMonitor) { transferJobs.remove(child) } }
++		child.start()
++		child.await()
++	}
++
+ 	private companion object {
+ 		const val DEFAULT_OPERATION_QUIESCENCE_TIMEOUT_MS = 30_000L
+ 	}
+@@ -282,6 +314,7 @@ class DefaultTrackingStartupGate @Inject constructor(
+ 	@Volatile private var ready: TrackingStartupResult.Ready? = null
+ 	@Volatile private var readyGeneration = -1L
+ 	@Volatile private var readyStopGeneration = -1L
++	@Volatile private var retainedDataReadyGeneration = -1L
+ 	private val readySignals = MutableStateFlow<RuntimeReadySignal?>(null)
+ 	private var recoveryAction: ApplicationStartupRecoveryAction? = null
+ 	private var previousExitApplied = false
+@@ -356,6 +389,28 @@ class DefaultTrackingStartupGate @Inject constructor(
+ 		}
+ 	}
+ 
++	override suspend fun <T> withReadyGenerationTransfer(
++		expectedGeneration: Long,
++		operation: suspend () -> T,
++	): T? {
++		currentCoroutineContext().ensureActive()
++		val nested = currentCoroutineContext()[TransferOperationContext]
++		if (nested?.gate === this) {
++			return if (nested.generation == expectedGeneration &&
++				withRetainedDataGeneration(expectedGeneration) { true } == true)
++				operation() else null
++		}
++		return deletionBarrier.withTransfer(expectedGeneration,
++			{ withRetainedDataGeneration(expectedGeneration) { true } == true }) {
++			withContext(TransferOperationContext(this, expectedGeneration)) { operation() }
++		}
++	}
++
++	override fun <T> withRetainedDataGeneration(expectedGeneration: Long, operation: () -> T): T? =
++		deletionBarrier.withOpenGeneration(expectedGeneration) {
++			if (retainedDataReadyGeneration == expectedGeneration) operation() else null
++		}
++
+ 	override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult {
+ 		ready.takeIf { isReady }?.let { return it }
+ 		while (true) {
+@@ -392,6 +447,15 @@ class DefaultTrackingStartupGate @Inject constructor(
+ 				selection.flight.result.completeExceptionally(failure)
+ 				throw failure
+ 			}
++			val failedStage = when (result) {
++				is TrackingStartupResult.RetryableFailure -> result.stage
++				is TrackingStartupResult.Blocked -> result.stage
++				is TrackingStartupResult.Ready -> null
++			}
++			// Lifecycle supersession changes acquisition authority, not retained storage.
++			if (failedStage in RETAINED_DATA_FAILURE_STAGES &&
++				(result as? TrackingStartupResult.RetryableFailure)?.failureCode != LEGACY_LIFECYCLE_SUPERSEDED
++			) retainedDataReadyGeneration = -1L
+ 			clearFlight(selection.flight)
+ 			selection.flight.result.complete(result)
+ 			return result
+@@ -480,6 +544,7 @@ class DefaultTrackingStartupGate @Inject constructor(
+ 				ready = result
+ 				readyGeneration = recoveryGeneration
+ 				readyStopGeneration = recoveryStopGeneration
++				retainedDataReadyGeneration = recoveryGeneration
+ 				readySignalVersion += 1L
+ 				readySignals.value = RuntimeReadySignal(
+ 					version = readySignalVersion,
+@@ -768,6 +833,11 @@ class DefaultTrackingStartupGate @Inject constructor(
+ 	}
+ 
+ 	private companion object {
++		val RETAINED_DATA_FAILURE_STAGES = setOf(
++			TrackingStartupStage.STORAGE,
++			TrackingStartupStage.LEGACY_IMPORT,
++			TrackingStartupStage.LEGACY_V27,
++		)
+ 		const val STORAGE_NOT_READY = "STORAGE_NOT_READY"
+ 		const val COLLECTED_DATA_DELETION_PENDING = "COLLECTED_DATA_DELETION_PENDING"
+ 		const val PENDING_STOP_FAILED = "PENDING_STOP_FAILED"
+@@ -806,3 +876,10 @@ private class ReadyGenerationOperationContext(
+ ) : AbstractCoroutineContextElement(ReadyGenerationOperationContext) {
+ 	companion object Key : CoroutineContext.Key<ReadyGenerationOperationContext>
+ }
++
++private class TransferOperationContext(
++	val gate: DefaultTrackingStartupGate,
++	val generation: Long,
++) : AbstractCoroutineContextElement(TransferOperationContext) {
++	companion object Key : CoroutineContext.Key<TransferOperationContext>
++}
+diff --git a/app/src/test/java/com/adsamcik/tracker/app/settings/CollectedDataDeletionServiceTest.kt b/app/src/test/java/com/adsamcik/tracker/app/settings/CollectedDataDeletionServiceTest.kt
+index a84e7bd348..eff1cd243d 100644
+--- a/app/src/test/java/com/adsamcik/tracker/app/settings/CollectedDataDeletionServiceTest.kt
++++ b/app/src/test/java/com/adsamcik/tracker/app/settings/CollectedDataDeletionServiceTest.kt
+@@ -67,6 +67,8 @@ import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.ExperimentalCoroutinesApi
+ import kotlinx.coroutines.SupervisorJob
++import kotlinx.coroutines.NonCancellable
++import kotlinx.coroutines.launch
+ import kotlinx.coroutines.async
+ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.flow.Flow
+@@ -357,6 +359,84 @@ class CollectedDataDeletionServiceTest {
+ 		startupDeletionBarrier.isClosed shouldBe true
+ 	}
+ 
++	@Test
++	fun `clear waits for admitted private export close and cleanup after writer cancellation acknowledgement`() = runTest {
++		val file = File(context.filesDir, "exports/physical-drain.json")
++		file.parentFile!!.mkdirs()
++		val started = CompletableDeferred<Unit>()
++		val cleaning = CompletableDeferred<Unit>()
++		val finishCleanup = CompletableDeferred<Unit>()
++		var outputClosed = false
++		var cleanupComplete = false
++		var databaseClears = 0
++		val transfer = launch {
++			startupDeletionBarrier.withTransfer(0L, { true }) {
++				try {
++					try { file.outputStream().use { it.write(7); started.complete(Unit); awaitCancellation() } }
++					finally { outputClosed = true }
++				} finally {
++					withContext(NonCancellable) {
++						cleaning.complete(Unit)
++						finishCleanup.await()
++						cleanupComplete = true
++					}
++				}
++			}
++		}
++		started.await()
++		val service = createService(providerFenceScope = backgroundScope) { _, _, _, _ ->
++			outputClosed shouldBe true
++			cleanupComplete shouldBe true
++			databaseClears++
++		}
++		val deletion = async { service.deleteAll() }
++		cleaning.await()
++		runCurrent()
++		deletion.isCompleted shouldBe false
++		databaseClears shouldBe 0
++		lifecycleSnapshot.epoch shouldBe 0L
++		file.exists() shouldBe true
++		coVerify(atLeast = 1) { writerQuiescer.quiesce() }
++		finishCleanup.complete(Unit)
++		deletion.await() shouldBe CollectedDataDeletionCompletion.Complete
++		transfer.join()
++		databaseClears shouldBe 1
++		file.exists() shouldBe false
++		startupDeletionBarrier.isClosed shouldBe false
++	}
++
++	@Test
++	fun `timed out file cleanup keeps durable clear debt and retries before clearing data`() = runTest {
++		startupDeletionBarrier = TrackingStartupDeletionBarrier(50L)
++		val started = CompletableDeferred<Unit>()
++		val cleaning = CompletableDeferred<Unit>()
++		val finishCleanup = CompletableDeferred<Unit>()
++		var databaseClears = 0
++		val transfer = launch {
++			startupDeletionBarrier.withTransfer(0L, { true }) {
++				try { started.complete(Unit); awaitCancellation() }
++				finally { withContext(NonCancellable) { cleaning.complete(Unit); finishCleanup.await() } }
++			}
++		}
++		started.await()
++		val service = createService(providerFenceScope = backgroundScope) { _, _, _, _ -> databaseClears++ }
++		val first = async { service.deleteAll() }
++		cleaning.await()
++		advanceTimeBy(51L)
++		runCurrent()
++		first.await().shouldBeInstanceOf<CollectedDataDeletionCompletion.Retryable>()
++		markerFile.exists() shouldBe true
++		startupDeletionBarrier.isClosed shouldBe true
++		lifecycleSnapshot.epoch shouldBe 0L
++		databaseClears shouldBe 0
++		finishCleanup.complete(Unit)
++		transfer.join()
++		service.reconcilePendingDeletion() shouldBe CollectedDataDeletionCompletion.Complete
++		databaseClears shouldBe 1
++		markerFile.exists() shouldBe false
++		startupDeletionBarrier.isClosed shouldBe false
++	}
++
+ 	@Test
+ 	fun `deletion closes admission then cancels writers before awaiting startup quiescence`() = runTest {
+ 		val operationStarted = CompletableDeferred<Unit>()
+@@ -1596,7 +1676,7 @@ class CollectedDataDeletionServiceTest {
+ 				wallTimeMs = wallTimeMs,
+ 			)
+ 		}
+-		val policyRepository = RoomSourcePolicyRepository(database, timeProvider)
++		val policyRepository = RoomSourcePolicyRepository(database, effectiveTimeProvider = timeProvider)
+ 		policyRepository.bootstrapFromLegacy(
+ 			TrackingParamsState(
+ 				ambientStepsEnabled = ambientStepsEnabled,
+diff --git a/app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt b/app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt
+index 1c8d5617a4..8f822d0e6d 100644
+--- a/app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt
++++ b/app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt
+@@ -36,6 +36,7 @@ import io.mockk.every
+ import io.mockk.just
+ import io.mockk.mockk
+ import javax.inject.Provider
++import java.io.ByteArrayOutputStream
+ import kotlinx.coroutines.CompletableDeferred
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.ExperimentalCoroutinesApi
+@@ -178,6 +179,7 @@ class DefaultTrackingStartupGateTest {
+ 			"vault unavailable",
+ 		)
+ 		gate.isReady shouldBe false
++		gate.withRetainedDataGeneration(0L) { "unrecovered-data" } shouldBe null
+ 		coVerify(exactly = 0) { resolver.apply(any(), any()) }
+ 		coVerify(exactly = 0) { sourceRecovery.recoverStartupAuthority() }
+ 	}
+@@ -935,6 +937,100 @@ class DefaultTrackingStartupGateTest {
+ 	private fun completed(): LegacyV27ProjectionRecoveryResult =
+ 		LegacyV27ProjectionRecoveryResult.NotRequired
+ 
++	@Test
++	fun `nested history transfers share admission while collection is stopped`() = runTest {
++		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
++		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
++		coEvery { resolver.apply(any(), any()) } just Runs
++		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
++		every { lifecycleAuthority.pendingCollectionResumeExitId } returns "user-off"
++		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
++		gate.permitsNewCollection shouldBe false
++		gate.withReadyGenerationTransfer(0L) {
++			gate.withReadyGenerationTransfer(0L) { "retained-file" }
++		} shouldBe "retained-file"
++	}
++
++	@Test
++	fun `old transfer cannot hand off a share after deletion reopens`() = runTest {
++		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
++		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
++		coEvery { resolver.apply(any(), any()) } just Runs
++		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
++		gate.reconcile()
++		val oldGeneration = gate.currentGeneration
++		deletionBarrier.closeAdmission()
++		deletionBarrier.reopen()
++		gate.reconcile()
++		var published = 0
++		gate.withRetainedDataGeneration(oldGeneration) { published++ } shouldBe null
++		gate.withReadyGenerationTransfer(oldGeneration) { published++ } shouldBe null
++		published shouldBe 0
++	}
++
++	@Test
++	fun `handled Off during an admitted history export preserves its file handoff but not live authority`() = runTest {
++		var stopGeneration = 0L
++		var pending: TrackingStopCommand? = null
++		every { lifecycleAuthority.latestStopGeneration() } answers { stopGeneration }
++		every { lifecycleAuthority.latestUnhandledStop() } answers { pending }
++		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
++		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
++		coEvery { resolver.apply(any(), any()) } just Runs
++		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
++		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
++		val generation = gate.currentGeneration
++		val writing = CompletableDeferred<Unit>()
++		val finish = CompletableDeferred<Unit>()
++		val bytes = ByteArrayOutputStream()
++		var shared = false
++		val export = async {
++			gate.withReadyGenerationTransfer(generation) {
++				bytes.use { output -> output.write(7); writing.complete(Unit); finish.await(); output.write(8) }
++				gate.withReadyGenerationTransfer(generation) { "same-retained-generation" } shouldBe
++					"same-retained-generation"
++				gate.withRetainedDataGeneration(generation) { shared = true; true }
++			}
++		}
++		writing.await()
++		stopGeneration = pendingStop().generation
++		pending = pendingStop()
++		gate.withReadyGeneration(generation) { "provider-start" } shouldBe null
++		// The real service marks Off handled after owners retire; it need not reconcile startup.
++		pending = null
++		every { lifecycleAuthority.pendingCollectionResumeExitId } returns "user-off"
++		gate.currentGeneration shouldBe generation
++		gate.isReady shouldBe false
++		gate.permitsNewCollection shouldBe false
++		finish.complete(Unit)
++		export.await() shouldBe true
++		shared shouldBe true
++		bytes.toByteArray().toList() shouldBe listOf(7.toByte(), 8.toByte())
++		coVerify(exactly = 1) { sourceRecovery.recoverStartupAuthority() }
++		deletionBarrier.closeAdmission()
++		gate.withRetainedDataGeneration(generation) { "stale-share" } shouldBe null
++		deletionBarrier.reopen()
++		gate.reconcile()
++		gate.withRetainedDataGeneration(generation) { "stale-share" } shouldBe null
++	}
++
++	@Test
++	fun `actual retained history recovery failure revokes a previously ready transfer generation`() = runTest {
++		var stopGeneration = 0L
++		every { lifecycleAuthority.latestStopGeneration() } answers { stopGeneration }
++		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
++		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
++		coEvery { resolver.apply(any(), any()) } just Runs
++		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
++		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
++		gate.withRetainedDataGeneration(0L) { "retained-data" } shouldBe "retained-data"
++		stopGeneration = 1L
++		coEvery { sourceRecovery.recoverStartupAuthority() } throws java.io.IOException("History unavailable")
++		gate.reconcile().javaClass shouldBe TrackingStartupResult.RetryableFailure::class.java
++		gate.withRetainedDataGeneration(0L) { "unavailable-data" } shouldBe null
++		gate.withReadyGenerationTransfer(0L) { "unavailable-data" } shouldBe null
++	}
++
+ 	private fun pendingStop() = TrackingStopCommand(
+ 		generation = 7L,
+ 		reason = TrackingStopCandidateReason.EXPLICIT_REQUEST,
+diff --git a/core/common/src/main/java/com/adsamcik/tracker/shared/base/startup/TrackingStartupGate.kt b/core/common/src/main/java/com/adsamcik/tracker/shared/base/startup/TrackingStartupGate.kt
+index 348618a0e5..161943b8d9 100644
+--- a/core/common/src/main/java/com/adsamcik/tracker/shared/base/startup/TrackingStartupGate.kt
++++ b/core/common/src/main/java/com/adsamcik/tracker/shared/base/startup/TrackingStartupGate.kt
+@@ -54,6 +54,26 @@ interface TrackingStartupGate {
+ 		operation: suspend () -> T,
+ 	): T? = if (isReadyGeneration(expectedGeneration)) operation() else null
+ 
++	/**
++	 * One short retained-data handoff, fenced by storage/deletion rather than collection Stop.
++	 * This never authorizes acquisition. A transfer already running may finish after tracking Off.
++	 */
++	fun <T> withRetainedDataGeneration(
++		expectedGeneration: Long,
++		operation: () -> T,
++	): T? = withReadyGeneration(expectedGeneration, operation)
++
++	/**
++	 * Admits one structured file transfer. Deletion cancels and physically joins its child job,
++	 * including stream closure and cancellation cleanup. The caller reconciles before admission;
++	 * long I/O never holds startup or Stop control-plane locks. Retained-history transfers use
++	 * storage readiness even when new collection is stopped or a newer Stop is being handled.
++	 */
++	suspend fun <T> withReadyGenerationTransfer(
++		expectedGeneration: Long,
++		operation: suspend () -> T,
++	): T? = if (withRetainedDataGeneration(expectedGeneration) { true } == true) operation() else null
++
+ 	/**
+ 	 * Compatibility entry point for live admission. It deliberately reconciles the full gate.
+ 	 */
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportAutomationController.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportAutomationController.kt
+index 345d3c02dd..a7d0b03125 100644
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportAutomationController.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportAutomationController.kt
+@@ -9,6 +9,7 @@ import androidx.work.PeriodicWorkRequestBuilder
+ import androidx.work.WorkManager
+ import androidx.work.await
+ import androidx.work.workDataOf
++import com.adsamcik.tracker.impexp.importer.ImportAdmissionFence
+ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+ import com.adsamcik.tracker.shared.base.time.Clock
+ import java.time.Duration
+@@ -34,6 +35,8 @@ class ExportAutomationController(
+     private val scope: CoroutineScope,
+     private val workManager: WorkManager = WorkManager.getInstance(context),
+ ) {
++    // Imports and schedules share the same short enqueue fence; transfer jobs belong to startup.
++    private val admissionFence = ImportAdmissionFence()
+     private val schedulingConstraints = Constraints.Builder()
+         .setRequiresCharging(true)
+         .setRequiresBatteryNotLow(true)
+@@ -55,27 +58,26 @@ class ExportAutomationController(
+             .launchIn(scope)
+     }
+ 
+-    private suspend fun cancelWork(workName: String) = withContext(dispatchers.io) {
+-        workManager.cancelUniqueWork(workName)
+-    }
+-
+     private fun synchronizeIntervalPlans(plans: List<ExportBackupPlan>) {
++        val generation = admissionFence.capture() ?: return
+         scope.launch(dispatchers.io) {
+             plans.forEach { plan ->
+                 val workName = plan.workName()
+                 if (!plan.enabled) {
+-                    cancelWork(workName)
++                    admissionFence.enqueueIfCurrent(generation) { workManager.cancelUniqueWork(workName) }
+                     return@forEach
+                 }
+                 when (val cadence = plan.cadence) {
+-                    ExportCadence.AfterSession -> cancelWork(workName)
+-                    is ExportCadence.Interval -> scheduleIntervalPlan(plan, cadence)
++                    ExportCadence.AfterSession -> admissionFence.enqueueIfCurrent(generation) {
++                        workManager.cancelUniqueWork(workName)
++                    }
++                    is ExportCadence.Interval -> scheduleIntervalPlan(plan, cadence, generation)
+                 }
+             }
+         }
+     }
+ 
+-    private fun scheduleIntervalPlan(plan: ExportBackupPlan, cadence: ExportCadence.Interval) {
++    private fun scheduleIntervalPlan(plan: ExportBackupPlan, cadence: ExportCadence.Interval, generation: Long) {
+         val repeatDuration = ExportPlanScheduling.repeatDuration(cadence)
+         val initialDelay = ExportPlanScheduling.initialDelay(cadence, clock)
+             .coerceAtLeast(Duration.ZERO)
+@@ -92,32 +94,35 @@ class ExportAutomationController(
+             .addTag(WORK_TAG_PLAN)
+             .build()
+ 
+-        workManager.enqueueUniquePeriodicWork(
+-            plan.workName(),
+-            ExistingPeriodicWorkPolicy.UPDATE,
+-            request
+-        )
++        admissionFence.enqueueIfCurrent(generation) {
++            workManager.enqueueUniquePeriodicWork(
++                plan.workName(), ExistingPeriodicWorkPolicy.UPDATE, request,
++            )
++        }
+     }
+ 
+     /** Trigger all after-session plans immediately. */
+     fun triggerAfterSessionPlans() {
++        val generation = admissionFence.capture() ?: return
+         val plans = latestPlans
+         if (plans.isEmpty()) return
+         scope.launch(dispatchers.io) {
+             plans.filter { it.enabled && it.cadence is ExportCadence.AfterSession }
+-                .forEach(::enqueueOneTime)
++                .forEach { enqueueOneTime(it, generation) }
+         }
+     }
+ 
+-    suspend fun pauseForDataDeletion(): Unit = withContext(dispatchers.io) {
+-        workManager.cancelAllWorkByTag(WORK_TAG_PLAN).await()
++    suspend fun pauseForDataDeletion() {
++        admissionFence.pause { Unit }
++        withContext(dispatchers.io) { workManager.cancelAllWorkByTag(WORK_TAG_PLAN).await() }
+     }
+ 
+     fun resumeAfterDataDeletion() {
++        admissionFence.resume()
+         synchronizeIntervalPlans(latestPlans)
+     }
+ 
+-    private fun enqueueOneTime(plan: ExportBackupPlan) {
++    private fun enqueueOneTime(plan: ExportBackupPlan, generation: Long) {
+         val inputData = workDataOf(ExportPlanWorker.KEY_PLAN_ID to plan.id.value)
+         val request = OneTimeWorkRequestBuilder<ExportPlanWorker>()
+             .setConstraints(schedulingConstraints)
+@@ -126,11 +131,9 @@ class ExportAutomationController(
+             .build()
+         // Queue a follow-up trigger without cancelling an in-flight export; replace only
+         // a failed/cancelled prerequisite chain so future sessions are not suppressed.
+-        workManager.enqueueUniqueWork(
+-            plan.workName(),
+-            ExistingWorkPolicy.APPEND_OR_REPLACE,
+-            request,
+-        )
++        admissionFence.enqueueIfCurrent(generation) {
++            workManager.enqueueUniqueWork(plan.workName(), ExistingWorkPolicy.APPEND_OR_REPLACE, request)
++        }
+     }
+ 
+     companion object {
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportPlanWorker.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportPlanWorker.kt
+index 4f19a4af5a..b30044e6a4 100644
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportPlanWorker.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportPlanWorker.kt
+@@ -86,6 +86,12 @@ class ExportPlanWorker @AssistedInject constructor(
+ 			)
+ 		}
+ 		if (!isReadyGeneration()) return Result.success()
++		return trackingStartupGate.withReadyGenerationTransfer(startupGeneration) {
++			runAdmittedExport(plan)
++		} ?: Result.success()
++	}
++
++	private suspend fun runAdmittedExport(plan: ExportBackupPlan): Result {
+ 		appDatabase = appDatabaseProvider.get()
+ 
+         val startedAt = clock.currentTimeMillis()
+@@ -518,7 +524,7 @@ class ExportPlanWorker @AssistedInject constructor(
+     }
+ 
+ 	private fun isReadyGeneration(): Boolean =
+-		trackingStartupGate.isReady && trackingStartupGate.currentGeneration == startupGeneration
++		trackingStartupGate.withRetainedDataGeneration(startupGeneration) { true } == true
+ 
+ 	private fun requireReadyGeneration() {
+ 		if (!isReadyGeneration()) throw StartupGenerationChangedException
+@@ -550,10 +556,11 @@ class ExportPlanWorker @AssistedInject constructor(
+             .setAutoCancel(true)
+             .build()
+ 
+-        NotificationManagerCompat.from(applicationContext).notify(
+-            EXPORT_NOTIFICATION_ID_BASE + plan.id.value.toInt(),
+-            notification
+-        )
++        trackingStartupGate.withRetainedDataGeneration(startupGeneration) {
++            NotificationManagerCompat.from(applicationContext).notify(
++                EXPORT_NOTIFICATION_ID_BASE + plan.id.value.toInt(), notification,
++            )
++        }
+     }
+ 
+     companion object {
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/LocationFileImportPreview.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/LocationFileImportPreview.kt
+index de78e62685..2087316644 100644
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/LocationFileImportPreview.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/LocationFileImportPreview.kt
+@@ -13,6 +13,7 @@ import com.adsamcik.tracker.impexp.portable.LocationFilePointV1
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+ import com.adsamcik.tracker.shared.base.extension.openInputStream
+ import com.adsamcik.tracker.shared.base.mapper.toModel
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+ import dagger.hilt.android.EntryPointAccessors
+ import java.io.IOException
+ import java.io.InputStream
+@@ -47,24 +48,29 @@ object LocationFileImportPreviewer {
+         val graph = EntryPointAccessors.fromApplication(
+             context.applicationContext, ImportAdmissionEntryPoint::class.java,
+         )
+-        return withContext(graph.dispatchersProvider().io) {
+-            val file = DocumentFile.fromSingleUri(context, uri)
+-                ?: throw IOException("Could not open Location file")
+-            if (!file.name.orEmpty().endsWith(".${LocationFileJsonV1.EXTENSION}", ignoreCase = true)) {
+-                throw InvalidLocationFile("Choose a Location file")
+-            }
+-            val epoch = graph.collectedDataLifecycleStore().snapshot().epoch
+-            val database = AppDatabase.database(context)
+-            val preview = LocationPointIdIndex.open(context.cacheDir).use { pointIds ->
+-                val source = file.openInputStream(context)
+-                    ?: throw IOException("Could not read Location file")
+-                source.use { input -> inspectLocationFile(database, input, epoch, pointIds) }
+-            }
+-            if (graph.collectedDataLifecycleStore().snapshot().epoch != epoch) {
+-                throw IOException("Recorded data changed while checking the Location file")
++        val gate = graph.trackingStartupGate()
++        val generation = gate.currentGeneration
++        if (gate.reconcile() !is TrackingStartupResult.Ready) throw IOException("Tracking data is not ready")
++        return gate.withReadyGenerationTransfer(generation) {
++            withContext(graph.dispatchersProvider().io) {
++                val file = DocumentFile.fromSingleUri(context, uri)
++                    ?: throw IOException("Could not open Location file")
++                if (!file.name.orEmpty().endsWith(".${LocationFileJsonV1.EXTENSION}", ignoreCase = true)) {
++                    throw InvalidLocationFile("Choose a Location file")
++                }
++                val epoch = graph.collectedDataLifecycleStore().snapshot().epoch
++                val database = AppDatabase.database(context)
++                val preview = LocationPointIdIndex.open(context.cacheDir).use { pointIds ->
++                    val source = file.openInputStream(context)
++                        ?: throw IOException("Could not read Location file")
++                    source.use { input -> inspectLocationFile(database, input, epoch, pointIds) }
++                }
++                if (graph.collectedDataLifecycleStore().snapshot().epoch != epoch) {
++                    throw IOException("Recorded data changed while checking the Location file")
++                }
++                preview
+             }
+-            preview
+-        }
++        } ?: throw IOException("Recorded data changed before checking the Location file")
+     }
+ }
+ 
+diff --git a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ExportDocumentCleanupTest.kt b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ExportDocumentCleanupTest.kt
+index 68e4f72241..68e7ab1589 100644
+--- a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ExportDocumentCleanupTest.kt
++++ b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ExportDocumentCleanupTest.kt
+@@ -12,6 +12,8 @@ import com.adsamcik.tracker.impexp.exporter.JsonExporter
+ import com.adsamcik.tracker.impexp.exporter.data.ImportExportDataRepository
+ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+ import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+ import com.adsamcik.tracker.shared.base.database.dao.TripDao
+ import com.adsamcik.tracker.shared.base.database.data.SampleQuality
+@@ -175,6 +177,9 @@ class ExportDocumentCleanupTest {
+             override val default: CoroutineDispatcher = dispatcher
+             override val main: CoroutineDispatcher = dispatcher
+             override val unconfined: CoroutineDispatcher = dispatcher
++        }, object : TrackingStartupGate {
++            override val isReady = true
++            override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
+         })
+     }
+ 
+diff --git a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/automation/ExportAutomationControllerTest.kt b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/automation/ExportAutomationControllerTest.kt
+index d0589ee18f..1b53f6e816 100644
+--- a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/automation/ExportAutomationControllerTest.kt
++++ b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/automation/ExportAutomationControllerTest.kt
+@@ -3,12 +3,22 @@ package com.adsamcik.tracker.impexp.exporter.automation
+ import android.content.Context
+ import androidx.work.ExistingWorkPolicy
+ import androidx.work.OneTimeWorkRequest
++import androidx.work.Operation
++import androidx.work.PeriodicWorkRequest
+ import androidx.work.WorkManager
+ import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
+ import com.adsamcik.tracker.shared.base.time.Clock
+ import io.mockk.every
+ import io.mockk.mockk
+ import io.mockk.verify
++import io.kotest.matchers.shouldBe
++import com.google.common.util.concurrent.Futures
++import kotlinx.coroutines.CoroutineDispatcher
++import kotlinx.coroutines.CoroutineStart
++import kotlinx.coroutines.async
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.test.StandardTestDispatcher
++import kotlin.coroutines.CoroutineContext
+ import kotlinx.coroutines.ExperimentalCoroutinesApi
+ import kotlinx.coroutines.flow.flowOf
+ import kotlinx.coroutines.test.UnconfinedTestDispatcher
+@@ -18,6 +28,66 @@ import org.junit.Test
+ 
+ class ExportAutomationControllerTest {
+ 
++	@OptIn(ExperimentalCoroutinesApi::class)
++	@Test
++	fun `pause fences delayed interval and after-session enqueue at actual WorkManager calls`() = runTest {
++		val taskIo = QueuedDispatcher()
++		val plans = MutableStateFlow(listOf(plan(1L, ExportCadence.Interval(ExportCadence.IntervalUnit.DAY)),
++			plan(2L, ExportCadence.AfterSession)))
++		val store = mockk<ExportPlanStore>()
++		every { store.plans } returns plans
++		val manager = mockk<WorkManager>(relaxed = true)
++		val cancelled = mockk<Operation> {
++			every { result } returns Futures.immediateFuture(Operation.SUCCESS)
++		}
++		every { manager.cancelAllWorkByTag("export.plan") } returns cancelled
++		val controller = ExportAutomationController(mockk(relaxed = true), store,
++			object : com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider {
++				override val io: CoroutineDispatcher = taskIo
++				override val main: CoroutineDispatcher = StandardTestDispatcher(testScheduler)
++				override val default: CoroutineDispatcher = main
++				override val unconfined: CoroutineDispatcher = main
++			}, zeroClock(), backgroundScope, manager)
++		runCurrent() // Observer captures admission; actual I/O scheduling remains queued.
++		controller.triggerAfterSessionPlans()
++		val pause = async(start = CoroutineStart.UNDISPATCHED) { controller.pauseForDataDeletion() }
++		taskIo.runPending()
++		runCurrent()
++		pause.await()
++		verify(exactly = 0) { manager.enqueueUniquePeriodicWork(any(), any(), any<PeriodicWorkRequest>()) }
++		verify(exactly = 0) { manager.enqueueUniqueWork(any(), any(), any<OneTimeWorkRequest>()) }
++		controller.triggerAfterSessionPlans()
++		plans.value = plans.value.map { it.copy(name = "Changed while paused") }
++		runCurrent()
++		taskIo.runPending()
++		verify(exactly = 0) { manager.enqueueUniqueWork(any(), any(), any<OneTimeWorkRequest>()) }
++		controller.resumeAfterDataDeletion()
++		controller.triggerAfterSessionPlans()
++		taskIo.runPending()
++		verify(exactly = 1) { manager.enqueueUniquePeriodicWork(any(), any(), any<PeriodicWorkRequest>()) }
++		verify(exactly = 1) { manager.enqueueUniqueWork(any(), any(), any<OneTimeWorkRequest>()) }
++	}
++
++	@OptIn(ExperimentalCoroutinesApi::class)
++	@Test
++	fun `failed WorkManager cancellation retains paused scheduling until recovery resumes`() = runTest {
++		val dispatcher = UnconfinedTestDispatcher(testScheduler)
++		val store = mockk<ExportPlanStore> { every { plans } returns flowOf(listOf(plan(2L, ExportCadence.AfterSession))) }
++		val manager = mockk<WorkManager>(relaxed = true)
++		every { manager.cancelAllWorkByTag("export.plan") } throws IllegalStateException("Work database busy")
++		val controller = ExportAutomationController(mockk(relaxed = true), store,
++			TestDispatchersProvider(dispatcher), zeroClock(), this, manager)
++		runCurrent()
++		runCatching { controller.pauseForDataDeletion() }.isFailure shouldBe true
++		controller.triggerAfterSessionPlans()
++		runCurrent()
++		verify(exactly = 0) { manager.enqueueUniqueWork(any(), any(), any<OneTimeWorkRequest>()) }
++		controller.resumeAfterDataDeletion()
++		controller.triggerAfterSessionPlans()
++		runCurrent()
++		verify(exactly = 1) { manager.enqueueUniqueWork(any(), any(), any<OneTimeWorkRequest>()) }
++	}
++
+ 	@OptIn(ExperimentalCoroutinesApi::class)
+ 	@Test
+ 	fun `after-session trigger serializes unique work keyed by plan id`() = runTest {
+@@ -60,4 +130,18 @@ class ExportAutomationControllerTest {
+ 			)
+ 		}
+ 	}
++
++	private fun plan(id: Long, cadence: ExportCadence) = ExportBackupPlan(
++		ExportPlanId(id), "Plan", ExportFormat.JSON, cadence, ExportScope.EntireHistory,
++		ExportDestination.PrivateStorage(), true, 1L, 1L,
++	)
++	private fun zeroClock() = object : Clock {
++		override fun currentTimeMillis() = 0L
++		override fun elapsedRealtimeNanos() = 0L
++	}
++	private class QueuedDispatcher : CoroutineDispatcher() {
++		private val pending = ArrayDeque<Runnable>()
++		override fun dispatch(context: CoroutineContext, block: Runnable) { pending.addLast(block) }
++		fun runPending() { while (pending.isNotEmpty()) pending.removeFirst().run() }
++	}
+ }
+diff --git a/feature/map/src/main/java/com/adsamcik/tracker/map/export/MapImageShareHelper.kt b/feature/map/src/main/java/com/adsamcik/tracker/map/export/MapImageShareHelper.kt
+index c69993eefe..7b3a3030d9 100644
+--- a/feature/map/src/main/java/com/adsamcik/tracker/map/export/MapImageShareHelper.kt
++++ b/feature/map/src/main/java/com/adsamcik/tracker/map/export/MapImageShareHelper.kt
+@@ -5,6 +5,9 @@ import android.content.Intent
+ import android.graphics.Bitmap
+ import androidx.core.content.FileProvider
+ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
++import kotlinx.coroutines.NonCancellable
+ import kotlinx.coroutines.withContext
+ import java.io.File
+ import javax.inject.Inject
+@@ -16,28 +19,58 @@ import javax.inject.Inject
+  */
+ class MapImageShareHelper @Inject constructor(
+ 	private val dispatchersProvider: DispatchersProvider,
++	private val startupGate: TrackingStartupGate,
+ ) {
++	val currentGeneration: Long get() = startupGate.currentGeneration
++
++	/** The request's generation is captured before rendering, so an old image cannot be readmitted. */
++	suspend fun renderAndShare(
++		context: Context,
++		expectedGeneration: Long,
++		render: suspend () -> Bitmap,
++	): Boolean {
++		if (startupGate.reconcile() !is TrackingStartupResult.Ready) return false
++		return startupGate.withReadyGenerationTransfer(expectedGeneration) {
++			saveAndShare(context, render(), expectedGeneration)
++		} == true
++	}
++
+ 	/**
+ 	 * Compresses [bitmap] to PNG, writes it to a fresh file, and opens the share sheet for it.
+ 	 * The caller owns [bitmap]'s lifecycle before this call; it is not recycled here.
+ 	 */
+-	suspend fun saveAndShare(context: Context, bitmap: Bitmap) {
+-		val uri = withContext(dispatchersProvider.io) {
+-			val shareableDir = File(context.filesDir, SHARABLE_DIR).apply { mkdirs() }
+-			val file = File(shareableDir, "map_share_${System.currentTimeMillis()}.png")
+-			file.outputStream().use { output ->
+-				bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, output)
++	private suspend fun saveAndShare(context: Context, bitmap: Bitmap, generation: Long): Boolean {
++		var createdFile: File? = null
++		var handedOff = false
++		try {
++			val uri = withContext(dispatchersProvider.io) {
++				val shareableDir = File(context.filesDir, SHARABLE_DIR).apply { mkdirs() }
++				val file = File.createTempFile("map_share_", ".png", shareableDir)
++				createdFile = file
++				file.outputStream().use { output ->
++					check(bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, output)) {
++						"Map image could not be encoded"
++					}
++				}
++				FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+ 			}
+-			FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+-		}
+ 
+-		withContext(dispatchersProvider.main) {
+-			val shareIntent = Intent(Intent.ACTION_SEND).apply {
+-				type = MIME_TYPE_PNG
+-				putExtra(Intent.EXTRA_STREAM, uri)
+-				addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
++			withContext(dispatchersProvider.main) {
++				val shareIntent = Intent(Intent.ACTION_SEND).apply {
++					type = MIME_TYPE_PNG
++					putExtra(Intent.EXTRA_STREAM, uri)
++					addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
++				}
++				handedOff = startupGate.withRetainedDataGeneration(generation) {
++					context.startActivity(Intent.createChooser(shareIntent, null))
++					true
++				} == true
++			}
++			return handedOff
++		} finally {
++			if (!handedOff) withContext(NonCancellable + dispatchersProvider.io) {
++				createdFile?.let { check(!it.exists() || it.delete()) { "Could not remove unfinished map share" } }
+ 			}
+-			context.startActivity(Intent.createChooser(shareIntent, null))
+ 		}
+ 	}
+ 
+diff --git a/feature/map/src/main/java/com/adsamcik/tracker/map/export/MapShareResolution.kt b/feature/map/src/main/java/com/adsamcik/tracker/map/export/MapShareResolution.kt
+index 2254a01195..e4144c88ea 100644
+--- a/feature/map/src/main/java/com/adsamcik/tracker/map/export/MapShareResolution.kt
++++ b/feature/map/src/main/java/com/adsamcik/tracker/map/export/MapShareResolution.kt
+@@ -32,6 +32,9 @@ enum class MapShareResolution(val longEdgePx: Int, val labelRes: Int) {
+ /** Pixel dimensions resolved for a [MapShareResolution] request. */
+ data class MapShareImageSize(val widthPx: Int, val heightPx: Int)
+ 
++/** Transient capture request; a rendered image keeps the deletion generation of the user's tap. */
++data class MapShareCaptureRequest(val resolution: MapShareResolution, val startupGeneration: Long)
++
+ /**
+  * Resolves the output pixel dimensions for this resolution preset given the aspect ratio
+  * ([widthPx] / [heightPx]) of the on-screen viewport the user was looking at, so the exported
+diff --git a/feature/map/src/main/java/com/adsamcik/tracker/map/export/MapSnapshotRenderer.kt b/feature/map/src/main/java/com/adsamcik/tracker/map/export/MapSnapshotRenderer.kt
+index 3460f3f71a..893874d300 100644
+--- a/feature/map/src/main/java/com/adsamcik/tracker/map/export/MapSnapshotRenderer.kt
++++ b/feature/map/src/main/java/com/adsamcik/tracker/map/export/MapSnapshotRenderer.kt
+@@ -8,7 +8,9 @@ import com.adsamcik.tracker.map.presentation.udf.LatLngModel
+ import com.adsamcik.tracker.map.ui.sdfBitmapFromVector
+ import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
++import kotlinx.coroutines.CoroutineDispatcher
+ import kotlinx.coroutines.MainCoroutineDispatcher
++import kotlinx.coroutines.NonCancellable
+ import kotlinx.coroutines.suspendCancellableCoroutine
+ import kotlinx.coroutines.withContext
+ import org.maplibre.android.camera.CameraPosition as ClassicCameraPosition
+@@ -83,6 +85,7 @@ object MapSnapshotRenderer {
+ 				activeTrackingColorArgb = activeTrackingColorArgb,
+ 				widthPx = widthPx,
+ 				heightPx = heightPx,
++				mainDispatcher = mainImmediate,
+ 			)
+ 		}
+ 	}
+@@ -97,7 +100,8 @@ object MapSnapshotRenderer {
+ 		activeTrackingColorArgb: Int,
+ 		widthPx: Int,
+ 		heightPx: Int,
+-	): Bitmap = suspendCancellableCoroutine { continuation ->
++		mainDispatcher: CoroutineDispatcher,
++	): Bitmap {
+ 		val styleBuilder = Style.Builder().apply {
+ 			when (baseStyle) {
+ 				is BaseStyle.Json -> fromJson(baseStyle.json)
+@@ -115,22 +119,37 @@ object MapSnapshotRenderer {
+ 			.withAttribution(true)
+ 
+ 		val snapshotter = MapSnapshotter(context, options)
+-		continuation.invokeOnCancellation { snapshotter.cancel() }
++		return awaitSnapshot(snapshotter, mainDispatcher)
++	}
+ 
+-		snapshotter.start(
+-			object : MapSnapshotter.SnapshotReadyCallback {
+-				override fun onSnapshotReady(snapshot: MapSnapshot) {
+-					if (continuation.isActive) continuation.resume(snapshot.bitmap)
+-				}
+-			},
+-			object : MapSnapshotter.ErrorHandler {
+-				override fun onError(error: String) {
+-					if (continuation.isActive) {
+-						continuation.resumeWithException(MapSnapshotException(error))
+-					}
+-				}
+-			},
+-		)
++	internal suspend fun awaitSnapshot(
++		snapshotter: MapSnapshotter,
++		mainDispatcher: CoroutineDispatcher,
++	): Bitmap {
++		try {
++			return suspendCancellableCoroutine { continuation ->
++				snapshotter.start(
++					object : MapSnapshotter.SnapshotReadyCallback {
++						override fun onSnapshotReady(snapshot: MapSnapshot) {
++							if (continuation.isActive) continuation.resume(snapshot.bitmap)
++						}
++					},
++					object : MapSnapshotter.ErrorHandler {
++						override fun onError(error: String) {
++							if (continuation.isActive) {
++								continuation.resumeWithException(MapSnapshotException(error))
++							}
++						}
++					},
++				)
++			}
++		} finally {
++			// Cancellation can originate on deletion's IO thread. The native snapshotter must
++			// be stopped on its creator thread, and this cleanup must finish before clear proceeds.
++			withContext(NonCancellable + mainDispatcher) {
++				snapshotter.cancel()
++			}
++		}
+ 	}
+ 
+ 	/** Mirrors MapScreen's MapDataLayers, using the classic Layer/Source builder API instead of Compose. */
+diff --git a/feature/map/src/main/java/com/adsamcik/tracker/map/ui/MapRoute.kt b/feature/map/src/main/java/com/adsamcik/tracker/map/ui/MapRoute.kt
+index da534e24a7..23c4519673 100644
+--- a/feature/map/src/main/java/com/adsamcik/tracker/map/ui/MapRoute.kt
++++ b/feature/map/src/main/java/com/adsamcik/tracker/map/ui/MapRoute.kt
+@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
+ import androidx.core.content.ContextCompat
+ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+ import com.adsamcik.tracker.map.export.MapShareResolution
++import com.adsamcik.tracker.map.export.MapShareCaptureRequest
+ import com.adsamcik.tracker.map.layers.registry.DefaultLayerRegistry
+ import com.adsamcik.tracker.map.presentation.MapStore
+ import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerEngine
+@@ -94,7 +95,7 @@ fun MapRoute(
+     // layer data this needs.
+     var showShareSheet by remember { mutableStateOf(false) }
+     var shareResolution by remember { mutableStateOf(MapShareResolution.STANDARD) }
+-    var shareCaptureRequest by remember { mutableStateOf<MapShareResolution?>(null) }
++    var shareCaptureRequest by remember { mutableStateOf<MapShareCaptureRequest?>(null) }
+     var isPreparingShareImage by remember { mutableStateOf(false) }
+     val shareErrorMessage = stringResource(com.adsamcik.tracker.map.R.string.map_share_error)
+ 
+@@ -141,7 +142,9 @@ fun MapRoute(
+             onResolutionSelected = { shareResolution = it },
+             onShareClick = {
+                 showShareSheet = false
+-                shareCaptureRequest = shareResolution
++                shareCaptureRequest = MapShareCaptureRequest(
++                    shareResolution, store.mapImageShareHelper.currentGeneration,
++                )
+             },
+             onDismiss = { showShareSheet = false },
+         )
+diff --git a/feature/map/src/main/java/com/adsamcik/tracker/map/ui/MapScreen.kt b/feature/map/src/main/java/com/adsamcik/tracker/map/ui/MapScreen.kt
+index 7f4ba1ad72..16f99a84a2 100644
+--- a/feature/map/src/main/java/com/adsamcik/tracker/map/ui/MapScreen.kt
++++ b/feature/map/src/main/java/com/adsamcik/tracker/map/ui/MapScreen.kt
+@@ -201,7 +201,7 @@ fun MapScreen(
+     bottomPaddingPx: Int = 0,
+     isLocationPermissionGranted: Boolean = false,
+     topInsetPadding: Dp = 0.dp,
+-    shareCaptureRequest: com.adsamcik.tracker.map.export.MapShareResolution? = null,
++    shareCaptureRequest: com.adsamcik.tracker.map.export.MapShareCaptureRequest? = null,
+     onShareCaptureStarted: () -> Unit = {},
+     onShareCaptureFinished: (success: Boolean) -> Unit = {},
+ ) {
+@@ -509,7 +509,7 @@ fun MapScreen(
+     // this does not touch mapLibreSdkReady/isMapVisible/baseStyle gating above; it only reuses their
+     // already-resolved values as inputs.
+     LaunchedEffect(shareCaptureRequest) {
+-        val resolution = shareCaptureRequest ?: return@LaunchedEffect
++        val request = shareCaptureRequest ?: return@LaunchedEffect
+         val resolvedStyle = baseStyle ?: run {
+             onShareCaptureFinished(false)
+             return@LaunchedEffect
+@@ -518,20 +518,20 @@ fun MapScreen(
+         val aspectRatio = mapViewportSizePx.let { size ->
+             if (size.width > 0 && size.height > 0) size.width.toFloat() / size.height.toFloat() else 1f
+         }
+-        val outputSize = resolution.resolveOutputSizePx(aspectRatio)
++        val outputSize = request.resolution.resolveOutputSizePx(aspectRatio)
+         val success = try {
+-            val bitmap = com.adsamcik.tracker.map.export.MapSnapshotRenderer.render(
+-                context = appContext,
+-                baseStyle = resolvedStyle,
+-                cameraPosition = cameraState.position,
+-                layerConfig = state.layerConfig,
+-                activeTrackingPath = activeTrackingPath,
+-                activeTrackingColorArgb = activeTrackingColorArgb,
+-                widthPx = outputSize.widthPx,
+-                heightPx = outputSize.heightPx,
+-            )
+-            store.mapImageShareHelper.saveAndShare(appContext, bitmap)
+-            true
++            store.mapImageShareHelper.renderAndShare(appContext, request.startupGeneration) {
++                com.adsamcik.tracker.map.export.MapSnapshotRenderer.render(
++                    context = appContext,
++                    baseStyle = resolvedStyle,
++                    cameraPosition = cameraState.position,
++                    layerConfig = state.layerConfig,
++                    activeTrackingPath = activeTrackingPath,
++                    activeTrackingColorArgb = activeTrackingColorArgb,
++                    widthPx = outputSize.widthPx,
++                    heightPx = outputSize.heightPx,
++                )
++            }
+         } catch (e: CancellationException) {
+             throw e
+         } catch (_: Exception) {
+diff --git a/feature/map/src/test/java/com/adsamcik/tracker/map/export/MapSnapshotRendererTest.kt b/feature/map/src/test/java/com/adsamcik/tracker/map/export/MapSnapshotRendererTest.kt
+index ffad257267..a659fc9c52 100644
+--- a/feature/map/src/test/java/com/adsamcik/tracker/map/export/MapSnapshotRendererTest.kt
++++ b/feature/map/src/test/java/com/adsamcik/tracker/map/export/MapSnapshotRendererTest.kt
+@@ -1,7 +1,21 @@
+ package com.adsamcik.tracker.map.export
+ 
+ import io.kotest.matchers.shouldBe
++import io.mockk.every
++import io.mockk.mockk
++import io.mockk.verify
++import java.util.concurrent.CountDownLatch
++import java.util.concurrent.TimeUnit
++import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.DelicateCoroutinesApi
++import kotlinx.coroutines.ExperimentalCoroutinesApi
++import kotlinx.coroutines.async
++import kotlinx.coroutines.newSingleThreadContext
++import kotlinx.coroutines.runBlocking
++import kotlinx.coroutines.withContext
++import kotlinx.coroutines.withTimeout
+ import org.junit.jupiter.api.Test
++import org.maplibre.android.snapshotter.MapSnapshotter
+ 
+ class MapSnapshotRendererTest {
+ 
+@@ -9,4 +23,71 @@ class MapSnapshotRendererTest {
+ 	fun `snapshot symbol text respects system font scaling`() {
+ 		MapSnapshotRenderer.snapshotTextSizePx(textSizeSp = 12f, fontScale = 1.5f) shouldBe 18f
+ 	}
++
++	@Test
++	@OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
++	fun `IO cancellation waits for native cancellation on the creator thread`() = runBlocking {
++		newSingleThreadContext("snapshot-main").use { main ->
++			newSingleThreadContext("clear-io").use { io ->
++				val started = CompletableDeferred<Unit>()
++				val cancelling = CompletableDeferred<Unit>()
++				val finishNativeCancellation = CountDownLatch(1)
++				var creatorThread: Thread? = null
++				var cancellingThread: Thread? = null
++				var nativeCancellationThread: Thread? = null
++				val snapshotter = mockk<MapSnapshotter> {
++					every { start(any(), any()) } answers {
++						creatorThread = Thread.currentThread()
++						started.complete(Unit)
++						Unit
++					}
++					every { cancel() } answers {
++						nativeCancellationThread = Thread.currentThread()
++						cancelling.complete(Unit)
++						check(finishNativeCancellation.await(5, TimeUnit.SECONDS))
++						Unit
++					}
++				}
++				val render = async(main) { MapSnapshotRenderer.awaitSnapshot(snapshotter, main) }
++				try {
++					withTimeout(5_000) { started.await() }
++					withContext(io) {
++						cancellingThread = Thread.currentThread()
++						render.cancel()
++					}
++					withTimeout(5_000) { cancelling.await() }
++					nativeCancellationThread shouldBe creatorThread
++					(nativeCancellationThread === cancellingThread) shouldBe false
++					render.isCompleted shouldBe false
++				} finally {
++					finishNativeCancellation.countDown()
++					render.cancel()
++					withTimeout(5_000) { render.join() }
++				}
++				verify(exactly = 1) { snapshotter.cancel() }
++			}
++		}
++	}
++
++	@Test
++	@OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
++	fun `native start failure still finishes creator-thread cleanup`() = runBlocking {
++		newSingleThreadContext("snapshot-main").use { main ->
++			val failure = IllegalStateException("Native start failed")
++			var creatorThread: Thread? = null
++			var cleanupThread: Thread? = null
++			val snapshotter = mockk<MapSnapshotter> {
++				every { start(any(), any()) } answers {
++					creatorThread = Thread.currentThread()
++					throw failure
++				}
++				every { cancel() } answers { cleanupThread = Thread.currentThread(); Unit }
++			}
++			runCatching {
++				withContext(main) { MapSnapshotRenderer.awaitSnapshot(snapshotter, main) }
++			}.exceptionOrNull() shouldBe failure
++			cleanupThread shouldBe creatorThread
++			verify(exactly = 1) { snapshotter.cancel() }
++		}
++	}
+ }
+diff --git a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/export/GpxShareHelper.kt b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/export/GpxShareHelper.kt
+index 7c29db8f79..1640cbab73 100644
+--- a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/export/GpxShareHelper.kt
++++ b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/export/GpxShareHelper.kt
+@@ -6,8 +6,11 @@ import androidx.core.content.FileProvider
+ import com.adsamcik.tracker.feature.statistics.api.export.TripGpxExportResult
+ import com.adsamcik.tracker.feature.statistics.api.export.TripGpxExporter
+ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+ import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
+ import kotlinx.coroutines.withContext
++import kotlinx.coroutines.NonCancellable
+ import java.io.File
+ import javax.inject.Inject
+ 
+@@ -22,6 +25,7 @@ class GpxShareHelper @Inject constructor(
+ 	private val locationSampleRepository: LocationSampleRepository,
+ 	private val tripGpxExporter: TripGpxExporter,
+ 	private val dispatchersProvider: DispatchersProvider,
++	private val startupGate: TrackingStartupGate,
+ ) {
+ 	/**
+ 	 * Exports location data for the given time range to a GPX file and opens
+@@ -38,64 +42,88 @@ class GpxShareHelper @Inject constructor(
+ 		tripId: Long,
+ 		startTimeMs: Long,
+ 		endTimeMs: Long,
++	): TripGpxExportResult {
++		val generation = startupGate.currentGeneration
++		if (startupGate.reconcile() !is TrackingStartupResult.Ready) return TripGpxExportResult.Failure
++		return startupGate.withReadyGenerationTransfer(generation) {
++			exportAdmitted(context, tripId, startTimeMs, endTimeMs, generation)
++		} ?: TripGpxExportResult.Failure
++	}
++
++	private suspend fun exportAdmitted(
++		context: Context,
++		tripId: Long,
++		startTimeMs: Long,
++		endTimeMs: Long,
++		generation: Long,
+ 	): TripGpxExportResult = withContext(dispatchersProvider.io) {
+ 		val shareableDir = File(context.filesDir, SHARABLE_DIR).apply { mkdirs() }
+-		val file = File(shareableDir, "trip_$tripId.gpx")
++		val file = File.createTempFile("trip_${tripId}_", ".gpx", shareableDir)
+ 		var exportedPointCount = 0
++		var handedOff = false
++		try {
+ 
+-		val result = file.outputStream().use { outputStream ->
+-			tripGpxExporter.export(
+-				outputStream = outputStream,
+-				dateRange = startTimeMs..endTimeMs,
+-			) { emit ->
+-				var afterTimeMs: Long? = null
+-				var afterId: Long? = null
++			val result = file.outputStream().use { outputStream ->
++				tripGpxExporter.export(
++					outputStream = outputStream,
++					dateRange = startTimeMs..endTimeMs,
++				) { emit ->
++					var afterTimeMs: Long? = null
++					var afterId: Long? = null
+ 
+-				while (true) {
+-					val chunk = locationSampleRepository.getOrderedChunkBetween(
+-						fromMs = startTimeMs,
+-						toMs = endTimeMs,
+-						afterTimeMs = afterTimeMs,
+-						afterId = afterId,
+-						limit = LOCATION_EXPORT_CHUNK_SIZE,
+-					)
+-					if (chunk.isEmpty()) break
++					while (true) {
++						val chunk = locationSampleRepository.getOrderedChunkBetween(
++							fromMs = startTimeMs,
++							toMs = endTimeMs,
++							afterTimeMs = afterTimeMs,
++							afterId = afterId,
++							limit = LOCATION_EXPORT_CHUNK_SIZE,
++						)
++						if (chunk.isEmpty()) break
+ 
+-					chunk.forEach { sample ->
+-						afterTimeMs = sample.timeMs
+-						afterId = sample.id
++						chunk.forEach { sample ->
++							afterTimeMs = sample.timeMs
++							afterId = sample.id
+ 
+-						if (sample.latE7 != null && sample.lonE7 != null) {
+-							emit(sample)
+-							exportedPointCount++
++							if (sample.latE7 != null && sample.lonE7 != null) {
++								emit(sample)
++								exportedPointCount++
++							}
+ 						}
+ 					}
+ 				}
+ 			}
+-		}
+ 
+-		if (exportedPointCount == 0) {
+-			file.delete()
+-			return@withContext TripGpxExportResult.Success
+-		}
++			if (result is TripGpxExportResult.Failure) return@withContext result
++			if (exportedPointCount == 0) {
++				return@withContext TripGpxExportResult.Success
++			}
+ 
+-		if (result is TripGpxExportResult.Success) {
+-			val uri = FileProvider.getUriForFile(
+-				context,
+-				"${context.packageName}.fileprovider",
+-				file,
+-			)
+-			withContext(dispatchersProvider.main) {
+-				val shareIntent = Intent(Intent.ACTION_SEND).apply {
+-					type = MIME_TYPE_GPX
+-					putExtra(Intent.EXTRA_STREAM, uri)
+-					addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
++			if (result is TripGpxExportResult.Success) {
++				val uri = FileProvider.getUriForFile(
++					context,
++					"${context.packageName}.fileprovider",
++					file,
++				)
++				withContext(dispatchersProvider.main) {
++					val shareIntent = Intent(Intent.ACTION_SEND).apply {
++						type = MIME_TYPE_GPX
++						putExtra(Intent.EXTRA_STREAM, uri)
++						addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
++					}
++					handedOff = startupGate.withRetainedDataGeneration(generation) {
++						context.startActivity(Intent.createChooser(shareIntent, null))
++						true
++					} == true
+ 				}
+-				context.startActivity(Intent.createChooser(shareIntent, null))
+ 			}
+-		}
+ 
+-		result
++			if (handedOff) result else TripGpxExportResult.Failure
++		} finally {
++			if (!handedOff) withContext(NonCancellable + dispatchersProvider.io) {
++				check(!file.exists() || file.delete()) { "Could not remove unfinished GPX share" }
++			}
++		}
+ 	}
+ 
+ 	companion object {
+diff --git a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/export/GpxShareHelperTest.kt b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/export/GpxShareHelperTest.kt
+index a2ca8f7b6e..deca3060ad 100644
+--- a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/export/GpxShareHelperTest.kt
++++ b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/export/GpxShareHelperTest.kt
+@@ -5,6 +5,8 @@ import android.content.pm.ApplicationInfo
+ import com.adsamcik.tracker.feature.statistics.api.export.TripGpxExportResult
+ import com.adsamcik.tracker.feature.statistics.api.export.TripGpxExporter
+ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+ import com.adsamcik.tracker.shared.model.LocationSample
+ import com.adsamcik.tracker.shared.model.MotionState
+ import com.adsamcik.tracker.shared.model.SampleQuality
+@@ -15,6 +17,10 @@ import io.mockk.coEvery
+ import io.mockk.coVerify
+ import io.mockk.every
+ import io.mockk.mockk
++import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.async
++import kotlinx.coroutines.awaitCancellation
++import kotlinx.coroutines.cancelAndJoin
+ import kotlinx.coroutines.CoroutineDispatcher
+ import kotlinx.coroutines.test.StandardTestDispatcher
+ import kotlinx.coroutines.test.runTest
+@@ -48,6 +54,11 @@ class GpxShareHelperTest {
+ 		locationSampleRepository,
+ 		tripGpxExporter,
+ 		dispatchersProvider,
++		object : TrackingStartupGate {
++			override val isReady = true
++			override val permitsNewCollection = false
++			override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
++		},
+ 	)
+ 
+ 	private fun mockExportContext(): Context {
+@@ -84,6 +95,100 @@ class GpxShareHelperTest {
+ 		)
+ 	}
+ 
++	@Test
++	fun `cancellation closes caller-owned GPX stream and deletes its unfinished file`() = runTest(testDispatcher) {
++		val started = CompletableDeferred<Unit>()
++		var ownedOutput: OutputStream? = null
++		val blockingExporter = object : TripGpxExporter {
++			override suspend fun export(outputStream: OutputStream, dateRange: LongRange,
++				streamLocations: suspend ((LocationSample) -> Unit) -> Unit): TripGpxExportResult {
++				ownedOutput = outputStream
++				outputStream.write(7)
++				started.complete(Unit)
++				awaitCancellation()
++			}
++		}
++		val context = mockExportContext()
++		val helper = GpxShareHelper(locationSampleRepository, blockingExporter, dispatchersProvider, readyHistoryGate())
++		val export = async { helper.exportAndShare(context, 55L, 1_000L, 2_000L) }
++		started.await()
++		export.cancelAndJoin()
++		java.io.File(context.filesDir, "sharable").listFiles()?.size shouldBe 0
++		runCatching { ownedOutput!!.write(1) }.isFailure shouldBe true
++	}
++
++	@Test
++	fun `format failure remains failure and removes private file even without emitted points`() = runTest(testDispatcher) {
++		val failing = object : TripGpxExporter {
++			override suspend fun export(outputStream: OutputStream, dateRange: LongRange,
++				streamLocations: suspend ((LocationSample) -> Unit) -> Unit): TripGpxExportResult {
++				outputStream.write(7)
++				return TripGpxExportResult.Failure
++			}
++		}
++		val context = mockExportContext()
++		GpxShareHelper(locationSampleRepository, failing, dispatchersProvider, readyHistoryGate())
++			.exportAndShare(context, 56L, 1_000L, 2_000L) shouldBe TripGpxExportResult.Failure
++		java.io.File(context.filesDir, "sharable").listFiles()?.size shouldBe 0
++	}
++
++	@Test
++	fun `cancelling one concurrent request for the same trip preserves the other physical file`() = runTest(testDispatcher) {
++		val entered = listOf(CompletableDeferred<Unit>(), CompletableDeferred<Unit>())
++		val releaseSecond = CompletableDeferred<Unit>()
++		var nextRequest = 0
++		val concurrentExporter = object : TripGpxExporter {
++			override suspend fun export(outputStream: OutputStream, dateRange: LongRange,
++				streamLocations: suspend ((LocationSample) -> Unit) -> Unit): TripGpxExportResult {
++				val request = nextRequest++
++				outputStream.write(request + 7)
++				entered[request].complete(Unit)
++				if (request == 0) awaitCancellation()
++				releaseSecond.await()
++				outputStream.write(9)
++				return TripGpxExportResult.Failure
++			}
++		}
++		val context = mockExportContext()
++		val helper = GpxShareHelper(locationSampleRepository, concurrentExporter, dispatchersProvider, readyHistoryGate())
++		val first = async { helper.exportAndShare(context, 58L, 1_000L, 2_000L) }
++		entered[0].await()
++		val second = async { helper.exportAndShare(context, 58L, 1_000L, 2_000L) }
++		entered[1].await()
++		val folder = java.io.File(context.filesDir, "sharable")
++		folder.listFiles()?.size shouldBe 2
++		first.cancelAndJoin()
++		val surviving = folder.listFiles()!!.single()
++		surviving.readBytes().toList() shouldBe listOf(8.toByte())
++		releaseSecond.complete(Unit)
++		second.await() shouldBe TripGpxExportResult.Failure
++		folder.listFiles()?.size shouldBe 0
++	}
++
++	@Test
++	fun `old request is rejected before GPX folder or Location read after deletion`() = runTest(testDispatcher) {
++		var generation = 0L
++		val gate = object : TrackingStartupGate {
++			override val isReady = true
++			override val currentGeneration get() = generation
++			override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult {
++				generation++
++				return TrackingStartupResult.Ready(false, 0L)
++			}
++		}
++		val context = mockExportContext()
++		GpxShareHelper(locationSampleRepository, tripGpxExporter, dispatchersProvider, gate)
++			.exportAndShare(context, 57L, 1_000L, 2_000L) shouldBe TripGpxExportResult.Failure
++		java.io.File(context.filesDir, "sharable").exists() shouldBe false
++		coVerify(exactly = 0) { locationSampleRepository.getOrderedChunkBetween(any(), any(), any(), any(), any()) }
++	}
++
++	private fun readyHistoryGate() = object : TrackingStartupGate {
++		override val isReady = true
++		override val permitsNewCollection = false
++		override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
++	}
++
+ 	@Test
+ 	fun `returns Success when no locations found`() = runTest(testDispatcher) {
+ 		coEvery {

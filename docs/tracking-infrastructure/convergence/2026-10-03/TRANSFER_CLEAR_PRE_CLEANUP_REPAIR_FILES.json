@@ -1,0 +1,223 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "phase": "IMPLEMENTATION_ONLY",
+  "scope": "ordinary retained-data transfer physical quiescence, enqueue fencing, request ownership and deletion-safe handoff; recovery-only blocked-startup callers remain excluded",
+  "observedHead": "1e58017f391fbcdae966bab717f3d7dc17742ec8",
+  "paths": [
+    {
+      "path": "core/common/src/main/java/com/adsamcik/tracker/shared/base/startup/TrackingStartupGate.kt",
+      "sha256": "a63bfe3a1540b0b38b7e75d8ca2befc36ee5e8fda6d65ce1b7b4243c524a5ec6",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGate.kt",
+      "sha256": "a437675232004f1040e88fb7319214a3611958ab6bfa7f995c676ca879d631cb",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportViewModel.kt",
+      "sha256": "04fe5c3f4bc456306362dfafba8b6831efac5ac1499accc77e4a34020267979c",
+      "selection": "scoped mixed patch only; held drafts excluded",
+      "trackedAtHead": true,
+      "before": "docs/tracking-infrastructure/convergence/2026-10-03/transfer-clear-selection/before/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportViewModel.kt",
+      "after": "docs/tracking-infrastructure/convergence/2026-10-03/transfer-clear-selection/after/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportViewModel.kt",
+      "selectedAfterSHA256": "9e78d6f52ab68d285396f14d309c9b06d33d969e9108d48ecd6fd0ebbf0c54a1"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportComposeActivity.kt",
+      "sha256": "c9ebac881e9596535ce122637f1fea522c7e026b6ea84ebbfd6debd851194fc6",
+      "selection": "scoped mixed patch only; held drafts excluded",
+      "trackedAtHead": true,
+      "before": "docs/tracking-infrastructure/convergence/2026-10-03/transfer-clear-selection/before/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportComposeActivity.kt",
+      "after": "docs/tracking-infrastructure/convergence/2026-10-03/transfer-clear-selection/after/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportComposeActivity.kt",
+      "selectedAfterSHA256": "761f012b07fc82a2eef3ecd5c2b226cec37d5356f92b08274941162cd9d56dfb"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt",
+      "sha256": "d245e3e7e98f4cafb73816d259861f55176b43052853b41a877287dc828eec9e",
+      "selection": "scoped mixed patch only; held drafts excluded",
+      "trackedAtHead": true,
+      "before": "docs/tracking-infrastructure/convergence/2026-10-03/transfer-clear-selection/before/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt",
+      "after": "docs/tracking-infrastructure/convergence/2026-10-03/transfer-clear-selection/after/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt",
+      "selectedAfterSHA256": "0913d7c6ee6aeeceeefd1db3f85e70c598225e963f0bea81cee8cd4f8b9169f2"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportPlanWorker.kt",
+      "sha256": "a395efb69a58a855b52fb91a4ab5b8fcf53493fd3fe08acba16668e2a25f88a9",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportAutomationController.kt",
+      "sha256": "a5bd17e66c6a76c00a4bf46ffa3d480694cb494117449be39d4bbd13d7ba6627",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/DataImporter.kt",
+      "sha256": "6cb866b8fa8195eff5841aa24be80c85e64ea05708a619b9e6cc7671b622dfde",
+      "selection": "scoped mixed patch only; held drafts excluded",
+      "trackedAtHead": true,
+      "before": "docs/tracking-infrastructure/convergence/2026-10-03/transfer-clear-selection/before/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/DataImporter.kt",
+      "after": "docs/tracking-infrastructure/convergence/2026-10-03/transfer-clear-selection/after/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/DataImporter.kt",
+      "selectedAfterSHA256": "8354138e50c2319995a9d44d2f85e19ea3f0cda0a057adac4d58aeea70491779"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/LocationFileImportPreview.kt",
+      "sha256": "01f70917aeb1c8fe9c13c7a15f7e2ed9af43372b5c5e64e6236f05e52bcf0daa",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/OwnedTransferFiles.kt",
+      "sha256": "54685be7179800a1e4bc2d0ea8cc17ca4724f7c71a37387404b43bad6f52e106",
+      "selection": "scoped mixed patch only; held drafts excluded",
+      "trackedAtHead": true,
+      "before": "docs/tracking-infrastructure/convergence/2026-10-03/transfer-clear-selection/before/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/OwnedTransferFiles.kt",
+      "after": "docs/tracking-infrastructure/convergence/2026-10-03/transfer-clear-selection/after/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/OwnedTransferFiles.kt",
+      "selectedAfterSHA256": "9f66452868ea37878414c6fa63ccd4bb95524eb6423753a2dfcdcab3e675df3c"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/export/GpxShareHelper.kt",
+      "sha256": "4bd991b854c714948ce914c556dbafbfbdc7458a5697f6dab465e475798c2ce9",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true
+    },
+    {
+      "path": "feature/map/src/main/java/com/adsamcik/tracker/map/export/MapImageShareHelper.kt",
+      "sha256": "cfb6a9a09915b94df85a9804ef0a0ae3eba8d7188f4fee2fbacd95a96bd79835",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true
+    },
+    {
+      "path": "feature/map/src/main/java/com/adsamcik/tracker/map/export/MapShareResolution.kt",
+      "sha256": "657ca4c0c50a3a5a3b0deeab52ca1872143c00ba1304dab3d059c0d62ac9bf33",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true
+    },
+    {
+      "path": "feature/map/src/main/java/com/adsamcik/tracker/map/export/MapSnapshotRenderer.kt",
+      "sha256": "c4230bac6cf06a867b04961e154030f7d87ae9f462e7eb946a7793231b644681",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true
+    },
+    {
+      "path": "feature/map/src/main/java/com/adsamcik/tracker/map/ui/MapRoute.kt",
+      "sha256": "128bbc6b24d6fae149d192ee1c3d4898f27dd39d77f16508de84a69aef4db690",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true
+    },
+    {
+      "path": "feature/map/src/main/java/com/adsamcik/tracker/map/ui/MapScreen.kt",
+      "sha256": "4d9bee4561ccc4a5b3707b2c3ca06460071c5a1556781ef5f4d46da2d0113c0b",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/startup/TrackingStartupTransferQuiescenceTest.kt",
+      "sha256": "11e68eaf7e11a046d92522cc8e9e48b054b83ea90f39f0c4680b6d533a2abe6b",
+      "selection": "whole new authored source",
+      "trackedAtHead": false,
+      "authoredNewCases": 4
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt",
+      "sha256": "f01f6b98b08e2a9a33dc7fa792be8fb0edaf35d37d643cfb3a18328df6c72626",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true,
+      "authoredNewCases": 4
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/CollectedDataDeletionServiceTest.kt",
+      "sha256": "1278cdcab3e92270e43e6e96a5d841d9d6d20871586ffcb917f6752f0bfeb1f2",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true,
+      "authoredNewCases": 2
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/OwnedTransferFilesTest.kt",
+      "sha256": "2edbe61a167f36e6308b9e0f782a88243cd97295ea18195a07bed23c6d2c2b71",
+      "selection": "scoped mixed patch only; held drafts excluded",
+      "trackedAtHead": true,
+      "before": "docs/tracking-infrastructure/convergence/2026-10-03/transfer-clear-selection/before/app/src/test/java/com/adsamcik/tracker/app/settings/OwnedTransferFilesTest.kt",
+      "after": "docs/tracking-infrastructure/convergence/2026-10-03/transfer-clear-selection/after/app/src/test/java/com/adsamcik/tracker/app/settings/OwnedTransferFilesTest.kt",
+      "selectedAfterSHA256": "519c17025d35d07e1b8ded9e4f59c7e53c7c91031c435f54ca136f90ac16755f",
+      "authoredNewCases": 2
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportViewModelTest.kt",
+      "sha256": "fba855290b435e71085d7a1d67a10a4e014e0367e28885a4bcb40bbc6d41a38a",
+      "selection": "scoped mixed patch only; held drafts excluded",
+      "trackedAtHead": true,
+      "before": "docs/tracking-infrastructure/convergence/2026-10-03/transfer-clear-selection/before/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportViewModelTest.kt",
+      "after": "docs/tracking-infrastructure/convergence/2026-10-03/transfer-clear-selection/after/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportViewModelTest.kt",
+      "selectedAfterSHA256": "91298bf4d77205ca5607a570915cb1b6be7b6c7d40b6e5fc663246aa0e90c1ab",
+      "authoredNewCases": 0
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ExportDocumentCleanupTest.kt",
+      "sha256": "9fea0973e8265eae8a1e39e4e5249e9c2b0aeea605d59ea0a61b2d7cf9e2947f",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true,
+      "authoredNewCases": 0
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ManualExportTransferBoundaryTest.kt",
+      "sha256": "3f0ad192b24d4e5923c525fd0f0a3e05f07914ae0f90ab1f6a7836d4e594ae25",
+      "selection": "whole new authored source",
+      "trackedAtHead": false,
+      "authoredNewCases": 10
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/automation/ExportAutomationControllerTest.kt",
+      "sha256": "53d60138e713596efa962d21062ed9605d145218557f4b2e668b45eb3aad91b2",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true,
+      "authoredNewCases": 2
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/worker/TransferWorkerAdmissionTest.kt",
+      "sha256": "58a8a8f19168a3682e5b997390abb5965b92a3516ec54cb4e3a20e7abaa29ace",
+      "selection": "whole new authored source",
+      "trackedAtHead": false,
+      "authoredNewCases": 3
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/LocationPreviewTransferAdmissionTest.kt",
+      "sha256": "717768ae6bb3363b041bc073a8e2a87f2f21d10a6616284d947047bcf9d5fd7c",
+      "selection": "whole new authored source",
+      "trackedAtHead": false,
+      "authoredNewCases": 1
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/export/GpxShareHelperTest.kt",
+      "sha256": "e569fc7831dacc3b5bb3e033cb5447275d328dd554b980eb668c4e2b6e557455",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true,
+      "authoredNewCases": 4
+    },
+    {
+      "path": "feature/map/src/test/java/com/adsamcik/tracker/map/export/MapImageShareTransferTest.kt",
+      "sha256": "a4c082f81a7b72222822ae790be0dc93ae20891bcebc5e09aefc09452cf3211d",
+      "selection": "whole new authored source",
+      "trackedAtHead": false,
+      "authoredNewCases": 4
+    },
+    {
+      "path": "feature/map/src/test/java/com/adsamcik/tracker/map/export/MapSnapshotRendererTest.kt",
+      "sha256": "9fba4ec4953dff8201fa48838a62ea1b461b70bef5b9f93e221b6c314982041d",
+      "selection": "whole task-only tracked delta",
+      "trackedAtHead": true,
+      "authoredNewCases": 2
+    }
+  ],
+  "authoredNewCases": 38,
+  "mixedPatch": "docs/tracking-infrastructure/convergence/2026-10-03/TRANSFER_CLEAR_MIXED.patch",
+  "trackedPatch": "docs/tracking-infrastructure/convergence/2026-10-03/TRANSFER_CLEAR_TRACKED.patch",
+  "receipt": "docs/tracking-infrastructure/convergence/2026-10-03/TRANSFER_CLEAR_SOURCE_BOUNDARY.md",
+  "executedGates": [],
+  "integrationReady": false,
+  "assemblyComplete": false
+}

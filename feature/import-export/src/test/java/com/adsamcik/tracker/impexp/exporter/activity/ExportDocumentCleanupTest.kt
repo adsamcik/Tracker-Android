@@ -12,6 +12,8 @@ import com.adsamcik.tracker.impexp.exporter.JsonExporter
 import com.adsamcik.tracker.impexp.exporter.data.ImportExportDataRepository
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
@@ -175,6 +177,9 @@ class ExportDocumentCleanupTest {
             override val default: CoroutineDispatcher = dispatcher
             override val main: CoroutineDispatcher = dispatcher
             override val unconfined: CoroutineDispatcher = dispatcher
+        }, object : TrackingStartupGate {
+            override val isReady = true
+            override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
         })
     }
 

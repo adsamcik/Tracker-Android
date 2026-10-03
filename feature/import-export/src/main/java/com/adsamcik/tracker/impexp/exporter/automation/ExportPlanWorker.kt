@@ -86,6 +86,12 @@ class ExportPlanWorker @AssistedInject constructor(
 			)
 		}
 		if (!isReadyGeneration()) return Result.success()
+		return trackingStartupGate.withReadyGenerationTransfer(startupGeneration) {
+			runAdmittedExport(plan)
+		} ?: Result.success()
+	}
+
+	private suspend fun runAdmittedExport(plan: ExportBackupPlan): Result {
 		appDatabase = appDatabaseProvider.get()
 
         val startedAt = clock.currentTimeMillis()
@@ -518,7 +524,7 @@ class ExportPlanWorker @AssistedInject constructor(
     }
 
 	private fun isReadyGeneration(): Boolean =
-		trackingStartupGate.isReady && trackingStartupGate.currentGeneration == startupGeneration
+		trackingStartupGate.withRetainedDataGeneration(startupGeneration) { true } == true
 
 	private fun requireReadyGeneration() {
 		if (!isReadyGeneration()) throw StartupGenerationChangedException
@@ -550,10 +556,11 @@ class ExportPlanWorker @AssistedInject constructor(
             .setAutoCancel(true)
             .build()
 
-        NotificationManagerCompat.from(applicationContext).notify(
-            EXPORT_NOTIFICATION_ID_BASE + plan.id.value.toInt(),
-            notification
-        )
+        trackingStartupGate.withRetainedDataGeneration(startupGeneration) {
+            NotificationManagerCompat.from(applicationContext).notify(
+                EXPORT_NOTIFICATION_ID_BASE + plan.id.value.toInt(), notification,
+            )
+        }
     }
 
     companion object {

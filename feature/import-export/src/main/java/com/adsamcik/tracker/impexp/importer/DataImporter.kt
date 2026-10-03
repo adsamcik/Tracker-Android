@@ -143,6 +143,7 @@ internal fun importJobInput(fileUri: String, originalDataEpoch: Long) =
 @InstallIn(SingletonComponent::class)
 internal interface ImportAdmissionEntryPoint {
 	fun collectedDataLifecycleStore(): CollectedDataLifecycleStore
+	fun trackingStartupGate(): com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 	@ApplicationScope fun applicationScope(): CoroutineScope
 	fun dispatchersProvider(): DispatchersProvider
 }

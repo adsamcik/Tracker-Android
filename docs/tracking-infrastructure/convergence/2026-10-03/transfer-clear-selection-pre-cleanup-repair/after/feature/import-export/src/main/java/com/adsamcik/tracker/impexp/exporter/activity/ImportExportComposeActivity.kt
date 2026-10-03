@@ -1,0 +1,756 @@
+package com.adsamcik.tracker.impexp.exporter.activity
+
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import android.webkit.MimeTypeMap
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
+import androidx.documentfile.provider.DocumentFile
+import com.adsamcik.tracker.impexp.R
+import com.adsamcik.tracker.impexp.OwnedTransferFiles
+import com.adsamcik.tracker.impexp.exporter.ExportResult
+import com.adsamcik.tracker.impexp.exporter.Exporter
+import com.adsamcik.tracker.impexp.exporter.JsonExporter
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.shared.utils.style.compose.DetailContentMaxWidth
+import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import java.io.File
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+
+@AndroidEntryPoint
+class ImportExportComposeActivity : ComponentActivity() {
+    private val importExportViewModel: ImportExportViewModel by viewModels()
+    private lateinit var exporter: Exporter
+    private lateinit var shareableDir: File
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
+        super.onCreate(savedInstanceState)
+
+        shareableDir = File(cacheDir, SHARABLE_DIR_NAME)
+
+        val exporterType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.extras?.getSerializable(EXPORTER_KEY, Class::class.java) as? Class<*>
+        } else {
+            @Suppress("DEPRECATION")
+            intent.extras?.getSerializable(EXPORTER_KEY) as? Class<*>
+        } ?: throw IllegalArgumentException("Exporter class not found in intent extras")
+        exporter = exporterType.getConstructor().newInstance() as Exporter
+
+        setContent {
+            AppTheme {
+                ExportScreen(
+                    exporter = exporter,
+                    shareableDir = shareableDir,
+                    activity = this,
+                    viewModel = importExportViewModel,
+                )
+            }
+        }
+    }
+
+    companion object {
+        private const val SHARABLE_DIR_NAME = "sharable"
+        const val EXPORTER_KEY: String = "exporter"
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ExportScreen(
+    exporter: Exporter,
+    shareableDir: File,
+    activity: Activity,
+    viewModel: ImportExportViewModel,
+) {
+    val scope = rememberCoroutineScope()
+    val snackBarHostState = remember { SnackbarHostState() }
+    val uiState by viewModel.uiState.collectAsState()
+
+    // State variables
+    val fileNameState = rememberSaveable { mutableStateOf("") }
+    val fileNameErrorState = rememberSaveable { mutableStateOf<String?>(null) }
+    val canSelectDateRange = exporter.canSelectDateRange
+    val calendarDateFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+
+    val now = Time.now
+    val monthBefore = now.minusMonths(1L)
+    val rangeState = remember { mutableStateOf(monthBefore..now) }
+
+    // State for date pickers
+    val showFromDatePicker = rememberSaveable { mutableStateOf(false) }
+    val showToDatePicker = rememberSaveable { mutableStateOf(false) }
+    val pendingSensitiveAction = remember { mutableStateOf<ExportSensitiveAction?>(null) }
+    val isExporting = uiState.exportCompletionState == ExportCompletionState.Exporting
+
+    BackHandler(enabled = isExporting) {}
+
+    if (uiState.showNoDataDialog && exporter.requiresLocationData) {
+        AlertDialog(
+            onDismissRequest = { activity.finish() },
+            title = { Text(text = stringResource(id = R.string.settings_export_no_data)) },
+            confirmButton = {
+                TextButton(onClick = { activity.finish() }) {
+                    Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_ok))
+                }
+            }
+        )
+    }
+
+    // Implement UI
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = {
+            SnackbarHost(hostState = snackBarHostState)
+        },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(id = R.string.export_share_button), color = MaterialTheme.colorScheme.onSurface) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .padding(paddingValues)
+                .fillMaxWidth()
+                .wrapContentWidth(Alignment.CenterHorizontally)
+                .widthIn(max = DetailContentMaxWidth)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Main content in GlassCard
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(8.dp), // Check GlassCard inner padding
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                     // Filename field with image
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            painter = painterResource(id = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_name),
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        OutlinedTextField(
+                            value = fileNameState.value,
+                            onValueChange = { newValue ->
+                                fileNameState.value = newValue
+                                fileNameErrorState.value = if (Regex("[\\\\/:\"*?<>|]+").containsMatchIn(newValue)) {
+                                    activity.getString(R.string.export_file_name_error)
+                                } else {
+                                    null
+                                }
+                            },
+                            label = { Text(stringResource(id = R.string.export_file_name)) },
+                            isError = fileNameErrorState.value != null,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                focusedLabelColor = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                    }
+                    fileNameErrorState.value?.let { errorText ->
+                        Text(
+                            text = errorText,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(start = 48.dp)
+                        )
+                    }
+
+                    // Date range fields with image
+                    if (canSelectDateRange) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Icon(
+                                painter = painterResource(id = com.adsamcik.tracker.shared.base.R.drawable.ic_date_range_black_24dp),
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                OutlinedTextField(
+                                    value = rangeState.value.start.format(
+                                        if (exporter.selectsCalendarDates) calendarDateFormatter
+                                        else DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)
+                                    ),
+                                    onValueChange = {},
+                                    label = { Text(stringResource(id = R.string.settings_export_dialog_from)) },
+                                    enabled = false,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                        disabledBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    trailingIcon = {
+                                        IconButton(onClick = {
+                                            showFromDatePicker.value = true
+                                        }) {
+                                            Icon(
+                                                painterResource(com.adsamcik.tracker.shared.base.R.drawable.ic_date_range_black_24dp),
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                )
+                                OutlinedTextField(
+                                    value = rangeState.value.endInclusive.format(
+                                        if (exporter.selectsCalendarDates) calendarDateFormatter
+                                        else DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)
+                                    ),
+                                    onValueChange = {},
+                                    label = { Text(stringResource(id = R.string.settings_export_dialog_to)) },
+                                    enabled = false,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                        disabledBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    trailingIcon = {
+                                        IconButton(onClick = {
+                                            showToDatePicker.value = true
+                                        }) {
+                                            Icon(
+                                                painterResource(com.adsamcik.tracker.shared.base.R.drawable.ic_date_range_black_24dp),
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                )
+                            }
+                        }
+						if (exporter is JsonExporter) {
+							Text(
+								text = stringResource(R.string.export_json_whole_session_scope),
+								style = MaterialTheme.typography.bodySmall,
+								color = MaterialTheme.colorScheme.onSurfaceVariant,
+							)
+						}
+                    }
+                }
+            }
+
+            // Buttons
+            if (isExporting) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Text(
+                    text = stringResource(R.string.export_in_progress),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else if (uiState.exportCompletionState == ExportCompletionState.Succeeded) {
+                Text(
+                    text = stringResource(R.string.export_completed),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val exportLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.OpenDocumentTree()
+                ) { uri ->
+                    if (uri == null) {
+                        scope.launch {
+                            snackBarHostState.showSnackbar(
+                                message = activity.getString(R.string.export_error_no_uri)
+                            )
+                        }
+                    } else {
+                        val directory = DocumentFile.fromTreeUri(activity, uri)
+                        if (directory != null) {
+                            val selectedRange = if (canSelectDateRange) rangeState.value else null
+                            viewModel.exportToDocument(
+                                directory = directory,
+                                forceOverride = false,
+                                exporter = exporter,
+                                fileName = fileNameState.value,
+                                range = selectedRange,
+                            ) { result ->
+                                when (result) {
+                                    is ExportDocumentResult.Success -> {
+                                        viewModel.handOffExport(result) { activity.finish() }
+                                    }
+                                    is ExportDocumentResult.Failure -> {
+                                        scope.launch {
+                                            showExportError(
+                                                snackBarHostState = snackBarHostState,
+                                                context = activity,
+                                                error = result.error,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            scope.launch {
+                                snackBarHostState.showSnackbar(
+                                    message = activity.getString(R.string.export_error_no_uri)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                fun startShareExport() {
+                    val requestDirectory = shareRequestDirectory(shareableDir)
+                    val directory = DocumentFile.fromFile(requestDirectory)
+                    var handedOff = false
+                    val selectedRange = if (canSelectDateRange) rangeState.value else null
+                    viewModel.exportToDocument(
+                        directory = directory,
+                        forceOverride = true,
+                        exporter = exporter,
+                        fileName = fileNameState.value,
+                        range = selectedRange,
+                        prepareDirectory = {
+                            prepareShareRequestDirectory(requestDirectory)
+                        },
+                        cleanupDirectory = {
+                            if (!handedOff) removeShareRequestDirectory(requestDirectory)
+                        },
+                    ) { result ->
+                        when (result) {
+                            is ExportDocumentResult.Success -> {
+                                val file = File(requestDirectory, result.fileNameWithExtension)
+                                val shareUri = FileProvider.getUriForFile(
+                                    activity,
+                                    "${activity.packageName}.fileprovider",
+                                    file
+                                )
+                                val shareSummary = viewModel.resolveShareTripSummary(
+                                    fallbackFileName = result.baseFileName,
+                                    range = selectedRange,
+                                )
+                                val shareIntent = Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    putExtra(Intent.EXTRA_STREAM, shareUri)
+                                    putExtra(
+                                        Intent.EXTRA_SUBJECT,
+                                        "Trail: ${shareSummary.tripName} — ${shareSummary.formattedDate}"
+                                    )
+                                    putExtra(Intent.EXTRA_TEXT, buildShareText(shareSummary))
+                                    type = exporter.mimeType
+                                    flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                }
+                                val chooser = Intent.createChooser(
+                                    shareIntent,
+                                    activity.getString(R.string.export_share_button)
+                                )
+                                try {
+                                    handedOff = viewModel.handOffExport(result) { activity.startActivity(chooser) }
+                                } catch (_: Exception) {
+                                    scope.launch {
+                                        snackBarHostState.showSnackbar(
+                                            activity.getString(R.string.export_error_unknown)
+                                        )
+                                    }
+                                }
+                            }
+                            is ExportDocumentResult.Failure -> {
+                                scope.launch {
+                                    showExportError(
+                                        snackBarHostState = snackBarHostState,
+                                        context = activity,
+                                        error = result.error,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                pendingSensitiveAction.value?.let { action ->
+                    AlertDialog(
+                        onDismissRequest = { pendingSensitiveAction.value = null },
+                        title = { Text(stringResource(exporter.sensitivityTitleRes)) },
+                        text = { Text(stringResource(exporter.sensitivityMessageRes)) },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    pendingSensitiveAction.value = null
+                                    when (action) {
+                                        ExportSensitiveAction.Export -> exportLauncher.launch(null)
+                                        ExportSensitiveAction.Share -> startShareExport()
+                                    }
+                                }
+                            ) {
+                                Text(stringResource(R.string.export_sensitivity_confirm))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { pendingSensitiveAction.value = null }) {
+                                Text(stringResource(com.adsamcik.tracker.shared.base.R.string.generic_cancel))
+                            }
+                        },
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        if (exporter.containsSensitiveLocationData) {
+                            pendingSensitiveAction.value = ExportSensitiveAction.Export
+                        } else {
+                            exportLauncher.launch(null)
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = fileNameErrorState.value == null && !isExporting,
+                   border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text(text = stringResource(id = R.string.export_button))
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        if (exporter.containsSensitiveLocationData) {
+                            pendingSensitiveAction.value = ExportSensitiveAction.Share
+                        } else {
+                            startShareExport()
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = fileNameErrorState.value == null && !isExporting,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text(text = stringResource(id = R.string.export_share_button))
+                }
+            }
+        }
+    }
+    
+    // Date pickers
+    if (showFromDatePicker.value) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = if (exporter.selectsCalendarDates) {
+                calendarPickerSelectionMs(rangeState.value.start)
+            } else {
+                rangeState.value.start.toInstant().toEpochMilli()
+            }
+        )
+        DatePickerDialog(
+            onDismissRequest = { showFromDatePicker.value = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val selectedMillis = datePickerState.selectedDateMillis
+                        if (selectedMillis != null) {
+                            if (exporter.selectsCalendarDates) {
+                                val selectedDate = calendarPickerDay(selectedMillis, rangeState.value.start.zone)
+                                val end = rangeState.value.endInclusive
+                                    .takeUnless { it.isBefore(selectedDate) } ?: selectedDate
+                                rangeState.value = selectedDate..end
+                            } else {
+                                val selectedDate = Instant.ofEpochMilli(selectedMillis).atZone(ZoneId.systemDefault())
+                                rangeState.value = selectedDate..rangeState.value.endInclusive
+                            }
+                        }
+                        showFromDatePicker.value = false
+                    }
+                ) {
+                    Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFromDatePicker.value = false }) {
+                    Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_cancel))
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showToDatePicker.value) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = if (exporter.selectsCalendarDates) {
+                calendarPickerSelectionMs(rangeState.value.endInclusive)
+            } else {
+                rangeState.value.endInclusive.toInstant().toEpochMilli()
+            }
+        )
+        DatePickerDialog(
+            onDismissRequest = { showToDatePicker.value = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val selectedMillis = datePickerState.selectedDateMillis
+                        if (selectedMillis != null) {
+                            if (exporter.selectsCalendarDates) {
+                                val selectedDate = calendarPickerDay(selectedMillis, rangeState.value.start.zone)
+                                val start = rangeState.value.start
+                                    .takeUnless { it.isAfter(selectedDate) } ?: selectedDate
+                                rangeState.value = start..selectedDate
+                            } else {
+                                val selectedDate = Instant.ofEpochMilli(selectedMillis).atZone(ZoneId.systemDefault())
+                                rangeState.value = rangeState.value.start..selectedDate
+                            }
+                        }
+                        showToDatePicker.value = false
+                    }
+                ) {
+                    Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showToDatePicker.value = false }) {
+                    Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_cancel))
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+}
+
+/** Material's picker uses UTC-midnight dates even when the export screen shows a local zone. */
+internal fun calendarPickerSelectionMs(date: ZonedDateTime): Long =
+    date.toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+
+internal fun calendarPickerDay(selectedMs: Long, displayedZone: ZoneId): ZonedDateTime =
+    Instant.ofEpochMilli(selectedMs).atZone(ZoneOffset.UTC).toLocalDate()
+        .atStartOfDay(displayedZone)
+
+private suspend fun showExportError(
+    snackBarHostState: SnackbarHostState,
+    context: Context,
+    error: ExportResult.Error,
+) {
+    val message = error.message?.localize(context)
+        ?: context.getString(R.string.export_error_unknown)
+    snackBarHostState.showSnackbar(message)
+}
+
+internal fun preventDoubleExtension(fileNameWithExtension: String, exporter: Exporter): String {
+    val extension = MimeTypeMap
+        .getSingleton()
+        .getExtensionFromMimeType(exporter.mimeType)
+        .orEmpty()
+
+    return if (fileNameWithExtension.endsWith(".$extension")) {
+        fileNameWithExtension.substring(
+            0,
+            fileNameWithExtension.length - extension.length - 1
+        )
+    } else {
+        fileNameWithExtension
+    }
+}
+
+private fun formatForFile(dateTime: ZonedDateTime) =
+    dateTime.withNano(0).format(DateTimeFormatter.ofPattern("d-M-y--k-m")).replace(':', '-')
+
+internal fun getExportFileName(
+    fileName: String,
+    exporter: Exporter,
+    range: ClosedRange<ZonedDateTime>?,
+    context: Context
+): String {
+    if (fileName.isBlank()) {
+        return if (!exporter.canSelectDateRange || range == null) {
+            context.getString(
+                R.string.export_default_file_name_all,
+                formatForFile(Time.now)
+            )
+        } else {
+            context.getString(
+                R.string.export_default_file_name_range,
+                formatForFile(range.start),
+                formatForFile(range.endInclusive)
+            )
+        }
+    } else {
+        return fileName.trim()
+    }
+}
+
+internal fun findAvailableFileName(
+    directory: DocumentFile,
+    baseFileName: String,
+    extension: String
+): String {
+    var counter = 1
+    var candidateName = baseFileName
+    
+    // Check if base name already exists
+    while (directory.findFile("${candidateName}.${extension}") != null) {
+        candidateName = "${baseFileName}_${counter}"
+        counter++
+        // Safety limit to prevent infinite loops
+        if (counter > 9999) break
+    }
+    
+    return candidateName
+}
+
+private enum class ExportSensitiveAction {
+    Export,
+    Share,
+}
+
+internal data class ShareTripSummary(
+    val tripName: String,
+    val formattedDate: String,
+    val activityEmoji: String,
+    val formattedDistance: String?,
+    val formattedDuration: String?,
+    val formattedSteps: String?
+)
+
+internal fun buildShareText(trip: ShareTripSummary): String {
+    val titleLine = "${trip.activityEmoji} ${trip.tripName} — ${trip.formattedDate}"
+    val statsLine = buildList {
+        trip.formattedDistance?.let { distance -> add("📏 $distance") }
+        trip.formattedDuration?.let { duration -> add("⏱ $duration") }
+        trip.formattedSteps?.let { steps -> add("🦶 $steps") }
+    }.joinToString(separator = " · ")
+    return listOfNotNull(
+        titleLine,
+        statsLine.takeIf(String::isNotEmpty),
+        "Exported from Tracker (local-only, no cloud)",
+    ).joinToString(separator = "\n")
+}
+
+internal fun mapActivityToEmoji(activityName: String?, activityId: Long?): String {
+    return when {
+        activityId == NativeSessionActivity.WALKING.id ||
+            activityName?.contains("walk", ignoreCase = true) == true -> "🥾"
+        activityId == NativeSessionActivity.RUNNING.id ||
+            activityName?.contains("run", ignoreCase = true) == true -> "🏃"
+        activityId == NativeSessionActivity.BICYCLE.id ||
+            activityName?.contains("ride", ignoreCase = true) == true ||
+            activityName?.contains("bike", ignoreCase = true) == true ||
+            activityName?.contains("cycle", ignoreCase = true) == true -> "🚴"
+        activityId == NativeSessionActivity.VEHICLE.id ||
+            activityId == NativeSessionActivity.LAND_VEHICLE.id ||
+            activityId == NativeSessionActivity.WATER_VEHICLE.id ||
+            activityId == NativeSessionActivity.AIR_VEHICLE.id ||
+            activityName?.contains("vehicle", ignoreCase = true) == true ||
+            activityName?.contains("car", ignoreCase = true) == true -> "🚗"
+        activityName?.contains("still", ignoreCase = true) == true -> "⏸️"
+        else -> "📍"
+    }
+}
+
+internal fun cleanupShareableDirectory(
+    directory: File,
+    nowMillis: Long = System.currentTimeMillis(),
+    maxAgeMillis: Long = SHAREABLE_MAX_AGE_MS,
+) {
+    if (!directory.exists()) return
+    directory.listFiles()?.forEach { file ->
+        val ageMillis = nowMillis - file.lastModified()
+        if (file.isDirectory) {
+            if (OwnedTransferFiles.isShareRequestDirectoryName(file.name) && ageMillis >= maxAgeMillis) {
+                check(file.deleteRecursively()) { "Could not remove an expired share directory" }
+            }
+            return@forEach
+        }
+        if (ageMillis >= maxAgeMillis && !file.delete()) {
+            file.deleteOnExit()
+        }
+    }
+}
+
+/** Ordinary export Share owns the cache route only; GPX/PNG share files belong to their callers. */
+internal fun prepareShareableDirectory(directory: File) {
+    cleanupShareableDirectory(directory)
+    check(directory.isDirectory || directory.mkdirs()) { "Could not create share directory" }
+}
+
+/** Allocation is memory-only; exclusive directory creation occurs inside the admitted transfer. */
+internal fun shareRequestDirectory(parent: File): File =
+    File(parent, "share_${java.util.UUID.randomUUID()}")
+
+internal fun prepareShareRequestDirectory(directory: File) {
+    require(OwnedTransferFiles.isShareRequestDirectoryName(directory.name))
+    prepareShareableDirectory(requireNotNull(directory.parentFile))
+    java.nio.file.Files.createDirectory(directory.toPath())
+}
+
+internal fun removeShareRequestDirectory(directory: File) {
+    require(OwnedTransferFiles.isShareRequestDirectoryName(directory.name))
+    if (directory.exists()) check(directory.deleteRecursively()) { "Could not remove unfinished share directory" }
+}
+
+private const val SHAREABLE_MAX_AGE_MS = 24L * 60L * 60L * 1000L

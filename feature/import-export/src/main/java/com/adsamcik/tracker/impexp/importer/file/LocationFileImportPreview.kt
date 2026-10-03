@@ -13,6 +13,7 @@ import com.adsamcik.tracker.impexp.portable.LocationFilePointV1
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.openInputStream
 import com.adsamcik.tracker.shared.base.mapper.toModel
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import dagger.hilt.android.EntryPointAccessors
 import java.io.IOException
 import java.io.InputStream
@@ -47,24 +48,29 @@ object LocationFileImportPreviewer {
         val graph = EntryPointAccessors.fromApplication(
             context.applicationContext, ImportAdmissionEntryPoint::class.java,
         )
-        return withContext(graph.dispatchersProvider().io) {
-            val file = DocumentFile.fromSingleUri(context, uri)
-                ?: throw IOException("Could not open Location file")
-            if (!file.name.orEmpty().endsWith(".${LocationFileJsonV1.EXTENSION}", ignoreCase = true)) {
-                throw InvalidLocationFile("Choose a Location file")
+        val gate = graph.trackingStartupGate()
+        val generation = gate.currentGeneration
+        if (gate.reconcile() !is TrackingStartupResult.Ready) throw IOException("Tracking data is not ready")
+        return gate.withReadyGenerationTransfer(generation) {
+            withContext(graph.dispatchersProvider().io) {
+                val file = DocumentFile.fromSingleUri(context, uri)
+                    ?: throw IOException("Could not open Location file")
+                if (!file.name.orEmpty().endsWith(".${LocationFileJsonV1.EXTENSION}", ignoreCase = true)) {
+                    throw InvalidLocationFile("Choose a Location file")
+                }
+                val epoch = graph.collectedDataLifecycleStore().snapshot().epoch
+                val database = AppDatabase.database(context)
+                val preview = LocationPointIdIndex.open(context.cacheDir).use { pointIds ->
+                    val source = file.openInputStream(context)
+                        ?: throw IOException("Could not read Location file")
+                    source.use { input -> inspectLocationFile(database, input, epoch, pointIds) }
+                }
+                if (graph.collectedDataLifecycleStore().snapshot().epoch != epoch) {
+                    throw IOException("Recorded data changed while checking the Location file")
+                }
+                preview
             }
-            val epoch = graph.collectedDataLifecycleStore().snapshot().epoch
-            val database = AppDatabase.database(context)
-            val preview = LocationPointIdIndex.open(context.cacheDir).use { pointIds ->
-                val source = file.openInputStream(context)
-                    ?: throw IOException("Could not read Location file")
-                source.use { input -> inspectLocationFile(database, input, epoch, pointIds) }
-            }
-            if (graph.collectedDataLifecycleStore().snapshot().epoch != epoch) {
-                throw IOException("Recorded data changed while checking the Location file")
-            }
-            preview
-        }
+        } ?: throw IOException("Recorded data changed before checking the Location file")
     }
 }
 

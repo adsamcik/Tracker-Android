@@ -43,6 +43,12 @@ import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -166,6 +172,7 @@ class TrackingStartupDeletionBarrier internal constructor(
 	private val mutableOpenGenerations = MutableStateFlow(0L)
 	private val startupRecoveryMutex = Mutex()
 	private val admissionMonitor = Any()
+	private val transferJobs = linkedSetOf<Job>()
 	@Volatile private var closing = false
 
 	/**
@@ -183,10 +190,12 @@ class TrackingStartupDeletionBarrier internal constructor(
 
 	/** Prevents new admission immediately without waiting for an admitted operation. */
 	internal fun beginCloseAdmission() {
-		synchronized(admissionMonitor) {
-			if (closed.get() || closing) return
+		val transfers = synchronized(admissionMonitor) {
 			closing = true
+			transferJobs.toList()
 		}
+		// Cancellation handlers may reenter admission; never cancel while holding the monitor.
+		transfers.forEach { it.cancel() }
 	}
 
 	/**
@@ -199,7 +208,7 @@ class TrackingStartupDeletionBarrier internal constructor(
 			awaitQuiescence()
 		} catch (cancelled: CancellationException) {
 			synchronized(admissionMonitor) {
-				if (!closed.get()) closing = false
+				if (!closed.get() && transferJobs.isEmpty()) closing = false
 			}
 			throw cancelled
 		}
@@ -215,6 +224,8 @@ class TrackingStartupDeletionBarrier internal constructor(
 	/** Waits until pre-close operations exit, then atomically publishes the closed generation. */
 	internal suspend fun awaitQuiescence() {
 		val quiesced = withTimeoutOrNull(operationQuiescenceTimeoutMs) {
+			val transfers = synchronized(admissionMonitor) { transferJobs.toList() }
+			transfers.joinAll()
 			startupRecoveryMutex.withLock {
 				finishAdmissionClose()
 			}
@@ -233,6 +244,7 @@ class TrackingStartupDeletionBarrier internal constructor(
 	suspend fun reopen() {
 		startupRecoveryMutex.withLock {
 			synchronized(admissionMonitor) {
+				check(transferJobs.isEmpty()) { "File transfers have not physically quiesced" }
 				closing = false
 				closed.set(false)
 				mutableOpenGenerations.value = generation.get()
@@ -255,6 +267,26 @@ class TrackingStartupDeletionBarrier internal constructor(
 		operation: () -> T,
 	): T? = synchronized(admissionMonitor) {
 		if (closed.get() || closing || generation.get() != expectedGeneration) null else operation()
+	}
+
+	/** Registers only a transfer's dedicated structured child, never its owner's whole scope. */
+	internal suspend fun <T> withTransfer(
+		expectedGeneration: Long,
+		isReady: () -> Boolean,
+		operation: suspend () -> T,
+	): T? = coroutineScope {
+		val child = async(start = CoroutineStart.LAZY) { operation() }
+		val admitted = synchronized(admissionMonitor) {
+			if (closed.get() || closing || generation.get() != expectedGeneration || !isReady()) false
+			else { transferJobs.add(child); true }
+		}
+		if (!admitted) {
+			child.cancel()
+			return@coroutineScope null
+		}
+		child.invokeOnCompletion { synchronized(admissionMonitor) { transferJobs.remove(child) } }
+		child.start()
+		child.await()
 	}
 
 	private companion object {
@@ -282,6 +314,7 @@ class DefaultTrackingStartupGate @Inject constructor(
 	@Volatile private var ready: TrackingStartupResult.Ready? = null
 	@Volatile private var readyGeneration = -1L
 	@Volatile private var readyStopGeneration = -1L
+	@Volatile private var retainedDataReadyGeneration = -1L
 	private val readySignals = MutableStateFlow<RuntimeReadySignal?>(null)
 	private var recoveryAction: ApplicationStartupRecoveryAction? = null
 	private var previousExitApplied = false
@@ -356,6 +389,28 @@ class DefaultTrackingStartupGate @Inject constructor(
 		}
 	}
 
+	override suspend fun <T> withReadyGenerationTransfer(
+		expectedGeneration: Long,
+		operation: suspend () -> T,
+	): T? {
+		currentCoroutineContext().ensureActive()
+		val nested = currentCoroutineContext()[TransferOperationContext]
+		if (nested?.gate === this) {
+			return if (nested.generation == expectedGeneration &&
+				withRetainedDataGeneration(expectedGeneration) { true } == true)
+				operation() else null
+		}
+		return deletionBarrier.withTransfer(expectedGeneration,
+			{ withRetainedDataGeneration(expectedGeneration) { true } == true }) {
+			withContext(TransferOperationContext(this, expectedGeneration)) { operation() }
+		}
+	}
+
+	override fun <T> withRetainedDataGeneration(expectedGeneration: Long, operation: () -> T): T? =
+		deletionBarrier.withOpenGeneration(expectedGeneration) {
+			if (retainedDataReadyGeneration == expectedGeneration) operation() else null
+		}
+
 	override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult {
 		ready.takeIf { isReady }?.let { return it }
 		while (true) {
@@ -392,6 +447,15 @@ class DefaultTrackingStartupGate @Inject constructor(
 				selection.flight.result.completeExceptionally(failure)
 				throw failure
 			}
+			val failedStage = when (result) {
+				is TrackingStartupResult.RetryableFailure -> result.stage
+				is TrackingStartupResult.Blocked -> result.stage
+				is TrackingStartupResult.Ready -> null
+			}
+			// Lifecycle supersession changes acquisition authority, not retained storage.
+			if (failedStage in RETAINED_DATA_FAILURE_STAGES &&
+				(result as? TrackingStartupResult.RetryableFailure)?.failureCode != LEGACY_LIFECYCLE_SUPERSEDED
+			) retainedDataReadyGeneration = -1L
 			clearFlight(selection.flight)
 			selection.flight.result.complete(result)
 			return result
@@ -480,6 +544,7 @@ class DefaultTrackingStartupGate @Inject constructor(
 				ready = result
 				readyGeneration = recoveryGeneration
 				readyStopGeneration = recoveryStopGeneration
+				retainedDataReadyGeneration = recoveryGeneration
 				readySignalVersion += 1L
 				readySignals.value = RuntimeReadySignal(
 					version = readySignalVersion,
@@ -768,6 +833,11 @@ class DefaultTrackingStartupGate @Inject constructor(
 	}
 
 	private companion object {
+		val RETAINED_DATA_FAILURE_STAGES = setOf(
+			TrackingStartupStage.STORAGE,
+			TrackingStartupStage.LEGACY_IMPORT,
+			TrackingStartupStage.LEGACY_V27,
+		)
 		const val STORAGE_NOT_READY = "STORAGE_NOT_READY"
 		const val COLLECTED_DATA_DELETION_PENDING = "COLLECTED_DATA_DELETION_PENDING"
 		const val PENDING_STOP_FAILED = "PENDING_STOP_FAILED"
@@ -805,4 +875,11 @@ private class ReadyGenerationOperationContext(
 	val generation: Long,
 ) : AbstractCoroutineContextElement(ReadyGenerationOperationContext) {
 	companion object Key : CoroutineContext.Key<ReadyGenerationOperationContext>
+}
+
+private class TransferOperationContext(
+	val gate: DefaultTrackingStartupGate,
+	val generation: Long,
+) : AbstractCoroutineContextElement(TransferOperationContext) {
+	companion object Key : CoroutineContext.Key<TransferOperationContext>
 }

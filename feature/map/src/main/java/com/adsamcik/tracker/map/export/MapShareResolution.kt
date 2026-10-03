@@ -32,6 +32,9 @@ enum class MapShareResolution(val longEdgePx: Int, val labelRes: Int) {
 /** Pixel dimensions resolved for a [MapShareResolution] request. */
 data class MapShareImageSize(val widthPx: Int, val heightPx: Int)
 
+/** Transient capture request; a rendered image keeps the deletion generation of the user's tap. */
+data class MapShareCaptureRequest(val resolution: MapShareResolution, val startupGeneration: Long)
+
 /**
  * Resolves the output pixel dimensions for this resolution preset given the aspect ratio
  * ([widthPx] / [heightPx]) of the on-screen viewport the user was looking at, so the exported

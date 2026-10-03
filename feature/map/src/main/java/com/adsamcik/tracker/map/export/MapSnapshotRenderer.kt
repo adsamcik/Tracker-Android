@@ -8,7 +8,9 @@ import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.ui.sdfBitmapFromVector
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.MainCoroutineDispatcher
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.maplibre.android.camera.CameraPosition as ClassicCameraPosition
@@ -83,6 +85,7 @@ object MapSnapshotRenderer {
 				activeTrackingColorArgb = activeTrackingColorArgb,
 				widthPx = widthPx,
 				heightPx = heightPx,
+				mainDispatcher = mainImmediate,
 			)
 		}
 	}
@@ -97,7 +100,8 @@ object MapSnapshotRenderer {
 		activeTrackingColorArgb: Int,
 		widthPx: Int,
 		heightPx: Int,
-	): Bitmap = suspendCancellableCoroutine { continuation ->
+		mainDispatcher: CoroutineDispatcher,
+	): Bitmap {
 		val styleBuilder = Style.Builder().apply {
 			when (baseStyle) {
 				is BaseStyle.Json -> fromJson(baseStyle.json)
@@ -115,22 +119,37 @@ object MapSnapshotRenderer {
 			.withAttribution(true)
 
 		val snapshotter = MapSnapshotter(context, options)
-		continuation.invokeOnCancellation { snapshotter.cancel() }
+		return awaitSnapshot(snapshotter, mainDispatcher)
+	}
 
-		snapshotter.start(
-			object : MapSnapshotter.SnapshotReadyCallback {
-				override fun onSnapshotReady(snapshot: MapSnapshot) {
-					if (continuation.isActive) continuation.resume(snapshot.bitmap)
-				}
-			},
-			object : MapSnapshotter.ErrorHandler {
-				override fun onError(error: String) {
-					if (continuation.isActive) {
-						continuation.resumeWithException(MapSnapshotException(error))
-					}
-				}
-			},
-		)
+	internal suspend fun awaitSnapshot(
+		snapshotter: MapSnapshotter,
+		mainDispatcher: CoroutineDispatcher,
+	): Bitmap {
+		try {
+			return suspendCancellableCoroutine { continuation ->
+				snapshotter.start(
+					object : MapSnapshotter.SnapshotReadyCallback {
+						override fun onSnapshotReady(snapshot: MapSnapshot) {
+							if (continuation.isActive) continuation.resume(snapshot.bitmap)
+						}
+					},
+					object : MapSnapshotter.ErrorHandler {
+						override fun onError(error: String) {
+							if (continuation.isActive) {
+								continuation.resumeWithException(MapSnapshotException(error))
+							}
+						}
+					},
+				)
+			}
+		} finally {
+			// Cancellation can originate on deletion's IO thread. The native snapshotter must
+			// be stopped on its creator thread, and this cleanup must finish before clear proceeds.
+			withContext(NonCancellable + mainDispatcher) {
+				snapshotter.cancel()
+			}
+		}
 	}
 
 	/** Mirrors MapScreen's MapDataLayers, using the classic Layer/Source builder API instead of Compose. */

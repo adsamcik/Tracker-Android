@@ -17,6 +17,11 @@ class OwnedTransferCleanupException(val residualPath: String, cause: Throwable? 
 /** Private, disposable transfer copies. Call only after import and export writers are stopped. */
 object OwnedTransferFiles {
     private const val PRIVATE_SCHEDULED_EXPORT_DIRECTORY = "exports"
+    private val SHARE_REQUEST_DIRECTORY_PATTERN =
+        Regex("share_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+
+    internal fun isShareRequestDirectoryName(name: String): Boolean =
+        name.matches(SHARE_REQUEST_DIRECTORY_PATTERN)
 
     /** New scheduled files always use the owned directory; old saved directory names are inert. */
     fun privateScheduledExportFile(
@@ -101,22 +106,16 @@ object OwnedTransferFiles {
                 ?: throw OwnedTransferCleanupException(directory.absolutePath)
             children.forEach { child ->
                 if (child.canonicalFile.parentFile != directory ||
-                    child.canonicalFile != child.absoluteFile || !child.isFile
+                    child.canonicalFile != child.absoluteFile
                 ) {
                     throw OwnedTransferCleanupException(child.absolutePath)
                 }
-                if (revokeShareGrant) {
-                    try {
-                        val uri = FileProvider.getUriForFile(
-                            context, "${context.packageName}.fileprovider", child,
-                        )
-                        context.revokeUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    } catch (failure: Exception) {
-                        throw OwnedTransferCleanupException(child.absolutePath, failure)
+                if (name == "sharable" && child.isDirectory && isShareRequestDirectoryName(child.name)) {
+                    removeShareRequestDirectory(child) { file ->
+                        deleteOwnedFile(context, file, child, revokeShareGrant)
                     }
-                }
-                if (!child.delete()) {
-                    throw OwnedTransferCleanupException(child.absolutePath)
+                } else {
+                    deleteOwnedFile(context, child, directory, revokeShareGrant)
                 }
             }
             if (!directory.delete()) {
@@ -127,6 +126,45 @@ object OwnedTransferFiles {
         } catch (failure: Exception) {
             throw OwnedTransferCleanupException(intendedPath, failure)
         }
+    }
+
+    /** Only the exact request directory and its immediate regular files belong to this job. */
+    internal fun removeShareRequestDirectory(directory: File) = removeShareRequestDirectory(directory) { file ->
+        if (!file.delete()) throw OwnedTransferCleanupException(file.absolutePath)
+    }
+
+    private fun removeShareRequestDirectory(directory: File, deleteFile: (File) -> Unit) {
+        if (!isShareRequestDirectoryName(directory.name)) throw OwnedTransferCleanupException(directory.absolutePath)
+        if (!Files.exists(directory.toPath(), LinkOption.NOFOLLOW_LINKS)) return
+        val parent = directory.parentFile ?: throw OwnedTransferCleanupException(directory.absolutePath)
+        if (directory.canonicalFile != directory.absoluteFile ||
+            directory.canonicalFile.parentFile != parent.canonicalFile || !directory.isDirectory
+        ) throw OwnedTransferCleanupException(directory.absolutePath)
+        val files = directory.listFiles() ?: throw OwnedTransferCleanupException(directory.absolutePath)
+        // Validate the entire one-level membership before deleting any of it. Unexpected nested
+        // content or links remain intact and report the existing cleanup failure.
+        files.forEach { requireOwnedFile(it, directory) }
+        files.forEach(deleteFile)
+        if (!directory.delete()) throw OwnedTransferCleanupException(directory.absolutePath)
+    }
+
+    private fun requireOwnedFile(file: File, parent: File) {
+        if (file.canonicalFile.parentFile != parent || file.canonicalFile != file.absoluteFile || !file.isFile) {
+            throw OwnedTransferCleanupException(file.absolutePath)
+        }
+    }
+
+    private fun deleteOwnedFile(context: Context, file: File, parent: File, revokeShareGrant: Boolean) {
+        requireOwnedFile(file, parent)
+        if (revokeShareGrant) {
+            try {
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                context.revokeUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (failure: Exception) {
+                throw OwnedTransferCleanupException(file.absolutePath, failure)
+            }
+        }
+        if (!file.delete()) throw OwnedTransferCleanupException(file.absolutePath)
     }
 
     private const val MAX_PRIVATE_FILE_NAME_ATTEMPTS = 1_000

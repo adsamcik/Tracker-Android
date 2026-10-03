@@ -84,20 +84,21 @@ behavior choice still needs a concrete proposal under AGENTS.md.
 - [x] Independently review H1/H2/H3 and select the retained Location qualifier
   core with seven standalone Room scenarios. Erase uses exact existing identity;
   optional context limits/errors retain it and actual read failures stay typed.
-  The exact selective patch excludes composed held History scenarios; none ran.
+  Commit `6c192245b8` excludes composed held History scenarios; none ran.
 - [ ] Select the complete displayed-day History readers, composed cases and UI.
   Their statically reviewed H1/H2/H3 fixes remain preserved with full held R11
   files; source-midnight storage and exact archive selectors remain separate gaps.
 - [ ] Trace and implement period metrics through real dated source data, including
   missing evidence and correction/deletion behavior; never substitute All-time.
 - [ ] Update source-selection receipts and checklists after each coherent commit.
-- [ ] Complete transfer cancellation and physical draining through the existing
-  startup boundary, including GPX/map-image shares and scheduled enqueue fences.
-  The implementation seam is traced in `TRANSFER_CLEAR_QUIESCENCE_SOURCE_TRACE.md`;
-  this fulfills already approved cleanup behavior, without another user question.
-  Concrete independent findings now include creator-thread renderer cleanup,
-  concurrent same-name share ownership and Off during an already-admitted
-  retained-history export. Source repairs and final static review remain active.
+- [x] Select independently reviewed ordinary-transfer cancellation and physical
+  draining through the existing startup boundary, including GPX/map-image shares,
+  scheduled enqueue fences and bounded request-folder cleanup. The final packet
+  selects 29 source paths and 40 newly authored, unexecuted cases. Creator-thread
+  renderer cleanup, concurrent same-name share ownership and Off during retained
+  export findings are statically closed in `TRANSFER_CLEAR_FRESH_REVIEW_1003.md`.
+  Blocked-startup recovery exports and persisted later unfinished-file notices
+  remain separate required gaps; this milestone does not close full privacy cleanup.
 
 The approved displayed-day History is being authored. The isolated imported-radio
 export-date candidate slice is source-reviewed for narrow selection. Neither

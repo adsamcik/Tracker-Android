@@ -201,7 +201,7 @@ fun MapScreen(
     bottomPaddingPx: Int = 0,
     isLocationPermissionGranted: Boolean = false,
     topInsetPadding: Dp = 0.dp,
-    shareCaptureRequest: com.adsamcik.tracker.map.export.MapShareResolution? = null,
+    shareCaptureRequest: com.adsamcik.tracker.map.export.MapShareCaptureRequest? = null,
     onShareCaptureStarted: () -> Unit = {},
     onShareCaptureFinished: (success: Boolean) -> Unit = {},
 ) {
@@ -509,7 +509,7 @@ fun MapScreen(
     // this does not touch mapLibreSdkReady/isMapVisible/baseStyle gating above; it only reuses their
     // already-resolved values as inputs.
     LaunchedEffect(shareCaptureRequest) {
-        val resolution = shareCaptureRequest ?: return@LaunchedEffect
+        val request = shareCaptureRequest ?: return@LaunchedEffect
         val resolvedStyle = baseStyle ?: run {
             onShareCaptureFinished(false)
             return@LaunchedEffect
@@ -518,20 +518,20 @@ fun MapScreen(
         val aspectRatio = mapViewportSizePx.let { size ->
             if (size.width > 0 && size.height > 0) size.width.toFloat() / size.height.toFloat() else 1f
         }
-        val outputSize = resolution.resolveOutputSizePx(aspectRatio)
+        val outputSize = request.resolution.resolveOutputSizePx(aspectRatio)
         val success = try {
-            val bitmap = com.adsamcik.tracker.map.export.MapSnapshotRenderer.render(
-                context = appContext,
-                baseStyle = resolvedStyle,
-                cameraPosition = cameraState.position,
-                layerConfig = state.layerConfig,
-                activeTrackingPath = activeTrackingPath,
-                activeTrackingColorArgb = activeTrackingColorArgb,
-                widthPx = outputSize.widthPx,
-                heightPx = outputSize.heightPx,
-            )
-            store.mapImageShareHelper.saveAndShare(appContext, bitmap)
-            true
+            store.mapImageShareHelper.renderAndShare(appContext, request.startupGeneration) {
+                com.adsamcik.tracker.map.export.MapSnapshotRenderer.render(
+                    context = appContext,
+                    baseStyle = resolvedStyle,
+                    cameraPosition = cameraState.position,
+                    layerConfig = state.layerConfig,
+                    activeTrackingPath = activeTrackingPath,
+                    activeTrackingColorArgb = activeTrackingColorArgb,
+                    widthPx = outputSize.widthPx,
+                    heightPx = outputSize.heightPx,
+                )
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

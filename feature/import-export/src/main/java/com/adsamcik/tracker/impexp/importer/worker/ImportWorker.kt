@@ -95,7 +95,7 @@ class ImportWorker @AssistedInject constructor(
 			is TrackingStartupResult.Ready -> Unit
 			is TrackingStartupResult.RetryableFailure -> return Result.retry()
 			is TrackingStartupResult.Blocked -> {
-				showErrorNotification("Import unavailable until tracking data recovery is complete.")
+				showErrorNotification("Import unavailable until tracking data recovery is complete.", allowBeforeReady = true)
 				return Result.failure()
 			}
 		}
@@ -104,6 +104,12 @@ class ImportWorker @AssistedInject constructor(
 			showErrorNotification(context.getString(R.string.import_cleared_error))
 			return Result.failure()
 		}
+		return trackingStartupGate.withReadyGenerationTransfer(startupGeneration) {
+			runAdmittedImport(file)
+		} ?: Result.success()
+	}
+
+	private suspend fun runAdmittedImport(file: DocumentFile): Result {
 		database = databaseProvider.get()
 		if (!isReadyGeneration()) return Result.success()
 		importJobRunner = ImportJobRunner(
@@ -211,15 +217,22 @@ class ImportWorker @AssistedInject constructor(
     private fun showNotification(text: String, inProgress: Boolean) {
         runCatchingCancellable {
             val notification = createNotification(text, inProgress)
-            notificationManager.notify(NOTIFICATION_ID, notification)
+            if (startupGeneration < 0L) notificationManager.notify(NOTIFICATION_ID, notification)
+            else trackingStartupGate.withRetainedDataGeneration(startupGeneration) {
+                notificationManager.notify(NOTIFICATION_ID, notification)
+            }
         }.getOrNull()
     }
 
     @AnyThread
-    private fun showErrorNotification(text: String) {
+    private fun showErrorNotification(text: String, allowBeforeReady: Boolean = false) {
         runCatchingCancellable {
             val notification = createNotification(text, false)
-            notificationManager.notify(NOTIFICATION_ERROR_BASE_ID + errorCount++, notification)
+            if (allowBeforeReady || startupGeneration < 0L)
+                notificationManager.notify(NOTIFICATION_ERROR_BASE_ID + errorCount++, notification)
+            else trackingStartupGate.withRetainedDataGeneration(startupGeneration) {
+                notificationManager.notify(NOTIFICATION_ERROR_BASE_ID + errorCount++, notification)
+            }
         }.getOrNull()
     }
 
@@ -371,7 +384,7 @@ class ImportWorker @AssistedInject constructor(
 		collectedDataLifecycleStore.snapshot().epoch == originalDataEpoch
 
 	private fun isReadyGeneration(): Boolean =
-		trackingStartupGate.isReady && trackingStartupGate.currentGeneration == startupGeneration
+		trackingStartupGate.withRetainedDataGeneration(startupGeneration) { true } == true
 
 	private fun requireReadyGeneration() {
 		if (!isReadyGeneration()) throw StartupGenerationChangedException

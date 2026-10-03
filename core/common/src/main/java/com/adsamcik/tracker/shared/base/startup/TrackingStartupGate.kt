@@ -55,6 +55,26 @@ interface TrackingStartupGate {
 	): T? = if (isReadyGeneration(expectedGeneration)) operation() else null
 
 	/**
+	 * One short retained-data handoff, fenced by storage/deletion rather than collection Stop.
+	 * This never authorizes acquisition. A transfer already running may finish after tracking Off.
+	 */
+	fun <T> withRetainedDataGeneration(
+		expectedGeneration: Long,
+		operation: () -> T,
+	): T? = withReadyGeneration(expectedGeneration, operation)
+
+	/**
+	 * Admits one structured file transfer. Deletion cancels and physically joins its child job,
+	 * including stream closure and cancellation cleanup. The caller reconciles before admission;
+	 * long I/O never holds startup or Stop control-plane locks. Retained-history transfers use
+	 * storage readiness even when new collection is stopped or a newer Stop is being handled.
+	 */
+	suspend fun <T> withReadyGenerationTransfer(
+		expectedGeneration: Long,
+		operation: suspend () -> T,
+	): T? = if (withRetainedDataGeneration(expectedGeneration) { true } == true) operation() else null
+
+	/**
 	 * Compatibility entry point for live admission. It deliberately reconciles the full gate.
 	 */
 	suspend fun reconcileAdmission(

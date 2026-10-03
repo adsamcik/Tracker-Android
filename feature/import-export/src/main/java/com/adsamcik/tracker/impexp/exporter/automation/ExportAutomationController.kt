@@ -9,6 +9,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.await
 import androidx.work.workDataOf
+import com.adsamcik.tracker.impexp.importer.ImportAdmissionFence
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.time.Clock
 import java.time.Duration
@@ -34,6 +35,8 @@ class ExportAutomationController(
     private val scope: CoroutineScope,
     private val workManager: WorkManager = WorkManager.getInstance(context),
 ) {
+    // Imports and schedules share the same short enqueue fence; transfer jobs belong to startup.
+    private val admissionFence = ImportAdmissionFence()
     private val schedulingConstraints = Constraints.Builder()
         .setRequiresCharging(true)
         .setRequiresBatteryNotLow(true)
@@ -55,27 +58,26 @@ class ExportAutomationController(
             .launchIn(scope)
     }
 
-    private suspend fun cancelWork(workName: String) = withContext(dispatchers.io) {
-        workManager.cancelUniqueWork(workName)
-    }
-
     private fun synchronizeIntervalPlans(plans: List<ExportBackupPlan>) {
+        val generation = admissionFence.capture() ?: return
         scope.launch(dispatchers.io) {
             plans.forEach { plan ->
                 val workName = plan.workName()
                 if (!plan.enabled) {
-                    cancelWork(workName)
+                    admissionFence.enqueueIfCurrent(generation) { workManager.cancelUniqueWork(workName) }
                     return@forEach
                 }
                 when (val cadence = plan.cadence) {
-                    ExportCadence.AfterSession -> cancelWork(workName)
-                    is ExportCadence.Interval -> scheduleIntervalPlan(plan, cadence)
+                    ExportCadence.AfterSession -> admissionFence.enqueueIfCurrent(generation) {
+                        workManager.cancelUniqueWork(workName)
+                    }
+                    is ExportCadence.Interval -> scheduleIntervalPlan(plan, cadence, generation)
                 }
             }
         }
     }
 
-    private fun scheduleIntervalPlan(plan: ExportBackupPlan, cadence: ExportCadence.Interval) {
+    private fun scheduleIntervalPlan(plan: ExportBackupPlan, cadence: ExportCadence.Interval, generation: Long) {
         val repeatDuration = ExportPlanScheduling.repeatDuration(cadence)
         val initialDelay = ExportPlanScheduling.initialDelay(cadence, clock)
             .coerceAtLeast(Duration.ZERO)
@@ -92,32 +94,35 @@ class ExportAutomationController(
             .addTag(WORK_TAG_PLAN)
             .build()
 
-        workManager.enqueueUniquePeriodicWork(
-            plan.workName(),
-            ExistingPeriodicWorkPolicy.UPDATE,
-            request
-        )
+        admissionFence.enqueueIfCurrent(generation) {
+            workManager.enqueueUniquePeriodicWork(
+                plan.workName(), ExistingPeriodicWorkPolicy.UPDATE, request,
+            )
+        }
     }
 
     /** Trigger all after-session plans immediately. */
     fun triggerAfterSessionPlans() {
+        val generation = admissionFence.capture() ?: return
         val plans = latestPlans
         if (plans.isEmpty()) return
         scope.launch(dispatchers.io) {
             plans.filter { it.enabled && it.cadence is ExportCadence.AfterSession }
-                .forEach(::enqueueOneTime)
+                .forEach { enqueueOneTime(it, generation) }
         }
     }
 
-    suspend fun pauseForDataDeletion(): Unit = withContext(dispatchers.io) {
-        workManager.cancelAllWorkByTag(WORK_TAG_PLAN).await()
+    suspend fun pauseForDataDeletion() {
+        admissionFence.pause { Unit }
+        withContext(dispatchers.io) { workManager.cancelAllWorkByTag(WORK_TAG_PLAN).await() }
     }
 
     fun resumeAfterDataDeletion() {
+        admissionFence.resume()
         synchronizeIntervalPlans(latestPlans)
     }
 
-    private fun enqueueOneTime(plan: ExportBackupPlan) {
+    private fun enqueueOneTime(plan: ExportBackupPlan, generation: Long) {
         val inputData = workDataOf(ExportPlanWorker.KEY_PLAN_ID to plan.id.value)
         val request = OneTimeWorkRequestBuilder<ExportPlanWorker>()
             .setConstraints(schedulingConstraints)
@@ -126,11 +131,9 @@ class ExportAutomationController(
             .build()
         // Queue a follow-up trigger without cancelling an in-flight export; replace only
         // a failed/cancelled prerequisite chain so future sessions are not suppressed.
-        workManager.enqueueUniqueWork(
-            plan.workName(),
-            ExistingWorkPolicy.APPEND_OR_REPLACE,
-            request,
-        )
+        admissionFence.enqueueIfCurrent(generation) {
+            workManager.enqueueUniqueWork(plan.workName(), ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+        }
     }
 
     companion object {

@@ -67,6 +67,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -355,6 +357,84 @@ class CollectedDataDeletionServiceTest {
 		coVerify(exactly = 2) { writerQuiescer.quiesce() }
 		markerFile.exists() shouldBe true
 		startupDeletionBarrier.isClosed shouldBe true
+	}
+
+	@Test
+	fun `clear waits for admitted private export close and cleanup after writer cancellation acknowledgement`() = runTest {
+		val file = File(context.filesDir, "exports/physical-drain.json")
+		file.parentFile!!.mkdirs()
+		val started = CompletableDeferred<Unit>()
+		val cleaning = CompletableDeferred<Unit>()
+		val finishCleanup = CompletableDeferred<Unit>()
+		var outputClosed = false
+		var cleanupComplete = false
+		var databaseClears = 0
+		val transfer = launch {
+			startupDeletionBarrier.withTransfer(0L, { true }) {
+				try {
+					try { file.outputStream().use { it.write(7); started.complete(Unit); awaitCancellation() } }
+					finally { outputClosed = true }
+				} finally {
+					withContext(NonCancellable) {
+						cleaning.complete(Unit)
+						finishCleanup.await()
+						cleanupComplete = true
+					}
+				}
+			}
+		}
+		started.await()
+		val service = createService(providerFenceScope = backgroundScope) { _, _, _, _ ->
+			outputClosed shouldBe true
+			cleanupComplete shouldBe true
+			databaseClears++
+		}
+		val deletion = async { service.deleteAll() }
+		cleaning.await()
+		runCurrent()
+		deletion.isCompleted shouldBe false
+		databaseClears shouldBe 0
+		lifecycleSnapshot.epoch shouldBe 0L
+		file.exists() shouldBe true
+		coVerify(atLeast = 1) { writerQuiescer.quiesce() }
+		finishCleanup.complete(Unit)
+		deletion.await() shouldBe CollectedDataDeletionCompletion.Complete
+		transfer.join()
+		databaseClears shouldBe 1
+		file.exists() shouldBe false
+		startupDeletionBarrier.isClosed shouldBe false
+	}
+
+	@Test
+	fun `timed out file cleanup keeps durable clear debt and retries before clearing data`() = runTest {
+		startupDeletionBarrier = TrackingStartupDeletionBarrier(50L)
+		val started = CompletableDeferred<Unit>()
+		val cleaning = CompletableDeferred<Unit>()
+		val finishCleanup = CompletableDeferred<Unit>()
+		var databaseClears = 0
+		val transfer = launch {
+			startupDeletionBarrier.withTransfer(0L, { true }) {
+				try { started.complete(Unit); awaitCancellation() }
+				finally { withContext(NonCancellable) { cleaning.complete(Unit); finishCleanup.await() } }
+			}
+		}
+		started.await()
+		val service = createService(providerFenceScope = backgroundScope) { _, _, _, _ -> databaseClears++ }
+		val first = async { service.deleteAll() }
+		cleaning.await()
+		advanceTimeBy(51L)
+		runCurrent()
+		first.await().shouldBeInstanceOf<CollectedDataDeletionCompletion.Retryable>()
+		markerFile.exists() shouldBe true
+		startupDeletionBarrier.isClosed shouldBe true
+		lifecycleSnapshot.epoch shouldBe 0L
+		databaseClears shouldBe 0
+		finishCleanup.complete(Unit)
+		transfer.join()
+		service.reconcilePendingDeletion() shouldBe CollectedDataDeletionCompletion.Complete
+		databaseClears shouldBe 1
+		markerFile.exists() shouldBe false
+		startupDeletionBarrier.isClosed shouldBe false
 	}
 
 	@Test
@@ -1596,7 +1676,7 @@ class CollectedDataDeletionServiceTest {
 				wallTimeMs = wallTimeMs,
 			)
 		}
-		val policyRepository = RoomSourcePolicyRepository(database, timeProvider)
+		val policyRepository = RoomSourcePolicyRepository(database, effectiveTimeProvider = timeProvider)
 		policyRepository.bootstrapFromLegacy(
 			TrackingParamsState(
 				ambientStepsEnabled = ambientStepsEnabled,

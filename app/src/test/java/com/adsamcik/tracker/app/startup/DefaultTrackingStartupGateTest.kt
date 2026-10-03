@@ -36,6 +36,7 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import javax.inject.Provider
+import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -178,6 +179,7 @@ class DefaultTrackingStartupGateTest {
 			"vault unavailable",
 		)
 		gate.isReady shouldBe false
+		gate.withRetainedDataGeneration(0L) { "unrecovered-data" } shouldBe null
 		coVerify(exactly = 0) { resolver.apply(any(), any()) }
 		coVerify(exactly = 0) { sourceRecovery.recoverStartupAuthority() }
 	}
@@ -934,6 +936,100 @@ class DefaultTrackingStartupGateTest {
 
 	private fun completed(): LegacyV27ProjectionRecoveryResult =
 		LegacyV27ProjectionRecoveryResult.NotRequired
+
+	@Test
+	fun `nested history transfers share admission while collection is stopped`() = runTest {
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+		coEvery { resolver.apply(any(), any()) } just Runs
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+		every { lifecycleAuthority.pendingCollectionResumeExitId } returns "user-off"
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		gate.permitsNewCollection shouldBe false
+		gate.withReadyGenerationTransfer(0L) {
+			gate.withReadyGenerationTransfer(0L) { "retained-file" }
+		} shouldBe "retained-file"
+	}
+
+	@Test
+	fun `old transfer cannot hand off a share after deletion reopens`() = runTest {
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+		coEvery { resolver.apply(any(), any()) } just Runs
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+		gate.reconcile()
+		val oldGeneration = gate.currentGeneration
+		deletionBarrier.closeAdmission()
+		deletionBarrier.reopen()
+		gate.reconcile()
+		var published = 0
+		gate.withRetainedDataGeneration(oldGeneration) { published++ } shouldBe null
+		gate.withReadyGenerationTransfer(oldGeneration) { published++ } shouldBe null
+		published shouldBe 0
+	}
+
+	@Test
+	fun `handled Off during an admitted history export preserves its file handoff but not live authority`() = runTest {
+		var stopGeneration = 0L
+		var pending: TrackingStopCommand? = null
+		every { lifecycleAuthority.latestStopGeneration() } answers { stopGeneration }
+		every { lifecycleAuthority.latestUnhandledStop() } answers { pending }
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+		coEvery { resolver.apply(any(), any()) } just Runs
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		val generation = gate.currentGeneration
+		val writing = CompletableDeferred<Unit>()
+		val finish = CompletableDeferred<Unit>()
+		val bytes = ByteArrayOutputStream()
+		var shared = false
+		val export = async {
+			gate.withReadyGenerationTransfer(generation) {
+				bytes.use { output -> output.write(7); writing.complete(Unit); finish.await(); output.write(8) }
+				gate.withReadyGenerationTransfer(generation) { "same-retained-generation" } shouldBe
+					"same-retained-generation"
+				gate.withRetainedDataGeneration(generation) { shared = true; true }
+			}
+		}
+		writing.await()
+		stopGeneration = pendingStop().generation
+		pending = pendingStop()
+		gate.withReadyGeneration(generation) { "provider-start" } shouldBe null
+		// The real service marks Off handled after owners retire; it need not reconcile startup.
+		pending = null
+		every { lifecycleAuthority.pendingCollectionResumeExitId } returns "user-off"
+		gate.currentGeneration shouldBe generation
+		gate.isReady shouldBe false
+		gate.permitsNewCollection shouldBe false
+		finish.complete(Unit)
+		export.await() shouldBe true
+		shared shouldBe true
+		bytes.toByteArray().toList() shouldBe listOf(7.toByte(), 8.toByte())
+		coVerify(exactly = 1) { sourceRecovery.recoverStartupAuthority() }
+		deletionBarrier.closeAdmission()
+		gate.withRetainedDataGeneration(generation) { "stale-share" } shouldBe null
+		deletionBarrier.reopen()
+		gate.reconcile()
+		gate.withRetainedDataGeneration(generation) { "stale-share" } shouldBe null
+	}
+
+	@Test
+	fun `actual retained history recovery failure revokes a previously ready transfer generation`() = runTest {
+		var stopGeneration = 0L
+		every { lifecycleAuthority.latestStopGeneration() } answers { stopGeneration }
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+		coEvery { resolver.apply(any(), any()) } just Runs
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		gate.withRetainedDataGeneration(0L) { "retained-data" } shouldBe "retained-data"
+		stopGeneration = 1L
+		coEvery { sourceRecovery.recoverStartupAuthority() } throws java.io.IOException("History unavailable")
+		gate.reconcile().javaClass shouldBe TrackingStartupResult.RetryableFailure::class.java
+		gate.withRetainedDataGeneration(0L) { "unavailable-data" } shouldBe null
+		gate.withReadyGenerationTransfer(0L) { "unavailable-data" } shouldBe null
+	}
 
 	private fun pendingStop() = TrackingStopCommand(
 		generation = 7L,

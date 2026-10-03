@@ -6,8 +6,11 @@ import androidx.core.content.FileProvider
 import com.adsamcik.tracker.feature.statistics.api.export.TripGpxExportResult
 import com.adsamcik.tracker.feature.statistics.api.export.TripGpxExporter
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import java.io.File
 import javax.inject.Inject
 
@@ -22,6 +25,7 @@ class GpxShareHelper @Inject constructor(
 	private val locationSampleRepository: LocationSampleRepository,
 	private val tripGpxExporter: TripGpxExporter,
 	private val dispatchersProvider: DispatchersProvider,
+	private val startupGate: TrackingStartupGate,
 ) {
 	/**
 	 * Exports location data for the given time range to a GPX file and opens
@@ -38,64 +42,88 @@ class GpxShareHelper @Inject constructor(
 		tripId: Long,
 		startTimeMs: Long,
 		endTimeMs: Long,
+	): TripGpxExportResult {
+		val generation = startupGate.currentGeneration
+		if (startupGate.reconcile() !is TrackingStartupResult.Ready) return TripGpxExportResult.Failure
+		return startupGate.withReadyGenerationTransfer(generation) {
+			exportAdmitted(context, tripId, startTimeMs, endTimeMs, generation)
+		} ?: TripGpxExportResult.Failure
+	}
+
+	private suspend fun exportAdmitted(
+		context: Context,
+		tripId: Long,
+		startTimeMs: Long,
+		endTimeMs: Long,
+		generation: Long,
 	): TripGpxExportResult = withContext(dispatchersProvider.io) {
 		val shareableDir = File(context.filesDir, SHARABLE_DIR).apply { mkdirs() }
-		val file = File(shareableDir, "trip_$tripId.gpx")
+		val file = File.createTempFile("trip_${tripId}_", ".gpx", shareableDir)
 		var exportedPointCount = 0
+		var handedOff = false
+		try {
 
-		val result = file.outputStream().use { outputStream ->
-			tripGpxExporter.export(
-				outputStream = outputStream,
-				dateRange = startTimeMs..endTimeMs,
-			) { emit ->
-				var afterTimeMs: Long? = null
-				var afterId: Long? = null
+			val result = file.outputStream().use { outputStream ->
+				tripGpxExporter.export(
+					outputStream = outputStream,
+					dateRange = startTimeMs..endTimeMs,
+				) { emit ->
+					var afterTimeMs: Long? = null
+					var afterId: Long? = null
 
-				while (true) {
-					val chunk = locationSampleRepository.getOrderedChunkBetween(
-						fromMs = startTimeMs,
-						toMs = endTimeMs,
-						afterTimeMs = afterTimeMs,
-						afterId = afterId,
-						limit = LOCATION_EXPORT_CHUNK_SIZE,
-					)
-					if (chunk.isEmpty()) break
+					while (true) {
+						val chunk = locationSampleRepository.getOrderedChunkBetween(
+							fromMs = startTimeMs,
+							toMs = endTimeMs,
+							afterTimeMs = afterTimeMs,
+							afterId = afterId,
+							limit = LOCATION_EXPORT_CHUNK_SIZE,
+						)
+						if (chunk.isEmpty()) break
 
-					chunk.forEach { sample ->
-						afterTimeMs = sample.timeMs
-						afterId = sample.id
+						chunk.forEach { sample ->
+							afterTimeMs = sample.timeMs
+							afterId = sample.id
 
-						if (sample.latE7 != null && sample.lonE7 != null) {
-							emit(sample)
-							exportedPointCount++
+							if (sample.latE7 != null && sample.lonE7 != null) {
+								emit(sample)
+								exportedPointCount++
+							}
 						}
 					}
 				}
 			}
-		}
 
-		if (exportedPointCount == 0) {
-			file.delete()
-			return@withContext TripGpxExportResult.Success
-		}
+			if (result is TripGpxExportResult.Failure) return@withContext result
+			if (exportedPointCount == 0) {
+				return@withContext TripGpxExportResult.Success
+			}
 
-		if (result is TripGpxExportResult.Success) {
-			val uri = FileProvider.getUriForFile(
-				context,
-				"${context.packageName}.fileprovider",
-				file,
-			)
-			withContext(dispatchersProvider.main) {
-				val shareIntent = Intent(Intent.ACTION_SEND).apply {
-					type = MIME_TYPE_GPX
-					putExtra(Intent.EXTRA_STREAM, uri)
-					addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+			if (result is TripGpxExportResult.Success) {
+				val uri = FileProvider.getUriForFile(
+					context,
+					"${context.packageName}.fileprovider",
+					file,
+				)
+				withContext(dispatchersProvider.main) {
+					val shareIntent = Intent(Intent.ACTION_SEND).apply {
+						type = MIME_TYPE_GPX
+						putExtra(Intent.EXTRA_STREAM, uri)
+						addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+					}
+					handedOff = startupGate.withRetainedDataGeneration(generation) {
+						context.startActivity(Intent.createChooser(shareIntent, null))
+						true
+					} == true
 				}
-				context.startActivity(Intent.createChooser(shareIntent, null))
+			}
+
+			if (handedOff) result else TripGpxExportResult.Failure
+		} finally {
+			if (!handedOff) withContext(NonCancellable + dispatchersProvider.io) {
+				check(!file.exists() || file.delete()) { "Could not remove unfinished GPX share" }
 			}
 		}
-
-		result
 	}
 
 	companion object {

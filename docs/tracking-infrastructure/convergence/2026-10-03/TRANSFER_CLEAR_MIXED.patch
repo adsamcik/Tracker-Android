@@ -1,0 +1,653 @@
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportViewModel.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportViewModel.kt
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportViewModel.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportViewModel.kt
+@@ -15,6 +15,8 @@
+ import com.adsamcik.tracker.shared.base.extension.openOutputStream
+ import com.adsamcik.tracker.shared.base.extension.toEpochMillis
+ import com.adsamcik.tracker.shared.base.misc.LocalizedString
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+ import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
+ import com.adsamcik.tracker.shared.preferences.extension.formatDistance
+ import dagger.hilt.android.lifecycle.HiltViewModel
+@@ -31,6 +33,8 @@
+ import kotlinx.coroutines.flow.update
+ import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.NonCancellable
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
+ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.withContext
+ 
+@@ -50,6 +54,7 @@
+     data class Success(
+         val fileNameWithExtension: String,
+         val baseFileName: String,
++        val startupGeneration: Long,
+     ) : ExportDocumentResult
+ 
+     data class Failure(val error: ExportResult.Error) : ExportDocumentResult
+@@ -60,6 +65,7 @@
+     @ApplicationContext private val appContext: Context,
+     private val dataRepository: ImportExportDataRepository,
+     private val dispatchers: DispatchersProvider,
++    private val startupGate: TrackingStartupGate,
+ ) : ViewModel() {
+ 
+     private val _uiState = MutableStateFlow(ImportExportUiState())
+@@ -80,13 +86,57 @@
+         exporter: Exporter,
+         fileName: String,
+         range: ClosedRange<ZonedDateTime>?,
+-        onResult: (ExportDocumentResult) -> Unit,
++        prepareDirectory: suspend () -> Unit = {},
++        cleanupDirectory: suspend () -> Unit = {},
++        onResult: suspend (ExportDocumentResult) -> Unit,
+     ) {
++        val generation = startupGate.currentGeneration
+         beginExport()
+         viewModelScope.launch {
+-            val result = exportDocument(directory, forceOverride, exporter, fileName, range)
+-            completeExport(result)
+-            onResult(result)
++            try {
++                if (startupGate.reconcile() !is TrackingStartupResult.Ready) {
++                    val result = ExportDocumentResult.Failure(ExportResult.Error())
++                    completeExport(result)
++                    onResult(result)
++                    return@launch
++                }
++                val delivered = startupGate.withReadyGenerationTransfer(generation) {
++                    try {
++                        val result = try {
++                            withContext(dispatchers.io) { prepareDirectory() }
++                            exportDocumentInTransfer(
++                                directory, forceOverride, exporter, fileName, range,
++                                generation,
++                            )
++                        } catch (cancelled: CancellationException) {
++                            throw cancelled
++                        } catch (_: Exception) {
++                            ExportDocumentResult.Failure(ExportResult.Error())
++                        }
++                        val deliveredResult = if (result is ExportDocumentResult.Success &&
++                            startupGate.withRetainedDataGeneration(generation) { completeExport(result); true } != true
++                        ) ExportDocumentResult.Failure(ExportResult.Error()) else result
++                        if (deliveredResult !is ExportDocumentResult.Success) completeExport(deliveredResult)
++                        currentCoroutineContext().ensureActive()
++                        onResult(deliveredResult)
++                        true
++                    } finally {
++                        withContext(NonCancellable + dispatchers.io) { cleanupDirectory() }
++                    }
++                }
++                if (delivered != true) {
++                    val result = ExportDocumentResult.Failure(ExportResult.Error())
++                    completeExport(result)
++                    onResult(result)
++                }
++            } catch (cancelled: CancellationException) {
++                completeExport(ExportDocumentResult.Failure(ExportResult.Error()))
++                throw cancelled
++            } catch (_: Exception) {
++                val result = ExportDocumentResult.Failure(ExportResult.Error())
++                completeExport(result)
++                onResult(result)
++            }
+         }
+     }
+ 
+@@ -96,6 +146,24 @@
+         exporter: Exporter,
+         fileName: String,
+         range: ClosedRange<ZonedDateTime>?,
++    ): ExportDocumentResult {
++        val generation = startupGate.currentGeneration
++        if (startupGate.reconcile() !is TrackingStartupResult.Ready)
++            return ExportDocumentResult.Failure(ExportResult.Error())
++        return startupGate.withReadyGenerationTransfer(generation) {
++            exportDocumentInTransfer(directory, forceOverride, exporter, fileName, range,
++                generation)
++        } ?: ExportDocumentResult.Failure(ExportResult.Error())
++    }
++
++    /** Source reads, output closure and partial cleanup all belong to the admitted child job. */
++    private suspend fun exportDocumentInTransfer(
++        directory: DocumentFile,
++        forceOverride: Boolean,
++        exporter: Exporter,
++        fileName: String,
++        range: ClosedRange<ZonedDateTime>?,
++        generation: Long,
+     ): ExportDocumentResult {
+         var createdFile: DocumentFile? = null
+         return try {
+@@ -116,10 +184,13 @@
+                     )
+                 createdFile = destinationFile
+ 
+-                when (val exportResult = exportToFile(destinationFile, exporter, range)) {
++                when (val exportResult = exportToFile(
++                    destinationFile, exporter, range,
++                )) {
+                     is ExportResult.Success -> ExportDocumentResult.Success(
+                         fileNameWithExtension = fileNameWithExtension,
+                         baseFileName = finalFileName,
++                        startupGeneration = generation,
+                     )
+                     is ExportResult.Error -> {
+                         val removed = removePartialDocument(destinationFile)
+@@ -166,58 +237,55 @@
+         }
+     }
+ 
+-    internal fun resolveShareTripSummary(
++    internal suspend fun resolveShareTripSummary(
+         fallbackFileName: String,
+         range: ClosedRange<ZonedDateTime>?,
+-        onResult: (ShareTripSummary) -> Unit,
+-    ) {
+-        viewModelScope.launch {
+-            val summary = withContext(dispatchers.io) {
+-                val fallbackDate = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(
+-                    (range?.start ?: Time.now).toLocalDate()
+-                )
+-                val fallbackName = fallbackFileName.replace('_', ' ').trim().ifEmpty { "Trip" }
+-                val fallback = ShareTripSummary(
+-                    tripName = fallbackName,
+-                    formattedDate = fallbackDate,
+-                    activityEmoji = "📍",
+-                    formattedDistance = null,
+-                    formattedDuration = null,
+-                    formattedSteps = null
+-                )
+-
+-                val targetRange = range ?: return@withContext fallback
+-                val fromMs = targetRange.start.toEpochMillis()
+-                val toMs = targetRange.endInclusive.toEpochMillis()
+-
+-                val trip = dataRepository.loadTripShareSnapshot(fromMs, toMs)
+-                    ?: return@withContext fallback
+-
+-                val tripName = trip.activityName?.takeIf { it.isNotBlank() } ?: fallbackName
+-                val emoji = mapActivityToEmoji(trip.activityName, trip.activityId)
+-                val date = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(
+-                    Instant.ofEpochMilli(trip.startTimeMs).atZone(ZoneId.systemDefault()).toLocalDate()
+-                )
+-                val lengthSystem = TrackerSettingsQuick.lengthSystem(appContext)
+-                val distance = appContext.resources.formatDistance(
+-                    trip.totalDistanceM,
+-                    digits = if (trip.totalDistanceM >= 1000f) 1 else 2,
+-                    unit = lengthSystem
+-                )
+-
+-                ShareTripSummary(
+-                    tripName = tripName,
+-                    formattedDate = date,
+-                    activityEmoji = emoji,
+-                    formattedDistance = distance,
+-                    formattedDuration = trip.totalDurationMs.formatAsDuration(appContext),
+-                    // Trip.steps is a legacy aggregate without exact capture/source authority.
+-                    formattedSteps = null
+-                )
+-            }
+-            onResult(summary)
+-        }
+-    }
++    ): ShareTripSummary = withContext(dispatchers.io) {
++        val fallbackDate = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(
++            (range?.start ?: Time.now).toLocalDate()
++        )
++        val fallbackName = fallbackFileName.replace('_', ' ').trim().ifEmpty { "Trip" }
++        val fallback = ShareTripSummary(
++            tripName = fallbackName,
++            formattedDate = fallbackDate,
++            activityEmoji = "📍",
++            formattedDistance = null,
++            formattedDuration = null,
++            formattedSteps = null
++        )
++
++        val targetRange = range ?: return@withContext fallback
++        val fromMs = targetRange.start.toEpochMillis()
++        val toMs = targetRange.endInclusive.toEpochMillis()
++
++        val trip = dataRepository.loadTripShareSnapshot(fromMs, toMs)
++            ?: return@withContext fallback
++
++        val tripName = trip.activityName?.takeIf { it.isNotBlank() } ?: fallbackName
++        val emoji = mapActivityToEmoji(trip.activityName, trip.activityId)
++        val date = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(
++            Instant.ofEpochMilli(trip.startTimeMs).atZone(ZoneId.systemDefault()).toLocalDate()
++        )
++        val lengthSystem = TrackerSettingsQuick.lengthSystem(appContext)
++        val distance = appContext.resources.formatDistance(
++            trip.totalDistanceM,
++            digits = if (trip.totalDistanceM >= 1000f) 1 else 2,
++            unit = lengthSystem
++        )
++
++        ShareTripSummary(
++            tripName = tripName,
++            formattedDate = date,
++            activityEmoji = emoji,
++            formattedDistance = distance,
++            formattedDuration = trip.totalDurationMs.formatAsDuration(appContext),
++            // Trip.steps is a legacy aggregate without exact capture/source authority.
++            formattedSteps = null
++        )
++    }
++
++    internal fun handOffExport(result: ExportDocumentResult.Success, handoff: () -> Unit): Boolean =
++        startupGate.withRetainedDataGeneration(result.startupGeneration) { handoff(); true } == true
+ 
+     private suspend fun exportToFile(
+         file: DocumentFile,
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportComposeActivity.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportComposeActivity.kt
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportComposeActivity.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportComposeActivity.kt
+@@ -61,6 +61,7 @@
+ import androidx.core.content.FileProvider
+ import androidx.documentfile.provider.DocumentFile
+ import com.adsamcik.tracker.impexp.R
++import com.adsamcik.tracker.impexp.OwnedTransferFiles
+ import com.adsamcik.tracker.impexp.exporter.ExportResult
+ import com.adsamcik.tracker.impexp.exporter.Exporter
+ import com.adsamcik.tracker.impexp.exporter.JsonExporter
+@@ -89,10 +90,7 @@
+         enableEdgeToEdge()
+         super.onCreate(savedInstanceState)
+ 
+-        val legacyShareableDir = File(filesDir, SHARABLE_DIR_NAME)
+-        cleanupShareableDirectory(legacyShareableDir, maxAgeMillis = 0L)
+         shareableDir = File(cacheDir, SHARABLE_DIR_NAME)
+-        cleanupShareableDirectory(shareableDir)
+ 
+         val exporterType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+             intent.extras?.getSerializable(EXPORTER_KEY, Class::class.java) as? Class<*>
+@@ -345,7 +343,7 @@
+                             ) { result ->
+                                 when (result) {
+                                     is ExportDocumentResult.Success -> {
+-                                        activity.finish()
++                                        viewModel.handOffExport(result) { activity.finish() }
+                                     }
+                                     is ExportDocumentResult.Failure -> {
+                                         scope.launch {
+@@ -369,9 +367,9 @@
+                 }
+ 
+                 fun startShareExport() {
+-                    cleanupShareableDirectory(shareableDir)
+-                    shareableDir.mkdirs()
+-                    val directory = DocumentFile.fromFile(shareableDir)
++                    val requestDirectory = shareRequestDirectory(shareableDir)
++                    val directory = DocumentFile.fromFile(requestDirectory)
++                    var handedOff = false
+                     val selectedRange = if (canSelectDateRange) rangeState.value else null
+                     viewModel.exportToDocument(
+                         directory = directory,
+@@ -379,42 +377,47 @@
+                         exporter = exporter,
+                         fileName = fileNameState.value,
+                         range = selectedRange,
++                        prepareDirectory = {
++                            prepareShareRequestDirectory(requestDirectory)
++                        },
++                        cleanupDirectory = {
++                            if (!handedOff) removeShareRequestDirectory(requestDirectory)
++                        },
+                     ) { result ->
+                         when (result) {
+                             is ExportDocumentResult.Success -> {
+-                                val file = File(shareableDir, result.fileNameWithExtension)
++                                val file = File(requestDirectory, result.fileNameWithExtension)
+                                 val shareUri = FileProvider.getUriForFile(
+                                     activity,
+                                     "${activity.packageName}.fileprovider",
+                                     file
+                                 )
+-                                viewModel.resolveShareTripSummary(
++                                val shareSummary = viewModel.resolveShareTripSummary(
+                                     fallbackFileName = result.baseFileName,
+-                                    range = selectedRange
+-                                ) { shareSummary ->
+-                                    val shareIntent = Intent().apply {
+-                                        action = Intent.ACTION_SEND
+-                                        putExtra(Intent.EXTRA_STREAM, shareUri)
+-                                        putExtra(
+-                                            Intent.EXTRA_SUBJECT,
+-                                            "Trail: ${shareSummary.tripName} — ${shareSummary.formattedDate}"
++                                    range = selectedRange,
++                                )
++                                val shareIntent = Intent().apply {
++                                    action = Intent.ACTION_SEND
++                                    putExtra(Intent.EXTRA_STREAM, shareUri)
++                                    putExtra(
++                                        Intent.EXTRA_SUBJECT,
++                                        "Trail: ${shareSummary.tripName} — ${shareSummary.formattedDate}"
++                                    )
++                                    putExtra(Intent.EXTRA_TEXT, buildShareText(shareSummary))
++                                    type = exporter.mimeType
++                                    flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
++                                }
++                                val chooser = Intent.createChooser(
++                                    shareIntent,
++                                    activity.getString(R.string.export_share_button)
++                                )
++                                try {
++                                    handedOff = viewModel.handOffExport(result) { activity.startActivity(chooser) }
++                                } catch (_: Exception) {
++                                    scope.launch {
++                                        snackBarHostState.showSnackbar(
++                                            activity.getString(R.string.export_error_unknown)
+                                         )
+-                                        putExtra(Intent.EXTRA_TEXT, buildShareText(shareSummary))
+-                                        type = exporter.mimeType
+-                                        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+-                                    }
+-                                    val chooser = Intent.createChooser(
+-                                        shareIntent,
+-                                        activity.getString(R.string.export_share_button)
+-                                    )
+-                                    try {
+-                                        activity.startActivity(chooser)
+-                                    } catch (_: Exception) {
+-                                        scope.launch {
+-                                            snackBarHostState.showSnackbar(
+-                                                activity.getString(R.string.export_error_unknown)
+-                                            )
+-                                        }
+                                     }
+                                 }
+                             }
+@@ -716,12 +719,38 @@
+ ) {
+     if (!directory.exists()) return
+     directory.listFiles()?.forEach { file ->
++        val ageMillis = nowMillis - file.lastModified()
++        if (OwnedTransferFiles.isShareRequestDirectoryName(file.name)) {
++            if (ageMillis >= maxAgeMillis) {
++                OwnedTransferFiles.removeShareRequestDirectory(file)
++            }
++            return@forEach
++        }
+         if (file.isDirectory) return@forEach
+-        val ageMillis = nowMillis - file.lastModified()
+         if (ageMillis >= maxAgeMillis && !file.delete()) {
+             file.deleteOnExit()
+         }
+     }
+ }
+ 
++/** Ordinary export Share owns the cache route only; GPX/PNG share files belong to their callers. */
++internal fun prepareShareableDirectory(directory: File) {
++    cleanupShareableDirectory(directory)
++    check(directory.isDirectory || directory.mkdirs()) { "Could not create share directory" }
++}
++
++/** Allocation is memory-only; exclusive directory creation occurs inside the admitted transfer. */
++internal fun shareRequestDirectory(parent: File): File =
++    File(parent, "share_${java.util.UUID.randomUUID()}")
++
++internal fun prepareShareRequestDirectory(directory: File) {
++    require(OwnedTransferFiles.isShareRequestDirectoryName(directory.name))
++    prepareShareableDirectory(requireNotNull(directory.parentFile))
++    java.nio.file.Files.createDirectory(directory.toPath())
++}
++
++internal fun removeShareRequestDirectory(directory: File) {
++    OwnedTransferFiles.removeShareRequestDirectory(directory)
++}
++
+ private const val SHAREABLE_MAX_AGE_MS = 24L * 60L * 60L * 1000L
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt
+@@ -95,7 +95,7 @@
+ 			is TrackingStartupResult.Ready -> Unit
+ 			is TrackingStartupResult.RetryableFailure -> return Result.retry()
+ 			is TrackingStartupResult.Blocked -> {
+-				showErrorNotification("Import unavailable until tracking data recovery is complete.")
++				showErrorNotification("Import unavailable until tracking data recovery is complete.", allowBeforeReady = true)
+ 				return Result.failure()
+ 			}
+ 		}
+@@ -104,6 +104,12 @@
+ 			showErrorNotification(context.getString(R.string.import_cleared_error))
+ 			return Result.failure()
+ 		}
++		return trackingStartupGate.withReadyGenerationTransfer(startupGeneration) {
++			runAdmittedImport(file)
++		} ?: Result.success()
++	}
++
++	private suspend fun runAdmittedImport(file: DocumentFile): Result {
+ 		database = databaseProvider.get()
+ 		if (!isReadyGeneration()) return Result.success()
+ 		importJobRunner = ImportJobRunner(
+@@ -211,15 +217,22 @@
+     private fun showNotification(text: String, inProgress: Boolean) {
+         runCatchingCancellable {
+             val notification = createNotification(text, inProgress)
+-            notificationManager.notify(NOTIFICATION_ID, notification)
++            if (startupGeneration < 0L) notificationManager.notify(NOTIFICATION_ID, notification)
++            else trackingStartupGate.withRetainedDataGeneration(startupGeneration) {
++                notificationManager.notify(NOTIFICATION_ID, notification)
++            }
+         }.getOrNull()
+     }
+ 
+     @AnyThread
+-    private fun showErrorNotification(text: String) {
++    private fun showErrorNotification(text: String, allowBeforeReady: Boolean = false) {
+         runCatchingCancellable {
+             val notification = createNotification(text, false)
+-            notificationManager.notify(NOTIFICATION_ERROR_BASE_ID + errorCount++, notification)
++            if (allowBeforeReady || startupGeneration < 0L)
++                notificationManager.notify(NOTIFICATION_ERROR_BASE_ID + errorCount++, notification)
++            else trackingStartupGate.withRetainedDataGeneration(startupGeneration) {
++                notificationManager.notify(NOTIFICATION_ERROR_BASE_ID + errorCount++, notification)
++            }
+         }.getOrNull()
+     }
+ 
+@@ -371,7 +384,7 @@
+ 		collectedDataLifecycleStore.snapshot().epoch == originalDataEpoch
+ 
+ 	private fun isReadyGeneration(): Boolean =
+-		trackingStartupGate.isReady && trackingStartupGate.currentGeneration == startupGeneration
++		trackingStartupGate.withRetainedDataGeneration(startupGeneration) { true } == true
+ 
+ 	private fun requireReadyGeneration() {
+ 		if (!isReadyGeneration()) throw StartupGenerationChangedException
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/DataImporter.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/DataImporter.kt
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/DataImporter.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/DataImporter.kt
+@@ -143,6 +143,7 @@
+ @InstallIn(SingletonComponent::class)
+ internal interface ImportAdmissionEntryPoint {
+ 	fun collectedDataLifecycleStore(): CollectedDataLifecycleStore
++	fun trackingStartupGate(): com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+ 	@ApplicationScope fun applicationScope(): CoroutineScope
+ 	fun dispatchersProvider(): DispatchersProvider
+ }
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/OwnedTransferFiles.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/OwnedTransferFiles.kt
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/OwnedTransferFiles.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/OwnedTransferFiles.kt
+@@ -17,6 +17,11 @@
+ /** Private, disposable transfer copies. Call only after import and export writers are stopped. */
+ object OwnedTransferFiles {
+     private const val PRIVATE_SCHEDULED_EXPORT_DIRECTORY = "exports"
++    private val SHARE_REQUEST_DIRECTORY_PATTERN =
++        Regex("share_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
++
++    internal fun isShareRequestDirectoryName(name: String): Boolean =
++        name.matches(SHARE_REQUEST_DIRECTORY_PATTERN)
+ 
+     /** New scheduled files always use the owned directory; old saved directory names are inert. */
+     fun privateScheduledExportFile(
+@@ -101,22 +106,16 @@
+                 ?: throw OwnedTransferCleanupException(directory.absolutePath)
+             children.forEach { child ->
+                 if (child.canonicalFile.parentFile != directory ||
+-                    child.canonicalFile != child.absoluteFile || !child.isFile
++                    child.canonicalFile != child.absoluteFile
+                 ) {
+                     throw OwnedTransferCleanupException(child.absolutePath)
+                 }
+-                if (revokeShareGrant) {
+-                    try {
+-                        val uri = FileProvider.getUriForFile(
+-                            context, "${context.packageName}.fileprovider", child,
+-                        )
+-                        context.revokeUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+-                    } catch (failure: Exception) {
+-                        throw OwnedTransferCleanupException(child.absolutePath, failure)
++                if (name == "sharable" && child.isDirectory && isShareRequestDirectoryName(child.name)) {
++                    removeShareRequestDirectory(child) { file ->
++                        deleteOwnedFile(context, file, child, revokeShareGrant)
+                     }
+-                }
+-                if (!child.delete()) {
+-                    throw OwnedTransferCleanupException(child.absolutePath)
++                } else {
++                    deleteOwnedFile(context, child, directory, revokeShareGrant)
+                 }
+             }
+             if (!directory.delete()) {
+@@ -129,5 +128,44 @@
+         }
+     }
+ 
++    /** Only the exact request directory and its immediate regular files belong to this job. */
++    internal fun removeShareRequestDirectory(directory: File) = removeShareRequestDirectory(directory) { file ->
++        if (!file.delete()) throw OwnedTransferCleanupException(file.absolutePath)
++    }
++
++    private fun removeShareRequestDirectory(directory: File, deleteFile: (File) -> Unit) {
++        if (!isShareRequestDirectoryName(directory.name)) throw OwnedTransferCleanupException(directory.absolutePath)
++        if (!Files.exists(directory.toPath(), LinkOption.NOFOLLOW_LINKS)) return
++        val parent = directory.parentFile ?: throw OwnedTransferCleanupException(directory.absolutePath)
++        if (directory.canonicalFile != directory.absoluteFile ||
++            directory.canonicalFile.parentFile != parent.canonicalFile || !directory.isDirectory
++        ) throw OwnedTransferCleanupException(directory.absolutePath)
++        val files = directory.listFiles() ?: throw OwnedTransferCleanupException(directory.absolutePath)
++        // Validate the entire one-level membership before deleting any of it. Unexpected nested
++        // content or links remain intact and report the existing cleanup failure.
++        files.forEach { requireOwnedFile(it, directory) }
++        files.forEach(deleteFile)
++        if (!directory.delete()) throw OwnedTransferCleanupException(directory.absolutePath)
++    }
++
++    private fun requireOwnedFile(file: File, parent: File) {
++        if (file.canonicalFile.parentFile != parent || file.canonicalFile != file.absoluteFile || !file.isFile) {
++            throw OwnedTransferCleanupException(file.absolutePath)
++        }
++    }
++
++    private fun deleteOwnedFile(context: Context, file: File, parent: File, revokeShareGrant: Boolean) {
++        requireOwnedFile(file, parent)
++        if (revokeShareGrant) {
++            try {
++                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
++                context.revokeUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
++            } catch (failure: Exception) {
++                throw OwnedTransferCleanupException(file.absolutePath, failure)
++            }
++        }
++        if (!file.delete()) throw OwnedTransferCleanupException(file.absolutePath)
++    }
++
+     private const val MAX_PRIVATE_FILE_NAME_ATTEMPTS = 1_000
+ }
+diff --git a/app/src/test/java/com/adsamcik/tracker/app/settings/OwnedTransferFilesTest.kt b/app/src/test/java/com/adsamcik/tracker/app/settings/OwnedTransferFilesTest.kt
+--- a/app/src/test/java/com/adsamcik/tracker/app/settings/OwnedTransferFilesTest.kt
++++ b/app/src/test/java/com/adsamcik/tracker/app/settings/OwnedTransferFilesTest.kt
+@@ -4,6 +4,7 @@
+ import androidx.test.core.app.ApplicationProvider
+ import androidx.core.content.FileProvider
+ import com.adsamcik.tracker.impexp.OwnedTransferFiles
++import com.adsamcik.tracker.impexp.OwnedTransferCleanupException
+ import com.adsamcik.tracker.impexp.exporter.automation.ExportDestination
+ import io.kotest.assertions.throwables.shouldThrow
+ import io.kotest.matchers.shouldBe
+@@ -120,6 +121,32 @@
+     }
+ 
+     @Test
++    fun `full clear revokes and removes files inside recognized independent share directories`() {
++        assumeTrue(File.separatorChar == '/')
++        ReflectionHelpers.getStaticField<MutableMap<String, *>>(FileProvider::class.java, "sCache")
++            .remove("${context.packageName}.fileprovider")
++        val copy = File(context.cacheDir, "sharable/share_${UUID.randomUUID()}/same-name.json").apply {
++            parentFile!!.mkdirs(); writeText("share")
++        }
++        try {
++            OwnedTransferFiles.clearForFullDeletion(context)
++            copy.exists() shouldBe false
++            copy.parentFile!!.exists() shouldBe false
++        } finally { copy.delete(); copy.parentFile!!.delete() }
++    }
++
++    @Test
++    fun `full clear preserves an unrecognized directory beside independent share requests`() {
++        val unknown = File(context.cacheDir, "sharable/unrelated/keep.txt").apply {
++            parentFile!!.mkdirs(); writeText("keep")
++        }
++        try {
++            shouldThrow<OwnedTransferCleanupException> { OwnedTransferFiles.clearForFullDeletion(context) }
++            unknown.readText() shouldBe "keep"
++        } finally { unknown.delete(); unknown.parentFile!!.delete(); unknown.parentFile!!.parentFile!!.delete() }
++    }
++
++    @Test
+     fun `older private staging names are removed too`() {
+         val unexpected = File(context.cacheDir, "database-import/old-copy.db").apply {
+             parentFile!!.mkdirs()
+diff --git a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportViewModelTest.kt b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportViewModelTest.kt
+--- a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportViewModelTest.kt
++++ b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportViewModelTest.kt
+@@ -5,6 +5,8 @@
+ import com.adsamcik.tracker.impexp.exporter.ExportResult
+ import com.adsamcik.tracker.impexp.exporter.data.ImportExportDataRepository
+ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+ import com.adsamcik.tracker.shared.model.LocationSample
+ import io.kotest.matchers.shouldBe
+ import io.mockk.coEvery
+@@ -62,6 +64,7 @@
+             ExportDocumentResult.Success(
+                 fileNameWithExtension = "export.gpx",
+                 baseFileName = "export",
++                startupGeneration = 0L,
+             )
+         )
+         viewModel.uiState.value.exportCompletionState shouldBe ExportCompletionState.Succeeded
+@@ -115,6 +118,7 @@
+             )
+     }
+ 
++
+     @Test
+     fun `calendar picker preserves the displayed day in either time zone`() {
+         for (zone in listOf(ZoneId.of("Europe/Prague"), ZoneId.of("America/Los_Angeles"))) {
+@@ -137,6 +141,11 @@
+             override val default: CoroutineDispatcher = dispatcher
+             override val main: CoroutineDispatcher = dispatcher
+             override val unconfined: CoroutineDispatcher = dispatcher
++        },
++        startupGate = object : TrackingStartupGate {
++            override val isReady = true
++            override val permitsNewCollection = false
++            override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
+         },
+     )
+ 
+@@ -161,4 +170,5 @@
+             return ExportResult.Success
+         }
+     }
++
+ }

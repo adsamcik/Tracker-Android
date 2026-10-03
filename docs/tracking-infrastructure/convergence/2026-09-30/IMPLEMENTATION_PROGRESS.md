@@ -27,15 +27,23 @@ description of its earlier input; this file records subsequent repair progress.
   DAO/real-qualifier scenarios remain unexecuted. Full exporter definitions, their
   two new routing cases and other dependent fixtures stay held. Selection receipt:
   `../2026-10-03/IMPORTED_RADIO_EXPORT_CANDIDATE_SELECTION.md`.
-- October 3 displayed-day History has fifteen authored scenarios and a frozen
-  narrow source packet. Independent review found receipt-only erase withholding
-  before integrity/canonical matching; the repair is being authored. No complete
-  R11 reader, UI or test pass is selected from that packet yet.
-- Transfer quiescence is being implemented through the existing startup boundary.
-  Preserved recovery-file exports add a different blocked-startup access question;
-  their admission is held pending the user's answer. Location Replace still needs
+- `1e58017f39`: displayed-day History API and three authored scenarios are selected.
+  `6c192245b8` selects the independently reviewed retained Location H1/H2/H3 core
+  and seven standalone Room scenarios. Complete R11 readers, composed cases and UI
+  remain held. No History test pass is claimed.
+- October 3 ordinary-transfer quiescence source is independently reviewed and
+  selected: 29 paths, 40 newly authored cases, none executed. The existing startup
+  boundary drains actual children before clear; ordinary exports survive Off, and
+  GPX/map/manual Share own separate files with bounded cleanup. Receipt:
+  `../2026-10-03/TRANSFER_CLEAR_FRESH_REVIEW_1003.md`. Preserved recovery-file
+  exports remain held pending the blocked-startup access answer. Persisted later
+  unfinished-file notices remain unimplemented. Location Replace still needs
   intentional-edit replay and derived-value correction; no partial Replace button
   is exposed. Exact trace: `LOCATION_REPLACE_CANONICAL_GAP_TRACE.md`.
+- Export session is approved with all actually available saved sources initially
+  selected, exclusions and one labeled bundle. Its exact membership, backend caller
+  and detail/navigation surfaces remain unfinished; see
+  `../2026-10-03/SESSION_EXPORT_SURFACE_SOURCE_TRACE.md`.
 - `c7cc6a7340`: approved nullable native Wi-Fi format marker, immutable
   corrections, writer/history/maintenance parity and authored migration/detail
   scenarios. Fresh static review passed the narrow source slice. Twelve tracked

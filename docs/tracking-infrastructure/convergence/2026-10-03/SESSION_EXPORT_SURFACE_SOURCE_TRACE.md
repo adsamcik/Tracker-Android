@@ -1,0 +1,56 @@
+# Export session surface: read-only implementation trace
+
+Date: 2026-10-03. Status: **IMPLEMENTATION_ONLY / IMPLEMENTED_UNVALIDATED**.
+
+Scope: the newly approved session detail action, all actually available saved sources initially selected with exclusions, and one typed-source bundle carrying the session name/activity label. Original user requests and approvals are inherited. No production edits, Git operations, recursive delegation or validation gates were performed. This is a source trace and a smallest implementation recommendation; it does not accept held exporter drafts or declare R17 complete.
+
+## Existing reusable pieces
+
+1. `feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/SessionBundleArchiveWriter.kt:17-85` already writes the existing typed child files and manifest as one bounded `.trackersession` archive. It checks declared membership, byte counts, hashes and cancellation, stages the ZIP privately, then copies outside the staging boundary. Current production search finds the class definition and **no writer caller**.
+2. `feature/import-export/src/main/java/com/adsamcik/tracker/impexp/portable/SessionBundleManifestV1.kt:10-31` already carries name, activity label, annotation interval/display zone, selected sources/purposes/origins, child format/version/size/hash/actual bounds and `wholeEntries`. No new archive format, proof, signature or generic export framework is needed. A transport hash does not grant native authority or prevent a user editing a structurally valid file.
+3. `feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/DataImporter.kt:314-354` already imports children with the existing job/entry receipts and publishes metadata only after every declared child is successful. Partial failure retains the successful prefix for retry. `SessionBundleMetadataImport.kt:179-256` binds exact subordinate source receipts and the original data epoch, stores the exact organization selectors, and rejects missing receipts permanently. `importer/worker/ImportWorker.kt:342-376` routes the exact extension through the stager/runner with current startup and original-epoch checks. Reuse this path rather than adding another job system.
+4. `stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SessionOrganizationRepository.kt:6-62` already distinguishes `Annotation(localId)` and `Recording(adapterKey)`, carries revision/epoch and exact imported selectors, and states that metadata grants no source/export authority. `stats/data/.../RoomSessionOrganizationRepository.kt:66-112` has a bounded exact `find(id)` and rechecks the data epoch/retention preparation before returning labels and selection. Use these IDs; a display interval or `originalSegmentId` is not complete native membership.
+
+## Current product surface gap
+
+`feature/statistics/.../ui/TripDetailRoute.kt:101-290` remains a physical `tripId: Long` detail route. Its current Export action is GPX and guarded by Location presentation; `presenter/TripDetailPresenterViewModel.kt:145-160` rejects non-Location/portable-Steps detail before delegating to `GpxShareHelper`. Source-only details expose unavailable actions rather than a bundle action. These Location guards cannot decide whether a Steps, Activity, Pressure, Wi-Fi or Cell session can be exported.
+
+`ui/OrganizedSessionsContent.kt:30-46` opens the editor on card click, and `ui/HistoryRoute.kt:155-159` wires that editor separately from physical trip navigation. `feature/statistics/api/.../navigation/StatisticsRoutes.kt` has physical TripDetail and opaque source-detail routes, not an exact organization-session detail route. Retrospective annotations and imported bundle sessions consequently have no correct detail/export route. Passing `originalSegmentId` would open one physical member and lose edited metadata or additional replacement runs.
+
+The established feature composition pattern is the narrow consumer-owned port `feature/statistics/api/.../export/TripGpxExporter.kt`, implemented by `feature/import-export/.../exporter/TripGpxExportAdapter.kt:15-42` with an existing Hilt binding. Import/export already depends on statistics API (`feature/import-export/build.gradle.kts:30`); statistics does not depend on import/export implementation. Follow that direction for one focused session bundle boundary. Do not expand the GPX port into a generic format framework or create a feature-to-feature implementation dependency. The root owns the exact contract/UI implementation decision and any confirmation required for a newly introduced architecture.
+
+## Exact selection is the concrete backend gap
+
+| Session type | Existing evidence / minimum truthful selection |
+|---|---|
+| Native logical recording | Resolve `logical:` identity and all exact member runs through source-owned readers. Wi-Fi already has `ExportPortableCapturedWifiRequest(logicalTrackingId)` / `ReadLocalPortableCapturedWifi` in `stats/api/src/androidMain/.../WifiCapturedPortableTransfer.kt:3-29`; Cell has the corresponding core/base contract. `OrganizationAnnotationDao.kt:40-41` uses a minimum physical segment only as an opening reference, which cannot select the whole logical session. |
+| Genuine released legacy recording | Use its exact existing physical record and saved Location compatibility selection. Older points with unavailable historical proof remain ordinary backup data with honest unknown origin; do not demand a new native proof. A coincident imported point must not become a legacy session member merely by timestamp. |
+| Retrospective local annotation | Its interval organizes independently qualified saved data. Source-owned interval selection may select actual points/readings; indivisible source/count entries crossing its boundary need the already approved honest whole-entry expansion/omission rules. Do not invent exact within-hour Steps totals from a whole structural day or cut replacement membership to create a new portable identity. |
+| Imported bundle annotation | Only its saved `OrganizationSourceSelector` values define membership. Revalidate current correction, retention, erase and original epoch through source readers. Never substitute a date-range export if a selected receipt/member is missing. |
+
+The existing exported range contracts are insufficient to stand in for exact native/imported session membership:
+
+- `feature/import-export/.../exporter/LocationFileExporter.kt:101` calls `LocationPurposeDao.savedFileChunk`, which selects **all retained saved points in a date range**, not just this recording/archive.
+- `stats/api/src/androidMain/.../StepsPortableTransfer.kt:4-8,10-37` exports every qualifying whole logical entry overlapping the interval, including all replacement members. `PressurePortableTransfer.kt:19-28` has the same whole logical entry rule; Activity uses the analogous core/base range contract. Other records sharing the time range could be included invisibly if these callers were reused without an exact membership restriction.
+- `UnifiedHistoryRangeReader.selectedOrganization` has useful source-owned exact reader seams, but its public History payloads are bounded presentation data, not lossless export authority. `HistoryPosition` explicitly grants no export authority (`UnifiedHistory.kt:21`). Do not serialize overview/summary sections as typed backups.
+- Imported background radio selectors deliberately report unavailable: `UnifiedHistoryRangeReader.kt` immediately after the selected background Steps branch documents that archive receipt alone cannot reconstruct members skipped during overlapping-file dedup. Exact radio file membership remains a pending storage decision. The complete imported archive reader/selector must be available before that source can truthfully be offered for this bundle.
+
+## Smallest implementation sequence
+
+1. Carry the exact `OrganizationSessionId` into the approved detail/export action. Re-read its revision, epoch, name/activity label and exact membership at preview and write time through the existing repository. Preserve existing physical/source details rather than treating a physical ID as an annotation ID.
+2. Obtain a finite source-owned selection/availability result for each of the six saved sources. Preselect every source that actually has exportable saved data; explain concrete omissions. Live tracking switches, a capture manifest, distance/Location availability and the currently loaded UI summary cannot establish export eligibility. This read starts no provider or tracking demand.
+3. Stage the selected typed files with existing codecs and exact reader identities. Reuse source qualification/whole-entry rules and report actual child bounds/expansion honestly. Keep Location optional, one Wi-Fi choice and one Cell choice, and user exclusions. Store the chosen source list and current metadata in the existing manifest.
+4. Reuse `SessionBundleArchiveWriter` to create the one requested bundle. Include the entire staging/output/close/private cleanup operation in the already approved shared transfer cancellation/draining boundary; keep original data epoch fencing and final current-epoch checks. The product agent is implementing that boundary separately.
+5. Import through the existing job receipts and exact metadata publisher. Retry/partial failure/original epoch behavior does not need another framework. Add focused source tests for native multi-run membership, unrelated simultaneous recordings, retrospective indivisible boundaries, exact imported selectors, omissions/exclusions, names/labels, correction/deletion and epoch races.
+
+This sequence reuses existing formats, storage, receipts and module direction. The necessary gaps are actual callers, exact selection and UI/navigation wiring; a new generic session/export engine or provider lifecycle is unnecessary.
+
+## Required held dependencies
+
+- Complete optional radio exporters and their reviewed exact selection/legacy/detail/retention/cancellation scope; full dirty exporter classes and registry remain held.
+- Exact overlapping-radio archive membership and native-Steps duplicate bundle receipt behavior remain pending user decisions. `SessionBundleMetadataImport.kt:218-220` expects an actual imported Steps counterpart/file receipt; skipping a native duplicate without recording that counterpart cannot satisfy the current exact selector contract.
+- Nested Location conflict choice must reach the reviewed worker/source import flow. Current `importer/file/LocationFileImport.kt:83-85` still explicitly rejects Replace-with-file; the complete approved replace behavior is not implemented there. Do not turn conflict data into successful empty source metadata.
+- Existing Activity/Pressure scoped import conflict and whole-entry selection limitations need their separately reviewed completion; do not broaden them in the session surface.
+- Exact organization detail, finite source-selection contracts, child staging ownership and the final reusable port/binding/caller must be assembled and independently reviewed. No production source was added by this trace.
+
+All written test, SQL/Room/Hilt, device/UI and convergence results remain unexecuted. This trace proves neither complete source exports nor integration readiness.

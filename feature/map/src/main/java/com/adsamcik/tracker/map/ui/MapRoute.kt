@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.adsamcik.tracker.map.export.MapShareResolution
+import com.adsamcik.tracker.map.export.MapShareCaptureRequest
 import com.adsamcik.tracker.map.layers.registry.DefaultLayerRegistry
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerEngine
@@ -94,7 +95,7 @@ fun MapRoute(
     // layer data this needs.
     var showShareSheet by remember { mutableStateOf(false) }
     var shareResolution by remember { mutableStateOf(MapShareResolution.STANDARD) }
-    var shareCaptureRequest by remember { mutableStateOf<MapShareResolution?>(null) }
+    var shareCaptureRequest by remember { mutableStateOf<MapShareCaptureRequest?>(null) }
     var isPreparingShareImage by remember { mutableStateOf(false) }
     val shareErrorMessage = stringResource(com.adsamcik.tracker.map.R.string.map_share_error)
 
@@ -141,7 +142,9 @@ fun MapRoute(
             onResolutionSelected = { shareResolution = it },
             onShareClick = {
                 showShareSheet = false
-                shareCaptureRequest = shareResolution
+                shareCaptureRequest = MapShareCaptureRequest(
+                    shareResolution, store.mapImageShareHelper.currentGeneration,
+                )
             },
             onDismiss = { showShareSheet = false },
         )

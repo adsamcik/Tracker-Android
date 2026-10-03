@@ -5,6 +5,8 @@ import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.data.ImportExportDataRepository
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.model.LocationSample
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
@@ -62,6 +64,7 @@ class ImportExportViewModelTest {
             ExportDocumentResult.Success(
                 fileNameWithExtension = "export.gpx",
                 baseFileName = "export",
+                startupGeneration = 0L,
             )
         )
         viewModel.uiState.value.exportCompletionState shouldBe ExportCompletionState.Succeeded
@@ -115,6 +118,7 @@ class ImportExportViewModelTest {
             )
     }
 
+
     @Test
     fun `calendar picker preserves the displayed day in either time zone`() {
         for (zone in listOf(ZoneId.of("Europe/Prague"), ZoneId.of("America/Los_Angeles"))) {
@@ -137,6 +141,11 @@ class ImportExportViewModelTest {
             override val default: CoroutineDispatcher = dispatcher
             override val main: CoroutineDispatcher = dispatcher
             override val unconfined: CoroutineDispatcher = dispatcher
+        },
+        startupGate = object : TrackingStartupGate {
+            override val isReady = true
+            override val permitsNewCollection = false
+            override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
         },
     )
 
@@ -161,4 +170,5 @@ class ImportExportViewModelTest {
             return ExportResult.Success
         }
     }
+
 }
