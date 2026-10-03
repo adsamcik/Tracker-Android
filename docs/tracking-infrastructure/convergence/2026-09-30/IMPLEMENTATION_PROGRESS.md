@@ -20,6 +20,14 @@ description of its earlier input; this file records subsequent repair progress.
 
 ## Authored slices and local commit receipts
 
+- `c7cc6a7340`: approved nullable native Wi-Fi format marker, immutable
+  corrections, writer/history/maintenance parity and authored migration/detail
+  scenarios. Fresh static review passed the narrow source slice. Twelve tracked
+  paths selected; mixed file-export owner/detail paths remain held. Exact selection:
+  `../2026-10-03/NATIVE_WIFI_CARRIER_SELECTION.md`.
+- October 3 radio staging and imported newest-member cursor repairs are authored
+  and independently reviewed in their respective `_FRESH_REVIEW_1003.md` receipts.
+  Full exporter definitions and dependent test selection remain open.
 - `dbd21b4b41`: original Start continuation; independent static review by
   `/root/adversary_product_0930`, exact paths in `START_CONTINUATION_FILES.json`.
 - `7c01f7f5ca`: bounded successful exports and observed Activity variety; source

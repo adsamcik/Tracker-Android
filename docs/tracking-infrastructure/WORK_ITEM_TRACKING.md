@@ -1,13 +1,17 @@
 # Tracking Infrastructure Work-Item Tracking
 
-Last updated: 2026-09-30
+Last updated: 2026-10-03
 
-## Current September 30 source milestones
+## Current source milestones
 
 The current source checklist and exact commit receipts are maintained in
 `convergence/2026-09-30/IMPLEMENTATION_PROGRESS.md`. The older item descriptions
 below are retained as historical checkpoints; their pending-question text does
 not supersede later user answers or the selected source commits.
+
+- [x] Durable native Wi-Fi format marker through writer/correction/history/
+  maintenance, independently reviewed source and authored scenarios: `c7cc6a7340`.
+  Mixed file-export detail/owner selection remains open.
 
 - [x] Original Start continuation and entry-point Stop/Off structure: `dbd21b4b41`.
 - [x] All-day Steps scheduler/enable/open copies and ordered settings recovery:

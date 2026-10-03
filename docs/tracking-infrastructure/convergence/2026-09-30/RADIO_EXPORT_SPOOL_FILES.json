@@ -1,0 +1,67 @@
+{
+  "date": "2026-10-03",
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "author": "/root/completion_requirements_0930",
+  "workspace": "C:/Users/adam-/GitHub/Tracker-Android/.worktrees/source-native-map-context-root",
+  "approval": "User answer: Use existing temporary export storage.",
+  "selection": "Constructor maximumBytes/default/constraint and exportWithSessionSelection wrapper only; full held exporters are not approved by this slice. Whole-file hashes are snapshots; exact excerpt hashes pin owned functions independently of concurrent native-detail edits.",
+  "excerpt_encoding": "UTF-8 of the exact current text, preserving line endings; start marker inclusive, end marker exclusive.",
+  "files": [
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableWifiSourceExporter.kt",
+      "sha256": "d40adbe19224ca5bbc47d0a1ee81ddd073a5b57610cd220b909db737b94dde33",
+      "kind": "mixed held production draft",
+      "owned_hunks": ["maximumBytes constructor default and init constraint", "exportWithSessionSelection stage/snapshot/copy wrapper"],
+      "excerpt_pins": [
+        {
+          "start": "internal class PortableWifiSourceExporter(",
+          "end": "\toverride val requiresLocationData",
+          "sha256": "29ac2e6195a72cf4265b3e2d719b40fcf8ac87260511734c943ca9bcafa76ce9"
+        },
+        {
+          "start": "\toverride suspend fun exportWithSessionSelection(",
+          "end": "\tprivate suspend fun writeFile(",
+          "sha256": "64d971902bf0c0b90fe24e758b1f77e090b82213c1269df1b977039643f3b053"
+        }
+      ],
+      "excluded": "all imports, writeFile/native owner/detail marker/date selection/background budget/mapping/other preserved draft content"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableCellSourceExporter.kt",
+      "sha256": "5649a7e585d819e7a5f5d86fbb2923693186fac162694aa518457be3bc6e3fd7",
+      "kind": "mixed held production draft",
+      "owned_hunks": ["maximumBytes constructor default and init constraint", "exportWithSessionSelection stage/snapshot/copy wrapper"],
+      "excerpt_pins": [
+        {
+          "start": "internal class PortableCellSourceExporter(",
+          "end": "\toverride val requiresLocationData",
+          "sha256": "dedeba780ed07dae07915935c5e0312237880fc409fe6f7460087b9cbab5b0fe"
+        },
+        {
+          "start": "\toverride suspend fun exportWithSessionSelection(",
+          "end": "\tprivate suspend fun writeFile(",
+          "sha256": "a529c40c6a5b9fcdcdc982a501837db8745ba207f55c2a6dd014f248d342b1f0"
+        }
+      ],
+      "excluded": "all imports, writeFile/native owner/date selection/background budget/mapping/completeness/other preserved draft content"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/RadioExportSpoolRoomTest.kt",
+      "sha256": "6bb6a4b6b5199af553f8dbc84d4096d7a88586c6c5b334c0a6d7e8658ff28ef5",
+      "owned_hunks": ["whole new test source: seven actual export/Room/codec/spool scenarios"],
+      "execution": "not executed"
+    }
+  ],
+  "unchanged_dependency": {
+    "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/FileBackedExportSpool.kt",
+    "sha256": "21ca142d86eca8446dc095774d646fdf3bd5b10954a09a360bff570ff955972d"
+  },
+  "dependencies": [
+    "existing radio V2 codec, chosen-source readers and finite export selection/children contracts",
+    "existing caller-owned destination close/partial-output cleanup",
+    "separate active-transfer admission/draining work remains outside this slice"
+  ],
+  "excluded_changes": ["schema/public API/dependencies/framework", "format/source/date/membership/identity rules", "active-transfer lifecycle"],
+  "executed_validation": []
+}

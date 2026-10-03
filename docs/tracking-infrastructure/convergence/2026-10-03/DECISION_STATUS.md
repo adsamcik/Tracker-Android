@@ -44,6 +44,10 @@ The two History/session-export answers are from `call_Aos5FHEL3IZBUbkrt10xb0Kx`.
   reasons, without invented coordinates.
 - [ ] Restart the app once after confirmed data-only restore so all readers use
   the replaced databases; preserve settings, stopped tracking and the safety copy.
+- [ ] Add a small dated Location-to-exploration lookup for accurate period visits
+  and revisits, rebuilt from still-saved points and updated on correction/deletion.
+- [ ] Save newly delivered cross-midnight radio observations as separate daily
+  groups with stable per-reading details; preserve older saved identities.
 
 ## Stale questions removed from the blocking list
 
@@ -63,11 +67,21 @@ behavior choice still needs a concrete proposal under AGENTS.md.
 
 ## Current implementation activity
 
-- [ ] Implement and independently review the approved radio temporary-file slice.
-- [ ] Implement and independently review the approved Wi-Fi format marker slice.
+- [x] Author and independently review the approved radio temporary-file slice;
+  complete held exporter definition selection remains open.
+- [x] Implement and independently review the native Wi-Fi format marker core;
+  commit `c7cc6a7340`; mixed file-export owner/detail deltas remain held separately.
 - [ ] Trace and implement period metrics through real dated source data, including
   missing evidence and correction/deletion behavior; never substitute All-time.
 - [ ] Update source-selection receipts and checklists after each coherent commit.
+
+The radio staging slice now has an independent static review receipt at
+`../2026-09-30/RADIO_EXPORT_SPOOL_FRESH_REVIEW_1003.md`; its complete exporter
+definitions are still held with their other unfinished dependencies. The current
+exploration trace is `PERIOD_EXPLORATION_SOURCE_TRACE.md`. A narrow held Wi-Fi
+export continuation repair now uses the source reader's actual newest-member
+cursor; its authored scenario exports 101 entries across the real file/Room/codec
+boundary with explicitly supplied source pages. This is not executed evidence.
 
 No tests, compilation, schema generation, device/provider work or gates ran for
 this decision checkpoint. All 25 full-chain prerequisites remain open.
