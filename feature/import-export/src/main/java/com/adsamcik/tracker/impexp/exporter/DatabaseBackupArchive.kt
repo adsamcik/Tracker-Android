@@ -6,41 +6,72 @@ import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 internal object DatabaseBackupArchive {
 	private const val DATABASE_DIRECTORY = "databases/"
 	private const val MANIFEST_FILE = "manifest.json"
 
-	fun write(
+	suspend fun write(
 		databaseFiles: List<File>,
 		outputStream: OutputStream,
 		copyLockProvider: DatabaseCopyLockProvider,
 	) {
-		ZipOutputStream(outputStream).use { archive ->
-			val entries = databaseFiles
-				.sortedBy { it.name }
-				.map { file ->
-					copyLockProvider.lock(file).use {
-						writeDatabaseEntry(archive, file)
+		val caller = currentCoroutineContext()
+		caller.ensureActive()
+		try {
+			ZipOutputStream(outputStream).use { archive ->
+				val entries = databaseFiles
+					.sortedBy { it.name }
+					.map { file ->
+						caller.ensureActive()
+						copyLockProvider.lock(file).use {
+							caller.ensureActive()
+							writeDatabaseEntry(archive, file, caller)
+						}
 					}
+				writeManifest(archive, entries, caller)
+			}
+			caller.ensureActive()
+		} catch (error: Throwable) {
+			if (error !is CancellationException) {
+				try {
+					caller.ensureActive()
+				} catch (cancelled: CancellationException) {
+					cancelled.addSuppressed(error)
+					throw cancelled
 				}
-			writeManifest(archive, entries)
+			}
+			throw error
 		}
 	}
 
-	private fun writeDatabaseEntry(archive: ZipOutputStream, file: File): DatabaseBackupEntry {
+	private fun writeDatabaseEntry(
+		archive: ZipOutputStream,
+		file: File,
+		caller: CoroutineContext,
+	): DatabaseBackupEntry {
+		caller.ensureActive()
 		val checksum = MessageDigest.getInstance("SHA-256")
 		archive.putNextEntry(ZipEntry("$DATABASE_DIRECTORY${file.name}"))
+		caller.ensureActive()
 		file.inputStream().buffered().use { input ->
 			val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
 			while (true) {
+				caller.ensureActive()
 				val count = input.read(buffer)
+				caller.ensureActive()
 				if (count < 0) break
 				checksum.update(buffer, 0, count)
 				archive.write(buffer, 0, count)
+				caller.ensureActive()
 			}
 		}
 		archive.closeEntry()
+		caller.ensureActive()
 		return DatabaseBackupEntry(
 			fileName = file.name,
 			sizeBytes = file.length(),
@@ -48,7 +79,12 @@ internal object DatabaseBackupArchive {
 		)
 	}
 
-	private fun writeManifest(archive: ZipOutputStream, entries: List<DatabaseBackupEntry>) {
+	private fun writeManifest(
+		archive: ZipOutputStream,
+		entries: List<DatabaseBackupEntry>,
+		caller: CoroutineContext,
+	) {
+		caller.ensureActive()
 		val manifest = buildString {
 			append("{\"format\":\"tracker-database-backup\",\"version\":1,\"databases\":[")
 			entries.forEachIndexed { index, entry ->
@@ -60,8 +96,11 @@ internal object DatabaseBackupArchive {
 			append("]}")
 		}
 		archive.putNextEntry(ZipEntry(MANIFEST_FILE))
+		caller.ensureActive()
 		archive.write(manifest.toByteArray(Charsets.UTF_8))
+		caller.ensureActive()
 		archive.closeEntry()
+		caller.ensureActive()
 	}
 
 	private fun escapeJson(value: String): String =

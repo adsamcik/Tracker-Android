@@ -122,6 +122,13 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Select the independently reviewed database-archive cancellation prerequisite.
+  Three source paths preserve cancellation after synchronous ZIP and database-lock
+  cleanup, including failures during final close. Eight new authored cases and two
+  signature adaptations remain unexecuted. Receipt:
+  `convergence/2026-10-04/BACKUP_CANCELLATION_FRESH_REVIEW_1004.md`.
+  Complete data-only scope, coherent snapshot, restore and full cleanup remain open;
+  held V2 archive drafts are excluded from this selection.
 - [x] Repair all-day Steps recovery after motion permission is granted through
   Steps, Activity, automatic tracking or Location assistance. Reuse the existing
   current-choice provider owner refresh even when policy reconciliation is cached;

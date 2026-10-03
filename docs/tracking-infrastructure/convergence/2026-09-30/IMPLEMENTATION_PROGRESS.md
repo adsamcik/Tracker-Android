@@ -20,6 +20,12 @@ description of its earlier input; this file records subsequent repair progress.
 
 ## Authored slices and local commit receipts
 
+- October 4 database-archive cancellation is independently reviewed as a
+  three-path HEAD V1 prerequisite. Final cleanup failures cannot convert an already
+  cancelled transfer into an ordinary Error result; an active caller keeps its
+  original failure. Eight new cases and two signature adaptations are authored,
+  unexecuted. `../2026-10-04/BACKUP_CANCELLATION_FRESH_REVIEW_1004.md` pins the
+  selected source. Held V2/scope/caps/preflight/restore drafts remain excluded.
 - October 4 shared motion-permission recovery for selected all-day Steps is
   independently reviewed. Existing owner refresh runs after Activity, Steps,
   automatic and Location-assistance callbacks without restoring old intent.

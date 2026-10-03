@@ -69,6 +69,12 @@ recorded separately from implementation and source review.
 
 ## Questions presented, awaiting answers
 
+- [ ] Connect the shared lifecycle check to existing retained all-day source readers
+  through one small read-only stats API seam, without copied qualification or new
+  storage. Real provider-window Steps identity is already approved by
+  `call_twHtAAQaHNF6gDGm8nlvTzgL`, item 1; do not reask that identity decision.
+  The current adapter, fact lookup and final presentation still require sessions;
+  the new cross-module reader connection is the specific remaining choice.
 - [ ] Permit individual Wi-Fi/Cell measurements with original IDs/timestamps and
   optional session labels in the source file, merging overlapping imports without
   treating omitted readings as deletion. Older complete files stay readable. This
@@ -112,6 +118,12 @@ behavior choice still needs a concrete proposal under AGENTS.md.
 
 ## Current implementation activity
 
+- [x] Select the independently reviewed three-path database-archive cancellation
+  prerequisite. Synchronous cleanup finishes before cancellation escapes; failing
+  final lock/output close retains cancellation and suppressed error, while active
+  callers retain their failure. Eight new cases and two adaptations are authored,
+  unexecuted. `../2026-10-04/BACKUP_CANCELLATION_FRESH_REVIEW_1004.md` records
+  acceptance. Full data-only backup/restore and held V2 drafts remain separate.
 - [x] Repair the cached-policy all-day Steps permission gap across all four
   motion-permission routes, reusing the existing current-choice owner refresh.
   Three paths and six authored cases/eight callback scenarios are independently

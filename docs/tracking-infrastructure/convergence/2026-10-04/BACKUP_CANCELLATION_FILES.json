@@ -1,0 +1,145 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "phase": "IMPLEMENTATION_ONLY",
+  "owner": "/root/transfer_adversary_1003",
+  "base_head": "eea8e76ac393c65ea7040bd2bd55dbeb51c3e6b8",
+  "freeze_date": "2026-10-04",
+  "path_count": 3,
+  "selected_new_authored_cases": 8,
+  "held_new_authored_cases": 10,
+  "tests_executed": false,
+  "gates_executed": false,
+  "git_operations_performed": false,
+  "selected_patch": "docs/tracking-infrastructure/convergence/2026-10-04/BACKUP_CANCELLATION_SELECTION.patch",
+  "selected_patch_sha256": "f7f1d06209e46b528b424b9e0f44c90a11be7d03da4b37b0c82333d7617fa8df",
+  "paths": [
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/DatabaseBackupArchive.kt",
+      "before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/BACKUP_CANCELLATION_SELECTED/DatabaseBackupArchive.kt.head-before",
+      "before_sha256": "ffdd83c03a83dd3da43516ce6489895188531ff7b6417457aebcf7be94300cf9",
+      "selected_after_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/BACKUP_CANCELLATION_SELECTED/DatabaseBackupArchive.kt.after",
+      "selected_after_sha256": "cdca94e016b9da492815fffdd0e3bef717f36d7c52cbba4ead2f319db2469944",
+      "selection": "Only HEAD V1 cancellation delta; actual working V2 must not be staged wholesale."
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/DatabaseExporter.kt",
+      "before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/BACKUP_CANCELLATION_SELECTED/DatabaseExporter.kt.head-before",
+      "before_sha256": "adee8fd7b1db151838bfa8dbd290af835d53684a0a424998499abd618b9284b9",
+      "selected_after_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/BACKUP_CANCELLATION_SELECTED/DatabaseExporter.kt.after",
+      "selected_after_sha256": "946f878e582045a1247d978754ad7d393ee170331baa2372b240d2df14b786c5",
+      "selection": "Only HEAD V1 cancellation delta; actual working V2 must not be staged wholesale."
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/DatabaseBackupArchiveTest.kt",
+      "before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/BACKUP_CANCELLATION_SELECTED/DatabaseBackupArchiveTest.kt.head-before",
+      "before_sha256": "fb4a2d4831ecf63be403072182433f84074ad33e2519bb64f88951924ddad5b5",
+      "selected_after_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/BACKUP_CANCELLATION_SELECTED/DatabaseBackupArchiveTest.kt.after",
+      "selected_after_sha256": "077c703feda709070d1078be86053cbb10392dacc933774379caef76fdb5088c",
+      "selection": "Only HEAD V1 cancellation delta; actual working V2 must not be staged wholesale."
+    }
+  ],
+  "selected_authored_cases": [
+    {
+      "name": "cancelled backup refuses before acquiring any database lock",
+      "executed": false
+    },
+    {
+      "name": "cancellation during lock acquisition releases that lock without opening a sibling",
+      "executed": false
+    },
+    {
+      "name": "cancellation during copied data closes output and lock before another file or manifest",
+      "executed": false
+    },
+    {
+      "name": "copy failure stays primary when its database lock also fails to close",
+      "executed": false
+    },
+    {
+      "name": "database exporter propagates copy cancellation and releases the real SQLite lock",
+      "executed": false
+    },
+    {
+      "name": "database exporter preserves cancellation and error from final output closure",
+      "executed": false
+    },
+    {
+      "name": "cancellation from failing lock release escapes after physical output cleanup",
+      "executed": false
+    },
+    {
+      "name": "active caller keeps final output IOException without cancellation conversion",
+      "executed": false
+    }
+  ],
+  "held_mirror": {
+    "staging_allowed": false,
+    "patch": "docs/tracking-infrastructure/convergence/2026-10-04/BACKUP_CANCELLATION_HELD_V2.patch",
+    "patch_sha256": "5e26791e024cfe5154db569c889e7bd88778af0d5ed16cd3c0016338564d86f9",
+    "paths": [
+      {
+        "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/DatabaseBackupArchive.kt",
+        "working_before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/BACKUP_CANCELLATION_SELECTED/DatabaseBackupArchive.kt.working-before",
+        "working_before_sha256": "d3e12a91b0f959bd0e1bf612783d7bf97255cbf4bbdbed1f266458e0f6a05ca4",
+        "working_after_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/BACKUP_CANCELLATION_SELECTED/DatabaseBackupArchive.kt.working-after",
+        "working_after_sha256": "18451c4543427ab26f1e29f390fc8696d811adf53dc9192fa2e970a5663d2771",
+        "current_working_sha256": "18451c4543427ab26f1e29f390fc8696d811adf53dc9192fa2e970a5663d2771"
+      },
+      {
+        "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/DatabaseBackupArchiveTest.kt",
+        "working_before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/BACKUP_CANCELLATION_SELECTED/DatabaseBackupArchiveTest.kt.working-before",
+        "working_before_sha256": "3bb75ea0fac882d53bc929bd58a8e84f3dd2c4039772bff9c3c3033e2a2f6986",
+        "working_after_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/BACKUP_CANCELLATION_SELECTED/DatabaseBackupArchiveTest.kt.working-after",
+        "working_after_sha256": "3fdd2a8e05d7338eb3e1e42b03169bfa6701ff1f8705e110965840995c9fe68a",
+        "current_working_sha256": "3fdd2a8e05d7338eb3e1e42b03169bfa6701ff1f8705e110965840995c9fe68a"
+      }
+    ],
+    "authored_cases": [
+      {
+        "name": "cancelled backup refuses before acquiring any database lock",
+        "executed": false
+      },
+      {
+        "name": "cancellation during lock acquisition releases that lock without opening a sibling",
+        "executed": false
+      },
+      {
+        "name": "cancellation during copied data closes output and all locks before another file or manifest",
+        "executed": false
+      },
+      {
+        "name": "copy failure stays primary when its database lock also fails to close",
+        "executed": false
+      },
+      {
+        "name": "database exporter propagates copy cancellation and releases the real SQLite lock",
+        "executed": false
+      },
+      {
+        "name": "database exporter preserves cancellation and error from final output closure",
+        "executed": false
+      },
+      {
+        "name": "cancellation from failing lock release escapes after physical output cleanup",
+        "executed": false
+      },
+      {
+        "name": "active caller keeps final output IOException without cancellation conversion",
+        "executed": false
+      },
+      {
+        "name": "held complete archive releases earlier locks after a later release fails",
+        "executed": false
+      },
+      {
+        "name": "held later lock acquisition failure retains its error and releases acquired predecessors",
+        "executed": false
+      }
+    ]
+  },
+  "excluded": "Held V2 format/scope/caps/preflight; backup snapshot coordination; restore/UI/lifecycle design; all other working paths.",
+  "review_repairs": [
+    "B1: after all synchronous cleanup, cancelled caller remains cancellation with non-cancellation failure suppressed; active caller keeps original error."
+  ],
+  "superseded_packet": "docs/tracking-infrastructure/convergence/2026-10-04/BACKUP_CANCELLATION_SELECTED/PRE_B1_REPAIR"
+}

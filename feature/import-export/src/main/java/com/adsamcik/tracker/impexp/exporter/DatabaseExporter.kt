@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.model.LocationSample
 import java.io.Closeable
 import java.io.File
 import java.io.OutputStream
+import kotlinx.coroutines.CancellationException
 
 /**
  * Exports every database owned by the application as a ZIP backup.
@@ -49,6 +50,8 @@ class DatabaseExporter : Exporter {
 				SQLiteDatabaseCopyLockProvider,
 			)
 			ExportResult.Success
+		} catch (cancelled: CancellationException) {
+			throw cancelled
 		} catch (_: Exception) {
 			ExportResult.Error(LocalizedString(R.string.export_error_unknown))
 		}
