@@ -1,0 +1,487 @@
+diff --git a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsRoute.kt b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsRoute.kt
+index a4789a2cd5..c882f49016 100644
+--- a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsRoute.kt
++++ b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsRoute.kt
+@@ -12,15 +12,28 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
+ import androidx.paging.compose.collectAsLazyPagingItems
+ import androidx.paging.LoadState
+ import androidx.compose.ui.res.stringResource
++import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+ import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+ import com.adsamcik.tracker.statistics.R
+ import com.adsamcik.tracker.statistics.presenter.StatsPresenterViewModel
++import dagger.hilt.EntryPoint
++import dagger.hilt.InstallIn
++import dagger.hilt.android.EntryPointAccessors
++import dagger.hilt.components.SingletonComponent
+ import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.distinctUntilChanged
++import kotlinx.coroutines.flow.map
+ import java.time.Instant
+ import java.time.ZoneId
+ import java.time.format.DateTimeFormatter
+ import java.time.format.FormatStyle
+ 
++@EntryPoint
++@InstallIn(SingletonComponent::class)
++private interface StatsRouteEntryPoint {
++    fun trackingParamsRepository(): TrackingParamsRepository
++}
++
+ /**
+  * Entry point composable for Statistics tab. Uses Hilt for dependency injection.
+  */
+@@ -37,6 +50,15 @@ fun StatsRoute(
+     val vm: StatsPresenterViewModel = hiltViewModel()
+     val context = LocalContext.current
+     val pagingItems = vm.tripsFlow.collectAsLazyPagingItems()
++    val stepsSelection = remember(context.applicationContext) {
++        EntryPointAccessors.fromApplication(
++            context.applicationContext,
++            StatsRouteEntryPoint::class.java,
++        ).trackingParamsRepository().data
++            .map { it.stepsEnabled }
++            .distinctUntilChanged()
++    }
++    val stepsSelected by stepsSelection.collectAsStateWithLifecycle(initialValue = false)
+ 
+     // Date range remains a dialog because it's a tool that filters this very
+     // screen; Summary and Wi-Fi stats are destination content and are now
+@@ -64,9 +86,7 @@ fun StatsRoute(
+     }
+     val weeklyStepsSummary = collectWeeklyStepsSummaryWhenVisible(
+         summaries = vm.weeklyStepsSummary,
+-        visible = refreshState.shouldCollectWeeklyStepsSummary(
+-            visibleSessionCount = pagingItems.itemCount,
+-        ),
++        visible = true,
+     )
+ 
+     StatsScreen(
+@@ -82,6 +102,7 @@ fun StatsRoute(
+         selectedHeaderAction = selectedHeaderAction,
+         weeklyBars = weeklyBars,
+         weeklyStepsSummary = weeklyStepsSummary,
++        stepsSelected = stepsSelected,
+         heatmapData = heatmapData,
+         onTripClick = onTripClick,
+         onTripViewOnMap = onTripViewOnMap,
+@@ -110,11 +131,7 @@ fun StatsRoute(
+     }
+ }
+ 
+-internal fun RefreshUiState.shouldCollectWeeklyStepsSummary(
+-    visibleSessionCount: Int,
+-): Boolean = this != RefreshUiState.Content || visibleSessionCount in 0..2
+-
+-/** Collects the qualified Steps window only while its sparse-summary consumer can be rendered. */
++/** Collects retained Steps while this screen is active, independently of session paging. */
+ @Composable
+ internal fun collectWeeklyStepsSummaryWhenVisible(
+     summaries: StateFlow<StepsNumericSummary>,
+diff --git a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsScreen.kt b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsScreen.kt
+index 14e68ea024..7583231b12 100644
+--- a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsScreen.kt
++++ b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsScreen.kt
+@@ -143,6 +143,7 @@ fun StatsScreen(
+     weeklyStepsSummary: StepsNumericSummary = StepsNumericSummary.Unverifiable(
+         StepsNumericUnverifiableReason.NOT_CAPTURED,
+     ),
++    stepsSelected: Boolean = false,
+     heatmapData: Map<LocalDate, Float> = emptyMap(),
+     onTripClick: (Long) -> Unit = {},
+     onTripViewOnMap: (Long, Long, Long) -> Unit = { _, _, _ -> },
+@@ -188,6 +189,7 @@ fun StatsScreen(
+                 selectedHeaderAction = selectedHeaderAction,
+                 weeklyBars = weeklyBars,
+                 weeklyStepsSummary = weeklyStepsSummary,
++                stepsSelected = stepsSelected,
+                 heatmapData = heatmapData,
+                 onTripClick = onTripClick,
+                 onTripViewOnMap = onTripViewOnMap,
+@@ -290,6 +292,7 @@ private fun ContentState(
+     selectedHeaderAction: StatsHeaderAction? = null,
+     weeklyBars: List<DayBar> = emptyList(),
+     weeklyStepsSummary: StepsNumericSummary,
++    stepsSelected: Boolean,
+     heatmapData: Map<LocalDate, Float> = emptyMap(),
+     onTripClick: (Long) -> Unit = {},
+     onTripViewOnMap: (Long, Long, Long) -> Unit = { _, _, _ -> },
+@@ -302,11 +305,16 @@ private fun ContentState(
+ ){
+     val sessionCount = if (sessionRefreshState == RefreshUiState.Content) pagingItems?.itemCount ?: 5 else 0
+     val showEmptyCollectionPrompt = sessionRefreshState == RefreshUiState.Empty &&
++        !stepsSelected &&
+         weeklyStepsSummary == StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED) &&
+         weeklyBars.none { it.hasNonStepTrackedActivity } && heatmapData.isEmpty()
+     val showSparseSummary = (sessionRefreshState != RefreshUiState.Content || pagingItems != null) &&
+         sessionCount in 0..2 &&
+         !showEmptyCollectionPrompt
++    // Only these retained results establish saved Steps; a storage failure alone does not.
++    val hasSavedWeeklySteps = weeklyStepsSummary is StepsNumericSummary.Ready ||
++        weeklyStepsSummary == StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE)
++    val showWeeklyStepsSummary = stepsSelected || hasSavedWeeklySteps
+ 
+     LazyColumn(
+         modifier = Modifier.fillMaxSize(),
+@@ -329,6 +337,16 @@ private fun ContentState(
+                 )
+         }
+ 
++        if (showWeeklyStepsSummary) {
++            item(key = "weekly_steps_summary") {
++                SparseStatsSummaryCard(
++                    visibleSessionCount = if (showSparseSummary) sessionCount else 0,
++                    weeklyBars = weeklyBars,
++                    weeklyStepsSummary = weeklyStepsSummary,
++                )
++            }
++        }
++
+         if (heatmapData.isNotEmpty()) {
+             item(key = "calendar_heatmap") {
+                 GlassCard(
+@@ -415,7 +433,7 @@ private fun ContentState(
+             }
+         }
+ 
+-        if (showSparseSummary) {
++        if (showSparseSummary && !showWeeklyStepsSummary) {
+             item(key = "sparse_summary_footer") {
+                 SparseStatsSummaryCard(
+                     visibleSessionCount = sessionCount,
+diff --git a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/StatsScreenComposeTest.kt b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/StatsScreenComposeTest.kt
+index 0222b84fa8..2153cbb1c2 100644
+--- a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/StatsScreenComposeTest.kt
++++ b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/StatsScreenComposeTest.kt
+@@ -14,17 +14,23 @@ import androidx.compose.ui.test.assertDoesNotExist
+ import androidx.compose.ui.test.assertIsDisplayed
+ import androidx.compose.ui.test.hasAncestor
+ import androidx.compose.ui.test.hasTestTag
++import androidx.compose.ui.test.hasScrollToIndexAction
+ import androidx.compose.ui.test.hasText
+ import androidx.compose.ui.test.junit4.createComposeRule
+ import androidx.compose.ui.test.onAllNodesWithText
++import androidx.compose.ui.test.onAllNodesWithTag
+ import androidx.compose.ui.test.onNodeWithTag
+ import androidx.compose.ui.test.onNodeWithText
+ import androidx.compose.ui.test.performClick
+ import androidx.compose.ui.test.performScrollTo
++import androidx.compose.ui.test.performScrollToIndex
++import androidx.compose.ui.test.performScrollToNode
+ import androidx.lifecycle.Lifecycle
+ import androidx.lifecycle.LifecycleOwner
+ import androidx.lifecycle.LifecycleRegistry
+ import androidx.lifecycle.compose.LocalLifecycleOwner
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
++import com.adsamcik.tracker.shared.base.extension.formatReadable
+ import com.adsamcik.tracker.shared.model.SegmentSource
+ import com.adsamcik.tracker.shared.model.Trip
+ import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
+@@ -34,7 +40,6 @@ import com.adsamcik.tracker.statistics.fragment.AppendUiState
+ import com.adsamcik.tracker.statistics.fragment.RefreshUiState
+ import com.adsamcik.tracker.statistics.fragment.StatsScreen
+ import com.adsamcik.tracker.statistics.fragment.collectWeeklyStepsSummaryWhenVisible
+-import com.adsamcik.tracker.statistics.fragment.shouldCollectWeeklyStepsSummary
+ import com.adsamcik.tracker.statistics.viewmodel.DayBar
+ import io.kotest.matchers.shouldBe
+ import kotlinx.coroutines.flow.MutableStateFlow
+@@ -371,17 +376,6 @@ class StatsScreenComposeTest {
+ 			.assertIsDisplayed()
+ 	}
+ 
+-	@Test
+-	fun `qualified Steps collection includes sessionless sparse content`() {
+-		RefreshUiState.Loading.shouldCollectWeeklyStepsSummary(visibleSessionCount = 1) shouldBe true
+-		RefreshUiState.Empty.shouldCollectWeeklyStepsSummary(visibleSessionCount = 0) shouldBe true
+-		RefreshUiState.Error.shouldCollectWeeklyStepsSummary(visibleSessionCount = 1) shouldBe true
+-		RefreshUiState.Content.shouldCollectWeeklyStepsSummary(visibleSessionCount = 0) shouldBe true
+-		RefreshUiState.Content.shouldCollectWeeklyStepsSummary(visibleSessionCount = 1) shouldBe true
+-		RefreshUiState.Content.shouldCollectWeeklyStepsSummary(visibleSessionCount = 2) shouldBe true
+-		RefreshUiState.Content.shouldCollectWeeklyStepsSummary(visibleSessionCount = 3) shouldBe false
+-	}
+-
+ 	@Test
+ 	fun `saved all-day Steps render without sessions and keep Summary and History reachable`() {
+ 		val today = LocalDate.now().toEpochDay()
+@@ -700,6 +694,219 @@ class StatsScreenComposeTest {
+ 
+ 	// ─── Active filter label ─────────────────────────────────────────────
+ 
++	@Test
++	fun `three sessions preserve saved all-day Steps when Steps is off`() {
++		val today = LocalDate.now().toEpochDay()
++		val largeCount = Int.MAX_VALUE.toLong() + 8L
++		val summaries = MutableStateFlow<StepsNumericSummary>(
++			StepsNumericSummary.Ready(List(7) { index ->
++				StepsNumericDay(today - 6L + index, if (index == 6) largeCount else 0L)
++			}),
++		)
++		var openedTrip: Long? = null
++		var historyOpened = false
++		var loadedSessionCount = 0
++		composeTestRule.setContent {
++			MaterialTheme(colorScheme = lightColorScheme()) {
++				DenseStepsStatistics(
++					summaries = summaries,
++					stepsSelection = remember { MutableStateFlow(false) },
++					onTripClick = { openedTrip = it },
++					onNavigateToHistory = { historyOpened = true },
++					onSessionCount = { loadedSessionCount = it },
++					weeklyBars = List(7) { index ->
++						DayBar("Day $index", distanceM = 0f, epochDay = today - 6L + index)
++					},
++				)
++			}
++		}
++		composeTestRule.waitForIdle()
++		summaries.subscriptionCount.value shouldBe 1
++		loadedSessionCount shouldBe 3
++		composeTestRule.onNodeWithTag("stats_summary_steps").assertIsDisplayed()
++		composeTestRule.onNode(hasScrollToIndexAction())
++			.performScrollToNode(hasTestTag("stats_session_row"))
++		composeTestRule.onAllNodesWithTag("stats_session_row")[0].performClick()
++		openedTrip shouldBe 1L
++		scrollToWeeklyStepsSummary()
++		composeTestRule.onNode(hasText(largeCount.formatReadable()) and hasAncestor(hasTestTag("stats_summary_steps")))
++			.assertIsDisplayed()
++		composeTestRule.onNode(hasText("1") and hasAncestor(hasTestTag("stats_summary_active_days")))
++			.assertIsDisplayed()
++		composeTestRule.onNodeWithContentDescription("Day 0, 0").assertIsDisplayed()
++		composeTestRule.onNodeWithContentDescription("Day 6, ${largeCount.formatReadable()}").assertIsDisplayed()
++		composeTestRule.onNodeWithText("Distance").assertDoesNotExist()
++		composeTestRule.onNodeWithText("Only 3 sessions are visible", substring = true).assertDoesNotExist()
++		scrollToStatisticsHeader()
++		composeTestRule.onNodeWithText("History").performClick()
++		historyOpened shouldBe true
++	}
++
++	@Test
++	fun `saved Steps appears before a long session history without scrolling`() {
++		val today = LocalDate.now().toEpochDay()
++		val summaries = MutableStateFlow<StepsNumericSummary>(
++			StepsNumericSummary.Ready(listOf(StepsNumericDay(today, 123L))),
++		)
++		val trips = List(50) { index -> sparseSummaryTrip().copy(id = index.toLong() + 1L) }
++		var loadedSessionCount = 0
++		composeTestRule.setContent {
++			MaterialTheme(colorScheme = lightColorScheme()) {
++				DenseStepsStatistics(
++					summaries = summaries,
++					stepsSelection = remember { MutableStateFlow(false) },
++					sessionPages = remember { MutableStateFlow(PagingData.from(trips)) },
++					onSessionCount = { loadedSessionCount = it },
++				)
++			}
++		}
++		composeTestRule.waitForIdle()
++		loadedSessionCount shouldBe 50
++		composeTestRule.onNodeWithText("History").assertIsDisplayed()
++		composeTestRule.onNodeWithTag("stats_summary_steps").assertIsDisplayed()
++		composeTestRule.onNode(hasText("123") and hasAncestor(hasTestTag("stats_summary_steps")))
++			.assertIsDisplayed()
++		summaries.subscriptionCount.value shouldBe 1
++	}
++
++	@Test
++	fun `selected Steps keeps waiting and incomplete states alongside three sessions`() {
++		val summaries = MutableStateFlow<StepsNumericSummary>(
++			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED),
++		)
++		val selected = MutableStateFlow(true)
++		composeTestRule.setContent {
++			MaterialTheme(colorScheme = lightColorScheme()) {
++				DenseStepsStatistics(summaries = summaries, stepsSelection = selected)
++			}
++		}
++		val states = listOf(
++			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED) to "Not captured",
++			StepsNumericSummary.Materializing to "Updating…",
++			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE) to "Incomplete",
++			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE) to "Unavailable",
++			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE) to "Unavailable",
++			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE) to "Unavailable",
++		)
++		states.forEach { (state, label) ->
++			composeTestRule.runOnIdle { summaries.value = state }
++			composeTestRule.waitForIdle()
++			scrollToWeeklyStepsSummary()
++			composeTestRule.onNode(hasText(label) and hasAncestor(hasTestTag("stats_summary_steps")))
++				.assertIsDisplayed()
++			composeTestRule.onNode(hasText("0") and hasAncestor(hasTestTag("stats_summary_steps")))
++				.assertDoesNotExist()
++			composeTestRule.onNode(hasText("N/A") and hasAncestor(hasTestTag("stats_summary_active_days")))
++				.assertIsDisplayed()
++			composeTestRule.onNodeWithText("Distance").assertDoesNotExist()
++			scrollToStatisticsHeader()
++			composeTestRule.onNodeWithText("History").assertHasClickAction()
++		}
++		summaries.subscriptionCount.value shouldBe 1
++	}
++
++	@Test
++	fun `saved incomplete Steps stays visible after switching Steps off with three sessions`() {
++		val summaries = MutableStateFlow<StepsNumericSummary>(
++			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE),
++		)
++		val selected = MutableStateFlow(true)
++		composeTestRule.setContent {
++			MaterialTheme(colorScheme = lightColorScheme()) {
++				DenseStepsStatistics(summaries = summaries, stepsSelection = selected)
++			}
++		}
++		composeTestRule.waitForIdle()
++		composeTestRule.runOnIdle { selected.value = false }
++		composeTestRule.waitForIdle()
++		scrollToWeeklyStepsSummary()
++		composeTestRule.onNode(hasText("Incomplete") and hasAncestor(hasTestTag("stats_summary_steps")))
++			.assertIsDisplayed()
++		composeTestRule.onNode(hasText("0") and hasAncestor(hasTestTag("stats_summary_steps")))
++			.assertDoesNotExist()
++		scrollToStatisticsHeader()
++		composeTestRule.onNodeWithText("History").assertHasClickAction()
++		summaries.subscriptionCount.value shouldBe 1
++	}
++
++	@Test
++	fun `off Steps without saved coverage does not add a weekly card to three sessions`() {
++		val summaries = MutableStateFlow<StepsNumericSummary>(
++			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED),
++		)
++		val selected = MutableStateFlow(false)
++		var historyOpened = false
++		var loadedSessionCount = 0
++		composeTestRule.setContent {
++			MaterialTheme(colorScheme = lightColorScheme()) {
++				DenseStepsStatistics(
++					summaries = summaries,
++					stepsSelection = selected,
++					onNavigateToHistory = { historyOpened = true },
++					onSessionCount = { loadedSessionCount = it },
++				)
++			}
++		}
++		listOf(
++			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED),
++			StepsNumericSummary.Materializing,
++			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE),
++			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE),
++			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE),
++		).forEach { state ->
++			composeTestRule.runOnIdle { summaries.value = state }
++			composeTestRule.waitForIdle()
++			composeTestRule.onNodeWithTag("stats_sparse_summary").assertDoesNotExist()
++			loadedSessionCount shouldBe 3
++			composeTestRule.onAllNodesWithTag("stats_session_row")[0].assertIsDisplayed()
++		}
++		composeTestRule.onNodeWithText("History").performClick()
++		historyOpened shouldBe true
++		summaries.subscriptionCount.value shouldBe 1
++	}
++
++	@Test
++	fun `loading a third session cannot unsubscribe saved Steps or block later count updates`() {
++		val today = LocalDate.now().toEpochDay()
++		val summaries = MutableStateFlow<StepsNumericSummary>(
++			StepsNumericSummary.Ready(listOf(StepsNumericDay(today, 61L))),
++		)
++		val sessions = MutableStateFlow(PagingData.from(denseSummaryTrips().take(2)))
++		var loadedSessionCount = 0
++		composeTestRule.setContent {
++			MaterialTheme(colorScheme = lightColorScheme()) {
++				DenseStepsStatistics(
++					summaries = summaries,
++					stepsSelection = remember { MutableStateFlow(false) },
++					sessionPages = sessions,
++					onSessionCount = { loadedSessionCount = it },
++				)
++			}
++		}
++		composeTestRule.waitForIdle()
++		loadedSessionCount shouldBe 2
++		scrollToWeeklyStepsSummary()
++		composeTestRule.onNode(hasText("61") and hasAncestor(hasTestTag("stats_summary_steps")))
++			.assertIsDisplayed()
++		composeTestRule.runOnIdle { sessions.value = PagingData.from(denseSummaryTrips()) }
++		composeTestRule.waitForIdle()
++		loadedSessionCount shouldBe 3
++		summaries.subscriptionCount.value shouldBe 1
++		composeTestRule.runOnIdle {
++			summaries.value = StepsNumericSummary.Ready(listOf(StepsNumericDay(today, 77L)))
++		}
++		composeTestRule.waitForIdle()
++		scrollToWeeklyStepsSummary()
++		composeTestRule.onNode(hasText("77") and hasAncestor(hasTestTag("stats_summary_steps")))
++			.assertIsDisplayed()
++		composeTestRule.onNode(hasText("61") and hasAncestor(hasTestTag("stats_summary_steps")))
++			.assertDoesNotExist()
++		composeTestRule.onNodeWithText("Distance").assertDoesNotExist()
++		scrollToStatisticsHeader()
++		composeTestRule.onNodeWithText("History").assertHasClickAction()
++		summaries.subscriptionCount.value shouldBe 1
++	}
++
+ 	@Test
+ 	fun `content state with active date filter shows filter label with correct text`() {
+ 		composeTestRule.setContent {
+@@ -749,7 +956,7 @@ class StatsScreenComposeTest {
+ 		val sessions = remember { flowOf(PagingData.empty<Trip>()) }.collectAsLazyPagingItems()
+ 		val summary = collectWeeklyStepsSummaryWhenVisible(
+ 			summaries = summaries,
+-			visible = refreshState.shouldCollectWeeklyStepsSummary(sessions.itemCount),
++			visible = true,
+ 		)
+ 		StatsScreen(
+ 			refreshState = refreshState,
+@@ -766,6 +973,51 @@ class StatsScreenComposeTest {
+ 		)
+ 	}
+ 
++	@Composable
++	private fun DenseStepsStatistics(
++		summaries: StateFlow<StepsNumericSummary>,
++		stepsSelection: StateFlow<Boolean>,
++		weeklyBars: List<DayBar> = emptyList(),
++		sessionPages: StateFlow<PagingData<Trip>> = remember {
++			MutableStateFlow(PagingData.from(denseSummaryTrips()))
++		},
++		onTripClick: (Long) -> Unit = {},
++		onNavigateToHistory: () -> Unit = {},
++		onSessionCount: (Int) -> Unit = {},
++	) {
++		val sessions = sessionPages.collectAsLazyPagingItems()
++		onSessionCount(sessions.itemCount)
++		val selected = stepsSelection.collectAsStateWithLifecycle().value
++		val summary = collectWeeklyStepsSummaryWhenVisible(summaries, visible = true)
++		StatsScreen(
++			refreshState = RefreshUiState.Content,
++			appendState = AppendUiState.NotLoading,
++			onRetry = {},
++			onShowSummary = {},
++			onShowWeek = {},
++			onOpenWifi = {},
++			onTripClick = onTripClick,
++			onNavigateToHistory = onNavigateToHistory,
++			sessions = sessions,
++			weeklyBars = weeklyBars,
++			weeklyStepsSummary = summary,
++			stepsSelected = selected,
++		)
++	}
++
++	private fun denseSummaryTrips() = List(3) { index ->
++		sparseSummaryTrip().copy(id = index.toLong() + 1L)
++	}
++
++	private fun scrollToWeeklyStepsSummary() {
++		composeTestRule.onNode(hasScrollToIndexAction())
++			.performScrollToNode(hasTestTag("stats_summary_steps"))
++	}
++
++	private fun scrollToStatisticsHeader() {
++		composeTestRule.onNode(hasScrollToIndexAction()).performScrollToIndex(0)
++	}
++
+ 	@Composable
+ 	private fun StatsScreenWithSingleSession(
+ 		trip: Trip,

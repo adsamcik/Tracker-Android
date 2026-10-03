@@ -12,14 +12,27 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.LoadState
 import androidx.compose.ui.res.stringResource
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.presenter.StatsPresenterViewModel
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+private interface StatsRouteEntryPoint {
+    fun trackingParamsRepository(): TrackingParamsRepository
+}
 
 /**
  * Entry point composable for Statistics tab. Uses Hilt for dependency injection.
@@ -37,6 +50,15 @@ fun StatsRoute(
     val vm: StatsPresenterViewModel = hiltViewModel()
     val context = LocalContext.current
     val pagingItems = vm.tripsFlow.collectAsLazyPagingItems()
+    val stepsSelection = remember(context.applicationContext) {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            StatsRouteEntryPoint::class.java,
+        ).trackingParamsRepository().data
+            .map { it.stepsEnabled }
+            .distinctUntilChanged()
+    }
+    val stepsSelected by stepsSelection.collectAsStateWithLifecycle(initialValue = false)
 
     // Date range remains a dialog because it's a tool that filters this very
     // screen; Summary and Wi-Fi stats are destination content and are now
@@ -64,9 +86,7 @@ fun StatsRoute(
     }
     val weeklyStepsSummary = collectWeeklyStepsSummaryWhenVisible(
         summaries = vm.weeklyStepsSummary,
-        visible = refreshState.shouldCollectWeeklyStepsSummary(
-            visibleSessionCount = pagingItems.itemCount,
-        ),
+        visible = true,
     )
 
     StatsScreen(
@@ -82,6 +102,7 @@ fun StatsRoute(
         selectedHeaderAction = selectedHeaderAction,
         weeklyBars = weeklyBars,
         weeklyStepsSummary = weeklyStepsSummary,
+        stepsSelected = stepsSelected,
         heatmapData = heatmapData,
         onTripClick = onTripClick,
         onTripViewOnMap = onTripViewOnMap,
@@ -110,11 +131,7 @@ fun StatsRoute(
     }
 }
 
-internal fun RefreshUiState.shouldCollectWeeklyStepsSummary(
-    visibleSessionCount: Int,
-): Boolean = this != RefreshUiState.Content || visibleSessionCount in 0..2
-
-/** Collects the qualified Steps window only while its sparse-summary consumer can be rendered. */
+/** Collects retained Steps while this screen is active, independently of session paging. */
 @Composable
 internal fun collectWeeklyStepsSummaryWhenVisible(
     summaries: StateFlow<StepsNumericSummary>,

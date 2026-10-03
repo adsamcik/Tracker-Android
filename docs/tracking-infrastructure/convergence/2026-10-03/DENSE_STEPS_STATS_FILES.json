@@ -1,0 +1,39 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "phase": "IMPLEMENTATION_ONLY",
+  "owner": "/root/transfer_adversary_1003",
+  "before_provenance": "Coordinator-authorized clean continuation over the committed e833d2e773 Steps Statistics selection; current before hashes match that selection",
+  "path_count": 3,
+  "new_authored_test_cases": 6,
+  "removed_obsolete_test_cases": 1,
+  "changed_existing_test_cases": 0,
+  "test_count_before": 27,
+  "test_count_after": 32,
+  "tests_executed": false,
+  "gates_executed": false,
+  "git_operations_performed": false,
+  "selection_patch_sha256": "130ef0b8d06ad65421c251435dcda1d7714171b694afc0b682bd1a5ec96d998f",
+  "paths": [
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsRoute.kt",
+      "disposition": "entire owned delta; before bytes preserved in dense-steps-stats-selection/before",
+      "before_sha256": "ec3dcd580daa2b4767f99dbef1171bb5e4c28f5f032ae3936d266740a013c8fa",
+      "actual_sha256": "f8011710b21c99c8513f7caf275ca873fad6b3968076a9785c9a1202a62a46b8",
+      "selected_sha256": "f8011710b21c99c8513f7caf275ca873fad6b3968076a9785c9a1202a62a46b8"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsScreen.kt",
+      "disposition": "entire owned delta; before bytes preserved in dense-steps-stats-selection/before",
+      "before_sha256": "3ab9fb03dd24969d1d23bc13c40efcadbc9b3326bf25cba5cfef99fccd56f3f0",
+      "actual_sha256": "df50f5ff1f11fe4ccf46dad183c3d97dad2ded923c087dc8cccbbc6a0baeaf29",
+      "selected_sha256": "df50f5ff1f11fe4ccf46dad183c3d97dad2ded923c087dc8cccbbc6a0baeaf29"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/StatsScreenComposeTest.kt",
+      "disposition": "entire owned delta; before bytes preserved in dense-steps-stats-selection/before",
+      "before_sha256": "ee03b05f82e34e0384fdc387db7fd8987c5f0a1f95e054baa4f68a4dff159709",
+      "actual_sha256": "ea4b88b4f906336e586b02e93cb1858e2f2e9e0e293ba22256440db24979faa1",
+      "selected_sha256": "ea4b88b4f906336e586b02e93cb1858e2f2e9e0e293ba22256440db24979faa1"
+    }
+  ]
+}

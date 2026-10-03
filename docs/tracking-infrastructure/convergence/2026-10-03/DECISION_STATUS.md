@@ -43,7 +43,8 @@ source-work boundaries, not an assembly freeze, executed verification or integra
   whenever Steps are chosen or those days have saved Steps data, preserving qualified
   numbers, missing-data states, History and the session list.
 - [x] Review Location replacement storage before implementation. The earlier
-  sidecar representation proposal has not been approved.
+  sidecar representation proposal has not been approved. The reviewed one-current-edit
+  proposal has now been presented for confirmation; no storage change is selected.
 
 The first three answers are from `call_ITXXwd9m4f7gfXfR7bLb0JWu`; the three
 statistics answers are from `call_lhtt5iSaT7WZD235VbsXbezt`. No default selection
@@ -71,6 +72,10 @@ single unified, user-understandable time model; it does not approve daily storag
 - [ ] Review one consistent observation-time rule for History/export across all
   sources and midnight. The user requested a unified design instead of approving
   separate daily radio storage groups; preserve saved identities while tracing it.
+- [ ] Approve the presented unified date/session export proposal: actual selected
+  measurements with optional whole matching sessions, replacing the earlier radio
+  Off exclusion rule only after an answer. Do not broaden geographic or exact
+  Location file scope while this proposal is pending.
 - [ ] Present the reviewed Location replacement representation for confirmation.
   One import-wide Keep/Replace choice is approved; storage remains pending review.
 
@@ -161,6 +166,10 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   predicate as the repository. `CONTROL_ACCEPTED_EXPIRY_FILES.json` pins three
   paths and three new real repository/Room cases; none ran. Active-session records
   and saved session/manifest/intent data remain; missing-session recovery is separate.
+- [x] Show qualified weekly Steps directly below Statistics actions at every session
+  count when selected or genuinely saved. Six new Compose cases and one removed
+  obsolete case are pinned in `DENSE_STEPS_STATS_FILES.json`; independent static
+  review rechecked placement before the calendar/session list. No tests ran.
 
 The approved displayed-day History is being authored. The isolated imported-radio
 export-date candidate slice is source-reviewed for narrow selection. Neither

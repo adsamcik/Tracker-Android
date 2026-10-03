@@ -143,6 +143,7 @@ fun StatsScreen(
     weeklyStepsSummary: StepsNumericSummary = StepsNumericSummary.Unverifiable(
         StepsNumericUnverifiableReason.NOT_CAPTURED,
     ),
+    stepsSelected: Boolean = false,
     heatmapData: Map<LocalDate, Float> = emptyMap(),
     onTripClick: (Long) -> Unit = {},
     onTripViewOnMap: (Long, Long, Long) -> Unit = { _, _, _ -> },
@@ -188,6 +189,7 @@ fun StatsScreen(
                 selectedHeaderAction = selectedHeaderAction,
                 weeklyBars = weeklyBars,
                 weeklyStepsSummary = weeklyStepsSummary,
+                stepsSelected = stepsSelected,
                 heatmapData = heatmapData,
                 onTripClick = onTripClick,
                 onTripViewOnMap = onTripViewOnMap,
@@ -290,6 +292,7 @@ private fun ContentState(
     selectedHeaderAction: StatsHeaderAction? = null,
     weeklyBars: List<DayBar> = emptyList(),
     weeklyStepsSummary: StepsNumericSummary,
+    stepsSelected: Boolean,
     heatmapData: Map<LocalDate, Float> = emptyMap(),
     onTripClick: (Long) -> Unit = {},
     onTripViewOnMap: (Long, Long, Long) -> Unit = { _, _, _ -> },
@@ -302,11 +305,16 @@ private fun ContentState(
 ){
     val sessionCount = if (sessionRefreshState == RefreshUiState.Content) pagingItems?.itemCount ?: 5 else 0
     val showEmptyCollectionPrompt = sessionRefreshState == RefreshUiState.Empty &&
+        !stepsSelected &&
         weeklyStepsSummary == StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED) &&
         weeklyBars.none { it.hasNonStepTrackedActivity } && heatmapData.isEmpty()
     val showSparseSummary = (sessionRefreshState != RefreshUiState.Content || pagingItems != null) &&
         sessionCount in 0..2 &&
         !showEmptyCollectionPrompt
+    // Only these retained results establish saved Steps; a storage failure alone does not.
+    val hasSavedWeeklySteps = weeklyStepsSummary is StepsNumericSummary.Ready ||
+        weeklyStepsSummary == StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE)
+    val showWeeklyStepsSummary = stepsSelected || hasSavedWeeklySteps
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -327,6 +335,16 @@ private fun ContentState(
                     onNavigateToHistory = onNavigateToHistory,
                     selectedAction = selectedHeaderAction,
                 )
+        }
+
+        if (showWeeklyStepsSummary) {
+            item(key = "weekly_steps_summary") {
+                SparseStatsSummaryCard(
+                    visibleSessionCount = if (showSparseSummary) sessionCount else 0,
+                    weeklyBars = weeklyBars,
+                    weeklyStepsSummary = weeklyStepsSummary,
+                )
+            }
         }
 
         if (heatmapData.isNotEmpty()) {
@@ -415,7 +433,7 @@ private fun ContentState(
             }
         }
 
-        if (showSparseSummary) {
+        if (showSparseSummary && !showWeeklyStepsSummary) {
             item(key = "sparse_summary_footer") {
                 SparseStatsSummaryCard(
                     visibleSessionCount = sessionCount,

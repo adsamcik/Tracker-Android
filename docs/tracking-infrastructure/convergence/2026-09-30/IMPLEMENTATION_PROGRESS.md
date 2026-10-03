@@ -218,7 +218,7 @@ remain held. No test or gate has run.
 - [x] Select the independently reviewed retained Steps Statistics consumer for
   empty/loading/failed session paging, preserving existing actions, exact Long
   values, unknown coverage and independently arriving day rows. Ten new scenarios
-  and one adjusted visibility case remain unexecuted in `e833d2e773`; dense-list/source-aware
+  and one adjusted visibility case remain unexecuted in `e833d2e773`; source-aware
   presentation and the whole all-day source chain remain open.
 - [x] Preserve the existing public reflection construction for eight remaining
   registered exporters using AndroidX `Keep`, with nine actual-registry cases
@@ -233,6 +233,11 @@ remain held. No test or gate has run.
   saved session is terminal. Reuse the repository's existing terminal predicate,
   keep active dependencies and preserve saved session/manifest/intent data. Three
   real repository/Room cases are authored and independently reviewed, not executed.
+- [x] Keep the qualified seven-day Steps summary directly after Statistics actions
+  at every session count, using the selected source or retained Ready/PARTIAL_CAPTURE
+  evidence. Preserve the complementary non-Steps sparse footer and existing actions.
+  Six new unexecuted Compose cases include fifty-session first-viewport visibility;
+  independent review rechecked the coordinator's placement correction.
 
 ## Remaining in these slices
 
