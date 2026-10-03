@@ -31,7 +31,7 @@ description of its earlier input; this file records subsequent repair progress.
   `6c192245b8` selects the independently reviewed retained Location H1/H2/H3 core
   and seven standalone Room scenarios. Complete R11 readers, composed cases and UI
   remain held. No History test pass is claimed.
-- October 3 ordinary-transfer quiescence source is independently reviewed and
+- `9d48e176b0`: October 3 ordinary-transfer quiescence source is independently reviewed and
   selected: 29 paths, 40 newly authored cases, none executed. The existing startup
   boundary drains actual children before clear; ordinary exports survive Off, and
   GPX/map/manual Share own separate files with bounded cleanup. Receipt:
@@ -44,6 +44,13 @@ description of its earlier input; this file records subsequent repair progress.
   selected, exclusions and one labeled bundle. Its exact membership, backend caller
   and detail/navigation surfaces remain unfinished; see
   `../2026-10-03/SESSION_EXPORT_SURFACE_SOURCE_TRACE.md`.
+- October 3 saved Location backup selection includes proof-unknown saved points,
+  the existing retention/deletion fences and stable identities, with one private
+  Room snapshot released before destination copy. Reuse the existing codec/spool
+  limits and cleanup. Independent static review found no remaining core defect;
+  eight new Room/stream cases and expanded existing origin coverage are unexecuted.
+  Exact receipt: `../2026-10-03/LOCATION_FILE_EXPORT_SELECTION.md`. The mixed
+  source-choice UI, Location Replace and exact session selection remain open.
 - `c7cc6a7340`: approved nullable native Wi-Fi format marker, immutable
   corrections, writer/history/maintenance parity and authored migration/detail
   scenarios. Fresh static review passed the narrow source slice. Twelve tracked

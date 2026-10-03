@@ -93,6 +93,28 @@ interface LocationPurposeDao {
 	suspend fun visiblePathChunk(fromMs: Long, toMs: Long, afterTimeMs: Long?, afterId: Long?, limit: Int,
 		ambientOnly: Boolean = false, northE7: Int? = null, southE7: Int? = null, eastE7: Int? = null, westE7: Int? = null): List<LocationPathSampleRow>
 
+	/** User data backup; missing historical receipts or grants do not hide saved points. */
+	@Query("""SELECT location_sample.*, lr.source_instance_id || ':' || lr.registration_generation AS continuity_id,
+		lr.source_sequence AS continuity_sequence,
+		0 AS ambient_only,
+		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
+			AND lp.purpose = 'SESSION_CAPTURE') AS has_session_purpose,
+		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
+			AND lp.purpose = 'AMBIENT_PRODUCT') AS has_visible_background_purpose
+		FROM location_sample LEFT JOIN location_accepted_receipt lr ON lr.sample_id = location_sample.id
+		WHERE location_sample.time_ms >= :fromMs AND location_sample.time_ms <= :toMs
+		AND (NOT EXISTS (SELECT 1 FROM source_evidence_state e WHERE e.id = 1 AND e.retained_from_ms IS NOT NULL
+			AND location_sample.time_ms < e.retained_from_ms))
+		AND NOT EXISTS (SELECT 1 FROM collected_data_deletion_operation WHERE phase IN
+			('RETENTION_PREPARED', 'RETENTION_DATASTORE_ACKNOWLEDGED', 'RETENTION_ROOM_GUARD_COMMITTED',
+			'RETENTION_AUTHORITY_REISSUED', 'RETENTION_PROVIDER_RECONCILED',
+			'RETENTION_SOURCE_MAINTENANCE_COMPLETED'))
+		AND (:afterTimeMs IS NULL OR location_sample.time_ms > :afterTimeMs OR
+			(location_sample.time_ms = :afterTimeMs AND location_sample.id > COALESCE(:afterId, 0)))
+		ORDER BY location_sample.time_ms, location_sample.id LIMIT :limit""")
+	suspend fun savedFileChunk(fromMs: Long, toMs: Long, afterTimeMs: Long?, afterId: Long?,
+		limit: Int): List<LocationPathSampleRow>
+
 	/** Historical file reads are fenced by erase/retention, not current recording settings. */
 	@Query("""SELECT COALESCE((SELECT collected_data_epoch || ':' || COALESCE(retained_from_ms, -1) || ':' ||
 		deleted_source_event_high_water_ordinal FROM source_evidence_state WHERE id = 1), 'missing') || '|' ||

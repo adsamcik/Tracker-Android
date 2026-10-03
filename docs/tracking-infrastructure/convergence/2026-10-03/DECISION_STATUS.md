@@ -99,6 +99,11 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   export findings are statically closed in `TRANSFER_CLEAR_FRESH_REVIEW_1003.md`.
   Blocked-startup recovery exports and persisted later unfinished-file notices
   remain separate required gaps; this milestone does not close full privacy cleanup.
+- [x] Select the independently reviewed saved Location backup query and coherent
+  private staging using the existing spool. Lost historical purposes do not hide
+  saved points; labels remain descriptive. Eight newly authored Room/stream cases
+  and the existing expanded saved-origin case are unexecuted. Exact selection:
+  `LOCATION_FILE_EXPORT_SELECTION.md`. Source-choice UI and Replace remain open.
 
 The approved displayed-day History is being authored. The isolated imported-radio
 export-date candidate slice is source-reviewed for narrow selection. Neither

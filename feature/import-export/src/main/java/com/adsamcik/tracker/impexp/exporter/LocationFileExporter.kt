@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import androidx.room.withTransaction
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.portable.InvalidLocationFile
 import com.adsamcik.tracker.impexp.portable.LocationFileJsonV1
@@ -54,10 +55,27 @@ internal class LocationFileExporter @JvmOverloads @Inject constructor(
 		@Suppress("UNUSED_VARIABLE") val ignoredSequence = locationData
 		return try {
 			withContext(dispatchers.io) {
-				writePoints(
-					database ?: AppDatabase.database(context), outputStream,
-					dateRange, afterTimeMs, afterId, verifyCollectedDataAccess,
-				)
+				val source = database ?: AppDatabase.database(context)
+				FileBackedExportSpool(context, "portable-location-v1-", LocationFileJsonV1.MAX_FILE_BYTES).use { spool ->
+					val (result, authorityStamp) = spool.write { stagedOutput ->
+						source.withTransaction {
+							val written = writePoints(source, stagedOutput, dateRange, afterTimeMs, afterId,
+								verifyCollectedDataAccess)
+							written to source.locationPurposeDao().savedFileExportAuthorityStamp()
+						}
+					}
+					// Slow destinations never hold the database snapshot or its identity writes open.
+					verifyCollectedDataAccess()
+					check(source.locationPurposeDao().savedFileExportAuthorityStamp() == authorityStamp) {
+						"Location retention changed during export"
+					}
+					spool.copyTo(outputStream)
+					verifyCollectedDataAccess()
+					check(source.locationPurposeDao().savedFileExportAuthorityStamp() == authorityStamp) {
+						"Location retention changed during export"
+					}
+					result
+				}
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -94,14 +112,14 @@ internal class LocationFileExporter @JvmOverloads @Inject constructor(
 		while (true) {
 			currentCoroutineContext().ensureActive()
 			verifyCollectedDataAccess()
-			val before = purposeDao.ambientExportAuthorityStamp()
+			val before = purposeDao.savedFileExportAuthorityStamp()
 			if (authorityStamp != null && before != authorityStamp) {
 				throw InvalidLocationFile("Location permissions or retention changed during export")
 			}
-			val page = purposeDao.visiblePathChunk(
+			val page = purposeDao.savedFileChunk(
 				fromMs, toMs, afterTimeMs, afterId, PAGE_SIZE,
 			)
-			if (purposeDao.ambientExportAuthorityStamp() != before) {
+			if (purposeDao.savedFileExportAuthorityStamp() != before) {
 				throw InvalidLocationFile("Location permissions or retention changed during export")
 			}
 			if (page.isEmpty()) break
@@ -129,12 +147,12 @@ internal class LocationFileExporter @JvmOverloads @Inject constructor(
 			val last = page.last().sample
 			afterTimeMs = last.timeMs
 			afterId = last.id
-			if (purposeDao.ambientExportAuthorityStamp() != before) {
+			if (purposeDao.savedFileExportAuthorityStamp() != before) {
 				throw InvalidLocationFile("Location permissions or retention changed during export")
 			}
 		}
 		verifyCollectedDataAccess()
-		if (authorityStamp != null && purposeDao.ambientExportAuthorityStamp() != authorityStamp) {
+		if (authorityStamp != null && purposeDao.savedFileExportAuthorityStamp() != authorityStamp) {
 			throw InvalidLocationFile("Location permissions or retention changed during export")
 		}
 		if (count == 0) throw InvalidLocationFile("No Location points in these dates")

@@ -75,7 +75,7 @@ class LocationFileExporterTest {
 			sourceEventId = "event-1", sourceSignalId = "signal-1",
 		))
 		val purposeDao = database.locationPurposeDao()
-		purposeDao.insertReceiptIfAbsent(LocationAcceptedReceiptEntity(
+		val sessionReceipt = LocationAcceptedReceiptEntity(
 			sampleId = sampleId,
 			sourceEventId = "event-1",
 			sourceSignalId = "signal-1",
@@ -102,8 +102,9 @@ class LocationFileExporterTest {
 			receivedWallTimeMs = 1_001L,
 			wallTimeUncertaintyMs = 0L,
 			collectedDataEpoch = 0L,
-		))
-		purposeDao.insertPurposeIfAbsent(LocationSamplePurposeAuthorityEntity(
+		)
+		purposeDao.insertReceiptIfAbsent(sessionReceipt)
+		val sessionPurpose = LocationSamplePurposeAuthorityEntity(
 			sampleId = sampleId,
 			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
 			authorityId = "session-grant",
@@ -121,9 +122,29 @@ class LocationFileExporterTest {
 			retentionApprovalRevision = null,
 			scopeDeletionGeneration = 0L,
 			zoneId = "UTC",
-		))
+		)
+		purposeDao.insertPurposeIfAbsent(sessionPurpose)
 
 		export(LocationFileExporter(), 1_000L..1_000L).single().origin shouldBe LocationFileOrigin.SESSION
+
+		// Turning Location off removes no saved reading. This ambient row has no active policy or
+		// current consent setup, yet the user's exact data file still includes it.
+		val ambientId = database.locationSampleDao().insert(sample(2_000L).copy(
+			sourceEventId = "event-2", sourceSignalId = "signal-2",
+		))
+		purposeDao.insertReceiptIfAbsent(sessionReceipt.copy(sampleId = ambientId,
+			sourceEventId = "event-2", sourceSignalId = "signal-2",
+			sourceSequence = 1L,
+			observedWallTimeMs = 2_000L, receivedWallTimeMs = 2_001L))
+		purposeDao.insertPurposeIfAbsent(sessionPurpose.copy(sampleId = ambientId,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, authorityId = "ambient-grant",
+			logicalTrackingId = null, serviceRunId = null, sessionSegmentId = null,
+			sessionManifestRevision = null, lifecycleLeaseGeneration = null,
+			ambientIntentId = "intent-1", retentionPolicyId = "local-retention",
+			retentionApprovalRevision = 1L, zoneId = null))
+		database.locationSampleDao().insert(sample(3_000L))
+		export(LocationFileExporter(), 1_000L..3_000L).map { it.origin } shouldBe
+			listOf(LocationFileOrigin.SESSION, LocationFileOrigin.BACKGROUND, LocationFileOrigin.UNKNOWN)
 	}
 
 	private suspend fun export(exporter: LocationFileExporter, range: LongRange): List<LocationFilePointV1> {
