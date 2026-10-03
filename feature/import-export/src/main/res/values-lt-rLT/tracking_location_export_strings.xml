@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_format_location_desc">Išsaugoti pasirinktų datų vietos taškai ir jų užfiksuotas tikslumas</string>
+    <string name="export_sensitivity_location_message">Šiame faile yra jūsų išsaugotos vietos. Pasirinkite, kur jį išsaugoti arba bendrinti.</string>
+</resources>

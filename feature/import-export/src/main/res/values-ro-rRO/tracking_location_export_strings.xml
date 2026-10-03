@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_format_location_desc">Punctele de locație salvate pentru datele selectate, inclusiv precizia înregistrată</string>
+    <string name="export_sensitivity_location_message">Acest fișier conține locațiile salvate. Alegeți unde îl salvați sau îl partajați.</string>
+</resources>

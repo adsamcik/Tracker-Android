@@ -1,0 +1,192 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "sourceStatus": "IMPLEMENTED_UNVALIDATED",
+  "baseCommit": "31d5340b0cb390294f4170ab2a6b7564e2292a12",
+  "sourcePathCount": 34,
+  "newScenarioCount": 3,
+  "executedScenarioCount": 0,
+  "localeCount": 28,
+  "paths": [
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/LocationFileExporter.kt",
+      "disposition": "exact source selected",
+      "sha256": "8a60802253e3c1b89c0a1a37d2b433c83c7f998d9f0d625a3ab61c3112c7f095"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/SourceFileShareIntent.kt",
+      "disposition": "exact source selected",
+      "sha256": "88e50d1eb289adecccf09e7a785e1eb3fdf7f9f59cc944c05537f9452d42ac4d"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/activity/SourceFileShareIntentTest.kt",
+      "disposition": "exact source selected",
+      "sha256": "952aea503d78c54f275c9c6d7ad202d0fb86e19ccffa54648bd134902e35c53f"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/LocationExportChoiceTest.kt",
+      "disposition": "exact source selected",
+      "sha256": "d5a40b4a4965e50e2723bfaa71079eca6b238608bb4bab54bdc98d49c21c928a"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-bg-rBG/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "5cb518dead78cc281d59c6a949a3c5b2e599765d3c68397249b6862f4b00062c"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-cs-rCZ/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "c66fba9d33536b679f0850909dc397899e7f2b1ccfbd42e0010691511ca07d20"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-da-rDK/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "abf15038c68d0996fa1b3c43eb867ea383fee94a3a66dc48d34bdda64b26b666"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-de-rDE/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "bc40914a5a1dc6f3173bef0f128eb54b4caff529b4e08329c8e00e89c502b368"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-el-rGR/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "716afed404c4078769fce097db5506933a9601f5b9ad8ae7961f86b113d6b09e"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-es-rES/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "cc1647600c21846501e3ecef2153c2c3095b32f5670e77544f3d3320e422ccd1"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-et-rEE/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "384001ab2f523481b01fe2151dd68f6f7f125ca3d2a16816dc09dcbec60ac676"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-fi-rFI/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "3c9110d0125b5481fad56cb73b9e59e6b0c56cb049e7f226f506636fc2594ceb"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-fr-rFR/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "5c6370b98996aa593cb0fea1ccab13eab0942840244661fc7c2ffa924971a909"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-ga-rIE/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "d4a4f27ccd2206a8a346d2cbdfb09992eed073dd9ae607f80d399a0b9df82d63"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-hi-rIN/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "9318671ed77a845795d83ce67584aa1294e0ab987ad793f09860edb268a83cf5"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-hr-rHR/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "ef3eb099a140e116bc9b893b1fa7e193fa1681f544dbee7b7cc02df2b7bca1a5"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-hu-rHU/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "862e4f995bd4c43158a6971ab248494c1ec8d22851835cb8f653d07f4daf5fdc"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-it-rIT/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "b0c488d56ff2356cc96eae974c0ed70e1bfb17db796816b8984702663353a00d"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-ja-rJP/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "04666561522b41f2fbcd1085f33de91d48ee50e4ad1ab7a83b8dbaf8dcb5f00e"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-lt-rLT/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "ac0ac320619dd3454d7bab087959590005ded358c941b55bb7c42f8d809f1b7f"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-lv-rLV/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "4237ca8165f267934bcc40cf7d3cdd84098071d83b2e813f0f1e51e9de012b97"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-mt-rMT/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "a6a312b2531902be1737b259336b016dab95be4eef4a0fada761c541c6999566"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-nl-rNL/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "0651e629394db36f084d73bd0c79357d5cbafc638c65ac285d4f000b0c7a2560"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-pl-rPL/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "776a77081101455519aac3462022fb38c12a09b52630b2769d968d09f059e5ed"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-pt-rPT/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "c8cca84b421c8bc45e4dad705c11e382b812f0d7aae5edd10d52479497221d64"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-ro-rRO/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "1dd8daf37384a98ccf763d8b83b2b3b30cb8c9f0ab6f9374725548145c30d850"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-sk-rSK/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "cfbcc23a063dd0715d3aa435811736b0454bc4069a67d538465b777ac350e736"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-sl-rSI/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "c58067ae4483ae2fb722648592933ed336533d881607a627d89a914a9b1c607f"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-sv-rSE/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "d8fd8c0bc04146e6b9abd311c29c2223a21eec02add16d740f28e53e495f335f"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-zh-rCN/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "b391933372f04a73a117d2a6069fbfbb4413b4fc367b63ab22f8d56f2b506d34"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values-zh-rTW/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "9de1a933e65d04165f0d6ea07f524890750ecd11c6f938c237ae55a9d701fe66"
+    },
+    {
+      "path": "feature/import-export/src/main/res/values/tracking_location_export_strings.xml",
+      "disposition": "exact source selected",
+      "sha256": "4ad679802439d7ce31c7e3c9335c9317bccbb17caaa3084ff75ef7e1cdb5ca85"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/components/ExportFormatDialog.kt",
+      "disposition": "selective source snapshot; held radio edits excluded",
+      "beforeSnapshot": "docs/tracking-infrastructure/convergence/2026-10-03/location-export-ui-selection/ExportFormatDialog.before.kt",
+      "afterSnapshot": "docs/tracking-infrastructure/convergence/2026-10-03/location-export-ui-selection/ExportFormatDialog.after.kt",
+      "sha256": "a9023a5da27706bf0e583d559433f56a70f30297ce8a2bcc7f1ad07dad08d973"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportComposeActivity.kt",
+      "disposition": "selective source snapshot; held radio edits excluded",
+      "beforeSnapshot": "docs/tracking-infrastructure/convergence/2026-10-03/location-export-ui-selection/ImportExportComposeActivity.before.kt",
+      "afterSnapshot": "docs/tracking-infrastructure/convergence/2026-10-03/location-export-ui-selection/ImportExportComposeActivity.after.kt",
+      "sha256": "e542e496dcf4659a163596dc261bcf21263501b20cb19abb38bc57ea30455a47"
+    }
+  ],
+  "exclusions": [
+    "held Wi-Fi/Cell UI and complete exporters",
+    "Location Replace",
+    "session bundles",
+    "unfinished external-file recovery notice",
+    "all final gates and integration"
+  ]
+}

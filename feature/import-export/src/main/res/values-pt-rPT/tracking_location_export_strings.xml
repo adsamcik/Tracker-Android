@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_format_location_desc">Pontos de localização guardados nas datas selecionadas, com a precisão registada</string>
+    <string name="export_sensitivity_location_message">Este ficheiro contém as suas localizações guardadas. Escolha onde o guardar ou partilhar.</string>
+</resources>

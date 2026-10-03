@@ -65,6 +65,7 @@ import com.adsamcik.tracker.impexp.OwnedTransferFiles
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.impexp.exporter.JsonExporter
+import com.adsamcik.tracker.impexp.exporter.LocationFileExporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
@@ -392,32 +393,52 @@ fun ExportScreen(
                                     "${activity.packageName}.fileprovider",
                                     file
                                 )
-                                val shareSummary = viewModel.resolveShareTripSummary(
-                                    fallbackFileName = result.baseFileName,
-                                    range = selectedRange,
-                                )
-                                val shareIntent = Intent().apply {
-                                    action = Intent.ACTION_SEND
-                                    putExtra(Intent.EXTRA_STREAM, shareUri)
-                                    putExtra(
-                                        Intent.EXTRA_SUBJECT,
-                                        "Trail: ${shareSummary.tripName} — ${shareSummary.formattedDate}"
+                                if (exporter is LocationFileExporter) {
+                                    val shareIntent = sourceFileShareIntent(
+                                        shareUri,
+                                        exporter.mimeType,
                                     )
-                                    putExtra(Intent.EXTRA_TEXT, buildShareText(shareSummary))
-                                    type = exporter.mimeType
-                                    flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                }
-                                val chooser = Intent.createChooser(
-                                    shareIntent,
-                                    activity.getString(R.string.export_share_button)
-                                )
-                                try {
-                                    handedOff = viewModel.handOffExport(result) { activity.startActivity(chooser) }
-                                } catch (_: Exception) {
-                                    scope.launch {
-                                        snackBarHostState.showSnackbar(
-                                            activity.getString(R.string.export_error_unknown)
+                                    val chooser = Intent.createChooser(
+                                        shareIntent,
+                                        activity.getString(R.string.export_share_button),
+                                    )
+                                    try {
+                                        handedOff = viewModel.handOffExport(result) { activity.startActivity(chooser) }
+                                    } catch (_: Exception) {
+                                        scope.launch {
+                                            snackBarHostState.showSnackbar(
+                                                activity.getString(R.string.export_error_unknown),
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    val shareSummary = viewModel.resolveShareTripSummary(
+                                        fallbackFileName = result.baseFileName,
+                                        range = selectedRange,
+                                    )
+                                    val shareIntent = Intent().apply {
+                                        action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_STREAM, shareUri)
+                                        putExtra(
+                                            Intent.EXTRA_SUBJECT,
+                                            "Trail: ${shareSummary.tripName} — ${shareSummary.formattedDate}"
                                         )
+                                        putExtra(Intent.EXTRA_TEXT, buildShareText(shareSummary))
+                                        type = exporter.mimeType
+                                        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                    }
+                                    val chooser = Intent.createChooser(
+                                        shareIntent,
+                                        activity.getString(R.string.export_share_button)
+                                    )
+                                    try {
+                                        handedOff = viewModel.handOffExport(result) { activity.startActivity(chooser) }
+                                    } catch (_: Exception) {
+                                        scope.launch {
+                                            snackBarHostState.showSnackbar(
+                                                activity.getString(R.string.export_error_unknown)
+                                            )
+                                        }
                                     }
                                 }
                             }

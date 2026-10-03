@@ -61,9 +61,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 - [x] `20c9ac0e64`: independently reviewed saved Location backup includes unknown
   historical origin and writes a coherent private snapshot before destination
   copying. Eight new Room/stream cases remain unexecuted; Replace is open.
-- [x] Select independently reviewed daily/weekly selected-period discovery streak
+- [x] `31d5340b0c`: select independently reviewed daily/weekly selected-period discovery streak
   backend, with 27 new unexecuted cases. Product period wiring, discovery/effect
   correction coverage, seasonal revisits and complete logical distances are open.
+- [x] Select the saved Location export choice, localized description/confirmation,
+  preserved reflective constructor and single-file sharing without trip metrics.
+  Three authored UI/share scenarios are unexecuted; full transfers remain open.
 
 These are selected implementation slices. All 25 full-chain prerequisites and the
 assembly/convergence/device/integration gates remain open.

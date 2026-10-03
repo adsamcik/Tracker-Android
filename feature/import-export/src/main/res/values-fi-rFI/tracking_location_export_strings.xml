@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_format_location_desc">Tallennetut sijaintipisteet valituilta päiviltä sekä niiden kirjattu tarkkuus</string>
+    <string name="export_sensitivity_location_message">Tämä tiedosto sisältää tallennetut sijaintisi. Valitse, minne haluat tallentaa tai jakaa sen.</string>
+</resources>

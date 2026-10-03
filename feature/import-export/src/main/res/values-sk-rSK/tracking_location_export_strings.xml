@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_format_location_desc">Uložené body polohy z vybraných dní vrátane zaznamenanej presnosti</string>
+    <string name="export_sensitivity_location_message">Tento súbor obsahuje vaše uložené polohy. Vyberte, kam ho uložiť alebo kde ho zdieľať.</string>
+</resources>

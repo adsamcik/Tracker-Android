@@ -208,6 +208,12 @@ remain held. No test or gate has run.
   existing owned cleanup and caller destination ownership.
 - [x] Select linear imported radio child mapping with original identities/order
   and focused owner, revision/checksum and cancellation contract sources.
+- [x] Select the saved Location backup core (`20c9ac0e64`) and Location export
+  choice with one localized copy set, protected reflected constructor and truthful
+  single-file Share. Eight core and three UI/share cases remain unexecuted.
+- [x] Select bounded selected-period daily/weekly discovery streak backend
+  (`31d5340b0c`), with 27 new unexecuted scenarios. Complete period consumers,
+  source correction/fanout, seasonal revisits and measured trip distance are open.
 
 ## Remaining in these slices
 

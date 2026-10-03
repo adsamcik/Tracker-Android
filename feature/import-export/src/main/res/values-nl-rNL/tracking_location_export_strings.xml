@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_format_location_desc">Opgeslagen locatiepunten voor de geselecteerde datums, inclusief de vastgelegde nauwkeurigheid</string>
+    <string name="export_sensitivity_location_message">Dit bestand bevat je opgeslagen locaties. Kies waar je het wilt opslaan of delen.</string>
+</resources>

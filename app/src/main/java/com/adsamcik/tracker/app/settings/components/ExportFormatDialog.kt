@@ -216,6 +216,13 @@ enum class ExportFormat(
         descriptionRes = R.string.export_format_portable_pressure_desc,
         sensitivityMessageRes = R.string.export_sensitivity_portable_pressure_message,
         sensitivityTitleRes = R.string.export_sensitivity_portable_title,
+    ),
+    LOCATION(
+        formatId = "tracker-location",
+        displayNameRes = R.string.setup_source_location,
+        descriptionRes = com.adsamcik.tracker.impexp.R.string.export_format_location_desc,
+        sensitivityMessageRes = com.adsamcik.tracker.impexp.R.string.export_sensitivity_location_message,
+        sensitivityTitleRes = R.string.export_sensitivity_portable_title,
     );
 
     companion object {
@@ -236,7 +243,8 @@ private val ExportFormat.icon: ImageVector
         ExportFormat.PORTABLE_STEPS,
         ExportFormat.PORTABLE_AMBIENT_STEPS,
         ExportFormat.PORTABLE_ACTIVITY,
-        ExportFormat.PORTABLE_PRESSURE -> Icons.Default.Storage
+        ExportFormat.PORTABLE_PRESSURE,
+        ExportFormat.LOCATION -> Icons.Default.Storage
     }
 
 /**

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_format_location_desc">選択した日付の保存済み位置情報と記録された精度</string>
+    <string name="export_sensitivity_location_message">このファイルには保存済みの位置情報が含まれます。保存先または共有先を選んでください。</string>
+</resources>

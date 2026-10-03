@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_format_location_desc">Запазени точки на местоположение за избраните дати, включително записаната им точност</string>
+    <string name="export_sensitivity_location_message">Този файл съдържа запазените ви местоположения. Изберете къде да го запазите или споделите.</string>
+</resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_format_location_desc">Saved Location points for the selected dates, including their recorded accuracy</string>
+    <string name="export_sensitivity_location_message">This file contains your saved locations. Choose where to save or share it.</string>
+</resources>

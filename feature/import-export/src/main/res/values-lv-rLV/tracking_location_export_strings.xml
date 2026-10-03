@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_format_location_desc">Saglabātie atrašanās vietas punkti izvēlētajos datumos un to reģistrētā precizitāte</string>
+    <string name="export_sensitivity_location_message">Šajā failā ir jūsu saglabātās atrašanās vietas. Izvēlieties, kur to saglabāt vai kopīgot.</string>
+</resources>

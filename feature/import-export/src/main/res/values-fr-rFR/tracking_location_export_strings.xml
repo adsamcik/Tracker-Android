@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_format_location_desc">Points de localisation enregistrés aux dates sélectionnées, avec leur précision enregistrée</string>
+    <string name="export_sensitivity_location_message">Ce fichier contient vos positions enregistrées. Choisissez où l’enregistrer ou le partager.</string>
+</resources>

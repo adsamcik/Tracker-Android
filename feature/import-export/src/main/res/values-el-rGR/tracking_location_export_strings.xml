@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_format_location_desc">Αποθηκευμένα σημεία τοποθεσίας για τις επιλεγμένες ημερομηνίες, μαζί με την καταγεγραμμένη ακρίβειά τους</string>
+    <string name="export_sensitivity_location_message">Αυτό το αρχείο περιέχει τις αποθηκευμένες τοποθεσίες σας. Επιλέξτε πού θα το αποθηκεύσετε ή θα το κοινοποιήσετε.</string>
+</resources>

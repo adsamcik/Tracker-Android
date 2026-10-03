@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import androidx.annotation.Keep
 import androidx.room.withTransaction
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.portable.InvalidLocationFile
@@ -23,6 +24,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 /** Exports the Location data itself, independent of whether a session exists. */
+@Keep // Export activity constructs the public no-argument overload from its Intent.
 internal class LocationFileExporter @JvmOverloads @Inject constructor(
 	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
 ) : CursorAwareExporter {
@@ -30,6 +32,7 @@ internal class LocationFileExporter @JvmOverloads @Inject constructor(
 	override val requiresLocationData: Boolean = false
 	override val canSelectDateRange: Boolean = true
 	override val selectsCalendarDates: Boolean = true
+	override val sensitivityMessageRes: Int = R.string.export_sensitivity_location_message
 	override val mimeType: String = LocationFileJsonV1.MIME_TYPE
 	override val extension: String = LocationFileJsonV1.EXTENSION
 

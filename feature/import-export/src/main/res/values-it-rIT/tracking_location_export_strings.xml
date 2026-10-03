@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_format_location_desc">Punti di posizione salvati per le date selezionate, con la precisione registrata</string>
+    <string name="export_sensitivity_location_message">Questo file contiene le tue posizioni salvate. Scegli dove salvarlo o condividerlo.</string>
+</resources>

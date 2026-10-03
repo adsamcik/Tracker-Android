@@ -51,6 +51,17 @@ The two History/session-export answers are from `call_Aos5FHEL3IZBUbkrt10xb0Kx`.
 - [ ] Keep the existing preserved recovery-file Export actions usable while
   database startup is blocked, with separate cancellation/draining admission;
   never open the damaged database or start tracking for this export.
+- [ ] Persist unfinished external-file notices in the existing export-plan store;
+  retry removal of only the named file, keep the notice if access is gone and
+  preserve it through collected-data clear. The user-facing notice itself was
+  already approved; this storage/recovery detail was presented separately.
+- [ ] Use one shared stateless exact-session preview/write entry point, following
+  the existing consumer-owned export direction. Reuse the current bundle writer
+  and capture metadata/source revisions; never replace membership with dates.
+  Export session product behavior is approved; this new code interface is pending.
+- [ ] Allow the longest-trip reader to calculate complete distance from exact saved
+  Location members with existing continuity/gap rules. The period-by-start behavior
+  is approved; changing the aggregate-only reader contract is pending.
 
 ## Stale questions removed from the blocking list
 
@@ -94,6 +105,7 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   exact selected timestamps, captured local/locale calendar, typed failure and
   cancellation. Twenty-seven newly authored cases are unexecuted. Complete metrics,
   discovery corrections/fanout, weekly All-time production and UI are still open.
+  Commit `31d5340b0c`.
 - [ ] Update source-selection receipts and checklists after each coherent commit.
 - [x] Select independently reviewed ordinary-transfer cancellation and physical
   draining through the existing startup boundary, including GPX/map-image shares,
@@ -108,7 +120,13 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   saved points; labels remain descriptive. Eight newly authored Room/stream cases
   and the existing expanded saved-origin case are unexecuted. Exact selection:
   `LOCATION_FILE_EXPORT_SELECTION.md`, commit `20c9ac0e64`.
-  Source-choice UI and Replace remain open.
+  Replace remains open.
+- [x] Select the saved Location export choice, one localized description/confirmation
+  copy set for all 28 existing app locales, preserved public no-argument constructor
+  and single-file Share without unrelated trip metrics. Three authored scenarios
+  are unexecuted. Exact selection and fresh review are recorded in
+  `LOCATION_EXPORT_UI_SELECTION.md` and `LOCATION_EXPORT_UI_FRESH_REVIEW_1003.md`;
+  held radio UI and complete session-bundle work remain excluded.
 
 The approved displayed-day History is being authored. The isolated imported-radio
 export-date candidate slice is source-reviewed for narrow selection. Neither

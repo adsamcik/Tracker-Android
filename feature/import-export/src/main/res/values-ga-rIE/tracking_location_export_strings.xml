@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_format_location_desc">Pointí suímh sábháilte do na dátaí roghnaithe, lena gcruinneas taifeadta</string>
+    <string name="export_sensitivity_location_message">Tá do shuíomhanna sábháilte sa chomhad seo. Roghnaigh cá háit lena shábháil nó lena roinnt.</string>
+</resources>

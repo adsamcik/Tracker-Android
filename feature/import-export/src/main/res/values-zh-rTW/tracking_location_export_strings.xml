@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_format_location_desc">所選日期的已儲存位置點，包含記錄的精確度</string>
+    <string name="export_sensitivity_location_message">此檔案包含您儲存的位置。請選擇要將它儲存或分享至何處。</string>
+</resources>
