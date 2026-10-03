@@ -9,6 +9,12 @@ October 3 decisions supersede earlier pending-question labels; see
 native Wi-Fi format marker, released `main` attribution, three period-metric
 rules, displayed-day History and source-selectable session bundles are approved.
 Their implementation/review remains separate from approval.
+Later October 3 answers approve the shared session-export entry point, saved-point
+longest-trip reader, persistent unfinished-file notices and session-independent
+Steps summary. Available radio map points need no extra notice; exports stay
+disabled until database startup succeeds. Exploration period statistics requiring
+the declined additional dated lookup stay unavailable. Location replacement storage
+and the unified cross-midnight model require the requested review.
 
 The current source-assembly progress is maintained in
 `convergence/2026-09-30/IMPLEMENTATION_PROGRESS.md`; the dated sections below are
@@ -75,7 +81,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
   exporters using the existing AndroidX annotation. The nine-format reconstruction
   test and independent static review are recorded in `EXPORTER_REFLECTION_FILES.json`
   and `EXPORTER_REFLECTION_FRESH_REVIEW_1003.md`; no test or release shrinking ran.
+  Commit `16458b8a59`.
   Radio exporter registration, complete backup and exact session export remain open.
+- [x] Repair explicit My location/game demand when the shared owner has a known
+  disabled background plan. Keep unknown/cold/foreign/session demand fencing,
+  independent temporary leases and acknowledged retirement. Six new scenarios
+  are authored and independently statically reviewed; none ran.
 
 These are selected implementation slices. All 25 full-chain prerequisites and the
 assembly/convergence/device/integration gates remain open.

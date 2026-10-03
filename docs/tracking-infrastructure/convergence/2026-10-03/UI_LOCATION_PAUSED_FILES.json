@@ -1,0 +1,29 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_commit_prefix": "16458b8a59",
+  "owner": "/root/transfer_adversary_1003",
+  "path_count": 2,
+  "new_authored_test_cases": 6,
+  "changed_existing_test_cases": 0,
+  "tests_executed": false,
+  "gates_executed": false,
+  "git_operations_performed": false,
+  "selection_patch_sha256": "778fe45a642c6f4929274c894fc0cd49d8ec95b6e4fee03cf39ac48ed399e1c5",
+  "paths": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedLocationSourceController.kt",
+      "disposition": "entire owned delta; confirmed clean by coordinator at 16458b8a59",
+      "actual_sha256": "18e4d0bc46c6c567a2e84b69e522ea8c94ce24c6589f9d7e454a8f825ec8417b",
+      "selected_sha256": "18e4d0bc46c6c567a2e84b69e522ea8c94ce24c6589f9d7e454a8f825ec8417b",
+      "before_sha256": "5bfff7a5f91e379eaac82dd7b0086b39d583487a2f8f83c7752567b7beb2d612"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedLocationSourceControllerTest.kt",
+      "disposition": "entire owned delta; confirmed clean by coordinator at 16458b8a59",
+      "actual_sha256": "2b951b797804e7559a4f41b5928bf4afbb6096fa837055994949fc1e489af1c5",
+      "selected_sha256": "2b951b797804e7559a4f41b5928bf4afbb6096fa837055994949fc1e489af1c5",
+      "before_sha256": "532ccc558349e52954012d315cf90b17391a55909e3ccf7345ac3bcf249624fa"
+    }
+  ]
+}

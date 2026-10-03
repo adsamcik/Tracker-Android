@@ -36,8 +36,9 @@ description of its earlier input; this file records subsequent repair progress.
   boundary drains actual children before clear; ordinary exports survive Off, and
   GPX/map/manual Share own separate files with bounded cleanup. Receipt:
   `../2026-10-03/TRANSFER_CLEAR_FRESH_REVIEW_1003.md`. Preserved recovery-file
-  exports remain held pending the blocked-startup access answer. Persisted later
-  unfinished-file notices remain unimplemented. Location Replace still needs
+  exports must stay disabled until database startup succeeds, per the latest answer.
+  Persisted later unfinished-file notices are approved and remain unimplemented.
+  Location Replace still needs
   intentional-edit replay and derived-value correction; no partial Replace button
   is exposed. Exact trace: `LOCATION_REPLACE_CANONICAL_GAP_TRACE.md`.
 - Export session is approved with all actually available saved sources initially
@@ -224,6 +225,10 @@ remain held. No test or gate has run.
   authored and independently statically reviewed. Only the annotation is selected
   from mixed DatabaseExporter. The exact October 3 reflection packet excludes
   held backup/radio behavior; compilation, tests and release shrinking remain deferred.
+- [x] Repair the shared Location owner's known disabled background transition for
+  explicit map/game use, with six new unexecuted scenarios and independent static
+  review. Unknown/cold, changed-policy, session and foreign demands remain fenced;
+  temporary requests retain existing freshness/permission and no-recording behavior.
 
 ## Remaining in these slices
 
@@ -247,8 +252,9 @@ remain held. No test or gate has run.
 - [ ] Finish bundle exact membership for native Steps duplicates and overlapping
   imported radio files; the selected metadata path refuses missing receipts.
 - [ ] Complete period discovery streak, revisit season counting and longest-trip
-  scope using the October 3 approved period rules. The dated exploration lookup
-  proposal remains pending; actual period reads and presentation remain unfinished.
+  scope using the latest October 3 decisions. The additional dated exploration
+  lookup was declined; dependent period statistics stay unavailable. The saved-point
+  longest-trip reader is approved; actual period reads and presentation remain unfinished.
 - [ ] Close all remaining runtime/history/map/effect/transfer/cleanup gaps from
   R05–R18 and the full prerequisite trace.
 - [ ] Wire session bundle export/import, bounded annotation selectors and existing

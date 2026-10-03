@@ -93,11 +93,16 @@ class SharedLocationSourceController @Inject constructor(
 			val result = applyEffective(durable, sessionClaim, demands)
 			return result is SourceApplyResult.Applied || result is SourceApplyResult.Degraded
 		} else {
-			// A cold system Location request can outlive this controller's in-memory plan.
-			// Never retire an as-yet-unjoined durable demand for a temporary UI request.
+			// A known suspended background plan must not throttle explicit foreground use.
+			// Unknown/cold demands may still own a surviving physical request and stay fenced.
 			if (sourceBroker.authorizationDemands(source).any { demand ->
-				demand.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT ||
-					demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+				demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE ||
+					(demand.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && !(
+						baselinePlan?.enabled == false &&
+							baselinePolicyRevision == demand.sourcePolicyRevision &&
+							demand.consumerId == "ambient:location" &&
+							demand.logicalTrackingId == null && demand.serviceRunId == null
+					))
 			}) return false
 			val nextUiPlan = uiPlan()
 			if (nextUiPlan == null) {

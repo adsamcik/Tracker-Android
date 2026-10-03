@@ -209,6 +209,135 @@ class SharedLocationSourceControllerTest {
 	}
 
 	@Test
+	fun `My location overrides a known paused background plan without resuming tracking`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(false))
+		coEvery { physical.closeShared() } returns completeAck()
+		assertIs<AmbientLocationRuntimeJoinResult.Inactive>(
+			subject.reconcileAmbientJoin(baseline.copy(mode = LocationMode.DISABLED), 2L),
+		)
+		coEvery { physical.applyUiOnly(any()) } returns true
+		val lease = requireNotNull(subject.acquireUiLease(
+			UiLocationRequest("my-location", 2_000L, 500L, highAccuracy = true, maximumAgeMillis = 10_000L),
+		))
+		coVerify(exactly = 1) { physical.applyUiOnly(match {
+			it.mode == LocationMode.HIGH_ACCURACY && it.requestedIntervalMs == 2_000L &&
+				it.minimumUpdateIntervalMs == 500L && it.maximumBatchDelayMs == 0L
+		}) }
+		subject.releaseUiLease(lease)
+		coVerify(exactly = 2) { physical.closeShared() }
+		coVerify(exactly = 0) { physical.refreshShared(any(), any(), any(), any()) }
+		coVerify(exactly = 0) { physical.reconfigureShared(any(), any(), any(), any()) }
+		assertEquals(listOf(demand(false)), demands)
+	}
+
+	@Test
+	fun `pausing and restoring background preserves independently released map and game leases`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(false))
+		assertIs<AmbientLocationRuntimeJoinResult.Active>(subject.reconcileAmbientJoin(baseline, 2L))
+		val map = requireNotNull(subject.acquireUiLease(
+			UiLocationRequest("my-location", 2_000L, 500L, highAccuracy = true, maximumAgeMillis = 10_000L),
+		))
+		val game = requireNotNull(subject.acquireUiLease(
+			UiLocationRequest("game", 1_000L, 250L, highAccuracy = true, maximumAgeMillis = 2_000L),
+		))
+		val temporaryPlans = mutableListOf<LocationPlan>()
+		var retired = false
+		coEvery { physical.applyUiOnly(any()) } answers {
+			temporaryPlans += firstArg<LocationPlan>()
+			retired
+		}
+		coEvery { physical.closeShared() } answers { retired = true; completeAck() }
+		assertIs<AmbientLocationRuntimeJoinResult.Inactive>(
+			subject.reconcileAmbientJoin(baseline.copy(mode = LocationMode.DISABLED), 2L),
+		)
+		coVerify(exactly = 1) { physical.closeShared() }
+		assertEquals(listOf(1_000L, 1_000L), temporaryPlans.map(LocationPlan::requestedIntervalMs))
+		subject.releaseUiLease(map)
+		assertEquals(1_000L, temporaryPlans.last().requestedIntervalMs)
+		assertEquals(250L, temporaryPlans.last().minimumUpdateIntervalMs)
+		subject.releaseUiLease(map)
+		assertEquals(3, temporaryPlans.size)
+		assertIs<AmbientLocationRuntimeJoinResult.Active>(subject.reconcileAmbientJoin(baseline, 2L))
+		coVerify(exactly = 2) { physical.refreshShared(match {
+			it.mode == LocationMode.HIGH_ACCURACY && it.requestedIntervalMs == 1_000L &&
+				it.minimumUpdateIntervalMs == 250L && it.maximumBatchDelayMs == 0L
+		}, sink, null, 120_000L) }
+		subject.releaseUiLease(game)
+		coVerify(exactly = 2) { physical.refreshShared(baseline, sink, null, 120_000L) }
+		coVerify(exactly = 1) { physical.closeShared() }
+		assertEquals(listOf(demand(false)), demands)
+	}
+
+	@Test
+	fun `paused background cannot replace failed physical retirement and failed lease can be retried`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(false))
+		coEvery { physical.closeShared() } returns completeAck().copy(
+			registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
+			appDrainComplete = false,
+			status = SourceStopStatus.PROVIDER_FAILED,
+		)
+		assertIs<AmbientLocationRuntimeJoinResult.Unavailable>(
+			subject.reconcileAmbientJoin(baseline.copy(mode = LocationMode.DISABLED), 2L),
+		)
+		coEvery { physical.applyUiOnly(any()) } returns false
+		assertNull(subject.acquireUiLease(
+			UiLocationRequest("failed-map", 1_000L, 250L, highAccuracy = true),
+		))
+		coVerify(exactly = 1) { physical.applyUiOnly(any()) }
+		coVerify(exactly = 0) { physical.refreshShared(any(), any(), any(), any()) }
+		coEvery { physical.closeShared() } returns completeAck()
+		coEvery { physical.applyUiOnly(any()) } returns true
+		val retry = requireNotNull(subject.acquireUiLease(
+			UiLocationRequest("retry-map", 6_000L, 1_000L, highAccuracy = true),
+		))
+		coVerify(exactly = 1) { physical.applyUiOnly(match {
+			it.requestedIntervalMs == 6_000L && it.minimumUpdateIntervalMs == 1_000L
+		}) }
+		subject.releaseUiLease(retry)
+		coVerify(exactly = 0) { physical.reconfigureShared(any(), any(), any(), any()) }
+	}
+
+	@Test
+	fun `paused baseline cannot retire a newer unreconciled background demand for UI use`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(false))
+		coEvery { physical.closeShared() } returns completeAck()
+		subject.reconcileAmbientJoin(baseline.copy(mode = LocationMode.DISABLED), 2L)
+		demands = listOf(demand(false).copy(sourcePolicyRevision = 3L))
+		assertNull(subject.acquireUiLease(UiLocationRequest("my-location", 2_000L, highAccuracy = true)))
+		coVerify(exactly = 1) { physical.closeShared() }
+		coVerify(exactly = 0) { physical.applyUiOnly(any()) }
+		coVerify(exactly = 0) { physical.refreshShared(any(), any(), any(), any()) }
+	}
+
+	@Test
+	fun `known paused background cannot displace an unjoined session Location demand`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(false))
+		coEvery { physical.closeShared() } returns completeAck()
+		subject.reconcileAmbientJoin(baseline.copy(mode = LocationMode.DISABLED), 2L)
+		demands += demand(true)
+		assertNull(subject.acquireUiLease(UiLocationRequest("game", 1_000L, highAccuracy = true)))
+		coVerify(exactly = 1) { physical.closeShared() }
+		coVerify(exactly = 0) { physical.applyUiOnly(any()) }
+	}
+
+	@Test
+	fun `known paused background cannot authorize a foreign ambient consumer for UI use`() = runTest {
+		val subject = subject()
+		demands = listOf(demand(false))
+		coEvery { physical.closeShared() } returns completeAck()
+		subject.reconcileAmbientJoin(baseline.copy(mode = LocationMode.DISABLED), 2L)
+		demands += demand(false).copy(demandId = "foreign", consumerId = "ambient:foreign")
+		assertNull(subject.acquireUiLease(UiLocationRequest("my-location", 2_000L, highAccuracy = true)))
+		coVerify(exactly = 1) { physical.closeShared() }
+		coVerify(exactly = 0) { physical.applyUiOnly(any()) }
+	}
+
+	@Test
 	fun `stale background update and release cannot displace newer authorized baseline`() = runTest {
 		val subject = subject()
 		demands = listOf(demand(false).copy(sourcePolicyRevision = 3L))

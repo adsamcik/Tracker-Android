@@ -24,15 +24,39 @@ source-work boundaries, not an assembly freeze, executed verification or integra
   shown in History. Put each Wi-Fi/Cell reading on its own day across midnight.
 - [x] Offer Export session on session detail, initially select every available
   saved source, allow exclusions and write one bundle with the name/activity label.
+- [x] Show available Wi-Fi/Cell map points without an extra missing-location notice.
+  Every reading remains available in History and its chosen export.
+- [x] Leave the exploration period statistics that need the proposed dated
+  visit/revisit lookup unavailable; do not add that lookup.
+- [x] Disable exports until the database opens. Do not add separate blocked-startup
+  export admission for preserved recovery files.
+- [x] Persist unfinished external-file notices in the existing local export storage,
+  retry only the named file and retain the notice through Clear all when the external
+  file may remain. If access is lost, retain the notice with Files-app guidance.
+- [x] Use one shared exact-session preview/write entry point, reusing the existing
+  bundle writer, selected saved records, current name/activity label and source
+  choices. Stop when those inputs change; never start tracking.
+- [x] Calculate complete longest-trip distance from saved Location points using
+  existing continuity/gap rules. Count trips by their start date and react to saved
+  point changes; do not invent distance when there is insufficient Location data.
+- [x] Show the existing seven-day Steps summary independently of session count
+  whenever Steps are chosen or those days have saved Steps data, preserving qualified
+  numbers, missing-data states, History and the session list.
+- [x] Review Location replacement storage before implementation. The earlier
+  sidecar representation proposal has not been approved.
 
 The first three answers are from `call_ITXXwd9m4f7gfXfR7bLb0JWu`; the three
 statistics answers are from `call_lhtt5iSaT7WZD235VbsXbezt`. No default selection
 or elapsed time was treated as an answer.
 The two History/session-export answers are from `call_Aos5FHEL3IZBUbkrt10xb0Kx`.
+Later answers are from that call's map item and `call_wKkRs4v70TaN0YwFnvQZ750M`,
+`call_pHlag80xVfm35psnu6047m01`, `call_0QIayTeufmOkDt0Cj6b9cjuD`,
+`call_ZSBQi9hx5Iml5TqzWB4P92lE`, `call_zw5CZYOUw1hONJelyKXDOPlA` and
+`call_KtiUwkicoAfgCVbeQP2Y2uHu`. `call_Yl5o9bTE6RzsKHyl4DkenqSN` requests a
+single unified, user-understandable time model; it does not approve daily storage groups.
 
 ## Questions presented, awaiting answers
 
-- [ ] Show available radio map points with the concise partial-location notice.
 - [ ] Store overlapping imported readings once, with a small lookup preserving
   membership in each file, including exact duplicate Steps file membership.
 - [ ] Extend the chosen JSON file to all six sources and optional organization
@@ -44,31 +68,11 @@ The two History/session-export answers are from `call_Aos5FHEL3IZBUbkrt10xb0Kx`.
   reasons, without invented coordinates.
 - [ ] Restart the app once after confirmed data-only restore so all readers use
   the replaced databases; preserve settings, stopped tracking and the safety copy.
-- [ ] Add a small dated Location-to-exploration lookup for accurate period visits
-  and revisits, rebuilt from still-saved points and updated on correction/deletion.
-- [ ] Save newly delivered cross-midnight radio observations as separate daily
-  groups with stable per-reading details; preserve older saved identities.
-- [ ] Keep the existing preserved recovery-file Export actions usable while
-  database startup is blocked, with separate cancellation/draining admission;
-  never open the damaged database or start tracking for this export.
-- [ ] Persist unfinished external-file notices in the existing export-plan store;
-  retry removal of only the named file, keep the notice if access is gone and
-  preserve it through collected-data clear. The user-facing notice itself was
-  already approved; this storage/recovery detail was presented separately.
-- [ ] Use one shared stateless exact-session preview/write entry point, following
-  the existing consumer-owned export direction. Reuse the current bundle writer
-  and capture metadata/source revisions; never replace membership with dates.
-  Export session product behavior is approved; this new code interface is pending.
-- [ ] Allow the longest-trip reader to calculate complete distance from exact saved
-  Location members with existing continuity/gap rules. The period-by-start behavior
-  is approved; changing the aggregate-only reader contract is pending.
-- [ ] Store a user-imported Location replacement beside the existing saved identity;
-  keep one visible point, apply its imported values across saved-data consumers and
-  preserve the original phone reading internally for provider replay. The bulk
-  Keep/Replace choice is approved; this storage representation is pending.
-- [ ] Show the existing seven-day Steps summary near the top independently of
-  session count, for chosen Steps or saved data, with qualified per-day values
-  and missing-data states. The new layout was presented through the questions tool.
+- [ ] Review one consistent observation-time rule for History/export across all
+  sources and midnight. The user requested a unified design instead of approving
+  separate daily radio storage groups; preserve saved identities while tracing it.
+- [ ] Present the reviewed Location replacement representation for confirmation.
+  One import-wide Keep/Replace choice is approved; storage remains pending review.
 
 ## Stale questions removed from the blocking list
 
@@ -146,6 +150,12 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   Nine actual-registry reconstruction cases are authored, unexecuted and independently
   statically reviewed. `EXPORTER_REFLECTION_FILES.json` pins the narrow selection;
   mixed Database backup, radio registration and exact session export remain excluded.
+  Commit `16458b8a59`.
+- [x] Repair temporary My location/game requests while the existing shared owner
+  has an exactly known disabled background plan. Six new scenarios and the two
+  source paths are pinned in `UI_LOCATION_PAUSED_FILES.json`; independent static
+  review found no remaining defect. Unknown/cold/revised/foreign/session demand
+  guards, freshness, permissions and no-recording temporary ownership stay intact.
 
 The approved displayed-day History is being authored. The isolated imported-radio
 export-date candidate slice is source-reviewed for narrow selection. Neither
