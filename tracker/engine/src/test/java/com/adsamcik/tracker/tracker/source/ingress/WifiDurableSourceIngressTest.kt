@@ -785,6 +785,122 @@ class WifiDurableSourceIngressTest {
 	}
 
 	@Test
+	fun `background Wi-Fi preserves one real cross-midnight group and exact child times on replay`() = runTest {
+		installAmbientWifiProduct()
+		val midnightMs = 86_400_000L
+		val initial = wifiDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 10_000_000L,
+			accessPoints = listOf(
+				WifiAccessPointEvidence("before-midnight", 2_412, -61, 7_000_000L),
+				WifiAccessPointEvidence("at-midnight", 5_180, -45, 9_000_000L)),
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		val candidate = initial.copy(units = initial.units.map { unit -> unit.copy(
+			evidence = unit.evidence.copy(wallTimeMs = midnightMs, acquiredAtMs = midnightMs)) })
+		val ordinal = ingress.admit(candidate).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+			.units.single().admissionOrdinal
+		val projector = AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
+		projector.project(ordinal).shouldBeInstanceOf<AmbientWifiProjectionResult.FactWritten>()
+		val fact = database.ambientWifiFactDao().effectiveLocalOverWindow(midnightMs, midnightMs + 1L, 10)
+			.single().fact
+		fact.coverageStartTimeMs shouldBe midnightMs - 2L
+		fact.observedWallTimeMs shouldBe midnightMs
+		fact.structuralEpochDay shouldBe 1L
+		fact.structuralDayStartTimeMs shouldBe midnightMs
+		fact.observationCount shouldBe 2
+		val children = database.radioObservationChildDao().wifiBackgroundChildren(fact.writerId,
+			fact.writerVersion, fact.logicalFactId, fact.semanticRevision, 65)
+		children.map { it.observedWallTimeMs } shouldBe listOf(midnightMs - 2L, midnightMs)
+		children.map { it.bssid } shouldBe listOf("before-midnight", "at-midnight")
+		projector.project(ordinal).shouldBeInstanceOf<AmbientWifiProjectionResult.Duplicate>()
+		database.ambientWifiFactDao().effectiveLocalOverWindow(0L, midnightMs + 1L, 10)
+			.single().fact shouldBe fact
+		database.radioObservationChildDao().wifiBackgroundChildren(fact.writerId, fact.writerVersion,
+			fact.logicalFactId, fact.semanticRevision, 65) shouldBe children
+	}
+
+	@Test
+	fun `background Wi-Fi cross-day coverage preserves Prague DST structure without loosening saved time guards`() = runTest {
+		installAmbientWifiProduct()
+		val zone = java.time.ZoneId.of("Europe/Prague")
+		val date = java.time.LocalDate.of(2026, 3, 29)
+		val midnightMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+		val initial = wifiDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 10_000_000L,
+			accessPoints = listOf(
+				WifiAccessPointEvidence("previous-day", 2_412, -61, 7_000_000L),
+				WifiAccessPointEvidence("dst-day", 5_180, -45, 9_000_000L)),
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION, observationZoneId = zone.id)
+		val candidate = initial.copy(units = initial.units.map { unit -> unit.copy(
+			evidence = unit.evidence.copy(wallTimeMs = midnightMs, acquiredAtMs = midnightMs)) })
+		val ordinal = ingress.admit(candidate).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+			.units.single().admissionOrdinal
+		AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
+			.shouldBeInstanceOf<AmbientWifiProjectionResult.FactWritten>()
+		val fact = database.ambientWifiFactDao().effectiveLocalOverWindow(midnightMs, midnightMs + 1L, 10)
+			.single().fact
+		fact.coverageStartTimeMs shouldBe midnightMs - 2L
+		fact.structuralEpochDay shouldBe date.toEpochDay()
+		fact.storedZoneId shouldBe zone.id
+		fact.structuralDayEndTimeMs - fact.structuralDayStartTimeMs shouldBe 23L * 60L * 60L * 1_000L
+		listOf(-1L, midnightMs + 1L).forEach { invalidStart ->
+			kotlin.test.assertFailsWith<IllegalArgumentException> { fact.copy(coverageStartTimeMs = invalidStart) }
+		}
+		kotlin.test.assertFailsWith<IllegalArgumentException> { fact.copy(observedWallTimeMs = midnightMs - 1L) }
+		kotlin.test.assertFailsWith<IllegalArgumentException> { fact.copy(observedWallTimeMs = fact.structuralDayEndTimeMs) }
+		// Older saved midnight-clamped rows still satisfy the entity shape with the same identity.
+		val oldShape = fact.copy(coverageStartTimeMs = midnightMs)
+		oldShape.logicalFactId shouldBe fact.logicalFactId
+		oldShape.observedIntervalStartNanos shouldBe fact.observedIntervalStartNanos
+		oldShape.observedElapsedNanos shouldBe fact.observedElapsedNanos
+	}
+
+	@Test
+	fun `fractional background Wi-Fi readings across UTC midnight fit strict measured child bounds`() = runTest {
+		assertFractionalWifiMidnightBounds(java.time.ZoneId.of("UTC"), java.time.LocalDate.of(2026, 3, 29))
+	}
+
+	@Test
+	fun `fractional background Wi-Fi readings across local midnight fit strict measured child bounds`() = runTest {
+		assertFractionalWifiMidnightBounds(java.time.ZoneId.of("Europe/Prague"), java.time.LocalDate.of(2026, 3, 29))
+	}
+
+	private suspend fun assertFractionalWifiMidnightBounds(zone: java.time.ZoneId, date: java.time.LocalDate) {
+		installAmbientWifiProduct()
+		val midnightMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+		val initial = wifiDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 11_000_000L,
+			accessPoints = listOf(
+				WifiAccessPointEvidence("rounded-earliest", 2_412, -61, 8_900_000L),
+				WifiAccessPointEvidence("rounded-latest", 5_180, -45, 9_600_000L)),
+			payloadVersion = WIFI_WAL_PAYLOAD_VERSION, observationZoneId = zone.id)
+		val candidate = initial.copy(units = initial.units.map { unit -> unit.copy(evidence = unit.evidence.copy(
+			observedElapsedRealtimeNanos = 10_000_000L, wallTimeMs = midnightMs,
+			wallTimeUncertaintyMs = 0L, acquiredAtMs = midnightMs)) })
+		val ordinal = ingress.admit(candidate).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+			.units.single().admissionOrdinal
+		val projector = AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
+		projector.project(ordinal).shouldBeInstanceOf<AmbientWifiProjectionResult.FactWritten>()
+		val fact = database.ambientWifiFactDao().effectiveLocalOverWindow(midnightMs, midnightMs + 1L, 10)
+			.single().fact
+		fact.coverageStartTimeMs shouldBe midnightMs - 1L
+		fact.observedWallTimeMs shouldBe midnightMs
+		fact.wallTimeUncertaintyMs shouldBe 1L
+		fact.structuralEpochDay shouldBe date.toEpochDay()
+		val children = database.radioObservationChildDao().wifiBackgroundChildren(fact.writerId,
+			fact.writerVersion, fact.logicalFactId, fact.semanticRevision, 65)
+		children.map { it.observedWallTimeMs } shouldBe listOf(midnightMs - 1L, midnightMs)
+		children.map { it.wallTimeUncertaintyMs } shouldBe listOf(1L, 1L)
+		// Same strict full-uncertainty bounds required by the existing history/file child readers.
+		children.all { it.observedWallTimeMs - it.wallTimeUncertaintyMs >=
+			fact.coverageStartTimeMs - fact.wallTimeUncertaintyMs &&
+			it.observedWallTimeMs + it.wallTimeUncertaintyMs <=
+			fact.observedWallTimeMs + fact.wallTimeUncertaintyMs } shouldBe true
+		projector.project(ordinal).shouldBeInstanceOf<AmbientWifiProjectionResult.Duplicate>()
+		database.radioObservationChildDao().wifiBackgroundChildren(fact.writerId, fact.writerVersion,
+			fact.logicalFactId, fact.semanticRevision, 65) shouldBe children
+	}
+
+	@Test
 	fun `v6 Wi-Fi admits readings across an authorization revision without changing the carrier`() = runTest {
 		installWifiAuthorization(1L, 2L, 7_000_000L)
 		val points = listOf(

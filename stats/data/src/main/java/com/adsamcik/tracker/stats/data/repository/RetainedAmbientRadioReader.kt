@@ -17,10 +17,18 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
         if (rows.size > limit) return unavailable(RadioContextReadGapReason.DEPENDENCY_LIMIT)
         val state = database.sourceEvidenceStateDao().get() ?: return unavailable(RadioContextReadGapReason.SOURCE_AUTHORITY_UNAVAILABLE)
         val candidates = rows.filter { row ->
-            (row.fact.collectedDataEpoch == state.collectedDataEpoch &&
-                row.fact.sourceAdmissionOrdinal > state.deletedSourceEventHighWaterOrdinal &&
-                state.retainedFromMs?.let { row.fact.coverageStartTimeMs - row.fact.wallTimeUncertaintyMs >= it } != false).also { retained ->
-                if (!retained) gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
+            if (row.fact.collectedDataEpoch != state.collectedDataEpoch ||
+                row.fact.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal) {
+                gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
+                false
+            } else {
+                val start = row.fact.measuredStartTimeMs()
+                if (start == null) {
+                    gaps += RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE
+                    false
+                } else (state.retainedFromMs?.let { start >= it } != false).also { retained ->
+                    if (!retained) gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
+                }
             }
         }
         if (candidates.isEmpty()) return RetainedAmbientRadioRows(emptyList(), gaps)
@@ -67,7 +75,7 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
             val dependencies = revisions + ownerLineage
             // Expire the effective fact/owner, while retaining and authenticating correction history.
             if (owner?.let { aggregate -> state.retainedFromMs?.let { floor ->
-                    aggregate.coverageStartTimeMs - aggregate.wallTimeUncertaintyMs < floor } } == true ||
+                    aggregate.measuredStartTimeMs()?.let { it < floor } != false } } == true ||
                 dependencies.any { revision -> revision.logicalFactId in erased ||
                     marker?.let { revision.ambientConsentEpoch <= it.throughConsentEpoch } == true ||
                     revision.collectedDataEpoch != state.collectedDataEpoch ||
@@ -81,12 +89,13 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
                 owner != null && (!retainedWifiOwnerCompatible(fact, owner) || ownerLineage.lastOrNull() != owner ||
                     ownerLineage.withIndex().any { (index, revision) -> revision.semanticRevision != index + 1L }) ||
                 revisions.withIndex().any { (index, revision) -> revision.semanticRevision != index + 1L } ||
-                dependencies.any { revision -> AmbientWifiFactIntegrity.effectChecksum(revision) != revision.effectChecksum ||
+                dependencies.any { revision -> revision.measuredStartTimeMs() == null ||
+                    AmbientWifiFactIntegrity.effectChecksum(revision) != revision.effectChecksum ||
                     !authority.qualifies(revision.authorityInput()) || approvals.none { it.isActive && AmbientWifiRetentionAuthorityIntegrity.isAuthentic(it) &&
                     it.approvalRevision == revision.retentionApprovalRevision && it.opaquePolicyId == revision.retentionPolicyId &&
                     it.collectedDataEpoch == revision.collectedDataEpoch && it.sourcePolicyRevision == revision.sourcePolicyRevision &&
                     it.ambientConsentEpoch == revision.ambientConsentEpoch &&
-                    it.retainedFromMs?.let { floor -> revision.coverageStartTimeMs - revision.wallTimeUncertaintyMs >= floor } != false } }) {
+                    it.retainedFromMs?.let { floor -> requireNotNull(revision.measuredStartTimeMs()) >= floor } != false } }) {
                 gaps += RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE
                 continue
             }
@@ -102,10 +111,18 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
         if (rows.size > limit) return unavailable(RadioContextReadGapReason.DEPENDENCY_LIMIT)
         val state = database.sourceEvidenceStateDao().get() ?: return unavailable(RadioContextReadGapReason.SOURCE_AUTHORITY_UNAVAILABLE)
         val candidates = rows.filter { row ->
-            (row.fact.collectedDataEpoch == state.collectedDataEpoch &&
-                row.fact.sourceAdmissionOrdinal > state.deletedSourceEventHighWaterOrdinal &&
-                state.retainedFromMs?.let { row.fact.coverageStartTimeMs - row.fact.wallTimeUncertaintyMs >= it } != false).also { retained ->
-                if (!retained) gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
+            if (row.fact.collectedDataEpoch != state.collectedDataEpoch ||
+                row.fact.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal) {
+                gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
+                false
+            } else {
+                val start = row.fact.measuredStartTimeMs()
+                if (start == null) {
+                    gaps += RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE
+                    false
+                } else (state.retainedFromMs?.let { start >= it } != false).also { retained ->
+                    if (!retained) gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
+                }
             }
         }
         if (candidates.isEmpty()) return RetainedAmbientRadioRows(emptyList(), gaps)
@@ -151,7 +168,7 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
             val ownerCursor = owner?.let { cursors[it.logicalFactId] }
             val dependencies = revisions + ownerLineage
             if (owner?.let { aggregate -> state.retainedFromMs?.let { floor ->
-                    aggregate.coverageStartTimeMs - aggregate.wallTimeUncertaintyMs < floor } } == true ||
+                    aggregate.measuredStartTimeMs()?.let { it < floor } != false } } == true ||
                 dependencies.any { revision -> revision.logicalFactId in erased ||
                     marker?.let { revision.ambientConsentEpoch <= it.throughConsentEpoch } == true ||
                     revision.collectedDataEpoch != state.collectedDataEpoch ||
@@ -165,12 +182,13 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
                 owner != null && (!retainedCellOwnerCompatible(fact, owner) || ownerLineage.lastOrNull() != owner ||
                     ownerLineage.withIndex().any { (index, revision) -> revision.semanticRevision != index + 1L }) ||
                 revisions.withIndex().any { (index, revision) -> revision.semanticRevision != index + 1L } ||
-                dependencies.any { revision -> AmbientCellFactIntegrity.effectChecksum(revision) != revision.effectChecksum ||
+                dependencies.any { revision -> revision.measuredStartTimeMs() == null ||
+                    AmbientCellFactIntegrity.effectChecksum(revision) != revision.effectChecksum ||
                     !authority.qualifies(revision.authorityInput()) || approvals.none { it.isActive && AmbientCellRetentionAuthorityIntegrity.isAuthentic(it) &&
                     it.approvalRevision == revision.retentionApprovalRevision && it.opaquePolicyId == revision.retentionPolicyId &&
                     it.collectedDataEpoch == revision.collectedDataEpoch && it.sourcePolicyRevision == revision.sourcePolicyRevision &&
                     it.ambientConsentEpoch == revision.ambientConsentEpoch &&
-                    it.retainedFromMs?.let { floor -> revision.coverageStartTimeMs - revision.wallTimeUncertaintyMs >= floor } != false } }) {
+                    it.retainedFromMs?.let { floor -> requireNotNull(revision.measuredStartTimeMs()) >= floor } != false } }) {
                 gaps += RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE
                 continue
             }

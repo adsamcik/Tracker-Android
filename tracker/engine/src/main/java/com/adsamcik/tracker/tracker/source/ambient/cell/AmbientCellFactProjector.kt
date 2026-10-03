@@ -377,10 +377,11 @@ internal class AmbientCellFactProjector @Inject constructor(
 		val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
 		val dayEnd = day.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli()
 		val intervalStart = acceptedTimes.min()
-		val coverageStart = (
-			wallTimeMs - (productObservedElapsedNanos - intervalStart)
-				.coerceAtLeast(0L) / NANOS_PER_MILLISECOND
-			).coerceAtLeast(dayStart)
+		val coverageStart = runCatching {
+			Math.subtractExact(observedWallTimeMs,
+				(wal.observedElapsedNanos - intervalStart) / NANOS_PER_MILLISECOND)
+		}.getOrNull()?.takeIf { it >= 0L }
+			?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.CLOCK_UNVERIFIABLE)
 		val draft = AmbientCellFactRevisionEntity(
 			writerId = AmbientCellFactRevisionEntity.WRITER_ID,
 			writerVersion = AmbientCellFactRevisionEntity.WRITER_VERSION,

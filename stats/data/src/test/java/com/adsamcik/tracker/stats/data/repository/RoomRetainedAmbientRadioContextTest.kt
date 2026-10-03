@@ -214,6 +214,39 @@ class RoomRetainedAmbientRadioContextTest {
         for (source in RadioContextSource.entries) assertTrue(read(source).observations.isEmpty())
     }
 
+    @Test fun `unsupported previous-epoch intervals cannot hide current Wi-Fi and Cell observations`() = runTest {
+        installAuthority(WIFI)
+        installAuthority(CELL)
+        val wifi = wifi()
+        val cell = cell()
+        insert(wifi)
+        insert(cell)
+        insert(unsupportedWifiInterval(wifi, epoch = 1))
+        insert(unsupportedCellInterval(cell, epoch = 1))
+        for (source in RadioContextSource.entries) {
+            val result = read(source)
+            assertEquals(1, result.observations.size)
+            assertTrue(result.gaps.any { it.reason == RadioContextReadGapReason.RETENTION_BOUNDARY })
+            assertFalse(result.gaps.any { it.reason == RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE })
+        }
+    }
+
+    @Test fun `unsupported current intervals leave valid Wi-Fi and Cell siblings visible with a gap`() = runTest {
+        installAuthority(WIFI)
+        installAuthority(CELL)
+        val wifi = wifi()
+        val cell = cell()
+        insert(wifi)
+        insert(cell)
+        insert(unsupportedWifiInterval(wifi, epoch = 0))
+        insert(unsupportedCellInterval(cell, epoch = 0))
+        for (source in RadioContextSource.entries) {
+            val result = read(source)
+            assertEquals(1, result.observations.size)
+            assertTrue(result.gaps.any { it.reason == RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE })
+        }
+    }
+
     @Test fun `ordinary history and paired context reject a changed native cursor independently`() = runTest {
         installAuthority(WIFI)
         installAuthority(CELL)
@@ -360,6 +393,26 @@ class RoomRetainedAmbientRadioContextTest {
             gsmCount = null, cdmaCount = null, wcdmaCount = null, tdscdmaCount = null, lteCount = null, nrCount = null,
             qualityUnknownCount = null, qualityNoneOrUnknownCount = null, qualityPoorCount = null,
             qualityModerateCount = null, qualityGoodCount = null, qualityGreatCount = null)
+        return unsigned.copy(effectChecksum = AmbientCellFactIntegrity.effectChecksum(unsigned))
+    }
+
+    private fun unsupportedWifiInterval(owner: AmbientWifiFactRevisionEntity, epoch: Long): AmbientWifiFactRevisionEntity {
+        val previous = wifiCoverage(owner)
+        val id = AmbientWifiFactIntegrity.logicalFactId(previous.sourceDeliveryIdentity,
+            previous.ambientConsentEpoch, epoch, previous.scopeDeletionGeneration)
+        val unsigned = previous.copy(logicalFactId = id, mutationId = AmbientWifiFactIntegrity.mutationId(id, 1),
+            collectedDataEpoch = epoch, coverageStartTimeMs = 0, observedIntervalStartNanos = 1,
+            observedElapsedNanos = 4_000_000_001, receivedElapsedNanos = 4_100_000_000)
+        return unsigned.copy(effectChecksum = AmbientWifiFactIntegrity.effectChecksum(unsigned))
+    }
+
+    private fun unsupportedCellInterval(owner: AmbientCellFactRevisionEntity, epoch: Long): AmbientCellFactRevisionEntity {
+        val previous = cellCoverage(owner)
+        val id = AmbientCellFactIntegrity.logicalFactId(previous.sourceDeliveryIdentity,
+            previous.ambientConsentEpoch, epoch, previous.scopeDeletionGeneration)
+        val unsigned = previous.copy(logicalFactId = id, mutationId = AmbientCellFactIntegrity.mutationId(id, 1),
+            collectedDataEpoch = epoch, coverageStartTimeMs = 0, observedIntervalStartNanos = 1,
+            observedElapsedNanos = 4_000_000_001, receivedElapsedNanos = 4_100_000_000)
         return unsigned.copy(effectChecksum = AmbientCellFactIntegrity.effectChecksum(unsigned))
     }
 

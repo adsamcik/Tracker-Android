@@ -395,10 +395,11 @@ internal class AmbientWifiFactProjector @Inject constructor(
 		val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
 		val dayEnd = day.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli()
 		val intervalStart = acceptedStart
-		val coverageStart = (
-			wallTimeMs - (acceptedEnd - intervalStart)
-				.coerceAtLeast(0L) / NANOS_PER_MILLISECOND
-			).coerceAtLeast(dayStart)
+		val coverageStart = runCatching {
+			Math.subtractExact(observedWallTimeMs,
+				(wal.observedElapsedNanos - intervalStart) / NANOS_PER_MILLISECOND)
+		}.getOrNull()?.takeIf { it >= 0L }
+			?: return unverifiable(AmbientWifiProjectionUnverifiableReason.CLOCK_UNVERIFIABLE)
 		val draft = AmbientWifiFactRevisionEntity(
 			writerId = AmbientWifiFactRevisionEntity.WRITER_ID,
 			writerVersion = AmbientWifiFactRevisionEntity.WRITER_VERSION,

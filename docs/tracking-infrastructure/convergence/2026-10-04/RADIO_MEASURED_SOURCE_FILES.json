@@ -1,0 +1,110 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "phase": "IMPLEMENTATION_ONLY",
+  "owner": "/root/transfer_adversary_1003",
+  "freeze_date": "2026-10-04",
+  "parent_reported_fixture_base": "a2a5e5131162505d19ea614f95e2a55707953a41",
+  "path_count": 6,
+  "new_authored_test_cases": 8,
+  "tests_executed": false,
+  "gates_executed": false,
+  "git_operations_performed": false,
+  "selection_patch": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_MEASURED_SOURCE_SELECTION.patch",
+  "selection_patch_sha256": "516dda7e74cebb893d99272ae3f2481d34ba106d24695dfeaa7bc002e846a6f7",
+  "paths": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/wifi/AmbientWifiFactProjector.kt",
+      "before_sha256": "96472cb73340fb552b67662263bb785aaaa6a6d5e9a3ecfd784aecc35e662a05",
+      "before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_MEASURED_SOURCE_SELECTED/AmbientWifiFactProjector.kt.before",
+      "after_sha256": "3c77707fc64c280752a2e9651a43ad0f3c0da4987d950f78c0ea7419f2737884",
+      "selection": "only clean-at-start task delta; no mixed path",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/cell/AmbientCellFactProjector.kt",
+      "before_sha256": "ec2a525d6994bb7329483691ddc02d79db2c30ff6e7ba933276f1a9c2218121d",
+      "before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_MEASURED_SOURCE_SELECTED/AmbientCellFactProjector.kt.before",
+      "after_sha256": "249bc9beeb1f768ba0616c1df93a3ec03f4c69741457d64317e3414f01181ce9",
+      "selection": "only clean-at-start task delta; no mixed path",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientWifiFacts.kt",
+      "before_sha256": "d1acd8e99ed49c6daef777d3d8989898d6136f2aaf8d3212b6e6910d23b070ef",
+      "before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_MEASURED_SOURCE_SELECTED/AmbientWifiFacts.kt.before",
+      "after_sha256": "afe7824313d8c7f49cf8ab6afee48754d6793a1f5f500fc3a667460d2f203362",
+      "selection": "only clean-at-start task delta; no mixed path",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientCellFacts.kt",
+      "before_sha256": "d396c98f877581124fffc3b136028c86127202aebaefbb3108f03007837b0872",
+      "before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_MEASURED_SOURCE_SELECTED/AmbientCellFacts.kt.before",
+      "after_sha256": "3ecc350e5e3f59da82e495693bdc807bcf7ad06ff2a39b770d971e449d04e3bd",
+      "selection": "only clean-at-start task delta; no mixed path",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt",
+      "before_sha256": "3b07c162ff45db8597d023ad20cb58dbcf19141a6784e57f5500f735c8bee5ae",
+      "before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_MEASURED_SOURCE_SELECTED/WifiDurableSourceIngressTest.kt.before",
+      "after_sha256": "79f0e39ba6b01165cc0eee640b65c1023043d44a8f56c8771f7af6607e280490",
+      "selection": "only clean-at-start task delta; no mixed path",
+      "new_authored_test_cases": 4
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/CellDurableSourceIngressTest.kt",
+      "before_sha256": "09498b8a2de2d9c564776f8df843ba369313226a55ff86f55c187b22883e5f17",
+      "before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_MEASURED_SOURCE_SELECTED/CellDurableSourceIngressTest.kt.before",
+      "after_sha256": "5db2c4d6d07d23ae283c3de629361040136a3d723f3ccdb0ef2cf8598a764af2",
+      "selection": "only clean-at-start task delta; no mixed path",
+      "new_authored_test_cases": 4
+    }
+  ],
+  "authored_cases": [
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt",
+      "name": "background Wi-Fi preserves one real cross-midnight group and exact child times on replay",
+      "executed": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt",
+      "name": "background Wi-Fi cross-day coverage preserves Prague DST structure without loosening saved time guards",
+      "executed": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt",
+      "name": "fractional background Wi-Fi readings across UTC midnight fit strict measured child bounds",
+      "executed": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt",
+      "name": "fractional background Wi-Fi readings across local midnight fit strict measured child bounds",
+      "executed": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/CellDurableSourceIngressTest.kt",
+      "name": "background Cell preserves one real cross-midnight group and exact tower times on replay",
+      "executed": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/CellDurableSourceIngressTest.kt",
+      "name": "background Cell cross-day coverage preserves Prague DST structure without loosening saved time guards",
+      "executed": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/CellDurableSourceIngressTest.kt",
+      "name": "fractional background Cell readings across UTC midnight fit strict measured child bounds",
+      "executed": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/CellDurableSourceIngressTest.kt",
+      "name": "fractional background Cell readings across local midnight fit strict measured child bounds",
+      "executed": false
+    }
+  ],
+  "excluded": "All root-owned measured history DAO/repository/retention helper and test changes, all mixed/held radio transfer/source aliases, frozen Steps and Pressure, all other working paths.",
+  "review_repairs": [
+    "M1: new nominal coverage maps callback directly to earliest accepted provider reading; no nested rounded timestamp subtraction."
+  ]
+}

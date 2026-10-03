@@ -320,6 +320,120 @@ class CellDurableSourceIngressTest {
 	}
 
 	@Test
+	fun `background Cell preserves one real cross-midnight group and exact tower times on replay`() = runTest {
+		installAmbientCellProduct()
+		val midnightMs = 86_400_000L
+		val initial = cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 100_000_000L,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION, observationZoneId = "UTC",
+			observationsOverride = listOf(
+				CellObservationEvidence("before-midnight", "LTE", true, -91, 70_000_000L),
+				CellObservationEvidence("at-midnight", "NR", true, -85, 90_000_000L)))
+		val candidate = initial.copy(units = initial.units.map { unit -> unit.copy(
+			evidence = unit.evidence.copy(wallTimeMs = midnightMs, acquiredAtMs = midnightMs)) })
+		val ordinal = ingress.admit(candidate).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+			.units.single().admissionOrdinal
+		val projector = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
+		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.FactWritten>()
+		val fact = database.ambientCellFactDao().effectiveLocalOverWindow(midnightMs, midnightMs + 1L, 10)
+			.single().fact
+		fact.coverageStartTimeMs shouldBe midnightMs - 20L
+		fact.observedWallTimeMs shouldBe midnightMs
+		fact.structuralEpochDay shouldBe 1L
+		fact.structuralDayStartTimeMs shouldBe midnightMs
+		fact.observationCount shouldBe 2
+		val children = database.radioObservationChildDao().cellBackgroundChildren(fact.writerId,
+			fact.writerVersion, fact.logicalFactId, fact.semanticRevision, 65)
+		children.map { it.observedWallTimeMs } shouldBe listOf(midnightMs - 20L, midnightMs)
+		children.map { it.towerIdentity } shouldBe listOf("before-midnight", "at-midnight")
+		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.Duplicate>()
+		database.ambientCellFactDao().effectiveLocalOverWindow(0L, midnightMs + 1L, 10)
+			.single().fact shouldBe fact
+		database.radioObservationChildDao().cellBackgroundChildren(fact.writerId, fact.writerVersion,
+			fact.logicalFactId, fact.semanticRevision, 65) shouldBe children
+	}
+
+	@Test
+	fun `background Cell cross-day coverage preserves Prague DST structure without loosening saved time guards`() = runTest {
+		installAmbientCellProduct()
+		val zone = java.time.ZoneId.of("Europe/Prague")
+		val date = java.time.LocalDate.of(2026, 3, 29)
+		val midnightMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+		val initial = cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 100_000_000L,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION, observationZoneId = zone.id,
+			observationsOverride = listOf(
+				CellObservationEvidence("previous-day", "LTE", true, -91, 70_000_000L),
+				CellObservationEvidence("dst-day", "NR", true, -85, 90_000_000L)))
+		val candidate = initial.copy(units = initial.units.map { unit -> unit.copy(
+			evidence = unit.evidence.copy(wallTimeMs = midnightMs, acquiredAtMs = midnightMs)) })
+		val ordinal = ingress.admit(candidate).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+			.units.single().admissionOrdinal
+		AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
+			.shouldBeInstanceOf<AmbientCellProjectionResult.FactWritten>()
+		val fact = database.ambientCellFactDao().effectiveLocalOverWindow(midnightMs, midnightMs + 1L, 10)
+			.single().fact
+		fact.coverageStartTimeMs shouldBe midnightMs - 20L
+		fact.structuralEpochDay shouldBe date.toEpochDay()
+		fact.storedZoneId shouldBe zone.id
+		fact.structuralDayEndTimeMs - fact.structuralDayStartTimeMs shouldBe 23L * 60L * 60L * 1_000L
+		listOf(-1L, midnightMs + 1L).forEach { invalidStart ->
+			kotlin.test.assertFailsWith<IllegalArgumentException> { fact.copy(coverageStartTimeMs = invalidStart) }
+		}
+		kotlin.test.assertFailsWith<IllegalArgumentException> { fact.copy(observedWallTimeMs = midnightMs - 1L) }
+		kotlin.test.assertFailsWith<IllegalArgumentException> { fact.copy(observedWallTimeMs = fact.structuralDayEndTimeMs) }
+		val oldShape = fact.copy(coverageStartTimeMs = midnightMs)
+		oldShape.logicalFactId shouldBe fact.logicalFactId
+		oldShape.observedIntervalStartNanos shouldBe fact.observedIntervalStartNanos
+		oldShape.observedElapsedNanos shouldBe fact.observedElapsedNanos
+	}
+
+	@Test
+	fun `fractional background Cell readings across UTC midnight fit strict measured child bounds`() = runTest {
+		assertFractionalCellMidnightBounds(java.time.ZoneId.of("UTC"), java.time.LocalDate.of(2026, 3, 29))
+	}
+
+	@Test
+	fun `fractional background Cell readings across local midnight fit strict measured child bounds`() = runTest {
+		assertFractionalCellMidnightBounds(java.time.ZoneId.of("Europe/Prague"), java.time.LocalDate.of(2026, 3, 29))
+	}
+
+	private suspend fun assertFractionalCellMidnightBounds(zone: java.time.ZoneId, date: java.time.LocalDate) {
+		installAmbientCellProduct()
+		val midnightMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+		val initial = cellDeliveryCandidate(1L, 1L, FIRST_PHYSICAL_CONFIGURATION, 11_000_000L,
+			payloadVersion = CELL_WAL_PAYLOAD_VERSION, observationZoneId = zone.id,
+			observationsOverride = listOf(
+				CellObservationEvidence("rounded-earliest", "LTE", true, -91, 8_900_000L),
+				CellObservationEvidence("rounded-latest", "NR", true, -85, 9_600_000L)))
+		val candidate = initial.copy(units = initial.units.map { unit -> unit.copy(evidence = unit.evidence.copy(
+			observedElapsedRealtimeNanos = 10_000_000L, wallTimeMs = midnightMs,
+			wallTimeUncertaintyMs = 0L, acquiredAtMs = midnightMs)) })
+		val ordinal = ingress.admit(candidate).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+			.units.single().admissionOrdinal
+		val projector = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
+		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.FactWritten>()
+		val fact = database.ambientCellFactDao().effectiveLocalOverWindow(midnightMs, midnightMs + 1L, 10)
+			.single().fact
+		fact.coverageStartTimeMs shouldBe midnightMs - 1L
+		fact.observedWallTimeMs shouldBe midnightMs
+		fact.wallTimeUncertaintyMs shouldBe 1L
+		fact.structuralEpochDay shouldBe date.toEpochDay()
+		val children = database.radioObservationChildDao().cellBackgroundChildren(fact.writerId,
+			fact.writerVersion, fact.logicalFactId, fact.semanticRevision, 65)
+		children.map { it.observedWallTimeMs } shouldBe listOf(midnightMs - 1L, midnightMs)
+		children.map { it.wallTimeUncertaintyMs } shouldBe listOf(1L, 1L)
+		children.all { it.observedWallTimeMs - it.wallTimeUncertaintyMs >=
+			fact.coverageStartTimeMs - fact.wallTimeUncertaintyMs &&
+			it.observedWallTimeMs + it.wallTimeUncertaintyMs <=
+			fact.observedWallTimeMs + fact.wallTimeUncertaintyMs } shouldBe true
+		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.Duplicate>()
+		database.radioObservationChildDao().cellBackgroundChildren(fact.writerId, fact.writerVersion,
+			fact.logicalFactId, fact.semanticRevision, 65) shouldBe children
+	}
+
+	@Test
 	fun `background Cell gaps keep each qualified groups observation time`() = runTest {
 		installAmbientCellProduct()
 		val broker = database.sourceBrokerDao()

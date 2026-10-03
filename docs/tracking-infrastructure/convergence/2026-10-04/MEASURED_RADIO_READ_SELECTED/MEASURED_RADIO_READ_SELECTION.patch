@@ -1,0 +1,546 @@
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientRadioMeasuredInterval.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientRadioMeasuredInterval.kt
+new file mode 100644
+index e69de29bb2..430ec87591 100644
+--- /dev/null
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientRadioMeasuredInterval.kt
+@@ -0,0 +1,30 @@
++package com.adsamcik.tracker.shared.base.database.data
++
++/** Recover the real interval of older groups whose saved coverage was clipped at midnight. */
++fun AmbientWifiFactRevisionEntity.measuredStartTimeMs(): Long? = measuredStartTimeMs(
++	coverageStartTimeMs, observedWallTimeMs, observedIntervalStartNanos,
++	observedElapsedNanos, wallTimeUncertaintyMs,
++)
++
++fun AmbientCellFactRevisionEntity.measuredStartTimeMs(): Long? = measuredStartTimeMs(
++	coverageStartTimeMs, observedWallTimeMs, observedIntervalStartNanos,
++	observedElapsedNanos, wallTimeUncertaintyMs,
++)
++
++private fun measuredStartTimeMs(
++	coverageStartMs: Long,
++	observedWallMs: Long,
++	intervalStartNanos: Long,
++	observedNanos: Long,
++	uncertaintyMs: Long,
++): Long? {
++	if (coverageStartMs < 0L || observedWallMs < coverageStartMs || intervalStartNanos <= 0L ||
++		observedNanos < intervalStartNanos || uncertaintyMs < 0L) return null
++	val spanNanos = observedNanos - intervalStartNanos
++	// The latest wall timestamp was already rounded. A fractional span can cross another
++	// millisecond before it; round the lower bound outward, never individual readings.
++	val spanMs = spanNanos / 1_000_000L + if (spanNanos % 1_000_000L == 0L) 0L else 1L
++	if (spanMs > observedWallMs) return null
++	val nominalStart = minOf(coverageStartMs, observedWallMs - spanMs)
++	return (nominalStart - uncertaintyMs).takeIf { uncertaintyMs <= nominalStart }
++}
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientWifiFactDao.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientWifiFactDao.kt
+index 74fbf0e9f9..fc7927939d 100644
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientWifiFactDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientWifiFactDao.kt
+@@ -33,6 +33,31 @@ data class AmbientWifiEffectiveLocalRow(
+ /** Bounded source-local storage boundary for Ambient Wi-Fi product evidence. */
+ @Dao
+ interface AmbientWifiFactDao {
++	/** History discovery includes measured coverage; final display still selects real reading timestamps. */
++	@Query("""SELECT fact.*, owner.observation_count AS owner_observation_count, owner.two_point_four_ghz_count AS owner_two_point_four_ghz_count, owner.five_ghz_count AS owner_five_ghz_count, owner.six_ghz_count AS owner_six_ghz_count, owner.other_band_count AS owner_other_band_count, owner.strongest_signal_dbm AS owner_strongest_signal_dbm, owner.weakest_signal_dbm AS owner_weakest_signal_dbm, owner.signal_sum_dbm AS owner_signal_sum_dbm
++		FROM ambient_wifi_fact_revision fact
++		JOIN ambient_wifi_fact_cursor cursor ON cursor.writer_id = fact.writer_id AND cursor.writer_version = fact.writer_version
++		AND cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = fact.semantic_revision
++		LEFT JOIN ambient_wifi_fact_revision owner ON owner.writer_id = fact.writer_id AND owner.writer_version = fact.writer_version
++		AND owner.logical_fact_id = fact.aggregate_owner_logical_fact_id AND owner.semantic_revision = fact.aggregate_owner_semantic_revision
++		WHERE MIN(fact.coverage_start_time_ms, fact.observed_wall_time_ms -
++			((fact.observed_elapsed_nanos - fact.observed_interval_start_nanos) / 1000000 +
++			CASE WHEN (fact.observed_elapsed_nanos - fact.observed_interval_start_nanos) % 1000000 = 0
++				THEN 0 ELSE 1 END)) -
++			fact.wall_time_uncertainty_ms < :toExclusiveMs
++		AND (fact.observed_wall_time_ms >= :fromInclusiveMs OR
++		(fact.observed_wall_time_ms < :fromInclusiveMs AND fact.wall_time_uncertainty_ms >= :fromInclusiveMs - fact.observed_wall_time_ms))
++		ORDER BY fact.observed_wall_time_ms, fact.logical_fact_id LIMIT :limit""")
++	suspend fun effectiveLocalOverObservationWindow(fromInclusiveMs: Long, toExclusiveMs: Long, limit: Int):
++		List<AmbientWifiEffectiveLocalRow>
++
++	@Query("""SELECT * FROM imported_ambient_wifi_fact fact WHERE coverage_start_time_ms < :toExclusiveMs
++		AND latest_possible_time_ms >= :fromInclusiveMs AND semantic_revision =
++		(SELECT MAX(n.semantic_revision) FROM imported_ambient_wifi_fact n WHERE n.fact_id = fact.fact_id)
++		ORDER BY observed_time_ms, archive_id, fact_id LIMIT :limit""")
++	suspend fun importedOverObservationWindow(fromInclusiveMs: Long, toExclusiveMs: Long, limit: Int):
++		List<ImportedAmbientWifiFactEntity>
++
+ 	/** Bounded retained-reader dependencies; discovery alone never authenticates a product. */
+ 	@Query("SELECT * FROM ambient_wifi_fact_cursor WHERE logical_fact_id IN (:ids) ORDER BY logical_fact_id LIMIT :limit")
+ 	suspend fun retainedCursors(ids: List<String>, limit: Int): List<AmbientWifiFactCursorEntity>
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientCellFactDao.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientCellFactDao.kt
+index d45acb435c..b8d6daa3ed 100644
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientCellFactDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientCellFactDao.kt
+@@ -40,6 +40,31 @@ data class AmbientCellEffectiveLocalRow(
+ /** Bounded source-local storage boundary for Ambient Cell product evidence. */
+ @Dao
+ interface AmbientCellFactDao {
++	/** History discovery includes measured coverage; final display still selects real reading timestamps. */
++	@Query("""SELECT fact.*, owner.observation_count AS owner_observation_count, owner.registered_observation_count AS owner_registered_observation_count, owner.gsm_count AS owner_gsm_count, owner.cdma_count AS owner_cdma_count, owner.wcdma_count AS owner_wcdma_count, owner.tdscdma_count AS owner_tdscdma_count, owner.lte_count AS owner_lte_count, owner.nr_count AS owner_nr_count, owner.quality_unknown_count AS owner_quality_unknown_count, owner.quality_none_or_unknown_count AS owner_quality_none_or_unknown_count, owner.quality_poor_count AS owner_quality_poor_count, owner.quality_moderate_count AS owner_quality_moderate_count, owner.quality_good_count AS owner_quality_good_count, owner.quality_great_count AS owner_quality_great_count
++		FROM ambient_cell_fact_revision fact
++		JOIN ambient_cell_fact_cursor cursor ON cursor.writer_id = fact.writer_id AND cursor.writer_version = fact.writer_version
++		AND cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = fact.semantic_revision
++		LEFT JOIN ambient_cell_fact_revision owner ON owner.writer_id = fact.writer_id AND owner.writer_version = fact.writer_version
++		AND owner.logical_fact_id = fact.aggregate_owner_logical_fact_id AND owner.semantic_revision = fact.aggregate_owner_semantic_revision
++		WHERE MIN(fact.coverage_start_time_ms, fact.observed_wall_time_ms -
++			((fact.observed_elapsed_nanos - fact.observed_interval_start_nanos) / 1000000 +
++			CASE WHEN (fact.observed_elapsed_nanos - fact.observed_interval_start_nanos) % 1000000 = 0
++				THEN 0 ELSE 1 END)) -
++			fact.wall_time_uncertainty_ms < :toExclusiveMs
++		AND (fact.observed_wall_time_ms >= :fromInclusiveMs OR
++		(fact.observed_wall_time_ms < :fromInclusiveMs AND fact.wall_time_uncertainty_ms >= :fromInclusiveMs - fact.observed_wall_time_ms))
++		ORDER BY fact.observed_wall_time_ms, fact.logical_fact_id LIMIT :limit""")
++	suspend fun effectiveLocalOverObservationWindow(fromInclusiveMs: Long, toExclusiveMs: Long, limit: Int):
++		List<AmbientCellEffectiveLocalRow>
++
++	@Query("""SELECT * FROM imported_ambient_cell_fact fact WHERE coverage_start_time_ms < :toExclusiveMs
++		AND latest_possible_time_ms >= :fromInclusiveMs AND semantic_revision =
++		(SELECT MAX(n.semantic_revision) FROM imported_ambient_cell_fact n WHERE n.fact_id = fact.fact_id)
++		ORDER BY observed_time_ms, archive_id, fact_id LIMIT :limit""")
++	suspend fun importedOverObservationWindow(fromInclusiveMs: Long, toExclusiveMs: Long, limit: Int):
++		List<ImportedAmbientCellFactEntity>
++
+ 	@Query("SELECT * FROM ambient_cell_fact_cursor WHERE logical_fact_id IN (:ids) ORDER BY logical_fact_id LIMIT :limit")
+ 	suspend fun retainedCursors(ids: List<String>, limit: Int): List<AmbientCellFactCursorEntity>
+ 
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt
+index 7e0d81424f..dcdbb8e39a 100644
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt
+@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.RadioChildOwner
+ import com.adsamcik.tracker.shared.base.database.data.RadioChildPurpose
+ import com.adsamcik.tracker.shared.base.database.data.RadioObservationChildIntegrity
+ import com.adsamcik.tracker.shared.base.database.data.WifiChildChecksumInput
++import com.adsamcik.tracker.shared.base.database.data.measuredStartTimeMs
+ import com.adsamcik.tracker.shared.base.di.IoDispatcher
+ import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+ import com.adsamcik.tracker.stats.api.repository.RadioContextReadGapReason
+@@ -62,10 +63,20 @@ internal class RoomAmbientWifiRepository(
+ 	internal suspend fun readInTransaction(request: AmbientWifiReadRequest): AmbientWifiReadResult =
+ 		readQualifiedInTransaction(request).strictResult()
+ 
++	/** Display-day history can select an earlier child without widening ordinary export scope. */
++	internal suspend fun readObservationWindowInTransaction(request: AmbientWifiReadRequest): AmbientWifiReadResult =
++		readQualifiedWindowInTransaction(request, includeObservationOverlap = true).strictResult()
++
+ 	/** Optional paired consumers keep independently qualified rows and the explicit read gaps. */
+-	internal suspend fun readQualifiedInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult> {
++	internal suspend fun readQualifiedInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult> =
++		readQualifiedWindowInTransaction(request, includeObservationOverlap = false)
++
++	private suspend fun readQualifiedWindowInTransaction(request: AmbientWifiReadRequest,
++		includeObservationOverlap: Boolean): RetainedAmbientRead<AmbientWifiReadResult> {
+ 		val dao = database.ambientWifiFactDao()
+ 		val local = if (AmbientWifiOrigin.LOCAL_DEVICE in request.origins) {
++			if (includeObservationOverlap) dao.effectiveLocalOverObservationWindow(request.fromInclusiveMs,
++				request.toExclusiveMs, request.limit + 1) else
+ 			dao.effectiveLocalOverWindow(
+ 				request.fromInclusiveMs,
+ 				request.toExclusiveMs,
+@@ -73,6 +84,8 @@ internal class RoomAmbientWifiRepository(
+ 			)
+ 		} else emptyList()
+ 		val imported = if (AmbientWifiOrigin.PORTABLE_IMPORT in request.origins) {
++			if (includeObservationOverlap) dao.importedOverObservationWindow(request.fromInclusiveMs,
++				request.toExclusiveMs, request.limit + 1) else
+ 			dao.importedOverWindow(
+ 				request.fromInclusiveMs,
+ 				request.toExclusiveMs,
+@@ -284,8 +297,7 @@ internal class RoomAmbientWifiRepository(
+ internal fun AmbientWifiEffectiveLocalRow.toApiFact(): AmbientWifiFact? {
+ 	val source = fact
+ 	if (source.effectChecksum != AmbientWifiFactIntegrity.effectChecksum(source)) return null
+-	val measuredStart = Math.subtractExact(source.coverageStartTimeMs, source.wallTimeUncertaintyMs)
+-	if (measuredStart < 0L) return null
++	val measuredStart = source.measuredStartTimeMs() ?: return null
+ 	val count = source.observationCount ?: ownerObservationCount ?: return null
+ 	val two = source.twoPointFourGhzCount ?: ownerTwoPointFourGhzCount ?: return null
+ 	val five = source.fiveGhzCount ?: ownerFiveGhzCount ?: return null
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt
+index 7548ad9077..8156662f08 100644
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt
+@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.RadioChildOwner
+ import com.adsamcik.tracker.shared.base.database.data.RadioChildPurpose
+ import com.adsamcik.tracker.shared.base.database.data.RadioObservationChildIntegrity
+ import com.adsamcik.tracker.shared.base.database.data.PortableRadioChildIntegrity
++import com.adsamcik.tracker.shared.base.database.data.measuredStartTimeMs
+ import com.adsamcik.tracker.shared.base.di.IoDispatcher
+ import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+ import com.adsamcik.tracker.stats.api.repository.RadioContextReadGapReason
+@@ -65,10 +66,20 @@ internal class RoomAmbientCellRepository(
+ 	internal suspend fun readInTransaction(request: AmbientCellReadRequest): AmbientCellReadResult =
+ 		readQualifiedInTransaction(request).strictResult()
+ 
++	/** Display-day history can select an earlier child without widening ordinary export scope. */
++	internal suspend fun readObservationWindowInTransaction(request: AmbientCellReadRequest): AmbientCellReadResult =
++		readQualifiedWindowInTransaction(request, includeObservationOverlap = true).strictResult()
++
+ 	/** Optional paired consumers keep independently qualified rows and the explicit read gaps. */
+-	internal suspend fun readQualifiedInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult> {
++	internal suspend fun readQualifiedInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult> =
++		readQualifiedWindowInTransaction(request, includeObservationOverlap = false)
++
++	private suspend fun readQualifiedWindowInTransaction(request: AmbientCellReadRequest,
++		includeObservationOverlap: Boolean): RetainedAmbientRead<AmbientCellReadResult> {
+ 		val dao = database.ambientCellFactDao()
+ 		val local = if (AmbientCellOrigin.LOCAL_DEVICE in request.origins) {
++			if (includeObservationOverlap) dao.effectiveLocalOverObservationWindow(request.fromInclusiveMs,
++				request.toExclusiveMs, request.limit + 1) else
+ 			dao.effectiveLocalOverWindow(
+ 				request.fromInclusiveMs,
+ 				request.toExclusiveMs,
+@@ -76,6 +87,8 @@ internal class RoomAmbientCellRepository(
+ 			)
+ 		} else emptyList()
+ 		val imported = if (AmbientCellOrigin.PORTABLE_IMPORT in request.origins) {
++			if (includeObservationOverlap) dao.importedOverObservationWindow(request.fromInclusiveMs,
++				request.toExclusiveMs, request.limit + 1) else
+ 			dao.importedOverWindow(
+ 				request.fromInclusiveMs,
+ 				request.toExclusiveMs,
+@@ -299,8 +312,7 @@ internal fun ImportedAmbientCellChildEntity.toObservedTowerIfValid(
+ internal fun AmbientCellEffectiveLocalRow.toApiFact(): AmbientCellFact? {
+ 	val source = fact
+ 	if (source.effectChecksum != AmbientCellFactIntegrity.effectChecksum(source)) return null
+-	val measuredStart = Math.subtractExact(source.coverageStartTimeMs, source.wallTimeUncertaintyMs)
+-	if (measuredStart < 0L) return null
++	val measuredStart = source.measuredStartTimeMs() ?: return null
+ 	val count = source.observationCount ?: ownerObservationCount ?: return null
+ 	return AmbientCellFact(
+ 		source.logicalFactId,
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioReader.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioReader.kt
+index 14a19c7e80..e23134215b 100644
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioReader.kt
+@@ -17,10 +17,18 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
+         if (rows.size > limit) return unavailable(RadioContextReadGapReason.DEPENDENCY_LIMIT)
+         val state = database.sourceEvidenceStateDao().get() ?: return unavailable(RadioContextReadGapReason.SOURCE_AUTHORITY_UNAVAILABLE)
+         val candidates = rows.filter { row ->
+-            (row.fact.collectedDataEpoch == state.collectedDataEpoch &&
+-                row.fact.sourceAdmissionOrdinal > state.deletedSourceEventHighWaterOrdinal &&
+-                state.retainedFromMs?.let { row.fact.coverageStartTimeMs - row.fact.wallTimeUncertaintyMs >= it } != false).also { retained ->
+-                if (!retained) gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
++            if (row.fact.collectedDataEpoch != state.collectedDataEpoch ||
++                row.fact.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal) {
++                gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
++                false
++            } else {
++                val start = row.fact.measuredStartTimeMs()
++                if (start == null) {
++                    gaps += RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE
++                    false
++                } else (state.retainedFromMs?.let { start >= it } != false).also { retained ->
++                    if (!retained) gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
++                }
+             }
+         }
+         if (candidates.isEmpty()) return RetainedAmbientRadioRows(emptyList(), gaps)
+@@ -67,7 +75,7 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
+             val dependencies = revisions + ownerLineage
+             // Expire the effective fact/owner, while retaining and authenticating correction history.
+             if (owner?.let { aggregate -> state.retainedFromMs?.let { floor ->
+-                    aggregate.coverageStartTimeMs - aggregate.wallTimeUncertaintyMs < floor } } == true ||
++                    aggregate.measuredStartTimeMs()?.let { it < floor } != false } } == true ||
+                 dependencies.any { revision -> revision.logicalFactId in erased ||
+                     marker?.let { revision.ambientConsentEpoch <= it.throughConsentEpoch } == true ||
+                     revision.collectedDataEpoch != state.collectedDataEpoch ||
+@@ -81,12 +89,13 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
+                 owner != null && (!retainedWifiOwnerCompatible(fact, owner) || ownerLineage.lastOrNull() != owner ||
+                     ownerLineage.withIndex().any { (index, revision) -> revision.semanticRevision != index + 1L }) ||
+                 revisions.withIndex().any { (index, revision) -> revision.semanticRevision != index + 1L } ||
+-                dependencies.any { revision -> AmbientWifiFactIntegrity.effectChecksum(revision) != revision.effectChecksum ||
++                dependencies.any { revision -> revision.measuredStartTimeMs() == null ||
++                    AmbientWifiFactIntegrity.effectChecksum(revision) != revision.effectChecksum ||
+                     !authority.qualifies(revision.authorityInput()) || approvals.none { it.isActive && AmbientWifiRetentionAuthorityIntegrity.isAuthentic(it) &&
+                     it.approvalRevision == revision.retentionApprovalRevision && it.opaquePolicyId == revision.retentionPolicyId &&
+                     it.collectedDataEpoch == revision.collectedDataEpoch && it.sourcePolicyRevision == revision.sourcePolicyRevision &&
+                     it.ambientConsentEpoch == revision.ambientConsentEpoch &&
+-                    it.retainedFromMs?.let { floor -> revision.coverageStartTimeMs - revision.wallTimeUncertaintyMs >= floor } != false } }) {
++                    it.retainedFromMs?.let { floor -> requireNotNull(revision.measuredStartTimeMs()) >= floor } != false } }) {
+                 gaps += RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE
+                 continue
+             }
+@@ -102,10 +111,18 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
+         if (rows.size > limit) return unavailable(RadioContextReadGapReason.DEPENDENCY_LIMIT)
+         val state = database.sourceEvidenceStateDao().get() ?: return unavailable(RadioContextReadGapReason.SOURCE_AUTHORITY_UNAVAILABLE)
+         val candidates = rows.filter { row ->
+-            (row.fact.collectedDataEpoch == state.collectedDataEpoch &&
+-                row.fact.sourceAdmissionOrdinal > state.deletedSourceEventHighWaterOrdinal &&
+-                state.retainedFromMs?.let { row.fact.coverageStartTimeMs - row.fact.wallTimeUncertaintyMs >= it } != false).also { retained ->
+-                if (!retained) gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
++            if (row.fact.collectedDataEpoch != state.collectedDataEpoch ||
++                row.fact.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal) {
++                gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
++                false
++            } else {
++                val start = row.fact.measuredStartTimeMs()
++                if (start == null) {
++                    gaps += RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE
++                    false
++                } else (state.retainedFromMs?.let { start >= it } != false).also { retained ->
++                    if (!retained) gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
++                }
+             }
+         }
+         if (candidates.isEmpty()) return RetainedAmbientRadioRows(emptyList(), gaps)
+@@ -151,7 +168,7 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
+             val ownerCursor = owner?.let { cursors[it.logicalFactId] }
+             val dependencies = revisions + ownerLineage
+             if (owner?.let { aggregate -> state.retainedFromMs?.let { floor ->
+-                    aggregate.coverageStartTimeMs - aggregate.wallTimeUncertaintyMs < floor } } == true ||
++                    aggregate.measuredStartTimeMs()?.let { it < floor } != false } } == true ||
+                 dependencies.any { revision -> revision.logicalFactId in erased ||
+                     marker?.let { revision.ambientConsentEpoch <= it.throughConsentEpoch } == true ||
+                     revision.collectedDataEpoch != state.collectedDataEpoch ||
+@@ -165,12 +182,13 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
+                 owner != null && (!retainedCellOwnerCompatible(fact, owner) || ownerLineage.lastOrNull() != owner ||
+                     ownerLineage.withIndex().any { (index, revision) -> revision.semanticRevision != index + 1L }) ||
+                 revisions.withIndex().any { (index, revision) -> revision.semanticRevision != index + 1L } ||
+-                dependencies.any { revision -> AmbientCellFactIntegrity.effectChecksum(revision) != revision.effectChecksum ||
++                dependencies.any { revision -> revision.measuredStartTimeMs() == null ||
++                    AmbientCellFactIntegrity.effectChecksum(revision) != revision.effectChecksum ||
+                     !authority.qualifies(revision.authorityInput()) || approvals.none { it.isActive && AmbientCellRetentionAuthorityIntegrity.isAuthentic(it) &&
+                     it.approvalRevision == revision.retentionApprovalRevision && it.opaquePolicyId == revision.retentionPolicyId &&
+                     it.collectedDataEpoch == revision.collectedDataEpoch && it.sourcePolicyRevision == revision.sourcePolicyRevision &&
+                     it.ambientConsentEpoch == revision.ambientConsentEpoch &&
+-                    it.retainedFromMs?.let { floor -> revision.coverageStartTimeMs - revision.wallTimeUncertaintyMs >= floor } != false } }) {
++                    it.retainedFromMs?.let { floor -> requireNotNull(revision.measuredStartTimeMs()) >= floor } != false } }) {
+                 gaps += RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE
+                 continue
+             }
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientRadioMeasuredBoundsRoomTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientRadioMeasuredBoundsRoomTest.kt
+index 62104a2f0c..237632dba9 100644
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientRadioMeasuredBoundsRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientRadioMeasuredBoundsRoomTest.kt
+@@ -10,8 +10,10 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactCursorEntit
+ import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactIntegrity
+ import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
++import com.adsamcik.tracker.shared.base.database.data.measuredStartTimeMs
+ import com.adsamcik.tracker.stats.api.repository.AmbientCellPortableIntegrity
+ import com.adsamcik.tracker.stats.api.repository.AmbientWifiPortableIntegrity
++import com.adsamcik.tracker.stats.api.repository.RadioContextReadGapReason
+ import io.kotest.matchers.shouldBe
+ import kotlin.test.assertNotNull
+ import kotlin.test.assertNull
+@@ -40,8 +42,8 @@ class AmbientRadioMeasuredBoundsRoomTest {
+ 			.single().toApiFact())
+ 		val cellApi = assertNotNull(db.ambientCellFactDao().effectiveLocalOverWindow(1_000, 1_001, 10)
+ 			.single().toApiFact())
+-		wifiApi.coverageStartTimeMs shouldBe 999L
+-		cellApi.coverageStartTimeMs shouldBe 999L
++		wifiApi.coverageStartTimeMs shouldBe 998L
++		cellApi.coverageStartTimeMs shouldBe 998L
+ 		wifiApi.latestPossibleTimeMs shouldBe 1_001L
+ 		cellApi.latestPossibleTimeMs shouldBe 1_001L
+ 		val wifiPortable = AmbientWifiPortableIntegrity.createFact(wifiApi)
+@@ -78,9 +80,11 @@ class AmbientRadioMeasuredBoundsRoomTest {
+ 		db.ambientCellFactDao().effectiveLocalForDay(1, "UTC", 10) shouldBe emptyList()
+ 	}
+ 
+-	@Test fun `zero uncertainty keeps original bounds and unsupported negative bounds are not invented`() = runTest {
+-		insert(wifi(uncertainty = 0))
+-		insert(cell(uncertainty = 0))
++	@Test fun `zero-span zero-uncertainty bounds stay exact and negative bounds are not invented`() = runTest {
++		val wifiDraft = wifi(uncertainty = 0).let { it.copy(observedIntervalStartNanos = it.observedElapsedNanos) }
++		val cellDraft = cell(uncertainty = 0).let { it.copy(observedIntervalStartNanos = it.observedElapsedNanos) }
++		insert(wifiDraft.copy(effectChecksum = AmbientWifiFactIntegrity.effectChecksum(wifiDraft)))
++		insert(cellDraft.copy(effectChecksum = AmbientCellFactIntegrity.effectChecksum(cellDraft)))
+ 		val wifiRow = db.ambientWifiFactDao().effectiveLocalOverWindow(1_000, 1_001, 10).single()
+ 		val cellRow = db.ambientCellFactDao().effectiveLocalOverWindow(1_000, 1_001, 10).single()
+ 		assertNotNull(wifiRow.toApiFact()).coverageStartTimeMs shouldBe 1_000L
+@@ -91,6 +95,112 @@ class AmbientRadioMeasuredBoundsRoomTest {
+ 		assertNull(cellRow.copy(fact = cell(observedMs = 0, uncertainty = 1)).toApiFact())
+ 	}
+ 
++	@Test fun `older midnight-clipped groups recover real bounds without changing saved identity or date`() = runTest {
++		val wifi = wifiAcrossMidnight()
++		val cell = cellAcrossMidnight()
++		insert(wifi)
++		insert(cell)
++		val wifiRow = db.ambientWifiFactDao().effectiveLocalOverWindow(DAY, DAY + 20_000, 10).single()
++		val cellRow = db.ambientCellFactDao().effectiveLocalOverWindow(DAY, DAY + 20_000, 10).single()
++		val wifiApi = assertNotNull(wifiRow.toApiFact())
++		val cellApi = assertNotNull(cellRow.toApiFact())
++		wifiApi.coverageStartTimeMs shouldBe DAY - 21_001
++		cellApi.coverageStartTimeMs shouldBe DAY - 21_001
++		wifiApi.structuralEpochDay shouldBe 1L
++		cellApi.structuralEpochDay shouldBe 1L
++		wifiApi.identity shouldBe wifi.logicalFactId
++		cellApi.identity shouldBe cell.logicalFactId
++		AmbientWifiPortableIntegrity.createFact(wifiApi).coverageStartTimeMs shouldBe DAY - 21_001
++		AmbientCellPortableIntegrity.createFact(cellApi).coverageStartTimeMs shouldBe DAY - 21_001
++		// Recovery is a read of the saved elapsed interval, not a rewrite or a new daily group.
++		db.ambientWifiFactDao().effectiveLocalOverWindow(DAY, DAY + 20_000, 10).single().fact shouldBe wifi
++		db.ambientCellFactDao().effectiveLocalOverWindow(DAY, DAY + 20_000, 10).single().fact shouldBe cell
++	}
++
++	@Test fun `observation discovery finds the earlier part of an older midnight-clipped delivery`() = runTest {
++		insert(wifiAcrossMidnight(uncertainty = 0))
++		insert(cellAcrossMidnight(uncertainty = 0))
++		db.ambientWifiFactDao().effectiveLocalOverObservationWindow(DAY - 21_000, DAY, 10).size shouldBe 1
++		db.ambientCellFactDao().effectiveLocalOverObservationWindow(DAY - 21_000, DAY, 10).size shouldBe 1
++		// The following day has no candidate past its actual latest observed instant.
++		db.ambientWifiFactDao().effectiveLocalOverObservationWindow(DAY + 10_001, DAY + 20_000, 10) shouldBe emptyList()
++		db.ambientCellFactDao().effectiveLocalOverObservationWindow(DAY + 10_001, DAY + 20_000, 10) shouldBe emptyList()
++	}
++
++	@Test fun `fractional older midnight groups enclose every child and are found on its measured day`() = runTest {
++		val wifiDraft = wifiAcrossMidnight().copy(coverageStartTimeMs = DAY, observedWallTimeMs = DAY,
++			observedIntervalStartNanos = 8_900_000, observedElapsedNanos = 9_600_000,
++			receivedElapsedNanos = 10_000_000)
++		val cellDraft = cellAcrossMidnight().copy(coverageStartTimeMs = DAY, observedWallTimeMs = DAY,
++			observedIntervalStartNanos = 8_900_000, observedElapsedNanos = 9_600_000,
++			receivedElapsedNanos = 10_000_000)
++		insert(wifiDraft.copy(effectChecksum = AmbientWifiFactIntegrity.effectChecksum(wifiDraft)))
++		insert(cellDraft.copy(effectChecksum = AmbientCellFactIntegrity.effectChecksum(cellDraft)))
++		val wifiApi = assertNotNull(db.ambientWifiFactDao()
++			.effectiveLocalOverObservationWindow(DAY - 1, DAY, 10).single().toApiFact())
++		val cellApi = assertNotNull(db.ambientCellFactDao()
++			.effectiveLocalOverObservationWindow(DAY - 1, DAY, 10).single().toApiFact())
++		val wifiPortable = AmbientWifiPortableIntegrity.createFact(wifiApi)
++		val cellPortable = AmbientCellPortableIntegrity.createFact(cellApi)
++		wifiPortable.coverageStartTimeMs shouldBe DAY - 2
++		cellPortable.coverageStartTimeMs shouldBe DAY - 2
++		// Callback at midnight: floor(1.1 ms) maps the earlier child to DAY-1 with U1.
++		// The later child maps to DAY with U1. Both strict intervals fit the parent.
++		listOf(DAY - 1 to 1L, DAY to 1L).forEach { (wall, uncertainty) ->
++			(wall - uncertainty >= wifiPortable.coverageStartTimeMs) shouldBe true
++			(wall + uncertainty <= wifiPortable.latestPossibleTimeMs) shouldBe true
++			(wall - uncertainty >= cellPortable.coverageStartTimeMs) shouldBe true
++			(wall + uncertainty <= cellPortable.latestPossibleTimeMs) shouldBe true
++		}
++	}
++
++	@Test fun `retention does not expose an older child's time hidden by a midnight-clipped parent`() = runTest {
++		insert(wifiAcrossMidnight())
++		insert(cellAcrossMidnight())
++		db.sourceEvidenceStateDao().ensure()
++		db.sourceEvidenceStateDao().updateLifecycle(0, DAY, DAY + 20_000)
++		val reader = RetainedAmbientRadioReader(db)
++		val wifi = reader.qualifyWifiInTransaction(
++			db.ambientWifiFactDao().effectiveLocalOverWindow(DAY, DAY + 20_000, 10), 10)
++		val cell = reader.qualifyCellInTransaction(
++			db.ambientCellFactDao().effectiveLocalOverWindow(DAY, DAY + 20_000, 10), 10)
++		wifi.rows shouldBe emptyList()
++		cell.rows shouldBe emptyList()
++		wifi.gaps shouldBe setOf(RadioContextReadGapReason.RETENTION_BOUNDARY)
++		cell.gaps shouldBe setOf(RadioContextReadGapReason.RETENTION_BOUNDARY)
++	}
++
++	@Test fun `an elapsed interval before the UTC epoch is unavailable instead of invented`() = runTest {
++		val wifiDraft = wifi().copy(observedIntervalStartNanos = 1, observedElapsedNanos = 2_000_000_001,
++			receivedElapsedNanos = 2_000_000_001)
++		val cellDraft = cell().copy(observedIntervalStartNanos = 1, observedElapsedNanos = 2_000_000_001,
++			receivedElapsedNanos = 2_000_000_001)
++		val wifi = wifiDraft.copy(effectChecksum = AmbientWifiFactIntegrity.effectChecksum(wifiDraft))
++		val cell = cellDraft.copy(effectChecksum = AmbientCellFactIntegrity.effectChecksum(cellDraft))
++		insert(wifi)
++		insert(cell)
++		assertNull(wifi.measuredStartTimeMs())
++		assertNull(cell.measuredStartTimeMs())
++		assertNull(db.ambientWifiFactDao().effectiveLocalOverWindow(1_000, 1_001, 10).single().toApiFact())
++		assertNull(db.ambientCellFactDao().effectiveLocalOverWindow(1_000, 1_001, 10).single().toApiFact())
++	}
++
++	private fun wifiAcrossMidnight(uncertainty: Long = 1): AmbientWifiFactRevisionEntity {
++		val draft = wifi().copy(structuralEpochDay = 1, structuralDayStartTimeMs = DAY,
++			structuralDayEndTimeMs = 2 * DAY, coverageStartTimeMs = DAY, observedWallTimeMs = DAY + 10_000,
++			observedIntervalStartNanos = 1_000_000, observedElapsedNanos = 31_001_000_000,
++			receivedElapsedNanos = 40_001_000_000, wallTimeUncertaintyMs = uncertainty, appliedAtMs = DAY + 20_000)
++		return draft.copy(effectChecksum = AmbientWifiFactIntegrity.effectChecksum(draft))
++	}
++
++	private fun cellAcrossMidnight(uncertainty: Long = 1): AmbientCellFactRevisionEntity {
++		val draft = cell().copy(structuralEpochDay = 1, structuralDayStartTimeMs = DAY,
++			structuralDayEndTimeMs = 2 * DAY, coverageStartTimeMs = DAY, observedWallTimeMs = DAY + 10_000,
++			observedIntervalStartNanos = 1_000_000, observedElapsedNanos = 31_001_000_000,
++			receivedElapsedNanos = 40_001_000_000, wallTimeUncertaintyMs = uncertainty, appliedAtMs = DAY + 20_000)
++		return draft.copy(effectChecksum = AmbientCellFactIntegrity.effectChecksum(draft))
++	}
++
+ 	private suspend fun insert(fact: AmbientWifiFactRevisionEntity) {
+ 		db.ambientWifiFactDao().insertRevision(fact)
+ 		db.ambientWifiFactDao().insertCursor(AmbientWifiFactCursorEntity(fact.writerId, fact.writerVersion,
+@@ -158,4 +268,6 @@ class AmbientRadioMeasuredBoundsRoomTest {
+ 			purposeDemandId = "cell-demand")
+ 		return unsigned.copy(effectChecksum = AmbientCellFactIntegrity.effectChecksum(unsigned))
+ 	}
++
++	private companion object { const val DAY = 86_400_000L }
+ }
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt
+index 6315b2d933..f3a08fb718 100644
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt
+@@ -214,6 +214,39 @@ class RoomRetainedAmbientRadioContextTest {
+         for (source in RadioContextSource.entries) assertTrue(read(source).observations.isEmpty())
+     }
+ 
++    @Test fun `unsupported previous-epoch intervals cannot hide current Wi-Fi and Cell observations`() = runTest {
++        installAuthority(WIFI)
++        installAuthority(CELL)
++        val wifi = wifi()
++        val cell = cell()
++        insert(wifi)
++        insert(cell)
++        insert(unsupportedWifiInterval(wifi, epoch = 1))
++        insert(unsupportedCellInterval(cell, epoch = 1))
++        for (source in RadioContextSource.entries) {
++            val result = read(source)
++            assertEquals(1, result.observations.size)
++            assertTrue(result.gaps.any { it.reason == RadioContextReadGapReason.RETENTION_BOUNDARY })
++            assertFalse(result.gaps.any { it.reason == RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE })
++        }
++    }
++
++    @Test fun `unsupported current intervals leave valid Wi-Fi and Cell siblings visible with a gap`() = runTest {
++        installAuthority(WIFI)
++        installAuthority(CELL)
++        val wifi = wifi()
++        val cell = cell()
++        insert(wifi)
++        insert(cell)
++        insert(unsupportedWifiInterval(wifi, epoch = 0))
++        insert(unsupportedCellInterval(cell, epoch = 0))
++        for (source in RadioContextSource.entries) {
++            val result = read(source)
++            assertEquals(1, result.observations.size)
++            assertTrue(result.gaps.any { it.reason == RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE })
++        }
++    }
++
+     @Test fun `ordinary history and paired context reject a changed native cursor independently`() = runTest {
+         installAuthority(WIFI)
+         installAuthority(CELL)
+@@ -363,6 +396,26 @@ class RoomRetainedAmbientRadioContextTest {
+         return unsigned.copy(effectChecksum = AmbientCellFactIntegrity.effectChecksum(unsigned))
+     }
+ 
++    private fun unsupportedWifiInterval(owner: AmbientWifiFactRevisionEntity, epoch: Long): AmbientWifiFactRevisionEntity {
++        val previous = wifiCoverage(owner)
++        val id = AmbientWifiFactIntegrity.logicalFactId(previous.sourceDeliveryIdentity,
++            previous.ambientConsentEpoch, epoch, previous.scopeDeletionGeneration)
++        val unsigned = previous.copy(logicalFactId = id, mutationId = AmbientWifiFactIntegrity.mutationId(id, 1),
++            collectedDataEpoch = epoch, coverageStartTimeMs = 0, observedIntervalStartNanos = 1,
++            observedElapsedNanos = 4_000_000_001, receivedElapsedNanos = 4_100_000_000)
++        return unsigned.copy(effectChecksum = AmbientWifiFactIntegrity.effectChecksum(unsigned))
++    }
++
++    private fun unsupportedCellInterval(owner: AmbientCellFactRevisionEntity, epoch: Long): AmbientCellFactRevisionEntity {
++        val previous = cellCoverage(owner)
++        val id = AmbientCellFactIntegrity.logicalFactId(previous.sourceDeliveryIdentity,
++            previous.ambientConsentEpoch, epoch, previous.scopeDeletionGeneration)
++        val unsigned = previous.copy(logicalFactId = id, mutationId = AmbientCellFactIntegrity.mutationId(id, 1),
++            collectedDataEpoch = epoch, coverageStartTimeMs = 0, observedIntervalStartNanos = 1,
++            observedElapsedNanos = 4_000_000_001, receivedElapsedNanos = 4_100_000_000)
++        return unsigned.copy(effectChecksum = AmbientCellFactIntegrity.effectChecksum(unsigned))
++    }
++
+     private suspend fun insert(fact: AmbientWifiFactRevisionEntity) {
+         database.ambientWifiFactDao().insertRevision(fact)
+         database.ambientWifiFactDao().insertCursor(AmbientWifiFactCursorEntity(fact.writerId, fact.writerVersion, fact.logicalFactId,

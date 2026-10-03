@@ -122,6 +122,14 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Select the independently reviewed measured-radio writer/read prerequisite:
+  fourteen source paths preserve real callback timing and recover older clipped
+  spans without changing IDs or measurement dates. Fractional millisecond bounds
+  enclose actual children; epoch/erase filtering precedes per-row qualification,
+  so invalid rows cannot hide valid optional-context siblings. Fifteen new Room/
+  ingress cases and two adapted bounds cases remain unexecuted. Receipt:
+  `convergence/2026-10-04/MEASURED_RADIO_FRESH_REVIEW_1004.md`.
+  Complete History, selected-only source files and session expansion remain open.
 - [x] Select exact session Steps V1/V2 export as a nine-path prerequisite. Complete
   original groups and exact imported IDs retain count-domain checks and read-only
   typed/graph rereads. Fresh review's silent-omission finding is repaired: every

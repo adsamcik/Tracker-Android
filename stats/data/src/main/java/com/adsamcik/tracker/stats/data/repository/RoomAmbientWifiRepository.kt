@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.RadioChildOwner
 import com.adsamcik.tracker.shared.base.database.data.RadioChildPurpose
 import com.adsamcik.tracker.shared.base.database.data.RadioObservationChildIntegrity
 import com.adsamcik.tracker.shared.base.database.data.WifiChildChecksumInput
+import com.adsamcik.tracker.shared.base.database.data.measuredStartTimeMs
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.stats.api.repository.RadioContextReadGapReason
@@ -62,10 +63,20 @@ internal class RoomAmbientWifiRepository(
 	internal suspend fun readInTransaction(request: AmbientWifiReadRequest): AmbientWifiReadResult =
 		readQualifiedInTransaction(request).strictResult()
 
+	/** Display-day history can select an earlier child without widening ordinary export scope. */
+	internal suspend fun readObservationWindowInTransaction(request: AmbientWifiReadRequest): AmbientWifiReadResult =
+		readQualifiedWindowInTransaction(request, includeObservationOverlap = true).strictResult()
+
 	/** Optional paired consumers keep independently qualified rows and the explicit read gaps. */
-	internal suspend fun readQualifiedInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult> {
+	internal suspend fun readQualifiedInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult> =
+		readQualifiedWindowInTransaction(request, includeObservationOverlap = false)
+
+	private suspend fun readQualifiedWindowInTransaction(request: AmbientWifiReadRequest,
+		includeObservationOverlap: Boolean): RetainedAmbientRead<AmbientWifiReadResult> {
 		val dao = database.ambientWifiFactDao()
 		val local = if (AmbientWifiOrigin.LOCAL_DEVICE in request.origins) {
+			if (includeObservationOverlap) dao.effectiveLocalOverObservationWindow(request.fromInclusiveMs,
+				request.toExclusiveMs, request.limit + 1) else
 			dao.effectiveLocalOverWindow(
 				request.fromInclusiveMs,
 				request.toExclusiveMs,
@@ -73,6 +84,8 @@ internal class RoomAmbientWifiRepository(
 			)
 		} else emptyList()
 		val imported = if (AmbientWifiOrigin.PORTABLE_IMPORT in request.origins) {
+			if (includeObservationOverlap) dao.importedOverObservationWindow(request.fromInclusiveMs,
+				request.toExclusiveMs, request.limit + 1) else
 			dao.importedOverWindow(
 				request.fromInclusiveMs,
 				request.toExclusiveMs,
@@ -284,8 +297,7 @@ internal class RoomAmbientWifiRepository(
 internal fun AmbientWifiEffectiveLocalRow.toApiFact(): AmbientWifiFact? {
 	val source = fact
 	if (source.effectChecksum != AmbientWifiFactIntegrity.effectChecksum(source)) return null
-	val measuredStart = Math.subtractExact(source.coverageStartTimeMs, source.wallTimeUncertaintyMs)
-	if (measuredStart < 0L) return null
+	val measuredStart = source.measuredStartTimeMs() ?: return null
 	val count = source.observationCount ?: ownerObservationCount ?: return null
 	val two = source.twoPointFourGhzCount ?: ownerTwoPointFourGhzCount ?: return null
 	val five = source.fiveGhzCount ?: ownerFiveGhzCount ?: return null

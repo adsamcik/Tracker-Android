@@ -40,6 +40,31 @@ data class AmbientCellEffectiveLocalRow(
 /** Bounded source-local storage boundary for Ambient Cell product evidence. */
 @Dao
 interface AmbientCellFactDao {
+	/** History discovery includes measured coverage; final display still selects real reading timestamps. */
+	@Query("""SELECT fact.*, owner.observation_count AS owner_observation_count, owner.registered_observation_count AS owner_registered_observation_count, owner.gsm_count AS owner_gsm_count, owner.cdma_count AS owner_cdma_count, owner.wcdma_count AS owner_wcdma_count, owner.tdscdma_count AS owner_tdscdma_count, owner.lte_count AS owner_lte_count, owner.nr_count AS owner_nr_count, owner.quality_unknown_count AS owner_quality_unknown_count, owner.quality_none_or_unknown_count AS owner_quality_none_or_unknown_count, owner.quality_poor_count AS owner_quality_poor_count, owner.quality_moderate_count AS owner_quality_moderate_count, owner.quality_good_count AS owner_quality_good_count, owner.quality_great_count AS owner_quality_great_count
+		FROM ambient_cell_fact_revision fact
+		JOIN ambient_cell_fact_cursor cursor ON cursor.writer_id = fact.writer_id AND cursor.writer_version = fact.writer_version
+		AND cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = fact.semantic_revision
+		LEFT JOIN ambient_cell_fact_revision owner ON owner.writer_id = fact.writer_id AND owner.writer_version = fact.writer_version
+		AND owner.logical_fact_id = fact.aggregate_owner_logical_fact_id AND owner.semantic_revision = fact.aggregate_owner_semantic_revision
+		WHERE MIN(fact.coverage_start_time_ms, fact.observed_wall_time_ms -
+			((fact.observed_elapsed_nanos - fact.observed_interval_start_nanos) / 1000000 +
+			CASE WHEN (fact.observed_elapsed_nanos - fact.observed_interval_start_nanos) % 1000000 = 0
+				THEN 0 ELSE 1 END)) -
+			fact.wall_time_uncertainty_ms < :toExclusiveMs
+		AND (fact.observed_wall_time_ms >= :fromInclusiveMs OR
+		(fact.observed_wall_time_ms < :fromInclusiveMs AND fact.wall_time_uncertainty_ms >= :fromInclusiveMs - fact.observed_wall_time_ms))
+		ORDER BY fact.observed_wall_time_ms, fact.logical_fact_id LIMIT :limit""")
+	suspend fun effectiveLocalOverObservationWindow(fromInclusiveMs: Long, toExclusiveMs: Long, limit: Int):
+		List<AmbientCellEffectiveLocalRow>
+
+	@Query("""SELECT * FROM imported_ambient_cell_fact fact WHERE coverage_start_time_ms < :toExclusiveMs
+		AND latest_possible_time_ms >= :fromInclusiveMs AND semantic_revision =
+		(SELECT MAX(n.semantic_revision) FROM imported_ambient_cell_fact n WHERE n.fact_id = fact.fact_id)
+		ORDER BY observed_time_ms, archive_id, fact_id LIMIT :limit""")
+	suspend fun importedOverObservationWindow(fromInclusiveMs: Long, toExclusiveMs: Long, limit: Int):
+		List<ImportedAmbientCellFactEntity>
+
 	@Query("SELECT * FROM ambient_cell_fact_cursor WHERE logical_fact_id IN (:ids) ORDER BY logical_fact_id LIMIT :limit")
 	suspend fun retainedCursors(ids: List<String>, limit: Int): List<AmbientCellFactCursorEntity>
 

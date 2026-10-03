@@ -69,6 +69,11 @@ recorded separately from implementation and source review.
 
 ## Questions presented, awaiting answers
 
+- [ ] Permit individual Wi-Fi/Cell measurements with original IDs/timestamps and
+  optional session labels in the source file, merging overlapping imports without
+  treating omitted readings as deletion. Older complete files stay readable. This
+  is the concrete file/import change needed for the approved selected-date rule;
+  no sparse representation has been implemented from approval of dates alone.
 - [ ] Show an export-settings load error with Retry and disable only affected
   settings controls, preserving unreadable bytes and other tracking/data surfaces.
 - [ ] Retire an old unfinished notice before reusing its exact external file and
@@ -107,6 +112,12 @@ behavior choice still needs a concrete proposal under AGENTS.md.
 
 ## Current implementation activity
 
+- [x] Select fourteen measured-radio writer/read paths after fresh combined review.
+  Preserve callback-to-earliest timing and older identities; fractional elapsed
+  spans round lower bounds outward. Epoch/erase filtering and per-row invalid
+  interval gaps preserve valid optional-context siblings. Fifteen newly authored
+  cases and two adapted cases are unexecuted; full History/file scope remains open.
+  `../2026-10-04/MEASURED_RADIO_FRESH_REVIEW_1004.md` records static acceptance.
 - [x] Select the exact Steps V1/V2 export prerequisite: nine source paths and
   twenty-seven authored Room cases plus three compatibility companions, unexecuted.
   Fresh review's selected-native omission is repaired while ordinary date discovery

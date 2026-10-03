@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.RadioChildOwner
 import com.adsamcik.tracker.shared.base.database.data.RadioChildPurpose
 import com.adsamcik.tracker.shared.base.database.data.RadioObservationChildIntegrity
 import com.adsamcik.tracker.shared.base.database.data.PortableRadioChildIntegrity
+import com.adsamcik.tracker.shared.base.database.data.measuredStartTimeMs
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.stats.api.repository.RadioContextReadGapReason
@@ -65,10 +66,20 @@ internal class RoomAmbientCellRepository(
 	internal suspend fun readInTransaction(request: AmbientCellReadRequest): AmbientCellReadResult =
 		readQualifiedInTransaction(request).strictResult()
 
+	/** Display-day history can select an earlier child without widening ordinary export scope. */
+	internal suspend fun readObservationWindowInTransaction(request: AmbientCellReadRequest): AmbientCellReadResult =
+		readQualifiedWindowInTransaction(request, includeObservationOverlap = true).strictResult()
+
 	/** Optional paired consumers keep independently qualified rows and the explicit read gaps. */
-	internal suspend fun readQualifiedInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult> {
+	internal suspend fun readQualifiedInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult> =
+		readQualifiedWindowInTransaction(request, includeObservationOverlap = false)
+
+	private suspend fun readQualifiedWindowInTransaction(request: AmbientCellReadRequest,
+		includeObservationOverlap: Boolean): RetainedAmbientRead<AmbientCellReadResult> {
 		val dao = database.ambientCellFactDao()
 		val local = if (AmbientCellOrigin.LOCAL_DEVICE in request.origins) {
+			if (includeObservationOverlap) dao.effectiveLocalOverObservationWindow(request.fromInclusiveMs,
+				request.toExclusiveMs, request.limit + 1) else
 			dao.effectiveLocalOverWindow(
 				request.fromInclusiveMs,
 				request.toExclusiveMs,
@@ -76,6 +87,8 @@ internal class RoomAmbientCellRepository(
 			)
 		} else emptyList()
 		val imported = if (AmbientCellOrigin.PORTABLE_IMPORT in request.origins) {
+			if (includeObservationOverlap) dao.importedOverObservationWindow(request.fromInclusiveMs,
+				request.toExclusiveMs, request.limit + 1) else
 			dao.importedOverWindow(
 				request.fromInclusiveMs,
 				request.toExclusiveMs,
@@ -299,8 +312,7 @@ internal fun ImportedAmbientCellChildEntity.toObservedTowerIfValid(
 internal fun AmbientCellEffectiveLocalRow.toApiFact(): AmbientCellFact? {
 	val source = fact
 	if (source.effectChecksum != AmbientCellFactIntegrity.effectChecksum(source)) return null
-	val measuredStart = Math.subtractExact(source.coverageStartTimeMs, source.wallTimeUncertaintyMs)
-	if (measuredStart < 0L) return null
+	val measuredStart = source.measuredStartTimeMs() ?: return null
 	val count = source.observationCount ?: ownerObservationCount ?: return null
 	return AmbientCellFact(
 		source.logicalFactId,

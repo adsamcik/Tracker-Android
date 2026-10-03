@@ -20,6 +20,15 @@ description of its earlier input; this file records subsequent repair progress.
 
 ## Authored slices and local commit receipts
 
+- October 4 measured-radio writer/read prerequisite is independently reviewed:
+  fourteen selected source paths retain callback-to-measurement timing, recover
+  older midnight-clipped spans and use conservative fractional lower bounds.
+  Invalid intervals produce per-row gaps after epoch/erase filtering, preserving
+  independently qualified siblings for optional maps. Fifteen newly authored
+  cases and two adapted bounds cases are unexecuted. Exact source packets and
+  acceptance: `../2026-10-04/MEASURED_RADIO_FRESH_REVIEW_1004.md`.
+  Full displayed-day History, selected-measurement files, complete-session scope
+  and all twenty-five assembly prerequisites remain open.
 - `5f6fc0e559`: October 3 imported-radio export-date discovery is independently source-reviewed:
   exact latest-revision observations/gaps choose candidates, with separate export
   reader methods preserving History scope and source cursors. Select the twelve

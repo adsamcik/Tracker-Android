@@ -1,0 +1,77 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "a2a5e5131162505d19ea614f95e2a55707953a41",
+  "source_path_count": 8,
+  "new_authored_test_cases": 7,
+  "tests_executed": false,
+  "gates_executed": false,
+  "selection_patch": "docs/tracking-infrastructure/convergence/2026-10-04/MEASURED_RADIO_READ_SELECTED/MEASURED_RADIO_READ_SELECTION.patch",
+  "selection_patch_sha256": "b715626f6520ca2f28a161e6de06f06a9deffe6181b322fb78e9e4d3c0275534",
+  "paths": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientRadioMeasuredInterval.kt",
+      "selected_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_after_sha256": "b1c474346df34d9d1593568019e5db92c56273ac0a1d8729bf2bd45553670dd4",
+      "actual_working_sha256": "b1c474346df34d9d1593568019e5db92c56273ac0a1d8729bf2bd45553670dd4",
+      "selection": "new task-only utility",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientWifiFactDao.kt",
+      "selected_before_sha256": "3047e6259e64c69591de89a821874bdad997b14707d3342b707659892e54ee74",
+      "selected_after_sha256": "241e698b3788457663bd66940a218b48409b0aa8c44735d8674c8eb4d8ec6c05",
+      "actual_working_sha256": "e7ba7bc11d3927058cbd63ff5362ed9900ed338e870cba201ea3a1df5f389168",
+      "selection": "approved measured-date reader foundation; canonical LF baseline and selection",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientCellFactDao.kt",
+      "selected_before_sha256": "3a82ab2cff2ff54ab7c0b99dfb0f7d6a9f3c23aeacf6f978fa6987324e10fdbc",
+      "selected_after_sha256": "73be717deba220c66e16cf5771b2dbf31bb564ffa553459a4c5af73a08b07d2c",
+      "actual_working_sha256": "51ffc96e01a15765a4c1cb027edefa254f17076d6aeea13b18b35e1665fa9acd",
+      "selection": "approved measured-date reader foundation; canonical LF baseline and selection",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt",
+      "selected_before_sha256": "77313b7efee044efcede32ec6b43a3ff2252ac4395c1fa016b9a45fb9c03b633",
+      "selected_after_sha256": "b4734008da7f500a39bd681237d7c1f82c7ef81e6c5a638753dd82e4df52df13",
+      "actual_working_sha256": "4be9af862324bcb021f489122d101c040c522e071b6e5a4e0be97fd019b5e7e6",
+      "selection": "approved measured-date reader foundation; canonical LF baseline and selection",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt",
+      "selected_before_sha256": "2f752bcae2954ec159537656eda09f51542c14844e328cba59b3cd57bc1d6dd5",
+      "selected_after_sha256": "b00925819664a4af723c0a28c7e78f5307a4abd12d7fd3ed7f83bab283a540e4",
+      "actual_working_sha256": "2c0cf2fe7bf958b4ef1f57386615de32de462e103d66997aa5ddc0ae654d983a",
+      "selection": "approved measured-date reader foundation; canonical LF baseline and selection",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioReader.kt",
+      "selected_before_sha256": "3708288fa97053ec51e0dd5d4c039ffb7e91ade75bd811e1f11e460a66cce55c",
+      "selected_after_sha256": "74cfe88966e3675753bdee73373ce7f6265e4f891a389d318914e66eb4cb1107",
+      "actual_working_sha256": "c9520643950a5dae7d7d12ee4b8df9cbcf9985ee3ac3ae408eb3de6d56559b9f",
+      "selection": "approved measured-date reader foundation; canonical LF baseline and selection",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientRadioMeasuredBoundsRoomTest.kt",
+      "selected_before_sha256": "7decc645f5316bac5382df3a21bbf71c5863dcfce362697999dcb8f9c44c6fae",
+      "selected_after_sha256": "c6d34eb3e688842ce3ec11f5482692d9ee8c53026419bdfcc56b3b6f3ade32b5",
+      "actual_working_sha256": "c6d34eb3e688842ce3ec11f5482692d9ee8c53026419bdfcc56b3b6f3ade32b5",
+      "selection": "approved measured-date reader foundation; canonical LF baseline and selection",
+      "new_authored_test_cases": 5
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt",
+      "selected_before_sha256": "ac824ae80049eeec641cda400b5c56af8f6d9340ff860cf85714f124ed2fbf82",
+      "selected_after_sha256": "00ba5053a674a05c078882fa13f1f09bafd1df1db4110dd99e0a99b19ae21743",
+      "actual_working_sha256": "bbe507bfe88d310f24970eb90d1a192712ebe62ad657a7ec6985ec054b69df13",
+      "selection": "clean-at-start Room fixture; two per-row qualification cases",
+      "new_authored_test_cases": 2
+    }
+  ]
+}
