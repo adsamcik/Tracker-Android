@@ -102,6 +102,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
   `LONGEST_TRIP_SELECTED/LONGEST_TRIP_FILES.json`; none ran. Exact saved-file query
   reuse, zero-counter legacy discovery and actual imported-epoch coverage are
   included. Period product presentation and complete metrics remain open.
+- [x] Remove blocked-database recovery Export and its stale fallback recommendation;
+  admit normal preserved-data exports through the existing Ready-generation transfer.
+  Cancellation closes/drains the writer and cannot be replaced by cleanup failure.
+  Five paths and eight ViewModel/two Compose cases are independently reviewed in
+  `BLOCKED_EXPORT_FRESH_REVIEW_1003.md`; none ran. Persistent later cleanup notices
+  and complete data-only backup remain separate work.
 
 These are selected implementation slices. All 25 full-chain prerequisites and the
 assembly/convergence/device/integration gates remain open.

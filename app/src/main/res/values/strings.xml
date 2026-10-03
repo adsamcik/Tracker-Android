@@ -45,7 +45,7 @@
     <string name="settings_migration_backup_export_cleanup_required">Export failed. Delete the partially exported backup from the selected location.</string>
     <!-- English fallback for the v27-only recovery surface; keep these translatable for later curated translations. -->
     <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">Legacy database import needs attention</string>
-    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Your original database is still safe on this device. Retry the import or export it before starting fresh.</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Your original database is still on this device. Retry the import to open Tracker.</string>
     <string name="legacy_database_size" tools:ignore="MissingTranslation">Legacy database size: %1$s</string>
     <string name="legacy_database_retry" tools:ignore="MissingTranslation">Retry import</string>
     <string name="legacy_database_export" tools:ignore="MissingTranslation">Export legacy database</string>

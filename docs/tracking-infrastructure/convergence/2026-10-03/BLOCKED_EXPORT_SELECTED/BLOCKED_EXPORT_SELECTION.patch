@@ -1,0 +1,700 @@
+diff --git a/app/src/main/java/com/adsamcik/tracker/app/activity/MainActivityCompose.kt b/app/src/main/java/com/adsamcik/tracker/app/activity/MainActivityCompose.kt
+index 02b444b77e..e43ec3948b 100644
+--- a/app/src/main/java/com/adsamcik/tracker/app/activity/MainActivityCompose.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/activity/MainActivityCompose.kt
+@@ -8,7 +8,6 @@ import androidx.activity.ComponentActivity
+ import androidx.activity.compose.setContent
+ import androidx.activity.enableEdgeToEdge
+ import androidx.activity.viewModels
+-import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.compose.foundation.isSystemInDarkTheme
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Column
+@@ -84,32 +83,6 @@ class MainActivityCompose : ComponentActivity() {
+     @Inject lateinit var legacyDatabaseRepository: LegacyDatabaseRepository
+     private val viewModel by viewModels<MainActivityViewModel>()
+ 
+-    private val legacyExportLauncher = registerForActivityResult(
+-        ActivityResultContracts.CreateDocument("application/vnd.sqlite3")
+-    ) { destination ->
+-        destination ?: return@registerForActivityResult
+-        lifecycleScope.launch(dispatchers.io) {
+-            val exported = runCatching {
+-                contentResolver.openOutputStream(destination, "w")?.let(legacyDatabaseRepository::export)
+-                    ?: error("Could not open export destination")
+-            }.isSuccess
+-            if (!exported) {
+-                runCatching {
+-                    if (contentResolver.delete(destination, null, null) <= 0) {
+-                        contentResolver.openOutputStream(destination, "rwt")?.use { it.flush() }
+-                    }
+-                }
+-            }
+-            withContext(dispatchers.main) {
+-                Toast.makeText(
+-                    this@MainActivityCompose,
+-                    if (exported) R.string.legacy_database_export_success else R.string.legacy_database_export_failure,
+-                    Toast.LENGTH_LONG,
+-                ).show()
+-            }
+-        }
+-    }
+-
+     override fun onCreate(savedInstanceState: Bundle?) {
+         // Install splash screen before super.onCreate
+         installSplashScreen()
+@@ -237,9 +210,6 @@ class MainActivityCompose : ComponentActivity() {
+                             viewModel.setStartupDestination(StartupDestination.Pending)
+ 							retryStartup()
+                         },
+-                        onExport = {
+-                            legacyExportLauncher.launch("tracker-legacy-v${legacyState.database?.sourceVersion ?: 26}.db")
+-                        },
+                         onDelete = {
+                             lifecycleScope.launch(dispatchers.io) {
+                                 val deleted = runCatching { legacyDatabaseRepository.delete() }.isSuccess
+@@ -466,12 +436,11 @@ private fun StartupRecoveryScreen(
+ }
+ 
+ @Composable
+-private fun LegacyDatabaseRecoveryScreen(
++internal fun LegacyDatabaseRecoveryScreen(
+     message: String?,
+     sizeBytes: Long,
+     canDelete: Boolean,
+     onRetry: () -> Unit,
+-    onExport: () -> Unit,
+     onDelete: () -> Unit,
+ ) {
+     var showDeleteConfirmation by remember { mutableStateOf(false) }
+@@ -508,10 +477,6 @@ private fun LegacyDatabaseRecoveryScreen(
+                 Button(onClick = onRetry) {
+                     Text(androidx.compose.ui.res.stringResource(R.string.legacy_database_retry))
+                 }
+-                Spacer(Modifier.height(8.dp))
+-                Button(onClick = onExport) {
+-                    Text(androidx.compose.ui.res.stringResource(R.string.legacy_database_export))
+-                }
+                 if (canDelete) {
+                     Spacer(Modifier.height(8.dp))
+                     Button(onClick = { showDeleteConfirmation = true }) {
+diff --git a/app/src/main/java/com/adsamcik/tracker/app/settings/DataSettingsViewModel.kt b/app/src/main/java/com/adsamcik/tracker/app/settings/DataSettingsViewModel.kt
+index 29b031cf48..c9f6558e93 100644
+--- a/app/src/main/java/com/adsamcik/tracker/app/settings/DataSettingsViewModel.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/settings/DataSettingsViewModel.kt
+@@ -7,12 +7,13 @@ import androidx.lifecycle.viewModelScope
+ import com.adsamcik.tracker.R
+ import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
+ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+-import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
+ import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
+ import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
+ import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseState
+ import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportStatus
+ import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+ import com.adsamcik.tracker.shared.preferences.Preferences
+ import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+ import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
+@@ -37,10 +38,12 @@ import kotlinx.coroutines.flow.flowOn
+ import kotlinx.coroutines.flow.map
+ import kotlinx.coroutines.flow.stateIn
+ import kotlinx.coroutines.launch
++import kotlinx.coroutines.NonCancellable
+ import kotlinx.coroutines.withContext
+ import kotlinx.coroutines.currentCoroutineContext
+ import kotlinx.coroutines.ensureActive
+-import java.io.IOException
++import java.io.FilterOutputStream
++import java.io.OutputStream
+ import javax.inject.Inject
+ import kotlin.coroutines.cancellation.CancellationException
+ 
+@@ -107,6 +110,7 @@ class DataSettingsViewModel @Inject constructor(
+     private val legacyDatabaseRepository: LegacyDatabaseRepository,
+     private val dispatchers: DispatchersProvider,
+     private val deletionService: CollectedDataDeletionService,
++    private val startupGate: TrackingStartupGate,
+     private val retentionAuthorityProducer: RetentionAuthorityProducer =
+         UnavailableRetentionAuthorityProducer,
+     private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler =
+@@ -325,25 +329,8 @@ class DataSettingsViewModel @Inject constructor(
+         onResult: (MigrationBackupExportResult) -> Unit,
+     ) {
+         viewModelScope.launch {
+-            val result = withContext(dispatchers.io) {
+-                val output = try {
+-                    appContext.contentResolver.openOutputStream(destination, "rwt")
+-                } catch (_: IOException) {
+-                    null
+-                } catch (_: SecurityException) {
+-                    null
+-                } ?: return@withContext MigrationBackupExportResult.Failure
+-
+-                try {
+-                    output.use(backupRepository::exportLatest)
+-                    MigrationBackupExportResult.Success
+-                } catch (_: DatabaseMigrationBackupException) {
+-                    cleanupFailedExport(destination)
+-                } catch (_: IOException) {
+-                    cleanupFailedExport(destination)
+-                } catch (_: SecurityException) {
+-                    cleanupFailedExport(destination)
+-                }
++            val result = exportPreservedData(destination) {
++                backupRepository.exportLatest(it)
+             }
+             onResult(result)
+         }
+@@ -354,30 +341,79 @@ class DataSettingsViewModel @Inject constructor(
+         onResult: (LegacyDatabaseExportResult) -> Unit,
+     ) {
+         viewModelScope.launch {
+-            val result = withContext(dispatchers.io) {
+-                val output = try {
+-                    appContext.contentResolver.openOutputStream(destination, "rwt")
+-                } catch (_: IOException) {
+-                    null
+-                } catch (_: SecurityException) {
+-                    null
+-                } ?: return@withContext LegacyDatabaseExportResult.Failure
++            val result = when (exportPreservedData(destination) { legacyDatabaseRepository.export(it) }) {
++                MigrationBackupExportResult.Success -> LegacyDatabaseExportResult.Success
++                MigrationBackupExportResult.Failure -> LegacyDatabaseExportResult.Failure
++                MigrationBackupExportResult.CleanupRequired -> LegacyDatabaseExportResult.CleanupRequired
++            }
++            onResult(result)
++        }
++    }
+ 
++    private suspend fun exportPreservedData(
++        destination: Uri,
++        write: (OutputStream) -> Unit,
++    ): MigrationBackupExportResult {
++        val generation = startupGate.currentGeneration
++        if (startupGate.reconcile() !is TrackingStartupResult.Ready) {
++            return MigrationBackupExportResult.Failure
++        }
++        return startupGate.withReadyGenerationTransfer(generation) {
++            withContext(dispatchers.io) {
++                var opened = false
++                var completed = false
+                 try {
+-                    legacyDatabaseRepository.export(output)
+-                    LegacyDatabaseExportResult.Success
+-                } catch (error: CancellationException) {
+-                    throw error
+-                } catch (_: Exception) {
+-                    when (cleanupFailedExport(destination)) {
+-                        MigrationBackupExportResult.CleanupRequired ->
+-                            LegacyDatabaseExportResult.CleanupRequired
+-                        else -> LegacyDatabaseExportResult.Failure
++                    val operationContext = currentCoroutineContext()
++                    operationContext.ensureActive()
++                    val output = appContext.contentResolver.openOutputStream(destination, "rwt")
++                        ?: return@withContext MigrationBackupExportResult.Failure
++                    opened = true
++                    var destinationClosed = false
++                    val cancellableOutput = object : FilterOutputStream(output) {
++                        override fun write(value: Int) {
++                            operationContext.ensureActive()
++                            out.write(value)
++                        }
++
++                        override fun write(bytes: ByteArray, offset: Int, length: Int) {
++                            operationContext.ensureActive()
++                            out.write(bytes, offset, length)
++                        }
++
++                        override fun close() {
++                            if (destinationClosed) return
++                            try {
++                                operationContext.ensureActive()
++                            } finally {
++                                super.close()
++                                destinationClosed = true
++                            }
++                        }
+                     }
++                    cancellableOutput.use {
++                        write(it)
++                        // Legacy export closes the stream before marking its vault exportable.
++                        // A cancellation after that commit must retain the completed user copy.
++                        completed = destinationClosed
++                        operationContext.ensureActive()
++                    }
++                    completed = true
++                    MigrationBackupExportResult.Success
++                } catch (cancelled: CancellationException) {
++                    if (opened && !completed) {
++                        try {
++                            withContext(NonCancellable) { cleanupFailedExport(destination) }
++                        } catch (cleanupFailure: Exception) {
++                            if (cleanupFailure !== cancelled) cancelled.addSuppressed(cleanupFailure)
++                        }
++                    }
++                    throw cancelled
++                } catch (_: Exception) {
++                    if (opened && !completed) withContext(NonCancellable) { cleanupFailedExport(destination) }
++                    else MigrationBackupExportResult.Failure
+                 }
+             }
+-            onResult(result)
+-        }
++        } ?: MigrationBackupExportResult.Failure
+     }
+ 
+     fun deleteLegacyDatabase(onResult: (LegacyDatabaseDeleteResult) -> Unit) {
+@@ -420,11 +456,9 @@ class DataSettingsViewModel @Inject constructor(
+     private fun cleanupFailedExport(destination: Uri): MigrationBackupExportResult {
+         val deleted = try {
+             appContext.contentResolver.delete(destination, null, null) > 0
+-        } catch (_: SecurityException) {
+-            false
+-        } catch (_: IllegalArgumentException) {
+-            false
+-        } catch (_: UnsupportedOperationException) {
++        } catch (cancelled: CancellationException) {
++            throw cancelled
++        } catch (_: Exception) {
+             false
+         }
+         if (deleted) return MigrationBackupExportResult.Failure
+@@ -434,13 +468,9 @@ class DataSettingsViewModel @Inject constructor(
+                 ?: return MigrationBackupExportResult.CleanupRequired
+             output.use { it.flush() }
+             MigrationBackupExportResult.Failure
+-        } catch (_: IOException) {
+-            MigrationBackupExportResult.CleanupRequired
+-        } catch (_: SecurityException) {
+-            MigrationBackupExportResult.CleanupRequired
+-        } catch (_: IllegalArgumentException) {
+-            MigrationBackupExportResult.CleanupRequired
+-        } catch (_: UnsupportedOperationException) {
++        } catch (cancelled: CancellationException) {
++            throw cancelled
++        } catch (_: Exception) {
+             MigrationBackupExportResult.CleanupRequired
+         }
+     }
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index a1439120c4..0ecb0bf82c 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -45,7 +45,7 @@
+     <string name="settings_migration_backup_export_cleanup_required">Export failed. Delete the partially exported backup from the selected location.</string>
+     <!-- English fallback for the v27-only recovery surface; keep these translatable for later curated translations. -->
+     <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">Legacy database import needs attention</string>
+-    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Your original database is still safe on this device. Retry the import or export it before starting fresh.</string>
++    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Your original database is still on this device. Retry the import to open Tracker.</string>
+     <string name="legacy_database_size" tools:ignore="MissingTranslation">Legacy database size: %1$s</string>
+     <string name="legacy_database_retry" tools:ignore="MissingTranslation">Retry import</string>
+     <string name="legacy_database_export" tools:ignore="MissingTranslation">Export legacy database</string>
+diff --git a/app/src/test/java/com/adsamcik/tracker/app/settings/DataSettingsViewModelTest.kt b/app/src/test/java/com/adsamcik/tracker/app/settings/DataSettingsViewModelTest.kt
+index ddc993c107..a115f80606 100644
+--- a/app/src/test/java/com/adsamcik/tracker/app/settings/DataSettingsViewModelTest.kt
++++ b/app/src/test/java/com/adsamcik/tracker/app/settings/DataSettingsViewModelTest.kt
+@@ -6,6 +6,9 @@ import android.net.Uri
+ import com.adsamcik.tracker.R
+ import app.cash.turbine.test
+ import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
+ import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackup
+ import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
+ import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
+@@ -42,7 +45,11 @@ import io.mockk.coVerify
+ import java.io.ByteArrayOutputStream
+ import java.io.File
+ import java.io.IOException
++import kotlin.coroutines.cancellation.CancellationException
+ import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.coroutineScope
++import kotlinx.coroutines.currentCoroutineContext
+ import kotlinx.coroutines.ExperimentalCoroutinesApi
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.test.UnconfinedTestDispatcher
+@@ -76,6 +83,7 @@ class DataSettingsViewModelTest {
+     private val smartGoalNotificationsFlow = MutableStateFlow(true)
+     private val retentionAuthorityProducer: RetentionAuthorityProducer = mockk()
+     private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler = mockk()
++    private val exportGate = ExportGate()
+     private var configurationGeneration = 0L
+     private lateinit var stagedPolicy: ApprovedRetentionPolicy
+ 
+@@ -87,6 +95,7 @@ class DataSettingsViewModelTest {
+         backupFlow.value = null
+         legacyStateFlow.value = emptyLegacyState()
+         configurationGeneration = 0L
++        exportGate.reset()
+ 
+         every { retentionConfigStore.config } returns configFlow
+         every { retentionConfigStore.approvalStatus } returns approvalStatusFlow
+@@ -158,6 +167,7 @@ class DataSettingsViewModelTest {
+         legacyDatabaseRepository = legacyDatabaseRepository,
+         dispatchers = TestDispatchersProvider(testDispatcher),
+         deletionService = deletionService,
++        startupGate = exportGate,
+         retentionAuthorityProducer = retentionAuthorityProducer,
+         purposeSettingsReconciler = purposeSettingsReconciler,
+     )
+@@ -455,8 +465,8 @@ class DataSettingsViewModelTest {
+             val output = ByteArrayOutputStream()
+             backupFlow.value = backup
+             every { contentResolver.openOutputStream(uri, "rwt") } returns output
+-            every { backupRepository.exportLatest(output) } answers {
+-                output.write(byteArrayOf(1, 2, 3))
++            every { backupRepository.exportLatest(any()) } answers {
++                firstArg<java.io.OutputStream>().write(byteArrayOf(1, 2, 3))
+                 backup
+             }
+ 
+@@ -489,8 +499,8 @@ class DataSettingsViewModelTest {
+             val output = ByteArrayOutputStream()
+             every { contentResolver.openOutputStream(uri, "rwt") } returns output
+             every { contentResolver.delete(uri, null, null) } returns 1
+-            every { backupRepository.exportLatest(output) } answers {
+-                output.write(byteArrayOf(1, 2, 3))
++            every { backupRepository.exportLatest(any()) } answers {
++                firstArg<java.io.OutputStream>().write(byteArrayOf(1, 2, 3))
+                 throw IOException("write failed")
+             }
+             var result: MigrationBackupExportResult? = null
+@@ -529,8 +539,8 @@ class DataSettingsViewModelTest {
+                 }
+             }
+             every { contentResolver.delete(uri, null, null) } returns 0
+-            every { backupRepository.exportLatest(output) } answers {
+-                output.write(byteArrayOf(1, 2, 3))
++            every { backupRepository.exportLatest(any()) } answers {
++                firstArg<java.io.OutputStream>().write(byteArrayOf(1, 2, 3))
+                 throw IOException("write failed")
+             }
+             var result: MigrationBackupExportResult? = null
+@@ -549,8 +559,8 @@ class DataSettingsViewModelTest {
+             val output = ByteArrayOutputStream()
+             every { contentResolver.openOutputStream(uri, "rwt") } returnsMany listOf(output, null)
+             every { contentResolver.delete(uri, null, null) } returns 0
+-            every { backupRepository.exportLatest(output) } answers {
+-                output.write(byteArrayOf(1, 2, 3))
++            every { backupRepository.exportLatest(any()) } answers {
++                firstArg<java.io.OutputStream>().write(byteArrayOf(1, 2, 3))
+                 throw IOException("write failed")
+             }
+             var result: MigrationBackupExportResult? = null
+@@ -597,8 +607,8 @@ class DataSettingsViewModelTest {
+             val uri: Uri = mockk()
+             val output = ByteArrayOutputStream()
+             every { contentResolver.openOutputStream(uri, "rwt") } returns output
+-            every { legacyDatabaseRepository.export(output) } answers {
+-                output.write(byteArrayOf(4, 2))
++            every { legacyDatabaseRepository.export(any()) } answers {
++                firstArg<java.io.OutputStream>().write(byteArrayOf(4, 2))
+                 legacyInfo()
+             }
+             var result: LegacyDatabaseExportResult? = null
+@@ -607,7 +617,7 @@ class DataSettingsViewModelTest {
+ 
+             result shouldBe LegacyDatabaseExportResult.Success
+             output.toByteArray().toList() shouldBe listOf<Byte>(4, 2)
+-            verify(exactly = 1) { legacyDatabaseRepository.export(output) }
++            verify(exactly = 1) { legacyDatabaseRepository.export(any()) }
+         }
+ 
+         @Test
+@@ -686,6 +696,228 @@ class DataSettingsViewModelTest {
+             }
+ 	}
+ 
++    @Nested
++    @DisplayName("Preserved-data export admission")
++    inner class PreservedDataExportAdmission {
++        @Test
++        fun `blocked startup cannot open either recovery export destination`() = runTest(testDispatcher) {
++            exportGate.startupResult = TrackingStartupResult.Blocked(TrackingStartupStage.STORAGE, "DATABASE_CLOSED")
++            val uri: Uri = mockk()
++            var backupResult: MigrationBackupExportResult? = null
++            var legacyResult: LegacyDatabaseExportResult? = null
++            val vm = createViewModel()
++            vm.exportMigrationBackup(uri) { backupResult = it }
++            vm.exportLegacyDatabase(uri) { legacyResult = it }
++            backupResult shouldBe MigrationBackupExportResult.Failure
++            legacyResult shouldBe LegacyDatabaseExportResult.Failure
++            exportGate.transferCount shouldBe 0
++            verify(exactly = 0) { contentResolver.openOutputStream(any(), any()) }
++            verify(exactly = 0) { backupRepository.exportLatest(any()) }
++            verify(exactly = 0) { legacyDatabaseRepository.export(any()) }
++        }
++
++        @Test
++        fun `retryable database open also withholds both exports`() = runTest(testDispatcher) {
++            exportGate.startupResult = TrackingStartupResult.RetryableFailure(TrackingStartupStage.STORAGE, "LOCKED")
++            val uri: Uri = mockk()
++            var backupResult: MigrationBackupExportResult? = null
++            var legacyResult: LegacyDatabaseExportResult? = null
++            val vm = createViewModel()
++            vm.exportMigrationBackup(uri) { backupResult = it }
++            vm.exportLegacyDatabase(uri) { legacyResult = it }
++            backupResult shouldBe MigrationBackupExportResult.Failure
++            legacyResult shouldBe LegacyDatabaseExportResult.Failure
++            verify(exactly = 0) { contentResolver.openOutputStream(any(), any()) }
++        }
++
++        @Test
++        fun `generation change during startup reconciliation rejects a stale export`() = runTest(testDispatcher) {
++            exportGate.advanceGenerationOnReconcile = true
++            val uri: Uri = mockk()
++            var result: MigrationBackupExportResult? = null
++            createViewModel().exportMigrationBackup(uri) { result = it }
++            result shouldBe MigrationBackupExportResult.Failure
++            exportGate.transferCount shouldBe 0
++            verify(exactly = 0) { contentResolver.openOutputStream(any(), any()) }
++        }
++
++        @Test
++        fun `ready retained history exports while collection is off`() = runTest(testDispatcher) {
++            exportGate.collectionAllowed = false
++            val uri: Uri = mockk()
++            val output = ByteArrayOutputStream()
++            every { contentResolver.openOutputStream(uri, "rwt") } returns output
++            every { backupRepository.exportLatest(any()) } answers {
++                exportGate.transferJob?.isActive shouldBe true
++                firstArg<java.io.OutputStream>().write(byteArrayOf(7, 8))
++                migrationBackup()
++            }
++            var result: MigrationBackupExportResult? = null
++            createViewModel().exportMigrationBackup(uri) { result = it }
++            result shouldBe MigrationBackupExportResult.Success
++            exportGate.transferCount shouldBe 1
++            output.toByteArray().toList() shouldBe listOf<Byte>(7, 8)
++        }
++
++        @Test
++        fun `cancelled preserved export closes and cleans before leaving its transfer`() = runTest(testDispatcher) {
++            val uri: Uri = mockk()
++            var closed = false
++            val output = object : ByteArrayOutputStream() {
++                override fun close() { closed = true; super.close() }
++            }
++            every { contentResolver.openOutputStream(uri, "rwt") } returns output
++            every { contentResolver.delete(uri, null, null) } answers {
++                closed shouldBe true
++                exportGate.transferJob?.isCompleted shouldBe false
++                1
++            }
++            every { backupRepository.exportLatest(any()) } answers {
++                val stream = firstArg<java.io.OutputStream>()
++                stream.write(1)
++                requireNotNull(exportGate.transferJob).cancel()
++                stream.write(2)
++                migrationBackup()
++            }
++            var delivered = false
++            val vm = createViewModel()
++            vm.exportMigrationBackup(uri) { delivered = true }
++            delivered shouldBe false
++            closed shouldBe true
++            output.toByteArray().toList() shouldBe listOf<Byte>(1)
++            verify(exactly = 1) { contentResolver.delete(uri, null, null) }
++            exportGate.lastTransferJob?.isCompleted shouldBe true
++
++            every { backupRepository.exportLatest(any()) } answers {
++                firstArg<java.io.OutputStream>().write(3)
++                migrationBackup()
++            }
++            vm.exportMigrationBackup(uri) { delivered = true }
++            delivered shouldBe true
++        }
++
++        @Test
++        fun `provider cleanup failures cannot replace the original export cancellation`() = runTest(testDispatcher) {
++            val uri: Uri = mockk()
++            var closed = false
++            val output = object : ByteArrayOutputStream() {
++                override fun close() { closed = true; super.close() }
++            }
++            val original = CancellationException("Original export cancellation")
++            val cleanupFailure = CancellationException("Document provider cleanup failed")
++            var opens = 0
++            every { contentResolver.openOutputStream(uri, "rwt") } answers {
++                if (opens++ == 0) output else throw cleanupFailure
++            }
++            every { contentResolver.delete(uri, null, null) } answers {
++                closed shouldBe true
++                exportGate.transferJob?.isCompleted shouldBe false
++                throw IllegalStateException("Document provider failed")
++            }
++            every { backupRepository.exportLatest(any()) } answers {
++                firstArg<java.io.OutputStream>().write(1)
++                throw original
++            }
++            var delivered = false
++            createViewModel().exportMigrationBackup(uri) { delivered = true }
++            delivered shouldBe false
++            closed shouldBe true
++            exportGate.observedCancellation shouldBe original
++            original.suppressed.toList() shouldBe listOf(cleanupFailure)
++            exportGate.lastTransferJob?.isCompleted shouldBe true
++        }
++
++        @Test
++        fun `document provider runtime failure returns cleanup required instead of escaping`() = runTest(testDispatcher) {
++            val uri: Uri = mockk()
++            val output = ByteArrayOutputStream()
++            var opens = 0
++            every { contentResolver.openOutputStream(uri, "rwt") } answers {
++                if (opens++ == 0) output else throw IllegalStateException("Provider unavailable")
++            }
++            every { contentResolver.delete(uri, null, null) } throws IllegalStateException("Provider unavailable")
++            every { backupRepository.exportLatest(any()) } answers {
++                firstArg<java.io.OutputStream>().write(1)
++                throw IOException("Copy failed")
++            }
++            var result: MigrationBackupExportResult? = null
++            createViewModel().exportMigrationBackup(uri) { result = it }
++            result shouldBe MigrationBackupExportResult.CleanupRequired
++            exportGate.lastTransferJob?.isCompleted shouldBe true
++        }
++    }
++
++    @Test
++    fun `cancellation after a closed legacy export retains its completed user copy`() = runTest(testDispatcher) {
++        val uri: Uri = mockk()
++        var closeCount = 0
++        val output = object : ByteArrayOutputStream() {
++            override fun close() { closeCount++; super.close() }
++        }
++        every { contentResolver.openOutputStream(uri, "rwt") } returns output
++        every { legacyDatabaseRepository.export(any()) } answers {
++            val stream = firstArg<java.io.OutputStream>()
++            stream.write(9)
++            stream.close()
++            requireNotNull(exportGate.transferJob).cancel()
++            legacyInfo()
++        }
++        var delivered = false
++        createViewModel().exportLegacyDatabase(uri) { delivered = true }
++        delivered shouldBe false
++        closeCount shouldBe 1
++        output.toByteArray().toList() shouldBe listOf<Byte>(9)
++        verify(exactly = 0) { contentResolver.delete(uri, null, null) }
++        exportGate.lastTransferJob?.isCompleted shouldBe true
++    }
++
++    private class ExportGate : TrackingStartupGate {
++        var startupResult: TrackingStartupResult = TrackingStartupResult.Ready(false, 0L)
++        override var currentGeneration: Long = 1L
++        var collectionAllowed = true
++        var advanceGenerationOnReconcile = false
++        var transferCount = 0
++        var transferJob: Job? = null
++        var lastTransferJob: Job? = null
++        var observedCancellation: CancellationException? = null
++        override val isReady: Boolean get() = startupResult is TrackingStartupResult.Ready
++        override val permitsNewCollection: Boolean get() = collectionAllowed && isReady
++
++        override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult {
++            if (advanceGenerationOnReconcile) currentGeneration++
++            return startupResult
++        }
++
++        override suspend fun <T> withReadyGenerationTransfer(
++            expectedGeneration: Long,
++            operation: suspend () -> T,
++        ): T? {
++            if (!isReadyGeneration(expectedGeneration)) return null
++            transferCount++
++            return coroutineScope {
++                transferJob = currentCoroutineContext()[Job]
++                try { operation() } catch (cancelled: CancellationException) {
++                    observedCancellation = cancelled
++                    throw cancelled
++                } finally {
++                    lastTransferJob = transferJob
++                    transferJob = null
++                }
++            }
++        }
++
++        fun reset() {
++            startupResult = TrackingStartupResult.Ready(false, 0L)
++            currentGeneration = 1L
++            collectionAllowed = true
++            advanceGenerationOnReconcile = false
++            transferCount = 0
++            transferJob = null
++            lastTransferJob = null
++            observedCancellation = null
++        }
++    }
++
+     private fun migrationBackup() = DatabaseMigrationBackup(
+         file = File("main_database-v10-pre-v35.db"),
+         sourceVersion = 10,
+diff --git a/app/src/test/java/com/adsamcik/tracker/app/activity/LegacyDatabaseRecoveryScreenTest.kt b/app/src/test/java/com/adsamcik/tracker/app/activity/LegacyDatabaseRecoveryScreenTest.kt
+new file mode 100644
+index e69de29bb2..3daab23c68 100644
+--- /dev/null
++++ b/app/src/test/java/com/adsamcik/tracker/app/activity/LegacyDatabaseRecoveryScreenTest.kt
+@@ -0,0 +1,58 @@
++package com.adsamcik.tracker.app.activity
++
++import android.content.Context
++import androidx.compose.ui.test.assertDoesNotExist
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.junit4.createComposeRule
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.performClick
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.R
++import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
++import org.junit.Rule
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++import kotlin.test.assertEquals
++
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class LegacyDatabaseRecoveryScreenTest {
++    @get:Rule val compose = createComposeRule()
++
++    @Test fun `blocked recovery offers Retry but cannot export preserved files`() {
++        val context = ApplicationProvider.getApplicationContext<Context>()
++        var retries = 0
++        compose.setContent {
++            AppTheme(useDynamicColor = false) {
++                LegacyDatabaseRecoveryScreen(
++                    message = null, sizeBytes = 4096L, canDelete = false,
++                    onRetry = { retries++ }, onDelete = {},
++                )
++            }
++        }
++        compose.onNodeWithText(context.getString(R.string.legacy_database_export)).assertDoesNotExist()
++        compose.onNodeWithText(context.getString(R.string.legacy_database_import_failed_message)).assertIsDisplayed()
++        compose.onNodeWithText(context.getString(R.string.legacy_database_delete)).assertDoesNotExist()
++        compose.onNodeWithText(context.getString(R.string.legacy_database_retry)).assertIsDisplayed().performClick()
++        assertEquals(1, retries)
++    }
++
++    @Test fun `removing Export preserves confirmed eligible legacy deletion`() {
++        val context = ApplicationProvider.getApplicationContext<Context>()
++        var deleted = false
++        compose.setContent {
++            AppTheme(useDynamicColor = false) {
++                LegacyDatabaseRecoveryScreen(
++                    message = null, sizeBytes = 4096L, canDelete = true,
++                    onRetry = {}, onDelete = { deleted = true },
++                )
++            }
++        }
++        compose.onNodeWithText(context.getString(R.string.legacy_database_export)).assertDoesNotExist()
++        compose.onNodeWithText(context.getString(R.string.legacy_database_delete)).performClick()
++        assertEquals(false, deleted)
++        compose.onNodeWithText(context.getString(R.string.legacy_database_delete_confirm_title)).assertIsDisplayed()
++    }
++}

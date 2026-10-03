@@ -8,7 +8,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -83,32 +82,6 @@ class MainActivityCompose : ComponentActivity() {
     @Inject lateinit var onboardingRepository: com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
     @Inject lateinit var legacyDatabaseRepository: LegacyDatabaseRepository
     private val viewModel by viewModels<MainActivityViewModel>()
-
-    private val legacyExportLauncher = registerForActivityResult(
-        ActivityResultContracts.CreateDocument("application/vnd.sqlite3")
-    ) { destination ->
-        destination ?: return@registerForActivityResult
-        lifecycleScope.launch(dispatchers.io) {
-            val exported = runCatching {
-                contentResolver.openOutputStream(destination, "w")?.let(legacyDatabaseRepository::export)
-                    ?: error("Could not open export destination")
-            }.isSuccess
-            if (!exported) {
-                runCatching {
-                    if (contentResolver.delete(destination, null, null) <= 0) {
-                        contentResolver.openOutputStream(destination, "rwt")?.use { it.flush() }
-                    }
-                }
-            }
-            withContext(dispatchers.main) {
-                Toast.makeText(
-                    this@MainActivityCompose,
-                    if (exported) R.string.legacy_database_export_success else R.string.legacy_database_export_failure,
-                    Toast.LENGTH_LONG,
-                ).show()
-            }
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Install splash screen before super.onCreate
@@ -236,9 +209,6 @@ class MainActivityCompose : ComponentActivity() {
                         onRetry = {
                             viewModel.setStartupDestination(StartupDestination.Pending)
 							retryStartup()
-                        },
-                        onExport = {
-                            legacyExportLauncher.launch("tracker-legacy-v${legacyState.database?.sourceVersion ?: 26}.db")
                         },
                         onDelete = {
                             lifecycleScope.launch(dispatchers.io) {
@@ -466,12 +436,11 @@ private fun StartupRecoveryScreen(
 }
 
 @Composable
-private fun LegacyDatabaseRecoveryScreen(
+internal fun LegacyDatabaseRecoveryScreen(
     message: String?,
     sizeBytes: Long,
     canDelete: Boolean,
     onRetry: () -> Unit,
-    onExport: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -507,10 +476,6 @@ private fun LegacyDatabaseRecoveryScreen(
                 Spacer(Modifier.height(24.dp))
                 Button(onClick = onRetry) {
                     Text(androidx.compose.ui.res.stringResource(R.string.legacy_database_retry))
-                }
-                Spacer(Modifier.height(8.dp))
-                Button(onClick = onExport) {
-                    Text(androidx.compose.ui.res.stringResource(R.string.legacy_database_export))
                 }
                 if (canDelete) {
                     Spacer(Modifier.height(8.dp))

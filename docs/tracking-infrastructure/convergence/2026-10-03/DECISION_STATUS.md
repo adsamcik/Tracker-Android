@@ -177,6 +177,12 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   `LONGEST_TRIP_SELECTED/LONGEST_TRIP_FILES.json`. The existing streak test fixture
   receives the reader dependency. Declined dated seasonal statistics stay
   unavailable for a period. Metric presentation remains open; no tests ran.
+- [x] Select the independently reviewed database-open export boundary. The blocked
+  recovery screen no longer exports or recommends Export. Both normal preserved-data
+  Settings writers use the existing admitted child and cancellation/draining rules;
+  provider cleanup errors cannot replace cancellation. Five source paths and eight
+  ViewModel/two Compose cases are pinned in `BLOCKED_EXPORT_SELECTED`; none ran.
+  Failed external cleanup notices still need the separate approved storage wiring.
 
 The approved displayed-day History is being authored. The isolated imported-radio
 export-date candidate slice is source-reviewed for narrow selection. Neither

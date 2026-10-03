@@ -7,12 +7,13 @@ import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseState
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportStatus
 import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
@@ -37,10 +38,12 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import java.io.IOException
+import java.io.FilterOutputStream
+import java.io.OutputStream
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -107,6 +110,7 @@ class DataSettingsViewModel @Inject constructor(
     private val legacyDatabaseRepository: LegacyDatabaseRepository,
     private val dispatchers: DispatchersProvider,
     private val deletionService: CollectedDataDeletionService,
+    private val startupGate: TrackingStartupGate,
     private val retentionAuthorityProducer: RetentionAuthorityProducer =
         UnavailableRetentionAuthorityProducer,
     private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler =
@@ -325,25 +329,8 @@ class DataSettingsViewModel @Inject constructor(
         onResult: (MigrationBackupExportResult) -> Unit,
     ) {
         viewModelScope.launch {
-            val result = withContext(dispatchers.io) {
-                val output = try {
-                    appContext.contentResolver.openOutputStream(destination, "rwt")
-                } catch (_: IOException) {
-                    null
-                } catch (_: SecurityException) {
-                    null
-                } ?: return@withContext MigrationBackupExportResult.Failure
-
-                try {
-                    output.use(backupRepository::exportLatest)
-                    MigrationBackupExportResult.Success
-                } catch (_: DatabaseMigrationBackupException) {
-                    cleanupFailedExport(destination)
-                } catch (_: IOException) {
-                    cleanupFailedExport(destination)
-                } catch (_: SecurityException) {
-                    cleanupFailedExport(destination)
-                }
+            val result = exportPreservedData(destination) {
+                backupRepository.exportLatest(it)
             }
             onResult(result)
         }
@@ -354,30 +341,79 @@ class DataSettingsViewModel @Inject constructor(
         onResult: (LegacyDatabaseExportResult) -> Unit,
     ) {
         viewModelScope.launch {
-            val result = withContext(dispatchers.io) {
-                val output = try {
-                    appContext.contentResolver.openOutputStream(destination, "rwt")
-                } catch (_: IOException) {
-                    null
-                } catch (_: SecurityException) {
-                    null
-                } ?: return@withContext LegacyDatabaseExportResult.Failure
-
-                try {
-                    legacyDatabaseRepository.export(output)
-                    LegacyDatabaseExportResult.Success
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (_: Exception) {
-                    when (cleanupFailedExport(destination)) {
-                        MigrationBackupExportResult.CleanupRequired ->
-                            LegacyDatabaseExportResult.CleanupRequired
-                        else -> LegacyDatabaseExportResult.Failure
-                    }
-                }
+            val result = when (exportPreservedData(destination) { legacyDatabaseRepository.export(it) }) {
+                MigrationBackupExportResult.Success -> LegacyDatabaseExportResult.Success
+                MigrationBackupExportResult.Failure -> LegacyDatabaseExportResult.Failure
+                MigrationBackupExportResult.CleanupRequired -> LegacyDatabaseExportResult.CleanupRequired
             }
             onResult(result)
         }
+    }
+
+    private suspend fun exportPreservedData(
+        destination: Uri,
+        write: (OutputStream) -> Unit,
+    ): MigrationBackupExportResult {
+        val generation = startupGate.currentGeneration
+        if (startupGate.reconcile() !is TrackingStartupResult.Ready) {
+            return MigrationBackupExportResult.Failure
+        }
+        return startupGate.withReadyGenerationTransfer(generation) {
+            withContext(dispatchers.io) {
+                var opened = false
+                var completed = false
+                try {
+                    val operationContext = currentCoroutineContext()
+                    operationContext.ensureActive()
+                    val output = appContext.contentResolver.openOutputStream(destination, "rwt")
+                        ?: return@withContext MigrationBackupExportResult.Failure
+                    opened = true
+                    var destinationClosed = false
+                    val cancellableOutput = object : FilterOutputStream(output) {
+                        override fun write(value: Int) {
+                            operationContext.ensureActive()
+                            out.write(value)
+                        }
+
+                        override fun write(bytes: ByteArray, offset: Int, length: Int) {
+                            operationContext.ensureActive()
+                            out.write(bytes, offset, length)
+                        }
+
+                        override fun close() {
+                            if (destinationClosed) return
+                            try {
+                                operationContext.ensureActive()
+                            } finally {
+                                super.close()
+                                destinationClosed = true
+                            }
+                        }
+                    }
+                    cancellableOutput.use {
+                        write(it)
+                        // Legacy export closes the stream before marking its vault exportable.
+                        // A cancellation after that commit must retain the completed user copy.
+                        completed = destinationClosed
+                        operationContext.ensureActive()
+                    }
+                    completed = true
+                    MigrationBackupExportResult.Success
+                } catch (cancelled: CancellationException) {
+                    if (opened && !completed) {
+                        try {
+                            withContext(NonCancellable) { cleanupFailedExport(destination) }
+                        } catch (cleanupFailure: Exception) {
+                            if (cleanupFailure !== cancelled) cancelled.addSuppressed(cleanupFailure)
+                        }
+                    }
+                    throw cancelled
+                } catch (_: Exception) {
+                    if (opened && !completed) withContext(NonCancellable) { cleanupFailedExport(destination) }
+                    else MigrationBackupExportResult.Failure
+                }
+            }
+        } ?: MigrationBackupExportResult.Failure
     }
 
     fun deleteLegacyDatabase(onResult: (LegacyDatabaseDeleteResult) -> Unit) {
@@ -420,11 +456,9 @@ class DataSettingsViewModel @Inject constructor(
     private fun cleanupFailedExport(destination: Uri): MigrationBackupExportResult {
         val deleted = try {
             appContext.contentResolver.delete(destination, null, null) > 0
-        } catch (_: SecurityException) {
-            false
-        } catch (_: IllegalArgumentException) {
-            false
-        } catch (_: UnsupportedOperationException) {
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
             false
         }
         if (deleted) return MigrationBackupExportResult.Failure
@@ -434,13 +468,9 @@ class DataSettingsViewModel @Inject constructor(
                 ?: return MigrationBackupExportResult.CleanupRequired
             output.use { it.flush() }
             MigrationBackupExportResult.Failure
-        } catch (_: IOException) {
-            MigrationBackupExportResult.CleanupRequired
-        } catch (_: SecurityException) {
-            MigrationBackupExportResult.CleanupRequired
-        } catch (_: IllegalArgumentException) {
-            MigrationBackupExportResult.CleanupRequired
-        } catch (_: UnsupportedOperationException) {
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
             MigrationBackupExportResult.CleanupRequired
         }
     }

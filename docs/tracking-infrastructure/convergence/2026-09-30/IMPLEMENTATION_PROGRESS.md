@@ -246,6 +246,12 @@ remain held. No test or gate has run.
   rows preserve descriptive dual origins for session-export reuse. None ran.
 
 ## Remaining in these slices
+- [x] Select the approved database-open export boundary: no blocked-screen bypass;
+  Ready Settings exports share existing transfer cancellation/physical draining.
+  Five source paths and eight ViewModel/two Compose cases are pinned in
+  `../2026-10-03/BLOCKED_EXPORT_SELECTED/BLOCKED_EXPORT_FILES.json`. The provider
+  cleanup exception finding is statically closed; tests remain unexecuted.
+  Persistent later removal notices are a separate required continuation.
 
 - [ ] Connect background radio writers to delivery and recovery using independent
   progress. A tool proposal is pending; no dependent change is authorized yet.

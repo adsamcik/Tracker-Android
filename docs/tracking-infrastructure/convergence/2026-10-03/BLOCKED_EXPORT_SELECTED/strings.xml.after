@@ -1,0 +1,665 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false">Tracker</string>
+
+    <string name="key_last_app_version" translatable="false">lastVersion</string>
+
+    <string name="module_game_title">Game</string>
+
+    <string name="module_map_title">Map</string>
+    <string name="module_statistics_title">Statistics</string>
+
+    <string name="main_nav_tracker">Home</string>
+
+    <string name="settings_clear_preferences_title">Clear preferences</string>
+    <string name="settings_clear_preferences_message">This will reset all app preferences (feature toggles, UI settings). Your tracking data won\'t be affected. Continue?</string>
+
+    <string name="settings_data_title">Data</string>
+
+    <string name="settings_debug_group_title">Debug</string>
+    <string name="settings_debug_title">Developer options</string>
+    <string name="settings_debug_developer_tools_section">Developer Tools</string>
+
+    <string name="settings_debug_disable_developer_subtitle">Hide developer options from settings</string>
+    <string name="settings_debug_developer_mode_disabled_toast">Developer mode disabled</string>
+
+    <string name="settings_data_management_section">Data Management</string>
+    <string name="settings_data_danger_zone_section">Danger Zone</string>
+
+    <string name="settings_incremental_backups_title">Incremental backups</string>
+    <string name="settings_incremental_backups_summary">Only export new data since last backup. Reduces export time and file size.</string>
+    <string name="settings_reset_export_watermarks_title">Force full export</string>
+    <string name="settings_reset_export_watermarks_summary">Next automated backup will include all data instead of only changes</string>
+    <string name="settings_reset_export_watermarks_done">Export watermarks reset — next backup will be a full export</string>
+    <string name="settings_migration_backup_export_title">Export pre-upgrade safety backup</string>
+    <!-- The integer arguments are database version identifiers, not quantities. -->
+    <string
+        name="settings_migration_backup_export_summary"
+        tools:ignore="PluralsCandidate"
+    >Full database copy from v%1$d, created before migration to v%2$d and kept privately for up to 30 days</string>
+    <string name="settings_migration_backup_warning_title">Export sensitive database backup?</string>
+    <string name="settings_migration_backup_warning_message">This backup may contain precise locations, Wi-Fi and cell observations, activities, and other private data from before the upgrade. Save it only somewhere you trust.</string>
+    <string name="settings_migration_backup_export_action">Export backup</string>
+    <string name="settings_migration_backup_export_success">Pre-upgrade backup exported</string>
+    <string name="settings_migration_backup_export_failure">Could not export the pre-upgrade backup</string>
+    <string name="settings_migration_backup_export_cleanup_required">Export failed. Delete the partially exported backup from the selected location.</string>
+    <!-- English fallback for the v27-only recovery surface; keep these translatable for later curated translations. -->
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">Legacy database import needs attention</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Your original database is still on this device. Retry the import to open Tracker.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Legacy database size: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Retry import</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">Export legacy database</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">Delete legacy database and start fresh</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Legacy database exported</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Could not export the legacy database</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">The export failed and the incomplete destination could not be removed. Delete it manually.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">Legacy database vault</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">Version %1$d · %2$s · %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Source version: %1$d\nStorage: %2$s\nImport: %3$s\nImported rows: %4$d\nRows retained only in the vault: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Import completed: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Not imported</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Importing</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">Import complete</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Import failed</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">Delete the legacy database?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">This permanently removes %1$s from this device. Your v27 data is not affected. Keep the exported copy if you may need the original database later.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Legacy database deleted</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Could not delete the legacy database</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">Tracking recovery needs attention</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">Collection remains off while Tracker safely reconciles its tracking data. Retry without deleting history.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Retry tracking recovery</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">Development database needs a manual backup</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker found an unshipped version 28 development database that does not match this build. Tracking and database features remain off, and the database file has been left unchanged. Back up the app data or database before replacing or repairing this development install.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Database needs attention</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker could not safely identify or validate this database. Tracking and database features remain off, and the database file has been left unchanged. Back up the app data or database before attempting manual recovery.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">Database is temporarily unavailable</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Tracking and database features remain off while Tracker retries safely. No data was deleted. Retry now to check whether the temporary lock or storage problem has cleared.</string>
+    <string name="settings_delete_data_success">All collected data was deleted</string>
+    <string name="settings_delete_data_failure">Could not delete all collected data</string>
+    <string name="settings_game_goals_title">Goals</string>
+    <string name="settings_game_daily_target_title">Daily step target</string>
+    <string name="settings_game_weekly_target_title">Weekly step target</string>
+    <string name="settings_game_daily_contribution_title">Maximum daily contribution</string>
+    <string name="settings_game_steps_unit">steps</string>
+    <string name="settings_game_notifications_title">Notifications</string>
+    <string name="settings_game_goal_notifications_title">Goal progress notifications</string>
+    <string name="settings_game_goal_notifications_summary" formatted="false">Get a local reminder at 75% and 90% of your daily target.</string>
+    <string name="settings_game_during_games_title">During games</string>
+    <string name="settings_game_haptics_title">Game haptics</string>
+    <string name="settings_game_haptics_summary">Use subtle vibration for game feedback.</string>
+    <string name="settings_game_quiet_coaching_title">Quiet coaching cues</string>
+    <string name="settings_game_quiet_coaching_summary">Use less frequent guidance while you play.</string>
+    <string name="settings_game_remember_setup_title">Remember last game setup</string>
+    <string name="settings_game_remember_setup_summary">Reuse your last goal and difficulty next time.</string>
+    <string name="settings_game_privacy_battery_title">Privacy &amp; battery</string>
+    <string name="settings_game_privacy_battery_disclosure">Games use live location only while active and reuse Tracker’s location when it is available. Pausing releases the game’s location use. Only your score and points/XP are saved on this device; raw game locations are not persisted.</string>
+    <string name="settings_game_loading">Loading game settings…</string>
+    <string name="settings_game_load_error">Game settings could not be loaded. Please try again.</string>
+    <string name="settings_map_info_hint">These settings control map visualization quality and performance. Most users can use default values.</string>
+    <string name="settings_map_offline_data_section">Offline map data</string>
+    <string name="settings_map_online_tiles_section_title">Online map tiles</string>
+    <string name="settings_map_online_tiles_enable_title">Use online map tiles</string>
+    <string name="settings_map_online_tiles_enable_subtitle_off">Off — only the bundled offline basemap is used. No network requests.</string>
+    <string name="settings_map_online_tiles_enable_subtitle_on">On — fetching tiles from %1$s</string>
+    <string name="settings_map_online_tiles_provider_title">Tile provider</string>
+    <string name="settings_map_online_tiles_provider_openfreemap">OpenFreeMap (recommended)</string>
+    <string name="settings_map_online_tiles_provider_protomaps">Protomaps</string>
+    <string name="settings_map_online_tiles_provider_custom">Custom URL</string>
+    <string name="settings_map_online_tiles_custom_url_label">Style JSON URL</string>
+    <string name="settings_map_online_tiles_custom_url_hint">https://example.com/style.json</string>
+    <string name="settings_map_online_tiles_attribution_format">Attribution: %1$s</string>
+    <string name="settings_map_online_tiles_privacy_disclosure">Online tiles are opt-in. While enabled, the chosen provider can see your IP address and which tiles you load (approximately which area of the map you are viewing). Tracker never sends an account, identifier, or location history.</string>
+
+    <string name="settings_developer_mode_enabled_toast">Developer mode enabled</string>
+    <string name="settings_developer_mode_disable">Disable developer mode</string>
+    <string name="settings_developer_mode_subtitle">Developer mode active</string>
+    <plurals name="settings_developer_mode_tap_countdown">
+        <item quantity="one">Tap %d more time to enable developer mode</item>
+        <item quantity="other">Tap %d more times to enable developer mode</item>
+    </plurals>
+    <string name="settings_version_info_title">Version information</string>
+    <string name="settings_version_format">Version: %1$s (%2$d)</string>
+
+    <string name="settings_language_summary">Current language: %s</string>
+    <string name="settings_language_title">Application language</string>
+
+    <string name="settings_units_auto_summary_on">Adapts length system to detected activities</string>
+    <string name="settings_units_auto_summary_off">Applies the selected length system everywhere</string>
+
+    <string-array name="settings_length_system_names">
+        <item>Metric</item>
+        <item>Imperial (USC)</item>
+        <item>Ancient Roman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
+    </string-array>
+    <string name="settings_length_system_title">Length system</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
+    </string-array>
+
+    <string name="settings_licenses_title">Open source licenses</string>
+    <string name="settings_licenses_subtitle">View bundled third-party notices included with this build.</string>
+    <string name="settings_licenses_loading">Loading licenses…</string>
+    <string name="settings_licenses_unavailable">Couldn’t load bundled third-party license data.</string>
+    <string name="settings_licenses_text_at_url">Full license text available at: %1$s</string>
+    <string name="settings_privacy_policy_title">Privacy Policy</string>
+
+    <string name="settings_privacy_policy_unavailable">The bundled privacy policy could not be opened. Please try again after restarting the app.</string>
+    <string name="settings_about_header">About</string>
+    <string name="settings_about_app_title">Tracker by adsamcik</string>
+    <string name="settings_about_app_subtitle">Privacy-first location &amp; activity tracker</string>
+    <string name="about_title">About</string>
+    <string name="about_app_name_label">App</string>
+    <string name="about_version_label">Version</string>
+    <string name="about_version_format">%1$s (%2$d)</string>
+    <string name="about_build_commit_label">Build commit</string>
+    <string name="about_commit_unavailable" translatable="false">N/A</string>
+    <string name="about_author">Author</string>
+    <string name="about_author_value" translatable="false">Adsamcik</string>
+    <string name="about_email">Email</string>
+    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
+    <string name="about_links_title">Links</string>
+    <string name="about_attributions_title">Data attributions</string>
+    <string name="about_attribution_geonames_label">Place names</string>
+    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
+    <string name="about_attribution_osm_label">Map &amp; street data</string>
+    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
+
+    <string name="settings_module_group_title">Module settings</string>
+    <string name="settings_core_group_title">Core</string>
+    <string name="settings_other_title">Units &amp; Display</string>
+
+    <string name="settings_remove_all_collected_data_summary">Deletes your tracking data (custom activities and settings will be kept)</string>
+    <string name="settings_remove_all_collected_data_title">Delete all collected data</string>
+    <string-array name="settings_speed_format_names">
+        <item>Speed per second (m/s)</item>
+        <item>Pace per distance (min/km, min/mi)</item>
+        <item>Speed (km/h, mph)</item>
+    </string-array>
+    <string name="settings_speed_format_title">Speed format</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+
+    <string name="settings_title">Settings</string>
+
+    <string name="switch_state_on">On</string>
+    <string name="switch_state_off">Off</string>
+
+    <!-- Onboarding Strings -->
+
+    <!-- Streamlined Onboarding (Apple-style single-screen) -->
+    <string name="onboarding_streamlined_title">Track Your Journeys Privately</string>
+    <string name="onboarding_streamlined_subtitle">All data stays on your device. No cloud sync or third-party tracking.</string>
+    <string name="onboarding_benefit_privacy_title">Privacy-first</string>
+    <string name="onboarding_benefit_privacy_desc">All tracking data remains on your device. No servers, no cloud sync, complete control.</string>
+    <string name="onboarding_benefit_insights_title">Activity insights</string>
+    <string name="onboarding_benefit_insights_desc">View your routes on maps, analyze statistics, and track your progress over time.</string>
+    <string name="onboarding_benefit_gamification_title">Achievements</string>
+    <string name="onboarding_benefit_gamification_desc">Unlock 150+ achievements as you walk, run, cycle, and explore — all earned locally on your device.</string>
+    <string name="onboarding_get_started">GET STARTED</string>
+
+    <string name="onboarding_privacy_policy_button">Read Privacy Policy</string>
+    <string name="onboarding_state_read_error_message">We could not verify whether setup was already completed, so setup is shown to keep your data private. You can continue safely.</string>
+
+    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
+    <string name="settings_auto_cleanup_old_data_title">Auto-cleanup old data</string>
+
+    <string name="settings_auto_cleanup_old_data_summary_forever">Keep data forever; auto-cleanup will not delete old data</string>
+    <plurals name="settings_auto_cleanup_old_data_summary_years">
+        <item quantity="one">Automatically remove data older than %1$d year</item>
+        <item quantity="other">Automatically remove data older than %1$d years</item>
+    </plurals>
+
+    <!-- Data retention period options -->
+
+    <string name="settings_data_retention_years_title">Keep data for</string>
+
+    <string-array name="settings_data_retention_years_titles">
+        <item>Keep forever</item>
+        <item>1 year</item>
+        <item>2 years</item>
+        <item>3 years</item>
+        <item>5 years</item>
+        <item>10 years</item>
+    </string-array>
+    <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
+
+    <!-- Common Buttons -->
+
+    <string name="button_continue">CONTINUE</string>
+
+    <!-- Export: Format Selection -->
+    <string name="settings_export_data_title">Export Data</string>
+    <string name="settings_export_data_summary">Save your tracking data in various formats</string>
+    <string name="export_format_dialog_title">Choose Export Format</string>
+    <string name="export_format_gpx_name">GPX</string>
+    <string name="export_format_gpx_desc">Location points for GPS apps. Other tracking sources and coverage details are not included.</string>
+    <string name="export_format_kml_name">KML</string>
+    <string name="export_format_kml_desc">Timed location points for maps. Other tracking sources and coverage details are not included.</string>
+    <string name="export_format_json_name">JSON</string>
+    <string name="export_format_json_desc">Locations, legacy Wi-Fi and Cell readings, and session summaries. Includes whole sessions that overlap chosen dates; other sources are omitted.</string>
+    <string name="export_format_db_name">Database</string>
+    <string name="export_format_db_desc">Raw SQLite backup with all data and settings; import merges compatible rows, not a full restore</string>
+    <string name="export_sensitivity_dialog_title">Export precise location data?</string>
+    <string name="export_sensitivity_gpx_message">This GPX export contains full-precision route points. Only save or share it with people and apps you trust.</string>
+    <string name="export_sensitivity_kml_message">This KML export contains full-precision route points. Only save or share it with people and apps you trust.</string>
+    <string name="export_sensitivity_json_message">This JSON export contains precise locations, Wi-Fi and Cell identifiers, and session summaries. It can include complete sessions outside the chosen dates. Only save or share it with destinations you trust.</string>
+    <string name="export_sensitivity_db_message">This raw database backup may include precise locations, Wi-Fi/cell radio data, activity, and settings. Keep it private and only store it somewhere you trust.</string>
+    <string name="export_sensitivity_confirm">Continue export</string>
+
+    <string name="settings_export_title">Export</string>
+
+    <string name="settings_import_summary">Import data from supported types (%1$s) and archives (%2$s). Database imports merge compatible rows; they do not replace existing data.</string>
+    <string name="settings_import_title">Import</string>
+
+    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
+    <string name="got_it">Got it</string>
+
+    <!-- Battery Impact Strings -->
+    <string name="battery_impact_low">Low impact</string>
+    <string name="battery_impact_moderate">Moderate impact</string>
+    <string name="battery_impact_high">High impact</string>
+    <string name="settings_battery_estimate_title" translatable="false">Estimated current battery use</string>
+    <string name="settings_battery_estimate_summary" translatable="false">An approximate comparison for these settings. Actual use varies with movement, signal conditions, and your device.</string>
+    <string name="settings_battery_estimate_show_details" translatable="false">How this estimate works</string>
+    <string name="settings_battery_estimate_hide_details" translatable="false">Hide estimate details</string>
+    <string name="settings_battery_confidence" translatable="false">Confidence: %1$s</string>
+    <string name="settings_battery_drivers" translatable="false">Main drivers: %1$s</string>
+    <string name="settings_battery_comparison" translatable="false">Comparison: %1$s</string>
+    <string name="settings_battery_assumptions" translatable="false">Assumptions: %1$s</string>
+    <string name="settings_battery_generic_prior" translatable="false">No trustworthy percentage range is available yet. This relative estimate uses generic device behavior.</string>
+    <string name="settings_battery_observed_range" translatable="false">Observed total device drain in comparable sessions: %1$.1f–%2$.1f%% per hour.</string>
+    <string name="settings_battery_incremental_range" translatable="false">Estimated incremental Tracker drain: %1$.1f–%2$.1f%% per hour.</string>
+    <string name="settings_battery_relative_range" translatable="false">Relative comparison range: %1$.1f–%2$.1f. This is not a device-drain percentage.</string>
+    <string name="settings_battery_platform_caveat" translatable="false">Android may batch, delay, or throttle delivery. Source costs can share wakeups and are not simply additive.</string>
+
+    <string name="settings_effective_status_title" translatable="false">Requested and effective status</string>
+    <string name="settings_effective_status_running" translatable="false">Tracking is active. Requested plan r%1$s; applied plan r%2$s.</string>
+    <string name="settings_effective_status_idle" translatable="false">Tracking is not active. Saved requests are shown below; permissions and device constraints are evaluated without pretending a provider is running.</string>
+    <string name="settings_runtime_telemetry_title" translatable="false">Local runtime telemetry (since app start)</string>
+    <string name="settings_runtime_telemetry_summary" translatable="false">Projected events: %1$d • plan revisions: %2$d • tracking frames: %3$d • frame wake lock: %4$d ms • source timer wakeups: %5$d • source requests served: %6$d</string>
+    <string name="settings_advanced_source_controls_title" translatable="false">Advanced controls</string>
+    <string name="settings_advanced_source_controls_summary" translatable="false">Set individual update frequency and location filters.</string>
+    <string name="settings_source_cadence_disabled" translatable="false">Not collected</string>
+    <string name="settings_source_cadence_location" translatable="false">Every %1$s while active; minimum %2$s movement</string>
+    <string name="settings_source_cadence_location_available" translatable="false">As location updates are available while active</string>
+    <string name="settings_source_cadence_activity_events" translatable="false">Event-driven activity changes</string>
+    <string name="settings_source_cadence_activity_continuous" translatable="false">Continuous recognition every %1$s</string>
+    <string name="settings_source_cadence_steps" translatable="false">Sensor updates may batch for up to %1$s</string>
+    <string name="settings_source_cadence_pressure" translatable="false">%1$d samples/sec; summarized every %2$s</string>
+    <string name="settings_source_cadence_wifi_active" translatable="false">Scan attempt at most once every %1$s</string>
+    <string name="settings_source_cadence_wifi_events" translatable="false">Android network events; refresh at most every %1$s</string>
+    <string name="settings_source_cadence_wifi_cached" translatable="false">Cached results; refresh at most every %1$s</string>
+    <string name="settings_source_cadence_cell_events" translatable="false">Network changes; refresh at most every %1$s</string>
+    <string name="settings_source_cadence_unavailable" translatable="false">Cadence preview unavailable</string>
+    <string name="settings_source_badge_updates" translatable="false">%1$s updates</string>
+    <string name="settings_source_badge_minimum" translatable="false">%1$s minimum</string>
+    <string name="settings_source_badge_as_available" translatable="false">As available</string>
+    <string name="settings_source_badge_continuous" translatable="false">Continuous</string>
+    <string name="settings_source_badge_checks" translatable="false">%1$s checks</string>
+    <string name="settings_source_badge_activity_changes" translatable="false">Activity changes</string>
+    <string name="settings_source_badge_batching" translatable="false">≤ %1$s batching</string>
+    <string name="settings_source_badge_samples" translatable="false">%1$d samples/sec</string>
+    <string name="settings_source_badge_summaries" translatable="false">%1$s summaries</string>
+    <string name="settings_source_badge_active_scan" translatable="false">Active scan</string>
+    <string name="settings_source_badge_android_events" translatable="false">Android events</string>
+    <string name="settings_source_badge_cached" translatable="false">Cached results</string>
+    <string name="settings_source_badge_attempt_limit" translatable="false">≤ %1$s attempts</string>
+    <string name="settings_source_badge_network_changes" translatable="false">Network changes</string>
+    <string name="settings_source_badge_refresh_limit" translatable="false">≤ %1$s refresh</string>
+    <string name="settings_source_frequency_dialog" translatable="false">%1$s collection frequency</string>
+
+    <!-- Location Precision Mode Strings -->
+    <string name="precision_mode_title">Choose Location Precision</string>
+    <string name="precision_mode_approximate_title">Approximate</string>
+    <string name="precision_mode_approximate_description">Network-based location. Good for general area tracking with minimal battery use.</string>
+
+    <string name="precision_mode_precise_title">Precise</string>
+    <string name="precision_mode_precise_description">GPS-based location. Best for detailed routes, heatmaps, and challenges.</string>
+
+    <!-- Upgrade to Precise Prompt Strings -->
+    <string name="upgrade_to_precise_title">Unlock Precise Tracking</string>
+    <string name="upgrade_to_precise_message_general">You\'re using approximate location. Switch to precise GPS tracking for better accuracy.</string>
+    <string name="upgrade_to_precise_message_route_analysis">Precise location is recommended for accurate route analysis and distance measurements.</string>
+    <string name="upgrade_to_precise_message_heatmap_detail">Precise location provides detailed heatmap visualization with fine-grained positioning.</string>
+    <string name="upgrade_to_precise_message_challenges">Many challenges require precise GPS tracking to verify completion accurately.</string>
+    <string name="upgrade_to_precise_benefits_title">Benefits</string>
+    <string name="upgrade_to_precise_benefit_accurate_routes">Accurate route shapes and turn-by-turn path details</string>
+    <string name="upgrade_to_precise_benefit_detailed_maps">Detailed heatmap and spatial analysis</string>
+    <string name="upgrade_to_precise_benefit_precise_stats">Precise distance and speed measurements</string>
+    <string name="upgrade_to_precise_battery_title">Battery Usage</string>
+    <string name="upgrade_to_precise_battery_message" translatable="false">Precise GPS is usually a dominant battery driver. Actual impact depends on delivery, batching, movement, and your device.</string>
+    <string name="upgrade_to_precise_button_upgrade">Enable Precise Location</string>
+    <string name="upgrade_to_precise_button_cancel">Maybe Later</string>
+
+    <!-- Tracking Policy Preset Strings -->
+    <string name="tracking_preset_high_accuracy_name">High Accuracy</string>
+    <string name="tracking_preset_high_accuracy_description">Best detail with fastest updates and all major sensors enabled</string>
+    <string name="tracking_preset_balanced_name">Balanced</string>
+    <string name="tracking_preset_balanced_description">Good accuracy and reasonable battery life for daily tracking</string>
+    <string name="tracking_preset_power_save_name">Power Save</string>
+    <string name="tracking_preset_power_save_description">Lower battery use with less frequent updates and reduced sensors</string>
+    <string name="tracking_preset_custom_name">Custom</string>
+    <string name="tracking_preset_custom_description">Manually tune each tracking parameter</string>
+    <string name="tracking_preset_selector_subtitle">Choose the balance between route detail and battery life.</string>
+    <string name="tracking_preset_change">Compare options</string>
+    <string name="tracking_preset_done">Show selected only</string>
+    <string name="tracking_preset_customized_summary">You\'ve fine-tuned tracking. Pick a preset above to reset.</string>
+    <string name="settings_tracking_section_start_stop">Automatic tracking</string>
+    <string name="settings_tracking_section_battery_detail">Tracking quality</string>
+    <string name="settings_tracking_section_data_collected">Data collected</string>
+    <string name="settings_tracking_section_detail">Location filters</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Outside trips (optional)</string>
+    <string name="settings_tracking_section_notifications">Notifications</string>
+    <string name="settings_transition_detection_friendly_title">Battery-efficient motion detection</string>
+    <string name="settings_transition_detection_friendly_summary">Uses Android activity changes to avoid frequent background checks. Automatic starts may react a little more slowly.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Automatic tracking isn’t available</string>
+    <string name="settings_automatic_policy_unavailable_summary" tools:ignore="MissingTranslation">Your automatic mode choice is saved, but Activity control stays off until a bounded retention policy for control-only evidence is approved. Manual tracking is unchanged.</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Your automatic mode choice is saved. Activity recognition permission is required before automatic starts can operate.</string>
+    <string name="settings_automatic_unavailable_summary" tools:ignore="MissingTranslation">Your automatic mode choice is saved, but automatic starts are not operational.</string>
+    <string name="settings_automatic_status_code" tools:ignore="MissingTranslation">Status: %1$s</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">These choices are independent from data collected during a trip. Turning one on saves consent intent only; it does not promise a provider, cadence, or complete day.</string>
+    <string name="settings_ambient_steps_title" tools:ignore="MissingTranslation">Steps outside trips</string>
+    <string name="settings_ambient_location_title" tools:ignore="MissingTranslation">Location outside trips</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi outside trips</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Cell outside trips</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Saved setting is off. Current collection status is waiting for source-owner reconciliation.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Saved as on. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Outside-trip coverage is opportunistic and can contain permission, provider, process, reboot, or OS gaps. Tracker does not claim always-on collection or invent a retention duration.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Collection stays off because the product retention policy is not yet available.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Waiting for the source owner to report operational availability; no provider is started from this setting alone.</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">Collection is safely contained by the current rollout.</string>
+    <string name="settings_ambient_user_turned_off">Tracking is off. Your choices and saved data are kept.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Allow Steps access in Health Connect to fill gaps when Tracker is closed.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Allow Steps in Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Could not check Health Connect access. Try again.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Steps can be imported when Tracker runs. Background access may reduce gaps.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">No supported all-day step provider is available.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Update Health Connect to use it for Steps.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Could not check the step provider. Try again later.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Allow Activity Recognition to record steps on this device.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Step recording is unavailable on this device.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect is ready. Some periods may still have gaps.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Step recording is ready. Some periods may still have gaps.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Background Location access is needed to collect between sessions. Your session capture choice stays independent.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android’s Wi-Fi scan permission requirements are not met. Granting them does not enable Location capture.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android’s Cell callback permission requirements are not met. Granting them does not enable Location capture.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Passive Location is ready for source-owner reconciliation. It provides opportunistic points, not route continuity.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi scan-result callbacks are ready for source-owner reconciliation. No scan or wake cadence is promised.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Timestamp-qualified Cell change callbacks are ready for source-owner reconciliation. No forced refresh cadence is promised.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">The required platform or provider is unavailable, so collection stays off.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Saved off; operational status pending</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Saved on; operational availability reported</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Saved on; not operational</string>
+    <string name="settings_location_source_summary">Records your route, distance, and speed. Usually the largest battery cost.</string>
+    <string name="settings_activity_source_summary">Recognizes walking, cycling, driving, and stillness to label trips and reduce unnecessary collection.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Tracks steps throughout the day. Trips organize this same step history.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Checking step collection.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Turn off tracking</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">Turning off…</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Stop sessions, all-day recording and automatic starts. Your choices and saved data stay.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">Tracking is off. Your choices and saved data are kept.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Could not turn off tracking. Try again.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Records air pressure changes.</string>
+    <string name="settings_wifi_source_summary">Records nearby Wi-Fi networks to add local context. Data stays on this device.</string>
+    <string name="settings_cell_source_summary">Records nearby cell towers to add location context. Data stays on this device.</string>
+    <string name="settings_location_source_compact">Route, distance, and speed</string>
+    <string name="settings_activity_source_compact">Movement type and stillness</string>
+    <string name="settings_steps_source_compact">Steps throughout the day</string>
+    <string name="settings_barometer_source_compact">Altitude and elevation</string>
+    <string name="settings_wifi_source_compact">Nearby network context</string>
+    <string name="settings_cell_source_compact">Nearby tower context</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Technical status</string>
+    <string name="settings_technical_status_summary">Battery estimate, permissions, and collection status.</string>
+    <string name="settings_technical_status_attention">Some collection sources need attention. Open for details.</string>
+    <string name="settings_simple_source_controls_title">Use simple controls</string>
+    <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
+    <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
+    <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
+    <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
+
+    <!-- Tracking Policy Selector Strings -->
+    <string name="tracking_policy_selector_title">Tracking Policy</string>
+
+    <!-- Additional aliases for code compatibility -->
+    <string name="location_precision_selector_title">@string/precision_mode_title</string>
+    <string name="location_precision_selector_subtitle">Choose how accurately Tracker records your location</string>
+    <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
+    <string name="location_precision_approximate_description">@string/precision_mode_approximate_description</string>
+    <string name="location_precision_precise_title">@string/precision_mode_precise_title</string>
+    <string name="location_precision_precise_description">@string/precision_mode_precise_description</string>
+    <string name="precise">Precise</string>
+    <string name="approximate">Approximate</string>
+    <string name="tracking_policy_selector_subtitle">Choose a tracking preset or customize settings</string>
+    <string name="tracking_policy_custom_badge">Custom</string>
+    <string name="collapse_details">Hide details</string>
+    <string name="expand_details">Show details</string>
+    <string name="settings_section_collapse">Collapse</string>
+    <string name="settings_section_expand">Expand</string>
+    <string name="tracking_policy_details_title">Configuration Details</string>
+    <string name="preset_detail_location_precision">Location precision</string>
+    <string name="preset_detail_min_distance">Minimum distance</string>
+    <string name="preset_detail_min_time">Minimum time</string>
+    <string name="preset_detail_accuracy">Required accuracy</string>
+    <string name="preset_detail_sensors">Sensors</string>
+    <string name="upgrade_benefit_accurate_routes">@string/upgrade_to_precise_benefit_accurate_routes</string>
+    <string name="upgrade_benefit_detailed_maps">@string/upgrade_to_precise_benefit_detailed_maps</string>
+    <string name="upgrade_benefit_precise_stats">@string/upgrade_to_precise_benefit_precise_stats</string>
+    <string name="upgrade_battery_impact_title">@string/upgrade_to_precise_battery_title</string>
+    <string name="upgrade_battery_impact_description">@string/upgrade_to_precise_battery_message</string>
+    <string name="upgrade_to_precise_confirm">@string/upgrade_to_precise_button_upgrade</string>
+    <string name="upgrade_to_precise_dismiss">@string/upgrade_to_precise_button_cancel</string>
+    <string name="upgrade_reason_general">@string/upgrade_to_precise_message_general</string>
+    <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
+    <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
+    <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
+
+    <!-- Settings screen strings -->
+    <string name="settings_auto_unit_switch_title">Automatic unit switching</string>
+    <string name="settings_module_map_subtitle">Heatmap quality and visualization options</string>
+    <string name="settings_module_game_subtitle">Goals, achievements, and milestones</string>
+
+    <string name="action_navigate_back">Navigate back</string>
+    <string name="action_help">Help</string>
+
+    <!-- App Widgets -->
+    <string name="widget_loading">Loading…</string>
+    <string name="widget_quick_start_name">Tracker Quick Start</string>
+    <string name="widget_quick_start_description">Start or stop location tracking with a single tap.</string>
+    <string name="widget_start_tracking">Start session</string>
+    <string name="widget_stop_tracking">Stop Tracking</string>
+    <string name="widget_end_session" tools:ignore="MissingTranslation">End session</string>
+    <string name="widget_end_short" tools:ignore="MissingTranslation">End</string>
+    <string name="widget_turn_off_tracking" tools:ignore="MissingTranslation">Turn off tracking</string>
+    <string name="widget_turn_off_short" tools:ignore="MissingTranslation">Turn off</string>
+    <string name="widget_tracking_active">Tracking Active</string>
+
+    <string name="widget_today_summary_name">Today\'s Summary</string>
+    <string name="widget_today_summary_description">See your tracking stats for today at a glance.</string>
+    <string name="widget_today">Today</string>
+    <string name="widget_distance">Distance</string>
+    <string name="widget_steps">Steps</string>
+    <string name="widget_steps_partial" tools:ignore="MissingTranslation">Partial</string>
+    <string name="widget_steps_not_captured" tools:ignore="MissingTranslation">Not captured</string>
+    <string name="widget_steps_disabled" tools:ignore="MissingTranslation">Off</string>
+    <string name="widget_steps_unavailable" tools:ignore="MissingTranslation">Unavailable</string>
+    <string name="widget_steps_storage_unavailable" tools:ignore="MissingTranslation">Storage unavailable</string>
+    <string name="widget_sessions">Sessions</string>
+    <string name="widget_duration">Duration</string>
+    <string name="widget_no_data_today">No tracking data today</string>
+
+    <string name="widget_active_session_name">Active Session</string>
+    <string name="widget_active_session_description">See the current session and available stats. Start, end or turn off tracking.</string>
+    <string name="widget_no_active_session">No active session</string>
+    <string name="widget_tap_to_start">Tap to start a session</string>
+    <string name="widget_session_distance">Session Distance</string>
+    <string name="widget_session_steps">Session Steps</string>
+    <string name="widget_session_duration">Session Duration</string>
+    <string name="widget_current_speed">Current Speed</string>
+    <string name="widget_speed_unknown">—</string>
+    <string name="widget_speed_format_decimal">%.1f km/h</string>
+    <string name="widget_speed_format_whole">%d km/h</string>
+    <string name="widget_collections">Collections</string>
+
+    <string name="widget_path_preview">Path Preview</string>
+    <string name="widget_activity_unknown">Activity unavailable</string>
+    <string name="widget_goal_label">Goal:</string>
+    <string name="widget_goal_progress">%1$s / %2$s steps</string>
+    <string name="widget_format_km">%.1f km</string>
+    <string name="widget_format_meters">%d m</string>
+    <string name="widget_tier_off">Off</string>
+    <string name="widget_tier_ambient">Ambient</string>
+    <string name="widget_tier_active">Active</string>
+    <string name="widget_tier_precision">Precision</string>
+
+    <!-- Smart Goal Notifications (Task D) -->
+    <string name="goal_notification_title_progress">Great progress!</string>
+    <string name="goal_notification_title_almost">Almost there!</string>
+
+    <plurals name="goal_notification_body_75">
+        <item quantity="one">%1$d step left to hit your daily goal</item>
+        <item quantity="other">%1$d steps left to hit your daily goal</item>
+    </plurals>
+    <plurals name="goal_notification_body_90">
+        <item quantity="one">Just %1$d step to go!</item>
+        <item quantity="other">Just %1$d steps to go!</item>
+    </plurals>
+
+    <string name="settings_smart_goal_notifications_title">Smart goal notifications</string>
+    <string name="settings_smart_goal_notifications_summary">Get notified when you\'re close to your daily step goal</string>
+
+    <!-- First-time setup wizard -->
+    <string name="setup_how_to_track_title">How Should Tracking Work?</string>
+    <string name="setup_how_to_track_subtitle">Choose when tracking starts and how detailed it should be.</string>
+    <string name="setup_auto_tracking_title">Auto-Tracking</string>
+    <string name="setup_auto_tracking_disabled">Disabled</string>
+    <string name="setup_auto_tracking_disabled_desc">Start and stop tracking manually.</string>
+    <string name="setup_auto_tracking_on_foot">On Foot</string>
+    <string name="setup_auto_tracking_on_foot_desc">Automatically track walking and running.</string>
+    <string name="setup_auto_tracking_in_motion">In Motion</string>
+    <string name="setup_auto_tracking_in_motion_desc">Automatically track all movement including driving and cycling.</string>
+    <string name="settings_auto_tracking_mode_summary">Choose which movement should start and stop trips automatically.</string>
+    <string name="setup_preset_title">Tracking Detail</string>
+    <string name="setup_recommended">Recommended</string>
+    <string name="setup_what_to_collect_title">What to Collect</string>
+    <string name="setup_what_to_collect_subtitle">More options below. Start exploring without permissions or grant them later. Data stays on this device.</string>
+    <string name="setup_source_location">Location</string>
+    <string name="setup_source_location_desc">Record your routes and positions on a map.</string>
+    <string name="setup_source_activity">Activity</string>
+    <string name="setup_source_activity_desc">Detect whether you\'re walking, running, cycling, or driving.</string>
+    <string name="setup_source_steps">Steps</string>
+    <string name="setup_source_steps_desc">Count your steps using the device pedometer.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Track steps throughout the day. Trips organize the same history.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">No direct step sensor. Tracker will check for an on-device step source.</string>
+    <string name="setup_perm_steps_why">Allow motion access to count steps on this device throughout the day.</string>
+    <string name="setup_perm_grant_steps_content_description">Allow motion access for Steps</string>
+    <string name="setup_steps_health_connect_why">Allow Steps in Health Connect to fill gaps when Tracker is closed.</string>
+    <string name="setup_steps_provider_ready">An on-device step source is ready. Some periods may still have gaps.</string>
+    <string name="setup_steps_provider_checking">Checking available step sources…</string>
+    <string name="setup_source_wifi">WiFi Networks</string>
+    <string name="setup_source_wifi_desc">Log nearby WiFi networks to improve location accuracy.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Record nearby Wi-Fi networks, with or without Location tracking.</string>
+    <string name="setup_source_cell">Cell Towers</string>
+    <string name="setup_source_cell_desc">Log cell tower info for location context.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Record nearby cell towers, with or without Location tracking.</string>
+    <string name="setup_perm_location_why">Required to record your routes and show them on the map. Location stays on this device — nothing is sent to a server.</string>
+    <string name="setup_perm_location_bg_why">To keep recording your route when you switch apps or the screen turns off, Tracker needs to access your location in the background. The recorded location stays on this device — nothing is sent to a server. On the next system prompt please pick "Allow all the time" to enable auto-tracking; "While using the app" keeps Tracker working when its screen is open only.</string>
+    <string name="setup_perm_activity_why">Lets Tracker detect what you\'re doing (walking, cycling, driving, still) so auto-tracking can pause when you\'re not moving and save battery. Activity data stays on this device — nothing is sent to a server.</string>
+    <string name="setup_perm_notification_why">Tracker shows a small status notification while it is recording so you can see at a glance that tracking is on and stop it with one tap. No marketing or promotional notifications.</string>
+    <string name="setup_perm_wifi_why">Tracker can record Wi-Fi access points your phone sees during a trip to improve location accuracy in places where GPS is weak (indoors, underground). The radio data stays on this device — nothing is sent to a server. Grant only if you want this.</string>
+    <string name="setup_perm_cell_why">Tracker can log cell tower IDs along your route so location can be inferred when GPS isn\'t available. The radio data stays on this device — nothing is sent to a server. Grant phone state and precise location only if you want this.</string>
+    <string name="setup_perm_grant">Grant</string>
+    <string name="setup_perm_grant_location_content_description">Grant location permission</string>
+    <string name="setup_perm_grant_background_location_content_description">Grant background location permission</string>
+    <string name="setup_perm_grant_activity_content_description">Grant activity recognition permission</string>
+    <string name="setup_perm_grant_notification_content_description">Grant notification permission</string>
+    <string name="setup_perm_grant_wifi_content_description">Grant Wi-Fi permission</string>
+    <string name="setup_perm_grant_cell_content_description">Grant cell radio permission</string>
+    <string name="setup_perm_granted">Granted ✓</string>
+    <string name="permission_grant_in_settings">Allow in Settings →</string>
+    <string name="permission_disabled_due_to_denial">%1$s disabled because permission was denied. Grant in Settings to enable.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s is selected but cannot collect until permission is granted.</string>
+
+    <string name="settings_wifi_permission_required">Requires Wi-Fi/location permission. Toggle on to grant — no Wi-Fi data is recorded until then, and recorded data stays on this device.</string>
+    <string name="settings_cell_permission_required">Requires phone state and precise location permission. Toggle on to grant — no cell data is recorded until then, and recorded data stays on this device.</string>
+    <string name="settings_barometer_unavailable">Pressure sensor is not available on this device.</string>
+    <string name="settings_activity_permission_required">Requires activity recognition permission. Toggle on to grant.</string>
+    <string name="settings_steps_unavailable">Step counter sensor is not available on this device.</string>
+    <string name="setup_start_exploring">Start Exploring</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">Finishing setup…</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Retry</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">Could not save setup. Your choices are still here.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">Could not prepare saved data. Your choices are still here.</string>
+    <string name="setup_continue">Continue</string>
+    <string name="setup_step_indicator">Step %1$d of %2$d</string>
+
+    <!-- Onboarding step 4: online map tile choice -->
+    <string name="setup_online_tiles_title">Online map tiles?</string>
+    <string name="setup_online_tiles_subtitle">Tracker ships with an offline basemap so it works with no network. If you want richer maps, you can stream tiles from a public provider instead.</string>
+    <string name="setup_online_tiles_off_title">Offline only</string>
+    <string name="setup_online_tiles_off_desc">No network requests. Only the bundled basemap is used.</string>
+    <string name="setup_online_tiles_on_title">Use online tiles (recommended)</string>
+    <string name="setup_online_tiles_on_desc">Stream higher-detail vector tiles from OpenFreeMap (default). You can change provider later in Settings → Map.</string>
+    <string name="setup_online_tiles_privacy">While enabled, the provider can see your IP address and which tiles you load — roughly which area of the map you are looking at. Tracker never sends an account, identifier, or your location history.</string>
+    <string name="setup_online_tiles_change_later">You can change this any time in Settings → Map → Online map tiles.</string>
+
+    <!-- Onboarding step: background access / battery optimization -->
+    <string name="setup_background_access_subtitle" tools:ignore="MissingTranslation">To record trips while the screen is off or the app is closed, Tracker needs background access. Allowing background activity can reduce Doze interruptions, but Android, device, and provider limits still apply.</string>
+    <string name="setup_background_access_optional">Optional, but recommended. You can change this any time in Settings → Tracking.</string>
+    <string name="setup_background_location_title">Allow background location for automatic tracking</string>
+    <string name="setup_background_location_disclosure">Automatic tracking starts while Tracker is in the background and records your route even when its screen is not open. Location stays on this device. In the app location settings, choose “%1$s”.</string>
+    <string name="setup_background_location_open_settings">Open location settings</string>
+    <string name="setup_background_location_decline">Not now</string>
+    <string name="setup_background_location_manual_only">Manual foreground tracking remains available. Automatic location tracking will stay off until background location is allowed.</string>
+
+    <!-- Background reliability (shared: onboarding + settings) -->
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">Background tracking settings</string>
+    <string name="background_reliability_status_exempt">Background activity allowed</string>
+    <string name="background_reliability_status_optimized">Battery optimization is on</string>
+    <string name="background_reliability_exempt_desc" tools:ignore="MissingTranslation">Tracker is excluded from battery optimization, which reduces Doze restrictions. Android, device, and provider limits can still delay or pause collection.</string>
+    <string name="background_reliability_optimized_desc" tools:ignore="MissingTranslation">Battery optimization can pause Tracker in the background. Allowing background activity can reduce interruptions, but it cannot guarantee continuous collection.</string>
+    <string name="background_reliability_allow_action">Allow background activity</string>
+    <string name="background_reliability_samsung_hint">Samsung devices may also place apps into \"Sleeping apps\". Open battery settings, then remove Tracker from Sleeping apps and set it to not be put to sleep.</string>
+    <string name="background_reliability_samsung_action">Open device battery settings</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android and device policy can pause or stop background work. Tracker can report restrictions Android exposes, but it cannot override Restricted or force-stopped state.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Background restriction detected</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Battery optimization detected</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">No restriction detected</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Restriction state unavailable</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android reports that background activity is Restricted. Tracking may stop when Tracker is not visible; the app cannot override this policy.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android reports that Tracker is not on the battery allowlist. Power management may delay background work; allowlisting reduces restrictions but does not guarantee continuous tracking.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android reports no background restriction and Tracker is on the battery allowlist. The system can still stop the app, and force-stop cannot be overridden.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker could not read every relevant Android restriction signal. No device-specific cause or remedy can be confirmed.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Open app battery settings</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Open battery optimization settings</string>
+
+    <!-- Local crash and diagnostic capture -->
+    <string name="settings_tracebox_title">Crash diagnostics</string>
+    <string name="settings_tracebox_root_summary">Local crash, ANR, and structural diagnostics</string>
+
+    <string name="settings_tracking_changes_apply_live">Changes update current tracking</string>
+    <string name="settings_balance_title">Power and detail</string>
+    <string name="settings_balance_custom">Custom settings · Choose balance</string>
+    <string name="settings_balance_value">Balance: %1$s</string>
+    <string name="settings_balance_inherit_value">Details · Use overall: %1$s</string>
+    <string name="settings_balance_inherit">Use overall balance</string>
+    <string name="settings_balance_summary">Choose the usual quality for your selected sources. Live sessions favor detail for participating sources. Choosing a balance replaces legacy collection rates; source choices, background consent and accuracy filters stay as saved.</string>
+</resources>

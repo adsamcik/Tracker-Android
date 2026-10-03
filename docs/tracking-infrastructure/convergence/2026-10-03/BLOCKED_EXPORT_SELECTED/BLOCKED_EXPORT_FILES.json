@@ -1,0 +1,56 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "03d5ede560591d1c6a0e143218a3af6a4a82fa3e",
+  "files": [
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/activity/MainActivityCompose.kt",
+      "selection": "whole owned file; clean at start",
+      "selected_sha256": "5c67e61008c4771aba01004826b5b2f22f576f79045a3130f98e57366098091c",
+      "actual_sha256": "db99a4b6337e895adcecac590c067237f9dd8ad13a7a0df1a513fc6c17d2869a",
+      "base_sha256": "5d643fd4ade04e883ee977fb2d65ba453d52b5e65643bc46c88a469b0626b9d4"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/DataSettingsViewModel.kt",
+      "selection": "HEAD-based narrow snapshot",
+      "selected_sha256": "0321a84989f4cf1095c19f81533d8ba59003f04c33e18c62d666c1fa5a55d19d",
+      "actual_sha256": "6ad68cea64f138ee16ddd6a5a4a5f1f4c7ba05df3c3ed63e866fa89e5f846117",
+      "base_sha256": "206d84023294bcbe36b2110cd8cdd449326dfc1b0baaa008b08f41854ed127a9",
+      "before": "docs/tracking-infrastructure/convergence/2026-10-03/BLOCKED_EXPORT_SELECTED/DataSettingsViewModel.kt.before",
+      "after": "docs/tracking-infrastructure/convergence/2026-10-03/BLOCKED_EXPORT_SELECTED/DataSettingsViewModel.kt.after"
+    },
+    {
+      "path": "app/src/main/res/values/strings.xml",
+      "selection": "HEAD-based narrow snapshot",
+      "selected_sha256": "087569fa06d0d777c4a1a778550892459f4c529e3ef6f219207fc4c5f2baa2a4",
+      "actual_sha256": "df5513fbf573628c7bd1b6e87fea2a4f5c2567f7cf1986e43d21cc67881d1fa9",
+      "base_sha256": "1a76851972c2af9ed96d648ba6e5386b46e4b3edc07178f00fc10b6b2d731e42",
+      "before": "docs/tracking-infrastructure/convergence/2026-10-03/BLOCKED_EXPORT_SELECTED/strings.xml.before",
+      "after": "docs/tracking-infrastructure/convergence/2026-10-03/BLOCKED_EXPORT_SELECTED/strings.xml.after"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/DataSettingsViewModelTest.kt",
+      "selection": "whole owned file; clean at start",
+      "selected_sha256": "77e8d316259b10a3b4cbb28b807fd8c1df30495064ae3508c96447dff27eabec",
+      "actual_sha256": "a8be322761e207015e55167bd6f03d1437107fa14eb81796ca6d0d96cc0305dd",
+      "base_sha256": "65100e25642a2056203a917ddc35c9a1c3714bbb4bc5d7e23c0f5a9d88add852"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/activity/LegacyDatabaseRecoveryScreenTest.kt",
+      "selection": "new owned file",
+      "selected_sha256": "8a2a006ca396a58591731ad5a67230d65eb37a5bc10319fc1ecf55d035e193d6",
+      "actual_sha256": "8a2a006ca396a58591731ad5a67230d65eb37a5bc10319fc1ecf55d035e193d6"
+    }
+  ],
+  "patch_sha256": "38a94971f36e4abd5c2594ba921f8b810f2a0e4ea67b338b9a3cf407dc7dbeff",
+  "new_authored_cases": {
+    "compose": 2,
+    "view_model": 8
+  },
+  "excluded": [
+    "held Location import preview/type/Job in DataSettingsViewModel",
+    "held radio UI/localization changes",
+    "unfinished external notices still separate",
+    "all deferred validation and integration"
+  ]
+}
