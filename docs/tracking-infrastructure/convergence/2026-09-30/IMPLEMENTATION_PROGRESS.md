@@ -246,6 +246,11 @@ remain held. No test or gate has run.
   rows preserve descriptive dual origins for session-export reuse. None ran.
 
 ## Remaining in these slices
+- [x] Select the exact Activity export prerequisite: five source paths and nineteen
+  authored, unexecuted cases. Existing native/imported selection, epoch and typed
+  rereads remain source-owned. Fresh review's whole-file cap finding is repaired
+  incrementally; `../2026-10-03/ACTIVITY_SESSION_EXPORT_SELECTED/SOURCE_REVIEW.md`
+  records acceptance of this narrow source selection, not the complete bundle.
 - [x] Select the narrow LastSession guard: choose the latest completed session
   before date validation and return unavailable instead of substituting an older
   row or page. Four new helper cases plus one adjustment are authored, unexecuted
@@ -276,7 +281,10 @@ remain held. No test or gate has run.
 - [x] Propagate current-tuple v6 item qualification through native writers,
   retained capture maintenance and history; preserve v5 contracts.
 - [x] Recheck native physical-lifetime and full measured radio parent time bounds.
-- [ ] Implement correct local-day radio grouping after the pending user answer.
+- [ ] Implement the approved measured-date local-day rule for radio History,
+  preserving actual reading times and IDs rather than splitting deliveries. The
+  October 4 answer also approves selected-date source exports with optional
+  complete sessions; old bounds and codec/import compatibility remain to finish.
 - [ ] Complete historical session radio capture groups after the pending contract
   answer; a single current callback capture tuple remains insufficient.
 - [x] Review and commit independent optional Wi-Fi/Cell service hosting and

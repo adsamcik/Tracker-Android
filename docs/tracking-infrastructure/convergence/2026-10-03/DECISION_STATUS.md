@@ -45,6 +45,14 @@ source-work boundaries, not an assembly freeze, executed verification or integra
 - [x] Review Location replacement storage before implementation. The earlier
   sidecar representation proposal has not been approved. The reviewed one-current-edit
   proposal has now been presented for confirmation; no storage change is selected.
+- [x] Use one measured-date rule throughout Tracker: each reading belongs to its
+  displayed local date when measured, independently of delivery and session dates.
+  Keep real aggregate windows unsplit. Repair radio bounds/readers without changing
+  existing readings or IDs; do not split physical deliveries into daily storage groups.
+- [x] Export selected-date measurements with one initially enabled Include complete
+  sessions switch. Off keeps in-date readings from an overnight session instead of
+  excluding that session entirely. Indivisible measured windows retain their actual
+  bounds with honest expansion. This supersedes the earlier radio Off omission rule.
 
 The first three answers are from `call_ITXXwd9m4f7gfXfR7bLb0JWu`; the three
 statistics answers are from `call_lhtt5iSaT7WZD235VbsXbezt`. No default selection
@@ -55,6 +63,9 @@ Later answers are from that call's map item and `call_wKkRs4v70TaN0YwFnvQZ750M`,
 `call_ZSBQi9hx5Iml5TqzWB4P92lE`, `call_zw5CZYOUw1hONJelyKXDOPlA` and
 `call_KtiUwkicoAfgCVbeQP2Y2uHu`. `call_Yl5o9bTE6RzsKHyl4DkenqSN` requests a
 single unified, user-understandable time model; it does not approve daily storage groups.
+The October 4 answers to `call_5rlNzPZRo5KcVPZByFUzIOqs` approve the measured-date
+rule and selected-data/optional-complete-session export scope above. Approval is
+recorded separately from implementation and source review.
 
 ## Questions presented, awaiting answers
 
@@ -75,13 +86,6 @@ single unified, user-understandable time model; it does not approve daily storag
   reasons, without invented coordinates.
 - [ ] Restart the app once after confirmed data-only restore so all readers use
   the replaced databases; preserve settings, stopped tracking and the safety copy.
-- [ ] Review one consistent observation-time rule for History/export across all
-  sources and midnight. The user requested a unified design instead of approving
-  separate daily radio storage groups; preserve saved identities while tracing it.
-- [ ] Approve the presented unified date/session export proposal: actual selected
-  measurements with optional whole matching sessions, replacing the earlier radio
-  Off exclusion rule only after an answer. Do not broaden geographic or exact
-  Location file scope while this proposal is pending.
 - [ ] Present the reviewed Location replacement representation for confirmation.
   One import-wide Keep/Replace choice is approved; storage remains pending review.
 
@@ -103,6 +107,12 @@ behavior choice still needs a concrete proposal under AGENTS.md.
 
 ## Current implementation activity
 
+- [x] Select exact session Activity reading through existing native and imported
+  qualification, original epoch and full selected-content rechecks. Five paths
+  and nineteen authored cases are independently source-reviewed after repairing
+  combined-file limits before materialization/ownership expansion. No cases ran.
+  `ACTIVITY_SESSION_EXPORT_SELECTED/SOURCE_REVIEW.md` pins the reviewed source;
+  shared preview/write, organization and bundle product flow remain open.
 - [x] Author and independently review the approved radio temporary-file slice;
   complete held exporter definition selection remains open.
 - [x] Implement and independently review the native Wi-Fi format marker core;
@@ -121,6 +131,10 @@ behavior choice still needs a concrete proposal under AGENTS.md.
 - [ ] Select the complete displayed-day History readers, composed cases and UI.
   Their statically reviewed H1/H2/H3 fixes remain preserved with full held R11
   files; source-midnight storage and exact archive selectors remain separate gaps.
+- [ ] Implement the approved measured-date storage/read and selected-measurements
+  export rule across sources, including old radio bounds, overnight deliveries,
+  actual aggregate windows and optional complete sessions. Preserve identity and
+  import compatibility; do not claim the rule implemented from approval alone.
 - [ ] Trace and implement period metrics through real dated source data, including
   missing evidence and correction/deletion behavior; never substitute All-time.
 - [x] Select the source-reviewed bounded daily/weekly discovery streak backend:

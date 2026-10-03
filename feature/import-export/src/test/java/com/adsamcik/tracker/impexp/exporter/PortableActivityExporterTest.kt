@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.ActivityCapturedPortableFormatV
 import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivity
 import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivityRequest
 import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivityResult
+import com.adsamcik.tracker.shared.base.database.ExportSelectedPortableCapturedActivityRequest
 import com.adsamcik.tracker.shared.base.database.PortableActivityEnvelopeSink
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
@@ -77,5 +78,10 @@ class PortableActivityExporterTest {
 			request: ExportPortableCapturedActivityRequest,
 			sink: PortableActivityEnvelopeSink,
 		): ExportPortableCapturedActivityResult = block(request, sink)
+
+		override suspend fun export(
+			request: ExportSelectedPortableCapturedActivityRequest,
+			sink: PortableActivityEnvelopeSink,
+		): ExportPortableCapturedActivityResult = error("Standalone export must not invoke exact session selection")
 	}
 }

@@ -448,6 +448,38 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `exact Activity union counts identical native imported entries only once at its read limits`() = runTest {
+		seedCapturedActivity(semanticRevisions = 2)
+		val local = (portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L))
+			as PortableCapturedActivitySnapshot.Ready).envelope.entries.single()
+		RoomImportPortableCapturedActivity(database, Dispatchers.Unconfined).importEntry(
+			ImportPortableCapturedActivityRequest(local,
+				PortableActivityImportReceipt("exact-copy", "entry", "copy.trackeractivity", 4_000L), 0L),
+		) shouldBe ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		val seed = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID)?.sessionSegmentId)
+		val snapshot = portableReader(PortableActivityReadLimits(maximumEntries = 1, maximumRuns = 1)).read(
+			ExportSelectedPortableCapturedActivityRequest(listOf(seed), listOf(local.identity, local.identity), 0L),
+		) as PortableCapturedActivitySnapshot.Ready
+		snapshot.envelope.entries shouldBe listOf(local)
+	}
+
+	@Test
+	fun `exact Activity union rejects divergent shared identity rather than counting or skipping it`() = runTest {
+		seedCapturedActivity(semanticRevisions = 2)
+		val local = (portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L))
+			as PortableCapturedActivitySnapshot.Ready).envelope.entries.single()
+		RoomImportPortableCapturedActivity(database, Dispatchers.Unconfined).importEntry(
+			ImportPortableCapturedActivityRequest(correctedPortableEntry(local),
+				PortableActivityImportReceipt("exact-conflict", "entry", "conflict.trackeractivity", 4_000L), 0L),
+		) shouldBe ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		val seed = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID)?.sessionSegmentId)
+		portableReader(PortableActivityReadLimits(maximumEntries = 1, maximumRuns = 1)).read(
+			ExportSelectedPortableCapturedActivityRequest(listOf(seed), listOf(local.identity), 0L),
+		) shouldBe PortableCapturedActivitySnapshot.Outcome(ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY))
+	}
+
+	@Test
 	fun `portable re-export emits one entry for exact local and imported origins`() = runTest {
 		seedCapturedActivity(semanticRevisions = 2)
 		val local = (portableReader().read(
@@ -1729,6 +1761,135 @@ class ActivityCapturedFactMaintenanceTest {
 			database.sourceDeletionFenceDao().countAll() shouldBe 0L
 			database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
 		}
+
+	@Test
+	fun `exact Activity seed exports its whole replacement group and latest correction`() = runTest {
+		seedCapturedActivity(semanticRevisions = 2, sessionRunEffectEndNanos = 900L)
+		installTerminalReplacement(capturesActivity = false)
+		val seed = requireNotNull(database.sourceSessionDao().serviceRun(REPLACEMENT_SERVICE_RUN_ID)).sessionSegmentId!!
+		var emitted: PortableActivityEnvelopeV1? = null
+		portableExporter().export(ExportSelectedPortableCapturedActivityRequest(listOf(seed), emptyList(), 0L)) {
+			database.inTransaction() shouldBe false
+			emitted = it
+		} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+		val entry = requireNotNull(emitted).entries.single()
+		entry.identity shouldBe PortableActivityOpaqueIdentity.derive(PortableActivityIdentityKind.LOGICAL_ENTRY, LOGICAL_TRACKING_ID)
+		entry.runs.size shouldBe 2
+		entry.runs.last().captureCoverage shouldBe PortableActivityCaptureCoverage.NOT_CAPTURED
+		entry.runs.last().windows shouldBe emptyList()
+		entry.runs.first().windows.single().fragments.size shouldBe 1
+	}
+
+	@Test
+	fun `exact Activity selection ignores unrelated invalid facts and unrelated revision updates`() = runTest {
+		seedCapturedActivity()
+		val dao = database.activityCapturedFactDao()
+		val revision = dao.maintenanceRevisionPage(WRITER_ID, WRITER_VERSION, null, null, 1).single()
+		dao.insertRevision(revision.copy(logicalWindowId = "outside-window", mutationId = "outside-mutation",
+			logicalTrackingId = "outside-logical", serviceRunId = "outside-run", sessionSegmentId = 999L))
+		corruptWithoutForeignKeys("UPDATE activity_captured_window_revision SET writer_projection_version = 99 WHERE logical_window_id = 'outside-window'")
+		val seed = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID)).sessionSegmentId!!
+		var calls = 0
+		portableExporter().export(ExportSelectedPortableCapturedActivityRequest(listOf(seed), emptyList(), 0L)) {
+			calls++
+			database.sourceEvidenceStateDao().incrementRevision(5_000L) shouldBe 1
+		} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+		calls shouldBe 1
+		dao.revisionCount() shouldBe 2L
+	}
+
+	@Test
+	fun `missing or mismatched exact Activity seed never emits a partial selected group`() = runTest {
+		seedCapturedActivity()
+		val seed = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID)).sessionSegmentId!!
+		var calls = 0
+		portableExporter().export(ExportSelectedPortableCapturedActivityRequest(listOf(seed, seed + 100L), emptyList(), 0L)) {
+			calls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		corruptWithoutForeignKeys("UPDATE session_segment SET service_run_id = 'outside-run' WHERE id = $seed")
+		portableExporter().export(ExportSelectedPortableCapturedActivityRequest(listOf(seed), emptyList(), 0L)) {
+			calls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		calls shouldBe 0
+	}
+
+	@Test
+	fun `exact Activity selection rejects a legacy seed instead of borrowing overlapping native data`() = runTest {
+		seedCapturedActivity()
+		val original = database.trackingHistoryReadDao().segments(
+			listOf(requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID)).sessionSegmentId!!),
+		).single()
+		val legacySeed = database.sessionSegmentDao().insert(original.copy(id = 0L,
+			logicalTrackingId = null, serviceRunId = null))
+		var calls = 0
+		portableExporter().export(ExportSelectedPortableCapturedActivityRequest(listOf(legacySeed), emptyList(), 0L)) {
+			calls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		calls shouldBe 0
+	}
+
+	@Test
+	fun `exact Activity preserves a gap and rejects a stale original data epoch before output`() = runTest {
+		seedCapturedActivity(gapOnly = true)
+		val seed = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID)).sessionSegmentId!!
+		var emitted: PortableActivityEnvelopeV1? = null
+		portableExporter().export(ExportSelectedPortableCapturedActivityRequest(listOf(seed), emptyList(), 0L)) {
+			emitted = it
+		} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+		requireNotNull(emitted).entries.single().runs.single().windows.single().fragments.single() shouldBe
+			PortableActivityFragmentV1.Gap(0L, 200L, "NO_QUALIFIED_EVIDENCE")
+		var calls = 0
+		portableExporter().export(ExportSelectedPortableCapturedActivityRequest(listOf(seed), emptyList(), 1L)) {
+			calls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(PortableActivityExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		calls shouldBe 0
+	}
+
+	@Test
+	fun `exact Activity output is refused if a selected cursor disappears during sink copy`() = runTest {
+		seedCapturedActivity()
+		val seed = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID)).sessionSegmentId!!
+		portableExporter().export(ExportSelectedPortableCapturedActivityRequest(listOf(seed), emptyList(), 0L)) {
+			database.openHelper.writableDatabase.execSQL("DELETE FROM activity_captured_window_cursor WHERE service_run_id = '$SERVICE_RUN_ID'")
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+	}
+
+	@Test
+	fun `exact Activity sink cancellation propagates outside Room without changing saved source`() = runTest {
+		seedCapturedActivity()
+		val seed = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID)).sessionSegmentId!!
+		val original = CancellationException("Sink cancelled")
+		shouldThrow<CancellationException> {
+			portableExporter().export(ExportSelectedPortableCapturedActivityRequest(listOf(seed), emptyList(), 0L)) {
+				database.inTransaction() shouldBe false
+				throw original
+			}
+		} shouldBe original
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `exact Activity retains existing read budgets for complete replacement membership`() = runTest {
+		seedCapturedActivity(sessionRunEffectEndNanos = 900L)
+		installTerminalReplacement(capturesActivity = false)
+		val seed = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID)).sessionSegmentId!!
+		portableReader(PortableActivityReadLimits(maximumRuns = 1)).read(
+			ExportSelectedPortableCapturedActivityRequest(listOf(seed), emptyList(), 0L),
+		) shouldBe PortableCapturedActivitySnapshot.Outcome(ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.DEPENDENCY_OVERFLOW))
+	}
+
+	@Test
+	fun `an imported Activity selection never borrows an existing native counterpart without an imported row`() = runTest {
+		seedCapturedActivity()
+		val portableIdentity = PortableActivityOpaqueIdentity.derive(PortableActivityIdentityKind.LOGICAL_ENTRY, LOGICAL_TRACKING_ID)
+		var calls = 0
+		portableExporter().export(ExportSelectedPortableCapturedActivityRequest(emptyList(), listOf(portableIdentity), 0L)) {
+			calls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(PortableActivityExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		calls shouldBe 0
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+	}
 
 	private suspend fun seedCapturedActivity(
 		retainedFromMs: Long? = null,

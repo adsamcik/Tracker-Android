@@ -6,6 +6,25 @@ import org.junit.Test
 
 class ActivityCapturedPortableFormatV1Test {
 	@Test
+	fun `exact export requires bounded saved identities and the original data epoch`() {
+		val imported = PortableActivityOpaqueIdentity.derive(PortableActivityIdentityKind.LOGICAL_ENTRY, "saved")
+		val selected = ExportSelectedPortableCapturedActivityRequest(listOf(1L), listOf(imported), 0L)
+		selected.nativeSegmentIds shouldBe listOf(1L)
+		selected.importedEntryIdentities shouldBe listOf(imported)
+		shouldThrow<IllegalArgumentException> { selected.copy(expectedCollectedDataEpoch = -1L) }
+		shouldThrow<IllegalArgumentException> { selected.copy(nativeSegmentIds = listOf(0L)) }
+		shouldThrow<IllegalArgumentException> {
+			selected.copy(nativeSegmentIds = emptyList(), importedEntryIdentities = emptyList())
+		}
+		shouldThrow<IllegalArgumentException> {
+			selected.copy(nativeSegmentIds = List(ActivityCapturedPortableFormatV1.MAX_RUNS + 1) { 1L })
+		}
+		shouldThrow<IllegalArgumentException> {
+			selected.copy(importedEntryIdentities = List(ActivityCapturedPortableFormatV1.MAX_ENTRIES + 1) { imported })
+		}
+	}
+
+	@Test
 	fun `import contract keeps receipt provenance bounded and outcomes typed`() {
 		val receipt = PortableActivityImportReceipt("job", "entry", "backup.trackeractivity", 10L)
 		receipt.sourceName shouldBe "backup.trackeractivity"

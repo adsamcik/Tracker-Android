@@ -372,6 +372,21 @@ data class ExportPortableCapturedActivityRequest(
 	}
 }
 
+/** Exact saved records for a bundle; each native seed retains its original replacement group. */
+data class ExportSelectedPortableCapturedActivityRequest(
+	val nativeSegmentIds: List<Long>,
+	val importedEntryIdentities: List<PortableActivityOpaqueIdentity>,
+	val expectedCollectedDataEpoch: Long,
+) {
+	init {
+		require(expectedCollectedDataEpoch >= 0L)
+		require(nativeSegmentIds.all { it > 0L })
+		require(nativeSegmentIds.size <= ActivityCapturedPortableFormatV1.MAX_RUNS)
+		require(importedEntryIdentities.size <= ActivityCapturedPortableFormatV1.MAX_ENTRIES)
+		require(nativeSegmentIds.isNotEmpty() || importedEntryIdentities.isNotEmpty())
+	}
+}
+
 /**
  * Source-specific structural verifier for already-authenticated portable Activity entries.
  * It exposes no identifiers and grants no live, deletion, or writer authority.
@@ -541,6 +556,12 @@ fun interface PortableActivityEnvelopeSink {
 interface ExportPortableCapturedActivity {
 	suspend fun export(
 		request: ExportPortableCapturedActivityRequest,
+		sink: PortableActivityEnvelopeSink,
+	): ExportPortableCapturedActivityResult
+
+	/** Exact selected contents, with no date fallback or borrowed native counterpart. */
+	suspend fun export(
+		request: ExportSelectedPortableCapturedActivityRequest,
 		sink: PortableActivityEnvelopeSink,
 	): ExportPortableCapturedActivityResult
 }
@@ -865,6 +886,42 @@ class RoomExportPortableCapturedActivity private constructor(
 			}
 		}
 	}
+
+	override suspend fun export(
+		request: ExportSelectedPortableCapturedActivityRequest,
+		sink: PortableActivityEnvelopeSink,
+	): ExportPortableCapturedActivityResult = withContext(ioDispatcher) {
+		val pinned = request.copy(
+			nativeSegmentIds = request.nativeSegmentIds.toList(),
+			importedEntryIdentities = request.importedEntryIdentities.toList(),
+		)
+		when (val selected = readSelected(pinned)) {
+			is PortableCapturedActivitySnapshot.Outcome -> selected.result
+			is PortableCapturedActivitySnapshot.Ready -> {
+				currentCoroutineContext().ensureActive()
+				sink.emit(selected.envelope)
+				currentCoroutineContext().ensureActive()
+				when (val current = readSelected(pinned)) {
+					is PortableCapturedActivitySnapshot.Ready -> if (current == selected) {
+						ExportPortableCapturedActivityResult.Exported(selected.envelope.entries.size)
+					} else ExportPortableCapturedActivityResult.Unverifiable(
+						PortableActivityExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+					)
+					is PortableCapturedActivitySnapshot.Outcome -> current.result
+				}
+			}
+		}
+	}
+
+	private suspend fun readSelected(
+		request: ExportSelectedPortableCapturedActivityRequest,
+	): PortableCapturedActivitySnapshot = try {
+		reader.read(request)
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		PortableCapturedActivitySnapshot.Outcome(ExportPortableCapturedActivityResult.StorageUnavailable)
+	}
 }
 
 internal enum class PortableActivityReadCheckpoint {
@@ -968,6 +1025,77 @@ internal class PortableCapturedActivityRoomReader(
 	},
 ) {
 	suspend fun read(
+		request: ExportSelectedPortableCapturedActivityRequest,
+	): PortableCapturedActivitySnapshot = try {
+		database.withTransaction {
+			checkpoint(PortableActivityReadCheckpoint.TRANSACTION_STARTED)
+			val state = database.sourceEvidenceStateDao().get()
+			if (state?.collectedDataEpoch != request.expectedCollectedDataEpoch ||
+				database.collectedDataDeletionOperationDao().activeRetentionFloorSettlement() != null
+			) abort(PortableActivityExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+			val nativeSeeds = loadSegments(request.nativeSegmentIds.distinct())
+			val logicalIds = nativeSeeds.map { seed ->
+				val logicalId = seed.logicalTrackingId?.takeIf(String::isNotBlank)
+					?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+				val runId = seed.serviceRunId?.takeIf(String::isNotBlank)
+					?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+				val run = database.sourceSessionDao().serviceRun(runId)
+					?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+				if (run.logicalTrackingId != logicalId || run.sessionSegmentId != seed.id) {
+					abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+				}
+				validateSegmentBinding(seed, logicalId, runId)
+				logicalId
+			}.distinct().sorted()
+			if (logicalIds.size > minOf(limits.maximumEntries, ActivityCapturedPortableFormatV1.MAX_ENTRIES)) {
+				overflow()
+			}
+			val localEntries = if (logicalIds.isEmpty()) emptyList() else {
+				when (val local = readLocalInTransaction(
+					ExportPortableCapturedActivityRequest(0L, Long.MAX_VALUE), logicalIds,
+				)) {
+					is PortableCapturedActivitySnapshot.Outcome -> return@withTransaction local
+					is PortableCapturedActivitySnapshot.Ready -> local.envelope.entries.also { entries ->
+						val expected = logicalIds.mapTo(hashSetOf()) {
+							PortableActivityOpaqueIdentity.derive(PortableActivityIdentityKind.LOGICAL_ENTRY, it)
+						}
+						if (entries.mapTo(hashSetOf(), PortableActivityEntryV1::identity) != expected) {
+							abort(PortableActivityExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+						}
+					}
+				}
+			}
+			val selection = EntrySelection(localEntries)
+			val importedReader = ImportedActivityProductReader(database)
+			request.importedEntryIdentities.distinct().forEach { identity ->
+				currentCoroutineContext().ensureActive()
+				val evaluation = importedReader.selectIdentityInTransaction(identity)
+					?: abort(PortableActivityExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+				if (evaluation is ImportedActivityProductEvaluation.Readable && !evaluation.isReExportable) {
+					abort(if (evaluation.entryDeleted || evaluation.deletedRunIdentities.isNotEmpty()) {
+						PortableActivityExportUnverifiableReason.DELETED_SCOPE
+					} else PortableActivityExportUnverifiableReason.RETENTION_CROSSES_ENTRY)
+				}
+				if (evaluation is ImportedActivityProductEvaluation.Retained) {
+					abort(PortableActivityExportUnverifiableReason.RETENTION_CROSSES_ENTRY)
+				}
+				selection.include(evaluation)
+			}
+			selection.snapshot()
+		}
+	} catch (abort: PortableActivitySnapshotAbort) {
+		outcome(abort.reason)
+	} catch (_: ActivityCapturedMaintenanceLimitExceeded) {
+		outcome(PortableActivityExportUnverifiableReason.DEPENDENCY_OVERFLOW)
+	} catch (_: ActivityCapturedRetentionBlockedException) {
+		outcome(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+	} catch (_: IllegalArgumentException) {
+		outcome(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+	} catch (_: ArithmeticException) {
+		outcome(PortableActivityExportUnverifiableReason.DEPENDENCY_OVERFLOW)
+	}
+
+	suspend fun read(
 		request: ExportPortableCapturedActivityRequest,
 	): PortableCapturedActivitySnapshot = try {
 		database.withTransaction {
@@ -1017,16 +1145,39 @@ internal class PortableCapturedActivityRoomReader(
 			}
 		}
 		val imported = ImportedActivityProductReader(database).selectForExportInTransaction(request)
-		val entries = localEntries.toMutableList()
-		val localByIdentity = localEntries.associateBy(PortableActivityEntryV1::identity)
-		val ownership = PortableActivityOpaqueOwnershipVerifier.fromEntries(localEntries)
-			?: abort(PortableActivityExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
+		return combineEntries(localEntries, imported)
+	}
+
+	private suspend fun combineEntries(
+		localEntries: List<PortableActivityEntryV1>,
+		imported: List<ImportedActivityProductEvaluation>,
+	): PortableCapturedActivitySnapshot {
+		val selection = EntrySelection(localEntries)
 		imported.forEach { evaluation ->
 			currentCoroutineContext().ensureActive()
+			selection.include(evaluation)
+		}
+		return selection.snapshot()
+	}
+
+	/** Bounds the deduplicated output before expanding ownership or retaining another hierarchy. */
+	private inner class EntrySelection(localEntries: List<PortableActivityEntryV1>) {
+		private val entries = linkedMapOf<PortableActivityOpaqueIdentity, PortableActivityEntryV1>()
+		private val ownership = requireNotNull(PortableActivityOpaqueOwnershipVerifier.fromEntries(emptyList()))
+		private var runCount = 0L
+		private var windowCount = 0L
+		private var fragmentCount = 0L
+		private var zoneEpochCount = 0L
+
+		init {
+			localEntries.forEach(::includeEntry)
+		}
+
+		fun include(evaluation: ImportedActivityProductEvaluation) {
 			when (evaluation) {
 				is ImportedActivityProductEvaluation.Retained -> {
 					val retainedEntryIdentity = PortableActivityOpaqueIdentity(evaluation.candidate.identity)
-					if (retainedEntryIdentity in localByIdentity || !ownership.tryInclude(
+					if (retainedEntryIdentity in entries || !ownership.tryInclude(
 							retainedEntryIdentity,
 							evaluation.protectedIdentities,
 						)
@@ -1041,47 +1192,59 @@ internal class PortableCapturedActivityRoomReader(
 						else -> PortableActivityExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE
 					},
 				)
-				is ImportedActivityProductEvaluation.Readable -> if (evaluation.isReExportable) {
-					val localEntry = localByIdentity[evaluation.entry.identity]
-					when {
-						localEntry == null -> {
-							if (!ownership.tryInclude(evaluation.entry)) {
-								abort(PortableActivityExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
-							}
-							entries += evaluation.entry
-						}
-						localEntry != evaluation.entry -> abort(
-							PortableActivityExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY,
-						)
-					}
-				}
+				is ImportedActivityProductEvaluation.Readable -> if (evaluation.isReExportable) includeEntry(evaluation.entry)
 			}
 		}
-		if (entries.size > ActivityCapturedPortableFormatV1.MAX_ENTRIES ||
-			entries.sumOf { it.runs.size.toLong() } > ActivityCapturedPortableFormatV1.MAX_RUNS
-		) overflow()
-		if (entries.isEmpty()) return noEntries()
-		val ordered = entries.sortedWith(ENTRY_ORDER)
-		return PortableCapturedActivitySnapshot.Ready(
-			PortableActivityEnvelopeV1(
-				contentChecksum = ActivityCapturedPortableIntegrity.envelopeChecksum(ordered),
-				entries = ordered,
-			),
-		)
+
+		private fun includeEntry(entry: PortableActivityEntryV1) {
+			entries[entry.identity]?.let { existing ->
+				if (existing != entry) abort(PortableActivityExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
+				return
+			}
+			val addedRuns = entry.runs.size.toLong()
+			val addedWindows = entry.runs.sumOf { it.windows.size.toLong() }
+			val addedFragments = entry.runs.sumOf { run -> run.windows.sumOf { it.fragments.size.toLong() } }
+			val addedZoneEpochs = entry.runs.sumOf { it.zoneEpochs.size.toLong() }
+			if (entries.size >= minOf(limits.maximumEntries, ActivityCapturedPortableFormatV1.MAX_ENTRIES) ||
+				runCount + addedRuns > minOf(limits.maximumRuns, ActivityCapturedPortableFormatV1.MAX_RUNS) ||
+				windowCount + addedWindows > ActivityCapturedPortableFormatV1.MAX_WINDOWS ||
+				fragmentCount + addedFragments > ActivityCapturedPortableFormatV1.MAX_FRAGMENTS ||
+				zoneEpochCount + addedZoneEpochs > ActivityCapturedPortableFormatV1.MAX_ZONE_EPOCHS
+			) overflow()
+			if (!ownership.tryInclude(entry)) abort(PortableActivityExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
+			entries[entry.identity] = entry
+			runCount += addedRuns
+			windowCount += addedWindows
+			fragmentCount += addedFragments
+			zoneEpochCount += addedZoneEpochs
+		}
+
+		fun snapshot(): PortableCapturedActivitySnapshot {
+			if (entries.isEmpty()) return noEntries()
+			val ordered = entries.values.sortedWith(ENTRY_ORDER)
+			return PortableCapturedActivitySnapshot.Ready(
+				PortableActivityEnvelopeV1(
+					contentChecksum = ActivityCapturedPortableIntegrity.envelopeChecksum(ordered),
+					entries = ordered,
+				),
+			)
+		}
 	}
 
 	private suspend fun readLocalInTransaction(
 		request: ExportPortableCapturedActivityRequest,
+		exactLogicalTrackingIds: List<String>? = null,
 	): PortableCapturedActivitySnapshot {
-		val audit = database.auditCapturedActivityFacts(
+		val exactRuns = exactLogicalTrackingIds?.let { loadReplacementRuns(it) }
+		val lineages = if (exactRuns == null) database.auditCapturedActivityFacts(
 			limits = limits.maintenance,
 			checkpoint = { currentCoroutineContext().ensureActive() },
 			requireOwnerWhenEmpty = false,
-		)
+		).lineages else auditSelectedLineages(requireNotNull(exactLogicalTrackingIds), exactRuns)
 		checkpoint(PortableActivityReadCheckpoint.FACT_AUDIT_COMPLETED)
-		if (audit.lineages.isEmpty()) return noEntries()
+		if (lineages.isEmpty()) return noEntries()
 
-		val latestByWindow = audit.lineages.associateWith { lineage -> lineage.revisions.last() }
+		val latestByWindow = lineages.associateWith { lineage -> lineage.revisions.last() }
 		val factOwnerSegments = loadSegments(
 			latestByWindow.values.map { persisted -> persisted.revision.sessionSegmentId }.distinct(),
 		)
@@ -1096,7 +1259,7 @@ internal class PortableCapturedActivityRoomReader(
 		if (carrierLogicalIds.size > limits.maximumEntries) overflow()
 
 		// Range is a property of the complete logical replacement group, never of the fact owner.
-		val carrierRuns = loadReplacementRuns(carrierLogicalIds)
+		val carrierRuns = exactRuns ?: loadReplacementRuns(carrierLogicalIds)
 		checkpoint(PortableActivityReadCheckpoint.REPLACEMENT_MEMBERS_LOADED)
 		val carrierSegments = loadSegments(carrierRuns.map { run ->
 			run.sessionSegmentId
@@ -1108,7 +1271,7 @@ internal class PortableCapturedActivityRoomReader(
 				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 			validateSegmentBinding(segment, run.logicalTrackingId, run.serviceRunId)
 		}
-		val selectedLogicalIds = carrierLogicalIds.filter { logicalTrackingId ->
+		val selectedLogicalIds = exactLogicalTrackingIds ?: carrierLogicalIds.filter { logicalTrackingId ->
 			carrierRuns.asSequence()
 				.filter { run -> run.logicalTrackingId == logicalTrackingId }
 				.map { run -> carrierSegmentsById.getValue(requireNotNull(run.sessionSegmentId)) }
@@ -1174,6 +1337,46 @@ internal class PortableCapturedActivityRoomReader(
 		return PortableCapturedActivitySnapshot.Ready(
 			PortableActivityEnvelopeV1(contentChecksum = checksum, entries = entries),
 		)
+	}
+
+	private suspend fun auditSelectedLineages(
+		logicalIds: List<String>,
+		runs: List<SourceServiceRunEntity>,
+	): List<ActivityCapturedLineage> {
+		val result = mutableListOf<ActivityCapturedLineage>()
+		var revisions = 0L
+		var fragments = 0L
+		var evidence = 0L
+		for (logicalId in logicalIds) {
+			currentCoroutineContext().ensureActive()
+			val scopes = runs.filter { it.logicalTrackingId == logicalId }.map { run ->
+				ActivityCapturedSelectedRunScope(run.serviceRunId, run.sessionSegmentId
+					?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE))
+			}
+			if (scopes.size > limits.maximumRunsPerEntry) overflow()
+			val selected = database.auditCapturedActivityFacts(
+				limits.maintenance, { currentCoroutineContext().ensureActive() }, false,
+				ActivityCapturedAuditScope(logicalId, scopes.associateBy(ActivityCapturedSelectedRunScope::serviceRunId)),
+			).lineages
+			result += selected
+			for (lineage in selected) {
+				revisions = Math.addExact(revisions, lineage.revisions.size.toLong())
+				for (revision in lineage.revisions) {
+					fragments = Math.addExact(fragments, revision.fragments.size.toLong())
+					evidence = Math.addExact(evidence, revision.evidence.size.toLong())
+				}
+			}
+			if (result.size > limits.maintenance.maximumLogicalWindows ||
+				result.size > limits.maintenance.maximumCursors ||
+				revisions > limits.maintenance.maximumRevisions ||
+				fragments > limits.maintenance.maximumTotalFragments ||
+				evidence > limits.maintenance.maximumTotalEvidence
+			) overflow()
+		}
+		if (result.map(ActivityCapturedLineage::logicalWindowId).distinct().size != result.size) {
+			abort(PortableActivityExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
+		}
+		return result
 	}
 
 	private suspend fun loadReplacementRuns(

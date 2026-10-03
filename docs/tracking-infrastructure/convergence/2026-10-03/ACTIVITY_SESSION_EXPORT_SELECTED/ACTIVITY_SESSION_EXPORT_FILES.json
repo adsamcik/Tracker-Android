@@ -1,0 +1,58 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "date": "2026-10-04",
+  "base_head": "2d01ed0ee411bf2bc48d4c45fe070de6b945f102",
+  "files": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedPortableTransfer.kt",
+      "selection": "clean-at-start owned source; exact delta from immutable base",
+      "base_sha256": "98f300d8605e7c00f0a48b8897bb72a5d16086e4754ceebc958d42726db85f58",
+      "selected_sha256": "98deb5f3b6c5cf3e296b4174b26766e8b4450b1aa96714b02a5cd02562a9be49",
+      "actual_sha256": "98deb5f3b6c5cf3e296b4174b26766e8b4450b1aa96714b02a5cd02562a9be49"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedPortableFormatV1Test.kt",
+      "selection": "clean-at-start owned source; exact delta from immutable base",
+      "base_sha256": "8b0c2f923f6f575568f42cf603176548461e2e0d714c412961bddddc4dc796db",
+      "selected_sha256": "c395266506fa5835c5f012aaffb66acad3012cf9d8c0e5179c6f380920a05a55",
+      "actual_sha256": "e4a5f5a2d01b1511bf85f019bcc6791ec5154aeae4afc836031fab7f79ff5ecf"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedFactMaintenanceTest.kt",
+      "selection": "clean-at-start owned source; exact delta from immutable base",
+      "base_sha256": "4cbc85d2b6ff0cf07bc576ce1ad9a9b0bf2fbe65df77e3508b2786139f69122d",
+      "selected_sha256": "86b2ec573c0dfc96494ff2e1b6c15479cbbafbcfd50b7ed798789a1866130f0c",
+      "actual_sha256": "ed0fadc42b1902e7a63bee98803f9e481e11bfc5b35557de437f0975c33230da"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RoomImportPortableCapturedActivityTest.kt",
+      "selection": "clean-at-start owned source; exact delta from immutable base",
+      "base_sha256": "2dc597e7184c2598b077b25b93aea6ac92a2395a4eb9d737f63371f8446a8275",
+      "selected_sha256": "53b481a41429246cd58bd7c1d8880ee70388d0ba2151727160d2c96cafb5ae4c",
+      "actual_sha256": "2832259713edfd35d23fb635e2467afb4e9581ebc5796983a2c59fe8ebd40a4c"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporterTest.kt",
+      "selection": "clean-at-start owned source; exact delta from immutable base",
+      "base_sha256": "d554fd064b03e0a22418a3a35c0ea4d0ab9d3f2016003bd48c51fb3e4903b61a",
+      "selected_sha256": "9df623fcb1a42a6d0908b3429c613497b646b694e60ffe0917d575701bb735a6",
+      "actual_sha256": "84b25a4b969d2decad6af50bf290fc3a9ed465e2441c2bbfe41678e0a229025f"
+    }
+  ],
+  "selection_patch_sha256": "7567b9f4e901971d70ef9c9a51a8a25e2e595e5f481b58f5ec177958a3b287a0",
+  "new_authored_cases": 19,
+  "existing_fake_companions_updated": 1,
+  "dependencies": [
+    "Existing ActivityCapturedAuditScope and auditCapturedActivityFacts selected scope",
+    "Existing source-owned ImportedActivityProductReader exact identity API",
+    "Existing AppDatabase and bounded exact logical replacement-run pages; no schema or DI additions"
+  ],
+  "remaining": [
+    "Actual shared-session bundle preview/write caller and all-source integration are separately owned",
+    "Pending imported overlapping-file membership design is not replaced by date/native fallback",
+    "Standalone Activity range export retains its existing qualification/date semantics",
+    "No compilation, tests, schema, native provider/device, performance or integration evidence"
+  ],
+  "repair": "A1: incremental deduplicated whole-file entry/run/window/fragment/zone budget before ownership expansion; native logical-ID cap before selected audit"
+}

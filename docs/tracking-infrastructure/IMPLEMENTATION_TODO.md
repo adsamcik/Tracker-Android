@@ -14,7 +14,12 @@ longest-trip reader, persistent unfinished-file notices and session-independent
 Steps summary. Available radio map points need no extra notice; exports stay
 disabled until database startup succeeds. Exploration period statistics requiring
 the declined additional dated lookup stay unavailable. Location replacement storage
-and the unified cross-midnight model require the requested review.
+still requires confirmation of the reviewed approach.
+October 4 answers approve one measured-date rule and selected-date exports with
+an initially enabled Include complete sessions switch. Off retains in-date
+readings from overnight sessions. Actual indivisible measurement windows remain
+whole; saved IDs remain stable. These behaviors are being implemented and do not
+close the complete History, export or assembly chains.
 
 The current source-assembly progress is maintained in
 `convergence/2026-09-30/IMPLEMENTATION_PROGRESS.md`; the dated sections below are
@@ -117,6 +122,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Select exact session Activity export as a five-path prerequisite. Exact
+  original native groups and imported IDs use existing source qualification,
+  original epoch and typed-content rechecks outside sink I/O. Fresh review's
+  combined-file limit finding is repaired incrementally before ownership expansion.
+  Nineteen authored cases are unexecuted; the complete shared bundle remains open.
+  Receipt: `convergence/2026-10-03/ACTIVITY_SESSION_EXPORT_SELECTED/SOURCE_REVIEW.md`.
 - [x] Stop LastSession from substituting an older completed session when the
   latest completed session has uncertain, missing or invalid dates. The existing
   worker failure path runs before output creation or watermark changes. Four new

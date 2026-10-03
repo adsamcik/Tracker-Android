@@ -2587,6 +2587,158 @@ class RoomImportPortableCapturedActivityTest {
 		unavailable.close()
 	}
 
+	@Test
+	fun `exact Activity union checks whole file window cap before sink or later identity reads`() = runTest {
+		val identities = mutableListOf<PortableActivityOpaqueIdentity>()
+		repeat(4) { entryIndex ->
+			val runs = List(8) { runIndex ->
+				val prefix = "budget-$entryIndex-$runIndex"
+				val windows = List(ActivityCapturedPortableFormatV1.MAX_WINDOWS_PER_RUN) { windowIndex ->
+					val template = gapWindow("$prefix-$windowIndex")
+					val start = windowIndex * 100L
+					val end = start + 100L
+					template.copy(
+						startOffsetNanos = start,
+						endOffsetNanos = end,
+						contentChecksum = ActivityCapturedPortableIntegrity.windowChecksum(
+							template.identity, start, end, template.storedZoneId, template.coverage,
+							0L, 0L, 0L, 100L, template.fragments,
+						),
+					)
+				}
+				runFromParts(prefix, listOf(PortableActivityZoneEpochV1(1_000L, "UTC")), windows)
+			}.sortedWith(compareBy<PortableActivityRunV1> { it.startTimeMs }.thenBy { it.identity.value })
+			val value = entry(entryLocalId = "budget-$entryIndex", runs = runs)
+			importer(testScheduler).importEntry(request(value, receipt("budget-$entryIndex"))) shouldBe
+				ImportPortableCapturedActivityResult.Applied(1L, 8, 16_384, 16_384)
+			identities += value.identity
+		}
+		val exporter = RoomExportPortableCapturedActivity(database, SourceProductLaneExecutionAuthority {
+			error("Imported-only export must not acquire a native lane")
+		}, UnconfinedTestDispatcher(testScheduler))
+		var calls = 0
+		exporter.export(ExportSelectedPortableCapturedActivityRequest(emptyList(), identities, EPOCH)) {
+			it.entries.sumOf { entry -> entry.runs.sumOf { run -> run.windows.size } } shouldBe
+				ActivityCapturedPortableFormatV1.MAX_WINDOWS
+			calls++
+		} shouldBe ExportPortableCapturedActivityResult.Exported(4)
+		calls shouldBe 1
+
+		val extra = entry(entryLocalId = "budget-extra",
+			runIdentity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "budget-extra-run"),
+			deletionScope = scope("budget-extra-run"),
+			windowIdentity = identity(PortableActivityIdentityKind.CAPTURE_WINDOW, "budget-extra-window"))
+		importer(testScheduler).importEntry(request(extra, receipt("budget-extra"))) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		calls = 0
+		exporter.export(ExportSelectedPortableCapturedActivityRequest(emptyList(),
+			identities + extra.identity + identity(PortableActivityIdentityKind.LOGICAL_ENTRY, "unread-later"), EPOCH)) {
+			calls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.DEPENDENCY_OVERFLOW)
+		calls shouldBe 0 // The excess entry stops collection before the later, missing identity is queried.
+	}
+
+	@Test
+	fun `exact imported Activity selects only its named latest entry among overlapping records`() = runTest {
+		val original = request()
+		val corrected = request(entry(endUncertaintyMs = 12L), receipt("selected-correction", 40L))
+		val unrelated = entry(entryLocalId = "same-time-other",
+			runIdentity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "other-run"),
+			deletionScope = scope("other-run"),
+			windowIdentity = identity(PortableActivityIdentityKind.CAPTURE_WINDOW, "other-window"))
+		val writer = importer(testScheduler)
+		writer.importEntry(original) shouldBe ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		writer.importEntry(corrected) shouldBe ImportPortableCapturedActivityResult.Applied(2L, 1, 1, 1)
+		writer.importEntry(request(unrelated, receipt("unrelated", 50L))) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		var envelope: PortableActivityEnvelopeV1? = null
+		RoomExportPortableCapturedActivity(database, SourceProductLaneExecutionAuthority {
+			error("Imported-only selection must not activate or authenticate a native product lane")
+		}, UnconfinedTestDispatcher(testScheduler)).export(
+			ExportSelectedPortableCapturedActivityRequest(emptyList(), listOf(original.entry.identity), EPOCH),
+		) {
+			database.inTransaction() shouldBe false
+			envelope = it
+			database.sourceEvidenceStateDao().incrementRevision(60L) shouldBe 1
+		} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+		envelope?.entries shouldBe listOf(corrected.entry)
+		database.sourceSessionDao().session(corrected.entry.identity.value) shouldBe null
+	}
+
+	@Test
+	fun `missing selected imported Activity never falls back to another entry with the same dates`() = runTest {
+		importer(testScheduler).importEntry(request())
+		var calls = 0
+		RoomExportPortableCapturedActivity(database, SourceProductLaneExecutionAuthority { false },
+			UnconfinedTestDispatcher(testScheduler)).export(
+			ExportSelectedPortableCapturedActivityRequest(emptyList(),
+				listOf(identity(PortableActivityIdentityKind.LOGICAL_ENTRY, "missing")), EPOCH),
+		) { calls++ } shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		calls shouldBe 0
+	}
+
+	@Test
+	fun `deleted selected imported Activity is refused instead of silently omitting part of a bundle`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		database.importedActivityDao().insertDeletionGeneration(ImportedActivityDeletionGenerationEntity.create(
+			value.entry.runs.single().identity.value, EPOCH, 1L, 50L))
+		var calls = 0
+		RoomExportPortableCapturedActivity(database, SourceProductLaneExecutionAuthority { false },
+			UnconfinedTestDispatcher(testScheduler)).export(
+			ExportSelectedPortableCapturedActivityRequest(emptyList(), listOf(value.entry.identity), EPOCH),
+		) { calls++ } shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.DELETED_SCOPE)
+		calls shouldBe 0
+	}
+
+	@Test
+	fun `retention crossing exact imported Activity prevents whole-entry export before sink`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 1_500L, 40L) shouldBe 1
+		var calls = 0
+		RoomExportPortableCapturedActivity(database, SourceProductLaneExecutionAuthority { false },
+			UnconfinedTestDispatcher(testScheduler)).export(
+			ExportSelectedPortableCapturedActivityRequest(emptyList(), listOf(value.entry.identity), EPOCH),
+		) { calls++ } shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.RETENTION_CROSSES_ENTRY)
+		calls shouldBe 0
+	}
+
+	@Test
+	fun `exact imported Activity refuses a selected correction added while copying staged output`() = runTest {
+		val original = request()
+		val corrected = request(entry(endUncertaintyMs = 12L), receipt("during-copy", 40L))
+		val writer = importer(testScheduler)
+		writer.importEntry(original)
+		var calls = 0
+		RoomExportPortableCapturedActivity(database, SourceProductLaneExecutionAuthority { false },
+			UnconfinedTestDispatcher(testScheduler)).export(
+			ExportSelectedPortableCapturedActivityRequest(emptyList(), listOf(original.entry.identity), EPOCH),
+		) {
+			calls++
+			writer.importEntry(corrected) shouldBe ImportPortableCapturedActivityResult.Applied(2L, 1, 1, 1)
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		calls shouldBe 1 // The outer transfer must discard bytes when the final result is not Exported.
+	}
+
+	@Test
+	fun `exact imported Activity rechecks the original data epoch after sink`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		RoomExportPortableCapturedActivity(database, SourceProductLaneExecutionAuthority { false },
+			UnconfinedTestDispatcher(testScheduler)).export(
+			ExportSelectedPortableCapturedActivityRequest(emptyList(), listOf(value.entry.identity), EPOCH),
+		) {
+			database.sourceEvidenceStateDao().updateLifecycle(EPOCH + 1L, null, 50L) shouldBe 1
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+	}
+
 	private fun importer(
 		scheduler: TestCoroutineScheduler,
 		database: AppDatabase = this.database,
