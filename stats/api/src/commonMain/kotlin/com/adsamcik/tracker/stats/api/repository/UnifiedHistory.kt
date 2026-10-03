@@ -56,8 +56,22 @@ sealed interface HistorySection {
     data class Pressure(val history: PressureHistory) : HistorySection { override val source = HistorySource.PRESSURE }
     data class ImportedSteps(val history: ImportedStepsHistoryEntry) : HistorySection { override val source = HistorySource.STEPS }
     data class BackgroundSteps(val day: AmbientStepsHistoryDay) : HistorySection { override val source = HistorySource.STEPS }
-    data class BackgroundWifi(val read: AmbientWifiReadResult.Snapshot) : HistorySection { override val source = HistorySource.WIFI }
-    data class BackgroundCell(val read: AmbientCellReadResult.Snapshot) : HistorySection { override val source = HistorySource.CELL }
+    data class BackgroundWifi(val read: AmbientWifiReadResult.Snapshot,
+        val displayWindow: HistoryObservationWindow? = null) : HistorySection {
+        override val source = HistorySource.WIFI
+        /** A display selection never rewrites the saved fact, revision, or source calendar. */
+        val networks: List<WifiObservedNetwork> get() = read.facts.flatMap { it.networks }
+            .filter { displayWindow?.contains(it.observedTimeMs) != false }
+        /** Missing legacy detail is unknown, rather than a measured zero. */
+        val readingCount: Int? get() = if (read.facts.isEmpty() || read.facts.any { it.networks.size != it.observationCount }) null else networks.size
+    }
+    data class BackgroundCell(val read: AmbientCellReadResult.Snapshot,
+        val displayWindow: HistoryObservationWindow? = null) : HistorySection {
+        override val source = HistorySource.CELL
+        val towers: List<CellObservedTower> get() = read.facts.flatMap { it.towers }
+            .filter { displayWindow?.contains(it.observedTimeMs) != false }
+        val readingCount: Int? get() = if (read.facts.isEmpty() || read.facts.any { it.towers.size != it.observationCount }) null else towers.size
+    }
     data class Organization(val session: OrganizedSession) : HistorySection { override val source: HistorySource? = null }
 }
 
@@ -122,10 +136,19 @@ enum class HistoryLocationCoverage { QUALIFIED, LEGACY_UNVERIFIABLE }
 data class HistoryLocationPoint(
     val timeMs: Long, val latitudeE7: Int, val longitudeE7: Int,
     val accuracyMeters: Float?, val continuityId: String?,
+    /** Canonical saved point identity in the containing history snapshot, including sibling purposes. */
+    val sampleId: Long? = null,
 ) {
     init {
         require(timeMs >= 0L)
         require(latitudeE7 in -900_000_000..900_000_000 && longitudeE7 in -1_800_000_000..1_800_000_000)
         require(accuracyMeters == null || accuracyMeters.isFinite() && accuracyMeters >= 0f)
+        require(sampleId == null || sampleId > 0L)
     }
+}
+
+/** Half-open UTC selection for a displayed day; the saved source clock and bounds stay intact. */
+data class HistoryObservationWindow(val fromInclusiveMs: Long, val toExclusiveMs: Long) {
+    init { require(fromInclusiveMs >= 0L && toExclusiveMs > fromInclusiveMs) }
+    fun contains(timeMs: Long): Boolean = timeMs in fromInclusiveMs until toExclusiveMs
 }
