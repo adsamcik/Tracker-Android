@@ -156,6 +156,11 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   source paths are pinned in `UI_LOCATION_PAUSED_FILES.json`; independent static
   review found no remaining defect. Unknown/cold/revised/foreign/session demand
   guards, freshness, permissions and no-recording temporary ownership stay intact.
+- [x] Expire accepted automatic-start CONTROL records at 48 hours once their exact
+  session is terminal, using existing bounded maintenance and the same terminal
+  predicate as the repository. `CONTROL_ACCEPTED_EXPIRY_FILES.json` pins three
+  paths and three new real repository/Room cases; none ran. Active-session records
+  and saved session/manifest/intent data remain; missing-session recovery is separate.
 
 The approved displayed-day History is being authored. The isolated imported-radio
 export-date candidate slice is source-reviewed for narrow selection. Neither

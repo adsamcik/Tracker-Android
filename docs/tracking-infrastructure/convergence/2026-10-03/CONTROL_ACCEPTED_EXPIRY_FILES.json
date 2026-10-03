@@ -1,0 +1,31 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_commit": "16458b8a591dbbb8859eb0add85940cc92034540",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityControlRetentionMaintenance.kt",
+      "selected_sha256": "9c9416091c9bf24c818be35b51f79853aedf08f049b17827615a794b17847a5a",
+      "base_blob": "6bdc9f71ddf0dd9b101492248966ca08aad838fc"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomaticStartActionRepository.kt",
+      "selected_sha256": "7c90ab5b1a99351f80f727bd39e277f1d9e09bd1a724da7ee207cd80994325ef",
+      "base_blob": "87931d9bc5e56307aaf11a7801f73eaaccd7e93c"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomaticStartActionRepositoryTest.kt",
+      "selected_sha256": "e55fb5103937e83ac43e0594c227b3bd2226d4e28ff190a3d12a092f75bdd2d9",
+      "base_blob": "e2bf128c70da16f4070fce9fe2c293fe89de268d"
+    }
+  ],
+  "new_test_cases": 3,
+  "executed_checks": [],
+  "patch": "CONTROL_ACCEPTED_EXPIRY_SELECTION.patch",
+  "patch_sha256": "30102bcbbdde7b88aa8ced3ce33362be4e4f7a546cbb60a7dabb25b64c361112",
+  "excluded": [
+    "Missing or nonterminal accepted-session cleanup",
+    "Real End/Off entrypoint and device execution",
+    "Full CONTROL lifecycle proof and convergence"
+  ]
+}

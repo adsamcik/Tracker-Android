@@ -7,6 +7,7 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ACTIVITY_CONTROL_RETENTION_NANOS
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.rotateActivityAutomationEpochInTransaction
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
@@ -30,6 +31,7 @@ import com.adsamcik.tracker.tracker.api.ActivityAutomationDeliveryEnvelope
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
@@ -239,6 +241,74 @@ class ActivityAutomaticStartActionRepositoryTest {
 			3_300,
 		)
 		(finalizedAcceptance is ActivityAutomaticStartAcceptance.Accepted) shouldBe true
+	}
+
+	@Test
+	fun `completed automatic start expires at 48 hours without deleting its saved session`() = runTest {
+		val request = acceptStartForRetention()
+		val sessionDao = database.sourceSessionDao()
+		val session = requireNotNull(sessionDao.session(LOGICAL_ID))
+		sessionDao.updateSession(session.copy(state = "FINALIZED", completedAtMs = 3_200)) shouldBe 1
+		val maintenance = ActivityControlRetentionMaintenance(database, BootClockDomainProvider { BOOT_ID }, gate)
+		val expires = request.evidence.receivedElapsedRealtimeNanos + ACTIVITY_CONTROL_RETENTION_NANOS
+
+		maintenance.pruneBatch(BOOT_ID, expires - 1, 4_000)
+		database.activityAutomaticStartActionDao().current()?.triggerId shouldBe request.trigger.triggerId
+		maintenance.pruneBatch(BOOT_ID, expires, 4_001)
+		database.activityAutomaticStartActionDao().current() shouldBe null
+		sessionDao.session(LOGICAL_ID)?.state shouldBe "FINALIZED"
+		sessionDao.lifecycleIntentByTriggerId(request.trigger.triggerId)?.logicalTrackingId shouldBe LOGICAL_ID
+		sessionDao.manifestSources(LOGICAL_ID, 1).size shouldBe 2
+		subject.validateForService(request.trigger) shouldBe
+			ActivityAutomaticStartServiceValidation.Rejected("AUTOMATIC_START_ACTION_MISSING")
+	}
+
+	@Test
+	fun `expired accepted start remains while active and is pruned after session end`() = runTest {
+		val request = acceptStartForRetention()
+		val maintenance = ActivityControlRetentionMaintenance(database, BootClockDomainProvider { BOOT_ID }, gate)
+		val expires = request.evidence.receivedElapsedRealtimeNanos + ACTIVITY_CONTROL_RETENTION_NANOS
+
+		maintenance.pruneBatch(BOOT_ID, expires, 4_000)
+		database.activityAutomaticStartActionDao().current()?.status shouldBe
+			ActivityAutomaticStartActionEntity.STATUS_LIFECYCLE_INTENT_ACCEPTED
+		val sessionDao = database.sourceSessionDao()
+		val session = requireNotNull(sessionDao.session(LOGICAL_ID))
+		sessionDao.updateSession(session.copy(state = "CLOSED", completedAtMs = 4_001)) shouldBe 1
+		maintenance.pruneBatch(BOOT_ID, expires + 1, 4_002)
+		database.activityAutomaticStartActionDao().current() shouldBe null
+		sessionDao.session(LOGICAL_ID)?.state shouldBe "CLOSED"
+		maintenance.pruneBatch(BOOT_ID, expires + 2, 4_003).morePending shouldBe false
+	}
+
+	@Test
+	fun `expired accepted failed start is removed and its singleton can be reused`() = runTest {
+		val request = acceptStartForRetention()
+		val sessionDao = database.sourceSessionDao()
+		val session = requireNotNull(sessionDao.session(LOGICAL_ID))
+		sessionDao.updateSession(session.copy(state = "FAILED", completedAtMs = 3_200)) shouldBe 1
+		val maintenance = ActivityControlRetentionMaintenance(database, BootClockDomainProvider { BOOT_ID }, gate)
+		val expires = request.evidence.receivedElapsedRealtimeNanos + ACTIVITY_CONTROL_RETENTION_NANOS
+
+		maintenance.pruneBatch(BOOT_ID, expires, 4_000)
+		database.activityAutomaticStartActionDao().current() shouldBe null
+		val next = reservation(ordinal = 2)
+		subject.reserve(next).shouldBeInstanceOf<ActivityAutomaticStartReserveResult.Reserved>()
+		subject.markTerminalExact(request.trigger, 4_001, "DELAYED_OLD_CALLER") shouldBe false
+		database.activityAutomaticStartActionDao().current()?.triggerId shouldBe next.trigger.triggerId
+		sessionDao.session(LOGICAL_ID)?.state shouldBe "FAILED"
+	}
+
+	private suspend fun acceptStartForRetention(): ActivityAutomaticStartReservation {
+		seedAuthority()
+		val request = reservation()
+		subject.reserve(request).shouldBeInstanceOf<ActivityAutomaticStartReserveResult.Reserved>()
+		subject.authorizeExternalStart(request.trigger, requestedAtMs = 2_000)
+			.shouldBeInstanceOf<ActivityAutomaticStartRequestAuthorization.Authorized>()
+		insertAcceptedLifecycle(request.trigger)
+		subject.reconcileLifecycleIntentAcceptance(request.trigger.triggerId, 3_000, 3_100)
+			.shouldBeInstanceOf<ActivityAutomaticStartAcceptance.Accepted>()
+		return request
 	}
 
 	@Test

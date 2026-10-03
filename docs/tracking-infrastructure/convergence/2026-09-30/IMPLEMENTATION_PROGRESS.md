@@ -229,6 +229,10 @@ remain held. No test or gate has run.
   explicit map/game use, with six new unexecuted scenarios and independent static
   review. Unknown/cold, changed-policy, session and foreign demands remain fenced;
   temporary requests retain existing freshness/permission and no-recording behavior.
+- [x] Expire an accepted automatic-start singleton after 48 hours when its exact
+  saved session is terminal. Reuse the repository's existing terminal predicate,
+  keep active dependencies and preserve saved session/manifest/intent data. Three
+  real repository/Room cases are authored and independently reviewed, not executed.
 
 ## Remaining in these slices
 

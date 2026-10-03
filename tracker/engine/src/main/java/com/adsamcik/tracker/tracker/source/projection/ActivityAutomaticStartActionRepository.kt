@@ -675,7 +675,7 @@ private fun List<com.adsamcik.tracker.shared.base.database.data.SessionManifestS
 		mask or (1L shl (source.sourceKind - 1))
 	}
 
-private fun isTerminalSessionState(state: String): Boolean = state in setOf(
+internal fun isTerminalSessionState(state: String): Boolean = state in setOf(
 	"FINALIZED",
 	"CLOSED",
 	"FAILED",

@@ -87,6 +87,10 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
   disabled background plan. Keep unknown/cold/foreign/session demand fencing,
   independent temporary leases and acknowledged retirement. Six new scenarios
   are authored and independently statically reviewed; none ran.
+- [x] Expire accepted automatic-start CONTROL records after 48 hours once their
+  exact session is terminal. Preserve active-session dependencies and saved session,
+  manifest and intent data. Three real repository/Room scenarios are authored and
+  independently statically reviewed; missing-session recovery remains separate.
 
 These are selected implementation slices. All 25 full-chain prerequisites and the
 assembly/convergence/device/integration gates remain open.

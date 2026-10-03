@@ -92,15 +92,21 @@ class ActivityControlRetentionMaintenance @Inject constructor(
                     updatedAtMs = nowWallMs,
                 ))
             }
-            val terminal = actionDao.current()
-            if (terminal != null && terminal.status == ActivityAutomaticStartActionEntity.STATUS_TERMINAL &&
+            val completed = actionDao.current()
+            if (completed != null &&
                 controlEvidenceExpired(
-                    terminal.bootId, terminal.receivedElapsedRealtimeNanos,
+                    completed.bootId, completed.receivedElapsedRealtimeNanos,
                     currentBootId, nowElapsedNanos,
-                )
+                ) && (completed.status == ActivityAutomaticStartActionEntity.STATUS_TERMINAL ||
+                    completed.status == ActivityAutomaticStartActionEntity.STATUS_LIFECYCLE_INTENT_ACCEPTED &&
+                    completed.acceptedLogicalTrackingId
+                        ?.let { database.sourceSessionDao().session(it) }
+                        ?.state?.let(::isTerminalSessionState) == true)
             ) {
+                // Acceptance remains needed by a live session, but is not an indefinite
+                // CONTROL archive after its exact session has completed.
                 check(actionDao.clearCompletedSlot(
-                    terminal.triggerId, terminal.collectedDataEpoch,
+                    completed.triggerId, completed.collectedDataEpoch,
                 ) == 1)
             }
             requireReadyGeneration()
