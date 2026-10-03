@@ -140,7 +140,12 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   Four selected source paths and ten new unexecuted cases are recorded in
   `ALL_DAY_STEPS_STATS_FILES.json`, `ALL_DAY_STEPS_STATS_SOURCE_BOUNDARY.md` and
   `ALL_DAY_STEPS_STATS_FRESH_REVIEW_1003.md`. Dense-list Steps visibility and whole
-  source-aware Statistics remain separate work.
+  source-aware Statistics remain separate work. Commit `e833d2e773`.
+- [x] Preserve the existing reflected no-argument constructors of eight other
+  registered exporters with AndroidX `Keep`, without changing behavior or dependencies.
+  Nine actual-registry reconstruction cases are authored, unexecuted and independently
+  statically reviewed. `EXPORTER_REFLECTION_FILES.json` pins the narrow selection;
+  mixed Database backup, radio registration and exact session export remain excluded.
 
 The approved displayed-day History is being authored. The isolated imported-radio
 export-date candidate slice is source-reviewed for narrow selection. Neither

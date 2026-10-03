@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import androidx.annotation.Keep
 import com.adsamcik.tracker.shared.model.LocationSample
 import java.io.OutputStream
 import java.io.OutputStreamWriter
@@ -10,6 +11,7 @@ import java.time.format.DateTimeFormatter
 /**
  * Exports locations to KML format.
  */
+@Keep // Export activity reconstructs the selected class through its public no-argument constructor.
 class KmlExporter : Exporter {
 	override val canSelectDateRange: Boolean = true
 	override val mimeType: String = "application/vnd.google-earth.kml+xml"

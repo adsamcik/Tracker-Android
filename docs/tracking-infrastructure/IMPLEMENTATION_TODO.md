@@ -70,7 +70,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 - [x] Select the existing retained Steps Statistics consumer for no-session,
   session-loading/error and delayed day-row states. Preserve existing actions,
   exact qualified counts and explicit missing data; ten new scenarios are unexecuted.
-  Whole source-aware Statistics and dense-list Steps visibility remain open.
+  Commit `e833d2e773`; whole source-aware Statistics and dense-list Steps visibility remain open.
+- [x] Preserve the public reflected constructors of the eight other registered
+  exporters using the existing AndroidX annotation. The nine-format reconstruction
+  test and independent static review are recorded in `EXPORTER_REFLECTION_FILES.json`
+  and `EXPORTER_REFLECTION_FRESH_REVIEW_1003.md`; no test or release shrinking ran.
+  Radio exporter registration, complete backup and exact session export remain open.
 
 These are selected implementation slices. All 25 full-chain prerequisites and the
 assembly/convergence/device/integration gates remain open.

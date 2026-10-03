@@ -1,0 +1,187 @@
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/GpxExporter.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/GpxExporter.kt
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/GpxExporter.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/GpxExporter.kt
+@@ -1,6 +1,7 @@
+ package com.adsamcik.tracker.impexp.exporter
+ 
+ import android.content.Context
++import androidx.annotation.Keep
+ import com.adsamcik.tracker.impexp.R
+ import com.adsamcik.tracker.shared.base.extension.applicationName
+ import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
+@@ -19,6 +20,7 @@
+  * regardless of dataset size - each track point is written and flushed
+  * directly to the output stream without building an in-memory DOM.
+  */
++@Keep // Export activity reconstructs the selected class through its public no-argument constructor.
+ class GpxExporter : Exporter {
+ 	override val canSelectDateRange: Boolean = true
+ 
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/KmlExporter.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/KmlExporter.kt
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/KmlExporter.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/KmlExporter.kt
+@@ -1,6 +1,7 @@
+ package com.adsamcik.tracker.impexp.exporter
+ 
+ import android.content.Context
++import androidx.annotation.Keep
+ import com.adsamcik.tracker.shared.model.LocationSample
+ import java.io.OutputStream
+ import java.io.OutputStreamWriter
+@@ -10,6 +11,7 @@
+ /**
+  * Exports locations to KML format.
+  */
++@Keep // Export activity reconstructs the selected class through its public no-argument constructor.
+ class KmlExporter : Exporter {
+ 	override val canSelectDateRange: Boolean = true
+ 	override val mimeType: String = "application/vnd.google-earth.kml+xml"
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/JsonExporter.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/JsonExporter.kt
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/JsonExporter.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/JsonExporter.kt
+@@ -1,6 +1,7 @@
+ package com.adsamcik.tracker.impexp.exporter
+ 
+ import android.content.Context
++import androidx.annotation.Keep
+ import androidx.paging.PagingSource
+ import com.adsamcik.tracker.impexp.R
+ import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+@@ -30,6 +31,7 @@
+  * manifest, run, writer, correction, and completeness authority. Portable Steps export owns that
+  * source-specific product instead.
+  */
++@Keep // Export activity reconstructs the selected class through its public no-argument constructor.
+ class JsonExporter @JvmOverloads @Inject constructor(
+ 	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+ ) : CursorAwareExporter {
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/DatabaseExporter.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/DatabaseExporter.kt
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/DatabaseExporter.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/DatabaseExporter.kt
+@@ -2,6 +2,7 @@
+ 
+ import android.content.Context
+ import android.database.sqlite.SQLiteDatabase
++import androidx.annotation.Keep
+ import com.adsamcik.tracker.impexp.R
+ import com.adsamcik.tracker.shared.base.misc.LocalizedString
+ import com.adsamcik.tracker.shared.model.LocationSample
+@@ -20,6 +21,7 @@
+  * concurrent writer from tearing that individual snapshot. Files are still locked and copied one
+  * at a time, so an archive containing multiple databases is not an atomic cross-database snapshot.
+  */
++@Keep // Export activity reconstructs the selected class through its public no-argument constructor.
+ class DatabaseExporter : Exporter {
+ 	override val requiresLocationData: Boolean = false
+ 	override val canSelectDateRange: Boolean = false
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableStepsExporter.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableStepsExporter.kt
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableStepsExporter.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableStepsExporter.kt
+@@ -1,6 +1,7 @@
+ package com.adsamcik.tracker.impexp.exporter
+ 
+ import android.content.Context
++import androidx.annotation.Keep
+ import com.adsamcik.tracker.impexp.R
+ import com.adsamcik.tracker.impexp.portable.PortableStepsJsonException
+ import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV1Codec
+@@ -29,6 +30,7 @@
+ }
+ 
+ /** Prefers authenticated v2 and falls back to canonical v1 before writing any destination bytes. */
++@Keep // Export activity reconstructs the selected class through its public no-argument constructor.
+ internal class PortableStepsExporter(
+ 	private val legacyExporterProvider: (Context) -> ExportPortableSteps = { context ->
+ 		EntryPointAccessors.fromApplication(
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableAmbientStepsExporter.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableAmbientStepsExporter.kt
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableAmbientStepsExporter.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableAmbientStepsExporter.kt
+@@ -1,6 +1,7 @@
+ package com.adsamcik.tracker.impexp.exporter
+ 
+ import android.content.Context
++import androidx.annotation.Keep
+ import com.adsamcik.tracker.impexp.R
+ import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsFormatException
+ import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV1Codec
+@@ -32,6 +33,7 @@
+ }
+ 
+ /** User-selected export that prefers authenticated v2 and falls back atomically to canonical v1. */
++@Keep // Export activity reconstructs the selected class through its public no-argument constructor.
+ internal class PortableAmbientStepsExporter(
+ 	private val origin: AmbientStepsPortableOrigin = AmbientStepsPortableOrigin.NATIVE,
+ 	private val backendProvider: (Context) -> AmbientStepsPortableSourceBackend = { context ->
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporter.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporter.kt
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporter.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporter.kt
+@@ -1,6 +1,7 @@
+ package com.adsamcik.tracker.impexp.exporter
+ 
+ import android.content.Context
++import androidx.annotation.Keep
+ import com.adsamcik.tracker.impexp.R
+ import com.adsamcik.tracker.impexp.portable.PortableActivityFormatException
+ import com.adsamcik.tracker.impexp.portable.PortableActivityJsonV1Codec
+@@ -24,6 +25,7 @@
+ }
+ 
+ /** User-selected portable captured-Activity file export; it acquires no source demand. */
++@Keep // Export activity reconstructs the selected class through its public no-argument constructor.
+ internal class PortableActivityExporter(
+ 	private val exporterProvider: (Context) -> ExportPortableCapturedActivity = { context ->
+ 		EntryPointAccessors.fromApplication(
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporter.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporter.kt
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporter.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporter.kt
+@@ -1,6 +1,7 @@
+ package com.adsamcik.tracker.impexp.exporter
+ 
+ import android.content.Context
++import androidx.annotation.Keep
+ import com.adsamcik.tracker.impexp.R
+ import com.adsamcik.tracker.impexp.portable.PortablePressureJsonV1Codec
+ import com.adsamcik.tracker.shared.base.misc.LocalizedString
+@@ -24,6 +25,7 @@
+ }
+ 
+ /** User-facing `.trackerpressure` export over authenticated Pressure product evidence. */
++@Keep // Export activity reconstructs the selected class through its public no-argument constructor.
+ internal class PortablePressureExporter(
+ 	private val exporterProvider: (Context) -> ExportPortablePressure = { context ->
+ 		EntryPointAccessors.fromApplication(
+diff --git a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/format/RegisteredExporterReconstructionTest.kt b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/format/RegisteredExporterReconstructionTest.kt
+new file mode 100644
+--- /dev/null
++++ b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/format/RegisteredExporterReconstructionTest.kt
+@@ -0,0 +1,30 @@
++package com.adsamcik.tracker.impexp.format
++
++import com.adsamcik.tracker.impexp.exporter.Exporter
++import io.kotest.matchers.nulls.shouldNotBeNull
++import io.kotest.matchers.shouldBe
++import org.junit.jupiter.params.ParameterizedTest
++import org.junit.jupiter.params.provider.ValueSource
++
++/** Exercises the same public reflection path used after the selected format reaches Export. */
++class RegisteredExporterReconstructionTest {
++
++	@ParameterizedTest(name = "{0} can be reconstructed by the export activity")
++	@ValueSource(strings = [
++		"gpx", "kml", "json", "db", "portable-steps-v1", "portable-ambient-steps-v1",
++		"portable-activity-v1", "portable-pressure-v1", "tracker-location",
++	])
++	fun `registered exporter has a usable public no-argument constructor`(formatId: String) {
++		val registered = FormatRegistry.exporterFor(formatId).shouldNotBeNull()
++		val reconstructed = registered.javaClass.getConstructor().newInstance() as Exporter
++
++		reconstructed.javaClass shouldBe registered.javaClass
++		reconstructed.extension shouldBe registered.extension
++		reconstructed.mimeType shouldBe registered.mimeType
++		reconstructed.canSelectDateRange shouldBe registered.canSelectDateRange
++		reconstructed.requiresLocationData shouldBe registered.requiresLocationData
++		reconstructed.containsSensitiveLocationData shouldBe registered.containsSensitiveLocationData
++		reconstructed.sensitivityTitleRes shouldBe registered.sensitivityTitleRes
++		reconstructed.sensitivityMessageRes shouldBe registered.sensitivityMessageRes
++	}
++}

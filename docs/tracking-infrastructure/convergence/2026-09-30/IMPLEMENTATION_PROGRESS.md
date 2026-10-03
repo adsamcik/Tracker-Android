@@ -217,8 +217,13 @@ remain held. No test or gate has run.
 - [x] Select the independently reviewed retained Steps Statistics consumer for
   empty/loading/failed session paging, preserving existing actions, exact Long
   values, unknown coverage and independently arriving day rows. Ten new scenarios
-  and one adjusted visibility case remain unexecuted; dense-list/source-aware
+  and one adjusted visibility case remain unexecuted in `e833d2e773`; dense-list/source-aware
   presentation and the whole all-day source chain remain open.
+- [x] Preserve the existing public reflection construction for eight remaining
+  registered exporters using AndroidX `Keep`, with nine actual-registry cases
+  authored and independently statically reviewed. Only the annotation is selected
+  from mixed DatabaseExporter. The exact October 3 reflection packet excludes
+  held backup/radio behavior; compilation, tests and release shrinking remain deferred.
 
 ## Remaining in these slices
 

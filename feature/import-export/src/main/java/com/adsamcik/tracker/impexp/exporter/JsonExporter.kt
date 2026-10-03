@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import androidx.annotation.Keep
 import androidx.paging.PagingSource
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
@@ -30,6 +31,7 @@ import javax.inject.Inject
  * manifest, run, writer, correction, and completeness authority. Portable Steps export owns that
  * source-specific product instead.
  */
+@Keep // Export activity reconstructs the selected class through its public no-argument constructor.
 class JsonExporter @JvmOverloads @Inject constructor(
 	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
 ) : CursorAwareExporter {

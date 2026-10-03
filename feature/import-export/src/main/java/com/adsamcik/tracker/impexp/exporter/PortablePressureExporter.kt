@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import androidx.annotation.Keep
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.portable.PortablePressureJsonV1Codec
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
@@ -24,6 +25,7 @@ internal interface PortablePressureExportEntryPoint {
 }
 
 /** User-facing `.trackerpressure` export over authenticated Pressure product evidence. */
+@Keep // Export activity reconstructs the selected class through its public no-argument constructor.
 internal class PortablePressureExporter(
 	private val exporterProvider: (Context) -> ExportPortablePressure = { context ->
 		EntryPointAccessors.fromApplication(

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import androidx.annotation.Keep
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.shared.base.extension.applicationName
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
@@ -19,6 +20,7 @@ import java.time.Instant
  * regardless of dataset size - each track point is written and flushed
  * directly to the output stream without building an in-memory DOM.
  */
+@Keep // Export activity reconstructs the selected class through its public no-argument constructor.
 class GpxExporter : Exporter {
 	override val canSelectDateRange: Boolean = true
 

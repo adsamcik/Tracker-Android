@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import androidx.annotation.Keep
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.portable.PortableStepsJsonException
 import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV1Codec
@@ -29,6 +30,7 @@ internal interface PortableStepsExportEntryPoint {
 }
 
 /** Prefers authenticated v2 and falls back to canonical v1 before writing any destination bytes. */
+@Keep // Export activity reconstructs the selected class through its public no-argument constructor.
 internal class PortableStepsExporter(
 	private val legacyExporterProvider: (Context) -> ExportPortableSteps = { context ->
 		EntryPointAccessors.fromApplication(

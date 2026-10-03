@@ -2,6 +2,7 @@ package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import androidx.annotation.Keep
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.model.LocationSample
@@ -20,6 +21,7 @@ import java.io.OutputStream
  * concurrent writer from tearing that individual snapshot. Files are still locked and copied one
  * at a time, so an archive containing multiple databases is not an atomic cross-database snapshot.
  */
+@Keep // Export activity reconstructs the selected class through its public no-argument constructor.
 class DatabaseExporter : Exporter {
 	override val requiresLocationData: Boolean = false
 	override val canSelectDateRange: Boolean = false

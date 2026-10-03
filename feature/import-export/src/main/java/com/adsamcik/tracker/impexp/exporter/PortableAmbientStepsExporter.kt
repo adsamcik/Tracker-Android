@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import androidx.annotation.Keep
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsFormatException
 import com.adsamcik.tracker.impexp.portable.PortableAmbientStepsJsonV1Codec
@@ -32,6 +33,7 @@ internal interface PortableAmbientStepsExportEntryPoint {
 }
 
 /** User-selected export that prefers authenticated v2 and falls back atomically to canonical v1. */
+@Keep // Export activity reconstructs the selected class through its public no-argument constructor.
 internal class PortableAmbientStepsExporter(
 	private val origin: AmbientStepsPortableOrigin = AmbientStepsPortableOrigin.NATIVE,
 	private val backendProvider: (Context) -> AmbientStepsPortableSourceBackend = { context ->

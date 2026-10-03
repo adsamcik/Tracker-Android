@@ -1,0 +1,111 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_commit": "3291c4b15df99194daee7c4135b4f223e1a36a93",
+  "production_delta": "Eight Keep imports and class annotations only",
+  "test_scenarios": [
+    "gpx",
+    "kml",
+    "json",
+    "db",
+    "portable-steps-v1",
+    "portable-ambient-steps-v1",
+    "portable-activity-v1",
+    "portable-pressure-v1",
+    "tracker-location"
+  ],
+  "files": [
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/GpxExporter.kt",
+      "disposition": "select complete two-line source delta",
+      "before_sha256": "a91e11e1e9d22339c0fde0c1e703615aa3ba388b8e175c645a5f42d903c626c9",
+      "selected_sha256": "f1c24ae40fa2f25bb7ea04ebfbb916da85a4f186f0780b3f4bb7898e6e7ed05c",
+      "actual_sha256": "f1c24ae40fa2f25bb7ea04ebfbb916da85a4f186f0780b3f4bb7898e6e7ed05c",
+      "before_snapshot": null,
+      "after_snapshot": null
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/KmlExporter.kt",
+      "disposition": "select complete two-line source delta",
+      "before_sha256": "ee437fbd850d3c7cd73a91ce709d48d70bd3f5fe7a846f2976b972818cff9162",
+      "selected_sha256": "58ae27ecb5ffb69cda4be7b3cf0bc2cb04b11e959e1666d2bb39470825083324",
+      "actual_sha256": "58ae27ecb5ffb69cda4be7b3cf0bc2cb04b11e959e1666d2bb39470825083324",
+      "before_snapshot": null,
+      "after_snapshot": null
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/JsonExporter.kt",
+      "disposition": "select complete two-line source delta",
+      "before_sha256": "aa82b401efa278992e4db4e3baebf4ebb0ed497b00a580bc8843b2c419cf319b",
+      "selected_sha256": "24e23991f7902a046bd06d4a61a56785e02615bc29579019972bbb0654243c73",
+      "actual_sha256": "24e23991f7902a046bd06d4a61a56785e02615bc29579019972bbb0654243c73",
+      "before_snapshot": null,
+      "after_snapshot": null
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/DatabaseExporter.kt",
+      "disposition": "select import and class annotation only; backup draft excluded",
+      "before_sha256": "960defc00544bbac955205b5464768efc617f8d1724686fc5c23576206a0b910",
+      "selected_sha256": "adee8fd7b1db151838bfa8dbd290af835d53684a0a424998499abd618b9284b9",
+      "actual_sha256": "0a49037adf15eda937b2e4807348882a08691a0fc596a25cf3a7c03b96ca17a6",
+      "before_snapshot": "exporter-reflection-selection/before/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/DatabaseExporter.kt",
+      "after_snapshot": "exporter-reflection-selection/after/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/DatabaseExporter.kt"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableStepsExporter.kt",
+      "disposition": "select complete two-line source delta",
+      "before_sha256": "ebe6c1df799f6eabfc7d069fd4cb171a0b448c646e0ba79f056818e28420a190",
+      "selected_sha256": "3bd9daa4cb3e22a730df78630aed9413c2106756f9b4c8e2b890022b777cd952",
+      "actual_sha256": "3bd9daa4cb3e22a730df78630aed9413c2106756f9b4c8e2b890022b777cd952",
+      "before_snapshot": null,
+      "after_snapshot": null
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableAmbientStepsExporter.kt",
+      "disposition": "select complete two-line source delta",
+      "before_sha256": "07ce78f28c5d03ebc31610ae3f084a02ba4944fc8368de7cf4ff3dec76be68ea",
+      "selected_sha256": "6a114e32dace61d51f6998270ecc66bcdc8fde6bd3042ff5ab33692659cff61a",
+      "actual_sha256": "6a114e32dace61d51f6998270ecc66bcdc8fde6bd3042ff5ab33692659cff61a",
+      "before_snapshot": null,
+      "after_snapshot": null
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporter.kt",
+      "disposition": "select complete two-line source delta",
+      "before_sha256": "a927261405adef71e75df2ddf56cfa3358ca72aec2ac80dc5fdf18205daad0f1",
+      "selected_sha256": "700d7e792012784cf0bbd569e68e8c0bee72d635284a81e1841e2a5ed2232454",
+      "actual_sha256": "700d7e792012784cf0bbd569e68e8c0bee72d635284a81e1841e2a5ed2232454",
+      "before_snapshot": null,
+      "after_snapshot": null
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporter.kt",
+      "disposition": "select complete two-line source delta",
+      "before_sha256": "a0aa15551a9f986c63251c5e9b48de8aa255b6cb906cbfd4658e2652ea8ba8bf",
+      "selected_sha256": "1303dbb4adf45a0e51b1bee5dc6e04c02442af715e841fe7f4b4c6ca5ce8b66c",
+      "actual_sha256": "1303dbb4adf45a0e51b1bee5dc6e04c02442af715e841fe7f4b4c6ca5ce8b66c",
+      "before_snapshot": null,
+      "after_snapshot": null
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/format/RegisteredExporterReconstructionTest.kt",
+      "disposition": "new owned test source, nine parameterized registry reconstruction cases",
+      "before_sha256": null,
+      "selected_sha256": "c50a06f5f549f52ada570e4bf426a6f089f15b59b7e2e34b1605b31a4fa20b04",
+      "actual_sha256": "c50a06f5f549f52ada570e4bf426a6f089f15b59b7e2e34b1605b31a4fa20b04",
+      "before_snapshot": null,
+      "after_snapshot": null
+    }
+  ],
+  "excluded": [
+    "DatabaseExporter backup discovery/locking/data-only draft",
+    "FormatRegistry held radio exporters and supportsExport changes",
+    "FormatRegistryTest held radio scenarios",
+    "consumer-rules.pro held radio rules",
+    "untracked PortableWifiSourceExporter/PortableCellSourceExporter",
+    "Exporter and activity transfer/scope drafts"
+  ],
+  "executed_checks": [],
+  "selection_patch": "EXPORTER_REFLECTION_SELECTION.patch",
+  "selection_patch_sha256": "36579f7d29f8efdb722153279dc4271357e5d6d4e3b1f264481ae045dd9a382e",
+  "status": "IMPLEMENTED_UNVALIDATED"
+}

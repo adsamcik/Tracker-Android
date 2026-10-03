@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import androidx.annotation.Keep
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.portable.PortableActivityFormatException
 import com.adsamcik.tracker.impexp.portable.PortableActivityJsonV1Codec
@@ -24,6 +25,7 @@ internal interface PortableActivityExportEntryPoint {
 }
 
 /** User-selected portable captured-Activity file export; it acquires no source demand. */
+@Keep // Export activity reconstructs the selected class through its public no-argument constructor.
 internal class PortableActivityExporter(
 	private val exporterProvider: (Context) -> ExportPortableCapturedActivity = { context ->
 		EntryPointAccessors.fromApplication(
