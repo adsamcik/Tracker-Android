@@ -1,0 +1,124 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "frozen_on": "2026-10-03",
+  "reported_checkpoint": "5f6fc0e559",
+  "whole_files_are_snapshot_pins_only": true,
+  "production_count": 10,
+  "test_path_count": 6,
+  "new_authored_scenarios": 15,
+  "digest_projector_storage_changes": "HELD_AWAITING_APPROVAL",
+  "files": [
+    {
+      "kind": "production",
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistory.kt",
+      "sha256": "b3b19bf1d7c2e0866b90802ecc586acea74a2888449a728d07cc32cf386f4dc6",
+      "selection_scope": "BackgroundWifi/BackgroundCell displayWindow, networks/towers/readingCount getters; HistoryLocationPoint sampleId; HistoryObservationWindow only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationReadScope.kt",
+      "sha256": "7a0baf6ef5a62d7dad73a4953988816c363b62b33dc5d5eb03248fa58eb2bdd0",
+      "selection_scope": "New HISTORY_CURRENT_IMPORT_COPY, HISTORY_RETAINED, SESSIONLESS_HISTORY, HISTORY_ORIGIN constants only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+      "sha256": "aa419d78fa51ffe03ae241002e0f30ee7f06b5442f9f69604cd5a78e16971234",
+      "selection_scope": "LocationHistoryDayRow and new importedHistorySampleIds/contextReceiptsForSamples/sessionlessHistoryOverWindow only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientWifiFactDao.kt",
+      "sha256": "8926253310f1d73c24e66ddaca320b0f6ebf841ebb26093a17a44052471617d1",
+      "selection_scope": "New effectiveLocalOverObservationWindow and importedOverObservationWindow only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientCellFactDao.kt",
+      "sha256": "a8646692413b25ca68fccfd817253ccc78967b22b6a69d68efbde19bbc35fe1d",
+      "selection_scope": "New effectiveLocalOverObservationWindow and importedOverObservationWindow only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt",
+      "sha256": "58fcc62be293a5eba3ed41d4039462891c6b8869d907db8fb123e03292d9c51f",
+      "selection_scope": "New readObservationWindowInTransaction and readQualifiedWindowInTransaction branching; former readQualifiedInTransaction delegates ordinary false branch",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt",
+      "sha256": "84e2b415704cb2843ba99381ed12beee5533ad09f69c0bbfc3e5a577f5b8d2d7",
+      "selection_scope": "New readObservationWindowInTransaction and readQualifiedWindowInTransaction branching; former readQualifiedInTransaction delegates ordinary false branch",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryCandidateQueries.kt",
+      "sha256": "917706a0e13c04c34bad3d57e2812fac211626ccd6e406b39a08e4e39ad0b0b9",
+      "selection_scope": "backgroundObservationBefore, sessionlessLocationRelation, radioObservationRelation, emptyObservationRelation prefix only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "sha256": "a794734085a8a06ae4693592cdf6d13627a3bb4ef102468ddbb20bc05f505e7c",
+      "selection_scope": "HistoryObservationWindow import/dayLocation dependency; background Location eligibility; additional coverage sections; displayedDayKeys; selectedBackground windows/Location/radio branches; sampleId propagation; BACKGROUND_SOURCES; RangeHistorySections appended additionalSections only. Existing held R11 organization/DI/archive behavior excluded",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryNativeReader.kt",
+      "sha256": "a4a1bebfa40a82b2b2c315b7aa563f0556c75cb3b2eea981aa662b978aa808eb",
+      "selection_scope": "readLocationCompatibility fileImportedIds bounded lookup, legacy imported exclusion and sampleId propagation only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistoryDayWindowTest.kt",
+      "sha256": "60631b5228c58052d0e6b0c1f8d0d0ff1ad10b79b54f77dc2b8563d502e6ea19",
+      "selection_scope": "New whole file; 3 authored scenarios",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryDayGroupingRoomTest.kt",
+      "sha256": "d0b5e420d0799b88b5da9846610bfeb41ca960f1957c81342400f5cf147b8b87",
+      "selection_scope": "New whole file; 6 authored Room scenarios",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReaderRoomTest.kt",
+      "sha256": "784d62f2664ce6bd4c7792d61e3945dc6a74110863d59c0f4beccafd99da5b53",
+      "selection_scope": "legacyLocation passes imported=false; private point adds imported default parameter and uses it in LocationFileIdentityEntity only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "sha256": "38e5167cef46c2ca2d3bcb63ff94b336f17776aef22da8b0830db57efedeb010",
+      "selection_scope": "Four new day-history test methods before installPoint: source Off, blank proof, erased native/current imported copy, capture fence/ambient sibling only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "sha256": "78fa12632d2779455f57d63903a066405b5626230d572c1c90e2456d16caeb36",
+      "selection_scope": "New displayed UTC day native radio test; private insertWifi/insertCell firstChildTimeMs/wallOffsetMs/storedZoneId and installAuthority offset fixture hunks only; existing scenario/authority drafts excluded",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedImportedAmbientRadioReaderTest.kt",
+      "sha256": "cd0045b65316777017f39a620aec828488eb49c5401a15fe9fb127dc1bf788ac",
+      "selection_scope": "New imported radio child timestamps displayed day test only; existing authority tests/drafts excluded",
+      "execution": "NOT_RUN"
+    }
+  ]
+}

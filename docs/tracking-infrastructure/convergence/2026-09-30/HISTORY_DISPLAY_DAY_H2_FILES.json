@@ -1,0 +1,43 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "frozen_on": "2026-10-03",
+  "whole_files_are_snapshot_pins_only": true,
+  "prior_review_input": "HISTORY_DISPLAY_DAY_FILES_PRE_H2_REPAIR_2026_10_03.json",
+  "production": {
+    "kind": "production",
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+    "sha256": "935fdf4642711618e20e4100ba82112d18a27596424b5d30ad0a5d9903dedd51",
+    "selection_scope": "H1 internal erasedNativeSampleIds snapshot plus H2 exact receipt/sample/native-writer authentication before optional dependencies; preserve erased IDs through later limit/unavailable/runtime failure outcomes and propagate cancellation. Existing R13 purpose qualification otherwise unchanged.",
+    "execution": "NOT_RUN"
+  },
+  "test": {
+    "kind": "test",
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+    "sha256": "6f0beb77952d85e7b1a846f6b207c70ab88f15fd30476d8d5f667cda6e7071f0",
+    "selection_scope": "Seven H1 day-history methods plus H2 four direct qualifier Room methods, two separate composed day methods and installOptionalRunOverflow only. Existing installPoint/sample/policy/radio fixture unchanged; direct H2 methods/helper contain no held R11 backend reference.",
+    "execution": "NOT_RUN"
+  },
+  "selection": {
+    "status": "IMPLEMENTED_UNVALIDATED",
+    "prior_review_input": "HISTORY_DISPLAY_DAY_FILES_PRE_H2_REPAIR_2026_10_03.json",
+    "production_changed": 1,
+    "test_paths_changed": 1,
+    "additional_authored_scenarios": 6,
+    "direct_core_methods": [
+      "optional run dependency limit preserves authenticated native erase IDs",
+      "optional run dependency limit preserves stale dataset erase IDs",
+      "optional run dependency limit cannot borrow erase authority from blank receipt",
+      "optional run dependency limit cannot borrow erase authority from corrupt or mismatched receipt"
+    ],
+    "composed_held_day_methods": [
+      "day history with optional dependency limit hides native debris and preserves exact current import",
+      "day history with optional dependency limit preserves saved points with blank receipt"
+    ],
+    "shared_fixture": "installOptionalRunOverflow",
+    "paths": [
+      "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt"
+    ],
+    "execution": "NOT_RUN"
+  }
+}

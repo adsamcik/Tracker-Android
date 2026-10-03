@@ -1,0 +1,117 @@
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt
+index 997ecd32c4..df280c0740 100644
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt
+@@ -89,6 +89,107 @@ class RetainedLocationContextReaderTest {
+         assertEquals(setOf(RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT), result.gaps)
+     }
+ 
++    @Test fun `optional run dependency limit preserves authenticated native erase IDs`() = runBlocking {
++        val receipt = installPoint()
++        installOptionalRunOverflow(receipt.sampleId)
++        database.sourceEvidenceStateDao().updateAfterFullDeletion(0, null, 1, 2_000)
++        val highWater = database.withTransaction { reader.qualifyInTransaction(listOf(receipt)) }
++        assertTrue(highWater.points.isEmpty())
++        assertEquals(setOf(RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT), highWater.gaps)
++        assertEquals(setOf(receipt.sampleId), highWater.erasedNativeSampleIds)
++        assertEquals(1L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `optional run dependency limit preserves stale dataset erase IDs`() = runBlocking {
++        val receipt = installPoint()
++        installOptionalRunOverflow(receipt.sampleId)
++        database.sourceEvidenceStateDao().updateAfterFullDeletion(1, null, 0, 2_000)
++        val result = database.withTransaction { reader.qualifyInTransaction(listOf(receipt)) }
++        assertTrue(result.points.isEmpty())
++        assertEquals(setOf(RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT), result.gaps)
++        assertEquals(setOf(receipt.sampleId), result.erasedNativeSampleIds)
++        assertEquals(1L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `optional run dependency limit cannot borrow erase authority from blank receipt`() = runBlocking {
++        val receipt = installPoint(sealed = false)
++        installOptionalRunOverflow(receipt.sampleId)
++        database.sourceEvidenceStateDao().updateAfterFullDeletion(1, null, 1, 2_000)
++        val result = database.withTransaction { reader.qualifyInTransaction(listOf(receipt)) }
++        assertTrue(result.points.isEmpty())
++        assertEquals(setOf(RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT), result.gaps)
++        assertTrue(result.erasedNativeSampleIds.isEmpty())
++        assertEquals(1L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `optional run dependency limit cannot borrow erase authority from corrupt or mismatched receipt`() = runBlocking {
++        val original = installPoint()
++        installOptionalRunOverflow(original.sampleId)
++        database.sourceEvidenceStateDao().updateAfterFullDeletion(1, null, 1, 2_000)
++        database.openHelper.writableDatabase.execSQL(
++            "UPDATE location_accepted_receipt SET retained_proof_checksum = ? WHERE sample_id = ?",
++            arrayOf("0".repeat(64), original.sampleId))
++        val corrupt = requireNotNull(database.locationPurposeDao().receipt(original.sampleId))
++        val corruptResult = database.withTransaction { reader.qualifyInTransaction(listOf(corrupt)) }
++        assertEquals(setOf(RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT), corruptResult.gaps)
++        assertTrue(corruptResult.erasedNativeSampleIds.isEmpty())
++        database.openHelper.writableDatabase.execSQL(
++            "UPDATE location_accepted_receipt SET retained_proof_checksum = ? WHERE sample_id = ?",
++            arrayOf(original.retainedProofChecksum, original.sampleId))
++        database.openHelper.writableDatabase.execSQL(
++            "UPDATE location_sample SET lat_e7 = ? WHERE id = ?", arrayOf(500_000_001, original.sampleId))
++        val mismatchedResult = database.withTransaction { reader.qualifyInTransaction(listOf(original)) }
++        assertEquals(setOf(RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT), mismatchedResult.gaps)
++        assertTrue(mismatchedResult.erasedNativeSampleIds.isEmpty())
++        assertEquals(500_000_001, database.locationSampleDao().byIds(listOf(original.sampleId)).single().latE7)
++    }
++
++    @Test fun `optional SQLite read failure keeps authenticated erase IDs and its History problem`() = runBlocking {
++        val receipt = installPoint()
++        database.sourceEvidenceStateDao().updateAfterFullDeletion(0, null, 1, 2_000)
++        // The exact receipt/sample/state remain readable; only the optional policy query fails.
++        database.openHelper.writableDatabase.execSQL("DROP TABLE source_policy")
++        val result = database.withTransaction { reader.qualifyInTransaction(listOf(receipt)) }
++        assertTrue(result.points.isEmpty())
++        assertEquals(setOf(receipt.sampleId), result.erasedNativeSampleIds)
++        assertEquals(setOf(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE), result.gaps)
++        assertEquals(HistoryProblemReason.STORAGE_UNAVAILABLE, result.historyProblem)
++        assertEquals(1L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `optional purpose shape failure keeps authenticated erase IDs and its History problem`() = runBlocking {
++        val receipt = installPoint()
++        database.sourceEvidenceStateDao().updateAfterFullDeletion(0, null, 1, 2_000)
++        // Room reads the existing purpose row through its validating constructor.
++        database.openHelper.writableDatabase.execSQL(
++            "UPDATE location_sample_purpose_authority SET effective_until_elapsed_nanos = effective_from_elapsed_nanos WHERE sample_id = ?",
++            arrayOf(receipt.sampleId))
++        val result = database.withTransaction { reader.qualifyInTransaction(listOf(receipt)) }
++        assertTrue(result.points.isEmpty())
++        assertEquals(setOf(receipt.sampleId), result.erasedNativeSampleIds)
++        assertEquals(setOf(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE), result.gaps)
++        assertEquals(HistoryProblemReason.INTEGRITY_UNAVAILABLE, result.historyProblem)
++        assertEquals(1L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `missing older Location proof is not reported as a History read failure`() = runBlocking {
++        val receipt = installPoint(sealed = false)
++        val result = database.withTransaction { reader.qualifyInTransaction(listOf(receipt)) }
++        assertTrue(result.points.isEmpty())
++        assertTrue(result.erasedNativeSampleIds.isEmpty())
++        assertEquals(setOf(RadioLocationContextGap.LOCATION_PROVENANCE_UNVERIFIABLE), result.gaps)
++        assertNull(result.historyProblem)
++    }
++
++    /** Optional capture metadata deliberately lacks grants; it only exercises the real bounded run lookup. */
++    private suspend fun installOptionalRunOverflow(sampleId: Long) {
++        repeat(101) { index ->
++            database.locationPurposeDao().insertPurposeIfAbsent(LocationSamplePurposeAuthorityEntity(
++                sampleId, SourceBrokerPurpose.SESSION_CAPTURE, "context-limit:$index", 1, 0, 10, 11,
++                "logical:$index", "run:$index", index + 1L, 1, 1, null, null, null, 0, "UTC"))
++        }
++    }
++
+     private suspend fun installPoint(sealed: Boolean = true): LocationAcceptedReceiptEntity {
+         database.sourcePolicyDao().insertPolicies(listOf(policy()))
+         database.sourcePolicyDao().insertConsentEpochs(listOf(SourceConsentEpochEntity(1, SourceBrokerPurpose.AMBIENT_PRODUCT,
+@@ -127,3 +228,4 @@ class RetainedLocationContextReaderTest {
+     private fun radio() = RadioContextInput(RadioContextSource.CELL, "radio", RadioContextScope.Ambient(
+         AmbientContextScope("boot", "boot", 0)), 10, 1_000, true)
+ }
++

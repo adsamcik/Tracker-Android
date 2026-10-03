@@ -1,0 +1,168 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "frozen_on": "2026-10-03",
+  "reported_checkpoint": "5f6fc0e559",
+  "whole_files_are_snapshot_pins_only": true,
+  "production_count": 11,
+  "test_path_count": 6,
+  "new_authored_scenarios": 24,
+  "digest_projector_storage_changes": "HELD_AWAITING_APPROVAL",
+  "files": [
+    {
+      "kind": "production",
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistory.kt",
+      "sha256": "b3b19bf1d7c2e0866b90802ecc586acea74a2888449a728d07cc32cf386f4dc6",
+      "selection_scope": "BackgroundWifi/BackgroundCell displayWindow, networks/towers/readingCount getters; HistoryLocationPoint sampleId; HistoryObservationWindow only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationReadScope.kt",
+      "sha256": "902d7f9e09347a442e2b5a3d22fbab495a99a07c436a76f9cf9be59af9976c04",
+      "selection_scope": "New HISTORY_CURRENT_IMPORT_COPY, conservative HISTORY_RETAINED without receipt-only erase, SESSIONLESS_HISTORY, HISTORY_ORIGIN constants only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+      "sha256": "352765899bf69ad174c0b3459e3f62a4934a4d7bd214dbcbb2a4fd584268ef33",
+      "selection_scope": "LocationHistoryDayRow including hasCurrentImportCopy; new importedHistorySampleIds/contextReceiptsForSamples/sessionlessHistoryOverWindow including exact current import projection only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientWifiFactDao.kt",
+      "sha256": "8926253310f1d73c24e66ddaca320b0f6ebf841ebb26093a17a44052471617d1",
+      "selection_scope": "New effectiveLocalOverObservationWindow and importedOverObservationWindow only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientCellFactDao.kt",
+      "sha256": "a8646692413b25ca68fccfd817253ccc78967b22b6a69d68efbde19bbc35fe1d",
+      "selection_scope": "New effectiveLocalOverObservationWindow and importedOverObservationWindow only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt",
+      "sha256": "58fcc62be293a5eba3ed41d4039462891c6b8869d907db8fb123e03292d9c51f",
+      "selection_scope": "New readObservationWindowInTransaction and readQualifiedWindowInTransaction branching; former readQualifiedInTransaction delegates ordinary false branch",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt",
+      "sha256": "84e2b415704cb2843ba99381ed12beee5533ad09f69c0bbfc3e5a577f5b8d2d7",
+      "selection_scope": "New readObservationWindowInTransaction and readQualifiedWindowInTransaction branching; former readQualifiedInTransaction delegates ordinary false branch",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryCandidateQueries.kt",
+      "sha256": "917706a0e13c04c34bad3d57e2812fac211626ccd6e406b39a08e4e39ad0b0b9",
+      "selection_scope": "backgroundObservationBefore, sessionlessLocationRelation, radioObservationRelation, emptyObservationRelation prefix only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "sha256": "765d45783344f9d12263e4015f522c7d22fef0f3e977c035edc733f66c5717a0",
+      "selection_scope": "Existing day slice only, plus H1 repair: LocationHistoryDayRow import, hasQualifiedAmbient local helper and sibling/current-import-first authenticated erasedNativeSampleIds selection. No held organization/DI/archive behavior",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryNativeReader.kt",
+      "sha256": "a4a1bebfa40a82b2b2c315b7aa563f0556c75cb3b2eea981aa662b978aa808eb",
+      "selection_scope": "readLocationCompatibility fileImportedIds bounded lookup, legacy imported exclusion and sampleId propagation only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistoryDayWindowTest.kt",
+      "sha256": "60631b5228c58052d0e6b0c1f8d0d0ff1ad10b79b54f77dc2b8563d502e6ea19",
+      "selection_scope": "New whole file; 3 authored scenarios",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryDayGroupingRoomTest.kt",
+      "sha256": "d0b5e420d0799b88b5da9846610bfeb41ca960f1957c81342400f5cf147b8b87",
+      "selection_scope": "New whole file; 6 authored Room scenarios",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReaderRoomTest.kt",
+      "sha256": "784d62f2664ce6bd4c7792d61e3945dc6a74110863d59c0f4beccafd99da5b53",
+      "selection_scope": "legacyLocation passes imported=false; private point adds imported default parameter and uses it in LocationFileIdentityEntity only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "sha256": "6f0beb77952d85e7b1a846f6b207c70ab88f15fd30476d8d5f667cda6e7071f0",
+      "selection_scope": "Seven H1 day-history methods plus H2 four direct qualifier Room methods, two separate composed day methods and installOptionalRunOverflow only. Existing installPoint/sample/policy/radio fixture unchanged; direct H2 methods/helper contain no held R11 backend reference.",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "sha256": "78fa12632d2779455f57d63903a066405b5626230d572c1c90e2456d16caeb36",
+      "selection_scope": "New displayed UTC day native radio test; private insertWifi/insertCell firstChildTimeMs/wallOffsetMs/storedZoneId and installAuthority offset fixture hunks only; existing scenario/authority drafts excluded",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedImportedAmbientRadioReaderTest.kt",
+      "sha256": "cd0045b65316777017f39a620aec828488eb49c5401a15fe9fb127dc1bf788ac",
+      "selection_scope": "New imported radio child timestamps displayed day test only; existing authority tests/drafts excluded",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "sha256": "935fdf4642711618e20e4100ba82112d18a27596424b5d30ad0a5d9903dedd51",
+      "selection_scope": "H1 internal erasedNativeSampleIds snapshot plus H2 exact receipt/sample/native-writer authentication before optional dependencies; preserve erased IDs through later limit/unavailable/runtime failure outcomes and propagate cancellation. Existing R13 purpose qualification otherwise unchanged.",
+      "execution": "NOT_RUN"
+    }
+  ],
+  "initial_review_input": "HISTORY_DISPLAY_DAY_FILES_PRE_H1_REPAIR_2026_10_03.json",
+  "h1_repair": {
+    "status": "IMPLEMENTED_UNVALIDATED",
+    "production_changed": 4,
+    "test_paths_changed": 1,
+    "additional_authored_scenarios": 3,
+    "paths": [
+      "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+      "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationReadScope.kt",
+      "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt"
+    ]
+  },
+  "h2_repair": {
+    "status": "IMPLEMENTED_UNVALIDATED",
+    "prior_review_input": "HISTORY_DISPLAY_DAY_FILES_PRE_H2_REPAIR_2026_10_03.json",
+    "production_changed": 1,
+    "test_paths_changed": 1,
+    "additional_authored_scenarios": 6,
+    "direct_core_methods": [
+      "optional run dependency limit preserves authenticated native erase IDs",
+      "optional run dependency limit preserves stale dataset erase IDs",
+      "optional run dependency limit cannot borrow erase authority from blank receipt",
+      "optional run dependency limit cannot borrow erase authority from corrupt or mismatched receipt"
+    ],
+    "composed_held_day_methods": [
+      "day history with optional dependency limit hides native debris and preserves exact current import",
+      "day history with optional dependency limit preserves saved points with blank receipt"
+    ],
+    "shared_fixture": "installOptionalRunOverflow",
+    "paths": [
+      "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt"
+    ],
+    "execution": "NOT_RUN"
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "frozen_on": "2026-10-03",
+  "whole_files_are_snapshot_pins_only": true,
+  "files": [
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "sha256": "e9fc318dc9abd7105e7cc798c06f2a9a284453aa7cf0bfec8b654a9d5fa0676f",
+      "selection_scope": "Existing day slice and H1 sibling/current-import-first erase filtering; H3 only existing Location day problem assignment includes qualified.historyProblem. No held organization/DI/archive behavior accepted.",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryNativeReader.kt",
+      "sha256": "be66c6c8a3e7d773499879383f6459cf04727ebc8dbe1362c70278553e30e1ab",
+      "selection_scope": "Prior compatibility importedHistorySampleIds/exclusion/sampleId hunks; H3 only NativeHistoryLocationSections problem expression includes qualified.historyProblem. Whole held native reader not approved.",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReaderRoomTest.kt",
+      "sha256": "d15464bfad155242ceee3e427b229976c53311a315cddefd8e71ee1ab11e5a5c",
+      "selection_scope": "Prior legacy fixture imported=false parameter/default hunks; H3 one native compatibility keeps saved Location and propagates caught proof read failures method. All untracked R11/backend/other scenario work remains held.",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "sha256": "92c2871a7fd2cbb1152f2d2f70395a6943b8ffe4c4b7c912c90920f710c458d3",
+      "selection_scope": "Seven H1 day methods; six H2 methods and fixture; H3 three independent direct qualifier methods plus one held composed day method. Only independent four H2 plus three H3 methods and installOptionalRunOverflow may be selected with core; explicit desired snapshot excludes all held R11 methods. Existing installPoint/sample/policy/radio fixture unchanged.",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "sha256": "7b26cecd95d2ca3ee9de099f7cc6b6904d5527f49d0c38cc797ffc8b7278d3a0",
+      "selection_scope": "H1/H2 authenticated erased-native snapshot and pre-optional dependency authentication preserved; H3 adds default-null internal historyProblem, SQLite Storage/Runtime Integrity only in caught optional failures, unavailable helper parameter. Existing R13 purpose qualification otherwise unchanged.",
+      "execution": "NOT_RUN"
+    }
+  ],
+  "selection": {
+    "status": "IMPLEMENTED_UNVALIDATED",
+    "prior_review_input": "HISTORY_DISPLAY_DAY_FILES_PRE_H3_REPAIR_2026_10_03.json",
+    "preserved_prior_h2_input": "HISTORY_DISPLAY_DAY_H2_FILES_PRE_H3_REPAIR_2026_10_03.json",
+    "production_changed": 3,
+    "test_paths_changed": 2,
+    "additional_authored_scenarios": 5,
+    "direct_core_methods": [
+      "optional SQLite read failure keeps authenticated erase IDs and its History problem",
+      "optional purpose shape failure keeps authenticated erase IDs and its History problem",
+      "missing older Location proof is not reported as a History read failure"
+    ],
+    "held_day_method": "day history keeps exact current imported point and reports optional SQLite read failure",
+    "held_native_method": "native compatibility keeps saved Location and propagates caught proof read failures",
+    "paths": [
+      "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryNativeReader.kt",
+      "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReaderRoomTest.kt"
+    ],
+    "desired_direct_core_test_snapshot": {
+      "path": "docs/tracking-infrastructure/convergence/2026-09-30/RetainedLocationContextReaderTest_DIRECT_H2_H3.kt.txt",
+      "sha256": "7c352e70431fb37d85277dea28940db8c0e82aa672be740450889c99d5c203b3",
+      "base": "read-only HEAD RetainedLocationContextReaderTest.kt; original six methods and installPoint/sample/policy/radio fixture preserved",
+      "added_methods": "Four direct H2 plus three direct H3 methods only",
+      "added_fixture": "installOptionalRunOverflow only",
+      "excluded": "all day/native composed cases and R11 references"
+    },
+    "execution": "NOT_RUN"
+  }
+}

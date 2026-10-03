@@ -20,13 +20,22 @@ description of its earlier input; this file records subsequent repair progress.
 
 ## Authored slices and local commit receipts
 
-- October 3 imported-radio export-date discovery is independently source-reviewed:
+- `5f6fc0e559`: October 3 imported-radio export-date discovery is independently source-reviewed:
   exact latest-revision observations/gaps choose candidates, with separate export
   reader methods preserving History scope and source cursors. Select the twelve
   owned tracked diffs and two narrow Cell reader/test additions; fourteen new
   DAO/real-qualifier scenarios remain unexecuted. Full exporter definitions, their
   two new routing cases and other dependent fixtures stay held. Selection receipt:
   `../2026-10-03/IMPORTED_RADIO_EXPORT_CANDIDATE_SELECTION.md`.
+- October 3 displayed-day History has fifteen authored scenarios and a frozen
+  narrow source packet. Independent review found receipt-only erase withholding
+  before integrity/canonical matching; the repair is being authored. No complete
+  R11 reader, UI or test pass is selected from that packet yet.
+- Transfer quiescence is being implemented through the existing startup boundary.
+  Preserved recovery-file exports add a different blocked-startup access question;
+  their admission is held pending the user's answer. Location Replace still needs
+  intentional-edit replay and derived-value correction; no partial Replace button
+  is exposed. Exact trace: `LOCATION_REPLACE_CANONICAL_GAP_TRACE.md`.
 - `c7cc6a7340`: approved nullable native Wi-Fi format marker, immutable
   corrections, writer/history/maintenance parity and authored migration/detail
   scenarios. Fresh static review passed the narrow source slice. Twelve tracked
@@ -110,6 +119,16 @@ description of its earlier input; this file records subsequent repair progress.
 
 All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 
+October 3 selective contracts: `1e58017f39` adds the approved displayed-day radio
+section selection, saved Location point identity and three authored contract
+cases. Whole History readers/UI, source-midnight storage and composed Room cases
+remain held. No test or gate has run.
+
+- [x] Independently review and select retained Location erase/read-failure core
+  H1/H2/H3 with seven direct Room scenario sources. The selective patch preserves
+  original fixtures and excludes composed held R11 cases. Full day/native reader
+  propagation remains held with History; all 25 complete chains stay open.
+
 - [x] Steps scheduler, worker and bounded runner; enable/rearm/open invocation;
   explicit optional Health Connect background permission repair; predecessor
   handoff before provider removal; focused execution, permission and recovery tests.
@@ -189,12 +208,14 @@ All commits in this continuation are **IMPLEMENTED_UNVALIDATED**.
 - [x] Repair typed Steps/Pressure annotation identity validation without changing IDs.
 - [ ] Finish bundle exact membership for native Steps duplicates and overlapping
   imported radio files; the selected metadata path refuses missing receipts.
-- [ ] Complete period discovery streak and revisit season counting after the
-  precise period rules are settled; finish the longest-trip period scope.
+- [ ] Complete period discovery streak, revisit season counting and longest-trip
+  scope using the October 3 approved period rules. The dated exploration lookup
+  proposal remains pending; actual period reads and presentation remain unfinished.
 - [ ] Close all remaining runtime/history/map/effect/transfer/cleanup gaps from
   R05–R18 and the full prerequisite trace.
 - [ ] Wire session bundle export/import, bounded annotation selectors and existing
-  receipts; the user-facing Export session placement/source choices are pending.
+  receipts. Export session placement, available-source defaults and exclusions are
+  approved; exact source selection, detail navigation and the caller remain unfinished.
 - [ ] Select remaining preserved draft companions, reconcile branches and record
   exact final input/schema/test inventory before freezing.
 - [ ] Run the single convergence batch only after every production/test slice
@@ -205,11 +226,7 @@ push is claimed by this continuation.
 
 ## Released baseline clarification
 
-The user said only `master` was released. This checkout and the read-only remote
-head inventory contain `main`, with no `master` ref. Mapping that branch to the
-released baseline is awaiting the user's answer; older notes calling schema 12
-on `main` the released baseline are not independent confirmation of that mapping.
-
-**October 3 answer:** the user confirmed that `master` meant `main`. The earlier
-pending attribution is now resolved. Current answers and the reduced unanswered
+**October 3 answer:** the user confirmed that `master` meant `main`, which is the
+released baseline. Candidate schema versions are not released versions. Current
+answers and the reduced unanswered
 list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS.md).

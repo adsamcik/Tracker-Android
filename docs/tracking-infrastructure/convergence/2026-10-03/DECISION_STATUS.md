@@ -48,6 +48,9 @@ The two History/session-export answers are from `call_Aos5FHEL3IZBUbkrt10xb0Kx`.
   and revisits, rebuilt from still-saved points and updated on correction/deletion.
 - [ ] Save newly delivered cross-midnight radio observations as separate daily
   groups with stable per-reading details; preserve older saved identities.
+- [ ] Keep the existing preserved recovery-file Export actions usable while
+  database startup is blocked, with separate cancellation/draining admission;
+  never open the damaged database or start tracking for this export.
 
 ## Stale questions removed from the blocking list
 
@@ -73,8 +76,18 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   commit `c7cc6a7340`; mixed file-export owner/detail deltas remain held separately.
 - [x] Author and independently review source-time/gap export discovery for imported
   Wi-Fi/Cell, preserving separate History queries and the source's exact cursor.
-  Select twelve tracked diffs and two narrow Cell reader/test additions; full
+  Commit `5f6fc0e559` selects twelve tracked diffs and two narrow Cell reader/test additions; full
   exporter definitions and their dependent scenarios remain held separately.
+- [x] Select the reviewed displayed-day History contract and three authored
+  half-open-day/unchanged-metadata/unknown-summary scenarios in `1e58017f39`.
+  Full readers, Room composition and UI remain separately held.
+- [x] Independently review H1/H2/H3 and select the retained Location qualifier
+  core with seven standalone Room scenarios. Erase uses exact existing identity;
+  optional context limits/errors retain it and actual read failures stay typed.
+  The exact selective patch excludes composed held History scenarios; none ran.
+- [ ] Select the complete displayed-day History readers, composed cases and UI.
+  Their statically reviewed H1/H2/H3 fixes remain preserved with full held R11
+  files; source-midnight storage and exact archive selectors remain separate gaps.
 - [ ] Trace and implement period metrics through real dated source data, including
   missing evidence and correction/deletion behavior; never substitute All-time.
 - [ ] Update source-selection receipts and checklists after each coherent commit.
@@ -82,6 +95,9 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   startup boundary, including GPX/map-image shares and scheduled enqueue fences.
   The implementation seam is traced in `TRANSFER_CLEAR_QUIESCENCE_SOURCE_TRACE.md`;
   this fulfills already approved cleanup behavior, without another user question.
+  Concrete independent findings now include creator-thread renderer cleanup,
+  concurrent same-name share ownership and Off during an already-admitted
+  retained-history export. Source repairs and final static review remain active.
 
 The approved displayed-day History is being authored. The isolated imported-radio
 export-date candidate slice is source-reviewed for narrow selection. Neither

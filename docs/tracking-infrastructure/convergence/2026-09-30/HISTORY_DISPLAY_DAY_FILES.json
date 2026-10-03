@@ -1,0 +1,199 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "frozen_on": "2026-10-03",
+  "reported_checkpoint": "5f6fc0e559",
+  "whole_files_are_snapshot_pins_only": true,
+  "production_count": 11,
+  "test_path_count": 6,
+  "new_authored_scenarios": 29,
+  "digest_projector_storage_changes": "HELD_AWAITING_APPROVAL",
+  "files": [
+    {
+      "kind": "production",
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistory.kt",
+      "sha256": "b3b19bf1d7c2e0866b90802ecc586acea74a2888449a728d07cc32cf386f4dc6",
+      "selection_scope": "BackgroundWifi/BackgroundCell displayWindow, networks/towers/readingCount getters; HistoryLocationPoint sampleId; HistoryObservationWindow only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationReadScope.kt",
+      "sha256": "902d7f9e09347a442e2b5a3d22fbab495a99a07c436a76f9cf9be59af9976c04",
+      "selection_scope": "New HISTORY_CURRENT_IMPORT_COPY, conservative HISTORY_RETAINED without receipt-only erase, SESSIONLESS_HISTORY, HISTORY_ORIGIN constants only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+      "sha256": "352765899bf69ad174c0b3459e3f62a4934a4d7bd214dbcbb2a4fd584268ef33",
+      "selection_scope": "LocationHistoryDayRow including hasCurrentImportCopy; new importedHistorySampleIds/contextReceiptsForSamples/sessionlessHistoryOverWindow including exact current import projection only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientWifiFactDao.kt",
+      "sha256": "8926253310f1d73c24e66ddaca320b0f6ebf841ebb26093a17a44052471617d1",
+      "selection_scope": "New effectiveLocalOverObservationWindow and importedOverObservationWindow only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientCellFactDao.kt",
+      "sha256": "a8646692413b25ca68fccfd817253ccc78967b22b6a69d68efbde19bbc35fe1d",
+      "selection_scope": "New effectiveLocalOverObservationWindow and importedOverObservationWindow only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt",
+      "sha256": "58fcc62be293a5eba3ed41d4039462891c6b8869d907db8fb123e03292d9c51f",
+      "selection_scope": "New readObservationWindowInTransaction and readQualifiedWindowInTransaction branching; former readQualifiedInTransaction delegates ordinary false branch",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt",
+      "sha256": "84e2b415704cb2843ba99381ed12beee5533ad09f69c0bbfc3e5a577f5b8d2d7",
+      "selection_scope": "New readObservationWindowInTransaction and readQualifiedWindowInTransaction branching; former readQualifiedInTransaction delegates ordinary false branch",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryCandidateQueries.kt",
+      "sha256": "917706a0e13c04c34bad3d57e2812fac211626ccd6e406b39a08e4e39ad0b0b9",
+      "selection_scope": "backgroundObservationBefore, sessionlessLocationRelation, radioObservationRelation, emptyObservationRelation prefix only",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "sha256": "e9fc318dc9abd7105e7cc798c06f2a9a284453aa7cf0bfec8b654a9d5fa0676f",
+      "selection_scope": "Existing day slice and H1 sibling/current-import-first erase filtering; H3 only existing Location day problem assignment includes qualified.historyProblem. No held organization/DI/archive behavior accepted.",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryNativeReader.kt",
+      "sha256": "be66c6c8a3e7d773499879383f6459cf04727ebc8dbe1362c70278553e30e1ab",
+      "selection_scope": "Prior compatibility importedHistorySampleIds/exclusion/sampleId hunks; H3 only NativeHistoryLocationSections problem expression includes qualified.historyProblem. Whole held native reader not approved.",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistoryDayWindowTest.kt",
+      "sha256": "60631b5228c58052d0e6b0c1f8d0d0ff1ad10b79b54f77dc2b8563d502e6ea19",
+      "selection_scope": "New whole file; 3 authored scenarios",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryDayGroupingRoomTest.kt",
+      "sha256": "d0b5e420d0799b88b5da9846610bfeb41ca960f1957c81342400f5cf147b8b87",
+      "selection_scope": "New whole file; 6 authored Room scenarios",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReaderRoomTest.kt",
+      "sha256": "d15464bfad155242ceee3e427b229976c53311a315cddefd8e71ee1ab11e5a5c",
+      "selection_scope": "Prior legacy fixture imported=false parameter/default hunks; H3 one native compatibility keeps saved Location and propagates caught proof read failures method. All untracked R11/backend/other scenario work remains held.",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "sha256": "92c2871a7fd2cbb1152f2d2f70395a6943b8ffe4c4b7c912c90920f710c458d3",
+      "selection_scope": "Seven H1 day methods; six H2 methods and fixture; H3 three independent direct qualifier methods plus one held composed day method. Only independent four H2 plus three H3 methods and installOptionalRunOverflow may be selected with core; explicit desired snapshot excludes all held R11 methods. Existing installPoint/sample/policy/radio fixture unchanged.",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "sha256": "78fa12632d2779455f57d63903a066405b5626230d572c1c90e2456d16caeb36",
+      "selection_scope": "New displayed UTC day native radio test; private insertWifi/insertCell firstChildTimeMs/wallOffsetMs/storedZoneId and installAuthority offset fixture hunks only; existing scenario/authority drafts excluded",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "test",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedImportedAmbientRadioReaderTest.kt",
+      "sha256": "cd0045b65316777017f39a620aec828488eb49c5401a15fe9fb127dc1bf788ac",
+      "selection_scope": "New imported radio child timestamps displayed day test only; existing authority tests/drafts excluded",
+      "execution": "NOT_RUN"
+    },
+    {
+      "kind": "production",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "sha256": "7b26cecd95d2ca3ee9de099f7cc6b6904d5527f49d0c38cc797ffc8b7278d3a0",
+      "selection_scope": "H1/H2 authenticated erased-native snapshot and pre-optional dependency authentication preserved; H3 adds default-null internal historyProblem, SQLite Storage/Runtime Integrity only in caught optional failures, unavailable helper parameter. Existing R13 purpose qualification otherwise unchanged.",
+      "execution": "NOT_RUN"
+    }
+  ],
+  "initial_review_input": "HISTORY_DISPLAY_DAY_FILES_PRE_H1_REPAIR_2026_10_03.json",
+  "h1_repair": {
+    "status": "IMPLEMENTED_UNVALIDATED",
+    "production_changed": 4,
+    "test_paths_changed": 1,
+    "additional_authored_scenarios": 3,
+    "paths": [
+      "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+      "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationReadScope.kt",
+      "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt"
+    ]
+  },
+  "h2_repair": {
+    "status": "IMPLEMENTED_UNVALIDATED",
+    "prior_review_input": "HISTORY_DISPLAY_DAY_FILES_PRE_H2_REPAIR_2026_10_03.json",
+    "production_changed": 1,
+    "test_paths_changed": 1,
+    "additional_authored_scenarios": 6,
+    "direct_core_methods": [
+      "optional run dependency limit preserves authenticated native erase IDs",
+      "optional run dependency limit preserves stale dataset erase IDs",
+      "optional run dependency limit cannot borrow erase authority from blank receipt",
+      "optional run dependency limit cannot borrow erase authority from corrupt or mismatched receipt"
+    ],
+    "composed_held_day_methods": [
+      "day history with optional dependency limit hides native debris and preserves exact current import",
+      "day history with optional dependency limit preserves saved points with blank receipt"
+    ],
+    "shared_fixture": "installOptionalRunOverflow",
+    "paths": [
+      "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt"
+    ],
+    "execution": "NOT_RUN"
+  },
+  "h3_repair": {
+    "status": "IMPLEMENTED_UNVALIDATED",
+    "prior_review_input": "HISTORY_DISPLAY_DAY_FILES_PRE_H3_REPAIR_2026_10_03.json",
+    "preserved_prior_h2_input": "HISTORY_DISPLAY_DAY_H2_FILES_PRE_H3_REPAIR_2026_10_03.json",
+    "production_changed": 3,
+    "test_paths_changed": 2,
+    "additional_authored_scenarios": 5,
+    "direct_core_methods": [
+      "optional SQLite read failure keeps authenticated erase IDs and its History problem",
+      "optional purpose shape failure keeps authenticated erase IDs and its History problem",
+      "missing older Location proof is not reported as a History read failure"
+    ],
+    "held_day_method": "day history keeps exact current imported point and reports optional SQLite read failure",
+    "held_native_method": "native compatibility keeps saved Location and propagates caught proof read failures",
+    "paths": [
+      "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryNativeReader.kt",
+      "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReaderRoomTest.kt"
+    ],
+    "desired_direct_core_test_snapshot": {
+      "path": "docs/tracking-infrastructure/convergence/2026-09-30/RetainedLocationContextReaderTest_DIRECT_H2_H3.kt.txt",
+      "sha256": "7c352e70431fb37d85277dea28940db8c0e82aa672be740450889c99d5c203b3",
+      "base": "read-only HEAD RetainedLocationContextReaderTest.kt; original six methods and installPoint/sample/policy/radio fixture preserved",
+      "added_methods": "Four direct H2 plus three direct H3 methods only",
+      "added_fixture": "installOptionalRunOverflow only",
+      "excluded": "all day/native composed cases and R11 references"
+    },
+    "execution": "NOT_RUN"
+  }
+}
