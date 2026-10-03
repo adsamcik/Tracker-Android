@@ -184,6 +184,26 @@ class ImportedCellProductReader(
 		}
 	}
 
+	/** Export discovery uses saved scans and gaps while preserving the original header cursor. */
+	suspend fun selectExportWallRangePageInTransaction(
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+		limit: Int,
+		beforeStartTimeMs: Long? = null,
+		beforeIdentity: String? = null,
+	): List<ImportedCellProductEvaluation> {
+		require(database.inTransaction())
+		require(fromInclusiveMs >= 0L && toExclusiveMs > fromInclusiveMs)
+		require(limit in 1..ImportedCellDao.MAX_HISTORY_ENTRY_CANDIDATES)
+		require((beforeStartTimeMs == null) == (beforeIdentity == null))
+		require(beforeStartTimeMs?.let { it >= 0L } != false)
+		require(beforeIdentity?.let { ImportedCellIdentity.isDigest(it) } != false)
+		val candidates = database.importedCellDao().exportCandidatePageInWallRange(
+			fromInclusiveMs, toExclusiveMs, limit, beforeStartTimeMs, beforeIdentity,
+		)
+		return evaluateCandidates(candidates, beforeStartTimeMs, beforeIdentity, limit)
+	}
+
 	suspend fun selectStructuralRangeInTransaction(
 		broadFromInclusiveMs: Long,
 		broadToExclusiveMs: Long,

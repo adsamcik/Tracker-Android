@@ -93,6 +93,11 @@ class WifiImportedHistoryRepositoryTest {
 				limit: Int,
 			): List<ImportedWifiProductEvaluation> = listOf(evaluation).take(limit)
 
+			override suspend fun selectExportRangeInTransaction(
+				request: com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest,
+			): com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangePage =
+				error("Unexpected export dependency in a history fixture")
+
 			override suspend fun selectRangeInTransaction(
 				request: ImportedWifiProductRangeRequest,
 			): ImportedWifiProductRangePage = ImportedWifiProductRangePage(
@@ -181,6 +186,11 @@ class WifiImportedHistoryRepositoryTest {
 				limit: Int,
 			): List<ImportedWifiProductEvaluation> = listOf(failure)
 
+			override suspend fun selectExportRangeInTransaction(
+				request: com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest,
+			): com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangePage =
+				error("Unexpected export dependency in a history fixture")
+
 			override suspend fun selectRangeInTransaction(
 				request: ImportedWifiProductRangeRequest,
 			): ImportedWifiProductRangePage = ImportedWifiProductRangePage(listOf(failure), false)
@@ -242,6 +252,11 @@ class WifiImportedHistoryRepositoryTest {
 			override suspend fun selectRecentInTransaction(
 				limit: Int,
 			): List<ImportedWifiProductEvaluation> = listOf(failure)
+
+			override suspend fun selectExportRangeInTransaction(
+				request: com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest,
+			): com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangePage =
+				error("Unexpected export dependency in a history fixture")
 
 			override suspend fun selectRangeInTransaction(
 				request: ImportedWifiProductRangeRequest,

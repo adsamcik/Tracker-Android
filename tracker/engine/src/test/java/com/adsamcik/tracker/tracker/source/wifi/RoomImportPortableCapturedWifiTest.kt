@@ -1144,6 +1144,11 @@ class RoomImportPortableCapturedWifiTest {
 				limit: Int,
 			): List<ImportedWifiProductEvaluation> = listOf(evaluation)
 
+			override suspend fun selectExportRangeInTransaction(
+				request: com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest,
+			): com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangePage =
+				error("Unexpected export dependency in a history fixture")
+
 			override suspend fun selectRangeInTransaction(
 				request: ImportedWifiProductRangeRequest,
 			) = com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangePage(

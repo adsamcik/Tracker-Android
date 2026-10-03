@@ -1,0 +1,150 @@
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ImportedCellProductReader.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ImportedCellProductReader.kt
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ImportedCellProductReader.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ImportedCellProductReader.kt
+@@ -207,3 +207,23 @@ class ImportedCellProductReader(
++	/** Export discovery uses saved scans and gaps while preserving the original header cursor. */
++	suspend fun selectExportWallRangePageInTransaction(
++		fromInclusiveMs: Long,
++		toExclusiveMs: Long,
++		limit: Int,
++		beforeStartTimeMs: Long? = null,
++		beforeIdentity: String? = null,
++	): List<ImportedCellProductEvaluation> {
++		require(database.inTransaction())
++		require(fromInclusiveMs >= 0L && toExclusiveMs > fromInclusiveMs)
++		require(limit in 1..ImportedCellDao.MAX_HISTORY_ENTRY_CANDIDATES)
++		require((beforeStartTimeMs == null) == (beforeIdentity == null))
++		require(beforeStartTimeMs?.let { it >= 0L } != false)
++		require(beforeIdentity?.let { ImportedCellIdentity.isDigest(it) } != false)
++		val candidates = database.importedCellDao().exportCandidatePageInWallRange(
++			fromInclusiveMs, toExclusiveMs, limit, beforeStartTimeMs, beforeIdentity,
++		)
++		return evaluateCandidates(candidates, beforeStartTimeMs, beforeIdentity, limit)
++	}
++
+ 	suspend fun selectStructuralRangeInTransaction(
+ 		broadFromInclusiveMs: Long,
+ 		broadToExclusiveMs: Long,
+diff --git a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RoomImportPortableCapturedCellTest.kt b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RoomImportPortableCapturedCellTest.kt
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RoomImportPortableCapturedCellTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RoomImportPortableCapturedCellTest.kt
+@@ -77,3 +77,59 @@ class RoomImportPortableCapturedCellTest {
++	@Test
++	fun `export reader qualifies uncertainty crossing headers and ignores unrelated corrupt cohorts`() = runTest {
++		seedEvidence()
++		val touching = entry(logicalLocal = "touching-export")
++		val outside = entry(logicalLocal = "outside-export", runDefinitions = listOf(
++			RunDefinition("outside-run", 1_000L, 1_100L, emptyList(),
++				availability = PortableCellRunAvailability.NO_RETAINED_OBSERVATION,
++				completeness = PortableCellAcquisitionCompleteness.PARTIAL),
++		))
++		importer().importEntry(request(touching, "touching-job", "touching-entry")) shouldBe
++			ImportPortableCapturedCellResult.Applied(1L, 1, 1)
++		importer().importEntry(request(outside, "outside-job", "outside-entry")) shouldBe
++			ImportPortableCapturedCellResult.Applied(1L, 1, 0)
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE imported_cell_run SET content_checksum = 'broken' WHERE entry_identity = ?",
++			arrayOf(outside.identity.value),
++		)
++		database.withTransaction {
++			val reader = ImportedCellProductReader(database)
++			reader.selectWallRangeInTransaction(112L, 113L, 100) shouldBe emptyList()
++			val selected = reader.selectExportWallRangePageInTransaction(112L, 113L, 100)
++			(selected.single() as ImportedCellProductEvaluation.Readable).entry shouldBe touching
++			reader.selectExportWallRangePageInTransaction(113L, 114L, 100) shouldBe emptyList()
++		}
++	}
++
++	@Test
++	fun `Cell export gap-only run is selected while invalid unknown clocks remain failures`() = runTest {
++		seedEvidence()
++		val gap = entry(logicalLocal = "gap-export", runDefinitions = listOf(
++			RunDefinition("gap-run", 100L, 100L, emptyList(),
++				availability = PortableCellRunAvailability.NO_RETAINED_OBSERVATION,
++				completeness = PortableCellAcquisitionCompleteness.PARTIAL, retentionLoss = true),
++		))
++		val unknown = entry(logicalLocal = "unknown-export")
++		importer().importEntry(request(gap, "gap-job", "gap-entry")) shouldBe
++			ImportPortableCapturedCellResult.Applied(1L, 1, 0)
++		importer().importEntry(request(unknown, "unknown-job", "unknown-entry")) shouldBe
++			ImportPortableCapturedCellResult.Applied(1L, 1, 1)
++		val reader = ImportedCellProductReader(database)
++		database.withTransaction {
++			(reader.selectExportWallRangePageInTransaction(100L, 101L, 100)
++				.filterIsInstance<ImportedCellProductEvaluation.Readable>()
++				.single { it.entry.identity == gap.identity }).entry shouldBe gap
++		}
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE imported_cell_observation SET wall_time_uncertainty_ms = 100 " +
++				"WHERE entry_identity = ?", arrayOf(unknown.identity.value))
++		database.withTransaction {
++			val failure = reader.selectExportWallRangePageInTransaction(1_000L, 1_001L, 100)
++				.single() as ImportedCellProductEvaluation.Unverifiable
++			failure.candidate.identity shouldBe unknown.identity.value
++			failure.reason shouldBe ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE
++		}
++	}
++
+ 	@Before
+ 	fun setUp() {
+ 		val context: Application = ApplicationProvider.getApplicationContext()
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableWifiSourceExporter.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableWifiSourceExporter.kt
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableWifiSourceExporter.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableWifiSourceExporter.kt
+@@ -252,7 +252,7 @@ internal class PortableWifiSourceExporter(
+ 		var beforeIdentity: PortableWifiOpaqueIdentity? = null
+ 		while (true) {
+ 			currentCoroutineContext().ensureActive()
+-			val page = entry.importedWifiEvaluator().selectRangeInTransaction(
++			val page = entry.importedWifiEvaluator().selectExportRangeInTransaction(
+ 				ImportedWifiProductRangeRequest(from, to, 100, beforeStart, beforeIdentity),
+ 			)
+ 			page.evaluations.forEach { evaluation ->
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableCellSourceExporter.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableCellSourceExporter.kt
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableCellSourceExporter.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableCellSourceExporter.kt
+@@ -235,7 +235,7 @@ internal class PortableCellSourceExporter(
+ 		var beforeIdentity: String? = null
+ 		while (true) {
+ 			currentCoroutineContext().ensureActive()
+-			val page = reader.selectWallRangePageInTransaction(from, to, 100,
++			val page = reader.selectExportWallRangePageInTransaction(from, to, 100,
+ 				beforeStart, beforeIdentity)
+ 			if (page.isEmpty()) break
+ 			page.forEach { evaluation ->
+diff --git a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/ImportedWifiExportPagingRoomTest.kt b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/ImportedWifiExportPagingRoomTest.kt
+--- a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/ImportedWifiExportPagingRoomTest.kt
++++ b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/ImportedWifiExportPagingRoomTest.kt
+@@ -58,7 +58,7 @@ class ImportedWifiExportPagingRoomTest {
+ 		val secondEvaluation = readable(second)
+ 		val requests = mutableListOf<ImportedWifiProductRangeRequest>()
+ 		val imported = mockk<ImportedWifiProductEvaluator>()
+-		coEvery { imported.selectRangeInTransaction(any()) } coAnswers {
++		coEvery { imported.selectExportRangeInTransaction(any()) } coAnswers {
+ 			database.inTransaction() shouldBe true
+ 			val request = firstArg<ImportedWifiProductRangeRequest>()
+ 			requests += request
+diff --git a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/RadioExportSpoolRoomTest.kt b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/RadioExportSpoolRoomTest.kt
+--- a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/RadioExportSpoolRoomTest.kt
++++ b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/RadioExportSpoolRoomTest.kt
+@@ -295,7 +295,7 @@ class RadioExportSpoolRoomTest {
+ 				}
+ 			}
+ 			val imported = mockk<ImportedWifiProductEvaluator>()
+-			coEvery { imported.selectRangeInTransaction(any()) } coAnswers {
++			coEvery { imported.selectExportRangeInTransaction(any()) } coAnswers {
+ 				assertTrue(database.inTransaction())
+ 				ImportedWifiProductRangePage(emptyList(), false)
+ 			}
+diff --git a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/RadioExportCandidateIntegrationRoomTest.kt b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/RadioExportCandidateIntegrationRoomTest.kt
+--- a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/RadioExportCandidateIntegrationRoomTest.kt
++++ b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/RadioExportCandidateIntegrationRoomTest.kt
+@@ -119,7 +119,7 @@ class RadioExportCandidateIntegrationRoomTest {
+ 		val background = mockk<ExportPortableAmbientWifi>()
+ 		coEvery { background.export(any(), any()) } returns ExportPortableAmbientWifiResult.NoData
+ 		val imported = mockk<ImportedWifiProductEvaluator>()
+-		coEvery { imported.selectRangeInTransaction(any()) } returns ImportedWifiProductRangePage(emptyList(), false)
++		coEvery { imported.selectExportRangeInTransaction(any()) } returns ImportedWifiProductRangePage(emptyList(), false)
+ 		return object : WifiSourceExportEntryPoint {
+ 			override fun database() = database
+ 			override fun capturedWifi() = captured

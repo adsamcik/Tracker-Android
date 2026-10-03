@@ -20,6 +20,13 @@ description of its earlier input; this file records subsequent repair progress.
 
 ## Authored slices and local commit receipts
 
+- October 3 imported-radio export-date discovery is independently source-reviewed:
+  exact latest-revision observations/gaps choose candidates, with separate export
+  reader methods preserving History scope and source cursors. Select the twelve
+  owned tracked diffs and two narrow Cell reader/test additions; fourteen new
+  DAO/real-qualifier scenarios remain unexecuted. Full exporter definitions, their
+  two new routing cases and other dependent fixtures stay held. Selection receipt:
+  `../2026-10-03/IMPORTED_RADIO_EXPORT_CANDIDATE_SELECTION.md`.
 - `c7cc6a7340`: approved nullable native Wi-Fi format marker, immutable
   corrections, writer/history/maintenance parity and authored migration/detail
   scenarios. Fresh static review passed the narrow source slice. Twelve tracked

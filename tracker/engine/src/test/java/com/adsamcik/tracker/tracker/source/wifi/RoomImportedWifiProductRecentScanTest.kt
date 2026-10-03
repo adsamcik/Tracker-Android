@@ -16,6 +16,7 @@ import com.adsamcik.tracker.stats.api.repository.ImportPortableCapturedWifiResul
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductFailure
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentRequest
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiRunV1
@@ -217,6 +218,53 @@ class RoomImportedWifiProductRecentScanTest {
 		} shouldBe true
 	}
 
+	@Test
+	fun `export range qualifies touching scans beyond headers without unrelated corrupt cohorts`() = runTest {
+		val touching = entry("touching", 100L, endOffset = 10L)
+		val outside = entry("outside", 1_000L)
+		listOf(touching, outside).forEachIndexed { index, value ->
+			importer().importEntry(request(value, "export-$index", 2_000L)) shouldBe
+				ImportPortableCapturedWifiResult.Applied(1L, 1, 1)
+		}
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_wifi_run SET content_checksum = 'broken' WHERE entry_identity = ?",
+			arrayOf(outside.identity.value),
+		)
+		val evaluator = RoomImportedWifiProductEvaluator(database)
+		database.withTransaction {
+			val range = ImportedWifiProductRangeRequest(121L, 125L, 100)
+			evaluator.selectRangeInTransaction(range).evaluations shouldBe emptyList()
+			val selected = evaluator.selectExportRangeInTransaction(range)
+			selected.hasMore shouldBe false
+			(selected.evaluations.single() as ImportedWifiProductEvaluation.Readable).entry shouldBe touching
+			evaluator.selectExportRangeInTransaction(range.copy(fromInclusiveMs = 122L)).evaluations shouldBe emptyList()
+		}
+	}
+
+	@Test
+	fun `export gap-only run is selected and an invalid outside clock cannot silently disappear`() = runTest {
+		val gap = entry("gap", 100L, unresolvedGap = true)
+		val unknown = entry("unknown", 1_000L)
+		importer().importEntry(request(gap, "gap-export", 2_000L)) shouldBe
+			ImportPortableCapturedWifiResult.Applied(1L, 1, 0)
+		importer().importEntry(request(unknown, "unknown-export", 2_000L)) shouldBe
+			ImportPortableCapturedWifiResult.Applied(1L, 1, 1)
+		val evaluator = RoomImportedWifiProductEvaluator(database)
+		database.withTransaction {
+			val selected = evaluator.selectExportRangeInTransaction(ImportedWifiProductRangeRequest(150L, 151L, 100))
+			(selected.evaluations.single() as ImportedWifiProductEvaluation.Readable).entry shouldBe gap
+		}
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_wifi_observation SET wall_time_uncertainty_ms = 100 " +
+				"WHERE entry_identity = ?", arrayOf(unknown.identity.value))
+		database.withTransaction {
+			val selected = evaluator.selectExportRangeInTransaction(ImportedWifiProductRangeRequest(300L, 301L, 100))
+			val failure = selected.evaluations.filterIsInstance<ImportedWifiProductEvaluation.Unverifiable>().single()
+			failure.candidate.identity shouldBe unknown.identity
+			failure.reason shouldBe ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE
+		}
+	}
+
 	private fun importer() = RoomImportPortableCapturedWifi(
 		database,
 		UnconfinedTestDispatcher(),
@@ -327,7 +375,8 @@ class RoomImportedWifiProductRecentScanTest {
 		}
 	}
 
-	private fun entry(owner: String, vararg startTimes: Long): PortableCapturedWifiEntryV1 {
+	private fun entry(owner: String, vararg startTimes: Long, endOffset: Long = 100L,
+		unresolvedGap: Boolean = false): PortableCapturedWifiEntryV1 {
 		val runs = startTimes.mapIndexed { index, startTimeMs ->
 			val observation = PortableWifiIntegrity.createObservation(
 				identity = identity(PortableWifiIdentityKind.OBSERVATION, "$owner-observation-$index"),
@@ -369,14 +418,16 @@ class RoomImportedWifiProductRecentScanTest {
 					),
 				),
 				startTimeMs = startTimeMs,
-				endTimeMs = startTimeMs + 100L,
+				endTimeMs = startTimeMs + endOffset,
 				storedZoneIds = listOf("Europe/Prague"),
 				captureCoverage = PortableWifiCaptureCoverage.WHOLE_RUN,
-				availability = PortableWifiRunAvailability.RETAINED,
-				acquisitionCompleteness = PortableWifiAcquisitionCompleteness.COMPLETE,
-				hasUnresolvedProviderRange = false,
+				availability = if (unresolvedGap) PortableWifiRunAvailability.NO_RETAINED_OBSERVATION
+					else PortableWifiRunAvailability.RETAINED,
+				acquisitionCompleteness = if (unresolvedGap) PortableWifiAcquisitionCompleteness.PARTIAL
+					else PortableWifiAcquisitionCompleteness.COMPLETE,
+				hasUnresolvedProviderRange = unresolvedGap,
 				retentionLoss = false,
-				observations = listOf(observation),
+				observations = if (unresolvedGap) emptyList() else listOf(observation),
 			)
 		}.sortedWith(com.adsamcik.tracker.stats.api.repository.PORTABLE_WIFI_RUN_ORDER)
 		return PortableWifiIntegrity.createEntry(

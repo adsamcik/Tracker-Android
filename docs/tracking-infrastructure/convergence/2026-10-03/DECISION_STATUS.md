@@ -71,6 +71,10 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   complete held exporter definition selection remains open.
 - [x] Implement and independently review the native Wi-Fi format marker core;
   commit `c7cc6a7340`; mixed file-export owner/detail deltas remain held separately.
+- [x] Author and independently review source-time/gap export discovery for imported
+  Wi-Fi/Cell, preserving separate History queries and the source's exact cursor.
+  Select twelve tracked diffs and two narrow Cell reader/test additions; full
+  exporter definitions and their dependent scenarios remain held separately.
 - [ ] Trace and implement period metrics through real dated source data, including
   missing evidence and correction/deletion behavior; never substitute All-time.
 - [ ] Update source-selection receipts and checklists after each coherent commit.
@@ -79,9 +83,9 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   The implementation seam is traced in `TRANSFER_CLEAR_QUIESCENCE_SOURCE_TRACE.md`;
   this fulfills already approved cleanup behavior, without another user question.
 
-The approved displayed-day History and isolated imported-radio export-date
-candidate slices are being authored. Neither selects the complete held History
-or exporter definitions. Global imported-radio ownership currently uses a capped
+The approved displayed-day History is being authored. The isolated imported-radio
+export-date candidate slice is source-reviewed for narrow selection. Neither
+selects the complete held History or exporter definitions. Global imported-radio ownership currently uses a capped
 native census; exact selected-owner lookup remains a separate required gap. Do
 not introduce a hash scan/function or new reverse lookup merely to bypass its cap.
 

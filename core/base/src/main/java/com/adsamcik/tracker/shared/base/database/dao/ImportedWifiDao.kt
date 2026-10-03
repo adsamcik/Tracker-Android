@@ -508,6 +508,64 @@ abstract class ImportedWifiDao {
 		beforeIdentity: String?,
 	): List<ImportedWifiHistoryCandidate>
 
+	/** Export selects source observations/gaps, independently of the original session envelope. */
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT revision.* FROM imported_wifi_entry_revision AS revision
+		  WHERE revision.import_revision = (
+		    SELECT MAX(latest.import_revision) FROM imported_wifi_entry_revision AS latest
+		    WHERE latest.identity = revision.identity
+		  )
+		), candidate AS (
+		  SELECT entry.identity, entry.import_revision, entry.content_checksum,
+		         entry.start_time_ms, entry.end_time_ms, entry.received_at_ms,
+		         COALESCE((SELECT MAX(run.start_time_ms) FROM imported_wifi_run AS run
+		           WHERE run.entry_identity = entry.identity AND run.entry_import_revision = entry.import_revision),
+		           entry.start_time_ms) AS newest_member_start_time_ms,
+		         COALESCE((SELECT MAX(run.identity) FROM imported_wifi_run AS run
+		           WHERE run.entry_identity = entry.identity AND run.entry_import_revision = entry.import_revision
+		             AND run.start_time_ms = (SELECT MAX(latest_run.start_time_ms) FROM imported_wifi_run AS latest_run
+		               WHERE latest_run.entry_identity = entry.identity AND latest_run.entry_import_revision = entry.import_revision)),
+		           entry.identity) AS newest_member_identity
+		  FROM latest_revision AS entry
+		  WHERE (:fromInclusiveMs = 0 AND :toExclusiveMs = 9223372036854775807)
+		     OR typeof(entry.start_time_ms) != 'integer' OR typeof(entry.end_time_ms) != 'integer'
+		     OR entry.start_time_ms < 0 OR entry.end_time_ms < entry.start_time_ms
+		     OR EXISTS (
+		       SELECT 1 FROM imported_wifi_observation AS observation
+		       WHERE observation.entry_identity = entry.identity AND observation.entry_import_revision = entry.import_revision
+		         AND CASE WHEN typeof(observation.coverage_start_time_ms) != 'integer'
+		           OR typeof(observation.observed_time_ms) != 'integer' OR typeof(observation.latest_possible_time_ms) != 'integer'
+		           OR typeof(observation.wall_time_uncertainty_ms) != 'integer' OR observation.coverage_start_time_ms < 0
+		           OR observation.wall_time_uncertainty_ms < 0 OR observation.observed_time_ms < observation.wall_time_uncertainty_ms
+		           OR observation.observed_time_ms > 9223372036854775807 - observation.wall_time_uncertainty_ms
+		           OR observation.coverage_start_time_ms > observation.observed_time_ms - observation.wall_time_uncertainty_ms
+		           OR observation.latest_possible_time_ms != observation.observed_time_ms + observation.wall_time_uncertainty_ms
+		           THEN 1 ELSE observation.coverage_start_time_ms < :toExclusiveMs
+		             AND observation.latest_possible_time_ms >= :fromInclusiveMs END
+		     )
+		     OR EXISTS (
+		       SELECT 1 FROM imported_wifi_run AS run
+		       WHERE run.entry_identity = entry.identity AND run.entry_import_revision = entry.import_revision
+		         AND CASE WHEN typeof(run.start_time_ms) != 'integer' OR typeof(run.end_time_ms) != 'integer'
+		           OR run.start_time_ms < 0 OR run.end_time_ms < run.start_time_ms THEN 1
+		           ELSE run.capture_coverage != 'NOT_CAPTURED' AND (run.retention_loss != 0 OR run.has_unresolved_provider_range != 0)
+		             AND run.start_time_ms < :toExclusiveMs AND
+		               (run.end_time_ms > :fromInclusiveMs OR (run.start_time_ms = run.end_time_ms AND run.start_time_ms >= :fromInclusiveMs)) END
+		     )
+		)
+		SELECT * FROM candidate
+		WHERE :beforeStartTimeMs IS NULL OR newest_member_start_time_ms < :beforeStartTimeMs
+		   OR (newest_member_start_time_ms = :beforeStartTimeMs AND newest_member_identity < COALESCE(:beforeIdentity, ''))
+		ORDER BY newest_member_start_time_ms DESC, newest_member_identity DESC LIMIT :limit
+		""",
+	)
+	abstract suspend fun exportCandidateRangePage(
+		fromInclusiveMs: Long, toExclusiveMs: Long, limit: Int,
+		beforeStartTimeMs: Long?, beforeIdentity: String?,
+	): List<ImportedWifiHistoryCandidate>
+
 	@Query(
 		"SELECT revision.identity, revision.import_revision, revision.content_checksum, " +
 			"revision.start_time_ms, revision.end_time_ms, revision.received_at_ms, " +

@@ -659,6 +659,11 @@ class TrackingHistorySourceUnionRepositoryTest {
 				limit: Int,
 			): List<ImportedWifiProductEvaluation> = emptyList()
 
+			override suspend fun selectExportRangeInTransaction(
+				request: com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest,
+			): com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangePage =
+				error("Unexpected export dependency in a history fixture")
+
 			override suspend fun selectRangeInTransaction(
 				request: ImportedWifiProductRangeRequest,
 			): ImportedWifiProductRangePage = ImportedWifiProductRangePage(emptyList(), false)

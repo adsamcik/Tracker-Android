@@ -123,17 +123,30 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 
 	override suspend fun selectRangeInTransaction(
 		request: ImportedWifiProductRangeRequest,
+	): ImportedWifiProductRangePage = selectRangePage(request) { queryLimit ->
+		database.importedWifiDao().historyCandidateRangePage(
+			request.fromInclusiveMs, request.toExclusiveMs, queryLimit,
+			request.beforeStartTimeMs, request.beforeIdentity?.value,
+		)
+	}
+
+	override suspend fun selectExportRangeInTransaction(
+		request: ImportedWifiProductRangeRequest,
+	): ImportedWifiProductRangePage = selectRangePage(request) { queryLimit ->
+		database.importedWifiDao().exportCandidateRangePage(
+			request.fromInclusiveMs, request.toExclusiveMs, queryLimit,
+			request.beforeStartTimeMs, request.beforeIdentity?.value,
+		)
+	}
+
+	private suspend fun selectRangePage(
+		request: ImportedWifiProductRangeRequest,
+		loadCandidates: suspend (Int) -> List<ImportedWifiHistoryCandidate>,
 	): ImportedWifiProductRangePage {
 		val state = ImportedWifiProductReadState(limits)
 		val queryLimit = Math.addExact(request.limit, 1)
 		state.budget.recordQuery()
-		val candidates = database.importedWifiDao().historyCandidateRangePage(
-			fromInclusiveMs = request.fromInclusiveMs,
-			toExclusiveMs = request.toExclusiveMs,
-			limit = queryLimit,
-			beforeStartTimeMs = request.beforeStartTimeMs,
-			beforeIdentity = request.beforeIdentity?.value,
-		)
+		val candidates = loadCandidates(queryLimit)
 		state.budget.recordRows(candidates)
 		if (!isValidCandidatePage(
 				candidates,

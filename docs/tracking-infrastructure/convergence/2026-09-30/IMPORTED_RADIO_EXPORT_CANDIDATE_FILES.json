@@ -1,0 +1,118 @@
+{
+  "authoredNewScenarios": 16,
+  "head": "9b98d3f3acc10c75c295d177374ef7f3c510dd76",
+  "selectionRule": "Dedicated export-only metadata candidates; exact final smart selection unchanged",
+  "heldDependencies": [
+    "PortableWifiSourceExporter preserved spool, child mapping and newest-member cursor tuple",
+    "PortableCellSourceExporter preserved spool and child mapping",
+    "global native owner census unchanged and not solved by this slice"
+  ],
+  "ownedTrackedPatch": "IMPORTED_RADIO_EXPORT_CANDIDATE_TRACKED.patch",
+  "newSchema": false,
+  "executedChecks": [],
+  "files": [
+    {
+      "sha256": "3decb5b81c837c22f4b99a5b43c2b4c6158785c654b4481a1af7bae70fddfe28",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ImportedWifiDao.kt",
+      "selection": "entire current tracked diff only"
+    },
+    {
+      "sha256": "630d2209bec6436e15fb9306cc518d0b888a20119c098c538a7b30103feea74a",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ImportedCellDao.kt",
+      "selection": "entire current tracked diff only"
+    },
+    {
+      "sha256": "22f857ec4b70c4a64ab2f78be14e40c970d7c586e87647569f562ccf06bfde02",
+      "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/WifiImportedProduct.kt",
+      "selection": "entire current tracked diff only"
+    },
+    {
+      "sha256": "0d0893ad51b48d227f33d6d19eb84b5c7d73e1e81aea8ac8944c09f89f8bd790",
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/RoomImportedWifiProductEvaluator.kt",
+      "selection": "entire current tracked diff only"
+    },
+    {
+      "sha256": "a7640dbfd526328e9d93685588fd133920bbee6e30f5d7a53933cd5ef9d026e4",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/ImportedWifiDaoTest.kt",
+      "selection": "entire current tracked diff only"
+    },
+    {
+      "sha256": "f44e4a173be6cdb40691d0feb1267e4052002583ae2bc816c8bdcebad6799aa6",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/ImportedCellDaoTest.kt",
+      "selection": "entire current tracked diff only"
+    },
+    {
+      "sha256": "823ba567d3382859140582ff6486c677d3bb53d9c1cf8ec71a8ccd014e77b106",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/RoomImportedWifiProductRecentScanTest.kt",
+      "selection": "entire current tracked diff only"
+    },
+    {
+      "sha256": "b3fbb94e4b12ab8c8906a9ce1b096d5376cd162cdcc70fc276b20ed2dd9935a7",
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/RoomImportPortableCapturedWifiTest.kt",
+      "selection": "entire current tracked diff only"
+    },
+    {
+      "sha256": "55bb83facc46d195664bf897e1618102ff818a5a3fb950a030b077aa691773f4",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiImportedHistoryRepositoryTest.kt",
+      "selection": "entire current tracked diff only"
+    },
+    {
+      "sha256": "990212dead588540d97d1bc3c50c4479c534b6d24151ae7149615236ac81ac9e",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/TrackingHistorySourceUnionRepositoryTest.kt",
+      "selection": "entire current tracked diff only"
+    },
+    {
+      "sha256": "a263a3dd872243e531e42f2409f1942f36712df36f38f64304662aef9fea1b05",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedWifiHistoryDetailsRoomTest.kt",
+      "selection": "entire current tracked diff only"
+    },
+    {
+      "sha256": "aae2476b1476e876c0869cc5d899d9e6e973820c6ea96257f39db507ea146f7a",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+      "selection": "entire current tracked diff only"
+    },
+    {
+      "sha256": "d98e42a491768398d731bb8fc20c2f1f93b52828f1e5857358424715439b4f3e",
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ImportedCellProductReader.kt",
+      "selection": "new selectExportWallRangePageInTransaction only; exclude preserved selectWallRangePageInTransaction"
+    },
+    {
+      "sha256": "d002aba36065ff76c5f993cafd8c8b350f36b40dad682e052af049d85e92b9cc",
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RoomImportPortableCapturedCellTest.kt",
+      "selection": "two new export date reader tests only; exclude preserved Cell source export pagination test"
+    },
+    {
+      "sha256": "232b6bb055e9638d2ce18bfd53334a3654b6c8126c0a6c68b924c259dfff4ad8",
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableWifiSourceExporter.kt",
+      "selection": "one routing/mock method-name replacement only; preserve all other held source"
+    },
+    {
+      "sha256": "ef0b5f1289c5a3221782e583c9d2697db1f70be6dfa489966f63675f0cadfd86",
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableCellSourceExporter.kt",
+      "selection": "one routing/mock method-name replacement only; preserve all other held source"
+    },
+    {
+      "sha256": "adff617e27d1546b46c0773825dcce5efc61b03912f1b0ac655e2a31f4d14aa6",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/ImportedWifiExportPagingRoomTest.kt",
+      "selection": "one routing/mock method-name replacement only; preserve all other held source"
+    },
+    {
+      "sha256": "42facd7b3b176b10cc0d59b7c1eaf7d6f090873ef929dafbfc3b580383caaa22",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/RadioExportSpoolRoomTest.kt",
+      "selection": "one routing/mock method-name replacement only; preserve all other held source"
+    },
+    {
+      "sha256": "56fa65fdceae9c602b3cb0124b68f3734977b4c27768ccb40280fad7990e18e5",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/RadioExportCandidateIntegrationRoomTest.kt",
+      "selection": "one routing/mock method-name replacement only; preserve all other held source"
+    },
+    {
+      "sha256": "69b4e8b3892c9dc7d20bf2290d4ed154b1dd5223a584a8a5b5965bdef53e7c99",
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/ImportedRadioExportDateCandidatesRoomTest.kt",
+      "selection": "new test file, entire source"
+    }
+  ],
+  "mixedPatch": "IMPORTED_RADIO_EXPORT_CANDIDATE_MIXED.patch",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "phase": "IMPLEMENTATION_ONLY"
+}

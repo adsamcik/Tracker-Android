@@ -42,6 +42,62 @@ import org.robolectric.annotation.Config
 class RoomImportPortableCapturedCellTest {
 	private lateinit var database: AppDatabase
 
+	@Test
+	fun `export reader qualifies uncertainty crossing headers and ignores unrelated corrupt cohorts`() = runTest {
+		seedEvidence()
+		val touching = entry(logicalLocal = "touching-export")
+		val outside = entry(logicalLocal = "outside-export", runDefinitions = listOf(
+			RunDefinition("outside-run", 1_000L, 1_100L, emptyList(),
+				availability = PortableCellRunAvailability.NO_RETAINED_OBSERVATION,
+				completeness = PortableCellAcquisitionCompleteness.PARTIAL),
+		))
+		importer().importEntry(request(touching, "touching-job", "touching-entry")) shouldBe
+			ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		importer().importEntry(request(outside, "outside-job", "outside-entry")) shouldBe
+			ImportPortableCapturedCellResult.Applied(1L, 1, 0)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_cell_run SET content_checksum = 'broken' WHERE entry_identity = ?",
+			arrayOf(outside.identity.value),
+		)
+		database.withTransaction {
+			val reader = ImportedCellProductReader(database)
+			reader.selectWallRangeInTransaction(112L, 113L, 100) shouldBe emptyList()
+			val selected = reader.selectExportWallRangePageInTransaction(112L, 113L, 100)
+			(selected.single() as ImportedCellProductEvaluation.Readable).entry shouldBe touching
+			reader.selectExportWallRangePageInTransaction(113L, 114L, 100) shouldBe emptyList()
+		}
+	}
+
+	@Test
+	fun `Cell export gap-only run is selected while invalid unknown clocks remain failures`() = runTest {
+		seedEvidence()
+		val gap = entry(logicalLocal = "gap-export", runDefinitions = listOf(
+			RunDefinition("gap-run", 100L, 100L, emptyList(),
+				availability = PortableCellRunAvailability.NO_RETAINED_OBSERVATION,
+				completeness = PortableCellAcquisitionCompleteness.PARTIAL, retentionLoss = true),
+		))
+		val unknown = entry(logicalLocal = "unknown-export")
+		importer().importEntry(request(gap, "gap-job", "gap-entry")) shouldBe
+			ImportPortableCapturedCellResult.Applied(1L, 1, 0)
+		importer().importEntry(request(unknown, "unknown-job", "unknown-entry")) shouldBe
+			ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		val reader = ImportedCellProductReader(database)
+		database.withTransaction {
+			(reader.selectExportWallRangePageInTransaction(100L, 101L, 100)
+				.filterIsInstance<ImportedCellProductEvaluation.Readable>()
+				.single { it.entry.identity == gap.identity }).entry shouldBe gap
+		}
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_cell_observation SET wall_time_uncertainty_ms = 100 " +
+				"WHERE entry_identity = ?", arrayOf(unknown.identity.value))
+		database.withTransaction {
+			val failure = reader.selectExportWallRangePageInTransaction(1_000L, 1_001L, 100)
+				.single() as ImportedCellProductEvaluation.Unverifiable
+			failure.candidate.identity shouldBe unknown.identity.value
+			failure.reason shouldBe ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE
+		}
+	}
+
 	@Before
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()

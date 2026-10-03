@@ -6,8 +6,9 @@ Last updated: 2026-10-03
 
 October 3 decisions supersede earlier pending-question labels; see
 `convergence/2026-10-03/DECISION_STATUS.md`. Temporary radio export storage, the
-native Wi-Fi format marker, released `main` attribution and three period-metric
-rules are approved. Their implementation/review remains separate from approval.
+native Wi-Fi format marker, released `main` attribution, three period-metric
+rules, displayed-day History and source-selectable session bundles are approved.
+Their implementation/review remains separate from approval.
 
 The current source-assembly progress is maintained in
 `convergence/2026-09-30/IMPLEMENTATION_PROGRESS.md`; the dated sections below are
@@ -46,8 +47,8 @@ Native export candidate query foundations (`5baa8f2060`) and bundle hashing/ZIP
 cancellation (`29abb0fb07`) are also selected and independently source-reviewed.
 The independent imported-radio child mapping foundation (`0e66e216b1`) preserves
 row order and exact owners while avoiding repeated scans; full callers stay held.
-The user-named released `master` baseline has no current ref; confirmation whether
-that means `main` is pending before treating its schema as the released baseline.
+The user confirmed that their released `master` reference meant current `main`.
+Only `main` is the released migration baseline; candidate schemas remain unshipped.
 
 History/bundle callers, complete backup restore/cleanup and remaining radio
 lifecycle work are still being assembled. None of these marks claims a gate pass.

@@ -324,6 +324,52 @@ abstract class ImportedCellDao {
 		beforeIdentity: String?,
 	): List<ImportedCellHistoryCandidate>
 
+	/** Source-specific export discovery; original headers remain the stable paging key. */
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision FROM imported_cell_entry_revision GROUP BY identity
+		)
+		SELECT entry.identity, entry.import_revision, entry.content_checksum, entry.start_time_ms,
+		       entry.end_time_ms, entry.received_at_ms
+		FROM imported_cell_entry_revision AS entry INNER JOIN latest_revision AS latest
+		  ON latest.identity = entry.identity AND latest.import_revision = entry.import_revision
+		WHERE (
+		  (:fromInclusiveMs = 0 AND :toExclusiveMs = 9223372036854775807)
+		  OR typeof(entry.start_time_ms) != 'integer' OR typeof(entry.end_time_ms) != 'integer'
+		  OR entry.start_time_ms < 0 OR entry.end_time_ms < entry.start_time_ms
+		  OR EXISTS (
+		    SELECT 1 FROM imported_cell_observation AS observation
+		    WHERE observation.entry_identity = entry.identity AND observation.entry_import_revision = entry.import_revision
+		      AND CASE WHEN typeof(observation.coverage_start_time_ms) != 'integer'
+		        OR typeof(observation.observed_time_ms) != 'integer' OR typeof(observation.latest_possible_time_ms) != 'integer'
+		        OR typeof(observation.wall_time_uncertainty_ms) != 'integer' OR observation.coverage_start_time_ms < 0
+		        OR observation.wall_time_uncertainty_ms < 0 OR observation.observed_time_ms < observation.wall_time_uncertainty_ms
+		        OR observation.observed_time_ms > 9223372036854775807 - observation.wall_time_uncertainty_ms
+		        OR observation.coverage_start_time_ms > observation.observed_time_ms - observation.wall_time_uncertainty_ms
+		        OR observation.latest_possible_time_ms != observation.observed_time_ms + observation.wall_time_uncertainty_ms
+		        THEN 1 ELSE observation.coverage_start_time_ms < :toExclusiveMs
+		          AND observation.latest_possible_time_ms >= :fromInclusiveMs END
+		  )
+		  OR EXISTS (
+		    SELECT 1 FROM imported_cell_run AS run
+		    WHERE run.entry_identity = entry.identity AND run.entry_import_revision = entry.import_revision
+		      AND CASE WHEN typeof(run.start_time_ms) != 'integer' OR typeof(run.end_time_ms) != 'integer'
+		        OR run.start_time_ms < 0 OR run.end_time_ms < run.start_time_ms THEN 1
+		        ELSE run.capture_coverage != 'NOT_CAPTURED' AND run.retention_loss != 0
+		          AND run.start_time_ms < :toExclusiveMs AND
+		            (run.end_time_ms > :fromInclusiveMs OR (run.start_time_ms = run.end_time_ms AND run.start_time_ms >= :fromInclusiveMs)) END
+		  )
+		) AND (:beforeStartTimeMs IS NULL OR entry.start_time_ms < :beforeStartTimeMs
+		  OR (entry.start_time_ms = :beforeStartTimeMs AND entry.identity < COALESCE(:beforeIdentity, '')))
+		ORDER BY entry.start_time_ms DESC, entry.identity DESC LIMIT :limit
+		""",
+	)
+	abstract suspend fun exportCandidatePageInWallRange(
+		fromInclusiveMs: Long, toExclusiveMs: Long, limit: Int,
+		beforeStartTimeMs: Long?, beforeIdentity: String?,
+	): List<ImportedCellHistoryCandidate>
+
 	@Query(
 		"""
 		WITH latest_revision AS (

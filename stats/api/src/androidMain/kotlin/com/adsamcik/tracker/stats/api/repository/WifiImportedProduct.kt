@@ -104,6 +104,11 @@ interface ImportedWifiProductEvaluator {
 	suspend fun selectRangeInTransaction(
 		request: ImportedWifiProductRangeRequest,
 	): ImportedWifiProductRangePage
+
+	/** Export candidates selected by saved scan uncertainty or recorded gaps, not entry headers. */
+	suspend fun selectExportRangeInTransaction(
+		request: ImportedWifiProductRangeRequest,
+	): ImportedWifiProductRangePage
 }
 
 /**

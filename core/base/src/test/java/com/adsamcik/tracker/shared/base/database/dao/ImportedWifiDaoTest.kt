@@ -267,6 +267,84 @@ class ImportedWifiDaoTest {
 		dao.receiptCount() shouldBe 0L
 	}
 
+	@Test
+	fun `export candidates use uncertain scans beyond headers with inclusive final instant`() = runTest {
+		dao.insertEntryRevision(entry().copy(startTimeMs = 800L, endTimeMs = 850L))
+		dao.insertRun(run().copy(startTimeMs = 800L, endTimeMs = 850L))
+		dao.insertObservation(observation())
+
+		dao.historyCandidateRangePage(1_050L, 1_100L, 3, null, null) shouldBe emptyList()
+		dao.exportCandidateRangePage(1_050L, 1_100L, 3, null, null).map { it.identity } shouldBe listOf(ENTRY)
+		dao.exportCandidateRangePage(1_051L, 1_100L, 3, null, null) shouldBe emptyList()
+		dao.exportCandidateRangePage(800L, 900L, 3, null, null) shouldBe emptyList()
+	}
+
+	@Test
+	fun `instant Wi-Fi scans and unresolved gaps touch only their selected instant`() = runTest {
+		dao.insertEntryRevision(entry().copy(startTimeMs = 800L, endTimeMs = 800L))
+		dao.insertRun(run().copy(startTimeMs = 800L, endTimeMs = 800L,
+			availability = "NO_RETAINED_OBSERVATION", acquisitionCompleteness = "PARTIAL", hasUnresolvedProviderRange = true))
+		dao.exportCandidateRangePage(800L, 801L, 3, null, null).map { it.identity } shouldBe listOf(ENTRY)
+		dao.exportCandidateRangePage(799L, 800L, 3, null, null) shouldBe emptyList()
+		dao.exportCandidateRangePage(801L, 802L, 3, null, null) shouldBe emptyList()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_wifi_run SET has_unresolved_provider_range = 0")
+		dao.exportCandidateRangePage(800L, 801L, 3, null, null) shouldBe emptyList()
+		dao.insertObservation(observation().copy(coverageStartTimeMs = 800L, observedTimeMs = 800L,
+			latestPossibleTimeMs = 800L, wallTimeUncertaintyMs = 0L))
+		dao.exportCandidateRangePage(800L, 801L, 3, null, null).map { it.identity } shouldBe listOf(ENTRY)
+	}
+
+	@Test
+	fun `export discovery does not widen through older revisions but retains invalid clocks`() = runTest {
+		dao.insertEntryRevision(entry())
+		dao.insertRun(run())
+		dao.insertObservation(observation())
+		dao.insertEntryRevision(entry().copy(importRevision = 2L, supersedesImportRevision = 1L,
+			importJobId = "correction", importEntryKey = "correction", contentChecksum = "8".repeat(64)))
+		dao.insertRun(run().copy(entryImportRevision = 2L, startTimeMs = 100L, endTimeMs = 200L))
+		dao.insertObservation(observation().copy(entryImportRevision = 2L, coverageStartTimeMs = 100L,
+			observedTimeMs = 150L, latestPossibleTimeMs = 150L, wallTimeUncertaintyMs = 0L))
+		dao.exportCandidateRangePage(1_000L, 1_100L, 3, null, null) shouldBe emptyList()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_wifi_observation SET wall_time_uncertainty_ms = 100 " +
+				"WHERE entry_import_revision = 2")
+		dao.exportCandidateRangePage(1_000L, 1_100L, 3, null, null).map {
+			it.identity to it.importRevision
+		} shouldBe listOf(ENTRY to 2L)
+	}
+
+	@Test
+	fun `export candidate pagination uses newest member rather than entry start`() = runTest {
+		val second = "a".repeat(64)
+		dao.insertEntryRevision(entry().copy(startTimeMs = 100L, endTimeMs = 2_000L))
+		dao.insertRun(run().copy(startTimeMs = 1_500L, endTimeMs = 1_600L,
+			availability = "NO_RETAINED_OBSERVATION", acquisitionCompleteness = "PARTIAL", hasUnresolvedProviderRange = true))
+		dao.insertEntryRevision(entry().copy(identity = second, startTimeMs = 1_000L, endTimeMs = 2_000L,
+			importJobId = "second", importEntryKey = "second"))
+		dao.insertRun(run().copy(entryIdentity = second, identity = "b".repeat(64),
+			startTimeMs = 1_400L, endTimeMs = 1_600L,
+			availability = "NO_RETAINED_OBSERVATION", retentionLoss = true))
+		val first = dao.exportCandidateRangePage(1_500L, 1_600L, 1, null, null).single()
+		first.identity shouldBe ENTRY
+		first.newestMemberStartTimeMs shouldBe 1_500L
+		dao.exportCandidateRangePage(1_500L, 1_600L, 1,
+			first.newestMemberStartTimeMs, first.newestMemberIdentity).map { it.identity } shouldBe listOf(second)
+	}
+
+	@Test
+	fun `all-data Wi-Fi candidates keep empty gapless records and narrow exports keep overflow clocks`() = runTest {
+		dao.insertEntryRevision(entry())
+		dao.insertRun(run().copy(availability = "NO_RETAINED_OBSERVATION"))
+		dao.exportCandidateRangePage(0L, Long.MAX_VALUE, 3, null, null).map { it.identity } shouldBe listOf(ENTRY)
+		dao.exportCandidateRangePage(900L, 1_100L, 3, null, null) shouldBe emptyList()
+		dao.insertObservation(observation())
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_wifi_observation SET observed_time_ms = ?, wall_time_uncertainty_ms = 10",
+			arrayOf(Long.MAX_VALUE))
+		dao.exportCandidateRangePage(2_000L, 2_100L, 3, null, null).map { it.identity } shouldBe listOf(ENTRY)
+	}
+
 	private fun entry() = ImportedWifiEntryRevisionEntity(
 		ENTRY, 1L, null, ENTRY_CHECKSUM,
 		ImportedWifiEntryRevisionEntity.SOURCE_FORMAT,
