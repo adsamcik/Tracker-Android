@@ -246,6 +246,11 @@ remain held. No test or gate has run.
   rows preserve descriptive dual origins for session-export reuse. None ran.
 
 ## Remaining in these slices
+- [x] Select the narrow LastSession guard: choose the latest completed session
+  before date validation and return unavailable instead of substituting an older
+  row or page. Four new helper cases plus one adjustment are authored, unexecuted
+  and independently reviewed in `../2026-10-04/LAST_SESSION_SELECTION/SOURCE_REVIEW.md`.
+  Actual worker/Room/serializer coverage, exact identity and final handoff remain open.
 - [x] Select exact session Pressure reading as a six-path prerequisite. The existing
   source selector/evaluator owns native replacement and exact imported selection;
   original epoch and typed-content rechecks ignore unrelated source revisions.

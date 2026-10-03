@@ -1,0 +1,30 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "2d01ed0ee411bf2bc48d4c45fe070de6b945f102",
+  "selection_patch_sha256": "779fe263f25f712f8d037692fa983ac92731ff0a00161c8279b17bf7b0db65ba",
+  "paths": [
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportPlanWorker.kt",
+      "selection": "HEAD-based narrow snapshot; unfinished cleanup and all held format/scope drafts excluded",
+      "before": "ExportPlanWorker.kt.before",
+      "after": "ExportPlanWorker.kt.after",
+      "before_sha256": "ae2cac3523c93d9899e355b8131ec26f20f38e63f084fa5384236f07f2548abb",
+      "after_sha256": "2e81d35cd26bf212af649827d26e8ac88f86659ca6dc71eeff89158acccab326",
+      "actual_working_sha256": "dba9522c656aaa5ebcba0e998bdc779d9d7741905bd8d9672d00b1f9e010d737"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/automation/IncrementalExportTest.kt",
+      "selection": "clean-at-start test delta",
+      "before": "IncrementalExportTest.kt.before",
+      "after": "IncrementalExportTest.kt.after",
+      "before_sha256": "b8297655eea89688d5d075b581a511ace78b7e94229c46482e36db959902e36c",
+      "after_sha256": "a93de8da8f974aad702181d9187626ba57876eae04400589427d0d9c9132961f",
+      "actual_working_sha256": "875c4fa5099c38f1e372a1db3082fb0f82d5c7f7586b7682354a86eaaa27e2ff"
+    }
+  ],
+  "new_authored_cases": 4,
+  "adjusted_existing_cases": 1,
+  "executed_tests": 0,
+  "limits": "Initial selection guard only; exact membership payload and scheduled final-handoff fencing remain unfinished. No integration or gate evidence."
+}

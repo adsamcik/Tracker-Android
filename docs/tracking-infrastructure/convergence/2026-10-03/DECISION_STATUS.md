@@ -204,6 +204,13 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   cases are independently reviewed in `SESSION_PRESSURE_EXPORT_FRESH_REVIEW_1004.md`;
   none ran. Full shared preview/write, organization and final handoff stay open.
 
+- [x] Select the LastSession guard against silent fallback to an older completed
+  session when the latest completed session's dates are unavailable. The existing
+  failure path runs before output/watermark changes. Four new helper cases and one
+  adjustment are authored and independently reviewed in
+  `../2026-10-04/LAST_SESSION_SELECTION/SOURCE_REVIEW.md`; none ran. Complete exact
+  scheduled source selection and final handoff remain unfinished.
+
 The approved displayed-day History is being authored. The isolated imported-radio
 export-date candidate slice is source-reviewed for narrow selection. Neither
 selects the complete held History or exporter definitions. Global imported-radio ownership currently uses a capped

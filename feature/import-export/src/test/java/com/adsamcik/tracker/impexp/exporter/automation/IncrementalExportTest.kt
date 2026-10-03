@@ -29,19 +29,55 @@ class IncrementalExportTest {
 	fun lastSessionSelection_usesLatestFinishedSourceOrRetrospectiveSessionWithRealBounds() {
 		val worker = worker()
 		val active = organizationRow("logical:active", 4_000L, null, isActive = true)
-		val uncertain = organizationRow("logical:uncertain", 3_000L, 3_500L, timeUncertain = true)
 		val failed = organizationRow("logical:failed", 2_800L, 2_900L, isCompleted = false)
 		val sourceOnly = organizationRow("logical:source-only", 2_000L, 2_500L)
 		val retrospective = organizationRow(null, 1_000L, 1_500L)
 		assertEquals(
 			ExportPlanWorker.ScopeDateRange.Selected(2_000L..2_500L),
-			worker.firstCompletedSessionScope(listOf(active, uncertain, failed, sourceOnly, retrospective)),
+			worker.firstCompletedSessionScope(listOf(active, failed, sourceOnly, retrospective)),
 		)
 		assertEquals(
 			ExportPlanWorker.ScopeDateRange.Selected(1_000L..1_500L),
 			worker.firstCompletedSessionScope(listOf(retrospective)),
 		)
-		assertEquals(null, worker.firstCompletedSessionScope(listOf(active, uncertain, failed)))
+		assertEquals(null, worker.firstCompletedSessionScope(listOf(active, failed)))
+	}
+
+	@Test
+	fun lastSessionSelection_uncertainLatestDoesNotSubstituteAnOlderSession() {
+		val latest = organizationRow("logical:uncertain", 3_000L, 3_500L, timeUncertain = true)
+		val older = organizationRow("logical:older", 2_000L, 2_500L)
+		assertEquals(ExportPlanWorker.ScopeDateRange.Unavailable,
+			worker().firstCompletedSessionScope(listOf(latest, older)))
+	}
+
+	@Test
+	fun lastSessionSelection_missingLatestDatesStopsPageTraversal() {
+		val latest = organizationRow("logical:missing", 3_000L, null)
+		// Non-null Unavailable stops latestCompletedSessionScope before it loads an older page.
+		assertEquals(ExportPlanWorker.ScopeDateRange.Unavailable,
+			worker().firstCompletedSessionScope(listOf(latest)))
+	}
+
+	@Test
+	fun lastSessionSelection_invalidLatestDatesDoNotSubstituteAValidRetrospectiveSession() {
+		val older = organizationRow(null, 1_000L, 1_500L)
+		for (latest in listOf(organizationRow("logical:negative", -1L, 3_500L),
+			organizationRow("logical:reversed", 3_000L, 2_500L),
+			organizationRow("logical:no-start", 3_000L, 3_500L).copy(fromMs = null))) {
+			assertEquals(ExportPlanWorker.ScopeDateRange.Unavailable,
+				worker().firstCompletedSessionScope(listOf(latest, older)))
+		}
+	}
+
+	@Test
+	fun lastSessionSelection_skipsActiveAndFailedRowsButStopsAtFirstUnavailableCompletedRow() {
+		val active = organizationRow("logical:active", 5_000L, null, isActive = true)
+		val failed = organizationRow("logical:failed", 4_000L, 4_500L, isCompleted = false)
+		val latest = organizationRow("logical:uncertain", 3_000L, 3_500L, timeUncertain = true)
+		val older = organizationRow("logical:older", 2_000L, 2_500L)
+		assertEquals(ExportPlanWorker.ScopeDateRange.Unavailable,
+			worker().firstCompletedSessionScope(listOf(active, failed, latest, older)))
 	}
 
 	@Test

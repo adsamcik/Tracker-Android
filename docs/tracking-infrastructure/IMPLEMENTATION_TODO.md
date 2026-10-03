@@ -117,6 +117,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Stop LastSession from substituting an older completed session when the
+  latest completed session has uncertain, missing or invalid dates. The existing
+  worker failure path runs before output creation or watermark changes. Four new
+  helper cases and one adjustment are authored and independently reviewed in
+  `convergence/2026-10-04/LAST_SESSION_SELECTION/SOURCE_REVIEW.md`; none ran.
+  Exact scheduled identity/payload propagation and final handoff remain open.
 - [x] Select exact session Pressure export as a six-path backend prerequisite.
   Native original replacement groups and exact imported IDs retain source-owned
   qualification, original epoch and selected-content rechecks after sink I/O.

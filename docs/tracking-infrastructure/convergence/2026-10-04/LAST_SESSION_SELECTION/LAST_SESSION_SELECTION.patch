@@ -1,0 +1,108 @@
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportPlanWorker.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportPlanWorker.kt
+index b30044e6a4..179b861e8e 100644
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportPlanWorker.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportPlanWorker.kt
+@@ -152,6 +152,7 @@ class ExportPlanWorker @AssistedInject constructor(
+         val scopeDateRange = when (val scope = resolveDateRange(plan.scope)) {
+ 			is ScopeDateRange.Selected -> scope.range
+ 			ScopeDateRange.NoSession -> return@withContext PlanExportResult.NoSession
++			ScopeDateRange.Unavailable -> return@withContext PlanExportResult.Failed("Last session dates are unavailable")
+ 		}
+ 
+         // Apply incremental watermark lower bound when applicable
+@@ -345,6 +346,7 @@ class ExportPlanWorker @AssistedInject constructor(
+     internal sealed interface ScopeDateRange {
+ 		data class Selected(val range: LongRange?) : ScopeDateRange
+ 		data object NoSession : ScopeDateRange
++		data object Unavailable : ScopeDateRange
+ 	}
+ 
+     private suspend fun resolveDateRange(scope: ExportScope): ScopeDateRange {
+@@ -385,12 +387,18 @@ class ExportPlanWorker @AssistedInject constructor(
+         }
+     }
+ 
+-    internal fun firstCompletedSessionScope(rows: List<OrganizationSessionRow>): ScopeDateRange.Selected? =
+-        rows.firstOrNull { row ->
+-            row.isCompleted && !row.isActive && !row.timeUncertain &&
+-                row.fromMs != null && row.toMs != null &&
+-                row.fromMs >= 0L && row.toMs >= row.fromMs
+-        }?.let { row -> ScopeDateRange.Selected(requireNotNull(row.fromMs)..requireNotNull(row.toMs)) }
++    internal fun firstCompletedSessionScope(rows: List<OrganizationSessionRow>): ScopeDateRange? {
++        // Select the latest finished session before checking its exportability. A damaged or
++        // uncertain selection must not silently substitute an older session, including another page.
++        val row = rows.firstOrNull { it.isCompleted && !it.isActive } ?: return null
++        val from = row.fromMs
++        val to = row.toMs
++        return if (row.timeUncertain || from == null || to == null || from < 0L || to < from) {
++            ScopeDateRange.Unavailable
++        } else {
++            ScopeDateRange.Selected(from..to)
++        }
++    }
+ 
+ 	internal fun lastSessionScope(startMs: Long?, endMs: Long?): ScopeDateRange =
+ 		if (startMs == null || endMs == null || startMs < 0L || endMs < startMs) {
+diff --git a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/automation/IncrementalExportTest.kt b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/automation/IncrementalExportTest.kt
+index 3ec8b9973d..fbfd3d7eae 100644
+--- a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/automation/IncrementalExportTest.kt
++++ b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/automation/IncrementalExportTest.kt
+@@ -29,19 +29,55 @@ class IncrementalExportTest {
+ 	fun lastSessionSelection_usesLatestFinishedSourceOrRetrospectiveSessionWithRealBounds() {
+ 		val worker = worker()
+ 		val active = organizationRow("logical:active", 4_000L, null, isActive = true)
+-		val uncertain = organizationRow("logical:uncertain", 3_000L, 3_500L, timeUncertain = true)
+ 		val failed = organizationRow("logical:failed", 2_800L, 2_900L, isCompleted = false)
+ 		val sourceOnly = organizationRow("logical:source-only", 2_000L, 2_500L)
+ 		val retrospective = organizationRow(null, 1_000L, 1_500L)
+ 		assertEquals(
+ 			ExportPlanWorker.ScopeDateRange.Selected(2_000L..2_500L),
+-			worker.firstCompletedSessionScope(listOf(active, uncertain, failed, sourceOnly, retrospective)),
++			worker.firstCompletedSessionScope(listOf(active, failed, sourceOnly, retrospective)),
+ 		)
+ 		assertEquals(
+ 			ExportPlanWorker.ScopeDateRange.Selected(1_000L..1_500L),
+ 			worker.firstCompletedSessionScope(listOf(retrospective)),
+ 		)
+-		assertEquals(null, worker.firstCompletedSessionScope(listOf(active, uncertain, failed)))
++		assertEquals(null, worker.firstCompletedSessionScope(listOf(active, failed)))
++	}
++
++	@Test
++	fun lastSessionSelection_uncertainLatestDoesNotSubstituteAnOlderSession() {
++		val latest = organizationRow("logical:uncertain", 3_000L, 3_500L, timeUncertain = true)
++		val older = organizationRow("logical:older", 2_000L, 2_500L)
++		assertEquals(ExportPlanWorker.ScopeDateRange.Unavailable,
++			worker().firstCompletedSessionScope(listOf(latest, older)))
++	}
++
++	@Test
++	fun lastSessionSelection_missingLatestDatesStopsPageTraversal() {
++		val latest = organizationRow("logical:missing", 3_000L, null)
++		// Non-null Unavailable stops latestCompletedSessionScope before it loads an older page.
++		assertEquals(ExportPlanWorker.ScopeDateRange.Unavailable,
++			worker().firstCompletedSessionScope(listOf(latest)))
++	}
++
++	@Test
++	fun lastSessionSelection_invalidLatestDatesDoNotSubstituteAValidRetrospectiveSession() {
++		val older = organizationRow(null, 1_000L, 1_500L)
++		for (latest in listOf(organizationRow("logical:negative", -1L, 3_500L),
++			organizationRow("logical:reversed", 3_000L, 2_500L),
++			organizationRow("logical:no-start", 3_000L, 3_500L).copy(fromMs = null))) {
++			assertEquals(ExportPlanWorker.ScopeDateRange.Unavailable,
++				worker().firstCompletedSessionScope(listOf(latest, older)))
++		}
++	}
++
++	@Test
++	fun lastSessionSelection_skipsActiveAndFailedRowsButStopsAtFirstUnavailableCompletedRow() {
++		val active = organizationRow("logical:active", 5_000L, null, isActive = true)
++		val failed = organizationRow("logical:failed", 4_000L, 4_500L, isCompleted = false)
++		val latest = organizationRow("logical:uncertain", 3_000L, 3_500L, timeUncertain = true)
++		val older = organizationRow("logical:older", 2_000L, 2_500L)
++		assertEquals(ExportPlanWorker.ScopeDateRange.Unavailable,
++			worker().firstCompletedSessionScope(listOf(active, failed, latest, older)))
+ 	}
+ 
+ 	@Test

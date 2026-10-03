@@ -152,6 +152,7 @@ class ExportPlanWorker @AssistedInject constructor(
         val scopeDateRange = when (val scope = resolveDateRange(plan.scope)) {
 			is ScopeDateRange.Selected -> scope.range
 			ScopeDateRange.NoSession -> return@withContext PlanExportResult.NoSession
+			ScopeDateRange.Unavailable -> return@withContext PlanExportResult.Failed("Last session dates are unavailable")
 		}
 
         // Apply incremental watermark lower bound when applicable
@@ -345,6 +346,7 @@ class ExportPlanWorker @AssistedInject constructor(
     internal sealed interface ScopeDateRange {
 		data class Selected(val range: LongRange?) : ScopeDateRange
 		data object NoSession : ScopeDateRange
+		data object Unavailable : ScopeDateRange
 	}
 
     private suspend fun resolveDateRange(scope: ExportScope): ScopeDateRange {
@@ -385,12 +387,18 @@ class ExportPlanWorker @AssistedInject constructor(
         }
     }
 
-    internal fun firstCompletedSessionScope(rows: List<OrganizationSessionRow>): ScopeDateRange.Selected? =
-        rows.firstOrNull { row ->
-            row.isCompleted && !row.isActive && !row.timeUncertain &&
-                row.fromMs != null && row.toMs != null &&
-                row.fromMs >= 0L && row.toMs >= row.fromMs
-        }?.let { row -> ScopeDateRange.Selected(requireNotNull(row.fromMs)..requireNotNull(row.toMs)) }
+    internal fun firstCompletedSessionScope(rows: List<OrganizationSessionRow>): ScopeDateRange? {
+        // Select the latest finished session before checking its exportability. A damaged or
+        // uncertain selection must not silently substitute an older session, including another page.
+        val row = rows.firstOrNull { it.isCompleted && !it.isActive } ?: return null
+        val from = row.fromMs
+        val to = row.toMs
+        return if (row.timeUncertain || from == null || to == null || from < 0L || to < from) {
+            ScopeDateRange.Unavailable
+        } else {
+            ScopeDateRange.Selected(from..to)
+        }
+    }
 
 	internal fun lastSessionScope(startMs: Long?, endMs: Long?): ScopeDateRange =
 		if (startMs == null || endMs == null || startMs < 0L || endMs < startMs) {
