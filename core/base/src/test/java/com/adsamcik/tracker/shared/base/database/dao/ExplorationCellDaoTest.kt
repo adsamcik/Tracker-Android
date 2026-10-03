@@ -162,6 +162,38 @@ class ExplorationCellDaoTest {
 	}
 
 	@Test
+	fun discoveryTimestampsUseExactClosedBoundsAndSourceLevel() = runBlocking {
+		dao.insert(createCell(cellToken = "before", firstDiscoveredAt = 99L))
+		dao.insert(createCell(cellToken = "first", firstDiscoveredAt = 100L))
+		dao.insert(createCell(cellToken = "duplicate-time", firstDiscoveredAt = 100L))
+		dao.insert(createCell(cellToken = "last", firstDiscoveredAt = 200L))
+		dao.insert(createCell(cellToken = "after", firstDiscoveredAt = 201L))
+		dao.insert(createCell(cellToken = "other-level", level = 10, firstDiscoveredAt = 150L))
+		assertEquals(listOf(100L, 200L), dao.discoveryTimestampsBetween(100L, 200L, 14, 10))
+		assertEquals(listOf(150L), dao.discoveryTimestampsBetween(100L, 200L, 10, 10))
+	}
+
+	@Test
+	fun discoveryTimestampsAreBoundedAndChronologicalRatherThanInsertionOrdered() = runBlocking {
+		for (time in listOf(400L, 100L, 300L, 200L)) {
+			dao.insert(createCell(cellToken = "time-$time", firstDiscoveredAt = time))
+		}
+		assertEquals(listOf(100L, 200L, 300L), dao.discoveryTimestampsBetween(0L, 500L, 14, 3))
+		assertEquals(listOf(100L, 200L, 300L, 400L), dao.discoveryTimestampsBetween(0L, 500L, 14, 4))
+	}
+
+	@Test
+	fun recentRevisitDoesNotBecomeANewDiscoveryAndDeletedEvidenceDisappears() = runBlocking {
+		dao.insert(createCell(cellToken = "old", firstDiscoveredAt = 10L, lastVisitedAt = 150L))
+		dao.insert(createCell(cellToken = "retained", firstDiscoveredAt = 200L, lastVisitedAt = 200L))
+		assertEquals(emptyList<Long>(), dao.discoveryTimestampsBetween(100L, 190L, 14, 10))
+		dao.deleteOlderThan(100L)
+		assertEquals(listOf(200L), dao.discoveryTimestampsBetween(0L, 300L, 14, 10))
+		dao.deleteAll()
+		assertEquals(emptyList<Long>(), dao.discoveryTimestampsBetween(0L, 300L, 14, 10))
+	}
+
+	@Test
 	fun countAtLevelFlowEmitsUpdates() = runBlocking {
 		val initial = dao.countAtLevelFlow(14).first()
 		assertEquals(0, initial)

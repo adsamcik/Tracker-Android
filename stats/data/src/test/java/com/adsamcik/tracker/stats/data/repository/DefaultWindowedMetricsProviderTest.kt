@@ -2,6 +2,7 @@ package com.adsamcik.tracker.stats.data.repository
 
 import arrow.core.left
 import arrow.core.right
+import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
@@ -17,6 +18,12 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.verify
+import java.time.LocalDate
+import java.time.ZoneId
+import java.util.Locale
+import java.util.TimeZone
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -39,6 +46,7 @@ class DefaultWindowedMetricsProviderTest {
 			explorationStreakDao = explorationStreakDao,
 			sessionSegmentDao = sessionSegmentDao,
 			exportLogDao = exportLogDao,
+			dispatchers = TestDispatchersProvider(Dispatchers.Unconfined),
 		)
 	}
 
@@ -179,7 +187,7 @@ class DefaultWindowedMetricsProviderTest {
 	}
 
 	@Test
-	fun `collect returns cumulative for non windowable streak metric`() = runTest {
+	fun `all time retains the complete lifetime streak`() = runTest {
 		coEvery { explorationStreakDao.getByType("DAILY_DISCOVERY") } returns ExplorationStreakEntity(
 			type = "DAILY_DISCOVERY",
 			currentCount = 3,
@@ -190,10 +198,122 @@ class DefaultWindowedMetricsProviderTest {
 
 		val result = provider.collect(
 			metric = MetricKeys.DAILY_STREAK,
-			window = TimeWindow.Interval(1_000L, 2_000L),
+			window = TimeWindow.Cumulative,
 		)
 
 		result shouldBe 17L.right()
+	}
+
+	@Test
+	fun `selected daily streak uses only dated discoveries and never lifetime best`() = runTest {
+		coEvery { explorationCellDao.discoveryTimestampsBetween(1_000L, 2_000L, 14, 65_537) } returns
+			listOf(1_000L, 1_500L, 2_000L)
+		provider.collect(MetricKeys.DAILY_STREAK, TimeWindow.Interval(1_000L, 2_000L)) shouldBe 1L.right()
+		coVerify(exactly = 0) { explorationStreakDao.getByType(any()) }
+	}
+
+	@Test
+	fun `weekly window counts consecutive local weeks represented inside that window`() = runTest {
+		val firstDay = LocalDate.of(2026, 1, 15)
+		fun timestamp(day: LocalDate) = day.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+		val timestamps = listOf(firstDay, firstDay.plusWeeks(1), firstDay.plusWeeks(3)).map(::timestamp)
+		coEvery { explorationCellDao.discoveryTimestampsBetween(timestamps.first(), timestamps.last(), 14, 65_537) } returns timestamps
+		provider.collect(MetricKeys.WEEKLY_STREAK,
+			TimeWindow.Interval(timestamps.first(), timestamps.last())) shouldBe 2L.right()
+		coVerify(exactly = 0) { explorationStreakDao.getByType(any()) }
+	}
+
+	@Test
+	fun `rolling streak uses bounded discovery evidence`() = runTest {
+		coEvery { explorationCellDao.discoveryTimestampsBetween(any(), any(), 14, 65_537) } coAnswers {
+			listOf(secondArg<Long>())
+		}
+		provider.collect(MetricKeys.DAILY_STREAK, TimeWindow.Rolling(60_000L)) shouldBe 1L.right()
+		coVerify(exactly = 1) { explorationCellDao.discoveryTimestampsBetween(any(), any(), 14, 65_537) }
+		coVerify(exactly = 0) { explorationStreakDao.getByType(any()) }
+	}
+
+	@Test
+	fun `empty bounded discovery evidence has no streak`() = runTest {
+		coEvery { explorationCellDao.discoveryTimestampsBetween(100L, 200L, 14, 65_537) } returns emptyList()
+		for (metric in listOf(MetricKeys.DAILY_STREAK, MetricKeys.WEEKLY_STREAK)) {
+			provider.collect(metric, TimeWindow.Interval(100L, 200L)) shouldBe 0L.right()
+		}
+	}
+
+	@Test
+	fun `lookahead exhaustion rejects a plausible partial streak`() = runTest {
+		coEvery { explorationCellDao.discoveryTimestampsBetween(0L, 1_000_000L, 14, 65_537) } returns
+			List(65_537) { it.toLong() }
+		provider.collect(MetricKeys.DAILY_STREAK, TimeWindow.Interval(0L, 1_000_000L)) shouldBe
+			StatsError.ValidationError("Discovery streak read budget exceeded").left()
+		coVerify(exactly = 0) { explorationStreakDao.getByType(any()) }
+	}
+
+	@Test
+	fun `exact read ceiling is complete without lookahead`() = runTest {
+		coEvery { explorationCellDao.discoveryTimestampsBetween(0L, 1_000_000L, 14, 65_537) } returns
+			List(65_536) { it.toLong() }
+		provider.collect(MetricKeys.DAILY_STREAK, TimeWindow.Interval(0L, 1_000_000L)) shouldBe 1L.right()
+	}
+
+	@Test
+	fun `storage failure remains an error without a fabricated streak`() = runTest {
+		val failure = IllegalStateException("storage unavailable")
+		coEvery { explorationCellDao.discoveryTimestampsBetween(any(), any(), 14, 65_537) } throws failure
+		provider.collect(MetricKeys.WEEKLY_STREAK, TimeWindow.Interval(100L, 200L)) shouldBe
+			StatsError.DatabaseError("Failed to load discovery streak", failure).left()
+		coVerify(exactly = 0) { explorationStreakDao.getByType(any()) }
+	}
+
+	@Test
+	fun `cancelled discovery query propagates cancellation`() = runTest {
+		val cancellation = CancellationException("clear or caller cancelled")
+		coEvery { explorationCellDao.discoveryTimestampsBetween(any(), any(), 14, 65_537) } throws cancellation
+		val result = try {
+			provider.collect(MetricKeys.DAILY_STREAK, TimeWindow.Interval(100L, 200L))
+			error("Expected cancellation")
+		} catch (caught: CancellationException) { caught }
+		result shouldBe cancellation
+	}
+
+	@Test
+	fun `day membership retains the calendar captured before the query suspends`() = runTest {
+		val originalZone = TimeZone.getDefault()
+		try {
+			TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+			val timestamps = listOf("2026-01-01T23:30:00Z", "2026-01-02T00:30:00Z")
+				.map { java.time.Instant.parse(it).toEpochMilli() }
+			coEvery { explorationCellDao.discoveryTimestampsBetween(any(), any(), 14, 65_537) } coAnswers {
+				TimeZone.setDefault(TimeZone.getTimeZone("Europe/Prague"))
+				timestamps
+			}
+			provider.collect(MetricKeys.DAILY_STREAK,
+				TimeWindow.Interval(timestamps.first(), timestamps.last())) shouldBe 2L.right()
+		} finally {
+			TimeZone.setDefault(originalZone)
+		}
+	}
+
+	@Test
+	fun `week membership retains the locale captured before the query suspends`() = runTest {
+		val originalZone = TimeZone.getDefault()
+		val originalLocale = Locale.getDefault()
+		try {
+			TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+			Locale.setDefault(Locale.US)
+			val timestamps = listOf("2026-01-03T12:00:00Z", "2026-01-04T12:00:00Z")
+				.map { java.time.Instant.parse(it).toEpochMilli() }
+			coEvery { explorationCellDao.discoveryTimestampsBetween(any(), any(), 14, 65_537) } coAnswers {
+				Locale.setDefault(Locale.forLanguageTag("cs-CZ"))
+				timestamps
+			}
+			provider.collect(MetricKeys.WEEKLY_STREAK,
+				TimeWindow.Interval(timestamps.first(), timestamps.last())) shouldBe 2L.right()
+		} finally {
+			TimeZone.setDefault(originalZone)
+			Locale.setDefault(originalLocale)
+		}
 	}
 
 	@Test

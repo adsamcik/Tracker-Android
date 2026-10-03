@@ -90,6 +90,10 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   files; source-midnight storage and exact archive selectors remain separate gaps.
 - [ ] Trace and implement period metrics through real dated source data, including
   missing evidence and correction/deletion behavior; never substitute All-time.
+- [x] Select the source-reviewed bounded daily/weekly discovery streak backend:
+  exact selected timestamps, captured local/locale calendar, typed failure and
+  cancellation. Twenty-seven newly authored cases are unexecuted. Complete metrics,
+  discovery corrections/fanout, weekly All-time production and UI are still open.
 - [ ] Update source-selection receipts and checklists after each coherent commit.
 - [x] Select independently reviewed ordinary-transfer cancellation and physical
   draining through the existing startup boundary, including GPX/map-image shares,
@@ -103,7 +107,8 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   private staging using the existing spool. Lost historical purposes do not hide
   saved points; labels remain descriptive. Eight newly authored Room/stream cases
   and the existing expanded saved-origin case are unexecuted. Exact selection:
-  `LOCATION_FILE_EXPORT_SELECTION.md`. Source-choice UI and Replace remain open.
+  `LOCATION_FILE_EXPORT_SELECTION.md`, commit `20c9ac0e64`.
+  Source-choice UI and Replace remain open.
 
 The approved displayed-day History is being authored. The isolated imported-radio
 export-date candidate slice is source-reviewed for narrow selection. Neither

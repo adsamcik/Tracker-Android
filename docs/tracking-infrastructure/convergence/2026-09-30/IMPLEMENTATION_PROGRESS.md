@@ -44,13 +44,20 @@ description of its earlier input; this file records subsequent repair progress.
   selected, exclusions and one labeled bundle. Its exact membership, backend caller
   and detail/navigation surfaces remain unfinished; see
   `../2026-10-03/SESSION_EXPORT_SURFACE_SOURCE_TRACE.md`.
-- October 3 saved Location backup selection includes proof-unknown saved points,
+- `20c9ac0e64`: October 3 saved Location backup selection includes proof-unknown saved points,
   the existing retention/deletion fences and stable identities, with one private
   Room snapshot released before destination copy. Reuse the existing codec/spool
   limits and cleanup. Independent static review found no remaining core defect;
   eight new Room/stream cases and expanded existing origin coverage are unexecuted.
   Exact receipt: `../2026-10-03/LOCATION_FILE_EXPORT_SELECTION.md`. The mixed
   source-choice UI, Location Replace and exact session selection remain open.
+- October 3 bounded daily/weekly discovery streak backend is selected after fresh
+  independent static review. It uses the selected timestamps and one captured
+  local/locale calendar, with no All-time substitution. Seven source paths include
+  27 newly authored cases and one adjusted existing All-time case; none ran.
+  `../2026-10-03/PERIOD_STREAK_FRESH_REVIEW_1003.md` records exact pins and limits.
+  Real product callers, discovery/correction coverage, All-time weekly production,
+  seasonal visits and complete logical-distance metrics remain separate gaps.
 - `c7cc6a7340`: approved nullable native Wi-Fi format marker, immutable
   corrections, writer/history/maintenance parity and authored migration/detail
   scenarios. Fresh static review passed the narrow source slice. Twelve tracked

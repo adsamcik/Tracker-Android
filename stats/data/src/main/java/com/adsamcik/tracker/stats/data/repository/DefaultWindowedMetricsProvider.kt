@@ -3,6 +3,7 @@ package com.adsamcik.tracker.stats.data.repository
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
@@ -13,13 +14,20 @@ import com.adsamcik.tracker.stats.api.error.StatsError
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.metric.TimeWindow
 import com.adsamcik.tracker.stats.api.repository.WindowedMetricsProvider
+import java.time.ZoneId
+import java.time.temporal.WeekFields
+import java.util.Locale
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
  * Collects metric values for cumulative and bounded windows using pre-aggregated tables only.
  *
- * Metrics that do not have a meaningful bounded-window interpretation currently return their
- * cumulative value regardless of [window] (streaks, seasonal coverage and longest trip).
+ * Bounded discovery streaks use dated, retained discoveries and the current local calendar.
+ * Seasonal coverage and longest trip still need their separate period readers.
  * Steps require the separate source-qualified numeric repository.
  */
 class DefaultWindowedMetricsProvider @Inject constructor(
@@ -28,6 +36,7 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 	private val explorationStreakDao: ExplorationStreakDao,
 	private val sessionSegmentDao: SessionSegmentDao,
 	private val exportLogDao: ExportLogDao,
+	private val dispatchers: DispatchersProvider,
 ) : WindowedMetricsProvider {
 
 	override suspend fun collect(metric: String, window: TimeWindow): Either<StatsError, Long> {
@@ -40,6 +49,9 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 				if (window.startMs > window.endMs) {
 					return StatsError.ValidationError("Metric interval cannot end before it starts").left()
 				}
+				if (metric.isDiscoveryStreak()) {
+					return collectDiscoveryStreak(metric, window.startMs, window.endMs)
+				}
 				collectInterval(metric, window.startMs, window.endMs)
 			}
 			is TimeWindow.Rolling -> {
@@ -47,6 +59,9 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 					return StatsError.ValidationError("Rolling duration cannot be negative").left()
 				}
 				val nowMs = System.currentTimeMillis()
+				if (metric.isDiscoveryStreak()) {
+					return collectDiscoveryStreak(metric, nowMs - window.durationMs, nowMs)
+				}
 				collectInterval(metric, nowMs - window.durationMs, nowMs)
 			}
 		}
@@ -115,13 +130,42 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 
 			MetricKeys.LONGEST_TRIP_KM,
 			MetricKeys.SEASONS_EXPLORED,
-			MetricKeys.DAILY_STREAK,
-			MetricKeys.WEEKLY_STREAK,
 			-> collectCumulative(metric)
 
 			else -> null
 		}
 	}
+
+	private suspend fun collectDiscoveryStreak(
+		metric: String,
+		fromMs: Long,
+		toMs: Long,
+	): Either<StatsError, Long> {
+		// Capture the displayed calendar before suspension; a settings change cannot split one read.
+		val zone = ZoneId.systemDefault()
+		val weekFields = if (metric == MetricKeys.WEEKLY_STREAK) WeekFields.of(Locale.getDefault()) else null
+		return withContext(dispatchers.default) {
+			try {
+				val timestamps = explorationCellDao.discoveryTimestampsBetween(
+					fromMs, toMs, EXPLORATION_CELL_LEVEL, MAX_STREAK_DISCOVERIES + 1,
+				)
+				currentCoroutineContext().ensureActive()
+				if (timestamps.size > MAX_STREAK_DISCOVERIES) {
+					return@withContext StatsError.ValidationError("Discovery streak read budget exceeded").left()
+				}
+				val value = longestDiscoveryPeriodStreak(timestamps, zone, weekFields)
+				currentCoroutineContext().ensureActive()
+				value.right()
+			} catch (error: CancellationException) {
+				throw error
+			} catch (error: Exception) {
+				StatsError.DatabaseError("Failed to load discovery streak", error).left()
+			}
+		}
+	}
+
+	private fun String.isDiscoveryStreak(): Boolean =
+		this == MetricKeys.DAILY_STREAK || this == MetricKeys.WEEKLY_STREAK
 
 	private suspend fun countSeasonsExplored(): Long {
 		val seasonBitmasks = explorationCellDao.getDistinctSeasonBitmasks(EXPLORATION_CELL_LEVEL)
@@ -135,6 +179,7 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 		private const val AREA_CELL_LEVEL = 10
 		private const val DAILY_STREAK_TYPE = "DAILY_DISCOVERY"
 		private const val WEEKLY_STREAK_TYPE = "WEEKLY_EXPLORER"
+		internal const val MAX_STREAK_DISCOVERIES = 65_536
 
 		private const val ACTIVITY_ON_BICYCLE = 1
 		private const val ACTIVITY_ON_FOOT = 2

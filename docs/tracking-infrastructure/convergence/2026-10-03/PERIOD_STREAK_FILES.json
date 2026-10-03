@@ -1,0 +1,65 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "phase": "IMPLEMENTATION_ONLY",
+  "head": "9d48e176b050bdc88b8c2ff68fcd6c11b950f49f",
+  "owner": "/root/adversary_product_0930",
+  "scope": "Windowed discovery streak backend only; alltime, seasonal visits, logical distance and source discovery/correction coverage remain separate",
+  "path_count": 7,
+  "new_authored_test_cases": 27,
+  "changed_existing_test_cases": 1,
+  "tests_executed": false,
+  "gates_executed": false,
+  "git_mutations": false,
+  "tracked_patch_sha256": "3c9a2ea7c6ab35616056cc6c252188085ad500203e4922a076e34aefad5584c6",
+  "paths": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ExplorationCellDao.kt",
+      "disposition": "entire owned delta from HEAD; clean at task start",
+      "actual_sha256": "e4666bb391d2563f8f35dc7d605b6909a7530190425bd9f267a3fa5bf593c233",
+      "selected_sha256": "e4666bb391d2563f8f35dc7d605b6909a7530190425bd9f267a3fa5bf593c233",
+      "head_snapshot_sha256": "2b2dd7f30410ba69c53072ce7042b2ca5efaa2678f7928937d0625bb471b259e"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/ExplorationCellDaoTest.kt",
+      "disposition": "entire owned delta from HEAD; clean at task start",
+      "actual_sha256": "7dee59e7a3162e9cb1d73120851057cc373afa892e991f10357fa7eb7bec90cf",
+      "selected_sha256": "7dee59e7a3162e9cb1d73120851057cc373afa892e991f10357fa7eb7bec90cf",
+      "head_snapshot_sha256": "50c38c8a9dc05883a7a61ac18dc6b6b7aa4e57cb48379916a83a72e17a7ef84c"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProvider.kt",
+      "disposition": "entire owned delta from HEAD; clean at task start",
+      "actual_sha256": "2ff54def28e0a8b304c99e8ea6355f33892c77050eb7b083d0448f1d772fee06",
+      "selected_sha256": "2ff54def28e0a8b304c99e8ea6355f33892c77050eb7b083d0448f1d772fee06",
+      "head_snapshot_sha256": "43efa4ba268b243e60a66e6f3e4783afdb6fd44f12ef03380186b1ff1221ec8f"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DiscoveryPeriodStreak.kt",
+      "disposition": "new source file",
+      "actual_sha256": "7dfb5cd408fe2ee8e8119366db3caaa34696f8be7a9b069e2616683491ee9c49",
+      "selected_sha256": "7dfb5cd408fe2ee8e8119366db3caaa34696f8be7a9b069e2616683491ee9c49",
+      "head_snapshot_sha256": null
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProviderTest.kt",
+      "disposition": "entire owned delta from HEAD; clean at task start",
+      "actual_sha256": "61b4370755d30aaeec2c1be6c7bd6ebeeb3d2ec81f28d2384eea0321f56dd81e",
+      "selected_sha256": "61b4370755d30aaeec2c1be6c7bd6ebeeb3d2ec81f28d2384eea0321f56dd81e",
+      "head_snapshot_sha256": "53ae10d2c016fcb5d98fdaa31fdb9fcc0ac9c964ed24f7061438a9bfaec6325d"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DiscoveryPeriodStreakTest.kt",
+      "disposition": "new source file",
+      "actual_sha256": "0577bb7b90b643eb8daf62cc3cac6187bbf77ced6f2b170e903733a528a9aa41",
+      "selected_sha256": "0577bb7b90b643eb8daf62cc3cac6187bbf77ced6f2b170e903733a528a9aa41",
+      "head_snapshot_sha256": null
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WindowedDiscoveryStreakRoomTest.kt",
+      "disposition": "new source file",
+      "actual_sha256": "2d8671f21fb9e4d0e890300bc345f5d14edf30f40385b4722f408968acb58da9",
+      "selected_sha256": "2d8671f21fb9e4d0e890300bc345f5d14edf30f40385b4722f408968acb58da9",
+      "head_snapshot_sha256": null
+    }
+  ]
+}

@@ -53,6 +53,21 @@ Only `main` is the released migration baseline; candidate schemas remain unshipp
 History/bundle callers, complete backup restore/cleanup and remaining radio
 lifecycle work are still being assembled. None of these marks claims a gate pass.
 
+### October 3 source milestones
+
+- [x] `9d48e176b0`: independently reviewed ordinary-transfer physical draining,
+  retained export after Off and per-request Share cleanup. Forty newly authored
+  cases remain unexecuted; preserved recovery exports and later notices are open.
+- [x] `20c9ac0e64`: independently reviewed saved Location backup includes unknown
+  historical origin and writes a coherent private snapshot before destination
+  copying. Eight new Room/stream cases remain unexecuted; Replace is open.
+- [x] Select independently reviewed daily/weekly selected-period discovery streak
+  backend, with 27 new unexecuted cases. Product period wiring, discovery/effect
+  correction coverage, seasonal revisits and complete logical distances are open.
+
+These are selected implementation slices. All 25 full-chain prerequisites and the
+assembly/convergence/device/integration gates remain open.
+
 ## 2026-09-27 optional map enrichment continuation
 
 Approved temporal/scope/uncertainty matcher and native fact/receipt/authority observer coverage are

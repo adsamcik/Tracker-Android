@@ -36,6 +36,18 @@ interface ExplorationCellDao {
 	@Query("SELECT COUNT(*) FROM exploration_cell WHERE first_discovered_at BETWEEN :fromMs AND :toMs AND level = :level")
 	suspend fun countDiscoveredBetween(fromMs: Long, toMs: Long, level: Int): Long
 
+	/**
+	 * Indexed discovery evidence for a closed period, without loading cell payloads or revisits.
+	 * Callers request one extra timestamp to detect an incomplete read before reporting a streak.
+	 */
+	@Query("""
+		SELECT DISTINCT first_discovered_at FROM exploration_cell
+		WHERE level = :level AND first_discovered_at BETWEEN :fromMs AND :toMs
+		ORDER BY first_discovered_at ASC
+		LIMIT :limit
+	""")
+	suspend fun discoveryTimestampsBetween(fromMs: Long, toMs: Long, level: Int, limit: Int): List<Long>
+
 	@Query("""
 		UPDATE exploration_cell
 		SET quality = MAX(quality, :quality),
