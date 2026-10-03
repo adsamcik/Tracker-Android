@@ -1,0 +1,62 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "phase": "IMPLEMENTATION_ONLY",
+  "owner": "/root/transfer_adversary_1003",
+  "base_head_parent_supplied": "80eb0b0cbe748971b256524e776b2aa3c87b4b40",
+  "selected_prerequisite_manifest": "docs/tracking-infrastructure/convergence/2026-10-03/LONGEST_TRIP_SELECTED/LONGEST_TRIP_FILES.json",
+  "selected_prerequisite_manifest_sha256": "658580e07b43d3486b1066c3093bcc9ce0cb52d2d2610b573f43a1082814b76c",
+  "selected_prerequisite_patch_sha256": "f243043752f61134b335d6d8f46acb08dd79a3860c0503811085961a4bbdc75a",
+  "path_count": 4,
+  "new_authored_test_cases": 24,
+  "tests_executed": false,
+  "gates_executed": false,
+  "git_operations_performed": false,
+  "selection_patch_sha256": "32e52e090f130f42e015e666e4aab9ae53999a25c534343a5252f04144431fbd",
+  "paths": [
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/LocationFileExporter.kt",
+      "selected_before_sha256": "8a60802253e3c1b89c0a1a37d2b433c83c7f998d9f0d625a3ab61c3112c7f095",
+      "selected_after_sha256": "0ff1f59cfa051be27734d63d07a91a43b0a0081762df061124ffa0b25d58c349",
+      "actual_working_sha256": "0ff1f59cfa051be27734d63d07a91a43b0a0081762df061124ffa0b25d58c349",
+      "selection": "clean tracked delta"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/TrackingHistoryReadDao.kt",
+      "selected_before_sha256": "486041b9b5bb1547725e296d06cfd3a13fd9117707b1086c4e76909c49fe3730",
+      "selected_after_sha256": "1b380ae3222d263601f793dcb811322999a9865ab728f7164d1fa64e884dbba1",
+      "actual_working_sha256": "a87144596cd6a12f1dc3402988473fc37ec40d392c755c2a803a9f8756437884",
+      "selection": "HEAD-based additive raw keyset query only; two unrelated working hunks excluded",
+      "working_before_sha256": "f015db61bf60fd85868fe605187f0d653dc8293b46e423662d3383d4c38c8c13"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/SessionLocationFileReader.kt",
+      "selected_before_sha256": null,
+      "selected_after_sha256": "d49f75d43695d751d72bf7b0351b72ab0e7645da7b4a6b6eb6ae044805bafcc3",
+      "actual_working_sha256": "d49f75d43695d751d72bf7b0351b72ab0e7645da7b4a6b6eb6ae044805bafcc3",
+      "selection": "new source"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/SessionLocationFileExporterTest.kt",
+      "selected_before_sha256": null,
+      "selected_after_sha256": "571d7933ebb78b6f94544a553336f1cddb2cfcb0150e168f8c990d0c83ef8eed",
+      "actual_working_sha256": "571d7933ebb78b6f94544a553336f1cddb2cfcb0150e168f8c990d0c83ef8eed",
+      "selection": "new source"
+    }
+  ],
+  "separately_selected_prerequisites": [
+    "LocationPurposeDao.savedLogicalTripPointPage (including saved background-origin flag)",
+    "LocationPurposeDao.savedLegacyTripPointPage",
+    "LocationPurposeDao.savedFileSamples (bounded exact IDs)",
+    "LocationReadScope.HISTORY_RETAINED",
+    "LocationReadScope.HISTORY_CURRENT_IMPORT_COPY"
+  ],
+  "excluded": [
+    "TrackingHistoryReadDao.recentPortableStepsSegmentCandidates held hunk",
+    "TrackingHistoryReadDao.recentRegistrationAuthorizationRevisionsThrough held hunk",
+    "LocationPurposeDao.importedHistorySampleIds held hunk",
+    "All other dirty/untracked drafts",
+    "session port/UI/bundle integration and pending overlapping imported radio/native Steps membership choices"
+  ],
+  "superseded_global_revision_packet_patch_sha256": "8d88bfd2a9e163d3b795af7a9fd5903c69910faf01a2da7582c2d35e8f6a86f5",
+  "selected_content_verification": "Transient exact typed-byte SHA-256 before/after copy; read-only identity lookup; epoch/organization/retention/deletion fences retained"
+}

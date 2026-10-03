@@ -17,6 +17,8 @@ import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.model.LocationSample
 import java.io.OutputStream
+import java.security.DigestOutputStream
+import java.security.MessageDigest
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -89,6 +91,104 @@ internal class LocationFileExporter @JvmOverloads @Inject constructor(
 			))
 		}
 	}
+
+	/** Backend prerequisite only: the complete six-source bundle surface owns the eventual caller. */
+	internal suspend fun exportSession(
+		context: Context,
+		request: SessionLocationFileRequest,
+		outputStream: OutputStream,
+		database: AppDatabase,
+		verifyCollectedDataAccess: () -> Unit,
+	): ExportResult = try {
+		withContext(dispatchers.io) {
+			val reader = SessionLocationFileReader(database)
+			FileBackedExportSpool(context, "portable-location-v1-", LocationFileJsonV1.MAX_FILE_BYTES).use { spool ->
+				val (contents, snapshot) = spool.write { stagedOutput ->
+					database.withTransaction {
+						verifyCollectedDataAccess()
+						val selection = reader.snapshot(request)
+						val written = writeSessionPoints(database, reader, selection, stagedOutput,
+							assignIdentities = true, verifyCollectedDataAccess = verifyCollectedDataAccess)
+						verifyCollectedDataAccess()
+						reader.verify(request, selection)
+						written to selection
+					}
+				}
+				// Snapshot/identity writes finish before any potentially slow caller destination I/O.
+				verifySessionContents(database, reader, request, snapshot, contents, verifyCollectedDataAccess)
+				spool.copyTo(outputStream)
+				verifySessionContents(database, reader, request, snapshot, contents, verifyCollectedDataAccess)
+				contents.result
+			}
+		}
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (failure: Exception) {
+		ExportResult.Error(LocalizedString(R.string.export_error_with_reason,
+			failure.message ?: "Location file could not be saved"))
+	}
+
+	/** Re-read only the selected typed contents; unrelated source ingress is allowed to continue. */
+	private suspend fun verifySessionContents(
+		database: AppDatabase,
+		reader: SessionLocationFileReader,
+		request: SessionLocationFileRequest,
+		snapshot: SessionLocationFileReader.Snapshot,
+		expected: SessionContents,
+		verifyCollectedDataAccess: () -> Unit,
+	) {
+		verifyCollectedDataAccess()
+		database.withTransaction {
+			reader.verify(request, snapshot)
+			val discarded = object : OutputStream() {
+				override fun write(value: Int) = Unit
+				override fun write(bytes: ByteArray, offset: Int, length: Int) = Unit
+			}
+			val current = writeSessionPoints(database, reader, snapshot, discarded,
+				assignIdentities = false, verifyCollectedDataAccess = verifyCollectedDataAccess)
+			verifyCollectedDataAccess()
+			reader.verify(request, snapshot)
+			if (!current.sha256.contentEquals(expected.sha256)) {
+				throw InvalidLocationFile("Selected Location data changed during export")
+			}
+		}
+	}
+
+	/** Staging and read-only verification share the exact codec, origins and measurement conversion. */
+	private suspend fun writeSessionPoints(
+		database: AppDatabase,
+		reader: SessionLocationFileReader,
+		selection: SessionLocationFileReader.Snapshot,
+		output: OutputStream,
+		assignIdentities: Boolean,
+		verifyCollectedDataAccess: () -> Unit,
+	): SessionContents {
+		val digest = MessageDigest.getInstance("SHA-256")
+		val writer = LocationFileJsonV1().writer(DigestOutputStream(output, digest))
+		val identities = database.locationFileIdentityDao()
+		var count = 0
+		var maxTime = Long.MIN_VALUE
+		var maxId = 0L
+		reader.read(selection, verifyCollectedDataAccess) { row ->
+			val identity = if (assignIdentities) identities.localIdentityFor(row.sample.id)
+				else identities.bySampleId(row.sample.id)
+					?: throw InvalidLocationFile("Selected Location identity changed during export")
+			val origin = if (identity.imported) LocationFileOrigin.entries.firstOrNull {
+				it.name.equals(identity.reportedOrigin, ignoreCase = true)
+			} ?: LocationFileOrigin.UNKNOWN else row.fileOrigin()
+			writer.point(LocationFilePointV1(identity.portableId, origin,
+				LocationFileMeasurementV1.from(row.sample.toModel())))
+			count++
+			if (row.sample.timeMs > maxTime || row.sample.timeMs == maxTime && row.sample.id > maxId) {
+				maxTime = row.sample.timeMs; maxId = row.sample.id
+			}
+		}
+		if (count == 0) throw InvalidLocationFile("No saved Location points in this session")
+		check(writer.finish() == count)
+		return SessionContents(ExportResult.Success(count, maxTime, maxId), digest.digest())
+	}
+
+	private data class SessionContents(val result: ExportResult.Success, val sha256: ByteArray)
 
 	private suspend fun writePoints(
 		database: AppDatabase,

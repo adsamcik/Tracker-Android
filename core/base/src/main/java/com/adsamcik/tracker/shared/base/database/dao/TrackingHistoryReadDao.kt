@@ -213,6 +213,22 @@ interface TrackingHistoryReadDao {
 		limit: Int,
 	): List<SessionSegment>
 
+	/** Lossless keyset traversal; ownership errors remain visible to the exact export reader. */
+	@Query(
+		"SELECT * FROM session_segment WHERE " +
+			"(logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)) " +
+			"AND (:afterStartTimeMs IS NULL OR start_time_ms > :afterStartTimeMs " +
+			"OR (start_time_ms = :afterStartTimeMs AND id > COALESCE(:afterSegmentId, 0))) " +
+			"ORDER BY start_time_ms, id LIMIT :limit",
+	)
+	suspend fun rawLogicalEntrySegmentPage(
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		limit: Int,
+		afterStartTimeMs: Long?,
+		afterSegmentId: Long?,
+	): List<SessionSegment>
+
 	/** Keyset page of exact or explicitly attributed migrated siblings for logical entries. */
 	@Query(
 		"SELECT segment.* FROM session_segment AS segment " +

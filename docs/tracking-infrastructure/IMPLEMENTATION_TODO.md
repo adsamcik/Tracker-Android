@@ -108,6 +108,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
   Five paths and eight ViewModel/two Compose cases are independently reviewed in
   `BLOCKED_EXPORT_FRESH_REVIEW_1003.md`; none ran. Persistent later cleanup notices
   and complete data-only backup remain separate work.
+- [x] Select exact session Location export as a backend prerequisite, preserving
+  native/legacy/imported/retrospective membership and using the existing typed file.
+  Compare selected contents before/after copying so unrelated Steps or radio writes
+  do not reject the export. Four paths and 24 authored Room/exporter cases are
+  independently reviewed in `SESSION_LOCATION_EXPORT_FRESH_REVIEW_1003.md`; none
+  ran. Full six-source preview, bundle port and detail UI remain open.
 
 These are selected implementation slices. All 25 full-chain prerequisites and the
 assembly/convergence/device/integration gates remain open.

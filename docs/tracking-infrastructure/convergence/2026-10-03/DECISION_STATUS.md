@@ -58,6 +58,12 @@ single unified, user-understandable time model; it does not approve daily storag
 
 ## Questions presented, awaiting answers
 
+- [ ] Show an export-settings load error with Retry and disable only affected
+  settings controls, preserving unreadable bytes and other tracking/data surfaces.
+- [ ] Retire an old unfinished notice before reusing its exact external file and
+  coordinate writing/removal through existing export storage with one shared
+  in-memory lock. Storage failure leaves the destination untouched. Do not implement
+  this new coordination contract before the user's answer.
 - [ ] Store overlapping imported readings once, with a small lookup preserving
   membership in each file, including exact duplicate Steps file membership.
 - [ ] Extend the chosen JSON file to all six sources and optional organization
@@ -183,6 +189,13 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   provider cleanup errors cannot replace cancellation. Five source paths and eight
   ViewModel/two Compose cases are pinned in `BLOCKED_EXPORT_SELECTED`; none ran.
   Failed external cleanup notices still need the separate approved storage wiring.
+- [x] Select exact session Location export as a backend prerequisite: use original
+  native/legacy membership, retrospective selection and exact imported archive
+  bindings. Unrelated source writes do not invalidate selected Location bytes;
+  current selected data, epoch, organization and privacy changes still reject them.
+  Four source paths and 24 Room/exporter cases are independently reviewed in
+  `SESSION_LOCATION_EXPORT_FRESH_REVIEW_1003.md`; none ran. Shared preview/write,
+  source exclusions and the full bundle product flow remain unfinished.
 
 The approved displayed-day History is being authored. The isolated imported-radio
 export-date candidate slice is source-reviewed for narrow selection. Neither

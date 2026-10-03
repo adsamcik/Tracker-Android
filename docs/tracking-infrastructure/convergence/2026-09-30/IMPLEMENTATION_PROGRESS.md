@@ -246,6 +246,11 @@ remain held. No test or gate has run.
   rows preserve descriptive dual origins for session-export reuse. None ran.
 
 ## Remaining in these slices
+- [x] Select exact-session Location file reading/staging as a four-path backend
+  prerequisite. Twenty-four Room/exporter/codec cases are authored and independently
+  statically reviewed. Existing epoch/organization/retention/deletion fences and
+  read-only selected-content rechecks replace unrelated global revision rejection.
+  Full shared six-source bundle preview/write and detail UI are still unfinished.
 - [x] Select the approved database-open export boundary: no blocked-screen bypass;
   Ready Settings exports share existing transfer cancellation/physical draining.
   Five source paths and eight ViewModel/two Compose cases are pinned in
