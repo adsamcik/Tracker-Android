@@ -1,0 +1,90 @@
+{
+  "slice": "Approved durable native Wi-Fi carrier version",
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "approvalDate": "2026-10-03",
+  "generatedSchema": false,
+  "executedGates": [],
+  "files": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt",
+      "selection": "entire current diff: nullable marker, supported version, legacy/v2 checksum and immutable correction tuple",
+      "sha256": "27a5accc7c94e0be0b4f6670c390abee973a6e4765379f9f37ffb11ac6d235b9"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticator.kt",
+      "selection": "entire current diff: hasExactWalLink marker parity only",
+      "sha256": "97b1bb7cf14ff514ca5c294d6cbbaedce55ec1e78ed0ac9d0d4a939f0f3eec94"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt",
+      "selection": "entire current diff: nullable wifi_captured_fact_revision.payload_version migration only",
+      "sha256": "10fb97bf2569f194fa7b497e4acd14241ce09e526f629f323d661bf58451df1f"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt",
+      "selection": "entire current diff: FINAL_V29_ADDITIONAL_COLUMNS marker sentinel only",
+      "sha256": "7bf46de77195fc2d3bdf2f1a5c8b40a3d22b45926f38dfdcc3384df5e48e7c5e"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/RadioObservationChildDao.kt",
+      "selection": "MIXED: only wifiCurrentExportOwners comment and NULL AS payload_version replaced by fact.payload_version; other owner query drafts required separately",
+      "sha256": "a1536f2f75d5030958c49c8238a563fb3658db8ec4a3ed5dc553666c5ddd9e6a"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+      "selection": "entire current diff: first write/correction carrier mapping, immutable tuple, persistence constructor",
+      "sha256": "a95d228677092eb96b25c1f69f3d5f45f9a0fa5631789ce2fd9b9ff41982851f"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactClassifier.kt",
+      "selection": "entire current diff: existing asWalEntity reconstruction made internal for shared native maintenance predicate",
+      "sha256": "0105e1578de271761aa4d0c0c93e3ad23f6d6056d876534bce150470a8939832"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+      "selection": "entire current diff: current bounded native details reused by portable/global audits, marker parity and immutable tuple",
+      "sha256": "ba7a6e2d8085c2eb4686fa1eb29b77283d27afbc0ccad8a667421234eeb03311"
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableWifiSourceExporter.kt",
+      "selection": "HELD MIXED UNTRACKED: only two version imports and localChildren childCounts/selectedOwners v6 completeness block; other existing exporter/candidate/spool drafts remain separate",
+      "sha256": "ff4e59db354a70701b73a8534e8559995e58bb2a07645193673e5f51f5b45152"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt",
+      "selection": "entire current diff: pre-marker row and nullable preservation assertions, explicit postmigration insert columns",
+      "sha256": "eea4184e82fc1cd85b6b4d5db0ee24c0b6ffe9623314efe3ff80034ddb920c32"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt",
+      "selection": "entire current diff: older development v29 missing marker preservation/blocking scenario",
+      "sha256": "a8d25663e24457dca86bab3fb29b2ac4c95f58542aa797f823fa358f55134ce1"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticatorTest.kt",
+      "selection": "entire current diff: marker seal/WAL parity and nullable/detailed correction lineage scenarios",
+      "sha256": "73d1f561f68abca5f0c76e55e563b1f5b79e466b2d72d0f2ee7613c55bc5aa7a"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+      "selection": "entire current diff: four real Room writer/correction/pruning/retention/export scenarios",
+      "sha256": "89bd9fb5a449306c88adc538dc04d493099485191354f3a7bfcc077f192b5286"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+      "selection": "entire current diff: two real history detail-loss/version-parity cases and v6RotatedGroup durable marker fixture",
+      "sha256": "c0e29b3ceb2db1198d26d20672df658a0df881407e0e3ac1c1fddee541605def"
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/NativeRadioExportChildrenRoomTest.kt",
+      "selection": "HELD MIXED UNTRACKED: only two new native Wi-Fi carrier detail tests and seedWifi includeChild/wifiFact nullable payloadVersion fixture changes; other held native owner test draft remains separate",
+      "sha256": "8db49dfb92a61afee4eb1ce68f900297b702f1882a2a9e43b2203e056976b91f"
+    }
+  ],
+  "requiredPreservedDependencies": [
+    "RadioObservationChildDao current retained native owner and exact owner child query drafts",
+    "PortableWifiSourceExporter existing approved export/selection/spool implementation (held separately)",
+    "NativeRadioExportChildrenRoomTest existing held real Room selected-owner fixture"
+  ],
+  "candidateHeadAtFreeze": "1d74d231a4329a224981f61db2f8d580d89fb1bd"
+}

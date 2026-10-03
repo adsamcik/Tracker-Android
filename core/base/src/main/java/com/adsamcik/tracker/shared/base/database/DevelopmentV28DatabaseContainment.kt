@@ -1187,6 +1187,7 @@ private val FINAL_V28_STEPS_TRIGGERS = listOf(
 )
 
 private val FINAL_V29_ADDITIONAL_COLUMNS = listOf(
+	FinalV28ColumnSentinel("wifi_captured_fact_revision", "payload_version", "INTEGER", false, defaultValue = "NULL"),
 	FinalV28ColumnSentinel("ambient_wifi_fact_revision", "purpose_demand_id", "TEXT", false, defaultValue = "NULL"),
 	FinalV28ColumnSentinel("ambient_cell_fact_revision", "purpose_demand_id", "TEXT", false, defaultValue = "NULL"),
 	FinalV28ColumnSentinel("source_policy", "background_notification_host_enabled", "INTEGER", true, defaultValue = "0"),

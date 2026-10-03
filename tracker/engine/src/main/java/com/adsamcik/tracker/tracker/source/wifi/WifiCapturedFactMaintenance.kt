@@ -41,6 +41,7 @@ import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEnti
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.MAX_WIFI_WAL_PAYLOAD_BYTES
+import com.adsamcik.tracker.shared.base.database.data.WifiWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_WIFI_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemAuthority
@@ -756,6 +757,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			if (!latest.matchesAuthenticatedWal(walAuthority)) {
 				block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 			}
+			requireAuthenticDetails(latest, walAuthority)
 			reuseAuthorityById[lineage.logicalFactId] = walAuthority.reuseAuthority
 			aggregateById[lineage.logicalFactId] =
 				requireNotNull(walAuthority.derivedAggregate).aggregate
@@ -1231,6 +1233,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			if (!latest.matchesAuthenticatedWal(walAuthority)) {
 				block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 			}
+			requireAuthenticDetails(latest, walAuthority)
 			reuseAuthorityById[lineage.logicalFactId] = walAuthority.reuseAuthority
 			aggregateById[lineage.logicalFactId] = requireNotNull(walAuthority.derivedAggregate).aggregate
 			checkpoint(WifiCapturedMaintenanceCheckpoint.LINEAGE_AUTHENTICATED)
@@ -1258,6 +1261,21 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				generations.maxOfOrNull(WifiCaptureDeletionGenerationEntity::updatedAtMs) ?: 0L,
 			),
 		)
+	}
+
+	/** Same bounded child predicate used by writing and history, including missing-all v6 groups. */
+	private suspend fun requireAuthenticDetails(
+		fact: WifiCapturedFactRevisionEntity,
+		wal: AuthenticatedWifiWal,
+	) {
+		if (wal.evidence.payloadVersion != WIFI_WAL_PAYLOAD_VERSION) return
+		val children = database.radioObservationChildDao().wifiSessionChildren(
+			WRITER_ID, WRITER_VERSION, fact.logicalFactId, fact.semanticRevision,
+			MAX_NATIVE_DETAIL_CHILDREN + 1,
+		)
+		if (!WifiWalCarrierAuthenticator.authenticates(fact, wal.evidence.asWalEntity(), children)) {
+			block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		}
 	}
 
 	private fun authenticateLineage(
@@ -2833,6 +2851,7 @@ private fun WifiCapturedFactRevisionEntity.matchesAuthenticatedWal(
 		sourceEventId == evidence.sourceEventId.value &&
 		sourceAdmissionOrdinal == evidence.sourceAdmissionOrdinal &&
 		walIntegrityIdentity == evidence.walIntegrityIdentity && payloadChecksum == evidence.payloadChecksum &&
+		(payloadVersion == null || payloadVersion == evidence.payloadVersion) &&
 		sourceDeliveryIdentity == evidence.sourceDeliveryIdentity?.value &&
 		deliveryUnitIndex == evidence.deliveryUnitIndex && deliveryUnitCount == evidence.deliveryUnitCount &&
 		sourceSequence == evidence.sourceSequence && planAttribution == evidence.planAttribution.name &&
@@ -2946,6 +2965,7 @@ private fun WifiCapturedFactRevisionEntity.stableCorrectionParts(): List<Any?> =
 	sourceAdmissionOrdinal,
 	walIntegrityIdentity,
 	payloadChecksum,
+	payloadVersion,
 	sourceDeliveryIdentity,
 	deliveryUnitIndex,
 	deliveryUnitCount,
@@ -3656,6 +3676,7 @@ private const val WAL_PAGE_SIZE = 256
 private const val PORTABLE_WAL_BATCH_SIZE = 256
 internal const val WIFI_PORTABLE_AUTHORITY_QUERY_LIMIT = 96
 private const val MAX_EXPECTED_DELIVERY_UNITS = 1
+private const val MAX_NATIVE_DETAIL_CHILDREN = 64
 private const val MAX_PLAN_PAYLOAD_BYTES = 1_024
 private const val NANOS_PER_MILLISECOND = 1_000_000L
 private const val PRODUCER_WALL_UNCERTAINTY_MS = 1L

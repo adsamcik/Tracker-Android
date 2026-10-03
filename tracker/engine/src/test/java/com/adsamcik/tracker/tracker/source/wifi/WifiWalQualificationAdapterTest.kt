@@ -634,6 +634,90 @@ class WifiWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `writer seals the v6 carrier and retains it through correction retention and ordinary WAL expiry`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		val first = assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		installPortableClosingAuthorization()
+		val correction = assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		assertEquals(2L, correction.semanticRevision)
+		val revisions = database.wifiCapturedFactDao().revisionsForFact(
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION, first.logicalFactId, 10)
+		assertEquals(listOf(WIFI_WAL_PAYLOAD_VERSION, WIFI_WAL_PAYLOAD_VERSION),
+			revisions.map { it.payloadVersion })
+		assertTrue(WifiCapturedFactRevisionIntegrity.hasValidRetainedLineage(revisions.reversed()))
+		materializePortableFixture()
+		assertRetainedV6LineageCanBeAudited()
+		assertEquals(0, database.sourceEventWalDao().deleteProjectedSourceBatch(
+			WIFI_SOURCE, Long.MAX_VALUE, Long.MAX_VALUE, 10))
+		assertEquals(1L, database.sourceEventWalDao().countAll())
+		val emitted = mutableListOf<PortableCapturedWifiEntryV1>()
+		assertIs<ExportPortableCapturedWifiResult.Exported>(portableExporter().export(
+			ExportPortableCapturedWifiRequest(LOGICAL_ID)) { emitted += it })
+		assertEquals(1, emitted.size)
+	}
+
+	@Test
+	fun `native export and retention reject a v6 scan after all its network details disappear`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		installPortableClosingAuthorization()
+		materializePortableFixture()
+		database.openHelper.writableDatabase.execSQL("DELETE FROM wifi_captured_child")
+		assertEquals(ExportPortableCapturedWifiResult.Unverifiable(
+			PortableWifiUnverifiableReason.FACT_AUTHORITY_UNVERIFIABLE), exportPortableWithoutSink())
+		val floor = OBSERVED_WALL_MS - 1_000L
+		val markedAt = OBSERVED_WALL_MS + 10_000L
+		assertTrue(database.sourceEvidenceStateDao().synchronizeLifecycle(0L, floor, markedAt))
+		assertEquals(WifiCapturedRetentionResult.Blocked(
+			WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE),
+			maintenance.pruneAffectedByRetentionFloor(floor, 0L, 0L, markedAt))
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `writer correction keeps an older null carrier marker instead of guessing its format`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = LEGACY_WIFI_WAL_PAYLOAD_VERSION)
+		val first = assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val row = requireNotNull(database.wifiCapturedFactDao().revision(
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION, first.logicalFactId, 1L))
+		assertEquals(LEGACY_WIFI_WAL_PAYLOAD_VERSION, row.payloadVersion)
+		// Represent a pre-marker development row using its unchanged legacy checksum contract.
+		val legacy = row.copy(payloadVersion = null).let {
+			it.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(it))
+		}
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE wifi_captured_fact_revision SET payload_version=NULL, effect_checksum=? WHERE logical_fact_id=?",
+			arrayOf(legacy.effectChecksum, legacy.logicalFactId))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE wifi_captured_fact_cursor SET latest_effect_checksum=? WHERE logical_fact_id=?",
+			arrayOf(legacy.effectChecksum, legacy.logicalFactId))
+		installPortableClosingAuthorization()
+		val corrected = assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		assertEquals(2L, corrected.semanticRevision)
+		val revisions = database.wifiCapturedFactDao().revisionsForFact(
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION, first.logicalFactId, 10)
+		assertEquals(listOf(null, null), revisions.map { it.payloadVersion })
+		assertTrue(WifiCapturedFactRevisionIntegrity.hasValidRetainedLineage(revisions.reversed()))
+		materializePortableFixture()
+		val emitted = mutableListOf<PortableCapturedWifiEntryV1>()
+		assertIs<ExportPortableCapturedWifiResult.Exported>(portableExporter().export(
+			ExportPortableCapturedWifiRequest(LOGICAL_ID)) { emitted += it })
+		assertEquals(1, emitted.size)
+	}
+
+	@Test
+	fun `native export rejects a v6 scan with only part of its network list retained`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		installPortableClosingAuthorization()
+		materializePortableFixture()
+		database.openHelper.writableDatabase.execSQL("DELETE FROM wifi_captured_child WHERE item_index=0")
+		assertEquals(ExportPortableCapturedWifiResult.Unverifiable(
+			PortableWifiUnverifiableReason.FACT_AUTHORITY_UNVERIFIABLE), exportPortableWithoutSink())
+	}
+
+	@Test
 	fun `v6 callback revision must be the revision effective at receipt`() = runTest {
 		installValidFixture(payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
 		installPortableClosingAuthorization(effectiveElapsedRealtimeNanos = OBSERVED_END_NANOS + 1L)

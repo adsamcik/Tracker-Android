@@ -38,6 +38,7 @@ class RadioObservationChildMigrationTest {
 					override fun onCreate(db: SupportSQLiteDatabase) {
 						createLegacyRadioTables(db)
 						createPurposeParentTables(db)
+						db.execSQL("INSERT INTO wifi_captured_fact_revision VALUES ('older-writer',1,'older-fact',1)")
 						db.execSQL("CREATE TABLE location_sample (id INTEGER NOT NULL PRIMARY KEY)")
 						db.execSQL("CREATE TABLE location_accepted_receipt (sample_id INTEGER NOT NULL PRIMARY KEY)")
 						db.execSQL("CREATE TABLE location_sample_purpose_authority (sample_id INTEGER NOT NULL, " +
@@ -70,6 +71,10 @@ class RadioObservationChildMigrationTest {
 		try {
 			val db = helper.writableDatabase
 			MIGRATION_28_29.migrate(db)
+			readLong(db, "SELECT count(*) FROM pragma_table_info('wifi_captured_fact_revision') WHERE " +
+				"name='payload_version' AND type='INTEGER' AND \"notnull\"=0 AND dflt_value='NULL'") shouldBe 1L
+			readLong(db, "SELECT count(*) FROM wifi_captured_fact_revision WHERE " +
+				"logical_fact_id='older-fact' AND payload_version IS NULL") shouldBe 1L
 			readLong(db, "SELECT count(*) FROM source_policy WHERE background_notification_host_enabled = 0") shouldBe 2L
 			readLong(db, "SELECT count(*) FROM pragma_table_info('source_policy') WHERE " +
 				"name = 'background_notification_host_enabled' AND type = 'INTEGER' AND \"notnull\" = 1 AND dflt_value = '0'") shouldBe 1L
@@ -102,7 +107,9 @@ class RadioObservationChildMigrationTest {
 			readLong(db, "SELECT cell_id FROM legacy_cell_child WHERE legacy_row_id=8") shouldBe 123456L
 			readString(db, "SELECT provenance FROM legacy_cell_child WHERE legacy_row_id=8") shouldBe "NEAREST_LOCATION"
 			readLong(db, "SELECT source_time_ms FROM legacy_cell_child WHERE legacy_row_id=8") shouldBe 1002L
-			db.execSQL("INSERT INTO wifi_captured_fact_revision VALUES ('writer',1,'session-fact',1)")
+			db.execSQL("INSERT INTO wifi_captured_fact_revision " +
+				"(writer_projection_id,writer_projection_version,logical_fact_id,semantic_revision) " +
+				"VALUES ('writer',1,'session-fact',1)")
 			db.execSQL("INSERT INTO ambient_wifi_fact_revision (writer_id,writer_version,logical_fact_id,semantic_revision) VALUES ('writer',1,'background-fact',1)")
 			val checksum = "a".repeat(64)
 			db.execSQL("INSERT INTO wifi_captured_child VALUES " +

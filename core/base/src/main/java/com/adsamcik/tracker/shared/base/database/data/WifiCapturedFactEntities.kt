@@ -129,6 +129,8 @@ data class WifiCapturedFactRevisionEntity(
 	@ColumnInfo(name = "signal_sum_dbm") val signalSumDbm: Long?,
 	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
 	@ColumnInfo(name = "applied_at_ms") val appliedAtMs: Long,
+	/** Null preserves older facts whose original observation format was not retained. */
+	@ColumnInfo(name = "payload_version", defaultValue = "NULL") val payloadVersion: Int? = null,
 ) {
 	init {
 		require(writerProjectionId == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID)
@@ -150,6 +152,7 @@ data class WifiCapturedFactRevisionEntity(
 		require(LOWERCASE_SHA_256.matches(sourceDeliveryIdentity))
 		require(deliveryUnitIndex == 0 && deliveryUnitCount == 1 && sourceSequence >= 0L)
 		require(planAttribution == PLAN_ATTRIBUTION_CAPTURED_REGISTRATION)
+		require(payloadVersion == null || isSupportedWifiWalPayloadVersion(payloadVersion))
 		require(sourceInstanceId.isNotBlank() && registrationGeneration > 0L)
 		require(configurationRevision >= 0L && physicalConfigurationFingerprint.isNotBlank())
 		require(authorizationRevision > 0L && LOWERCASE_SHA_256.matches(authorizationFingerprint))
@@ -305,7 +308,12 @@ object WifiCapturedFactRevisionIntegrity {
 		digest("wifi-captured-mutation-v1", logicalFactId, semanticRevision)
 
 	fun effectChecksum(fact: WifiCapturedFactRevisionEntity): String =
-		digest("wifi-captured-effect-v1", *fact.effectParts().toTypedArray())
+		if (fact.payloadVersion == null) {
+			// Preserve the exact checksum contract of summary-only and earlier development facts.
+			digest("wifi-captured-effect-v1", *fact.effectParts().toTypedArray())
+		} else {
+			digest("wifi-captured-effect-v2", fact.payloadVersion, *fact.effectParts().toTypedArray())
+		}
 
 	fun hasValidEffectChecksum(fact: WifiCapturedFactRevisionEntity): Boolean =
 		fact.effectChecksum == effectChecksum(fact)
@@ -368,7 +376,7 @@ object WifiCapturedFactRevisionIntegrity {
 		logicalFactId, factKind, aggregateOwnerLogicalFactId, aggregateOwnerSemanticRevision,
 		aggregateOwnerCursorRevision, logicalTrackingId, serviceRunId, sessionSegmentId, purpose,
 		capturedSourceCodes, controlSourceCodes, sourceEventId, sourceAdmissionOrdinal,
-		walIntegrityIdentity, payloadChecksum, sourceDeliveryIdentity, deliveryUnitIndex,
+		walIntegrityIdentity, payloadChecksum, payloadVersion, sourceDeliveryIdentity, deliveryUnitIndex,
 		deliveryUnitCount, sourceSequence, planAttribution, sourceInstanceId, registrationGeneration,
 		configurationRevision, physicalConfigurationFingerprint, authorizationRevision,
 		authorizationFingerprint, purposeEligibilityMask, sourcePolicyRevision, captureConsentEpoch,

@@ -1,0 +1,463 @@
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt
+index dc80df8304..211e200c2e 100644
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt
+@@ -1187,6 +1187,7 @@ private val FINAL_V28_STEPS_TRIGGERS = listOf(
+ )
+ 
+ private val FINAL_V29_ADDITIONAL_COLUMNS = listOf(
++	FinalV28ColumnSentinel("wifi_captured_fact_revision", "payload_version", "INTEGER", false, defaultValue = "NULL"),
+ 	FinalV28ColumnSentinel("ambient_wifi_fact_revision", "purpose_demand_id", "TEXT", false, defaultValue = "NULL"),
+ 	FinalV28ColumnSentinel("ambient_cell_fact_revision", "purpose_demand_id", "TEXT", false, defaultValue = "NULL"),
+ 	FinalV28ColumnSentinel("source_policy", "background_notification_host_enabled", "INTEGER", true, defaultValue = "0"),
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt
+index 80cd3c7b8b..04375c3590 100644
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt
+@@ -19,6 +19,8 @@ private val legacyStampColumnDefinitions = legacyStampFields.joinToString(",\n")
+ /** Complete the unshipped v29 data model while preserving existing observation meaning. */
+ val MIGRATION_28_29: Migration = object : Migration(28, 29) {
+ 	override fun migrate(db: SupportSQLiteDatabase) {
++		// Earlier facts have no durable carrier version; do not guess it from child presence.
++		db.execSQL("ALTER TABLE wifi_captured_fact_revision ADD COLUMN payload_version INTEGER DEFAULT NULL")
+ 		db.execSQL("ALTER TABLE ambient_wifi_fact_revision ADD COLUMN purpose_demand_id TEXT DEFAULT NULL")
+ 		db.execSQL("ALTER TABLE ambient_cell_fact_revision ADD COLUMN purpose_demand_id TEXT DEFAULT NULL")
+ 		db.execSQL("ALTER TABLE source_policy ADD COLUMN background_notification_host_enabled INTEGER NOT NULL DEFAULT 0")
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt
+index f16049058a..037f6b86de 100644
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt
+@@ -129,6 +129,8 @@ data class WifiCapturedFactRevisionEntity(
+ 	@ColumnInfo(name = "signal_sum_dbm") val signalSumDbm: Long?,
+ 	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
+ 	@ColumnInfo(name = "applied_at_ms") val appliedAtMs: Long,
++	/** Null preserves older facts whose original observation format was not retained. */
++	@ColumnInfo(name = "payload_version", defaultValue = "NULL") val payloadVersion: Int? = null,
+ ) {
+ 	init {
+ 		require(writerProjectionId == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID)
+@@ -150,6 +152,7 @@ data class WifiCapturedFactRevisionEntity(
+ 		require(LOWERCASE_SHA_256.matches(sourceDeliveryIdentity))
+ 		require(deliveryUnitIndex == 0 && deliveryUnitCount == 1 && sourceSequence >= 0L)
+ 		require(planAttribution == PLAN_ATTRIBUTION_CAPTURED_REGISTRATION)
++		require(payloadVersion == null || isSupportedWifiWalPayloadVersion(payloadVersion))
+ 		require(sourceInstanceId.isNotBlank() && registrationGeneration > 0L)
+ 		require(configurationRevision >= 0L && physicalConfigurationFingerprint.isNotBlank())
+ 		require(authorizationRevision > 0L && LOWERCASE_SHA_256.matches(authorizationFingerprint))
+@@ -305,7 +308,12 @@ object WifiCapturedFactRevisionIntegrity {
+ 		digest("wifi-captured-mutation-v1", logicalFactId, semanticRevision)
+ 
+ 	fun effectChecksum(fact: WifiCapturedFactRevisionEntity): String =
+-		digest("wifi-captured-effect-v1", *fact.effectParts().toTypedArray())
++		if (fact.payloadVersion == null) {
++			// Preserve the exact checksum contract of summary-only and earlier development facts.
++			digest("wifi-captured-effect-v1", *fact.effectParts().toTypedArray())
++		} else {
++			digest("wifi-captured-effect-v2", fact.payloadVersion, *fact.effectParts().toTypedArray())
++		}
+ 
+ 	fun hasValidEffectChecksum(fact: WifiCapturedFactRevisionEntity): Boolean =
+ 		fact.effectChecksum == effectChecksum(fact)
+@@ -368,7 +376,7 @@ object WifiCapturedFactRevisionIntegrity {
+ 		logicalFactId, factKind, aggregateOwnerLogicalFactId, aggregateOwnerSemanticRevision,
+ 		aggregateOwnerCursorRevision, logicalTrackingId, serviceRunId, sessionSegmentId, purpose,
+ 		capturedSourceCodes, controlSourceCodes, sourceEventId, sourceAdmissionOrdinal,
+-		walIntegrityIdentity, payloadChecksum, sourceDeliveryIdentity, deliveryUnitIndex,
++		walIntegrityIdentity, payloadChecksum, payloadVersion, sourceDeliveryIdentity, deliveryUnitIndex,
+ 		deliveryUnitCount, sourceSequence, planAttribution, sourceInstanceId, registrationGeneration,
+ 		configurationRevision, physicalConfigurationFingerprint, authorizationRevision,
+ 		authorizationFingerprint, purposeEligibilityMask, sourcePolicyRevision, captureConsentEpoch,
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticator.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticator.kt
+index 9894459b7d..2693bca018 100644
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticator.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticator.kt
+@@ -658,6 +658,7 @@ private fun WifiCapturedFactRevisionEntity.hasExactWalLink(
+ 		sourceAdmissionOrdinal == wal.admissionOrdinal &&
+ 		walIntegrityIdentity == wal.integrityIdentity &&
+ 		payloadChecksum == wal.payloadChecksum &&
++		(payloadVersion == null || payloadVersion == wal.payloadVersion) &&
+ 		sourceDeliveryIdentity == carrier.deliveryIdentity &&
+ 		sourceDeliveryIdentity == wal.deliveryIdentity &&
+ 		deliveryUnitIndex == wal.deliveryUnitIndex &&
+diff --git a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt
+index 12a11dd0d6..f55836f365 100644
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt
+@@ -934,6 +934,21 @@ class DevelopmentV28DatabaseContainmentTest {
+ 		)
+ 	}
+ 
++	@Test
++	fun `older development v29 without the Wi-Fi carrier marker is preserved and blocked`() {
++		val database = AppDatabase.fileBuilder(context, DATABASE_NAME)
++			.allowMainThreadQueries().build()
++		try {
++			database.openHelper.writableDatabase.execSQL(
++				"ALTER TABLE wifi_captured_fact_revision RENAME COLUMN payload_version TO missing_payload_version")
++		} finally {
++			database.close()
++		}
++		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
++			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA)
++		databaseFile().exists() shouldBe true
++	}
++
+ 	@Test
+ 	fun `v29 database missing a background group column is blocked before Room opens`() {
+ 		val database = AppDatabase.fileBuilder(context, DATABASE_NAME)
+diff --git a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt
+index 35c2757e21..7880c5ee63 100644
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt
+@@ -38,6 +38,7 @@ class RadioObservationChildMigrationTest {
+ 					override fun onCreate(db: SupportSQLiteDatabase) {
+ 						createLegacyRadioTables(db)
+ 						createPurposeParentTables(db)
++						db.execSQL("INSERT INTO wifi_captured_fact_revision VALUES ('older-writer',1,'older-fact',1)")
+ 						db.execSQL("CREATE TABLE location_sample (id INTEGER NOT NULL PRIMARY KEY)")
+ 						db.execSQL("CREATE TABLE location_accepted_receipt (sample_id INTEGER NOT NULL PRIMARY KEY)")
+ 						db.execSQL("CREATE TABLE location_sample_purpose_authority (sample_id INTEGER NOT NULL, " +
+@@ -70,6 +71,10 @@ class RadioObservationChildMigrationTest {
+ 		try {
+ 			val db = helper.writableDatabase
+ 			MIGRATION_28_29.migrate(db)
++			readLong(db, "SELECT count(*) FROM pragma_table_info('wifi_captured_fact_revision') WHERE " +
++				"name='payload_version' AND type='INTEGER' AND \"notnull\"=0 AND dflt_value='NULL'") shouldBe 1L
++			readLong(db, "SELECT count(*) FROM wifi_captured_fact_revision WHERE " +
++				"logical_fact_id='older-fact' AND payload_version IS NULL") shouldBe 1L
+ 			readLong(db, "SELECT count(*) FROM source_policy WHERE background_notification_host_enabled = 0") shouldBe 2L
+ 			readLong(db, "SELECT count(*) FROM pragma_table_info('source_policy') WHERE " +
+ 				"name = 'background_notification_host_enabled' AND type = 'INTEGER' AND \"notnull\" = 1 AND dflt_value = '0'") shouldBe 1L
+@@ -102,7 +107,9 @@ class RadioObservationChildMigrationTest {
+ 			readLong(db, "SELECT cell_id FROM legacy_cell_child WHERE legacy_row_id=8") shouldBe 123456L
+ 			readString(db, "SELECT provenance FROM legacy_cell_child WHERE legacy_row_id=8") shouldBe "NEAREST_LOCATION"
+ 			readLong(db, "SELECT source_time_ms FROM legacy_cell_child WHERE legacy_row_id=8") shouldBe 1002L
+-			db.execSQL("INSERT INTO wifi_captured_fact_revision VALUES ('writer',1,'session-fact',1)")
++			db.execSQL("INSERT INTO wifi_captured_fact_revision " +
++				"(writer_projection_id,writer_projection_version,logical_fact_id,semantic_revision) " +
++				"VALUES ('writer',1,'session-fact',1)")
+ 			db.execSQL("INSERT INTO ambient_wifi_fact_revision (writer_id,writer_version,logical_fact_id,semantic_revision) VALUES ('writer',1,'background-fact',1)")
+ 			val checksum = "a".repeat(64)
+ 			db.execSQL("INSERT INTO wifi_captured_child VALUES " +
+diff --git a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticatorTest.kt b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticatorTest.kt
+index b2bc4f28d9..0c36be49d7 100644
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticatorTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticatorTest.kt
+@@ -223,6 +223,44 @@ class WifiWalCarrierAuthenticatorTest {
+ 		assertEquals(WifiWalCarrierFailure.EMPTY_PROVIDER_DELIVERY, rejected.reason)
+ 	}
+ 
++	@Test
++	fun `durable carrier version is sealed and must match the actual WAL format`() {
++		val wal = validWal()
++		val legacy = validFact(wal)
++		assertEquals(null, legacy.payloadVersion)
++		assertEquals(true, WifiCapturedFactRevisionIntegrity.hasValidEffectChecksum(legacy))
++		val unsigned = legacy.copy(payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
++		assertEquals(false, WifiCapturedFactRevisionIntegrity.hasValidEffectChecksum(unsigned))
++		val detailed = unsigned.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsigned))
++		assertIs<WifiWalCarrierAuthentication.Authenticated>(
++			WifiWalCarrierAuthenticator.authenticate(detailed, wal, validChildren(detailed, wal)))
++		val wrongVersion = detailed.copy(payloadVersion = LEGACY_WIFI_WAL_PAYLOAD_VERSION).let {
++			it.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(it))
++		}
++		assertEquals(WifiWalCarrierFailure.FACT_LINKAGE_MISMATCH,
++			assertIs<WifiWalCarrierAuthentication.Rejected>(
++				WifiWalCarrierAuthenticator.authenticate(wrongVersion, wal, validChildren(wrongVersion, wal))).reason)
++	}
++
++	@Test
++	fun `corrections preserve the original nullable or detailed carrier version`() {
++		val wal = validWal()
++		for (version in listOf(null, WIFI_WAL_PAYLOAD_VERSION)) {
++			val first = validFact(wal).copy(payloadVersion = version).let {
++				it.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(it))
++			}
++			fun correction(carrierVersion: Int?) = first.copy(
++				semanticRevision = 2L, supersedesSemanticRevision = 1L,
++				mutationId = WifiCapturedFactRevisionIntegrity.mutationId(first.logicalFactId, 2L),
++				payloadVersion = carrierVersion,
++			).let { it.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(it)) }
++			assertEquals(true, WifiCapturedFactRevisionIntegrity.hasValidRetainedLineage(
++				listOf(first, correction(version))))
++			assertEquals(false, WifiCapturedFactRevisionIntegrity.hasValidRetainedLineage(
++				listOf(first, correction(if (version == null) WIFI_WAL_PAYLOAD_VERSION else null))))
++		}
++	}
++
+ 	private fun validWal(
+ 		payloadVersion: Int = WIFI_WAL_PAYLOAD_VERSION,
+ 		withNetworkIdentity: Boolean = false,
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt
+index de6e5e6cd2..759c1b79e5 100644
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt
+@@ -1000,6 +1000,31 @@ class WifiHistoryRepositoryRoomTest {
+ 		entry.observations.single().networks shouldHaveSize 1
+ 	}
+ 
++	@Test
++	fun `new marked Wi-Fi scans cannot show a summary after losing all native details`() = runTest {
++		val group = v6RotatedGroup(buildGroup(247, 1, setOf(0)))
++		persist(listOf(group))
++		persistV6Children(group)
++		val entry = (repository { true }.recent(1) as WifiHistoryPage.Available).entries.single()
++		entry.observations.single().networks shouldHaveSize 2
++		database.openHelper.writableDatabase.execSQL("DELETE FROM wifi_captured_child")
++		assertRecentWriterFailure()
++	}
++
++	@Test
++	fun `native Wi-Fi history rejects a resealed marker that contradicts its original carrier`() = runTest {
++		val original = v6RotatedGroup(buildGroup(248, 1, setOf(0)))
++		val group = original.copy(runs = original.runs.map { run ->
++			val facts = run.facts.map { fact -> fact.copy(payloadVersion = LEGACY_WIFI_WAL_PAYLOAD_VERSION).let {
++				it.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(it))
++			} }
++			run.copy(facts = facts, cursors = listOf(cursor(facts.last())))
++		})
++		persist(listOf(group))
++		persistV6Children(group)
++		assertRecentWriterFailure()
++	}
++
+ 	@Test
+ 	fun `v6 rehashed child outside capture authority cannot lend a reading to history`() = runTest {
+ 		val complete = v6RotatedGroup(buildGroup(246, 1, setOf(0)))
+@@ -1053,7 +1078,7 @@ class WifiHistoryRepositoryRoomTest {
+ 				val unsigned = original.copy(logicalFactId = id,
+ 					mutationId = WifiCapturedFactRevisionIntegrity.mutationId(id, original.semanticRevision),
+ 					sourceDeliveryIdentity = delivery, walIntegrityIdentity = wal.integrityIdentity,
+-					payloadChecksum = encoded.checksum, authorizationRevision = 2L,
++					payloadChecksum = encoded.checksum, payloadVersion = WIFI_WAL_PAYLOAD_VERSION, authorizationRevision = 2L,
+ 					authorizationFingerprint = rotated.first().authorizationFingerprint,
+ 					purposeEligibilityMask = rotated.first().purposeEligibilityMask,
+ 					authorizationEffectStartNanos = selectedStart, coverageIntervalStartNanos = selectedStart,
+diff --git a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactClassifier.kt b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactClassifier.kt
+index 058a84666e..79f3e7a2a7 100644
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactClassifier.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactClassifier.kt
+@@ -85,7 +85,7 @@ internal data class WifiWalObservationEvidence(
+ 	/** Recomputes the production `source_event_wal` identity over every integrity-bound field. */
+ 	fun calculatedWalIntegrityIdentity(): String = asWalEntity().calculatedIntegrityIdentity()
+ 
+-	private fun asWalEntity(): SourceEventWalEntity = SourceEventWalEntity(
++	internal fun asWalEntity(): SourceEventWalEntity = SourceEventWalEntity(
+ 		admissionOrdinal = sourceAdmissionOrdinal,
+ 		eventId = sourceEventId.value,
+ 		providerDedupKey = providerDedupKey,
+diff --git a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt
+index 71b8df90ee..1d1c33a49a 100644
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt
+@@ -41,6 +41,7 @@ import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEnti
+ import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
+ import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIntegrity
+ import com.adsamcik.tracker.shared.base.database.data.MAX_WIFI_WAL_PAYLOAD_BYTES
++import com.adsamcik.tracker.shared.base.database.data.WifiWalCarrierAuthenticator
+ import com.adsamcik.tracker.shared.base.database.data.LEGACY_WIFI_WAL_PAYLOAD_VERSION
+ import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
+ import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemAuthority
+@@ -756,6 +757,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
+ 			if (!latest.matchesAuthenticatedWal(walAuthority)) {
+ 				block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 			}
++			requireAuthenticDetails(latest, walAuthority)
+ 			reuseAuthorityById[lineage.logicalFactId] = walAuthority.reuseAuthority
+ 			aggregateById[lineage.logicalFactId] =
+ 				requireNotNull(walAuthority.derivedAggregate).aggregate
+@@ -1231,6 +1233,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
+ 			if (!latest.matchesAuthenticatedWal(walAuthority)) {
+ 				block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 			}
++			requireAuthenticDetails(latest, walAuthority)
+ 			reuseAuthorityById[lineage.logicalFactId] = walAuthority.reuseAuthority
+ 			aggregateById[lineage.logicalFactId] = requireNotNull(walAuthority.derivedAggregate).aggregate
+ 			checkpoint(WifiCapturedMaintenanceCheckpoint.LINEAGE_AUTHENTICATED)
+@@ -1260,6 +1263,21 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
+ 		)
+ 	}
+ 
++	/** Same bounded child predicate used by writing and history, including missing-all v6 groups. */
++	private suspend fun requireAuthenticDetails(
++		fact: WifiCapturedFactRevisionEntity,
++		wal: AuthenticatedWifiWal,
++	) {
++		if (wal.evidence.payloadVersion != WIFI_WAL_PAYLOAD_VERSION) return
++		val children = database.radioObservationChildDao().wifiSessionChildren(
++			WRITER_ID, WRITER_VERSION, fact.logicalFactId, fact.semanticRevision,
++			MAX_NATIVE_DETAIL_CHILDREN + 1,
++		)
++		if (!WifiWalCarrierAuthenticator.authenticates(fact, wal.evidence.asWalEntity(), children)) {
++			block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
++		}
++	}
++
+ 	private fun authenticateLineage(
+ 		revisions: List<WifiCapturedFactRevisionEntity>,
+ 	): WifiCapturedLineage {
+@@ -2833,6 +2851,7 @@ private fun WifiCapturedFactRevisionEntity.matchesAuthenticatedWal(
+ 		sourceEventId == evidence.sourceEventId.value &&
+ 		sourceAdmissionOrdinal == evidence.sourceAdmissionOrdinal &&
+ 		walIntegrityIdentity == evidence.walIntegrityIdentity && payloadChecksum == evidence.payloadChecksum &&
++		(payloadVersion == null || payloadVersion == evidence.payloadVersion) &&
+ 		sourceDeliveryIdentity == evidence.sourceDeliveryIdentity?.value &&
+ 		deliveryUnitIndex == evidence.deliveryUnitIndex && deliveryUnitCount == evidence.deliveryUnitCount &&
+ 		sourceSequence == evidence.sourceSequence && planAttribution == evidence.planAttribution.name &&
+@@ -2946,6 +2965,7 @@ private fun WifiCapturedFactRevisionEntity.stableCorrectionParts(): List<Any?> =
+ 	sourceAdmissionOrdinal,
+ 	walIntegrityIdentity,
+ 	payloadChecksum,
++	payloadVersion,
+ 	sourceDeliveryIdentity,
+ 	deliveryUnitIndex,
+ 	deliveryUnitCount,
+@@ -3656,6 +3676,7 @@ private const val WAL_PAGE_SIZE = 256
+ private const val PORTABLE_WAL_BATCH_SIZE = 256
+ internal const val WIFI_PORTABLE_AUTHORITY_QUERY_LIMIT = 96
+ private const val MAX_EXPECTED_DELIVERY_UNITS = 1
++private const val MAX_NATIVE_DETAIL_CHILDREN = 64
+ private const val MAX_PLAN_PAYLOAD_BYTES = 1_024
+ private const val NANOS_PER_MILLISECOND = 1_000_000L
+ private const val PRODUCER_WALL_UNCERTAINTY_MS = 1L
+diff --git a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt
+index ead889d17d..62fa4adc02 100644
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt
+@@ -218,7 +218,15 @@ internal class WifiCapturedFactWriter @Inject constructor(
+ 				?: reject(WifiCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
+ 			cursor.cursorRevision
+ 		}
+-		val mapped = WifiCapturedPersistence.map(fact, owner.ownerGeneration, ownerCursorRevision)
++		val previousRevision = fact.mutation.supersedesSemanticRevision
++		val payloadVersion = if (previousRevision == null) wal.payloadVersion else {
++			val previous = database.wifiCapturedFactDao().revision(
++				WRITER_ID, WRITER_VERSION, fact.mutation.reference.logicalFactId(), previousRevision,
++			) ?: reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
++			previous.payloadVersion
++		}
++		val mapped = WifiCapturedPersistence.map(fact, owner.ownerGeneration, ownerCursorRevision,
++			payloadVersion)
+ 		val children = if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
+ 			WifiPurposeChildren.session(mapped, wal, acceptedIndexes)
+ 				?: reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
+@@ -635,7 +643,7 @@ private fun WifiCapturedFactRevisionEntity.fixedCorrectionLineage(): List<Any?>
+ 	logicalFactId, factKind, aggregateOwnerLogicalFactId, aggregateOwnerSemanticRevision,
+ 	aggregateOwnerCursorRevision, logicalTrackingId, serviceRunId, sessionSegmentId, purpose,
+ 	capturedSourceCodes, controlSourceCodes, sourceEventId, sourceAdmissionOrdinal,
+-	walIntegrityIdentity, payloadChecksum, sourceDeliveryIdentity, deliveryUnitIndex, deliveryUnitCount,
++	walIntegrityIdentity, payloadChecksum, payloadVersion, sourceDeliveryIdentity, deliveryUnitIndex, deliveryUnitCount,
+ 	sourceSequence, planAttribution, sourceInstanceId, registrationGeneration, configurationRevision,
+ 	physicalConfigurationFingerprint, authorizationRevision, authorizationFingerprint,
+ 	purposeEligibilityMask, sourcePolicyRevision, captureConsentEpoch, manifestRevision,
+@@ -766,6 +774,7 @@ private object WifiCapturedPersistence {
+ 		fact: WifiCapturedFact,
+ 		ownerGeneration: Long,
+ 		aggregateOwnerCursorRevision: Long?,
++		payloadVersion: Int?,
+ 	): WifiCapturedFactRevisionEntity {
+ 		val mutation = fact.mutation
+ 		val identity = mutation.identity
+@@ -861,6 +870,7 @@ private object WifiCapturedPersistence {
+ 			aggregate?.signalQuality?.signalLevelSumDbm,
+ 			ZERO_CHECKSUM,
+ 			fact.observedWallTimeMs,
++			payloadVersion,
+ 		)
+ 		return unsigned.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsigned))
+ 	}
+diff --git a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt
+index b0a9d5a79a..3e900c451f 100644
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt
+@@ -633,6 +633,90 @@ class WifiWalQualificationAdapterTest {
+ 		assertRetainedV6LineageCanBeAudited()
+ 	}
+ 
++	@Test
++	fun `writer seals the v6 carrier and retains it through correction retention and ordinary WAL expiry`() = runTest {
++		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
++		val first = assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
++		installPortableClosingAuthorization()
++		val correction = assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
++		assertEquals(2L, correction.semanticRevision)
++		val revisions = database.wifiCapturedFactDao().revisionsForFact(
++			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
++			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION, first.logicalFactId, 10)
++		assertEquals(listOf(WIFI_WAL_PAYLOAD_VERSION, WIFI_WAL_PAYLOAD_VERSION),
++			revisions.map { it.payloadVersion })
++		assertTrue(WifiCapturedFactRevisionIntegrity.hasValidRetainedLineage(revisions.reversed()))
++		materializePortableFixture()
++		assertRetainedV6LineageCanBeAudited()
++		assertEquals(0, database.sourceEventWalDao().deleteProjectedSourceBatch(
++			WIFI_SOURCE, Long.MAX_VALUE, Long.MAX_VALUE, 10))
++		assertEquals(1L, database.sourceEventWalDao().countAll())
++		val emitted = mutableListOf<PortableCapturedWifiEntryV1>()
++		assertIs<ExportPortableCapturedWifiResult.Exported>(portableExporter().export(
++			ExportPortableCapturedWifiRequest(LOGICAL_ID)) { emitted += it })
++		assertEquals(1, emitted.size)
++	}
++
++	@Test
++	fun `native export and retention reject a v6 scan after all its network details disappear`() = runTest {
++		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
++		installPortableClosingAuthorization()
++		materializePortableFixture()
++		database.openHelper.writableDatabase.execSQL("DELETE FROM wifi_captured_child")
++		assertEquals(ExportPortableCapturedWifiResult.Unverifiable(
++			PortableWifiUnverifiableReason.FACT_AUTHORITY_UNVERIFIABLE), exportPortableWithoutSink())
++		val floor = OBSERVED_WALL_MS - 1_000L
++		val markedAt = OBSERVED_WALL_MS + 10_000L
++		assertTrue(database.sourceEvidenceStateDao().synchronizeLifecycle(0L, floor, markedAt))
++		assertEquals(WifiCapturedRetentionResult.Blocked(
++			WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE),
++			maintenance.pruneAffectedByRetentionFloor(floor, 0L, 0L, markedAt))
++		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
++	}
++
++	@Test
++	fun `writer correction keeps an older null carrier marker instead of guessing its format`() = runTest {
++		installValidFixture(candidateWriter = true, payloadVersion = LEGACY_WIFI_WAL_PAYLOAD_VERSION)
++		val first = assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
++		val row = requireNotNull(database.wifiCapturedFactDao().revision(
++			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
++			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION, first.logicalFactId, 1L))
++		assertEquals(LEGACY_WIFI_WAL_PAYLOAD_VERSION, row.payloadVersion)
++		// Represent a pre-marker development row using its unchanged legacy checksum contract.
++		val legacy = row.copy(payloadVersion = null).let {
++			it.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(it))
++		}
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE wifi_captured_fact_revision SET payload_version=NULL, effect_checksum=? WHERE logical_fact_id=?",
++			arrayOf(legacy.effectChecksum, legacy.logicalFactId))
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE wifi_captured_fact_cursor SET latest_effect_checksum=? WHERE logical_fact_id=?",
++			arrayOf(legacy.effectChecksum, legacy.logicalFactId))
++		installPortableClosingAuthorization()
++		val corrected = assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
++		assertEquals(2L, corrected.semanticRevision)
++		val revisions = database.wifiCapturedFactDao().revisionsForFact(
++			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
++			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION, first.logicalFactId, 10)
++		assertEquals(listOf(null, null), revisions.map { it.payloadVersion })
++		assertTrue(WifiCapturedFactRevisionIntegrity.hasValidRetainedLineage(revisions.reversed()))
++		materializePortableFixture()
++		val emitted = mutableListOf<PortableCapturedWifiEntryV1>()
++		assertIs<ExportPortableCapturedWifiResult.Exported>(portableExporter().export(
++			ExportPortableCapturedWifiRequest(LOGICAL_ID)) { emitted += it })
++		assertEquals(1, emitted.size)
++	}
++
++	@Test
++	fun `native export rejects a v6 scan with only part of its network list retained`() = runTest {
++		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
++		installPortableClosingAuthorization()
++		materializePortableFixture()
++		database.openHelper.writableDatabase.execSQL("DELETE FROM wifi_captured_child WHERE item_index=0")
++		assertEquals(ExportPortableCapturedWifiResult.Unverifiable(
++			PortableWifiUnverifiableReason.FACT_AUTHORITY_UNVERIFIABLE), exportPortableWithoutSink())
++	}
++
+ 	@Test
+ 	fun `v6 callback revision must be the revision effective at receipt`() = runTest {
+ 		installValidFixture(payloadVersion = WIFI_WAL_PAYLOAD_VERSION)

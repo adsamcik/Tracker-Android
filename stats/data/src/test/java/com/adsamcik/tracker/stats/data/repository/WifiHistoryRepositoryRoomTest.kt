@@ -1001,6 +1001,31 @@ class WifiHistoryRepositoryRoomTest {
 	}
 
 	@Test
+	fun `new marked Wi-Fi scans cannot show a summary after losing all native details`() = runTest {
+		val group = v6RotatedGroup(buildGroup(247, 1, setOf(0)))
+		persist(listOf(group))
+		persistV6Children(group)
+		val entry = (repository { true }.recent(1) as WifiHistoryPage.Available).entries.single()
+		entry.observations.single().networks shouldHaveSize 2
+		database.openHelper.writableDatabase.execSQL("DELETE FROM wifi_captured_child")
+		assertRecentWriterFailure()
+	}
+
+	@Test
+	fun `native Wi-Fi history rejects a resealed marker that contradicts its original carrier`() = runTest {
+		val original = v6RotatedGroup(buildGroup(248, 1, setOf(0)))
+		val group = original.copy(runs = original.runs.map { run ->
+			val facts = run.facts.map { fact -> fact.copy(payloadVersion = LEGACY_WIFI_WAL_PAYLOAD_VERSION).let {
+				it.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(it))
+			} }
+			run.copy(facts = facts, cursors = listOf(cursor(facts.last())))
+		})
+		persist(listOf(group))
+		persistV6Children(group)
+		assertRecentWriterFailure()
+	}
+
+	@Test
 	fun `v6 rehashed child outside capture authority cannot lend a reading to history`() = runTest {
 		val complete = v6RotatedGroup(buildGroup(246, 1, setOf(0)))
 		val group = complete.copy(runs = complete.runs.map { run ->
@@ -1053,7 +1078,7 @@ class WifiHistoryRepositoryRoomTest {
 				val unsigned = original.copy(logicalFactId = id,
 					mutationId = WifiCapturedFactRevisionIntegrity.mutationId(id, original.semanticRevision),
 					sourceDeliveryIdentity = delivery, walIntegrityIdentity = wal.integrityIdentity,
-					payloadChecksum = encoded.checksum, authorizationRevision = 2L,
+					payloadChecksum = encoded.checksum, payloadVersion = WIFI_WAL_PAYLOAD_VERSION, authorizationRevision = 2L,
 					authorizationFingerprint = rotated.first().authorizationFingerprint,
 					purposeEligibilityMask = rotated.first().purposeEligibilityMask,
 					authorizationEffectStartNanos = selectedStart, coverageIntervalStartNanos = selectedStart,

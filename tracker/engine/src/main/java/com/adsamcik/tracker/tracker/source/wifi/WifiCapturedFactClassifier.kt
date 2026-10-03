@@ -85,7 +85,7 @@ internal data class WifiWalObservationEvidence(
 	/** Recomputes the production `source_event_wal` identity over every integrity-bound field. */
 	fun calculatedWalIntegrityIdentity(): String = asWalEntity().calculatedIntegrityIdentity()
 
-	private fun asWalEntity(): SourceEventWalEntity = SourceEventWalEntity(
+	internal fun asWalEntity(): SourceEventWalEntity = SourceEventWalEntity(
 		admissionOrdinal = sourceAdmissionOrdinal,
 		eventId = sourceEventId.value,
 		providerDedupKey = providerDedupKey,

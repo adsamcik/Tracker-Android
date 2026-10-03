@@ -658,6 +658,7 @@ private fun WifiCapturedFactRevisionEntity.hasExactWalLink(
 		sourceAdmissionOrdinal == wal.admissionOrdinal &&
 		walIntegrityIdentity == wal.integrityIdentity &&
 		payloadChecksum == wal.payloadChecksum &&
+		(payloadVersion == null || payloadVersion == wal.payloadVersion) &&
 		sourceDeliveryIdentity == carrier.deliveryIdentity &&
 		sourceDeliveryIdentity == wal.deliveryIdentity &&
 		deliveryUnitIndex == wal.deliveryUnitIndex &&

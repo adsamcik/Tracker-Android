@@ -223,6 +223,44 @@ class WifiWalCarrierAuthenticatorTest {
 		assertEquals(WifiWalCarrierFailure.EMPTY_PROVIDER_DELIVERY, rejected.reason)
 	}
 
+	@Test
+	fun `durable carrier version is sealed and must match the actual WAL format`() {
+		val wal = validWal()
+		val legacy = validFact(wal)
+		assertEquals(null, legacy.payloadVersion)
+		assertEquals(true, WifiCapturedFactRevisionIntegrity.hasValidEffectChecksum(legacy))
+		val unsigned = legacy.copy(payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		assertEquals(false, WifiCapturedFactRevisionIntegrity.hasValidEffectChecksum(unsigned))
+		val detailed = unsigned.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsigned))
+		assertIs<WifiWalCarrierAuthentication.Authenticated>(
+			WifiWalCarrierAuthenticator.authenticate(detailed, wal, validChildren(detailed, wal)))
+		val wrongVersion = detailed.copy(payloadVersion = LEGACY_WIFI_WAL_PAYLOAD_VERSION).let {
+			it.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(it))
+		}
+		assertEquals(WifiWalCarrierFailure.FACT_LINKAGE_MISMATCH,
+			assertIs<WifiWalCarrierAuthentication.Rejected>(
+				WifiWalCarrierAuthenticator.authenticate(wrongVersion, wal, validChildren(wrongVersion, wal))).reason)
+	}
+
+	@Test
+	fun `corrections preserve the original nullable or detailed carrier version`() {
+		val wal = validWal()
+		for (version in listOf(null, WIFI_WAL_PAYLOAD_VERSION)) {
+			val first = validFact(wal).copy(payloadVersion = version).let {
+				it.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(it))
+			}
+			fun correction(carrierVersion: Int?) = first.copy(
+				semanticRevision = 2L, supersedesSemanticRevision = 1L,
+				mutationId = WifiCapturedFactRevisionIntegrity.mutationId(first.logicalFactId, 2L),
+				payloadVersion = carrierVersion,
+			).let { it.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(it)) }
+			assertEquals(true, WifiCapturedFactRevisionIntegrity.hasValidRetainedLineage(
+				listOf(first, correction(version))))
+			assertEquals(false, WifiCapturedFactRevisionIntegrity.hasValidRetainedLineage(
+				listOf(first, correction(if (version == null) WIFI_WAL_PAYLOAD_VERSION else null))))
+		}
+	}
+
 	private fun validWal(
 		payloadVersion: Int = WIFI_WAL_PAYLOAD_VERSION,
 		withNetworkIdentity: Boolean = false,

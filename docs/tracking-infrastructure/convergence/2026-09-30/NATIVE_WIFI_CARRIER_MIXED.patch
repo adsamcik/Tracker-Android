@@ -1,0 +1,126 @@
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/RadioObservationChildDao.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/RadioObservationChildDao.kt
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/RadioObservationChildDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/RadioObservationChildDao.kt
+@@ -73,9 +73,9 @@
+ 		logicalTrackingId: String, limit: Int,
+ 	): List<WifiCapturedChildEntity>
+ 
+-	/** Wi-Fi does not yet retain its observation carrier version after WAL removal. */
++	/** Carrier version survives child or WAL loss; null keeps older summary facts honest. */
+ 	@Query("SELECT fact.logical_fact_id, fact.semantic_revision, fact.service_run_id, " +
+-		"NULL AS payload_version, fact.accepted_result_count AS accepted_child_count " +
++		"fact.payload_version, fact.accepted_result_count AS accepted_child_count " +
+ 		"FROM wifi_captured_fact_revision AS fact INNER JOIN wifi_captured_fact_cursor AS cursor ON " +
+ 		"cursor.writer_projection_id = fact.writer_projection_id AND " +
+ 		"cursor.writer_projection_version = fact.writer_projection_version AND " +
+diff --git a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableWifiSourceExporter.kt b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableWifiSourceExporter.kt
+--- a/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableWifiSourceExporter.kt
++++ b/feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableWifiSourceExporter.kt
+@@ -17,6 +17,8 @@
+ import com.adsamcik.tracker.shared.base.database.data.RadioChildPurpose
+ import com.adsamcik.tracker.shared.base.database.data.RadioObservationChildIntegrity
+ import com.adsamcik.tracker.shared.base.database.data.WifiChildChecksumInput
++import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
++import com.adsamcik.tracker.shared.base.database.data.isSupportedWifiWalPayloadVersion
+ import com.adsamcik.tracker.shared.base.database.data.WifiCapturedChildEntity
+ import com.adsamcik.tracker.shared.base.misc.LocalizedString
+ import com.adsamcik.tracker.shared.model.LocationSample
+@@ -201,6 +203,16 @@
+ 				currentCoroutineContext().ensureActive()
+ 				require(page.size <= remaining)
+ 				rows += page
++			}
++		}
++		val childCounts = rows.groupingBy { it.logicalFactId to it.semanticRevision }.eachCount()
++		selectedOwners.forEach { owner ->
++			check(owner.payloadVersion?.let(::isSupportedWifiWalPayloadVersion) != false) {
++				"Saved Wi-Fi carrier version is unavailable"
++			}
++			if (owner.payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
++				check((childCounts[owner.logicalFactId to owner.semanticRevision] ?: 0) ==
++					owner.acceptedChildCount) { "Saved Wi-Fi network details are incomplete" }
+ 			}
+ 		}
+ 		val context = currentCoroutineContext()
+diff --git a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/NativeRadioExportChildrenRoomTest.kt b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/NativeRadioExportChildrenRoomTest.kt
+--- a/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/NativeRadioExportChildrenRoomTest.kt
++++ b/feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/NativeRadioExportChildrenRoomTest.kt
+@@ -87,6 +87,42 @@
+ 			PortableCellSourceExporter().localChildren(database, SESSION, cellEntry(legacy)))
+ 	}
+ 
++	@Test fun `native wifi durable v6 marker rejects a missing list without relying on WAL presence`() = runTest {
++		val detailed = wifiFact("detailed", payloadVersion = 6)
++		val legacy = wifiFact("legacy", payloadVersion = null)
++		val v5 = wifiFact("v5", payloadVersion = 5)
++		seedWifi(detailed, includeChild = false)
++		seedWifi(legacy, includeChild = false)
++		seedWifi(v5, includeChild = false)
++		assertEquals(0L, database.sourceEventWalDao().countAll())
++		val owners = database.radioObservationChildDao().wifiCurrentExportOwners(
++			SESSION, WIFI_WRITER, WIFI_VERSION, 10).associateBy { it.logicalFactId }
++		assertEquals(6, owners.getValue(detailed.logicalFactId).payloadVersion)
++		assertEquals(null, owners.getValue(legacy.logicalFactId).payloadVersion)
++		assertFailsWith<IllegalStateException> {
++			PortableWifiSourceExporter().localChildren(database, SESSION, wifiEntry(detailed))
++		}
++		assertEquals(emptyList<Any>(),
++			PortableWifiSourceExporter().localChildren(database, SESSION, wifiEntry(legacy)))
++		assertEquals(emptyList<Any>(),
++			PortableWifiSourceExporter().localChildren(database, SESSION, wifiEntry(v5)))
++	}
++
++	@Test fun `native wifi v6 complete selected lists export while partial lists fail`() = runTest {
++		val complete = wifiFact("complete", payloadVersion = 6)
++		val partial = wifiFact("partial", payloadVersion = 6).copy(
++			submittedResultCount = 2, acceptedResultCount = 2, observationCount = 2,
++			twoPointFourGhzCount = 2, signalSumDbm = -80,
++		).let { it.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(it)) }
++		seedWifi(complete)
++		seedWifi(partial)
++		assertEquals(listOf("complete"), PortableWifiSourceExporter()
++			.localChildren(database, SESSION, wifiEntry(complete)).map { it.ssid })
++		assertFailsWith<IllegalStateException> {
++			PortableWifiSourceExporter().localChildren(database, SESSION, wifiEntry(partial))
++		}
++	}
++
+ 	@Test fun `a selected obsolete revision or wrong physical run cannot borrow current children`() = runTest {
+ 		val firstWifi = wifiFact("wifi")
+ 		val latestWifi = firstWifi.copy(semanticRevision = 2, supersedesSemanticRevision = 1,
+@@ -184,14 +220,14 @@
+ 	}
+ 
+ 	private suspend fun seedWifi(fact: WifiCapturedFactRevisionEntity,
+-		previous: WifiCapturedFactRevisionEntity? = null) {
++		previous: WifiCapturedFactRevisionEntity? = null, includeChild: Boolean = true) {
+ 		val dao = database.wifiCapturedFactDao()
+ 		previous?.let { dao.insertRevision(it); insertWifiChild(it) }
+ 		dao.insertRevision(fact)
+ 		dao.insertCursor(WifiCapturedFactCursorEntity(WIFI_WRITER, WIFI_VERSION, fact.logicalFactId,
+ 			SESSION, RUN, 1, 1, 0, 0, fact.semanticRevision, fact.mutationId, fact.effectChecksum,
+ 			fact.sourceAdmissionOrdinal, fact.semanticRevision, fact.observedWallTimeMs))
+-		insertWifiChild(fact)
++		if (includeChild) insertWifiChild(fact)
+ 	}
+ 
+ 	private suspend fun insertWifiChild(fact: WifiCapturedFactRevisionEntity) {
+@@ -231,7 +267,8 @@
+ 
+ 	/** Structurally valid native fact; provider/WAL/manifest audit is deliberately not this fixture. */
+ 	@Suppress("LongMethod")
+-	private fun wifiFact(event: String, wallTimeMs: Long = 2_000): WifiCapturedFactRevisionEntity {
++	private fun wifiFact(event: String, wallTimeMs: Long = 2_000,
++		payloadVersion: Int? = null): WifiCapturedFactRevisionEntity {
+ 		val delivery = WifiCapturedFactRevisionIntegrity.mutationId(event, 1)
+ 		val id = WifiCapturedFactRevisionIntegrity.logicalFactId(delivery, SESSION, RUN, 1, 1, 0, 0)
+ 		val unsigned = WifiCapturedFactRevisionEntity(
+@@ -270,7 +307,7 @@
+ 			coverageCompleteness = WifiCapturedFactRevisionEntity.COVERAGE_COMPLETE,
+ 			observationCount = 1, twoPointFourGhzCount = 1, fiveGhzCount = 0, sixGhzCount = 0,
+ 			otherBandCount = 0, strongestSignalDbm = -40, weakestSignalDbm = -40, signalSumDbm = -40,
+-			effectChecksum = SHA, appliedAtMs = wallTimeMs,
++			effectChecksum = SHA, appliedAtMs = wallTimeMs, payloadVersion = payloadVersion,
+ 		)
+ 		return unsigned.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsigned))
+ 	}

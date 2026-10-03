@@ -218,7 +218,15 @@ internal class WifiCapturedFactWriter @Inject constructor(
 				?: reject(WifiCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
 			cursor.cursorRevision
 		}
-		val mapped = WifiCapturedPersistence.map(fact, owner.ownerGeneration, ownerCursorRevision)
+		val previousRevision = fact.mutation.supersedesSemanticRevision
+		val payloadVersion = if (previousRevision == null) wal.payloadVersion else {
+			val previous = database.wifiCapturedFactDao().revision(
+				WRITER_ID, WRITER_VERSION, fact.mutation.reference.logicalFactId(), previousRevision,
+			) ?: reject(WifiCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			previous.payloadVersion
+		}
+		val mapped = WifiCapturedPersistence.map(fact, owner.ownerGeneration, ownerCursorRevision,
+			payloadVersion)
 		val children = if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
 			WifiPurposeChildren.session(mapped, wal, acceptedIndexes)
 				?: reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
@@ -635,7 +643,7 @@ private fun WifiCapturedFactRevisionEntity.fixedCorrectionLineage(): List<Any?> 
 	logicalFactId, factKind, aggregateOwnerLogicalFactId, aggregateOwnerSemanticRevision,
 	aggregateOwnerCursorRevision, logicalTrackingId, serviceRunId, sessionSegmentId, purpose,
 	capturedSourceCodes, controlSourceCodes, sourceEventId, sourceAdmissionOrdinal,
-	walIntegrityIdentity, payloadChecksum, sourceDeliveryIdentity, deliveryUnitIndex, deliveryUnitCount,
+	walIntegrityIdentity, payloadChecksum, payloadVersion, sourceDeliveryIdentity, deliveryUnitIndex, deliveryUnitCount,
 	sourceSequence, planAttribution, sourceInstanceId, registrationGeneration, configurationRevision,
 	physicalConfigurationFingerprint, authorizationRevision, authorizationFingerprint,
 	purposeEligibilityMask, sourcePolicyRevision, captureConsentEpoch, manifestRevision,
@@ -766,6 +774,7 @@ private object WifiCapturedPersistence {
 		fact: WifiCapturedFact,
 		ownerGeneration: Long,
 		aggregateOwnerCursorRevision: Long?,
+		payloadVersion: Int?,
 	): WifiCapturedFactRevisionEntity {
 		val mutation = fact.mutation
 		val identity = mutation.identity
@@ -861,6 +870,7 @@ private object WifiCapturedPersistence {
 			aggregate?.signalQuality?.signalLevelSumDbm,
 			ZERO_CHECKSUM,
 			fact.observedWallTimeMs,
+			payloadVersion,
 		)
 		return unsigned.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsigned))
 	}

@@ -935,6 +935,21 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	@Test
+	fun `older development v29 without the Wi-Fi carrier marker is preserved and blocked`() {
+		val database = AppDatabase.fileBuilder(context, DATABASE_NAME)
+			.allowMainThreadQueries().build()
+		try {
+			database.openHelper.writableDatabase.execSQL(
+				"ALTER TABLE wifi_captured_fact_revision RENAME COLUMN payload_version TO missing_payload_version")
+		} finally {
+			database.close()
+		}
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA)
+		databaseFile().exists() shouldBe true
+	}
+
+	@Test
 	fun `v29 database missing a background group column is blocked before Room opens`() {
 		val database = AppDatabase.fileBuilder(context, DATABASE_NAME)
 			.allowMainThreadQueries()
