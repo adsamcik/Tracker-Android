@@ -101,6 +101,32 @@ interface SourceSessionDao {
 	@Query("SELECT * FROM logical_tracking_session WHERE logical_tracking_id = :logicalTrackingId")
 	suspend fun session(logicalTrackingId: String): LogicalTrackingSessionEntity?
 
+	/** Original-start selection only; saved Location membership is checked again in the read snapshot. */
+	@Query("""SELECT session.* FROM logical_tracking_session session
+		WHERE session.state IN ('FINALIZED', 'CLOSED')
+		AND session.started_at_ms BETWEEN :fromMs AND :toMs
+		AND (:afterStartMs IS NULL OR session.started_at_ms > :afterStartMs OR
+		(session.started_at_ms = :afterStartMs AND session.logical_tracking_id > COALESCE(:afterId, '')))
+		AND (EXISTS (SELECT 1 FROM source_service_run run
+		JOIN location_sample_purpose_authority p ON p.purpose = 'SESSION_CAPTURE'
+		AND p.authority_id = run.service_run_id AND p.service_run_id = run.service_run_id
+		JOIN location_accepted_receipt r ON r.sample_id = p.sample_id
+		JOIN source_evidence_state e ON e.id = 1 AND e.collected_data_epoch = r.collected_data_epoch
+		JOIN location_sample point ON point.id = p.sample_id
+		WHERE run.logical_tracking_id = session.logical_tracking_id
+		AND p.logical_tracking_id = session.logical_tracking_id
+		AND r.source_admission_ordinal > e.deleted_source_event_high_water_ordinal)
+		OR EXISTS (SELECT 1 FROM session_segment segment
+		JOIN source_service_run run ON run.service_run_id = segment.service_run_id
+		AND run.logical_tracking_id = segment.logical_tracking_id
+		JOIN location_sample point ON point.time_ms BETWEEN segment.start_time_ms AND segment.end_time_ms
+		WHERE segment.logical_tracking_id = session.logical_tracking_id
+		AND run.presentation_acknowledgement = 'LEGACY_UNVERIFIABLE'
+		AND NOT EXISTS (SELECT 1 FROM location_accepted_receipt r WHERE r.sample_id = point.id)))
+		ORDER BY session.started_at_ms, session.logical_tracking_id LIMIT :limit""")
+	suspend fun completedLocationSessionCandidatePage(fromMs: Long, toMs: Long,
+		afterStartMs: Long?, afterId: String?, limit: Int): List<LogicalTrackingSessionEntity>
+
 	/** Bounded exact logical identities used to group replacement-run presentation rows. */
 	@Query("SELECT * FROM logical_tracking_session WHERE logical_tracking_id IN (:logicalTrackingIds)")
 	suspend fun sessions(logicalTrackingIds: List<String>): List<LogicalTrackingSessionEntity>

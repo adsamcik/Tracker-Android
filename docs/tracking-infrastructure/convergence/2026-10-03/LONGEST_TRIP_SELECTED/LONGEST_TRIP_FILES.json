@@ -1,0 +1,104 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "80eb0b0cbe748971b256524e776b2aa3c87b4b40",
+  "files": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt",
+      "selection": "new named longest-trip DAO methods only; preserve other drafts",
+      "base_sha256": "144a8a53598cc79154931f15ab24f4b5485d2939d0f60e6767cf6af7a852ccb5",
+      "selected_sha256": "c4497a24b427c67c02c760df82e6ba8c4502aab575e4f1a7c6ba1a158e417bd9",
+      "before": "docs/tracking-infrastructure/convergence/2026-10-03/LONGEST_TRIP_SELECTED/SourceSessionDao.kt.before",
+      "after": "docs/tracking-infrastructure/convergence/2026-10-03/LONGEST_TRIP_SELECTED/SourceSessionDao.kt.after",
+      "actual_sha256": "59bc2224aecd17b8eee31e458002226a8ee7cc564a317716725ac87855ce0d1d"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SessionSegmentDao.kt",
+      "selection": "new named longest-trip DAO methods only; preserve other drafts",
+      "base_sha256": "a5c7687db56f7d4a1caf987bdd5e5f6369572e98acb7573dfa8db94a41e56c49",
+      "selected_sha256": "e340284863e2dd951b72cd46022af1171b2478f9633ddab87c6eae6ec859a0ed",
+      "before": "docs/tracking-infrastructure/convergence/2026-10-03/LONGEST_TRIP_SELECTED/SessionSegmentDao.kt.before",
+      "after": "docs/tracking-infrastructure/convergence/2026-10-03/LONGEST_TRIP_SELECTED/SessionSegmentDao.kt.after",
+      "actual_sha256": "a886267782d560f1724e3fd66c4d8bfb1bd1dd8fb03775333ff36276e7b3503c"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+      "selection": "new named longest-trip DAO methods only; preserve other drafts",
+      "base_sha256": "0aa184aee7c9aa7e7f4998a031a0c1e033f43556334810236680e86f8065c197",
+      "selected_sha256": "b7f6c2c755a7dac40c30efc192734142d264765962f5f3507ded24a151e9f417",
+      "before": "docs/tracking-infrastructure/convergence/2026-10-03/LONGEST_TRIP_SELECTED/LocationPurposeDao.kt.before",
+      "after": "docs/tracking-infrastructure/convergence/2026-10-03/LONGEST_TRIP_SELECTED/LocationPurposeDao.kt.after",
+      "actual_sha256": "40d1c057904b90670e3c2628d2139193a8bb7564be8adb6d7cfce8eb1d4f11fb"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationReadScope.kt",
+      "selection": "pre-existing HISTORY_CURRENT_IMPORT_COPY and HISTORY_RETAINED constants only",
+      "base_sha256": "7766839bc15a600b886c8fe0766b3026e7a78012f1a49a9215ffc142a865a7ed",
+      "selected_sha256": "f87f4c6fe765dd9d95129292c340a690b5bdac96f10f7a0854285446948e3554",
+      "before": "docs/tracking-infrastructure/convergence/2026-10-03/LONGEST_TRIP_SELECTED/LocationReadScope.kt.before",
+      "after": "docs/tracking-infrastructure/convergence/2026-10-03/LONGEST_TRIP_SELECTED/LocationReadScope.kt.after",
+      "actual_sha256": "902d7f9e09347a442e2b5a3d22fbab495a99a07c436a76f9cf9be59af9976c04"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/WindowedMetricsProvider.kt",
+      "selection": "whole owned file; clean at start",
+      "base_sha256": "55811d78560d28727c4188c384b939d261128cab0921f109255d89ca7384ffd6",
+      "selected_sha256": "d62482d37454975fd0375843c93c67cafcc582d58460355d690da4aa5ecc5592",
+      "actual_sha256": "f08801855be4d186f54efbf30772dae201a3cce2dab4efd42d72268b414c5acc"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProvider.kt",
+      "selection": "whole owned file; clean at start",
+      "base_sha256": "418c99891aee168f6f19cc4dfc950d89f22b3022945dbcb3f97d257a0e4a6996",
+      "selected_sha256": "61a4509c83ef27412e5db2a2f4f5f609e8b59d2b2a9d86292438bd0c27b7fa75",
+      "actual_sha256": "20a13a1e3fef15ba44a5c58fb2e58f27c3a40f1557b34d8b92eb32b322b68c13"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProviderTest.kt",
+      "selection": "whole owned file; clean at start",
+      "base_sha256": "37667074d6162ab938753423bc8cb9aea689488c1831cce4f734d4946c81b2a4",
+      "selected_sha256": "ffe4abbe68110de70dad13d9ccc93571c36784c815fd7b78ea30ffe08115e36d",
+      "actual_sha256": "f98c334fe03296a87b01ec4d8c58ab39fedbbb65af9288fe5dbca49a913508f6"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt",
+      "selection": "new owned file",
+      "selected_sha256": "38b7466823ffdd187b851569b76fbef386144a009ef68afa4b5bb4470126677d",
+      "actual_sha256": "38b7466823ffdd187b851569b76fbef386144a009ef68afa4b5bb4470126677d"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReaderRoomTest.kt",
+      "selection": "new owned file",
+      "selected_sha256": "cee99960e3e5880b5f6f25a86a13cbdcae37e5eecfa724f314175f236aa3daf5",
+      "actual_sha256": "cee99960e3e5880b5f6f25a86a13cbdcae37e5eecfa724f314175f236aa3daf5"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceAccumulatorTest.kt",
+      "selection": "new owned file",
+      "selected_sha256": "f81c28e5acd139389de59b73a9022291eb6559a6c50993e375434402a5892a8b",
+      "actual_sha256": "f81c28e5acd139389de59b73a9022291eb6559a6c50993e375434402a5892a8b"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WindowedDiscoveryStreakRoomTest.kt",
+      "selection": "constructor companion only; clean at start",
+      "selected_sha256": "cea098c068ce50de5fed304460b9156bbaa9fb822c45f5f1fe8fede4be83e8d4",
+      "actual_sha256": "cea098c068ce50de5fed304460b9156bbaa9fb822c45f5f1fe8fede4be83e8d4"
+    }
+  ],
+  "patch_sha256": "f243043752f61134b335d6d8f46acb08dd79a3860c0503811085961a4bbdc75a",
+  "excluded": [
+    "unselected SourceSessionDao completed export IDs and organization draft",
+    "unselected LocationPurposeDao sessionless history draft",
+    "unselected LocationReadScope SESSIONLESS_HISTORY/HISTORY_ORIGIN",
+    "LogicalTrackingHistoryReader selected R11 draft",
+    "new dated exploration lookup",
+    "Location Replace representation",
+    "WindowedMetricsProvider UI integration"
+  ],
+  "source_path_count": 11,
+  "new_authored_cases": {
+    "room": 14,
+    "pure": 4,
+    "provider": 5
+  }
+}

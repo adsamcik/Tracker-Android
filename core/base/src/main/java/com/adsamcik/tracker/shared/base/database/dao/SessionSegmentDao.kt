@@ -35,6 +35,19 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 		limit: Int,
 	): List<SessionSegment>
 
+	/** Unattributed saved/imported trips retain their independent compatibility interval. */
+	@Query("""SELECT segment.* FROM session_segment segment
+		WHERE segment.logical_tracking_id IS NULL AND segment.service_run_id IS NULL
+		AND segment.start_time_ms BETWEEN :fromMs AND :toMs
+		AND (:afterStartMs IS NULL OR segment.start_time_ms > :afterStartMs OR
+		(segment.start_time_ms = :afterStartMs AND segment.id > COALESCE(:afterId, 0)))
+		AND EXISTS (SELECT 1 FROM location_sample point
+		WHERE point.time_ms BETWEEN segment.start_time_ms AND segment.end_time_ms
+		AND NOT EXISTS (SELECT 1 FROM location_accepted_receipt r WHERE r.sample_id = point.id))
+		ORDER BY segment.start_time_ms, segment.id LIMIT :limit""")
+	suspend fun legacyLocationTripCandidatePage(fromMs: Long, toMs: Long,
+		afterStartMs: Long?, afterId: Long?, limit: Int): List<SessionSegment>
+
 	@Query(
 		"""
 		SELECT

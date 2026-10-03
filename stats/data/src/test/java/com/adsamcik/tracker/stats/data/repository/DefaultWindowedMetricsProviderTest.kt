@@ -35,6 +35,7 @@ class DefaultWindowedMetricsProviderTest {
 	private val explorationStreakDao: ExplorationStreakDao = mockk()
 	private val sessionSegmentDao: SessionSegmentDao = mockk()
 	private val exportLogDao: ExportLogDao = mockk()
+	private val savedTripDistanceReader: SavedTripDistanceReader = mockk()
 
 	private lateinit var provider: DefaultWindowedMetricsProvider
 
@@ -47,7 +48,46 @@ class DefaultWindowedMetricsProviderTest {
 			sessionSegmentDao = sessionSegmentDao,
 			exportLogDao = exportLogDao,
 			dispatchers = TestDispatchersProvider(Dispatchers.Unconfined),
+			savedTripDistanceReader = savedTripDistanceReader,
 		)
+	}
+
+	@Test
+	fun `longest trip uses whole measured saved distance in the selected interval`() = runTest {
+		coEvery { savedTripDistanceReader.longestDistanceMeters(100L, 200L) } returns 4_950L.right()
+		provider.collect(MetricKeys.LONGEST_TRIP_KM, TimeWindow.Interval(100L, 200L)) shouldBe 4L.right()
+		coVerify(exactly = 0) { sessionSegmentDao.maxSegmentDistance() }
+	}
+
+	@Test
+	fun `all time longest uses the same whole trip reader instead of a physical segment maximum`() = runTest {
+		coEvery { savedTripDistanceReader.longestDistanceMeters(0L, Long.MAX_VALUE) } returns 8_500L.right()
+		provider.collect(MetricKeys.LONGEST_TRIP_KM, TimeWindow.Cumulative) shouldBe 8L.right()
+		coVerify(exactly = 0) { sessionSegmentDao.maxSegmentDistance() }
+	}
+
+	@Test
+	fun `longest trip preserves unavailable measurements instead of fabricating zero or lifetime data`() = runTest {
+		val error = StatsError.NotFound("No measured trip distance is available", "Location trip", "100:200")
+		coEvery { savedTripDistanceReader.longestDistanceMeters(100L, 200L) } returns error.left()
+		provider.collect(MetricKeys.LONGEST_TRIP_KM, TimeWindow.Interval(100L, 200L)) shouldBe error.left()
+		coVerify(exactly = 0) { sessionSegmentDao.maxSegmentDistance() }
+	}
+
+	@Test
+	fun `longest trip preserves cancellation and does not retry an unrelated aggregate`() = runTest {
+		val cancellation = CancellationException("cancelled read")
+		coEvery { savedTripDistanceReader.longestDistanceMeters(100L, 200L) } throws cancellation
+		val result = runCatching { provider.collect(MetricKeys.LONGEST_TRIP_KM, TimeWindow.Interval(100L, 200L)) }.exceptionOrNull()
+		result shouldBe cancellation
+		coVerify(exactly = 0) { sessionSegmentDao.maxSegmentDistance() }
+	}
+
+	@Test
+	fun `seasonal period never uses an undated lifetime mask`() = runTest {
+		provider.collect(MetricKeys.SEASONS_EXPLORED, TimeWindow.Interval(100L, 200L)) shouldBe
+			StatsError.ValidationError("Seasonal visits are unavailable for this period").left()
+		coVerify(exactly = 0) { explorationCellDao.getDistinctSeasonBitmasks(any()) }
 	}
 
 	@Test

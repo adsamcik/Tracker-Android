@@ -24,10 +24,10 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
- * Collects metric values for cumulative and bounded windows using pre-aggregated tables only.
+ * Collects metric values for cumulative and bounded windows.
  *
  * Bounded discovery streaks use dated, retained discoveries and the current local calendar.
- * Seasonal coverage and longest trip still need their separate period readers.
+ * Longest trip uses a bounded, read-only saved Location reader. Seasonal visits lack dated evidence.
  * Steps require the separate source-qualified numeric repository.
  */
 class DefaultWindowedMetricsProvider @Inject constructor(
@@ -37,11 +37,27 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 	private val sessionSegmentDao: SessionSegmentDao,
 	private val exportLogDao: ExportLogDao,
 	private val dispatchers: DispatchersProvider,
+	private val savedTripDistanceReader: SavedTripDistanceReader,
 ) : WindowedMetricsProvider {
 
 	override suspend fun collect(metric: String, window: TimeWindow): Either<StatsError, Long> {
 		if (metric == MetricKeys.STEPS || metric == MetricKeys.STEPS_TOTAL || metric == MetricKeys.BEST_DAILY_STEPS) {
 			return StatsError.ValidationError("Steps require source-qualified numeric evidence").left()
+		}
+		if (metric == MetricKeys.LONGEST_TRIP_KM) {
+			val bounds = when (window) {
+				TimeWindow.Cumulative -> 0L to Long.MAX_VALUE
+				is TimeWindow.Interval -> window.startMs to window.endMs
+				is TimeWindow.Rolling -> {
+					if (window.durationMs < 0L) return StatsError.ValidationError("Rolling duration cannot be negative").left()
+					val now = System.currentTimeMillis()
+					(now - window.durationMs).coerceAtLeast(0L) to now
+				}
+			}
+			return savedTripDistanceReader.longestDistanceMeters(bounds.first, bounds.second).map { it / METERS_PER_KM }
+		}
+		if (metric == MetricKeys.SEASONS_EXPLORED && window != TimeWindow.Cumulative) {
+			return StatsError.ValidationError("Seasonal visits are unavailable for this period").left()
 		}
 		val value = when (window) {
 			TimeWindow.Cumulative -> collectCumulative(metric)
@@ -83,7 +99,6 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 			sessionSegmentDao.countByActivity(ACTIVITY_NATIVE_RUNNING)
 		MetricKeys.CYCLING_TRIPS -> sessionSegmentDao.countByActivity(ACTIVITY_ON_BICYCLE) +
 			sessionSegmentDao.countByActivity(ACTIVITY_NATIVE_BICYCLE)
-		MetricKeys.LONGEST_TRIP_KM -> sessionSegmentDao.maxSegmentDistance() / METERS_PER_KM
 		MetricKeys.SESSIONS_TOTAL -> dailySummaryDao.sumTotalTrips()
 		MetricKeys.ACTIVITY_TYPES_USED -> sessionSegmentDao.countDistinctActivities()
 		MetricKeys.SEASONS_EXPLORED -> countSeasonsExplored()
@@ -127,10 +142,6 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 
 			MetricKeys.ACTIVITY_TYPES_USED -> sessionSegmentDao.countDistinctActivitiesInClosedInterval(fromMs, toMs)
 			MetricKeys.TOTAL_EXPORTS -> exportLogDao.countCompletedBetween(fromMs, toMs)
-
-			MetricKeys.LONGEST_TRIP_KM,
-			MetricKeys.SEASONS_EXPLORED,
-			-> collectCumulative(metric)
 
 			else -> null
 		}

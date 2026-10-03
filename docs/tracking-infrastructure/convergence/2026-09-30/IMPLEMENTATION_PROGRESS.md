@@ -238,6 +238,12 @@ remain held. No test or gate has run.
   evidence. Preserve the complementary non-Steps sparse footer and existing actions.
   Six new unexecuted Compose cases include fifty-session first-viewport visibility;
   independent review rechecked the coordinator's placement correction.
+- [x] Select the independently reviewed longest-trip saved-point reader and exact
+  DAO queries. Eleven source paths, fourteen Room, four pure and five provider
+  cases are pinned in `../2026-10-03/LONGEST_TRIP_SELECTED/LONGEST_TRIP_FILES.json`.
+  Static review repairs include zero-summary-count discovery, the existing streak
+  constructor companion and actual import archive epoch coverage. Exact saved-file
+  rows preserve descriptive dual origins for session-export reuse. None ran.
 
 ## Remaining in these slices
 
@@ -263,7 +269,8 @@ remain held. No test or gate has run.
 - [ ] Complete period discovery streak, revisit season counting and longest-trip
   scope using the latest October 3 decisions. The additional dated exploration
   lookup was declined; dependent period statistics stay unavailable. The saved-point
-  longest-trip reader is approved; actual period reads and presentation remain unfinished.
+  longest-trip backend is now authored and independently reviewed; presentation
+  and remaining metric correction/effect fanout remain unfinished.
 - [ ] Close all remaining runtime/history/map/effect/transfer/cleanup gaps from
   R05–R18 and the full prerequisite trace.
 - [ ] Wire session bundle export/import, bounded annotation selectors and existing

@@ -1,0 +1,899 @@
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt
+index fa59b40798..e1c148a99d 100644
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt
+@@ -101,6 +101,32 @@ interface SourceSessionDao {
+ 	@Query("SELECT * FROM logical_tracking_session WHERE logical_tracking_id = :logicalTrackingId")
+ 	suspend fun session(logicalTrackingId: String): LogicalTrackingSessionEntity?
+ 
++	/** Original-start selection only; saved Location membership is checked again in the read snapshot. */
++	@Query("""SELECT session.* FROM logical_tracking_session session
++		WHERE session.state IN ('FINALIZED', 'CLOSED')
++		AND session.started_at_ms BETWEEN :fromMs AND :toMs
++		AND (:afterStartMs IS NULL OR session.started_at_ms > :afterStartMs OR
++		(session.started_at_ms = :afterStartMs AND session.logical_tracking_id > COALESCE(:afterId, '')))
++		AND (EXISTS (SELECT 1 FROM source_service_run run
++		JOIN location_sample_purpose_authority p ON p.purpose = 'SESSION_CAPTURE'
++		AND p.authority_id = run.service_run_id AND p.service_run_id = run.service_run_id
++		JOIN location_accepted_receipt r ON r.sample_id = p.sample_id
++		JOIN source_evidence_state e ON e.id = 1 AND e.collected_data_epoch = r.collected_data_epoch
++		JOIN location_sample point ON point.id = p.sample_id
++		WHERE run.logical_tracking_id = session.logical_tracking_id
++		AND p.logical_tracking_id = session.logical_tracking_id
++		AND r.source_admission_ordinal > e.deleted_source_event_high_water_ordinal)
++		OR EXISTS (SELECT 1 FROM session_segment segment
++		JOIN source_service_run run ON run.service_run_id = segment.service_run_id
++		AND run.logical_tracking_id = segment.logical_tracking_id
++		JOIN location_sample point ON point.time_ms BETWEEN segment.start_time_ms AND segment.end_time_ms
++		WHERE segment.logical_tracking_id = session.logical_tracking_id
++		AND run.presentation_acknowledgement = 'LEGACY_UNVERIFIABLE'
++		AND NOT EXISTS (SELECT 1 FROM location_accepted_receipt r WHERE r.sample_id = point.id)))
++		ORDER BY session.started_at_ms, session.logical_tracking_id LIMIT :limit""")
++	suspend fun completedLocationSessionCandidatePage(fromMs: Long, toMs: Long,
++		afterStartMs: Long?, afterId: String?, limit: Int): List<LogicalTrackingSessionEntity>
++
+ 	/** Bounded exact logical identities used to group replacement-run presentation rows. */
+ 	@Query("SELECT * FROM logical_tracking_session WHERE logical_tracking_id IN (:logicalTrackingIds)")
+ 	suspend fun sessions(logicalTrackingIds: List<String>): List<LogicalTrackingSessionEntity>
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SessionSegmentDao.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SessionSegmentDao.kt
+index 63ea67036a..de504e6f4e 100644
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SessionSegmentDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SessionSegmentDao.kt
+@@ -35,6 +35,19 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
+ 		limit: Int,
+ 	): List<SessionSegment>
+ 
++	/** Unattributed saved/imported trips retain their independent compatibility interval. */
++	@Query("""SELECT segment.* FROM session_segment segment
++		WHERE segment.logical_tracking_id IS NULL AND segment.service_run_id IS NULL
++		AND segment.start_time_ms BETWEEN :fromMs AND :toMs
++		AND (:afterStartMs IS NULL OR segment.start_time_ms > :afterStartMs OR
++		(segment.start_time_ms = :afterStartMs AND segment.id > COALESCE(:afterId, 0)))
++		AND EXISTS (SELECT 1 FROM location_sample point
++		WHERE point.time_ms BETWEEN segment.start_time_ms AND segment.end_time_ms
++		AND NOT EXISTS (SELECT 1 FROM location_accepted_receipt r WHERE r.sample_id = point.id))
++		ORDER BY segment.start_time_ms, segment.id LIMIT :limit""")
++	suspend fun legacyLocationTripCandidatePage(fromMs: Long, toMs: Long,
++		afterStartMs: Long?, afterId: Long?, limit: Int): List<SessionSegment>
++
+ 	@Query(
+ 		"""
+ 		SELECT
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt
+index 25507a2a00..3a1b4b64e2 100644
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt
+@@ -27,6 +27,52 @@ data class LocationPathSampleRow(
+ /** Location authority only; this DAO never creates a canonical sample. */
+ @Dao
+ interface LocationPurposeDao {
++	/** Exact saved capture membership. Coordinates are current user data, not reauthenticated provider payload. */
++	@Query("""SELECT DISTINCT location_sample.*, lr.source_instance_id || ':' || lr.registration_generation AS continuity_id,
++		lr.source_sequence AS continuity_sequence, 0 AS ambient_only,
++		1 AS has_session_purpose,
++		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
++		AND lp.purpose = 'AMBIENT_PRODUCT') AS has_visible_background_purpose
++		FROM location_sample_purpose_authority p JOIN location_sample ON location_sample.id = p.sample_id
++		JOIN location_accepted_receipt lr ON lr.sample_id = location_sample.id
++		JOIN source_evidence_state e ON e.id = 1 AND e.collected_data_epoch = lr.collected_data_epoch
++		JOIN session_segment segment ON segment.id = p.session_segment_id
++		WHERE ${LocationReadScope.HISTORY_RETAINED}
++		AND lr.source_admission_ordinal > e.deleted_source_event_high_water_ordinal
++		AND p.purpose = 'SESSION_CAPTURE' AND p.authority_id IN (:serviceRunIds)
++		AND p.logical_tracking_id = :logicalId AND p.service_run_id = p.authority_id
++		AND segment.logical_tracking_id = p.logical_tracking_id AND segment.service_run_id = p.service_run_id
++		AND (:afterTimeMs IS NULL OR time_ms > :afterTimeMs OR
++		(time_ms = :afterTimeMs AND location_sample.id > COALESCE(:afterId, 0)))
++		ORDER BY time_ms, location_sample.id LIMIT :limit""")
++	suspend fun savedLogicalTripPointPage(logicalId: String, serviceRunIds: List<String>,
++		afterTimeMs: Long?, afterId: Long?, limit: Int): List<LocationPathSampleRow>
++
++	/** Legacy/imported interval compatibility; no ambient or another native session is borrowed. */
++	@Query("""SELECT location_sample.*, NULL AS continuity_id, NULL AS continuity_sequence,
++		0 AS ambient_only, 0 AS has_session_purpose, 0 AS has_visible_background_purpose
++		FROM location_sample WHERE time_ms BETWEEN :fromMs AND :toMs
++		AND NOT EXISTS (SELECT 1 FROM location_accepted_receipt r WHERE r.sample_id = location_sample.id)
++		AND ${LocationReadScope.HISTORY_RETAINED}
++		AND (NOT EXISTS (SELECT 1 FROM location_file_archive_point m WHERE m.sample_id = location_sample.id)
++		OR ${LocationReadScope.HISTORY_CURRENT_IMPORT_COPY})
++		AND (:afterTimeMs IS NULL OR time_ms > :afterTimeMs OR
++		(time_ms = :afterTimeMs AND location_sample.id > COALESCE(:afterId, 0)))
++		ORDER BY time_ms, id LIMIT :limit""")
++	suspend fun savedLegacyTripPointPage(fromMs: Long, toMs: Long,
++		afterTimeMs: Long?, afterId: Long?, limit: Int): List<LocationPathSampleRow>
++
++	/** Exact file membership with the same descriptive origin and retention as savedFileChunk. */
++	@Query("""SELECT location_sample.*, lr.source_instance_id || ':' || lr.registration_generation AS continuity_id,
++		lr.source_sequence AS continuity_sequence, 0 AS ambient_only,
++		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
++		AND lp.purpose = 'SESSION_CAPTURE') AS has_session_purpose,
++		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
++		AND lp.purpose = 'AMBIENT_PRODUCT') AS has_visible_background_purpose
++		FROM location_sample LEFT JOIN location_accepted_receipt lr ON lr.sample_id = location_sample.id
++		WHERE location_sample.id IN (:sampleIds) AND ${LocationReadScope.HISTORY_RETAINED}
++		ORDER BY location_sample.time_ms, location_sample.id""")
++	suspend fun savedFileSamples(sampleIds: List<Long>): List<LocationPathSampleRow>
+ 	/** Discovery only; source-owned reader qualifies the receipt and each purpose in the same snapshot. */
+ 	@Query("SELECT * FROM location_accepted_receipt WHERE observed_wall_time_ms >= :fromMs " +
+ 		"AND observed_wall_time_ms < :toMs ORDER BY observed_wall_time_ms, sample_id LIMIT :limit")
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationReadScope.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationReadScope.kt
+index f706fc9eb4..c0e819d3e1 100644
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationReadScope.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationReadScope.kt
+@@ -2,6 +2,18 @@ package com.adsamcik.tracker.shared.base.database.dao
+ 
+ /** Fixed SQL fragments: callers cannot supply identifiers or authority predicates. */
+ object LocationReadScope {
++	/** Exact current imported membership can survive independently of an erased native contribution. */
++	const val HISTORY_CURRENT_IMPORT_COPY = """EXISTS (SELECT 1 FROM location_file_archive_point m
++		JOIN location_file_archive a ON a.identity = m.archive_identity
++		JOIN location_file_identity i ON i.portable_id = m.portable_id AND i.sample_id = m.sample_id
++		JOIN source_evidence_state e ON e.id = 1 AND e.collected_data_epoch = a.collected_data_epoch
++		WHERE m.sample_id = location_sample.id)"""
++	/** Conservative discovery; source-owned Kotlin authenticates any receipt-based erase decision. */
++	const val HISTORY_RETAINED = """(NOT EXISTS (SELECT 1 FROM source_evidence_state e WHERE e.id = 1
++		AND e.retained_from_ms IS NOT NULL AND location_sample.time_ms < e.retained_from_ms))
++		AND NOT EXISTS (SELECT 1 FROM collected_data_deletion_operation WHERE phase IN
++		('RETENTION_PREPARED', 'RETENTION_DATASTORE_ACKNOWLEDGED', 'RETENTION_ROOM_GUARD_COMMITTED',
++		'RETENTION_AUTHORITY_REISSUED', 'RETENTION_PROVIDER_RECONCILED', 'RETENTION_SOURCE_MAINTENANCE_COMPLETED'))"""
+ 	const val CAPTURE_OR_LEGACY = "(NOT EXISTS (SELECT 1 FROM location_accepted_receipt lr WHERE lr.sample_id = location_sample.id) OR EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id AND lp.purpose = 'SESSION_CAPTURE'))"
+ 	// Historical visibility follows the exact grant saved with each point. A later
+ 	// source toggle or live-retention revoke stops new acquisition, not old reads.
+diff --git a/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/WindowedMetricsProvider.kt b/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/WindowedMetricsProvider.kt
+index 782d67bd56..6319faf82c 100644
+--- a/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/WindowedMetricsProvider.kt
++++ b/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/WindowedMetricsProvider.kt
+@@ -12,8 +12,11 @@ import com.adsamcik.tracker.stats.api.metric.TimeWindow
+  * progress evaluation (where an achievement is bounded by start/end timestamps, e.g.
+  * "X distance in the last 7 days").
+  *
+- * Implementations MUST only query pre-aggregated tables (daily_summary, exploration_cell,
+- * session_segment, …) and NEVER scan raw location_sample.
++ * Implementations query pre-aggregated tables (daily_summary, exploration_cell, session_segment, …).
++ * Longest trip may use bounded source-owned pages of current saved Location in one read snapshot:
++ * compare whole completed logical trips by original start, summing only continuous measured sections.
++ * Missing membership, measurements or read limits return typed errors, never an All-time substitute.
++ * Seasonal visits without dated evidence are unavailable for a bounded period.
+  *
+  * Steps metrics return [StatsError.ValidationError]: legacy aggregates do not establish complete
+  * source-qualified Steps. Callers needing Steps must use [StepsNumericSummaryRepository].
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProvider.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProvider.kt
+index 9ab1c27c32..7fd3741b93 100644
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProvider.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProvider.kt
+@@ -24,10 +24,10 @@ import kotlinx.coroutines.withContext
+ import javax.inject.Inject
+ 
+ /**
+- * Collects metric values for cumulative and bounded windows using pre-aggregated tables only.
++ * Collects metric values for cumulative and bounded windows.
+  *
+  * Bounded discovery streaks use dated, retained discoveries and the current local calendar.
+- * Seasonal coverage and longest trip still need their separate period readers.
++ * Longest trip uses a bounded, read-only saved Location reader. Seasonal visits lack dated evidence.
+  * Steps require the separate source-qualified numeric repository.
+  */
+ class DefaultWindowedMetricsProvider @Inject constructor(
+@@ -37,12 +37,28 @@ class DefaultWindowedMetricsProvider @Inject constructor(
+ 	private val sessionSegmentDao: SessionSegmentDao,
+ 	private val exportLogDao: ExportLogDao,
+ 	private val dispatchers: DispatchersProvider,
++	private val savedTripDistanceReader: SavedTripDistanceReader,
+ ) : WindowedMetricsProvider {
+ 
+ 	override suspend fun collect(metric: String, window: TimeWindow): Either<StatsError, Long> {
+ 		if (metric == MetricKeys.STEPS || metric == MetricKeys.STEPS_TOTAL || metric == MetricKeys.BEST_DAILY_STEPS) {
+ 			return StatsError.ValidationError("Steps require source-qualified numeric evidence").left()
+ 		}
++		if (metric == MetricKeys.LONGEST_TRIP_KM) {
++			val bounds = when (window) {
++				TimeWindow.Cumulative -> 0L to Long.MAX_VALUE
++				is TimeWindow.Interval -> window.startMs to window.endMs
++				is TimeWindow.Rolling -> {
++					if (window.durationMs < 0L) return StatsError.ValidationError("Rolling duration cannot be negative").left()
++					val now = System.currentTimeMillis()
++					(now - window.durationMs).coerceAtLeast(0L) to now
++				}
++			}
++			return savedTripDistanceReader.longestDistanceMeters(bounds.first, bounds.second).map { it / METERS_PER_KM }
++		}
++		if (metric == MetricKeys.SEASONS_EXPLORED && window != TimeWindow.Cumulative) {
++			return StatsError.ValidationError("Seasonal visits are unavailable for this period").left()
++		}
+ 		val value = when (window) {
+ 			TimeWindow.Cumulative -> collectCumulative(metric)
+ 			is TimeWindow.Interval -> {
+@@ -83,7 +99,6 @@ class DefaultWindowedMetricsProvider @Inject constructor(
+ 			sessionSegmentDao.countByActivity(ACTIVITY_NATIVE_RUNNING)
+ 		MetricKeys.CYCLING_TRIPS -> sessionSegmentDao.countByActivity(ACTIVITY_ON_BICYCLE) +
+ 			sessionSegmentDao.countByActivity(ACTIVITY_NATIVE_BICYCLE)
+-		MetricKeys.LONGEST_TRIP_KM -> sessionSegmentDao.maxSegmentDistance() / METERS_PER_KM
+ 		MetricKeys.SESSIONS_TOTAL -> dailySummaryDao.sumTotalTrips()
+ 		MetricKeys.ACTIVITY_TYPES_USED -> sessionSegmentDao.countDistinctActivities()
+ 		MetricKeys.SEASONS_EXPLORED -> countSeasonsExplored()
+@@ -128,10 +143,6 @@ class DefaultWindowedMetricsProvider @Inject constructor(
+ 			MetricKeys.ACTIVITY_TYPES_USED -> sessionSegmentDao.countDistinctActivitiesInClosedInterval(fromMs, toMs)
+ 			MetricKeys.TOTAL_EXPORTS -> exportLogDao.countCompletedBetween(fromMs, toMs)
+ 
+-			MetricKeys.LONGEST_TRIP_KM,
+-			MetricKeys.SEASONS_EXPLORED,
+-			-> collectCumulative(metric)
+-
+ 			else -> null
+ 		}
+ 	}
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProviderTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProviderTest.kt
+index ee82039f37..e1c6b27e44 100644
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProviderTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultWindowedMetricsProviderTest.kt
+@@ -35,6 +35,7 @@ class DefaultWindowedMetricsProviderTest {
+ 	private val explorationStreakDao: ExplorationStreakDao = mockk()
+ 	private val sessionSegmentDao: SessionSegmentDao = mockk()
+ 	private val exportLogDao: ExportLogDao = mockk()
++	private val savedTripDistanceReader: SavedTripDistanceReader = mockk()
+ 
+ 	private lateinit var provider: DefaultWindowedMetricsProvider
+ 
+@@ -47,9 +48,48 @@ class DefaultWindowedMetricsProviderTest {
+ 			sessionSegmentDao = sessionSegmentDao,
+ 			exportLogDao = exportLogDao,
+ 			dispatchers = TestDispatchersProvider(Dispatchers.Unconfined),
++			savedTripDistanceReader = savedTripDistanceReader,
+ 		)
+ 	}
+ 
++	@Test
++	fun `longest trip uses whole measured saved distance in the selected interval`() = runTest {
++		coEvery { savedTripDistanceReader.longestDistanceMeters(100L, 200L) } returns 4_950L.right()
++		provider.collect(MetricKeys.LONGEST_TRIP_KM, TimeWindow.Interval(100L, 200L)) shouldBe 4L.right()
++		coVerify(exactly = 0) { sessionSegmentDao.maxSegmentDistance() }
++	}
++
++	@Test
++	fun `all time longest uses the same whole trip reader instead of a physical segment maximum`() = runTest {
++		coEvery { savedTripDistanceReader.longestDistanceMeters(0L, Long.MAX_VALUE) } returns 8_500L.right()
++		provider.collect(MetricKeys.LONGEST_TRIP_KM, TimeWindow.Cumulative) shouldBe 8L.right()
++		coVerify(exactly = 0) { sessionSegmentDao.maxSegmentDistance() }
++	}
++
++	@Test
++	fun `longest trip preserves unavailable measurements instead of fabricating zero or lifetime data`() = runTest {
++		val error = StatsError.NotFound("No measured trip distance is available", "Location trip", "100:200")
++		coEvery { savedTripDistanceReader.longestDistanceMeters(100L, 200L) } returns error.left()
++		provider.collect(MetricKeys.LONGEST_TRIP_KM, TimeWindow.Interval(100L, 200L)) shouldBe error.left()
++		coVerify(exactly = 0) { sessionSegmentDao.maxSegmentDistance() }
++	}
++
++	@Test
++	fun `longest trip preserves cancellation and does not retry an unrelated aggregate`() = runTest {
++		val cancellation = CancellationException("cancelled read")
++		coEvery { savedTripDistanceReader.longestDistanceMeters(100L, 200L) } throws cancellation
++		val result = runCatching { provider.collect(MetricKeys.LONGEST_TRIP_KM, TimeWindow.Interval(100L, 200L)) }.exceptionOrNull()
++		result shouldBe cancellation
++		coVerify(exactly = 0) { sessionSegmentDao.maxSegmentDistance() }
++	}
++
++	@Test
++	fun `seasonal period never uses an undated lifetime mask`() = runTest {
++		provider.collect(MetricKeys.SEASONS_EXPLORED, TimeWindow.Interval(100L, 200L)) shouldBe
++			StatsError.ValidationError("Seasonal visits are unavailable for this period").left()
++		coVerify(exactly = 0) { explorationCellDao.getDistinctSeasonBitmasks(any()) }
++	}
++
+ 	@Test
+ 	fun `all Steps metrics and windows reject unqualified aggregates before any DAO access`() = runTest {
+ 		val windows = listOf(TimeWindow.Cumulative, TimeWindow.Interval(100L, 200L), TimeWindow.Rolling(60_000L))
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt
+new file mode 100644
+index e69de29bb2..f2f63854d2 100644
+--- /dev/null
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt
+@@ -0,0 +1,222 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import androidx.room.withTransaction
++import arrow.core.Either
++import arrow.core.left
++import arrow.core.right
++import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
++import com.adsamcik.tracker.shared.base.data.LengthUnit
++import com.adsamcik.tracker.shared.base.data.Location
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
++import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
++import com.adsamcik.tracker.stats.api.error.StatsError
++import javax.inject.Inject
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.withContext
++
++/**
++ * Measures current saved Location sections for whole completed trips, selected by original start.
++ * No provider is started and no cached aggregate can outlive a point correction or deletion.
++ * Native membership is explicit; unattributed saved/imported trips keep their compatibility interval.
++ */
++class SavedTripDistanceReader @Inject constructor(
++	private val database: AppDatabase,
++	private val dispatchers: DispatchersProvider,
++) {
++	suspend fun longestDistanceMeters(fromMs: Long, toMs: Long): Either<StatsError, Long> =
++		withContext(dispatchers.io) {
++			if (fromMs < 0L || toMs < fromMs) {
++				return@withContext StatsError.ValidationError("Invalid longest trip interval").left()
++			}
++			try {
++				database.withTransaction {
++					if (database.collectedDataDeletionOperationDao().activeRetentionFloorSettlement() != null) {
++						throw UnavailableDistance("Location retention is still being updated")
++					}
++					val state = database.sourceEvidenceStateDao().get()
++						?: throw IllegalStateException("Source evidence state is unavailable")
++					var maximum: Double? = null
++					var afterStart: Long? = null
++					var afterLogicalId: String? = null
++					while (true) {
++						currentCoroutineContext().ensureActive()
++						val page = database.sourceSessionDao().completedLocationSessionCandidatePage(
++							fromMs, toMs, afterStart, afterLogicalId, CANDIDATE_PAGE_SIZE,
++						)
++						for (session in page) {
++							val value = readLogicalTrip(session, state.retainedFromMs)
++							if (value != null) maximum = maxOf(maximum ?: value, value)
++						}
++						if (page.size < CANDIDATE_PAGE_SIZE) break
++						afterStart = page.last().startedAtMs
++						afterLogicalId = page.last().logicalTrackingId
++					}
++					afterStart = null
++					var afterSegmentId: Long? = null
++					while (true) {
++						currentCoroutineContext().ensureActive()
++						val page = database.sessionSegmentDao().legacyLocationTripCandidatePage(
++							fromMs, toMs, afterStart, afterSegmentId, CANDIDATE_PAGE_SIZE,
++						)
++						for (segment in page) {
++							checkBounds(segment.startTimeMs, segment.endTimeMs, state.retainedFromMs)
++							val value = readPoints { time, id -> database.locationPurposeDao().savedLegacyTripPointPage(
++								segment.startTimeMs, segment.endTimeMs, time, id, POINT_PAGE_SIZE,
++							) }
++							if (value != null) maximum = maxOf(maximum ?: value, value)
++						}
++						if (page.size < CANDIDATE_PAGE_SIZE) break
++						afterStart = page.last().startTimeMs
++						afterSegmentId = page.last().id
++					}
++					currentCoroutineContext().ensureActive()
++					maximum?.let { value ->
++						if (!value.isFinite() || value >= Long.MAX_VALUE.toDouble()) {
++							throw UnavailableDistance("Measured trip distance is outside the supported range")
++						}
++						value.toLong().right()
++					} ?: StatsError.NotFound("No measured trip distance is available", "Location trip", "$fromMs:$toMs").left()
++				}
++			} catch (error: CancellationException) {
++				throw error
++			} catch (error: UnavailableDistance) {
++				StatsError.ValidationError(requireNotNull(error.message)).left()
++			} catch (error: Exception) {
++				StatsError.DatabaseError("Failed to load measured trip distance", error).left()
++			}
++		}
++
++	private suspend fun readLogicalTrip(session: LogicalTrackingSessionEntity, retainedFromMs: Long?): Double? {
++		val runs = database.trackingHistoryReadDao().logicalEntryServiceRunPage(
++			listOf(session.logicalTrackingId), MAX_MEMBERS + 1, null, null, null,
++		)
++		if (runs.size > MAX_MEMBERS) throw UnavailableDistance("Trip membership read budget exceeded")
++		val runIds = runs.map { it.serviceRunId }
++		val segments = database.trackingHistoryReadDao().rawLogicalEntrySegments(
++			session.logicalTrackingId, runIds, MAX_MEMBERS + 1,
++		)
++		if (segments.size > MAX_MEMBERS) throw UnavailableDistance("Trip membership read budget exceeded")
++		if (runs.isEmpty() || runs.size != segments.size || runs.any { run ->
++			val member = segments.singleOrNull { it.serviceRunId == run.serviceRunId }
++			member == null || member.logicalTrackingId != session.logicalTrackingId ||
++				(run.presentationAcknowledgement != SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE &&
++					run.sessionSegmentId != member.id) || run.completedAtMs == null
++		}) throw UnavailableDistance("Trip membership is incomplete")
++		checkBounds(session.startedAtMs, session.cutoffAtMs, retainedFromMs)
++		if (session.completedAtMs == null) throw UnavailableDistance("Trip completion is unavailable")
++		for (segment in segments) checkBounds(segment.startTimeMs, segment.endTimeMs, retainedFromMs)
++
++		val fenced = database.sourceDeletionFenceDao().contextFences(LOCATION, CAPTURE,
++			runs.map { SourceDeletionFenceEntity.logicalServiceRunIdentity(LOCATION, CAPTURE, session.logicalTrackingId, it.serviceRunId) },
++			MAX_MEMBERS + 1).map { it.scopeIdentityDigest }.toSet()
++		val retainedRuns = runs.filter { SourceDeletionFenceEntity.logicalServiceRunIdentity(
++			LOCATION, CAPTURE, session.logicalTrackingId, it.serviceRunId) !in fenced }
++		val modernIds = retainedRuns.filter {
++			it.presentationAcknowledgement != SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE
++		}.map { it.serviceRunId }
++		var total = if (modernIds.isEmpty()) null else readPoints { time, id ->
++			database.locationPurposeDao().savedLogicalTripPointPage(session.logicalTrackingId, modernIds,
++				time, id, POINT_PAGE_SIZE)
++		}
++		val legacyIds = retainedRuns.filter {
++			it.presentationAcknowledgement == SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE
++		}.map { it.serviceRunId }.toSet()
++		val legacyMembers = segments.filter { it.serviceRunId in legacyIds }.sortedBy { it.startTimeMs }
++		if (legacyMembers.zipWithNext().any { (left, right) -> left.endTimeMs >= right.startTimeMs }) {
++			throw UnavailableDistance("Legacy trip membership has overlapping intervals")
++		}
++		for (member in legacyMembers) {
++			val value = readPoints { time, id -> database.locationPurposeDao().savedLegacyTripPointPage(
++				member.startTimeMs, member.endTimeMs, time, id, POINT_PAGE_SIZE,
++			) }
++			if (value != null) total = (total ?: 0.0) + value
++		}
++		return total
++	}
++
++	private suspend fun readPoints(
++		page: suspend (afterTimeMs: Long?, afterId: Long?) -> List<LocationPathSampleRow>,
++	): Double? {
++		val distance = SavedTripDistanceAccumulator()
++		var afterTime: Long? = null
++		var afterId: Long? = null
++		while (true) {
++			currentCoroutineContext().ensureActive()
++			val points = page(afterTime, afterId)
++			for (point in points) {
++				currentCoroutineContext().ensureActive()
++				distance.add(point)
++			}
++			if (points.size < POINT_PAGE_SIZE) break
++			afterTime = points.last().sample.timeMs
++			afterId = points.last().sample.id
++		}
++		return distance.measuredMeters
++	}
++
++	private fun checkBounds(start: Long, end: Long?, retainedFromMs: Long?) {
++		if (start < 0L || end == null || end < start) throw UnavailableDistance("Trip time bounds are unavailable")
++		if (retainedFromMs != null && start < retainedFromMs) {
++			throw UnavailableDistance("The beginning of a trip is outside retained Location history")
++		}
++	}
++
++	private class UnavailableDistance(message: String) : IllegalStateException(message)
++
++	private companion object {
++		const val CANDIDATE_PAGE_SIZE = 64
++		const val POINT_PAGE_SIZE = 256
++		const val MAX_MEMBERS = 256
++		const val LOCATION = 1
++		const val CAPTURE = "SESSION_CAPTURE"
++	}
++}
++
++/** Constant-memory route measurement; the same continuity boundaries used by geographic exports. */
++internal class SavedTripDistanceAccumulator {
++	private var previous: LocationPathSampleRow? = null
++	private var totalMeters = 0.0
++	private var hasMeasuredPair = false
++	val measuredMeters: Double? get() = totalMeters.takeIf { hasMeasuredPair }
++
++	fun add(row: LocationPathSampleRow) {
++		val point = row.sample
++		val lat = point.latE7
++		val lon = point.lonE7
++		if (lat == null || lon == null || lat !in -900_000_000..900_000_000 || lon !in -1_800_000_000..1_800_000_000 || point.timeMs < 0L) {
++			previous = null
++			return
++		}
++		val old = previous
++		if (old != null && continuous(old, row)) {
++			totalMeters += Location.distance(requireNotNull(old.sample.latE7) / 1e7,
++				requireNotNull(old.sample.lonE7) / 1e7, lat / 1e7, lon / 1e7, LengthUnit.Meter)
++			hasMeasuredPair = true
++		}
++		previous = row
++	}
++
++	private fun continuous(old: LocationPathSampleRow, current: LocationPathSampleRow): Boolean {
++		val before = old.sample
++		val after = current.sample
++		return if (old.continuityId != null || current.continuityId != null) {
++			old.continuityId == current.continuityId && old.continuitySequence != null &&
++				old.continuitySequence != Long.MAX_VALUE && current.continuitySequence == old.continuitySequence + 1 &&
++				before.clockDomainId == after.clockDomainId && before.elapsedRealtimeNanos > 0L &&
++				after.elapsedRealtimeNanos > before.elapsedRealtimeNanos &&
++				after.elapsedRealtimeNanos - before.elapsedRealtimeNanos <= MAX_GAP_NANOS
++		} else {
++			after.timeMs > before.timeMs && after.timeMs - before.timeMs <= MAX_GAP_MS
++		}
++	}
++
++	private companion object {
++		const val MAX_GAP_MS = 120_000L
++		const val MAX_GAP_NANOS = 120_000_000_000L
++	}
++}
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReaderRoomTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReaderRoomTest.kt
+new file mode 100644
+index e69de29bb2..4d35ffced8 100644
+--- /dev/null
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReaderRoomTest.kt
+@@ -0,0 +1,295 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import android.app.Application
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
++import com.adsamcik.tracker.shared.base.data.LengthUnit
++import com.adsamcik.tracker.shared.base.data.Location
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptEntity
++import com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptIntegrity
++import com.adsamcik.tracker.shared.base.database.data.LocationFileIdentityEntity
++import com.adsamcik.tracker.shared.base.database.data.LocationFileArchiveEntity
++import com.adsamcik.tracker.shared.base.database.data.LocationFileArchivePointEntity
++import com.adsamcik.tracker.shared.base.database.data.LocationSample
++import com.adsamcik.tracker.shared.base.database.data.LocationSamplePurposeAuthorityEntity
++import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
++import com.adsamcik.tracker.shared.base.database.data.SampleQuality
++import com.adsamcik.tracker.shared.base.database.data.SessionSegment
++import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
++import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
++import com.adsamcik.tracker.shared.model.SegmentSource
++import com.adsamcik.tracker.stats.api.error.StatsError
++import java.time.Instant
++import kotlin.test.assertEquals
++import kotlin.test.assertIs
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.runBlocking
++import org.junit.After
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++/** Actual saved rows, exact run ownership and production reader; source authored, not executed. */
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class SavedTripDistanceReaderRoomTest {
++	private lateinit var database: AppDatabase
++	private lateinit var reader: SavedTripDistanceReader
++
++	@Before fun setup() = runBlocking {
++		database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>())
++		database.sourceEvidenceStateDao().ensure()
++		reader = SavedTripDistanceReader(database, TestDispatchersProvider(Dispatchers.Unconfined))
++	}
++	@After fun close() = database.close()
++
++	@Test fun `January counts all replacement runs of a trip starting in January and excludes February starts`() = runBlocking {
++		val januaryEnd = Instant.parse("2026-01-31T23:59:59.999Z").toEpochMilli()
++		val firstStart = januaryEnd - 30_000
++		val secondStart = januaryEnd + 30_000
++		logical("whole", firstStart, secondStart + 10_000)
++		val first = run("whole", "first", firstStart, firstStart + 10_000)
++		val second = run("whole", "second", secondStart, secondStart + 10_000)
++		nativePoint(first, firstStart + 1_000, 0, 1)
++		nativePoint(first, firstStart + 2_000, 100_000, 2)
++		nativePoint(second, secondStart + 1_000, 300_000, 1)
++		nativePoint(second, secondStart + 2_000, 400_000, 2)
++		logical("february", secondStart, secondStart + 10_000)
++		val february = run("february", "february-run", secondStart, secondStart + 10_000)
++		nativePoint(february, secondStart + 1_000, 0, 1)
++		nativePoint(february, secondStart + 2_000, 900_000, 2)
++		assertEquals((distance(0, 100_000) + distance(300_000, 400_000)).toLong(),
++			reader.longestDistanceMeters(firstStart, januaryEnd).getOrNull())
++		assertEquals(distance(0, 900_000).toLong(),
++			reader.longestDistanceMeters(0, Long.MAX_VALUE).getOrNull())
++		// The presentation fields are deliberately wrong; no physical distance aggregate is trusted.
++		assertEquals(9_000_000f, requireNotNull(database.sessionSegmentDao().getById(first.id)).distanceM)
++	}
++
++	@Test fun `equal original starts paginate logical identities without grouping distinct trips`() = runBlocking {
++		for (index in 0..64) {
++			val identity = "trip:${index.toString().padStart(3, '0')}"
++			logical(identity, 1_000, 10_000)
++			val member = run(identity, "run:$index", 1_000, 10_000)
++			nativePoint(member, 2_000, 0, 1)
++			nativePoint(member, 3_000, if (index == 64) 300_000 else 100_000, 2)
++		}
++		assertEquals(distance(0, 300_000).toLong(), reader.longestDistanceMeters(1_000, 1_000).getOrNull())
++	}
++
++	@Test fun `Steps-only and active logical siblings do not change a valid Location maximum`() = runBlocking {
++		logical("steps-only", 1_000, 9_000)
++		logical("location", 1_000, 9_000)
++		val member = run("location", "location-run", 1_000, 9_000)
++		nativePoint(member, 2_000, 0, 1)
++		nativePoint(member, 3_000, 100_000, 2)
++		val active = logical("active", 1_000, 9_000).copy(state = "ACTIVE", completedAtMs = null)
++		database.sourceSessionDao().updateSession(active)
++		val activeMember = run("active", "active-run", 1_000, 9_000)
++		nativePoint(activeMember, 2_000, 0, 1)
++		nativePoint(activeMember, 3_000, 1_000_000, 2)
++		assertEquals(distance(0, 100_000).toLong(), reader.longestDistanceMeters(0, 10_000).getOrNull())
++	}
++
++	@Test fun `legacy and imported saved points recalculate after correction and deletion without native proof`() = runBlocking {
++		legacySegment(1_000, 10_000)
++		val first = savedPoint(2_000, 0)
++		val second = savedPoint(3_000, 100_000)
++		database.locationFileIdentityDao().insertIfAbsent(LocationFileIdentityEntity("owner-edited-point", second.id, true, "UNKNOWN"))
++		assertEquals(distance(0, 100_000).toLong(), reader.longestDistanceMeters(0, 10_000).getOrNull())
++		database.locationSampleDao().update(second.copy(lonE7 = 300_000))
++		assertEquals(distance(0, 300_000).toLong(), reader.longestDistanceMeters(0, 10_000).getOrNull())
++		database.locationSampleDao().deleteExactIds(listOf(first.id))
++		assertIs<StatsError.NotFound>(reader.longestDistanceMeters(0, 10_000).leftOrNull())
++	}
++
++	@Test fun `point pages preserve the anchor while candidates continue beyond a history page`() = runBlocking {
++		for (index in 0..64) {
++			val start = 1_000L + index * 1_000_000L
++			legacySegment(start, start + 300_000)
++			val count = if (index == 64) 270 else 2
++			for (point in 0 until count) savedPoint(start + point * 1_000L, point * 1_000)
++		}
++		assertEquals((distance(0, 1_000) * 269).toLong(), reader.longestDistanceMeters(0, Long.MAX_VALUE).getOrNull())
++	}
++
++	@Test fun `zero legacy summary cycles cannot hide its saved Location measurements`() = runBlocking {
++		database.sessionSegmentDao().insert(segment(1_000, 10_000).copy(sampleCount = 0))
++		savedPoint(2_000, 0)
++		savedPoint(3_000, 100_000)
++		assertEquals(distance(0, 100_000).toLong(), reader.longestDistanceMeters(0, 10_000).getOrNull())
++	}
++
++	@Test fun `old imported archives withhold points until an exact current archive copy exists`() = runBlocking {
++		legacySegment(1_000, 10_000)
++		val points = listOf(savedPoint(2_000, 0), savedPoint(3_000, 100_000))
++		val identities = points.mapIndexed { index, point ->
++			LocationFileIdentityEntity("import:point:$index", point.id, true, "imported")
++		}
++		identities.forEach { database.locationFileIdentityDao().insertIfAbsent(it) }
++		val oldArchive = "a".repeat(64)
++		database.locationFileIdentityDao().recordArchive(LocationFileArchiveEntity(
++			oldArchive, LocationFileArchiveEntity.FORMAT, LocationFileArchiveEntity.VERSION, 0, 2,
++		))
++		database.locationFileIdentityDao().recordArchivePoints(identities.mapIndexed { index, point ->
++			LocationFileArchivePointEntity(oldArchive, index, point.portableId, point.sampleId)
++		})
++		assertEquals(distance(0, 100_000).toLong(), reader.longestDistanceMeters(0, 10_000).getOrNull())
++
++		database.sourceEvidenceStateDao().updateAfterFullDeletion(1, null, 0, 10_001)
++		assertIs<StatsError.NotFound>(reader.longestDistanceMeters(0, 10_000).leftOrNull())
++		val currentArchive = "b".repeat(64)
++		database.locationFileIdentityDao().recordArchive(LocationFileArchiveEntity(
++			currentArchive, LocationFileArchiveEntity.FORMAT, LocationFileArchiveEntity.VERSION, 1, 2,
++		))
++		database.locationFileIdentityDao().recordArchivePoints(identities.mapIndexed { index, point ->
++			LocationFileArchivePointEntity(currentArchive, index, point.portableId, point.sampleId)
++		})
++		assertEquals(distance(0, 100_000).toLong(), reader.longestDistanceMeters(0, 10_000).getOrNull())
++	}
++
++	@Test fun `missing sequences and separately allowed ambient points never bridge a native route`() = runBlocking {
++		logical("native", 1_000, 20_000)
++		val member = run("native", "native-run", 1_000, 20_000)
++		nativePoint(member, 2_000, 0, 1)
++		nativePoint(member, 3_000, 900_000, 3)
++		nativePoint(member, 4_000, 1_000_000, 4)
++		val ambient = savedPoint(3_500, 9_000_000)
++		insertReceipt(ambient, "ambient-instance", 1)
++		assertEquals(distance(900_000, 1_000_000).toLong(), reader.longestDistanceMeters(0, 30_000).getOrNull())
++	}
++
++	@Test fun `broken reciprocal membership is unavailable rather than a smaller maximum`() = runBlocking {
++		logical("native", 1_000, 20_000)
++		val member = run("native", "native-run", 1_000, 20_000)
++		nativePoint(member, 2_000, 0, 1)
++		nativePoint(member, 3_000, 100_000, 2)
++		val owned = requireNotNull(database.sourceSessionDao().serviceRun("native-run"))
++		database.sourceSessionDao().updateServiceRun(owned.copy(sessionSegmentId = member.id + 99))
++		assertIs<StatsError.ValidationError>(reader.longestDistanceMeters(0, 30_000).leftOrNull())
++	}
++
++	@Test fun `native saved coordinates are current user data and a deleted fix breaks its sequence`() = runBlocking {
++		logical("native", 1_000, 20_000)
++		val member = run("native", "native-run", 1_000, 20_000)
++		nativePoint(member, 2_000, 0, 1)
++		nativePoint(member, 3_000, 100_000, 2)
++		nativePoint(member, 4_000, 300_000, 3)
++		val points = database.locationPurposeDao().savedLogicalTripPointPage("native", listOf("native-run"), null, null, 256)
++		val middle = points[1].sample
++		database.locationSampleDao().update(middle.copy(lonE7 = 200_000))
++		assertEquals((distance(0, 200_000) + distance(200_000, 300_000)).toLong(),
++			reader.longestDistanceMeters(0, 30_000).getOrNull())
++		database.locationSampleDao().deleteExactIds(listOf(middle.id))
++		assertIs<StatsError.NotFound>(reader.longestDistanceMeters(0, 30_000).leftOrNull())
++	}
++
++	@Test fun `retention truncation and old native data epochs are not complete trip distance`() = runBlocking {
++		logical("native", 1_000, 20_000)
++		val member = run("native", "native-run", 1_000, 20_000)
++		nativePoint(member, 2_000, 0, 1)
++		nativePoint(member, 3_000, 100_000, 2)
++		database.sourceEvidenceStateDao().updateLifecycle(0, 2_500, 30_000)
++		assertIs<StatsError.ValidationError>(reader.longestDistanceMeters(0, 30_000).leftOrNull())
++		database.sourceEvidenceStateDao().updateAfterFullDeletion(1, null, 100, 30_001)
++		assertIs<StatsError.NotFound>(reader.longestDistanceMeters(0, 30_000).leftOrNull())
++	}
++
++	@Test fun `erased native purpose does not borrow another saved purpose or invent a zero`() = runBlocking {
++		logical("native", 1_000, 20_000)
++		val member = run("native", "native-run", 1_000, 20_000)
++		nativePoint(member, 2_000, 0, 1)
++		nativePoint(member, 3_000, 100_000, 2)
++		val digest = SourceDeletionFenceEntity.logicalServiceRunIdentity(1, SourceBrokerPurpose.SESSION_CAPTURE, "native", "native-run")
++		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createForOriginalRunDigest(1,
++			SourceBrokerPurpose.SESSION_CAPTURE, digest, 1, 0, 30_000))
++		assertIs<StatsError.NotFound>(reader.longestDistanceMeters(0, 30_000).leftOrNull())
++	}
++
++	@Test fun `exact saved session point keeps its descriptive background origin without changing distance`() = runBlocking {
++		logical("native", 1_000, 20_000)
++		val member = run("native", "native-run", 1_000, 20_000)
++		nativePoint(member, 2_000, 0, 1)
++		nativePoint(member, 3_000, 100_000, 2)
++		val before = database.locationPurposeDao().savedLogicalTripPointPage("native", listOf("native-run"), null, null, 256)
++		assertEquals(false, before[0].hasVisibleBackgroundPurpose)
++		val capture = requireNotNull(database.locationPurposeDao().purpose(before[0].sample.id,
++			SourceBrokerPurpose.SESSION_CAPTURE, "native-run"))
++		database.locationPurposeDao().insertPurposeIfAbsent(capture.copy(
++			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, authorityId = "background-purpose",
++			logicalTrackingId = null, serviceRunId = null, sessionSegmentId = null,
++			sessionManifestRevision = null, lifecycleLeaseGeneration = null,
++			ambientIntentId = "background-intent", retentionPolicyId = "saved-retention", retentionApprovalRevision = 1,
++		))
++		val after = database.locationPurposeDao().savedLogicalTripPointPage("native", listOf("native-run"), null, null, 256)
++		assertEquals(true, after[0].hasSessionPurpose)
++		assertEquals(true, after[0].hasVisibleBackgroundPurpose)
++		assertEquals(false, after[1].hasVisibleBackgroundPurpose)
++		assertEquals(distance(0, 100_000).toLong(), reader.longestDistanceMeters(0, 30_000).getOrNull())
++		savedPoint(5_000, 900_000)
++		val exact = database.locationPurposeDao().savedFileSamples(listOf(after[1].sample.id,
++			after[0].sample.id, after[1].sample.id))
++		assertEquals(after, exact)
++		database.sourceEvidenceStateDao().updateLifecycle(0, 2_500, 30_000)
++		assertEquals(listOf(after[1]), database.locationPurposeDao().savedFileSamples(after.map { it.sample.id }))
++	}
++
++	@Test fun `membership overflow and storage failure remain typed instead of becoming a maximum`() = runBlocking {
++		logical("many", 1_000, 30_000)
++		val first = run("many", "run:0", 1_000, 20_000)
++		nativePoint(first, 2_000, 0, 1)
++		nativePoint(first, 3_000, 100_000, 2)
++		for (index in 1..256) run("many", "run:$index", 1_000, 20_000)
++		assertIs<StatsError.ValidationError>(reader.longestDistanceMeters(0, 30_000).leftOrNull())
++		database.close()
++		assertIs<StatsError.DatabaseError>(reader.longestDistanceMeters(0, 30_000).leftOrNull())
++	}
++
++	private suspend fun logical(id: String, start: Long, end: Long): LogicalTrackingSessionEntity {
++		val session = LogicalTrackingSessionEntity(id, "FINALIZED", 1, 1, 1, "USER", "boot",
++			start, start * 1_000_000, end, end * 1_000_000, end, null, null)
++		database.sourceSessionDao().insertSession(session)
++		return session
++	}
++	private suspend fun run(logical: String, id: String, start: Long, end: Long): SessionSegment {
++		val segment = segment(start, end).copy(logicalTrackingId = logical, serviceRunId = id)
++		val sampleId = database.sessionSegmentDao().insert(segment)
++		database.sourceSessionDao().insertServiceRun(SourceServiceRunEntity(id, logical, "FINALIZED", 1, 1, 0,
++			start, start * 1_000_000, end, "STOPPED", sessionSegmentId = sampleId,
++			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_QUIESCED,
++			presentationAcknowledgedAtMs = end))
++		return segment.copy(id = sampleId)
++	}
++	private suspend fun legacySegment(start: Long, end: Long) = database.sessionSegmentDao().insert(segment(start, end))
++	private fun segment(start: Long, end: Long) = SessionSegment(startTimeMs = start, endTimeMs = end,
++		distanceM = 9_000_000f, steps = null, primaryActivity = null, activityConfidence = null,
++		sampleCount = 2, source = SegmentSource.USER_CREATED, inferenceVersion = null, createdAt = end)
++	private suspend fun savedPoint(time: Long, longitude: Int): LocationSample {
++		val sample = LocationSample(timeMs = time, elapsedRealtimeNanos = time * 1_000_000, latE7 = 0, lonE7 = longitude,
++			altitudeM = null, rawGpsAltitudeM = null, hAccM = null, vAccM = null, speedMps = null,
++			speedAccuracyMps = null, provider = "saved", quality = SampleQuality.COARSE,
++			motionState = null, policy = null, bucketId = null, createdAt = time, clockDomainId = "boot")
++		return sample.copy(id = database.locationSampleDao().insert(sample))
++	}
++	private suspend fun nativePoint(member: SessionSegment, time: Long, longitude: Int, sequence: Long) {
++		val point = savedPoint(time, longitude)
++		val run = requireNotNull(member.serviceRunId)
++		insertReceipt(point, run, sequence)
++		database.locationPurposeDao().insertPurposeIfAbsent(LocationSamplePurposeAuthorityEntity(point.id,
++			SourceBrokerPurpose.SESSION_CAPTURE, run, 1, 0, 0, Long.MAX_VALUE, member.logicalTrackingId,
++			run, member.id, 1, 1, null, null, null, 0, "UTC"))
++	}
++	private suspend fun insertReceipt(point: LocationSample, instance: String, sequence: Long) {
++		database.locationPurposeDao().insertReceiptIfAbsent(LocationAcceptedReceiptEntity(point.id,
++			"event:${point.id}", "signal:${point.id}", point.id, "a".repeat(64),
++			LocationAcceptedReceiptIntegrity.canonicalChecksum(point), instance, 1, sequence,
++			"delivery:${point.id}", 0, 1, "saved-writer", 1, 1, "physical", 1, "authorization",
++			"boot", "boot", point.elapsedRealtimeNanos, point.elapsedRealtimeNanos,
++			point.timeMs, point.timeMs, 0, 0))
++	}
++	private fun distance(first: Int, second: Int) = Location.distance(0.0, first / 1e7, 0.0, second / 1e7, LengthUnit.Meter)
++}
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceAccumulatorTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceAccumulatorTest.kt
+new file mode 100644
+index e69de29bb2..29de98c2ae 100644
+--- /dev/null
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceAccumulatorTest.kt
+@@ -0,0 +1,63 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import com.adsamcik.tracker.shared.base.data.LengthUnit
++import com.adsamcik.tracker.shared.base.data.Location
++import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
++import com.adsamcik.tracker.shared.base.database.data.LocationSample
++import com.adsamcik.tracker.shared.base.database.data.SampleQuality
++import kotlin.test.assertEquals
++import kotlin.test.assertNull
++import org.junit.jupiter.api.Test
++
++class SavedTripDistanceAccumulatorTest {
++	@Test fun `legacy gaps reversed times and invalid coordinates do not manufacture an edge`() {
++		for (boundary in listOf(point(200_000, 900_000), point(1_000, 900_000),
++			point(2_000, null), point(2_000, 900_000).copy(sample = point(2_000, 900_000).sample.copy(latE7 = 1_000_000_000)))) {
++			val distance = SavedTripDistanceAccumulator()
++			distance.add(point(1_000, 0))
++			distance.add(boundary)
++			assertNull(distance.measuredMeters)
++		}
++	}
++
++	@Test fun `measured sections survive a long gap without including the gap displacement`() {
++		val distance = SavedTripDistanceAccumulator()
++		listOf(point(1_000, 0), point(2_000, 100_000), point(200_000, 9_000_000),
++			point(201_000, 9_100_000)).forEach(distance::add)
++		assertEquals(edge(0, 100_000) + edge(9_000_000, 9_100_000), distance.measuredMeters)
++	}
++
++	@Test fun `registration sequence clock and elapsed discontinuities each break native continuity`() {
++		val first = point(1_000, 0, "owner:1", 1)
++		val next = point(2_000, 100_000, "owner:1", 2)
++		for (boundary in listOf(next.copy(continuityId = "owner:2"), next.copy(continuitySequence = 3),
++			next.copy(sample = next.sample.copy(clockDomainId = "another-boot")),
++			next.copy(sample = next.sample.copy(elapsedRealtimeNanos = first.sample.elapsedRealtimeNanos)),
++			next.copy(sample = next.sample.copy(elapsedRealtimeNanos = 200_000_000_000)))) {
++			val distance = SavedTripDistanceAccumulator()
++			distance.add(first)
++			distance.add(boundary)
++			assertNull(distance.measuredMeters)
++		}
++		val continuous = SavedTripDistanceAccumulator()
++		continuous.add(first)
++		continuous.add(next)
++		assertEquals(edge(0, 100_000), continuous.measuredMeters)
++	}
++
++	@Test fun `a measured stationary pair is zero while one lonely point is unavailable`() {
++		val distance = SavedTripDistanceAccumulator()
++		distance.add(point(1_000, 0))
++		assertNull(distance.measuredMeters)
++		distance.add(point(2_000, 0))
++		assertEquals(0.0, distance.measuredMeters)
++	}
++
++	private fun point(time: Long, longitude: Int?, continuity: String? = null, sequence: Long? = null) =
++		LocationPathSampleRow(LocationSample(timeMs = time, elapsedRealtimeNanos = time * 1_000_000,
++			latE7 = 0, lonE7 = longitude, altitudeM = null, rawGpsAltitudeM = null, hAccM = null,
++			vAccM = null, speedMps = null, speedAccuracyMps = null, provider = "saved",
++			quality = SampleQuality.COARSE, motionState = null, policy = null, bucketId = null,
++			createdAt = time, clockDomainId = "boot"), continuity, sequence, false)
++	private fun edge(first: Int, second: Int) = Location.distance(0.0, first / 1e7, 0.0, second / 1e7, LengthUnit.Meter)
++}
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WindowedDiscoveryStreakRoomTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WindowedDiscoveryStreakRoomTest.kt
+index 289753d37a..4ffcf035ae 100644
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WindowedDiscoveryStreakRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WindowedDiscoveryStreakRoomTest.kt
+@@ -33,9 +33,10 @@ class WindowedDiscoveryStreakRoomTest {
+ 		val application: Application = ApplicationProvider.getApplicationContext()
+ 		database = AppDatabase.testDatabase(application)
+ 		zone = ZoneId.systemDefault()
++		val dispatchers = TestDispatchersProvider(Dispatchers.Unconfined)
+ 		provider = DefaultWindowedMetricsProvider(database.dailySummaryDao(), database.explorationCellDao(),
+ 			database.explorationStreakDao(), database.sessionSegmentDao(), database.exportLogDao(),
+-			TestDispatchersProvider(Dispatchers.Unconfined))
++			dispatchers, SavedTripDistanceReader(database, dispatchers))
+ 	}
+ 
+ 	@After fun close() = database.close()

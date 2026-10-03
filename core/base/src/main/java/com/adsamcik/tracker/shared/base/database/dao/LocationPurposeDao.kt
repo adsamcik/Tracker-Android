@@ -27,6 +27,52 @@ data class LocationPathSampleRow(
 /** Location authority only; this DAO never creates a canonical sample. */
 @Dao
 interface LocationPurposeDao {
+	/** Exact saved capture membership. Coordinates are current user data, not reauthenticated provider payload. */
+	@Query("""SELECT DISTINCT location_sample.*, lr.source_instance_id || ':' || lr.registration_generation AS continuity_id,
+		lr.source_sequence AS continuity_sequence, 0 AS ambient_only,
+		1 AS has_session_purpose,
+		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
+		AND lp.purpose = 'AMBIENT_PRODUCT') AS has_visible_background_purpose
+		FROM location_sample_purpose_authority p JOIN location_sample ON location_sample.id = p.sample_id
+		JOIN location_accepted_receipt lr ON lr.sample_id = location_sample.id
+		JOIN source_evidence_state e ON e.id = 1 AND e.collected_data_epoch = lr.collected_data_epoch
+		JOIN session_segment segment ON segment.id = p.session_segment_id
+		WHERE ${LocationReadScope.HISTORY_RETAINED}
+		AND lr.source_admission_ordinal > e.deleted_source_event_high_water_ordinal
+		AND p.purpose = 'SESSION_CAPTURE' AND p.authority_id IN (:serviceRunIds)
+		AND p.logical_tracking_id = :logicalId AND p.service_run_id = p.authority_id
+		AND segment.logical_tracking_id = p.logical_tracking_id AND segment.service_run_id = p.service_run_id
+		AND (:afterTimeMs IS NULL OR time_ms > :afterTimeMs OR
+		(time_ms = :afterTimeMs AND location_sample.id > COALESCE(:afterId, 0)))
+		ORDER BY time_ms, location_sample.id LIMIT :limit""")
+	suspend fun savedLogicalTripPointPage(logicalId: String, serviceRunIds: List<String>,
+		afterTimeMs: Long?, afterId: Long?, limit: Int): List<LocationPathSampleRow>
+
+	/** Legacy/imported interval compatibility; no ambient or another native session is borrowed. */
+	@Query("""SELECT location_sample.*, NULL AS continuity_id, NULL AS continuity_sequence,
+		0 AS ambient_only, 0 AS has_session_purpose, 0 AS has_visible_background_purpose
+		FROM location_sample WHERE time_ms BETWEEN :fromMs AND :toMs
+		AND NOT EXISTS (SELECT 1 FROM location_accepted_receipt r WHERE r.sample_id = location_sample.id)
+		AND ${LocationReadScope.HISTORY_RETAINED}
+		AND (NOT EXISTS (SELECT 1 FROM location_file_archive_point m WHERE m.sample_id = location_sample.id)
+		OR ${LocationReadScope.HISTORY_CURRENT_IMPORT_COPY})
+		AND (:afterTimeMs IS NULL OR time_ms > :afterTimeMs OR
+		(time_ms = :afterTimeMs AND location_sample.id > COALESCE(:afterId, 0)))
+		ORDER BY time_ms, id LIMIT :limit""")
+	suspend fun savedLegacyTripPointPage(fromMs: Long, toMs: Long,
+		afterTimeMs: Long?, afterId: Long?, limit: Int): List<LocationPathSampleRow>
+
+	/** Exact file membership with the same descriptive origin and retention as savedFileChunk. */
+	@Query("""SELECT location_sample.*, lr.source_instance_id || ':' || lr.registration_generation AS continuity_id,
+		lr.source_sequence AS continuity_sequence, 0 AS ambient_only,
+		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
+		AND lp.purpose = 'SESSION_CAPTURE') AS has_session_purpose,
+		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
+		AND lp.purpose = 'AMBIENT_PRODUCT') AS has_visible_background_purpose
+		FROM location_sample LEFT JOIN location_accepted_receipt lr ON lr.sample_id = location_sample.id
+		WHERE location_sample.id IN (:sampleIds) AND ${LocationReadScope.HISTORY_RETAINED}
+		ORDER BY location_sample.time_ms, location_sample.id""")
+	suspend fun savedFileSamples(sampleIds: List<Long>): List<LocationPathSampleRow>
 	/** Discovery only; source-owned reader qualifies the receipt and each purpose in the same snapshot. */
 	@Query("SELECT * FROM location_accepted_receipt WHERE observed_wall_time_ms >= :fromMs " +
 		"AND observed_wall_time_ms < :toMs ORDER BY observed_wall_time_ms, sample_id LIMIT :limit")

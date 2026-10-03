@@ -170,6 +170,13 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   count when selected or genuinely saved. Six new Compose cases and one removed
   obsolete case are pinned in `DENSE_STEPS_STATS_FILES.json`; independent static
   review rechecked placement before the calendar/session list. No tests ran.
+- [x] Author and independently review complete longest-trip distance from saved
+  Location points, with original-start period selection, exact membership,
+  continuity/gaps, retention and current import epoch. Eleven selected paths and
+  fourteen Room, four pure and five provider scenarios are pinned in
+  `LONGEST_TRIP_SELECTED/LONGEST_TRIP_FILES.json`. The existing streak test fixture
+  receives the reader dependency. Declined dated seasonal statistics stay
+  unavailable for a period. Metric presentation remains open; no tests ran.
 
 The approved displayed-day History is being authored. The isolated imported-radio
 export-date candidate slice is source-reviewed for narrow selection. Neither

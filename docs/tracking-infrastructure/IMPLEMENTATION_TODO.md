@@ -96,6 +96,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
   waiting/partial/unavailable results nonnumeric and preserve History/session actions.
   Six new Compose cases and removal of one obsolete case are independently statically
   reviewed in `DENSE_STEPS_STATS_FRESH_REVIEW_1003.md`; none ran.
+- [x] Select the independently reviewed longest-trip reader using saved Location
+  points, complete original-start trip scope and existing continuity/gap rules.
+  Eleven paths and fourteen Room, four pure and five provider cases are pinned in
+  `LONGEST_TRIP_SELECTED/LONGEST_TRIP_FILES.json`; none ran. Exact saved-file query
+  reuse, zero-counter legacy discovery and actual imported-epoch coverage are
+  included. Period product presentation and complete metrics remain open.
 
 These are selected implementation slices. All 25 full-chain prerequisites and the
 assembly/convergence/device/integration gates remain open.
