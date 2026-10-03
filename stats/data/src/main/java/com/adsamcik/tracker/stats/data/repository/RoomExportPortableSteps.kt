@@ -5,6 +5,7 @@ import com.adsamcik.tracker.stats.api.repository.ExportPortableSteps
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsV2
+import com.adsamcik.tracker.stats.api.repository.ExportSelectedPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.PortableStepsArchiveV2
 import com.adsamcik.tracker.stats.api.repository.PortableStepsArchiveV2Sink
 import com.adsamcik.tracker.stats.api.repository.PortableStepsEntrySink
@@ -53,6 +54,41 @@ internal class RoomExportPortableSteps @Inject constructor(
 			}
 		}
 	}
+
+	override suspend fun export(
+		request: ExportSelectedPortableStepsRequest,
+		sink: PortableStepsEntrySink,
+	): ExportPortableStepsResult = withContext(ioDispatcher) {
+		val immutableRequest = request.copy(nativeSegmentIds = request.nativeSegmentIds.toList(),
+			importedEntryIdentities = request.importedEntryIdentities.toList())
+		when (val selected = readSelected(immutableRequest)) {
+			is PortableStepsSnapshot.Outcome -> selected.result
+			is PortableStepsSnapshot.Ready -> {
+				selected.entries.forEach {
+					currentCoroutineContext().ensureActive()
+					sink.emit(it)
+				}
+				currentCoroutineContext().ensureActive()
+				when (val current = readSelected(immutableRequest)) {
+					is PortableStepsSnapshot.Outcome -> current.result.selectedRecheckFailure()
+					is PortableStepsSnapshot.Ready -> if (current == selected) {
+						ExportPortableStepsResult.Exported(selected.entries.size)
+					} else {
+						selectedContentChanged()
+					}
+				}
+			}
+		}
+	}
+
+	private suspend fun readSelected(request: ExportSelectedPortableStepsRequest): PortableStepsSnapshot = try {
+		reader.read(request)
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		PortableStepsSnapshot.Outcome(ExportPortableStepsResult.RetryableFailure(
+			PortableStepsTransferRetryableReason.STORAGE_UNAVAILABLE))
+	}
 }
 
 /** V2 archive adapter kept separate so existing v1 call sites remain overload-free. */
@@ -94,4 +130,49 @@ internal class RoomExportPortableStepsV2 @Inject constructor(
 			}
 		}
 	}
+
+	override suspend fun export(
+		request: ExportSelectedPortableStepsRequest,
+		sink: PortableStepsArchiveV2Sink,
+	): ExportPortableStepsResult = withContext(ioDispatcher) {
+		val immutableRequest = request.copy(nativeSegmentIds = request.nativeSegmentIds.toList(),
+			importedEntryIdentities = request.importedEntryIdentities.toList())
+		when (val selected = readSelected(immutableRequest)) {
+			is PortableStepsV2Snapshot.Outcome -> selected.result
+			is PortableStepsV2Snapshot.Ready -> {
+				val archive = try {
+					PortableStepsArchiveV2.create(selected.entries)
+				} catch (_: IllegalArgumentException) {
+					return@withContext ExportPortableStepsResult.Unverifiable(
+						com.adsamcik.tracker.stats.api.repository.PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+				}
+				currentCoroutineContext().ensureActive()
+				sink.emit(archive)
+				currentCoroutineContext().ensureActive()
+				when (val current = readSelected(immutableRequest)) {
+					is PortableStepsV2Snapshot.Outcome -> current.result.selectedRecheckFailure()
+					is PortableStepsV2Snapshot.Ready -> if (current == selected) {
+						ExportPortableStepsResult.Exported(archive.entries.size)
+					} else {
+						selectedContentChanged()
+					}
+				}
+			}
+		}
+	}
+
+	private suspend fun readSelected(request: ExportSelectedPortableStepsRequest): PortableStepsV2Snapshot = try {
+		reader.readV2(request)
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		PortableStepsV2Snapshot.Outcome(ExportPortableStepsResult.RetryableFailure(
+			PortableStepsTransferRetryableReason.STORAGE_UNAVAILABLE))
+	}
 }
+
+private fun selectedContentChanged() = ExportPortableStepsResult.RetryableFailure(
+	PortableStepsTransferRetryableReason.CONCURRENT_STATE_CHANGE)
+
+private fun ExportPortableStepsResult.selectedRecheckFailure(): ExportPortableStepsResult =
+	if (this is ExportPortableStepsResult.RetryableFailure) this else selectedContentChanged()

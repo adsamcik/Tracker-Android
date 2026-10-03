@@ -39,6 +39,8 @@ import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
+import com.adsamcik.tracker.stats.api.repository.ExportSelectedPortableStepsRequest
+import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableStepsFactCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableStepsOpaqueIdentity
@@ -64,6 +66,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.time.Duration.Companion.minutes
+import kotlin.test.assertFailsWith
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -1746,6 +1749,194 @@ class RoomExportPortableStepsTest {
 		propagated shouldBe true
 		emitted shouldBe emptyList()
 	}
+
+	@Test
+	fun `exact native Steps exports all replacement runs and excludes coincident other sessions`() = runTest {
+		insertLogicalSession(LOGICAL_ONE, 1_000L, 3_000L)
+		insertSettledRun(LOGICAL_ONE, RUN_ONE, 41L, 1L, 1_000L, 2_000L,
+			listOf(FactSeed("first", 1L, count = 5L)))
+		insertSettledRun(LOGICAL_ONE, "replacement", 42L, 2L, 2_000L, 3_000L,
+			listOf(FactSeed("replacement", 2L, count = 7L)))
+		insertLogicalSession("coincident", 1_000L, 2_000L)
+		insertSettledRun("coincident", "coincident-run", 43L, 1L, 1_000L, 2_000L,
+			listOf(FactSeed("coincident-fact", 3L, count = 99L)))
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsRequest(listOf(41L, 41L))) { emitted += it } shouldBe
+			ExportPortableStepsResult.Exported(1)
+		emitted.single().runs.map { it.identity } shouldBe listOf(
+			PortableStepsOpaqueIdentity.derive(com.adsamcik.tracker.stats.api.repository.PortableStepsIdentityKind.PHYSICAL_RUN, RUN_ONE),
+			PortableStepsOpaqueIdentity.derive(com.adsamcik.tracker.stats.api.repository.PortableStepsIdentityKind.PHYSICAL_RUN, "replacement"))
+		emitted.single().runs.flatMap { it.facts }.map { it.stepCount } shouldBe listOf(5L, 7L)
+	}
+
+	@Test
+	fun `missing exact native Steps seed prevents a valid sibling from becoming partial success`() = runTest {
+		insertReadyFixture()
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsRequest(listOf(41L, Long.MAX_VALUE))) { emitted += it } shouldBe
+			ExportPortableStepsResult.Unverifiable(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	fun `exact native Steps below retention floor cannot disappear beside a valid selected sibling`() = runTest {
+		insertReadyFixture()
+		insertLogicalSession("retained-sibling", 3_000L, 4_000L)
+		insertSettledRun("retained-sibling", "retained-run", 42L, 1L, 3_000L, 4_000L,
+			listOf(FactSeed("retained", 2L, count = 9L)))
+		database.sourceEvidenceStateDao().updateLifecycle(0L, 2_500L, 5_000L)
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsRequest(listOf(41L, 42L))) { emitted += it } shouldBe
+			ExportPortableStepsResult.Unverifiable(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		emitted shouldBe emptyList()
+		// Standalone date discovery can still select the retained entry on its own.
+		exporter.export(request(fromMs = 3_000L, toMs = 5_000L)) {} shouldBe
+			ExportPortableStepsResult.Exported(1)
+	}
+
+	@Test
+	fun `exact native Steps with no payload cannot disappear beside a valid selected sibling`() = runTest {
+		insertReadyFixture(facts = emptyList())
+		insertLogicalSession("covered-sibling", 3_000L, 4_000L)
+		insertSettledRun("covered-sibling", "covered-run", 42L, 1L, 3_000L, 4_000L,
+			listOf(FactSeed("covered-sibling-fact", 1L, count = 9L)))
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		val result = exporter.export(selectedStepsRequest(listOf(41L, 42L))) { emitted += it }
+		(result is ExportPortableStepsResult.Unverifiable) shouldBe true
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	fun `all-deleted exact native Steps cannot disappear beside a valid selected sibling`() = runTest {
+		insertReadyFixture()
+		insertFence(LOGICAL_ONE, RUN_ONE)
+		insertLogicalSession("kept-sibling", 3_000L, 4_000L)
+		insertSettledRun("kept-sibling", "kept-run", 42L, 1L, 3_000L, 4_000L,
+			listOf(FactSeed("kept-sibling-fact", 2L, count = 9L)))
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsRequest(listOf(41L, 42L))) { emitted += it } shouldBe
+			ExportPortableStepsResult.Unverifiable(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	fun `exact native Steps missing capture membership cannot be filtered out beside a valid sibling`() = runTest {
+		insertReadyFixture(facts = emptyList())
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM session_manifest_source WHERE logical_tracking_id = ?",
+			arrayOf(LOGICAL_ONE))
+		insertLogicalSession("capture-sibling", 3_000L, 4_000L)
+		insertSettledRun("capture-sibling", "capture-run", 42L, 1L, 3_000L, 4_000L,
+			listOf(FactSeed("capture-sibling-fact", 1L, count = 9L)))
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsRequest(listOf(41L, 42L))) { emitted += it } shouldBe
+			ExportPortableStepsResult.Unverifiable(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	fun `unmapped exact native Steps seed never falls back to observations at matching dates`() = runTest {
+		insertReadyFixture()
+		val seed = requireNotNull(database.sessionSegmentDao().getById(41L))
+		database.sessionSegmentDao().update(seed.copy(logicalTrackingId = null, serviceRunId = null))
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsRequest()) { emitted += it } shouldBe
+			ExportPortableStepsResult.Unverifiable(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	fun `exact native Steps retains original epoch before and after external emission`() = runTest {
+		insertReadyFixture()
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsRequest().copy(expectedCollectedDataEpoch = 1L)) { emitted += it } shouldBe
+			ExportPortableStepsResult.Unverifiable(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		emitted shouldBe emptyList()
+		exporter.export(selectedStepsRequest()) {
+			emitted += it
+			database.sourceEvidenceStateDao().updateLifecycle(1L, null, 4_000L)
+		} shouldBe ExportPortableStepsResult.RetryableFailure(PortableStepsTransferRetryableReason.CONCURRENT_STATE_CHANGE)
+		emitted.size shouldBe 1
+	}
+
+	@Test
+	fun `pending original Steps presentation cannot produce an empty exact file`() = runTest {
+		insertReadyFixture()
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ONE))
+		database.sourceSessionDao().updateServiceRun(run.copy(
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+			presentationAcknowledgedAtMs = null))
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsRequest()) { emitted += it } shouldBe
+			ExportPortableStepsResult.Unverifiable(PortableStepsExportUnverifiableReason.ENTRY_MATERIALIZING)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	fun `exact Steps retains original source retention boundary without exporting a surviving suffix`() = runTest {
+		insertReadyFixture()
+		database.sourceEvidenceStateDao().updateLifecycle(0L, 1_100L, 4_000L)
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsRequest()) { emitted += it } shouldBe
+			ExportPortableStepsResult.Unverifiable(PortableStepsExportUnverifiableReason.RETENTION_CROSSES_ENTRY)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	fun `deleting exact Steps membership during sink invalidates completion outside the Room transaction`() = runTest {
+		insertReadyFixture()
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsRequest()) {
+			database.inTransaction() shouldBe false
+			emitted += it
+			database.sessionSegmentDao().deleteById(41L)
+		} shouldBe ExportPortableStepsResult.RetryableFailure(PortableStepsTransferRetryableReason.CONCURRENT_STATE_CHANGE)
+		emitted.size shouldBe 1
+	}
+
+	@Test
+	fun `changed exact Steps envelope invalidates emitted content without admitting another session`() = runTest {
+		insertReadyFixture()
+		exporter.export(selectedStepsRequest()) {
+			val seed = requireNotNull(database.sessionSegmentDao().getById(41L))
+			database.sessionSegmentDao().update(seed.copy(endTimeMs = 2_100L))
+		} shouldBe ExportPortableStepsResult.RetryableFailure(PortableStepsTransferRetryableReason.CONCURRENT_STATE_CHANGE)
+	}
+
+	@Test
+	fun `unrelated Activity and evidence revisions do not invalidate selected saved Steps`() = runTest {
+		insertReadyFixture()
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsRequest()) {
+			emitted += it
+			insertUnrelatedActivityRuns(1)
+			database.sourceEvidenceStateDao().incrementRevision(4_000L)
+		} shouldBe ExportPortableStepsResult.Exported(1)
+		emitted.single().runs.single().facts.single().stepCount shouldBe 1L
+	}
+
+	@Test
+	fun `exact native v2 preserves unavailable graph outcome while the same selection remains valid v1`() = runTest {
+		insertReadyFixture()
+		val emittedV2 = mutableListOf<Any>()
+		createV2Exporter().export(selectedStepsRequest()) { emittedV2 += it } shouldBe
+			ExportPortableStepsResult.Unverifiable(PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE)
+		emittedV2 shouldBe emptyList()
+		val emittedV1 = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsRequest()) { emittedV1 += it } shouldBe ExportPortableStepsResult.Exported(1)
+		emittedV1.single().runs.single().facts.single().stepCount shouldBe 1L
+	}
+
+	@Test
+	fun `exact Steps sink cancellation escapes without retryable completion`() = runTest {
+		insertReadyFixture()
+		assertFailsWith<CancellationException> {
+			exporter.export(selectedStepsRequest()) { throw CancellationException("cancel selected Steps child") }
+		}
+	}
+
+	private fun selectedStepsRequest(ids: List<Long> = listOf(41L)) =
+		ExportSelectedPortableStepsRequest(ids, emptyList(), 0L)
 
 	private fun createExporter(
 		laneAuthority: SourceProductLaneExecutionAuthority = executableLaneAuthority(),

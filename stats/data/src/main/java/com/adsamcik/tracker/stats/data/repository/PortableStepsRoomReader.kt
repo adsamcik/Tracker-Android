@@ -35,6 +35,7 @@ import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptInt
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
+import com.adsamcik.tracker.stats.api.repository.ExportSelectedPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.PORTABLE_STEPS_ENTRY_ORDER
 import com.adsamcik.tracker.stats.api.repository.PORTABLE_STEPS_FACT_ORDER
 import com.adsamcik.tracker.stats.api.repository.PORTABLE_STEPS_RUN_ORDER
@@ -141,6 +142,74 @@ internal class PortableStepsRoomReader @Inject constructor(
 			}
 		}
 
+	suspend fun read(request: ExportSelectedPortableStepsRequest): PortableStepsSnapshot =
+		database.useReaderConnection { connection ->
+			connection.deferredTransaction {
+				try {
+					validateSelectedEpoch(request)
+					mergeImportedSnapshot(
+						readSelectedNativeInTransaction(request, includeCountDomainGraph = false),
+						ImportedStepsProductReader(database).exportInTransaction(request),
+					)
+				} catch (abort: PortableSnapshotAbort) {
+					PortableStepsSnapshot.Outcome(ExportPortableStepsResult.Unverifiable(abort.reason))
+				} catch (_: IllegalArgumentException) {
+					PortableStepsSnapshot.Outcome(ExportPortableStepsResult.Unverifiable(
+						PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE))
+				}
+			}
+		}
+
+	suspend fun readV2(request: ExportSelectedPortableStepsRequest): PortableStepsV2Snapshot =
+		database.useReaderConnection { connection ->
+			connection.deferredTransaction {
+				try {
+					validateSelectedEpoch(request)
+					mergeV2Snapshots(
+						readSelectedNativeInTransaction(request, includeCountDomainGraph = true).toV2Snapshot(),
+						ImportedStepsProductReader(database).exportV2InTransaction(request),
+					)
+				} catch (abort: PortableSnapshotAbort) {
+					PortableStepsV2Snapshot.Outcome(ExportPortableStepsResult.Unverifiable(abort.reason))
+				} catch (_: IllegalArgumentException) {
+					PortableStepsV2Snapshot.Outcome(ExportPortableStepsResult.Unverifiable(
+						PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE))
+				}
+			}
+		}
+
+	private suspend fun validateSelectedEpoch(request: ExportSelectedPortableStepsRequest) {
+		val state = database.sourceEvidenceStateDao().get()
+		if (state == null || state.collectedDataEpoch != request.expectedCollectedDataEpoch ||
+			database.collectedDataDeletionOperationDao().activeRetentionFloorSettlement() != null) {
+			abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		}
+	}
+
+	private suspend fun readSelectedNativeInTransaction(
+		request: ExportSelectedPortableStepsRequest,
+		includeCountDomainGraph: Boolean,
+	): PortableStepsSnapshot {
+		currentCoroutineContext().ensureActive()
+		val budget = SnapshotBudget()
+		val ids = request.nativeSegmentIds.distinct()
+		budget.consume(ids.size)
+		val seeds = loadSegments(ids, budget)
+		if (seeds.map(SessionSegment::id).toSet() != ids.toSet()) {
+			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+		val discovered = seeds.map { segment ->
+			DiscoveredSegmentIdentity(segment.id,
+				segment.logicalTrackingId?.takeIf(String::isNotBlank)
+					?: abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE),
+				segment.serviceRunId?.takeIf(String::isNotBlank)
+					?: abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE))
+		}
+		return readNativeInTransaction(
+			PortableEntryDiscovery(discovered.map { it.logicalTrackingId }.distinct(), discovered),
+			budget, request = null, includeCountDomainGraph = includeCountDomainGraph)
+	}
+
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private suspend fun readInTransaction(
 		request: ExportPortableStepsRequest,
@@ -148,6 +217,16 @@ internal class PortableStepsRoomReader @Inject constructor(
 	): PortableStepsSnapshot {
 		val budget = SnapshotBudget()
 		val discovery = discoverLogicalEntries(request, budget)
+		return readNativeInTransaction(discovery, budget, request, includeCountDomainGraph)
+	}
+
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	private suspend fun readNativeInTransaction(
+		discovery: PortableEntryDiscovery,
+		budget: SnapshotBudget,
+		request: ExportPortableStepsRequest?,
+		includeCountDomainGraph: Boolean,
+	): PortableStepsSnapshot {
 		val logicalTrackingIds = discovery.logicalTrackingIds
 		if (logicalTrackingIds.isEmpty()) {
 			return noEntries()
@@ -186,6 +265,9 @@ internal class PortableStepsRoomReader @Inject constructor(
 			}
 			.map(SourceServiceRunEntity::logicalTrackingId)
 			.toSet()
+		if (request == null && candidateLogicalIds != logicalTrackingIds.toSet()) {
+			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
 		if (candidateLogicalIds.isEmpty()) {
 			return noEntries()
 		}
@@ -207,6 +289,8 @@ internal class PortableStepsRoomReader @Inject constructor(
 			if (built != null) {
 				entries += built.product
 				built.authenticated?.let(entriesV2::add)
+			} else if (request == null) {
+				abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 			}
 		}
 		entries.sortWith(PORTABLE_STEPS_ENTRY_ORDER)
@@ -759,7 +843,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private suspend fun buildEntry(
 		logicalTrackingId: String,
-		request: ExportPortableStepsRequest,
+		request: ExportPortableStepsRequest?,
 		logicalSession: LogicalTrackingSessionEntity?,
 		serviceRuns: List<SourceServiceRunEntity>,
 		segmentsById: Map<Long, SessionSegment>,
@@ -841,7 +925,8 @@ internal class PortableStepsRoomReader @Inject constructor(
 		}
 		val entryStartMs = surviving.minOf { bound -> bound.portableEnvelope().startTimeMs }
 		val entryEndMs = surviving.maxOf { bound -> bound.portableEnvelope().endTimeMs }
-		if (entryStartMs >= request.toExclusiveMs || entryEndMs <= request.fromInclusiveMs) {
+		if (request != null &&
+			(entryStartMs >= request.toExclusiveMs || entryEndMs <= request.fromInclusiveMs)) {
 			return null
 		}
 		val retainedFromMs = evidenceState.retainedFromMs

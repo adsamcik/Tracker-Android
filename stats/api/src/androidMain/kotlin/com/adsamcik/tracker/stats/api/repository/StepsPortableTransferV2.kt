@@ -11,6 +11,12 @@ interface ExportPortableStepsV2 {
 		request: ExportPortableStepsRequest,
 		sink: PortableStepsArchiveV2Sink,
 	): ExportPortableStepsResult
+
+	/** Preserves the selected entries' original graphs; the consumer discards bytes on non-success. */
+	suspend fun export(
+		request: ExportSelectedPortableStepsRequest,
+		sink: PortableStepsArchiveV2Sink,
+	): ExportPortableStepsResult
 }
 
 /** Durable file-job provenance. It is destination metadata, never source count-domain authority. */

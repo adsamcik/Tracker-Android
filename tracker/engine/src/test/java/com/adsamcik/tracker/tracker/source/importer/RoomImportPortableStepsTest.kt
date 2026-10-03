@@ -31,6 +31,7 @@ import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.repository.ExportPortableSteps
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
+import com.adsamcik.tracker.stats.api.repository.ExportSelectedPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.ImportPortableStepsV2Request
@@ -1115,6 +1116,11 @@ class RoomImportPortableStepsTest {
 				ExportPortableStepsResult.Exported(entries.size)
 			}
 		}
+
+		override suspend fun export(
+			request: ExportSelectedPortableStepsRequest,
+			sink: PortableStepsEntrySink,
+		): ExportPortableStepsResult = error("Import duplicate lookup must preserve its existing export scope")
 	}
 
 	private fun receipt(index: Int) = PortableStepsImportReceipt(

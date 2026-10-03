@@ -107,6 +107,12 @@ behavior choice still needs a concrete proposal under AGENTS.md.
 
 ## Current implementation activity
 
+- [x] Select the exact Steps V1/V2 export prerequisite: nine source paths and
+  twenty-seven authored Room cases plus three compatibility companions, unexecuted.
+  Fresh review's selected-native omission is repaired while ordinary date discovery
+  remains unchanged. Exact graph reads do not reconcile/write saved bindings.
+  `../2026-10-04/SESSION_STEPS_EXPORT_FRESH_REVIEW_1004.md` records source acceptance;
+  native V2 capability limits and complete shared bundle behavior remain open.
 - [x] Select exact session Activity reading through existing native and imported
   qualification, original epoch and full selected-content rechecks. Five paths
   and nineteen authored cases are independently source-reviewed after repairing

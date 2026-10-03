@@ -122,6 +122,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Select exact session Steps V1/V2 export as a nine-path prerequisite. Complete
+  original groups and exact imported IDs retain count-domain checks and read-only
+  typed/graph rereads. Fresh review's silent-omission finding is repaired: every
+  explicitly selected native group must produce complete exportable data. Twenty-
+  seven authored Room cases and three fake companions are unexecuted. Receipt:
+  `convergence/2026-10-04/SESSION_STEPS_EXPORT_FRESH_REVIEW_1004.md`.
 - [x] Select exact session Activity export as a five-path prerequisite. Exact
   original native groups and imported IDs use existing source qualification,
   original epoch and typed-content rechecks outside sink I/O. Fresh review's

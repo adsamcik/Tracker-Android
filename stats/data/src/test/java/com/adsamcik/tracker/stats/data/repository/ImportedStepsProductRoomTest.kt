@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.steps.portable.withExplicitUnprovenCountDomain
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
+import com.adsamcik.tracker.stats.api.repository.ExportSelectedPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistorySource
@@ -27,6 +28,8 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsCaptureCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableStepsCompletenessV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsDeletionScopeDigest
 import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV1
+import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV2
+import com.adsamcik.tracker.stats.api.repository.PortableStepsArchiveV2
 import com.adsamcik.tracker.stats.api.repository.PortableStepsExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableStepsFactCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableStepsFactV1
@@ -35,6 +38,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.PortableStepsProviderCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableStepsRunV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsSessionMode
+import com.adsamcik.tracker.stats.api.repository.PortableStepsTransferRetryableReason
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
@@ -43,6 +47,7 @@ import com.adsamcik.tracker.stats.api.repository.StepsAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -51,6 +56,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import kotlin.test.assertFailsWith
 
 /** Host Room product tests; fixture row mapping deliberately does not activate an importer. */
 @RunWith(RobolectricTestRunner::class)
@@ -361,6 +367,200 @@ class ImportedStepsProductRoomTest {
 		val page = history.observeRecentStepsAwarePage(listOf(42L), 10).first()
 		(page.single() as StepsAwareHistoryPageEntry.ImportedSteps).history.physicalMembers.single().segmentId shouldBe 42L
 		exporter.export(request()) { error("Cannot mint replacement original entry identity") } shouldBe unavailable()
+	}
+
+	@Test
+	fun `exact imported Steps exports original full members and excludes coincident unselected entries`() = runTest {
+		val chosen = entry(listOf(run('2', 10L, 20L, 9L), run('3', 30L, 40L, 4L)))
+		val unrelated = entry(listOf(run('5', 10L, 20L, 99L)), '4')
+		seed(chosen)
+		seed(unrelated, 51L)
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsExportRequest(listOf(chosen.identity, chosen.identity))) { emitted += it } shouldBe
+			ExportPortableStepsResult.Exported(1)
+		emitted shouldBe listOf(chosen)
+		emitted.single().runs.map { it.facts.single().stepCount } shouldBe listOf(9L, 4L)
+	}
+
+	@Test
+	fun `missing exact imported Steps ID prevents a valid selected entry from becoming partial success`() = runTest {
+		val chosen = entry(listOf(run('2', 10L, 20L, 9L)))
+		seed(chosen)
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsExportRequest(listOf(chosen.identity, opaque('9')))) { emitted += it } shouldBe unavailable()
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	fun `deleted exact imported Steps member cannot be replaced with a surviving sibling or matching dates`() = runTest {
+		val chosen = entry(listOf(run('2', 10L, 20L, 9L), run('3', 30L, 40L, 4L)))
+		seed(chosen)
+		seed(entry(listOf(run('5', 10L, 20L, 99L)), '4'), 51L)
+		mutate("DELETE FROM step_fact_revision WHERE service_run_id = '${chosen.runs.first().identity.value}'")
+		mutate("DELETE FROM imported_steps_run WHERE session_segment_id = 41")
+		mutate("DELETE FROM session_segment WHERE id = 41")
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsExportRequest(listOf(chosen.identity))) { emitted += it } shouldBe unavailable()
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	fun `exact imported Steps epoch is fenced both before emission and on completion`() = runTest {
+		val chosen = entry(listOf(run('2', 10L, 20L, 9L)))
+		seed(chosen)
+		val selected = selectedStepsExportRequest(listOf(chosen.identity))
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selected.copy(expectedCollectedDataEpoch = 1L)) { emitted += it } shouldBe unavailable()
+		emitted shouldBe emptyList()
+		exporter.export(selected) {
+			emitted += it
+			database.sourceEvidenceStateDao().updateLifecycle(1L, null, 200L)
+		} shouldBe ExportPortableStepsResult.RetryableFailure(PortableStepsTransferRetryableReason.CONCURRENT_STATE_CHANGE)
+		emitted shouldBe listOf(chosen)
+	}
+
+	@Test
+	fun `mutating selected imported Steps content during sink refuses final success`() = runTest {
+		val chosen = entry(listOf(run('2', 10L, 20L, 9L)))
+		seed(chosen)
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsExportRequest(listOf(chosen.identity))) {
+			database.inTransaction() shouldBe false
+			emitted += it
+			mutate("UPDATE imported_steps_run SET retained_checksum = '${"0".repeat(64)}' WHERE session_segment_id = 41")
+		} shouldBe ExportPortableStepsResult.RetryableFailure(PortableStepsTransferRetryableReason.CONCURRENT_STATE_CHANGE)
+		emitted shouldBe listOf(chosen)
+	}
+
+	@Test
+	fun `unselected imported Steps and evidence revisions leave exact selected data exportable`() = runTest {
+		val chosen = entry(listOf(run('2', 10L, 20L, 0L)))
+		seed(chosen)
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsExportRequest(listOf(chosen.identity))) {
+			emitted += it
+			seed(numberedEntry(2, 1), 51L)
+			database.sourceEvidenceStateDao().incrementRevision(200L)
+		} shouldBe ExportPortableStepsResult.Exported(1)
+		emitted shouldBe listOf(chosen)
+		emitted.single().runs.single().facts.single().stepCount shouldBe 0L
+	}
+
+	@Test
+	fun `exact imported Steps retention crossing remains unavailable instead of exporting a suffix`() = runTest {
+		val chosen = entry(listOf(run('2', 10L, 20L, 9L)))
+		seed(chosen)
+		database.sourceEvidenceStateDao().updateLifecycle(0L, 15L, 200L)
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsExportRequest(listOf(chosen.identity))) { emitted += it } shouldBe
+			ExportPortableStepsResult.Unverifiable(PortableStepsExportUnverifiableReason.RETENTION_CROSSES_ENTRY)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	fun `exact graphless imported Steps preserves v1 while v2 reports graph unavailable`() = runTest {
+		val chosen = entry(listOf(run('2', 10L, 20L, 0L)))
+		seed(chosen)
+		val selected = selectedStepsExportRequest(listOf(chosen.identity))
+		selectedV2Exporter().export(selected) { error("Graphless v1 must not emit fabricated v2") } shouldBe
+			ExportPortableStepsResult.Unverifiable(PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE)
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selected) { emitted += it } shouldBe ExportPortableStepsResult.Exported(1)
+		emitted shouldBe listOf(chosen)
+	}
+
+	@Test
+	fun `exact imported Steps v2 preserves stored graph and both reads leave storage revisions unchanged`() = runTest {
+		val chosen = entry(listOf(run('2', 10L, 20L, 9L)))
+		seed(chosen)
+		val original = seedSelectedStepsGraph(chosen)
+		seed(entry(listOf(run('5', 10L, 20L, 99L)), '4'), 51L)
+		val stateBefore = database.sourceEvidenceStateDao().get()
+		val dao = database.importedPortableStepsCountDomainDao()
+		val graphBefore = dao.graph(original.countDomainGraph.identity.value)
+		val bindingBefore = dao.bindingsForProduct(ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+			chosen.identity.value, 2)
+		val emitted = mutableListOf<PortableStepsArchiveV2>()
+		selectedV2Exporter().export(selectedStepsExportRequest(listOf(chosen.identity)).copy(expectedCollectedDataEpoch = 1L)) {
+			error("A stored graph cannot override the original export epoch")
+		} shouldBe unavailable()
+		selectedV2Exporter().export(selectedStepsExportRequest(listOf(chosen.identity))) {
+			database.inTransaction() shouldBe false
+			emitted += it
+		} shouldBe ExportPortableStepsResult.Exported(1)
+		emitted.single().entries shouldBe listOf(original)
+		database.sourceEvidenceStateDao().get() shouldBe stateBefore
+		dao.graph(original.countDomainGraph.identity.value) shouldBe graphBefore
+		dao.bindingsForProduct(ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+			chosen.identity.value, 2) shouldBe bindingBefore
+		dao.fileReceiptCountForEntry(chosen.identity.value) shouldBe 1
+	}
+
+	@Test
+	fun `deleting selected v2 Steps binding during sink prevents success and does not fall back midfile`() = runTest {
+		val chosen = entry(listOf(run('2', 10L, 20L, 9L)))
+		seed(chosen)
+		val original = seedSelectedStepsGraph(chosen)
+		val emitted = mutableListOf<PortableStepsArchiveV2>()
+		selectedV2Exporter().export(selectedStepsExportRequest(listOf(chosen.identity))) {
+			emitted += it
+			database.importedPortableStepsCountDomainDao().deleteBindingExact(
+				ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+				chosen.identity.value, 1L, original.countDomainGraph.identity.value) shouldBe 1
+		} shouldBe ExportPortableStepsResult.RetryableFailure(PortableStepsTransferRetryableReason.CONCURRENT_STATE_CHANGE)
+		emitted.single().entries shouldBe listOf(original)
+	}
+
+	@Test
+	fun `exact imported Steps selection reads every batch beyond 32 entries without date fallback`() = runTest {
+		val chosen = (1..33).map { numberedEntry(it, 1) }
+		chosen.forEachIndexed { index, entry -> seed(entry, 1_000L + index) }
+		val emitted = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(selectedStepsExportRequest(chosen.map { it.identity })) { emitted += it } shouldBe
+			ExportPortableStepsResult.Exported(chosen.size)
+		emitted.toSet() shouldBe chosen.toSet()
+		emitted.size shouldBe chosen.size
+	}
+
+	@Test
+	fun `exact Steps v2 sink cancellation propagates and preserves its saved graph`() = runTest {
+		val chosen = entry(listOf(run('2', 10L, 20L, 9L)))
+		seed(chosen)
+		val original = seedSelectedStepsGraph(chosen)
+		assertFailsWith<CancellationException> {
+			selectedV2Exporter().export(selectedStepsExportRequest(listOf(chosen.identity))) {
+				throw CancellationException("cancel selected v2 child")
+			}
+		}
+		(database.importedPortableStepsCountDomainDao().graph(original.countDomainGraph.identity.value) != null) shouldBe true
+	}
+
+	private fun selectedStepsExportRequest(identities: List<PortableStepsOpaqueIdentity>) =
+		ExportSelectedPortableStepsRequest(emptyList(), identities, 0L)
+
+	private fun selectedV2Exporter(): RoomExportPortableStepsV2 {
+		val lane = SourceProductLaneExecutionAuthority { false }
+		return RoomExportPortableStepsV2(PortableStepsRoomReader(database,
+			StepsSegmentHistorySelector(database, lane), lane), Dispatchers.IO)
+	}
+
+	private suspend fun seedSelectedStepsGraph(product: PortableStepsEntryV1): PortableStepsEntryV2 = database.withTransaction {
+		val original = product.withExplicitUnprovenCountDomain()
+		val graph = original.countDomainGraph
+		val dao = database.importedPortableStepsCountDomainDao()
+		val receiptIdentity = ImportedPortableCountDomainIdentity.fileReceipt("selected-v2-job", "selected-v2-entry")
+		dao.insertAuthenticatedGraph(graph, ImportedPortableStepsCountDomainGraphEntity.SOURCE_SESSION_STEPS)
+		dao.insertBinding(ImportedPortableStepsCountDomainBindingEntity(
+			productKind = ImportedPortableStepsCountDomainBindingEntity.PRODUCT_SESSION_ENTRY,
+			productIdentity = product.identity.value, productRevision = 1L,
+			graphIdentity = graph.identity.value, sourceSchemaVersion = 2,
+			sourceReceiptIdentity = receiptIdentity, sourceArchiveContentChecksum = product.contentChecksum.value))
+		dao.insertFileReceipt(ImportedPortableStepsFileReceiptEntity(
+			importJobId = "selected-v2-job", entryKey = "selected-v2-entry", receiptIdentity = receiptIdentity,
+			sourceName = "selected.trackersteps", receivedAtMs = 1L,
+			archiveContentChecksum = product.contentChecksum.value, entryOrdinal = 0,
+			entryIdentity = product.identity.value, graphIdentity = graph.identity.value))
+		original
 	}
 
 	private suspend fun seed(portable: PortableStepsEntryV1, firstSegmentId: Long = 41L) = database.withTransaction {

@@ -17,6 +17,20 @@ data class ExportPortableStepsRequest(
 	}
 }
 
+/** Exact saved records; each native seed includes its complete original replacement group. */
+data class ExportSelectedPortableStepsRequest(
+	val nativeSegmentIds: List<Long>,
+	val importedEntryIdentities: List<PortableStepsOpaqueIdentity>,
+	val expectedCollectedDataEpoch: Long,
+) {
+	init {
+		require(expectedCollectedDataEpoch >= 0L)
+		require(nativeSegmentIds.all { it > 0L })
+		require(importedEntryIdentities.size <= StepsPortableFormatV1.MAX_ENTRIES)
+		require(nativeSegmentIds.isNotEmpty() || importedEntryIdentities.isNotEmpty())
+	}
+}
+
 /** Streaming entry sink shared by the product reader and the file-format adapter. */
 fun interface PortableStepsEntrySink {
 	/** Accepts one completely verified logical entry. */
@@ -33,6 +47,16 @@ interface ExportPortableSteps {
 	 */
 	suspend fun export(
 		request: ExportPortableStepsRequest,
+		sink: PortableStepsEntrySink,
+	): ExportPortableStepsResult
+
+	/**
+	 * Exact selection has no date fallback. The complete selected content is checked again after
+	 * emission; unrelated collection does not invalidate it. A non-success result requires the
+	 * consumer to discard its staged bytes. Cancellation propagates to the consumer.
+	 */
+	suspend fun export(
+		request: ExportSelectedPortableStepsRequest,
 		sink: PortableStepsEntrySink,
 	): ExportPortableStepsResult
 }

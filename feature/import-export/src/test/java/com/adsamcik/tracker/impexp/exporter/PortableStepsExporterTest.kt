@@ -7,6 +7,7 @@ import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV1Codec
 import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV2Codec
 import com.adsamcik.tracker.stats.api.repository.ExportPortableSteps
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
+import com.adsamcik.tracker.stats.api.repository.ExportSelectedPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsV2
 import com.adsamcik.tracker.stats.api.repository.PortableStepsCaptureCoverage
@@ -423,6 +424,11 @@ class PortableStepsExporterTest {
 			request: ExportPortableStepsRequest,
 			sink: PortableStepsArchiveV2Sink,
 		): ExportPortableStepsResult = block(request, sink)
+
+		override suspend fun export(
+			request: ExportSelectedPortableStepsRequest,
+			sink: PortableStepsArchiveV2Sink,
+		): ExportPortableStepsResult = error("Standalone date export must not use exact session selection")
 	}
 
 	private fun fakeLegacyExporter(
@@ -435,6 +441,11 @@ class PortableStepsExporterTest {
 			request: ExportPortableStepsRequest,
 			sink: PortableStepsEntrySink,
 		): ExportPortableStepsResult = block(request, sink)
+
+		override suspend fun export(
+			request: ExportSelectedPortableStepsRequest,
+			sink: PortableStepsEntrySink,
+		): ExportPortableStepsResult = error("Standalone date export must not use exact session selection")
 	}
 
 	private fun entry(): PortableStepsEntryV1 {

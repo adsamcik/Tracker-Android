@@ -1,0 +1,264 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "phase": "IMPLEMENTATION_ONLY",
+  "owner": "/root/transfer_adversary_1003",
+  "freeze_date": "2026-10-04",
+  "base_head_parent_supplied": "2d01ed0ee411bf2bc48d4c45fe070de6b945f102",
+  "path_count": 9,
+  "new_authored_test_cases": 27,
+  "tests_executed": false,
+  "gates_executed": false,
+  "git_operations_performed": false,
+  "selection_patch": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_STEPS_EXPORT_SELECTION.patch",
+  "selection_patch_sha256": "cf4ec478b56fa62b64790e7fa14734052dc3b351d2dd4ebdac6a415a75bca683",
+  "paths": [
+    {
+      "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/StepsPortableTransfer.kt",
+      "selected_before_sha256": "b67fa2eba20d095d4d9a6809b9149c11204d5931cbf04a8f83503b0ea9e39392",
+      "selected_after_sha256": "f8dee6c477a7f357bb62cb37e36f8753528b51bd020299360fc8f9ceb2878dcc",
+      "actual_working_sha256": "f8dee6c477a7f357bb62cb37e36f8753528b51bd020299360fc8f9ceb2878dcc",
+      "selection": "clean-at-start tracked task delta",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/StepsPortableTransferV2.kt",
+      "selected_before_sha256": "b9d232fe79fb0b8da167d0f09a8ca1931d5a9e81b5af8543a7dc3432a01c4b5b",
+      "selected_after_sha256": "0bd5fc9e02d400b0ac9d139702121d57cb8e433715b2d50acd2eba33cd4ea035",
+      "actual_working_sha256": "0bd5fc9e02d400b0ac9d139702121d57cb8e433715b2d50acd2eba33cd4ea035",
+      "selection": "clean-at-start tracked task delta",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PortableStepsRoomReader.kt",
+      "selected_before_sha256": "bdc195c313dc59298f9e428968dfe162996047906e1310c89d810ed846cb4ac0",
+      "selected_after_sha256": "f6ea1ec1081c63692b3f387964a66b7f3a0a061a5b76574a5122ae1f0cadde3b",
+      "actual_working_sha256": "f6ea1ec1081c63692b3f387964a66b7f3a0a061a5b76574a5122ae1f0cadde3b",
+      "selection": "clean-at-start tracked task delta",
+      "new_authored_test_cases": 0,
+      "selected_before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_STEPS_EXPORT_SELECTED/PortableStepsRoomReader.kt.head-original"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductReader.kt",
+      "selected_before_sha256": "d7e6ab462b1a5a9a8dba086252789645a0c9139acd2406bdc5cc3fe94915b01e",
+      "selected_after_sha256": "f9b303da1f2bcda73088c061072ecb6b0ebac3cff1a298bb534113c89325c705",
+      "actual_working_sha256": "0cdd4066e187e9e0e037c1ba72968bb782b7d4d11aefc5cac91bd8313b34fda8",
+      "selection": "HEAD-based task-only selection; held hunks preserved and excluded; selected snapshot has HEAD LF convention",
+      "new_authored_test_cases": 0,
+      "working_before_sha256": "c79ad93bb9a09d1dad0f40bf2c7a342831625a84ba64f69fe57f2e427f8cc79b",
+      "selected_before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_STEPS_EXPORT_SELECTED/ImportedStepsProductReader.kt.before",
+      "selected_after_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_STEPS_EXPORT_SELECTED/ImportedStepsProductReader.kt.after",
+      "excluded_held_hunks": [
+        {
+          "kind": "insert",
+          "held_working_line_start": 90,
+          "held_line_count": 8,
+          "canonical_held_hunk_sha256": "8d22c82bf30d7d73f55ac39da3c7feef384813ea4a886c96f940c5b754211a7a"
+        },
+        {
+          "kind": "replace",
+          "held_working_line_start": 286,
+          "held_line_count": 1,
+          "canonical_held_hunk_sha256": "82880460707f14bc556e521765d0d128a1663d89620eb372894575c020aa48d3"
+        }
+      ]
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableSteps.kt",
+      "selected_before_sha256": "6f81e18f234c00990ae201d7d85326cfcc5650b49852160c3733c94a22ef795f",
+      "selected_after_sha256": "024a59630f36c459524fd47c0bfb08a5c3e14f6d3071e06d2cbd311382bccf52",
+      "actual_working_sha256": "024a59630f36c459524fd47c0bfb08a5c3e14f6d3071e06d2cbd311382bccf52",
+      "selection": "clean-at-start tracked task delta",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "selected_before_sha256": "2d4a838eaa72c7bcec097da08cb9319b7c738c0dd7b53a82d1340866ae5e9097",
+      "selected_after_sha256": "d2dfa8a48ce0c29e5d528bd8ccdf234759ac389943fb7ea67da4a150e5ae68eb",
+      "actual_working_sha256": "d2dfa8a48ce0c29e5d528bd8ccdf234759ac389943fb7ea67da4a150e5ae68eb",
+      "selection": "clean-at-start tracked task delta",
+      "new_authored_test_cases": 15,
+      "selected_before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_STEPS_EXPORT_SELECTED/RoomExportPortableStepsTest.kt.head-original",
+      "before_pin_correction": "Previous 0367dc pin described canonical bytes, not the original Git blob. This pin is the raw immutable blob supplied by parent."
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "selected_before_sha256": "b7db1f936de20d51a33e3b81da834981413b128bb05f42810fad66c36e13ef51",
+      "selected_after_sha256": "fa25d74c98bc01ec759bb16fb4224d116468f8b24444fcb3a2dc6b449e7e7e42",
+      "actual_working_sha256": "f6866fb15b4b8bd642c4262feb3adcb975921751e77d4d14803ef148fd4fe817",
+      "selection": "HEAD-based task-only selection; held hunks preserved and excluded; selected snapshot has HEAD LF convention",
+      "new_authored_test_cases": 12,
+      "working_before_sha256": "e7dfcacc348ce049f13611c1b875c4b690990861489c715e490a0cf398af48aa",
+      "selected_before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_STEPS_EXPORT_SELECTED/ImportedStepsProductRoomTest.kt.before",
+      "selected_after_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_STEPS_EXPORT_SELECTED/ImportedStepsProductRoomTest.kt.after",
+      "excluded_held_hunks": [
+        {
+          "kind": "insert",
+          "held_working_line_start": 79,
+          "held_line_count": 33,
+          "canonical_held_hunk_sha256": "2b4613283865b9e6c308fdef0eddf53e62993635e69a50a030e596aab1fcd4e4"
+        }
+      ]
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortableStepsExporterTest.kt",
+      "selected_before_sha256": "3e7d6aa7801e7d6a6ea67d4e6a483579279870bc310e752d1c1c514262ec79d9",
+      "selected_after_sha256": "92f7742f5598916841e8345855882ffb30beb9af817a11d12c77fa08b07f66a0",
+      "actual_working_sha256": "92f7742f5598916841e8345855882ffb30beb9af817a11d12c77fa08b07f66a0",
+      "selection": "clean-at-start tracked task delta",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/importer/RoomImportPortableStepsTest.kt",
+      "selected_before_sha256": "366af680ff780b9f5ab7577eea07b0b90cc97cef54a48dbe348745d9f67f8afb",
+      "selected_after_sha256": "7a1d4cdeb6ecbeab3ff598d592499b94670a45446ac6fd31ab3236ade20d3d1d",
+      "actual_working_sha256": "7a1d4cdeb6ecbeab3ff598d592499b94670a45446ac6fd31ab3236ade20d3d1d",
+      "selection": "clean-at-start tracked task delta",
+      "new_authored_test_cases": 0
+    }
+  ],
+  "authored_cases": [
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "name": "exact native Steps exports all replacement runs and excludes coincident other sessions",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "name": "missing exact native Steps seed prevents a valid sibling from becoming partial success",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "name": "unmapped exact native Steps seed never falls back to observations at matching dates",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "name": "exact native Steps retains original epoch before and after external emission",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "name": "pending original Steps presentation cannot produce an empty exact file",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "name": "exact Steps retains original source retention boundary without exporting a surviving suffix",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "name": "deleting exact Steps membership during sink invalidates completion outside the Room transaction",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "name": "changed exact Steps envelope invalidates emitted content without admitting another session",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "name": "unrelated Activity and evidence revisions do not invalidate selected saved Steps",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "name": "exact native v2 preserves unavailable graph outcome while the same selection remains valid v1",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "name": "exact Steps sink cancellation escapes without retryable completion",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "name": "exact imported Steps exports original full members and excludes coincident unselected entries",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "name": "missing exact imported Steps ID prevents a valid selected entry from becoming partial success",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "name": "deleted exact imported Steps member cannot be replaced with a surviving sibling or matching dates",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "name": "exact imported Steps epoch is fenced both before emission and on completion",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "name": "mutating selected imported Steps content during sink refuses final success",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "name": "unselected imported Steps and evidence revisions leave exact selected data exportable",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "name": "exact imported Steps retention crossing remains unavailable instead of exporting a suffix",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "name": "exact graphless imported Steps preserves v1 while v2 reports graph unavailable",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "name": "exact imported Steps v2 preserves stored graph and both reads leave storage revisions unchanged",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "name": "deleting selected v2 Steps binding during sink prevents success and does not fall back midfile",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "name": "exact imported Steps selection reads every batch beyond 32 entries without date fallback",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "name": "exact Steps v2 sink cancellation propagates and preserves its saved graph",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "name": "exact native Steps below retention floor cannot disappear beside a valid selected sibling",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "name": "exact native Steps with no payload cannot disappear beside a valid selected sibling",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "name": "all-deleted exact native Steps cannot disappear beside a valid selected sibling",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "name": "exact native Steps missing capture membership cannot be filtered out beside a valid sibling",
+      "executed": false
+    }
+  ],
+  "excluded": [
+    "ImportedStepsProductReader held selectedInTransaction(List) history overload",
+    "ImportedStepsProductReader held toListEntry original-envelope presentation change",
+    "ImportedStepsProductRoomTest held leading original-envelope and R11 unified-range cases",
+    "All other drafts, exact session port/UI/bundle and pending membership/retrospective decisions",
+    "Gates, provider activation, integration and runtime readiness"
+  ],
+  "verification_boundary": "Static source inspection only. Twenty-three authored Room cases plus date/import fake compatibility. Saved imported-v2 graph preserved; existing unavailable native graph remains representable as v1. No new file transport or full session bundle caller."
+}

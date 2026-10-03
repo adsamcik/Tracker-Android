@@ -246,6 +246,12 @@ remain held. No test or gate has run.
   rows preserve descriptive dual origins for session-export reuse. None ran.
 
 ## Remaining in these slices
+- [x] Select the exact Steps V1/V2 export prerequisite: nine paths, twenty-seven
+  authored unexecuted Room cases and three existing fake companions. All explicitly
+  selected native groups must be exportable; a valid sibling cannot hide missing,
+  erased or expired data. Strict saved imported graph reads and final typed/graph
+  rereads are independently reviewed in
+  `../2026-10-04/SESSION_STEPS_EXPORT_FRESH_REVIEW_1004.md`; full bundle stays open.
 - [x] Select the exact Activity export prerequisite: five source paths and nineteen
   authored, unexecuted cases. Existing native/imported selection, epoch and typed
   rereads remain source-owned. Fresh review's whole-file cap finding is repaired

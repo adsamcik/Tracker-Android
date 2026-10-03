@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.loadAuthenticatedImportedSessio
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
+import com.adsamcik.tracker.stats.api.repository.ExportSelectedPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
@@ -28,6 +29,8 @@ import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.StepsPortableFormatV1
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
 import com.adsamcik.tracker.stats.api.value.EpochMs
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 internal sealed interface ImportedStepsRecentRead {
 	data class Ready(
@@ -197,16 +200,81 @@ internal class ImportedStepsProductReader(
 		if (retainedEntries.size != entries.size) {
 			return v2Unavailable(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 		}
+		return toV2Export(retainedEntries)
+	}
+
+	suspend fun exportInTransaction(request: ExportSelectedPortableStepsRequest): PortableStepsSnapshot =
+		when (val selected = readSelectedExportEntries(request)) {
+			is ImportedStepsRetainedRead.Unverifiable -> unavailable(selected.reason.toExportReason())
+			is ImportedStepsRetainedRead.Ready -> if (selected.entries.isEmpty()) {
+				PortableStepsSnapshot.Outcome(ExportPortableStepsResult.NoEntries)
+			} else {
+				PortableStepsSnapshot.Ready(selected.entries.map { requireNotNull(it.portable) }
+					.sortedWith(PORTABLE_STEPS_ENTRY_ORDER))
+			}
+		}
+
+	suspend fun exportV2InTransaction(request: ExportSelectedPortableStepsRequest): PortableStepsV2Snapshot =
+		when (val selected = readSelectedExportEntries(request)) {
+			is ImportedStepsRetainedRead.Unverifiable -> v2Unavailable(selected.reason.toExportReason())
+			is ImportedStepsRetainedRead.Ready -> if (selected.entries.isEmpty()) {
+				PortableStepsV2Snapshot.Outcome(ExportPortableStepsResult.NoEntries)
+			} else {
+				toV2Export(selected.entries, reconcileRetainedLegacyBinding = false)
+			}
+		}
+
+	private suspend fun readSelectedExportEntries(
+		request: ExportSelectedPortableStepsRequest,
+	): ImportedStepsRetainedRead {
+		val ids = request.importedEntryIdentities.map { it.value }.distinct()
+		val entries = mutableListOf<RetainedImportedStepsEntry>()
+		var dependencies = ids.size
+		for (batch in ids.chunked(ImportedStepsRetainedReader.MAX_ENTRY_BATCH)) {
+			currentCoroutineContext().ensureActive()
+			when (val selected = retained.readEntriesInTransaction(batch)) {
+				is ImportedStepsRetainedRead.Unverifiable -> return selected
+				is ImportedStepsRetainedRead.Ready -> {
+					selected.unverifiableEntries.values.firstOrNull()?.let {
+						return ImportedStepsRetainedRead.Unverifiable(it)
+					}
+					if (selected.entries.map { it.metadata.identity }.toSet() != batch.toSet() ||
+						selected.entries.size != batch.size) {
+						return ImportedStepsRetainedRead.Unverifiable(ImportedStepsReadFailure.MISSING)
+					}
+					for (entry in selected.entries) {
+						val product = entry.portable
+							?: return ImportedStepsRetainedRead.Unverifiable(ImportedStepsReadFailure.INTEGRITY)
+						dependencies += product.runDependencyCount()
+						if (dependencies > MAX_EXPORT_DEPENDENCIES) {
+							return ImportedStepsRetainedRead.Unverifiable(ImportedStepsReadFailure.DEPENDENCY_OVERFLOW)
+						}
+						entries += entry
+					}
+				}
+			}
+		}
+		return ImportedStepsRetainedRead.Ready(entries)
+	}
+
+	private suspend fun toV2Export(
+		retainedEntries: List<RetainedImportedStepsEntry>,
+		reconcileRetainedLegacyBinding: Boolean = true,
+	): PortableStepsV2Snapshot {
 		val result = mutableListOf<PortableStepsEntryV2>()
 		for (entry in retainedEntries) {
+			currentCoroutineContext().ensureActive()
 			val product = entry.portable
 				?: return v2Unavailable(
 					PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
 				)
 			val authenticated = try {
-				database.loadAuthenticatedImportedSessionCountDomainBinding(
-					entry,
-				)
+				if (reconcileRetainedLegacyBinding) {
+					database.loadAuthenticatedImportedSessionCountDomainBinding(entry)
+				} else {
+					// Exact export/rechecks authenticate saved data without repairing or writing it.
+					database.loadAuthenticatedImportedSessionCountDomainBinding(product)
+				}
 			} catch (_: IllegalArgumentException) {
 				return v2Unavailable(
 					PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
