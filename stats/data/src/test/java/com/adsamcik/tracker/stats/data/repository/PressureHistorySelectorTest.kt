@@ -41,6 +41,7 @@ import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureResult
+import com.adsamcik.tracker.stats.api.repository.ExportSelectedPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureResult
@@ -53,6 +54,7 @@ import com.adsamcik.tracker.stats.api.repository.PortablePressureIdentityKind
 import com.adsamcik.tracker.stats.api.repository.PortablePressureImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortablePressureOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.PortablePressureRunV1
+import com.adsamcik.tracker.stats.api.repository.PortablePressureTransferRetryableReason
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
 import com.adsamcik.tracker.stats.api.repository.PressurePortableFormatV1
@@ -67,6 +69,8 @@ import io.mockk.mockk
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.security.MessageDigest
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -77,6 +81,7 @@ import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -1970,6 +1975,158 @@ class PressureHistorySelectorTest {
 		)
 		emitted shouldBe emptyList()
 	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun exactPressureNativeSelectionIncludesAllReplacementsButNoCoincidentImportedEntry() = runTest {
+		val first = insertFixture(factSemanticRevision = 1L, laneCursor = 2L)
+		val replacement = insertReplacementFixture()
+		val unrelated = importedRetentionOnlyEntry("unrelated-entry", "unrelated-run", RUN_START_MS)
+		RoomImportPortablePressure(database, UnconfinedTestDispatcher(testScheduler)) {}
+			.importEntry(importRequest(unrelated, "unrelated")) shouldBe ImportPortablePressureResult.Applied(1L, 1, 0)
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		selectedPressureExporter(testScheduler).export(
+			selectedExportRequest(listOf(first.segmentId, replacement.segmentId, first.segmentId)),
+		) { emitted += it } shouldBe ExportPortablePressureResult.Exported(1)
+		emitted.single().identity shouldBe PortablePressureOpaqueIdentity.derive(PortablePressureIdentityKind.LOGICAL_ENTRY, LOGICAL_ID)
+		emitted.single().runs.size shouldBe 2
+		emitted.single().runs.flatMap { it.windows }.size shouldBe 2
+		emitted.single().endTimeMs shouldBe REPLACEMENT_RUN_END_MS
+		emitted.any { it.identity == unrelated.identity } shouldBe false
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun exactPressureMissingSeedFailsBeforeEmittingValidSiblingWithoutDateFallback() = runTest {
+		insertFixture(factSemanticRevision = 1L)
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		selectedPressureExporter(testScheduler).export(selectedExportRequest(listOf(SEGMENT_ID, Long.MAX_VALUE))) {
+			emitted += it
+		} shouldBe ExportPortablePressureResult.Unverifiable(PortablePressureExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	fun pressureStandaloneRangeValidatesClosedLogicalHeaderButPreservesOriginalSourceRunEnvelope() = runTest {
+		insertFixture(factSemanticRevision = 1L)
+		val reader = PortablePressureRoomReader(database, selector)
+		val first = reader.read(exportRequest()) as PortablePressureSnapshot.Ready
+		requireNotNull(database.sourceSessionDao().session(LOGICAL_ID)).cutoffAtMs shouldBe REPLACEMENT_RUN_END_MS
+		first.entries.single().runs.single().endTimeMs shouldBe RUN_END_MS
+		first.entries.single().endTimeMs shouldBe RUN_END_MS
+		val exact = reader.read(selectedExportRequest()) as PortablePressureSnapshot.Ready
+		exact.entries shouldBe first.entries
+		database.sourceSessionDao().updateSession(logicalSession().copy(cutoffAtMs = null))
+		reader.read(exportRequest()) shouldBe PortablePressureSnapshot.Outcome(
+			ExportPortablePressureResult.Unverifiable(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE))
+	}
+
+	@Test
+	fun exactPressureRetainedGapMarkerPreservesLossWithoutInventingMeasurements() = runTest {
+		val fixture = insertFixture(factSemanticRevision = null, laneCursor = 1L)
+		establishPressureRetentionFloor()
+		installPressureRetentionLoss(fixture)
+		val entry = (PortablePressureRoomReader(database, selector).read(selectedExportRequest()) as PortablePressureSnapshot.Ready)
+			.entries.single()
+		entry.runs.single().retentionLoss shouldBe true
+		entry.runs.single().windows shouldBe emptyList()
+		entry.runs.single().coverage shouldBe PortablePressureCoverage.PARTIAL
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun exactPressureNativeExportIgnoresUnrelatedRevisionButKeepsOriginalEpochFence() = runTest {
+		insertFixture(factSemanticRevision = 1L)
+		val selected = selectedExportRequest()
+		val exporter = selectedPressureExporter(testScheduler)
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		exporter.export(selected) { entry ->
+			emitted += entry
+			database.sourceEvidenceStateDao().incrementRevision(10_000L)
+		} shouldBe ExportPortablePressureResult.Exported(1)
+		emitted.size shouldBe 1
+		database.sourceEvidenceStateDao().updateLifecycle(1L, null, 11_000L)
+		emitted.clear()
+		exporter.export(selected) { emitted += it } shouldBe ExportPortablePressureResult.Unverifiable(
+			PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun exactPressureMaterializingNativeSelectionIsNotASuccessfulEmptyFile() = runTest {
+		insertFixture(factSemanticRevision = null, laneCursor = 0L)
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		selectedPressureExporter(testScheduler).export(selectedExportRequest()) { emitted += it } shouldBe
+			ExportPortablePressureResult.Unverifiable(PortablePressureExportUnverifiableReason.ENTRY_MATERIALIZING)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun exactPressureDeletedNativeMembershipDuringSinkInvalidatesCompletionOutsideRoomSnapshot() = runTest {
+		insertFixture(factSemanticRevision = 1L, laneCursor = 2L)
+		insertReplacementFixture()
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		selectedPressureExporter(testScheduler).export(selectedExportRequest()) { entry ->
+			emitted += entry
+			database.sessionSegmentDao().deleteById(SEGMENT_ID)
+		} shouldBe ExportPortablePressureResult.RetryableFailure(PortablePressureTransferRetryableReason.CONCURRENT_STATE_CHANGE)
+		emitted.single().runs.size shouldBe 2 // consumer must discard this staged child on failure
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun exactPressureNativeAndIdenticalImportedSelectionsExportOneStableTypedEntry() = runTest {
+		insertFixture(factSemanticRevision = 1L)
+		val local = (PortablePressureRoomReader(database, selector).read(selectedExportRequest()) as PortablePressureSnapshot.Ready)
+			.entries.single()
+		RoomImportPortablePressure(database, UnconfinedTestDispatcher(testScheduler)) {}
+			.importEntry(importRequest(local, "exact-copy")) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		selectedPressureExporter(testScheduler).export(selectedExportRequest(imported = listOf(local.identity))) {
+			emitted += it
+		} shouldBe ExportPortablePressureResult.Exported(1)
+		emitted shouldBe listOf(local)
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun exactPressureConflictingNativeAndImportedContentFailsBeforeAnySinkCall() = runTest {
+		insertFixture(factSemanticRevision = 1L)
+		val local = (PortablePressureRoomReader(database, selector).read(selectedExportRequest()) as PortablePressureSnapshot.Ready)
+			.entries.single()
+		val divergent = PortablePressureEntryV1.create(local.identity, local.startTimeMs, local.endTimeMs,
+			listOf(local.runs.single().copy(capturedForWholeRun = false, coverage = PortablePressureCoverage.PARTIAL)))
+		RoomImportPortablePressure(database, UnconfinedTestDispatcher(testScheduler)) {}
+			.importEntry(importRequest(divergent, "divergent-selected")) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		selectedPressureExporter(testScheduler).export(selectedExportRequest(imported = listOf(local.identity))) {
+			emitted += it
+		} shouldBe ExportPortablePressureResult.Unverifiable(PortablePressureExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun exactPressureSinkCancellationPropagatesWithoutRetryableSuccess() = runTest {
+		insertFixture(factSemanticRevision = 1L)
+		var emitted = 0
+		assertFailsWith<CancellationException> {
+			selectedPressureExporter(testScheduler).export(selectedExportRequest()) {
+				emitted++
+				throw CancellationException("cancel selected child")
+			}
+		}
+		emitted shouldBe 1
+	}
+
+	@OptIn(ExperimentalCoroutinesApi::class)
+	private fun selectedPressureExporter(scheduler: TestCoroutineScheduler) = RoomExportPortablePressure(
+		PortablePressureRoomReader(database, selector), UnconfinedTestDispatcher(scheduler))
+	private fun selectedExportRequest(native: List<Long> = listOf(SEGMENT_ID),
+		imported: List<PortablePressureOpaqueIdentity> = emptyList()) =
+		ExportSelectedPortablePressureRequest(native, imported, 0L)
 
 	private fun exportRequest() = ExportPortablePressureRequest(
 		fromInclusiveMs = RUN_START_MS,

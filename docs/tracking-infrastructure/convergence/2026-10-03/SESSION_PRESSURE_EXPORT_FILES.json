@@ -1,0 +1,179 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "phase": "IMPLEMENTATION_ONLY",
+  "owner": "/root/transfer_adversary_1003",
+  "freeze_date": "2026-10-04",
+  "base_head_parent_supplied": "2d01ed0ee411bf2bc48d4c45fe070de6b945f102",
+  "path_count": 6,
+  "new_authored_test_cases": 20,
+  "tests_executed": false,
+  "gates_executed": false,
+  "git_operations_performed": false,
+  "selection_patch": "docs/tracking-infrastructure/convergence/2026-10-03/SESSION_PRESSURE_EXPORT_SELECTION.patch",
+  "selection_patch_sha256": "9a30b96910eca488573d392fe709b4848184321591efbb7dd4a4f9727977eea8",
+  "paths": [
+    {
+      "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/PressurePortableTransfer.kt",
+      "selected_before_sha256": "fce01906d8b80c8dbdb6c5604bdcd0422e26a78a3f558aadc0b101892c9914c1",
+      "selected_after_sha256": "7a228737e81b2e514f2290702a69940d098ffd449c37cedc97a98bac1491a46c",
+      "actual_working_sha256": "7a228737e81b2e514f2290702a69940d098ffd449c37cedc97a98bac1491a46c",
+      "selection": "clean-at-start tracked delta; entire task-related delta selected",
+      "clean_at_start_parent_supplied_base": "e183d7485778b28d341f736bf4ef4a31e01b69a8",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PortablePressureRoomReader.kt",
+      "selected_before_sha256": "6ce1a7ab0e192426aac49ad3f443ec6a0f0398b0dc41c5938c09c2107449f43b",
+      "selected_after_sha256": "6a635809b66ba252707beb9551cbe6baf1d40df41695c7608171c9d1822d84ad",
+      "actual_working_sha256": "6a635809b66ba252707beb9551cbe6baf1d40df41695c7608171c9d1822d84ad",
+      "selection": "clean-at-start tracked delta; entire task-related delta selected",
+      "clean_at_start_parent_supplied_base": "e183d7485778b28d341f736bf4ef4a31e01b69a8",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortablePressure.kt",
+      "selected_before_sha256": "3ff921022ef860357fd59c7a32b936b057756663280672cc64e9240967900bf6",
+      "selected_after_sha256": "33671149418111c0f425f0ba1206b0c638af6ec92706fa48cd5f8c19471a5830",
+      "actual_working_sha256": "33671149418111c0f425f0ba1206b0c638af6ec92706fa48cd5f8c19471a5830",
+      "selection": "clean-at-start tracked delta; entire task-related delta selected",
+      "clean_at_start_parent_supplied_base": "e183d7485778b28d341f736bf4ef4a31e01b69a8",
+      "new_authored_test_cases": 0
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "selected_before_sha256": "21c33bc660b6456f0a78b392288a95f3fd03b747c634b57cb52ab34565316582",
+      "selected_after_sha256": "8be37fe46eaa239694018f7dcf19957c127993c501b377b713b57de40294d609",
+      "actual_working_sha256": "8be37fe46eaa239694018f7dcf19957c127993c501b377b713b57de40294d609",
+      "selection": "clean-at-start tracked delta; entire task-related delta selected",
+      "clean_at_start_parent_supplied_base": "e183d7485778b28d341f736bf4ef4a31e01b69a8",
+      "new_authored_test_cases": 10
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluatorTest.kt",
+      "selected_before_sha256": "e3a02b0c54bbe95f5693b5a56bc02e6c914cef7c030ace8eca6b4604d1a8ce17",
+      "selected_after_sha256": "7ba48323cf15712663b0b6b84529162a6382d54daef600abf3993e46d60b10ee",
+      "actual_working_sha256": "7ba48323cf15712663b0b6b84529162a6382d54daef600abf3993e46d60b10ee",
+      "selection": "clean-at-start tracked delta; entire task-related delta selected",
+      "clean_at_start_parent_supplied_base": "e183d7485778b28d341f736bf4ef4a31e01b69a8",
+      "new_authored_test_cases": 9
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporterTest.kt",
+      "selected_before_sha256": "4ee507eec4622554d62f73054c15d20ef3419f03aca05f0f018c105d8cb22e42",
+      "selected_after_sha256": "46a005ba7b1557b541bc70fee2c55d9fe19da84fe7d6c2bac0eea8abd542cf99",
+      "actual_working_sha256": "46a005ba7b1557b541bc70fee2c55d9fe19da84fe7d6c2bac0eea8abd542cf99",
+      "selection": "clean-at-start tracked delta; entire task-related delta selected",
+      "clean_at_start_parent_supplied_base": "2d01ed0ee411bf2bc48d4c45fe070de6b945f102",
+      "new_authored_test_cases": 1
+    }
+  ],
+  "authored_cases": [
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "name": "exactPressureNativeSelectionIncludesAllReplacementsButNoCoincidentImportedEntry",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "name": "exactPressureMissingSeedFailsBeforeEmittingValidSiblingWithoutDateFallback",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "name": "pressureStandaloneRangeValidatesClosedLogicalHeaderButPreservesOriginalSourceRunEnvelope",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "name": "exactPressureRetainedGapMarkerPreservesLossWithoutInventingMeasurements",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "name": "exactPressureNativeExportIgnoresUnrelatedRevisionButKeepsOriginalEpochFence",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "name": "exactPressureMaterializingNativeSelectionIsNotASuccessfulEmptyFile",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "name": "exactPressureDeletedNativeMembershipDuringSinkInvalidatesCompletionOutsideRoomSnapshot",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "name": "exactPressureNativeAndIdenticalImportedSelectionsExportOneStableTypedEntry",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "name": "exactPressureConflictingNativeAndImportedContentFailsBeforeAnySinkCall",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "name": "exactPressureSinkCancellationPropagatesWithoutRetryableSuccess",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluatorTest.kt",
+      "name": "exact imported Pressure export excludes coincident entries and deduplicates requested IDs",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluatorTest.kt",
+      "name": "exact imported Pressure export uses the current corrected record with its original identity",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluatorTest.kt",
+      "name": "missing exact imported Pressure ID fails before any valid selected record is emitted",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluatorTest.kt",
+      "name": "missing selected imported Pressure window cannot be replaced by another record at the same time",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluatorTest.kt",
+      "name": "correction during selected Pressure sink invalidates completion without holding a Room transaction",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluatorTest.kt",
+      "name": "selected Pressure keeps original epoch before emission and during final reread",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluatorTest.kt",
+      "name": "saving an unselected Pressure record during export does not invalidate chosen content",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluatorTest.kt",
+      "name": "retention of selected imported Pressure data remains unavailable for exact reexport",
+      "executed": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluatorTest.kt",
+      "name": "exact imported Pressure selection traverses every source batch without a hidden partial tail",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporterTest.kt",
+      "name": "Pressure codec preserves saved source ending before session cutoff without extending measurements",
+      "executed": false
+    }
+  ],
+  "excluded": [
+    "All other working or untracked paths and held drafts",
+    "Session bundle preview/write port, Hilt, UI, caller and metadata/import integration",
+    "Pending retrospective timestamp filtering and overlapping imported radio/native Steps file membership",
+    "Validation, provider activation, integration or runtime readiness claims"
+  ],
+  "verification_boundary": "Static source inspection only. Nineteen authored Room cases plus one actual JSON codec case; separate module fixtures, no executed or single authored Room-to-codec cross-module chain."
+}

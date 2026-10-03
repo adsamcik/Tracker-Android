@@ -6,6 +6,7 @@ import com.adsamcik.tracker.impexp.portable.pressureEntry
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressure
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureResult
+import com.adsamcik.tracker.stats.api.repository.ExportSelectedPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.PortablePressureEntrySink
 import com.adsamcik.tracker.stats.api.repository.PortablePressureEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortablePressureExportUnverifiableReason
@@ -130,6 +131,26 @@ class PortablePressureExporterTest {
 		result.isSuccess shouldBe false
 	}
 
+	@Test
+	fun `Pressure codec preserves saved source ending before session cutoff without extending measurements`() = runTest {
+		val original = pressureEntry()
+		val savedRun = original.runs.single().copy(startTimeMs = 1_000L, endTimeMs = 2_000L)
+		val sourceEntry = PortablePressureEntryV1.create(original.identity, savedRun.startTimeMs,
+			savedRun.endTimeMs, listOf(savedRun))
+		val output = ByteArrayOutputStream()
+		val exporter = PortablePressureExporter(exporterProvider = { fakeExporter { request, sink ->
+			request shouldBe ExportPortablePressureRequest(1_000L, 3_000L)
+			sink.emit(sourceEntry)
+			ExportPortablePressureResult.Exported(1)
+		} })
+		exporter.export(mockk(relaxed = true), emptySequence(), output, 1_000L..2_999L) shouldBe ExportResult.Success(1)
+		val decoded = mutableListOf<PortablePressureEntryV1>()
+		PortablePressureJsonV1Codec().decode(ByteArrayInputStream(output.toByteArray()), PortablePressureEntrySink { decoded += it })
+		decoded shouldContainExactly listOf(sourceEntry)
+		decoded.single().endTimeMs shouldBe 2_000L
+		decoded.single().runs.single().windows shouldBe original.runs.single().windows
+	}
+
 	private fun fakeExporter(
 		block: suspend (
 			ExportPortablePressureRequest,
@@ -140,5 +161,10 @@ class PortablePressureExporterTest {
 			request: ExportPortablePressureRequest,
 			sink: PortablePressureEntrySink,
 		): ExportPortablePressureResult = block(request, sink)
+
+		override suspend fun export(
+			request: ExportSelectedPortablePressureRequest,
+			sink: PortablePressureEntrySink,
+		): ExportPortablePressureResult = error("Standalone date export must not use exact session selection")
 	}
 }

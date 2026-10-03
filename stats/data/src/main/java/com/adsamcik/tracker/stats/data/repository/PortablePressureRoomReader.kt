@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureResult
+import com.adsamcik.tracker.stats.api.repository.ExportSelectedPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.PORTABLE_PRESSURE_ENTRY_ORDER
 import com.adsamcik.tracker.stats.api.repository.PORTABLE_PRESSURE_RUN_ORDER
 import com.adsamcik.tracker.stats.api.repository.PORTABLE_PRESSURE_WINDOW_ORDER
@@ -53,6 +54,92 @@ internal class PortablePressureRoomReader @Inject constructor(
 				)
 			}
 		}
+
+	suspend fun read(request: ExportSelectedPortablePressureRequest): PortablePressureSnapshot =
+		database.withTransaction {
+			try {
+				readSelectedInTransaction(request)
+			} catch (abort: PortablePressureSnapshotAbort) {
+				PortablePressureSnapshot.Outcome(ExportPortablePressureResult.Unverifiable(abort.reason))
+			}
+		}
+
+	private suspend fun readSelectedInTransaction(
+		request: ExportSelectedPortablePressureRequest,
+	): PortablePressureSnapshot {
+		currentCoroutineContext().ensureActive()
+		val state = database.sourceEvidenceStateDao().get()
+		if (state == null || state.collectedDataEpoch != request.expectedCollectedDataEpoch ||
+			database.collectedDataDeletionOperationDao().activeRetentionFloorSettlement() != null) {
+			abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		}
+		val entries = linkedMapOf<PortablePressureOpaqueIdentity, PortablePressureEntryV1>()
+		var runCount = 0
+		var windowCount = 0
+		fun addEntry(entry: PortablePressureEntryV1) {
+			val previous = entries[entry.identity]
+			if (previous != null) {
+				if (previous != entry) abort(PortablePressureExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
+				return
+			}
+			runCount += entry.runs.size
+			windowCount += entry.runs.sumOf { it.windows.size }
+			if (entries.size >= PressurePortableFormatV1.MAX_ENTRIES ||
+				runCount > PressurePortableFormatV1.MAX_TOTAL_RUNS ||
+				windowCount > PressurePortableFormatV1.MAX_TOTAL_WINDOWS) {
+				abort(PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW)
+			}
+			entries[entry.identity] = entry
+		}
+		for (selectedIds in request.nativeSegmentIds.distinct().chunked(CANDIDATE_PAGE_SIZE)) {
+			currentCoroutineContext().ensureActive()
+			val seeds = database.trackingHistoryReadDao().segments(selectedIds)
+			if (seeds.map { it.id }.toSet() != selectedIds.toSet()) {
+				abort(PortablePressureExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			}
+			val physical = selector.selectManyInTransaction(seeds,
+				memberBudget = CANDIDATE_PAGE_SIZE * PressurePortableFormatV1.MAX_RUNS_PER_ENTRY)
+			val logical = composeWithOriginalHeaders(physical)
+			for (seed in seeds) {
+				currentCoroutineContext().ensureActive()
+				val entry = logical.singleOrNull { group -> group.physicalMembers.any { it.segment.id == seed.id } }
+					?: abort(PortablePressureExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+				portableEntry(entry)?.let(::addEntry)
+			}
+		}
+		for (selectedIds in request.importedEntryIdentities.distinct().chunked(CANDIDATE_PAGE_SIZE)) {
+			currentCoroutineContext().ensureActive()
+			val candidates = database.importedPressureDao().selectedHistoryCandidates(selectedIds.map { it.value })
+			val byIdentity = candidates.groupBy { it.identity }
+			if (byIdentity.keys != selectedIds.mapTo(hashSetOf()) { it.value } || byIdentity.values.any { it.size != 1 }) {
+				abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+			}
+			for (candidate in candidates) {
+				currentCoroutineContext().ensureActive()
+				when (val evaluation = importedEvaluator.evaluateCandidateInTransaction(candidate)) {
+					is ImportedPressureHistoryEvaluation.Readable -> {
+						if (!evaluation.isReExportable) abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+						addEntry(evaluation.latest.entry)
+					}
+					is ImportedPressureHistoryEvaluation.Retained -> abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+					is ImportedPressureHistoryEvaluation.Unverifiable -> abort(
+						if (evaluation.reason == ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW)
+							PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW
+						else PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+				}
+			}
+		}
+		return if (entries.isEmpty()) PortablePressureSnapshot.Outcome(ExportPortablePressureResult.NoEntries)
+			else PortablePressureSnapshot.Ready(entries.values.sortedWith(PORTABLE_PRESSURE_ENTRY_ORDER))
+	}
+
+	private suspend fun composeWithOriginalHeaders(
+		physical: List<PressurePhysicalHistory>,
+	): List<PressureLogicalHistoryEntry> {
+		val logicalIds = physical.mapNotNull { it.segment.logicalTrackingId }.distinct()
+		return PressureLogicalHistoryComposer.compose(physical,
+			database.sourceSessionDao().sessions(logicalIds).associateBy { it.logicalTrackingId })
+	}
 
 	private suspend fun readInTransaction(
 		request: ExportPortablePressureRequest,
@@ -114,7 +201,7 @@ internal class PortablePressureRoomReader @Inject constructor(
 				segments = page.map { it.segment },
 				memberBudget = CANDIDATE_PAGE_SIZE * PressurePortableFormatV1.MAX_RUNS_PER_ENTRY,
 			)
-			val logicalById = PressureLogicalHistoryComposer.compose(physical).mapNotNull { entry ->
+			val logicalById = composeWithOriginalHeaders(physical).mapNotNull { entry ->
 				(entry.identity as? PressureHistoryEntryIdentity.Logical)?.let { identity ->
 					identity.logicalTrackingId to entry
 				}
@@ -192,16 +279,16 @@ internal class PortablePressureRoomReader @Inject constructor(
 
 		val runs = entry.physicalMembers.map(::portableRun).sortedWith(PORTABLE_PRESSURE_RUN_ORDER)
 		if (runs.none { it.windows.isNotEmpty() || it.retentionLoss }) return null
-		val bounds = entry.originalClosedBounds
-			?: abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		if (entry.originalClosedBounds == null) abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 		return portableValue {
 			PortablePressureEntryV1.create(
 				identity = PortablePressureOpaqueIdentity.derive(
 					PortablePressureIdentityKind.LOGICAL_ENTRY,
 					identity.logicalTrackingId,
 				),
-				startTimeMs = bounds.startTimeMs,
-				endTimeMs = bounds.endTimeMs,
+				// The source file preserves original run bounds. Session organization is separate.
+				startTimeMs = runs.minOf(PortablePressureRunV1::startTimeMs),
+				endTimeMs = runs.maxOf(PortablePressureRunV1::endTimeMs),
 				runs = runs,
 			)
 		}

@@ -197,6 +197,13 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   `SESSION_LOCATION_EXPORT_FRESH_REVIEW_1003.md`; none ran. Shared preview/write,
   source exclusions and the full bundle product flow remain unfinished.
 
+- [x] Select exact session Pressure export as a backend prerequisite using existing
+  native segment seeds, imported identities, epoch and source qualification.
+  The existing missing-header/range-envelope defects are repaired without changing
+  file identity, format or measurements. Six source paths and 20 authored Room/codec
+  cases are independently reviewed in `SESSION_PRESSURE_EXPORT_FRESH_REVIEW_1004.md`;
+  none ran. Full shared preview/write, organization and final handoff stay open.
+
 The approved displayed-day History is being authored. The isolated imported-radio
 export-date candidate slice is source-reviewed for narrow selection. Neither
 selects the complete held History or exporter definitions. Global imported-radio ownership currently uses a capped

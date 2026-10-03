@@ -246,6 +246,14 @@ remain held. No test or gate has run.
   rows preserve descriptive dual origins for session-export reuse. None ran.
 
 ## Remaining in these slices
+- [x] Select exact session Pressure reading as a six-path prerequisite. The existing
+  source selector/evaluator owns native replacement and exact imported selection;
+  original epoch and typed-content rechecks ignore unrelated source revisions.
+  Both range/exact readers load the original closed logical header, while file
+  bounds preserve the original source-run envelope required by the existing codec.
+  Twenty new Room/codec cases are authored and independently statically reviewed
+  in `../2026-10-03/SESSION_PRESSURE_EXPORT_FRESH_REVIEW_1004.md`; none ran. Shared
+  session preview/write, organization/final handoff and complete bundle UI remain open.
 - [x] Select exact-session Location file reading/staging as a four-path backend
   prerequisite. Twenty-four Room/exporter/codec cases are authored and independently
   statically reviewed. Existing epoch/organization/retention/deletion fences and

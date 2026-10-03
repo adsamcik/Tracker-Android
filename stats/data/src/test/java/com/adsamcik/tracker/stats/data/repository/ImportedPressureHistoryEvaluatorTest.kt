@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureResult
+import com.adsamcik.tracker.stats.api.repository.ExportSelectedPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
@@ -30,6 +31,7 @@ import com.adsamcik.tracker.stats.api.repository.PortablePressureImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortablePressureOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.PortablePressureRunV1
 import com.adsamcik.tracker.stats.api.repository.PortablePressureSensorAccuracy
+import com.adsamcik.tracker.stats.api.repository.PortablePressureTransferRetryableReason
 import com.adsamcik.tracker.stats.api.repository.PortablePressureWindowClosure
 import com.adsamcik.tracker.stats.api.repository.PortablePressureWindowQualification
 import com.adsamcik.tracker.stats.api.repository.PortablePressureWindowV1
@@ -1036,6 +1038,139 @@ class ImportedPressureHistoryEvaluatorTest {
 			target.close()
 		}
 	}
+
+	@Test
+	fun `exact imported Pressure export excludes coincident entries and deduplicates requested IDs`() = runTest {
+		val chosen = entry(entryLocalId = "chosen", runLocalId = "chosen-run", windowLocalId = "chosen-window")
+		val unrelated = entry(entryLocalId = "other", runLocalId = "other-run", windowLocalId = "other-window")
+		val writer = importer(database, testScheduler)
+		writer.importEntry(request(chosen)) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		writer.importEntry(request(unrelated, receipt("job-other", "entry-other"))) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		exporter(database, testScheduler).export(selectedExportRequest(listOf(chosen.identity, chosen.identity))) {
+			emitted += it
+		} shouldBe ExportPortablePressureResult.Exported(1)
+		emitted shouldBe listOf(chosen)
+	}
+
+	@Test
+	fun `exact imported Pressure export uses the current corrected record with its original identity`() = runTest {
+		val original = entry()
+		val corrected = entry(wallTimeUncertaintyMs = 26L)
+		val writer = importer(database, testScheduler)
+		writer.importEntry(request(original)) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		writer.importEntry(request(corrected, receipt("job-correction", "entry-correction", 40L))) shouldBe
+			ImportPortablePressureResult.Applied(2L, 1, 1)
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		exporter(database, testScheduler).export(selectedExportRequest(listOf(original.identity))) { emitted += it } shouldBe
+			ExportPortablePressureResult.Exported(1)
+		emitted shouldBe listOf(corrected)
+		emitted.single().runs.single().windows.single().wallTimeUncertaintyMs shouldBe 26L
+	}
+
+	@Test
+	fun `missing exact imported Pressure ID fails before any valid selected record is emitted`() = runTest {
+		val chosen = entry()
+		importer(database, testScheduler).importEntry(request(chosen)) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		exporter(database, testScheduler).export(selectedExportRequest(listOf(chosen.identity,
+			identity(PortablePressureIdentityKind.LOGICAL_ENTRY, "missing")))) { emitted += it } shouldBe
+			ExportPortablePressureResult.Unverifiable(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	fun `missing selected imported Pressure window cannot be replaced by another record at the same time`() = runTest {
+		val chosen = entry()
+		val unrelated = entry(entryLocalId = "other", runLocalId = "other-run", windowLocalId = "other-window")
+		val writer = importer(database, testScheduler)
+		writer.importEntry(request(chosen)) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		writer.importEntry(request(unrelated, receipt("job-other", "entry-other"))) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		database.openHelper.writableDatabase.execSQL("DELETE FROM imported_pressure_window WHERE entry_identity = ?",
+			arrayOf(chosen.identity.value))
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		exporter(database, testScheduler).export(selectedExportRequest(listOf(chosen.identity))) { emitted += it } shouldBe
+			ExportPortablePressureResult.Unverifiable(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	fun `correction during selected Pressure sink invalidates completion without holding a Room transaction`() = runTest {
+		val original = entry()
+		val corrected = entry(wallTimeUncertaintyMs = 26L)
+		val writer = importer(database, testScheduler)
+		writer.importEntry(request(original)) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		exporter(database, testScheduler).export(selectedExportRequest(listOf(original.identity))) {
+			emitted += it
+			writer.importEntry(request(corrected, receipt("job-correction", "entry-correction", 40L))) shouldBe
+				ImportPortablePressureResult.Applied(2L, 1, 1)
+		} shouldBe ExportPortablePressureResult.RetryableFailure(PortablePressureTransferRetryableReason.CONCURRENT_STATE_CHANGE)
+		emitted shouldBe listOf(original) // staged child must be discarded after the non-success result
+	}
+
+	@Test
+	fun `selected Pressure keeps original epoch before emission and during final reread`() = runTest {
+		val chosen = entry()
+		importer(database, testScheduler).importEntry(request(chosen)) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		val selected = selectedExportRequest(listOf(chosen.identity))
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		val exporter = exporter(database, testScheduler)
+		exporter.export(selected.copy(expectedCollectedDataEpoch = EPOCH - 1L)) { emitted += it } shouldBe
+			ExportPortablePressureResult.Unverifiable(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		emitted shouldBe emptyList()
+		exporter.export(selected) {
+			emitted += it
+			database.sourceEvidenceStateDao().updateLifecycle(EPOCH + 1L, null, 50L)
+		} shouldBe ExportPortablePressureResult.RetryableFailure(PortablePressureTransferRetryableReason.CONCURRENT_STATE_CHANGE)
+		emitted shouldBe listOf(chosen)
+	}
+
+	@Test
+	fun `saving an unselected Pressure record during export does not invalidate chosen content`() = runTest {
+		val chosen = entry()
+		val unrelated = entry(entryLocalId = "other", runLocalId = "other-run", windowLocalId = "other-window")
+		val writer = importer(database, testScheduler)
+		writer.importEntry(request(chosen)) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		val revision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		exporter(database, testScheduler).export(selectedExportRequest(listOf(chosen.identity))) {
+			emitted += it
+			writer.importEntry(request(unrelated, receipt("job-other", "entry-other"))) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+			database.sourceEvidenceStateDao().incrementRevision(50L)
+		} shouldBe ExportPortablePressureResult.Exported(1)
+		(requireNotNull(database.sourceEvidenceStateDao().get()).revision > revision) shouldBe true
+		emitted shouldBe listOf(chosen)
+	}
+
+	@Test
+	fun `retention of selected imported Pressure data remains unavailable for exact reexport`() = runTest {
+		val chosen = entry()
+		importer(database, testScheduler).importEntry(request(chosen)) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		retainImportedEntries(testScheduler)
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		exporter(database, testScheduler).export(selectedExportRequest(listOf(chosen.identity))) { emitted += it } shouldBe
+			ExportPortablePressureResult.Unverifiable(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	fun `exact imported Pressure selection traverses every source batch without a hidden partial tail`() = runTest {
+		val selected = (0..5).map { index -> entry(entryLocalId = "entry:$index",
+			runLocalId = "run:$index", windowLocalId = "window:$index") }
+		val writer = importer(database, testScheduler)
+		selected.forEachIndexed { index, entry ->
+			writer.importEntry(request(entry, receipt("job:$index", "entry:$index"))) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		}
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		exporter(database, testScheduler).export(selectedExportRequest(selected.map { it.identity })) { emitted += it } shouldBe
+			ExportPortablePressureResult.Exported(selected.size)
+		emitted.toSet() shouldBe selected.toSet()
+		emitted.size shouldBe selected.size
+	}
+
+	private fun selectedExportRequest(identities: List<PortablePressureOpaqueIdentity>) =
+		ExportSelectedPortablePressureRequest(emptyList(), identities, EPOCH)
 
 	private suspend fun evaluate(
 		database: AppDatabase,

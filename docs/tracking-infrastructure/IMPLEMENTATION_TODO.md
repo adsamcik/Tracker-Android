@@ -1,6 +1,6 @@
 # Tracking Infrastructure Completion TODO
 
-Last updated: 2026-10-03
+Last updated: 2026-10-04
 
 ## Current continuation
 
@@ -114,6 +114,17 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
   do not reject the export. Four paths and 24 authored Room/exporter cases are
   independently reviewed in `SESSION_LOCATION_EXPORT_FRESH_REVIEW_1003.md`; none
   ran. Full six-source preview, bundle port and detail UI remain open.
+
+### October 4 source milestones
+
+- [x] Select exact session Pressure export as a six-path backend prerequisite.
+  Native original replacement groups and exact imported IDs retain source-owned
+  qualification, original epoch and selected-content rechecks after sink I/O.
+  Repair the existing native range reader's missing closed header and preserve
+  the saved source-run envelope required by the existing codec. Twenty new cases
+  are authored, unexecuted and independently reviewed in
+  `SESSION_PRESSURE_EXPORT_FRESH_REVIEW_1004.md`. Shared preview/write, organization
+  and final handoff fencing, UI and whole bundle integration remain open.
 
 These are selected implementation slices. All 25 full-chain prerequisites and the
 assembly/convergence/device/integration gates remain open.

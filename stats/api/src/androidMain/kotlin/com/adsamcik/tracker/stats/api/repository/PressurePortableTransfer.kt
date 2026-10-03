@@ -11,6 +11,21 @@ data class ExportPortablePressureRequest(
 	}
 }
 
+/** Exact saved records for a session bundle; a native seed includes its original replacement group. */
+data class ExportSelectedPortablePressureRequest(
+	val nativeSegmentIds: List<Long>,
+	val importedEntryIdentities: List<PortablePressureOpaqueIdentity>,
+	val expectedCollectedDataEpoch: Long,
+) {
+	init {
+		require(expectedCollectedDataEpoch >= 0L)
+		require(nativeSegmentIds.all { it > 0L })
+		require(nativeSegmentIds.size <= PressurePortableFormatV1.MAX_TOTAL_RUNS)
+		require(importedEntryIdentities.size <= PressurePortableFormatV1.MAX_ENTRIES)
+		require(nativeSegmentIds.isNotEmpty() || importedEntryIdentities.isNotEmpty())
+	}
+}
+
 /** Receives one fully authenticated logical Pressure entry. */
 fun interface PortablePressureEntrySink {
 	suspend fun emit(entry: PortablePressureEntryV1)
@@ -24,6 +39,16 @@ interface ExportPortablePressure {
 	 */
 	suspend fun export(
 		request: ExportPortablePressureRequest,
+		sink: PortablePressureEntrySink,
+	): ExportPortablePressureResult
+
+	/**
+	 * Selects only the named native groups/imported entries, without a date fallback. Missing or
+	 * changed selected data fails the transfer; unrelated sources do not invalidate this snapshot.
+	 * The sink remains responsible for discarding staged bytes when export does not succeed.
+	 */
+	suspend fun export(
+		request: ExportSelectedPortablePressureRequest,
 		sink: PortablePressureEntrySink,
 	): ExportPortablePressureResult
 }
