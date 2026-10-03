@@ -194,3 +194,7 @@ The user said only `master` was released. This checkout and the read-only remote
 head inventory contain `main`, with no `master` ref. Mapping that branch to the
 released baseline is awaiting the user's answer; older notes calling schema 12
 on `main` the released baseline are not independent confirmation of that mapping.
+
+**October 3 answer:** the user confirmed that `master` meant `main`. The earlier
+pending attribution is now resolved. Current answers and the reduced unanswered
+list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS.md).

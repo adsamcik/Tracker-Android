@@ -1,8 +1,13 @@
 # Tracking Infrastructure Completion TODO
 
-Last updated: 2026-09-30
+Last updated: 2026-10-03
 
 ## Current continuation
+
+October 3 decisions supersede earlier pending-question labels; see
+`convergence/2026-10-03/DECISION_STATUS.md`. Temporary radio export storage, the
+native Wi-Fi format marker, released `main` attribution and three period-metric
+rules are approved. Their implementation/review remains separate from approval.
 
 The current source-assembly progress is maintained in
 `convergence/2026-09-30/IMPLEMENTATION_PROGRESS.md`; the dated sections below are

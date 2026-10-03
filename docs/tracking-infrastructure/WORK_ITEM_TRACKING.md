@@ -656,13 +656,18 @@ authored source and static review only, **IMPLEMENTED_UNVALIDATED**.
   order/checksums and cancellation (`0e66e216b1`); full exporter callers stay held.
 - [ ] Resolve exact duplicate/overlapping file membership and finish whole radio
   exporters, bundle export, history and cleanup/restore chains.
-- [ ] Confirm which present ref is the user-named released `master` baseline;
-  the current local and remote head inventory contain `main` and no `master`.
+- [x] Confirm which present ref is the user-named released `master` baseline:
+  the user confirmed `main` on October 3. Migration implementation/proof remains open.
 - [ ] Freeze all production/test inputs, execute convergence and independent final
   review, obtain device evidence and integrate locally only after the result is ready.
 
 Checked items mean authored source plus static review, **IMPLEMENTED_UNVALIDATED**.
 All 25 full-chain prerequisites remain open. No validation or integration ran.
+
+**October 3 decision update:** the user confirmed `master` meant `main` and
+approved temporary radio export storage, the Wi-Fi format marker, complete trips
+by start date, streaks within the selected period and seasonal visits/revisits.
+See `convergence/2026-10-03/DECISION_STATUS.md` for the reduced unanswered list.
 
 
 ### Settings and product surfaces continuation (2026-09-27)
