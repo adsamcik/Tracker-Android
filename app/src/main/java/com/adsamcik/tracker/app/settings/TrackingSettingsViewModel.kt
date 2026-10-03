@@ -504,9 +504,14 @@ class TrackingSettingsViewModel internal constructor(
 		}
     }
 
-    fun onActivityPermissionResult(@Suppress("UNUSED_PARAMETER") granted: Boolean) = refreshSourcePermissions()
+    fun onActivityPermissionResult(@Suppress("UNUSED_PARAMETER") granted: Boolean) {
+        refreshSourcePermissions()
+        // A permission change leaves the policy revision unchanged; its cached reconciliation
+        // cannot rearm the system Steps provider or restore its import work.
+        refreshStepsProviderPermissionState()
+    }
 
-    fun onStepsPermissionResult(@Suppress("UNUSED_PARAMETER") granted: Boolean) = refreshSourcePermissions()
+    fun onStepsPermissionResult(granted: Boolean) = onActivityPermissionResult(granted)
 
     fun onWifiPermissionResult(@Suppress("UNUSED_PARAMETER") granted: Boolean) = refreshSourcePermissions()
 
@@ -565,13 +570,11 @@ class TrackingSettingsViewModel internal constructor(
 		}
     }
 
-    @Suppress("UNUSED_PARAMETER")
     fun onAutoTrackingPermissionResult(requestedMode: Int, granted: Boolean) {
         require(requestedMode in AUTO_TRACKING_MODE_DISABLED..AUTO_TRACKING_MODE_ALL_MOVEMENT)
         // The choice was saved before launch. A late grant is capability, never permission to
         // restore the request's old mode after the user has selected Off or another mode.
-        refreshPermissionState()
-        retrySourcePolicyReconciliation()
+        onActivityPermissionResult(granted)
     }
 
     fun setNotificationStyled(enabled: Boolean) {

@@ -122,6 +122,13 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Repair all-day Steps recovery after motion permission is granted through
+  Steps, Activity, automatic tracking or Location assistance. Reuse the existing
+  current-choice provider owner refresh even when policy reconciliation is cached;
+  preserve disabled choices and Turn off fencing. Three source paths and six new
+  ViewModel cases/eight callback scenarios are independently reviewed, unexecuted.
+  Receipt: `convergence/2026-10-04/ALL_DAY_STEPS_PERMISSION_SELECTED/SOURCE_REVIEW.md`.
+  Actual permission delivery, provider execution and full Steps readiness are open.
 - [x] Select the independently reviewed measured-radio writer/read prerequisite:
   fourteen source paths preserve real callback timing and recover older clipped
   spans without changing IDs or measurement dates. Fractional millisecond bounds

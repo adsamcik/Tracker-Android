@@ -98,10 +98,10 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
 	val locationSettingsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
 		trackingVm.refreshPermissionState()
 	}
-	val motionAssistanceLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-		// Permission completion is observation only. It cannot enable Activity or revive old intent.
-		trackingVm.refreshPermissionState()
-	}
+	val motionAssistanceLauncher = rememberLauncherForActivityResult(
+		ActivityResultContracts.RequestPermission(),
+		trackingVm::onActivityPermissionResult,
+	)
 	LaunchedEffect(trackingVm, context) {
 		trackingVm.locationPermissionEvents.collect { request ->
 			if (!trackingVm.isCurrentLocationPermissionRequest(request)) return@collect

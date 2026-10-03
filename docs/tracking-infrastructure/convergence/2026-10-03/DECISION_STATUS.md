@@ -112,6 +112,11 @@ behavior choice still needs a concrete proposal under AGENTS.md.
 
 ## Current implementation activity
 
+- [x] Repair the cached-policy all-day Steps permission gap across all four
+  motion-permission routes, reusing the existing current-choice owner refresh.
+  Three paths and six authored cases/eight callback scenarios are independently
+  reviewed, unexecuted; disabled choices and Off fencing remain intact. Receipt:
+  `../2026-10-04/ALL_DAY_STEPS_PERMISSION_SELECTED/SOURCE_REVIEW.md`.
 - [x] Select fourteen measured-radio writer/read paths after fresh combined review.
   Preserve callback-to-earliest timing and older identities; fractional elapsed
   spans round lower bounds outward. Epoch/erase filtering and per-row invalid

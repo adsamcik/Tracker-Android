@@ -1,0 +1,296 @@
+diff --git a/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt b/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt
+index b182c35f34..adfc141c82 100644
+--- a/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt
+@@ -504,9 +504,14 @@ class TrackingSettingsViewModel internal constructor(
+ 		}
+     }
+ 
+-    fun onActivityPermissionResult(@Suppress("UNUSED_PARAMETER") granted: Boolean) = refreshSourcePermissions()
++    fun onActivityPermissionResult(@Suppress("UNUSED_PARAMETER") granted: Boolean) {
++        refreshSourcePermissions()
++        // A permission change leaves the policy revision unchanged; its cached reconciliation
++        // cannot rearm the system Steps provider or restore its import work.
++        refreshStepsProviderPermissionState()
++    }
+ 
+-    fun onStepsPermissionResult(@Suppress("UNUSED_PARAMETER") granted: Boolean) = refreshSourcePermissions()
++    fun onStepsPermissionResult(granted: Boolean) = onActivityPermissionResult(granted)
+ 
+     fun onWifiPermissionResult(@Suppress("UNUSED_PARAMETER") granted: Boolean) = refreshSourcePermissions()
+ 
+@@ -565,13 +570,11 @@ class TrackingSettingsViewModel internal constructor(
+ 		}
+     }
+ 
+-    @Suppress("UNUSED_PARAMETER")
+     fun onAutoTrackingPermissionResult(requestedMode: Int, granted: Boolean) {
+         require(requestedMode in AUTO_TRACKING_MODE_DISABLED..AUTO_TRACKING_MODE_ALL_MOVEMENT)
+         // The choice was saved before launch. A late grant is capability, never permission to
+         // restore the request's old mode after the user has selected Off or another mode.
+-        refreshPermissionState()
+-        retrySourcePolicyReconciliation()
++        onActivityPermissionResult(granted)
+     }
+ 
+     fun setNotificationStyled(enabled: Boolean) {
+diff --git a/app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt b/app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt
+index 82dfa1157c..1b9b668385 100644
+--- a/app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt
+@@ -98,10 +98,10 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {})
+ 	val locationSettingsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+ 		trackingVm.refreshPermissionState()
+ 	}
+-	val motionAssistanceLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+-		// Permission completion is observation only. It cannot enable Activity or revive old intent.
+-		trackingVm.refreshPermissionState()
+-	}
++	val motionAssistanceLauncher = rememberLauncherForActivityResult(
++		ActivityResultContracts.RequestPermission(),
++		trackingVm::onActivityPermissionResult,
++	)
+ 	LaunchedEffect(trackingVm, context) {
+ 		trackingVm.locationPermissionEvents.collect { request ->
+ 			if (!trackingVm.isCurrentLocationPermissionRequest(request)) return@collect
+diff --git a/app/src/test/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModelTest.kt b/app/src/test/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModelTest.kt
+index f096cf7b31..0b8b3ddcc0 100644
+--- a/app/src/test/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModelTest.kt
++++ b/app/src/test/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModelTest.kt
+@@ -22,6 +22,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReco
+ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationDebt
+ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationResult
+ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationState
++import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicySnapshot
+ import com.adsamcik.tracker.shared.preferences.tracking.UnavailableSourcePolicyRevisionReconciliationCoordinator
+ import com.adsamcik.tracker.tracker.source.battery.QualitativeBatteryImpactEstimator
+ import com.adsamcik.tracker.tracker.source.coordinator.DefaultTrackingSettingsStatusProvider
+@@ -581,6 +582,228 @@ class TrackingSettingsViewModelTest {
+ 			paramsFlow.value.stepsEnabled shouldBe true
+ 		}
+ 
++	@Test
++	fun `Steps grant rechecks its owner when the unchanged policy already reports complete`() =
++		runTest(testDispatcher) {
++			paramsFlow.value = paramsFlow.value.copy(stepsEnabled = true, ambientStepsEnabled = true)
++			permissionsGranted = false
++			val original = paramsFlow.value
++			val snapshot = mockk<SourcePolicySnapshot>()
++			every { snapshot.revision } returns requireNotNull(original.sourcePolicyRevision)
++			val coordinator = mockk<SourcePolicyRevisionReconciliationCoordinator>()
++			every { coordinator.reconciliationState } returns MutableStateFlow(
++				SourcePolicyRevisionReconciliationState.Complete(snapshot.revision),
++			)
++			coEvery { coordinator.reconcileCurrentPolicyRevision() } returns
++				SourcePolicyRevisionReconciliationResult.Complete(snapshot)
++			val ownerPermissionReads = mutableListOf<Boolean>()
++			val vm = TrackingSettingsViewModel(
++				context, trackingParamsRepository, trackingStatusProvider,
++				activityWatcherController, purposeAvailabilityReader, coordinator,
++				purposeSettingsReconciler = TrackingPurposeSettingsReconciler {
++					ownerPermissionReads += permissionsGranted
++					TrackingPurposeSettingsReconciliationResult.Complete(setOf(AmbientTrackingSource.STEPS))
++				},
++				activityPermissionProbe = { permissionsGranted },
++			)
++			advanceUntilIdle()
++
++			permissionsGranted = true
++			vm.onStepsPermissionResult(true)
++			advanceUntilIdle()
++
++			ownerPermissionReads shouldBe listOf(true)
++			coVerify(exactly = 1) { coordinator.reconcileCurrentPolicyRevision() }
++			paramsFlow.value shouldBe original
++			vm.uiState.value.activityPermissionGranted shouldBe true
++			vm.uiState.value.stepsProviderRepairFailed shouldBe false
++			coVerify(exactly = 0) { trackingParamsRepository.setStepsEnabled(any()) }
++		}
++
++	@Test
++	fun `Activity and automatic grants refresh selected Steps without rewriting their saved choices`() =
++		runTest(testDispatcher) {
++			val completions: List<(TrackingSettingsViewModel) -> Unit> = listOf(
++				{ it.onActivityPermissionResult(true) },
++				{ it.onAutoTrackingPermissionResult(2, true) },
++			)
++			for (complete in completions) {
++				paramsFlow.value = paramsFlow.value.copy(
++					stepsEnabled = true, ambientStepsEnabled = true, activityEnabled = false,
++					autoTrackingMode = 0,
++				)
++				permissionsGranted = false
++				val original = paramsFlow.value
++				val ownerPermissionReads = mutableListOf<Boolean>()
++				val vm = TrackingSettingsViewModel(
++					context, trackingParamsRepository, trackingStatusProvider,
++					activityWatcherController, purposeAvailabilityReader,
++					purposeSettingsReconciler = TrackingPurposeSettingsReconciler {
++						ownerPermissionReads += permissionsGranted
++						TrackingPurposeSettingsReconciliationResult.Complete(setOf(AmbientTrackingSource.STEPS))
++					},
++					activityPermissionProbe = { permissionsGranted },
++				)
++				advanceUntilIdle()
++
++				permissionsGranted = true
++				complete(vm)
++				advanceUntilIdle()
++
++				ownerPermissionReads shouldBe listOf(true)
++				paramsFlow.value shouldBe original
++				vm.uiState.value.activityPermissionGranted shouldBe true
++			}
++			coVerify(exactly = 0) { trackingParamsRepository.setStepsEnabled(any()) }
++			coVerify(exactly = 0) { trackingParamsRepository.setActivityEnabled(any()) }
++			coVerify(exactly = 0) { trackingParamsRepository.update(any()) }
++			coVerify(exactly = 0) { activityWatcherController.applyAutoTrackingMode(any()) }
++		}
++
++	@Test
++	fun `Activity and automatic permission callbacks keep Turn off and disabled Steps intact`() =
++		runTest(testDispatcher) {
++			val completions: List<(TrackingSettingsViewModel) -> Unit> = listOf(
++				{ it.onActivityPermissionResult(true) },
++				{ it.onAutoTrackingPermissionResult(2, true) },
++			)
++			val lifecycle = mockk<TrackingLifecycleCommandAuthority>(relaxed = true)
++			every { lifecycle.pendingCollectionResumeExitId } returns "turn-off:another-permission-route"
++			for (complete in completions) {
++				paramsFlow.value = paramsFlow.value.copy(stepsEnabled = false, ambientStepsEnabled = false)
++				val original = paramsFlow.value
++				val ownerSelections = mutableListOf<Pair<Boolean, String?>>()
++				val vm = TrackingSettingsViewModel(
++					context, trackingParamsRepository, trackingStatusProvider,
++					activityWatcherController, purposeAvailabilityReader,
++					lifecycleCommandAuthority = lifecycle,
++					purposeSettingsReconciler = TrackingPurposeSettingsReconciler {
++						ownerSelections += paramsFlow.value.stepsEnabled to lifecycle.pendingCollectionResumeExitId
++						TrackingPurposeSettingsReconciliationResult.Complete(setOf(AmbientTrackingSource.STEPS))
++					},
++					activityPermissionProbe = { permissionsGranted },
++				)
++				advanceUntilIdle()
++
++				complete(vm)
++				advanceUntilIdle()
++
++				ownerSelections shouldBe listOf(false to "turn-off:another-permission-route")
++				paramsFlow.value shouldBe original
++				vm.uiState.value.trackingTurnedOff shouldBe true
++			}
++			coVerify(exactly = 0) { lifecycle.resumeCollectionAfterUserExit(any()) }
++			coVerify(exactly = 0) { trackingParamsRepository.setStepsEnabled(any()) }
++		}
++
++	@Test
++	fun `Steps callback rechecks missing permission instead of trusting an old grant result`() =
++		runTest(testDispatcher) {
++			paramsFlow.value = paramsFlow.value.copy(stepsEnabled = true, ambientStepsEnabled = true)
++			permissionsGranted = false
++			val original = paramsFlow.value
++			val ownerPermissionReads = mutableListOf<Boolean>()
++			val vm = TrackingSettingsViewModel(
++				context, trackingParamsRepository, trackingStatusProvider,
++				activityWatcherController, purposeAvailabilityReader,
++				purposeSettingsReconciler = TrackingPurposeSettingsReconciler {
++					ownerPermissionReads += permissionsGranted
++					val unavailable = AmbientSourceOperationalAvailability(
++						source = AmbientTrackingSource.STEPS,
++						state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
++						mechanism = AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
++						reason = AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED,
++					)
++					purposeAvailabilityFlow.value = purposeAvailabilityFlow.value.copy(
++						ambientSources = purposeAvailabilityFlow.value.ambientSources +
++							(AmbientTrackingSource.STEPS to unavailable),
++					)
++					TrackingPurposeSettingsReconciliationResult.Complete(setOf(AmbientTrackingSource.STEPS))
++				},
++				activityPermissionProbe = { permissionsGranted },
++			)
++			advanceUntilIdle()
++
++			vm.onStepsPermissionResult(true)
++			advanceUntilIdle()
++
++			ownerPermissionReads shouldBe listOf(false)
++			paramsFlow.value shouldBe original
++			vm.uiState.value.activityPermissionGranted shouldBe false
++			vm.uiState.value.ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).state shouldBe
++				AmbientSourceOperationalState.PERMISSION_REQUIRED
++			coVerify(exactly = 0) { trackingParamsRepository.setStepsEnabled(any()) }
++		}
++
++	@Test
++	fun `late Steps grant reconciles the disabled choice without enabling it again`() =
++		runTest(testDispatcher) {
++			paramsFlow.value = paramsFlow.value.copy(stepsEnabled = false, ambientStepsEnabled = false)
++			val original = paramsFlow.value
++			val ownerSelections = mutableListOf<Boolean>()
++			val vm = TrackingSettingsViewModel(
++				context, trackingParamsRepository, trackingStatusProvider,
++				activityWatcherController, purposeAvailabilityReader,
++				purposeSettingsReconciler = TrackingPurposeSettingsReconciler {
++					ownerSelections += paramsFlow.value.stepsEnabled
++					TrackingPurposeSettingsReconciliationResult.Complete(setOf(AmbientTrackingSource.STEPS))
++				},
++				activityPermissionProbe = { permissionsGranted },
++			)
++			advanceUntilIdle()
++
++			vm.onStepsPermissionResult(true)
++			advanceUntilIdle()
++
++			ownerSelections shouldBe listOf(false)
++			paramsFlow.value shouldBe original
++			coVerify(exactly = 0) { trackingParamsRepository.setStepsEnabled(any()) }
++		}
++
++	@Test
++	fun `late Steps grant after Turn off rechecks the owner without acknowledging the stop`() =
++		runTest(testDispatcher) {
++			paramsFlow.value = paramsFlow.value.copy(stepsEnabled = true, ambientStepsEnabled = true)
++			permissionsGranted = false
++			val original = paramsFlow.value
++			var pendingExit: String? = null
++			val lifecycle = mockk<TrackingLifecycleCommandAuthority>(relaxed = true)
++			every { lifecycle.pendingCollectionResumeExitId } answers { pendingExit }
++			val ownerStops = mutableListOf<String?>()
++			val vm = TrackingSettingsViewModel(
++				context, trackingParamsRepository, trackingStatusProvider,
++				activityWatcherController, purposeAvailabilityReader,
++				lifecycleCommandAuthority = lifecycle,
++				purposeSettingsReconciler = TrackingPurposeSettingsReconciler {
++					ownerStops += lifecycle.pendingCollectionResumeExitId
++					TrackingPurposeSettingsReconciliationResult.Complete(setOf(AmbientTrackingSource.STEPS))
++				},
++				activityPermissionProbe = { permissionsGranted },
++			)
++			advanceUntilIdle()
++			mockkObject(TrackerServiceApi)
++			try {
++				coEvery { TrackerServiceApi.turnOffTrackingAndAwait(context, any()) } coAnswers {
++					pendingExit = "turn-off:permission-race"
++					TrackingTurnOffResult.COMPLETE
++				}
++				vm.turnOffTracking()
++				advanceUntilIdle()
++				permissionsGranted = true
++				vm.onStepsPermissionResult(true)
++				advanceUntilIdle()
++
++				ownerStops shouldBe listOf("turn-off:permission-race")
++				pendingExit shouldBe "turn-off:permission-race"
++				paramsFlow.value shouldBe original
++				vm.uiState.value.trackingTurnedOff shouldBe true
++				coVerify(exactly = 0) { lifecycle.resumeCollectionAfterUserExit(any()) }
++				coVerify(exactly = 0) { trackingParamsRepository.setStepsEnabled(any()) }
++			} finally {
++				unmockkObject(TrackerServiceApi)
++			}
++		}
++
+     @Test
+     fun `late source grants refresh actual capability and cannot revive selections`() = runTest(testDispatcher) {
+         val vm = createViewModel()

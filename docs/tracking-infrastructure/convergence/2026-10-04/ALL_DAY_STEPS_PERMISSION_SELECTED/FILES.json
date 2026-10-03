@@ -1,0 +1,48 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "date": "2026-10-04",
+  "base_head": "eea8e76ac393c65ea7040bd2bd55dbeb51c3e6b8",
+  "files": [
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt",
+      "selection": "clean-at-start owned path; approved shared motion permission completion or its focused cases",
+      "base_sha256": "9c2cb325479dca9e6d85aa913e54f0513f6d9859bc9c9f854e25dfc9d194f51c",
+      "working_before_sha256": "9c2cb325479dca9e6d85aa913e54f0513f6d9859bc9c9f854e25dfc9d194f51c",
+      "selected_sha256": "6e0145339b1a645b3cdf4da05121a9e99e3970c91ae33711e44fddb63eccb59f",
+      "actual_sha256": "6e0145339b1a645b3cdf4da05121a9e99e3970c91ae33711e44fddb63eccb59f"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModelTest.kt",
+      "selection": "clean-at-start owned path; approved shared motion permission completion or its focused cases",
+      "base_sha256": "b95ab3a4c2ee23242e09aad88f28595a1b4913dd1d911058a1c3a1c2e7b0baf1",
+      "working_before_sha256": "b95ab3a4c2ee23242e09aad88f28595a1b4913dd1d911058a1c3a1c2e7b0baf1",
+      "selected_sha256": "523e14488e326bfbba51c861883540d9534b26dad6bad77a3e52f4f29e92a637",
+      "actual_sha256": "523e14488e326bfbba51c861883540d9534b26dad6bad77a3e52f4f29e92a637"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt",
+      "selection": "clean-at-start owned path; approved shared motion permission completion or its focused cases",
+      "base_sha256": "33a191c89b19d8de020c65883af135a928de4a779c965bfcfff4a896df8baf61",
+      "working_before_sha256": "33a191c89b19d8de020c65883af135a928de4a779c965bfcfff4a896df8baf61",
+      "selected_sha256": "1d7e42930d0c04093b81c945151df2276aa8ac72c80a8af81851db7c9925918f",
+      "actual_sha256": "1d7e42930d0c04093b81c945151df2276aa8ac72c80a8af81851db7c9925918f"
+    }
+  ],
+  "selection_patch_sha256": "058fc74350aa179d2d9332d33771cf097107f1d510c6e0bdee7c4f6696595bca",
+  "new_authored_cases": 6,
+  "dependencies": [
+    "Existing TrackingSettingsViewModel.refreshStepsProviderPermissionState and production TrackingPurposeSettingsReconciler binding",
+    "Existing built-in Steps purpose owner -> AmbientStepsProviderLifecycleOwner -> AmbientStepsImportWorkScheduler",
+    "Existing hourly WorkManager worker -> 30-second Runner -> count-domain/epoch-aware Room importer",
+    "Existing retained Steps numeric/history repositories and their UI consumers; no new storage, API, UI or dependency"
+  ],
+  "remaining": [
+    "All new cases are source-only; no executed compilation, tests, Hilt, Room, device, lifecycle or battery evidence",
+    "Provider availability, actual system permissions, OEM/Android WorkManager cadence and real read/cancellation behavior require final device evidence",
+    "Real ActivityResult callback delivery/Android permission UI remains unexecuted; Location motion launcher binding is statically traced, not exercised by the content-only Compose fixture",
+    "Source rollout containment remains unchanged; this packet does not activate providers or declare full Steps/assembly completion"
+  ],
+  "authored_callback_scenarios": 8,
+  "repair": "Use onActivityPermissionResult for the shared actual motion-permission completion; Steps and automatic callbacks delegate while automatic requestedMode validation and saved-choice fencing remain unchanged; Location assistance launcher binds the same completion"
+}

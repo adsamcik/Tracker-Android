@@ -20,6 +20,13 @@ description of its earlier input; this file records subsequent repair progress.
 
 ## Authored slices and local commit receipts
 
+- October 4 shared motion-permission recovery for selected all-day Steps is
+  independently reviewed. Existing owner refresh runs after Activity, Steps,
+  automatic and Location-assistance callbacks without restoring old intent.
+  Three paths and six authored ViewModel cases/eight callback scenarios remain
+  unexecuted. Exact selection/review:
+  `../2026-10-04/ALL_DAY_STEPS_PERMISSION_SELECTED/SOURCE_REVIEW.md`.
+  Real launcher delivery and the full Steps/device chain remain open.
 - October 4 measured-radio writer/read prerequisite is independently reviewed:
   fourteen selected source paths retain callback-to-measurement timing, recover
   older midnight-clipped spans and use conservative fractional lower bounds.
