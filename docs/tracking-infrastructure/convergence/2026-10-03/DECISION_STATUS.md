@@ -74,6 +74,16 @@ behavior choice still needs a concrete proposal under AGENTS.md.
 - [ ] Trace and implement period metrics through real dated source data, including
   missing evidence and correction/deletion behavior; never substitute All-time.
 - [ ] Update source-selection receipts and checklists after each coherent commit.
+- [ ] Complete transfer cancellation and physical draining through the existing
+  startup boundary, including GPX/map-image shares and scheduled enqueue fences.
+  The implementation seam is traced in `TRANSFER_CLEAR_QUIESCENCE_SOURCE_TRACE.md`;
+  this fulfills already approved cleanup behavior, without another user question.
+
+The approved displayed-day History and isolated imported-radio export-date
+candidate slices are being authored. Neither selects the complete held History
+or exporter definitions. Global imported-radio ownership currently uses a capped
+native census; exact selected-owner lookup remains a separate required gap. Do
+not introduce a hash scan/function or new reverse lookup merely to bypass its cap.
 
 The radio staging slice now has an independent static review receipt at
 `../2026-09-30/RADIO_EXPORT_SPOOL_FRESH_REVIEW_1003.md`; its complete exporter
