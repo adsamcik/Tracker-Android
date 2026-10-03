@@ -1,0 +1,43 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "phase": "IMPLEMENTATION_ONLY",
+  "owner": "/root/transfer_adversary_1003",
+  "scope": "Existing Statistics consumer for saved all-day Steps independent of session paging; existing retained collection foundation traced only",
+  "path_count": 4,
+  "new_authored_test_cases": 10,
+  "changed_existing_test_cases": 1,
+  "tests_executed": false,
+  "gates_executed": false,
+  "git_mutations": false,
+  "read_only_git": "exact-path status only, explicitly authorized by root",
+  "paths": [
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsRoute.kt",
+      "disposition": "entire owned delta; clean at task start",
+      "actual_sha256": "ec3dcd580daa2b4767f99dbef1171bb5e4c28f5f032ae3936d266740a013c8fa",
+      "selected_sha256": "ec3dcd580daa2b4767f99dbef1171bb5e4c28f5f032ae3936d266740a013c8fa",
+      "before_snapshot_sha256": "82d2942fb9470457fd6aacd163aeb631111ee8add7c237428b04c7bacde16dac"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsScreen.kt",
+      "disposition": "entire owned delta; clean at task start",
+      "actual_sha256": "3ab9fb03dd24969d1d23bc13c40efcadbc9b3326bf25cba5cfef99fccd56f3f0",
+      "selected_sha256": "3ab9fb03dd24969d1d23bc13c40efcadbc9b3326bf25cba5cfef99fccd56f3f0",
+      "before_snapshot_sha256": "951d69dda0ddb9d25fc22dcc0e34ff2c2a849889cebccb9a600cbff52ca9f911"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/StatsScreenComposeTest.kt",
+      "disposition": "entire owned delta; clean at task start",
+      "actual_sha256": "ee03b05f82e34e0384fdc387db7fd8987c5f0a1f95e054baa4f68a4dff159709",
+      "selected_sha256": "ee03b05f82e34e0384fdc387db7fd8987c5f0a1f95e054baa4f68a4dff159709",
+      "before_snapshot_sha256": "8cab4261625697048d6ee03722e54477763a2148e3b53c5c008df095b771b1b9"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-cs-rCZ/strings.xml",
+      "disposition": "entire owned delta; clean at task start",
+      "actual_sha256": "7d6ab0995b19156ae5fb1fd05ec02b7d5b03b809b0a3ce1679508e603b7f0204",
+      "selected_sha256": "7d6ab0995b19156ae5fb1fd05ec02b7d5b03b809b0a3ce1679508e603b7f0204",
+      "before_snapshot_sha256": "11ad9298f095302fa77d04403e6667cff3d469378bc4332abc749b2a861b5742"
+    }
+  ]
+}

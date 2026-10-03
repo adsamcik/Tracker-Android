@@ -5,11 +5,16 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -33,6 +38,7 @@ import com.adsamcik.tracker.statistics.fragment.shouldCollectWeeklyStepsSummary
 import com.adsamcik.tracker.statistics.viewmodel.DayBar
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import org.junit.Rule
 import org.junit.Test
@@ -366,14 +372,287 @@ class StatsScreenComposeTest {
 	}
 
 	@Test
-	fun `qualified Steps collection is limited to sparse content visibility`() {
-		RefreshUiState.Loading.shouldCollectWeeklyStepsSummary(visibleSessionCount = 1) shouldBe false
-		RefreshUiState.Empty.shouldCollectWeeklyStepsSummary(visibleSessionCount = 1) shouldBe false
-		RefreshUiState.Error.shouldCollectWeeklyStepsSummary(visibleSessionCount = 1) shouldBe false
-		RefreshUiState.Content.shouldCollectWeeklyStepsSummary(visibleSessionCount = 0) shouldBe false
+	fun `qualified Steps collection includes sessionless sparse content`() {
+		RefreshUiState.Loading.shouldCollectWeeklyStepsSummary(visibleSessionCount = 1) shouldBe true
+		RefreshUiState.Empty.shouldCollectWeeklyStepsSummary(visibleSessionCount = 0) shouldBe true
+		RefreshUiState.Error.shouldCollectWeeklyStepsSummary(visibleSessionCount = 1) shouldBe true
+		RefreshUiState.Content.shouldCollectWeeklyStepsSummary(visibleSessionCount = 0) shouldBe true
 		RefreshUiState.Content.shouldCollectWeeklyStepsSummary(visibleSessionCount = 1) shouldBe true
 		RefreshUiState.Content.shouldCollectWeeklyStepsSummary(visibleSessionCount = 2) shouldBe true
 		RefreshUiState.Content.shouldCollectWeeklyStepsSummary(visibleSessionCount = 3) shouldBe false
+	}
+
+	@Test
+	fun `saved all-day Steps render without sessions and keep Summary and History reachable`() {
+		val today = LocalDate.now().toEpochDay()
+		val summaries = MutableStateFlow<StepsNumericSummary>(
+			StepsNumericSummary.Ready(listOf(StepsNumericDay(today, 42L))),
+		)
+		var summaryOpened = false
+		var historyOpened = false
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				SessionlessStepsStatistics(
+					summaries = summaries,
+					weeklyBars = listOf(DayBar("Today", distanceM = 0f, epochDay = today)),
+					onShowSummary = { summaryOpened = true },
+					onNavigateToHistory = { historyOpened = true },
+				)
+			}
+		}
+		composeTestRule.waitForIdle()
+		summaries.subscriptionCount.value shouldBe 1
+		composeTestRule.onNode(hasText("42") and hasAncestor(hasTestTag("stats_summary_steps")))
+			.assertIsDisplayed()
+		composeTestRule.onNode(hasText("1") and hasAncestor(hasTestTag("stats_summary_active_days")))
+			.assertIsDisplayed()
+		composeTestRule.onNodeWithContentDescription("Today, 42").assertIsDisplayed()
+		composeTestRule.onNodeWithText("Distance").assertDoesNotExist()
+		composeTestRule.onNodeWithText("Start Tracking").assertDoesNotExist()
+		composeTestRule.onNodeWithText("No tracking sessions yet").assertDoesNotExist()
+		composeTestRule.onNodeWithText("Summary").performClick()
+		composeTestRule.onNodeWithText("History").performScrollTo().performClick()
+		summaryOpened shouldBe true
+		historyOpened shouldBe true
+	}
+
+	@Test
+	fun `sessionless covered zero remains a measured Steps zero`() {
+		val today = LocalDate.now().toEpochDay()
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				SessionlessStepsStatistics(
+					summaries = remember {
+						MutableStateFlow<StepsNumericSummary>(
+							StepsNumericSummary.Ready(listOf(StepsNumericDay(today, 0L))),
+						)
+					},
+					weeklyBars = listOf(DayBar("Today", distanceM = 0f, epochDay = today)),
+				)
+			}
+		}
+		composeTestRule.waitForIdle()
+		composeTestRule.onNode(hasText("0") and hasAncestor(hasTestTag("stats_summary_steps")))
+			.assertIsDisplayed()
+		composeTestRule.onNode(hasText("0") and hasAncestor(hasTestTag("stats_summary_active_days")))
+			.assertIsDisplayed()
+		composeTestRule.onNodeWithContentDescription("Today, 0").assertIsDisplayed()
+		composeTestRule.onNodeWithText("Distance").assertDoesNotExist()
+		composeTestRule.onNodeWithText("Start Tracking").assertDoesNotExist()
+	}
+
+	@Test
+	fun `sessionless retained Steps updates keep waiting partial and unavailable states nonnumeric`() {
+		val today = LocalDate.now().toEpochDay()
+		val summaries = MutableStateFlow<StepsNumericSummary>(StepsNumericSummary.Materializing)
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				SessionlessStepsStatistics(
+					summaries = summaries,
+					weeklyBars = listOf(DayBar("Today", distanceM = 0f, epochDay = today)),
+				)
+			}
+		}
+		composeTestRule.waitForIdle()
+		composeTestRule.onNodeWithText("Updating…").assertIsDisplayed()
+		composeTestRule.onNodeWithText("Start Tracking").assertDoesNotExist()
+		composeTestRule.onNode(hasText("N/A") and hasAncestor(hasTestTag("stats_summary_active_days")))
+			.assertIsDisplayed()
+
+		composeTestRule.runOnIdle {
+			summaries.value = StepsNumericSummary.Ready(listOf(StepsNumericDay(today, 53L)))
+		}
+		composeTestRule.waitForIdle()
+		composeTestRule.onNode(hasText("53") and hasAncestor(hasTestTag("stats_summary_steps")))
+			.assertIsDisplayed()
+
+		listOf(
+			StepsNumericUnverifiableReason.PARTIAL_CAPTURE to "Incomplete",
+			StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE to "Unavailable",
+			StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE to "Unavailable",
+			StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE to "Unavailable",
+		).forEach { (reason, text) ->
+			composeTestRule.runOnIdle { summaries.value = StepsNumericSummary.Unverifiable(reason) }
+			composeTestRule.waitForIdle()
+			composeTestRule.onNodeWithText(text).assertIsDisplayed()
+			composeTestRule.onNode(hasText("53") and hasAncestor(hasTestTag("stats_summary_steps")))
+				.assertDoesNotExist()
+			composeTestRule.onNodeWithText("Start Tracking").assertDoesNotExist()
+			composeTestRule.onNode(hasText("N/A") and hasAncestor(hasTestTag("stats_summary_active_days")))
+				.assertIsDisplayed()
+			composeTestRule.onNodeWithContentDescription("Today, —").assertIsDisplayed()
+		}
+	}
+
+	@Test
+	fun `sessionless not-captured data keeps existing Start action and History access`() {
+		val summaries = MutableStateFlow<StepsNumericSummary>(
+			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED),
+		)
+		var started = false
+		var historyOpened = false
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				SessionlessStepsStatistics(
+					summaries = summaries,
+					onStartTracking = { started = true },
+					onNavigateToHistory = { historyOpened = true },
+				)
+			}
+		}
+		composeTestRule.waitForIdle()
+		composeTestRule.onNodeWithText("Start Tracking").performScrollTo().performClick()
+		composeTestRule.onNodeWithText("History").performScrollTo().performClick()
+		composeTestRule.onNodeWithTag("stats_sparse_summary").assertDoesNotExist()
+		started shouldBe true
+		historyOpened shouldBe true
+	}
+
+	@Test
+	fun `known weekly activity without qualified Steps keeps data actions instead of Start prompt`() {
+		val today = LocalDate.now().toEpochDay()
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				SessionlessStepsStatistics(
+					summaries = remember {
+						MutableStateFlow<StepsNumericSummary>(
+							StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED),
+						)
+					},
+					weeklyBars = listOf(
+						DayBar("Today", distanceM = 0f, durationMs = 60_000L, epochDay = today),
+					),
+				)
+			}
+		}
+		composeTestRule.waitForIdle()
+		composeTestRule.onNodeWithText("Not captured").assertIsDisplayed()
+		composeTestRule.onNodeWithText("Start Tracking").assertDoesNotExist()
+		composeTestRule.onNodeWithText("Summary").assertHasClickAction()
+		composeTestRule.onNodeWithText("History").assertHasClickAction()
+	}
+
+	@Test
+	fun `empty saved Steps screen never inserts test placeholder sessions`() {
+		val today = LocalDate.now().toEpochDay()
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				StatsScreen(
+					refreshState = RefreshUiState.Empty,
+					appendState = AppendUiState.NotLoading,
+					onRetry = {},
+					onShowSummary = {},
+					onShowWeek = {},
+					onOpenWifi = {},
+					weeklyBars = listOf(DayBar("Today", distanceM = 0f, epochDay = today)),
+					weeklyStepsSummary = StepsNumericSummary.Ready(listOf(StepsNumericDay(today, 19L))),
+				)
+			}
+		}
+		composeTestRule.onNode(hasText("19") and hasAncestor(hasTestTag("stats_summary_steps")))
+			.assertIsDisplayed()
+		composeTestRule.onNodeWithText("session").assertDoesNotExist()
+		composeTestRule.onNodeWithText("Distance").assertDoesNotExist()
+	}
+
+	@Test
+	@Config(qualifiers = "cs-rCZ")
+	fun `Czech sessionless empty copy does not claim all recorded data is absent`() {
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				StatsScreen(
+					refreshState = RefreshUiState.Empty,
+					appendState = AppendUiState.NotLoading,
+					onRetry = {},
+					onShowSummary = {},
+					onShowWeek = {},
+					onOpenWifi = {},
+				)
+			}
+		}
+		composeTestRule.onNodeWithText("Zatím žádné relace").assertIsDisplayed()
+		composeTestRule.onNodeWithText("Nebyly nalezeny žádné záznamy. Zatím.").assertDoesNotExist()
+	}
+
+	@Test
+	fun `session paging loading does not hide saved all-day Steps`() {
+		val summaries = MutableStateFlow<StepsNumericSummary>(
+			StepsNumericSummary.Ready(listOf(StepsNumericDay(LocalDate.now().toEpochDay(), 32L))),
+		)
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				SessionlessStepsStatistics(summaries = summaries, refreshState = RefreshUiState.Loading)
+			}
+		}
+		composeTestRule.waitForIdle()
+		summaries.subscriptionCount.value shouldBe 1
+		composeTestRule.onNodeWithText("Loading sessions…").assertIsDisplayed()
+		composeTestRule.onNode(hasText("32") and hasAncestor(hasTestTag("stats_summary_steps")))
+			.performScrollTo().assertIsDisplayed()
+		composeTestRule.onNode(hasText("1") and hasAncestor(hasTestTag("stats_summary_active_days")))
+			.assertIsDisplayed()
+		composeTestRule.onNodeWithText("Distance").assertDoesNotExist()
+		composeTestRule.onNodeWithText("Start Tracking").assertDoesNotExist()
+		composeTestRule.onNodeWithText("Summary").assertHasClickAction()
+	}
+
+	@Test
+	fun `session paging failure preserves retained Steps and existing Retry action`() {
+		val summaries = MutableStateFlow<StepsNumericSummary>(
+			StepsNumericSummary.Ready(listOf(StepsNumericDay(LocalDate.now().toEpochDay(), 44L))),
+		)
+		var retried = false
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				SessionlessStepsStatistics(
+					summaries = summaries,
+					refreshState = RefreshUiState.Error,
+					onRetry = { retried = true },
+				)
+			}
+		}
+		composeTestRule.waitForIdle()
+		composeTestRule.onNodeWithText("Something went wrong").assertIsDisplayed()
+		composeTestRule.onNodeWithText("Retry").performClick()
+		composeTestRule.onNode(hasText("44") and hasAncestor(hasTestTag("stats_summary_steps")))
+			.performScrollTo().assertIsDisplayed()
+		composeTestRule.onNode(hasText("1") and hasAncestor(hasTestTag("stats_summary_active_days")))
+			.assertIsDisplayed()
+		composeTestRule.onNodeWithText("Distance").assertDoesNotExist()
+		composeTestRule.onNodeWithText("Start Tracking").assertDoesNotExist()
+		composeTestRule.onNodeWithText("History").assertHasClickAction()
+		retried shouldBe true
+	}
+
+	@Test
+	fun `qualified Steps day rows and active days do not wait for session summary bars`() {
+		val today = LocalDate.of(2026, 10, 3).toEpochDay()
+		val bars = mutableStateOf(emptyList<DayBar>())
+		val summaries = MutableStateFlow<StepsNumericSummary>(
+			StepsNumericSummary.Ready(
+				listOf(StepsNumericDay(today - 1L, 6L), StepsNumericDay(today, 11L)),
+			),
+		)
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				SessionlessStepsStatistics(summaries = summaries, weeklyBars = bars.value)
+			}
+		}
+		composeTestRule.waitForIdle()
+		composeTestRule.onNode(hasText("17") and hasAncestor(hasTestTag("stats_summary_steps")))
+			.assertIsDisplayed()
+		composeTestRule.onNode(hasText("2") and hasAncestor(hasTestTag("stats_summary_active_days")))
+			.assertIsDisplayed()
+		composeTestRule.onNodeWithContentDescription("Fri, 6").assertIsDisplayed()
+		composeTestRule.onNodeWithContentDescription("Sat, 11").assertIsDisplayed()
+		composeTestRule.runOnIdle {
+			bars.value = listOf(DayBar("Today", distanceM = 0f, epochDay = today))
+		}
+		composeTestRule.waitForIdle()
+		composeTestRule.onNodeWithContentDescription("Fri, 6").assertIsDisplayed()
+		composeTestRule.onNodeWithContentDescription("Today, 11").assertIsDisplayed()
+		composeTestRule.onNode(hasText("2") and hasAncestor(hasTestTag("stats_summary_active_days")))
+			.assertIsDisplayed()
 	}
 
 	@Test
@@ -455,6 +734,36 @@ class StatsScreenComposeTest {
 			}
 		}
 		composeTestRule.onNodeWithText("Mar 15 – Apr 15").assertIsDisplayed()
+	}
+
+	@Composable
+	private fun SessionlessStepsStatistics(
+		summaries: StateFlow<StepsNumericSummary>,
+		weeklyBars: List<DayBar> = emptyList(),
+		refreshState: RefreshUiState = RefreshUiState.Empty,
+		onRetry: () -> Unit = {},
+		onShowSummary: () -> Unit = {},
+		onNavigateToHistory: () -> Unit = {},
+		onStartTracking: () -> Unit = {},
+	) {
+		val sessions = remember { flowOf(PagingData.empty<Trip>()) }.collectAsLazyPagingItems()
+		val summary = collectWeeklyStepsSummaryWhenVisible(
+			summaries = summaries,
+			visible = refreshState.shouldCollectWeeklyStepsSummary(sessions.itemCount),
+		)
+		StatsScreen(
+			refreshState = refreshState,
+			appendState = AppendUiState.NotLoading,
+			onRetry = onRetry,
+			onShowSummary = onShowSummary,
+			onShowWeek = {},
+			onOpenWifi = {},
+			onNavigateToHistory = onNavigateToHistory,
+			onStartTracking = onStartTracking,
+			sessions = sessions,
+			weeklyBars = weeklyBars,
+			weeklyStepsSummary = summary,
+		)
 	}
 
 	@Composable

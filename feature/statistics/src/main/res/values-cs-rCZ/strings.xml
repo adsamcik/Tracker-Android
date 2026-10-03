@@ -8,7 +8,7 @@
     <string name="stats_distance_total">Vzdálenost</string>
     <string name="stats_format_unknown_activity">relace</string>
     <string name="stats_location_count">Počet poloh</string>
-    <string name="stats_no_tracker_sessions">Nebyly nalezeny žádné záznamy. Zatím.</string>
+    <string name="stats_no_tracker_sessions">Zatím žádné relace</string>
     <string name="stats_empty_subtitle">Spusťte sledování a vaše aktivita se zobrazí zde</string>
     <string name="stats_session_count">Počet relací</string>
     <string name="stats_steps">Počet kroků</string>

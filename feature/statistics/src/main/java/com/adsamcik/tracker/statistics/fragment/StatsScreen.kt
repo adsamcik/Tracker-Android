@@ -176,31 +176,28 @@ fun StatsScreen(
         // Nav bar already labels this tab "Statistics" — skip a duplicate screen-level title
         // and let the header action chips sit directly at the top.
         Box(modifier = Modifier.weight(1f)) {
-            when (refreshState) {
-                RefreshUiState.Loading -> LoadingState()
-                RefreshUiState.Empty -> EmptyState(onStartTracking)
-                RefreshUiState.Error -> ErrorState(onRetry)
-                RefreshUiState.Content -> ContentState(
-                    appendState = appendState,
-                    bottomClearance = bottomClearance,
-                    onRetry = onRetry,
-                    onShowSummary = onShowSummary,
-                    onShowWeek = onShowWeek,
-                    onOpenWifi = onOpenWifi,
-                    onOpenSignalReport = onOpenSignalReport,
-                    onNavigateToHistory = onNavigateToHistory,
-                    selectedHeaderAction = selectedHeaderAction,
-                    weeklyBars = weeklyBars,
-                    weeklyStepsSummary = weeklyStepsSummary,
-                    heatmapData = heatmapData,
-                    onTripClick = onTripClick,
-                    onTripViewOnMap = onTripViewOnMap,
-                    onTripDelete = onTripDelete,
-                    onExportGpx = onExportGpx,
-                    activeDateFilterLabel = activeDateFilterLabel,
-                    pagingItems = sessions,
-                )
-            }
+            ContentState(
+                appendState = appendState,
+                bottomClearance = bottomClearance,
+                onRetry = onRetry,
+                onShowSummary = onShowSummary,
+                onShowWeek = onShowWeek,
+                onOpenWifi = onOpenWifi,
+                onOpenSignalReport = onOpenSignalReport,
+                onNavigateToHistory = onNavigateToHistory,
+                selectedHeaderAction = selectedHeaderAction,
+                weeklyBars = weeklyBars,
+                weeklyStepsSummary = weeklyStepsSummary,
+                heatmapData = heatmapData,
+                onTripClick = onTripClick,
+                onTripViewOnMap = onTripViewOnMap,
+                onTripDelete = onTripDelete,
+                onExportGpx = onExportGpx,
+                activeDateFilterLabel = activeDateFilterLabel,
+                pagingItems = sessions,
+                sessionRefreshState = refreshState,
+                onStartTracking = onStartTracking,
+            )
         }
     }
 }
@@ -300,9 +297,16 @@ private fun ContentState(
     onExportGpx: (Trip) -> Unit = {},
     activeDateFilterLabel: String? = null,
     pagingItems: LazyPagingItems<Trip>? = null,
+    sessionRefreshState: RefreshUiState = RefreshUiState.Content,
+    onStartTracking: () -> Unit = {},
 ){
-    val sessionCount = pagingItems?.itemCount ?: 5
-    val showSparseSummary = pagingItems != null && sessionCount in 1..2
+    val sessionCount = if (sessionRefreshState == RefreshUiState.Content) pagingItems?.itemCount ?: 5 else 0
+    val showEmptyCollectionPrompt = sessionRefreshState == RefreshUiState.Empty &&
+        weeklyStepsSummary == StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED) &&
+        weeklyBars.none { it.hasNonStepTrackedActivity } && heatmapData.isEmpty()
+    val showSparseSummary = (sessionRefreshState != RefreshUiState.Content || pagingItems != null) &&
+        sessionCount in 0..2 &&
+        !showEmptyCollectionPrompt
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -356,7 +360,16 @@ private fun ContentState(
             }
         }
         
-        if (pagingItems != null) {
+        when (sessionRefreshState) {
+            RefreshUiState.Loading -> item(key = "sessions_loading") { LoadingState() }
+            RefreshUiState.Error -> item(key = "sessions_error") { ErrorState(onRetry) }
+            RefreshUiState.Empty -> if (showEmptyCollectionPrompt) {
+                item(key = "empty_collection") { EmptyState(onStartTracking) }
+            }
+            RefreshUiState.Content -> Unit
+        }
+
+        if (sessionRefreshState == RefreshUiState.Content && pagingItems != null) {
             val count = pagingItems.itemCount
             
             items(count) { index ->
@@ -392,7 +405,7 @@ private fun ContentState(
                     )
                 }
             }
-        } else {
+        } else if (sessionRefreshState == RefreshUiState.Content) {
             // Placeholder state for tests
             items(5) { index -> 
                 if (index == 0) {
@@ -601,14 +614,28 @@ private fun SparseStatsSummaryCard(
     val resources = context.resources
     val settings = remember { TrackerSettingsQuick.snapshot(context) }
     val totalDistanceM = remember(weeklyBars) { weeklyBars.sumOf { it.distanceM.toDouble() }.toFloat() }
+    val summaryBars = remember(weeklyBars, weeklyStepsSummary) {
+        val ready = weeklyStepsSummary as? StepsNumericSummary.Ready
+        if (ready == null) weeklyBars else {
+            val structuralBarsByDay = weeklyBars.associateBy { it.epochDay }
+            val dayFormatter = DateTimeFormatter.ofPattern("EEE")
+            ready.days.map { day ->
+                structuralBarsByDay[day.epochDay] ?: DayBar(
+                    dayLabel = LocalDate.ofEpochDay(day.epochDay).format(dayFormatter),
+                    distanceM = 0f,
+                    epochDay = day.epochDay,
+                )
+            }
+        }
+    }
     val qualifiedStepsByEpochDay = remember(weeklyStepsSummary) {
         (weeklyStepsSummary as? StepsNumericSummary.Ready)
             ?.days
             ?.associate { it.epochDay to it.steps }
             .orEmpty()
     }
-    val activeDays = remember(weeklyBars, weeklyStepsSummary) {
-        sparseSummaryActiveDayCount(weeklyBars, weeklyStepsSummary)
+    val activeDays = remember(summaryBars, weeklyStepsSummary) {
+        sparseSummaryActiveDayCount(summaryBars, weeklyStepsSummary)
     }
     val distanceText = remember(totalDistanceM, settings) {
         resources.formatDistance(
@@ -635,38 +662,49 @@ private fun SparseStatsSummaryCard(
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
                 )
-                Text(
-                    text = pluralStringResource(
-                        R.plurals.stats_sparse_summary_subtitle,
-                        visibleSessionCount,
-                        visibleSessionCount,
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (visibleSessionCount > 0) {
+                    Text(
+                        text = pluralStringResource(
+                            R.plurals.stats_sparse_summary_subtitle,
+                            visibleSessionCount,
+                            visibleSessionCount,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                SummaryMetricCard(
-                    label = stringResource(R.string.stats_distance_total),
-                    value = distanceText,
-                    modifier = Modifier.weight(1f),
-                )
+                // This retained Steps summary does not establish Location coverage.
+                if (visibleSessionCount > 0) {
+                    SummaryMetricCard(
+                        label = stringResource(R.string.stats_distance_total),
+                        value = distanceText,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
                 SummaryMetricCard(
                     label = stringResource(R.string.stats_steps),
-                    value = (weeklyStepsSummary as? StepsNumericSummary.Ready)
-                        ?.totalSteps
-                        ?.formatReadable()
-                        ?: stringResource(R.string.stats_metric_not_available_short),
-                    modifier = Modifier.weight(1f),
+                    value = if (visibleSessionCount == 0) {
+                        weeklyStepsSummary.summaryValueText()
+                    } else {
+                        (weeklyStepsSummary as? StepsNumericSummary.Ready)
+                            ?.totalSteps
+                            ?.formatReadable()
+                            ?: stringResource(R.string.stats_metric_not_available_short)
+                    },
+                    modifier = Modifier.weight(1f).testTag("stats_summary_steps"),
                 )
                 SummaryMetricCard(
                     label = stringResource(R.string.stats_sparse_summary_active_days),
-                    value = activeDays.formatReadable(),
-                    modifier = Modifier.weight(1f),
+                    value = if (visibleSessionCount == 0 && weeklyStepsSummary !is StepsNumericSummary.Ready) {
+                        stringResource(R.string.stats_metric_not_available_short)
+                    } else activeDays.formatReadable(),
+                    modifier = Modifier.weight(1f).testTag("stats_summary_active_days"),
                 )
             }
 
@@ -681,7 +719,7 @@ private fun SparseStatsSummaryCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                weeklyBars.forEach { dayBar ->
+                summaryBars.forEach { dayBar ->
                     WeeklySummaryDayChip(
                         dayBar = dayBar,
                         qualifiedSteps = qualifiedStepsByEpochDay[dayBar.epochDay],
@@ -690,6 +728,17 @@ private fun SparseStatsSummaryCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun StepsNumericSummary.summaryValueText(): String = when (this) {
+    is StepsNumericSummary.Ready -> totalSteps.formatReadable()
+    StepsNumericSummary.Materializing -> stringResource(R.string.history_value_materializing)
+    is StepsNumericSummary.Unverifiable -> when (reason) {
+        StepsNumericUnverifiableReason.NOT_CAPTURED -> stringResource(R.string.history_value_not_captured)
+        StepsNumericUnverifiableReason.PARTIAL_CAPTURE -> stringResource(R.string.history_value_partial)
+        else -> stringResource(R.string.history_value_unavailable)
     }
 }
 

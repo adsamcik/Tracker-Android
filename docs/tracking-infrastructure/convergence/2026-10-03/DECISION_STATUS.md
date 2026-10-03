@@ -62,6 +62,13 @@ The two History/session-export answers are from `call_Aos5FHEL3IZBUbkrt10xb0Kx`.
 - [ ] Allow the longest-trip reader to calculate complete distance from exact saved
   Location members with existing continuity/gap rules. The period-by-start behavior
   is approved; changing the aggregate-only reader contract is pending.
+- [ ] Store a user-imported Location replacement beside the existing saved identity;
+  keep one visible point, apply its imported values across saved-data consumers and
+  preserve the original phone reading internally for provider replay. The bulk
+  Keep/Replace choice is approved; this storage representation is pending.
+- [ ] Show the existing seven-day Steps summary near the top independently of
+  session count, for chosen Steps or saved data, with qualified per-day values
+  and missing-data states. The new layout was presented through the questions tool.
 
 ## Stale questions removed from the blocking list
 
@@ -126,7 +133,14 @@ behavior choice still needs a concrete proposal under AGENTS.md.
   and single-file Share without unrelated trip metrics. Three authored scenarios
   are unexecuted. Exact selection and fresh review are recorded in
   `LOCATION_EXPORT_UI_SELECTION.md` and `LOCATION_EXPORT_UI_FRESH_REVIEW_1003.md`;
-  held radio UI and complete session-bundle work remain excluded.
+  commit `3291c4b15d`. Held radio UI and complete session-bundle work remain excluded.
+- [x] Connect the existing qualified Steps summary and History/Summary actions when
+  no session exists, including session-paging loading/error and delayed chart states.
+  Preserve saved Off history and withhold numbers for unqualified Steps coverage.
+  Four selected source paths and ten new unexecuted cases are recorded in
+  `ALL_DAY_STEPS_STATS_FILES.json`, `ALL_DAY_STEPS_STATS_SOURCE_BOUNDARY.md` and
+  `ALL_DAY_STEPS_STATS_FRESH_REVIEW_1003.md`. Dense-list Steps visibility and whole
+  source-aware Statistics remain separate work.
 
 The approved displayed-day History is being authored. The isolated imported-radio
 export-date candidate slice is source-reviewed for narrow selection. Neither

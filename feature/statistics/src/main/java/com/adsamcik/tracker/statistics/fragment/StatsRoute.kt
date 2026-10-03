@@ -112,7 +112,7 @@ fun StatsRoute(
 
 internal fun RefreshUiState.shouldCollectWeeklyStepsSummary(
     visibleSessionCount: Int,
-): Boolean = this == RefreshUiState.Content && visibleSessionCount in 1..2
+): Boolean = this != RefreshUiState.Content || visibleSessionCount in 0..2
 
 /** Collects the qualified Steps window only while its sparse-summary consumer can be rendered. */
 @Composable

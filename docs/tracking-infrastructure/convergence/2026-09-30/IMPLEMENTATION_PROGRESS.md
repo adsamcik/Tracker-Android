@@ -214,6 +214,11 @@ remain held. No test or gate has run.
 - [x] Select bounded selected-period daily/weekly discovery streak backend
   (`31d5340b0c`), with 27 new unexecuted scenarios. Complete period consumers,
   source correction/fanout, seasonal revisits and measured trip distance are open.
+- [x] Select the independently reviewed retained Steps Statistics consumer for
+  empty/loading/failed session paging, preserving existing actions, exact Long
+  values, unknown coverage and independently arriving day rows. Ten new scenarios
+  and one adjusted visibility case remain unexecuted; dense-list/source-aware
+  presentation and the whole all-day source chain remain open.
 
 ## Remaining in these slices
 
