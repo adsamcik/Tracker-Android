@@ -1828,6 +1828,86 @@ class SourceRegistrationRepositoryTest {
 		database.sourceEventWalDao().countAll() shouldBe 0L
 	}
 
+	@Test
+	fun `delayed passive Location survives unrelated policy rotation with unchanged consent`() = runTest {
+		val plan = installPassiveLocationRegistrationForTest()
+		val reserved = subject.beginSystemRearmableLocation(plan, 110L, 110L)
+		subject.recordLocationPlan(reserved, plan)
+		subject.markAccepted(reserved, 120L, 120L)
+		val row = requireNotNull(database.sourceBrokerDao().registration(
+			SourceKind.LOCATION.stableCode, reserved.state.registrationGeneration))
+		val identity = requireNotNull(subject.passiveLocationIdentity(row))
+		val attribution = requireNotNull(subject.passiveLocationAdmissionAt(identity, 130L)).attribution
+		val fix = Location("passive").apply {
+			latitude = 50.0; longitude = 14.0; accuracy = 10f
+			time = 130L; elapsedRealtimeNanos = 130L
+		}
+		val delivery = locationDeliveryCandidate(listOf(fix), listOf(130L), 170L, 170L,
+			attribution, approximate = false)
+		rotateUnchangedPassiveLocationPolicyForTest()
+
+		// The fix predates the unrelated change; its original request and permission remain exact.
+		subject.passiveLocationAdmissionAt(identity, 130L)?.attribution shouldBe attribution
+		assertIs<DeliveryAdmissionResult.Admitted>(passiveLocationIngressForTest().admit(delivery))
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		database.locationPurposeDao().latestRetentionAuthority(
+			AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT)?.approvalRevision shouldBe 2L
+	}
+
+	@Test
+	fun `later passive approval cannot replace missing observed-time approval in WAL admission`() = runTest {
+		val plan = installPassiveLocationRegistrationForTest()
+		val reserved = subject.beginSystemRearmableLocation(plan, 110L, 110L)
+		subject.recordLocationPlan(reserved, plan)
+		subject.markAccepted(reserved, 120L, 120L)
+		val row = requireNotNull(database.sourceBrokerDao().registration(
+			SourceKind.LOCATION.stableCode, reserved.state.registrationGeneration))
+		val identity = requireNotNull(subject.passiveLocationIdentity(row))
+		val attribution = requireNotNull(subject.passiveLocationAdmissionAt(identity, 130L)).attribution
+		val fix = Location("passive").apply {
+			latitude = 50.0; longitude = 14.0; accuracy = 10f
+			time = 130L; elapsedRealtimeNanos = 130L
+		}
+		val pending = locationDeliveryCandidate(listOf(fix), listOf(130L), 170L, 170L,
+			attribution, approximate = false)
+		rotateUnchangedPassiveLocationPolicyForTest()
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM ambient_location_retention_authority WHERE approval_revision = 1")
+		subject.passiveLocationAdmissionAt(identity, 130L) shouldBe null
+		assertIs<DeliveryAdmissionResult.PermanentFailure>(
+			passiveLocationIngressForTest().admit(pending)).code shouldBe AdmissionFailureCode.STALE_SOURCE_POLICY
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	private suspend fun rotateUnchangedPassiveLocationPolicyForTest() = database.withTransaction {
+		val policyDao = database.sourcePolicyDao()
+		policyDao.insertPolicies(policyDao.policiesAtRevision(6L).map { policy ->
+			policy.copy(policyRevision = 7L,
+				qosCode = if (policy.sourceKind == SourceKind.WIFI.stableCode) (policy.qosCode + 1) % 5 else policy.qosCode,
+				effectiveElapsedRealtimeNanos = 150L, effectiveWallTimeMs = 150L,
+				changeReason = "TEST_UNRELATED_WIFI_QUALITY")
+		})
+		policyDao.compareAndSetAuthority(SourcePolicyAuthorityEntity.STATE_ACTIVE, 6L,
+			SourcePolicyAuthorityEntity.STATE_ACTIVE, 7L, null, 150L) shouldBe 1
+		retentionReader.approvalRevision = 2L
+		retentionReader.installCurrent(database, TrackingSourceComponent.LOCATION, 7L, 8L,
+			3L, "boot-7", 150L, 150L)
+	}
+
+	private fun passiveLocationIngressForTest(): RoomDurableSourceIngress {
+		val startup = mockk<TrackingStartupGate>()
+		coEvery { startup.reconcileAdmission(any()) } returns TrackingAdmissionStartupResult.Ready
+		every { startup.permitsNewCollection } returns true
+		every { startup.collectionResumeBoundary } returns null
+		every { startup.currentGeneration } returns 1L
+		every { startup.isReadyGeneration(1L) } returns true
+		val catalog = ExecutableSourceLaneCatalog.explicit(ExecutableSourceLaneBinding(
+			SourceKind.LOCATION, 1L, "test-location-product", 1,
+			setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)))
+		return RoomDurableSourceIngress(database, lifecycleStore, DefaultSourcePayloadCodec(),
+			catalog, Provider { startup })
+	}
+
 	private suspend fun installPassiveLocationRegistrationForTest(): LocationPlan {
 		val policyDao = database.sourcePolicyDao()
 		val location = requireNotNull(policyDao.policyAtRevision(5L, SourceKind.LOCATION.stableCode))

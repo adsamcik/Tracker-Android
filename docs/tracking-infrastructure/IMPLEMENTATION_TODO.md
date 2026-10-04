@@ -147,6 +147,13 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Preserve delayed passive Location fixes across an unrelated quality change.
+  Receiver and transactional WAL admission authenticate the original observed-time
+  retention grant while keeping current consent, dataset and deletion-floor checks.
+  Three source/test paths and two new actual Room scenarios have independent
+  source acceptance in `convergence/2026-10-04/PASSIVE_LOCATION_POLICY_ROTATION_SELECTED/SOURCE_REVIEW.md`. Both scenarios remain NOT_RUN; observations
+  after a newer approval and the complete Location chain remain open.
+
 - [x] Complete the existing passive Location recovery caller's missing DAO query.
   Select the four-line exact-registration lookup and one new actual Room scenario
   for latest authorization, planned reservation protection and invalid-plan refusal.

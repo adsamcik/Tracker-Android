@@ -535,6 +535,7 @@ class RoomDurableSourceIngress @Inject constructor(
 		registration: ProviderRegistrationGenerationEntity,
 		authorization: SourceAuthorizationSnapshot,
 		evidenceState: SourceEvidenceState,
+		observedElapsedRealtimeNanos: Long,
 	): Boolean {
 		if (!SourceProviderPurposeScope.supportsPurpose(registration.sourceKind, registration.ownerScope,
 				SourceBrokerPurpose.AMBIENT_PRODUCT) ||
@@ -556,13 +557,20 @@ class RoomDurableSourceIngress @Inject constructor(
 			SourceBrokerPurpose.AMBIENT_PRODUCT)
 		val retention = database.locationPurposeDao().latestRetentionAuthority(
 			AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT) ?: return false
-		return currentPolicy.hasExactEligibleAmbientConsentReference(currentConsent) &&
+		val historicalRetention = database.locationPurposeDao().retentionAuthorityAt(
+			AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			registration.clockDomainId, observedElapsedRealtimeNanos) ?: return false
+		return historicalRetention.isActive && AmbientLocationRetentionAuthorityIntegrity.isAuthentic(historicalRetention) &&
+			historicalRetention.sourcePolicyRevision == ambient.sourcePolicyRevision &&
+			historicalRetention.ambientConsentEpoch == ambient.consentEpoch &&
+			historicalRetention.opaquePolicyId == ambient.liveAmbientRetentionPolicyId &&
+			historicalRetention.approvalRevision == ambient.liveAmbientRetentionApprovalRevision &&
+			historicalRetention.collectedDataEpoch == evidenceState.collectedDataEpoch &&
+			currentPolicy.hasExactEligibleAmbientConsentReference(currentConsent) &&
 			currentPolicy.ambientConsentEpoch == ambient.consentEpoch &&
 			retention.isActive && AmbientLocationRetentionAuthorityIntegrity.isAuthentic(retention) &&
-			retention.sourcePolicyRevision == ambient.sourcePolicyRevision &&
 			retention.ambientConsentEpoch == ambient.consentEpoch &&
 			retention.opaquePolicyId == ambient.liveAmbientRetentionPolicyId &&
-			retention.approvalRevision == ambient.liveAmbientRetentionApprovalRevision &&
 			retention.collectedDataEpoch == evidenceState.collectedDataEpoch &&
 			retention.retainedFromMs == evidenceState.retainedFromMs
 	}
@@ -854,7 +862,8 @@ class RoomDurableSourceIngress @Inject constructor(
 					// the receiver check and this admission.
 					if (evidence.source == SourceKind.LOCATION &&
 						registration.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE &&
-						!hasLivePassiveLocationAuthority(registration, qualifiedTimeAuthorization, evidenceState)
+						!hasLivePassiveLocationAuthority(registration, qualifiedTimeAuthorization, evidenceState,
+						evidence.observedElapsedRealtimeNanos)
 					) {
 						return@transaction DeliveryAdmissionResult.PermanentFailure(
 							AdmissionFailureCode.STALE_SOURCE_POLICY,

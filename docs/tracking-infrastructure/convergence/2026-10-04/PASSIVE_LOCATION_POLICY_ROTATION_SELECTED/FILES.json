@@ -1,0 +1,28 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_head": "fa340240624710a5e2c77cd8883492515f4b6b39",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt",
+      "base_sha256": "335932205434359fc81fb86231d4d6302cbe3365baf9a3ee7a5688356d8c2cc9",
+      "working_before_sha256": "335932205434359fc81fb86231d4d6302cbe3365baf9a3ee7a5688356d8c2cc9",
+      "working_after_sha256": "6d651f51a94b1146fb7b5c0bc197e5210af19328f1577c4fbf9050ff5fff188a",
+      "selected_sha256": "6d651f51a94b1146fb7b5c0bc197e5210af19328f1577c4fbf9050ff5fff188a"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceIngress.kt",
+      "base_sha256": "663f44988a05e42648acfd5033287874e383fe35511297d86b54cbe7f1c1e885",
+      "working_before_sha256": "88f6fcb9a13d7f2ae052fa268c9eba6bb07abb10f757125fc34bd2022bac3264",
+      "working_after_sha256": "086df4a5c688479ceacd3ab73fbfd8ceef1183a91079a7915475393086aa0128",
+      "selected_sha256": "2d4c86ec144d7cf5ea9b0b05ed3cb9ddb6f530ca2001e9fd98fc161964618775"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepositoryTest.kt",
+      "base_sha256": "63c84f5e7f9b0e755db1b9b630bc701c2fa9be7bb82b0bd952a901254709567a",
+      "working_before_sha256": "63c84f5e7f9b0e755db1b9b630bc701c2fa9be7bb82b0bd952a901254709567a",
+      "working_after_sha256": "93b07bf589a988422636827cdc89b3cda2e8de67c39c9c2d4c31325f6cc897d1",
+      "selected_sha256": "93b07bf589a988422636827cdc89b3cda2e8de67c39c9c2d4c31325f6cc897d1"
+    }
+  ],
+  "status": "IMPLEMENTED_UNVALIDATED"
+}

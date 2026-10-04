@@ -331,6 +331,17 @@ class SourceRegistrationRepository @Inject constructor(
 				SourceBrokerPurpose.AMBIENT_PRODUCT)
 			val currentRetention = database.locationPurposeDao().latestRetentionAuthority(
 				AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT)
+			val historicalRetention = database.locationPurposeDao().retentionAuthorityAt(
+				AmbientLocationRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				identity.bootId, observedElapsedRealtimeNanos)
+			if (historicalRetention == null || !historicalRetention.isActive ||
+				!AmbientLocationRetentionAuthorityIntegrity.isAuthentic(historicalRetention) ||
+				historicalRetention.sourcePolicyRevision != ambientMember.sourcePolicyRevision ||
+				historicalRetention.ambientConsentEpoch != ambientMember.consentEpoch ||
+				historicalRetention.collectedDataEpoch != identity.collectedDataEpoch ||
+				historicalRetention.opaquePolicyId != ambientMember.liveAmbientRetentionPolicyId ||
+				historicalRetention.approvalRevision != ambientMember.liveAmbientRetentionApprovalRevision
+			) return@withTransaction null
 			if (!currentPolicy.hasExactEligibleAmbientConsentReference(currentConsent) ||
 				currentPolicy.ambientConsentEpoch != ambientMember.consentEpoch ||
 				currentRetention == null || !currentRetention.isActive ||
@@ -338,7 +349,6 @@ class SourceRegistrationRepository @Inject constructor(
 				currentRetention.ambientConsentEpoch != ambientMember.consentEpoch ||
 				currentRetention.collectedDataEpoch != identity.collectedDataEpoch ||
 				currentRetention.opaquePolicyId != ambientMember.liveAmbientRetentionPolicyId ||
-				currentRetention.approvalRevision != ambientMember.liveAmbientRetentionApprovalRevision ||
 				currentRetention.retainedFromMs != database.sourceEvidenceStateDao().get()?.retainedFromMs
 			) return@withTransaction null
 			if (authorization.isDenied || authorization.effectiveBootId != identity.bootId ||

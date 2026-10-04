@@ -475,6 +475,13 @@ push is claimed by this continuation.
 
 ## October 4 tracking-system continuation
 
+- [x] Preserve delayed passive Location fixes across an unrelated quality change.
+  Receiver and transactional WAL admission authenticate the original observed-time
+  retention grant while keeping current consent, dataset and deletion-floor checks.
+  Three source/test paths and two new actual Room scenarios have independent
+  source acceptance in `../2026-10-04/PASSIVE_LOCATION_POLICY_ROTATION_SELECTED/SOURCE_REVIEW.md`. Both scenarios remain NOT_RUN; observations
+  after a newer approval and the complete Location chain remain open.
+
 - [x] Preserve an active radio request's original cooldown in the existing local
   preference ledger instead of adding another runtime-state store. Two changed
   source/test paths and eight new scenarios are independently source-reviewed in
