@@ -2318,7 +2318,7 @@ private class DefaultSourceLifecycleProofAdapter(
 			sourcePolicyRevision == wal.sourcePolicyRevision &&
 			consentEpoch == wal.captureConsentEpoch &&
 			startOrigin == manifest.startOrigin &&
-			startOrigin == run.startOrigin &&
+			(manifest.manifestRevision != run.preparedManifestRevision || startOrigin == run.startOrigin) &&
 			bootId == wal.clockDomainId &&
 			leaseGeneration == wal.lifecycleLeaseGeneration &&
 			sourceInstanceId == wal.sourceInstanceId &&

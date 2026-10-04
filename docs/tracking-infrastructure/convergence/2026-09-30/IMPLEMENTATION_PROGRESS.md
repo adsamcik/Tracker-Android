@@ -20,6 +20,18 @@ description of its earlier input; this file records subsequent repair progress.
 
 ## Authored slices and local commit receipts
 
+- October 4 Steps/Pressure action-origin repair retains initial Manual/Automatic
+  authority and permits later policy reconciliation only behind the complete
+  immutable run timeline. Two comparisons and sixteen actual Room cases have
+  independent source acceptance in
+  `../2026-10-04/RECONFIGURATION_ACK_ORIGIN_SELECTED/SOURCE_REVIEW.md`.
+  Cases are unexecuted; full lifecycle and all assembly chains stay open.
+- October 4 independent provider trace disproves the suspected production
+  future-timestamp radio sibling loss: both provider routes filter invalid items
+  individually before payload construction, while shared owners use the widest
+  allowed age before each purpose qualifies its own subset. Receipt:
+  `../2026-10-04/RADIO_PROVIDER_TIME_FILTER_TRACE.md`. Existing authored coverage
+  is unexecuted; no additional storage mechanism or runtime evidence is claimed.
 - October 4 ordinary Activity recent history now uses exact requested-key native
   owners independently of its 100-row display frontier. One new actual Room case
   keeps an independent import readable while a foreign claim of an older native
@@ -341,7 +353,8 @@ remain held. No test or gate has run.
   twenty-two new scenarios and one extended migration scenario have fresh static
   composition review in `../2026-10-04/CELL_RUNTIME_COMPOSED_SELECTION/SOURCE_REVIEW_COMPOSITION.md`.
   They remain unexecuted. Cell empty-purpose settlement, later-manifest proofs,
-  historical Wi-Fi, future-dated siblings, files and all 25 full chains stay open.
+  historical Wi-Fi, files and all 25 full chains stay open. The later independent
+  provider trace resolves the suspected future-dated sibling issue above.
 - [x] Select the exact Steps V1/V2 export prerequisite: nine paths, twenty-seven
   authored unexecuted Room cases and three existing fake companions. All explicitly
   selected native groups must be exportable; a valid sibling cannot hide missing,

@@ -1,0 +1,12 @@
+[
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/DefaultSourceLifecycleProofAdapter.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "6ce429c3a6e4dc690c85c80cf6f9c84a10a3e3f51cc3f15d5afef92f888d0078"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticator.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "3279f4bf4448da0c34fb45c45547a10fafb33de60c9028df8729eaec4a80fd44"
+  }
+]

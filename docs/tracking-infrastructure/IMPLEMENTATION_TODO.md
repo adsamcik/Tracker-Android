@@ -122,6 +122,17 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Preserve initial Manual/Automatic authority while accepting valid later
+  Steps/Pressure policy reconciliation through the existing complete run timeline.
+  Two production comparisons and sixteen authored Room scenarios have independent
+  static acceptance in `convergence/2026-10-04/RECONFIGURATION_ACK_ORIGIN_SELECTED/SOURCE_REVIEW.md`.
+  Scenarios remain unexecuted; the complete lifecycle and assembly chains stay open.
+- [x] Resolve the suspected future-timestamp radio sibling loss by tracing both
+  real provider routes: invalid readings are filtered individually before the
+  durable payload, and the shared physical owner uses the widest allowed age.
+  `convergence/2026-10-04/RADIO_PROVIDER_TIME_FILTER_TRACE.md` records independent
+  source confirmation. Existing authored coverage is unexecuted; no runtime pass
+  or full radio-chain completion is claimed.
 - [x] Reuse exact Pressure ownership in ordinary recent History and date/exact
   exports, including owners outside display or export scope. Matching copies remain
   one selected record; conflicting IDs cannot lend values. Three new and seven
@@ -140,8 +151,9 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
   the 28-to-29 nonunique event index conversion. Twenty-two new scenarios and
   one extended migration scenario are authored and unexecuted. Receipt:
   `convergence/2026-10-04/CELL_RUNTIME_COMPOSED_SELECTION/SOURCE_REVIEW_COMPOSITION.md`.
-  Empty-purpose settlement, Wi-Fi historical capture, reconfiguration proofs,
-  future-dated siblings, source files and all 25 full chains remain open.
+  Empty-purpose settlement is selected separately above. Wi-Fi historical capture,
+  source files and all 25 full chains remain open; the timestamp-provider trace and
+  narrow Steps/Pressure reconfiguration repair are recorded above.
 - [x] Reuse the exact native ownership lookup for ordinary recent Activity imports,
   including native owners beyond the display's 100-row frontier. Preserve display
   ordering and typed limits; one authored real Room scenario is independently
