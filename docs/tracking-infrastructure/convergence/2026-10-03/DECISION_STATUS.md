@@ -96,6 +96,17 @@ runtime storage format or second database ledger is selected.
 
 ## Questions presented, awaiting answers
 
+- [ ] Show trustworthy saved daily Steps counts as recorded so far, mark real
+  missing coverage as an incomplete day, and retain each independently valid
+  day's number. Reuse the existing daily reader for display; conflicting/invalid
+  counts stay unavailable and the strict numeric/game API is unchanged. The
+  October 4 asynchronous display question is pending. Exact source trace also
+  found the existing public composer overwrites a qualified subtotal with
+  materializing solely because the active cursor has not reached a future day
+  end. Its proposed narrow correction preserves qualified Exact/Partial values,
+  all earlier uncertainty guards and no-fact waiting, without new clocks/stores.
+  Source receipt: `../2026-10-04/ALL_DAY_STEPS_EXECUTION_TRACE.md`.
+
 - [ ] Repair fresh automatic callback Start reservation using the existing
   cancellable generation/draining boundary instead of holding the lifecycle
   command mutex while Start reserves its command. Keep current-ready effect

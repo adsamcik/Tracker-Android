@@ -1,0 +1,47 @@
+# Adaptive runtime source trace
+
+Phase: **IMPLEMENTATION_ONLY**. Status: **IMPLEMENTED_UNVALIDATED**.
+
+Read-only trace of committed `e37c0844f9fdbb9bc2dc24457ec9a6583cd655c5`. No production/test edits, execution, provider activation, Git operation or integration. Root's subsequent cold-callback commit does not change these inputs.
+
+Exact inputs:
+
+- `HEAD_INPUT.json`: original 38 paths, SHA-256 `54faa87e05a860a313a36c665dafc5d44c377e7c67d59c66e99e5667025253ea`; source bytes in `HEAD/`.
+- `EXTRA_HEAD_INPUT.json`: additional nine paths, SHA-256 `fb8a2adfc80fd13d21a5e201807755e762f33b240212356e38d19619efb92d9e`; source bytes in `EXTRA_HEAD/`.
+- Findings below use original repository path suffixes and line numbers in those exact snapshots. Mixed working drafts are not evidence for this trace.
+
+## Connected behavior
+
+| Requirement | Exact source trace |
+| --- | --- |
+| Participation remains separate from quality | `data/preferences/.../tracking/SourceBalanceSettings.kt:51–71` checks each choice; `TrackingParamsState.kt:47–54` keeps the Location override consistent with the overall profile. `SemanticAcquisitionPlanFactory.kt:33–66` disables unchosen sources and calculates focus only for participating live sources. Requested live level is `max(baseline,4)`, preserving 5. `:77–103` preserves unadopted custom Location cadence/distance. |
+| Five levels feed one plan resolver | Factory `:190–234` supplies source-specific timing/mechanisms. `TrackerServiceSourceSession.kt:1420–1478` constructs the desired plan, real direct-capture contracts and resolved applicable plans. `SourcePlanResolver.kt:73–180` keeps prerequisite failures source-local, preserves hard floors, and applies cost-specific reductions instead of a blanket source downgrade. |
+| Motion feeds current collection independently of Location capture | `CollectionMotionController.kt:37–46,89–124,150–157,250–286` scopes fresh evidence, rejects old/wrong-clock evidence, treats unknown honestly and bounds stationary/vehicle holds. `DurableSourceEventSink.kt:73–192` supplies durable admitted evidence; `RoomActivityRecognitionEventIngress.kt:297` supplies accepted Activity evidence. `TrackerService.kt:1304–1346` configures a generic collection motion scope when a live session or authorized host exists even without Location. The optional Location assistance owner uses its separate existing Activity demand (`LocationMotionAssistanceOwner.kt:58–109`); its refusal does not block Location. |
+| Current energy/thermal inputs reach live plans | `TrackerService.kt:1126–1137,1240–1294,1401–1416,2264–2349` feeds battery updates, saver, Doze, thermal and motion into source-session reconfiguration. The existing 30-second tick samples thermal again; unchanged fingerprints avoid provider work. `SourcePlanResolver.kt:97–180` preserves Steps, useful callbacks and live Location preference under percentage pressure; thermal limits Location/Pressure within their real floors. `BatteryAwarePolicy.kt` uses valid readings, charging and hysteresis, with no invented battery percentage. |
+| Background Location uses the same owner/resolver | `AmbientLocationPurposeOwner.kt:195` onward constructs passive rearmable or explicitly adopted adaptive Location through the existing shared runtime and resolver. `TrackerService.kt:1252,1282,1370` refreshes it on motion/tick. Passive consent does not silently become active acquisition. |
+| Radios retain passive data and finite request ownership | `SharedWifiSourceController.kt:344–375` and `SharedCellSourceController.kt:344–368` compose one effective physical owner and preserve the broadest useful item age; individual products still qualify their own age. `WifiSourceRuntime.kt:989–1104` and `CellSourceRuntime.kt:1005–1057,1144–1213` recheck mode/prerequisites/current registration, reserve the durable request before Android invocation, and keep finite per-session budgets. Fresh useful capture evidence cancels optional requests (`Wifi:1121–1134`, `Cell:1098–1115`); passive callbacks continue. `RadioActiveRequestAllowance.kt` preserves spent requests and the original cooldown across quality changes/restarts. |
+| Retained map enrichment creates no collection demand | `RoomRadioLocationContextRepository.kt:14–41` reads qualified radio and retained Location in a Room snapshot. `RetainedLocationContextReader.kt:10–30` has only retained-data qualification dependencies; the Hilt binding is `RadioLocationContextDataModule.kt:16`. `feature/map/.../RetainedRadioContextLayer.kt:23–26` calls that read-only repository. No provider/start/lease dependency occurs in this inspected enrichment chain. |
+
+The old `TrackerTimerManager` is now only a backend selector. `TrackingPolicyManager.kt:487–508` supplies compatibility demands; resolver `:69–76,196–202` in `SourcePlan.kt` distinguishes real acquisition floors. Compatibility demand names alone cannot enable an unchosen source or replace its adopted profile.
+
+## Concrete remaining source gap
+
+### A-D1 — changing Steps batching discards the prior cumulative baseline
+
+`SourcePlan.kt:256` includes `maximumReportLatencyMs` in Steps' physical fingerprint. A genuine quality change (for example 15s to 5s latency) therefore fails `StepSourceRuntime.refreshCompatibleLocked` (`:313–323`). `SharedStepSourceController.kt:265–273` delegates to reconfiguration; `StepSourceRuntime.kt:171–224` shuts down and acknowledges the previous listener, then starts its replacement. `startLocked` always creates `StepWindowAccumulator(initialBaseline = null)` (`:449–474`), including this same-process quality-only transition.
+
+The first replacement counter observation establishes a baseline rather than retaining the previous accepted cumulative count. This introduces a direct-count coverage boundary during a quality adjustment, although the source choice, live session, sensor and boot may be unchanged. The recovery branch also deliberately has no baseline (`:2174–2182`); that protection is appropriate for an unverified process boundary and must not be relaxed indiscriminately. Separate system-provider history does not prove the exact direct-sensor count interval.
+
+Smallest follow-up: preserve an authenticated same-process counter baseline/count-domain through a successfully acknowledged batching-only reconfiguration for the same session using the existing runtime/accumulator path. Scope continuity to unchanged source choice, consent, collected-data epoch, sensor and boot; revalidate actual observation authorization and original product-lineage bounds. Keep process restart, reset, revoked consent/Off, failed retirement and identity/epoch changes as honest gaps. If Android's existing listener update can preserve the same physical owner safely, reuse it; do not add another counter owner or infer continuity merely from equal wall timestamps. Exact provider/update and count-domain seams require a focused source trace before implementation.
+
+Required meaningful source cases: real runtime baseline, quality change, later cumulative count includes the exact delta once; same plan does not restart; incomplete retirement/permission loss/Off cannot carry that baseline; counter reset and process restart retain their honest boundary. Existing reviewed tests below do not compose this exact counter transition.
+
+## Test-source and evidence boundary
+
+- The inspected nine test files contain factory/custom/Location focus cases; resolver unknown/stationary/floors/permission/saver/Doze/thermal cases; source-session persistence/debt/thermal restoration cases; motion freshness/holds; background Location retirement; durable radio budget/cooldown; and shared Steps ownership/cutoff cases. All are **NOT_RUN**.
+- `SemanticAcquisitionPlanFactoryTest.kt:43–66` covers all five Location cadence targets, not the complete six-source nonempty-subset × five-level × join/leave matrix. Existing single-source/coordinator cases are useful but do not establish all 63 source sets through real physical owners, ingress, storage and presentation.
+- A bounded composed source test remains needed for admitted motion → controller → service reconfiguration → real resolver/session → physical radio mode, while preserving passive delivery and spent request ownership; component assertions alone do not prove this production connection. Existing thermal source-session tests use real Room/factory/resolver but fixture lifecycle/provider application.
+- Existing plans correctly allow adjacent radio levels to share passive mechanisms. System Steps history remains provider-managed continuity, not a fresh motion vote. Activity/Pressure sessionless capture is not introduced by this policy. Optional radio scans remain opportunistic and finite, not promised recurring cadence.
+- This trace found no additional disconnected battery/thermal observer, hidden Location demand from enrichment, or missing generic live motion scope in the inspected committed paths. It does not certify uninspected hardware actors, live providers, power usage, UI achieved-quality presentation or the final convergence assembly.
+
+Automatic callback/start lock coordination and durable-Off manual acceptance are the separately documented pending A1/A2 decisions. This trace does not implement or approve them. No new adaptive settings, table, optimizer or hint-source enrollment is proposed here. Main History/UI, full six-source acceptance scenarios, final gates/device evidence and all 25 full chains remain open.

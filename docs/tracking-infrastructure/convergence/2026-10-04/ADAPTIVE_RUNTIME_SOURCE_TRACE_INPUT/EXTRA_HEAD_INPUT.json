@@ -1,0 +1,52 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "head": "e37c0844f9fdbb9bc2dc24457ec9a6583cd655c5",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/StepSourceRuntime.kt",
+      "sha256": "5c019ea4586c08569e291d6c343145f30bb9bbd6e6618b078333daf760b77c45",
+      "bytes": 92874
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedWifiSourceController.kt",
+      "sha256": "57ed0d1121a950b4a73ffbac4c6019530b5bec3cbf3169d445d24c406db0771e",
+      "bytes": 15388
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedCellSourceController.kt",
+      "sha256": "4e32e04fe943c9d138ff6f1c36f2dc24f933eb17f2ba1d6b21836dc0a1e1c5aa",
+      "bytes": 14939
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/TrackerTimerManager.kt",
+      "sha256": "e84041f548c9d95d4519bc6dc15c6c34c78025edd0a85aeb84eccb486592c401",
+      "bytes": 1057
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/policy/TrackingPolicyManager.kt",
+      "sha256": "d907d15007089a86604b0c99e8ffb6c70d95116413346bf68139bc232e28b962",
+      "bytes": 17426
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomRadioLocationContextRepository.kt",
+      "sha256": "e10babf06994ccbdae5e78583ac5d1548fc540a39107bc356c7f726e58c7f017",
+      "bytes": 13975
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "sha256": "7b26cecd95d2ca3ee9de099f7cc6b6904d5527f49d0c38cc797ffc8b7278d3a0",
+      "bytes": 13657
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/RadioLocationContextDataModule.kt",
+      "sha256": "d2a03843d882e70922ac943539493a6733329e796da6c651dddc9730d9b7dc89",
+      "bytes": 602
+    },
+    {
+      "path": "feature/map/src/main/java/com/adsamcik/tracker/map/viz/RetainedRadioContextLayer.kt",
+      "sha256": "8661058d21cee1f6e9ff69a2094378131510fa08e56bf9b3e28900b72e788cc8",
+      "bytes": 8149
+    }
+  ]
+}

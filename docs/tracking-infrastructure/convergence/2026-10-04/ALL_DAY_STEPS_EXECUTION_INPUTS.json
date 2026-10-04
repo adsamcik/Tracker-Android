@@ -1,0 +1,361 @@
+{
+  "commit": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+  "phase": "IMPLEMENTATION_ONLY",
+  "inspection": "read-only git show/git grep exact committed blobs; no mixed-draft qualification",
+  "productionOrTestChanges": false,
+  "execution": "NOT_RUN",
+  "gitMutations": false,
+  "reportSha256": "65aff19c78e5ed751aac10a1542004154c3bb7090bf607aca87b04eef6edaa08",
+  "files": [
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt",
+      "sha256": "f2c6b86cf0109a665f2191c150364a13d0a8978e789dddca83b0888edf90ad10",
+      "bytes": 41853,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "data/preferences/src/main/java/com/adsamcik/tracker/shared/preferences/tracking/AuthoritativeTrackingParamsRepository.kt",
+      "sha256": "efdd9480abc765afcc0f2e3cb6a69014fc80002223546d0423016cf7444238dd",
+      "bytes": 40173,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "data/preferences/src/main/java/com/adsamcik/tracker/shared/preferences/tracking/DefaultTrackingParamsRepository.kt",
+      "sha256": "ff537830e2e7139c9f4b11fe180dddd87a1858f6b127900bd5d764c62332bdeb",
+      "bytes": 25989,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/TrackingPurposePublicationRuntime.kt",
+      "sha256": "6365d2708528ae7fe67931e9fc290498b48cf3215543792ee65fe6e1d800e43d",
+      "bytes": 77506,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/TrackingPurposePublicationModule.kt",
+      "sha256": "d87c4870f35c12c2d1c6e0e39f0a22fcf3d78c585c37627a47d35c63af9563d7",
+      "bytes": 6007,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/AmbientStepsPurposeOwner.kt",
+      "sha256": "3158385a53b93436b8d420921be8928ac562b88582122c97eda347c002818f38",
+      "bytes": 7776,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/worker/AmbientStepsImportWorker.kt",
+      "sha256": "7dc6cef1ec0e2f612d652da88aa78a49d277198ee09dc46bf685c6dc72d0ec75",
+      "bytes": 2612,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/module/TrackerModuleInitializer.kt",
+      "sha256": "a690079ea9d86212ea420749b66a3a99f8f9187cbf0f1b3f25bac91b81e9d976",
+      "bytes": 16385,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/Application.kt",
+      "sha256": "58f1aab2b271743afc8b032aa333a02c8cd90ca88fa1ca318d36ece3379df952",
+      "bytes": 20096,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "app/src/main/AndroidManifest.xml",
+      "sha256": "e02a3ae5a48392479eb3a3ffce207319669cad0687ed707b3df78192068d71c9",
+      "bytes": 8299,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "gradle/libs.versions.toml",
+      "sha256": "3a4ccf984418e20f5e943456ab7e096823744ad74249699979a8cb4d22d19bde",
+      "bytes": 16250,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c",
+      "bytes": 3487,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/AmbientStepsImportRunner.kt",
+      "sha256": "9df6ea77911e208a3854d6883a737f619c5b58773effc32cf4851488f97b98cc",
+      "bytes": 4356,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/AndroidAmbientStepsCapabilityResolver.kt",
+      "sha256": "c582710b27af05490641ad471d4c9b7545f38496eee54bcdde3da368198f005b",
+      "bytes": 5489,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/AndroidAmbientStepsProviderBackends.kt",
+      "sha256": "24c6bf148a496e57a1c46321d97c299b288fb8db45d7e584482d104ddaec6bf2",
+      "bytes": 2388,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/AndroidAmbientStepsProviderReaders.kt",
+      "sha256": "b918ae810867c9a6de5f631b46b95bf78ef9ca1568405b510869275ae4c69fab",
+      "bytes": 8402,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/AmbientStepsProviderLifecycleOwner.kt",
+      "sha256": "6abeac13b94f91a2db07dd01047cba07221a15cdedf4e62f6ad5550c01cbc01b",
+      "bytes": 10025,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/AmbientStepsProviderRegistrationCoordinator.kt",
+      "sha256": "331dd5f22c736b4c69cd73fa68b31581d695411cbb19516cde0981459613243d",
+      "bytes": 23302,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/AmbientStepsProviderHandoffCoordinator.kt",
+      "sha256": "eb9e11b74a9c0a27d3de6ce4631b50944aae062bdd61962241aa5e2465a0ac97",
+      "bytes": 3625,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/AmbientStepsDemandReconciler.kt",
+      "sha256": "eb8cb4d83d23d030753d60ffdf4d795e4cc3e31290897ba50c4ed2692af34ce9",
+      "bytes": 17260,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt",
+      "sha256": "bce262d403e0f971594876e18794d8d1380d4510d095c36d1bc731d8d566ad95",
+      "bytes": 6990,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedStepSourceController.kt",
+      "sha256": "97070803f07d05656e1c5f30341f8b3ca82c46ce61bde31a302105b652e7aa89",
+      "bytes": 12021,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/StepSourceRuntime.kt",
+      "sha256": "5c019ea4586c08569e291d6c343145f30bb9bbd6e6618b078333daf760b77c45",
+      "bytes": 92874,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/AmbientStepsStructuralWindowPlanner.kt",
+      "sha256": "a8afae817589b64c23dcc83e87e7b89e82da03b25c766ead37f638ca4870703e",
+      "bytes": 5911,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/AmbientStepsFactImporter.kt",
+      "sha256": "5f2878025ea3831a449216ec96d3f722daaff8efb093ffb3f62ea3d6d0f6efa5",
+      "bytes": 95625,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayComposer.kt",
+      "sha256": "034e081f106090dcc8d2aa949b2d436b08f144ac1c5a3e725b544a11b884459b",
+      "bytes": 16689,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/NativeAmbientStepsRangeReader.kt",
+      "sha256": "93e9784b6b0783fede77b82e131a689049ecf53f5b1f998c1b21f37cfe3870ff",
+      "bytes": 37249,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultAmbientStepsHistoryRepository.kt",
+      "sha256": "1fa25cc97722547746372e56822b70e8824ae8fbf8e50b0f703949c7419a2bff",
+      "bytes": 54232,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepository.kt",
+      "sha256": "3f62ae915a22f2707e7734b63484244c172d8357d05a85ffa08d97b32dcd723c",
+      "bytes": 27414,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/summary/StepsNumericDayWindowAccumulator.kt",
+      "sha256": "01772dd9c2077acf2b059474d0f19cf8cca7f80795e5f58e7fc44b3559730a9c",
+      "bytes": 22796,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientStepsImportStateEntities.kt",
+      "sha256": "5510eac5f8317ebac379b35fee03ea2d7cbbc6857804e908b085b7984caae812",
+      "bytes": 14032,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AmbientStepsHistoryRepository.kt",
+      "sha256": "61714d39f18cb769d6e95a03082b78ca2ecdcfb1cf718bc1e72769cd707b694f",
+      "bytes": 9962,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/StatsPresenterViewModel.kt",
+      "sha256": "6cae9699e2d7038e6716b37eb2e2a6e1d9d842ca45e016ca505ba896f6f10ac6",
+      "bytes": 12358,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModel.kt",
+      "sha256": "214f5f638a75e0b2652828230382e89204942866f11be05cac5dd5ab2e2ee868",
+      "bytes": 15208,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsScreen.kt",
+      "sha256": "bc2ac38373c2ffd23efa434769fb26055175b0132bc93bd1a572db74e1952329",
+      "bytes": 49540,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CalendarContent.kt",
+      "sha256": "127e1d3271a7acd5c18dc0224908134d33121fda03f3e09737b12ddc5be5edd1",
+      "bytes": 13560,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "feature/game/src/main/java/com/adsamcik/tracker/game/repository/SourceQualifiedStepsSummary.kt",
+      "sha256": "6bd710f32562d5a03508dc3552a04de35ad0dafd843caf6de92be7dc1f364d13",
+      "bytes": 6896,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "production_or_build_source"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/worker/AmbientStepsImportWorkerTest.kt",
+      "sha256": "d9bae10d84b444001f2da5fae198ed3b02eed295010002f9818547bb96a52279",
+      "bytes": 5599,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "test_source"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/module/AmbientStepsForegroundImportTest.kt",
+      "sha256": "83429396ef314725710617221bdfc87a8be08a59b119738fe41948b4b0bb241f",
+      "bytes": 1266,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "test_source"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/AmbientStepsPurposeOwnerTest.kt",
+      "sha256": "ceec75ff24bba10169949fd9d9a849a5905e5efa5f065eb73613f8d1a9a7b1b0",
+      "bytes": 7183,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "test_source"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ambient/steps/AmbientStepsImportRunnerTest.kt",
+      "sha256": "2881d0e269fb03626a82439e3cdfc93923d3979d1b72154e353df29e46f6401e",
+      "bytes": 5121,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "test_source"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ambient/steps/AmbientStepsFactImporterTest.kt",
+      "sha256": "04c645a4302c84d2fca881c04f7048ee6926a09387281e8596bc86de703c0df2",
+      "bytes": 45995,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "test_source"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ambient/steps/AmbientStepsProviderRegistrationCoordinatorTest.kt",
+      "sha256": "91a5cc59f52798c00a94c0ead4b68c1b162fb0b55d4ccb12d6fcb7d57dbe3f51",
+      "bytes": 24021,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "test_source"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedStepSourceControllerTest.kt",
+      "sha256": "fd7c5d639a1a08dcf5d4fbb37a341e20237ddd2722f6066b1e1a9963dc45f693",
+      "bytes": 17743,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "test_source"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/TrackingPurposePublicationRuntimeTest.kt",
+      "sha256": "992bfd4ff83257a53e9c8ead20a19da50674996552387435e683ec49ff6f5429",
+      "bytes": 68398,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "test_source"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepositoryRoomTest.kt",
+      "sha256": "9f39d609a593e0d13b4c8a6b03df9f8b85839cc1863757eb839ceec1b7564ed0",
+      "bytes": 40916,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "test_source"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/StepsNumericDayWindowAccumulatorTest.kt",
+      "sha256": "b671168fdd6b9cc9f004a2ce4e26165099e494eb367a81a4707fe47ac1615af1",
+      "bytes": 17173,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "test_source"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayComposerTest.kt",
+      "sha256": "9abf3a55241ac47769af08f83558b64a8356b0b07ca4e799ed41119427e82350",
+      "bytes": 18143,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "test_source"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "sha256": "cf42de714c769d3bb38168032057571946d9e582ceb34b1f94f6a3cb66c91bf5",
+      "bytes": 49811,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "test_source"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultAmbientStepsHistoryRepositoryContractTest.kt",
+      "sha256": "f1586d44781509875e826a4e2c75e0f3ab401516bc20b6129bff191f0e519d3e",
+      "bytes": 4442,
+      "origin": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+      "kind": "test_source"
+    }
+  ]
+}

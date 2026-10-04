@@ -475,6 +475,21 @@ push is claimed by this continuation.
 
 ## October 4 tracking-system continuation
 
+- [x] Trace the adaptive policy and all-day Steps execution from exact committed
+  code. Five-level participation/live focus, current hints/energy, shared owner
+  dispatch, passive radios/request budgets, and read-only enrichment are connected
+  in the inspected paths. Hourly/enable/open Steps copies, bounded attempts and
+  nonadditive session/provider totals are also connected. This is static source
+  tracing, not executed validation or complete-chain closure.
+- [ ] Repair the identified Steps batching/authorization-change continuity gap
+  using the smallest safe existing runtime design; do not blindly carry a baseline
+  through changed recording authority, process loss, stop or counter reset.
+- [ ] Finish today's saved Steps composition/display. An ongoing provider cursor
+  currently hides a saved subtotal as Updating, and the strict numeric consumer
+  hides partial and independently complete sibling days. Display approval is pending;
+  preserve the strict game/achievement reader and invalid-count withholding.
+  Exact traces: `../2026-10-04/ADAPTIVE_RUNTIME_SOURCE_TRACE_INPUT/SOURCE_TRACE.md` and `../2026-10-04/ALL_DAY_STEPS_EXECUTION_TRACE.md`.
+
 - [x] Preserve cold automatic callbacks while settings/current publication are
   loading. Read the existing current source-owned availability instead of a
   lagging API cache, with exact current/consent/epoch checks and the original
