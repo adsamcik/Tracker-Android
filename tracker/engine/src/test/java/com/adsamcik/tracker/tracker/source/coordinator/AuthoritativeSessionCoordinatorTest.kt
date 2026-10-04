@@ -1,5 +1,16 @@
 package com.adsamcik.tracker.tracker.source.coordinator
 
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
+import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
+import com.adsamcik.tracker.tracker.source.model.SourcePayload
+import com.adsamcik.tracker.tracker.source.model.WifiAccessPointEvidence
+import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
+import com.adsamcik.tracker.tracker.source.projection.Projection
+import com.adsamcik.tracker.tracker.source.projection.ProjectionContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import android.app.Application
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
@@ -242,6 +253,97 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `Steps-only End completes with pending Wi-Fi and Cell background consumers`() = runTest {
+		runtime.hasNoAdmittedStepEvents = true
+		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		installPendingBackgroundRadioCoordinator()
+
+		withContext(Dispatchers.IO) { subject.stop(SessionStopRequest("test-owner", "manual", 2_000L, 2_000_000L,
+			"boot-1", perSourceTimeoutMs = 5_000L)) }.shouldBeInstanceOf<SessionStopResult.Stopped>()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.FINALIZED.name
+		assertBackgroundConsumersRemainPending()
+	}
+
+	@Test
+	fun `Steps-only suspension completes with pending Wi-Fi and Cell background consumers`() = runTest {
+		runtime.hasNoAdmittedStepEvents = true
+		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		installPendingBackgroundRadioCoordinator()
+
+		withContext(Dispatchers.IO) { subject.suspendForRestart(SessionSuspendRequest("test-owner", "ANDROID_RESTART", 2_000L,
+			2_000_000L, "boot-1", perSourceTimeoutMs = 5_000L)) }
+			.shouldBeInstanceOf<SessionSuspendResult.Suspended>()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.currentServiceRunId shouldBe null
+		database.sourceSessionDao().serviceRun(started.serviceRunId)?.state shouldBe
+			SessionLifecycleState.FINALIZED.name
+		assertBackgroundConsumersRemainPending()
+	}
+
+	/** Real global coordinator plus retaining pending source consumers; no Android provider is used. */
+	private suspend fun installPendingBackgroundRadioCoordinator() {
+		fun background(source: SourceKind) = object : Projection {
+			override val id = if (source == SourceKind.WIFI) AmbientWifiFactRevisionEntity.WRITER_ID else AmbientCellFactRevisionEntity.WRITER_ID
+			override val version = 1
+			override suspend fun apply(event: AdmittedSourceEvent<out SourcePayload>, context: ProjectionContext) {
+				throw java.io.IOException("Pending background storage")
+			}
+		}
+		val global = object : Projection {
+			override val id = "global-session-settlement"
+			override val version = 1
+			override suspend fun apply(event: AdmittedSourceEvent<out SourcePayload>, context: ProjectionContext) = Unit
+		}
+		val dispatcher = ProjectionDispatcher(database, setOf(global, background(SourceKind.WIFI), background(SourceKind.CELL)))
+		dispatcher.registerAll(1L)
+		dispatcher.registerAmbientRadioProjections()
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+		val payload = WifiResultSnapshotPayload(listOf(WifiAccessPointEvidence("test-ap", 2_412, -61, 1_500_000L)), null, null)
+		val encoded = DefaultSourcePayloadCodec().encode(payload, com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION)
+		val evidence = SourceEvidenceCandidate(
+			providerDedupKey = null, logicalTrackingId = null, serviceRunId = null,
+			source = SourceKind.WIFI, sourceInstanceId = SourceInstanceId("background-wifi"),
+			registrationGeneration = 1L, sourceSequence = 1L, configRevision = 1L,
+			planAttribution = PlanAttribution.RECEIVE_TIME_ONLY, clockDomainId = "boot-1",
+			observedElapsedRealtimeNanos = 1_500_000L,
+			receivedElapsedRealtimeNanos = 1_500_000L, wallTimeMs = 1_500L, wallTimeUncertaintyMs = 0L,
+			capturedCollectedDataEpoch = requireNotNull(database.sourceEvidenceStateDao().get()).collectedDataEpoch,
+			acquiredAtMs = 1_500L, quality = SourceQuality(),
+			payloadVersion = com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION, payload = payload,
+		)
+		val admitted = AdmittedSourceEvent(SourceEventId("pending-background-wifi"), 1L, evidence)
+		val unsigned = SourceEventWalEntity(
+			admissionOrdinal = 1L, eventId = admitted.eventId.value, providerDedupKey = null,
+			logicalTrackingId = null, serviceRunId = null, sourceKind = SourceKind.WIFI.stableCode,
+			sourceInstanceId = evidence.sourceInstanceId.value, registrationGeneration = 1L, sourceSequence = 1L,
+			configRevision = 1L, planAttribution = evidence.planAttribution.ordinal, clockDomainId = "boot-1",
+			observedElapsedNanos = 1_500_000L, observedIntervalStartNanos = 1_500_000L,
+			receivedElapsedNanos = 1_500_000L, wallTimeMs = 1_500L, wallTimeUncertaintyMs = 0L,
+			capturedCollectedDataEpoch = evidence.capturedCollectedDataEpoch, acquiredAtMs = 1_500L,
+			qualityFlags = 0L, qualityConfidence = null, payloadVersion = evidence.payloadVersion,
+			payload = encoded.bytes, payloadChecksum = encoded.checksum, createdAtMs = 1_500L,
+		)
+		database.sourceEventWalDao().insertIgnoringDuplicate(unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())) shouldBe 1L
+		for (id in listOf(AmbientWifiFactRevisionEntity.WRITER_ID, AmbientCellFactRevisionEntity.WRITER_ID)) {
+			database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(id, 1, 1L, 1,
+				"INJECTED_PENDING_STORAGE", false, 1_500L))
+		}
+		val ingress = mockk<DurableSourceIngress>()
+		coEvery { ingress.committedBatch(any(), any()) } coAnswers {
+			if (firstArg<Long>() < 1L) listOf(admitted) else emptyList()
+		}
+		replaceEventCoordinator(TrackingCoordinator(database, ingress, dispatcher))
+	}
+
+	private suspend fun assertBackgroundConsumersRemainPending() {
+		for (id in listOf(AmbientWifiFactRevisionEntity.WRITER_ID, AmbientCellFactRevisionEntity.WRITER_ID)) {
+			database.sourceProjectionStateDao().checkpoint(id, 1)?.contiguousAdmissionOrdinal shouldBe 0L
+			database.sourceProjectionStateDao().failure(id, 1, 1L)?.attemptCount shouldBe 1
+		}
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.eventId shouldBe "pending-background-wifi"
+	}
 
 	@Test
 	fun `session is durable before source start and closes after source drain`() = runTest {
@@ -10178,6 +10280,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 	var acknowledgementServiceRunId: String? = null
 	var omitAcknowledgementMembership = false
 	var lastAdmissionOrdinal: Long? = null
+	var hasNoAdmittedStepEvents = false
 	val shutdownClaims = mutableListOf<SourceRuntimeClaim>()
 	var shutdownAttemptCount = 0
 	val startEntered = CompletableDeferred<Unit>()
@@ -10348,8 +10451,8 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 		sourceInstanceId = SourceInstanceId("steps-instance"),
 		registrationGeneration = registrationGeneration,
 		appliedRevision = 1,
-		callbackEntryBarrierSequence = 4,
-		lastDurablyAdmittedSequence = 4,
+		callbackEntryBarrierSequence = if (hasNoAdmittedStepEvents) 0 else 4,
+		lastDurablyAdmittedSequence = if (hasNoAdmittedStepEvents) null else 4,
 		lastAdmissionOrdinal = lastAdmissionOrdinal,
 		failedAdmissionCount = 0,
 		unresolvedSequenceStart = null,

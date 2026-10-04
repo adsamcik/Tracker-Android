@@ -25,6 +25,9 @@ import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCommand
 import com.adsamcik.tracker.tracker.source.coordinator.LegacyV27ProjectionRecoveryNotReadyException
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
+import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
+import com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecoveryResult
 import io.kotest.matchers.shouldBe
@@ -39,6 +42,10 @@ import javax.inject.Provider
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runCurrent
@@ -1030,6 +1037,114 @@ class DefaultTrackingStartupGateTest {
 		gate.withRetainedDataGeneration(0L) { "unavailable-data" } shouldBe null
 		gate.withReadyGenerationTransfer(0L) { "unavailable-data" } shouldBe null
 	}
+
+	@Test
+	@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE") // Exercises the existing engine constructor without adding a production test API.
+	fun `actual radio recovery shares retained gate without serializing sources or borrowing acquisition after Off`() = runTest {
+		var stopGeneration = 0L
+		every { lifecycleAuthority.latestStopGeneration() } answers { stopGeneration }
+		prepareRetainedGate()
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		val projections = mockk<ProjectionDispatcher>()
+		val wifiEntered = CompletableDeferred<Unit>()
+		val finishWifi = CompletableDeferred<Unit>()
+		coEvery { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) } coAnswers {
+			wifiEntered.complete(Unit)
+			finishWifi.await()
+			CoordinatorDrainResult.Complete(1L, 1)
+		}
+		coEvery { projections.drainAmbientRadioProjection(SourceKind.CELL, any()) } returns
+			CoordinatorDrainResult.Complete(2L, 1)
+		val recovery = actualRadioRecovery(projections, backgroundScope)
+		recovery.requestWifiSessionFactDrain()
+		runCurrent()
+		wifiEntered.isCompleted shouldBe true
+		// The startup/Stop control plane is available while the background Wi-Fi write is suspended.
+		withTimeoutOrNull(1_000L) {
+			gate.withReadyGenerationOperation(gate.currentGeneration) { "control-available" }
+		} shouldBe "control-available"
+		stopGeneration = 1L
+		every { lifecycleAuthority.pendingCollectionResumeExitId } returns "user-off"
+		gate.isReady shouldBe false
+		gate.permitsNewCollection shouldBe false
+		recovery.requestCellSessionFactDrain()
+		runCurrent()
+		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.CELL, any()) }
+		gate.withReadyGeneration(gate.currentGeneration) { "provider-start" } shouldBe null
+		finishWifi.complete(Unit)
+		runCurrent()
+		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) }
+	}
+
+	@Test
+	@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+	fun `real gate cancels and physically joins radio cleanup then the same actor recovers the reopened generation`() = runTest {
+		prepareRetainedGate()
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		val projections = mockk<ProjectionDispatcher>()
+		val entered = CompletableDeferred<Unit>()
+		val cleanupEntered = CompletableDeferred<Unit>()
+		val finishCleanup = CompletableDeferred<Unit>()
+		var cleanupFinished = false
+		val admittedGenerations = mutableListOf<Long>()
+		coEvery { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) } coAnswers {
+			admittedGenerations += gate.currentGeneration
+			if (admittedGenerations.size == 1) {
+				try {
+					entered.complete(Unit)
+					awaitCancellation()
+				} finally {
+					withContext(NonCancellable) {
+						cleanupEntered.complete(Unit)
+						finishCleanup.await()
+						cleanupFinished = true
+					}
+				}
+			}
+			CoordinatorDrainResult.Complete(2L, 1)
+		}
+		val recovery = actualRadioRecovery(projections, backgroundScope)
+		recovery.requestWifiSessionFactDrain()
+		runCurrent()
+		entered.isCompleted shouldBe true
+		val oldGeneration = gate.currentGeneration
+		val deletion = async { deletionBarrier.closeAdmission() }
+		runCurrent()
+		cleanupEntered.isCompleted shouldBe true
+		deletion.isCompleted shouldBe false
+		gate.withRetainedDataGeneration(oldGeneration) { "old-write" } shouldBe null
+		recovery.requestWifiSessionFactDrain()
+		runCurrent()
+		admittedGenerations shouldBe listOf(oldGeneration)
+		finishCleanup.complete(Unit)
+		runCurrent()
+		deletion.await()
+		cleanupFinished shouldBe true
+		admittedGenerations shouldBe listOf(oldGeneration)
+		deletionBarrier.reopen()
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		runCurrent()
+		// The queued hint reads only the new generation; cancellation did not destroy its actor.
+		admittedGenerations shouldBe listOf(oldGeneration, oldGeneration + 1L)
+		gate.withReadyGenerationTransfer(oldGeneration) { "old-write" } shouldBe null
+		coVerify(exactly = 2) { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) }
+	}
+
+	private fun prepareRetainedGate() {
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+		coEvery { resolver.apply(any(), any()) } just Runs
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+	}
+
+	@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+	private fun actualRadioRecovery(projections: ProjectionDispatcher, scope: CoroutineScope) = SourcePipelineRecovery(
+		legacyRecovery = mockk(), coordinator = mockk(), activityProjectionLane = mockk(), activityEffects = mockk(),
+		stepsProjectionLane = mockk(relaxed = true), pressureProjectionLane = mockk(relaxed = true),
+		capturedActivityProjectionLane = mockk(relaxed = true), cellProjectionLane = mockk(relaxed = true),
+		wifiProjectionLane = mockk(relaxed = true), applicationScope = scope,
+		ambientProjections = projections, ambientIngress = mockk(), startupGateProvider = Provider { gate },
+	)
 
 	private fun pendingStop() = TrackingStopCommand(
 		generation = 7L,

@@ -15,6 +15,8 @@ import com.adsamcik.tracker.tracker.source.catalog.DefaultSourceImplementationCa
 import com.adsamcik.tracker.tracker.source.catalog.SourceAcquisitionPlanFactory
 import com.adsamcik.tracker.tracker.source.catalog.SourceImplementationCatalog
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
+import com.adsamcik.tracker.tracker.source.projection.AmbientCellProjection
+import com.adsamcik.tracker.tracker.source.projection.AmbientWifiProjection
 import com.adsamcik.tracker.tracker.source.projection.Projection
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
@@ -71,6 +73,14 @@ object SourcePipelineModule {
 	@Provides
 	@IntoSet
 	fun provideActivityAutomationProjection(projection: ActivityAutomationProjection): Projection = projection
+
+	@Provides
+	@IntoSet
+	internal fun provideAmbientWifiProjection(projection: AmbientWifiProjection): Projection = projection
+
+	@Provides
+	@IntoSet
+	internal fun provideAmbientCellProjection(projection: AmbientCellProjection): Projection = projection
 
 	@Provides
 	@IntoMap

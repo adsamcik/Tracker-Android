@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.source.projection
 import androidx.room.withTransaction
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionCheckpointEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionJoinStateEntity
@@ -10,8 +12,17 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
+import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
+import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
+import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.yield
 
 @Singleton
 class ProjectionDispatcher @Inject constructor(
@@ -19,16 +30,110 @@ class ProjectionDispatcher @Inject constructor(
 	projections: Set<@JvmSuppressWildcards Projection>,
 ) {
 	private val projections = projections.sortedBy(Projection::id)
+	private val globalProjections = this.projections.filterNot { it.isAmbientRadio() }
+	private val ambientWifiMutex = Mutex()
+	private val ambientCellMutex = Mutex()
 
 	suspend fun registerAll(activationOrdinal: Long) {
 		require(activationOrdinal > 0L)
-		projections.forEach { projection -> registerProjection(projection, activationOrdinal) }
+		globalProjections.forEach { projection ->
+			registerProjection(projection, activationOrdinal)
+		}
+	}
+
+	/** A source-local background consumer never joins session settlement's global continuation. */
+	internal suspend fun minimumGlobalCheckpoint(): Long? =
+		database.sourceProjectionStateDao().minimumActiveGlobalCheckpoint(
+			AmbientWifiFactRevisionEntity.WRITER_ID,
+			AmbientWifiFactRevisionEntity.WRITER_VERSION,
+			AmbientCellFactRevisionEntity.WRITER_ID,
+			AmbientCellFactRevisionEntity.WRITER_VERSION,
+		)
+
+	/** Installs only retained-data consumers before the startup gate admits provider callbacks. */
+	internal suspend fun registerAmbientRadioProjections() {
+		for (source in listOf(SourceKind.WIFI, SourceKind.CELL)) {
+			registerProjection(ambientProjection(source), ambientActivationOrdinal())
+		}
+	}
+
+	/**
+	 * Uses the existing durable checkpoint and dispatcher for one finite source high-water snapshot.
+	 * Each radio source has its own lock; a failed sibling never joins this source's retry path.
+	 */
+	internal suspend fun drainAmbientRadioProjection(
+		source: SourceKind,
+		ingress: DurableSourceIngress,
+	): CoordinatorDrainResult {
+		val mutex = when (source) {
+			SourceKind.WIFI -> ambientWifiMutex
+			SourceKind.CELL -> ambientCellMutex
+			else -> error("Not an ambient radio source")
+		}
+		return mutex.withLock {
+			val projection = ambientProjection(source)
+			registerProjection(projection, ambientActivationOrdinal())
+			val target = database.withTransaction {
+				maxOf(database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L,
+					database.sourceEvidenceStateDao().get()?.deletedSourceEventHighWaterOrdinal ?: 0L)
+			}
+			var cursor = projectionCheckpoint(projection)
+			var dispatched = 0
+			while (cursor < target) {
+				currentCoroutineContext().ensureActive()
+				val batch = try {
+					ingress.committedSourceBatch(source, cursor, target, AMBIENT_BATCH_SIZE)
+				} catch (corrupt: CorruptSourceEventException) {
+					check(corrupt.sourceKind == source.stableCode && corrupt.admissionOrdinal in (cursor + 1L)..target)
+					quarantineRawProjectionEvent(projection, corrupt.admissionOrdinal,
+						corrupt.failureCode, requireContiguousOrdinal = false)
+					cursor = maxOf(cursor, corrupt.admissionOrdinal)
+					continue
+				}
+				if (batch.isEmpty()) {
+					cursor = advanceProjectionAcrossIrrelevantOrdinals(projection.id, projection.version, target)
+					break
+				}
+				for (event in batch) {
+					check(event.evidence.source == source && event.admissionOrdinal in (cursor + 1L)..target)
+					val result = dispatchProjectionWithSourceOrdinalGap(projection.id, projection.version, event)
+					if (!result.complete) return@withLock CoordinatorDrainResult.ProjectionFailed(
+						projectionCheckpoint(projection), dispatched, projection.id, event.admissionOrdinal,
+					)
+					cursor = event.admissionOrdinal
+					dispatched++
+				}
+				yield()
+			}
+			CoordinatorDrainResult.Complete(cursor, dispatched)
+		}
+	}
+
+	private suspend fun projectionCheckpoint(projection: Projection): Long = requireNotNull(
+		database.sourceProjectionStateDao().checkpoint(projection.id, projection.version),
+	).contiguousAdmissionOrdinal
+
+	private fun ambientProjection(source: SourceKind): Projection = when (source) {
+		SourceKind.WIFI -> projection(AmbientWifiFactRevisionEntity.WRITER_ID, AmbientWifiFactRevisionEntity.WRITER_VERSION)
+		SourceKind.CELL -> projection(AmbientCellFactRevisionEntity.WRITER_ID, AmbientCellFactRevisionEntity.WRITER_VERSION)
+		else -> error("Not an ambient radio source")
+	}
+
+	private fun Projection.isAmbientRadio(): Boolean =
+		id == AmbientWifiFactRevisionEntity.WRITER_ID && version == AmbientWifiFactRevisionEntity.WRITER_VERSION ||
+			id == AmbientCellFactRevisionEntity.WRITER_ID && version == AmbientCellFactRevisionEntity.WRITER_VERSION
+
+	/** Retained callbacks can predate the first registration; their immutable purpose rules still apply. */
+	private suspend fun ambientActivationOrdinal(): Long = database.withTransaction {
+		val deleted = database.sourceEvidenceStateDao().get()?.deletedSourceEventHighWaterOrdinal ?: 0L
+		check(deleted < Long.MAX_VALUE)
+		maxOf(database.legacyV27ProjectionDrainDao().liveActivationOrdinal() ?: 1L, deleted + 1L)
 	}
 
 	suspend fun dispatch(event: AdmittedSourceEvent<out SourcePayload>): ProjectionDispatchResult {
 		val failures = mutableListOf<ProjectionFailure>()
 		val quarantined = mutableListOf<ProjectionQuarantine>()
-		for (projection in projections) {
+		for (projection in globalProjections) {
 			val result = dispatchProjection(projection, event, requireContiguousOrdinal = true)
 			result.quarantine?.let(quarantined::add)
 			result.failure?.let {
@@ -246,40 +351,50 @@ class ProjectionDispatcher @Inject constructor(
 	suspend fun quarantineRawEvent(admissionOrdinal: Long, failureCode: String) {
 		require(admissionOrdinal > 0L)
 		require(failureCode.isNotBlank())
-		for (projection in projections) {
-			database.withTransaction {
-				val dao = database.sourceProjectionStateDao()
-				val checkpoint = requireNotNull(dao.checkpoint(projection.id, projection.version)) {
-					"Projection ${projection.id} is not registered"
-				}
-				if (admissionOrdinal <= checkpoint.contiguousAdmissionOrdinal) return@withTransaction
-				check(admissionOrdinal == checkpoint.contiguousAdmissionOrdinal + 1L) {
-					"Raw quarantine cannot skip admission ordinal " +
-						"${checkpoint.contiguousAdmissionOrdinal + 1L} for ${projection.id}"
-				}
-				dao.saveFailure(
-					SourceProjectionFailureEntity(
-						projectionId = projection.id,
-						projectionVersion = projection.version,
-						admissionOrdinal = admissionOrdinal,
-						attemptCount = 1,
-						failureCode = failureCode,
-						terminal = true,
-						lastAttemptAtMs = System.currentTimeMillis(),
-					),
-				)
-				dao.saveCheckpoint(
-					checkpoint.copy(
-						contiguousAdmissionOrdinal = admissionOrdinal,
-						updatedAtMs = System.currentTimeMillis(),
-					),
-				)
+		for (projection in globalProjections) {
+			quarantineRawProjectionEvent(projection, admissionOrdinal, failureCode, requireContiguousOrdinal = true)
+		}
+	}
+
+	private suspend fun quarantineRawProjectionEvent(
+		projection: Projection,
+		admissionOrdinal: Long,
+		failureCode: String,
+		requireContiguousOrdinal: Boolean,
+	) {
+		database.withTransaction {
+			val dao = database.sourceProjectionStateDao()
+			val checkpoint = requireNotNull(dao.checkpoint(projection.id, projection.version)) {
+				"Projection ${projection.id} is not registered"
 			}
+			if (admissionOrdinal <= checkpoint.contiguousAdmissionOrdinal) return@withTransaction
+			check(!requireContiguousOrdinal || admissionOrdinal == checkpoint.contiguousAdmissionOrdinal + 1L) {
+				"Raw quarantine cannot skip admission ordinal " +
+					"${checkpoint.contiguousAdmissionOrdinal + 1L} for ${projection.id}"
+			}
+			dao.saveFailure(
+				SourceProjectionFailureEntity(
+					projectionId = projection.id,
+					projectionVersion = projection.version,
+					admissionOrdinal = admissionOrdinal,
+					attemptCount = 1,
+					failureCode = failureCode,
+					terminal = true,
+					lastAttemptAtMs = System.currentTimeMillis(),
+				),
+			)
+			dao.saveCheckpoint(
+				checkpoint.copy(
+					contiguousAdmissionOrdinal = admissionOrdinal,
+					updatedAtMs = System.currentTimeMillis(),
+				),
+			)
 		}
 	}
 
 	private companion object {
 		const val STATUS_ACTIVE = "ACTIVE"
+		const val AMBIENT_BATCH_SIZE = 64
 	}
 }
 

@@ -19,6 +19,9 @@ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEffectVa
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationStartPermit
+import com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher
+import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecovery
@@ -35,14 +38,21 @@ import io.mockk.verify
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -59,6 +69,151 @@ class SourcePipelineRecoveryTest {
 		coordinator,
 		activityLane,
 		activityEffects,
+	)
+
+	@Test
+	fun `background Wi-Fi failure cannot wait for or suppress background Cell recovery`() = runTest {
+		val projections = mockk<ProjectionDispatcher>()
+		val wifiEntered = CompletableDeferred<Unit>()
+		val releaseWifi = CompletableDeferred<Unit>()
+		coEvery { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) } coAnswers {
+			wifiEntered.complete(Unit)
+			releaseWifi.await()
+			CoordinatorDrainResult.ProjectionFailed(0L, 0, "ambient-wifi-facts", 1L)
+		}
+		coEvery { projections.drainAmbientRadioProjection(SourceKind.CELL, any()) } returns
+			CoordinatorDrainResult.Complete(2L, 1)
+		val recovery = radioRecovery(projections, backgroundScope)
+
+		recovery.requestWifiSessionFactDrain()
+		recovery.requestCellSessionFactDrain()
+		runCurrent()
+		wifiEntered.isCompleted shouldBe true
+		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.CELL, any()) }
+		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
+		coVerify(exactly = 0) { activityLane.drainAvailable() }
+		releaseWifi.complete(Unit)
+		runCurrent()
+	}
+
+	@Test
+	fun `background radio hints conflate per source and never spin after a failure`() = runTest {
+		val projections = mockk<ProjectionDispatcher>()
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		var attempts = 0
+		coEvery { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) } coAnswers {
+			attempts++
+			if (attempts == 1) { entered.complete(Unit); release.await() }
+			CoordinatorDrainResult.ProjectionFailed(0L, 0, "ambient-wifi-facts", 1L)
+		}
+		val recovery = radioRecovery(projections, backgroundScope)
+		repeat(100) { recovery.requestWifiSessionFactDrain() }
+		runCurrent()
+		entered.isCompleted shouldBe true
+		repeat(100) { recovery.requestWifiSessionFactDrain() }
+		runCurrent()
+		release.complete(Unit)
+		runCurrent()
+		attempts shouldBe 2
+		coVerify(exactly = 0) { projections.drainAmbientRadioProjection(SourceKind.CELL, any()) }
+	}
+
+	@Test
+	fun `startup registers both background consumers before queuing independent retained drains`() = runTest {
+		val projections = mockk<ProjectionDispatcher>()
+		var registered = false
+		coEvery { legacy.recover() } returns LegacyV27ProjectionRecoveryResult.NotRequired
+		coEvery { projections.registerAmbientRadioProjections() } coAnswers { registered = true }
+		coEvery { projections.drainAmbientRadioProjection(any(), any()) } coAnswers {
+			registered shouldBe true
+			CoordinatorDrainResult.Complete(0L, 0)
+		}
+		val recovery = radioRecovery(projections, backgroundScope)
+
+		recovery.recoverStartupAuthority() shouldBe LegacyV27ProjectionRecoveryResult.NotRequired
+		registered shouldBe true
+		runCurrent()
+		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) }
+		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.CELL, any()) }
+		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
+	}
+
+	@Test
+	fun `background startup hint waits for Ready instead of being lost before the gate opens`() = runTest {
+		val projections = mockk<ProjectionDispatcher>()
+		val gate = mockk<TrackingStartupGate>()
+		val ready = CompletableDeferred<Unit>()
+		var opened = false
+		every { gate.isReady } answers { opened }
+		every { gate.currentGeneration } returns 3L
+		every { gate.isReadyGeneration(3L) } answers { opened }
+		every { gate.withRetainedDataGeneration<Boolean>(3L, any()) } answers {
+			if (opened) secondArg<() -> Boolean>().invoke() else null
+		}
+		coEvery { gate.awaitReady() } coAnswers {
+			ready.await()
+			TrackingStartupResult.Ready(false, 0L)
+		}
+		coEvery { gate.withReadyGenerationTransfer<Unit>(3L, any()) } coAnswers {
+			opened shouldBe true
+			secondArg<suspend () -> Unit>().invoke()
+		}
+		coEvery { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) } returns
+			CoordinatorDrainResult.Complete(1L, 1)
+		val recovery = radioRecovery(projections, backgroundScope, javax.inject.Provider { gate })
+
+		recovery.requestWifiSessionFactDrain()
+		runCurrent()
+		coVerify(exactly = 0) { projections.drainAmbientRadioProjection(any(), any()) }
+		opened = true
+		ready.complete(Unit)
+		runCurrent()
+		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) }
+	}
+
+	@Test
+	fun `deletion waits for background projection and an old queued hint cannot write across closure`() = runTest {
+		val projections = mockk<ProjectionDispatcher>()
+		val gate = TestTrackingStartupGate(7L)
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		coEvery { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) } coAnswers {
+			try {
+				entered.complete(Unit)
+				awaitCancellation()
+			} finally {
+				withContext(NonCancellable) { release.await() }
+			}
+		}
+		val recovery = radioRecovery(projections, backgroundScope, javax.inject.Provider { gate })
+		recovery.requestWifiSessionFactDrain()
+		runCurrent()
+		entered.isCompleted shouldBe true
+		gate.closeAdmission()
+		recovery.requestWifiSessionFactDrain()
+		val drained = async { gate.awaitQuiescence() }
+		runCurrent()
+		drained.isCompleted shouldBe false
+		release.complete(Unit)
+		runCurrent()
+		drained.await()
+		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) }
+	}
+
+	private fun radioRecovery(
+		projections: ProjectionDispatcher,
+		scope: CoroutineScope,
+		gate: javax.inject.Provider<TrackingStartupGate>? = null,
+	) = SourcePipelineRecovery(
+		legacy, coordinator, activityLane, activityEffects,
+		mockk<StepsSessionFactProjectionLane>(relaxed = true),
+		mockk<PressureSessionFactProjectionLane>(relaxed = true),
+		mockk<ActivityCapturedFactProjectionLane>(relaxed = true),
+		mockk<CellSessionFactProjectionLane>(relaxed = true),
+		mockk<WifiSessionFactProjectionLane>(relaxed = true),
+		scope, ambientProjections = projections, ambientIngress = mockk<DurableSourceIngress>(),
+		startupGateProvider = gate,
 	)
 
 	@Test
@@ -564,6 +719,7 @@ class SourcePipelineRecoveryTest {
 		initialGeneration: Long,
 	) : TrackingStartupGate {
 		private val operationMutex = Mutex()
+		private val transfers = mutableSetOf<Job>()
 		@Volatile private var ready = true
 		@Volatile private var generation = initialGeneration
 
@@ -580,6 +736,20 @@ class SourcePipelineRecoveryTest {
 			if (isReadyGeneration(expectedGeneration)) operation() else null
 		}
 
+		override suspend fun <T> withReadyGenerationTransfer(
+			expectedGeneration: Long,
+			operation: suspend () -> T,
+		): T? = coroutineScope {
+			val child = async(start = CoroutineStart.LAZY) { operation() }
+			val admitted = synchronized(transfers) {
+				if (!isReadyGeneration(expectedGeneration)) false else { transfers.add(child); true }
+			}
+			if (!admitted) { child.cancel(); return@coroutineScope null }
+			child.invokeOnCompletion { synchronized(transfers) { transfers.remove(child) } }
+			child.start()
+			child.await()
+		}
+
 		override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
 			TrackingStartupResult.Ready(
 				legacyRecoveryPartial = false,
@@ -589,9 +759,11 @@ class SourcePipelineRecoveryTest {
 		fun closeAdmission() {
 			ready = false
 			generation += 1L
+			synchronized(transfers) { transfers.toList() }.forEach { it.cancel() }
 		}
 
 		suspend fun awaitQuiescence() {
+			synchronized(transfers) { transfers.toList() }.joinAll()
 			operationMutex.withLock { Unit }
 		}
 	}

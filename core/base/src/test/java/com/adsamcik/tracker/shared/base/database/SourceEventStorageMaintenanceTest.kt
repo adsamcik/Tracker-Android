@@ -3,6 +3,10 @@ package com.adsamcik.tracker.shared.base.database
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionCheckpointEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionProofEntity
@@ -35,6 +39,70 @@ class SourceEventStorageMaintenanceTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `pending background Wi-Fi protects its own unsaved data while Cell and Pressure can prune`() = runTest {
+		insertEvent(SourceDestinationOwnerEntity.SOURCE_WIFI, 1L, false)
+		insertEvent(SourceDestinationOwnerEntity.SOURCE_CELL, 2L, false)
+		insertEvent(SourceDestinationOwnerEntity.SOURCE_PRESSURE, 3L, false)
+		registerRetainingProjection(AmbientWifiFactRevisionEntity.WRITER_ID, 1, 0L)
+		registerRetainingProjection(AmbientCellFactRevisionEntity.WRITER_ID, 1, 3L)
+
+		database.pruneSourceEventStorageBefore(100L)
+
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.sourceKind shouldBe SourceDestinationOwnerEntity.SOURCE_WIFI
+		database.sourceEventWalDao().getByAdmissionOrdinal(2L) shouldBe null
+		database.sourceEventWalDao().getByAdmissionOrdinal(3L) shouldBe null
+	}
+
+	@Test
+	fun `pending background Cell protects its own unsaved data without retaining Wi-Fi`() = runTest {
+		insertEvent(SourceDestinationOwnerEntity.SOURCE_WIFI, 1L, false)
+		insertEvent(SourceDestinationOwnerEntity.SOURCE_CELL, 2L, false)
+		registerRetainingProjection(AmbientWifiFactRevisionEntity.WRITER_ID, 1, 2L)
+		registerRetainingProjection(AmbientCellFactRevisionEntity.WRITER_ID, 1, 0L)
+
+		database.pruneSourceEventStorageBefore(100L)
+
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L) shouldBe null
+		database.sourceEventWalDao().getByAdmissionOrdinal(2L)?.sourceKind shouldBe SourceDestinationOwnerEntity.SOURCE_CELL
+	}
+
+	@Test
+	fun `missing background checkpoint protects the source from its registration boundary`() = runTest {
+		insertEvent(SourceDestinationOwnerEntity.SOURCE_WIFI, 1L, false)
+		insertEvent(SourceDestinationOwnerEntity.SOURCE_CELL, 2L, false)
+		registerRetainingProjection(AmbientWifiFactRevisionEntity.WRITER_ID, 1, null)
+
+		database.pruneSourceEventStorageBefore(100L)
+
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.sourceKind shouldBe SourceDestinationOwnerEntity.SOURCE_WIFI
+		database.sourceEventWalDao().getByAdmissionOrdinal(2L) shouldBe null
+	}
+
+	@Test
+	fun `unknown projection and unknown background writer version keep conservative global retention`() = runTest {
+		insertEvent(SourceDestinationOwnerEntity.SOURCE_WIFI, 1L, false)
+		insertEvent(SourceDestinationOwnerEntity.SOURCE_CELL, 2L, false)
+		registerRetainingProjection("unknown-reader", 1, 0L)
+		registerRetainingProjection(AmbientWifiFactRevisionEntity.WRITER_ID, 2, 0L)
+
+		database.pruneSourceEventStorageBefore(100L)
+		database.sourceEventWalDao().countAll() shouldBe 2L
+		database.sourceProjectionStateDao().deleteAllRegistrations()
+		registerRetainingProjection(AmbientWifiFactRevisionEntity.WRITER_ID, 2, 0L)
+		database.pruneSourceEventStorageBefore(100L)
+		database.sourceEventWalDao().countAll() shouldBe 2L
+	}
+
+	private suspend fun registerRetainingProjection(id: String, version: Int, checkpoint: Long?) {
+		database.sourceProjectionStateDao().register(SourceProjectionRegistrationEntity(
+			id, version, 1L, true, "ACTIVE", 1L,
+		))
+		if (checkpoint != null) database.sourceProjectionStateDao().saveCheckpoint(SourceProjectionCheckpointEntity(
+			id, version, checkpoint, 1, 1L,
+		))
+	}
 
 	@Test
 	fun `control expiry waits for the exact capture lane before retiring shared raw Activity`() = runTest {

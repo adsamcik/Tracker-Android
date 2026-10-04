@@ -39,6 +39,9 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
+import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
+import com.adsamcik.tracker.tracker.source.projection.AmbientWifiProjection
+import com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
@@ -699,8 +702,9 @@ class WifiDurableSourceIngressTest {
 			.units.single().admissionOrdinal
 		val projector = AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
 			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
-		projector.project(ordinal).shouldBeInstanceOf<AmbientWifiProjectionResult.Groups>()
-			.results.size shouldBe 2
+		val dispatcher = ProjectionDispatcher(database, setOf(AmbientWifiProjection(projector)))
+		dispatcher.drainAmbientRadioProjection(SourceKind.WIFI, ingress) shouldBe
+			CoordinatorDrainResult.Complete(ordinal, 1)
 		val facts = database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10)
 			.map { it.fact }.associateBy { it.purposeDemandId }
 		facts.keys shouldBe setOf(first.demandId, second.demandId)
@@ -714,6 +718,8 @@ class WifiDurableSourceIngressTest {
 				fact.logicalFactId, fact.semanticRevision, 65)
 		}
 		children.map { it.bssid }.toSet() shouldBe setOf("old-ap", "new-ap")
+		dispatcher.drainAmbientRadioProjection(SourceKind.WIFI, ingress) shouldBe
+			CoordinatorDrainResult.Complete(ordinal, 0)
 		projector.project(ordinal).shouldBeInstanceOf<AmbientWifiProjectionResult.Groups>()
 			.results.forEach { it.shouldBeInstanceOf<AmbientWifiProjectionResult.Duplicate>() }
 		database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 2
@@ -730,9 +736,10 @@ class WifiDurableSourceIngressTest {
 			purposeEligibilityMask = 0L, eligibilityFingerprint = denied.single().authorizationFingerprint,
 			payloadVersion = WIFI_WAL_PAYLOAD_VERSION)).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
 			.units.single().admissionOrdinal
-		AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
-			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
-			.shouldBeInstanceOf<AmbientWifiProjectionResult.FactWritten>()
+		val projector = AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
+		ProjectionDispatcher(database, setOf(AmbientWifiProjection(projector)))
+			.drainAmbientRadioProjection(SourceKind.WIFI, ingress) shouldBe CoordinatorDrainResult.Complete(ordinal, 1)
 		val fact = database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single().fact
 		fact.purposeEligibilityMask shouldBe 0L
 		fact.purposeDemandId shouldBe WIFI_DEMAND_ID

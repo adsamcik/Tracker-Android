@@ -20,6 +20,13 @@ description of its earlier input; this file records subsequent repair progress.
 
 ## Authored slices and local commit receipts
 
+- October 4 background Wi-Fi/Cell delivery and recovery uses independent existing
+  retained-data operations, exact source-aware checkpoints/retention, and source
+  hints/startup recovery. Fresh review's AR1 shared-lock and AR2 unrelated End/Suspend
+  findings are repaired in fifteen selected paths, including actual gate/global/session
+  coordinator test sources. All remain unexecuted:
+  `../2026-10-04/AMBIENT_RADIO_RUNTIME_SELECTED/SOURCE_REVIEW_REPAIRED.md`.
+  Historical Cell capture, full source chains, validation and integration stay open.
 - October 4 exact Activity/Pressure file adapters are independently reviewed as
   four source-path prerequisites. Fixed selection/original epoch and existing
   codecs/spool support selected-content checks before/after copy; ordinary date
@@ -322,10 +329,10 @@ remain held. No test or gate has run.
   cleanup exception finding is statically closed; tests remain unexecuted.
   Persistent later removal notices are a separate required continuation.
 
-- [ ] Connect approved background radio delivery/recovery using independent
-  progress. The authored slice is under fresh review; shared startup-lock and
-  unrelated session End/Suspend coupling findings are being repaired. No runtime
-  activation or full-chain closure is implied.
+- [x] Connect approved background radio delivery/recovery using independent
+  progress. Shared startup-lock and unrelated session End/Suspend coupling findings
+  are source-reviewed and repaired. No runtime activation or full-chain closure
+  is implied; authored production-gate/coordinator cases remain unexecuted.
 - [x] Propagate current-tuple v6 item qualification through native writers,
   retained capture maintenance and history; preserve v5 contracts.
 - [x] Recheck native physical-lifetime and full measured radio parent time bounds.

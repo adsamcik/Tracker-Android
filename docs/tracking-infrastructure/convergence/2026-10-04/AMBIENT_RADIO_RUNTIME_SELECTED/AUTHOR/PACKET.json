@@ -1,0 +1,119 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "authored_date": "2026-10-04",
+  "parent_supplied_base_commit": "8bbb29490c",
+  "full_base_commit_not_read_by_author": true,
+  "workspace": "C:\\Users\\adam-\\GitHub\\Tracker-Android\\.worktrees\\source-native-map-context-root",
+  "author": "/root/adversary_runtime_0930",
+  "scope": "Approved background Wi-Fi/Cell delivery and recovery through existing Projection registration/checkpoint/queue infrastructure",
+  "originals": [
+    "before-pins.json",
+    "before-test-pins.json"
+  ],
+  "selected_after_pins": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt",
+      "sha256": "5962fde0080c44fde2e1556e5abc8646cbffd0e66ed230ecf9bf4ce435f00554",
+      "new_file": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecovery.kt",
+      "sha256": "7367e2263082c8158e95550b43cd02c74aed2d24764fc3cf4fa695727d2d2562",
+      "new_file": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ProjectionDispatcher.kt",
+      "sha256": "9ef415c5bc08ec33100f3f6110659dfcc3e1667fdf4da053df58041549fc4fd6",
+      "new_file": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/AmbientRadioProjection.kt",
+      "sha256": "559da7cfe25002a9bc6598d010f4065b6a12e610711eeafcf59bf7175e88faaf",
+      "new_file": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceProjectionStateDao.kt",
+      "sha256": "89134ef69617480cfffeb3a03a2dd3c36a6b35f14080f5f621b5e282c661bede",
+      "new_file": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenance.kt",
+      "sha256": "2d6c1affede2fdebbebd3b5a6cb9d83843593f6f90f2fc8508ac24c99fa34243",
+      "new_file": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecoveryTest.kt",
+      "sha256": "f8b07fcead36e6846868997b28576c97d952f7aaf43a95cdb03cbf04fc45c507",
+      "new_file": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/AmbientRadioProjectionRecoveryTest.kt",
+      "sha256": "0a75af2ebdc85e77ae600f2468d2059e8f8de42270776976a54af6358bea2a8a",
+      "new_file": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt",
+      "sha256": "3a4601ec673fe33f18844d6a29e55bcdc1fceb4bdf474aa149b705ecf34c8f00",
+      "new_file": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/CellDurableSourceIngressTest.kt",
+      "sha256": "408afe11816e1ea128200cad4e4c95a530345389eeadac54889d7c4d65754b22",
+      "new_file": false
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenanceTest.kt",
+      "sha256": "26422f2896cf25202d74f389429d9074739c1895c2102bd1a9b3306329bc87dc",
+      "new_file": false
+    }
+  ],
+  "validation": {
+    "executed": [],
+    "static_inspection_only": true,
+    "no_git_commands": true,
+    "no_provider_activation": true,
+    "gates_deferred": [
+      "compilation",
+      "Hilt",
+      "Room query generation/schema",
+      "unit and contract tests",
+      "ciUnitTest",
+      "ciCheck",
+      "device and battery evidence",
+      "independent review",
+      "local dev/v10 integration"
+    ]
+  },
+  "new_test_cases": [
+    "background Wi-Fi failure cannot wait for or suppress background Cell recovery",
+    "background radio hints conflate per source and never spin after a failure",
+    "startup registers both background consumers before queuing independent retained drains",
+    "background startup hint waits for Ready instead of being lost before the gate opens",
+    "deletion waits for background projection and an old queued hint cannot write across closure",
+    "an unverifiable background group does not suppress a qualified sibling with callback mask zero",
+    "transient failure in a background group leaves the complete callback for retry",
+    "background projection ignores sibling sources and preserves callback cancellation",
+    "first consumer registration recovers retained callbacks using bounded source-only reads",
+    "Cell retry leaves its checkpoint pending while Wi-Fi advances and a new dispatcher resumes Cell",
+    "valid Wi-Fi prefix is saved before corruption quarantines only its consumer and later input continues",
+    "new consumer registration after clear starts strictly after the surviving deletion fence",
+    "cancelled radio projection keeps its checkpoint and propagates cancellation",
+    "pending background Wi-Fi protects its own unsaved data while Cell and Pressure can prune",
+    "pending background Cell protects its own unsaved data without retaining Wi-Fi",
+    "missing background checkpoint protects the source from its registration boundary",
+    "unknown projection and unknown background writer version keep conservative global retention"
+  ],
+  "upgraded_existing_cases": [
+    "one Wi-Fi delivery saves both background demand groups with their exact clocks and details",
+    "background Wi-Fi writer keeps a historical reading when callback authorization is denied",
+    "one Cell delivery saves every background group and replay retains exact tower details",
+    "background Cell writer accepts a historical group with a denied callback"
+  ],
+  "static_trace": [
+    "DurableSourceEventSinkFactory callback after admission -> existing requestWifi/CellSessionFactDrain -> independent conflated background signals -> existing Ready generation operation -> bounded source-only dispatcher -> thin Projection -> existing qualified group projector -> native fact and child transaction -> existing checkpoint",
+    "Startup recovery registers existing ambient writer IDs from legacy/deletion fence and queues retained callback drains; existing Ready publication releases hints without waiting for any sibling source",
+    "Transient projector errors leave checkpoint pending, rollback callback group transaction and persist existing retryable failure; restart resumes from durable checkpoint",
+    "Source-aware maintenance excludes only exact known ambient IDs/versions from global minimum and applies the matching source checkpoint; every unknown ID/version and join/legacy barrier remains conservative"
+  ],
+  "remaining_separate_slice": "Historical session Cell callback ownership and exact per-reading selector propagation remain unsatisfied in ingress WAL header, CellSessionFactProjectionLane, CellWalQualificationAdapter, CellCapturedFactClassifier and CellWalCarrierAuthenticator. No Cell capture production path changed in this packet."
+}

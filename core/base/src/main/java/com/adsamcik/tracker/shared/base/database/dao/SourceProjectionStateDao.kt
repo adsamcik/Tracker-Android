@@ -392,6 +392,39 @@ interface SourceProjectionStateDao {
 	)
 	suspend fun minimumRequiredCheckpoint(): Long?
 
+	/** Unknown projections retain their conservative global boundary. Only named source owners leave it. */
+	@Query(
+		"SELECT MIN(COALESCE(checkpoint.contiguous_admission_ordinal, " +
+			"registration.activation_ordinal - 1)) " +
+			"FROM source_projection_registration registration " +
+			"LEFT JOIN source_projection_checkpoint checkpoint " +
+			"ON registration.projection_id = checkpoint.projection_id " +
+			"AND registration.projection_version = checkpoint.projection_version " +
+			"WHERE registration.retention_required = 1 AND registration.status = 'ACTIVE' " +
+			"AND NOT (registration.projection_id = :wifiProjectionId " +
+			"AND registration.projection_version = :wifiProjectionVersion) " +
+			"AND NOT (registration.projection_id = :cellProjectionId " +
+			"AND registration.projection_version = :cellProjectionVersion)",
+	)
+	suspend fun minimumRequiredGlobalCheckpoint(
+		wifiProjectionId: String,
+		wifiProjectionVersion: Int,
+		cellProjectionId: String,
+		cellProjectionVersion: Int,
+	): Long?
+
+	@Query(
+		"SELECT COALESCE(checkpoint.contiguous_admission_ordinal, registration.activation_ordinal - 1) " +
+			"FROM source_projection_registration registration " +
+			"LEFT JOIN source_projection_checkpoint checkpoint " +
+			"ON registration.projection_id = checkpoint.projection_id " +
+			"AND registration.projection_version = checkpoint.projection_version " +
+			"WHERE registration.projection_id = :projectionId " +
+			"AND registration.projection_version = :projectionVersion " +
+			"AND registration.retention_required = 1 AND registration.status = 'ACTIVE'",
+	)
+	suspend fun requiredProjectionCheckpoint(projectionId: String, projectionVersion: Int): Long?
+
 	@Query(
 		"SELECT MIN(contiguous_admission_ordinal) FROM source_product_projection_lane " +
 			"WHERE source_kind = :sourceKind AND retention_required = 1",
@@ -408,6 +441,27 @@ interface SourceProjectionStateDao {
 			"WHERE registration.status = 'ACTIVE'",
 	)
 	suspend fun minimumActiveCheckpoint(): Long?
+
+	/** Global continuation excludes only the two exact source-local background consumers. */
+	@Query(
+		"SELECT MIN(COALESCE(checkpoint.contiguous_admission_ordinal, " +
+			"registration.activation_ordinal - 1)) " +
+			"FROM source_projection_registration registration " +
+			"LEFT JOIN source_projection_checkpoint checkpoint " +
+			"ON registration.projection_id = checkpoint.projection_id " +
+			"AND registration.projection_version = checkpoint.projection_version " +
+			"WHERE registration.status = 'ACTIVE' " +
+			"AND NOT (registration.projection_id = :wifiProjectionId " +
+			"AND registration.projection_version = :wifiProjectionVersion) " +
+			"AND NOT (registration.projection_id = :cellProjectionId " +
+			"AND registration.projection_version = :cellProjectionVersion)",
+	)
+	suspend fun minimumActiveGlobalCheckpoint(
+		wifiProjectionId: String,
+		wifiProjectionVersion: Int,
+		cellProjectionId: String,
+		cellProjectionVersion: Int,
+	): Long?
 
 	@Query("SELECT MIN(minimum_required_ordinal) FROM source_projection_join_state")
 	suspend fun minimumJoinRequiredOrdinal(): Long?

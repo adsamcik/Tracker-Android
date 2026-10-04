@@ -9,6 +9,9 @@ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationOutboxDi
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationStartPermit
+import com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher
+import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecovery
@@ -20,6 +23,9 @@ import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -42,10 +48,14 @@ class SourcePipelineRecovery private constructor(
 	applicationScope: CoroutineScope?,
 	private val startupGateProvider: Provider<TrackingStartupGate>?,
 	@Suppress("UNUSED_PARAMETER") constructionMarker: Unit,
+	private val ambientProjections: ProjectionDispatcher? = null,
+	private val ambientIngress: DurableSourceIngress? = null,
 ) {
 	private val legacyMutex = Mutex()
 	private val activityEffectMutex = Mutex()
 	private val committedWorkSignals = Channel<Unit>(Channel.CONFLATED)
+	private val ambientWifiSignals = Channel<Unit>(Channel.CONFLATED)
+	private val ambientCellSignals = Channel<Unit>(Channel.CONFLATED)
 	@Volatile private var terminalLegacyResult: LegacyV27ProjectionRecoveryResult? = null
 
 	@Inject
@@ -62,6 +72,8 @@ class SourcePipelineRecovery private constructor(
 		protectedLocationDrain: ProtectedLocationSourceDrain,
 		@ApplicationScope applicationScope: CoroutineScope,
 		startupGateProvider: Provider<TrackingStartupGate>,
+		ambientProjections: ProjectionDispatcher,
+		ambientIngress: DurableSourceIngress,
 	) : this(
 		legacyRecovery,
 		coordinator,
@@ -76,6 +88,8 @@ class SourcePipelineRecovery private constructor(
 		applicationScope,
 		startupGateProvider,
 		Unit,
+		ambientProjections,
+		ambientIngress,
 	)
 
 	internal constructor(
@@ -203,6 +217,9 @@ class SourcePipelineRecovery private constructor(
 		wifiProjectionLane: WifiSessionFactProjectionLane,
 		applicationScope: CoroutineScope,
 		protectedLocationDrain: ProtectedLocationSourceDrain? = null,
+		ambientProjections: ProjectionDispatcher? = null,
+		ambientIngress: DurableSourceIngress? = null,
+		startupGateProvider: Provider<TrackingStartupGate>? = null,
 	) : this(
 		legacyRecovery,
 		coordinator,
@@ -215,8 +232,10 @@ class SourcePipelineRecovery private constructor(
 		wifiProjectionLane,
 		protectedLocationDrain,
 		applicationScope,
-		null,
+		startupGateProvider,
 		Unit,
+		ambientProjections,
+		ambientIngress,
 	)
 
 	init {
@@ -225,6 +244,34 @@ class SourcePipelineRecovery private constructor(
 				// The WAL/outbox is the durable retry owner. A failed hint is retried by the next
 				// admission or normal startup/maintenance recovery; never spin in process.
 				runCatchingNonCancellation { drainCommittedWork() }
+			}
+		}
+		if (ambientProjections != null && ambientIngress != null) {
+			for ((source, signals) in listOf(SourceKind.WIFI to ambientWifiSignals, SourceKind.CELL to ambientCellSignals)) {
+				applicationScope?.launch {
+					for (ignored in signals) {
+						try {
+							runCatchingNonCancellation {
+								// Startup registers consumers before opening admission. Keep that one recovery
+								// hint until retained storage is ready, even without another provider callback.
+								val gate = startupGateProvider?.get()
+								if (gate != null && gate.withRetainedDataGeneration(gate.currentGeneration) { true } != true) {
+									gate.awaitReady()
+								}
+								withRetainedGenerationDrain { guard ->
+									guard.requireCurrent()
+									ambientProjections.drainAmbientRadioProjection(source, ambientIngress)
+									guard.requireCurrent()
+								}
+							}
+						} catch (cancelled: CancellationException) {
+							// Deletion cancels the enrolled retained-data child, not this source's actor.
+							// Parent/application cancellation still propagates. A later-generation hint can
+							// recover its new WAL after physical deletion has joined the old child.
+							currentCoroutineContext().ensureActive()
+						}
+					}
+				}
 			}
 		}
 	}
@@ -264,11 +311,13 @@ class SourcePipelineRecovery private constructor(
 	/** Source-local Cell hint; passive callbacks never join an active refresh or sibling lane. */
 	fun requestCellSessionFactDrain() {
 		cellProjectionLane?.requestDrain()
+		ambientCellSignals.trySend(Unit)
 	}
 
 	/** Source-local Wi-Fi hint; callbacks never join an active scan or sibling lane. */
 	fun requestWifiSessionFactDrain() {
 		wifiProjectionLane?.requestDrain()
+		ambientWifiSignals.trySend(Unit)
 	}
 
 	/** Protected Location hint; the handoff never owns or activates the existing canonical writer. */
@@ -301,6 +350,9 @@ class SourcePipelineRecovery private constructor(
 		) {
 			throw LegacyV27ProjectionRecoveryNotReadyException(legacyResult)
 		}
+		ambientProjections?.registerAmbientRadioProjections()
+		ambientWifiSignals.trySend(Unit)
+		ambientCellSignals.trySend(Unit)
 		// Startup only kicks source-local lanes. They are not awaited by the global gate, so one
 		// poisoned fact cannot block an independently viable source or cause polling.
 		stepsProjectionLane?.requestDrain()
@@ -480,6 +532,18 @@ class SourcePipelineRecovery private constructor(
 			}
 		}
 	}
+
+	/** Shares deletion's nonserialized cancellation/join boundary; it never grants acquisition. */
+	private suspend fun <T> withRetainedGenerationDrain(
+		operation: suspend (RetainedGenerationGuard) -> T,
+	): T {
+		val gate = startupGateProvider?.get()
+		if (gate == null) return operation(RetainedGenerationGuard(null, 0L))
+		val generation = gate.currentGeneration
+		return gate.withReadyGenerationTransfer(generation) {
+			operation(RetainedGenerationGuard(gate, generation))
+		} ?: throw SourcePipelineGenerationUnavailableException(generation)
+	}
 }
 
 private class ReadyGenerationGuard(
@@ -498,6 +562,17 @@ internal class SourcePipelineGenerationUnavailableException(
 ) : IllegalStateException(
 	"Source pipeline startup generation $expectedGeneration is no longer ready",
 )
+
+private class RetainedGenerationGuard(
+	private val gate: TrackingStartupGate?,
+	private val expectedGeneration: Long,
+) {
+	fun requireCurrent() {
+		if (gate != null && gate.withRetainedDataGeneration(expectedGeneration) { true } != true) {
+			throw SourcePipelineGenerationUnavailableException(expectedGeneration)
+		}
+	}
+}
 
 data class SourceRecoveryResult(
 	val drain: CoordinatorDrainResult,

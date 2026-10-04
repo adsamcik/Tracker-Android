@@ -93,9 +93,9 @@ recorded separately from implementation and source review.
 - [ ] Preserve exact duplicate Steps file membership for bundle receipts. The
   unanswered radio physical-store-once proposal is withdrawn in favor of the
   simpler combined radio proposal above; no storage normalization is authorized.
-- [ ] Extend the chosen JSON file to all six sources and optional organization
-  metadata, with honest absent metrics, all-day data and older-file compatibility.
-- [ ] Include older radio details with Unknown origin in the chosen source file.
+- [ ] Confirm any incompatible JSON wire representation. The chosen JSON format
+  covering all six sources, all-day data, optional organization and honest missing
+  metrics is already a settled product requirement; do not reask that goal.
 - [ ] Choose any new UX for showing divergent Activity/Pressure conflicts. The
   small rebuildable exact native-owner lookup is already approved by
   `call_NVOtz1YnQRq4DukPr7u0Wh8B`, item 5. Removing unrelated global native scans
@@ -126,6 +126,11 @@ behavior choice still needs a concrete proposal under AGENTS.md.
 
 ## Current implementation activity
 
+- [x] Connect independent background Wi-Fi/Cell delivery/recovery and repair AR1/AR2
+  startup-lock/global-session coupling. Fifteen selected source/test paths include
+  actual gate/global/session coordinator scenarios, all unexecuted:
+  `../2026-10-04/AMBIENT_RADIO_RUNTIME_SELECTED/SOURCE_REVIEW_REPAIRED.md`.
+  Historical Cell qualification and complete chains remain open.
 - [x] Select exact Activity/Pressure file adapters through existing source-owned
   APIs/codecs/private staging. Fixed membership and original epoch are rechecked
   by selected canonical contents before/after copy. Four paths, twenty-five new

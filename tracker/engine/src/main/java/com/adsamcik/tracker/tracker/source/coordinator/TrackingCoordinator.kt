@@ -39,7 +39,7 @@ class TrackingCoordinator @Inject constructor(
 		var count = 0
 		return try {
 			projections.registerAll(database.liveSourceProjectionActivationOrdinal())
-			cursor = database.sourceProjectionStateDao().minimumActiveCheckpoint()
+			cursor = projections.minimumGlobalCheckpoint()
 				?: database.sourceEventWalDao().maximumAdmissionOrdinal()
 				?: 0L
 			while (true) {

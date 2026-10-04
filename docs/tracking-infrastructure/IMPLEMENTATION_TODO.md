@@ -122,6 +122,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Connect background Wi-Fi/Cell delivery and recovery through independent
+  retained-data drains. Repair the shared startup lock and unrelated session
+  End/Suspend coupling found by fresh review. Fifteen selected source/test paths
+  include real gate/coordinator scenarios; all remain unexecuted. Receipt:
+  `convergence/2026-10-04/AMBIENT_RADIO_RUNTIME_SELECTED/SOURCE_REVIEW_REPAIRED.md`.
+  Historical Cell qualification and complete source chains remain open.
 - [x] Select exact Activity/Pressure file adapters through their existing typed
   codecs and bounded private staging. Four source paths preserve fixed selection
   and original epoch, checking selected contents before/after copy. Twenty-five

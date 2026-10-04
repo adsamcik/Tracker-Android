@@ -1,0 +1,132 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "author": "/root/adversary_runtime_0930",
+  "authored_date": "2026-10-04",
+  "parent_supplied_base_commit": "07d5c664918affa8cc843fd243b38032bb9c782c",
+  "git_not_read_or_executed": true,
+  "previous_packet": "C:\\Users\\adam-\\AppData\\Local\\Temp\\tracker-ambient-radio-implementation-20261004\\PACKET.json",
+  "previous_packet_remains_preserved": true,
+  "scope": "Separate AR1/AR2 repair delta over independently reviewed ambient delivery/recovery packet",
+  "selected_paths": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecovery.kt",
+      "before_sha256": "7367e2263082c8158e95550b43cd02c74aed2d24764fc3cf4fa695727d2d2562",
+      "after_sha256": "2f1560588b28e4cab5bf009e010a1d3d4dbc6fdabf7aecbf1d02bbb9d92191c0"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ProjectionDispatcher.kt",
+      "before_sha256": "9ef415c5bc08ec33100f3f6110659dfcc3e1667fdf4da053df58041549fc4fd6",
+      "after_sha256": "2292359c57fb315e826b16c8cc8cd8be1b98f59d37d9fa9222472b29bcc99b0c"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinator.kt",
+      "before_sha256": "3ccd01147af12e67266604b266a8ae4c77fe456500214fce6d46ab3f938ccda9",
+      "after_sha256": "a43c2596d945367ede8bf4913723326e91584e0fd7113c9fb3865ebfeeb92cdd"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceProjectionStateDao.kt",
+      "before_sha256": "89134ef69617480cfffeb3a03a2dd3c36a6b35f14080f5f621b5e282c661bede",
+      "after_sha256": "50ea77d5ce9a445fdfd33d28c622ca9c9f4107db257979d4183a60ed9ee44e0a"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecoveryTest.kt",
+      "before_sha256": "f8b07fcead36e6846868997b28576c97d952f7aaf43a95cdb03cbf04fc45c507",
+      "after_sha256": "fbcd9e01603d31c1429295283458c778bc8bbb9ff6da66fc6a35374126d0d825"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinatorTest.kt",
+      "before_sha256": "40b48cbc278640d40c52da47c96b67d6f478ec34fa2a3a53b9fa595bf02e8fab",
+      "after_sha256": "9aa9689e549828305b0dc2959338c3589182b51c29606262f32425a071f1606d"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+      "before_sha256": "0896b76e4abf9547cbe090cba31ca2b5fbda4d46be370fe52b14bb3a09af5e23",
+      "after_sha256": "c2c354cfdbba1520d29b8dbc82ac80b0f3c13f32c8ade172787dc4a8a3551aad"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt",
+      "before_sha256": "f01f6b98b08e2a9a33dc7fa792be8fb0edaf35d37d643cfb3a18328df6c72626",
+      "after_sha256": "d86b4e7e3ceead1200eb28a1a293fd67b6fe97f4e7c954faf91e852f9f6a0c93"
+    }
+  ],
+  "untouched_dependency_pins": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt",
+      "sha256": "5962fde0080c44fde2e1556e5abc8646cbffd0e66ed230ecf9bf4ce435f00554"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/AmbientRadioProjection.kt",
+      "sha256": "559da7cfe25002a9bc6598d010f4065b6a12e610711eeafcf59bf7175e88faaf"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenance.kt",
+      "sha256": "2d6c1affede2fdebbebd3b5a6cb9d83843593f6f90f2fc8508ac24c99fa34243"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/AmbientRadioProjectionRecoveryTest.kt",
+      "sha256": "0a75af2ebdc85e77ae600f2468d2059e8f8de42270776976a54af6358bea2a8a"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt",
+      "sha256": "3a4601ec673fe33f18844d6a29e55bcdc1fceb4bdf474aa149b705ecf34c8f00"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/CellDurableSourceIngressTest.kt",
+      "sha256": "408afe11816e1ea128200cad4e4c95a530345389eeadac54889d7c4d65754b22"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenanceTest.kt",
+      "sha256": "26422f2896cf25202d74f389429d9074739c1895c2102bd1a9b3306329bc87dc"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGate.kt",
+      "sha256": "a437675232004f1040e88fb7319214a3611958ab6bfa7f995c676ca879d631cb"
+    },
+    {
+      "path": "core/common/src/main/java/com/adsamcik/tracker/shared/base/startup/TrackingStartupGate.kt",
+      "sha256": "a63bfe3a1540b0b38b7e75d8ca2befc36ee5e8fda6d65ce1b7b4243c524a5ec6"
+    },
+    {
+      "path": "app/build.gradle.kts",
+      "sha256": "981ce6ad1cf50459b14af1300532dd40234df800afb702cf578c0b59ef4da4b5"
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "sha256": "27f8c478df1702b3e775e054593830442ca4e30249485a16bed1006334f5f967"
+    }
+  ],
+  "repairs": [
+    "AR1: existing nonserialized withReadyGenerationTransfer admits retained radio drains with current storage-generation checks; acquisition and newer Stop grants never borrowed",
+    "AR1: cancellation of dedicated transfer child is physically joined by existing deletion barrier; original source actor survives deletion-child cancellation for later-generation hints; parent/application cancellation still propagates",
+    "AR2: exact known ambient IDs and versions omitted from global registerAll, dispatch and raw quarantine; global TrackingCoordinator minimum uses the same exact exclusions",
+    "AR2: independently registered ambient consumers and source-aware retention remain unchanged; unknown IDs/versions keep conservative global continuation/retention"
+  ],
+  "new_test_cases": [
+    "global registration excludes exact background consumers until independent registration",
+    "pending background retries cannot join global dispatch or rewind its continuation",
+    "global raw quarantine cannot retire a pending source-local background reading",
+    "unknown background writer version and unknown registration remain global prerequisites",
+    "Steps-only End completes with pending Wi-Fi and Cell background consumers",
+    "Steps-only suspension completes with pending Wi-Fi and Cell background consumers",
+    "actual radio recovery shares retained gate without serializing sources or borrowing acquisition after Off",
+    "real gate cancels and physically joins radio cleanup then the same actor recovers the reopened generation"
+  ],
+  "updated_existing_cases": [
+    "background startup hint waits for Ready instead of being lost before the gate opens",
+    "deletion waits for background projection and an old queued hint cannot write across closure"
+  ],
+  "test_boundary": "Authored fixtures use the real startup gate/recovery actor/global coordinator/session coordinator with mocked provider or dispatcher boundaries. They are source evidence only, not executed runtime, Android-provider or battery evidence.",
+  "narrow_test_access": "App integration cases use scoped INVISIBLE_MEMBER/INVISIBLE_REFERENCE suppressions to call the existing engine constructor/internal drain seam; no public test API or dependency was added.",
+  "static_inspection_only": true,
+  "executed_validation": [],
+  "no_schema_entity_changes": true,
+  "no_provider_activation": true,
+  "exclusions": [
+    "Historical Cell per-reading capture remains untouched and pending",
+    "Root permission-continuation classes/tests",
+    "UnifiedHistory implementation",
+    "Export/bundle source and storage contracts",
+    "No changes to live startup gate or shared gate interface",
+    "No assembly freeze, local dev/v10 integration or push"
+  ]
+}

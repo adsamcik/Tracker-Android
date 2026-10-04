@@ -1,0 +1,1668 @@
+diff --git a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt
+index 211b4ef7da..89774ae00a 100644
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt
+@@ -15,6 +15,8 @@ import com.adsamcik.tracker.tracker.source.catalog.DefaultSourceImplementationCa
+ import com.adsamcik.tracker.tracker.source.catalog.SourceAcquisitionPlanFactory
+ import com.adsamcik.tracker.tracker.source.catalog.SourceImplementationCatalog
+ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
++import com.adsamcik.tracker.tracker.source.projection.AmbientCellProjection
++import com.adsamcik.tracker.tracker.source.projection.AmbientWifiProjection
+ import com.adsamcik.tracker.tracker.source.projection.Projection
+ import com.adsamcik.tracker.tracker.source.model.SourceKind
+ import com.adsamcik.tracker.tracker.source.model.SourcePlan
+@@ -72,6 +74,14 @@ object SourcePipelineModule {
+ 	@IntoSet
+ 	fun provideActivityAutomationProjection(projection: ActivityAutomationProjection): Projection = projection
+ 
++	@Provides
++	@IntoSet
++	internal fun provideAmbientWifiProjection(projection: AmbientWifiProjection): Projection = projection
++
++	@Provides
++	@IntoSet
++	internal fun provideAmbientCellProjection(projection: AmbientCellProjection): Projection = projection
++
+ 	@Provides
+ 	@IntoMap
+ 	@SourceRuntimeKey(SourceKind.ACTIVITY)
+diff --git a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecovery.kt b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecovery.kt
+index 44c57de34c..6709d22ed7 100644
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecovery.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecovery.kt
+@@ -9,6 +9,9 @@ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationOutboxDi
+ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
+ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
+ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationStartPermit
++import com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher
++import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
++import com.adsamcik.tracker.tracker.source.model.SourceKind
+ import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactProjectionLane
+ import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
+ import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecovery
+@@ -20,6 +23,9 @@ import javax.inject.Inject
+ import javax.inject.Provider
+ import javax.inject.Singleton
+ import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
+ import kotlinx.coroutines.channels.Channel
+ import kotlinx.coroutines.flow.StateFlow
+ import kotlinx.coroutines.launch
+@@ -42,10 +48,14 @@ class SourcePipelineRecovery private constructor(
+ 	applicationScope: CoroutineScope?,
+ 	private val startupGateProvider: Provider<TrackingStartupGate>?,
+ 	@Suppress("UNUSED_PARAMETER") constructionMarker: Unit,
++	private val ambientProjections: ProjectionDispatcher? = null,
++	private val ambientIngress: DurableSourceIngress? = null,
+ ) {
+ 	private val legacyMutex = Mutex()
+ 	private val activityEffectMutex = Mutex()
+ 	private val committedWorkSignals = Channel<Unit>(Channel.CONFLATED)
++	private val ambientWifiSignals = Channel<Unit>(Channel.CONFLATED)
++	private val ambientCellSignals = Channel<Unit>(Channel.CONFLATED)
+ 	@Volatile private var terminalLegacyResult: LegacyV27ProjectionRecoveryResult? = null
+ 
+ 	@Inject
+@@ -62,6 +72,8 @@ class SourcePipelineRecovery private constructor(
+ 		protectedLocationDrain: ProtectedLocationSourceDrain,
+ 		@ApplicationScope applicationScope: CoroutineScope,
+ 		startupGateProvider: Provider<TrackingStartupGate>,
++		ambientProjections: ProjectionDispatcher,
++		ambientIngress: DurableSourceIngress,
+ 	) : this(
+ 		legacyRecovery,
+ 		coordinator,
+@@ -76,6 +88,8 @@ class SourcePipelineRecovery private constructor(
+ 		applicationScope,
+ 		startupGateProvider,
+ 		Unit,
++		ambientProjections,
++		ambientIngress,
+ 	)
+ 
+ 	internal constructor(
+@@ -203,6 +217,9 @@ class SourcePipelineRecovery private constructor(
+ 		wifiProjectionLane: WifiSessionFactProjectionLane,
+ 		applicationScope: CoroutineScope,
+ 		protectedLocationDrain: ProtectedLocationSourceDrain? = null,
++		ambientProjections: ProjectionDispatcher? = null,
++		ambientIngress: DurableSourceIngress? = null,
++		startupGateProvider: Provider<TrackingStartupGate>? = null,
+ 	) : this(
+ 		legacyRecovery,
+ 		coordinator,
+@@ -215,8 +232,10 @@ class SourcePipelineRecovery private constructor(
+ 		wifiProjectionLane,
+ 		protectedLocationDrain,
+ 		applicationScope,
+-		null,
++		startupGateProvider,
+ 		Unit,
++		ambientProjections,
++		ambientIngress,
+ 	)
+ 
+ 	init {
+@@ -227,6 +246,34 @@ class SourcePipelineRecovery private constructor(
+ 				runCatchingNonCancellation { drainCommittedWork() }
+ 			}
+ 		}
++		if (ambientProjections != null && ambientIngress != null) {
++			for ((source, signals) in listOf(SourceKind.WIFI to ambientWifiSignals, SourceKind.CELL to ambientCellSignals)) {
++				applicationScope?.launch {
++					for (ignored in signals) {
++						try {
++							runCatchingNonCancellation {
++								// Startup registers consumers before opening admission. Keep that one recovery
++								// hint until retained storage is ready, even without another provider callback.
++								val gate = startupGateProvider?.get()
++								if (gate != null && gate.withRetainedDataGeneration(gate.currentGeneration) { true } != true) {
++									gate.awaitReady()
++								}
++								withRetainedGenerationDrain { guard ->
++									guard.requireCurrent()
++									ambientProjections.drainAmbientRadioProjection(source, ambientIngress)
++									guard.requireCurrent()
++								}
++							}
++						} catch (cancelled: CancellationException) {
++							// Deletion cancels the enrolled retained-data child, not this source's actor.
++							// Parent/application cancellation still propagates. A later-generation hint can
++							// recover its new WAL after physical deletion has joined the old child.
++							currentCoroutineContext().ensureActive()
++						}
++					}
++				}
++			}
++		}
+ 	}
+ 
+ 	/** Process-local hint only; the durable outbox remains the source of truth. */
+@@ -264,11 +311,13 @@ class SourcePipelineRecovery private constructor(
+ 	/** Source-local Cell hint; passive callbacks never join an active refresh or sibling lane. */
+ 	fun requestCellSessionFactDrain() {
+ 		cellProjectionLane?.requestDrain()
++		ambientCellSignals.trySend(Unit)
+ 	}
+ 
+ 	/** Source-local Wi-Fi hint; callbacks never join an active scan or sibling lane. */
+ 	fun requestWifiSessionFactDrain() {
+ 		wifiProjectionLane?.requestDrain()
++		ambientWifiSignals.trySend(Unit)
+ 	}
+ 
+ 	/** Protected Location hint; the handoff never owns or activates the existing canonical writer. */
+@@ -301,6 +350,9 @@ class SourcePipelineRecovery private constructor(
+ 		) {
+ 			throw LegacyV27ProjectionRecoveryNotReadyException(legacyResult)
+ 		}
++		ambientProjections?.registerAmbientRadioProjections()
++		ambientWifiSignals.trySend(Unit)
++		ambientCellSignals.trySend(Unit)
+ 		// Startup only kicks source-local lanes. They are not awaited by the global gate, so one
+ 		// poisoned fact cannot block an independently viable source or cause polling.
+ 		stepsProjectionLane?.requestDrain()
+@@ -480,6 +532,18 @@ class SourcePipelineRecovery private constructor(
+ 			}
+ 		}
+ 	}
++
++	/** Shares deletion's nonserialized cancellation/join boundary; it never grants acquisition. */
++	private suspend fun <T> withRetainedGenerationDrain(
++		operation: suspend (RetainedGenerationGuard) -> T,
++	): T {
++		val gate = startupGateProvider?.get()
++		if (gate == null) return operation(RetainedGenerationGuard(null, 0L))
++		val generation = gate.currentGeneration
++		return gate.withReadyGenerationTransfer(generation) {
++			operation(RetainedGenerationGuard(gate, generation))
++		} ?: throw SourcePipelineGenerationUnavailableException(generation)
++	}
+ }
+ 
+ private class ReadyGenerationGuard(
+@@ -499,6 +563,17 @@ internal class SourcePipelineGenerationUnavailableException(
+ 	"Source pipeline startup generation $expectedGeneration is no longer ready",
+ )
+ 
++private class RetainedGenerationGuard(
++	private val gate: TrackingStartupGate?,
++	private val expectedGeneration: Long,
++) {
++	fun requireCurrent() {
++		if (gate != null && gate.withRetainedDataGeneration(expectedGeneration) { true } != true) {
++			throw SourcePipelineGenerationUnavailableException(expectedGeneration)
++		}
++	}
++}
++
+ data class SourceRecoveryResult(
+ 	val drain: CoordinatorDrainResult,
+ 	val activityEffectsDelivered: Int,
+diff --git a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ProjectionDispatcher.kt b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ProjectionDispatcher.kt
+index 5a7b11177e..b2f02b5602 100644
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ProjectionDispatcher.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ProjectionDispatcher.kt
+@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.source.projection
+ import androidx.room.withTransaction
+ import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
++import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionCheckpointEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionJoinStateEntity
+@@ -10,8 +12,17 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEnti
+ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
+ import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
+ import com.adsamcik.tracker.tracker.source.model.SourcePayload
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
++import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
++import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
+ import javax.inject.Inject
+ import javax.inject.Singleton
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
++import kotlinx.coroutines.yield
+ 
+ @Singleton
+ class ProjectionDispatcher @Inject constructor(
+@@ -19,16 +30,110 @@ class ProjectionDispatcher @Inject constructor(
+ 	projections: Set<@JvmSuppressWildcards Projection>,
+ ) {
+ 	private val projections = projections.sortedBy(Projection::id)
++	private val globalProjections = this.projections.filterNot { it.isAmbientRadio() }
++	private val ambientWifiMutex = Mutex()
++	private val ambientCellMutex = Mutex()
+ 
+ 	suspend fun registerAll(activationOrdinal: Long) {
+ 		require(activationOrdinal > 0L)
+-		projections.forEach { projection -> registerProjection(projection, activationOrdinal) }
++		globalProjections.forEach { projection ->
++			registerProjection(projection, activationOrdinal)
++		}
++	}
++
++	/** A source-local background consumer never joins session settlement's global continuation. */
++	internal suspend fun minimumGlobalCheckpoint(): Long? =
++		database.sourceProjectionStateDao().minimumActiveGlobalCheckpoint(
++			AmbientWifiFactRevisionEntity.WRITER_ID,
++			AmbientWifiFactRevisionEntity.WRITER_VERSION,
++			AmbientCellFactRevisionEntity.WRITER_ID,
++			AmbientCellFactRevisionEntity.WRITER_VERSION,
++		)
++
++	/** Installs only retained-data consumers before the startup gate admits provider callbacks. */
++	internal suspend fun registerAmbientRadioProjections() {
++		for (source in listOf(SourceKind.WIFI, SourceKind.CELL)) {
++			registerProjection(ambientProjection(source), ambientActivationOrdinal())
++		}
++	}
++
++	/**
++	 * Uses the existing durable checkpoint and dispatcher for one finite source high-water snapshot.
++	 * Each radio source has its own lock; a failed sibling never joins this source's retry path.
++	 */
++	internal suspend fun drainAmbientRadioProjection(
++		source: SourceKind,
++		ingress: DurableSourceIngress,
++	): CoordinatorDrainResult {
++		val mutex = when (source) {
++			SourceKind.WIFI -> ambientWifiMutex
++			SourceKind.CELL -> ambientCellMutex
++			else -> error("Not an ambient radio source")
++		}
++		return mutex.withLock {
++			val projection = ambientProjection(source)
++			registerProjection(projection, ambientActivationOrdinal())
++			val target = database.withTransaction {
++				maxOf(database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L,
++					database.sourceEvidenceStateDao().get()?.deletedSourceEventHighWaterOrdinal ?: 0L)
++			}
++			var cursor = projectionCheckpoint(projection)
++			var dispatched = 0
++			while (cursor < target) {
++				currentCoroutineContext().ensureActive()
++				val batch = try {
++					ingress.committedSourceBatch(source, cursor, target, AMBIENT_BATCH_SIZE)
++				} catch (corrupt: CorruptSourceEventException) {
++					check(corrupt.sourceKind == source.stableCode && corrupt.admissionOrdinal in (cursor + 1L)..target)
++					quarantineRawProjectionEvent(projection, corrupt.admissionOrdinal,
++						corrupt.failureCode, requireContiguousOrdinal = false)
++					cursor = maxOf(cursor, corrupt.admissionOrdinal)
++					continue
++				}
++				if (batch.isEmpty()) {
++					cursor = advanceProjectionAcrossIrrelevantOrdinals(projection.id, projection.version, target)
++					break
++				}
++				for (event in batch) {
++					check(event.evidence.source == source && event.admissionOrdinal in (cursor + 1L)..target)
++					val result = dispatchProjectionWithSourceOrdinalGap(projection.id, projection.version, event)
++					if (!result.complete) return@withLock CoordinatorDrainResult.ProjectionFailed(
++						projectionCheckpoint(projection), dispatched, projection.id, event.admissionOrdinal,
++					)
++					cursor = event.admissionOrdinal
++					dispatched++
++				}
++				yield()
++			}
++			CoordinatorDrainResult.Complete(cursor, dispatched)
++		}
++	}
++
++	private suspend fun projectionCheckpoint(projection: Projection): Long = requireNotNull(
++		database.sourceProjectionStateDao().checkpoint(projection.id, projection.version),
++	).contiguousAdmissionOrdinal
++
++	private fun ambientProjection(source: SourceKind): Projection = when (source) {
++		SourceKind.WIFI -> projection(AmbientWifiFactRevisionEntity.WRITER_ID, AmbientWifiFactRevisionEntity.WRITER_VERSION)
++		SourceKind.CELL -> projection(AmbientCellFactRevisionEntity.WRITER_ID, AmbientCellFactRevisionEntity.WRITER_VERSION)
++		else -> error("Not an ambient radio source")
++	}
++
++	private fun Projection.isAmbientRadio(): Boolean =
++		id == AmbientWifiFactRevisionEntity.WRITER_ID && version == AmbientWifiFactRevisionEntity.WRITER_VERSION ||
++			id == AmbientCellFactRevisionEntity.WRITER_ID && version == AmbientCellFactRevisionEntity.WRITER_VERSION
++
++	/** Retained callbacks can predate the first registration; their immutable purpose rules still apply. */
++	private suspend fun ambientActivationOrdinal(): Long = database.withTransaction {
++		val deleted = database.sourceEvidenceStateDao().get()?.deletedSourceEventHighWaterOrdinal ?: 0L
++		check(deleted < Long.MAX_VALUE)
++		maxOf(database.legacyV27ProjectionDrainDao().liveActivationOrdinal() ?: 1L, deleted + 1L)
+ 	}
+ 
+ 	suspend fun dispatch(event: AdmittedSourceEvent<out SourcePayload>): ProjectionDispatchResult {
+ 		val failures = mutableListOf<ProjectionFailure>()
+ 		val quarantined = mutableListOf<ProjectionQuarantine>()
+-		for (projection in projections) {
++		for (projection in globalProjections) {
+ 			val result = dispatchProjection(projection, event, requireContiguousOrdinal = true)
+ 			result.quarantine?.let(quarantined::add)
+ 			result.failure?.let {
+@@ -246,40 +351,50 @@ class ProjectionDispatcher @Inject constructor(
+ 	suspend fun quarantineRawEvent(admissionOrdinal: Long, failureCode: String) {
+ 		require(admissionOrdinal > 0L)
+ 		require(failureCode.isNotBlank())
+-		for (projection in projections) {
+-			database.withTransaction {
+-				val dao = database.sourceProjectionStateDao()
+-				val checkpoint = requireNotNull(dao.checkpoint(projection.id, projection.version)) {
+-					"Projection ${projection.id} is not registered"
+-				}
+-				if (admissionOrdinal <= checkpoint.contiguousAdmissionOrdinal) return@withTransaction
+-				check(admissionOrdinal == checkpoint.contiguousAdmissionOrdinal + 1L) {
+-					"Raw quarantine cannot skip admission ordinal " +
+-						"${checkpoint.contiguousAdmissionOrdinal + 1L} for ${projection.id}"
+-				}
+-				dao.saveFailure(
+-					SourceProjectionFailureEntity(
+-						projectionId = projection.id,
+-						projectionVersion = projection.version,
+-						admissionOrdinal = admissionOrdinal,
+-						attemptCount = 1,
+-						failureCode = failureCode,
+-						terminal = true,
+-						lastAttemptAtMs = System.currentTimeMillis(),
+-					),
+-				)
+-				dao.saveCheckpoint(
+-					checkpoint.copy(
+-						contiguousAdmissionOrdinal = admissionOrdinal,
+-						updatedAtMs = System.currentTimeMillis(),
+-					),
+-				)
++		for (projection in globalProjections) {
++			quarantineRawProjectionEvent(projection, admissionOrdinal, failureCode, requireContiguousOrdinal = true)
++		}
++	}
++
++	private suspend fun quarantineRawProjectionEvent(
++		projection: Projection,
++		admissionOrdinal: Long,
++		failureCode: String,
++		requireContiguousOrdinal: Boolean,
++	) {
++		database.withTransaction {
++			val dao = database.sourceProjectionStateDao()
++			val checkpoint = requireNotNull(dao.checkpoint(projection.id, projection.version)) {
++				"Projection ${projection.id} is not registered"
++			}
++			if (admissionOrdinal <= checkpoint.contiguousAdmissionOrdinal) return@withTransaction
++			check(!requireContiguousOrdinal || admissionOrdinal == checkpoint.contiguousAdmissionOrdinal + 1L) {
++				"Raw quarantine cannot skip admission ordinal " +
++					"${checkpoint.contiguousAdmissionOrdinal + 1L} for ${projection.id}"
+ 			}
++			dao.saveFailure(
++				SourceProjectionFailureEntity(
++					projectionId = projection.id,
++					projectionVersion = projection.version,
++					admissionOrdinal = admissionOrdinal,
++					attemptCount = 1,
++					failureCode = failureCode,
++					terminal = true,
++					lastAttemptAtMs = System.currentTimeMillis(),
++				),
++			)
++			dao.saveCheckpoint(
++				checkpoint.copy(
++					contiguousAdmissionOrdinal = admissionOrdinal,
++					updatedAtMs = System.currentTimeMillis(),
++				),
++			)
+ 		}
+ 	}
+ 
+ 	private companion object {
+ 		const val STATUS_ACTIVE = "ACTIVE"
++		const val AMBIENT_BATCH_SIZE = 64
+ 	}
+ }
+ 
+diff --git a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/AmbientRadioProjection.kt b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/AmbientRadioProjection.kt
+index e69de29bb2..e960356843 100644
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/AmbientRadioProjection.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/AmbientRadioProjection.kt
+@@ -0,0 +1,58 @@
++package com.adsamcik.tracker.tracker.source.projection
++
++import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
++import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
++import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellFactProjector
++import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellProjectionResult
++import com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiFactProjector
++import com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiProjectionResult
++import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.tracker.source.model.SourcePayload
++import javax.inject.Inject
++
++/** Uses the retained reading's own purpose history, including callbacks after that purpose ended. */
++internal class AmbientWifiProjection @Inject constructor(
++	private val projector: AmbientWifiFactProjector,
++) : Projection {
++	override val id: String = AmbientWifiFactRevisionEntity.WRITER_ID
++	override val version: Int = AmbientWifiFactRevisionEntity.WRITER_VERSION
++
++	override suspend fun apply(event: AdmittedSourceEvent<out SourcePayload>, context: ProjectionContext) {
++		if (event.evidence.source != SourceKind.WIFI) return
++		if (projector.project(event.admissionOrdinal).isRetryable()) {
++			throw AmbientRadioProjectionDeferredException()
++		}
++	}
++}
++
++internal class AmbientCellProjection @Inject constructor(
++	private val projector: AmbientCellFactProjector,
++) : Projection {
++	override val id: String = AmbientCellFactRevisionEntity.WRITER_ID
++	override val version: Int = AmbientCellFactRevisionEntity.WRITER_VERSION
++
++	override suspend fun apply(event: AdmittedSourceEvent<out SourcePayload>, context: ProjectionContext) {
++		if (event.evidence.source != SourceKind.CELL) return
++		if (projector.project(event.admissionOrdinal).isRetryable()) {
++			throw AmbientRadioProjectionDeferredException()
++		}
++	}
++}
++
++// Noneligible or unverifiable groups produce no retained fact. They must not discard a separately
++// qualified sibling group. A transient storage/retention failure instead rolls back the complete
++// projection transaction and leaves its checkpoint available for the next durable retry.
++private fun AmbientWifiProjectionResult.isRetryable(): Boolean = when (this) {
++	AmbientWifiProjectionResult.RetryableFailure -> true
++	is AmbientWifiProjectionResult.Groups -> results.any { it.isRetryable() }
++	else -> false
++}
++
++private fun AmbientCellProjectionResult.isRetryable(): Boolean = when (this) {
++	AmbientCellProjectionResult.RetryableFailure -> true
++	is AmbientCellProjectionResult.Groups -> results.any { it.isRetryable() }
++	else -> false
++}
++
++internal class AmbientRadioProjectionDeferredException : IllegalStateException("Ambient radio projection deferred")
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceProjectionStateDao.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceProjectionStateDao.kt
+index a696564587..1b77885e53 100644
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceProjectionStateDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceProjectionStateDao.kt
+@@ -392,6 +392,39 @@ interface SourceProjectionStateDao {
+ 	)
+ 	suspend fun minimumRequiredCheckpoint(): Long?
+ 
++	/** Unknown projections retain their conservative global boundary. Only named source owners leave it. */
++	@Query(
++		"SELECT MIN(COALESCE(checkpoint.contiguous_admission_ordinal, " +
++			"registration.activation_ordinal - 1)) " +
++			"FROM source_projection_registration registration " +
++			"LEFT JOIN source_projection_checkpoint checkpoint " +
++			"ON registration.projection_id = checkpoint.projection_id " +
++			"AND registration.projection_version = checkpoint.projection_version " +
++			"WHERE registration.retention_required = 1 AND registration.status = 'ACTIVE' " +
++			"AND NOT (registration.projection_id = :wifiProjectionId " +
++			"AND registration.projection_version = :wifiProjectionVersion) " +
++			"AND NOT (registration.projection_id = :cellProjectionId " +
++			"AND registration.projection_version = :cellProjectionVersion)",
++	)
++	suspend fun minimumRequiredGlobalCheckpoint(
++		wifiProjectionId: String,
++		wifiProjectionVersion: Int,
++		cellProjectionId: String,
++		cellProjectionVersion: Int,
++	): Long?
++
++	@Query(
++		"SELECT COALESCE(checkpoint.contiguous_admission_ordinal, registration.activation_ordinal - 1) " +
++			"FROM source_projection_registration registration " +
++			"LEFT JOIN source_projection_checkpoint checkpoint " +
++			"ON registration.projection_id = checkpoint.projection_id " +
++			"AND registration.projection_version = checkpoint.projection_version " +
++			"WHERE registration.projection_id = :projectionId " +
++			"AND registration.projection_version = :projectionVersion " +
++			"AND registration.retention_required = 1 AND registration.status = 'ACTIVE'",
++	)
++	suspend fun requiredProjectionCheckpoint(projectionId: String, projectionVersion: Int): Long?
++
+ 	@Query(
+ 		"SELECT MIN(contiguous_admission_ordinal) FROM source_product_projection_lane " +
+ 			"WHERE source_kind = :sourceKind AND retention_required = 1",
+@@ -409,6 +442,27 @@ interface SourceProjectionStateDao {
+ 	)
+ 	suspend fun minimumActiveCheckpoint(): Long?
+ 
++	/** Global continuation excludes only the two exact source-local background consumers. */
++	@Query(
++		"SELECT MIN(COALESCE(checkpoint.contiguous_admission_ordinal, " +
++			"registration.activation_ordinal - 1)) " +
++			"FROM source_projection_registration registration " +
++			"LEFT JOIN source_projection_checkpoint checkpoint " +
++			"ON registration.projection_id = checkpoint.projection_id " +
++			"AND registration.projection_version = checkpoint.projection_version " +
++			"WHERE registration.status = 'ACTIVE' " +
++			"AND NOT (registration.projection_id = :wifiProjectionId " +
++			"AND registration.projection_version = :wifiProjectionVersion) " +
++			"AND NOT (registration.projection_id = :cellProjectionId " +
++			"AND registration.projection_version = :cellProjectionVersion)",
++	)
++	suspend fun minimumActiveGlobalCheckpoint(
++		wifiProjectionId: String,
++		wifiProjectionVersion: Int,
++		cellProjectionId: String,
++		cellProjectionVersion: Int,
++	): Long?
++
+ 	@Query("SELECT MIN(minimum_required_ordinal) FROM source_projection_join_state")
+ 	suspend fun minimumJoinRequiredOrdinal(): Long?
+ 
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenance.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenance.kt
+index 42dd117c68..0077788e9d 100644
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenance.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenance.kt
+@@ -2,6 +2,8 @@ package com.adsamcik.tracker.shared.base.database
+ 
+ import androidx.room.withTransaction
+ import com.adsamcik.tracker.shared.base.database.dao.SourceEventRetentionProofCandidateRow
++import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
++import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionProofEntity
+@@ -337,7 +339,12 @@ internal suspend fun AppDatabase.pruneSourceEventStorageBeforeWithSourceOperatio
+ private suspend fun AppDatabase.sourceEventStorageGlobalSafeOrdinal(): Long {
+ 	val projectionDao = sourceProjectionStateDao()
+ 	val globalRetentionBoundary = listOfNotNull(
+-		projectionDao.minimumRequiredCheckpoint(),
++		projectionDao.minimumRequiredGlobalCheckpoint(
++			AmbientWifiFactRevisionEntity.WRITER_ID,
++			AmbientWifiFactRevisionEntity.WRITER_VERSION,
++			AmbientCellFactRevisionEntity.WRITER_ID,
++			AmbientCellFactRevisionEntity.WRITER_VERSION,
++		),
+ 		projectionDao.minimumJoinRequiredOrdinal()?.minus(1L),
+ 		legacyV27ProjectionDrainDao().minimumPendingOrdinal()?.minus(1L),
+ 		legacyV27ProjectionDrainDao().minimumPendingOutboxOrdinal()?.minus(1L),
+@@ -359,6 +366,17 @@ private suspend fun AppDatabase.pruneSourceEventStorageBatch(
+ 	val sourceSafeOrdinal = minOf(
+ 		globalSafeOrdinal,
+ 		projectionDao.minimumRequiredProductLaneCheckpoint(sourceKind) ?: globalSafeOrdinal,
++		when (sourceKind) {
++			SourceDestinationOwnerEntity.SOURCE_WIFI -> projectionDao.requiredProjectionCheckpoint(
++				AmbientWifiFactRevisionEntity.WRITER_ID,
++				AmbientWifiFactRevisionEntity.WRITER_VERSION,
++			)
++			SourceDestinationOwnerEntity.SOURCE_CELL -> projectionDao.requiredProjectionCheckpoint(
++				AmbientCellFactRevisionEntity.WRITER_ID,
++				AmbientCellFactRevisionEntity.WRITER_VERSION,
++			)
++			else -> null
++		} ?: globalSafeOrdinal,
+ 	)
+ 	if (sourceSafeOrdinal <= 0L) return SourceEventStoragePruneBatchResult.Applied(0, 0)
+ 	val sourceEffects = projectionDao.deleteDeliveredOutboxForSourceBatch(
+diff --git a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecoveryTest.kt b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecoveryTest.kt
+index e846a50910..2331fc6ac6 100644
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecoveryTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecoveryTest.kt
+@@ -19,6 +19,9 @@ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEffectVa
+ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
+ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
+ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationStartPermit
++import com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher
++import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
++import com.adsamcik.tracker.tracker.source.model.SourceKind
+ import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactProjectionLane
+ import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
+ import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecovery
+@@ -35,14 +38,21 @@ import io.mockk.verify
+ import java.io.ByteArrayOutputStream
+ import java.io.DataOutputStream
+ import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.CoroutineStart
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.NonCancellable
+ import kotlinx.coroutines.async
+ import kotlinx.coroutines.awaitCancellation
++import kotlinx.coroutines.coroutineScope
+ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.ExperimentalCoroutinesApi
+ import kotlinx.coroutines.test.advanceUntilIdle
+ import kotlinx.coroutines.test.runCurrent
+ import kotlinx.coroutines.test.runTest
+ import kotlinx.coroutines.withTimeout
++import kotlinx.coroutines.withContext
++import kotlinx.coroutines.joinAll
+ import kotlinx.coroutines.TimeoutCancellationException
+ import kotlinx.coroutines.sync.Mutex
+ import kotlinx.coroutines.sync.withLock
+@@ -61,6 +71,151 @@ class SourcePipelineRecoveryTest {
+ 		activityEffects,
+ 	)
+ 
++	@Test
++	fun `background Wi-Fi failure cannot wait for or suppress background Cell recovery`() = runTest {
++		val projections = mockk<ProjectionDispatcher>()
++		val wifiEntered = CompletableDeferred<Unit>()
++		val releaseWifi = CompletableDeferred<Unit>()
++		coEvery { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) } coAnswers {
++			wifiEntered.complete(Unit)
++			releaseWifi.await()
++			CoordinatorDrainResult.ProjectionFailed(0L, 0, "ambient-wifi-facts", 1L)
++		}
++		coEvery { projections.drainAmbientRadioProjection(SourceKind.CELL, any()) } returns
++			CoordinatorDrainResult.Complete(2L, 1)
++		val recovery = radioRecovery(projections, backgroundScope)
++
++		recovery.requestWifiSessionFactDrain()
++		recovery.requestCellSessionFactDrain()
++		runCurrent()
++		wifiEntered.isCompleted shouldBe true
++		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.CELL, any()) }
++		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
++		coVerify(exactly = 0) { activityLane.drainAvailable() }
++		releaseWifi.complete(Unit)
++		runCurrent()
++	}
++
++	@Test
++	fun `background radio hints conflate per source and never spin after a failure`() = runTest {
++		val projections = mockk<ProjectionDispatcher>()
++		val entered = CompletableDeferred<Unit>()
++		val release = CompletableDeferred<Unit>()
++		var attempts = 0
++		coEvery { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) } coAnswers {
++			attempts++
++			if (attempts == 1) { entered.complete(Unit); release.await() }
++			CoordinatorDrainResult.ProjectionFailed(0L, 0, "ambient-wifi-facts", 1L)
++		}
++		val recovery = radioRecovery(projections, backgroundScope)
++		repeat(100) { recovery.requestWifiSessionFactDrain() }
++		runCurrent()
++		entered.isCompleted shouldBe true
++		repeat(100) { recovery.requestWifiSessionFactDrain() }
++		runCurrent()
++		release.complete(Unit)
++		runCurrent()
++		attempts shouldBe 2
++		coVerify(exactly = 0) { projections.drainAmbientRadioProjection(SourceKind.CELL, any()) }
++	}
++
++	@Test
++	fun `startup registers both background consumers before queuing independent retained drains`() = runTest {
++		val projections = mockk<ProjectionDispatcher>()
++		var registered = false
++		coEvery { legacy.recover() } returns LegacyV27ProjectionRecoveryResult.NotRequired
++		coEvery { projections.registerAmbientRadioProjections() } coAnswers { registered = true }
++		coEvery { projections.drainAmbientRadioProjection(any(), any()) } coAnswers {
++			registered shouldBe true
++			CoordinatorDrainResult.Complete(0L, 0)
++		}
++		val recovery = radioRecovery(projections, backgroundScope)
++
++		recovery.recoverStartupAuthority() shouldBe LegacyV27ProjectionRecoveryResult.NotRequired
++		registered shouldBe true
++		runCurrent()
++		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) }
++		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.CELL, any()) }
++		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
++	}
++
++	@Test
++	fun `background startup hint waits for Ready instead of being lost before the gate opens`() = runTest {
++		val projections = mockk<ProjectionDispatcher>()
++		val gate = mockk<TrackingStartupGate>()
++		val ready = CompletableDeferred<Unit>()
++		var opened = false
++		every { gate.isReady } answers { opened }
++		every { gate.currentGeneration } returns 3L
++		every { gate.isReadyGeneration(3L) } answers { opened }
++		every { gate.withRetainedDataGeneration<Boolean>(3L, any()) } answers {
++			if (opened) secondArg<() -> Boolean>().invoke() else null
++		}
++		coEvery { gate.awaitReady() } coAnswers {
++			ready.await()
++			TrackingStartupResult.Ready(false, 0L)
++		}
++		coEvery { gate.withReadyGenerationTransfer<Unit>(3L, any()) } coAnswers {
++			opened shouldBe true
++			secondArg<suspend () -> Unit>().invoke()
++		}
++		coEvery { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) } returns
++			CoordinatorDrainResult.Complete(1L, 1)
++		val recovery = radioRecovery(projections, backgroundScope, javax.inject.Provider { gate })
++
++		recovery.requestWifiSessionFactDrain()
++		runCurrent()
++		coVerify(exactly = 0) { projections.drainAmbientRadioProjection(any(), any()) }
++		opened = true
++		ready.complete(Unit)
++		runCurrent()
++		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) }
++	}
++
++	@Test
++	fun `deletion waits for background projection and an old queued hint cannot write across closure`() = runTest {
++		val projections = mockk<ProjectionDispatcher>()
++		val gate = TestTrackingStartupGate(7L)
++		val entered = CompletableDeferred<Unit>()
++		val release = CompletableDeferred<Unit>()
++		coEvery { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) } coAnswers {
++			try {
++				entered.complete(Unit)
++				awaitCancellation()
++			} finally {
++				withContext(NonCancellable) { release.await() }
++			}
++		}
++		val recovery = radioRecovery(projections, backgroundScope, javax.inject.Provider { gate })
++		recovery.requestWifiSessionFactDrain()
++		runCurrent()
++		entered.isCompleted shouldBe true
++		gate.closeAdmission()
++		recovery.requestWifiSessionFactDrain()
++		val drained = async { gate.awaitQuiescence() }
++		runCurrent()
++		drained.isCompleted shouldBe false
++		release.complete(Unit)
++		runCurrent()
++		drained.await()
++		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) }
++	}
++
++	private fun radioRecovery(
++		projections: ProjectionDispatcher,
++		scope: CoroutineScope,
++		gate: javax.inject.Provider<TrackingStartupGate>? = null,
++	) = SourcePipelineRecovery(
++		legacy, coordinator, activityLane, activityEffects,
++		mockk<StepsSessionFactProjectionLane>(relaxed = true),
++		mockk<PressureSessionFactProjectionLane>(relaxed = true),
++		mockk<ActivityCapturedFactProjectionLane>(relaxed = true),
++		mockk<CellSessionFactProjectionLane>(relaxed = true),
++		mockk<WifiSessionFactProjectionLane>(relaxed = true),
++		scope, ambientProjections = projections, ambientIngress = mockk<DurableSourceIngress>(),
++		startupGateProvider = gate,
++	)
++
+ 	@Test
+ 	fun `committed work hints return immediately and conflate behind one drain`() = runTest {
+ 		val firstDrainEntered = CompletableDeferred<Unit>()
+@@ -564,6 +719,7 @@ class SourcePipelineRecoveryTest {
+ 		initialGeneration: Long,
+ 	) : TrackingStartupGate {
+ 		private val operationMutex = Mutex()
++		private val transfers = mutableSetOf<Job>()
+ 		@Volatile private var ready = true
+ 		@Volatile private var generation = initialGeneration
+ 
+@@ -580,6 +736,20 @@ class SourcePipelineRecoveryTest {
+ 			if (isReadyGeneration(expectedGeneration)) operation() else null
+ 		}
+ 
++		override suspend fun <T> withReadyGenerationTransfer(
++			expectedGeneration: Long,
++			operation: suspend () -> T,
++		): T? = coroutineScope {
++			val child = async(start = CoroutineStart.LAZY) { operation() }
++			val admitted = synchronized(transfers) {
++				if (!isReadyGeneration(expectedGeneration)) false else { transfers.add(child); true }
++			}
++			if (!admitted) { child.cancel(); return@coroutineScope null }
++			child.invokeOnCompletion { synchronized(transfers) { transfers.remove(child) } }
++			child.start()
++			child.await()
++		}
++
+ 		override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+ 			TrackingStartupResult.Ready(
+ 				legacyRecoveryPartial = false,
+@@ -589,9 +759,11 @@ class SourcePipelineRecoveryTest {
+ 		fun closeAdmission() {
+ 			ready = false
+ 			generation += 1L
++			synchronized(transfers) { transfers.toList() }.forEach { it.cancel() }
+ 		}
+ 
+ 		suspend fun awaitQuiescence() {
++			synchronized(transfers) { transfers.toList() }.joinAll()
+ 			operationMutex.withLock { Unit }
+ 		}
+ 	}
+diff --git a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/AmbientRadioProjectionRecoveryTest.kt b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/AmbientRadioProjectionRecoveryTest.kt
+index e69de29bb2..e4bb150b81 100644
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/AmbientRadioProjectionRecoveryTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/AmbientRadioProjectionRecoveryTest.kt
+@@ -0,0 +1,219 @@
++package com.adsamcik.tracker.tracker.source.projection
++
++import android.app.Application
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
++import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
++import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
++import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellFactProjector
++import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellProjectionResult
++import com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiFactProjector
++import com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiProjectionResult
++import com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiProjectionUnverifiableReason
++import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
++import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
++import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
++import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
++import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
++import com.adsamcik.tracker.tracker.source.model.PlanAttribution
++import com.adsamcik.tracker.tracker.source.model.SourceEventId
++import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
++import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.tracker.source.model.SourcePayload
++import com.adsamcik.tracker.tracker.source.model.SourceQuality
++import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
++import io.kotest.assertions.throwables.shouldThrow
++import io.kotest.matchers.shouldBe
++import io.mockk.coEvery
++import io.mockk.coVerify
++import io.mockk.mockk
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.test.runTest
++import org.junit.After
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class AmbientRadioProjectionRecoveryTest {
++	private lateinit var database: AppDatabase
++
++	@Before
++	fun setUp() {
++		val context: Application = ApplicationProvider.getApplicationContext()
++		database = AppDatabase.testDatabase(context)
++	}
++
++	@After
++	fun tearDown() = database.close()
++
++	@Test
++	fun `an unverifiable background group does not suppress a qualified sibling with callback mask zero`() = runTest {
++		val projector = mockk<AmbientWifiFactProjector>()
++		coEvery { projector.project(1L) } returns AmbientWifiProjectionResult.Groups(listOf(
++			AmbientWifiProjectionResult.Unverifiable(AmbientWifiProjectionUnverifiableReason.WRITE_CONFLICT),
++			AmbientWifiProjectionResult.FactWritten("qualified-sibling"),
++		))
++		AmbientWifiProjection(projector).apply(event(SourceKind.WIFI, 1L), mockk())
++		coVerify(exactly = 1) { projector.project(1L) }
++	}
++
++	@Test
++	fun `transient failure in a background group leaves the complete callback for retry`() = runTest {
++		val projector = mockk<AmbientCellFactProjector>()
++		coEvery { projector.project(1L) } returns AmbientCellProjectionResult.Groups(listOf(
++			AmbientCellProjectionResult.FactWritten("first-group"), AmbientCellProjectionResult.RetryableFailure,
++		))
++		shouldThrow<AmbientRadioProjectionDeferredException> {
++			AmbientCellProjection(projector).apply(event(SourceKind.CELL, 1L), mockk())
++		}
++	}
++
++	@Test
++	fun `background projection ignores sibling sources and preserves callback cancellation`() = runTest {
++		val projector = mockk<AmbientWifiFactProjector>()
++		val projection = AmbientWifiProjection(projector)
++		projection.apply(event(SourceKind.CELL, 1L), mockk())
++		coVerify(exactly = 0) { projector.project(any()) }
++		coEvery { projector.project(2L) } throws CancellationException("cancelled")
++		shouldThrow<CancellationException> { projection.apply(event(SourceKind.WIFI, 2L), mockk()) }
++	}
++
++	@Test
++	fun `first consumer registration recovers retained callbacks using bounded source-only reads`() = runTest {
++		seedHighWater(5L)
++		val ingress = mockk<DurableSourceIngress>()
++		coEvery { ingress.committedSourceBatch(SourceKind.WIFI, 0L, 5L, 64) } returns
++			listOf(event(SourceKind.WIFI, 2L), event(SourceKind.WIFI, 5L))
++		val wifi = RecordingProjection(SourceKind.WIFI)
++		val dispatcher = ProjectionDispatcher(database, setOf(wifi))
++
++		dispatcher.drainAmbientRadioProjection(SourceKind.WIFI, ingress) shouldBe CoordinatorDrainResult.Complete(5L, 2)
++		wifi.applied shouldBe listOf(2L, 5L)
++		database.sourceProjectionStateDao().registration(wifi.id, wifi.version)?.activationOrdinal shouldBe 1L
++		dispatcher.drainAmbientRadioProjection(SourceKind.WIFI, ingress) shouldBe CoordinatorDrainResult.Complete(5L, 0)
++		coVerify(exactly = 1) { ingress.committedSourceBatch(SourceKind.WIFI, 0L, 5L, 64) }
++		coVerify(exactly = 0) { ingress.committedBatch(any(), any()) }
++	}
++
++	@Test
++	fun `Cell retry leaves its checkpoint pending while Wi-Fi advances and a new dispatcher resumes Cell`() = runTest {
++		seedHighWater(2L)
++		val ingress = mockk<DurableSourceIngress>()
++		coEvery { ingress.committedSourceBatch(SourceKind.CELL, 0L, 2L, 64) } returns listOf(event(SourceKind.CELL, 2L))
++		coEvery { ingress.committedSourceBatch(SourceKind.WIFI, 0L, 2L, 64) } returns listOf(event(SourceKind.WIFI, 1L))
++		coEvery { ingress.committedSourceBatch(SourceKind.WIFI, 1L, 2L, 64) } returns emptyList()
++		val wifi = RecordingProjection(SourceKind.WIFI)
++		val cell = RecordingProjection(SourceKind.CELL).apply { fail = true }
++		val dispatcher = ProjectionDispatcher(database, setOf(wifi, cell))
++
++		dispatcher.drainAmbientRadioProjection(SourceKind.CELL, ingress) shouldBe
++			CoordinatorDrainResult.ProjectionFailed(0L, 0, cell.id, 2L)
++		dispatcher.drainAmbientRadioProjection(SourceKind.WIFI, ingress) shouldBe CoordinatorDrainResult.Complete(2L, 1)
++		database.sourceProjectionStateDao().checkpoint(cell.id, cell.version)?.contiguousAdmissionOrdinal shouldBe 0L
++		database.sourceProjectionStateDao().failure(cell.id, cell.version, 2L)?.terminal shouldBe false
++		cell.fail = false
++		val restarted = ProjectionDispatcher(database, setOf(wifi, cell))
++		restarted.drainAmbientRadioProjection(SourceKind.CELL, ingress) shouldBe CoordinatorDrainResult.Complete(2L, 1)
++		cell.applied shouldBe listOf(2L)
++		wifi.applied shouldBe listOf(1L)
++		database.sourceProjectionStateDao().failure(cell.id, cell.version, 2L) shouldBe null
++	}
++
++	@Test
++	fun `valid Wi-Fi prefix is saved before corruption quarantines only its consumer and later input continues`() = runTest {
++		seedHighWater(3L)
++		val ingress = mockk<DurableSourceIngress>()
++		coEvery { ingress.committedSourceBatch(SourceKind.WIFI, 0L, 3L, 64) } returns listOf(event(SourceKind.WIFI, 1L))
++		coEvery { ingress.committedSourceBatch(SourceKind.WIFI, 1L, 3L, 64) } throws
++			CorruptSourceEventException(2L, SourceKind.WIFI.stableCode, "RAW_PAYLOAD_INTEGRITY")
++		coEvery { ingress.committedSourceBatch(SourceKind.WIFI, 2L, 3L, 64) } returns listOf(event(SourceKind.WIFI, 3L))
++		val wifi = RecordingProjection(SourceKind.WIFI)
++		val cell = RecordingProjection(SourceKind.CELL)
++		val dispatcher = ProjectionDispatcher(database, setOf(wifi, cell))
++		dispatcher.registerAmbientRadioProjections()
++
++		dispatcher.drainAmbientRadioProjection(SourceKind.WIFI, ingress) shouldBe CoordinatorDrainResult.Complete(3L, 2)
++		wifi.applied shouldBe listOf(1L, 3L)
++		database.sourceProjectionStateDao().failure(wifi.id, wifi.version, 2L)?.terminal shouldBe true
++		database.sourceProjectionStateDao().checkpoint(cell.id, cell.version)?.contiguousAdmissionOrdinal shouldBe 0L
++		database.sourceProjectionStateDao().failure(cell.id, cell.version, 2L) shouldBe null
++	}
++
++	@Test
++	fun `new consumer registration after clear starts strictly after the surviving deletion fence`() = runTest {
++		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(
++			collectedDataEpoch = 2L, deletedSourceEventHighWaterOrdinal = 4L,
++		))
++		seedHighWater(8L)
++		val ingress = mockk<DurableSourceIngress>()
++		coEvery { ingress.committedSourceBatch(SourceKind.WIFI, 4L, 8L, 64) } returns listOf(event(SourceKind.WIFI, 8L))
++		val wifi = RecordingProjection(SourceKind.WIFI)
++		val dispatcher = ProjectionDispatcher(database, setOf(wifi))
++
++		dispatcher.drainAmbientRadioProjection(SourceKind.WIFI, ingress) shouldBe CoordinatorDrainResult.Complete(8L, 1)
++		database.sourceProjectionStateDao().registration(wifi.id, wifi.version)?.activationOrdinal shouldBe 5L
++		wifi.applied shouldBe listOf(8L)
++		coVerify(exactly = 0) { ingress.committedSourceBatch(any(), 0L, any(), any()) }
++	}
++
++	@Test
++	fun `cancelled radio projection keeps its checkpoint and propagates cancellation`() = runTest {
++		seedHighWater(1L)
++		val ingress = mockk<DurableSourceIngress>()
++		coEvery { ingress.committedSourceBatch(SourceKind.WIFI, 0L, 1L, 64) } returns listOf(event(SourceKind.WIFI, 1L))
++		val wifi = RecordingProjection(SourceKind.WIFI).apply { cancel = true }
++		val dispatcher = ProjectionDispatcher(database, setOf(wifi))
++
++		shouldThrow<CancellationException> { dispatcher.drainAmbientRadioProjection(SourceKind.WIFI, ingress) }
++		database.sourceProjectionStateDao().checkpoint(wifi.id, wifi.version)?.contiguousAdmissionOrdinal shouldBe 0L
++		database.sourceProjectionStateDao().failure(wifi.id, wifi.version, 1L) shouldBe null
++	}
++
++	private class RecordingProjection(source: SourceKind) : Projection {
++		override val id = if (source == SourceKind.WIFI) AmbientWifiFactRevisionEntity.WRITER_ID else AmbientCellFactRevisionEntity.WRITER_ID
++		override val version = 1
++		val applied = mutableListOf<Long>()
++		var fail = false
++		var cancel = false
++		override suspend fun apply(event: AdmittedSourceEvent<out SourcePayload>, context: ProjectionContext) {
++			if (cancel) throw CancellationException("cancelled")
++			if (fail) throw AmbientRadioProjectionDeferredException()
++			applied += event.admissionOrdinal
++		}
++	}
++
++	private suspend fun seedHighWater(ordinal: Long) {
++		val row = SourceEventWalEntity(
++			admissionOrdinal = ordinal, eventId = "high-water-$ordinal", providerDedupKey = null,
++			logicalTrackingId = null, serviceRunId = null, sourceKind = SourceKind.WIFI.stableCode,
++			sourceInstanceId = "radio-provider", registrationGeneration = 1L, sourceSequence = ordinal,
++			configRevision = 1L, planAttribution = 0, clockDomainId = "boot-1", observedElapsedNanos = ordinal,
++			receivedElapsedNanos = ordinal, wallTimeMs = ordinal, wallTimeUncertaintyMs = 0L,
++			capturedCollectedDataEpoch = 2L, acquiredAtMs = ordinal, qualityFlags = 0L, qualityConfidence = null,
++			payloadVersion = 1, payload = byteArrayOf(1), payloadChecksum = "not-decoded-in-this-fixture", createdAtMs = ordinal,
++		)
++		database.sourceEventWalDao().insertIgnoringDuplicate(row) shouldBe ordinal
++	}
++
++	private fun event(source: SourceKind, ordinal: Long): AdmittedSourceEvent<SourcePayload> = AdmittedSourceEvent(
++		eventId = SourceEventId("${source.name}-$ordinal"), admissionOrdinal = ordinal,
++		evidence = SourceEvidenceCandidate(
++			providerDedupKey = null, logicalTrackingId = null, serviceRunId = null, source = source,
++			sourceInstanceId = SourceInstanceId("radio-provider"), registrationGeneration = 1L,
++			sourceSequence = ordinal, configRevision = 1L, planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
++			clockDomainId = "boot-1", observedElapsedRealtimeNanos = ordinal, receivedElapsedRealtimeNanos = ordinal,
++			wallTimeMs = ordinal, wallTimeUncertaintyMs = 0L, capturedCollectedDataEpoch = 2L, acquiredAtMs = ordinal,
++			quality = SourceQuality(), payloadVersion = 1,
++			payload = if (source == SourceKind.WIFI) WifiResultSnapshotPayload(emptyList(), null, null)
++				else CellSnapshotPayload(null, emptyList(), CellRefreshOutcome.CALLBACK),
++		),
++	)
++}
+diff --git a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt
+index 7b1fe8dcb2..9d8e30b2e1 100644
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt
+@@ -39,6 +39,9 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+ import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
++import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
++import com.adsamcik.tracker.tracker.source.projection.AmbientWifiProjection
++import com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher
+ import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
+ import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
+ import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
+@@ -699,8 +702,9 @@ class WifiDurableSourceIngressTest {
+ 			.units.single().admissionOrdinal
+ 		val projector = AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+ 			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
+-		projector.project(ordinal).shouldBeInstanceOf<AmbientWifiProjectionResult.Groups>()
+-			.results.size shouldBe 2
++		val dispatcher = ProjectionDispatcher(database, setOf(AmbientWifiProjection(projector)))
++		dispatcher.drainAmbientRadioProjection(SourceKind.WIFI, ingress) shouldBe
++			CoordinatorDrainResult.Complete(ordinal, 1)
+ 		val facts = database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10)
+ 			.map { it.fact }.associateBy { it.purposeDemandId }
+ 		facts.keys shouldBe setOf(first.demandId, second.demandId)
+@@ -714,6 +718,8 @@ class WifiDurableSourceIngressTest {
+ 				fact.logicalFactId, fact.semanticRevision, 65)
+ 		}
+ 		children.map { it.bssid }.toSet() shouldBe setOf("old-ap", "new-ap")
++		dispatcher.drainAmbientRadioProjection(SourceKind.WIFI, ingress) shouldBe
++			CoordinatorDrainResult.Complete(ordinal, 0)
+ 		projector.project(ordinal).shouldBeInstanceOf<AmbientWifiProjectionResult.Groups>()
+ 			.results.forEach { it.shouldBeInstanceOf<AmbientWifiProjectionResult.Duplicate>() }
+ 		database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 2
+@@ -730,9 +736,10 @@ class WifiDurableSourceIngressTest {
+ 			purposeEligibilityMask = 0L, eligibilityFingerprint = denied.single().authorizationFingerprint,
+ 			payloadVersion = WIFI_WAL_PAYLOAD_VERSION)).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+ 			.units.single().admissionOrdinal
+-		AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+-			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
+-			.shouldBeInstanceOf<AmbientWifiProjectionResult.FactWritten>()
++		val projector = AmbientWifiFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
++			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
++		ProjectionDispatcher(database, setOf(AmbientWifiProjection(projector)))
++			.drainAmbientRadioProjection(SourceKind.WIFI, ingress) shouldBe CoordinatorDrainResult.Complete(ordinal, 1)
+ 		val fact = database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single().fact
+ 		fact.purposeEligibilityMask shouldBe 0L
+ 		fact.purposeDemandId shouldBe WIFI_DEMAND_ID
+diff --git a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/CellDurableSourceIngressTest.kt b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/CellDurableSourceIngressTest.kt
+index 18def28f97..ea86557752 100644
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/CellDurableSourceIngressTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/CellDurableSourceIngressTest.kt
+@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.ingress
+ import android.app.Application
+ import androidx.test.core.app.ApplicationProvider
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
+ import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+ import com.adsamcik.tracker.shared.base.database.AmbientRadioRetentionDecision
+ import com.adsamcik.tracker.shared.base.database.applyAmbientCellRetentionDecision
+@@ -59,6 +60,9 @@ import com.adsamcik.tracker.tracker.source.runtime.WITHHELD_RADIO_IDENTIFIER_TOK
+ import com.adsamcik.tracker.tracker.source.runtime.cellProviderDeliveryIdentity
+ import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellFactProjector
+ import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellProjectionResult
++import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
++import com.adsamcik.tracker.tracker.source.projection.AmbientCellProjection
++import com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher
+ import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellProjectionUnverifiableReason
+ import io.mockk.coEvery
+ import io.mockk.every
+@@ -215,20 +219,24 @@ class CellDurableSourceIngressTest {
+ 			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>().units.single().admissionOrdinal
+ 		val projector = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+ 			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
++		val dispatcher = ProjectionDispatcher(database, setOf(AmbientCellProjection(projector)))
+ 		database.openHelper.writableDatabase.execSQL(
+ 			"CREATE TRIGGER fail_second_ambient_group BEFORE INSERT ON ambient_cell_fact_revision " +
+ 				"WHEN NEW.purpose_demand_id = 'cell-second-group' BEGIN " +
+ 				"SELECT RAISE(ABORT, 'injected group write failure'); END",
+ 		)
+-		projector.project(ordinal) shouldBe AmbientCellProjectionResult.RetryableFailure
++		dispatcher.drainAmbientRadioProjection(SourceKind.CELL, ingress) shouldBe
++			CoordinatorDrainResult.ProjectionFailed(0L, 0, AmbientCellFactRevisionEntity.WRITER_ID, ordinal)
++		database.sourceProjectionStateDao().failure(AmbientCellFactRevisionEntity.WRITER_ID,
++			AmbientCellFactRevisionEntity.WRITER_VERSION, ordinal)?.terminal shouldBe false
+ 		database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 0
+ 		database.openHelper.writableDatabase.query("SELECT count(*) FROM ambient_cell_child").use { cursor ->
+ 			cursor.moveToFirst() shouldBe true
+ 			cursor.getLong(0) shouldBe 0L
+ 		}
+ 		database.openHelper.writableDatabase.execSQL("DROP TRIGGER fail_second_ambient_group")
+-		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.Groups>()
+-			.results.size shouldBe 2
++		dispatcher.drainAmbientRadioProjection(SourceKind.CELL, ingress) shouldBe
++			CoordinatorDrainResult.Complete(ordinal, 1)
+ 		val facts = database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10)
+ 			.map { it.fact }.associateBy { it.purposeDemandId }
+ 		facts.keys shouldBe setOf(first.demandId, second.demandId)
+@@ -241,6 +249,8 @@ class CellDurableSourceIngressTest {
+ 				fact.logicalFactId, fact.semanticRevision, 65)
+ 		}
+ 		children.map { it.towerIdentity }.toSet() shouldBe setOf("old-tower", "new-tower")
++		dispatcher.drainAmbientRadioProjection(SourceKind.CELL, ingress) shouldBe
++			CoordinatorDrainResult.Complete(ordinal, 0)
+ 		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.Groups>()
+ 			.results.forEach { it.shouldBeInstanceOf<AmbientCellProjectionResult.Duplicate>() }
+ 		database.openHelper.writableDatabase.execSQL(
+@@ -266,9 +276,10 @@ class CellDurableSourceIngressTest {
+ 				registrationEligibilityFingerprint = denied.single().authorizationFingerprint)) })
+ 		val ordinal = ingress.admit(candidate).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+ 			.units.single().admissionOrdinal
+-		AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+-			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
+-			.shouldBeInstanceOf<AmbientCellProjectionResult.FactWritten>()
++		val projector = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
++			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
++		ProjectionDispatcher(database, setOf(AmbientCellProjection(projector)))
++			.drainAmbientRadioProjection(SourceKind.CELL, ingress) shouldBe CoordinatorDrainResult.Complete(ordinal, 1)
+ 		val fact = database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single().fact
+ 		fact.purposeEligibilityMask shouldBe 0L
+ 		fact.purposeDemandId shouldBe CELL_DEMAND_ID
+diff --git a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenanceTest.kt b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenanceTest.kt
+index 2efe21eb2b..d36eb23b39 100644
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenanceTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenanceTest.kt
+@@ -3,6 +3,10 @@ package com.adsamcik.tracker.shared.base.database
+ import android.app.Application
+ import androidx.test.core.app.ApplicationProvider
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
++import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
++import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceProjectionCheckpointEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionProofEntity
+@@ -36,6 +40,70 @@ class SourceEventStorageMaintenanceTest {
+ 	@After
+ 	fun tearDown() = database.close()
+ 
++	@Test
++	fun `pending background Wi-Fi protects its own unsaved data while Cell and Pressure can prune`() = runTest {
++		insertEvent(SourceDestinationOwnerEntity.SOURCE_WIFI, 1L, false)
++		insertEvent(SourceDestinationOwnerEntity.SOURCE_CELL, 2L, false)
++		insertEvent(SourceDestinationOwnerEntity.SOURCE_PRESSURE, 3L, false)
++		registerRetainingProjection(AmbientWifiFactRevisionEntity.WRITER_ID, 1, 0L)
++		registerRetainingProjection(AmbientCellFactRevisionEntity.WRITER_ID, 1, 3L)
++
++		database.pruneSourceEventStorageBefore(100L)
++
++		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.sourceKind shouldBe SourceDestinationOwnerEntity.SOURCE_WIFI
++		database.sourceEventWalDao().getByAdmissionOrdinal(2L) shouldBe null
++		database.sourceEventWalDao().getByAdmissionOrdinal(3L) shouldBe null
++	}
++
++	@Test
++	fun `pending background Cell protects its own unsaved data without retaining Wi-Fi`() = runTest {
++		insertEvent(SourceDestinationOwnerEntity.SOURCE_WIFI, 1L, false)
++		insertEvent(SourceDestinationOwnerEntity.SOURCE_CELL, 2L, false)
++		registerRetainingProjection(AmbientWifiFactRevisionEntity.WRITER_ID, 1, 2L)
++		registerRetainingProjection(AmbientCellFactRevisionEntity.WRITER_ID, 1, 0L)
++
++		database.pruneSourceEventStorageBefore(100L)
++
++		database.sourceEventWalDao().getByAdmissionOrdinal(1L) shouldBe null
++		database.sourceEventWalDao().getByAdmissionOrdinal(2L)?.sourceKind shouldBe SourceDestinationOwnerEntity.SOURCE_CELL
++	}
++
++	@Test
++	fun `missing background checkpoint protects the source from its registration boundary`() = runTest {
++		insertEvent(SourceDestinationOwnerEntity.SOURCE_WIFI, 1L, false)
++		insertEvent(SourceDestinationOwnerEntity.SOURCE_CELL, 2L, false)
++		registerRetainingProjection(AmbientWifiFactRevisionEntity.WRITER_ID, 1, null)
++
++		database.pruneSourceEventStorageBefore(100L)
++
++		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.sourceKind shouldBe SourceDestinationOwnerEntity.SOURCE_WIFI
++		database.sourceEventWalDao().getByAdmissionOrdinal(2L) shouldBe null
++	}
++
++	@Test
++	fun `unknown projection and unknown background writer version keep conservative global retention`() = runTest {
++		insertEvent(SourceDestinationOwnerEntity.SOURCE_WIFI, 1L, false)
++		insertEvent(SourceDestinationOwnerEntity.SOURCE_CELL, 2L, false)
++		registerRetainingProjection("unknown-reader", 1, 0L)
++		registerRetainingProjection(AmbientWifiFactRevisionEntity.WRITER_ID, 2, 0L)
++
++		database.pruneSourceEventStorageBefore(100L)
++		database.sourceEventWalDao().countAll() shouldBe 2L
++		database.sourceProjectionStateDao().deleteAllRegistrations()
++		registerRetainingProjection(AmbientWifiFactRevisionEntity.WRITER_ID, 2, 0L)
++		database.pruneSourceEventStorageBefore(100L)
++		database.sourceEventWalDao().countAll() shouldBe 2L
++	}
++
++	private suspend fun registerRetainingProjection(id: String, version: Int, checkpoint: Long?) {
++		database.sourceProjectionStateDao().register(SourceProjectionRegistrationEntity(
++			id, version, 1L, true, "ACTIVE", 1L,
++		))
++		if (checkpoint != null) database.sourceProjectionStateDao().saveCheckpoint(SourceProjectionCheckpointEntity(
++			id, version, checkpoint, 1, 1L,
++		))
++	}
++
+ 	@Test
+ 	fun `control expiry waits for the exact capture lane before retiring shared raw Activity`() = runTest {
+ 		val source = SourceDestinationOwnerEntity.SOURCE_ACTIVITY
+diff --git a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinator.kt b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinator.kt
+index 41cfac342c..6e8956ef9c 100644
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinator.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinator.kt
+@@ -39,7 +39,7 @@ class TrackingCoordinator @Inject constructor(
+ 		var count = 0
+ 		return try {
+ 			projections.registerAll(database.liveSourceProjectionActivationOrdinal())
+-			cursor = database.sourceProjectionStateDao().minimumActiveCheckpoint()
++			cursor = projections.minimumGlobalCheckpoint()
+ 				?: database.sourceEventWalDao().maximumAdmissionOrdinal()
+ 				?: 0L
+ 			while (true) {
+diff --git a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinatorTest.kt b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinatorTest.kt
+index b024f741a9..170d319039 100644
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinatorTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinatorTest.kt
+@@ -5,6 +5,11 @@ import androidx.test.core.app.ApplicationProvider
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+ import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
++import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
++import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceProjectionCheckpointEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
+ import com.adsamcik.tracker.tracker.source.ingress.AdmissionResult
+ import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
+ import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
+@@ -44,6 +49,93 @@ class TrackingCoordinatorTest {
+ 	@After
+ 	fun tearDown() = database.close()
+ 
++	@Test
++	fun `global registration excludes exact background consumers until independent registration`() = runTest {
++		val dispatcher = ProjectionDispatcher(database, setOf(
++			RecordingProjection(), FailingBackgroundProjection(SourceKind.WIFI), FailingBackgroundProjection(SourceKind.CELL),
++		))
++		dispatcher.registerAll(1L)
++		database.sourceProjectionStateDao().registration(AmbientWifiFactRevisionEntity.WRITER_ID, 1) shouldBe null
++		database.sourceProjectionStateDao().registration(AmbientCellFactRevisionEntity.WRITER_ID, 1) shouldBe null
++		dispatcher.registerAmbientRadioProjections()
++		database.sourceProjectionStateDao().registration(AmbientWifiFactRevisionEntity.WRITER_ID, 1)
++			?.activationOrdinal shouldBe 1L
++		database.sourceProjectionStateDao().registration(AmbientCellFactRevisionEntity.WRITER_ID, 1)
++			?.activationOrdinal shouldBe 1L
++	}
++
++	@Test
++	fun `pending background retries cannot join global dispatch or rewind its continuation`() = runTest {
++		val global = RecordingProjection()
++		val wifi = FailingBackgroundProjection(SourceKind.WIFI)
++		val cell = FailingBackgroundProjection(SourceKind.CELL)
++		val dispatcher = ProjectionDispatcher(database, setOf(global, wifi, cell))
++		dispatcher.registerAll(1L)
++		dispatcher.registerAmbientRadioProjections()
++		dispatcher.dispatch(healthyEvent(1L))
++		database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
++			wifi.id, wifi.version, 2L, 1, "INJECTED_PENDING_STORAGE", false, 1L,
++		))
++		val ingress = OrderedIngress(listOf(sourceEvent(2L, SourceKind.WIFI), sourceEvent(3L, SourceKind.STEPS)))
++		val coordinator = TrackingCoordinator(database, ingress, dispatcher)
++
++		coordinator.drainAvailable("independent-global") shouldBe CoordinatorDrainResult.Complete(3L, 2)
++		coordinator.drainAvailable("continued-global") shouldBe CoordinatorDrainResult.Complete(3L, 0)
++		ingress.requestedAfterOrdinals shouldBe listOf(1L, 3L)
++		global.appliedOrdinals shouldBe listOf(1L, 2L, 3L)
++		wifi.attempts shouldBe 0
++		cell.attempts shouldBe 0
++		database.sourceProjectionStateDao().checkpoint(wifi.id, 1)?.contiguousAdmissionOrdinal shouldBe 0L
++		database.sourceProjectionStateDao().checkpoint(cell.id, 1)?.contiguousAdmissionOrdinal shouldBe 0L
++		database.sourceProjectionStateDao().failure(wifi.id, 1, 2L)?.attemptCount shouldBe 1
++	}
++
++	@Test
++	fun `global raw quarantine cannot retire a pending source-local background reading`() = runTest {
++		val global = RecordingProjection()
++		val wifi = FailingBackgroundProjection(SourceKind.WIFI)
++		val cell = FailingBackgroundProjection(SourceKind.CELL)
++		val dispatcher = ProjectionDispatcher(database, setOf(global, wifi, cell))
++		dispatcher.registerAmbientRadioProjections()
++		val coordinator = TrackingCoordinator(database, PoisonThenHealthyIngress(healthyEvent(2L)), dispatcher)
++
++		coordinator.drainAvailable("quarantine-global") shouldBe CoordinatorDrainResult.Complete(2L, 1)
++		database.sourceProjectionStateDao().checkpoint(wifi.id, 1)?.contiguousAdmissionOrdinal shouldBe 0L
++		database.sourceProjectionStateDao().checkpoint(cell.id, 1)?.contiguousAdmissionOrdinal shouldBe 0L
++		database.sourceProjectionStateDao().failure(wifi.id, 1, 1L) shouldBe null
++		database.sourceProjectionStateDao().failure(cell.id, 1, 1L) shouldBe null
++		wifi.attempts shouldBe 0
++		cell.attempts shouldBe 0
++	}
++
++	@Test
++	fun `unknown background writer version and unknown registration remain global prerequisites`() = runTest {
++		val unknownVersion = FailingBackgroundProjection(SourceKind.WIFI, version = 2)
++		val dispatcher = ProjectionDispatcher(database, setOf(unknownVersion))
++		dispatcher.registerAll(1L)
++		dispatcher.minimumGlobalCheckpoint() shouldBe 0L
++		val coordinator = TrackingCoordinator(database, OrderedIngress(listOf(sourceEvent(1L, SourceKind.WIFI))), dispatcher)
++		coordinator.drainAvailable("unknown-version-global") shouldBe
++			CoordinatorDrainResult.ProjectionFailed(0L, 0, unknownVersion.id, 1L)
++		unknownVersion.attempts shouldBe 1
++		database.sourceProjectionStateDao().register(SourceProjectionRegistrationEntity(
++			"unknown-reader", 1, 1L, true, "ACTIVE", 1L,
++		))
++		database.sourceProjectionStateDao().saveCheckpoint(SourceProjectionCheckpointEntity(
++			unknownVersion.id, 2, 1L, 1, 1L,
++		))
++		dispatcher.minimumGlobalCheckpoint() shouldBe 0L
++	}
++
++	private class FailingBackgroundProjection(source: SourceKind, override val version: Int = 1) : Projection {
++		override val id = if (source == SourceKind.WIFI) AmbientWifiFactRevisionEntity.WRITER_ID else AmbientCellFactRevisionEntity.WRITER_ID
++		var attempts = 0
++		override suspend fun apply(event: AdmittedSourceEvent<out SourcePayload>, context: ProjectionContext) {
++			attempts++
++			throw java.io.IOException("Injected pending background storage")
++		}
++	}
++
+ 	@Test
+ 	fun `corrupt raw event is quarantined and later healthy event is dispatched`() = runTest {
+ 		val projection = RecordingProjection()
+diff --git a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt
+index 1f633f90db..c1828084f8 100644
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt
+@@ -1,5 +1,16 @@
+ package com.adsamcik.tracker.tracker.source.coordinator
+ 
++import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
++import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
++import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
++import com.adsamcik.tracker.tracker.source.model.SourcePayload
++import com.adsamcik.tracker.tracker.source.model.WifiAccessPointEvidence
++import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
++import com.adsamcik.tracker.tracker.source.projection.Projection
++import com.adsamcik.tracker.tracker.source.projection.ProjectionContext
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.withContext
+ import android.app.Application
+ import android.database.sqlite.SQLiteException
+ import androidx.room.withTransaction
+@@ -243,6 +254,97 @@ class AuthoritativeSessionCoordinatorTest {
+ 	@After
+ 	fun tearDown() = database.close()
+ 
++	@Test
++	fun `Steps-only End completes with pending Wi-Fi and Cell background consumers`() = runTest {
++		runtime.hasNoAdmittedStepEvents = true
++		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
++		installPendingBackgroundRadioCoordinator()
++
++		withContext(Dispatchers.IO) { subject.stop(SessionStopRequest("test-owner", "manual", 2_000L, 2_000_000L,
++			"boot-1", perSourceTimeoutMs = 5_000L)) }.shouldBeInstanceOf<SessionStopResult.Stopped>()
++		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
++			SessionLifecycleState.FINALIZED.name
++		assertBackgroundConsumersRemainPending()
++	}
++
++	@Test
++	fun `Steps-only suspension completes with pending Wi-Fi and Cell background consumers`() = runTest {
++		runtime.hasNoAdmittedStepEvents = true
++		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
++		installPendingBackgroundRadioCoordinator()
++
++		withContext(Dispatchers.IO) { subject.suspendForRestart(SessionSuspendRequest("test-owner", "ANDROID_RESTART", 2_000L,
++			2_000_000L, "boot-1", perSourceTimeoutMs = 5_000L)) }
++			.shouldBeInstanceOf<SessionSuspendResult.Suspended>()
++		database.sourceSessionDao().session(started.logicalTrackingId)?.currentServiceRunId shouldBe null
++		database.sourceSessionDao().serviceRun(started.serviceRunId)?.state shouldBe
++			SessionLifecycleState.FINALIZED.name
++		assertBackgroundConsumersRemainPending()
++	}
++
++	/** Real global coordinator plus retaining pending source consumers; no Android provider is used. */
++	private suspend fun installPendingBackgroundRadioCoordinator() {
++		fun background(source: SourceKind) = object : Projection {
++			override val id = if (source == SourceKind.WIFI) AmbientWifiFactRevisionEntity.WRITER_ID else AmbientCellFactRevisionEntity.WRITER_ID
++			override val version = 1
++			override suspend fun apply(event: AdmittedSourceEvent<out SourcePayload>, context: ProjectionContext) {
++				throw java.io.IOException("Pending background storage")
++			}
++		}
++		val global = object : Projection {
++			override val id = "global-session-settlement"
++			override val version = 1
++			override suspend fun apply(event: AdmittedSourceEvent<out SourcePayload>, context: ProjectionContext) = Unit
++		}
++		val dispatcher = ProjectionDispatcher(database, setOf(global, background(SourceKind.WIFI), background(SourceKind.CELL)))
++		dispatcher.registerAll(1L)
++		dispatcher.registerAmbientRadioProjections()
++		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
++		val payload = WifiResultSnapshotPayload(listOf(WifiAccessPointEvidence("test-ap", 2_412, -61, 1_500_000L)), null, null)
++		val encoded = DefaultSourcePayloadCodec().encode(payload, com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION)
++		val evidence = SourceEvidenceCandidate(
++			providerDedupKey = null, logicalTrackingId = null, serviceRunId = null,
++			source = SourceKind.WIFI, sourceInstanceId = SourceInstanceId("background-wifi"),
++			registrationGeneration = 1L, sourceSequence = 1L, configRevision = 1L,
++			planAttribution = PlanAttribution.RECEIVE_TIME_ONLY, clockDomainId = "boot-1",
++			observedElapsedRealtimeNanos = 1_500_000L,
++			receivedElapsedRealtimeNanos = 1_500_000L, wallTimeMs = 1_500L, wallTimeUncertaintyMs = 0L,
++			capturedCollectedDataEpoch = requireNotNull(database.sourceEvidenceStateDao().get()).collectedDataEpoch,
++			acquiredAtMs = 1_500L, quality = SourceQuality(),
++			payloadVersion = com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION, payload = payload,
++		)
++		val admitted = AdmittedSourceEvent(SourceEventId("pending-background-wifi"), 1L, evidence)
++		val unsigned = SourceEventWalEntity(
++			admissionOrdinal = 1L, eventId = admitted.eventId.value, providerDedupKey = null,
++			logicalTrackingId = null, serviceRunId = null, sourceKind = SourceKind.WIFI.stableCode,
++			sourceInstanceId = evidence.sourceInstanceId.value, registrationGeneration = 1L, sourceSequence = 1L,
++			configRevision = 1L, planAttribution = evidence.planAttribution.ordinal, clockDomainId = "boot-1",
++			observedElapsedNanos = 1_500_000L, observedIntervalStartNanos = 1_500_000L,
++			receivedElapsedNanos = 1_500_000L, wallTimeMs = 1_500L, wallTimeUncertaintyMs = 0L,
++			capturedCollectedDataEpoch = evidence.capturedCollectedDataEpoch, acquiredAtMs = 1_500L,
++			qualityFlags = 0L, qualityConfidence = null, payloadVersion = evidence.payloadVersion,
++			payload = encoded.bytes, payloadChecksum = encoded.checksum, createdAtMs = 1_500L,
++		)
++		database.sourceEventWalDao().insertIgnoringDuplicate(unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())) shouldBe 1L
++		for (id in listOf(AmbientWifiFactRevisionEntity.WRITER_ID, AmbientCellFactRevisionEntity.WRITER_ID)) {
++			database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(id, 1, 1L, 1,
++				"INJECTED_PENDING_STORAGE", false, 1_500L))
++		}
++		val ingress = mockk<DurableSourceIngress>()
++		coEvery { ingress.committedBatch(any(), any()) } coAnswers {
++			if (firstArg<Long>() < 1L) listOf(admitted) else emptyList()
++		}
++		replaceEventCoordinator(TrackingCoordinator(database, ingress, dispatcher))
++	}
++
++	private suspend fun assertBackgroundConsumersRemainPending() {
++		for (id in listOf(AmbientWifiFactRevisionEntity.WRITER_ID, AmbientCellFactRevisionEntity.WRITER_ID)) {
++			database.sourceProjectionStateDao().checkpoint(id, 1)?.contiguousAdmissionOrdinal shouldBe 0L
++			database.sourceProjectionStateDao().failure(id, 1, 1L)?.attemptCount shouldBe 1
++		}
++		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.eventId shouldBe "pending-background-wifi"
++	}
++
+ 	@Test
+ 	fun `session is durable before source start and closes after source drain`() = runTest {
+ 		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+@@ -10178,6 +10280,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
+ 	var acknowledgementServiceRunId: String? = null
+ 	var omitAcknowledgementMembership = false
+ 	var lastAdmissionOrdinal: Long? = null
++	var hasNoAdmittedStepEvents = false
+ 	val shutdownClaims = mutableListOf<SourceRuntimeClaim>()
+ 	var shutdownAttemptCount = 0
+ 	val startEntered = CompletableDeferred<Unit>()
+@@ -10348,8 +10451,8 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
+ 		sourceInstanceId = SourceInstanceId("steps-instance"),
+ 		registrationGeneration = registrationGeneration,
+ 		appliedRevision = 1,
+-		callbackEntryBarrierSequence = 4,
+-		lastDurablyAdmittedSequence = 4,
++		callbackEntryBarrierSequence = if (hasNoAdmittedStepEvents) 0 else 4,
++		lastDurablyAdmittedSequence = if (hasNoAdmittedStepEvents) null else 4,
+ 		lastAdmissionOrdinal = lastAdmissionOrdinal,
+ 		failedAdmissionCount = 0,
+ 		unresolvedSequenceStart = null,
+diff --git a/app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt b/app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt
+index 8f822d0e6d..6f865cf0a4 100644
+--- a/app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt
++++ b/app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt
+@@ -25,6 +25,9 @@ import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
+ import com.adsamcik.tracker.tracker.resilience.TrackingStopCommand
+ import com.adsamcik.tracker.tracker.source.coordinator.LegacyV27ProjectionRecoveryNotReadyException
+ import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
++import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
++import com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher
++import com.adsamcik.tracker.tracker.source.model.SourceKind
+ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
+ import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecoveryResult
+ import io.kotest.matchers.shouldBe
+@@ -39,6 +42,10 @@ import javax.inject.Provider
+ import java.io.ByteArrayOutputStream
+ import kotlinx.coroutines.CompletableDeferred
+ import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.NonCancellable
++import kotlinx.coroutines.awaitCancellation
++import kotlinx.coroutines.withContext
+ import kotlinx.coroutines.ExperimentalCoroutinesApi
+ import kotlinx.coroutines.async
+ import kotlinx.coroutines.test.runCurrent
+@@ -1031,6 +1038,114 @@ class DefaultTrackingStartupGateTest {
+ 		gate.withReadyGenerationTransfer(0L) { "unavailable-data" } shouldBe null
+ 	}
+ 
++	@Test
++	@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE") // Exercises the existing engine constructor without adding a production test API.
++	fun `actual radio recovery shares retained gate without serializing sources or borrowing acquisition after Off`() = runTest {
++		var stopGeneration = 0L
++		every { lifecycleAuthority.latestStopGeneration() } answers { stopGeneration }
++		prepareRetainedGate()
++		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
++		val projections = mockk<ProjectionDispatcher>()
++		val wifiEntered = CompletableDeferred<Unit>()
++		val finishWifi = CompletableDeferred<Unit>()
++		coEvery { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) } coAnswers {
++			wifiEntered.complete(Unit)
++			finishWifi.await()
++			CoordinatorDrainResult.Complete(1L, 1)
++		}
++		coEvery { projections.drainAmbientRadioProjection(SourceKind.CELL, any()) } returns
++			CoordinatorDrainResult.Complete(2L, 1)
++		val recovery = actualRadioRecovery(projections, backgroundScope)
++		recovery.requestWifiSessionFactDrain()
++		runCurrent()
++		wifiEntered.isCompleted shouldBe true
++		// The startup/Stop control plane is available while the background Wi-Fi write is suspended.
++		withTimeoutOrNull(1_000L) {
++			gate.withReadyGenerationOperation(gate.currentGeneration) { "control-available" }
++		} shouldBe "control-available"
++		stopGeneration = 1L
++		every { lifecycleAuthority.pendingCollectionResumeExitId } returns "user-off"
++		gate.isReady shouldBe false
++		gate.permitsNewCollection shouldBe false
++		recovery.requestCellSessionFactDrain()
++		runCurrent()
++		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.CELL, any()) }
++		gate.withReadyGeneration(gate.currentGeneration) { "provider-start" } shouldBe null
++		finishWifi.complete(Unit)
++		runCurrent()
++		coVerify(exactly = 1) { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) }
++	}
++
++	@Test
++	@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
++	fun `real gate cancels and physically joins radio cleanup then the same actor recovers the reopened generation`() = runTest {
++		prepareRetainedGate()
++		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
++		val projections = mockk<ProjectionDispatcher>()
++		val entered = CompletableDeferred<Unit>()
++		val cleanupEntered = CompletableDeferred<Unit>()
++		val finishCleanup = CompletableDeferred<Unit>()
++		var cleanupFinished = false
++		val admittedGenerations = mutableListOf<Long>()
++		coEvery { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) } coAnswers {
++			admittedGenerations += gate.currentGeneration
++			if (admittedGenerations.size == 1) {
++				try {
++					entered.complete(Unit)
++					awaitCancellation()
++				} finally {
++					withContext(NonCancellable) {
++						cleanupEntered.complete(Unit)
++						finishCleanup.await()
++						cleanupFinished = true
++					}
++				}
++			}
++			CoordinatorDrainResult.Complete(2L, 1)
++		}
++		val recovery = actualRadioRecovery(projections, backgroundScope)
++		recovery.requestWifiSessionFactDrain()
++		runCurrent()
++		entered.isCompleted shouldBe true
++		val oldGeneration = gate.currentGeneration
++		val deletion = async { deletionBarrier.closeAdmission() }
++		runCurrent()
++		cleanupEntered.isCompleted shouldBe true
++		deletion.isCompleted shouldBe false
++		gate.withRetainedDataGeneration(oldGeneration) { "old-write" } shouldBe null
++		recovery.requestWifiSessionFactDrain()
++		runCurrent()
++		admittedGenerations shouldBe listOf(oldGeneration)
++		finishCleanup.complete(Unit)
++		runCurrent()
++		deletion.await()
++		cleanupFinished shouldBe true
++		admittedGenerations shouldBe listOf(oldGeneration)
++		deletionBarrier.reopen()
++		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
++		runCurrent()
++		// The queued hint reads only the new generation; cancellation did not destroy its actor.
++		admittedGenerations shouldBe listOf(oldGeneration, oldGeneration + 1L)
++		gate.withReadyGenerationTransfer(oldGeneration) { "old-write" } shouldBe null
++		coVerify(exactly = 2) { projections.drainAmbientRadioProjection(SourceKind.WIFI, any()) }
++	}
++
++	private fun prepareRetainedGate() {
++		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
++		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
++		coEvery { resolver.apply(any(), any()) } just Runs
++		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
++	}
++
++	@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
++	private fun actualRadioRecovery(projections: ProjectionDispatcher, scope: CoroutineScope) = SourcePipelineRecovery(
++		legacyRecovery = mockk(), coordinator = mockk(), activityProjectionLane = mockk(), activityEffects = mockk(),
++		stepsProjectionLane = mockk(relaxed = true), pressureProjectionLane = mockk(relaxed = true),
++		capturedActivityProjectionLane = mockk(relaxed = true), cellProjectionLane = mockk(relaxed = true),
++		wifiProjectionLane = mockk(relaxed = true), applicationScope = scope,
++		ambientProjections = projections, ambientIngress = mockk(), startupGateProvider = Provider { gate },
++	)
++
+ 	private fun pendingStop() = TrackingStopCommand(
+ 		generation = 7L,
+ 		reason = TrackingStopCandidateReason.EXPLICIT_REQUEST,

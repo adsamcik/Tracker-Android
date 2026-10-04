@@ -5,6 +5,11 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionCheckpointEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
 import com.adsamcik.tracker.tracker.source.ingress.AdmissionResult
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
@@ -43,6 +48,93 @@ class TrackingCoordinatorTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `global registration excludes exact background consumers until independent registration`() = runTest {
+		val dispatcher = ProjectionDispatcher(database, setOf(
+			RecordingProjection(), FailingBackgroundProjection(SourceKind.WIFI), FailingBackgroundProjection(SourceKind.CELL),
+		))
+		dispatcher.registerAll(1L)
+		database.sourceProjectionStateDao().registration(AmbientWifiFactRevisionEntity.WRITER_ID, 1) shouldBe null
+		database.sourceProjectionStateDao().registration(AmbientCellFactRevisionEntity.WRITER_ID, 1) shouldBe null
+		dispatcher.registerAmbientRadioProjections()
+		database.sourceProjectionStateDao().registration(AmbientWifiFactRevisionEntity.WRITER_ID, 1)
+			?.activationOrdinal shouldBe 1L
+		database.sourceProjectionStateDao().registration(AmbientCellFactRevisionEntity.WRITER_ID, 1)
+			?.activationOrdinal shouldBe 1L
+	}
+
+	@Test
+	fun `pending background retries cannot join global dispatch or rewind its continuation`() = runTest {
+		val global = RecordingProjection()
+		val wifi = FailingBackgroundProjection(SourceKind.WIFI)
+		val cell = FailingBackgroundProjection(SourceKind.CELL)
+		val dispatcher = ProjectionDispatcher(database, setOf(global, wifi, cell))
+		dispatcher.registerAll(1L)
+		dispatcher.registerAmbientRadioProjections()
+		dispatcher.dispatch(healthyEvent(1L))
+		database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+			wifi.id, wifi.version, 2L, 1, "INJECTED_PENDING_STORAGE", false, 1L,
+		))
+		val ingress = OrderedIngress(listOf(sourceEvent(2L, SourceKind.WIFI), sourceEvent(3L, SourceKind.STEPS)))
+		val coordinator = TrackingCoordinator(database, ingress, dispatcher)
+
+		coordinator.drainAvailable("independent-global") shouldBe CoordinatorDrainResult.Complete(3L, 2)
+		coordinator.drainAvailable("continued-global") shouldBe CoordinatorDrainResult.Complete(3L, 0)
+		ingress.requestedAfterOrdinals shouldBe listOf(1L, 3L)
+		global.appliedOrdinals shouldBe listOf(1L, 2L, 3L)
+		wifi.attempts shouldBe 0
+		cell.attempts shouldBe 0
+		database.sourceProjectionStateDao().checkpoint(wifi.id, 1)?.contiguousAdmissionOrdinal shouldBe 0L
+		database.sourceProjectionStateDao().checkpoint(cell.id, 1)?.contiguousAdmissionOrdinal shouldBe 0L
+		database.sourceProjectionStateDao().failure(wifi.id, 1, 2L)?.attemptCount shouldBe 1
+	}
+
+	@Test
+	fun `global raw quarantine cannot retire a pending source-local background reading`() = runTest {
+		val global = RecordingProjection()
+		val wifi = FailingBackgroundProjection(SourceKind.WIFI)
+		val cell = FailingBackgroundProjection(SourceKind.CELL)
+		val dispatcher = ProjectionDispatcher(database, setOf(global, wifi, cell))
+		dispatcher.registerAmbientRadioProjections()
+		val coordinator = TrackingCoordinator(database, PoisonThenHealthyIngress(healthyEvent(2L)), dispatcher)
+
+		coordinator.drainAvailable("quarantine-global") shouldBe CoordinatorDrainResult.Complete(2L, 1)
+		database.sourceProjectionStateDao().checkpoint(wifi.id, 1)?.contiguousAdmissionOrdinal shouldBe 0L
+		database.sourceProjectionStateDao().checkpoint(cell.id, 1)?.contiguousAdmissionOrdinal shouldBe 0L
+		database.sourceProjectionStateDao().failure(wifi.id, 1, 1L) shouldBe null
+		database.sourceProjectionStateDao().failure(cell.id, 1, 1L) shouldBe null
+		wifi.attempts shouldBe 0
+		cell.attempts shouldBe 0
+	}
+
+	@Test
+	fun `unknown background writer version and unknown registration remain global prerequisites`() = runTest {
+		val unknownVersion = FailingBackgroundProjection(SourceKind.WIFI, version = 2)
+		val dispatcher = ProjectionDispatcher(database, setOf(unknownVersion))
+		dispatcher.registerAll(1L)
+		dispatcher.minimumGlobalCheckpoint() shouldBe 0L
+		val coordinator = TrackingCoordinator(database, OrderedIngress(listOf(sourceEvent(1L, SourceKind.WIFI))), dispatcher)
+		coordinator.drainAvailable("unknown-version-global") shouldBe
+			CoordinatorDrainResult.ProjectionFailed(0L, 0, unknownVersion.id, 1L)
+		unknownVersion.attempts shouldBe 1
+		database.sourceProjectionStateDao().register(SourceProjectionRegistrationEntity(
+			"unknown-reader", 1, 1L, true, "ACTIVE", 1L,
+		))
+		database.sourceProjectionStateDao().saveCheckpoint(SourceProjectionCheckpointEntity(
+			unknownVersion.id, 2, 1L, 1, 1L,
+		))
+		dispatcher.minimumGlobalCheckpoint() shouldBe 0L
+	}
+
+	private class FailingBackgroundProjection(source: SourceKind, override val version: Int = 1) : Projection {
+		override val id = if (source == SourceKind.WIFI) AmbientWifiFactRevisionEntity.WRITER_ID else AmbientCellFactRevisionEntity.WRITER_ID
+		var attempts = 0
+		override suspend fun apply(event: AdmittedSourceEvent<out SourcePayload>, context: ProjectionContext) {
+			attempts++
+			throw java.io.IOException("Injected pending background storage")
+		}
+	}
 
 	@Test
 	fun `corrupt raw event is quarantined and later healthy event is dispatched`() = runTest {

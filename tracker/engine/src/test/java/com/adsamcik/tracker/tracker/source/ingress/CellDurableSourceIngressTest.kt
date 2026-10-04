@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.ingress
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.database.AmbientRadioRetentionDecision
 import com.adsamcik.tracker.shared.base.database.applyAmbientCellRetentionDecision
@@ -59,6 +60,9 @@ import com.adsamcik.tracker.tracker.source.runtime.WITHHELD_RADIO_IDENTIFIER_TOK
 import com.adsamcik.tracker.tracker.source.runtime.cellProviderDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellFactProjector
 import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellProjectionResult
+import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
+import com.adsamcik.tracker.tracker.source.projection.AmbientCellProjection
+import com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher
 import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellProjectionUnverifiableReason
 import io.mockk.coEvery
 import io.mockk.every
@@ -215,20 +219,24 @@ class CellDurableSourceIngressTest {
 			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>().units.single().admissionOrdinal
 		val projector = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
 			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
+		val dispatcher = ProjectionDispatcher(database, setOf(AmbientCellProjection(projector)))
 		database.openHelper.writableDatabase.execSQL(
 			"CREATE TRIGGER fail_second_ambient_group BEFORE INSERT ON ambient_cell_fact_revision " +
 				"WHEN NEW.purpose_demand_id = 'cell-second-group' BEGIN " +
 				"SELECT RAISE(ABORT, 'injected group write failure'); END",
 		)
-		projector.project(ordinal) shouldBe AmbientCellProjectionResult.RetryableFailure
+		dispatcher.drainAmbientRadioProjection(SourceKind.CELL, ingress) shouldBe
+			CoordinatorDrainResult.ProjectionFailed(0L, 0, AmbientCellFactRevisionEntity.WRITER_ID, ordinal)
+		database.sourceProjectionStateDao().failure(AmbientCellFactRevisionEntity.WRITER_ID,
+			AmbientCellFactRevisionEntity.WRITER_VERSION, ordinal)?.terminal shouldBe false
 		database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 0
 		database.openHelper.writableDatabase.query("SELECT count(*) FROM ambient_cell_child").use { cursor ->
 			cursor.moveToFirst() shouldBe true
 			cursor.getLong(0) shouldBe 0L
 		}
 		database.openHelper.writableDatabase.execSQL("DROP TRIGGER fail_second_ambient_group")
-		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.Groups>()
-			.results.size shouldBe 2
+		dispatcher.drainAmbientRadioProjection(SourceKind.CELL, ingress) shouldBe
+			CoordinatorDrainResult.Complete(ordinal, 1)
 		val facts = database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10)
 			.map { it.fact }.associateBy { it.purposeDemandId }
 		facts.keys shouldBe setOf(first.demandId, second.demandId)
@@ -241,6 +249,8 @@ class CellDurableSourceIngressTest {
 				fact.logicalFactId, fact.semanticRevision, 65)
 		}
 		children.map { it.towerIdentity }.toSet() shouldBe setOf("old-tower", "new-tower")
+		dispatcher.drainAmbientRadioProjection(SourceKind.CELL, ingress) shouldBe
+			CoordinatorDrainResult.Complete(ordinal, 0)
 		projector.project(ordinal).shouldBeInstanceOf<AmbientCellProjectionResult.Groups>()
 			.results.forEach { it.shouldBeInstanceOf<AmbientCellProjectionResult.Duplicate>() }
 		database.openHelper.writableDatabase.execSQL(
@@ -266,9 +276,10 @@ class CellDurableSourceIngressTest {
 				registrationEligibilityFingerprint = denied.single().authorizationFingerprint)) })
 		val ordinal = ingress.admit(candidate).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
 			.units.single().admissionOrdinal
-		AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
-			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID }).project(ordinal)
-			.shouldBeInstanceOf<AmbientCellProjectionResult.FactWritten>()
+		val projector = AmbientCellFactProjector(database, DefaultSourcePayloadCodec(), Dispatchers.Unconfined,
+			BootClockDomainProvider { BOOT_CLOCK_DOMAIN_ID })
+		ProjectionDispatcher(database, setOf(AmbientCellProjection(projector)))
+			.drainAmbientRadioProjection(SourceKind.CELL, ingress) shouldBe CoordinatorDrainResult.Complete(ordinal, 1)
 		val fact = database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single().fact
 		fact.purposeEligibilityMask shouldBe 0L
 		fact.purposeDemandId shouldBe CELL_DEMAND_ID

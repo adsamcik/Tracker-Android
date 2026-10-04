@@ -1,0 +1,121 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_commit": "0887e81c9d",
+  "source_path_count": 15,
+  "original_packet": "AUTHOR/PACKET.json",
+  "revision_packet": "REPAIR_AUTHOR/PACKET.json",
+  "original_packet_sha256": "074ba467eabc47353dd9c791e7e4039c0385e7fa8f4d89c6bf1d5c5dc29c7952",
+  "revision_packet_sha256": "6dd1bdac9f10da66b07809f071efda5bcd163b4836afae152b2bcf09476e5241",
+  "paths": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt",
+      "actual_working_sha256": "5962fde0080c44fde2e1556e5abc8646cbffd0e66ed230ecf9bf4ce435f00554",
+      "selected_sha256": "5962fde0080c44fde2e1556e5abc8646cbffd0e66ed230ecf9bf4ce435f00554",
+      "selected_snapshot": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt",
+      "selection": "entire selected actual path, clean original HEAD modulo checkout line endings"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecovery.kt",
+      "actual_working_sha256": "2f1560588b28e4cab5bf009e010a1d3d4dbc6fdabf7aecbf1d02bbb9d92191c0",
+      "selected_sha256": "2f1560588b28e4cab5bf009e010a1d3d4dbc6fdabf7aecbf1d02bbb9d92191c0",
+      "selected_snapshot": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecovery.kt",
+      "selection": "entire selected actual path, clean original HEAD modulo checkout line endings"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ProjectionDispatcher.kt",
+      "actual_working_sha256": "2292359c57fb315e826b16c8cc8cd8be1b98f59d37d9fa9222472b29bcc99b0c",
+      "selected_sha256": "2292359c57fb315e826b16c8cc8cd8be1b98f59d37d9fa9222472b29bcc99b0c",
+      "selected_snapshot": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ProjectionDispatcher.kt",
+      "selection": "entire selected actual path, clean original HEAD modulo checkout line endings"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/AmbientRadioProjection.kt",
+      "actual_working_sha256": "559da7cfe25002a9bc6598d010f4065b6a12e610711eeafcf59bf7175e88faaf",
+      "selected_sha256": "559da7cfe25002a9bc6598d010f4065b6a12e610711eeafcf59bf7175e88faaf",
+      "selected_snapshot": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/AmbientRadioProjection.kt",
+      "selection": "entire selected actual path, clean original HEAD modulo checkout line endings"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceProjectionStateDao.kt",
+      "actual_working_sha256": "50ea77d5ce9a445fdfd33d28c622ca9c9f4107db257979d4183a60ed9ee44e0a",
+      "selected_sha256": "50ea77d5ce9a445fdfd33d28c622ca9c9f4107db257979d4183a60ed9ee44e0a",
+      "selected_snapshot": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceProjectionStateDao.kt",
+      "selection": "entire selected actual path, clean original HEAD modulo checkout line endings"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenance.kt",
+      "actual_working_sha256": "2d6c1affede2fdebbebd3b5a6cb9d83843593f6f90f2fc8508ac24c99fa34243",
+      "selected_sha256": "2d6c1affede2fdebbebd3b5a6cb9d83843593f6f90f2fc8508ac24c99fa34243",
+      "selected_snapshot": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenance.kt",
+      "selection": "entire selected actual path, clean original HEAD modulo checkout line endings"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecoveryTest.kt",
+      "actual_working_sha256": "fbcd9e01603d31c1429295283458c778bc8bbb9ff6da66fc6a35374126d0d825",
+      "selected_sha256": "fbcd9e01603d31c1429295283458c778bc8bbb9ff6da66fc6a35374126d0d825",
+      "selected_snapshot": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecoveryTest.kt",
+      "selection": "entire selected actual path, clean original HEAD modulo checkout line endings"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/AmbientRadioProjectionRecoveryTest.kt",
+      "actual_working_sha256": "0a75af2ebdc85e77ae600f2468d2059e8f8de42270776976a54af6358bea2a8a",
+      "selected_sha256": "0a75af2ebdc85e77ae600f2468d2059e8f8de42270776976a54af6358bea2a8a",
+      "selected_snapshot": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/AmbientRadioProjectionRecoveryTest.kt",
+      "selection": "entire selected actual path, clean original HEAD modulo checkout line endings"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt",
+      "actual_working_sha256": "3a4601ec673fe33f18844d6a29e55bcdc1fceb4bdf474aa149b705ecf34c8f00",
+      "selected_sha256": "3a4601ec673fe33f18844d6a29e55bcdc1fceb4bdf474aa149b705ecf34c8f00",
+      "selected_snapshot": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt",
+      "selection": "entire selected actual path, clean original HEAD modulo checkout line endings"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/CellDurableSourceIngressTest.kt",
+      "actual_working_sha256": "408afe11816e1ea128200cad4e4c95a530345389eeadac54889d7c4d65754b22",
+      "selected_sha256": "408afe11816e1ea128200cad4e4c95a530345389eeadac54889d7c4d65754b22",
+      "selected_snapshot": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/CellDurableSourceIngressTest.kt",
+      "selection": "entire selected actual path, clean original HEAD modulo checkout line endings"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenanceTest.kt",
+      "actual_working_sha256": "26422f2896cf25202d74f389429d9074739c1895c2102bd1a9b3306329bc87dc",
+      "selected_sha256": "26422f2896cf25202d74f389429d9074739c1895c2102bd1a9b3306329bc87dc",
+      "selected_snapshot": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/SourceEventStorageMaintenanceTest.kt",
+      "selection": "entire selected actual path, clean original HEAD modulo checkout line endings"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinator.kt",
+      "actual_working_sha256": "a43c2596d945367ede8bf4913723326e91584e0fd7113c9fb3865ebfeeb92cdd",
+      "selected_sha256": "a43c2596d945367ede8bf4913723326e91584e0fd7113c9fb3865ebfeeb92cdd",
+      "selected_snapshot": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinator.kt",
+      "selection": "entire selected actual path, clean original HEAD modulo checkout line endings"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinatorTest.kt",
+      "actual_working_sha256": "9aa9689e549828305b0dc2959338c3589182b51c29606262f32425a071f1606d",
+      "selected_sha256": "9aa9689e549828305b0dc2959338c3589182b51c29606262f32425a071f1606d",
+      "selected_snapshot": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinatorTest.kt",
+      "selection": "entire selected actual path, clean original HEAD modulo checkout line endings"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+      "actual_working_sha256": "c2c354cfdbba1520d29b8dbc82ac80b0f3c13f32c8ade172787dc4a8a3551aad",
+      "selected_sha256": "caf7c610fe82ea8c302309acb5aa7d4335f3e2611b1cced521413948eafbad3f",
+      "selected_snapshot": "docs\\tracking-infrastructure\\convergence\\2026-10-04\\AMBIENT_RADIO_RUNTIME_SELECTED\\AuthoritativeSessionCoordinatorTest.kt.selected-after",
+      "selection": "HEAD plus two new ambient cases and test-only no-event flag; held adaptations excluded"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt",
+      "actual_working_sha256": "d86b4e7e3ceead1200eb28a1a293fd67b6fe97f4e7c954faf91e852f9f6a0c93",
+      "selected_sha256": "d86b4e7e3ceead1200eb28a1a293fd67b6fe97f4e7c954faf91e852f9f6a0c93",
+      "selected_snapshot": "app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt",
+      "selection": "entire selected actual path, clean original HEAD modulo checkout line endings"
+    }
+  ],
+  "tests_executed": false,
+  "gates_executed": false,
+  "assembly_complete": false,
+  "held_test_adaptations_preserved": true
+}

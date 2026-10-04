@@ -2,6 +2,8 @@ package com.adsamcik.tracker.shared.base.database
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventRetentionProofCandidateRow
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionProofEntity
@@ -337,7 +339,12 @@ internal suspend fun AppDatabase.pruneSourceEventStorageBeforeWithSourceOperatio
 private suspend fun AppDatabase.sourceEventStorageGlobalSafeOrdinal(): Long {
 	val projectionDao = sourceProjectionStateDao()
 	val globalRetentionBoundary = listOfNotNull(
-		projectionDao.minimumRequiredCheckpoint(),
+		projectionDao.minimumRequiredGlobalCheckpoint(
+			AmbientWifiFactRevisionEntity.WRITER_ID,
+			AmbientWifiFactRevisionEntity.WRITER_VERSION,
+			AmbientCellFactRevisionEntity.WRITER_ID,
+			AmbientCellFactRevisionEntity.WRITER_VERSION,
+		),
 		projectionDao.minimumJoinRequiredOrdinal()?.minus(1L),
 		legacyV27ProjectionDrainDao().minimumPendingOrdinal()?.minus(1L),
 		legacyV27ProjectionDrainDao().minimumPendingOutboxOrdinal()?.minus(1L),
@@ -359,6 +366,17 @@ private suspend fun AppDatabase.pruneSourceEventStorageBatch(
 	val sourceSafeOrdinal = minOf(
 		globalSafeOrdinal,
 		projectionDao.minimumRequiredProductLaneCheckpoint(sourceKind) ?: globalSafeOrdinal,
+		when (sourceKind) {
+			SourceDestinationOwnerEntity.SOURCE_WIFI -> projectionDao.requiredProjectionCheckpoint(
+				AmbientWifiFactRevisionEntity.WRITER_ID,
+				AmbientWifiFactRevisionEntity.WRITER_VERSION,
+			)
+			SourceDestinationOwnerEntity.SOURCE_CELL -> projectionDao.requiredProjectionCheckpoint(
+				AmbientCellFactRevisionEntity.WRITER_ID,
+				AmbientCellFactRevisionEntity.WRITER_VERSION,
+			)
+			else -> null
+		} ?: globalSafeOrdinal,
 	)
 	if (sourceSafeOrdinal <= 0L) return SourceEventStoragePruneBatchResult.Applied(0, 0)
 	val sourceEffects = projectionDao.deleteDeliveredOutboxForSourceBatch(
