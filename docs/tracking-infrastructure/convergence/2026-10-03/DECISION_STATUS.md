@@ -96,6 +96,20 @@ runtime storage format or second database ledger is selected.
 
 ## Questions presented, awaiting answers
 
+- [ ] Repair fresh automatic callback Start reservation using the existing
+  cancellable generation/draining boundary instead of holding the lifecycle
+  command mutex while Start reserves its command. Keep current-ready effect
+  checks and exact trigger/consent/epoch validation; End/Off can interrupt and
+  full clear cancels/waits before deletion. Presented in the October 4 asynchronous
+  callback-coordination question; no answer is assumed. The exact A1 trace is
+  `../2026-10-04/AUTOMATIC_ACCEPTED_STEPS_TRACE_INPUT/SOURCE_TRACE.md`.
+- [ ] Add a typed saved Location summary to the existing shared session-history
+  reader and reuse its chosen-source qualified products in Tracker, notifications
+  and widgets. This complements the already-approved truthful-value behavior;
+  it changes the shared reader interface, not storage or collection. The October 4
+  question is pending. Do not build another state store or infer measured numbers
+  from legacy session fields. Exact reader/DAO/continuity reuse was source-traced.
+
 - [ ] Repair the Start acceptance lock order with existing coordination in two
   steps: service/Room acceptance under the existing startup/Stop lease, then exact
   current-command publication of resumed collection. A newer Start/End/Off rejects

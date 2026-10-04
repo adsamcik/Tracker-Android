@@ -1,0 +1,55 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "39718842674c35a5052c696c1a28d2c1f73c9b05",
+  "files": [
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackerServiceApi.kt",
+      "sha256": "7ccd36412e7ca85632959189942b4acb9a3cdd508b9d06c443af3a0bbd2ccb6a"
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/resilience/TrackingLifecycleCommandAuthority.kt",
+      "sha256": "33b035f62d14efeabdfd683b8cce4ca8d032e9ab0a2b0494c06f818b76059e3e"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt",
+      "sha256": "c6bd386fea877a9ec42c5e574e5a8771ccd84b0ae4c785023084f0731485be00"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinator.kt",
+      "sha256": "eb6a19265967fe21de625b0d69f3694681579b401a02182b570f5c51612e1852"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackingOrchestrator.kt",
+      "sha256": "4f612a8d2bf7360219864d03855e55867e29d68edf366b14a6121cb9588c6cfc"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+      "sha256": "022f2a895caf714e46cbc80715345ad8976ea106285b82d8a15b849ed8c8b7f1"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSession.kt",
+      "sha256": "ea52af08ed2ae7c2155244d95ccf455ef2a938eed58b908f7b5165629f5a8ba8"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceCallerDemandDispatcher.kt",
+      "sha256": "583574b849e4b79f69fb627ee7b3aaec30917ff234487efcbfb3765bb0d75bd0"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/ExactSourceCallerGuard.kt",
+      "sha256": "0274b284e71129286b9f4d2fdcc8e8e74536832a36198af0c2922e84c4f46b57"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/SharedPreferencesTrackingLifecycleCommandAuthority.kt",
+      "sha256": "90680f0ee3e8a5bbcc63491fd49c500b57fbf71b20c8008141590f5a4a231d05"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecovery.kt",
+      "sha256": "de56db1940eea02490b5d57b9b3c6dbe48268eebbc194a7b0fee0c184486ecd4"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGate.kt",
+      "sha256": "fb92e49582db536ea83ac7d0718fd252d08645664c8f005d84e35737e0dcb583"
+    }
+  ]
+}
