@@ -1045,7 +1045,7 @@ class WifiSourceRuntime @Inject internal constructor(
 						val sessionId = input.registration.singleCaptureSessionId()
 							?: return@withLock null
 						val now = SystemClock.elapsedRealtime()
-						if (now < input.earliestElapsedMs || synchronized(callbackLock) {
+						if (!acquisitionBudget.canRequest || now < input.earliestElapsedMs || synchronized(callbackLock) {
 							registration !== input.registration || plan != input.plan ||
 								currentDirectAttemptPlanLocked(inputs, physicalRegistration) != plan
 						}) return@withLock null
@@ -1116,9 +1116,22 @@ class WifiSourceRuntime @Inject internal constructor(
 								event.receivedElapsedRealtimeNanos, event.receivedWallTimeMs,
 							)
 							if (admitted != null) {
-								replayGate.record(admitted)
-								acquisitionBudget.markQualifiedEvidence()
-								wakeups.cancel(WAKEUP_ID)
+								replayGate.record(admitted.identity.value)
+								val evidence = admitted.candidate.units.single().evidence
+								val captureTimes = registrations.captureQualifiedRadioObservationTimes(input.registration, evidence)
+								val currentOwnerEvidence = synchronized(callbackLock) {
+									accepting && queue === inputs && registration === input.registration &&
+										currentPlan == input.plan && cutoffElapsedNanos == null &&
+										retirementIntent == null && input.registration.hasFreshLiveRadioObservation(
+											captureTimes,
+											evidence.receivedElapsedRealtimeNanos,
+											SystemClock.elapsedRealtimeNanos(),
+										)
+								}
+								if (currentOwnerEvidence) {
+									acquisitionBudget.markQualifiedEvidence()
+									wakeups.cancel(WAKEUP_ID)
+								}
 							}
 						}
 					}
@@ -1151,11 +1164,11 @@ class WifiSourceRuntime @Inject internal constructor(
 		replayGate: BoundedReplayIdentityGate,
 		receivedElapsedNanos: Long = SystemClock.elapsedRealtimeNanos(),
 		receivedWallTimeMs: Long = System.currentTimeMillis(),
-	): String? {
+	): PreparedWifiDelivery? {
 		var durableCutoffElapsedNanos: Long? = null
 		var cutoffRebuildUsed = false
 		while (true) {
-			var attemptedIdentity: SourceDeliveryIdentity? = null
+			var attemptedDelivery: PreparedWifiDelivery? = null
 			var prerequisiteRejected = false
 			val handoff = retryWifiDeliveryAdmission(
 				admit = admissionAttempt@{
@@ -1177,7 +1190,7 @@ class WifiSourceRuntime @Inject internal constructor(
 						cutoffElapsedRealtimeNanos = effectiveCutoff,
 					) ?: return@admissionAttempt null
 					if (!replayGate.shouldAdmit(prepared.identity.value)) return@admissionAttempt null
-					attemptedIdentity = prepared.identity
+					attemptedDelivery = prepared
 					sink.admit(prepared.candidate)
 				},
 				retryDelaysMs = if (cutoffRebuildUsed) {
@@ -1193,7 +1206,7 @@ class WifiSourceRuntime @Inject internal constructor(
 						return null
 					}
 					recordDurableAdmission(callbackSequence, ordinal)
-					return requireNotNull(attemptedIdentity).value
+					return requireNotNull(attemptedDelivery)
 				}
 				is SourceDeliveryAdmissionHandoff.Duplicate -> {
 					val ordinal = handoff.existingAdmissionOrdinals.singleOrNull() ?: run {
@@ -1201,7 +1214,7 @@ class WifiSourceRuntime @Inject internal constructor(
 						return null
 					}
 					recordDurableAdmission(callbackSequence, ordinal)
-					return requireNotNull(attemptedIdentity).value
+					return requireNotNull(attemptedDelivery)
 				}
 				is SourceDeliveryAdmissionHandoff.SessionCutoff -> {
 					if (cutoffRebuildUsed) {

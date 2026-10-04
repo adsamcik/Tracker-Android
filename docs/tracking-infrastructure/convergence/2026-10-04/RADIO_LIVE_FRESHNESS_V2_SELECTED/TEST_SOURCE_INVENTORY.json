@@ -1,0 +1,103 @@
+{
+  "authored_case_count": 16,
+  "added_f1_case_count": 5,
+  "execution": "NOT_RUN",
+  "cases": [
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt",
+      "case": "Room-qualified Wifi ambient-only reading cannot satisfy a stricter capture request",
+      "status": "NOT_RUN",
+      "added_for_f1": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt",
+      "case": "Room-qualified Wifi capture subset suppresses fresh work while retaining ambient-only siblings",
+      "status": "NOT_RUN",
+      "added_for_f1": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt",
+      "case": "Room capture freshness fails closed for missing malformed or mismatched immutable demands",
+      "status": "NOT_RUN",
+      "added_for_f1": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt",
+      "case": "live radio freshness uses provider age at processing with an exact sixty second boundary",
+      "status": "NOT_RUN",
+      "added_for_f1": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt",
+      "case": "live radio freshness never borrows earlier or foreign boot capture authority",
+      "status": "NOT_RUN",
+      "added_for_f1": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt",
+      "case": "valid older Wifi history does not suppress the pending live scan",
+      "status": "NOT_RUN",
+      "added_for_f1": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt",
+      "case": "fresh Wifi evidence suppresses scan without spending its durable allowance",
+      "status": "NOT_RUN",
+      "added_for_f1": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt",
+      "case": "Wifi admission delay ages live freshness while keeping the original history reading",
+      "status": "NOT_RUN",
+      "added_for_f1": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt",
+      "case": "queued Wifi evidence from an earlier owner cannot suppress the successor live scan",
+      "status": "NOT_RUN",
+      "added_for_f1": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt",
+      "case": "Room-qualified Cell ambient-only reading cannot satisfy a stricter capture request",
+      "status": "NOT_RUN",
+      "added_for_f1": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt",
+      "case": "Room-qualified Cell capture subset suppresses fresh work while retaining ambient-only siblings",
+      "status": "NOT_RUN",
+      "added_for_f1": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt",
+      "case": "valid older Cell history does not suppress the pending live refresh",
+      "status": "NOT_RUN",
+      "added_for_f1": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt",
+      "case": "fresh Cell evidence suppresses refresh without spending its durable allowance",
+      "status": "NOT_RUN",
+      "added_for_f1": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt",
+      "case": "Cell admission delay ages live freshness while keeping the original history reading",
+      "status": "NOT_RUN",
+      "added_for_f1": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt",
+      "case": "queued Cell evidence from an earlier owner cannot suppress the successor refresh",
+      "status": "NOT_RUN",
+      "added_for_f1": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt",
+      "case": "late response to an earlier Cell request cannot satisfy another live owner",
+      "status": "NOT_RUN",
+      "added_for_f1": false
+    }
+  ]
+}

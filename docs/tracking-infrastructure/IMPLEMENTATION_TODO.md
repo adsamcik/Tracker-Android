@@ -147,6 +147,14 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Keep radio history admission separate from a live session's freshness
+  requirement. Only that session's independently qualified readings can cancel
+  its finite fresh request; stricter custom capture limits preserve valid
+  background readings and the original request/cooldown ledger. Six selected
+  paths and sixteen authored cases have independent source acceptance in
+  `convergence/2026-10-04/RADIO_LIVE_FRESHNESS_V2_SELECTED/SOURCE_REVIEW.md`. Cases are NOT_RUN; the
+  original rejected input is preserved and all full radio/assembly chains stay open.
+
 - [x] Refresh live acquisition from current thermal/power inputs on the existing
   30-second policy tick. Reuse exact source-session fingerprints and current-plan
   debt handling; unchanged ticks add no provider work. Two source/test paths and

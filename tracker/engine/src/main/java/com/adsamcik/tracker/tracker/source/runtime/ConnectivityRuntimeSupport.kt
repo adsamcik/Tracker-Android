@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
 import androidx.core.content.ContextCompat
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.extension.WifiScanPlatformRequirements
 import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.tracker.source.model.CellMode
@@ -216,6 +217,27 @@ internal class DirectAcquisitionBudget(
 		qualifiedEvidenceReceived = true
 	}
 }
+
+/** Historical age limits do not establish freshness for a pending live request. */
+internal fun SourceRegistration.hasFreshLiveRadioObservation(
+	captureQualifiedObservationTimes: List<Long>,
+	receivedElapsedRealtimeNanos: Long,
+	nowElapsedRealtimeNanos: Long,
+): Boolean {
+	val capture = authorization.authorizedMembers.singleOrNull {
+		it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+	} ?: return false
+	return capture.persistenceEligible &&
+		authorization.effectiveBootId == state.clockDomainId &&
+		receivedElapsedRealtimeNanos <= nowElapsedRealtimeNanos &&
+		captureQualifiedObservationTimes.any { observed ->
+			observed > 0L && observed >= authorization.effectiveElapsedRealtimeNanos &&
+				observed <= receivedElapsedRealtimeNanos &&
+				nowElapsedRealtimeNanos - observed <= LIVE_RADIO_FRESHNESS_NANOS
+		}
+}
+
+private const val LIVE_RADIO_FRESHNESS_NANOS = 60_000_000_000L
 
 /**
  * Keeps only observations whose provider timestamp proves that the item is current enough.

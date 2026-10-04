@@ -1,0 +1,60 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/ConnectivityRuntimeSupport.kt",
+      "base_sha256": "91ecb72facd7d0836d2940b7d09711c53a2b0544989b35b386829498539f619e",
+      "base_head": "fa340240624710a5e2c77cd8883492515f4b6b39",
+      "working_before_sha256": "577c39d3af9fe07501d244faa2824165fa779beaf088779a73c3958a644a82b5",
+      "selected_sha256": "ed3faf6daf744d4f64547e0d651aa730f072f7503907cf403f01456987758aaf",
+      "working_after_sha256": "ed3faf6daf744d4f64547e0d651aa730f072f7503907cf403f01456987758aaf",
+      "selected_bytes": 11006
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntime.kt",
+      "base_sha256": "b74b58e8fdded10365180f3a57ebf12a847bea4d3aa806f8b0c67871580725aa",
+      "base_head": "fa340240624710a5e2c77cd8883492515f4b6b39",
+      "working_before_sha256": "afaa802bfcea234e00cc20cb970d799c699403cea9476e48a220f8bd5a6b50ed",
+      "selected_sha256": "c35bfd84930508d2f62d4b7c324c293e253c91599d214ad70bf49240bcc3ebd3",
+      "working_after_sha256": "c35bfd84930508d2f62d4b7c324c293e253c91599d214ad70bf49240bcc3ebd3",
+      "selected_bytes": 62364
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntime.kt",
+      "base_sha256": "4f776ff138f228485132b0fa0bef4161314d26f6c9bed5b46af18b5f24df2b4f",
+      "base_head": "fa340240624710a5e2c77cd8883492515f4b6b39",
+      "working_before_sha256": "3aec6c5a50f19c6886c2d3921ecf8cd7ef454dba8f19719da3648277d76bf70f",
+      "selected_sha256": "a81e8082d05f8fd8988c8fc3444da8e225d7063d92ed14918d6633eea2aa3192",
+      "working_after_sha256": "a81e8082d05f8fd8988c8fc3444da8e225d7063d92ed14918d6633eea2aa3192",
+      "selected_bytes": 63233
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt",
+      "base_sha256": "6d651f51a94b1146fb7b5c0bc197e5210af19328f1577c4fbf9050ff5fff188a",
+      "base_head": "39718842674c35a5052c696c1a28d2c1f73c9b05",
+      "working_before_sha256": "6d651f51a94b1146fb7b5c0bc197e5210af19328f1577c4fbf9050ff5fff188a",
+      "selected_sha256": "8b3eeb67dd8177035dd7bdefaf204c966a981801838511d3e832dea7c11ba913",
+      "working_after_sha256": "8b3eeb67dd8177035dd7bdefaf204c966a981801838511d3e832dea7c11ba913",
+      "selected_bytes": 73367
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt",
+      "base_sha256": "aa1c739dffab4e71ef7e41eddf93b57d10affd401410bd59911f0396d8443a3b",
+      "base_head": "fa340240624710a5e2c77cd8883492515f4b6b39",
+      "working_before_sha256": "7f57fa7676f1d8d715bbd79917fbc2483de32a561af3e784a8c4fc0f08dead43",
+      "selected_sha256": "1f2c7a6e8e374c3dbf3b2dcfa23750eb3353bf0f4969ca9a6dde614260ee7357",
+      "working_after_sha256": "1f2c7a6e8e374c3dbf3b2dcfa23750eb3353bf0f4969ca9a6dde614260ee7357",
+      "selected_bytes": 101194
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt",
+      "base_sha256": "5e18b60bfaff19b6cd10f67a82d765d6310df9e7f6fa430a886490a08f107eb7",
+      "base_head": "fa340240624710a5e2c77cd8883492515f4b6b39",
+      "working_before_sha256": "3e54d1ce839563cd83fecd7eec81a71679b45aa411edb2edb60353049cc09dcd",
+      "selected_sha256": "e6fe73858bc228fdea46561a233421b3c3605a98011443888a63fe1bb40e8c07",
+      "working_after_sha256": "e6fe73858bc228fdea46561a233421b3c3605a98011443888a63fe1bb40e8c07",
+      "selected_bytes": 84762
+    }
+  ]
+}

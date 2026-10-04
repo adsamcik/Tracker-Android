@@ -1,0 +1,30 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_head": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+  "files": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RadioPurposeItemQualifier.kt",
+      "sha256": "50f52cfd58e71d1613302c753a4d131375a984afc80bb7e1f8fc695ed71eecfd"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticator.kt",
+      "sha256": "dc076b99abcbd7fdca1e6610ee42840caf9f885b55835b9a827e381e31c34c52"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceBrokerDao.kt",
+      "sha256": "b3c20c97cc577d2206fbb4027489e4e0a1817b5a69af654cc7ff71ab92365935"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/SourcePayloadCodec.kt",
+      "sha256": "c7e66dfa662bfaaff51d3d9ffca55955182e055fc1a565f77c1664257b97f2f7"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceIngress.kt",
+      "sha256": "2d4c86ec144d7cf5ea9b0b05ed3cb9ddb6f530ca2001e9fd98fc161964618775"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "sha256": "c6f44d42e063aaddf1b55aff3c850c4c14ab7cb26ae39bef6d25af4ee59d0d49"
+    }
+  ]
+}

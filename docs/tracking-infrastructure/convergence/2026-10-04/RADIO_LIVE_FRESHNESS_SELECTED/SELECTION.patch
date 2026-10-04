@@ -1,0 +1,546 @@
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/ConnectivityRuntimeSupport.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/ConnectivityRuntimeSupport.kt
+@@ -7,6 +7,7 @@
+ import android.os.Build
+ import android.os.PowerManager
+ import androidx.core.content.ContextCompat
++import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+ import com.adsamcik.tracker.shared.base.extension.WifiScanPlatformRequirements
+ import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
+ import com.adsamcik.tracker.tracker.source.model.CellMode
+@@ -216,6 +217,26 @@
+ 		qualifiedEvidenceReceived = true
+ 	}
+ }
++
++/** Historical age limits do not establish freshness for a pending live request. */
++internal fun SourceRegistration.hasFreshLiveRadioObservation(
++	observedElapsedRealtimeNanos: Long,
++	receivedElapsedRealtimeNanos: Long,
++	nowElapsedRealtimeNanos: Long,
++): Boolean {
++	val capture = authorization.authorizedMembers.singleOrNull {
++		it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
++	} ?: return false
++	return capture.persistenceEligible &&
++		authorization.effectiveBootId == state.clockDomainId &&
++		observedElapsedRealtimeNanos > 0L &&
++		observedElapsedRealtimeNanos >= authorization.effectiveElapsedRealtimeNanos &&
++		observedElapsedRealtimeNanos <= receivedElapsedRealtimeNanos &&
++		receivedElapsedRealtimeNanos <= nowElapsedRealtimeNanos &&
++		nowElapsedRealtimeNanos - observedElapsedRealtimeNanos <= LIVE_RADIO_FRESHNESS_NANOS
++}
++
++private const val LIVE_RADIO_FRESHNESS_NANOS = 60_000_000_000L
+ 
+ /**
+  * Keeps only observations whose provider timestamp proves that the item is current enough.
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntime.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntime.kt
+@@ -1045,7 +1045,7 @@
+ 						val sessionId = input.registration.singleCaptureSessionId()
+ 							?: return@withLock null
+ 						val now = SystemClock.elapsedRealtime()
+-						if (now < input.earliestElapsedMs || synchronized(callbackLock) {
++						if (!acquisitionBudget.canRequest || now < input.earliestElapsedMs || synchronized(callbackLock) {
+ 							registration !== input.registration || plan != input.plan ||
+ 								currentDirectAttemptPlanLocked(inputs, physicalRegistration) != plan
+ 						}) return@withLock null
+@@ -1116,9 +1116,21 @@
+ 								event.receivedElapsedRealtimeNanos, event.receivedWallTimeMs,
+ 							)
+ 							if (admitted != null) {
+-								replayGate.record(admitted)
+-								acquisitionBudget.markQualifiedEvidence()
+-								wakeups.cancel(WAKEUP_ID)
++								replayGate.record(admitted.identity.value)
++								val evidence = admitted.candidate.units.single().evidence
++								val currentOwnerEvidence = synchronized(callbackLock) {
++									accepting && queue === inputs && registration === input.registration &&
++										currentPlan == input.plan && cutoffElapsedNanos == null &&
++										retirementIntent == null && input.registration.hasFreshLiveRadioObservation(
++											evidence.observedElapsedRealtimeNanos,
++											evidence.receivedElapsedRealtimeNanos,
++											SystemClock.elapsedRealtimeNanos(),
++										)
++								}
++								if (currentOwnerEvidence) {
++									acquisitionBudget.markQualifiedEvidence()
++									wakeups.cancel(WAKEUP_ID)
++								}
+ 							}
+ 						}
+ 					}
+@@ -1151,11 +1163,11 @@
+ 		replayGate: BoundedReplayIdentityGate,
+ 		receivedElapsedNanos: Long = SystemClock.elapsedRealtimeNanos(),
+ 		receivedWallTimeMs: Long = System.currentTimeMillis(),
+-	): String? {
++	): PreparedWifiDelivery? {
+ 		var durableCutoffElapsedNanos: Long? = null
+ 		var cutoffRebuildUsed = false
+ 		while (true) {
+-			var attemptedIdentity: SourceDeliveryIdentity? = null
++			var attemptedDelivery: PreparedWifiDelivery? = null
+ 			var prerequisiteRejected = false
+ 			val handoff = retryWifiDeliveryAdmission(
+ 				admit = admissionAttempt@{
+@@ -1177,7 +1189,7 @@
+ 						cutoffElapsedRealtimeNanos = effectiveCutoff,
+ 					) ?: return@admissionAttempt null
+ 					if (!replayGate.shouldAdmit(prepared.identity.value)) return@admissionAttempt null
+-					attemptedIdentity = prepared.identity
++					attemptedDelivery = prepared
+ 					sink.admit(prepared.candidate)
+ 				},
+ 				retryDelaysMs = if (cutoffRebuildUsed) {
+@@ -1193,7 +1205,7 @@
+ 						return null
+ 					}
+ 					recordDurableAdmission(callbackSequence, ordinal)
+-					return requireNotNull(attemptedIdentity).value
++					return requireNotNull(attemptedDelivery)
+ 				}
+ 				is SourceDeliveryAdmissionHandoff.Duplicate -> {
+ 					val ordinal = handoff.existingAdmissionOrdinals.singleOrNull() ?: run {
+@@ -1201,7 +1213,7 @@
+ 						return null
+ 					}
+ 					recordDurableAdmission(callbackSequence, ordinal)
+-					return requireNotNull(attemptedIdentity).value
++					return requireNotNull(attemptedDelivery)
+ 				}
+ 				is SourceDeliveryAdmissionHandoff.SessionCutoff -> {
+ 					if (cutoffRebuildUsed) {
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntime.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntime.kt
+@@ -1056,17 +1056,17 @@
+ 			}
+ 		}
+ 
+-		suspend fun recordSnapshot(input: CellRuntimeInput.Snapshot): Boolean {
++		suspend fun recordSnapshot(input: CellRuntimeInput.Snapshot): QualifiedCellSnapshot? {
+ 			val qualified = qualifyCellSnapshot(
+ 				input.snapshot,
+ 				input.outcome,
+ 				input.receivedElapsedNanos,
+ 				input.context.plan.maximumAcceptableCachedAgeMs,
+-			) ?: return false
++			) ?: return null
+ 			val replayGate = replayGateBySubscription.getOrPut(input.snapshot.subscriptionId) {
+ 				BoundedReplayIdentityGate()
+ 			}
+-			if (!replayGate.shouldAdmit(qualified.snapshotIdentity)) return false
++			if (!replayGate.shouldAdmit(qualified.snapshotIdentity)) return null
+ 			val deliveryIdentity = cellProviderDeliveryIdentity(
+ 				clockDomainId = input.context.registration.state.clockDomainId,
+ 				observations = qualified.observations,
+@@ -1083,8 +1083,8 @@
+ 				)
+ 			) {
+ 				replayGate.record(qualified.snapshotIdentity)
+-				true
+-			} else false
++				qualified
++			} else null
+ 		}
+ 
+ 		inputs.consume inputLoop@{ input ->
+@@ -1095,9 +1095,26 @@
+ 				}
+ 				is CellRuntimeInput.Snapshot -> {
+ 					try {
+-						if (recordSnapshot(input)) {
+-							qualifiedEvidenceReceived = true
+-							wakeups.cancel(REFRESH_WAKEUP_ID)
++						val admitted = recordSnapshot(input)
++						if (admitted != null) {
++							val currentOwnerEvidence = synchronized(callbackLock) {
++								val context = currentCallbackContextLocked()
++								accepting && callbackToken === activeToken && queue === inputs && context != null &&
++									context.registration === input.context.registration &&
++									context.plan == input.context.plan && cutoffElapsedNanos == null &&
++									retirementIntent == null &&
++									(input.request == null ||
++										(input.request.context.registration === context.registration &&
++											input.request.context.plan == context.plan)) &&
++									input.context.registration.hasFreshLiveRadioObservation(
++										admitted.providerTimeNanos, input.receivedElapsedNanos,
++										SystemClock.elapsedRealtimeNanos(),
++									)
++							}
++							if (currentOwnerEvidence) {
++								qualifiedEvidenceReceived = true
++								wakeups.cancel(REFRESH_WAKEUP_ID)
++							}
+ 						}
+ 					} catch (cancelled: CancellationException) {
+ 						metrics.recordFailure(input.callbackSequence)
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt
+@@ -23,6 +23,7 @@
+ import io.mockk.every
+ import io.mockk.mockk
+ import io.mockk.verify
++import java.time.Duration
+ import kotlin.test.assertFailsWith
+ import kotlinx.coroutines.CompletableDeferred
+ import kotlinx.coroutines.withContext
+@@ -41,10 +42,140 @@
+ import org.junit.runner.RunWith
+ import org.robolectric.RobolectricTestRunner
+ import org.robolectric.annotation.Config
++import org.robolectric.shadows.ShadowSystemClock
+ 
+ @RunWith(RobolectricTestRunner::class)
+ @Config(sdk = [34])
+ class WifiSourceRuntimeTest {
++	@Test
++	fun `live radio freshness uses provider age at processing with an exact sixty second boundary`() {
++		val registration = registration(plan(1L), authorizationRevision = 1L)
++		val observed = 2_000_000_000L
++		val received = 3_000_000_000L
++		assertTrue(registration.hasFreshLiveRadioObservation(observed, received, observed + 60_000_000_000L))
++		assertFalse(registration.hasFreshLiveRadioObservation(observed, received, observed + 60_000_000_001L))
++		assertFalse(registration.hasFreshLiveRadioObservation(observed, observed - 1L, received))
++		assertFalse(registration.hasFreshLiveRadioObservation(observed, received, received - 1L))
++		assertFalse(registration.hasFreshLiveRadioObservation(0L, received, received))
++	}
++
++	@Test
++	fun `live radio freshness never borrows earlier or foreign boot capture authority`() {
++		val active = registration(plan(1L), authorizationRevision = 1L,
++			authorizationEffectiveElapsedRealtimeNanos = 100_000_000_000L)
++		val now = 120_000_000_000L
++		assertTrue(active.hasFreshLiveRadioObservation(110_000_000_000L, now, now))
++		assertFalse(active.hasFreshLiveRadioObservation(99_000_000_000L, now, now))
++		val foreign = active.copy(state = active.state.copy(clockDomainId = "other-boot"))
++		assertFalse(foreign.hasFreshLiveRadioObservation(110_000_000_000L, now, now))
++		val ambient = registration(plan(1L), 1L, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)
++		assertFalse(ambient.hasFreshLiveRadioObservation(110_000_000_000L, now, now))
++	}
++
++	@Test
++	fun `valid older Wifi history does not suppress the pending live scan`() = runTest {
++		ShadowSystemClock.advanceBy(Duration.ofSeconds(300))
++		val active = plan(1L, maximumAgeMs = 600_000L).copy(mode = WifiMode.ACTIVE_ATTEMPTS)
++		val allowance = testRadioActiveRequestAllowance()
++		val fixture = runtimeFixture(this, active,
++			listOf(registration(active, 1L, demandMaximumAgeMs = 600_000L)), allowance)
++		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
++		fixture.start(wifiCandidateSink { admitted += it; SourceAdmissionHandoff.Durable(1L) })
++		runCurrent()
++		val received = android.os.SystemClock.elapsedRealtimeNanos()
++		val observed = received - 120_000_000_000L
++		fixture.emit(resultEvent(receivedNanos = received, providerTimestampMicros = observed / 1_000L))
++		runCurrent()
++		assertEquals(observed, admitted.single().observedElapsedRealtimeNanos)
++		fixture.fireScheduledWakeup()
++		runCurrent()
++		verify(exactly = 1) { fixture.backend.requestScan() }
++		coVerify(exactly = 1) { allowance.reserve(SourceKind.WIFI, "wifi-test", any(), any(), any(), any()) }
++		fixture.runtime.close()
++	}
++
++	@Test
++	fun `fresh Wifi evidence suppresses scan without spending its durable allowance`() = runTest {
++		ShadowSystemClock.advanceBy(Duration.ofSeconds(300))
++		val active = plan(1L, maximumAgeMs = 600_000L).copy(mode = WifiMode.ACTIVE_ATTEMPTS)
++		val allowance = testRadioActiveRequestAllowance()
++		val fixture = runtimeFixture(this, active, allowance = allowance)
++		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
++		fixture.start(wifiCandidateSink { admitted += it; SourceAdmissionHandoff.Durable(1L) })
++		runCurrent()
++		fixture.emit(resultEvent(receivedNanos = android.os.SystemClock.elapsedRealtimeNanos()))
++		runCurrent()
++		assertEquals(1, admitted.size)
++		coVerify(atLeast = 1) { fixture.wakeups.cancel("wifi-active-attempt") }
++		// A wakeup already queued before cancellation must not reserve an unused request.
++		fixture.fireScheduledWakeup()
++		runCurrent()
++		verify(exactly = 0) { fixture.backend.requestScan() }
++		coVerify(exactly = 0) { allowance.reserve(any(), any(), any(), any(), any(), any()) }
++		fixture.runtime.close()
++	}
++
++	@Test
++	fun `Wifi admission delay ages live freshness while keeping the original history reading`() = runTest {
++		ShadowSystemClock.advanceBy(Duration.ofSeconds(300))
++		val active = plan(1L, maximumAgeMs = 600_000L).copy(mode = WifiMode.ACTIVE_ATTEMPTS)
++		val fixture = runtimeFixture(this, active,
++			listOf(registration(active, 1L, demandMaximumAgeMs = 600_000L)))
++		val entered = CompletableDeferred<Unit>()
++		val release = CompletableDeferred<Unit>()
++		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
++		fixture.start(wifiCandidateSink {
++			admitted += it; entered.complete(Unit); release.await(); SourceAdmissionHandoff.Durable(1L)
++		})
++		runCurrent()
++		val received = android.os.SystemClock.elapsedRealtimeNanos()
++		fixture.emit(resultEvent(receivedNanos = received))
++		runCurrent()
++		entered.await()
++		ShadowSystemClock.advanceBy(Duration.ofSeconds(61))
++		release.complete(Unit)
++		runCurrent()
++		assertEquals(received - 1_000_000L, admitted.single().observedElapsedRealtimeNanos)
++		fixture.fireScheduledWakeup()
++		runCurrent()
++		verify(exactly = 1) { fixture.backend.requestScan() }
++		fixture.runtime.close()
++	}
++
++	@Test
++	fun `queued Wifi evidence from an earlier owner cannot suppress the successor live scan`() = runTest {
++		ShadowSystemClock.advanceBy(Duration.ofSeconds(300))
++		val active = plan(1L, maximumAgeMs = 600_000L).copy(mode = WifiMode.ACTIVE_ATTEMPTS)
++		val successorPlan = active.copy(revision = 2L)
++		val initial = registration(active, 1L)
++		val successor = registration(successorPlan, 2L, logicalTrackingId = "wifi-next")
++		val allowance = testRadioActiveRequestAllowance()
++		val fixture = runtimeFixture(this, active, listOf(initial), allowance)
++		coEvery { fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any()) } returns successor
++		val entered = CompletableDeferred<Unit>()
++		val release = CompletableDeferred<Unit>()
++		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
++		val sink = wifiCandidateSink {
++			admitted += it; entered.complete(Unit); release.await(); SourceAdmissionHandoff.Durable(1L)
++		}
++		fixture.start(sink)
++		runCurrent()
++		fixture.emit(resultEvent(receivedNanos = android.os.SystemClock.elapsedRealtimeNanos()))
++		runCurrent()
++		entered.await()
++		assertTrue(fixture.runtime.reconfigure(successorPlan, sink) is SourceApplyResult.Applied)
++		release.complete(Unit)
++		runCurrent()
++		assertEquals(1L, admitted.single().authorizationRevision)
++		fixture.fireScheduledWakeup()
++		runCurrent()
++		verify(exactly = 1) { fixture.backend.requestScan() }
++		coVerify(exactly = 1) { allowance.reserve(SourceKind.WIFI, "wifi-next", any(), any(), any(), any()) }
++		coVerify(exactly = 0) { allowance.reserve(SourceKind.WIFI, "wifi-test", any(), any(), any(), any()) }
++		verify(exactly = 1) { fixture.backend.start(any()) }
++		fixture.runtime.close()
++	}
++
+ 	@Test
+ 	fun `unsettled Wifi admission retains exact retirement and blocks replacement`() = runTest {
+ 		val initialPlan = plan(1L)
+@@ -2157,6 +2288,8 @@
+ 			sourceInstanceId: String = "wifi-1",
+ 			registrationGeneration: Long = 9L,
+ 			purpose: String = SourceBrokerPurpose.SESSION_CAPTURE,
++			logicalTrackingId: String = "wifi-test",
++			demandMaximumAgeMs: Long = 30_000L,
+ 			providerAcceptedElapsedRealtimeNanos: Long = 0L,
+ 			authorizationEffectiveElapsedRealtimeNanos: Long = authorizationRevision,
+ 		): SourceRegistration {
+@@ -2164,13 +2297,13 @@
+ 			val demand = SourceDemandEntity(
+ 				demandId = "wifi-demand-$authorizationRevision",
+ 				consumerId = if (isSessionCapture) {
+-					"session:wifi-test"
++					"session:$logicalTrackingId"
+ 				} else {
+ 					"app:wifi-test"
+ 				},
+ 				sourceKind = SourceKind.WIFI.stableCode,
+ 				purpose = purpose,
+-				logicalTrackingId = "wifi-test".takeIf { isSessionCapture },
++				logicalTrackingId = logicalTrackingId.takeIf { isSessionCapture },
+ 				serviceRunId = "run-1".takeIf { isSessionCapture },
+ 				manifestRevision = 1L.takeIf { isSessionCapture },
+ 				lifecycleLeaseGeneration = 1L.takeIf { isSessionCapture },
+@@ -2178,7 +2311,7 @@
+ 				consentEpoch = 1L,
+ 				persistenceEligible = true,
+ 				qosCode = 0,
+-				maximumAgeMs = 30_000L,
++				maximumAgeMs = demandMaximumAgeMs,
+ 				desiredLatencyMs = 5_000L,
+ 				requestedBootId = "boot-1",
+ 				requestedElapsedRealtimeNanos = authorizationRevision,
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt
+@@ -58,6 +58,153 @@
+ @OptIn(ExperimentalCoroutinesApi::class)
+ class CellSourceRuntimeTest {
+ 	@Test
++	fun `valid older Cell history does not suppress the pending live refresh`() = runTest {
++		ShadowSystemClock.advanceBy(Duration.ofSeconds(300))
++		val active = cellPlan(maximumAgeMs = 600_000L, mode = CellMode.OBSERVE_AND_SPARSE_REFRESH)
++		val fixture = runtimeFixture(this, active,
++			listOf(registration(active, 1L, demandMaximumAgeMs = 600_000L)))
++		var scheduled: (suspend () -> Unit)? = null
++		coEvery { fixture.wakeups.schedule(any(), any()) } answers { scheduled = secondArg(); Unit }
++		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
++		fixture.start(cellCandidateSink { admitted += it; SourceAdmissionHandoff.Durable(1L) })
++		runCurrent()
++		val observed = android.os.SystemClock.elapsedRealtimeNanos() - 120_000_000_000L
++		fixture.emit(snapshot(observed))
++		runCurrent()
++		assertEquals(observed, admitted.single().observedElapsedRealtimeNanos)
++		requireNotNull(scheduled)()
++		runCurrent()
++		verify(exactly = 1) { fixture.backend.requestRefresh(any()) }
++		fixture.runtime.close()
++	}
++
++	@Test
++	fun `fresh Cell evidence suppresses refresh without spending its durable allowance`() = runTest {
++		ShadowSystemClock.advanceBy(Duration.ofSeconds(300))
++		val active = cellPlan(maximumAgeMs = 600_000L, mode = CellMode.OBSERVE_AND_SPARSE_REFRESH)
++		val allowance = testRadioActiveRequestAllowance()
++		val fixture = runtimeFixture(this, active, allowance = allowance)
++		var scheduled: (suspend () -> Unit)? = null
++		coEvery { fixture.wakeups.schedule(any(), any()) } answers { scheduled = secondArg(); Unit }
++		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
++		fixture.start(cellCandidateSink { admitted += it; SourceAdmissionHandoff.Durable(1L) })
++		runCurrent()
++		val cancelledWakeup = requireNotNull(scheduled)
++		fixture.emit(freshProviderDelivery())
++		runCurrent()
++		assertEquals(1, admitted.size)
++		cancelledWakeup()
++		runCurrent()
++		verify(exactly = 0) { fixture.backend.requestRefresh(any()) }
++		coVerify(exactly = 0) { allowance.reserve(any(), any(), any(), any(), any(), any()) }
++		fixture.runtime.close()
++	}
++
++	@Test
++	fun `Cell admission delay ages live freshness while keeping the original history reading`() = runTest {
++		ShadowSystemClock.advanceBy(Duration.ofSeconds(300))
++		val active = cellPlan(maximumAgeMs = 600_000L, mode = CellMode.OBSERVE_AND_SPARSE_REFRESH)
++		val fixture = runtimeFixture(this, active)
++		var scheduled: (suspend () -> Unit)? = null
++		coEvery { fixture.wakeups.schedule(any(), any()) } answers { scheduled = secondArg(); Unit }
++		val entered = CompletableDeferred<Unit>()
++		val release = CompletableDeferred<Unit>()
++		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
++		fixture.start(cellCandidateSink {
++			admitted += it; entered.complete(Unit); release.await(); SourceAdmissionHandoff.Durable(1L)
++		})
++		runCurrent()
++		val observed = android.os.SystemClock.elapsedRealtimeNanos()
++		fixture.emit(snapshot(observed))
++		runCurrent()
++		entered.await()
++		ShadowSystemClock.advanceBy(Duration.ofSeconds(61))
++		release.complete(Unit)
++		runCurrent()
++		assertEquals(observed, admitted.single().observedElapsedRealtimeNanos)
++		requireNotNull(scheduled)()
++		runCurrent()
++		verify(exactly = 1) { fixture.backend.requestRefresh(any()) }
++		fixture.runtime.close()
++	}
++
++	@Test
++	fun `queued Cell evidence from an earlier owner cannot suppress the successor refresh`() = runTest {
++		ShadowSystemClock.advanceBy(Duration.ofSeconds(300))
++		val active = cellPlan(maximumAgeMs = 600_000L, mode = CellMode.OBSERVE_AND_SPARSE_REFRESH)
++		val successorPlan = active.copy(revision = 2L)
++		val initial = registration(active, 1L)
++		val successor = registration(successorPlan, 2L, logicalTrackingId = "cell-next")
++		val allowance = testRadioActiveRequestAllowance()
++		val fixture = runtimeFixture(this, active, listOf(initial), allowance)
++		coEvery { fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any()) } returns successor
++		var scheduled: (suspend () -> Unit)? = null
++		coEvery { fixture.wakeups.schedule(any(), any()) } answers { scheduled = secondArg(); Unit }
++		val entered = CompletableDeferred<Unit>()
++		val release = CompletableDeferred<Unit>()
++		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
++		val sink = cellCandidateSink {
++			admitted += it; entered.complete(Unit); release.await(); SourceAdmissionHandoff.Durable(1L)
++		}
++		fixture.start(sink)
++		runCurrent()
++		fixture.emit(freshProviderDelivery())
++		runCurrent()
++		entered.await()
++		assertTrue(fixture.runtime.reconfigure(successorPlan, sink) is SourceApplyResult.Applied)
++		release.complete(Unit)
++		runCurrent()
++		assertEquals(1L, admitted.single().authorizationRevision)
++		requireNotNull(scheduled)()
++		runCurrent()
++		verify(exactly = 1) { fixture.backend.requestRefresh(any()) }
++		coVerify(exactly = 1) { allowance.reserve(SourceKind.CELL, "cell-next", any(), any(), any(), any()) }
++		coVerify(exactly = 0) { allowance.reserve(SourceKind.CELL, "cell-test", any(), any(), any(), any()) }
++		verify(exactly = 1) { fixture.backend.start(any(), any()) }
++		fixture.runtime.close()
++	}
++
++	@Test
++	fun `late response to an earlier Cell request cannot satisfy another live owner`() = runTest {
++		ShadowSystemClock.advanceBy(Duration.ofSeconds(300))
++		val active = cellPlan(maximumAgeMs = 600_000L, mode = CellMode.OBSERVE_AND_SPARSE_REFRESH)
++			.copy(minimumRefreshAttemptIntervalMs = 1L)
++		val successorPlan = active.copy(revision = 2L)
++		val initial = registration(active, 1L)
++		val successor = registration(successorPlan, 2L, logicalTrackingId = "cell-next")
++		val allowance = testRadioActiveRequestAllowance()
++		val fixture = runtimeFixture(this, active, listOf(initial), allowance)
++		coEvery { fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any()) } returns successor
++		val actions = mutableMapOf<String, suspend () -> Unit>()
++		coEvery { fixture.wakeups.schedule(any(), any()) } answers {
++			actions[firstArg<com.adsamcik.tracker.tracker.source.coordinator.WakeupRequest>().id] = secondArg(); Unit
++		}
++		var oldResponse: ((CellBackendSnapshot) -> Unit)? = null
++		every { fixture.backend.registeredSubscriptionIds } returns setOf(1)
++		every { fixture.backend.requestRefresh(any()) } answers {
++			if (oldResponse == null) oldResponse = firstArg()
++			CellRefreshRequestOutcome.REQUESTED
++		}
++		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
++		val sink = cellCandidateSink { admitted += it; SourceAdmissionHandoff.Durable(1L) }
++		fixture.start(sink)
++		runCurrent()
++		requireNotNull(actions["cell-sparse-refresh"])()
++		runCurrent()
++		assertTrue(fixture.runtime.reconfigure(successorPlan, sink) is SourceApplyResult.Applied)
++		runCurrent()
++		ShadowSystemClock.advanceBy(Duration.ofMillis(2))
++		requireNotNull(oldResponse)(freshProviderDelivery())
++		runCurrent()
++		assertEquals(2L, admitted.single().authorizationRevision)
++		requireNotNull(actions["cell-sparse-refresh"])()
++		runCurrent()
++		verify(exactly = 2) { fixture.backend.requestRefresh(any()) }
++		coVerify(exactly = 1) { allowance.reserve(SourceKind.CELL, "cell-next", any(), any(), any(), any()) }
++		fixture.runtime.close()
++	}
++
++	@Test
+ 	fun `unsettled Cell admission retains exact retirement and blocks replacement`() = runTest {
+ 		val initialPlan = cellPlan(revision = 1L)
+ 		val successorPlan = initialPlan.copy(revision = 2L,
+@@ -1743,13 +1890,15 @@
+ 		authorizationRevision: Long,
+ 		generation: Long = 9L,
+ 		sourceInstanceId: String = "cell-1",
++		logicalTrackingId: String = "cell-test",
++		demandMaximumAgeMs: Long = 60_000L,
+ 	): SourceRegistration {
+ 		val demand = SourceDemandEntity(
+ 			demandId = "cell-demand-$authorizationRevision",
+-			consumerId = "session:cell-test",
++			consumerId = "session:$logicalTrackingId",
+ 			sourceKind = SourceKind.CELL.stableCode,
+ 			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+-			logicalTrackingId = "cell-test",
++			logicalTrackingId = logicalTrackingId,
+ 			serviceRunId = "run-1",
+ 			manifestRevision = 1L,
+ 			lifecycleLeaseGeneration = 1L,
+@@ -1757,7 +1906,7 @@
+ 			consentEpoch = 1L,
+ 			persistenceEligible = true,
+ 			qosCode = 0,
+-			maximumAgeMs = 60_000L,
++			maximumAgeMs = demandMaximumAgeMs,
+ 			desiredLatencyMs = 5_000L,
+ 			requestedBootId = "boot-1",
+ 			requestedElapsedRealtimeNanos = authorizationRevision,

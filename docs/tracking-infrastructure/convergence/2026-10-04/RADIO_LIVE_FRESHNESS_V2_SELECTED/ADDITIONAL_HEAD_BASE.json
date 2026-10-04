@@ -1,0 +1,10 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_head": "39718842674c35a5052c696c1a28d2c1f73c9b05",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt",
+      "sha256": "6d651f51a94b1146fb7b5c0bc197e5210af19328f1577c4fbf9050ff5fff188a"
+    }
+  ]
+}

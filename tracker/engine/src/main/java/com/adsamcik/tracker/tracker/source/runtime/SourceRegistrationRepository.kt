@@ -1,6 +1,19 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.os.SystemClock
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadDecodeResult
+import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadDecodeResult
+import com.adsamcik.tracker.shared.base.database.data.MAX_WIFI_WAL_CHILDREN
+import com.adsamcik.tracker.shared.base.database.data.MAX_CELL_WAL_CHILDREN
+import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemAuthority
+import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemQualification
+import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemQualifier
+import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
+import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
+import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
+import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.recordLocationRegistrationPlan
@@ -133,6 +146,68 @@ class SourceRegistrationRepository @Inject constructor(
 	private val trackingRolloutStateStore: RoomTrackingRolloutStateStore,
 	private val sourceBroker: SourceBroker = SourceBroker(database),
 ) {
+
+	/** A durable shared callback satisfies a live request only through its exact capture items. */
+	internal suspend fun captureQualifiedRadioObservationTimes(
+		registration: SourceRegistration,
+		evidence: SourceEvidenceCandidate<*>,
+	): List<Long> {
+		val snapshot = registration.authorization
+		val capture = snapshot.authorizedMembers.singleOrNull {
+			it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+		}?.takeIf { it.persistenceEligible } ?: return emptyList()
+		val accepted = registration.providerAcceptedElapsedRealtimeNanos ?: return emptyList()
+		val ids = snapshot.authorizedMembers.mapNotNull { it.demandId }
+		if (ids.isEmpty() || ids.size > 64 || ids.size != snapshot.authorizedMembers.size ||
+			ids.distinct().size != ids.size || snapshot.effectiveBootId != registration.state.clockDomainId ||
+			evidence.source.stableCode != registration.state.sourceKind ||
+			evidence.sourceInstanceId.value != registration.state.sourceInstanceId ||
+			evidence.registrationGeneration != registration.state.registrationGeneration ||
+			evidence.clockDomainId != registration.state.clockDomainId ||
+			evidence.capturedCollectedDataEpoch != registration.state.collectedDataEpoch ||
+			evidence.authorizationRevision != snapshot.authorizationRevision ||
+			evidence.registrationPurposeEligibilityMask != snapshot.purposeEligibilityMask ||
+			evidence.registrationEligibilityFingerprint != snapshot.authorizationFingerprint ||
+			evidence.physicalConfigurationFingerprint != registration.physicalConfigurationFingerprint
+		) return emptyList()
+		val times = when (val payload = evidence.payload) {
+			is WifiResultSnapshotPayload -> payload.accessPoints.takeIf { it.size <= MAX_WIFI_WAL_CHILDREN }
+				?.map { it.providerTimestampNanos }
+			is CellSnapshotPayload -> payload.observations.takeIf { it.size <= MAX_CELL_WAL_CHILDREN }
+				?.map { it.providerTimestampNanos }
+			else -> null
+		} ?: return emptyList()
+		return try {
+			database.withTransaction {
+				val demands = database.sourceBrokerDao().demandsByIds(ids)
+				if (demands.size != ids.size) return@withTransaction emptyList()
+				val authority = RadioPurposeItemAuthority(evidence.source.stableCode,
+					evidence.registrationGeneration, evidence.clockDomainId, accepted, Long.MAX_VALUE,
+					evidence.receivedElapsedRealtimeNanos, listOf(snapshot), demands)
+				val bytes = DefaultSourcePayloadCodec().encode(evidence.payload, evidence.payloadVersion).bytes
+				val qualified = when (evidence.source) {
+					SourceKind.WIFI -> {
+						val decoded = WifiWalPayloadCodec.decodeCanonical(evidence.payloadVersion, bytes)
+							as? WifiWalPayloadDecodeResult.Decoded ?: return@withTransaction emptyList()
+						RadioPurposeItemQualifier.wifi(decoded.payload, authority, evidence.payloadVersion)
+					}
+					SourceKind.CELL -> {
+						val decoded = CellWalPayloadCodec.decodeCanonical(evidence.payloadVersion, bytes)
+							as? CellWalPayloadDecodeResult.Decoded ?: return@withTransaction emptyList()
+						RadioPurposeItemQualifier.cell(decoded.payload, authority, evidence.payloadVersion)
+					}
+					else -> return@withTransaction emptyList()
+				} as? RadioPurposeItemQualification.Qualified ?: return@withTransaction emptyList()
+				qualified.acceptedIndexesByDemandId[capture.demandId].orEmpty().mapNotNull { times.getOrNull(it) }
+			}
+		} catch (cancelled: kotlinx.coroutines.CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			// Qualification failure leaves the finite fresh request eligible; admitted history remains.
+			emptyList()
+		}
+	}
+
 	/** Preserve the actual request alongside the immutable user/session target. */
 	internal suspend fun recordLocationPlan(registration: SourceRegistration, plan: LocationPlan) {
 		check(registration.state.appliedRevision == plan.revision)

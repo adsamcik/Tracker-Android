@@ -1,0 +1,103 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "03fe9a70fb5e483b036887c745bd570adcc66769",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt",
+      "sha256": "6d651f51a94b1146fb7b5c0bc197e5210af19328f1577c4fbf9050ff5fff188a"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/RadioActiveRequestAllowance.kt",
+      "sha256": "5512a905a1290a55b5c7ef37170367749885f97fccd2b58757109824cf3e3019"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceBackend.kt",
+      "sha256": "b9683085dab1dd9f9ce6eb05a944b14cb1c3bfe424067dad22aad1ecb2f5e173"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceBackend.kt",
+      "sha256": "cf0a16df7e5398b5aef1adf427a1e6d9006a8022867e940696eb73e9b9dcffb4"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRuntime.kt",
+      "sha256": "8fdc68f11d30b2e8b23f61f3d3774f51162a9f962ee8f9de6c0f1b77d29baa09"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceWakeupScheduler.kt",
+      "sha256": "52114425e6b0dc8182ced98322685947ef692b6f0054819cb788e45647dd9d98"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourcePlan.kt",
+      "sha256": "eada66d1bc344e3a807a6ee091e8948e7d75c34e555e553b0d5c96c7eaeeeba6"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourceEvent.kt",
+      "sha256": "c0f42dbcdd2f8615988430d71d619df2a268780d4d5dd21d70d4d3f86feb21b9"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourceDelivery.kt",
+      "sha256": "08f2c26c1b35424a651b73fd8ef9e9772c2c761039f8937f86b5e83a52b4fae6"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourcePayload.kt",
+      "sha256": "a2c1c0f55497cfebaef0b705e5ab00f901222fab26531603267e414532ed2709"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourceIdentifiers.kt",
+      "sha256": "1f0a4fe59421e101878c6ff537a07c9b01080e8331beee61ea5539daed989ecb"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourceQuality.kt",
+      "sha256": "ce1d76bcd010cef6c5f8e90c399e367811971ba13e8dd34a02542f92a4eb10c6"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourceAcquisitionFloor.kt",
+      "sha256": "6b5bfde1e09166c7cdc6935ba36df79d31655be1225cd8dc63ccfb9e9e932b7f"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceBrokerEntities.kt",
+      "sha256": "752d4b90d523ef1543d3032b31da63e0aa2943a13462b6b79fa40f28930b7fe0"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceRegistrationStateEntity.kt",
+      "sha256": "70bababeb58462ea5a6a708b5299506f05442d98646cbc2f40595f6fdc2f29dd"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellProviderDeliveryIdentity.kt",
+      "sha256": "5ccc2da9011ad7fec5964ded28071079988c4c26b35b7a575f0d61ca1f172552"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellWalPayloadCodec.kt",
+      "sha256": "acd3ce228a1bed18a531a946a9ea13c2213f346fa6c5eca919e10b9f62d149cc"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/TestRadioActiveRequestAllowance.kt",
+      "sha256": "f8900808da394b71c0c3b255c60dece28c0aefc14c412dd981df11e9da2bb543"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/ConnectivityObservationAdmissionTest.kt",
+      "sha256": "05e50757fa964f4fda84f9b20d89d57a9844ab9696c9437776ef0d52e2d7315d"
+    },
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c"
+    },
+    {
+      "path": "tracker/engine/src/main/AndroidManifest.xml",
+      "sha256": "03539ecdd919df33156ef5a6a2be5f605c17ba49868a2982fba11613f9b5cbef"
+    },
+    {
+      "path": "docs/tracking-infrastructure/planning/2026-09-26-provider-freedom/FIVE_LEVEL_ADAPTIVE_POLICY.md",
+      "sha256": "5747cff6c92c5f6c7649ef56ea237b725cedbc900be3d03ce70534ff6f378334"
+    },
+    {
+      "path": "docs/tracking-infrastructure/planning/2026-09-26-provider-freedom/TASK_CONTEXT.md",
+      "sha256": "3112e3356cae98185612009b7df9589d17926aabd2059e1e878f40c9ed8e3bc6"
+    }
+  ]
+}

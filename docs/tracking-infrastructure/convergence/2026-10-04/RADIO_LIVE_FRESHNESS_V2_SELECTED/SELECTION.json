@@ -1,0 +1,25 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "paths": [
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/ConnectivityRuntimeSupport.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntime.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntime.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt"
+  ],
+  "first_attempt": {
+    "files_sha256": "0fa98ff6b8fbb0f254dac7de6f709913cd7611265c31273f994abbb69b96994f",
+    "patch_sha256": "ffd4f37d703e9ad73e968939dfa953934482e7172b67c420c56e9b801e7c4610",
+    "review_sha256": "8bf606b7b47ce95ec62d177f45de12ea6066aa01b1a9a43a690a08d041805751"
+  },
+  "exclusions": [
+    "Held runtime-test drafts outside the selected added cases and fixture seams.",
+    "Original immutable radio attempt/rejection packet.",
+    "Root Location admission body preserved from exact repository BASE; no authored Location change.",
+    "TrackerService/thermal/manual/automatic implementation.",
+    "Durable allowance ledger, admission, schema, history, exports and backup changes.",
+    "Paused Location cold-transition test packet."
+  ]
+}

@@ -1056,22 +1056,22 @@ class CellSourceRuntime @Inject internal constructor(
 			}
 		}
 
-		suspend fun recordSnapshot(input: CellRuntimeInput.Snapshot): Boolean {
+		suspend fun recordSnapshot(input: CellRuntimeInput.Snapshot): SourceEvidenceCandidate<*>? {
 			val qualified = qualifyCellSnapshot(
 				input.snapshot,
 				input.outcome,
 				input.receivedElapsedNanos,
 				input.context.plan.maximumAcceptableCachedAgeMs,
-			) ?: return false
+			) ?: return null
 			val replayGate = replayGateBySubscription.getOrPut(input.snapshot.subscriptionId) {
 				BoundedReplayIdentityGate()
 			}
-			if (!replayGate.shouldAdmit(qualified.snapshotIdentity)) return false
+			if (!replayGate.shouldAdmit(qualified.snapshotIdentity)) return null
 			val deliveryIdentity = cellProviderDeliveryIdentity(
 				clockDomainId = input.context.registration.state.clockDomainId,
 				observations = qualified.observations,
 			)
-			return if (admitSnapshot(
+			val admitted = admitSnapshot(
 					input.context,
 					qualified.observations,
 					qualified.providerTimeNanos,
@@ -1081,10 +1081,8 @@ class CellSourceRuntime @Inject internal constructor(
 					input.callbackSequence,
 					deliveryIdentity,
 				)
-			) {
-				replayGate.record(qualified.snapshotIdentity)
-				true
-			} else false
+			if (admitted != null) replayGate.record(qualified.snapshotIdentity)
+			return admitted
 		}
 
 		inputs.consume inputLoop@{ input ->
@@ -1095,9 +1093,27 @@ class CellSourceRuntime @Inject internal constructor(
 				}
 				is CellRuntimeInput.Snapshot -> {
 					try {
-						if (recordSnapshot(input)) {
-							qualifiedEvidenceReceived = true
-							wakeups.cancel(REFRESH_WAKEUP_ID)
+						val admitted = recordSnapshot(input)
+						if (admitted != null) {
+							val captureTimes = registrations.captureQualifiedRadioObservationTimes(input.context.registration, admitted)
+							val currentOwnerEvidence = synchronized(callbackLock) {
+								val context = currentCallbackContextLocked()
+								accepting && callbackToken === activeToken && queue === inputs && context != null &&
+									context.registration === input.context.registration &&
+									context.plan == input.context.plan && cutoffElapsedNanos == null &&
+									retirementIntent == null &&
+									(input.request == null ||
+										(input.request.context.registration === context.registration &&
+											input.request.context.plan == context.plan)) &&
+									input.context.registration.hasFreshLiveRadioObservation(
+										captureTimes, input.receivedElapsedNanos,
+										SystemClock.elapsedRealtimeNanos(),
+									)
+							}
+							if (currentOwnerEvidence) {
+								qualifiedEvidenceReceived = true
+								wakeups.cancel(REFRESH_WAKEUP_ID)
+							}
 						}
 					} catch (cancelled: CancellationException) {
 						metrics.recordFailure(input.callbackSequence)
@@ -1218,13 +1234,13 @@ class CellSourceRuntime @Inject internal constructor(
 		attribution: PlanAttribution,
 		callbackSequence: Long,
 		deliveryIdentity: SourceDeliveryIdentity,
-	): Boolean {
+	): SourceEvidenceCandidate<*>? {
 		val registration = context.registration
 		val observed = providerTimeNanos
-		if (!isAtOrBeforeCutoff(observed)) return false
+		if (!isAtOrBeforeCutoff(observed)) return null
 		if (!prerequisiteGate.allows(context.plan)) {
 			metrics.recordFailure(callbackSequence)
-			return false
+			return null
 		}
 		val delayMs = (receivedNanos - observed).coerceAtLeast(0L) / NANOS_PER_MILLISECOND
 		val wallTime = (receivedWallTimeMs - delayMs).coerceAtLeast(0L)
@@ -1280,33 +1296,33 @@ class CellSourceRuntime @Inject internal constructor(
 			is SourceDeliveryAdmissionHandoff.Durable -> {
 				val ordinal = handoff.admissionOrdinals.singleOrNull() ?: run {
 					metrics.recordFailure(callbackSequence)
-					return false
+					return null
 				}
 				recordDurableAdmission(callbackSequence, ordinal)
-				return true
+				return candidate
 			}
 			is SourceDeliveryAdmissionHandoff.Duplicate -> {
 				val ordinal = handoff.existingAdmissionOrdinals.singleOrNull() ?: run {
 					metrics.recordFailure(callbackSequence)
-					return false
+					return null
 				}
 				recordDurableAdmission(callbackSequence, ordinal)
-				return true
+				return candidate
 			}
 			is SourceDeliveryAdmissionHandoff.SessionCutoff -> {
 				// Cell does not reinterpret an already-composed atomic delivery.
 				metrics.recordFailure(callbackSequence)
-				return false
+				return null
 			}
 			is SourceDeliveryAdmissionHandoff.TerminalFailure,
 			is SourceDeliveryAdmissionHandoff.RetryableFailure,
 			-> {
 				metrics.recordFailure(callbackSequence)
-				return false
+				return null
 			}
 			null -> {
 				metrics.recordFailure(callbackSequence)
-				return false
+				return null
 			}
 		}
 	}

@@ -1,0 +1,19 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "paths": [
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/ConnectivityRuntimeSupport.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntime.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntime.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt",
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt"
+  ],
+  "excluded": [
+    "Sixth support-test BASE: unchanged and unselected; clock/capture contract uses existing real Wi-Fi fixture instead.",
+    "Held test-source changes outside the authored new cases and narrowly extended authorization fixtures.",
+    "CRLF/LF-only working differences in support source.",
+    "TrackerService/manual/automatic/Location work owned elsewhere.",
+    "RadioActiveRequestAllowance: existing durable ledger unchanged.",
+    "History qualification, per-reading radio admission, schema, storage and backup changes."
+  ]
+}
