@@ -1,0 +1,13 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_head": "03fe9a70fb5e483b036887c745bd570adcc66769",
+  "files": [
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt",
+      "base_sha256": "1ca234e955ea1439e9bd325d4b0b0c9c692c0a2231b0c6118df7a32c41b4490b",
+      "working_before_sha256": "1c9d0803f177834af048a7d9bc3c4c86a4dae49f8849df623f556b1fda5a215f",
+      "selected_sha256": "8210c010de0f96f4d16afbe9e0c19af9efa18dbfb9017bf8c9543e80adb56e06",
+      "working_after_sha256": "8210c010de0f96f4d16afbe9e0c19af9efa18dbfb9017bf8c9543e80adb56e06"
+    }
+  ]
+}

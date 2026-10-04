@@ -1,0 +1,74 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_head": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntime.kt",
+      "sha256": "6429bffcfe704600ac5433d794e59e9f3e3c75ebf99f1dbf81ed99c8b47d82ee"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedLocationSourceController.kt",
+      "sha256": "9c06ea6e5e9d37a3dbcdf4be1bbbeddf7cfbb436440f3e97d72cd329ae99e9e6"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/RearmablePassiveLocationBackend.kt",
+      "sha256": "faf4c1c02743449b4ba3242c05ec644897c4fd93bba1a899d9d6864eab429574"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceBackend.kt",
+      "sha256": "08a68522708e0e7452c814a0f9d7e9452eed8dcf2a5300e3f47bac2f85c79673"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationPrerequisites.kt",
+      "sha256": "852a31eab960b8ceeeb18c3e2921c7649672b34c1477df4d4113c39646ee55a0"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt",
+      "sha256": "6d651f51a94b1146fb7b5c0bc197e5210af19328f1577c4fbf9050ff5fff188a"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceBroker.kt",
+      "sha256": "659b6f7c9da9edd2e64ff66a14cfc3f1b615c40a19eb8e8a6a788166da736fe3"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRuntime.kt",
+      "sha256": "8fdc68f11d30b2e8b23f61f3d3774f51162a9f962ee8f9de6c0f1b77d29baa09"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceEventSink.kt",
+      "sha256": "c9a3558108dce3aea64f45f96190fe7b9a3b90eca530365601d9ed769a54fa5a"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourcePlan.kt",
+      "sha256": "eada66d1bc344e3a807a6ee091e8948e7d75c34e555e553b0d5c96c7eaeeeba6"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourceIdentifiers.kt",
+      "sha256": "1f0a4fe59421e101878c6ff537a07c9b01080e8331beee61ea5539daed989ecb"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceBrokerEntities.kt",
+      "sha256": "752d4b90d523ef1543d3032b31da63e0aa2943a13462b6b79fa40f28930b7fe0"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceRegistrationStateEntity.kt",
+      "sha256": "70bababeb58462ea5a6a708b5299506f05442d98646cbc2f40595f6fdc2f29dd"
+    },
+    {
+      "path": "core/common/src/main/java/com/adsamcik/tracker/shared/base/location/UiLocationProvider.kt",
+      "sha256": "5bb82fc5009d408f9d3e307af1449109197cad81a590bb0fe1744c012932dc9c"
+    },
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c"
+    },
+    {
+      "path": "tracker/engine/src/main/AndroidManifest.xml",
+      "sha256": "03539ecdd919df33156ef5a6a2be5f605c17ba49868a2982fba11613f9b5cbef"
+    }
+  ]
+}

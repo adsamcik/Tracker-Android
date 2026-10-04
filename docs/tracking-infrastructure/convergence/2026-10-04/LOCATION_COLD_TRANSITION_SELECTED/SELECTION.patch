@@ -1,0 +1,373 @@
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt
+@@ -2,6 +2,9 @@
+ 
+ import android.content.Context
+ import android.os.SystemClock
++import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
++import com.adsamcik.tracker.shared.base.location.UiLocationRequest
++import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+@@ -20,6 +23,7 @@
+ import io.mockk.coVerify
+ import io.mockk.every
+ import io.mockk.mockk
++import io.mockk.verify
+ import java.time.Duration
+ import kotlin.test.assertFailsWith
+ import kotlin.test.assertSame
+@@ -42,6 +46,7 @@
+ import kotlinx.coroutines.test.runTest
+ import kotlinx.coroutines.test.StandardTestDispatcher
+ import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
+ import org.junit.Assert.assertNull
+ import org.junit.Assert.assertTrue
+ import org.junit.Test
+@@ -54,6 +59,181 @@
+ @Config(sdk = [34])
+ @OptIn(ExperimentalCoroutinesApi::class)
+ class LocationSourceRuntimeTest {
++	@Test
++	fun `cold system Location reuses exact passive identity without an active replacement`() = runTest {
++		val fixture = locationRuntimeFixture(backgroundScope)
++		val cold = installColdSystemLocation(fixture)
++		coEvery { fixture.registrations.canReuseSystemLocation(cold.row!!, any()) } returns true
++		coEvery { fixture.registrations.beginSystemRearmableLocation(any(), any(), any()) } returns cold.registration
++
++		val result = fixture.runtime.start(cold.plan, fixture.sink)
++
++		assertTrue(result is SourceStartResult.Started)
++		val applied = (result as SourceStartResult.Started).applied
++		assertEquals(9L, applied.registrationGeneration)
++		assertEquals("location-1", applied.sourceInstanceId?.value)
++		verify(exactly = 1) { fixture.passiveBackend.prepare(cold.identity) }
++		coVerify(exactly = 1) { fixture.passiveBackend.start(cold.plan, any()) }
++		coVerify(exactly = 0) { fixture.passiveBackend.removeExact(any()) }
++		coVerify(exactly = 0) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
++		coVerify(exactly = 0) { fixture.fusedBackend.start(any(), any()) }
++		assertTrue(fixture.sink.deliveries.isEmpty())
++		fixture.runtime.close()
++	}
++
++	@Test
++	fun `cold system retirement acknowledgement precedes active Location reservation and start`() = runTest {
++		val fixture = locationRuntimeFixture(backgroundScope)
++		val cold = installColdSystemLocation(fixture)
++		val entered = CompletableDeferred<Unit>()
++		val release = CompletableDeferred<Unit>()
++		coEvery { fixture.registrations.completeRetirement(any()) } coAnswers {
++			entered.complete(Unit)
++			release.await()
++			cold.acknowledge(firstArg())
++		}
++		val starting = async { fixture.runtime.start(fixture.plan, fixture.sink) }
++		runCurrent()
++		entered.await()
++		coVerify(exactly = 0) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
++		coVerify(exactly = 0) { fixture.fusedBackend.start(any(), any()) }
++		assertFalse(starting.isCompleted)
++		release.complete(Unit)
++		assertTrue(starting.await() is SourceStartResult.Started)
++		assertEquals(listOf("retiring", "remove-exact", "acknowledged"), cold.events)
++		coVerify(exactly = 1) { fixture.passiveBackend.removeExact(cold.identity) }
++		coVerify(exactly = 1) { fixture.fusedBackend.start(any(), any()) }
++		fixture.runtime.close()
++	}
++
++	@Test
++	fun `failed cold system removal is retryable and preserves the exact retirement token`() = runTest {
++		val fixture = locationRuntimeFixture(backgroundScope)
++		val cold = installColdSystemLocation(fixture)
++		coEvery { fixture.passiveBackend.removeExact(cold.identity) } returnsMany listOf(
++			RegistrationRemovalOutcome.FAILED, RegistrationRemovalOutcome.REMOVED)
++
++		val first = fixture.runtime.start(fixture.plan, fixture.sink)
++		assertTrue(first is SourceStartResult.Failed && first.retryable)
++		val exactToken = requireNotNull(cold.pending)
++		coVerify(exactly = 0) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
++		coVerify(exactly = 0) { fixture.fusedBackend.start(any(), any()) }
++		assertEquals(ProviderRegistrationGenerationEntity.STATUS_RETIRING, cold.row?.status)
++
++		assertTrue(fixture.runtime.start(fixture.plan, fixture.sink) is SourceStartResult.Started)
++		coVerify(exactly = 1) { fixture.registrations.completeRetirement(exactToken) }
++		coVerify(exactly = 1) { fixture.registrations.beginSystemLocationRetirement(any(), any()) }
++		coVerify(exactly = 2) { fixture.passiveBackend.removeExact(cold.identity) }
++		coVerify(exactly = 1) { fixture.fusedBackend.start(any(), any()) }
++		assertNull(cold.row)
++		fixture.runtime.close()
++	}
++
++	@Test
++	fun `cold system removal without durable acknowledgement cannot start an active owner`() = runTest {
++		val fixture = locationRuntimeFixture(backgroundScope)
++		val cold = installColdSystemLocation(fixture)
++		var attempts = 0
++		coEvery { fixture.registrations.completeRetirement(any()) } answers {
++			if (attempts++ == 0) false else cold.acknowledge(firstArg())
++		}
++
++		assertTrue(fixture.runtime.start(fixture.plan, fixture.sink) is SourceStartResult.Failed)
++		val exactToken = requireNotNull(cold.pending)
++		coVerify(exactly = 0) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
++		coVerify(exactly = 0) { fixture.fusedBackend.start(any(), any()) }
++		assertTrue(fixture.runtime.start(fixture.plan, fixture.sink) is SourceStartResult.Started)
++		coVerify(exactly = 2) { fixture.registrations.completeRetirement(exactToken) }
++		coVerify(exactly = 1) { fixture.registrations.beginSystemLocationRetirement(any(), any()) }
++		coVerify(exactly = 1) { fixture.fusedBackend.start(any(), any()) }
++		fixture.runtime.close()
++	}
++
++	@Test
++	fun `passive active passive Location transitions retain one owner and exact system retirement`() = runTest {
++		val fixture = locationRuntimeFixture(backgroundScope)
++		val cold = installColdSystemLocation(fixture)
++		coEvery { fixture.registrations.canReuseSystemLocation(cold.row!!, any()) } returns true
++		val restoredPlan = cold.plan.copy(revision = 3L)
++		val restored = registration(restoredPlan, 3L, generation = 11L, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)
++		var reservations = 0
++		coEvery { fixture.registrations.beginSystemRearmableLocation(any(), any(), any()) } answers {
++			if (reservations++ == 0) cold.registration else restored.also {
++				cold.row = systemLocationRow(it)
++			}
++		}
++		coEvery { fixture.registrations.beginRetirement(any(), any(), any(), any()) } answers {
++			val owner = firstArg<SourceRegistration>()
++			if (owner.state.registrationGeneration == cold.row?.registrationGeneration) {
++				cold.retire(secondArg(), thirdArg(), arg(3))
++			} else retirementToken(owner, secondArg(), thirdArg(), arg(3))
++		}
++		assertTrue(fixture.runtime.start(cold.plan, fixture.sink) is SourceStartResult.Started)
++		assertTrue(fixture.runtime.reconfigure(fixture.plan, fixture.sink) is SourceApplyResult.Applied)
++		coVerify(exactly = 1) { fixture.passiveBackend.removeExact(cold.identity) }
++		assertTrue(fixture.runtime.reconfigure(restoredPlan, fixture.sink) is SourceApplyResult.Applied)
++		coVerify(exactly = 1) { fixture.fusedBackend.start(any(), any()) }
++		coVerify(exactly = 1) { fixture.fusedBackend.stop() }
++		coVerify(exactly = 2) { fixture.passiveBackend.start(any(), any()) }
++		verify(exactly = 1) { fixture.passiveBackend.prepare(PassiveLocationIdentity(
++			restoredPlan.backend, "location-1", 11L, "boot-1", restored.physicalConfigurationFingerprint, 1L)) }
++		assertEquals(11L, cold.row?.registrationGeneration)
++		assertTrue(fixture.sink.deliveries.isEmpty())
++		fixture.runtime.close()
++	}
++
++	@Test
++	fun `shared temporary UI lease cannot bypass a cold system request without retirement authority`() = runTest {
++		val fixture = locationRuntimeFixture(backgroundScope)
++		val cold = installColdSystemLocation(fixture)
++		coEvery { fixture.registrations.beginSystemLocationRetirement(any(), any()) } returns null
++		val broker = mockk<SourceBroker>()
++		coEvery { broker.authorizationDemands(SourceKind.LOCATION) } returns emptyList()
++		val factory = mockk<DurableSourceEventSinkFactory>()
++		every { factory.unbound } returns fixture.sink
++		val shared = SharedLocationSourceController(fixture.runtime, broker, factory)
++
++		assertNull(shared.acquireUiLease(UiLocationRequest("my-location", 1_000L, highAccuracy = true)))
++		assertEquals(cold.initialRow, cold.row)
++		coVerify(exactly = 0) { fixture.fusedBackend.start(any(), any()) }
++		coVerify(exactly = 0) { fixture.passiveBackend.removeExact(any()) }
++		coVerify(exactly = 0) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
++		assertTrue(fixture.sink.deliveries.isEmpty())
++	}
++
++	@Test
++	fun `composed shared map and game leases deliver fresh points without tracking persistence`() = runTest {
++		ShadowSystemClock.advanceBy(Duration.ofSeconds(1))
++		val fixture = locationRuntimeFixture(backgroundScope)
++		val broker = mockk<SourceBroker>()
++		coEvery { broker.authorizationDemands(SourceKind.LOCATION) } returns emptyList()
++		val factory = mockk<DurableSourceEventSinkFactory>()
++		every { factory.unbound } returns fixture.sink
++		val shared = SharedLocationSourceController(fixture.runtime, broker, factory)
++		val received = mutableListOf<UiLocationEvent>()
++		val collector = backgroundScope.launch { shared.uiLocationEvents.collect { received += it } }
++		runCurrent()
++		val map = requireNotNull(shared.acquireUiLease(
++			UiLocationRequest("my-location", 2_000L, 500L, highAccuracy = true, maximumAgeMillis = 10_000L)))
++		val staleMapCallback = fixture.providerCallback()
++		val game = requireNotNull(shared.acquireUiLease(
++			UiLocationRequest("game", 1_000L, 250L, highAccuracy = true, maximumAgeMillis = 5_000L)))
++		staleMapCallback(listOf(location(49.0, SystemClock.elapsedRealtimeNanos())))
++		fixture.providerCallback()(listOf(location(50.0, SystemClock.elapsedRealtimeNanos())))
++		runCurrent()
++		assertEquals(1, received.filterIsInstance<UiLocationEvent.Fix>().size)
++		shared.releaseUiLease(map)
++		coVerify(exactly = 2) { fixture.fusedBackend.start(any(), any()) }
++		shared.releaseUiLease(game)
++		fixture.providerCallback()(listOf(location(51.0, SystemClock.elapsedRealtimeNanos())))
++		runCurrent()
++		assertEquals(1, received.filterIsInstance<UiLocationEvent.Fix>().size)
++		assertTrue(fixture.sink.deliveries.isEmpty())
++		coVerify(exactly = 0) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
++		coVerify(exactly = 0) { fixture.registrations.beginSystemRearmableLocation(any(), any(), any()) }
++		collector.cancel()
++	}
++
+ 	@Test
+ 	fun `synchronous first UI fix remains available when feature collector subscribes after start`() = runTest {
+ 		val fixture = locationRuntimeFixture(backgroundScope, callbacksDuringStart = 1)
+@@ -1410,6 +1590,7 @@
+ 		val sink: RecordingLocationSink,
+ 		val registrations: SourceRegistrationRepository,
+ 		val fusedBackend: FusedLocationSourceBackend,
++		val passiveBackend: RearmablePassiveLocationBackend,
+ 		val providerCallback: () -> ((List<android.location.Location>) -> Unit),
+ 		val providerAcceptanceElapsedNanos: () -> Long?,
+ 	)
+@@ -1474,6 +1655,7 @@
+ 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
+ 		val fusedBackend = mockk<FusedLocationSourceBackend>(relaxed = true)
+ 		val frameworkBackend = mockk<FrameworkLocationSourceBackend>(relaxed = true)
++		val passiveBackend = mockk<RearmablePassiveLocationBackend>(relaxed = true)
+ 		every { fusedBackend.resolvePlan(any()) } answers { firstArg() }
+ 		every { frameworkBackend.resolvePlan(any()) } answers { firstArg() }
+ 		var callback: ((List<android.location.Location>) -> Unit)? = null
+@@ -1509,7 +1691,7 @@
+ 			deviceStateProvider = object : LocationDeviceStateProvider {
+ 				override fun snapshot(): LocationDeviceState = locationState()
+ 			},
+-			passiveBackend = mockk(relaxed = true),
++			passiveBackend = passiveBackend,
+ 		)
+ 		return LocationRuntimeFixture(
+ 			runtime = runtime,
+@@ -1517,6 +1699,7 @@
+ 			sink = sink,
+ 			registrations = registrations,
+ 			fusedBackend = fusedBackend,
++			passiveBackend = passiveBackend,
+ 			providerCallback = { requireNotNull(callback) },
+ 			providerAcceptanceElapsedNanos = { providerAcceptanceElapsedNanos },
+ 		)
+@@ -1633,22 +1816,123 @@
+ 		backgroundForegroundServiceStartLegal = true,
+ 	)
+ 
++	private class ColdSystemLocation(
++		val plan: LocationPlan,
++		val registration: SourceRegistration,
++		val initialRow: ProviderRegistrationGenerationEntity,
++	) {
++		var row: ProviderRegistrationGenerationEntity? = initialRow
++		var pending: SourceRegistrationRetirementToken? = null
++		var preparedIdentity: PassiveLocationIdentity? = null
++		var retainedIdentity: PassiveLocationIdentity? = null
++		val events = mutableListOf<String>()
++		val identity = PassiveLocationIdentity(plan.backend, initialRow.sourceInstanceId,
++			initialRow.registrationGeneration, initialRow.clockDomainId,
++			initialRow.physicalConfigurationFingerprint, initialRow.collectedDataEpoch)
++
++		fun retire(reason: String, wall: Long = 3L, elapsed: Long = 3L): SourceRegistrationRetirementToken {
++			pending?.let { return it }
++			val current = requireNotNull(row)
++			row = current.copy(status = ProviderRegistrationGenerationEntity.STATUS_RETIRING,
++				retiredAtMs = wall, retiredElapsedRealtimeNanos = elapsed, failureCode = reason)
++			events += "retiring"
++			return SourceRegistrationRetirementToken(SourceKind.LOCATION,
++				com.adsamcik.tracker.tracker.source.model.SourceInstanceId(current.sourceInstanceId),
++				current.registrationGeneration, null, wall, elapsed, reason,
++				providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
++				clockDomainId = current.clockDomainId,
++				physicalConfigurationFingerprint = current.physicalConfigurationFingerprint,
++				collectedDataEpoch = current.collectedDataEpoch).also { pending = it }
++		}
++
++		fun acknowledge(token: SourceRegistrationRetirementToken): Boolean {
++			if (token.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE) {
++				assertEquals(pending, token)
++				events += "acknowledged"
++				row = null
++				pending = null
++			}
++			return true
++		}
++	}
++
++	private fun installColdSystemLocation(fixture: LocationRuntimeFixture): ColdSystemLocation {
++		ShadowSystemClock.advanceBy(Duration.ofMillis(1))
++		val plan = fixture.plan.copy(mode = LocationMode.PASSIVE, passiveSystemDelivery = true)
++		val retained = registration(plan, 1L, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)
++		val cold = ColdSystemLocation(plan, retained, systemLocationRow(retained))
++		every { fixture.passiveBackend.resolvePlan(any()) } answers { firstArg() }
++		// A new process begins without an in-memory handle while the durable system request survives.
++		every { fixture.passiveBackend.hasRetainedRegistration } answers { cold.retainedIdentity != null }
++		every { fixture.passiveBackend.retains(any()) } answers { cold.retainedIdentity == firstArg<PassiveLocationIdentity>() }
++		every { fixture.passiveBackend.prepare(any()) } answers { cold.preparedIdentity = firstArg(); Unit }
++		every { fixture.registrations.currentBootId() } returns "boot-1"
++		coEvery { fixture.registrations.systemLocationRegistrations() } answers { listOfNotNull(cold.row) }
++		coEvery { fixture.registrations.pendingRetirements(SourceKind.LOCATION) } answers { listOfNotNull(cold.pending) }
++		coEvery { fixture.registrations.passiveLocationIdentity(any()) } answers {
++			val row = firstArg<ProviderRegistrationGenerationEntity>()
++			PassiveLocationIdentity(plan.backend, row.sourceInstanceId, row.registrationGeneration,
++				row.clockDomainId, row.physicalConfigurationFingerprint, row.collectedDataEpoch)
++		}
++		coEvery { fixture.registrations.beginSystemLocationRetirement(any(), any()) } answers {
++			assertEquals(cold.row, firstArg<ProviderRegistrationGenerationEntity>())
++			cold.retire(secondArg())
++		}
++		coEvery { fixture.registrations.beginRetirement(any(), any(), any(), any()) } answers {
++			val owner = firstArg<SourceRegistration>()
++			if (owner.state.registrationGeneration == cold.row?.registrationGeneration &&
++				owner.state.sourceInstanceId == cold.row?.sourceInstanceId) {
++				cold.retire(secondArg(), thirdArg(), arg(3))
++			} else retirementToken(owner, secondArg(), thirdArg(), arg(3))
++		}
++		coEvery { fixture.registrations.completeRetirement(any()) } answers { cold.acknowledge(firstArg()) }
++		coEvery { fixture.passiveBackend.removeExact(any()) } answers {
++			cold.events += "remove-exact"
++			if (cold.retainedIdentity == firstArg<PassiveLocationIdentity>()) cold.retainedIdentity = null
++			RegistrationRemovalOutcome.REMOVED
++		}
++		coEvery { fixture.passiveBackend.start(any(), any()) } answers {
++			cold.retainedIdentity = requireNotNull(cold.preparedIdentity)
++			LocationBackendStartOutcome.STARTED
++		}
++		coEvery { fixture.passiveBackend.flush() } returns ProviderFlushOutcome.NOT_REQUESTED
++		coEvery { fixture.registrations.begin(any(), any(), any(), any(), any()) } returns
++			registration(fixture.plan, 2L, generation = 10L)
++		return cold
++	}
++
++	private fun systemLocationRow(registration: SourceRegistration) = ProviderRegistrationGenerationEntity(
++		sourceKind = SourceKind.LOCATION.stableCode,
++		registrationGeneration = registration.state.registrationGeneration,
++		sourceInstanceId = registration.state.sourceInstanceId,
++		ownerScope = registration.ownerScope, clockDomainId = registration.state.clockDomainId,
++		physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
++		collectedDataEpoch = registration.state.collectedDataEpoch,
++		providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
++		providerProcessIncarnationId = null, status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
++		reservedAtMs = 1L, reservedElapsedRealtimeNanos = 1L,
++		acceptedAtMs = 2L, acceptedElapsedRealtimeNanos = 2L,
++		retiredAtMs = null, retiredElapsedRealtimeNanos = null, failureCode = null,
++	)
++
+ 	private fun registration(
+ 		plan: LocationPlan,
+ 		authorizationRevision: Long,
+ 		generation: Long = 9L,
+ 		requiresProviderAcceptance: Boolean = false,
+ 		authorizationEffectiveElapsedRealtimeNanos: Long = authorizationRevision,
++		purpose: String = SourceBrokerPurpose.SESSION_CAPTURE,
+ 	): SourceRegistration {
++		val capture = purpose == SourceBrokerPurpose.SESSION_CAPTURE
+ 		val demand = SourceDemandEntity(
+ 			demandId = "location-demand-$authorizationRevision",
+-			consumerId = "session:location-test",
++			consumerId = if (capture) "session:location-test" else "ambient:location",
+ 			sourceKind = SourceKind.LOCATION.stableCode,
+-			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+-			logicalTrackingId = "location-test",
+-			serviceRunId = "run-1",
+-			manifestRevision = 1L,
+-			lifecycleLeaseGeneration = 1L,
++			purpose = purpose,
++			logicalTrackingId = "location-test".takeIf { capture },
++			serviceRunId = "run-1".takeIf { capture },
++			manifestRevision = 1L.takeIf { capture },
++			lifecycleLeaseGeneration = 1L.takeIf { capture },
+ 			sourcePolicyRevision = authorizationRevision,
+ 			consentEpoch = 1L,
+ 			persistenceEligible = true,

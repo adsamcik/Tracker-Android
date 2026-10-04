@@ -475,6 +475,14 @@ push is claimed by this continuation.
 
 ## October 4 tracking-system continuation
 
+- [x] Author shared Location cold-recovery and temporary-lease transition
+  coverage: exact passive reuse, removal/acknowledgement retry before active
+  takeover, passive/active/passive replacement, and independent map/game
+  release without recording. Seven test methods have independent static
+  acceptance in `../2026-10-04/LOCATION_COLD_TRANSITION_SELECTED/SOURCE_REVIEW.md`. All are
+  NOT_RUN; storage/transport acknowledgements are fixtures and the full
+  Location lifecycle, permission/device and assembly chains remain open.
+
 - [x] Keep radio history admission separate from a live session's freshness
   requirement. Only that session's independently qualified readings can cancel
   its finite fresh request; stricter custom capture limits preserve valid

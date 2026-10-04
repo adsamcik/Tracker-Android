@@ -1,0 +1,15 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "03fe9a70fb5e483b036887c745bd570adcc66769",
+  "paths": [
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt"
+  ],
+  "authored_case_count": 7,
+  "execution": "NOT_RUN",
+  "excluded": [
+    "SharedLocationSourceControllerTest.kt is preserved unchanged and unselected.",
+    "All unrelated held Location test drafts outside selected BASE plus narrow case/fixture delta.",
+    "All production Location and radio files, budgets, schema, and public behavior."
+  ]
+}
