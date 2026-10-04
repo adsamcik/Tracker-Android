@@ -57,43 +57,8 @@ internal fun SessionPathPreview(
 			contentDescription = pathDescription
 		},
 	) {
-		if (points.size < 2) return@Canvas
-
-		var minLat = Double.MAX_VALUE
-		var maxLat = Double.MIN_VALUE
-		var minLon = Double.MAX_VALUE
-		var maxLon = Double.MIN_VALUE
-
-		points.forEach { p ->
-			minLat = minOf(minLat, p.latitude)
-			maxLat = maxOf(maxLat, p.latitude)
-			minLon = minOf(minLon, p.longitude)
-			maxLon = maxOf(maxLon, p.longitude)
-		}
-
-		val latRange = maxLat - minLat
-		val lonRange = maxLon - minLon
-		if (latRange == 0.0 && lonRange == 0.0) return@Canvas
-
-		val latPadding = if (latRange == 0.0) 0.001 else latRange * 0.1
-		val lonPadding = if (lonRange == 0.0) 0.001 else lonRange * 0.1
-
-		val drawMinLat = minLat - latPadding
-		val drawMaxLat = maxLat + latPadding
-		val drawMinLon = minLon - lonPadding
-		val drawMaxLon = maxLon + lonPadding
-
-		val drawLatRange = drawMaxLat - drawMinLat
-		val drawLonRange = drawMaxLon - drawMinLon
-
-		val width = size.width
-		val height = size.height
-
-		val screenPoints = points.map { p ->
-			val x = ((p.longitude - drawMinLon) / drawLonRange).toFloat() * width
-			val y = (1 - ((p.latitude - drawMinLat) / drawLatRange)).toFloat() * height
-			Offset(x, y)
-		}
+		val screenPoints = sessionPreviewScreenPoints(points, size.width, size.height)
+		if (screenPoints.isEmpty()) return@Canvas
 
 		val pointsToDraw = (screenPoints.size * pathProgress.value).toInt().coerceAtLeast(2)
 
@@ -151,5 +116,36 @@ internal fun SessionPathPreview(
 				alpha = endAlpha,
 			)
 		}
+	}
+}
+
+/** Fits the saved route to the preview using its actual extents in every hemisphere. */
+internal fun sessionPreviewScreenPoints(points: List<Location>, width: Float, height: Float): List<Offset> {
+	if (points.size < 2) return emptyList()
+	val first = points.first()
+	var minLat = first.latitude
+	var maxLat = first.latitude
+	var minLon = first.longitude
+	var maxLon = first.longitude
+	points.forEach { point ->
+		minLat = minOf(minLat, point.latitude)
+		maxLat = maxOf(maxLat, point.latitude)
+		minLon = minOf(minLon, point.longitude)
+		maxLon = maxOf(maxLon, point.longitude)
+	}
+	val latRange = maxLat - minLat
+	val lonRange = maxLon - minLon
+	if (latRange == 0.0 && lonRange == 0.0) return emptyList()
+	val latPadding = if (latRange == 0.0) 0.001 else latRange * 0.1
+	val lonPadding = if (lonRange == 0.0) 0.001 else lonRange * 0.1
+	val drawMinLat = minLat - latPadding
+	val drawMinLon = minLon - lonPadding
+	val drawLatRange = latRange + 2 * latPadding
+	val drawLonRange = lonRange + 2 * lonPadding
+	return points.map { point ->
+		Offset(
+			((point.longitude - drawMinLon) / drawLonRange).toFloat() * width,
+			(1 - (point.latitude - drawMinLat) / drawLatRange).toFloat() * height,
+		)
 	}
 }

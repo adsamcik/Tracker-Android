@@ -122,6 +122,11 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Repair Dashboard route previews south/west of zero using actual saved-point
+  extents. Preserve the existing drawing and accessibility behavior; five new
+  geometry cases and three unchanged Compose cases remain unexecuted. Independent
+  static receipt: `convergence/2026-10-04/DASHBOARD_PREVIEW_BOUNDS_SELECTED/SOURCE_REVIEW.md`.
+  Whole source-aware Dashboard and route-gap presentation remain open.
 - [x] Connect background Wi-Fi/Cell delivery and recovery through independent
   retained-data drains. Repair the shared startup lock and unrelated session
   End/Suspend coupling found by fresh review. Fifteen selected source/test paths
@@ -224,8 +229,9 @@ Implementation-only: no validation, activation, freeze, new dev/v10 integration 
 
 Global range/continuation/merge and bounded selected-reader groundwork is authored on the candidate,
 **IMPLEMENTED_UNVALIDATED**; whole unified history remains open. Historical Location visibility and
-exact Activity/Pressure local ownership lookup are pending questions. Production facade, paging,
-calendar, timeline and detail integration are not claimed complete. See
+the small exact Activity/Pressure ownership lookup have since been approved. The lookup is being
+implemented; it is not a remaining approval blocker. Production facade, paging, calendar, timeline
+and detail integration are not claimed complete. See
 `unified-history/2026-09-27/IMPLEMENTATION_TRACE.md` and the current `WORK_ITEM_TRACKING.md` checklist.
 Implementation-only, no activation/freeze/gates/dev-v10 integration/push still applies.
 

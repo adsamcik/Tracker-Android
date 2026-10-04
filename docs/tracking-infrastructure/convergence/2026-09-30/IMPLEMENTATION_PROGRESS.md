@@ -20,6 +20,11 @@ description of its earlier input; this file records subsequent repair progress.
 
 ## Authored slices and local commit receipts
 
+- October 4 Dashboard preview repair uses the actual saved-point extents in every
+  hemisphere, preserving drawing, copy and callers. Two selected source/test paths
+  and five new geometry cases have independent static review; no cases were run:
+  `../2026-10-04/DASHBOARD_PREVIEW_BOUNDS_SELECTED/SOURCE_REVIEW.md`.
+  Full source qualification, route-gap presentation and convergence stay open.
 - October 4 background Wi-Fi/Cell delivery and recovery uses independent existing
   retained-data operations, exact source-aware checkpoints/retention, and source
   hints/startup recovery. Fresh review's AR1 shared-lock and AR2 unrelated End/Suspend
