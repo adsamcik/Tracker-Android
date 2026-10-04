@@ -122,6 +122,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Let an independently completed empty Cell session export while its shared
+  background provider stays active. Reuse the exact acknowledged retirement,
+  completeness and original closing authorization; do not require a global stop.
+  Two paths and ten real Room scenarios have independent static acceptance in
+  `convergence/2026-10-04/CELL_EMPTY_SHARED_SETTLEMENT_SELECTED/SOURCE_REVIEW.md`.
+  Scenarios remain unexecuted; full Cell and transfer chains stay open.
 - [x] Select historical Cell groups and shared radio receipt ownership across
   projection, retained readers, deletion and replay. Fresh review accepted the
   26-path composition, including saved-child integrity, policy-scoped erase and

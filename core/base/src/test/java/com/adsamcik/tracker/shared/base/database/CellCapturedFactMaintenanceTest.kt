@@ -37,6 +37,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntit
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
@@ -2079,6 +2080,132 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `empty completed Cell run exports while an independent background purpose remains active`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installSharedZeroCallbackReplacement()
+		var emitted: PortableCapturedCellEntryV1? = null
+		val result = portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) { emitted = it }
+		(result is ExportPortableCapturedCellResult.Exported) shouldBe true
+		val replacement = requireNotNull(emitted).runs.single { it.startTimeMs == REPLACEMENT_RUN_START_WALL_MS }
+		replacement.observations shouldBe emptyList()
+		replacement.availability shouldBe PortableCellRunAvailability.NO_RETAINED_OBSERVATION
+		replacement.acquisitionCompleteness shouldBe PortableCellAcquisitionCompleteness.PARTIAL
+		database.sourceBrokerDao().registration(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION)?.apply {
+			status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+			retiredAtMs shouldBe null
+			captureCallbackBarrierAuthorizationRevision shouldBe 0L
+		}
+		database.sourceBrokerDao().currentDemands("app:ambient:cell").size shouldBe 1
+	}
+
+	@Test
+	fun `empty shared Cell run keeps its completed history after capture consent is revoked`() = runTest {
+		seedCapturedCell(withPortableExportState = true, revokedCapture = true)
+		installSharedZeroCallbackReplacement()
+		var emitted: PortableCapturedCellEntryV1? = null
+		val result = portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) { emitted = it }
+		(result is ExportPortableCapturedCellResult.Exported) shouldBe true
+		requireNotNull(emitted).runs.single { it.startTimeMs == REPLACEMENT_RUN_START_WALL_MS }
+			.availability shouldBe PortableCellRunAvailability.NO_RETAINED_OBSERVATION
+	}
+
+	@Test
+	fun `later independent background revisions do not invalidate an already settled empty Cell run`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installSharedZeroCallbackReplacement()
+		val background = database.sourceBrokerDao().currentDemands("app:ambient:cell").single()
+		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(
+			sourceKind = CELL_SOURCE,
+			registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
+			authorizationRevision = CONTROL_AUTHORIZATION_REVISION + 1L,
+			demands = listOf(background),
+			effectiveBootId = BOOT_ID,
+			effectiveElapsedRealtimeNanos = SESSION_END_NANOS + 10L,
+			effectiveWallTimeMs = SESSION_END_WALL_MS + 1L,
+		))
+		var emitted: PortableCapturedCellEntryV1? = null
+		(portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) { emitted = it }
+			is ExportPortableCapturedCellResult.Exported) shouldBe true
+		requireNotNull(emitted).runs.size shouldBe 2
+	}
+
+	@Test
+	fun `empty shared Cell run requires its acknowledged exact retirement receipt`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installSharedZeroCallbackReplacement(includeReceipt = false)
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `empty shared Cell run rejects a receipt that disagrees with its saved completeness`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installSharedZeroCallbackReplacement()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_run_retirement SET app_drain_complete = 0 WHERE service_run_id = ?",
+			arrayOf(REPLACEMENT_SERVICE_RUN_ID),
+		)
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `empty shared Cell run cannot borrow a sibling authorization without its closing revision`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installSharedZeroCallbackReplacement(includeClosingAuthorization = false)
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `empty shared Cell run rejects a closing authorization that still contains the ended run`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installSharedZeroCallbackReplacement(closingIncludesCapture = true)
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `empty shared Cell run cannot borrow a later sibling only revision as its original cutoff`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installSharedZeroCallbackReplacement(closingElapsedNanos = SESSION_END_NANOS + 1L)
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `empty shared Cell run rejects a demand retired before its acknowledged cutoff`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installSharedZeroCallbackReplacement()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET retire_elapsed_realtime_nanos = ? WHERE demand_id = ?",
+			arrayOf<Any?>(SESSION_END_NANOS - 1L, replacementDemand().demandId),
+		)
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `empty shared Cell run keeps epoch and genuine provider acceptance checks`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installSharedZeroCallbackReplacement()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET collected_data_epoch = 1 " +
+				"WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf<Any?>(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
+		)
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
 	fun `portable export finds a doubly rebound Cell WAL and fact behind zero settlement`() = runTest {
 		val initialFact = seedCapturedCell(withPortableExportState = true)
 		installCapturedReplacementRun()
@@ -3398,6 +3525,87 @@ class CellCapturedFactMaintenanceTest {
 		database.sourceSessionDao().updateSession(
 			session.copy(currentManifestRevision = REPLACEMENT_MANIFEST_REVISION),
 		) shouldBe 1
+	}
+
+	private suspend fun installSharedZeroCallbackReplacement(
+		includeReceipt: Boolean = true,
+		includeClosingAuthorization: Boolean = true,
+		closingIncludesCapture: Boolean = false,
+		closingElapsedNanos: Long = SESSION_END_NANOS,
+	) {
+		installCapturedReplacementRun(includeAuthorization = false)
+		val capture = replacementDemand()
+		val consumer = "app:ambient:cell"
+		val background = capture.copy(
+			demandId = sha256(listOf(consumer, CELL_SOURCE, SourceBrokerPurpose.AMBIENT_PRODUCT,
+				POLICY_REVISION, CONSENT_EPOCH, 0L, BOOT_ID, REPLACEMENT_RUN_START_NANOS)
+				.joinToString("\u001f").toByteArray(Charsets.UTF_8)),
+			consumerId = consumer,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			manifestRevision = null,
+			lifecycleLeaseGeneration = null,
+			status = SourceDemandEntity.STATUS_ACTIVE,
+			retireBootId = null,
+			retireElapsedRealtimeNanos = null,
+			retiredAtMs = null,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(background))
+		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(
+			sourceKind = CELL_SOURCE,
+			registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
+			authorizationRevision = SECOND_AUTHORIZATION_REVISION,
+			demands = listOf(capture, background),
+			effectiveBootId = BOOT_ID,
+			effectiveElapsedRealtimeNanos = REPLACEMENT_REGISTRATION_START_NANOS,
+			effectiveWallTimeMs = REPLACEMENT_RUN_START_WALL_MS,
+		))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET status = 'ACTIVE', retired_at_ms = NULL, " +
+				"retired_elapsed_realtime_nanos = NULL, failure_code = NULL " +
+				"WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf<Any?>(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
+		)
+		if (includeClosingAuthorization) database.sourceBrokerDao().insertAuthorizations(
+			SourceBrokerAuthorization.rows(
+				sourceKind = CELL_SOURCE,
+				registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
+				authorizationRevision = CONTROL_AUTHORIZATION_REVISION,
+				demands = if (closingIncludesCapture) listOf(background, capture) else listOf(background),
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = closingElapsedNanos,
+				effectiveWallTimeMs = SESSION_END_WALL_MS,
+			),
+		)
+		if (includeReceipt) database.sourceSessionDao().insertRunRetirementIntent(
+			SourceRunRetirementEntity(
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+				sourceKind = CELL_SOURCE,
+				sourceInstanceId = SOURCE_INSTANCE_ID,
+				registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
+				actionId = "cell-replacement-owner-action",
+				attemptCount = 1,
+				leaseGeneration = LEASE_GENERATION,
+				cutoffElapsedRealtimeNanos = SESSION_END_NANOS,
+				cutoffWallTimeMs = SESSION_END_WALL_MS,
+				state = SourceRunRetirementEntity.STATE_ACKNOWLEDGED,
+				appliedRevision = PLAN_REVISION,
+				callbackEntryBarrierSequence = 0L,
+				lastSourceSequence = null,
+				lastAdmissionOrdinal = null,
+				failedAdmissionCount = 0L,
+				unresolvedSequenceStart = null,
+				unresolvedSequenceEnd = null,
+				registrationRemovalOutcome = "NOT_REGISTERED",
+				providerFlushOutcome = "NOT_SUPPORTED",
+				providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
+				appDrainComplete = true,
+				stopStatus = "COMPLETE",
+				updatedAtMs = SESSION_END_WALL_MS,
+			),
+		)
 	}
 
 	private suspend fun closeInitialRunForReplacement() = database.withTransaction {

@@ -1,0 +1,42 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "slice": "Cell R10 empty shared-purpose settlement",
+  "production_paths": 1,
+  "test_paths": 1,
+  "authored_unexecuted_cases": 10,
+  "files": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt",
+      "working_before_sha256": "998e9f1903cabb3e8d112c7e838775969cc75080b1da1e50a97c1b6ff0d39453",
+      "base_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/CELL_EMPTY_SHARED_SETTLEMENT_SELECTED/BASE/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt",
+      "base_sha256": "2ace9aec6738f2183a89ba0aa33d45dae2edb976b74f022030ae2e03baa1bb22",
+      "selected_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/CELL_EMPTY_SHARED_SETTLEMENT_SELECTED/SELECTED/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt",
+      "selected_sha256": "6c9d7711324876956bd2ddc963313d068a313a25a78b0240a7040479a970f35b",
+      "actual_sha256": "466f426a9fe9c685660b3a48bd922d17db30a491a0957ddefe829572c0a342ed",
+      "selection": "Only delta from pinned working-before; predecessor historical Cell and current Room fixture remain prerequisites."
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt",
+      "working_before_sha256": "df9ab6360bf3094eafb820d580a07294b79f1ac26fabc32071fa725d02ff4a1c",
+      "base_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/CELL_EMPTY_SHARED_SETTLEMENT_SELECTED/BASE/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt",
+      "base_sha256": "0e0dbfef3c683415e756d7d7873d74e80d3b89bc9c8ad27c15f9963e3f73f1b1",
+      "selected_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/CELL_EMPTY_SHARED_SETTLEMENT_SELECTED/SELECTED/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt",
+      "selected_sha256": "b8fa85b115f4ef25eeeb99bbb8d6161e6a90d959b3ac13df25c960409b276166",
+      "actual_sha256": "ed66597ecb12603de050ecdd6d10045e1cfc10cc9bb06b602d4417a2bd8fb631",
+      "selection": "Only delta from pinned working-before; predecessor historical Cell and current Room fixture remain prerequisites."
+    }
+  ],
+  "patch_sha256": "60c7c295823d62567ff4b0939b1ecebd9e0dee997107275a11b8a31233c2dc23",
+  "dependencies": [
+    "Committed/reviewed historical Cell capture portable reader and current maintenance Room fixture",
+    "Existing rawSourceRunRetirement bounded reader and SharedCellSourceController/AuthoritativeSessionCoordinator retirement persistence",
+    "CELL_HISTORICAL_CAPTURE_SELECTED and CELL_SOURCE_ERASE_POLICY_SCOPE_SELECTED remain separate frozen selections"
+  ],
+  "exclusions": [
+    "No Cell runtime/coordinator/schema/API changes",
+    "No Cell R7/R8 adapter test edits",
+    "No global callback barrier requirement or provider activation",
+    "No history UI, radio export representation, original file membership or Pressure repair"
+  ]
+}

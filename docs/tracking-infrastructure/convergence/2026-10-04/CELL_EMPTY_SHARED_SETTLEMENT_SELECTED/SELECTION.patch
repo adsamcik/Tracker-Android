@@ -1,0 +1,391 @@
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt
+@@ -23,6 +23,7 @@
+ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
+ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+ import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+@@ -1661,8 +1662,17 @@
+ 	val brokerDao = sourceBrokerDao()
+ 	val registration = brokerDao.registration(CELL_SOURCE_KIND, row.registrationGeneration)
+ 		?: return false
+-	if (!registration.hasExactPortableCellSettlementShape(row, run, evidenceState)) return false
+-	val retiredElapsedNanos = requireNotNull(registration.retiredElapsedRealtimeNanos)
++	// Ending a session drains its prefix; another purpose may keep this physical join alive.
++	val sharedRetirement = if (registration.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE) {
++		sourceSessionDao().rawRunRetirement(
++			row.logicalTrackingId, row.serviceRunId, CELL_SOURCE_KIND,
++			row.sourceInstanceId, row.registrationGeneration,
++		).singleOrNull()?.validatedOrNull()?.takeIf { it.matchesPortableCellSharedSettlement(row, run) }
++			?: return false
++	} else null
++	if (!registration.hasExactPortableCellSettlementShape(row, run, evidenceState, sharedRetirement)) return false
++	val settledElapsedNanos = registration.retiredElapsedRealtimeNanos
++		?: requireNotNull(sharedRetirement).cutoffElapsedRealtimeNanos
+ 	if (brokerDao.hasConflictingAcceptedRegistrationBefore(
+ 			sourceKind = CELL_SOURCE_KIND,
+ 			registrationGeneration = row.registrationGeneration,
+@@ -1676,7 +1686,7 @@
+ 			clockDomainId = registration.clockDomainId,
+ 			collectedDataEpoch = registration.collectedDataEpoch,
+ 			sourceInstanceId = registration.sourceInstanceId,
+-			retiredElapsedRealtimeNanos = retiredElapsedNanos,
++			retiredElapsedRealtimeNanos = settledElapsedNanos,
+ 		)
+ 	) return false
+ 
+@@ -1704,6 +1714,9 @@
+ 	if (registration.captureCallbackBarrierAuthorizationRevision > maximumCaptureRevision) return false
+ 
+ 	var selectedCaptureRevisionFound = false
++	var lastSelectedCaptureRevision = 0L
++	var lastSelectedRetirementNanos = -1L
++	var sharedClosingRevision = 0L
+ 	for (revision in authorizationRevisions) {
+ 		currentCoroutineContext().ensureActive()
+ 		if (revision <= previousMaximumRevision ||
+@@ -1738,8 +1751,10 @@
+ 		}.getOrNull()
+ 		if (recomputed?.sortedBy { it.memberId } != authorization.members.sortedBy { it.memberId } ||
+ 			authorization.effectiveBootId != registration.clockDomainId ||
+-			authorization.effectiveElapsedRealtimeNanos !in
+-				registration.reservedElapsedRealtimeNanos..retiredElapsedNanos
++			authorization.effectiveElapsedRealtimeNanos < registration.reservedElapsedRealtimeNanos ||
++			(registration.retiredElapsedRealtimeNanos?.let {
++				authorization.effectiveElapsedRealtimeNanos > it
++			} == true)
+ 		) return false
+ 		val selectedDemands = demands.filter { candidate ->
+ 			candidate.logicalTrackingId == row.logicalTrackingId &&
+@@ -1748,7 +1763,14 @@
+ 				candidate.persistenceEligible
+ 		}
+ 		if (selectedDemands.size > 1) return false
+-		val demand = selectedDemands.singleOrNull() ?: continue
++		val demand = selectedDemands.singleOrNull()
++		if (demand == null) {
++			if (sharedRetirement != null && authorization.authorizedMembers.isNotEmpty() &&
++				authorization.effectiveElapsedRealtimeNanos == sharedRetirement.cutoffElapsedRealtimeNanos &&
++				authorization.members.first().effectiveWallTimeMs == sharedRetirement.cutoffWallTimeMs
++			) sharedClosingRevision = maxOf(sharedClosingRevision, revision)
++			continue
++		}
+ 		val manifest = manifests.singleOrNull { it.manifestRevision == demand.manifestRevision }
+ 			?: return false
+ 		val binding = sourcesByManifest[manifest.logicalTrackingId to manifest.manifestRevision]
+@@ -1760,21 +1782,61 @@
+ 		if (!demand.hasExactPortableCellSettlementShape(row, run, manifest, binding, policy) ||
+ 			registration.physicalConfigurationFingerprint != plan.physicalConfigurationFingerprint() ||
+ 			authorization.effectiveElapsedRealtimeNanos < demand.requestedElapsedRealtimeNanos ||
+-			authorization.effectiveElapsedRealtimeNanos > requireNotNull(demand.retireElapsedRealtimeNanos)
++			authorization.effectiveElapsedRealtimeNanos > requireNotNull(demand.retireElapsedRealtimeNanos) ||
++			(sharedRetirement != null && requireNotNull(demand.retireElapsedRealtimeNanos) >
++				sharedRetirement.cutoffElapsedRealtimeNanos) ||
++			(sharedRetirement != null && requireNotNull(demand.retiredAtMs) > sharedRetirement.cutoffWallTimeMs)
+ 		) return false
+ 		selectedCaptureRevisionFound = true
+-	}
+-	return selectedCaptureRevisionFound
+-}
++		lastSelectedCaptureRevision = maxOf(lastSelectedCaptureRevision, revision)
++		lastSelectedRetirementNanos = maxOf(lastSelectedRetirementNanos, requireNotNull(demand.retireElapsedRealtimeNanos))
++	}
++	return selectedCaptureRevisionFound && (sharedRetirement == null ||
++		(sharedClosingRevision > lastSelectedCaptureRevision &&
++			lastSelectedRetirementNanos == sharedRetirement.cutoffElapsedRealtimeNanos))
++}
++
++@Suppress("ComplexCondition")
++private fun SourceRunRetirementEntity.matchesPortableCellSharedSettlement(
++	row: SourceSessionCompletenessEntity,
++	run: SourceServiceRunEntity,
++): Boolean = logicalTrackingId == row.logicalTrackingId && serviceRunId == row.serviceRunId &&
++	sourceKind == CELL_SOURCE_KIND && sourceInstanceId == row.sourceInstanceId &&
++	registrationGeneration == row.registrationGeneration && leaseGeneration == run.leaseGeneration &&
++	state == SourceRunRetirementEntity.STATE_ACKNOWLEDGED && stopStatus == "COMPLETE" &&
++	row.stopStatus == stopStatus && appDrainComplete == true && row.appDrainComplete &&
++	lastAdmissionOrdinal == row.lastAdmissionOrdinal && lastSourceSequence == row.lastSourceSequence &&
++	providerCoverage == row.providerCoverage && failedAdmissionCount == 0L &&
++	unresolvedSequenceStart == null && unresolvedSequenceEnd == null &&
++	row.unresolvedSequenceStart == null && row.unresolvedSequenceEnd == null &&
++	registrationRemovalOutcome == "NOT_REGISTERED" && providerFlushOutcome == "NOT_SUPPORTED" &&
++	callbackEntryBarrierSequence?.let { it >= (lastSourceSequence ?: 0L) } == true &&
++	cutoffElapsedRealtimeNanos >= run.startedElapsedNanos && cutoffWallTimeMs >= run.startedAtMs &&
++	cutoffWallTimeMs <= row.updatedAtMs &&
++	run.completedAtMs?.let { cutoffWallTimeMs <= it } == true && updatedAtMs >= cutoffWallTimeMs
+ 
+ @Suppress("ComplexCondition")
+ private fun ProviderRegistrationGenerationEntity.hasExactPortableCellSettlementShape(
+ 	row: SourceSessionCompletenessEntity,
+ 	run: SourceServiceRunEntity,
+ 	evidenceState: SourceEvidenceState,
++	sharedRetirement: SourceRunRetirementEntity?,
+ ): Boolean {
+ 	val acceptedWallTimeMs = acceptedAtMs ?: return false
+ 	val acceptedElapsedNanos = acceptedElapsedRealtimeNanos ?: return false
++	val exactAcceptedIdentity = sourceKind == CELL_SOURCE_KIND && registrationGeneration == row.registrationGeneration &&
++		sourceInstanceId == row.sourceInstanceId && ownerScope == "source-broker:$CELL_SOURCE_KIND" &&
++		clockDomainId == run.bootId && collectedDataEpoch == evidenceState.collectedDataEpoch &&
++		providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
++		!providerProcessIncarnationId.isNullOrBlank() && reservedAtMs <= acceptedWallTimeMs &&
++		reservedElapsedRealtimeNanos <= acceptedElapsedNanos
++	if (!exactAcceptedIdentity) return false
++	if (sharedRetirement != null) {
++		return status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE && failureCode == null &&
++			retiredAtMs == null && retiredElapsedRealtimeNanos == null &&
++			acceptedWallTimeMs <= sharedRetirement.cutoffWallTimeMs &&
++			acceptedElapsedNanos <= sharedRetirement.cutoffElapsedRealtimeNanos
++	}
+ 	val retiredWallTimeMs = retiredAtMs ?: return false
+ 	val retiredElapsedNanos = retiredElapsedRealtimeNanos ?: return false
+ 	val statusMatches = when (row.stopStatus) {
+@@ -1786,13 +1848,8 @@
+ 		"PROVIDER_FAILED" -> status == ProviderRegistrationGenerationEntity.STATUS_RETIRING
+ 		else -> false
+ 	}
+-	return sourceKind == CELL_SOURCE_KIND && registrationGeneration == row.registrationGeneration &&
+-		sourceInstanceId == row.sourceInstanceId && ownerScope == "source-broker:$CELL_SOURCE_KIND" &&
+-		clockDomainId == run.bootId && collectedDataEpoch == evidenceState.collectedDataEpoch &&
+-		providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
+-		!providerProcessIncarnationId.isNullOrBlank() && statusMatches && failureCode == "ORDERLY_STOP" &&
+-		reservedAtMs <= acceptedWallTimeMs && acceptedWallTimeMs <= retiredWallTimeMs &&
+-		reservedElapsedRealtimeNanos <= acceptedElapsedNanos && acceptedElapsedNanos <= retiredElapsedNanos
++	return statusMatches && failureCode == "ORDERLY_STOP" && acceptedWallTimeMs <= retiredWallTimeMs &&
++		acceptedElapsedNanos <= retiredElapsedNanos
+ }
+ 
+ @Suppress("ComplexCondition")
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt
+@@ -37,6 +37,7 @@
+ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
+ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+@@ -2079,6 +2080,132 @@
+ 	}
+ 
+ 	@Test
++	fun `empty completed Cell run exports while an independent background purpose remains active`() = runTest {
++		seedCapturedCell(withPortableExportState = true)
++		installSharedZeroCallbackReplacement()
++		var emitted: PortableCapturedCellEntryV1? = null
++		val result = portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) { emitted = it }
++		(result is ExportPortableCapturedCellResult.Exported) shouldBe true
++		val replacement = requireNotNull(emitted).runs.single { it.startTimeMs == REPLACEMENT_RUN_START_WALL_MS }
++		replacement.observations shouldBe emptyList()
++		replacement.availability shouldBe PortableCellRunAvailability.NO_RETAINED_OBSERVATION
++		replacement.acquisitionCompleteness shouldBe PortableCellAcquisitionCompleteness.PARTIAL
++		database.sourceBrokerDao().registration(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION)?.apply {
++			status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
++			retiredAtMs shouldBe null
++			captureCallbackBarrierAuthorizationRevision shouldBe 0L
++		}
++		database.sourceBrokerDao().currentDemands("app:ambient:cell").size shouldBe 1
++	}
++
++	@Test
++	fun `empty shared Cell run keeps its completed history after capture consent is revoked`() = runTest {
++		seedCapturedCell(withPortableExportState = true, revokedCapture = true)
++		installSharedZeroCallbackReplacement()
++		var emitted: PortableCapturedCellEntryV1? = null
++		val result = portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) { emitted = it }
++		(result is ExportPortableCapturedCellResult.Exported) shouldBe true
++		requireNotNull(emitted).runs.single { it.startTimeMs == REPLACEMENT_RUN_START_WALL_MS }
++			.availability shouldBe PortableCellRunAvailability.NO_RETAINED_OBSERVATION
++	}
++
++	@Test
++	fun `later independent background revisions do not invalidate an already settled empty Cell run`() = runTest {
++		seedCapturedCell(withPortableExportState = true)
++		installSharedZeroCallbackReplacement()
++		val background = database.sourceBrokerDao().currentDemands("app:ambient:cell").single()
++		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(
++			sourceKind = CELL_SOURCE,
++			registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
++			authorizationRevision = CONTROL_AUTHORIZATION_REVISION + 1L,
++			demands = listOf(background),
++			effectiveBootId = BOOT_ID,
++			effectiveElapsedRealtimeNanos = SESSION_END_NANOS + 10L,
++			effectiveWallTimeMs = SESSION_END_WALL_MS + 1L,
++		))
++		var emitted: PortableCapturedCellEntryV1? = null
++		(portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) { emitted = it }
++			is ExportPortableCapturedCellResult.Exported) shouldBe true
++		requireNotNull(emitted).runs.size shouldBe 2
++	}
++
++	@Test
++	fun `empty shared Cell run requires its acknowledged exact retirement receipt`() = runTest {
++		seedCapturedCell(withPortableExportState = true)
++		installSharedZeroCallbackReplacement(includeReceipt = false)
++		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
++			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
++		)
++	}
++
++	@Test
++	fun `empty shared Cell run rejects a receipt that disagrees with its saved completeness`() = runTest {
++		seedCapturedCell(withPortableExportState = true)
++		installSharedZeroCallbackReplacement()
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE source_run_retirement SET app_drain_complete = 0 WHERE service_run_id = ?",
++			arrayOf(REPLACEMENT_SERVICE_RUN_ID),
++		)
++		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
++			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
++		)
++	}
++
++	@Test
++	fun `empty shared Cell run cannot borrow a sibling authorization without its closing revision`() = runTest {
++		seedCapturedCell(withPortableExportState = true)
++		installSharedZeroCallbackReplacement(includeClosingAuthorization = false)
++		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
++			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
++		)
++	}
++
++	@Test
++	fun `empty shared Cell run rejects a closing authorization that still contains the ended run`() = runTest {
++		seedCapturedCell(withPortableExportState = true)
++		installSharedZeroCallbackReplacement(closingIncludesCapture = true)
++		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
++			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
++		)
++	}
++
++	@Test
++	fun `empty shared Cell run cannot borrow a later sibling only revision as its original cutoff`() = runTest {
++		seedCapturedCell(withPortableExportState = true)
++		installSharedZeroCallbackReplacement(closingElapsedNanos = SESSION_END_NANOS + 1L)
++		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
++			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
++		)
++	}
++
++	@Test
++	fun `empty shared Cell run rejects a demand retired before its acknowledged cutoff`() = runTest {
++		seedCapturedCell(withPortableExportState = true)
++		installSharedZeroCallbackReplacement()
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE source_demand SET retire_elapsed_realtime_nanos = ? WHERE demand_id = ?",
++			arrayOf<Any?>(SESSION_END_NANOS - 1L, replacementDemand().demandId),
++		)
++		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
++			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
++		)
++	}
++
++	@Test
++	fun `empty shared Cell run keeps epoch and genuine provider acceptance checks`() = runTest {
++		seedCapturedCell(withPortableExportState = true)
++		installSharedZeroCallbackReplacement()
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE provider_registration_generation SET collected_data_epoch = 1 " +
++				"WHERE source_kind = ? AND registration_generation = ?",
++			arrayOf<Any?>(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
++		)
++		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
++			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
++		)
++	}
++
++	@Test
+ 	fun `portable export finds a doubly rebound Cell WAL and fact behind zero settlement`() = runTest {
+ 		val initialFact = seedCapturedCell(withPortableExportState = true)
+ 		installCapturedReplacementRun()
+@@ -3398,6 +3525,87 @@
+ 		database.sourceSessionDao().updateSession(
+ 			session.copy(currentManifestRevision = REPLACEMENT_MANIFEST_REVISION),
+ 		) shouldBe 1
++	}
++
++	private suspend fun installSharedZeroCallbackReplacement(
++		includeReceipt: Boolean = true,
++		includeClosingAuthorization: Boolean = true,
++		closingIncludesCapture: Boolean = false,
++		closingElapsedNanos: Long = SESSION_END_NANOS,
++	) {
++		installCapturedReplacementRun(includeAuthorization = false)
++		val capture = replacementDemand()
++		val consumer = "app:ambient:cell"
++		val background = capture.copy(
++			demandId = sha256(listOf(consumer, CELL_SOURCE, SourceBrokerPurpose.AMBIENT_PRODUCT,
++				POLICY_REVISION, CONSENT_EPOCH, 0L, BOOT_ID, REPLACEMENT_RUN_START_NANOS)
++				.joinToString("\u001f").toByteArray(Charsets.UTF_8)),
++			consumerId = consumer,
++			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
++			logicalTrackingId = null,
++			serviceRunId = null,
++			manifestRevision = null,
++			lifecycleLeaseGeneration = null,
++			status = SourceDemandEntity.STATUS_ACTIVE,
++			retireBootId = null,
++			retireElapsedRealtimeNanos = null,
++			retiredAtMs = null,
++		)
++		database.sourceBrokerDao().insertDemands(listOf(background))
++		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(
++			sourceKind = CELL_SOURCE,
++			registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
++			authorizationRevision = SECOND_AUTHORIZATION_REVISION,
++			demands = listOf(capture, background),
++			effectiveBootId = BOOT_ID,
++			effectiveElapsedRealtimeNanos = REPLACEMENT_REGISTRATION_START_NANOS,
++			effectiveWallTimeMs = REPLACEMENT_RUN_START_WALL_MS,
++		))
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE provider_registration_generation SET status = 'ACTIVE', retired_at_ms = NULL, " +
++				"retired_elapsed_realtime_nanos = NULL, failure_code = NULL " +
++				"WHERE source_kind = ? AND registration_generation = ?",
++			arrayOf<Any?>(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
++		)
++		if (includeClosingAuthorization) database.sourceBrokerDao().insertAuthorizations(
++			SourceBrokerAuthorization.rows(
++				sourceKind = CELL_SOURCE,
++				registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
++				authorizationRevision = CONTROL_AUTHORIZATION_REVISION,
++				demands = if (closingIncludesCapture) listOf(background, capture) else listOf(background),
++				effectiveBootId = BOOT_ID,
++				effectiveElapsedRealtimeNanos = closingElapsedNanos,
++				effectiveWallTimeMs = SESSION_END_WALL_MS,
++			),
++		)
++		if (includeReceipt) database.sourceSessionDao().insertRunRetirementIntent(
++			SourceRunRetirementEntity(
++				logicalTrackingId = LOGICAL_TRACKING_ID,
++				serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
++				sourceKind = CELL_SOURCE,
++				sourceInstanceId = SOURCE_INSTANCE_ID,
++				registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
++				actionId = "cell-replacement-owner-action",
++				attemptCount = 1,
++				leaseGeneration = LEASE_GENERATION,
++				cutoffElapsedRealtimeNanos = SESSION_END_NANOS,
++				cutoffWallTimeMs = SESSION_END_WALL_MS,
++				state = SourceRunRetirementEntity.STATE_ACKNOWLEDGED,
++				appliedRevision = PLAN_REVISION,
++				callbackEntryBarrierSequence = 0L,
++				lastSourceSequence = null,
++				lastAdmissionOrdinal = null,
++				failedAdmissionCount = 0L,
++				unresolvedSequenceStart = null,
++				unresolvedSequenceEnd = null,
++				registrationRemovalOutcome = "NOT_REGISTERED",
++				providerFlushOutcome = "NOT_SUPPORTED",
++				providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
++				appDrainComplete = true,
++				stopStatus = "COMPLETE",
++				updatedAtMs = SESSION_END_WALL_MS,
++			),
++		)
+ 	}
+ 
+ 	private suspend fun closeInitialRunForReplacement() = database.withTransaction {

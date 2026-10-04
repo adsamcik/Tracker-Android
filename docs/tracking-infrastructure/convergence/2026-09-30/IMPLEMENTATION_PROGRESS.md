@@ -323,6 +323,12 @@ remain held. No test or gate has run.
   rows preserve descriptive dual origins for session-export reuse. None ran.
 
 ## Remaining in these slices
+- [x] Select independent empty Cell session export while a shared background
+  registration stays active, through existing acknowledged retirement, matching
+  completeness and original sibling-only closing authorization. Two paths and
+  ten authored real Room cases have fresh static acceptance in
+  `../2026-10-04/CELL_EMPTY_SHARED_SETTLEMENT_SELECTED/SOURCE_REVIEW.md`; none ran.
+  Complete Cell/file/transfer chains and all 25 assembly prerequisites stay open.
 - [x] Select historical Cell per-purpose groups and exact shared radio receipts,
   including policy-scoped erase, bounded saved-child integrity in all readers and
   the corrected 28-to-29 event index conversion. Twenty-six source/test paths,
