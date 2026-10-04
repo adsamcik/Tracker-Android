@@ -59,6 +59,54 @@ class PressureFactRevisionDaoTest {
 	}
 
 	@Test
+	fun nativePortableLookupFollowsSuccessfulWritesCorrectionsAndLastRevisionPruning() = runTest {
+		val first = revision()
+		val second = revision(semanticRevision = 2L, admissionOrdinal = 11L)
+		val keys = com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.pressure(first)
+		dao.insert(first) shouldBe 1L
+		dao.insert(second) shouldBe 2L
+		for (key in keys) {
+			database.nativePortableOwnershipDao().ownerLogicalIds(4, listOf(key.opaqueIdentity), 2) shouldBe listOf(first.logicalTrackingId)
+		}
+		database.openHelper.writableDatabase.execSQL("DELETE FROM pressure_fact_revision WHERE semantic_revision = 1")
+		database.nativePortableOwnershipDao().ownerLogicalIds(4, listOf(keys.last().opaqueIdentity), 2) shouldBe listOf(first.logicalTrackingId)
+		dao.deleteAll()
+		for (key in keys) {
+			database.nativePortableOwnershipDao().ownerLogicalIds(4, listOf(key.opaqueIdentity), 2) shouldBe emptyList()
+		}
+		database.openHelper.writableDatabase.query("SELECT COUNT(*) FROM native_portable_ownership").use {
+			it.moveToFirst() shouldBe true
+			it.getLong(0) shouldBe 0L
+		}
+	}
+
+	@Test
+	fun rejectedRevisionNeverCreatesPortableOwnershipForItsDifferentRawOwner() = runTest {
+		val stored = revision()
+		dao.insert(stored) shouldBe 1L
+		val collision = revision(semanticRevision = 2L, admissionOrdinal = 11L).copy(
+			mutationId = stored.mutationId, logicalTrackingId = "rejected-logical", serviceRunId = "rejected-run",
+		)
+		dao.insert(collision) shouldBe -1L
+		for (key in com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.pressure(collision)) {
+			database.openHelper.writableDatabase.query(
+				"SELECT COUNT(*) FROM native_portable_ownership WHERE logical_tracking_id = ? AND opaque_identity = ?",
+				arrayOf(collision.logicalTrackingId, key.opaqueIdentity),
+			).use { it.moveToFirst() shouldBe true; it.getLong(0) shouldBe 0L }
+		}
+	}
+
+	@Test
+	fun actualCollectedDataClearRemovesNativePortableOwnership() = runTest {
+		dao.insert(revision()) shouldBe 1L
+		AppDatabase.deleteAllCollectedDataForTesting(database, "clear-native-portable-owner", 2L, null, 2_000L)
+		database.openHelper.writableDatabase.query("SELECT COUNT(*) FROM native_portable_ownership").use {
+			it.moveToFirst() shouldBe true
+			it.getLong(0) shouldBe 0L
+		}
+	}
+
+	@Test
 	fun replayRequiresAllUniqueIdentitiesToResolveToOneExactRow() = runTest {
 		val stored = revision(semanticRevision = 1L, admissionOrdinal = 10L)
 		dao.insert(stored) shouldBe 1L

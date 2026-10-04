@@ -1,0 +1,146 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+  "paths": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedPortableTransfer.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "98deb5f3b6c5cf3e296b4174b26766e8b4450b1aa96714b02a5cd02562a9be49",
+      "selectedSha256": "786e3ed52c469e993c12bb91ec9b4e21a011d9742595c58cc0e005b91f8aa433"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "02b735c3f1329937fda2ea88c30439f311236ffe4d6e2f6834549eb5715f07ba",
+      "selectedSha256": "c6f44d42e063aaddf1b55aff3c850c4c14ab7cb26ae39bef6d25af4ee59d0d49"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "a877b58ed8dff4ffca3098ab6f87becba4deb902298e234937d75bf9066c2204",
+      "selectedSha256": "a07c184e1be9995617ec3179ebf7fbb4b007081d9b47070ce84fea4d2240e2d1"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/NativePortableOwnershipSchema.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": null,
+      "selectedSha256": "0c0d256848074e6ef8f46dc3641de46ee1d15ff301caf1d6152d420e8c5fc7d9"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "10fb97bf2569f194fa7b497e4acd14241ce09e526f629f323d661bf58451df1f",
+      "selectedSha256": "9dc9708b2fa78ee66f6c6d278fe6c14e9affc808908c1bc5e06810c91b5c6250"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ActivityCapturedFactDao.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "9967ace88943e5cb9c489ede48cc0cc1d7029a7d26a56ede37670d1e15faf9f9",
+      "selectedSha256": "8240a748d66be83ef006eac8811181bebc7b59244b042b7a9c1a17518968953e"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/NativePortableOwnershipDao.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": null,
+      "selectedSha256": "a8810a2e1e41fa6d295a43cb8522a7b07a11403775b3825d69bcc136e9ddc8ba"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRevisionDao.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "90d5d542897143a1bcfae5e1ae470cc755e7b33867ebca5664754ca50c5e800d",
+      "selectedSha256": "bffe5e68954c4b35b89c38c582ebb637cc322299b30365867804b55131baefa2"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "051198f0d90c6d94db3f348f9d983305c772a5dc9eb6591fd257c656e2ee270b",
+      "selectedSha256": "1dab828427c810c0b53cdef005b255841055c67d37afa48f340e84a5d1b675f6"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/NativePortableOwnershipEntity.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": null,
+      "selectedSha256": "59145cc688f744de02a79a4e846bc18fcd68d18a53ece63be62e1bfb586fd931"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/NativePortableOwnershipSchemaTest.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": null,
+      "selectedSha256": "311529ec6157723c79066de077435d4fcf01c5a889516e329fcf2ebc64b80e98"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "eea4184e82fc1cd85b6b4d5db0ee24c0b6ffe9623314efe3ff80034ddb920c32",
+      "selectedSha256": "e6ac30ead4e1abcf30b3c24fa3fd3b05ee3131ed3d37e3c88fc7d67946249852"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRevisionDaoTest.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "f6478b847305af3aca5e8884cb0bd59002ad7d69b63ee25ea65dba1d20447127",
+      "selectedSha256": "e8fe9fe291d0dfd1fe48cd75d081e1f9327dd33b41e9b898af30034650738671"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDaoTest.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "f48a123a92846277f5c5007a7204e1227bdc53708cf5c9dae9651bf8d387bb08",
+      "selectedSha256": "f986bb6ff8306ac0ddb1060d8b6f3199603b405ceb4f37924a3ffb37d9a7feeb"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "627381296c6bb3eb45b2baf822137191858cef18e79b12b6db406f1c81c6783b",
+      "selectedSha256": "0aeb19979d70b3d8deb0262e0b9145b2185d7ec5eff47321f2c0ba9687539546"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnerLookup.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": null,
+      "selectedSha256": "9959049e7a26cde6091c07f77675989cbb762c2c75699a6f685c90bd1e62da4a"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryPageReader.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "6b5e59aec43468450cac5dd93233d5c6aa130d97416d2049ca797082a9a623e4",
+      "selectedSha256": "c2ac7ddc1204b693a71894bb118e2c8ed43957d97a94233f64afcbff0ebdec26"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelector.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "a5eccca764bce40cd954e261cf54938e1f6dc7d0599b73e3bb636578a1ca594d",
+      "selectedSha256": "608a1d1cc6ca1850705342313686c9753713daafc34662c41a23ab6f4260b082"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "3c823ca7e101506c63f9e49c969c0e7f5f64469aaff19caeea55f402c5370c29",
+      "selectedSha256": "6454c523b4f87dd7c6cb594b2151fb4bc317abd8dc81e20eefdee6efef741bff"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnerLookupRoomTest.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": null,
+      "selectedSha256": "901c784c577b7541338fac5ab133801ede04dccfdc26d57d75f32c6d559bc2cc"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnershipHistoryFixtures.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": null,
+      "selectedSha256": "ceb869527846d357916f40ac77f17fbfe6ebaf76b7ed26d0ed3cf76a01b44b9c"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "8be37fe46eaa239694018f7dcf19957c127993c501b377b713b57de40294d609",
+      "selectedSha256": "7168be4a2652f59c77f453cf54ca7047af75dab7af3833770598b98e467054a2"
+    }
+  ],
+  "dependencies": [
+    "NATIVE_PORTABLE_OWNERSHIP_REVISED_SELECTED",
+    "ACTIVITY_EXACT_OWNERSHIP_COMPARISON_N5_SELECTED",
+    "NATIVE_PORTABLE_OWNERSHIP_MIGRATION_FIXTURE_SELECTED",
+    "committed raw caller projection f3b026e4d1 preserved"
+  ],
+  "executedGates": []
+}

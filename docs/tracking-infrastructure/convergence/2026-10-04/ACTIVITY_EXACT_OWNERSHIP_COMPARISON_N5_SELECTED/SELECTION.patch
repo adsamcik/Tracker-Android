@@ -1,0 +1,537 @@
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedPortableTransfer.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedPortableTransfer.kt
+@@ -987,8 +987,20 @@
+ 
+ 	suspend fun read(
+ 		request: ExportPortableCapturedActivityRequest,
++	): ReadLocalPortableCapturedActivityResult = readSnapshot { reader.readLocal(request) }
++
++	/** Compares only the selected native replacement groups, without date discovery. */
++	suspend fun read(
++		request: ExportSelectedPortableCapturedActivityRequest,
++	): ReadLocalPortableCapturedActivityResult {
++		require(request.importedEntryIdentities.isEmpty())
++		return readSnapshot { reader.read(request) }
++	}
++
++	private suspend fun readSnapshot(
++		read: suspend () -> PortableCapturedActivitySnapshot,
+ 	): ReadLocalPortableCapturedActivityResult = try {
+-		when (val snapshot = reader.readLocal(request)) {
++		when (val snapshot = read()) {
+ 			is PortableCapturedActivitySnapshot.Ready ->
+ 				ReadLocalPortableCapturedActivityResult.Ready(snapshot.envelope)
+ 			is PortableCapturedActivitySnapshot.Outcome -> when (val result = snapshot.result) {
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt
+@@ -3,7 +3,7 @@
+ import androidx.room.withTransaction
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+ import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+-import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivityRequest
++import com.adsamcik.tracker.shared.base.database.ExportSelectedPortableCapturedActivityRequest
+ import com.adsamcik.tracker.shared.base.database.ImportedActivityOrderedProductEvaluation
+ import com.adsamcik.tracker.shared.base.database.ImportedActivityOrderedProductPage
+ import com.adsamcik.tracker.shared.base.database.ImportedActivityProductEvaluation
+@@ -217,9 +217,11 @@
+ 		val localPortableEntries = try {
+ 			loadLocalPortableOwnershipSnapshot(
+ 				hasImportedOwnership,
+-				local.map(ComposedActivityEntry::entry),
++				local,
+ 				localIdentityByOpaque.keys,
+ 			)
++		} catch (_: ActivityLocalOwnershipBudgetExceeded) {
++			return ActivitySourceComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+ 		} catch (_: ImportedActivityHistoryCompositionFailure) {
+ 			return ActivitySourceComposedPage.Failed(
+ 				ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+@@ -231,6 +233,8 @@
+ 			} else {
+ 				emptyMap()
+ 			}
++		} catch (_: ActivityLocalOwnershipBudgetExceeded) {
++			return ActivitySourceComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+ 		} catch (_: ImportedActivityHistoryCompositionFailure) {
+ 			return ActivitySourceComposedPage.Failed(
+ 				ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+@@ -772,9 +776,11 @@
+ 		val localPortableEntries = try {
+ 			loadLocalPortableOwnershipSnapshot(
+ 				hasImportedOwnership = collisionIdentities.isNotEmpty(),
+-				localEntries = collisionLocal.map(ComposedActivityEntry::entry),
++				localEntries = collisionLocal,
+ 				localEntryIdentities = collisionIdentities.mapTo(linkedSetOf()) { it.value },
+ 			)
++		} catch (_: ActivityLocalOwnershipBudgetExceeded) {
++			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
+ 		} catch (_: ImportedActivityHistoryCompositionFailure) {
+ 			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+ 		}
+@@ -834,41 +840,43 @@
+ 
+ 	private suspend fun loadLocalPortableOwnershipSnapshot(
+ 		hasImportedOwnership: Boolean,
+-		localEntries: List<ActivityHistoryEntry>,
++		localEntries: List<ComposedActivityEntry>,
+ 		localEntryIdentities: Set<String>,
+ 	): Map<String, PortableActivityEntryV1> {
+ 		if (!hasImportedOwnership || localEntryIdentities.isEmpty()) return emptyMap()
+ 		if (localEntries.size != localEntryIdentities.size) {
+ 			throw ImportedActivityHistoryCompositionFailure()
+ 		}
+-		val earliest = localEntries.minOf { it.startTime.raw }
+-		val latest = localEntries.maxOf { it.endTime.raw }
+-		val latestExclusive = if (latest > earliest) latest else try {
+-			Math.addExact(latest, 1L)
+-		} catch (_: ArithmeticException) {
+-			throw ImportedActivityHistoryCompositionFailure()
++		// Factless qualified owners still participate in the value-free collision checks.
++		// Strict portable completeness applies only to owners with retained measurements.
++		val valuedEntries = localEntries.filter { it.entry.activeTime != null || it.entry.fragments.isNotEmpty() }
++		if (valuedEntries.isEmpty()) return emptyMap()
++		val epoch = database.sourceEvidenceStateDao().get()?.collectedDataEpoch
++			?: throw ImportedActivityHistoryCompositionFailure()
++		val seeds = valuedEntries.map { entry ->
++			entry.physicalSegmentIds.firstOrNull() ?: throw ImportedActivityHistoryCompositionFailure()
+ 		}
+ 		return when (val result = localPortableReader.read(
+-			ExportPortableCapturedActivityRequest(earliest, latestExclusive),
++			ExportSelectedPortableCapturedActivityRequest(seeds, emptyList(), epoch),
+ 		)) {
+ 			is ReadLocalPortableCapturedActivityResult.Ready -> {
+-				// Seed every overlapping local owner, including bounded rows outside the visible page.
+ 				val completeSnapshot = result.envelope.entries.associateBy { it.identity.value }
+-				if (completeSnapshot.size != result.envelope.entries.size) {
++				if (completeSnapshot.size != result.envelope.entries.size ||
++					completeSnapshot.keys.any { it !in localEntryIdentities }
++				) {
+ 					throw ImportedActivityHistoryCompositionFailure()
+ 				}
+ 				completeSnapshot
+ 			}
+-			is ReadLocalPortableCapturedActivityResult.Unverifiable,
+-			ReadLocalPortableCapturedActivityResult.StorageUnavailable,
+-			-> throw ImportedActivityHistoryCompositionFailure()
+-			ReadLocalPortableCapturedActivityResult.NoEntries -> if (localEntries.all {
+-				it.activeTime == null && it.fragments.isEmpty()
+-			}) {
+-				emptyMap()
++			is ReadLocalPortableCapturedActivityResult.Unverifiable -> if (result.reason ==
++				com.adsamcik.tracker.shared.base.database.PortableActivityExportUnverifiableReason.DEPENDENCY_OVERFLOW
++			) {
++				throw ActivityLocalOwnershipBudgetExceeded()
+ 			} else {
+ 				throw ImportedActivityHistoryCompositionFailure()
+ 			}
++			ReadLocalPortableCapturedActivityResult.StorageUnavailable -> throw ImportedActivityHistoryCompositionFailure()
++			ReadLocalPortableCapturedActivityResult.NoEntries -> throw ImportedActivityHistoryCompositionFailure()
+ 		}
+ 	}
+ 
+@@ -938,76 +946,18 @@
+ 		local: List<ComposedActivityEntry>,
+ 		portableEntriesByIdentity: Map<String, PortableActivityEntryV1>,
+ 	): Map<PortableActivityOpaqueIdentity, List<RetainedImportedActivityIdentity>> {
+-		if (local.isEmpty()) return emptyMap()
+-		val segmentIds = local.flatMap(ComposedActivityEntry::physicalSegmentIds).distinct()
+-		if (segmentIds.size > MAX_ACTIVITY_LOGICAL_MEMBERS) {
+-			throw ImportedActivityHistoryCompositionFailure()
+-		}
+-		val segments = database.trackingHistoryReadDao().segments(segmentIds)
+-		if (segments.size != segmentIds.size) throw ImportedActivityHistoryCompositionFailure()
+-		val segmentsByLogical = segments.groupBy(SessionSegment::logicalTrackingId)
+-		return local.mapNotNull { composed ->
++		val valueFree = local.filter { composed ->
+ 			val entryIdentity = PortableActivityOpaqueIdentity.derive(
+ 				PortableActivityIdentityKind.LOGICAL_ENTRY,
+ 				composed.logicalTrackingId,
+ 			)
+-			if (entryIdentity.value in portableEntriesByIdentity) return@mapNotNull null
++			if (entryIdentity.value in portableEntriesByIdentity) return@filter false
+ 			if (composed.entry.activeTime != null || composed.entry.fragments.isNotEmpty()) {
+ 				throw ImportedActivityHistoryCompositionFailure()
+ 			}
+-			val members = segmentsByLogical[composed.logicalTrackingId].orEmpty()
+-			if (members.size != composed.physicalSegmentIds.size ||
+-				members.map(SessionSegment::id).toSet() != composed.physicalSegmentIds.toSet()
+-			) throw ImportedActivityHistoryCompositionFailure()
+-			val retained = buildList {
+-				add(RetainedImportedActivityIdentity.Entry(entryIdentity))
+-				members.forEach { segment ->
+-					val runId = segment.serviceRunId ?: throw ImportedActivityHistoryCompositionFailure()
+-					add(
+-						RetainedImportedActivityIdentity.Run(
+-							PortableActivityOpaqueIdentity.derive(
+-								PortableActivityIdentityKind.PHYSICAL_RUN,
+-								runId,
+-							),
+-						),
+-					)
+-					add(
+-						RetainedImportedActivityIdentity.DeletionScope(
+-							com.adsamcik.tracker.shared.base.database
+-								.PortableActivityDeletionScopeDigest.derive(
+-									composed.logicalTrackingId,
+-									runId,
+-								),
+-						),
+-					)
+-				}
+-			}
+-			entryIdentity to retained
+-		}.toMap()
+-	}
+-
+-	/** Exact Activity groups for a bounded caller-owned physical candidate generation. */
+-	internal suspend fun selectBySegmentIdsInTransaction(
+-		segmentIds: List<Long>,
+-	): ActivityComposedPage {
+-		require(segmentIds.size <= MAX_ACTIVITY_HISTORY_RESULTS)
+-		require(segmentIds.all { it > 0L } && segmentIds.distinct().size == segmentIds.size)
+-		if (segmentIds.isEmpty()) return ActivityComposedPage.Available(emptyList())
+-		val seeds = database.trackingHistoryReadDao().segments(segmentIds)
+-		val expansion = expandActivityMembership(seeds)
+-		val snapshot = loadActivitySnapshot(expansion)
+-		if (snapshot.overflow) return ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+-		val logicalIds = seeds.mapNotNull(SessionSegment::logicalTrackingId).toSet()
+-		return ActivityComposedPage.Available(
+-			ActivityHistoryComposer.composeRecent(snapshot, laneExecutionAuthority)
+-				.filter { it.logicalTrackingId in logicalIds },
+-		)
+-	}
+-
+-	/** Intent-first recent Activity-only rows; absence of a captured fact is not a filter. */
+-	internal suspend fun recentActivityOnlyInTransaction(limit: Int): ActivityComposedPage {
+-		require(limit in 1..MAX_ACTIVITY_HISTORY_RESULTS)
+-		return loadRecentActivityCompositions(limit) { it.entry.capturesOnlyActivity }
++			true
++		}
++		return loadLocalProtectedOwnership(valueFree)
+ 	}
+ 
+ 	/** Exact Activity groups for a bounded caller-owned physical candidate generation. */
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt
+@@ -982,6 +982,162 @@
+ 	}
+ 
+ 	@Test
++	fun `exact Activity duplicate comparison ignores unrelated invalid facts at the same times`() = runTest {
++		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
++		persistPortableFixture(snapshot)
++		val portable = readLocalPortableEntry(snapshot)
++		importPortable(portable, testScheduler)
++		database.insertUnrelatedNativePortableOwners(1, 2, snapshot.expansion.segments.single().startTimeMs)
++		val unrelatedRun = requireNotNull(database.sourceSessionDao().serviceRun("unrelated-2-run-0"))
++		database.activityCapturedFactDao().insertRevision(snapshot.revisions.single().copy(
++			logicalWindowId = "unrelated-invalid-window",
++			logicalTrackingId = unrelatedRun.logicalTrackingId,
++			serviceRunId = unrelatedRun.serviceRunId,
++			sessionSegmentId = requireNotNull(unrelatedRun.sessionSegmentId),
++		))
++
++		val exact = RoomReadLocalPortableCapturedActivity(database, EXECUTION_AUTHORITY).read(
++			com.adsamcik.tracker.shared.base.database.ExportSelectedPortableCapturedActivityRequest(
++				snapshot.expansion.segments.map { it.id }, emptyList(),
++				requireNotNull(database.sourceEvidenceStateDao().get()).collectedDataEpoch,
++			),
++		) as ReadLocalPortableCapturedActivityResult.Ready
++		exact.envelope.entries shouldBe listOf(portable)
++		database.withTransaction {
++			activityRepository(testScheduler).recentImportedEligibleForSharedHistoryInTransaction(10)
++		} shouldBe ImportedHistoryEligiblePage.Available(emptyList())
++	}
++
++	@Test
++	fun `exact Activity comparison refuses a different collected data epoch`() = runTest {
++		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
++		persistPortableFixture(snapshot)
++		val epoch = requireNotNull(database.sourceEvidenceStateDao().get()).collectedDataEpoch
++		RoomReadLocalPortableCapturedActivity(database, EXECUTION_AUTHORITY).read(
++			com.adsamcik.tracker.shared.base.database.ExportSelectedPortableCapturedActivityRequest(
++				snapshot.expansion.segments.map { it.id }, emptyList(), epoch + 1L,
++			),
++		) shouldBe ReadLocalPortableCapturedActivityResult.Unverifiable(
++			com.adsamcik.tracker.shared.base.database.PortableActivityExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
++		)
++	}
++
++	@Test
++	fun `valued and factless Activity owners remain beside an independent imported product`() = runTest {
++		val valued = fixture(listOf(RunSpec(1L, "valued-run", "UTC")))
++		persistPortableFixture(valued)
++		val portable = reidentifyPortable(readLocalPortableEntry(valued), "mixed-independent")
++		importPortable(portable, testScheduler)
++		persistFixture(fixture(listOf(RunSpec(2L, "factless-run", "UTC")), "factless-logical").copy(
++			revisions = emptyList(), cursors = emptyList(), fragmentsByRevision = emptyMap(), evidenceByRevision = emptyMap(),
++		))
++
++		val page = activityRepository(testScheduler).recent(10) as ActivityHistoryPage.Available
++		page.entries shouldHaveSize 3
++		val locals = page.entries.filter { it.origin == ActivityHistoryOrigin.LOCAL }
++		locals shouldHaveSize 2
++		locals.single { it.activeTime == null }.fragments shouldBe emptyList()
++		locals.single { it.activeTime != null }.fragments.isNotEmpty() shouldBe true
++		page.entries.single { it.origin == ActivityHistoryOrigin.IMPORTED }
++			.importedSelection?.identity?.value shouldBe portable.identity.value
++	}
++
++	@Test
++	fun `exact imported Activity duplicate stays suppressed beside a factless owner`() = runTest {
++		val valued = fixture(listOf(RunSpec(1L, "valued-run", "UTC")))
++		persistPortableFixture(valued)
++		importPortable(readLocalPortableEntry(valued), testScheduler)
++		persistFixture(fixture(listOf(RunSpec(2L, "factless-run", "UTC")), "factless-logical").copy(
++			revisions = emptyList(), cursors = emptyList(), fragmentsByRevision = emptyMap(), evidenceByRevision = emptyMap(),
++		))
++
++		val page = activityRepository(testScheduler).recent(10) as ActivityHistoryPage.Available
++		page.entries shouldHaveSize 2
++		page.entries.all { it.origin == ActivityHistoryOrigin.LOCAL } shouldBe true
++		page.entries.single { it.activeTime == null }.fragments shouldBe emptyList()
++		page.entries.single { it.activeTime != null }.fragments.isNotEmpty() shouldBe true
++	}
++
++	@Test
++	fun `retained value free Activity owner protects its surviving window from a foreign run`() = runTest {
++		val snapshot = fixture(listOf(RunSpec(1L, "retained-run", "UTC")))
++		persistPortableFixture(snapshot)
++		val portable = readLocalPortableEntry(snapshot)
++		val independent = shiftPortable(portable, 50_000L, "retained-independent")
++		importPortable(independent, testScheduler, jobId = "retained-independent")
++		val retainedFromMs = firstRecordedActivityTime(portable) + 1L
++		database.sourceEvidenceStateDao().updateLifecycle(0L, retainedFromMs, 100_000L) shouldBe 1
++		val nativeWindow = snapshot.revisions.single()
++		database.activityCapturedFactDao().revision(
++			nativeWindow.writerProjectionId, nativeWindow.writerProjectionVersion,
++			nativeWindow.logicalWindowId, nativeWindow.semanticRevision,
++		) shouldBe nativeWindow
++
++		val repository = activityRepository(testScheduler)
++		val before = repository.recent(10) as ActivityHistoryPage.Available
++		before.entries shouldHaveSize 2
++		before.entries.single { it.origin == ActivityHistoryOrigin.LOCAL }.let { local ->
++			local.causes shouldBe setOf(ActivityHistoryCause.RETENTION_LIMIT)
++			local.activeTime shouldBe null
++			local.fragments shouldBe emptyList()
++		}
++		before.entries.single { it.origin == ActivityHistoryOrigin.IMPORTED }.state shouldBe
++			ActivityHistoryProductState.READY
++
++		val foreign = shiftPortable(portable, 50_000L, "retained-window-claim")
++		val run = foreign.runs.single()
++		val window = run.windows.single()
++		val claimedIdentity = portable.runs.single().windows.single().identity
++		val windows = listOf(window.copy(
++			identity = claimedIdentity,
++			contentChecksum = ActivityCapturedPortableIntegrity.windowChecksum(
++				identity = claimedIdentity,
++				startOffsetNanos = window.startOffsetNanos,
++				endOffsetNanos = window.endOffsetNanos,
++				storedZoneId = window.storedZoneId,
++				coverage = window.coverage,
++				knownActiveDurationNanos = window.knownActiveDurationNanos,
++				knownInactiveDurationNanos = window.knownInactiveDurationNanos,
++				unknownActivityDurationNanos = window.unknownActivityDurationNanos,
++				unobservedDurationNanos = window.unobservedDurationNanos,
++				fragments = window.fragments,
++			),
++		))
++		val runs = listOf(run.copy(
++			windows = windows,
++			contentChecksum = ActivityCapturedPortableIntegrity.runChecksum(
++				run.identity, run.deletionScopeDigest, run.startTimeMs, run.endTimeMs,
++				run.captureCoverage, run.zoneEpochs, windows,
++			),
++		))
++		val claim = foreign.copy(
++			runs = runs,
++			contentChecksum = ActivityCapturedPortableIntegrity.entryChecksum(
++				foreign.identity, foreign.sessionMode, foreign.startTimeMs, foreign.endTimeMs, runs,
++			),
++		)
++		(claim.identity == portable.identity) shouldBe false
++		(claim.runs.single().identity == portable.runs.single().identity) shouldBe false
++		(claim.runs.single().deletionScopeDigest == portable.runs.single().deletionScopeDigest) shouldBe false
++		importPortable(claim, testScheduler, jobId = "retained-window-claim", receivedAtMs = 100_001L)
++
++		val after = repository.recent(10) as ActivityHistoryPage.Available
++		after.entries shouldHaveSize 3
++		after.entries.single { it.importedSelection?.identity?.value == independent.identity.value }
++			.state shouldBe ActivityHistoryProductState.READY
++		val conflict = after.entries.single { it.origin == ActivityHistoryOrigin.IMPORTED &&
++			it.state == ActivityHistoryProductState.FAILED }
++		conflict.causes shouldBe setOf(ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT)
++		conflict.activeTime shouldBe null
++		conflict.fragments shouldBe emptyList()
++		database.withTransaction {
++			repository.recentImportedEligibleForSharedHistoryInTransaction(10)
++		} shouldBe ImportedHistoryEligiblePage.Unavailable(
++			SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
++		)
++	}
++
++	@Test
+ 	fun `shared imported bridge suppresses exact duplicate and rejects corrupt origin reuse`() = runTest {
+ 		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+ 		persistPortableFixture(snapshot)
+@@ -1981,8 +2137,8 @@
+ 		entry.fragments shouldBe emptyList()
+ 	}
+ 
+-	private fun fixture(specs: List<RunSpec>): ActivityHistorySnapshot {
+-		val initialRuns = specs.map(::buildRun)
++	private fun fixture(specs: List<RunSpec>, logicalId: String = LOGICAL_ID): ActivityHistorySnapshot {
++		val initialRuns = specs.map { buildRun(it, logicalId) }
+ 		val sessionStart = initialRuns.minOf { it.run.startedElapsedNanos }
+ 		val sessionEnd = initialRuns.maxOf { requireNotNull(it.run.completedAtMs) }
+ 		val built = initialRuns.map { original ->
+@@ -2015,8 +2171,8 @@
+ 		}
+ 		return ActivityHistorySnapshot(
+ 			expansion = ActivityMembershipExpansion(built.map(BuiltRun::segment), emptyMap(), false),
+-			sessions = mapOf(LOGICAL_ID to LogicalTrackingSessionEntity(
+-				logicalTrackingId = LOGICAL_ID,
++			sessions = mapOf(logicalId to LogicalTrackingSessionEntity(
++				logicalTrackingId = logicalId,
+ 				state = "FINALIZED",
+ 				lifecycleRevision = 1L,
+ 				desiredPlanRevision = specs.maxOf(RunSpec::revision),
+@@ -2041,7 +2197,7 @@
+ 			runs = built.associate { it.run.serviceRunId to it.run },
+ 			manifestsByRun = built.associate { it.run.serviceRunId to listOf(it.manifest) },
+ 			sourcesByManifest = built.associate {
+-				ActivityManifestKey(LOGICAL_ID, it.manifest.manifestRevision) to listOf(it.source)
++				ActivityManifestKey(logicalId, it.manifest.manifestRevision) to listOf(it.source)
+ 			},
+ 			policies = built.associate { it.policy.policyRevision to it.policy },
+ 			consents = built.associate { it.consent.epoch to it.consent },
+@@ -2791,7 +2947,7 @@
+ 		)
+ 	}
+ 
+-	private fun buildRun(spec: RunSpec): BuiltRun {
++	private fun buildRun(spec: RunSpec, logicalId: String = LOGICAL_ID): BuiltRun {
+ 		val baseElapsed = 1_000L + (spec.revision - 1L) * 500L
+ 		val segment = SessionSegment(
+ 			id = spec.segmentId,
+@@ -2805,12 +2961,12 @@
+ 			source = SegmentSource.INFERRED_HIGH_CONFIDENCE,
+ 			inferenceVersion = null,
+ 			createdAt = baseElapsed,
+-			logicalTrackingId = LOGICAL_ID,
++			logicalTrackingId = logicalId,
+ 			serviceRunId = spec.runId,
+ 		)
+ 		val run = SourceServiceRunEntity(
+ 			serviceRunId = spec.runId,
+-			logicalTrackingId = LOGICAL_ID,
++			logicalTrackingId = logicalId,
+ 			state = "FINALIZED",
+ 			desiredPlanRevision = spec.revision,
+ 			rolloutRevision = 1L,
+@@ -2838,7 +2994,7 @@
+ 			presentationAcknowledgedAtMs = baseElapsed + 500L,
+ 		)
+ 		val source = SessionManifestSourceEntity(
+-			logicalTrackingId = LOGICAL_ID,
++			logicalTrackingId = logicalId,
+ 			manifestRevision = spec.revision,
+ 			sourceKind = ACTIVITY_SOURCE,
+ 			purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+@@ -2853,7 +3009,7 @@
+ 			writerBindingGeneration = SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION,
+ 		)
+ 		val unsignedManifest = SessionManifestVersionEntity(
+-			logicalTrackingId = LOGICAL_ID,
++			logicalTrackingId = logicalId,
+ 			manifestRevision = spec.revision,
+ 			serviceRunId = spec.runId,
+ 			sessionMode = "MANUAL",
+@@ -2974,7 +3130,7 @@
+ 				writerProjectionId = revision.writerProjectionId,
+ 				writerProjectionVersion = revision.writerProjectionVersion,
+ 				logicalWindowId = revision.logicalWindowId,
+-				logicalTrackingId = LOGICAL_ID,
++				logicalTrackingId = logicalId,
+ 				serviceRunId = spec.runId,
+ 				sessionSegmentId = segment.id,
+ 				writerOwnerGeneration = revision.writerOwnerGeneration,
+@@ -2985,7 +3141,7 @@
+ 				collectedDataEpoch = 0L,
+ 				updatedAtMs = baseElapsed + 500L,
+ 			),
+-			completeness(spec.runId, spec.revision, "COMPLETE"),
++			completeness(spec.runId, spec.revision, "COMPLETE", logicalId),
+ 		)
+ 	}
+ 
+@@ -3005,7 +3161,7 @@
+ 		semanticRevision = 1L,
+ 		supersedesSemanticRevision = null,
+ 		mutationId = "pending",
+-		logicalTrackingId = LOGICAL_ID,
++		logicalTrackingId = run.logicalTrackingId,
+ 		serviceRunId = spec.runId,
+ 		sessionSegmentId = requireNotNull(run.sessionSegmentId),
+ 		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+@@ -3223,7 +3379,7 @@
+ 		consumerId = "session",
+ 		sourceKind = ACTIVITY_SOURCE,
+ 		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+-		logicalTrackingId = LOGICAL_ID,
++		logicalTrackingId = run.logicalTrackingId,
+ 		serviceRunId = run.serviceRunId,
+ 		manifestRevision = revision,
+ 		lifecycleLeaseGeneration = run.leaseGeneration,
+@@ -3279,9 +3435,9 @@
+ 	private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+ 		.digest(bytes).joinToString(separator = "") { byte -> "%02x".format(byte) }
+ 
+-	private fun completeness(runId: String, generation: Long, stop: String) =
++	private fun completeness(runId: String, generation: Long, stop: String, logicalId: String = LOGICAL_ID) =
+ 		SourceSessionCompletenessEntity(
+-			logicalTrackingId = LOGICAL_ID,
++			logicalTrackingId = logicalId,
+ 			serviceRunId = runId,
+ 			sourceKind = ACTIVITY_SOURCE,
+ 			sourceInstanceId = if (generation == 0L) "activity-unregistered" else "activity-$generation",
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnershipHistoryFixtures.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnershipHistoryFixtures.kt
+@@ -9,12 +9,16 @@
+ import com.adsamcik.tracker.shared.model.SegmentSource
+ 
+ /** Real candidate rows with intentionally incomplete authority, unrelated to requested imports. */
+-internal suspend fun AppDatabase.insertUnrelatedNativePortableOwners(count: Int, sourceKind: Int) {
++internal suspend fun AppDatabase.insertUnrelatedNativePortableOwners(
++	count: Int,
++	sourceKind: Int,
++	firstStartTimeMs: Long = 50_000L,
++) {
+ 	repeat(count) { index ->
+ 		val logical = "unrelated-$sourceKind-logical-$index"
+ 		val run = "unrelated-$sourceKind-run-$index"
+ 		val segment = sessionSegmentDao().insert(SessionSegment(
+-			startTimeMs = 50_000L + index, endTimeMs = 51_000L + index, distanceM = 0f,
++			startTimeMs = firstStartTimeMs + index, endTimeMs = firstStartTimeMs + 1_000L + index, distanceM = 0f,
+ 			steps = null, primaryActivity = null, activityConfidence = null, sampleCount = 0,
+ 			source = SegmentSource.USER_CREATED, inferenceVersion = null, createdAt = 50_000L,
+ 			logicalTrackingId = logical, serviceRunId = run,
+@@ -22,14 +26,14 @@
+ 		sourceSessionDao().insertServiceRun(SourceServiceRunEntity(
+ 			serviceRunId = run, logicalTrackingId = logical, state = "PREPARED",
+ 			desiredPlanRevision = 1L, rolloutRevision = 1L, foregroundCapabilityFlags = 0L,
+-			startedAtMs = 50_000L, startedElapsedNanos = 1L, completedAtMs = null,
++			startedAtMs = firstStartTimeMs, startedElapsedNanos = 1L, completedAtMs = null,
+ 			completionReason = null, sessionSegmentId = segment,
+ 		))
+ 		sourceSessionDao().insertManifest(SessionManifestVersionEntity(
+ 			logicalTrackingId = logical, manifestRevision = 1L, serviceRunId = run, sessionMode = "MANUAL",
+ 			sourcePolicyRevision = 1L, acquisitionPlanRevision = 1L, rolloutRevision = 1L,
+ 			startOrigin = "MANUAL", effectiveBootId = "unrelated-boot", effectiveElapsedRealtimeNanos = 1L,
+-			effectiveWallTimeMs = 50_000L, zoneId = "UTC", automationEpoch = null,
++			effectiveWallTimeMs = firstStartTimeMs, zoneId = "UTC", automationEpoch = null,
+ 			changeReason = "test", manifestChecksum = "deliberately-unverifiable",
+ 		))
+ 		sourceSessionDao().insertManifestSources(listOf(SessionManifestSourceEntity(

@@ -20,11 +20,20 @@ description of its earlier input; this file records subsequent repair progress.
 
 ## Authored slices and local commit receipts
 
+- October 4 composed native Activity/Pressure ownership prerequisite selects the
+  approved six-column metadata lookup, transactional/pruning/migration/full-clear
+  wiring and exact Activity comparison with factless and retained-window owners.
+  Twenty new cases and the extended actual migration fixture remain unexecuted.
+  Exact 22-path assembly preserves committed caller projection and selector methods;
+  independent receipts are in `../2026-10-04/ACTIVITY_EXACT_OWNERSHIP_COMPARISON_N5_SELECTED/`
+  and `../2026-10-04/NATIVE_OWNER_COMPOSED_SELECTION/`.
+  Older-owner recent Activity parity, Pressure child-owner parity, generated schema
+  and all complete History/assembly chains remain open.
 - October 4 raw lifecycle query now projects the existing nullable caller reference
   and its 21st storage class required by the existing validator. Two selected paths
   and one actual Room case are independently source-reviewed, unexecuted:
   `../2026-10-04/RAW_LIFECYCLE_CALLER_PROJECTION_SELECTED/SOURCE_REVIEW.md`.
-  The separately rejected native-owner comparison is being repaired; no fullchain closes.
+  The composed native-owner prerequisite preserves this repair; no fullchain closes.
 - October 4 Dashboard preview repair uses the actual saved-point extents in every
   hemisphere, preserving drawing, copy and callers. Two selected source/test paths
   and five new geometry cases have independent static review; no cases were run:

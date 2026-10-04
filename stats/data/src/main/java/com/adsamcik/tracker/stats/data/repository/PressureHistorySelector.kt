@@ -1185,7 +1185,7 @@ internal class PressureHistorySelector private constructor(
 	}
 }
 
-private const val PRESSURE_HISTORY_SEGMENT_BATCH_CAP = 64
+internal const val PRESSURE_HISTORY_SEGMENT_BATCH_CAP = 64
 private const val PRESSURE_DISCOVERY_CANDIDATE_PAGE_SIZE = 32
 private const val PRESSURE_DISCOVERY_CANDIDATE_BUDGET = 256
 private const val PRESSURE_DISCOVERY_MEMBER_BUDGET = 256

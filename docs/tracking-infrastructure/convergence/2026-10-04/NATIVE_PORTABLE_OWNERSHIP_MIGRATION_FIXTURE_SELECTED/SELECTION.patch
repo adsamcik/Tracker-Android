@@ -1,0 +1,43 @@
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt
+@@ -38,6 +38,7 @@
+ 					override fun onCreate(db: SupportSQLiteDatabase) {
+ 						createLegacyRadioTables(db)
+ 						createPurposeParentTables(db)
++						createNativePortableOwnerParents(db)
+ 						db.execSQL("INSERT INTO wifi_captured_fact_revision VALUES ('older-writer',1,'older-fact',1)")
+ 						db.execSQL("CREATE TABLE location_sample (id INTEGER NOT NULL PRIMARY KEY)")
+ 						db.execSQL("CREATE TABLE location_accepted_receipt (sample_id INTEGER NOT NULL PRIMARY KEY)")
+@@ -71,6 +72,11 @@
+ 		try {
+ 			val db = helper.writableDatabase
+ 			MIGRATION_28_29.migrate(db)
++			readLong(db, "SELECT count(*) FROM native_portable_ownership") shouldBe 7L
++			readLong(db, "SELECT count(*) FROM native_portable_ownership WHERE " +
++				"source_kind=2 AND identity_kind='CAPTURE_WINDOW' AND raw_identity='activity-window'") shouldBe 1L
++			readLong(db, "SELECT count(*) FROM native_portable_ownership WHERE " +
++				"source_kind=4 AND identity_kind='WINDOW' AND raw_identity='pressure-window'") shouldBe 1L
+ 			readLong(db, "SELECT count(*) FROM pragma_table_info('wifi_captured_fact_revision') WHERE " +
+ 				"name='payload_version' AND type='INTEGER' AND \"notnull\"=0 AND dflt_value='NULL'") shouldBe 1L
+ 			readLong(db, "SELECT count(*) FROM wifi_captured_fact_revision WHERE " +
+@@ -181,6 +187,20 @@
+ 		}
+ 	}
+ 
++	private fun createNativePortableOwnerParents(db: SupportSQLiteDatabase) {
++		db.execSQL("CREATE TABLE source_service_run (service_run_id TEXT NOT NULL PRIMARY KEY, " +
++			"logical_tracking_id TEXT NOT NULL)")
++		db.execSQL("INSERT INTO source_service_run VALUES ('original-run', 'original-logical')")
++		db.execSQL("CREATE TABLE activity_captured_window_revision (logical_window_id TEXT NOT NULL, " +
++			"logical_tracking_id TEXT NOT NULL, service_run_id TEXT NOT NULL)")
++		db.execSQL("INSERT INTO activity_captured_window_revision VALUES " +
++			"('activity-window', 'original-logical', 'original-run')")
++		db.execSQL("CREATE TABLE pressure_fact_revision (logical_fact_id TEXT NOT NULL, " +
++			"logical_tracking_id TEXT NOT NULL, service_run_id TEXT NOT NULL)")
++		db.execSQL("INSERT INTO pressure_fact_revision VALUES " +
++			"('pressure-window', 'original-logical', 'original-run')")
++	}
++
+ 	private fun readString(db: SupportSQLiteDatabase, sql: String): String? =
+ 		db.query(sql).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+ 

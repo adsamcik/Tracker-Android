@@ -6,6 +6,9 @@ import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
+import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership
+import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnershipEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
@@ -55,7 +58,17 @@ interface ActivityCapturedFactDao {
 	): Long?
 
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
-	suspend fun insertRevision(entity: ActivityCapturedWindowRevisionEntity): Long
+	suspend fun insertRevisionRow(entity: ActivityCapturedWindowRevisionEntity): Long
+
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	suspend fun insertPortableOwners(owners: List<NativePortableOwnershipEntity>)
+
+	@Transaction
+	suspend fun insertRevision(entity: ActivityCapturedWindowRevisionEntity): Long {
+		val inserted = insertRevisionRow(entity)
+		if (inserted != -1L) insertPortableOwners(NativePortableOwnership.activity(entity))
+		return inserted
+	}
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertFragments(entities: List<ActivityCapturedFragmentEntity>)

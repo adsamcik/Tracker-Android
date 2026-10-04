@@ -1949,6 +1949,32 @@ class PressureHistorySelectorTest {
 	}
 
 	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun scopedImportedPressureIgnoresUnrelatedNativeHistoryBeyondFormerCensusCap() = runTest {
+		val imported = importedRetentionOnlyEntry("independent-scoped", "independent-run", 100L)
+		RoomImportPortablePressure(database, UnconfinedTestDispatcher(testScheduler)) {}
+			.importEntry(importRequest(imported, "independent-scoped")) shouldBe ImportPortablePressureResult.Applied(1L, 1, 0)
+		database.insertUnrelatedNativePortableOwners(270, 4)
+		val page = database.withTransaction {
+			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(10)
+		} as ImportedHistoryEligiblePage.Available
+		page.entries.single().identity.value shouldBe imported.identity.value
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun exactPressureDuplicateStillSuppressesWithUnrelatedIncompleteNativeHistory() = runTest {
+		insertFixture(factSemanticRevision = 1L)
+		val local = (PortablePressureRoomReader(database, selector).read(exportRequest()) as PortablePressureSnapshot.Ready).entries.single()
+		RoomImportPortablePressure(database, UnconfinedTestDispatcher(testScheduler)) {}
+			.importEntry(importRequest(local, "exact-scoped")) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		database.insertUnrelatedNativePortableOwners(270, 4)
+		database.withTransaction {
+			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(10)
+		} shouldBe ImportedHistoryEligiblePage.Available(emptyList())
+	}
+
+	@Test
 	fun importedEligibleReaderRejectsLimitAboveSourceBudget() = runTest {
 		database.withTransaction {
 			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(

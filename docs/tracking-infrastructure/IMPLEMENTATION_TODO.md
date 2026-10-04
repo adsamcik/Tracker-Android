@@ -122,6 +122,14 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Select the approved rebuildable native Activity/Pressure identity lookup,
+  exact Activity comparison and retained-window protection. Preserve the committed
+  raw caller projection and exact selector methods; include the actual migration
+  fixture. Twenty new cases and the extended fixture remain unexecuted. Receipts:
+  `convergence/2026-10-04/ACTIVITY_EXACT_OWNERSHIP_COMPARISON_N5_SELECTED/SOURCE_REVIEW.md`
+  and `NATIVE_OWNER_COMPOSED_SELECTION/SOURCE_REVIEW_COMPOSITION.md`.
+  The separate older-owner recent Activity and Pressure child-owner companions,
+  generated schema and complete History chains remain open.
 - [x] Select the existing raw lifecycle query's missing caller-reference field,
   matching the existing 21-field validator and preserving malformed-value rejection.
   Two selected paths and one authored Room scenario have fresh static review; the

@@ -274,6 +274,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrati
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnershipEntity
+import com.adsamcik.tracker.shared.base.database.dao.NativePortableOwnershipDao
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
@@ -401,6 +403,7 @@ internal const val CURRENT_DATABASE_VERSION = 29
 			PressureFactRetentionRevisionAuthorityEntity::class,
 			ActivityCapturedRegistrationPlanEntity::class,
 			ActivityCapturedWindowRevisionEntity::class,
+			NativePortableOwnershipEntity::class,
 			ActivityCapturedFragmentEntity::class,
 			ActivityCapturedEvidenceEntity::class,
 			ActivityCapturedWindowCursorEntity::class,
@@ -642,6 +645,8 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Dormant append-only captured Activity facts; this accessor does not activate acquisition. */
 	abstract fun activityCapturedFactDao(): ActivityCapturedFactDao
+
+	abstract fun nativePortableOwnershipDao(): NativePortableOwnershipDao
 	/** Dormant identity-free Cell captured-fact persistence. */
 	abstract fun cellCapturedFactDao(): CellCapturedFactDao
 
@@ -1279,6 +1284,7 @@ abstract class AppDatabase : RoomDatabase() {
 			database.activityCapturedFactDao().deleteAllFragments()
 			database.activityCapturedFactDao().deleteAllCursors()
 			database.activityCapturedFactDao().deleteAllRevisions()
+			database.nativePortableOwnershipDao().deleteAll()
 			database.activityCapturedFactDao().deleteAllRegistrationPlanBindings()
 			database.cellCapturedFactDao().deleteAllCursors()
 			database.radioObservationChildDao().deleteAllCellSession()

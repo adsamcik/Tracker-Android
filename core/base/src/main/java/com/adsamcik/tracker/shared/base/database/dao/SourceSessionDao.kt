@@ -5,6 +5,9 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Transaction
+import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership
+import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnershipEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity.RawLifecycleDesiredAction
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
@@ -489,10 +492,26 @@ interface SourceSessionDao {
 	suspend fun maximumActionRevision(logicalTrackingId: String): Long
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
-	suspend fun insertServiceRun(entity: SourceServiceRunEntity)
+	suspend fun insertServiceRunRow(entity: SourceServiceRunEntity)
+
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	suspend fun insertPortableOwners(owners: List<NativePortableOwnershipEntity>)
+
+	@Transaction
+	suspend fun insertServiceRun(entity: SourceServiceRunEntity) {
+		insertServiceRunRow(entity)
+		insertPortableOwners(NativePortableOwnership.run(entity.logicalTrackingId, entity.serviceRunId))
+	}
 
 	@Update
-	suspend fun updateServiceRun(entity: SourceServiceRunEntity): Int
+	suspend fun updateServiceRunRow(entity: SourceServiceRunEntity): Int
+
+	@Transaction
+	suspend fun updateServiceRun(entity: SourceServiceRunEntity): Int {
+		val updated = updateServiceRunRow(entity)
+		if (updated != 0) insertPortableOwners(NativePortableOwnership.run(entity.logicalTrackingId, entity.serviceRunId))
+		return updated
+	}
 
 	@Query("SELECT * FROM source_service_run WHERE service_run_id = :serviceRunId")
 	suspend fun serviceRun(serviceRunId: String): SourceServiceRunEntity?

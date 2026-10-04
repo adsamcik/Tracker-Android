@@ -1,0 +1,1038 @@
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/NativePortableOwnershipEntity.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/NativePortableOwnershipEntity.kt
+--- /dev/null
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/NativePortableOwnershipEntity.kt
+@@ -0,0 +1,74 @@
++package com.adsamcik.tracker.shared.base.database.data
++
++import androidx.room.ColumnInfo
++import androidx.room.Entity
++import androidx.room.Index
++import com.adsamcik.tracker.shared.base.database.PortableActivityIdentityKind
++import com.adsamcik.tracker.shared.base.database.PortableActivityOpaqueIdentity
++import com.adsamcik.tracker.shared.base.database.PortableActivityDeletionScopeDigest
++import com.adsamcik.tracker.shared.model.pressure.portable.PortablePressureIdentityKind
++import com.adsamcik.tracker.shared.model.pressure.portable.PortablePressureOpaqueIdentity
++
++/** Rebuildable identity lookup only. Readers still qualify the original native source records. */
++@Entity(
++	tableName = "native_portable_ownership",
++	primaryKeys = ["source_kind", "identity_kind", "raw_identity", "logical_tracking_id", "service_run_id"],
++	indices = [
++		Index(value = ["source_kind", "opaque_identity", "logical_tracking_id"], name = "idx_native_portable_owner_identity"),
++		Index(value = ["logical_tracking_id", "service_run_id"], name = "idx_native_portable_owner_run"),
++	],
++)
++data class NativePortableOwnershipEntity(
++	@ColumnInfo(name = "source_kind") val sourceKind: Int,
++	@ColumnInfo(name = "identity_kind") val identityKind: String,
++	@ColumnInfo(name = "opaque_identity") val opaqueIdentity: String,
++	@ColumnInfo(name = "raw_identity") val rawIdentity: String,
++	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String,
++	@ColumnInfo(name = "service_run_id") val serviceRunId: String,
++)
++
++/** Uses the existing portable hash domains; no source payload or new provenance is stored. */
++object NativePortableOwnership {
++	const val ACTIVITY: Int = 2
++	const val PRESSURE: Int = 4
++
++	fun run(logicalTrackingId: String, serviceRunId: String): List<NativePortableOwnershipEntity> =
++		listOf(ACTIVITY, PRESSURE).flatMap { source ->
++			listOfNotNull(
++				row(source, "LOGICAL_ENTRY", logicalTrackingId, logicalTrackingId, serviceRunId),
++				row(source, "PHYSICAL_RUN", serviceRunId, logicalTrackingId, serviceRunId),
++				if (source == ACTIVITY) row(source, "DELETION_SCOPE", serviceRunId, logicalTrackingId, serviceRunId) else null,
++			)
++		}
++
++	fun activity(revision: ActivityCapturedWindowRevisionEntity): List<NativePortableOwnershipEntity> =
++		fact(ACTIVITY, revision.logicalTrackingId, revision.serviceRunId, revision.logicalWindowId)
++
++	fun pressure(revision: PressureFactRevisionEntity): List<NativePortableOwnershipEntity> =
++		fact(PRESSURE, revision.logicalTrackingId, revision.serviceRunId, revision.logicalFactId)
++
++	fun fact(source: Int, logicalId: String, runId: String, windowId: String): List<NativePortableOwnershipEntity> =
++		listOfNotNull(
++			row(source, "LOGICAL_ENTRY", logicalId, logicalId, runId),
++			row(source, "PHYSICAL_RUN", runId, logicalId, runId),
++			if (source == ACTIVITY) row(source, "DELETION_SCOPE", runId, logicalId, runId) else null,
++			row(source, if (source == ACTIVITY) "CAPTURE_WINDOW" else "WINDOW", windowId, logicalId, runId),
++		)
++
++	private fun row(source: Int, kind: String, rawId: String, logicalId: String, runId: String): NativePortableOwnershipEntity? {
++		// An invalid legacy local ID cannot be a valid portable owner. Preserve its source row;
++		// the ordinary source reader remains responsible for explaining its unusable contents.
++		if (logicalId.isBlank() || runId.isBlank()) return null
++		val opaque = try {
++			when (source) {
++				ACTIVITY -> if (kind == "DELETION_SCOPE") PortableActivityDeletionScopeDigest.derive(logicalId, runId).value
++					else PortableActivityOpaqueIdentity.derive(PortableActivityIdentityKind.valueOf(kind), rawId).value
++				PRESSURE -> PortablePressureOpaqueIdentity.derive(PortablePressureIdentityKind.valueOf(kind), rawId).value
++				else -> error("Unsupported native portable source")
++			}
++		} catch (_: IllegalArgumentException) {
++			return null
++		}
++		return NativePortableOwnershipEntity(source, kind, opaque, rawId, logicalId, runId)
++	}
++}
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/NativePortableOwnershipDao.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/NativePortableOwnershipDao.kt
+--- /dev/null
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/NativePortableOwnershipDao.kt
+@@ -0,0 +1,43 @@
++package com.adsamcik.tracker.shared.base.database.dao
++
++import androidx.room.Dao
++import androidx.room.Query
++
++/** Metadata-only reverse lookup. A matching row is never sufficient to return a measurement. */
++@Dao
++interface NativePortableOwnershipDao {
++	@Query("""
++		SELECT DISTINCT owner.logical_tracking_id
++		FROM native_portable_ownership owner
++		WHERE owner.source_kind = :sourceKind AND owner.opaque_identity IN (:identities)
++		AND (
++		  EXISTS (SELECT 1 FROM session_manifest_version manifest
++		    INNER JOIN session_manifest_source source
++		      ON source.logical_tracking_id = manifest.logical_tracking_id
++		     AND source.manifest_revision = manifest.manifest_revision
++		    WHERE manifest.logical_tracking_id = owner.logical_tracking_id
++		      AND manifest.service_run_id = owner.service_run_id
++		      AND source.source_kind = :sourceKind AND source.purpose = 'SESSION_CAPTURE'
++		      AND source.persistence_eligible = 1)
++		  OR (:sourceKind = 2 AND EXISTS (SELECT 1 FROM activity_captured_window_revision fact
++		    WHERE fact.logical_tracking_id = owner.logical_tracking_id AND fact.service_run_id = owner.service_run_id))
++		  OR (:sourceKind = 4 AND EXISTS (SELECT 1 FROM pressure_fact_revision fact
++		    WHERE fact.logical_tracking_id = owner.logical_tracking_id AND fact.service_run_id = owner.service_run_id))
++		)
++		ORDER BY owner.logical_tracking_id LIMIT :limit
++	""")
++	suspend fun ownerLogicalIds(sourceKind: Int, identities: List<String>, limit: Int): List<String>
++
++	/** One seed per exact owner; the source selector expands and checks all original members. */
++	@Query("""
++		SELECT segment.* FROM session_segment segment
++		WHERE segment.logical_tracking_id IN (:logicalIds)
++		AND segment.id = (SELECT MIN(seed.id) FROM session_segment seed
++		  WHERE seed.logical_tracking_id = segment.logical_tracking_id)
++		ORDER BY segment.logical_tracking_id LIMIT :limit
++	""")
++	suspend fun ownerSeeds(logicalIds: List<String>, limit: Int): List<com.adsamcik.tracker.shared.base.database.data.SessionSegment>
++
++	@Query("DELETE FROM native_portable_ownership")
++	fun deleteAll()
++}
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/NativePortableOwnershipSchema.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/NativePortableOwnershipSchema.kt
+--- /dev/null
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/NativePortableOwnershipSchema.kt
+@@ -0,0 +1,101 @@
++package com.adsamcik.tracker.shared.base.database
++
++import androidx.sqlite.db.SupportSQLiteDatabase
++import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership
++import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnershipEntity
++
++/** Additive metadata lookup. Existing native payloads and their identity domains do not change. */
++internal fun createNativePortableOwnershipTable(db: SupportSQLiteDatabase) {
++	db.execSQL("""
++		CREATE TABLE IF NOT EXISTS native_portable_ownership (
++		  source_kind INTEGER NOT NULL, identity_kind TEXT NOT NULL,
++		  opaque_identity TEXT NOT NULL, raw_identity TEXT NOT NULL,
++		  logical_tracking_id TEXT NOT NULL, service_run_id TEXT NOT NULL,
++		  PRIMARY KEY(source_kind, identity_kind, raw_identity, logical_tracking_id, service_run_id)
++		)
++	""".trimIndent())
++	db.execSQL("CREATE INDEX IF NOT EXISTS idx_native_portable_owner_identity " +
++		"ON native_portable_ownership(source_kind, opaque_identity, logical_tracking_id)")
++	db.execSQL("CREATE INDEX IF NOT EXISTS idx_native_portable_owner_run " +
++		"ON native_portable_ownership(logical_tracking_id, service_run_id)")
++}
++
++/** Complete rebuild, never a capped history probe. Called inside the migration transaction. */
++internal fun rebuildNativePortableOwnership(db: SupportSQLiteDatabase) {
++	db.execSQL("DELETE FROM native_portable_ownership")
++	db.query("SELECT logical_tracking_id, service_run_id FROM source_service_run").use { cursor ->
++		while (cursor.moveToNext()) {
++			insertNativePortableOwners(db, NativePortableOwnership.run(cursor.getString(0), cursor.getString(1)))
++		}
++	}
++	listOf(
++		Triple("activity_captured_window_revision", "logical_window_id", NativePortableOwnership.ACTIVITY),
++		Triple("pressure_fact_revision", "logical_fact_id", NativePortableOwnership.PRESSURE),
++	).forEach { (table, window, source) ->
++		db.query("SELECT DISTINCT logical_tracking_id, service_run_id, $window FROM $table").use { cursor ->
++			while (cursor.moveToNext()) {
++				insertNativePortableOwners(db, NativePortableOwnership.fact(
++					source, cursor.getString(0), cursor.getString(1), cursor.getString(2),
++				))
++			}
++		}
++	}
++}
++
++private fun insertNativePortableOwners(db: SupportSQLiteDatabase, owners: List<NativePortableOwnershipEntity>) {
++	owners.forEach { owner ->
++		db.execSQL("INSERT OR IGNORE INTO native_portable_ownership " +
++			"(source_kind, identity_kind, opaque_identity, raw_identity, logical_tracking_id, service_run_id) " +
++			"VALUES (?, ?, ?, ?, ?, ?)", arrayOf(owner.sourceKind, owner.identityKind, owner.opaqueIdentity,
++			owner.rawIdentity, owner.logicalTrackingId, owner.serviceRunId))
++	}
++}
++
++/** Every source deletion path, including retention SQL, removes only unsupported lookup keys. */
++internal fun installNativePortableOwnershipDeletionTriggers(db: SupportSQLiteDatabase) {
++	listOf(
++		Triple("activity_captured_window_revision", "logical_window_id", NativePortableOwnership.ACTIVITY),
++		Triple("pressure_fact_revision", "logical_fact_id", NativePortableOwnership.PRESSURE),
++	).forEach { (table, window, source) ->
++		val kind = if (source == NativePortableOwnership.ACTIVITY) "CAPTURE_WINDOW" else "WINDOW"
++		db.execSQL("""
++			CREATE TRIGGER IF NOT EXISTS prune_native_portable_${source}_window
++			AFTER DELETE ON $table BEGIN
++			  DELETE FROM native_portable_ownership
++			  WHERE source_kind = $source AND identity_kind = '$kind'
++			    AND logical_tracking_id = OLD.logical_tracking_id AND service_run_id = OLD.service_run_id
++			    AND raw_identity = OLD.$window
++			    AND NOT EXISTS (SELECT 1 FROM $table remaining
++			      WHERE remaining.logical_tracking_id = OLD.logical_tracking_id
++			        AND remaining.service_run_id = OLD.service_run_id AND remaining.$window = OLD.$window);
++			  ${pruneUnsupportedNativeRunOwners("OLD.logical_tracking_id", "OLD.service_run_id")}
++			END
++		""".trimIndent())
++	}
++	db.execSQL("""
++		CREATE TRIGGER IF NOT EXISTS prune_native_portable_run_delete
++		AFTER DELETE ON source_service_run BEGIN
++		  ${pruneUnsupportedNativeRunOwners("OLD.logical_tracking_id", "OLD.service_run_id")}
++		END
++	""".trimIndent())
++	db.execSQL("""
++		CREATE TRIGGER IF NOT EXISTS prune_native_portable_run_update
++		AFTER UPDATE OF logical_tracking_id, service_run_id ON source_service_run BEGIN
++		  ${pruneUnsupportedNativeRunOwners("OLD.logical_tracking_id", "OLD.service_run_id")}
++		END
++	""".trimIndent())
++}
++
++private fun pruneUnsupportedNativeRunOwners(logical: String, run: String): String = """
++	DELETE FROM native_portable_ownership
++	WHERE logical_tracking_id = $logical AND service_run_id = $run
++	  AND identity_kind IN ('LOGICAL_ENTRY', 'PHYSICAL_RUN', 'DELETION_SCOPE')
++	  AND NOT EXISTS (SELECT 1 FROM source_service_run remaining
++	    WHERE remaining.logical_tracking_id = $logical AND remaining.service_run_id = $run)
++	  AND NOT EXISTS (SELECT 1 FROM activity_captured_window_revision remaining
++	    WHERE native_portable_ownership.source_kind = 2
++	      AND remaining.logical_tracking_id = $logical AND remaining.service_run_id = $run)
++	  AND NOT EXISTS (SELECT 1 FROM pressure_fact_revision remaining
++	    WHERE native_portable_ownership.source_kind = 4
++	      AND remaining.logical_tracking_id = $logical AND remaining.service_run_id = $run);
++""".trimIndent()
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ActivityCapturedFactDao.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ActivityCapturedFactDao.kt
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ActivityCapturedFactDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ActivityCapturedFactDao.kt
+@@ -6,6 +6,9 @@
+ import androidx.room.Insert
+ import androidx.room.OnConflictStrategy
+ import androidx.room.Query
++import androidx.room.Transaction
++import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership
++import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnershipEntity
+ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
+ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
+ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
+@@ -55,7 +58,17 @@
+ 	): Long?
+ 
+ 	@Insert(onConflict = OnConflictStrategy.IGNORE)
+-	suspend fun insertRevision(entity: ActivityCapturedWindowRevisionEntity): Long
++	suspend fun insertRevisionRow(entity: ActivityCapturedWindowRevisionEntity): Long
++
++	@Insert(onConflict = OnConflictStrategy.IGNORE)
++	suspend fun insertPortableOwners(owners: List<NativePortableOwnershipEntity>)
++
++	@Transaction
++	suspend fun insertRevision(entity: ActivityCapturedWindowRevisionEntity): Long {
++		val inserted = insertRevisionRow(entity)
++		if (inserted != -1L) insertPortableOwners(NativePortableOwnership.activity(entity))
++		return inserted
++	}
+ 
+ 	@Insert(onConflict = OnConflictStrategy.ABORT)
+ 	suspend fun insertFragments(entities: List<ActivityCapturedFragmentEntity>)
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRevisionDao.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRevisionDao.kt
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRevisionDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRevisionDao.kt
+@@ -6,6 +6,9 @@
+ import androidx.room.Insert
+ import androidx.room.OnConflictStrategy
+ import androidx.room.Query
++import androidx.room.Transaction
++import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership
++import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnershipEntity
+ import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
+ import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
+ import com.adsamcik.tracker.shared.base.database.data.PressureSample
+@@ -24,7 +27,17 @@
+ interface PressureFactRevisionDao {
+ 	/** Appends one immutable revision, returning its row id or `-1` for an existing identity. */
+ 	@Insert(onConflict = OnConflictStrategy.IGNORE)
+-	suspend fun insert(entity: PressureFactRevisionEntity): Long
++	suspend fun insertRow(entity: PressureFactRevisionEntity): Long
++
++	@Insert(onConflict = OnConflictStrategy.IGNORE)
++	suspend fun insertPortableOwners(owners: List<NativePortableOwnershipEntity>)
++
++	@Transaction
++	suspend fun insert(entity: PressureFactRevisionEntity): Long {
++		val inserted = insertRow(entity)
++		if (inserted != -1L) insertPortableOwners(NativePortableOwnership.pressure(entity))
++		return inserted
++	}
+ 
+ 	/** Returns a row only when every replay identity resolves to that exact stored revision. */
+ 	@Query(
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt
+@@ -5,6 +5,9 @@
+ import androidx.room.OnConflictStrategy
+ import androidx.room.Query
+ import androidx.room.Update
++import androidx.room.Transaction
++import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership
++import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnershipEntity
+ import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
+ import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity.RawLifecycleDesiredAction
+ import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+@@ -489,10 +492,26 @@
+ 	suspend fun maximumActionRevision(logicalTrackingId: String): Long
+ 
+ 	@Insert(onConflict = OnConflictStrategy.ABORT)
+-	suspend fun insertServiceRun(entity: SourceServiceRunEntity)
++	suspend fun insertServiceRunRow(entity: SourceServiceRunEntity)
++
++	@Insert(onConflict = OnConflictStrategy.IGNORE)
++	suspend fun insertPortableOwners(owners: List<NativePortableOwnershipEntity>)
++
++	@Transaction
++	suspend fun insertServiceRun(entity: SourceServiceRunEntity) {
++		insertServiceRunRow(entity)
++		insertPortableOwners(NativePortableOwnership.run(entity.logicalTrackingId, entity.serviceRunId))
++	}
+ 
+ 	@Update
+-	suspend fun updateServiceRun(entity: SourceServiceRunEntity): Int
++	suspend fun updateServiceRunRow(entity: SourceServiceRunEntity): Int
++
++	@Transaction
++	suspend fun updateServiceRun(entity: SourceServiceRunEntity): Int {
++		val updated = updateServiceRunRow(entity)
++		if (updated != 0) insertPortableOwners(NativePortableOwnership.run(entity.logicalTrackingId, entity.serviceRunId))
++		return updated
++	}
+ 
+ 	@Query("SELECT * FROM source_service_run WHERE service_run_id = :serviceRunId")
+ 	suspend fun serviceRun(serviceRunId: String): SourceServiceRunEntity?
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt
+@@ -33,6 +33,9 @@
+ 		createRadioObservationChildTables(db)
+ 		copyKnownLegacyRadioRows(db)
+ 		installLegacyRadioChildMirrors(db)
++		createNativePortableOwnershipTable(db)
++		rebuildNativePortableOwnership(db)
++		installNativePortableOwnershipDeletionTriggers(db)
+ 	}
+ }
+ 
+@@ -65,6 +68,7 @@
+ internal object RadioObservationChildRoomCallback : RoomDatabase.Callback() {
+ 	override fun onCreate(db: SupportSQLiteDatabase) {
+ 		installLegacyRadioChildMirrors(db)
++		installNativePortableOwnershipDeletionTriggers(db)
+ 	}
+ }
+ 
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt
+@@ -274,6 +274,8 @@
+ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
++import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnershipEntity
++import com.adsamcik.tracker.shared.base.database.dao.NativePortableOwnershipDao
+ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+ import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
+ import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+@@ -401,6 +403,7 @@
+ 			PressureFactRetentionRevisionAuthorityEntity::class,
+ 			ActivityCapturedRegistrationPlanEntity::class,
+ 			ActivityCapturedWindowRevisionEntity::class,
++			NativePortableOwnershipEntity::class,
+ 			ActivityCapturedFragmentEntity::class,
+ 			ActivityCapturedEvidenceEntity::class,
+ 			ActivityCapturedWindowCursorEntity::class,
+@@ -642,6 +645,8 @@
+ 
+ 	/** Dormant append-only captured Activity facts; this accessor does not activate acquisition. */
+ 	abstract fun activityCapturedFactDao(): ActivityCapturedFactDao
++
++	abstract fun nativePortableOwnershipDao(): NativePortableOwnershipDao
+ 	/** Dormant identity-free Cell captured-fact persistence. */
+ 	abstract fun cellCapturedFactDao(): CellCapturedFactDao
+ 
+@@ -1279,6 +1284,7 @@
+ 			database.activityCapturedFactDao().deleteAllFragments()
+ 			database.activityCapturedFactDao().deleteAllCursors()
+ 			database.activityCapturedFactDao().deleteAllRevisions()
++			database.nativePortableOwnershipDao().deleteAll()
+ 			database.activityCapturedFactDao().deleteAllRegistrationPlanBindings()
+ 			database.cellCapturedFactDao().deleteAllCursors()
+ 			database.radioObservationChildDao().deleteAllCellSession()
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt
+@@ -208,6 +208,10 @@
+ 		}
+ 		if (version == 28) return ActiveDatabasePreflightResult.FinalV28
+ 		if (!FINAL_V29_ADDITIONAL_COLUMNS.all(database::hasExactColumn) ||
++			!FINAL_V29_NATIVE_PORTABLE_COLUMNS.all(database::hasExactColumn) ||
++			!database.hasExactColumns("native_portable_ownership", listOf("source_kind", "identity_kind", "opaque_identity", "raw_identity", "logical_tracking_id", "service_run_id")) ||
++			!FINAL_V29_NATIVE_PORTABLE_INDEXES.all(database::hasExactIndex) ||
++			!FINAL_V29_NATIVE_PORTABLE_TRIGGERS.all(database::hasTrigger) ||
+ 			!FINAL_V29_LOCATION_ARCHIVE_COLUMNS.all { (table, columns) -> database.hasExactColumns(table, columns) } ||
+ 			!FINAL_V29_LOCATION_ARCHIVE_INDEXES.all(database::hasExactIndex) ||
+ 			!FINAL_V29_RADIO_CHILD_COLUMNS.all { (table, columns) -> database.hasExactColumns(table, columns) } ||
+@@ -1186,6 +1190,25 @@
+ 	),
+ )
+ 
++private val FINAL_V29_NATIVE_PORTABLE_COLUMNS = listOf(
++	FinalV28ColumnSentinel("native_portable_ownership", "source_kind", "INTEGER", true, primaryKeyPosition = 1),
++	FinalV28ColumnSentinel("native_portable_ownership", "identity_kind", "TEXT", true, primaryKeyPosition = 2),
++	FinalV28ColumnSentinel("native_portable_ownership", "opaque_identity", "TEXT", true),
++	FinalV28ColumnSentinel("native_portable_ownership", "raw_identity", "TEXT", true, primaryKeyPosition = 3),
++	FinalV28ColumnSentinel("native_portable_ownership", "logical_tracking_id", "TEXT", true, primaryKeyPosition = 4),
++	FinalV28ColumnSentinel("native_portable_ownership", "service_run_id", "TEXT", true, primaryKeyPosition = 5),
++)
++private val FINAL_V29_NATIVE_PORTABLE_INDEXES = listOf(
++	FinalV28IndexSentinel("native_portable_ownership", "idx_native_portable_owner_identity", listOf("source_kind", "opaque_identity", "logical_tracking_id"), false),
++	FinalV28IndexSentinel("native_portable_ownership", "idx_native_portable_owner_run", listOf("logical_tracking_id", "service_run_id"), false),
++)
++private val FINAL_V29_NATIVE_PORTABLE_TRIGGERS = listOf(
++	FinalV28TriggerSentinel("prune_native_portable_2_window", "activity_captured_window_revision"),
++	FinalV28TriggerSentinel("prune_native_portable_4_window", "pressure_fact_revision"),
++	FinalV28TriggerSentinel("prune_native_portable_run_delete", "source_service_run"),
++	FinalV28TriggerSentinel("prune_native_portable_run_update", "source_service_run"),
++)
++
+ private val FINAL_V29_ADDITIONAL_COLUMNS = listOf(
+ 	FinalV28ColumnSentinel("wifi_captured_fact_revision", "payload_version", "INTEGER", false, defaultValue = "NULL"),
+ 	FinalV28ColumnSentinel("ambient_wifi_fact_revision", "purpose_demand_id", "TEXT", false, defaultValue = "NULL"),
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt
+@@ -731,7 +731,7 @@
+ 				}
+ 			}
+ 		}
+-		val local = when (val page = loadLocalOwnershipForImportedEligibility()) {
++		val local = when (val page = loadLocalOwnershipForImportedEligibility(imported)) {
+ 			is ActivityComposedPage.Failed -> return unavailable(
+ 				if (page.cause == ActivityHistoryCause.READ_BUDGET_EXCEEDED) {
+ 					SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
+@@ -1010,56 +1010,35 @@
+ 		return loadRecentActivityCompositions(limit) { it.entry.capturesOnlyActivity }
+ 	}
+ 
+-	private suspend fun loadLocalOwnershipForImportedEligibility(): ActivityComposedPage {
+-		val entries = mutableListOf<ComposedActivityEntry>()
+-		var scanned = 0
+-		var beforeStartTimeMs: Long? = null
+-		var beforeSegmentId: Long? = null
+-		while (scanned < MAX_ACTIVITY_CANDIDATE_SCAN) {
+-			currentCoroutineContext().ensureActive()
+-			val pageLimit = minOf(
+-				ACTIVITY_CANDIDATE_PAGE_SIZE,
+-				MAX_ACTIVITY_CANDIDATE_SCAN - scanned,
+-			)
+-			val page = database.activityCapturedFactDao().logicalHistoryCandidatePage(
+-				limit = pageLimit,
+-				beforeStartTimeMs = beforeStartTimeMs,
+-				beforeSegmentId = beforeSegmentId,
+-				activitySourceKind = ACTIVITY_SOURCE,
+-			)
+-			if (page.isEmpty()) return ActivityComposedPage.Available(entries)
+-			if (page.size > pageLimit) {
+-				return ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+-			}
+-			val expansion = expandActivityMembership(page.map { it.segment })
+-			val snapshot = loadActivitySnapshot(expansion)
+-			if (snapshot.overflow) {
+-				return ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+-			}
+-			val candidateIds = page.mapNotNull { it.segment.logicalTrackingId }.toSet()
+-			val composed = ActivityHistoryComposer.composeRecent(snapshot, laneExecutionAuthority)
+-				.filter { it.logicalTrackingId in candidateIds }
+-				.sortedWith(activityCompositionOrder)
+-			if (candidateIds.size != page.size || composed.size != candidateIds.size) {
+-				return ActivityComposedPage.Failed(ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+-			}
+-			entries += composed
+-			scanned += page.size
+-			val last = page.last()
+-			beforeStartTimeMs = last.logicalRecencyStartMs
+-			beforeSegmentId = last.logicalRecencySegmentId
+-			if (page.size < pageLimit) return ActivityComposedPage.Available(entries)
+-		}
+-		val remaining = database.activityCapturedFactDao().logicalHistoryCandidatePage(
+-			limit = 1,
+-			beforeStartTimeMs = beforeStartTimeMs,
+-			beforeSegmentId = beforeSegmentId,
+-			activitySourceKind = ACTIVITY_SOURCE,
+-		)
+-		return if (remaining.isEmpty()) {
+-			ActivityComposedPage.Available(entries)
+-		} else {
++	private suspend fun loadLocalOwnershipForImportedEligibility(
++		imported: List<ImportedActivityProductEvaluation>,
++	): ActivityComposedPage {
++		val identities = imported.asSequence().flatMap { evaluation ->
++			when (evaluation) {
++				is ImportedActivityProductEvaluation.Readable -> sequence {
++					yield(evaluation.entry.identity.value)
++					for (run in evaluation.entry.runs) {
++						yield(run.identity.value)
++						yield(run.deletionScopeDigest.value)
++						run.windows.forEach { yield(it.identity.value) }
++					}
++				}
++				is ImportedActivityProductEvaluation.Retained -> evaluation.protectedIdentities.asSequence().map { it.value }
++				is ImportedActivityProductEvaluation.Unverifiable -> emptySequence()
++			}
++		}
++		return try {
++			val seeds = database.nativePortableOwnerSeeds(ACTIVITY_SOURCE, identities, MAX_ACTIVITY_HISTORY_RESULTS)
++			when (val selected = selectBySegmentIdsInTransaction(seeds.map(SessionSegment::id))) {
++				is ActivityComposedPage.Failed -> selected
++				is ActivityComposedPage.Available -> if (selected.entries.map { it.logicalTrackingId }.toSet() ==
++					seeds.map { it.logicalTrackingId }.toSet()) selected
++				else ActivityComposedPage.Failed(ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
++			}
++		} catch (_: NativePortableOwnerBudgetExceeded) {
+ 			ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
++		} catch (_: NativePortableOwnerMembershipInvalid) {
++			ActivityComposedPage.Failed(ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+ 		}
+ 	}
+ 
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryPageReader.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryPageReader.kt
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryPageReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryPageReader.kt
+@@ -82,10 +82,6 @@
+ 			return unavailable(failure.toPageUnavailableReason())
+ 		}
+ 		val accepted = mutableListOf<PressureImportedHistoryEligibleEntry>()
+-		var localAuthorities: Map<
+-			PortablePressureOpaqueIdentity,
+-			PressureLocalDuplicateAuthority,
+-		>? = null
+ 		var beforeRecencyStartTimeMs: Long? = null
+ 		var beforeRecencyTieIdentity: String? = null
+ 		var scannedCandidates = 0
+@@ -129,25 +125,17 @@
+ 				)
+ 			}
+ 			val localDiscovery = try {
+-				localAuthorities?.let { PressureLocalDuplicateAuthorityRead.Ready(it) }
+-					?: when (
+-						val local = run {
+-							integrationObserver.record(
+-								TrackingHistoryIntegrationCheckpoint
+-									.PRESSURE_LOCAL_DUPLICATE_SELECTOR,
+-							)
+-							liveSelector.discoverPressureOnlyDuplicateAuthorityInTransaction()
+-						}
+-					) {
+-						is PressureOnlyDiscoveryResult.Unavailable ->
+-							PressureLocalDuplicateAuthorityRead.Unavailable(local.reason)
+-						is PressureOnlyDiscoveryResult.Content ->
+-							authenticateLocalDuplicateAuthorities(local.entries)?.let {
+-								PressureLocalDuplicateAuthorityRead.Ready(it)
+-							} ?: PressureLocalDuplicateAuthorityRead.IntegrityFailure
+-					}
++				integrationObserver.record(TrackingHistoryIntegrationCheckpoint.PRESSURE_LOCAL_DUPLICATE_SELECTOR)
++				val entries = loadExactLocalDuplicateEntries(candidateProbe.take(pageLimit).map { it.identity })
++				authenticateLocalDuplicateAuthorities(entries)?.let {
++					PressureLocalDuplicateAuthorityRead.Ready(it)
++				} ?: PressureLocalDuplicateAuthorityRead.IntegrityFailure
+ 			} catch (cancelled: CancellationException) {
+ 				throw cancelled
++			} catch (_: NativePortableOwnerBudgetExceeded) {
++				PressureLocalDuplicateAuthorityRead.Unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
++			} catch (overflow: PressureHistoryPageDependencyOverflow) {
++				PressureLocalDuplicateAuthorityRead.Unavailable(overflow.reason)
+ 			} catch (_: RuntimeException) {
+ 				PressureLocalDuplicateAuthorityRead.IntegrityFailure
+ 			}
+@@ -166,7 +154,6 @@
+ 				)
+ 				is PressureLocalDuplicateAuthorityRead.Ready -> localDiscovery.authorities
+ 			}
+-			localAuthorities = duplicateAuthorities
+ 			val candidates = candidateProbe.take(pageLimit)
+ 			for (candidate in candidates) {
+ 				currentCoroutineContext().ensureActive()
+@@ -197,6 +184,21 @@
+ 		)
+ 	}
+ 
++	private suspend fun loadExactLocalDuplicateEntries(identities: List<String>): List<PressureLogicalHistoryEntry> {
++		val seeds = database.nativePortableOwnerSeeds(
++			com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.PRESSURE,
++			identities.asSequence(),
++			PRESSURE_HISTORY_SEGMENT_BATCH_CAP,
++		)
++		val entries = liveSelector.selectLogicalBySegmentIdsInTransaction(seeds.map { it.id })
++		if (entries.any { entry -> entry.physicalMembers.any { PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW in it.reasons } }) {
++			throw NativePortableOwnerBudgetExceeded()
++		}
++		val logicalIds = entries.mapNotNull { (it.identity as? PressureHistoryEntryIdentity.Logical)?.logicalTrackingId }.toSet()
++		if (logicalIds != seeds.map { it.logicalTrackingId }.toSet()) throw NativePortableOwnerMembershipInvalid()
++		return entries
++	}
++
+ 	private fun authenticateLocalDuplicateAuthorities(
+ 		entries: List<PressureLogicalHistoryEntry>,
+ 	): Map<PortablePressureOpaqueIdentity, PressureLocalDuplicateAuthority>? {
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelector.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelector.kt
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelector.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelector.kt
+@@ -1185,7 +1185,7 @@
+ 	}
+ }
+ 
+-private const val PRESSURE_HISTORY_SEGMENT_BATCH_CAP = 64
++internal const val PRESSURE_HISTORY_SEGMENT_BATCH_CAP = 64
+ private const val PRESSURE_DISCOVERY_CANDIDATE_PAGE_SIZE = 32
+ private const val PRESSURE_DISCOVERY_CANDIDATE_BUDGET = 256
+ private const val PRESSURE_DISCOVERY_MEMBER_BUDGET = 256
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnerLookup.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnerLookup.kt
+--- /dev/null
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnerLookup.kt
+@@ -0,0 +1,29 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.data.SessionSegment
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++
++/** Resolves only exact requested keys. The caller then authenticates complete source membership. */
++internal suspend fun AppDatabase.nativePortableOwnerSeeds(
++	sourceKind: Int,
++	identities: Sequence<String>,
++	maximumOwners: Int,
++): List<SessionSegment> {
++	val owners = linkedSetOf<String>()
++	for (batch in identities.chunked(256)) {
++		currentCoroutineContext().ensureActive()
++		owners += nativePortableOwnershipDao().ownerLogicalIds(sourceKind, batch.distinct(), maximumOwners + 1)
++		if (owners.size > maximumOwners) throw NativePortableOwnerBudgetExceeded()
++	}
++	if (owners.isEmpty()) return emptyList()
++	val seeds = nativePortableOwnershipDao().ownerSeeds(owners.toList(), maximumOwners + 1)
++	if (seeds.size != owners.size || seeds.map { it.logicalTrackingId }.toSet() != owners) {
++		throw NativePortableOwnerMembershipInvalid()
++	}
++	return seeds
++}
++
++internal class NativePortableOwnerBudgetExceeded : RuntimeException(null, null, false, false)
++internal class NativePortableOwnerMembershipInvalid : RuntimeException(null, null, false, false)
+diff --git a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRevisionDaoTest.kt b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRevisionDaoTest.kt
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRevisionDaoTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRevisionDaoTest.kt
+@@ -56,6 +56,54 @@
+ 
+ 		dao.count() shouldBe 0L
+ 		dao.latest(first.writerProjectionId, first.writerProjectionVersion, first.logicalFactId) shouldBe null
++	}
++
++	@Test
++	fun nativePortableLookupFollowsSuccessfulWritesCorrectionsAndLastRevisionPruning() = runTest {
++		val first = revision()
++		val second = revision(semanticRevision = 2L, admissionOrdinal = 11L)
++		val keys = com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.pressure(first)
++		dao.insert(first) shouldBe 1L
++		dao.insert(second) shouldBe 2L
++		for (key in keys) {
++			database.nativePortableOwnershipDao().ownerLogicalIds(4, listOf(key.opaqueIdentity), 2) shouldBe listOf(first.logicalTrackingId)
++		}
++		database.openHelper.writableDatabase.execSQL("DELETE FROM pressure_fact_revision WHERE semantic_revision = 1")
++		database.nativePortableOwnershipDao().ownerLogicalIds(4, listOf(keys.last().opaqueIdentity), 2) shouldBe listOf(first.logicalTrackingId)
++		dao.deleteAll()
++		for (key in keys) {
++			database.nativePortableOwnershipDao().ownerLogicalIds(4, listOf(key.opaqueIdentity), 2) shouldBe emptyList()
++		}
++		database.openHelper.writableDatabase.query("SELECT COUNT(*) FROM native_portable_ownership").use {
++			it.moveToFirst() shouldBe true
++			it.getLong(0) shouldBe 0L
++		}
++	}
++
++	@Test
++	fun rejectedRevisionNeverCreatesPortableOwnershipForItsDifferentRawOwner() = runTest {
++		val stored = revision()
++		dao.insert(stored) shouldBe 1L
++		val collision = revision(semanticRevision = 2L, admissionOrdinal = 11L).copy(
++			mutationId = stored.mutationId, logicalTrackingId = "rejected-logical", serviceRunId = "rejected-run",
++		)
++		dao.insert(collision) shouldBe -1L
++		for (key in com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.pressure(collision)) {
++			database.openHelper.writableDatabase.query(
++				"SELECT COUNT(*) FROM native_portable_ownership WHERE logical_tracking_id = ? AND opaque_identity = ?",
++				arrayOf(collision.logicalTrackingId, key.opaqueIdentity),
++			).use { it.moveToFirst() shouldBe true; it.getLong(0) shouldBe 0L }
++		}
++	}
++
++	@Test
++	fun actualCollectedDataClearRemovesNativePortableOwnership() = runTest {
++		dao.insert(revision()) shouldBe 1L
++		AppDatabase.deleteAllCollectedDataForTesting(database, "clear-native-portable-owner", 2L, null, 2_000L)
++		database.openHelper.writableDatabase.query("SELECT COUNT(*) FROM native_portable_ownership").use {
++			it.moveToFirst() shouldBe true
++			it.getLong(0) shouldBe 0L
++		}
+ 	}
+ 
+ 	@Test
+diff --git a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDaoTest.kt b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDaoTest.kt
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDaoTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDaoTest.kt
+@@ -477,6 +477,51 @@
+ 	}
+ 
+ 	@Test
++	fun `native lookup requires that exact source capture intent and prunes erased run ownership`() = runTest {
++		val run = serviceRun("portable-run")
++		dao.insertServiceRun(run)
++		dao.insertManifest(manifest(1L, run.serviceRunId))
++		val activityKey = com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.run(LOGICAL_ID, run.serviceRunId)
++			.single { it.sourceKind == 2 && it.identityKind == "PHYSICAL_RUN" }
++		dao.insertManifestSources(listOf(SessionManifestSourceEntity(LOGICAL_ID, 1L, 1, "SESSION_CAPTURE", 1L, true, 1)))
++		database.nativePortableOwnershipDao().ownerLogicalIds(2, listOf(activityKey.opaqueIdentity), 2) shouldBe emptyList()
++		dao.insertManifestSources(listOf(SessionManifestSourceEntity(LOGICAL_ID, 1L, 2, "SESSION_CAPTURE", 1L, true, 1)))
++		database.nativePortableOwnershipDao().ownerLogicalIds(2, listOf(activityKey.opaqueIdentity), 2) shouldBe listOf(LOGICAL_ID)
++		database.openHelper.writableDatabase.execSQL("DELETE FROM source_service_run WHERE service_run_id = ?", arrayOf(run.serviceRunId))
++		database.openHelper.writableDatabase.query("SELECT COUNT(*) FROM native_portable_ownership").use {
++			it.moveToFirst() shouldBe true
++			it.getLong(0) shouldBe 0L
++		}
++	}
++
++	@Test
++	fun `native lookup rebuild includes every run beyond former global history budgets`() = runTest {
++		repeat(300) { dao.insertServiceRun(serviceRun("portable-rebuild-$it").copy(logicalTrackingId = "logical-rebuild-$it")) }
++		database.nativePortableOwnershipDao().deleteAll()
++		val db = database.openHelper.writableDatabase
++		db.beginTransaction()
++		try {
++			com.adsamcik.tracker.shared.base.database.rebuildNativePortableOwnership(db)
++			db.setTransactionSuccessful()
++		} finally {
++			db.endTransaction()
++		}
++		db.query("SELECT COUNT(DISTINCT logical_tracking_id) FROM native_portable_ownership").use {
++			it.moveToFirst() shouldBe true
++			it.getLong(0) shouldBe 300L
++		}
++		val expected = com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.run("logical-rebuild-0", "portable-rebuild-0")
++		for (owner in expected) {
++			db.query("SELECT raw_identity FROM native_portable_ownership WHERE source_kind = ? AND identity_kind = ? AND opaque_identity = ?",
++				arrayOf(owner.sourceKind, owner.identityKind, owner.opaqueIdentity)).use {
++				it.moveToFirst() shouldBe true
++				it.getString(0) shouldBe owner.rawIdentity
++				it.moveToNext() shouldBe false
++			}
++		}
++	}
++
++	@Test
+ 	fun `writer transition boundary rejects every nonterminal durable lifecycle shape`() = runTest {
+ 		dao.hasLifecycleBoundaryBlocker() shouldBe false
+ 		dao.hasIncompleteServiceRun() shouldBe false
+diff --git a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/NativePortableOwnershipSchemaTest.kt b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/NativePortableOwnershipSchemaTest.kt
+--- /dev/null
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/NativePortableOwnershipSchemaTest.kt
+@@ -0,0 +1,45 @@
++package com.adsamcik.tracker.shared.base.database
++
++import android.app.Application
++import androidx.room.util.TableInfo
++import androidx.sqlite.db.SupportSQLiteDatabase
++import androidx.sqlite.db.SupportSQLiteOpenHelper
++import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
++import androidx.test.core.app.ApplicationProvider
++import io.kotest.matchers.shouldBe
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class NativePortableOwnershipSchemaTest {
++	@Test
++	fun additiveLookupDDLMatchesFreshRoomAndKeepsExistingRowsWhenRepeated() {
++		val context = ApplicationProvider.getApplicationContext<Application>()
++		val room = AppDatabase.testDatabase(context)
++		val helper = FrameworkSQLiteOpenHelperFactory().create(
++			SupportSQLiteOpenHelper.Configuration.builder(context).name(null)
++				.callback(object : SupportSQLiteOpenHelper.Callback(1) {
++					override fun onCreate(db: SupportSQLiteDatabase) = createNativePortableOwnershipTable(db)
++					override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = error("No fixture upgrade")
++				}).build(),
++		)
++		try {
++			val db = helper.writableDatabase
++			TableInfo.read(db, "native_portable_ownership") shouldBe
++				TableInfo.read(room.openHelper.writableDatabase, "native_portable_ownership")
++			db.execSQL("INSERT INTO native_portable_ownership VALUES (2, 'LOGICAL_ENTRY', ?, 'logical', 'logical', 'run')", arrayOf("a".repeat(64)))
++			createNativePortableOwnershipTable(db)
++			db.query("SELECT raw_identity FROM native_portable_ownership").use {
++				it.moveToFirst() shouldBe true
++				it.getString(0) shouldBe "logical"
++				it.moveToNext() shouldBe false
++			}
++		} finally {
++			helper.close()
++			room.close()
++		}
++	}
++}
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt
+@@ -926,6 +926,62 @@
+ 	}
+ 
+ 	@Test
++	fun `scoped imported Activity ignores unrelated incomplete native history beyond former census cap`() = runTest {
++		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
++		persistPortableFixture(snapshot)
++		val portable = reidentifyPortable(readLocalPortableEntry(snapshot), "independent-scoped")
++		importPortable(portable, testScheduler)
++		database.insertUnrelatedNativePortableOwners(140, 2)
++
++		val page = database.withTransaction {
++			activityRepository(testScheduler).recentImportedEligibleForSharedHistoryInTransaction(10)
++		} as ImportedHistoryEligiblePage.Available
++
++		page.entries.single().entry.importedSelection?.identity?.value shouldBe portable.identity.value
++	}
++
++	@Test
++	fun `native Activity lookup preserves correction identity and removes a fully pruned window`() = runTest {
++		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
++		persistPortableFixture(snapshot)
++		val original = snapshot.revisions.single()
++		val key = PortableActivityOpaqueIdentity.derive(PortableActivityIdentityKind.CAPTURE_WINDOW, original.logicalWindowId).value
++		val dao = database.activityCapturedFactDao()
++		dao.insertRevision(original.copy(semanticRevision = 2L, supersedesSemanticRevision = 1L,
++			mutationId = "lookup-correction", effectChecksum = "c".repeat(64)))
++		dao.deleteAllEvidence()
++		dao.deleteAllFragments()
++		dao.deleteAllCursors()
++		database.openHelper.writableDatabase.execSQL("DELETE FROM activity_captured_window_revision WHERE semantic_revision = 1")
++		database.nativePortableOwnershipDao().ownerLogicalIds(2, listOf(key), 2) shouldBe listOf(LOGICAL_ID)
++		dao.deleteAllRevisions()
++		database.nativePortableOwnershipDao().ownerLogicalIds(2, listOf(key), 2) shouldBe emptyList()
++		val run = PortableActivityOpaqueIdentity.derive(PortableActivityIdentityKind.PHYSICAL_RUN, original.serviceRunId).value
++		database.nativePortableOwnershipDao().ownerLogicalIds(2, listOf(run), 2) shouldBe listOf(LOGICAL_ID)
++	}
++
++	@Test
++	fun `scoped Activity duplicate and child collision rules survive unrelated native cohorts`() = runTest {
++		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
++		persistPortableFixture(snapshot)
++		val portable = readLocalPortableEntry(snapshot)
++		importPortable(portable, testScheduler)
++		database.insertUnrelatedNativePortableOwners(140, 2)
++		database.withTransaction {
++			activityRepository(testScheduler).recentImportedEligibleForSharedHistoryInTransaction(10)
++		} shouldBe ImportedHistoryEligiblePage.Available(emptyList())
++
++		val foreignIdentity = PortableActivityOpaqueIdentity.derive(PortableActivityIdentityKind.LOGICAL_ENTRY, "foreign-scoped")
++		val foreign = portable.copy(identity = foreignIdentity, contentChecksum =
++			ActivityCapturedPortableIntegrity.entryChecksum(foreignIdentity, portable.sessionMode,
++				portable.startTimeMs, portable.endTimeMs, portable.runs))
++		importPortable(foreign, testScheduler, jobId = "foreign-scoped")
++		database.withTransaction {
++			activityRepository(testScheduler).recentImportedEligibleForSharedHistoryInTransaction(10)
++		} shouldBe ImportedHistoryEligiblePage.Unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
++	}
++
++	@Test
+ 	fun `shared imported bridge suppresses exact duplicate and rejects corrupt origin reuse`() = runTest {
+ 		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+ 		persistPortableFixture(snapshot)
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt
+@@ -1946,6 +1946,32 @@
+ 
+ 		page.entries.single().identity.value shouldBe oldImported.identity.value
+ 		page.entries.single().contentChecksum shouldBe oldImported.contentChecksum
++	}
++
++	@Test
++	@OptIn(ExperimentalCoroutinesApi::class)
++	fun scopedImportedPressureIgnoresUnrelatedNativeHistoryBeyondFormerCensusCap() = runTest {
++		val imported = importedRetentionOnlyEntry("independent-scoped", "independent-run", 100L)
++		RoomImportPortablePressure(database, UnconfinedTestDispatcher(testScheduler)) {}
++			.importEntry(importRequest(imported, "independent-scoped")) shouldBe ImportPortablePressureResult.Applied(1L, 1, 0)
++		database.insertUnrelatedNativePortableOwners(270, 4)
++		val page = database.withTransaction {
++			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(10)
++		} as ImportedHistoryEligiblePage.Available
++		page.entries.single().identity.value shouldBe imported.identity.value
++	}
++
++	@Test
++	@OptIn(ExperimentalCoroutinesApi::class)
++	fun exactPressureDuplicateStillSuppressesWithUnrelatedIncompleteNativeHistory() = runTest {
++		insertFixture(factSemanticRevision = 1L)
++		val local = (PortablePressureRoomReader(database, selector).read(exportRequest()) as PortablePressureSnapshot.Ready).entries.single()
++		RoomImportPortablePressure(database, UnconfinedTestDispatcher(testScheduler)) {}
++			.importEntry(importRequest(local, "exact-scoped")) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
++		database.insertUnrelatedNativePortableOwners(270, 4)
++		database.withTransaction {
++			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(10)
++		} shouldBe ImportedHistoryEligiblePage.Available(emptyList())
+ 	}
+ 
+ 	@Test
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnershipHistoryFixtures.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnershipHistoryFixtures.kt
+--- /dev/null
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnershipHistoryFixtures.kt
+@@ -0,0 +1,46 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
++import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
++import com.adsamcik.tracker.shared.base.database.data.SessionSegment
++import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
++import com.adsamcik.tracker.shared.model.SegmentSource
++
++/** Real candidate rows with intentionally incomplete authority, unrelated to requested imports. */
++internal suspend fun AppDatabase.insertUnrelatedNativePortableOwners(count: Int, sourceKind: Int) {
++	repeat(count) { index ->
++		val logical = "unrelated-$sourceKind-logical-$index"
++		val run = "unrelated-$sourceKind-run-$index"
++		val segment = sessionSegmentDao().insert(SessionSegment(
++			startTimeMs = 50_000L + index, endTimeMs = 51_000L + index, distanceM = 0f,
++			steps = null, primaryActivity = null, activityConfidence = null, sampleCount = 0,
++			source = SegmentSource.USER_CREATED, inferenceVersion = null, createdAt = 50_000L,
++			logicalTrackingId = logical, serviceRunId = run,
++		))
++		sourceSessionDao().insertServiceRun(SourceServiceRunEntity(
++			serviceRunId = run, logicalTrackingId = logical, state = "PREPARED",
++			desiredPlanRevision = 1L, rolloutRevision = 1L, foregroundCapabilityFlags = 0L,
++			startedAtMs = 50_000L, startedElapsedNanos = 1L, completedAtMs = null,
++			completionReason = null, sessionSegmentId = segment,
++		))
++		sourceSessionDao().insertManifest(SessionManifestVersionEntity(
++			logicalTrackingId = logical, manifestRevision = 1L, serviceRunId = run, sessionMode = "MANUAL",
++			sourcePolicyRevision = 1L, acquisitionPlanRevision = 1L, rolloutRevision = 1L,
++			startOrigin = "MANUAL", effectiveBootId = "unrelated-boot", effectiveElapsedRealtimeNanos = 1L,
++			effectiveWallTimeMs = 50_000L, zoneId = "UTC", automationEpoch = null,
++			changeReason = "test", manifestChecksum = "deliberately-unverifiable",
++		))
++		sourceSessionDao().insertManifestSources(listOf(SessionManifestSourceEntity(
++			logicalTrackingId = logical, manifestRevision = 1L, sourceKind = sourceKind,
++			purpose = "SESSION_CAPTURE", consentEpoch = 1L, persistenceEligible = true, qosCode = 1,
++			outputDestination = if (sourceKind == 4) SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE else null,
++			writerOwner = if (sourceKind == 4) SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS else null,
++			writerOwnerGeneration = if (sourceKind == 4) 2L else null,
++			writerProjectionId = if (sourceKind == 4) SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID else null,
++			writerProjectionVersion = if (sourceKind == 4) SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION else null,
++			writerBindingGeneration = if (sourceKind == 4) SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION else null,
++		)))
++	}
++}
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnerLookupRoomTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnerLookupRoomTest.kt
+--- /dev/null
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnerLookupRoomTest.kt
+@@ -0,0 +1,65 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import android.app.Application
++import androidx.room.withTransaction
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.PortableActivityIdentityKind
++import com.adsamcik.tracker.shared.base.database.PortableActivityOpaqueIdentity
++import com.adsamcik.tracker.shared.model.pressure.portable.PortablePressureIdentityKind
++import com.adsamcik.tracker.shared.model.pressure.portable.PortablePressureOpaqueIdentity
++import io.kotest.assertions.throwables.shouldThrow
++import io.kotest.matchers.shouldBe
++import kotlinx.coroutines.test.runTest
++import org.junit.After
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class NativePortableOwnerLookupRoomTest {
++	private lateinit var database: AppDatabase
++	@Before fun setUp() { database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>()) }
++	@After fun tearDown() = database.close()
++
++	@Test
++	fun exactOlderOwnerResolvesWithoutInspectingUnrelatedCandidateCohorts() = runTest {
++		database.insertUnrelatedNativePortableOwners(140, 2)
++		val seeds = database.withTransaction { database.nativePortableOwnerSeeds(2, sequenceOf(activityKey(0)), 2) }
++		seeds.single().logicalTrackingId shouldBe "unrelated-2-logical-0"
++	}
++
++	@Test
++	fun noMatchAndAnotherSourceRemainIndependent() = runTest {
++		database.insertUnrelatedNativePortableOwners(140, 2)
++		database.withTransaction {
++			database.nativePortableOwnerSeeds(2, sequenceOf("a".repeat(64)), 2) shouldBe emptyList()
++			val pressureKey = PortablePressureOpaqueIdentity.derive(PortablePressureIdentityKind.LOGICAL_ENTRY, "unrelated-2-logical-0").value
++			database.nativePortableOwnerSeeds(4, sequenceOf(pressureKey), 2) shouldBe emptyList()
++		}
++	}
++
++	@Test
++	fun actualRelevantOwnerOverflowNeverBecomesAnEmptyLookup() = runTest {
++		database.insertUnrelatedNativePortableOwners(3, 2)
++		shouldThrow<NativePortableOwnerBudgetExceeded> {
++			database.withTransaction { database.nativePortableOwnerSeeds(2, (0..2).asSequence().map(::activityKey), 2) }
++		}
++	}
++
++	@Test
++	fun orphanedExactOwnerNeverBecomesAClaimThatNoCounterpartExists() = runTest {
++		database.insertUnrelatedNativePortableOwners(1, 2)
++		database.openHelper.writableDatabase.execSQL("DELETE FROM session_segment")
++		shouldThrow<NativePortableOwnerMembershipInvalid> {
++			database.withTransaction { database.nativePortableOwnerSeeds(2, sequenceOf(activityKey(0)), 2) }
++		}
++	}
++
++	private fun activityKey(index: Int) = PortableActivityOpaqueIdentity.derive(
++		PortableActivityIdentityKind.LOGICAL_ENTRY, "unrelated-2-logical-$index",
++	).value
++}

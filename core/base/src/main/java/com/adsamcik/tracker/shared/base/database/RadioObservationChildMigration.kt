@@ -33,6 +33,9 @@ val MIGRATION_28_29: Migration = object : Migration(28, 29) {
 		createRadioObservationChildTables(db)
 		copyKnownLegacyRadioRows(db)
 		installLegacyRadioChildMirrors(db)
+		createNativePortableOwnershipTable(db)
+		rebuildNativePortableOwnership(db)
+		installNativePortableOwnershipDeletionTriggers(db)
 	}
 }
 
@@ -65,6 +68,7 @@ internal fun createLocationFileArchiveTables(db: SupportSQLiteDatabase) {
 internal object RadioObservationChildRoomCallback : RoomDatabase.Callback() {
 	override fun onCreate(db: SupportSQLiteDatabase) {
 		installLegacyRadioChildMirrors(db)
+		installNativePortableOwnershipDeletionTriggers(db)
 	}
 }
 

@@ -6,6 +6,9 @@ import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
+import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership
+import com.adsamcik.tracker.shared.base.database.data.NativePortableOwnershipEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
@@ -24,7 +27,17 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 interface PressureFactRevisionDao {
 	/** Appends one immutable revision, returning its row id or `-1` for an existing identity. */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
-	suspend fun insert(entity: PressureFactRevisionEntity): Long
+	suspend fun insertRow(entity: PressureFactRevisionEntity): Long
+
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	suspend fun insertPortableOwners(owners: List<NativePortableOwnershipEntity>)
+
+	@Transaction
+	suspend fun insert(entity: PressureFactRevisionEntity): Long {
+		val inserted = insertRow(entity)
+		if (inserted != -1L) insertPortableOwners(NativePortableOwnership.pressure(entity))
+		return inserted
+	}
 
 	/** Returns a row only when every replay identity resolves to that exact stored revision. */
 	@Query(

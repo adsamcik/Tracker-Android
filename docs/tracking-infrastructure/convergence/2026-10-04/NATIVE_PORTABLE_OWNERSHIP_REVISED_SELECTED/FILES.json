@@ -1,0 +1,243 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "baseHead": "07d5c664918affa8cc843fd243b38032bb9c782c",
+  "parentHeadAtFreeze": "640a27da4ff8edeb16311d2461ef35dd4f6d076c",
+  "productionCount": 13,
+  "testPathCount": 7,
+  "paths": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/NativePortableOwnershipEntity.kt",
+      "role": "production",
+      "workingSha256": "59145cc688f744de02a79a4e846bc18fcd68d18a53ece63be62e1bfb586fd931",
+      "baseSha256": null,
+      "selectedLfSha256": "59145cc688f744de02a79a4e846bc18fcd68d18a53ece63be62e1bfb586fd931",
+      "beforeOrigin": "new owned source",
+      "mixed": false,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/NativePortableOwnershipDao.kt",
+      "role": "production",
+      "workingSha256": "a8810a2e1e41fa6d295a43cb8522a7b07a11403775b3825d69bcc136e9ddc8ba",
+      "baseSha256": null,
+      "selectedLfSha256": "a8810a2e1e41fa6d295a43cb8522a7b07a11403775b3825d69bcc136e9ddc8ba",
+      "beforeOrigin": "new owned source",
+      "mixed": false,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/NativePortableOwnershipSchema.kt",
+      "role": "production",
+      "workingSha256": "0c0d256848074e6ef8f46dc3641de46ee1d15ff301caf1d6152d420e8c5fc7d9",
+      "baseSha256": null,
+      "selectedLfSha256": "0c0d256848074e6ef8f46dc3641de46ee1d15ff301caf1d6152d420e8c5fc7d9",
+      "beforeOrigin": "new owned source",
+      "mixed": false,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ActivityCapturedFactDao.kt",
+      "role": "production",
+      "workingSha256": "8240a748d66be83ef006eac8811181bebc7b59244b042b7a9c1a17518968953e",
+      "baseSha256": "9967ace88943e5cb9c489ede48cc0cc1d7029a7d26a56ede37670d1e15faf9f9",
+      "selectedLfSha256": "8240a748d66be83ef006eac8811181bebc7b59244b042b7a9c1a17518968953e",
+      "beforeOrigin": "saved pre-edit bytes",
+      "mixed": false,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRevisionDao.kt",
+      "role": "production",
+      "workingSha256": "bffe5e68954c4b35b89c38c582ebb637cc322299b30365867804b55131baefa2",
+      "baseSha256": "90d5d542897143a1bcfae5e1ae470cc755e7b33867ebca5664754ca50c5e800d",
+      "selectedLfSha256": "bffe5e68954c4b35b89c38c582ebb637cc322299b30365867804b55131baefa2",
+      "beforeOrigin": "saved pre-edit bytes",
+      "mixed": false,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt",
+      "role": "production",
+      "workingSha256": "e557fda96b0ce3060f282d04769e5b065456b550726e56f23c38d7ac556f1208",
+      "baseSha256": "c4497a24b427c67c02c760df82e6ba8c4502aab575e4f1a7c6ba1a158e417bd9",
+      "selectedLfSha256": "f4ac65f1ce168fb5deb70ba7e3aef533351fd564798fdef2cda90e238cff1a5f",
+      "beforeOrigin": "saved pre-edit bytes",
+      "mixed": true,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt",
+      "role": "production",
+      "workingSha256": "9dc9708b2fa78ee66f6c6d278fe6c14e9affc808908c1bc5e06810c91b5c6250",
+      "baseSha256": "10fb97bf2569f194fa7b497e4acd14241ce09e526f629f323d661bf58451df1f",
+      "selectedLfSha256": "9dc9708b2fa78ee66f6c6d278fe6c14e9affc808908c1bc5e06810c91b5c6250",
+      "beforeOrigin": "saved pre-edit bytes",
+      "mixed": false,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "role": "production",
+      "workingSha256": "c6f44d42e063aaddf1b55aff3c850c4c14ab7cb26ae39bef6d25af4ee59d0d49",
+      "baseSha256": "02b735c3f1329937fda2ea88c30439f311236ffe4d6e2f6834549eb5715f07ba",
+      "selectedLfSha256": "c6f44d42e063aaddf1b55aff3c850c4c14ab7cb26ae39bef6d25af4ee59d0d49",
+      "beforeOrigin": "saved pre-edit bytes",
+      "mixed": false,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt",
+      "role": "production",
+      "workingSha256": "cc3f087ad35d0232cf4495401f460141e991f9d7545abac3277b2aa761054eec",
+      "baseSha256": "a877b58ed8dff4ffca3098ab6f87becba4deb902298e234937d75bf9066c2204",
+      "selectedLfSha256": "a07c184e1be9995617ec3179ebf7fbb4b007081d9b47070ce84fea4d2240e2d1",
+      "beforeOrigin": "saved pre-edit bytes",
+      "mixed": false,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt",
+      "role": "production",
+      "workingSha256": "57581fb4661facf8e4d9ed3fc937c44c787e77d96b3bf9129611d566bc84aa9d",
+      "baseSha256": "627381296c6bb3eb45b2baf822137191858cef18e79b12b6db406f1c81c6783b",
+      "selectedLfSha256": "4f14810dc4cafa9301f50c5bef6dbff4db94990d27dfc9e6b4375cf08b84433a",
+      "beforeOrigin": "saved pre-edit bytes",
+      "mixed": true,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryPageReader.kt",
+      "role": "production",
+      "workingSha256": "f053559c1e2ee5b94dd6c7848afa8e9dad1e3242d7f7c20b7c9b556b08c6a427",
+      "baseSha256": "6b5e59aec43468450cac5dd93233d5c6aa130d97416d2049ca797082a9a623e4",
+      "selectedLfSha256": "c2ac7ddc1204b693a71894bb118e2c8ed43957d97a94233f64afcbff0ebdec26",
+      "beforeOrigin": "saved pre-edit bytes",
+      "mixed": true,
+      "heldDeltaCount": 1,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelector.kt",
+      "role": "production",
+      "workingSha256": "0b2d6b42695cfc4747d8a060a6e56b2227fabd7de77414593842161d4e695682",
+      "baseSha256": "a5eccca764bce40cd954e261cf54938e1f6dc7d0599b73e3bb636578a1ca594d",
+      "selectedLfSha256": "608a1d1cc6ca1850705342313686c9753713daafc34662c41a23ab6f4260b082",
+      "beforeOrigin": "reconstructed preserved delta before one constant-visibility edit; normalized LF",
+      "mixed": true,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnerLookup.kt",
+      "role": "production",
+      "workingSha256": "9959049e7a26cde6091c07f77675989cbb762c2c75699a6f685c90bd1e62da4a",
+      "baseSha256": null,
+      "selectedLfSha256": "9959049e7a26cde6091c07f77675989cbb762c2c75699a6f685c90bd1e62da4a",
+      "beforeOrigin": "new owned source",
+      "mixed": false,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/PressureFactRevisionDaoTest.kt",
+      "role": "test-source",
+      "workingSha256": "0e7ba5a6cf0a16b06f7302c277255f0f9b2dd33b684cda9cd59fbe5c86adf48a",
+      "baseSha256": "f6478b847305af3aca5e8884cb0bd59002ad7d69b63ee25ea65dba1d20447127",
+      "selectedLfSha256": "e8fe9fe291d0dfd1fe48cd75d081e1f9327dd33b41e9b898af30034650738671",
+      "beforeOrigin": "clean source at start; immutable Git base content normalized LF",
+      "mixed": false,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDaoTest.kt",
+      "role": "test-source",
+      "workingSha256": "29d77969205626926ebfa4e920c6a44183f6ad0d34e42151a998f932a6b74881",
+      "baseSha256": "82eefaa781bea2886e7c6d5d7bece8325b4cd22d79d77aecd17ad1e06c7a6ff4",
+      "selectedLfSha256": "7bf186630c5a3ed9d310c02dd22499527ada0269088b542a8c3e0e8f667cce6d",
+      "beforeOrigin": "clean source at start; immutable Git base content normalized LF",
+      "mixed": true,
+      "heldDeltaCount": 1,
+      "selectedSnapshot": "SELECTED/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDaoTest.kt",
+      "excludedCase": "raw lifecycle intent retains caller authority needed to authenticate its checksum"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/NativePortableOwnershipSchemaTest.kt",
+      "role": "test-source",
+      "workingSha256": "311529ec6157723c79066de077435d4fcf01c5a889516e329fcf2ebc64b80e98",
+      "baseSha256": null,
+      "selectedLfSha256": "311529ec6157723c79066de077435d4fcf01c5a889516e329fcf2ebc64b80e98",
+      "beforeOrigin": "new owned source",
+      "mixed": false,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "role": "test-source",
+      "workingSha256": "c6768545438abbc0afaf2d76f38cf6b40a22c40024612faf7fe31b15cf37d5ea",
+      "baseSha256": "3c823ca7e101506c63f9e49c969c0e7f5f64469aaff19caeea55f402c5370c29",
+      "selectedLfSha256": "96de085e41d89668711c34af91e1981733daddde59c57ad3db35895cb8dc14aa",
+      "beforeOrigin": "clean source at start; immutable Git base content normalized LF",
+      "mixed": false,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "role": "test-source",
+      "workingSha256": "7168be4a2652f59c77f453cf54ca7047af75dab7af3833770598b98e467054a2",
+      "baseSha256": "8be37fe46eaa239694018f7dcf19957c127993c501b377b713b57de40294d609",
+      "selectedLfSha256": "7168be4a2652f59c77f453cf54ca7047af75dab7af3833770598b98e467054a2",
+      "beforeOrigin": "clean source at start; immutable Git base content normalized LF",
+      "mixed": false,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnershipHistoryFixtures.kt",
+      "role": "test-source",
+      "workingSha256": "c1f10b15621aa0af5182103cda6d96a04d2310921285f8d491fe1e03903c2394",
+      "baseSha256": null,
+      "selectedLfSha256": "c1f10b15621aa0af5182103cda6d96a04d2310921285f8d491fe1e03903c2394",
+      "beforeOrigin": "new owned source",
+      "mixed": false,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnerLookupRoomTest.kt",
+      "role": "test-source",
+      "workingSha256": "901c784c577b7541338fac5ab133801ede04dccfdc26d57d75f32c6d559bc2cc",
+      "baseSha256": null,
+      "selectedLfSha256": "901c784c577b7541338fac5ab133801ede04dccfdc26d57d75f32c6d559bc2cc",
+      "beforeOrigin": "new owned source",
+      "mixed": false,
+      "heldDeltaCount": 0,
+      "frozenInputSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json"
+    }
+  ],
+  "selectionPatchSha256": "24a119940141b61ab19021101361bae54b4bf0372b844efea35356cf44f79c76",
+  "ownedWorkingDeltaSha256": "19d82f83f133d5379dfd1d94cd0a4b39806164a2024406f9de177cdac3bca090",
+  "heldR11BridgeSha256": "819ce838104535bf7b3b8c543705caa81e761b1df14b0959c0f1f8862efde984",
+  "executedGates": [],
+  "heldDependencies": [
+    "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryNativeVisibility.kt",
+    "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryCandidateQueries.kt"
+  ],
+  "originalRejectedSelection": "../NATIVE_PORTABLE_OWNERSHIP_SELECTED/FILES.json",
+  "originalRejectedPatchSha256": "24a119940141b61ab19021101361bae54b4bf0372b844efea35356cf44f79c76",
+  "patchSha256": "09a05baaa7a5ddec6a917e1df12f02147c0b8b56966e7c6b9d4edb61e70978e5",
+  "revisedDisposition": "Only N1 raw-lifecycle testcase excluded; lookup production and15lookup cases otherwise remain initial frozen content. N1 production+test, N2 exactcomparison and migration fixture are separate companions."
+}

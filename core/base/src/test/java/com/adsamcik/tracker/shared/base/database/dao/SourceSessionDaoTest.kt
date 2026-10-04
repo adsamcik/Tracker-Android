@@ -499,6 +499,51 @@ class SourceSessionDaoTest {
 	}
 
 	@Test
+	fun `native lookup requires that exact source capture intent and prunes erased run ownership`() = runTest {
+		val run = serviceRun("portable-run")
+		dao.insertServiceRun(run)
+		dao.insertManifest(manifest(1L, run.serviceRunId))
+		val activityKey = com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.run(LOGICAL_ID, run.serviceRunId)
+			.single { it.sourceKind == 2 && it.identityKind == "PHYSICAL_RUN" }
+		dao.insertManifestSources(listOf(SessionManifestSourceEntity(LOGICAL_ID, 1L, 1, "SESSION_CAPTURE", 1L, true, 1)))
+		database.nativePortableOwnershipDao().ownerLogicalIds(2, listOf(activityKey.opaqueIdentity), 2) shouldBe emptyList()
+		dao.insertManifestSources(listOf(SessionManifestSourceEntity(LOGICAL_ID, 1L, 2, "SESSION_CAPTURE", 1L, true, 1)))
+		database.nativePortableOwnershipDao().ownerLogicalIds(2, listOf(activityKey.opaqueIdentity), 2) shouldBe listOf(LOGICAL_ID)
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_service_run WHERE service_run_id = ?", arrayOf(run.serviceRunId))
+		database.openHelper.writableDatabase.query("SELECT COUNT(*) FROM native_portable_ownership").use {
+			it.moveToFirst() shouldBe true
+			it.getLong(0) shouldBe 0L
+		}
+	}
+
+	@Test
+	fun `native lookup rebuild includes every run beyond former global history budgets`() = runTest {
+		repeat(300) { dao.insertServiceRun(serviceRun("portable-rebuild-$it").copy(logicalTrackingId = "logical-rebuild-$it")) }
+		database.nativePortableOwnershipDao().deleteAll()
+		val db = database.openHelper.writableDatabase
+		db.beginTransaction()
+		try {
+			com.adsamcik.tracker.shared.base.database.rebuildNativePortableOwnership(db)
+			db.setTransactionSuccessful()
+		} finally {
+			db.endTransaction()
+		}
+		db.query("SELECT COUNT(DISTINCT logical_tracking_id) FROM native_portable_ownership").use {
+			it.moveToFirst() shouldBe true
+			it.getLong(0) shouldBe 300L
+		}
+		val expected = com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.run("logical-rebuild-0", "portable-rebuild-0")
+		for (owner in expected) {
+			db.query("SELECT raw_identity FROM native_portable_ownership WHERE source_kind = ? AND identity_kind = ? AND opaque_identity = ?",
+				arrayOf(owner.sourceKind, owner.identityKind, owner.opaqueIdentity)).use {
+				it.moveToFirst() shouldBe true
+				it.getString(0) shouldBe owner.rawIdentity
+				it.moveToNext() shouldBe false
+			}
+		}
+	}
+
+	@Test
 	fun `writer transition boundary rejects every nonterminal durable lifecycle shape`() = runTest {
 		dao.hasLifecycleBoundaryBlocker() shouldBe false
 		dao.hasIncompleteServiceRun() shouldBe false

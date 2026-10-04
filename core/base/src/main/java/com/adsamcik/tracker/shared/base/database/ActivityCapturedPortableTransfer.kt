@@ -987,8 +987,20 @@ class RoomReadLocalPortableCapturedActivity(
 
 	suspend fun read(
 		request: ExportPortableCapturedActivityRequest,
+	): ReadLocalPortableCapturedActivityResult = readSnapshot { reader.readLocal(request) }
+
+	/** Compares only the selected native replacement groups, without date discovery. */
+	suspend fun read(
+		request: ExportSelectedPortableCapturedActivityRequest,
+	): ReadLocalPortableCapturedActivityResult {
+		require(request.importedEntryIdentities.isEmpty())
+		return readSnapshot { reader.read(request) }
+	}
+
+	private suspend fun readSnapshot(
+		read: suspend () -> PortableCapturedActivitySnapshot,
 	): ReadLocalPortableCapturedActivityResult = try {
-		when (val snapshot = reader.readLocal(request)) {
+		when (val snapshot = read()) {
 			is PortableCapturedActivitySnapshot.Ready ->
 				ReadLocalPortableCapturedActivityResult.Ready(snapshot.envelope)
 			is PortableCapturedActivitySnapshot.Outcome -> when (val result = snapshot.result) {

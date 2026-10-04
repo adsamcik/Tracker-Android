@@ -1,0 +1,79 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "baseHead": "07d5c664918affa8cc843fd243b38032bb9c782c",
+  "parentHeadAtAuthorship": "640a27da4ff8edeb16311d2461ef35dd4f6d076c",
+  "dependencies": [
+    "NATIVE_PORTABLE_OWNERSHIP_REVISED_SELECTED",
+    "RAW_LIFECYCLE_CALLER_PROJECTION_SELECTED",
+    "Existing committed exact Activity selector/activity-only methods0887e81c9d, preserved verbatim in BASE and SELECTED; not held R11"
+  ],
+  "paths": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedPortableTransfer.kt",
+      "role": "production",
+      "workingBeforeSha256": "98deb5f3b6c5cf3e296b4174b26766e8b4450b1aa96714b02a5cd02562a9be49",
+      "workingAfterSha256": "786e3ed52c469e993c12bb91ec9b4e21a011d9742595c58cc0e005b91f8aa433",
+      "selectedBaseLfSha256": "98deb5f3b6c5cf3e296b4174b26766e8b4450b1aa96714b02a5cd02562a9be49",
+      "selectedLfSha256": "786e3ed52c469e993c12bb91ec9b4e21a011d9742595c58cc0e005b91f8aa433",
+      "mixed": false,
+      "baseOrigin": "exact working-before bytes; preceding owned lookup source/tests dependency where applicable",
+      "afterN4OwnedChange": false
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt",
+      "role": "production",
+      "workingBeforeSha256": "57581fb4661facf8e4d9ed3fc937c44c787e77d96b3bf9129611d566bc84aa9d",
+      "workingAfterSha256": "a9f0892f509d5293f3d6b0d2019610de912856de1277bf1a3395e3c58d94dd71",
+      "selectedBaseLfSha256": "ad995f8943cc15af897f10e56ec22ad56e0f25887160833c02f74393461df2a6",
+      "selectedLfSha256": "0aeb19979d70b3d8deb0262e0b9145b2185d7ec5eff47321f2c0ba9687539546",
+      "mixed": true,
+      "baseOrigin": "Existing frozen lookup selected base plus committed exact native selector/activity-only methods from0887e81c9d; the two method blocks are dependencies, not owned modifications.",
+      "beforeN3Sha256": "a10ce974c6e540d333f97faa92d5e17a22f1a8fc367a0c48c19c9c27396bd5ed",
+      "beforeN4Sha256": "57c81e61e1a80e67f91d02c95ee06af6e5a6bf5550c60a68eb881f8654bf3f8e",
+      "afterN4OwnedChange": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "role": "test",
+      "workingBeforeSha256": "c6768545438abbc0afaf2d76f38cf6b40a22c40024612faf7fe31b15cf37d5ea",
+      "workingAfterSha256": "6454c523b4f87dd7c6cb594b2151fb4bc317abd8dc81e20eefdee6efef741bff",
+      "selectedBaseLfSha256": "96de085e41d89668711c34af91e1981733daddde59c57ad3db35895cb8dc14aa",
+      "selectedLfSha256": "6454c523b4f87dd7c6cb594b2151fb4bc317abd8dc81e20eefdee6efef741bff",
+      "mixed": false,
+      "baseOrigin": "exact working-before bytes; preceding owned lookup source/tests dependency where applicable",
+      "beforeN3Sha256": "61b4018e73d86416a6b118980989d1c93fd4d5c09dac2b41fc32347fc00cbbd7",
+      "beforeN4Sha256": "8adaeee7d5d12a780ad4f2333d2fa0d6da80c55926c7a30a4aa7e78671c69c6e",
+      "afterN4OwnedChange": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/NativePortableOwnershipHistoryFixtures.kt",
+      "role": "test",
+      "workingBeforeSha256": "c1f10b15621aa0af5182103cda6d96a04d2310921285f8d491fe1e03903c2394",
+      "workingAfterSha256": "ceb869527846d357916f40ac77f17fbfe6ebaf76b7ed26d0ed3cf76a01b44b9c",
+      "selectedBaseLfSha256": "c1f10b15621aa0af5182103cda6d96a04d2310921285f8d491fe1e03903c2394",
+      "selectedLfSha256": "ceb869527846d357916f40ac77f17fbfe6ebaf76b7ed26d0ed3cf76a01b44b9c",
+      "mixed": false,
+      "baseOrigin": "exact working-before bytes; preceding owned lookup source/tests dependency where applicable",
+      "afterN4OwnedChange": false
+    }
+  ],
+  "patchSha256": "416a16e93dd07306d1eecb8b74fadd8339290f5e9ab5adabd71c2463b486d4b4",
+  "authoredTests": 5,
+  "testsExecuted": false,
+  "excludedDrafts": "Held R11 range/visibility foundation stays excluded. Its additional READ_BUDGET_EXCEEDED catch appears only in N4_OWNED_WORKING_DELTA.patch. Earlier argument/epoch propagation remains in the prior frozen working delta.",
+  "rejectedPriorFreeze": "../ACTIVITY_EXACT_OWNERSHIP_COMPARISON_SELECTED/FILES.json",
+  "rejectedPriorManifestSha256": "8663916baa9fc320cb04ab66d952ad6e302a492f33afd6f6af7de2a4eddcdf37",
+  "N3repair": "Only already-qualified owners with retained activeTime/fragments enter strict exact portable comparison; value-free owners remain protected by existing loadValueFreeLocalProtectedOwnership/loadLocalProtectedOwnership.",
+  "N4RepairPatchSha256": "0df477235401da668020d1a4f649c24d0465703be9877937d3b183c07e19ab83",
+  "N4WorkingDeltaSha256": "828c77b67d25af6500119a1ba8d5002c98651f0b1d123fdc3c739f1f22041f92",
+  "authoredN4Tests": 1,
+  "previousRejectedN3Freeze": "../ACTIVITY_EXACT_OWNERSHIP_COMPARISON_REVISED_SELECTED/FILES.json",
+  "previousRejectedN3ManifestSha256": "a1bf2cd100b5ff52bb5355474d9e430ecdc2f0af65a441100a4c18ca23186d90",
+  "N4repair": "Value-free ordinary comparison delegates to the existing bounded complete protected-identity reader, including surviving window keys; existing budget results are preserved.",
+  "committedDependencyAfterBase": "f3b026e4d1 raw lifecycle caller projection; root supplied abbreviated commit, no new Git reads or mutations",
+  "previousRejectedN4Freeze": "../ACTIVITY_EXACT_OWNERSHIP_COMPARISON_N4_SELECTED/FILES.json",
+  "previousRejectedN4ManifestSha256": "84cb1c58b9a472f65fe8c529011c6109994b69ee78e6d1cfad8c87eada534b7d",
+  "committedActivitySelectorMethodsLfSha256": "58f7bc72eaa78d60df3d3cb3443f69bc582937ea73b74de021fec6d2a1c26a1f",
+  "N5repair": "Restore committed exact native selection/activity-only discovery methods in selected snapshots without adding or editing them in production; no architecture/production change."
+}

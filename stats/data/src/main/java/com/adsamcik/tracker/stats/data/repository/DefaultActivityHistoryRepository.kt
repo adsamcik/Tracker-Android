@@ -3,7 +3,7 @@ package com.adsamcik.tracker.stats.data.repository
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
-import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivityRequest
+import com.adsamcik.tracker.shared.base.database.ExportSelectedPortableCapturedActivityRequest
 import com.adsamcik.tracker.shared.base.database.ImportedActivityOrderedProductEvaluation
 import com.adsamcik.tracker.shared.base.database.ImportedActivityOrderedProductPage
 import com.adsamcik.tracker.shared.base.database.ImportedActivityProductEvaluation
@@ -217,9 +217,11 @@ internal class DefaultActivityHistoryRepository private constructor(
 		val localPortableEntries = try {
 			loadLocalPortableOwnershipSnapshot(
 				hasImportedOwnership,
-				local.map(ComposedActivityEntry::entry),
+				local,
 				localIdentityByOpaque.keys,
 			)
+		} catch (_: ActivityLocalOwnershipBudgetExceeded) {
+			return ActivitySourceComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
 		} catch (_: ImportedActivityHistoryCompositionFailure) {
 			return ActivitySourceComposedPage.Failed(
 				ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
@@ -231,6 +233,8 @@ internal class DefaultActivityHistoryRepository private constructor(
 			} else {
 				emptyMap()
 			}
+		} catch (_: ActivityLocalOwnershipBudgetExceeded) {
+			return ActivitySourceComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
 		} catch (_: ImportedActivityHistoryCompositionFailure) {
 			return ActivitySourceComposedPage.Failed(
 				ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
@@ -731,7 +735,7 @@ internal class DefaultActivityHistoryRepository private constructor(
 				}
 			}
 		}
-		val local = when (val page = loadLocalOwnershipForImportedEligibility()) {
+		val local = when (val page = loadLocalOwnershipForImportedEligibility(imported)) {
 			is ActivityComposedPage.Failed -> return unavailable(
 				if (page.cause == ActivityHistoryCause.READ_BUDGET_EXCEEDED) {
 					SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
@@ -772,9 +776,11 @@ internal class DefaultActivityHistoryRepository private constructor(
 		val localPortableEntries = try {
 			loadLocalPortableOwnershipSnapshot(
 				hasImportedOwnership = collisionIdentities.isNotEmpty(),
-				localEntries = collisionLocal.map(ComposedActivityEntry::entry),
+				localEntries = collisionLocal,
 				localEntryIdentities = collisionIdentities.mapTo(linkedSetOf()) { it.value },
 			)
+		} catch (_: ActivityLocalOwnershipBudgetExceeded) {
+			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
 		} catch (_: ImportedActivityHistoryCompositionFailure) {
 			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
 		}
@@ -834,41 +840,43 @@ internal class DefaultActivityHistoryRepository private constructor(
 
 	private suspend fun loadLocalPortableOwnershipSnapshot(
 		hasImportedOwnership: Boolean,
-		localEntries: List<ActivityHistoryEntry>,
+		localEntries: List<ComposedActivityEntry>,
 		localEntryIdentities: Set<String>,
 	): Map<String, PortableActivityEntryV1> {
 		if (!hasImportedOwnership || localEntryIdentities.isEmpty()) return emptyMap()
 		if (localEntries.size != localEntryIdentities.size) {
 			throw ImportedActivityHistoryCompositionFailure()
 		}
-		val earliest = localEntries.minOf { it.startTime.raw }
-		val latest = localEntries.maxOf { it.endTime.raw }
-		val latestExclusive = if (latest > earliest) latest else try {
-			Math.addExact(latest, 1L)
-		} catch (_: ArithmeticException) {
-			throw ImportedActivityHistoryCompositionFailure()
+		// Factless qualified owners still participate in the value-free collision checks.
+		// Strict portable completeness applies only to owners with retained measurements.
+		val valuedEntries = localEntries.filter { it.entry.activeTime != null || it.entry.fragments.isNotEmpty() }
+		if (valuedEntries.isEmpty()) return emptyMap()
+		val epoch = database.sourceEvidenceStateDao().get()?.collectedDataEpoch
+			?: throw ImportedActivityHistoryCompositionFailure()
+		val seeds = valuedEntries.map { entry ->
+			entry.physicalSegmentIds.firstOrNull() ?: throw ImportedActivityHistoryCompositionFailure()
 		}
 		return when (val result = localPortableReader.read(
-			ExportPortableCapturedActivityRequest(earliest, latestExclusive),
+			ExportSelectedPortableCapturedActivityRequest(seeds, emptyList(), epoch),
 		)) {
 			is ReadLocalPortableCapturedActivityResult.Ready -> {
-				// Seed every overlapping local owner, including bounded rows outside the visible page.
 				val completeSnapshot = result.envelope.entries.associateBy { it.identity.value }
-				if (completeSnapshot.size != result.envelope.entries.size) {
+				if (completeSnapshot.size != result.envelope.entries.size ||
+					completeSnapshot.keys.any { it !in localEntryIdentities }
+				) {
 					throw ImportedActivityHistoryCompositionFailure()
 				}
 				completeSnapshot
 			}
-			is ReadLocalPortableCapturedActivityResult.Unverifiable,
-			ReadLocalPortableCapturedActivityResult.StorageUnavailable,
-			-> throw ImportedActivityHistoryCompositionFailure()
-			ReadLocalPortableCapturedActivityResult.NoEntries -> if (localEntries.all {
-				it.activeTime == null && it.fragments.isEmpty()
-			}) {
-				emptyMap()
+			is ReadLocalPortableCapturedActivityResult.Unverifiable -> if (result.reason ==
+				com.adsamcik.tracker.shared.base.database.PortableActivityExportUnverifiableReason.DEPENDENCY_OVERFLOW
+			) {
+				throw ActivityLocalOwnershipBudgetExceeded()
 			} else {
 				throw ImportedActivityHistoryCompositionFailure()
 			}
+			ReadLocalPortableCapturedActivityResult.StorageUnavailable -> throw ImportedActivityHistoryCompositionFailure()
+			ReadLocalPortableCapturedActivityResult.NoEntries -> throw ImportedActivityHistoryCompositionFailure()
 		}
 	}
 
@@ -938,52 +946,18 @@ internal class DefaultActivityHistoryRepository private constructor(
 		local: List<ComposedActivityEntry>,
 		portableEntriesByIdentity: Map<String, PortableActivityEntryV1>,
 	): Map<PortableActivityOpaqueIdentity, List<RetainedImportedActivityIdentity>> {
-		if (local.isEmpty()) return emptyMap()
-		val segmentIds = local.flatMap(ComposedActivityEntry::physicalSegmentIds).distinct()
-		if (segmentIds.size > MAX_ACTIVITY_LOGICAL_MEMBERS) {
-			throw ImportedActivityHistoryCompositionFailure()
-		}
-		val segments = database.trackingHistoryReadDao().segments(segmentIds)
-		if (segments.size != segmentIds.size) throw ImportedActivityHistoryCompositionFailure()
-		val segmentsByLogical = segments.groupBy(SessionSegment::logicalTrackingId)
-		return local.mapNotNull { composed ->
+		val valueFree = local.filter { composed ->
 			val entryIdentity = PortableActivityOpaqueIdentity.derive(
 				PortableActivityIdentityKind.LOGICAL_ENTRY,
 				composed.logicalTrackingId,
 			)
-			if (entryIdentity.value in portableEntriesByIdentity) return@mapNotNull null
+			if (entryIdentity.value in portableEntriesByIdentity) return@filter false
 			if (composed.entry.activeTime != null || composed.entry.fragments.isNotEmpty()) {
 				throw ImportedActivityHistoryCompositionFailure()
 			}
-			val members = segmentsByLogical[composed.logicalTrackingId].orEmpty()
-			if (members.size != composed.physicalSegmentIds.size ||
-				members.map(SessionSegment::id).toSet() != composed.physicalSegmentIds.toSet()
-			) throw ImportedActivityHistoryCompositionFailure()
-			val retained = buildList {
-				add(RetainedImportedActivityIdentity.Entry(entryIdentity))
-				members.forEach { segment ->
-					val runId = segment.serviceRunId ?: throw ImportedActivityHistoryCompositionFailure()
-					add(
-						RetainedImportedActivityIdentity.Run(
-							PortableActivityOpaqueIdentity.derive(
-								PortableActivityIdentityKind.PHYSICAL_RUN,
-								runId,
-							),
-						),
-					)
-					add(
-						RetainedImportedActivityIdentity.DeletionScope(
-							com.adsamcik.tracker.shared.base.database
-								.PortableActivityDeletionScopeDigest.derive(
-									composed.logicalTrackingId,
-									runId,
-								),
-						),
-					)
-				}
-			}
-			entryIdentity to retained
-		}.toMap()
+			true
+		}
+		return loadLocalProtectedOwnership(valueFree)
 	}
 
 	/** Exact Activity groups for a bounded caller-owned physical candidate generation. */
@@ -1010,56 +984,35 @@ internal class DefaultActivityHistoryRepository private constructor(
 		return loadRecentActivityCompositions(limit) { it.entry.capturesOnlyActivity }
 	}
 
-	private suspend fun loadLocalOwnershipForImportedEligibility(): ActivityComposedPage {
-		val entries = mutableListOf<ComposedActivityEntry>()
-		var scanned = 0
-		var beforeStartTimeMs: Long? = null
-		var beforeSegmentId: Long? = null
-		while (scanned < MAX_ACTIVITY_CANDIDATE_SCAN) {
-			currentCoroutineContext().ensureActive()
-			val pageLimit = minOf(
-				ACTIVITY_CANDIDATE_PAGE_SIZE,
-				MAX_ACTIVITY_CANDIDATE_SCAN - scanned,
-			)
-			val page = database.activityCapturedFactDao().logicalHistoryCandidatePage(
-				limit = pageLimit,
-				beforeStartTimeMs = beforeStartTimeMs,
-				beforeSegmentId = beforeSegmentId,
-				activitySourceKind = ACTIVITY_SOURCE,
-			)
-			if (page.isEmpty()) return ActivityComposedPage.Available(entries)
-			if (page.size > pageLimit) {
-				return ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+	private suspend fun loadLocalOwnershipForImportedEligibility(
+		imported: List<ImportedActivityProductEvaluation>,
+	): ActivityComposedPage {
+		val identities = imported.asSequence().flatMap { evaluation ->
+			when (evaluation) {
+				is ImportedActivityProductEvaluation.Readable -> sequence {
+					yield(evaluation.entry.identity.value)
+					for (run in evaluation.entry.runs) {
+						yield(run.identity.value)
+						yield(run.deletionScopeDigest.value)
+						run.windows.forEach { yield(it.identity.value) }
+					}
+				}
+				is ImportedActivityProductEvaluation.Retained -> evaluation.protectedIdentities.asSequence().map { it.value }
+				is ImportedActivityProductEvaluation.Unverifiable -> emptySequence()
 			}
-			val expansion = expandActivityMembership(page.map { it.segment })
-			val snapshot = loadActivitySnapshot(expansion)
-			if (snapshot.overflow) {
-				return ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
-			}
-			val candidateIds = page.mapNotNull { it.segment.logicalTrackingId }.toSet()
-			val composed = ActivityHistoryComposer.composeRecent(snapshot, laneExecutionAuthority)
-				.filter { it.logicalTrackingId in candidateIds }
-				.sortedWith(activityCompositionOrder)
-			if (candidateIds.size != page.size || composed.size != candidateIds.size) {
-				return ActivityComposedPage.Failed(ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
-			}
-			entries += composed
-			scanned += page.size
-			val last = page.last()
-			beforeStartTimeMs = last.logicalRecencyStartMs
-			beforeSegmentId = last.logicalRecencySegmentId
-			if (page.size < pageLimit) return ActivityComposedPage.Available(entries)
 		}
-		val remaining = database.activityCapturedFactDao().logicalHistoryCandidatePage(
-			limit = 1,
-			beforeStartTimeMs = beforeStartTimeMs,
-			beforeSegmentId = beforeSegmentId,
-			activitySourceKind = ACTIVITY_SOURCE,
-		)
-		return if (remaining.isEmpty()) {
-			ActivityComposedPage.Available(entries)
-		} else {
+		return try {
+			val seeds = database.nativePortableOwnerSeeds(ACTIVITY_SOURCE, identities, MAX_ACTIVITY_HISTORY_RESULTS)
+			when (val selected = selectBySegmentIdsInTransaction(seeds.map(SessionSegment::id))) {
+				is ActivityComposedPage.Failed -> selected
+				is ActivityComposedPage.Available -> if (selected.entries.map { it.logicalTrackingId }.toSet() ==
+					seeds.map { it.logicalTrackingId }.toSet()) selected
+				else ActivityComposedPage.Failed(ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+			}
+		} catch (_: NativePortableOwnerBudgetExceeded) {
 			ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+		} catch (_: NativePortableOwnerMembershipInvalid) {
+			ActivityComposedPage.Failed(ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
 		}
 	}
 

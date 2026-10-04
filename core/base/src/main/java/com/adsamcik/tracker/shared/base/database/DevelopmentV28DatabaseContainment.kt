@@ -208,6 +208,10 @@ class ActiveDatabasePreflight internal constructor(
 		}
 		if (version == 28) return ActiveDatabasePreflightResult.FinalV28
 		if (!FINAL_V29_ADDITIONAL_COLUMNS.all(database::hasExactColumn) ||
+			!FINAL_V29_NATIVE_PORTABLE_COLUMNS.all(database::hasExactColumn) ||
+			!database.hasExactColumns("native_portable_ownership", listOf("source_kind", "identity_kind", "opaque_identity", "raw_identity", "logical_tracking_id", "service_run_id")) ||
+			!FINAL_V29_NATIVE_PORTABLE_INDEXES.all(database::hasExactIndex) ||
+			!FINAL_V29_NATIVE_PORTABLE_TRIGGERS.all(database::hasTrigger) ||
 			!FINAL_V29_LOCATION_ARCHIVE_COLUMNS.all { (table, columns) -> database.hasExactColumns(table, columns) } ||
 			!FINAL_V29_LOCATION_ARCHIVE_INDEXES.all(database::hasExactIndex) ||
 			!FINAL_V29_RADIO_CHILD_COLUMNS.all { (table, columns) -> database.hasExactColumns(table, columns) } ||
@@ -1184,6 +1188,25 @@ private val FINAL_V28_STEPS_TRIGGERS = listOf(
 		StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER,
 		"ambient_steps_fact_revision",
 	),
+)
+
+private val FINAL_V29_NATIVE_PORTABLE_COLUMNS = listOf(
+	FinalV28ColumnSentinel("native_portable_ownership", "source_kind", "INTEGER", true, primaryKeyPosition = 1),
+	FinalV28ColumnSentinel("native_portable_ownership", "identity_kind", "TEXT", true, primaryKeyPosition = 2),
+	FinalV28ColumnSentinel("native_portable_ownership", "opaque_identity", "TEXT", true),
+	FinalV28ColumnSentinel("native_portable_ownership", "raw_identity", "TEXT", true, primaryKeyPosition = 3),
+	FinalV28ColumnSentinel("native_portable_ownership", "logical_tracking_id", "TEXT", true, primaryKeyPosition = 4),
+	FinalV28ColumnSentinel("native_portable_ownership", "service_run_id", "TEXT", true, primaryKeyPosition = 5),
+)
+private val FINAL_V29_NATIVE_PORTABLE_INDEXES = listOf(
+	FinalV28IndexSentinel("native_portable_ownership", "idx_native_portable_owner_identity", listOf("source_kind", "opaque_identity", "logical_tracking_id"), false),
+	FinalV28IndexSentinel("native_portable_ownership", "idx_native_portable_owner_run", listOf("logical_tracking_id", "service_run_id"), false),
+)
+private val FINAL_V29_NATIVE_PORTABLE_TRIGGERS = listOf(
+	FinalV28TriggerSentinel("prune_native_portable_2_window", "activity_captured_window_revision"),
+	FinalV28TriggerSentinel("prune_native_portable_4_window", "pressure_fact_revision"),
+	FinalV28TriggerSentinel("prune_native_portable_run_delete", "source_service_run"),
+	FinalV28TriggerSentinel("prune_native_portable_run_update", "source_service_run"),
 )
 
 private val FINAL_V29_ADDITIONAL_COLUMNS = listOf(

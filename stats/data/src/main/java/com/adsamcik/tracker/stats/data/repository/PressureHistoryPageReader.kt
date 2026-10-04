@@ -82,10 +82,6 @@ internal class PressureHistoryPageReader @Inject constructor(
 			return unavailable(failure.toPageUnavailableReason())
 		}
 		val accepted = mutableListOf<PressureImportedHistoryEligibleEntry>()
-		var localAuthorities: Map<
-			PortablePressureOpaqueIdentity,
-			PressureLocalDuplicateAuthority,
-		>? = null
 		var beforeRecencyStartTimeMs: Long? = null
 		var beforeRecencyTieIdentity: String? = null
 		var scannedCandidates = 0
@@ -129,25 +125,17 @@ internal class PressureHistoryPageReader @Inject constructor(
 				)
 			}
 			val localDiscovery = try {
-				localAuthorities?.let { PressureLocalDuplicateAuthorityRead.Ready(it) }
-					?: when (
-						val local = run {
-							integrationObserver.record(
-								TrackingHistoryIntegrationCheckpoint
-									.PRESSURE_LOCAL_DUPLICATE_SELECTOR,
-							)
-							liveSelector.discoverPressureOnlyDuplicateAuthorityInTransaction()
-						}
-					) {
-						is PressureOnlyDiscoveryResult.Unavailable ->
-							PressureLocalDuplicateAuthorityRead.Unavailable(local.reason)
-						is PressureOnlyDiscoveryResult.Content ->
-							authenticateLocalDuplicateAuthorities(local.entries)?.let {
-								PressureLocalDuplicateAuthorityRead.Ready(it)
-							} ?: PressureLocalDuplicateAuthorityRead.IntegrityFailure
-					}
+				integrationObserver.record(TrackingHistoryIntegrationCheckpoint.PRESSURE_LOCAL_DUPLICATE_SELECTOR)
+				val entries = loadExactLocalDuplicateEntries(candidateProbe.take(pageLimit).map { it.identity })
+				authenticateLocalDuplicateAuthorities(entries)?.let {
+					PressureLocalDuplicateAuthorityRead.Ready(it)
+				} ?: PressureLocalDuplicateAuthorityRead.IntegrityFailure
 			} catch (cancelled: CancellationException) {
 				throw cancelled
+			} catch (_: NativePortableOwnerBudgetExceeded) {
+				PressureLocalDuplicateAuthorityRead.Unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
+			} catch (overflow: PressureHistoryPageDependencyOverflow) {
+				PressureLocalDuplicateAuthorityRead.Unavailable(overflow.reason)
 			} catch (_: RuntimeException) {
 				PressureLocalDuplicateAuthorityRead.IntegrityFailure
 			}
@@ -166,7 +154,6 @@ internal class PressureHistoryPageReader @Inject constructor(
 				)
 				is PressureLocalDuplicateAuthorityRead.Ready -> localDiscovery.authorities
 			}
-			localAuthorities = duplicateAuthorities
 			val candidates = candidateProbe.take(pageLimit)
 			for (candidate in candidates) {
 				currentCoroutineContext().ensureActive()
@@ -195,6 +182,21 @@ internal class PressureHistoryPageReader @Inject constructor(
 		return ImportedHistoryEligiblePage.Available(
 			accepted.sortedWith(pressureImportedHistoryEligibleOrder).take(limit),
 		)
+	}
+
+	private suspend fun loadExactLocalDuplicateEntries(identities: List<String>): List<PressureLogicalHistoryEntry> {
+		val seeds = database.nativePortableOwnerSeeds(
+			com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.PRESSURE,
+			identities.asSequence(),
+			PRESSURE_HISTORY_SEGMENT_BATCH_CAP,
+		)
+		val entries = liveSelector.selectLogicalBySegmentIdsInTransaction(seeds.map { it.id })
+		if (entries.any { entry -> entry.physicalMembers.any { PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW in it.reasons } }) {
+			throw NativePortableOwnerBudgetExceeded()
+		}
+		val logicalIds = entries.mapNotNull { (it.identity as? PressureHistoryEntryIdentity.Logical)?.logicalTrackingId }.toSet()
+		if (logicalIds != seeds.map { it.logicalTrackingId }.toSet()) throw NativePortableOwnerMembershipInvalid()
+		return entries
 	}
 
 	private fun authenticateLocalDuplicateAuthorities(
