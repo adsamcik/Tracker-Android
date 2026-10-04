@@ -335,6 +335,15 @@ remain held. No test or gate has run.
   rows preserve descriptive dual origins for session-export reuse. None ran.
 
 ## Remaining in these slices
+
+- [x] Repair the existing Statistics date picker to follow the approved local
+  calendar rule, including east/west UTC and 23-/25-hour days. Two frozen paths,
+  seven newly authored unexecuted Compose scenarios and independent source
+  acceptance are pinned in `../2026-10-04/STATS_LOCAL_DATE_PICKER_SELECTED`.
+  Complete period metrics and all 25 chains remain open.
+- [ ] Prioritize shared provider ownership, adaptive quality/power, durable
+  Start/End/Off and all-day readers. Backup/restore work is deferred by the user's
+  October 4 priority; preserve its drafts and settled decisions.
 - [x] Select exact Pressure ownership parity in ordinary recent History and both
   portable selectors. Comparison owners cannot widen output; identical copies
   stay usable and foreign/divergent claims keep existing conflict outcomes. Three

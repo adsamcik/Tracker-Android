@@ -5,6 +5,10 @@ source-work boundaries, not an assembly freeze, executed verification or integra
 
 ## Answers received today
 
+- [x] Prioritize completing the tracking architecture and system over backup
+  work. Continue shared ownership, adaptive activation, Start/End/Off and all-day
+  collection/readers; preserve backup drafts without expanding them now.
+
 - [x] Reuse existing temporary private export storage for Wi-Fi/Cell: build one
   coherent file inside the existing Room snapshot, release the database transaction,
   then copy to the chosen destination. Keep the existing roughly 64 MB file ceiling
@@ -42,9 +46,10 @@ source-work boundaries, not an assembly freeze, executed verification or integra
 - [x] Show the existing seven-day Steps summary independently of session count
   whenever Steps are chosen or those days have saved Steps data, preserving qualified
   numbers, missing-data states, History and the session list.
-- [x] Review Location replacement storage before implementation. The earlier
-  sidecar representation proposal has not been approved. The reviewed one-current-edit
-  proposal has now been presented for confirmation; no storage change is selected.
+- [x] Use one current Location correction while retaining the original phone
+  reading internally. Show the file's replacement values in History, maps,
+  statistics and future exports; late phone processing must not undo the edit.
+  One import-wide Keep/Replace choice remains approved. Source assembly is pending.
 - [x] Use one measured-date rule throughout Tracker: each reading belongs to its
   displayed local date when measured, independently of delivery and session dates.
   Keep real aggregate windows unsplit. Repair radio bounds/readers without changing
@@ -53,6 +58,23 @@ source-work boundaries, not an assembly freeze, executed verification or integra
   sessions switch. Off keeps in-date readings from an overnight session instead of
   excluding that session entirely. Indivisible measured windows retain their actual
   bounds with honest expansion. This supersedes the earlier radio Off omission rule.
+- [x] Use individual Wi-Fi/Cell readings with original times and optional session
+  labels; merge overlapping imports by adding missing readings and skipping
+  identical readings. Preserve exact original file membership; omission never
+  deletes saved readings and older complete files remain readable. The preceding
+  request to review the file design remains a source-design review task, not a
+  pending approval for the behavior answered in `call_OjnO1ja41suxM4jV7nYZRPvs`, item 0.
+- [x] Restore backup data by reimporting it into the existing databases. Do not
+  swap database files or require an app restart. Preserve settings and the earlier
+  approved confirmation before replacing current data, recoverable interruption
+  behavior and stopped tracking. This supersedes the proposed file-swap/restart
+  implementation, which was not approved.
+- [x] Keep durable Off until the exact manual Start is accepted; use one pending
+  Start value in existing lifecycle preferences. Failure leaves collection off.
+  `call_l1Jrri8zloCOyAiJug3x55If`, item 1; source authorship is in progress.
+- [x] Connect shared all-day status to the existing all-day readers through one
+  small read-only stats API interface. Reuse existing qualification; no additional
+  database or sensor activation. `call_l1Jrri8zloCOyAiJug3x55If`, item 2.
 
 The first three answers are from `call_ITXXwd9m4f7gfXfR7bLb0JWu`; the three
 statistics answers are from `call_lhtt5iSaT7WZD235VbsXbezt`. No default selection
@@ -69,21 +91,6 @@ recorded separately from implementation and source review.
 
 ## Questions presented, awaiting answers
 
-- [ ] Connect the shared lifecycle check to existing retained all-day source readers
-  through one small read-only stats API seam, without copied qualification or new
-  storage. Real provider-window Steps identity is already approved by
-  `call_twHtAAQaHNF6gDGm8nlvTzgL`, item 1; do not reask that identity decision.
-  The current adapter, fact lookup and final presentation still require sessions;
-  the new cross-module reader connection is the specific remaining choice.
-- [ ] Permit individual Wi-Fi/Cell measurements with original IDs/timestamps and
-  optional session labels in the source file, merging overlapping imports without
-  treating omitted readings as deletion. Older complete files stay readable. This
-  is the concrete file/import change needed for the approved selected-date rule;
-  no sparse representation has been implemented from approval of dates alone.
-  The October 4 Astra consultation supersedes the earlier physical-store-once
-  proposal: reuse immutable snapshots, deduplicate logical readings and retain
-  exact file membership in a small typed lookup. The updated combined proposal is
-  awaiting approval; physical ownership normalization is not required or approved.
 - [ ] Show an export-settings load error with Retry and disable only affected
   settings controls, preserving unreadable bytes and other tracking/data surfaces.
 - [ ] Retire an old unfinished notice before reusing its exact external file and
@@ -103,10 +110,6 @@ recorded separately from implementation and source review.
   and does not depend on this separate conflict-display choice.
 - [ ] Keep small durable background Location gap records with affected times and
   reasons, without invented coordinates.
-- [ ] Restart the app once after confirmed data-only restore so all readers use
-  the replaced databases; preserve settings, stopped tracking and the safety copy.
-- [ ] Present the reviewed Location replacement representation for confirmation.
-  One import-wide Keep/Replace choice is approved; storage remains pending review.
 
 ## Stale questions removed from the blocking list
 

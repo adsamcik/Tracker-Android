@@ -1,0 +1,255 @@
+--- a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/compose/StatsDateRangeDialog.kt
++++ b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/compose/StatsDateRangeDialog.kt
+@@ -24,10 +24,7 @@
+ import androidx.compose.material3.TextButton
+ import androidx.compose.material3.rememberDateRangePickerState
+ import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.getValue
+-import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+-import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.res.stringResource
+@@ -35,10 +32,10 @@
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.window.DialogProperties
+ import com.adsamcik.tracker.statistics.R
+-import java.time.DayOfWeek
+ import java.time.Instant
+ import java.time.LocalDate
+ import java.time.ZoneId
++import java.time.ZoneOffset
+ import java.time.ZonedDateTime
+ import java.time.format.DateTimeFormatter
+ import java.time.format.FormatStyle
+@@ -129,6 +126,15 @@
+ 
+ private fun millisToLocalDate(ms: Long, zoneId: ZoneId): LocalDate =
+     Instant.ofEpochMilli(ms).atZone(zoneId).toLocalDate()
++
++/** Material's picker represents calendar dates as UTC midnight, not local instants. */
++internal fun statsPickerDateMillis(ms: Long, zoneId: ZoneId): Long =
++    millisToLocalDate(ms, zoneId).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
++
++internal fun statsLocalRangeFromPicker(startMs: Long, endMs: Long, zoneId: ZoneId): Pair<Long, Long> =
++    millisToLocalDate(startMs, ZoneOffset.UTC).atStartOfDay(zoneId).toInstant().toEpochMilli() to
++        (millisToLocalDate(endMs, ZoneOffset.UTC).plusDays(1).atStartOfDay(zoneId)
++            .toInstant().toEpochMilli() - 1L)
+ 
+ /**
+  * Custom date-range dialog. Sits above the Material 3 [DateRangePicker] with a
+@@ -151,27 +157,28 @@
+     val zoneId = remember { ZoneId.systemDefault() }
+     val now = remember { System.currentTimeMillis() }
+     val presetOptions = remember(now, zoneId) { statsDateRangePresetOptions(now, zoneId) }
+-    val initialPreset = remember(initialStartMs, initialEndMs, now, zoneId) {
+-        matchingStatsDateRangePreset(initialStartMs, initialEndMs, now, zoneId)
+-    }
+-
+-    var selectedPreset by remember { mutableStateOf(initialPreset) }
+     val pickerState = rememberDateRangePickerState(
+-        initialSelectedStartDateMillis = initialStartMs,
+-        initialSelectedEndDateMillis = initialEndMs?.let { it - MILLIS_PER_DAY + 1L },
++        initialSelectedStartDateMillis = initialStartMs?.let { statsPickerDateMillis(it, zoneId) },
++        initialSelectedEndDateMillis = initialEndMs?.let { statsPickerDateMillis(it, zoneId) },
+         initialDisplayMode = DisplayMode.Picker,
+     )
+ 
+     val pickerStart = pickerState.selectedStartDateMillis
+     val pickerEnd = pickerState.selectedEndDateMillis
+     val rangeValid = pickerStart != null && pickerEnd != null
+-    val rangeIsAllTime = selectedPreset == StatsDateRangePreset.ALL_TIME
++    val rangeIsAllTime = pickerStart == null && pickerEnd == null
++    val selectedRange = if (pickerStart != null && pickerEnd != null) {
++        statsLocalRangeFromPicker(pickerStart, pickerEnd, zoneId)
++    } else null
++    val selectedPreset = if (rangeIsAllTime) StatsDateRangePreset.ALL_TIME else selectedRange?.let {
++        matchingStatsDateRangePreset(it.first, it.second, now, zoneId)
++    }
+ 
+     val summaryText = when {
+         rangeIsAllTime -> stringResource(R.string.stats_date_preset_all_time)
+         pickerStart != null && pickerEnd != null -> {
+-            val s = millisToLocalDate(pickerStart, zoneId)
+-            val e = millisToLocalDate(pickerEnd, zoneId)
++            val s = millisToLocalDate(pickerStart, ZoneOffset.UTC)
++            val e = millisToLocalDate(pickerEnd, ZoneOffset.UTC)
+             if (s == e) {
+                 readableFormatter.format(s)
+             } else {
+@@ -226,13 +233,14 @@
+                         FilterChip(
+                             selected = selectedPreset == option.preset,
+                             onClick = {
+-                                selectedPreset = option.preset
+-                                if (option.preset != StatsDateRangePreset.ALL_TIME) {
++                                if (option.preset == StatsDateRangePreset.ALL_TIME) {
++                                    pickerState.setSelection(null, null)
++                                } else {
+                                     // Push preset into picker so the calendar grid
+                                     // visually reflects the chosen span.
+                                     pickerState.setSelection(
+-                                        startDateMillis = option.startMs,
+-                                        endDateMillis = option.endMs - MILLIS_PER_DAY + 1L,
++                                        startDateMillis = statsPickerDateMillis(option.startMs, zoneId),
++                                        endDateMillis = statsPickerDateMillis(option.endMs, zoneId),
+                                     )
+                                 }
+                             },
+@@ -262,10 +270,8 @@
+                 onClick = {
+                     if (rangeIsAllTime) {
+                         onClear()
+-                    } else if (rangeValid) {
+-                        val s = pickerStart!!
+-                        val e = pickerEnd!!
+-                        onConfirm(s, e + MILLIS_PER_DAY - 1L)
++                    } else if (selectedRange != null) {
++                        onConfirm(selectedRange.first, selectedRange.second)
+                     }
+                 },
+                 enabled = rangeIsAllTime || rangeValid,
+@@ -288,4 +294,3 @@
+     )
+ }
+ 
+-private const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L
+--- a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/StatsDateRangeDialogComposeTest.kt
++++ b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/StatsDateRangeDialogComposeTest.kt
+@@ -4,13 +4,22 @@
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.lightColorScheme
+ import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.hasClickAction
++import androidx.compose.ui.test.hasText
+ import androidx.compose.ui.test.junit4.createComposeRule
+ import androidx.compose.ui.test.onAllNodesWithText
+ import androidx.compose.ui.test.onFirst
+ import androidx.compose.ui.test.onNodeWithText
+ import androidx.compose.ui.test.performClick
++import androidx.compose.ui.test.performScrollTo
+ import com.adsamcik.tracker.statistics.R
++import java.time.LocalDate
+ import java.time.ZoneId
++import java.time.format.DateTimeFormatter
++import java.time.format.FormatStyle
++import java.util.TimeZone
++import org.junit.After
++import org.junit.Assert.assertEquals
+ import org.junit.Rule
+ import org.junit.Test
+ import org.junit.runner.RunWith
+@@ -33,6 +42,18 @@
+ 
+ 	@get:Rule
+ 	val composeTestRule = createComposeRule()
++	private var originalTimeZone: TimeZone? = null
++
++	@After
++	fun restoreTimeZone() {
++		originalTimeZone?.let(TimeZone::setDefault)
++	}
++
++	private fun useZone(id: String): ZoneId {
++		originalTimeZone = TimeZone.getDefault()
++		TimeZone.setDefault(TimeZone.getTimeZone(id))
++		return ZoneId.of(id)
++	}
+ 
+ 	private fun str(resId: Int): String =
+ 		RuntimeEnvironment.getApplication().getString(resId)
+@@ -48,6 +69,93 @@
+ 			.atStartOfDay(ZoneId.of("UTC"))
+ 			.toInstant()
+ 			.toEpochMilli()
++	}
++
++	@Test
++	fun `custom dates round trip through real picker east of UTC`() {
++		assertCalendarRoundTrip("Europe/Prague", LocalDate.of(2026, 6, 15), LocalDate.of(2026, 6, 18))
++	}
++
++	@Test
++	fun `custom dates round trip through real picker west of UTC`() {
++		assertCalendarRoundTrip("America/Los_Angeles", LocalDate.of(2026, 6, 15), LocalDate.of(2026, 6, 18))
++	}
++
++	@Test
++	fun `spring clock change confirms a complete 23 hour local day`() {
++		assertCalendarRoundTrip("Europe/Prague", LocalDate.of(2026, 3, 29), LocalDate.of(2026, 3, 29), 23L)
++	}
++
++	@Test
++	fun `autumn clock change confirms a complete 25 hour local day`() {
++		assertCalendarRoundTrip("Europe/Prague", LocalDate.of(2026, 10, 25), LocalDate.of(2026, 10, 25), 25L)
++	}
++
++	@Test
++	fun `Today preset confirms local calendar bounds east of UTC`() {
++		assertPresetRoundTrip("Europe/Prague", StatsDateRangePreset.TODAY)
++	}
++
++	@Test
++	fun `Last month preset confirms local calendar bounds west of UTC`() {
++		assertPresetRoundTrip("America/Los_Angeles", StatsDateRangePreset.LAST_MONTH)
++	}
++
++	@Test
++	fun `choosing calendar dates after All time confirms the chosen range`() {
++		val zone = useZone("Europe/Prague")
++		val start = LocalDate.of(2026, 6, 15).atStartOfDay(zone).toInstant().toEpochMilli()
++		val end = LocalDate.of(2026, 6, 17).atStartOfDay(zone).toInstant().toEpochMilli() - 1L
++		var confirmed: Pair<Long, Long>? = null
++		var cleared = 0
++		showRange(start, end, { first, last -> confirmed = first to last }, { cleared++ })
++		composeTestRule.onNode(hasText(allTimeText()) and hasClickAction()).performScrollTo().performClick()
++		composeTestRule.onAllNodesWithText("17").onFirst().performClick()
++		composeTestRule.onAllNodesWithText("18").onFirst().performClick()
++		composeTestRule.onNodeWithText(okText()).performClick()
++		assertEquals(0, cleared)
++		assertEquals(
++			LocalDate.of(2026, 6, 17).atStartOfDay(zone).toInstant().toEpochMilli() to
++				(LocalDate.of(2026, 6, 19).atStartOfDay(zone).toInstant().toEpochMilli() - 1L),
++			confirmed,
++		)
++	}
++
++	private fun assertCalendarRoundTrip(zoneId: String, first: LocalDate, last: LocalDate, hours: Long? = null) {
++		val zone = useZone(zoneId)
++		val start = first.atStartOfDay(zone).toInstant().toEpochMilli()
++		val end = last.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1L
++		var confirmed: Pair<Long, Long>? = null
++		var cleared = 0
++		showRange(start, end, { firstMs, lastMs -> confirmed = firstMs to lastMs }, { cleared++ })
++		val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
++		val caption = if (first == last) formatter.format(first) else
++			"${formatter.format(first)} → ${formatter.format(last)}"
++		composeTestRule.onNodeWithText(caption).assertIsDisplayed()
++		composeTestRule.onNodeWithText(okText()).performClick()
++		assertEquals(start to end, confirmed)
++		assertEquals(0, cleared)
++		hours?.let { assertEquals(it * 60L * 60L * 1_000L, end - start + 1L) }
++	}
++
++	private fun assertPresetRoundTrip(zoneId: String, preset: StatsDateRangePreset) {
++		val zone = useZone(zoneId)
++		val expected = statsDateRangePresetOptions(System.currentTimeMillis(), zone).single { it.preset == preset }
++		var confirmed: Pair<Long, Long>? = null
++		var cleared = 0
++		showRange(null, null, { first, last -> confirmed = first to last }, { cleared++ })
++		composeTestRule.onNode(hasText(str(preset.labelRes)) and hasClickAction()).performScrollTo().performClick()
++		composeTestRule.onNodeWithText(okText()).performClick()
++		assertEquals(expected.startMs to expected.endMs, confirmed)
++		assertEquals(0, cleared)
++	}
++
++	private fun showRange(start: Long?, end: Long?, confirm: (Long, Long) -> Unit, clear: () -> Unit) {
++		composeTestRule.setContent {
++			MaterialTheme(colorScheme = lightColorScheme()) {
++				StatsDateRangeDialog(start, end, confirm, clear, {})
++			}
++		}
+ 	}
+ 
+ 	// ─── Chrome ──────────────────────────────────────────────────────────

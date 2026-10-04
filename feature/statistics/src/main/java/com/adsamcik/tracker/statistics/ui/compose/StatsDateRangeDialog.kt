@@ -24,10 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -35,10 +32,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.adsamcik.tracker.statistics.R
-import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -130,6 +127,15 @@ private val readableFormatter: DateTimeFormatter =
 private fun millisToLocalDate(ms: Long, zoneId: ZoneId): LocalDate =
     Instant.ofEpochMilli(ms).atZone(zoneId).toLocalDate()
 
+/** Material's picker represents calendar dates as UTC midnight, not local instants. */
+internal fun statsPickerDateMillis(ms: Long, zoneId: ZoneId): Long =
+    millisToLocalDate(ms, zoneId).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+
+internal fun statsLocalRangeFromPicker(startMs: Long, endMs: Long, zoneId: ZoneId): Pair<Long, Long> =
+    millisToLocalDate(startMs, ZoneOffset.UTC).atStartOfDay(zoneId).toInstant().toEpochMilli() to
+        (millisToLocalDate(endMs, ZoneOffset.UTC).plusDays(1).atStartOfDay(zoneId)
+            .toInstant().toEpochMilli() - 1L)
+
 /**
  * Custom date-range dialog. Sits above the Material 3 [DateRangePicker] with a
  * preset chip row so the common cases ("Last 7 days", "This month", ...) are
@@ -151,27 +157,28 @@ internal fun StatsDateRangeDialog(
     val zoneId = remember { ZoneId.systemDefault() }
     val now = remember { System.currentTimeMillis() }
     val presetOptions = remember(now, zoneId) { statsDateRangePresetOptions(now, zoneId) }
-    val initialPreset = remember(initialStartMs, initialEndMs, now, zoneId) {
-        matchingStatsDateRangePreset(initialStartMs, initialEndMs, now, zoneId)
-    }
-
-    var selectedPreset by remember { mutableStateOf(initialPreset) }
     val pickerState = rememberDateRangePickerState(
-        initialSelectedStartDateMillis = initialStartMs,
-        initialSelectedEndDateMillis = initialEndMs?.let { it - MILLIS_PER_DAY + 1L },
+        initialSelectedStartDateMillis = initialStartMs?.let { statsPickerDateMillis(it, zoneId) },
+        initialSelectedEndDateMillis = initialEndMs?.let { statsPickerDateMillis(it, zoneId) },
         initialDisplayMode = DisplayMode.Picker,
     )
 
     val pickerStart = pickerState.selectedStartDateMillis
     val pickerEnd = pickerState.selectedEndDateMillis
     val rangeValid = pickerStart != null && pickerEnd != null
-    val rangeIsAllTime = selectedPreset == StatsDateRangePreset.ALL_TIME
+    val rangeIsAllTime = pickerStart == null && pickerEnd == null
+    val selectedRange = if (pickerStart != null && pickerEnd != null) {
+        statsLocalRangeFromPicker(pickerStart, pickerEnd, zoneId)
+    } else null
+    val selectedPreset = if (rangeIsAllTime) StatsDateRangePreset.ALL_TIME else selectedRange?.let {
+        matchingStatsDateRangePreset(it.first, it.second, now, zoneId)
+    }
 
     val summaryText = when {
         rangeIsAllTime -> stringResource(R.string.stats_date_preset_all_time)
         pickerStart != null && pickerEnd != null -> {
-            val s = millisToLocalDate(pickerStart, zoneId)
-            val e = millisToLocalDate(pickerEnd, zoneId)
+            val s = millisToLocalDate(pickerStart, ZoneOffset.UTC)
+            val e = millisToLocalDate(pickerEnd, ZoneOffset.UTC)
             if (s == e) {
                 readableFormatter.format(s)
             } else {
@@ -226,13 +233,14 @@ internal fun StatsDateRangeDialog(
                         FilterChip(
                             selected = selectedPreset == option.preset,
                             onClick = {
-                                selectedPreset = option.preset
-                                if (option.preset != StatsDateRangePreset.ALL_TIME) {
+                                if (option.preset == StatsDateRangePreset.ALL_TIME) {
+                                    pickerState.setSelection(null, null)
+                                } else {
                                     // Push preset into picker so the calendar grid
                                     // visually reflects the chosen span.
                                     pickerState.setSelection(
-                                        startDateMillis = option.startMs,
-                                        endDateMillis = option.endMs - MILLIS_PER_DAY + 1L,
+                                        startDateMillis = statsPickerDateMillis(option.startMs, zoneId),
+                                        endDateMillis = statsPickerDateMillis(option.endMs, zoneId),
                                     )
                                 }
                             },
@@ -262,10 +270,8 @@ internal fun StatsDateRangeDialog(
                 onClick = {
                     if (rangeIsAllTime) {
                         onClear()
-                    } else if (rangeValid) {
-                        val s = pickerStart!!
-                        val e = pickerEnd!!
-                        onConfirm(s, e + MILLIS_PER_DAY - 1L)
+                    } else if (selectedRange != null) {
+                        onConfirm(selectedRange.first, selectedRange.second)
                     }
                 },
                 enabled = rangeIsAllTime || rangeValid,
@@ -288,4 +294,3 @@ internal fun StatsDateRangeDialog(
     )
 }
 
-private const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L

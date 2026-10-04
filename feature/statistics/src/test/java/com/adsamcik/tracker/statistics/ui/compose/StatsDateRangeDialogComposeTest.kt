@@ -4,13 +4,22 @@ import android.R as AndroidR
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.adsamcik.tracker.statistics.R
+import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.TimeZone
+import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,6 +42,18 @@ class StatsDateRangeDialogComposeTest {
 
 	@get:Rule
 	val composeTestRule = createComposeRule()
+	private var originalTimeZone: TimeZone? = null
+
+	@After
+	fun restoreTimeZone() {
+		originalTimeZone?.let(TimeZone::setDefault)
+	}
+
+	private fun useZone(id: String): ZoneId {
+		originalTimeZone = TimeZone.getDefault()
+		TimeZone.setDefault(TimeZone.getTimeZone(id))
+		return ZoneId.of(id)
+	}
 
 	private fun str(resId: Int): String =
 		RuntimeEnvironment.getApplication().getString(resId)
@@ -48,6 +69,93 @@ class StatsDateRangeDialogComposeTest {
 			.atStartOfDay(ZoneId.of("UTC"))
 			.toInstant()
 			.toEpochMilli()
+	}
+
+	@Test
+	fun `custom dates round trip through real picker east of UTC`() {
+		assertCalendarRoundTrip("Europe/Prague", LocalDate.of(2026, 6, 15), LocalDate.of(2026, 6, 18))
+	}
+
+	@Test
+	fun `custom dates round trip through real picker west of UTC`() {
+		assertCalendarRoundTrip("America/Los_Angeles", LocalDate.of(2026, 6, 15), LocalDate.of(2026, 6, 18))
+	}
+
+	@Test
+	fun `spring clock change confirms a complete 23 hour local day`() {
+		assertCalendarRoundTrip("Europe/Prague", LocalDate.of(2026, 3, 29), LocalDate.of(2026, 3, 29), 23L)
+	}
+
+	@Test
+	fun `autumn clock change confirms a complete 25 hour local day`() {
+		assertCalendarRoundTrip("Europe/Prague", LocalDate.of(2026, 10, 25), LocalDate.of(2026, 10, 25), 25L)
+	}
+
+	@Test
+	fun `Today preset confirms local calendar bounds east of UTC`() {
+		assertPresetRoundTrip("Europe/Prague", StatsDateRangePreset.TODAY)
+	}
+
+	@Test
+	fun `Last month preset confirms local calendar bounds west of UTC`() {
+		assertPresetRoundTrip("America/Los_Angeles", StatsDateRangePreset.LAST_MONTH)
+	}
+
+	@Test
+	fun `choosing calendar dates after All time confirms the chosen range`() {
+		val zone = useZone("Europe/Prague")
+		val start = LocalDate.of(2026, 6, 15).atStartOfDay(zone).toInstant().toEpochMilli()
+		val end = LocalDate.of(2026, 6, 17).atStartOfDay(zone).toInstant().toEpochMilli() - 1L
+		var confirmed: Pair<Long, Long>? = null
+		var cleared = 0
+		showRange(start, end, { first, last -> confirmed = first to last }, { cleared++ })
+		composeTestRule.onNode(hasText(allTimeText()) and hasClickAction()).performScrollTo().performClick()
+		composeTestRule.onAllNodesWithText("17").onFirst().performClick()
+		composeTestRule.onAllNodesWithText("18").onFirst().performClick()
+		composeTestRule.onNodeWithText(okText()).performClick()
+		assertEquals(0, cleared)
+		assertEquals(
+			LocalDate.of(2026, 6, 17).atStartOfDay(zone).toInstant().toEpochMilli() to
+				(LocalDate.of(2026, 6, 19).atStartOfDay(zone).toInstant().toEpochMilli() - 1L),
+			confirmed,
+		)
+	}
+
+	private fun assertCalendarRoundTrip(zoneId: String, first: LocalDate, last: LocalDate, hours: Long? = null) {
+		val zone = useZone(zoneId)
+		val start = first.atStartOfDay(zone).toInstant().toEpochMilli()
+		val end = last.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1L
+		var confirmed: Pair<Long, Long>? = null
+		var cleared = 0
+		showRange(start, end, { firstMs, lastMs -> confirmed = firstMs to lastMs }, { cleared++ })
+		val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+		val caption = if (first == last) formatter.format(first) else
+			"${formatter.format(first)} → ${formatter.format(last)}"
+		composeTestRule.onNodeWithText(caption).assertIsDisplayed()
+		composeTestRule.onNodeWithText(okText()).performClick()
+		assertEquals(start to end, confirmed)
+		assertEquals(0, cleared)
+		hours?.let { assertEquals(it * 60L * 60L * 1_000L, end - start + 1L) }
+	}
+
+	private fun assertPresetRoundTrip(zoneId: String, preset: StatsDateRangePreset) {
+		val zone = useZone(zoneId)
+		val expected = statsDateRangePresetOptions(System.currentTimeMillis(), zone).single { it.preset == preset }
+		var confirmed: Pair<Long, Long>? = null
+		var cleared = 0
+		showRange(null, null, { first, last -> confirmed = first to last }, { cleared++ })
+		composeTestRule.onNode(hasText(str(preset.labelRes)) and hasClickAction()).performScrollTo().performClick()
+		composeTestRule.onNodeWithText(okText()).performClick()
+		assertEquals(expected.startMs to expected.endMs, confirmed)
+		assertEquals(0, cleared)
+	}
+
+	private fun showRange(start: Long?, end: Long?, confirm: (Long, Long) -> Unit, clear: () -> Unit) {
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				StatsDateRangeDialog(start, end, confirm, clear, {})
+			}
+		}
 	}
 
 	// ─── Chrome ──────────────────────────────────────────────────────────

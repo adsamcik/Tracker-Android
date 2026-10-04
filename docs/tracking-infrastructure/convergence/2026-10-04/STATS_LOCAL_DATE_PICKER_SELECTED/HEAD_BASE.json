@@ -1,0 +1,15 @@
+{
+  "base_head": "c315f7dc1c649a54c575485bd8de18e16a5fa162",
+  "files": [
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/compose/StatsDateRangeDialog.kt",
+      "base_sha256": "0e099fced2ac6868782da953d311ff6faea08f7799eb61e008dcdbb4ca02e5fb",
+      "working_before_sha256": "1f5ec924b66fc92e9c6bb5bba0c74b75225607cf535674b915bdffab9abc422d"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/StatsDateRangeDialogComposeTest.kt",
+      "base_sha256": "9e8e15db576004b16c80726c080870aaf55f5e98cabe172fe03b457a9d0173d0",
+      "working_before_sha256": "41c404004a73a3984d5294c3b5911c9cd4eff8a6a7ca46de7e103915c5f465a9"
+    }
+  ]
+}

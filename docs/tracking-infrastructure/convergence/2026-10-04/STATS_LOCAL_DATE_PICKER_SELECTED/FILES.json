@@ -1,0 +1,20 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "c315f7dc1c649a54c575485bd8de18e16a5fa162",
+  "files": [
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/compose/StatsDateRangeDialog.kt",
+      "base_sha256": "0e099fced2ac6868782da953d311ff6faea08f7799eb61e008dcdbb4ca02e5fb",
+      "selected_sha256": "dc1b10b6b8c9c84710c83340dd4907a8a3bab83e85fd4d2d8dd7b79baf58dc50"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/StatsDateRangeDialogComposeTest.kt",
+      "base_sha256": "9e8e15db576004b16c80726c080870aaf55f5e98cabe172fe03b457a9d0173d0",
+      "selected_sha256": "932e0b7728c06d956c936044539cddaf07c68848bd40d106c192d684e8c98113"
+    }
+  ],
+  "selection_patch_sha256": "b8722984710f4eb73fb74d967152ed2b3f460ed0899af5aa6f4cdb8e802379cb",
+  "new_unexecuted_test_cases": 7,
+  "executed_cases": 0
+}

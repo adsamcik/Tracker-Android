@@ -4,6 +4,11 @@ Last updated: 2026-10-04
 
 ## Current continuation
 
+Current priority: complete the tracking architecture and system. Defer backup
+and restore work while finishing shared provider ownership, adaptive quality and
+power, reliable Start/End/Off, and session-independent collection/readers. Preserve
+existing backup drafts and approvals for later; no convergence gate is open.
+
 October 3 decisions supersede earlier pending-question labels; see
 `convergence/2026-10-03/DECISION_STATUS.md`. Temporary radio export storage, the
 native Wi-Fi format marker, released `main` attribution, three period-metric
@@ -13,8 +18,11 @@ Later October 3 answers approve the shared session-export entry point, saved-poi
 longest-trip reader, persistent unfinished-file notices and session-independent
 Steps summary. Available radio map points need no extra notice; exports stay
 disabled until database startup succeeds. Exploration period statistics requiring
-the declined additional dated lookup stay unavailable. Location replacement storage
-still requires confirmation of the reviewed approach.
+the declined additional dated lookup stay unavailable. October 4 follow-ups approve
+one current Location correction with the original phone reading retained internally,
+individual radio readings with overlapping-import merging and exact file membership.
+Backup restore reimports data into existing databases without file replacement or
+an app restart; settings and the approved stopped/confirmed replacement behavior remain.
 October 4 answers approve one measured-date rule and selected-date exports with
 an initially enabled Include complete sessions switch. Off retains in-date
 readings from overnight sessions. Actual indivisible measurement windows remain
