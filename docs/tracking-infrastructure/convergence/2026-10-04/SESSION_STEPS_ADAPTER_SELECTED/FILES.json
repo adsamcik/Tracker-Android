@@ -1,0 +1,65 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "phase": "IMPLEMENTATION_ONLY",
+  "owner": "/root/transfer_adversary_1003",
+  "freeze_date": "2026-10-04",
+  "base_head_parent_supplied": "8bbb29490c0488d26b25ffec04a7977d1482bd9b",
+  "path_count": 2,
+  "new_authored_test_methods": 14,
+  "existing_test_methods_preserved": 11,
+  "tests_executed": false,
+  "gates_executed": false,
+  "git_operations_performed_by_author": false,
+  "selection_patch": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_STEPS_ADAPTER_SELECTED/SELECTION.patch",
+  "selection_patch_sha256": "7beda040d50b7b9b6efed8b419239859903ca4dbada3e5cddcc08bb3ce9c1278",
+  "patch_convention": "LF review patch; exact bytes are pinned before/after snapshots",
+  "paths": [
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableStepsExporter.kt",
+      "selection": "clean-at-start task delta; parent confirmed both paths clean at base HEAD",
+      "selected_before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_STEPS_ADAPTER_SELECTED/PortableStepsExporter.kt.before",
+      "selected_after_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_STEPS_ADAPTER_SELECTED/PortableStepsExporter.kt.after",
+      "selected_before_sha256": "3bd9daa4cb3e22a730df78630aed9413c2106756f9b4c8e2b890022b777cd952",
+      "selected_after_sha256": "3c284c9639cd3d2c6b8023639fc14c7e00f6d32a00eb28904afef95dc2b6f410",
+      "actual_working_sha256": "3c284c9639cd3d2c6b8023639fc14c7e00f6d32a00eb28904afef95dc2b6f410",
+      "existing_test_methods_before": 0,
+      "new_authored_test_methods": 0,
+      "existing_test_methods_removed": []
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortableStepsExporterTest.kt",
+      "selection": "clean-at-start task delta; parent confirmed both paths clean at base HEAD",
+      "selected_before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_STEPS_ADAPTER_SELECTED/PortableStepsExporterTest.kt.before",
+      "selected_after_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_STEPS_ADAPTER_SELECTED/PortableStepsExporterTest.kt.after",
+      "selected_before_sha256": "92f7742f5598916841e8345855882ffb30beb9af817a11d12c77fa08b07f66a0",
+      "selected_after_sha256": "82d426617a0db566377527f54d077d976651bb98f04aae5c547c6f99ff9b180c",
+      "actual_working_sha256": "82d426617a0db566377527f54d077d976651bb98f04aae5c547c6f99ff9b180c",
+      "existing_test_methods_before": 11,
+      "new_authored_test_methods": 14,
+      "existing_test_methods_removed": []
+    }
+  ],
+  "authored_unexecuted_test_inventory": [
+    "exact export forwards native and imported membership and epoch without a range query",
+    "exact graph refusal uses only the selected v1 records for staging and both rechecks",
+    "exact encoded v2 overflow keeps v1 for selected content checks",
+    "selected edit before destination copying refuses bytes and removes the private spool",
+    "selected change during destination copying cannot report a successful v2 file",
+    "selected change during v1 destination copying cannot retry a different format",
+    "unrelated source writes during copy do not invalidate selected Steps contents",
+    "exact export preserves its original epoch instead of adopting the current epoch",
+    "clear during destination copying rejects the original epoch and cannot report success",
+    "caller collection mutation cannot widen the staged exact selection",
+    "empty or unavailable exact source data does not produce bytes or silently use dates",
+    "exact source cancellation after emission removes the spool without destination bytes",
+    "destination cancellation stops exact rechecks and physically removes its spool",
+    "exact post-emission source refusal discards staged bytes and removes its spool"
+  ],
+  "excluded_work": [
+    "shared session preview/write port, organization selector construction, Hilt facade and product detail UI",
+    "radio sparse formats and overlapping file membership; duplicate Steps bundle receipt membership",
+    "exact background Steps day selector and retrospective measurement subset export",
+    "all held source readers, History, schema, Location replacement and backup V2 drafts",
+    "activation, runtime evidence, compilation, tests and convergence/integration gates"
+  ]
+}

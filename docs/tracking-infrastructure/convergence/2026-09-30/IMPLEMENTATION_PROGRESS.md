@@ -20,6 +20,12 @@ description of its earlier input; this file records subsequent repair progress.
 
 ## Authored slices and local commit receipts
 
+- October 4 exact Steps file adapter is independently reviewed as a two-path
+  prerequisite. Existing V1/V2 readers/codecs/spool retain exact membership and
+  original epoch; selected canonical contents are checked before/after destination
+  copy. Fourteen new and eleven preserved test methods remain unexecuted. Receipt:
+  `../2026-10-04/SESSION_STEPS_ADAPTER_SELECTED/SOURCE_REVIEW.md`.
+  Complete bundle caller, final handoff and UI are still unfinished.
 - October 4 database-archive cancellation is independently reviewed as a
   three-path HEAD V1 prerequisite. Final cleanup failures cannot convert an already
   cancelled transfer into an ordinary Error result; an active caller keeps its

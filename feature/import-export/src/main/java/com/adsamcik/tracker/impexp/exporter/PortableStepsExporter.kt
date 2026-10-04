@@ -12,7 +12,9 @@ import com.adsamcik.tracker.stats.api.repository.ExportPortableSteps
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsV2
+import com.adsamcik.tracker.stats.api.repository.ExportSelectedPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.PortableStepsExportUnverifiableReason
+import com.adsamcik.tracker.stats.api.repository.PortableStepsTransferRetryableReason
 import com.adsamcik.tracker.stats.api.repository.StepsPortableFormatV1
 import com.adsamcik.tracker.stats.api.repository.StepsPortableFormatV2
 import dagger.hilt.EntryPoint
@@ -20,6 +22,10 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.io.OutputStream
+import java.security.DigestOutputStream
+import java.security.MessageDigest
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /** Resolves the read-only Steps exporter used by the application singleton graph. */
 @EntryPoint
@@ -65,56 +71,63 @@ internal class PortableStepsExporter(
 		dateRange: LongRange?,
 	): ExportResult {
 		val request = dateRange?.toPortableRequest() ?: FULL_HISTORY
-		val result = FileBackedExportSpool(
-			context,
-			"portable-steps-v2-",
-			v2MaximumBytes,
-		).use { spool ->
-			when (val staged = spool.stage { spoolOutput ->
-				PortableStepsJsonV2Codec().encode(spoolOutput) { sink ->
+		return exportStaged(context, outputStream, verifySelectedContents = false,
+			encodeV2 = { output ->
+				PortableStepsJsonV2Codec().encode(output) { sink ->
 					exporterProvider(context).export(request, sink)
 				}
-			}) {
-				is FileBackedExportStage.Complete -> {
-					if (staged.value is ExportPortableStepsResult.Exported) {
-						if (spool.byteCount == 0L) {
-							throw PortableStepsJsonException(
-								"Successful Portable Steps v2 export wrote no bytes",
-							)
-						}
-						spool.copyTo(outputStream)
-					}
-					staged.value
+			},
+			encodeV1 = { output ->
+				PortableStepsJsonV1Codec().encode(output) { sink ->
+					legacyExporterProvider(context).export(request, sink)
 				}
-				FileBackedExportStage.EncodedSizeExceeded -> null
-			}
-		}
+			})
+	}
+
+	/**
+	 * Backend prerequisite for the shared session bundle: exact saved records only, never dates.
+	 * A failure after copying requires the caller to discard its destination; the caller owns the
+	 * enclosing retained-data transfer, I/O dispatcher, destination closure and final handoff.
+	 */
+	internal suspend fun exportSession(
+		context: Context,
+		request: ExportSelectedPortableStepsRequest,
+		outputStream: OutputStream,
+	): ExportResult {
+		currentCoroutineContext().ensureActive()
+		val selection = request.copy(nativeSegmentIds = request.nativeSegmentIds.toList(),
+			importedEntryIdentities = request.importedEntryIdentities.toList())
+		return exportStaged(context, outputStream, verifySelectedContents = true,
+			encodeV2 = { output ->
+				PortableStepsJsonV2Codec().encode(output) { sink ->
+					exporterProvider(context).export(selection, sink)
+				}
+			},
+			encodeV1 = { output ->
+				PortableStepsJsonV1Codec().encode(output) { sink ->
+					legacyExporterProvider(context).export(selection, sink)
+				}
+			})
+	}
+
+	/** The same codec closure stages and rechecks the chosen format without changing selection. */
+	private suspend fun exportStaged(
+		context: Context,
+		outputStream: OutputStream,
+		verifySelectedContents: Boolean,
+		encodeV2: suspend (OutputStream) -> ExportPortableStepsResult,
+		encodeV1: suspend (OutputStream) -> ExportPortableStepsResult,
+	): ExportResult {
+		val result = stageAndCopy(context, outputStream, "portable-steps-v2-", v2MaximumBytes,
+			verifySelectedContents, encodeV2)
 		val finalResult: ExportPortableStepsResult = if (
 			result == null ||
 			result is ExportPortableStepsResult.Unverifiable &&
 				result.reason == PortableStepsExportUnverifiableReason.COUNT_DOMAIN_GRAPH_UNAVAILABLE
 		) {
-			FileBackedExportSpool(
-				context,
-				"portable-steps-v1-",
-				v1MaximumBytes,
-			).use { spool ->
-				when (val staged = spool.stage { spoolOutput ->
-					PortableStepsJsonV1Codec().encode(spoolOutput) { sink ->
-						legacyExporterProvider(context).export(request, sink)
-					}
-				}) {
-					is FileBackedExportStage.Complete -> {
-						if (staged.value is ExportPortableStepsResult.Exported) {
-							spool.copyTo(outputStream)
-						}
-						staged.value
-					}
-					FileBackedExportStage.EncodedSizeExceeded -> return ExportResult.Error(
-						LocalizedString(R.string.export_error_portable_steps_write),
-					)
-				}
-			}
+			stageAndCopy(context, outputStream, "portable-steps-v1-", v1MaximumBytes,
+				verifySelectedContents, encodeV1) ?: return ExportResult.Error(
+				LocalizedString(R.string.export_error_portable_steps_write))
 		} else {
 			requireNotNull(result)
 		}
@@ -131,6 +144,61 @@ internal class PortableStepsExporter(
 			is ExportPortableStepsResult.RetryableFailure -> ExportResult.Error(
 				LocalizedString(R.string.export_error_portable_steps_retryable),
 			)
+		}
+	}
+
+	/** Returns null only for the existing encoded-size fallback, before destination bytes. */
+	private suspend fun stageAndCopy(
+		context: Context,
+		outputStream: OutputStream,
+		prefix: String,
+		maximumBytes: Long,
+		verifySelectedContents: Boolean,
+		encode: suspend (OutputStream) -> ExportPortableStepsResult,
+	): ExportPortableStepsResult? = FileBackedExportSpool(context, prefix, maximumBytes).use { spool ->
+		val digest = if (verifySelectedContents) MessageDigest.getInstance("SHA-256") else null
+		when (val staged = spool.stage { output ->
+			encode(if (digest == null) output else DigestOutputStream(output, digest))
+		}) {
+			is FileBackedExportStage.Complete -> {
+				val result = staged.value
+				if (result !is ExportPortableStepsResult.Exported) return@use result
+				if (spool.byteCount == 0L) {
+					throw PortableStepsJsonException("Successful Portable Steps export wrote no bytes")
+				}
+				val expectedHash = digest?.digest()
+				if (expectedHash != null) {
+					verifyContents(result, expectedHash, encode)?.let { return@use it }
+				}
+				spool.copyTo(outputStream)
+				if (expectedHash != null) {
+					verifyContents(result, expectedHash, encode)?.let { return@use it }
+				}
+				result
+			}
+			FileBackedExportStage.EncodedSizeExceeded -> null
+		}
+	}
+
+	/** Read-only re-encoding includes original graphs, corrections, identities and source bounds. */
+	private suspend fun verifyContents(
+		expectedResult: ExportPortableStepsResult.Exported,
+		expectedHash: ByteArray,
+		encode: suspend (OutputStream) -> ExportPortableStepsResult,
+	): ExportPortableStepsResult? {
+		currentCoroutineContext().ensureActive()
+		val digest = MessageDigest.getInstance("SHA-256")
+		val discarded = object : OutputStream() {
+			override fun write(value: Int) = Unit
+			override fun write(bytes: ByteArray, offset: Int, length: Int) = Unit
+		}
+		val current = encode(DigestOutputStream(discarded, digest))
+		currentCoroutineContext().ensureActive()
+		return when {
+			current is ExportPortableStepsResult.RetryableFailure -> current
+			current == expectedResult && digest.digest().contentEquals(expectedHash) -> null
+			else -> ExportPortableStepsResult.RetryableFailure(
+				PortableStepsTransferRetryableReason.CONCURRENT_STATE_CHANGE)
 		}
 	}
 

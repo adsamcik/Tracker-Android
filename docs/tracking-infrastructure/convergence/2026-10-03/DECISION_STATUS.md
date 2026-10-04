@@ -80,14 +80,19 @@ recorded separately from implementation and source review.
   treating omitted readings as deletion. Older complete files stay readable. This
   is the concrete file/import change needed for the approved selected-date rule;
   no sparse representation has been implemented from approval of dates alone.
+  The October 4 Astra consultation supersedes the earlier physical-store-once
+  proposal: reuse immutable snapshots, deduplicate logical readings and retain
+  exact file membership in a small typed lookup. The updated combined proposal is
+  awaiting approval; physical ownership normalization is not required or approved.
 - [ ] Show an export-settings load error with Retry and disable only affected
   settings controls, preserving unreadable bytes and other tracking/data surfaces.
 - [ ] Retire an old unfinished notice before reusing its exact external file and
   coordinate writing/removal through existing export storage with one shared
   in-memory lock. Storage failure leaves the destination untouched. Do not implement
   this new coordination contract before the user's answer.
-- [ ] Store overlapping imported readings once, with a small lookup preserving
-  membership in each file, including exact duplicate Steps file membership.
+- [ ] Preserve exact duplicate Steps file membership for bundle receipts. The
+  unanswered radio physical-store-once proposal is withdrawn in favor of the
+  simpler combined radio proposal above; no storage normalization is authorized.
 - [ ] Extend the chosen JSON file to all six sources and optional organization
   metadata, with honest absent metrics, all-day data and older-file compatibility.
 - [ ] Include older radio details with Unknown origin in the chosen source file.
@@ -118,6 +123,12 @@ behavior choice still needs a concrete proposal under AGENTS.md.
 
 ## Current implementation activity
 
+- [x] Select the independently reviewed exact Steps file adapter through existing
+  V1/V2 codecs and private staging. Exact IDs/original epoch remain fixed, and
+  selected content is rechecked before/after copy without rejecting unrelated
+  writes. Fourteen new and eleven preserved cases remain unexecuted. Receipt:
+  `../2026-10-04/SESSION_STEPS_ADAPTER_SELECTED/SOURCE_REVIEW.md`.
+  Full shared preview/write, bundle composition and final handoff remain open.
 - [x] Select the independently reviewed three-path database-archive cancellation
   prerequisite. Synchronous cleanup finishes before cancellation escapes; failing
   final lock/output close retains cancellation and suppressed error, while active

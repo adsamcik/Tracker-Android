@@ -122,6 +122,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Select the independently reviewed exact Steps file adapter. Two source paths
+  reuse the existing V1/V2 codecs and private spool, preserve exact membership and
+  original epoch, and compare selected contents before/after destination copying.
+  Fourteen new authored cases and eleven original cases remain unexecuted. Receipt:
+  `convergence/2026-10-04/SESSION_STEPS_ADAPTER_SELECTED/SOURCE_REVIEW.md`.
+  Shared session preview/write, whole-bundle handoff and product UI remain open.
 - [x] Select the independently reviewed database-archive cancellation prerequisite.
   Three source paths preserve cancellation after synchronous ZIP and database-lock
   cleanup, including failures during final close. Eight new authored cases and two
