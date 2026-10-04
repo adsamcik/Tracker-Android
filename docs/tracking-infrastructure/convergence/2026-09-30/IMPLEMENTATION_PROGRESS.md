@@ -20,6 +20,11 @@ description of its earlier input; this file records subsequent repair progress.
 
 ## Authored slices and local commit receipts
 
+- October 4 shared Pressure import reader now checks exact original entry/run/window
+  owners before comparing values, including retained imports and deleted/retained
+  native owners. Five new actual Room scenarios are authored and independently
+  source-reviewed in `../2026-10-04/PRESSURE_NATIVE_CHILD_OWNERS_SELECTED/SOURCE_REVIEW.md`;
+  none ran. Ordinary Pressure recent history and export parity remain open.
 - October 4 composed native Activity/Pressure ownership prerequisite selects the
   approved six-column metadata lookup, transactional/pruning/migration/full-clear
   wiring and exact Activity comparison with factless and retained-window owners.

@@ -124,36 +124,6 @@ internal class PressureHistoryPageReader @Inject constructor(
 					SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
 				)
 			}
-			val localDiscovery = try {
-				integrationObserver.record(TrackingHistoryIntegrationCheckpoint.PRESSURE_LOCAL_DUPLICATE_SELECTOR)
-				val entries = loadExactLocalDuplicateEntries(candidateProbe.take(pageLimit).map { it.identity })
-				authenticateLocalDuplicateAuthorities(entries)?.let {
-					PressureLocalDuplicateAuthorityRead.Ready(it)
-				} ?: PressureLocalDuplicateAuthorityRead.IntegrityFailure
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (_: NativePortableOwnerBudgetExceeded) {
-				PressureLocalDuplicateAuthorityRead.Unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
-			} catch (overflow: PressureHistoryPageDependencyOverflow) {
-				PressureLocalDuplicateAuthorityRead.Unavailable(overflow.reason)
-			} catch (_: RuntimeException) {
-				PressureLocalDuplicateAuthorityRead.IntegrityFailure
-			}
-			val duplicateAuthorities = when (localDiscovery) {
-				is PressureLocalDuplicateAuthorityRead.Unavailable -> return unavailable(
-					when (localDiscovery.reason) {
-						SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
-						SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
-						SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
-						-> SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
-						else -> SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
-					},
-				)
-				PressureLocalDuplicateAuthorityRead.IntegrityFailure -> return unavailable(
-					SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-				)
-				is PressureLocalDuplicateAuthorityRead.Ready -> localDiscovery.authorities
-			}
 			val candidates = candidateProbe.take(pageLimit)
 			for (candidate in candidates) {
 				currentCoroutineContext().ensureActive()
@@ -167,7 +137,7 @@ internal class PressureHistoryPageReader @Inject constructor(
 					)
 				}
 				scannedCandidates++
-				when (val decision = evaluation.toSharedHistoryEligibility(duplicateAuthorities)) {
+				when (val decision = evaluation.qualifyWithExactNativeOwners()) {
 					is PressureImportedEligibilityDecision.Accepted -> accepted += decision.entry
 					PressureImportedEligibilityDecision.Suppressed -> Unit
 					is PressureImportedEligibilityDecision.Unavailable ->
@@ -184,10 +154,10 @@ internal class PressureHistoryPageReader @Inject constructor(
 		)
 	}
 
-	private suspend fun loadExactLocalDuplicateEntries(identities: List<String>): List<PressureLogicalHistoryEntry> {
+	private suspend fun loadExactLocalDuplicateEntries(identities: Sequence<String>): List<PressureLogicalHistoryEntry> {
 		val seeds = database.nativePortableOwnerSeeds(
 			com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.PRESSURE,
-			identities.asSequence(),
+			identities,
 			PRESSURE_HISTORY_SEGMENT_BATCH_CAP,
 		)
 		val entries = liveSelector.selectLogicalBySegmentIdsInTransaction(seeds.map { it.id })
@@ -222,6 +192,55 @@ internal class PressureHistoryPageReader @Inject constructor(
 			authorities[identity] = authority
 		}
 		return authorities
+	}
+
+	/** Each import's own keys resolve exact owners; unrelated imports cannot lend ownership. */
+	private suspend fun ImportedPressureHistoryEvaluation.qualifyWithExactNativeOwners():
+		PressureImportedEligibilityDecision {
+		if (this is ImportedPressureHistoryEvaluation.Unverifiable) {
+			return toSharedHistoryEligibility(emptyMap())
+		}
+		val keys = when (this) {
+			is ImportedPressureHistoryEvaluation.Readable -> sequence {
+				yield(latest.entry.identity.value)
+				for (run in latest.entry.runs) {
+					yield(run.identity.value)
+					for (window in run.windows) yield(window.identity.value)
+				}
+			}
+			is ImportedPressureHistoryEvaluation.Retained -> protectedIdentities.asSequence().map { it.value }
+			is ImportedPressureHistoryEvaluation.Unverifiable -> error("Handled above")
+		}
+		val local = try {
+			integrationObserver.record(TrackingHistoryIntegrationCheckpoint.PRESSURE_LOCAL_DUPLICATE_SELECTOR)
+			authenticateLocalDuplicateAuthorities(loadExactLocalDuplicateEntries(keys))
+				?: return PressureImportedEligibilityDecision.Unavailable(
+					SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: NativePortableOwnerBudgetExceeded) {
+			return PressureImportedEligibilityDecision.Unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
+		} catch (overflow: PressureHistoryPageDependencyOverflow) {
+			return PressureImportedEligibilityDecision.Unavailable(when (overflow.reason) {
+				SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
+				SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
+				SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED ->
+					SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
+				else -> SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
+			})
+		} catch (_: RuntimeException) {
+			return PressureImportedEligibilityDecision.Unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+		}
+		val ownerConflict = when (this) {
+			is ImportedPressureHistoryEvaluation.Readable -> local.keys.any { it != latest.entry.identity }
+			is ImportedPressureHistoryEvaluation.Retained -> local.isNotEmpty()
+			is ImportedPressureHistoryEvaluation.Unverifiable -> false
+		}
+		if (ownerConflict) return PressureImportedEligibilityDecision.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+		return toSharedHistoryEligibility(local)
 	}
 
 	private fun ImportedPressureHistoryEvaluation.toSharedHistoryEligibility(
@@ -378,18 +397,6 @@ internal val pressureSourceRecencyRunOrder =
 private data class PressureLocalDuplicateAuthority(
 	val portable: PortablePressureEntryV1?,
 )
-
-private sealed interface PressureLocalDuplicateAuthorityRead {
-	data class Ready(
-		val authorities: Map<PortablePressureOpaqueIdentity, PressureLocalDuplicateAuthority>,
-	) : PressureLocalDuplicateAuthorityRead
-
-	data class Unavailable(
-		val reason: SourceAwareHistoryPageUnavailableReason,
-	) : PressureLocalDuplicateAuthorityRead
-
-	data object IntegrityFailure : PressureLocalDuplicateAuthorityRead
-}
 
 private sealed interface PressureImportedEligibilityDecision {
 	data class Accepted(

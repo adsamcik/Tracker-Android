@@ -1,0 +1,27 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "parentHead": "e4f0a4cc4f327de2a7fe0a09959c85db40c8617d",
+  "dependency": "NATIVE_PORTABLE_OWNERSHIP_SELECTED revised selection",
+  "paths": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryPageReader.kt",
+      "before": "PressureHistoryPageReader.kt.before",
+      "selected": "PressureHistoryPageReader.kt.after",
+      "beforeSha256": "c2ac7ddc1204b693a71894bb118e2c8ed43957d97a94233f64afcbff0ebdec26",
+      "selectedSha256": "889522469eb08af64865de3d3356b7307b8ef41109cd3291ef930315adac7e01",
+      "workingSha256": "df969e83678410dabfb59f5010104e1ffb1e116f607195d52144dffb871e30db"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "before": "PressureHistorySelectorTest.kt.before",
+      "selected": "PressureHistorySelectorTest.kt.after",
+      "beforeSha256": "7168be4a2652f59c77f453cf54ca7047af75dab7af3833770598b98e467054a2",
+      "selectedSha256": "9228380a55aae3d6958c0999f772a779f5fab9014bac45d207b954f553000508",
+      "workingSha256": "9228380a55aae3d6958c0999f772a779f5fab9014bac45d207b954f553000508"
+    }
+  ],
+  "authoredNewCases": 5,
+  "excluded": "Held R11 selectedImportedInTransaction method; its narrow caller repair remains preserved in working source",
+  "executedGates": []
+}

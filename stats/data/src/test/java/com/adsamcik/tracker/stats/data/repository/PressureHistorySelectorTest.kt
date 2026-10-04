@@ -1986,6 +1986,100 @@ class PressureHistorySelectorTest {
 	}
 
 	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun importedPressureCannotClaimAnEqualNativeRunForAnotherEntry() = runTest {
+		insertFixture(factSemanticRevision = 1L)
+		val local = (PortablePressureRoomReader(database, selector).read(exportRequest()) as PortablePressureSnapshot.Ready).entries.single()
+		val foreign = PortablePressureEntryV1.create(
+			PortablePressureOpaqueIdentity.derive(PortablePressureIdentityKind.LOGICAL_ENTRY, "foreign-native-run-owner"),
+			local.startTimeMs, local.endTimeMs, local.runs,
+		)
+		assertNativePressureOwnerConflict(foreign, "foreign-run", UnconfinedTestDispatcher(testScheduler))
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun importedPressureCannotClaimAnEqualNativeWindowUnderAnotherRun() = runTest {
+		insertFixture(factSemanticRevision = 1L)
+		val local = (PortablePressureRoomReader(database, selector).read(exportRequest()) as PortablePressureSnapshot.Ready).entries.single()
+		val run = local.runs.single().copy(identity = PortablePressureOpaqueIdentity.derive(
+			PortablePressureIdentityKind.PHYSICAL_RUN, "foreign-native-window-run"))
+		val foreign = PortablePressureEntryV1.create(
+			PortablePressureOpaqueIdentity.derive(PortablePressureIdentityKind.LOGICAL_ENTRY, "foreign-native-window-owner"),
+			local.startTimeMs, local.endTimeMs, listOf(run),
+		)
+		assertNativePressureOwnerConflict(foreign, "foreign-window", UnconfinedTestDispatcher(testScheduler))
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun deletingNativePressureDoesNotLendItsRunToAnotherImportedEntry() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		val local = (PortablePressureRoomReader(database, selector).read(exportRequest()) as PortablePressureSnapshot.Ready).entries.single()
+		database.sourceDeletionFenceDao().upsert(pressureFence(fixture.logicalId, fixture.runId))
+		val foreign = PortablePressureEntryV1.create(
+			PortablePressureOpaqueIdentity.derive(PortablePressureIdentityKind.LOGICAL_ENTRY, "foreign-deleted-run-owner"),
+			local.startTimeMs, local.endTimeMs, local.runs,
+		)
+		assertNativePressureOwnerConflict(foreign, "foreign-deleted-run", UnconfinedTestDispatcher(testScheduler))
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun nativePressureRetentionLossDoesNotLendItsRunToAnotherImportedEntry() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		val local = (PortablePressureRoomReader(database, selector).read(exportRequest()) as PortablePressureSnapshot.Ready).entries.single()
+		installPressureRetentionLoss(fixture)
+		val foreign = PortablePressureEntryV1.create(
+			PortablePressureOpaqueIdentity.derive(PortablePressureIdentityKind.LOGICAL_ENTRY, "foreign-retained-run-owner"),
+			local.startTimeMs, local.endTimeMs, local.runs,
+		)
+		assertNativePressureOwnerConflict(foreign, "foreign-retained-run", UnconfinedTestDispatcher(testScheduler))
+	}
+
+	private suspend fun assertNativePressureOwnerConflict(
+		entry: PortablePressureEntryV1,
+		receiptSuffix: String,
+		dispatcher: kotlinx.coroutines.CoroutineDispatcher,
+	) {
+		RoomImportPortablePressure(database, dispatcher) {}
+			.importEntry(importRequest(entry, receiptSuffix)) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		database.withTransaction {
+			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(10)
+		} shouldBe ImportedHistoryEligiblePage.Unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun retainedImportedPressureShellCannotClaimAnotherNativeRun() = runTest {
+		insertFixture(factSemanticRevision = 1L)
+		val local = (PortablePressureRoomReader(database, selector).read(exportRequest()) as PortablePressureSnapshot.Ready).entries.single()
+		val foreign = PortablePressureEntryV1.create(
+			PortablePressureOpaqueIdentity.derive(PortablePressureIdentityKind.LOGICAL_ENTRY, "foreign-compacted-run-owner"),
+			local.startTimeMs, local.endTimeMs, local.runs,
+		)
+		val dispatcher = UnconfinedTestDispatcher(testScheduler)
+		RoomImportPortablePressure(database, dispatcher) {}
+			.importEntry(importRequest(foreign, "foreign-compacted-run")) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		val floor = local.endTimeMs + 1L
+		database.sourceEvidenceStateDao().updateLifecycle(0L, floor, 10_000L) shouldBe 1
+		val state = requireNotNull(database.sourceEvidenceStateDao().get())
+		RoomTruncateImportedPressureRetention(database, dispatcher, {}).truncate(
+			com.adsamcik.tracker.stats.api.repository.TruncateImportedPressureRetentionRequest(
+				0L, state.revision, floor, 10_000L,
+			),
+		) shouldBe com.adsamcik.tracker.stats.api.repository.TruncateImportedPressureRetentionResult.Truncated(1, 1, 1, 1)
+		val evaluation = database.withTransaction {
+			(ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(10) as ImportedPressureHistorySelection.Available)
+				.evaluations.single()
+		}
+		evaluation::class shouldBe ImportedPressureHistoryEvaluation.Retained::class
+		database.withTransaction {
+			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(10)
+		} shouldBe ImportedHistoryEligiblePage.Unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+	}
+
+	@Test
 	fun portablePressureMaterializingEntryFailsBeforeBecomingAnEmptyExport() = runTest {
 		insertFixture(factSemanticRevision = null, laneCursor = 0L)
 		val emitted = mutableListOf<PortablePressureEntryV1>()

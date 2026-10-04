@@ -122,6 +122,11 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Select shared Pressure import matching for exact native entry/run/window
+  identities, including deleted and retained owners. Five new actual Room cases
+  are independently statically reviewed and unexecuted in
+  `convergence/2026-10-04/PRESSURE_NATIVE_CHILD_OWNERS_SELECTED/SOURCE_REVIEW.md`.
+  Ordinary Pressure history and export parity remain open.
 - [x] Select the approved rebuildable native Activity/Pressure identity lookup,
   exact Activity comparison and retained-window protection. Preserve the committed
   raw caller projection and exact selector methods; include the actual migration
