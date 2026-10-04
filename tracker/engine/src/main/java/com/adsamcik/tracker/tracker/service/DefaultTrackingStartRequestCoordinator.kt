@@ -160,15 +160,20 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			restoreTurnOffAfterUnpreparedStart(request.command)
 			return prepared
 		}
-		if (resumedCollection && prepared is TrackingStartPreparationResult.Prepared) {
-			// Off changed no source preference, so its exact Start must re-publish the
-			// independently chosen all-day purposes after the durable resume boundary.
+		if (prepared is TrackingStartPreparationResult.Prepared &&
+			(resumedCollection || request.manualSourceSelection != null)
+		) {
+			// An exact manual Start can follow permission repair without changing settings.
+			// Re-probe the current all-day owners even when cached policy reconciliation
+			// is complete. The owner still checks current choices, permission and user-stop;
+			// this request does not authorize or resume an independently stopped purpose.
 			try {
 				val reconciliation = purposeSettingsReconciler.reconcileCurrentSettings()
 				if (reconciliation is TrackingPurposeSettingsReconciliationResult.Debt) {
 					purposeReconciliationRetryScheduler.schedule(reconciliation.debt)
 				}
 			} catch (cancelled: CancellationException) {
+				compensateCancelledPreparedStart(prepared, request, resumedCollection)
 				throw cancelled
 			} catch (_: Exception) {
 				// A session Start remains usable when an independent all-day owner is in
@@ -184,6 +189,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 						)),
 					)
 				} catch (cancelled: CancellationException) {
+					compensateCancelledPreparedStart(prepared, request, resumedCollection)
 					throw cancelled
 				} catch (_: Exception) {
 					// The next startup and source-settings reconciliation can also repair it.
@@ -191,6 +197,26 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			}
 		}
 		return prepared
+	}
+
+	private suspend fun compensateCancelledPreparedStart(
+		prepared: TrackingStartPreparationResult.Prepared,
+		request: TrackingStartRequest,
+		resumedCollection: Boolean,
+	) {
+		try {
+			runBoundedStartPreparationCancellationCleanup(request.automaticTrigger) {
+				compensate(prepared.token, request.command, "START_PREPARATION_CANCELLED")
+			}
+		} catch (_: Throwable) {
+			// Preserve cancellation; exact PREPARED state remains for startup recovery.
+		}
+		if (resumedCollection) {
+			// The durable Off reservation must settle before this cancelled Start returns.
+			// Timing out while waiting for the command gate could leave its resume active.
+			// Reuse the same guarded restoration as cancellation before PREPARE completes.
+			restoreTurnOffAfterUnpreparedStart(request.command)
+		}
 	}
 
 	private suspend fun restoreTurnOffAfterUnpreparedStart(command: TrackingStartCommand) {

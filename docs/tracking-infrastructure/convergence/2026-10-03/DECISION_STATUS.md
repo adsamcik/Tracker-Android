@@ -123,6 +123,11 @@ behavior choice still needs a concrete proposal under AGENTS.md.
 
 ## Current implementation activity
 
+- [x] Repair the original prepared manual Start's all-day owner refresh after
+  permission repair, with exact cancellation compensation and guarded restoration
+  of its earlier Off. Two paths and eleven methods/thirteen scenarios are statically
+  reviewed, unexecuted: `../2026-10-04/MANUAL_START_PURPOSE_REPAIR_SELECTED/SOURCE_REVIEW.md`.
+  Existing Off restoration storage-failure recovery and complete provider proof stay open.
 - [x] Select the independently reviewed exact Steps file adapter through existing
   V1/V2 codecs and private staging. Exact IDs/original epoch remain fixed, and
   selected content is rechecked before/after copy without rejecting unrelated

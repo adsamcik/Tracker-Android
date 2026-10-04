@@ -122,6 +122,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Repair current all-day owner refresh after the original permission-repaired
+  manual Start, including cancellation after successful Prepare. Reuse exact token
+  compensation and the existing guarded Off restoration when this Start resumed it.
+  Two source paths and eleven new cases/thirteen scenarios are statically reviewed,
+  unexecuted. Receipt: `convergence/2026-10-04/MANUAL_START_PURPOSE_REPAIR_SELECTED/SOURCE_REVIEW.md`.
+  Durable Off storage-failure recovery and full provider/permission proof remain open.
 - [x] Select the independently reviewed exact Steps file adapter. Two source paths
   reuse the existing V1/V2 codecs and private spool, preserve exact membership and
   original epoch, and compare selected contents before/after destination copying.

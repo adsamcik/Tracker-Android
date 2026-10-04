@@ -20,6 +20,12 @@ description of its earlier input; this file records subsequent repair progress.
 
 ## Authored slices and local commit receipts
 
+- October 4 original manual Start now refreshes current all-day owners after
+  permission repair and compensates cancellation after Prepare. A resumed Start
+  reuses the existing exact-generation awaited Off restoration. Two paths and
+  eleven new methods/thirteen scenarios are independently source-reviewed,
+  unexecuted: `../2026-10-04/MANUAL_START_PURPOSE_REPAIR_SELECTED/SOURCE_REVIEW.md`.
+  Failed durable Off storage and the full original-Start/device chain remain open.
 - October 4 exact Steps file adapter is independently reviewed as a two-path
   prerequisite. Existing V1/V2 readers/codecs/spool retain exact membership and
   original epoch; selected canonical contents are checked before/after destination

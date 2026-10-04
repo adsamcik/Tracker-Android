@@ -1,0 +1,30 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_head": "8bbb29490c0488d26b25ffec04a7977d1482bd9b",
+  "path_count": 2,
+  "new_authored_test_methods": 11,
+  "authored_scenarios": 13,
+  "tests_executed": false,
+  "gates_executed": false,
+  "paths": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinator.kt",
+      "before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/MANUAL_START_PURPOSE_REPAIR_SELECTED/DefaultTrackingStartRequestCoordinator.kt.before",
+      "before_sha256": "861b355ac952689434208c5b53b65dee5e6d41c581f1f3184e2b8f7d0400f747",
+      "after_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/MANUAL_START_PURPOSE_REPAIR_SELECTED/DefaultTrackingStartRequestCoordinator.kt.after",
+      "after_sha256": "8af9c46a76c22bd8b7f69893218714890ae2109036b2745fb946fa10e0525243",
+      "working_sha256": "8af9c46a76c22bd8b7f69893218714890ae2109036b2745fb946fa10e0525243"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/PreparedManualStartPurposeRepairTest.kt",
+      "before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/MANUAL_START_PURPOSE_REPAIR_SELECTED/PreparedManualStartPurposeRepairTest.kt.before",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/MANUAL_START_PURPOSE_REPAIR_SELECTED/PreparedManualStartPurposeRepairTest.kt.after",
+      "after_sha256": "a6e8ca4f4e3bb7969ee996c10dcef907b6265c9006f72b187631f0758519c7f1",
+      "working_sha256": "a6e8ca4f4e3bb7969ee996c10dcef907b6265c9006f72b187631f0758519c7f1"
+    }
+  ],
+  "selection_patch_sha256": "3cb1040e62a1960b05d7fb24f1c4e699c080030d022d435c8c3d240664c5ae65",
+  "review_pending": false
+}
