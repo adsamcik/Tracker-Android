@@ -122,6 +122,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Select exact Activity/Pressure file adapters through their existing typed
+  codecs and bounded private staging. Four source paths preserve fixed selection
+  and original epoch, checking selected contents before/after copy. Twenty-five
+  new methods and six preserved date methods remain unexecuted. Fresh receipt:
+  `convergence/2026-10-04/SESSION_ACTIVITY_PRESSURE_ADAPTER_SELECTED/SOURCE_REVIEW.md`.
+  Whole-bundle composition, source preview/exclusions and final handoff remain open.
 - [x] Repair current all-day owner refresh after the original permission-repaired
   manual Start, including cancellation after successful Prepare. Reuse exact token
   compensation and the existing guarded Off restoration when this Start resumed it.

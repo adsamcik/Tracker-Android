@@ -1,0 +1,201 @@
+{
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "phase": "IMPLEMENTATION_ONLY",
+  "owner": "/root/transfer_adversary_1003",
+  "freeze_date": "2026-10-04",
+  "base_head_parent_supplied": "1c127f215a0e0d1bf9468a21c2f19dd30b2e9fee",
+  "path_count": 4,
+  "new_authored_test_methods": 25,
+  "existing_test_methods_preserved": 6,
+  "tests_executed": false,
+  "gates_executed": false,
+  "git_operations_performed_by_author": false,
+  "selection_patch": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_ACTIVITY_PRESSURE_ADAPTER_SELECTED/SELECTION.patch",
+  "selection_patch_sha256": "4d732e1434e7bb427af9310e6f003d1372da4c45b7defe9fb38f645371b313a6",
+  "patch_convention": "LF review patch; exact before/after snapshots preserve actual bytes of clean baseline and selected working source",
+  "paths": [
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporter.kt",
+      "selection": "clean-at-start task delta; parent confirmed four exact paths clean at base HEAD",
+      "selected_before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_ACTIVITY_PRESSURE_ADAPTER_SELECTED/PortableActivityExporter.kt.before",
+      "selected_after_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_ACTIVITY_PRESSURE_ADAPTER_SELECTED/PortableActivityExporter.kt.after",
+      "selected_before_sha256": "700d7e792012784cf0bbd569e68e8c0bee72d635284a81e1841e2a5ed2232454",
+      "selected_after_sha256": "a6359a0ceec3d4f11737dc12815bb56c4268040b3bf470de11381f35ab4bf600",
+      "actual_working_sha256": "a6359a0ceec3d4f11737dc12815bb56c4268040b3bf470de11381f35ab4bf600",
+      "existing_test_methods_before": 0,
+      "new_authored_test_methods": 0,
+      "existing_test_methods_removed": []
+    },
+    {
+      "path": "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporter.kt",
+      "selection": "clean-at-start task delta; parent confirmed four exact paths clean at base HEAD",
+      "selected_before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_ACTIVITY_PRESSURE_ADAPTER_SELECTED/PortablePressureExporter.kt.before",
+      "selected_after_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_ACTIVITY_PRESSURE_ADAPTER_SELECTED/PortablePressureExporter.kt.after",
+      "selected_before_sha256": "1303dbb4adf45a0e51b1bee5dc6e04c02442af715e841fe7f4b4c6ca5ce8b66c",
+      "selected_after_sha256": "4c34f867067d82f0598f863a6014615ff7693bb90259e26e95b3eb2400aa01a5",
+      "actual_working_sha256": "4c34f867067d82f0598f863a6014615ff7693bb90259e26e95b3eb2400aa01a5",
+      "existing_test_methods_before": 0,
+      "new_authored_test_methods": 0,
+      "existing_test_methods_removed": []
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporterTest.kt",
+      "selection": "clean-at-start task delta; parent confirmed four exact paths clean at base HEAD",
+      "selected_before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_ACTIVITY_PRESSURE_ADAPTER_SELECTED/PortableActivityExporterTest.kt.before",
+      "selected_after_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_ACTIVITY_PRESSURE_ADAPTER_SELECTED/PortableActivityExporterTest.kt.after",
+      "selected_before_sha256": "84b25a4b969d2decad6af50bf290fc3a9ed465e2441c2bbfe41678e0a229025f",
+      "selected_after_sha256": "4478a24aeb421c0c9690ba1e2da9dfbb5c747299cf9edb8100ed06f11d77085b",
+      "actual_working_sha256": "4478a24aeb421c0c9690ba1e2da9dfbb5c747299cf9edb8100ed06f11d77085b",
+      "existing_test_methods_before": 2,
+      "new_authored_test_methods": 12,
+      "existing_test_methods_removed": []
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporterTest.kt",
+      "selection": "clean-at-start task delta; parent confirmed four exact paths clean at base HEAD",
+      "selected_before_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_ACTIVITY_PRESSURE_ADAPTER_SELECTED/PortablePressureExporterTest.kt.before",
+      "selected_after_snapshot": "docs/tracking-infrastructure/convergence/2026-10-04/SESSION_ACTIVITY_PRESSURE_ADAPTER_SELECTED/PortablePressureExporterTest.kt.after",
+      "selected_before_sha256": "46a005ba7b1557b541bc70fee2c55d9fe19da84fe7d6c2bac0eea8abd542cf99",
+      "selected_after_sha256": "c61bd3f88fd0170bc1e1e7cfd1ce7ce97b45ca791b9e57ce853fbfdc8a06f262",
+      "actual_working_sha256": "c61bd3f88fd0170bc1e1e7cfd1ce7ce97b45ca791b9e57ce853fbfdc8a06f262",
+      "existing_test_methods_before": 4,
+      "new_authored_test_methods": 13,
+      "existing_test_methods_removed": []
+    }
+  ],
+  "authored_unexecuted_test_inventory": [
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporterTest.kt",
+      "method": "exact Activity selection forwards native and imported IDs and preserves original gaps and bounds",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporterTest.kt",
+      "method": "Activity caller list edits cannot widen exact membership between rereads",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporterTest.kt",
+      "method": "Activity timestamp correction before copying refuses bytes and removes its spool",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporterTest.kt",
+      "method": "Activity change during destination copying cannot report a successful artifact",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporterTest.kt",
+      "method": "unrelated source writes do not invalidate exact Activity bytes",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporterTest.kt",
+      "method": "stale Activity epoch remains fixed and never adopts current data",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporterTest.kt",
+      "method": "Activity epoch change during copying fails the original selection",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporterTest.kt",
+      "method": "Activity empty unavailable and storage outcomes write no destination bytes",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporterTest.kt",
+      "method": "Activity cancellation after source emission escapes and removes its private spool",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporterTest.kt",
+      "method": "Activity destination cancellation drains the private file without a final reread",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporterTest.kt",
+      "method": "Activity refusal after emission cannot publish its staged envelope",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortableActivityExporterTest.kt",
+      "method": "Activity destination IO failure propagates only after its spool is removed",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporterTest.kt",
+      "method": "exact Pressure export forwards native and imported IDs and preserves all original runs and bounds",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporterTest.kt",
+      "method": "Pressure caller list mutation cannot widen exact membership across content rechecks",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporterTest.kt",
+      "method": "Pressure correction before copying refuses bytes and removes the private spool",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporterTest.kt",
+      "method": "Pressure change during destination copying cannot report successful bytes",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporterTest.kt",
+      "method": "unrelated source writes do not invalidate selected Pressure data",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporterTest.kt",
+      "method": "Pressure stale epoch remains the original request without an implicit retry",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporterTest.kt",
+      "method": "Pressure Clear during destination copy rejects the original epoch",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporterTest.kt",
+      "method": "Pressure empty unavailable and storage outcomes preserve honest errors and no bytes",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporterTest.kt",
+      "method": "Pressure source cancellation after emission escapes and removes the staged private file",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporterTest.kt",
+      "method": "Pressure destination cancellation physically drains its spool and stops the final reread",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporterTest.kt",
+      "method": "Pressure refusal after source emission discards its staged prefix",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporterTest.kt",
+      "method": "Pressure existing codec size ceiling fails before destination copying and removes its spool",
+      "executed": false
+    },
+    {
+      "path": "feature/import-export/src/test/java/com/adsamcik/tracker/impexp/exporter/PortablePressureExporterTest.kt",
+      "method": "Pressure destination IO failure propagates after owned private cleanup",
+      "executed": false
+    }
+  ],
+  "excluded_work": [
+    "shared session preview/write facade, organization selector construction, Hilt facade and detail UI",
+    "radio sparse formats and overlapping file membership; duplicate Steps bundle receipts",
+    "background Steps exact-day selection and retrospective measured subset representation",
+    "source readers/APIs/Room schema, Location replacement, runtime control and manual Start",
+    "all held History, radio, backup V2, geographic and other unrelated drafts",
+    "activation, runtime evidence, compilation, tests and convergence/integration gates"
+  ]
+}

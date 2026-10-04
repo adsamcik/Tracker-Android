@@ -96,8 +96,11 @@ recorded separately from implementation and source review.
 - [ ] Extend the chosen JSON file to all six sources and optional organization
   metadata, with honest absent metrics, all-day data and older-file compatibility.
 - [ ] Include older radio details with Unknown origin in the chosen source file.
-- [ ] In scoped Activity/Pressure History, show exact matches once and expose
-  conflicting values without an unrelated global-history dependency.
+- [ ] Choose any new UX for showing divergent Activity/Pressure conflicts. The
+  small rebuildable exact native-owner lookup is already approved by
+  `call_NVOtz1YnQRq4DukPr7u0Wh8B`, item 5. Removing unrelated global native scans
+  while preserving existing duplicate/conflict results is routine implementation
+  and does not depend on this separate conflict-display choice.
 - [ ] Keep small durable background Location gap records with affected times and
   reasons, without invented coordinates.
 - [ ] Restart the app once after confirmed data-only restore so all readers use
@@ -123,6 +126,12 @@ behavior choice still needs a concrete proposal under AGENTS.md.
 
 ## Current implementation activity
 
+- [x] Select exact Activity/Pressure file adapters through existing source-owned
+  APIs/codecs/private staging. Fixed membership and original epoch are rechecked
+  by selected canonical contents before/after copy. Four paths, twenty-five new
+  and six preserved methods are source-reviewed, unexecuted:
+  `../2026-10-04/SESSION_ACTIVITY_PRESSURE_ADAPTER_SELECTED/SOURCE_REVIEW.md`.
+  Complete session preview/write, whole-bundle checks and final handoff stay open.
 - [x] Repair the original prepared manual Start's all-day owner refresh after
   permission repair, with exact cancellation compensation and guarded restoration
   of its earlier Off. Two paths and eleven methods/thirteen scenarios are statically

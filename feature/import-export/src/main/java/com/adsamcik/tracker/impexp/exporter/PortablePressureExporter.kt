@@ -9,13 +9,19 @@ import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressure
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureResult
+import com.adsamcik.tracker.stats.api.repository.ExportSelectedPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.PortablePressureExportUnverifiableReason
+import com.adsamcik.tracker.stats.api.repository.PortablePressureTransferRetryableReason
 import com.adsamcik.tracker.stats.api.repository.PressurePortableFormatV1
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.io.OutputStream
+import java.security.DigestOutputStream
+import java.security.MessageDigest
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /** Resolves the read-only Pressure exporter used by the application singleton graph. */
 @EntryPoint
@@ -55,30 +61,80 @@ internal class PortablePressureExporter(
 		dateRange: LongRange?,
 	): ExportResult {
 		val request = dateRange?.toPortablePressureRequest() ?: FULL_HISTORY
-		return when (
-			val result = codec.encode(outputStream) { sink ->
-				exporterProvider(context).export(request, sink)
-			}
-		) {
-			is ExportPortablePressureResult.Exported -> ExportResult.Success(
-				recordCount = result.entryCount,
-			)
-			ExportPortablePressureResult.NoEntries -> ExportResult.Error(
-				LocalizedString(R.string.export_error_no_portable_pressure),
-			)
-			is ExportPortablePressureResult.Unverifiable -> when (result.reason) {
-				PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE ->
-					ExportResult.Error(
-						LocalizedString(R.string.export_error_portable_pressure_data_pruned),
-					)
-				else -> ExportResult.Error(
-					LocalizedString(R.string.export_error_portable_pressure_unverifiable),
+		return codec.encode(outputStream) { sink ->
+			exporterProvider(context).export(request, sink)
+		}.toExportResult()
+	}
+
+	/**
+	 * Exact saved records for the shared bundle. The caller owns the I/O dispatcher, retained-data
+	 * transfer, destination closure/discard on failure and final handoff; no tracking is started.
+	 */
+	internal suspend fun exportSession(
+		context: Context,
+		request: ExportSelectedPortablePressureRequest,
+		outputStream: OutputStream,
+	): ExportResult {
+		currentCoroutineContext().ensureActive()
+		val selection = request.copy(nativeSegmentIds = request.nativeSegmentIds.toList(),
+			importedEntryIdentities = request.importedEntryIdentities.toList())
+		val encode: suspend (OutputStream) -> ExportPortablePressureResult = { output ->
+			codec.encode(output) { sink -> exporterProvider(context).export(selection, sink) }
+		}
+		val result = FileBackedExportSpool(context, "portable-pressure-v1-",
+			PortablePressureJsonV1Codec.MAX_FILE_BYTES).use { spool ->
+			val digest = MessageDigest.getInstance("SHA-256")
+			val staged = spool.write { encode(DigestOutputStream(it, digest)) }
+			if (staged !is ExportPortablePressureResult.Exported) return@use staged
+			val expectedHash = digest.digest()
+			verifyContents(staged, expectedHash, encode)?.let { return@use it }
+			spool.copyTo(outputStream)
+			verifyContents(staged, expectedHash, encode) ?: staged
+		}
+		return result.toExportResult()
+	}
+
+	/** Uses the same codec and exact selection; unrelated source revisions are not inputs. */
+	private suspend fun verifyContents(
+		expectedResult: ExportPortablePressureResult.Exported,
+		expectedHash: ByteArray,
+		encode: suspend (OutputStream) -> ExportPortablePressureResult,
+	): ExportPortablePressureResult? {
+		currentCoroutineContext().ensureActive()
+		val digest = MessageDigest.getInstance("SHA-256")
+		val discarded = object : OutputStream() {
+			override fun write(value: Int) = Unit
+			override fun write(bytes: ByteArray, offset: Int, length: Int) = Unit
+		}
+		val current = encode(DigestOutputStream(discarded, digest))
+		currentCoroutineContext().ensureActive()
+		return when {
+			current is ExportPortablePressureResult.RetryableFailure -> current
+			current == expectedResult && digest.digest().contentEquals(expectedHash) -> null
+			else -> ExportPortablePressureResult.RetryableFailure(
+				PortablePressureTransferRetryableReason.CONCURRENT_STATE_CHANGE)
+		}
+	}
+
+	private fun ExportPortablePressureResult.toExportResult(): ExportResult = when (this) {
+		is ExportPortablePressureResult.Exported -> ExportResult.Success(
+			recordCount = entryCount,
+		)
+		ExportPortablePressureResult.NoEntries -> ExportResult.Error(
+			LocalizedString(R.string.export_error_no_portable_pressure),
+		)
+		is ExportPortablePressureResult.Unverifiable -> when (reason) {
+			PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE ->
+				ExportResult.Error(
+					LocalizedString(R.string.export_error_portable_pressure_data_pruned),
 				)
-			}
-			is ExportPortablePressureResult.RetryableFailure -> ExportResult.Error(
-				LocalizedString(R.string.export_error_portable_pressure_retryable),
+			else -> ExportResult.Error(
+				LocalizedString(R.string.export_error_portable_pressure_unverifiable),
 			)
 		}
+		is ExportPortablePressureResult.RetryableFailure -> ExportResult.Error(
+			LocalizedString(R.string.export_error_portable_pressure_retryable),
+		)
 	}
 
 	internal companion object {
