@@ -122,6 +122,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Reuse exact Pressure ownership in ordinary recent History and date/exact
+  exports, including owners outside display or export scope. Matching copies remain
+  one selected record; conflicting IDs cannot lend values. Three new and seven
+  extended real Room scenarios are statically reviewed and unexecuted in
+  `convergence/2026-10-04/PRESSURE_HISTORY_EXPORT_PARITY_SELECTED/SOURCE_REVIEW.md`.
+  Unified range/UI History, reconfiguration proofs and full transfer chains remain open.
 - [x] Let an independently completed empty Cell session export while its shared
   background provider stays active. Reuse the exact acknowledged retirement,
   completeness and original closing authorization; do not require a global stop.

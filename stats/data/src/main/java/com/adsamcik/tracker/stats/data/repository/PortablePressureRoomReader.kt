@@ -23,6 +23,7 @@ import com.adsamcik.tracker.stats.api.repository.PortablePressureWindowV1
 import com.adsamcik.tracker.stats.api.repository.PressurePortableFormatV1
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
@@ -118,6 +119,7 @@ internal class PortablePressureRoomReader @Inject constructor(
 				currentCoroutineContext().ensureActive()
 				when (val evaluation = importedEvaluator.evaluateCandidateInTransaction(candidate)) {
 					is ImportedPressureHistoryEvaluation.Readable -> {
+						requireCompatibleNativeOwner(evaluation)
 						if (!evaluation.isReExportable) abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 						addEntry(evaluation.latest.entry)
 					}
@@ -158,10 +160,9 @@ internal class PortablePressureRoomReader @Inject constructor(
 		}
 		val importedEntries = imported.mapNotNull { evaluation ->
 			when (evaluation) {
-				is ImportedPressureHistoryEvaluation.Readable -> if (evaluation.isReExportable) {
-					evaluation.latest.entry
-				} else {
-					null
+				is ImportedPressureHistoryEvaluation.Readable -> {
+					requireCompatibleNativeOwner(evaluation)
+					if (evaluation.isReExportable) evaluation.latest.entry else null
 				}
 				is ImportedPressureHistoryEvaluation.Retained -> null
 				is ImportedPressureHistoryEvaluation.Unverifiable -> abort(
@@ -256,6 +257,70 @@ internal class PortablePressureRoomReader @Inject constructor(
 			return PortablePressureSnapshot.Outcome(ExportPortablePressureResult.NoEntries)
 		}
 		return PortablePressureSnapshot.Ready(entries.sortedWith(PORTABLE_PRESSURE_ENTRY_ORDER))
+	}
+
+	/** Complete exact owners are comparison inputs; they never widen a selected output. */
+	internal suspend fun nativeEntriesForComparisonInTransaction(
+		identities: Sequence<String>,
+	): List<PressureLogicalHistoryEntry> {
+		val seeds = database.nativePortableOwnerSeeds(
+			com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.PRESSURE,
+			identities,
+			PRESSURE_HISTORY_SEGMENT_BATCH_CAP,
+		)
+		val entries = selector.selectLogicalBySegmentIdsInTransaction(seeds.map { it.id })
+		if (entries.any { entry ->
+				entry.physicalMembers.any { PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW in it.reasons }
+			}) {
+			throw NativePortableOwnerBudgetExceeded()
+		}
+		val logicalIds = entries.mapNotNull {
+			(it.identity as? PressureHistoryEntryIdentity.Logical)?.logicalTrackingId
+		}.toSet()
+		if (logicalIds != seeds.map { it.logicalTrackingId }.toSet()) {
+			throw NativePortableOwnerMembershipInvalid()
+		}
+		return entries
+	}
+
+	private suspend fun requireCompatibleNativeOwner(
+		evaluation: ImportedPressureHistoryEvaluation.Readable,
+	) {
+		val imported = evaluation.latest.entry
+		val keys = sequence {
+			yield(imported.identity.value)
+			for (run in imported.runs) {
+				yield(run.identity.value)
+				for (window in run.windows) yield(window.identity.value)
+			}
+		}
+		val owners = try {
+			nativeEntriesForComparisonInTransaction(keys)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: NativePortableOwnerBudgetExceeded) {
+			abort(PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW)
+		} catch (overflow: PressureHistoryPageDependencyOverflow) {
+			abort(when (overflow.reason) {
+				com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
+				com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
+				com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED ->
+					PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW
+				else -> PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE
+			})
+		} catch (_: RuntimeException) {
+			abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		}
+		for (owner in owners) {
+			val identity = (owner.identity as? PressureHistoryEntryIdentity.Logical)
+				?: abort(PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+			val ownerId = PortablePressureOpaqueIdentity.derive(
+				PortablePressureIdentityKind.LOGICAL_ENTRY, identity.logicalTrackingId)
+			if (ownerId != imported.identity || !evaluation.isReExportable ||
+				portableEntryForComparison(owner) != imported) {
+				abort(PortablePressureExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
+			}
+		}
 	}
 
 	/** Pure exact-content comparison seam; failure can only prevent duplicate suppression. */

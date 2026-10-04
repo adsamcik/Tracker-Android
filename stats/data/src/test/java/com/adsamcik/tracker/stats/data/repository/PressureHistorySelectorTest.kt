@@ -1850,6 +1850,12 @@ class PressureHistorySelectorTest {
 
 		result shouldBe ExportPortablePressureResult.Exported(1)
 		emitted shouldBe listOf(local)
+		sourcePageReader().selectRecent(10).size shouldBe 1
+		emitted.clear()
+		selectedPressureExporter(testScheduler).export(
+			selectedExportRequest(native = emptyList(), imported = listOf(local.identity)),
+		) { emitted += it } shouldBe ExportPortablePressureResult.Exported(1)
+		emitted shouldBe listOf(local)
 		val target = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>())
 		try {
 			target.sourceEvidenceStateDao().ensure(SourceEvidenceState())
@@ -1909,6 +1915,7 @@ class PressureHistorySelectorTest {
 			PortablePressureExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY,
 		)
 		emitted shouldBe emptyList()
+		assertPressureHistoryAndExportsRejectOwnerConflict(divergent.identity, UnconfinedTestDispatcher(testScheduler))
 	}
 
 	@Test
@@ -2047,6 +2054,30 @@ class PressureHistorySelectorTest {
 		database.withTransaction {
 			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(10)
 		} shouldBe ImportedHistoryEligiblePage.Unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+		assertPressureHistoryAndExportsRejectOwnerConflict(entry.identity, dispatcher)
+	}
+
+	private suspend fun assertPressureHistoryAndExportsRejectOwnerConflict(
+		identity: PortablePressureOpaqueIdentity,
+		dispatcher: kotlinx.coroutines.CoroutineDispatcher,
+		range: ExportPortablePressureRequest = exportRequest(),
+		recentLimit: Int = 10,
+	) {
+		val failure = assertFailsWith<PressureHistoryPageDependencyOverflow> {
+			sourcePageReader().selectRecent(recentLimit)
+		}
+		failure.reason shouldBe SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
+		val reader = PortablePressureRoomReader(database, selector)
+		val exporter = RoomExportPortablePressure(reader, dispatcher)
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		exporter.export(range) { emitted += it } shouldBe ExportPortablePressureResult.Unverifiable(
+			PortablePressureExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
+		emitted shouldBe emptyList()
+		exporter.export(selectedExportRequest(native = emptyList(), imported = listOf(identity))) {
+			emitted += it
+		} shouldBe ExportPortablePressureResult.Unverifiable(
+			PortablePressureExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
+		emitted shouldBe emptyList()
 	}
 
 	@Test
@@ -2074,9 +2105,75 @@ class PressureHistorySelectorTest {
 				.evaluations.single()
 		}
 		evaluation::class shouldBe ImportedPressureHistoryEvaluation.Retained::class
+		assertFailsWith<PressureHistoryPageDependencyOverflow> {
+			sourcePageReader().selectRecent(10)
+		}.reason shouldBe SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
 		database.withTransaction {
 			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(10)
 		} shouldBe ImportedHistoryEligiblePage.Unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun foreignImportedPressureRunIsRejectedBeyondNativeDisplayAndDateFrontiers() = runTest {
+		insertFixture(factSemanticRevision = 1L, laneCursor = 20L)
+		val local = (PortablePressureRoomReader(database, selector).read(exportRequest()) as
+			PortablePressureSnapshot.Ready).entries.single()
+		repeat(2) { insertIndependentPressureFixture(it, 4_000L + it * 2_000L) }
+		val foreign = portableGapClaimingNativeRun(local, "foreign-offscreen-entry", 20_000L)
+		val dispatcher = UnconfinedTestDispatcher(testScheduler)
+		RoomImportPortablePressure(database, dispatcher) {}.importEntry(importRequest(foreign, "foreign-offscreen")) shouldBe
+			ImportPortablePressureResult.Applied(1L, 1, 0)
+		assertPressureHistoryAndExportsRejectOwnerConflict(
+			foreign.identity, dispatcher, ExportPortablePressureRequest(20_000L, 20_101L), recentLimit = 1)
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun divergentImportedPressureEntryIsRejectedWhenNativeOwnerIsOutsideExportDates() = runTest {
+		insertFixture(factSemanticRevision = 1L)
+		val local = (PortablePressureRoomReader(database, selector).read(exportRequest()) as
+			PortablePressureSnapshot.Ready).entries.single()
+		val divergent = portableGapClaimingNativeRun(local, LOGICAL_ID, 20_000L)
+		val dispatcher = UnconfinedTestDispatcher(testScheduler)
+		RoomImportPortablePressure(database, dispatcher) {}.importEntry(importRequest(divergent, "divergent-offdate")) shouldBe
+			ImportPortablePressureResult.Applied(1L, 1, 0)
+		assertPressureHistoryAndExportsRejectOwnerConflict(
+			divergent.identity, dispatcher, ExportPortablePressureRequest(20_000L, 20_101L))
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun independentImportedPressureExportsOnlySelectedDataBeyondUnrelatedOwnerCensus() = runTest {
+		val imported = importedRetentionOnlyEntry("independent-export-entry", "independent-export-run", 100L)
+		val dispatcher = UnconfinedTestDispatcher(testScheduler)
+		RoomImportPortablePressure(database, dispatcher) {}.importEntry(importRequest(imported, "independent-export")) shouldBe
+			ImportPortablePressureResult.Applied(1L, 1, 0)
+		database.insertUnrelatedNativePortableOwners(270, 4)
+		val exporter = RoomExportPortablePressure(PortablePressureRoomReader(database, selector), dispatcher)
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		exporter.export(ExportPortablePressureRequest(100L, 201L)) { emitted += it } shouldBe
+			ExportPortablePressureResult.Exported(1)
+		emitted shouldBe listOf(imported)
+		emitted.clear()
+		exporter.export(selectedExportRequest(native = emptyList(), imported = listOf(imported.identity))) {
+			emitted += it
+		} shouldBe ExportPortablePressureResult.Exported(1)
+		emitted shouldBe listOf(imported)
+	}
+
+	private fun portableGapClaimingNativeRun(
+		local: PortablePressureEntryV1,
+		entryLocalId: String,
+		startTimeMs: Long,
+	): PortablePressureEntryV1 {
+		val run = local.runs.single().copy(
+			startTimeMs = startTimeMs, endTimeMs = startTimeMs + 100L,
+			availability = PortablePressureAvailability.NO_RETAINED_OBSERVATION,
+			coverage = PortablePressureCoverage.PARTIAL, retentionLoss = true, windows = emptyList())
+		return PortablePressureEntryV1.create(
+			PortablePressureOpaqueIdentity.derive(PortablePressureIdentityKind.LOGICAL_ENTRY, entryLocalId),
+			run.startTimeMs, run.endTimeMs, listOf(run))
 	}
 
 	@Test

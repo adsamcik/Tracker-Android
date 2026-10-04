@@ -1,0 +1,33 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "baseHead": "4a15d95ee5c15ae51685f454d3c039cd33d4481f",
+  "paths": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PortablePressureRoomReader.kt",
+      "baseSha256": "00cce589c634c2250eeaaf0b4c335b1ec719fd8e6640c28835c69355c2da970c",
+      "selectedSha256": "747a7793859c4b9108bffe1a0a268c5b624e5d4a0c9ef6fa2e4b75f6240d21bb"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryPageReader.kt",
+      "baseSha256": "889522469eb08af64865de3d3356b7307b8ef41109cd3291ef930315adac7e01",
+      "selectedSha256": "a33a8a774256fb15a5e54df56f79d67e39442e6896ea30071d3d9421c44d38b6"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "baseSha256": "9228380a55aae3d6958c0999f772a779f5fab9014bac45d207b954f553000508",
+      "selectedSha256": "a7ee2350cf7c055699a6c0b9e115f860dd19ed31a06fc911a5f105cb0b00f16d"
+    }
+  ],
+  "authoredNewRoomCases": 3,
+  "extendedExistingRoomCases": 7,
+  "executedGates": [],
+  "preservedDraft": "Working selectedImportedInTransaction remains excluded; only HEAD-based snapshots are selected.",
+  "openBoundaries": [
+    "R11 reconfiguration proofs",
+    "whole unified range/UI history",
+    "radio exports/backup/session bundles",
+    "all 25 full chains",
+    "final convergence/device/integration"
+  ]
+}

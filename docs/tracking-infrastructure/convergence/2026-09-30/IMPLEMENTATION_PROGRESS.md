@@ -323,6 +323,12 @@ remain held. No test or gate has run.
   rows preserve descriptive dual origins for session-export reuse. None ran.
 
 ## Remaining in these slices
+- [x] Select exact Pressure ownership parity in ordinary recent History and both
+  portable selectors. Comparison owners cannot widen output; identical copies
+  stay usable and foreign/divergent claims keep existing conflict outcomes. Three
+  new and seven extended real Room scenarios are independently source-reviewed
+  in `../2026-10-04/PRESSURE_HISTORY_EXPORT_PARITY_SELECTED/SOURCE_REVIEW.md`; none ran.
+  Whole unified History, reconfiguration proofs and transfers remain open.
 - [x] Select independent empty Cell session export while a shared background
   registration stays active, through existing acknowledged retirement, matching
   completeness and original sibling-only closing authorization. Two paths and

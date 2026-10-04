@@ -46,6 +46,16 @@ internal class PressureHistoryPageReader @Inject constructor(
 				TrackingHistoryIntegrationCheckpoint.PRESSURE_LIVE_SELECTOR,
 			)
 			val live = liveSelector.discoverRecentPressureOnlyInTransaction(limit)
+			for (evaluation in imported) {
+				currentCoroutineContext().ensureActive()
+				when (val decision = evaluation.qualifyWithExactNativeOwners()) {
+					is PressureImportedEligibilityDecision.Unavailable ->
+						throw PressureHistoryPageDependencyOverflow(decision.reason)
+					is PressureImportedEligibilityDecision.Accepted,
+					PressureImportedEligibilityDecision.Suppressed -> Unit
+				}
+			}
+			// Comparison-only owners stay outside this display page.
 			PressureHistoryPageComposer.compose(
 				live = live.mapNotNull { entry ->
 					entry.toPublicPressureOnlyEntryOrNull()?.let { public ->
@@ -154,20 +164,10 @@ internal class PressureHistoryPageReader @Inject constructor(
 		)
 	}
 
-	private suspend fun loadExactLocalDuplicateEntries(identities: Sequence<String>): List<PressureLogicalHistoryEntry> {
-		val seeds = database.nativePortableOwnerSeeds(
-			com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.PRESSURE,
-			identities,
-			PRESSURE_HISTORY_SEGMENT_BATCH_CAP,
-		)
-		val entries = liveSelector.selectLogicalBySegmentIdsInTransaction(seeds.map { it.id })
-		if (entries.any { entry -> entry.physicalMembers.any { PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW in it.reasons } }) {
-			throw NativePortableOwnerBudgetExceeded()
-		}
-		val logicalIds = entries.mapNotNull { (it.identity as? PressureHistoryEntryIdentity.Logical)?.logicalTrackingId }.toSet()
-		if (logicalIds != seeds.map { it.logicalTrackingId }.toSet()) throw NativePortableOwnerMembershipInvalid()
-		return entries
-	}
+	private suspend fun loadExactLocalDuplicateEntries(
+		identities: Sequence<String>,
+	): List<PressureLogicalHistoryEntry> =
+		portableReader.nativeEntriesForComparisonInTransaction(identities)
 
 	private fun authenticateLocalDuplicateAuthorities(
 		entries: List<PressureLogicalHistoryEntry>,
