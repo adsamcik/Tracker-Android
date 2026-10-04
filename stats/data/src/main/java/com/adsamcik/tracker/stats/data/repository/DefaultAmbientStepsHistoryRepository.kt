@@ -237,6 +237,40 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		includeImported = includeImported,
 	)
 
+	/** Exact bundle day IDs reuse the retained lineage and total composer, never a time-only join. */
+	internal suspend fun readSelectedImportedInCurrentTransaction(
+		identities: List<String>, expectedSourceEvidenceRevision: Long,
+	): Map<String, AmbientStepsHistoryDay> {
+		require(identities.size in 1..100 && identities.distinct().size == identities.size)
+		val headers = importedDao.latestDaysForIdentities(identities, identities.size + 1)
+		val fences = importedDao.fencesForIdentities(identities, identities.size + 1)
+		check(headers.size + fences.size == identities.size &&
+			(headers.map { it.dayIdentity } + fences.map { it.dayIdentity }).toSet() == identities.toSet())
+		val daysById = headers.associate { it.dayIdentity to AmbientStepsStructuralDay(it.structuralEpochDay, it.storedZoneId) } +
+			fences.associate { it.dayIdentity to AmbientStepsStructuralDay(it.structuralEpochDay, it.storedZoneId) }
+		check(daysById.values.distinct().size == daysById.size)
+		val sorted = daysById.values.sortedWith(compareBy({ it.epochDay }, { it.storedZoneId }))
+		val batches = mutableListOf<MutableList<AmbientStepsStructuralDay>>()
+		for (day in sorted) {
+			val batch = batches.lastOrNull()
+			if (batch == null || day.epochDay - batch.first().epochDay >= AmbientStepsHistoryRangeRequest.MAX_DAY_COUNT) {
+				batches.add(mutableListOf(day))
+			} else batch.add(day)
+		}
+		val products = batches.flatMap { batch ->
+			currentCoroutineContext().ensureActive()
+			val selected = daysById.filterValues { it in batch }.keys
+			when (val read = readRangeInCurrentTransaction(AmbientStepsHistoryRangeRequest(batch),
+				expectedSourceEvidenceRevision, includeSessions = false, includeLocal = false,
+				selectedImportedDayIds = selected)) {
+				is AmbientStepsHistoryRead.Snapshot -> read.days
+				is AmbientStepsHistoryRead.DependencyOverflow -> throw AmbientStepsHistorySelectionOverflow()
+				else -> error("Imported Steps day membership is unavailable")
+			}
+		}.associateBy { it.day }
+		return daysById.mapValues { (_, day) -> requireNotNull(products[day]) }
+	}
+
 	@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
 	private suspend fun readRangeInCurrentTransaction(
 		request: AmbientStepsHistoryRangeRequest,
@@ -244,6 +278,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		includeSessions: Boolean,
 		includeLocal: Boolean = true,
 		includeImported: Boolean = true,
+		selectedImportedDayIds: Set<String>? = null,
 	): AmbientStepsHistoryRead {
 		require(expectedSourceEvidenceRevision >= 0L)
 		val evidence = database.sourceEvidenceStateDao().get()
@@ -271,7 +306,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		val imported = if (!includeImported) {
 			ImportedAmbientStepsRangeRead.Ready(emptyMap(), emptyMap(), emptyMap(), emptyMap())
 		} else when (
-			val read = ImportedAmbientStepsRangeReader(database, importedDao).read(range, evidence)
+			val read = ImportedAmbientStepsRangeReader(database, importedDao).read(range, evidence, selectedImportedDayIds)
 		) {
 			is ImportedAmbientStepsRangeRead.Ready -> read
 			is ImportedAmbientStepsRangeRead.DependencyOverflow ->
@@ -799,6 +834,8 @@ private sealed interface ImportedAmbientStepsRangeRead {
 	data object Unverifiable : ImportedAmbientStepsRangeRead
 }
 
+internal class AmbientStepsHistorySelectionOverflow : RuntimeException(null, null, false, false)
+
 private class ImportedAmbientStepsRangeReader(
 	private val database: AppDatabase,
 	private val dao: ImportedAmbientStepsDao,
@@ -807,6 +844,7 @@ private class ImportedAmbientStepsRangeReader(
 	suspend fun read(
 		range: AmbientStepsRequestedRange,
 		evidence: SourceEvidenceState,
+		selectedDayIds: Set<String>? = null,
 	): ImportedAmbientStepsRangeRead {
 		try {
 			dao.authenticateAllAmbientStepsFences(evidence.collectedDataEpoch)
@@ -820,7 +858,8 @@ private class ImportedAmbientStepsRangeReader(
 			}
 		}
 		val sourceDeleted = sourceDeletionActive(evidence)
-		val fences = dao.fencesForStructuralRange(
+		val fences = if (selectedDayIds != null) dao.fencesForIdentities(selectedDayIds.toList(), MAX_IMPORTED_DAY_CANDIDATES + 1)
+		else dao.fencesForStructuralRange(
 			range.firstEpochDay,
 			range.lastEpochDayInclusive,
 			range.zoneIds,
@@ -837,7 +876,8 @@ private class ImportedAmbientStepsRangeReader(
 				AmbientStepsHistoryKey(it.structuralEpochDay, it.storedZoneId)
 			}.values.any { it.size != 1 }
 		) return ImportedAmbientStepsRangeRead.Unverifiable
-		val candidates = dao.latestDaysForStructuralRange(
+		val candidates = if (selectedDayIds != null) dao.latestDaysForIdentities(selectedDayIds.toList(), MAX_IMPORTED_DAY_CANDIDATES + 1)
+		else dao.latestDaysForStructuralRange(
 			range.firstEpochDay,
 			range.lastEpochDayInclusive,
 			range.zoneIds,

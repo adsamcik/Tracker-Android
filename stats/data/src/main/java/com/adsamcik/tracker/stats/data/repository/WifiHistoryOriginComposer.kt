@@ -10,6 +10,15 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntry
 
 /** Pure origin merge. Wall overlap and count equality never establish Wi-Fi ownership. */
 internal object WifiHistoryOriginComposer {
+	fun composeSelectedImported(
+		imported: List<ImportedWifiProductEvaluation>,
+		localPortableByLogicalId: Map<String, PortableCapturedWifiEntryV1>,
+		visibleLocalLogicalIds: Set<String>,
+	): Map<String, WifiHistoryEntry> = composeRows(emptyList(), imported,
+		localPortableByLogicalId, imported.size, visibleLocalLogicalIds)
+		.filterIsInstance<OriginWifiRow.Imported>()
+		.associate { it.evaluation.candidate.selection.key.value to it.entry }
+
 	fun compose(
 		live: List<ComposedWifiEntry>,
 		imported: List<ImportedWifiProductEvaluation>,
@@ -61,6 +70,7 @@ internal object WifiHistoryOriginComposer {
 		imported: List<ImportedWifiProductEvaluation>,
 		localPortableByLogicalId: Map<String, PortableCapturedWifiEntryV1>,
 		limit: Int,
+		visibleLocalLogicalIds: Set<String>? = null,
 	): List<OriginWifiRow> {
 		require(limit > 0)
 		if (localPortableByLogicalId.any { (logicalId, entry) ->
@@ -70,7 +80,8 @@ internal object WifiHistoryOriginComposer {
 				) != entry.identity
 			}
 		) throw ImportedWifiHistoryCompositionFailure()
-		val liveLogicalIds = live.mapTo(hashSetOf(), ComposedWifiEntry::logicalTrackingId)
+		val liveLogicalIds = visibleLocalLogicalIds
+			?: live.mapTo(hashSetOf(), ComposedWifiEntry::logicalTrackingId)
 		val ownership = PortableWifiOpaqueOwnershipVerifier.fromEntries(
 			localPortableByLogicalId.values,
 		) ?: throw ImportedWifiHistoryCompositionFailure()

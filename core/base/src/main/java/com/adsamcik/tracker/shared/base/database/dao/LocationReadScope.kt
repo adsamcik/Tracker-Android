@@ -14,6 +14,23 @@ object LocationReadScope {
 		AND NOT EXISTS (SELECT 1 FROM collected_data_deletion_operation WHERE phase IN
 		('RETENTION_PREPARED', 'RETENTION_DATASTORE_ACKNOWLEDGED', 'RETENTION_ROOM_GUARD_COMMITTED',
 		'RETENTION_AUTHORITY_REISSUED', 'RETENTION_PROVIDER_RECONCILED', 'RETENTION_SOURCE_MAINTENANCE_COMPLETED'))"""
+	/** Display organization only. An ambient sibling remains visible independently of a session. */
+	const val SESSIONLESS_HISTORY = """($HISTORY_CURRENT_IMPORT_COPY OR EXISTS (SELECT 1 FROM location_file_identity i
+		WHERE i.sample_id = location_sample.id AND i.imported = 1) OR EXISTS (SELECT 1 FROM location_sample_purpose_authority lp
+		WHERE lp.sample_id = location_sample.id AND lp.purpose = 'AMBIENT_PRODUCT') OR
+		(NOT EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
+		AND lp.purpose = 'SESSION_CAPTURE') AND NOT EXISTS (
+		SELECT 1 FROM session_segment s LEFT JOIN organization_annotation a
+		ON a.recording_adapter_key = 'segment:' || s.id
+		WHERE s.logical_tracking_id IS NULL AND s.service_run_id IS NULL AND COALESCE(a.hidden, 0) = 0
+		AND COALESCE(a.start_time_ms, s.start_time_ms) >= 0
+		AND COALESCE(a.end_time_ms, s.end_time_ms) >= COALESCE(a.start_time_ms, s.start_time_ms)
+		AND location_sample.time_ms >= COALESCE(a.start_time_ms, s.start_time_ms)
+		AND location_sample.time_ms <= COALESCE(a.end_time_ms, s.end_time_ms))))"""
+	const val HISTORY_ORIGIN = """CASE WHEN $HISTORY_CURRENT_IMPORT_COPY OR EXISTS (SELECT 1 FROM location_file_identity i
+		WHERE i.sample_id = location_sample.id AND i.imported = 1) THEN 'IMPORTED'
+		WHEN EXISTS (SELECT 1 FROM location_accepted_receipt r WHERE r.sample_id = location_sample.id)
+		THEN 'LOCAL' ELSE 'LEGACY' END"""
 	const val CAPTURE_OR_LEGACY = "(NOT EXISTS (SELECT 1 FROM location_accepted_receipt lr WHERE lr.sample_id = location_sample.id) OR EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id AND lp.purpose = 'SESSION_CAPTURE'))"
 	// Historical visibility follows the exact grant saved with each point. A later
 	// source toggle or live-retention revoke stops new acquisition, not old reads.

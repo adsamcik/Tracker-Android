@@ -336,6 +336,13 @@ remain held. No test or gate has run.
 
 ## Remaining in these slices
 
+- [x] Select the bounded unified History reader/paging foundation, reusing native,
+  background, imported and organization readers without starting providers. Thirty
+  frozen source/test paths and 35 authored/revised unexecuted scenarios have fresh
+  source acceptance in `../2026-10-04/HISTORY_RANGE_FOUNDATION_REPAIRED_SELECTED`.
+  H1 repairs eight legacy fixture origins without weakening import exclusion.
+  Calendar/timeline/detail UI, complete source subsets, aggregate-window display
+  and all 25 full chains remain open.
 - [x] Repair the existing Statistics date picker to follow the approved local
   calendar rule, including east/west UTC and 23-/25-hour days. Two frozen paths,
   seven newly authored unexecuted Compose scenarios and independent source

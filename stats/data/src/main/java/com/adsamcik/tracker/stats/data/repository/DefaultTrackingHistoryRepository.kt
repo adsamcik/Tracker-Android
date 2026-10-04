@@ -48,7 +48,11 @@ import com.adsamcik.tracker.stats.api.repository.SourceProofScope
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage as ApiStepsHistoryCoverage
-import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+import com.adsamcik.tracker.stats.api.repository.PagedTrackingHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryUnavailableReason
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlinx.coroutines.CoroutineDispatcher
@@ -60,8 +64,10 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import javax.inject.Singleton
 
 /** Room-backed, read-only history facade. */
+@Singleton
 internal class DefaultTrackingHistoryRepository private constructor(
 	private val database: AppDatabase,
 	private val stepsSelector: StepsSegmentHistorySelector,
@@ -74,7 +80,8 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		TrackingHistoryIntegrationObserver(),
 	private val sourceFactLookupReader: RoomSourceFactLookupReader =
 		RoomSourceFactLookupReader(database, ioDispatcher),
-) : TrackingHistoryRepository {
+	private val rangeReader: UnifiedHistoryRangeReader? = null,
+) : PagedTrackingHistoryRepository {
 	private val importedReader = ImportedStepsProductReader(database)
 
 	@Inject
@@ -87,6 +94,7 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		sourceUnionReader: TrackingHistorySourceUnionReader,
 		@IoDispatcher ioDispatcher: CoroutineDispatcher,
 		bootClockDomainProvider: BootClockDomainProvider,
+		rangeReader: UnifiedHistoryRangeReader,
 		integrationObserver: TrackingHistoryIntegrationObserver =
 			TrackingHistoryIntegrationObserver(),
 	) : this(
@@ -98,12 +106,26 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		sourceUnionReader = sourceUnionReader,
 		ioDispatcher = ioDispatcher,
 		integrationObserver = integrationObserver,
+		rangeReader = rangeReader,
 		sourceFactLookupReader = RoomSourceFactLookupReader(
 			database,
 			ioDispatcher,
 			bootClockDomainProvider,
 		),
 	)
+
+	override suspend fun readRange(request: HistoryRangeRequest): HistoryRangeRead =
+		rangeReader?.read(request) ?: HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+
+	@OptIn(ExperimentalCoroutinesApi::class)
+	override fun observeRange(request: HistoryRangeRequest): Flow<HistoryRangeRead> =
+		database.invalidationTracker.createFlow(*UnifiedHistoryRangeReader.invalidationTables.toTypedArray(),
+			emitInitialState = true).mapLatest { readRange(request) }.distinctUntilChanged().flowOn(ioDispatcher)
+
+	override fun pagingSource(range: HistoryRange):
+		androidx.paging.PagingSource<com.adsamcik.tracker.stats.api.repository.HistoryContinuation,
+			com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow> =
+		UnifiedHistoryPagingSource(database, range, ::readRange)
 
 	/** Steps-only host fixtures install no active Pressure lane. Production uses Hilt. */
 	internal constructor(

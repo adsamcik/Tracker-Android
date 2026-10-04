@@ -160,7 +160,7 @@ abstract class StatsDataModule {
 		impl: DefaultWindowedMetricsProvider,
 	): WindowedMetricsProvider
 
-	// NOTE: `bindMetricDirtyTracker` removed — the MetricDirtyTracker is now
+	// NOTE: `bindMetricDirtyTracker` removed â€” the MetricDirtyTracker is now
 	// constructed by [DurableMetricDirtyTrackerModule.provideMetricDirtyTracker]
 	// which wraps DefaultMetricDirtyTracker with persistence-layer durability.
 	// See R2 round-7 finding `r2r7-worker-dirty-process-death`.
@@ -179,7 +179,7 @@ abstract class StatsDataModule {
 
 	/**
 	 * Companion holds [Provides] functions that need explicit construction
-	 * — primarily the durable [MetricDirtyTracker] wrapper which can't use
+	 * â€” primarily the durable [MetricDirtyTracker] wrapper which can't use
 	 * constructor-injection because it composes a [DefaultMetricDirtyTracker]
 	 * with a [PersistentDirtyState] and the app-scoped [CoroutineScope].
 	 */
@@ -210,6 +210,12 @@ internal abstract class TrackingHistoryDataModule {
 	abstract fun bindTrackingHistoryRepository(
 		impl: DefaultTrackingHistoryRepository,
 	): TrackingHistoryRepository
+
+	@Binds
+	@Singleton
+	abstract fun bindPagedTrackingHistoryRepository(
+		impl: DefaultTrackingHistoryRepository,
+	): com.adsamcik.tracker.stats.api.repository.PagedTrackingHistoryRepository
 
 	@Binds
 	@Singleton

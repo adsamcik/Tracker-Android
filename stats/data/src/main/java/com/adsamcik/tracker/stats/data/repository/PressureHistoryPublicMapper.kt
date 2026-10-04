@@ -54,7 +54,7 @@ internal fun PressurePhysicalHistory.toPublicPressureHistory() = PressureHistory
 	causes = reasons.mapTo(linkedSetOf(), PressureHistoryReason::toPublicCause),
 )
 
-private fun List<PressurePhysicalHistory>.toPublicPressureHistory(): PressureHistory {
+internal fun List<PressurePhysicalHistory>.toPublicPressureHistory(): PressureHistory {
 	val publicMembers = map(PressurePhysicalHistory::toPublicPressureHistory)
 	val retainedWindows = publicMembers.flatMap(PressureHistory::windows)
 	val availability = when {

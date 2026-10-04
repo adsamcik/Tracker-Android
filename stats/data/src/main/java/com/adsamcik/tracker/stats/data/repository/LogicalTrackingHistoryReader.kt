@@ -247,6 +247,19 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
         }
     }
 
+    /** One bounded membership cohort, shared by arbitrary-range history instead of row cascades. */
+    internal suspend fun selectedLogicalMembersInTransaction(
+        logicalIds: List<String>,
+    ): SelectedLogicalHistoryRead {
+        require(logicalIds.size <= 100 && logicalIds.distinct().size == logicalIds.size)
+        require(logicalIds.all(String::isNotBlank))
+        return try {
+            SelectedLogicalHistoryRead.Content(loadLogicalMemberEvidence(logicalIds))
+        } catch (overflow: LogicalHistoryPageDependencyOverflow) {
+            SelectedLogicalHistoryRead.Unavailable(overflow.limit)
+        }
+    }
+
 	private suspend fun loadLogicalMemberEvidence(
 		logicalIds: List<String>,
 	): List<HistoricalSegmentEvidence> {

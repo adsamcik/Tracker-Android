@@ -18,12 +18,15 @@ class ImportedStepsHistoryContractTest {
 	}
 
 	@Test
-	fun importedMemberNavigationRequiresDistinctPositivePhysicalIdentitiesAndExactEnvelope() {
+	fun importedMemberNavigationRequiresDistinctPositivePhysicalIdentitiesInsideOriginalEnvelope() {
 		val member = ImportedStepsHistoryMember(1L, EpochMs(10L), EpochMs(20L), steps())
 		val entry = ImportedStepsHistoryEntry(TrackingHistoryEntryKey("imported"), EpochMs(10L), EpochMs(20L), listOf(member))
 		assertFailsWith<IllegalArgumentException> { member.copy(segmentId = 0L) }
 		assertFailsWith<IllegalArgumentException> { entry.copy(physicalMembers = listOf(member, member)) }
-		assertFailsWith<IllegalArgumentException> { entry.copy(startTime = EpochMs(9L)) }
+		assertEquals(EpochMs(9L), entry.copy(startTime = EpochMs(9L)).startTime)
+		assertEquals(EpochMs(30L), entry.copy(endTime = EpochMs(30L)).endTime)
+		assertFailsWith<IllegalArgumentException> { entry.copy(startTime = EpochMs(11L)) }
+		assertFailsWith<IllegalArgumentException> { entry.copy(endTime = EpochMs(19L)) }
 		assertFailsWith<IllegalArgumentException> { entry.copy(physicalMembers = emptyList()) }
 		assertFailsWith<IllegalArgumentException> {
 			entry.copy(physicalMembers = (1L..65L).map { member.copy(segmentId = it) })

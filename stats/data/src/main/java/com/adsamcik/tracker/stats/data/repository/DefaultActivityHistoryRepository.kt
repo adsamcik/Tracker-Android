@@ -503,9 +503,11 @@ internal class DefaultActivityHistoryRepository private constructor(
 					it is ImportedActivityProductEvaluation.Readable ||
 						it is ImportedActivityProductEvaluation.Retained
 				},
-				localEntries = localPrepared.map { it.composed.entry },
+				localEntries = localPrepared.map { it.composed },
 				localEntryIdentities = localOpaqueIdentities.keys,
 			)
+		} catch (_: ActivityLocalOwnershipBudgetExceeded) {
+			return ActivityHistoryRangePage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
 		} catch (_: ImportedActivityHistoryCompositionFailure) {
 			return ActivityHistoryRangePage.Failed(
 				ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
@@ -516,6 +518,8 @@ internal class DefaultActivityHistoryRepository private constructor(
 				localPrepared.map(ActivityRangeWorkItem.Local::composed),
 				localPortableEntries,
 			)
+		} catch (_: ActivityLocalOwnershipBudgetExceeded) {
+			return ActivityHistoryRangePage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
 		} catch (_: ImportedActivityHistoryCompositionFailure) {
 			return ActivityHistoryRangePage.Failed(
 				ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
@@ -682,6 +686,30 @@ internal class DefaultActivityHistoryRepository private constructor(
 				},
 			)
 		}
+		return qualifyImportedForSharedHistoryInTransaction(imported, limit)
+	}
+
+	/** Arbitrary-range keys reuse the same ownership, origin and selection qualification. */
+	internal suspend fun selectedImportedForSharedHistoryInTransaction(
+		identities: List<String>,
+		range: com.adsamcik.tracker.stats.api.repository.HistoryRange,
+	): ImportedHistoryEligiblePage<ActivityImportedHistoryEligibleEntry> {
+		require(identities.size in 1..MAX_ACTIVITY_HISTORY_RESULTS)
+		require(identities.distinct().size == identities.size)
+		val imported = identities.map { identity ->
+			currentCoroutineContext().ensureActive()
+			importedProductReader.selectIdentityInTransaction(PortableActivityOpaqueIdentity(identity))
+				?: return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+		}
+		return qualifyImportedForSharedHistoryInTransaction(imported, identities.size, range, includeActivityOnly = true)
+	}
+
+	private suspend fun qualifyImportedForSharedHistoryInTransaction(
+		imported: List<ImportedActivityProductEvaluation>,
+		limit: Int,
+		range: com.adsamcik.tracker.stats.api.repository.HistoryRange? = null,
+		includeActivityOnly: Boolean = false,
+	): ImportedHistoryEligiblePage<ActivityImportedHistoryEligibleEntry> {
 		val selectionSnapshot = if (
 			imported.any { it is ImportedActivityProductEvaluation.Readable }
 		) {
@@ -799,9 +827,14 @@ internal class DefaultActivityHistoryRepository private constructor(
 		val remainingLocalProtectedIdentities = localProtectedIdentities.filterKeys {
 			it.value !in localPortableEntries
 		}
+		val visibleLocalLogicalIds = if (range == null) localLogicalIds else {
+			// Only selected exact collisions need a metadata visibility probe; qualification is above.
+			database.nativeLogicalIdsVisibleInRange(collisionLocal.mapTo(linkedSetOf()) {
+				it.logicalTrackingId }, range)
+		}
 		val mapped = try {
 			ActivityHistoryOriginComposer.composeImported(
-				liveLogicalTrackingIds = localLogicalIds,
+				liveLogicalTrackingIds = visibleLocalLogicalIds,
 				imported = authenticated.map { it.evaluation },
 				localPortableEntriesByIdentity = localPortableEntries,
 				localProtectedIdentitiesByEntry = remainingLocalProtectedIdentities,
@@ -815,7 +848,7 @@ internal class DefaultActivityHistoryRepository private constructor(
 		val accepted = mapped.mapNotNull { result ->
 			val entry = result.entry ?: return@mapNotNull null
 			if (entry.origin != com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin.IMPORTED ||
-				entry.capturesOnlyActivity ||
+				(!includeActivityOnly && entry.capturesOnlyActivity) ||
 				entry.state == com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState.FAILED
 			) {
 				return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)

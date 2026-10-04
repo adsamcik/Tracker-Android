@@ -1,0 +1,2989 @@
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryCandidateQueries.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryCandidateQueries.kt
+@@ -3,27 +3,163 @@
+ import androidx.sqlite.db.SimpleSQLiteQuery
+ import com.adsamcik.tracker.stats.api.repository.HistoryPosition
+ import com.adsamcik.tracker.stats.api.repository.HistoryRange
++import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
++import com.adsamcik.tracker.shared.base.database.dao.LocationReadScope
+ 
+ /** No user-supplied SQL identifiers. Source readers still authenticate every selected seed. */
+ internal object UnifiedHistoryCandidateQueries {
++    /** One key-only probe skips the remainder of a displayed day, regardless of its reading count. */
++    fun backgroundObservationBefore(source: String, range: HistoryRange, beforeExclusiveMs: Long): SimpleSQLiteQuery {
++        require(source in setOf("location", "wifi", "cell"))
++        require(beforeExclusiveMs > range.fromInclusiveMs && beforeExclusiveMs <= range.toExclusiveMs)
++        val relation = if (source == "location") sessionlessLocationRelation(range.origins)
++            else radioObservationRelation(source, range.origins)
++        return SimpleSQLiteQuery("""SELECT '$source' AS category, '$source' AS identity,
++            MIN(endTimeMs - 1, ?3) AS startTimeMs, NULL AS endTimeMs, NULL AS zoneId,
++            NULL AS epochDay, NULL AS segmentId, 0 AS candidateConflict, 0 AS temporalUncertain
++            FROM ($relation) WHERE startTimeMs >= 0 AND startTimeMs < ?2 AND endTimeMs > ?1
++            ORDER BY startTimeMs DESC LIMIT 1""",
++            arrayOf(range.fromInclusiveMs, beforeExclusiveMs, beforeExclusiveMs - 1))
++    }
++
++    private fun sessionlessLocationRelation(origins: Set<HistoryOrigin>): String {
++        val included = origins.intersect(setOf(HistoryOrigin.LOCAL, HistoryOrigin.IMPORTED, HistoryOrigin.LEGACY))
++        if (included.isEmpty()) return emptyObservationRelation
++        val names = included.joinToString(",") { "'${it.name}'" }
++        return """SELECT * FROM (SELECT location_sample.time_ms AS startTimeMs,
++            CASE WHEN location_sample.time_ms = 9223372036854775807 THEN location_sample.time_ms
++                ELSE location_sample.time_ms + 1 END AS endTimeMs
++            FROM location_sample WHERE location_sample.time_ms >= ?1 AND location_sample.time_ms < ?2
++            AND ${LocationReadScope.HISTORY_RETAINED}
++            AND ${LocationReadScope.SESSIONLESS_HISTORY} AND ${LocationReadScope.HISTORY_ORIGIN} IN ($names)
++            AND location_sample.lat_e7 BETWEEN -900000000 AND 900000000
++            AND location_sample.lon_e7 BETWEEN -1800000000 AND 1800000000
++            ORDER BY location_sample.time_ms DESC LIMIT 1)"""
++    }
++
++    private fun radioObservationRelation(source: String, origins: Set<HistoryOrigin>): String {
++        val relations = mutableListOf<String>()
++        fun point(table: String, time: String, joins: String = "", predicate: String = "") =
++            "SELECT * FROM (SELECT $time AS startTimeMs, CASE WHEN $time = 9223372036854775807 THEN $time ELSE $time + 1 END AS endTimeMs FROM $table $joins WHERE $time >= ?1 AND $time < ?2 $predicate ORDER BY $time DESC LIMIT 1)"
++        fun gap(table: String, start: String, end: String) =
++            "SELECT * FROM (SELECT $start AS startTimeMs, $end AS endTimeMs FROM $table WHERE $start < ?2 AND $end > ?1 ORDER BY MIN($end - 1, ?3) DESC LIMIT 1)"
++        if (HistoryOrigin.LOCAL in origins) {
++            val current = "JOIN ambient_${source}_fact_cursor c ON c.writer_id = f.writer_id AND c.writer_version = f.writer_version AND c.logical_fact_id = f.logical_fact_id AND c.latest_semantic_revision = f.semantic_revision"
++            relations += point("ambient_${source}_fact_revision f", "f.observed_wall_time_ms", current)
++            relations += point("ambient_${source}_child n", "n.observed_wall_time_ms",
++                "JOIN ambient_${source}_fact_cursor c ON c.writer_id = n.writer_id AND c.writer_version = n.writer_version AND c.logical_fact_id = n.logical_fact_id AND c.latest_semantic_revision = n.semantic_revision")
++            relations += gap("ambient_${source}_gap", "gap_start_time_ms", "gap_end_time_ms")
++        }
++        if (HistoryOrigin.IMPORTED in origins) {
++            val latest = "AND f.semantic_revision = (SELECT MAX(n.semantic_revision) FROM imported_ambient_${source}_fact n WHERE n.fact_id = f.fact_id)"
++            relations += point("imported_ambient_${source}_fact f", "f.observed_time_ms", predicate = latest)
++            relations += point("imported_ambient_${source}_child c", "c.observed_wall_time_ms",
++                "JOIN imported_ambient_${source}_fact f ON f.archive_id = c.archive_id AND f.fact_id = c.fact_id AND f.semantic_revision = c.semantic_revision", latest)
++            relations += gap("imported_ambient_${source}_gap", "start_time_ms", "end_time_ms")
++        }
++        return relations.joinToString(" UNION ALL ").ifEmpty { emptyObservationRelation }
++    }
++
++    private const val emptyObservationRelation = "SELECT 0 AS startTimeMs, 0 AS endTimeMs WHERE 0"
+     private val native = """
+         SELECT 'native' AS category, 'logical:' || l.logical_tracking_id AS identity,
+-            l.started_at_ms AS startTimeMs, l.cutoff_at_ms AS endTimeMs,
++            COALESCE(a.start_time_ms, l.started_at_ms) AS startTimeMs,
++            COALESCE(a.end_time_ms, l.cutoff_at_ms) AS endTimeMs,
+             NULL AS zoneId, NULL AS epochDay,
+             (SELECT MIN(r.session_segment_id) FROM source_service_run r
+                 WHERE r.logical_tracking_id = l.logical_tracking_id) AS segmentId, 0 AS candidateConflict
+         FROM logical_tracking_session l
+-        WHERE EXISTS (SELECT 1 FROM session_manifest_version m JOIN session_manifest_source s
++        LEFT JOIN organization_annotation a ON a.recording_adapter_key = 'logical:' || l.logical_tracking_id
++        WHERE COALESCE(a.hidden, 0) = 0 AND EXISTS (SELECT 1 FROM session_manifest_version m JOIN session_manifest_source s
+             ON s.logical_tracking_id = m.logical_tracking_id AND s.manifest_revision = m.manifest_revision
+             WHERE m.logical_tracking_id = l.logical_tracking_id AND s.purpose = 'SESSION_CAPTURE'
+             AND s.persistence_eligible = 1)
+         UNION ALL
+-        SELECT 'legacy', 'segment:' || CAST(s.id AS TEXT), s.start_time_ms, s.end_time_ms,
++        SELECT 'legacy', 'segment:' || CAST(s.id AS TEXT),
++            COALESCE(a.start_time_ms, s.start_time_ms), COALESCE(a.end_time_ms, s.end_time_ms),
+             NULL, NULL, s.id, 0 FROM session_segment s
+-        WHERE s.logical_tracking_id IS NULL AND s.service_run_id IS NULL
++        LEFT JOIN organization_annotation a ON a.recording_adapter_key = 'segment:' || s.id
++        WHERE s.logical_tracking_id IS NULL AND s.service_run_id IS NULL AND COALESCE(a.hidden, 0) = 0
+     """.trimIndent()
+ 
+     fun native(range: HistoryRange, after: HistoryPosition?) = page(native, "local", range, after)
++
++    /** Duplicate normalization checks only exact qualified collision owners, beyond page heads. */
++    fun nativeVisibility(range: HistoryRange, logicalIds: List<String>): SimpleSQLiteQuery {
++        require(logicalIds.size in 1..100 && logicalIds.distinct().size == logicalIds.size)
++        val placeholders = logicalIds.joinToString(",") { "?" }
++        return SimpleSQLiteQuery("""SELECT *, (endTimeMs IS NOT NULL AND endTimeMs < startTimeMs) AS temporalUncertain
++            FROM ($native) WHERE category = 'native' AND identity IN ($placeholders)
++            AND startTimeMs >= 0 AND startTimeMs < ?
++            AND (endTimeMs IS NULL OR endTimeMs > ? OR
++                (endTimeMs <= startTimeMs AND startTimeMs >= ?))
++            ORDER BY startTimeMs DESC, identity ASC LIMIT 101""",
++            (logicalIds.map { "logical:$it" } + listOf(range.toExclusiveMs, range.fromInclusiveMs,
++                range.fromInclusiveMs)).toTypedArray())
++    }
++
++    fun organization(range: HistoryRange, after: HistoryPosition?) = page("""
++        SELECT 'organization' AS category, 'annotation:' || local_id AS identity,
++            start_time_ms AS startTimeMs, end_time_ms AS endTimeMs, display_zone_id AS zoneId,
++            NULL AS epochDay, NULL AS segmentId, 0 AS candidateConflict
++        FROM organization_annotation WHERE recording_adapter_key IS NULL AND hidden = 0
++    """.trimIndent(), "organization", range, after)
++
++    /** Zone discovery is key-only; no sensor payload is read or inferred from a UTC calendar. */
++    fun backgroundZones(source: String, range: HistoryRange): SimpleSQLiteQuery {
++        val relation = backgroundRelation(source, range.origins)
++        return SimpleSQLiteQuery("""SELECT DISTINCT zoneId FROM ($relation)
++            WHERE zoneId IS NOT NULL AND epochDay IS NOT NULL AND startTimeMs < ?
++                AND endTimeMs > ? ORDER BY zoneId LIMIT 101""",
++            arrayOf(range.toExclusiveMs, range.fromInclusiveMs))
++    }
++
++    /** Epoch-day order is exact within one stored zone, including short and long DST days. */
++    fun backgroundDays(source: String, range: HistoryRange, zoneId: String,
++        firstEpochDay: Long, lastEpochDay: Long, afterEpochDay: Long?): SimpleSQLiteQuery {
++        val relation = backgroundRelation(source, range.origins)
++        return SimpleSQLiteQuery("""SELECT '$source' AS category,
++            CAST(epochDay AS TEXT) || ':' || zoneId AS identity,
++            MIN(startTimeMs) AS startTimeMs, MAX(endTimeMs) AS endTimeMs,
++            zoneId, epochDay, NULL AS segmentId, 0 AS candidateConflict, 0 AS temporalUncertain
++            FROM ($relation) WHERE zoneId = ? AND epochDay BETWEEN ? AND ?
++                AND (? IS NULL OR epochDay <= ?) GROUP BY epochDay, zoneId
++            ORDER BY epochDay DESC LIMIT 101""",
++            arrayOf(zoneId, firstEpochDay, lastEpochDay, afterEpochDay, afterEpochDay))
++    }
++
++    private fun backgroundRelation(source: String, origins: Set<HistoryOrigin>): String {
++        require(source in setOf("steps", "wifi", "cell"))
++        val relations = mutableListOf<String>()
++        if (HistoryOrigin.LOCAL in origins) {
++            relations += """SELECT structural_epoch_day AS epochDay, stored_zone_id AS zoneId,
++                structural_day_start_time_ms AS startTimeMs, structural_day_end_time_ms AS endTimeMs
++                FROM ambient_${source}_fact_revision"""
++            if (source != "steps") relations += """SELECT structural_epoch_day AS epochDay, stored_zone_id AS zoneId,
++                gap_start_time_ms AS startTimeMs, gap_end_time_ms AS endTimeMs FROM ambient_${source}_gap"""
++        }
++        if (HistoryOrigin.IMPORTED in origins) {
++            if (source == "steps") {
++                relations += """SELECT structural_epoch_day AS epochDay, stored_zone_id AS zoneId,
++                    structural_day_start_time_ms AS startTimeMs, structural_day_end_time_ms AS endTimeMs
++                    FROM imported_ambient_steps_day_revision"""
++                relations += """SELECT structural_epoch_day AS epochDay, stored_zone_id AS zoneId,
++                    structural_day_start_time_ms AS startTimeMs, structural_day_end_time_ms AS endTimeMs
++                    FROM imported_ambient_steps_day_fence"""
++            } else {
++                relations += """SELECT structural_epoch_day AS epochDay, stored_zone_id AS zoneId,
++                    coverage_start_time_ms AS startTimeMs,
++                    CASE WHEN latest_possible_time_ms = 9223372036854775807 THEN latest_possible_time_ms
++                        ELSE latest_possible_time_ms + 1 END AS endTimeMs
++                    FROM imported_ambient_${source}_fact"""
++                relations += """SELECT structural_epoch_day AS epochDay, stored_zone_id AS zoneId,
++                    start_time_ms AS startTimeMs, end_time_ms AS endTimeMs FROM imported_ambient_${source}_gap"""
++            }
++        }
++        return relations.joinToString(" UNION ALL ").ifEmpty {
++            "SELECT NULL AS epochDay, NULL AS zoneId, 0 AS startTimeMs, 0 AS endTimeMs WHERE 0"
++        }
++    }
+ 
+     fun imported(source: String, range: HistoryRange, after: HistoryPosition?): SimpleSQLiteQuery {
+         require(source in setOf("wifi", "cell", "activity", "pressure", "steps"))
+--- /dev/null
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryNativeVisibility.kt
+@@ -0,0 +1,19 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
++import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
++import com.adsamcik.tracker.stats.api.repository.HistoryRange
++
++/** Payload authority must already come from the calling source's exact duplicate comparison. */
++internal suspend fun AppDatabase.nativeLogicalIdsVisibleInRange(
++    logicalIds: Set<String>,
++    range: HistoryRange,
++): Set<String> {
++    if (logicalIds.isEmpty() || HistoryOrigin.LOCAL !in range.origins ||
++        HistoryPurpose.CAPTURE !in range.purposes) return emptySet()
++    require(logicalIds.size <= 100)
++    return trackingHistoryReadDao().unifiedHistoryCandidates(
++        UnifiedHistoryCandidateQueries.nativeVisibility(range, logicalIds.toList()))
++        .mapTo(linkedSetOf()) { it.identity.removePrefix("logical:") }
++}
+--- /dev/null
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryNativeReader.kt
+@@ -0,0 +1,297 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.dao.UnifiedHistoryCandidate
++import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
++import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
++import com.adsamcik.tracker.stats.api.repository.HistoryLocationCoverage
++import com.adsamcik.tracker.stats.api.repository.HistoryLocationPoint
++import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
++import com.adsamcik.tracker.stats.api.repository.HistoryPosition
++import com.adsamcik.tracker.stats.api.repository.HistoryProblem
++import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
++import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
++import com.adsamcik.tracker.stats.api.repository.HistoryRange
++import com.adsamcik.tracker.stats.api.repository.HistorySection
++import com.adsamcik.tracker.stats.api.repository.HistorySource
++import com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow
++import javax.inject.Inject
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++
++/** Source readers authenticate one native candidate cohort inside the containing Room snapshot. */
++internal class UnifiedHistoryNativeReader @Inject constructor(
++    private val database: AppDatabase,
++    private val logical: LogicalTrackingHistoryReader,
++    private val steps: StepsSegmentHistorySelector,
++    private val wifi: DefaultWifiHistoryRepository,
++    private val cell: DefaultCellHistoryRepository,
++    private val activity: DefaultActivityHistoryRepository,
++    private val pressure: PressureHistorySelector,
++    private val qualifiedLocation: RetainedLocationContextReader,
++) {
++    suspend fun readInTransaction(
++        candidates: List<UnifiedHistoryCandidate>,
++        range: HistoryRange,
++    ): Map<HistoryPosition, UnifiedHistoryRow> {
++        require(candidates.size <= MAX_CANDIDATES)
++        if (candidates.isEmpty()) return emptyMap()
++        val logicalIds = candidates.filter { it.category == "native" }
++            .map { it.identity.removePrefix("logical:") }.distinct()
++        val membershipRead = logical.selectedLogicalMembersInTransaction(logicalIds)
++        val membershipProblem = (membershipRead as? SelectedLogicalHistoryRead.Unavailable)?.let {
++            HistoryProblemReason.DEPENDENCY_OVERFLOW }
++        val members = when (val read = membershipRead) {
++            is SelectedLogicalHistoryRead.Content -> read.members
++            is SelectedLogicalHistoryRead.Unavailable -> emptyList()
++            SelectedLogicalHistoryRead.NotFound -> emptyList()
++        }
++        val legacyIds = candidates.filter { it.category == "legacy" }.mapNotNull { it.segmentId }
++        val legacy = if (legacyIds.isEmpty()) emptyList() else steps.selectManyInTransaction(
++            database.trackingHistoryReadDao().segments(legacyIds),
++        )
++        val byLogicalId = members.groupBy { it.segment.logicalTrackingId }
++        val byLegacyId = legacy.associateBy { it.segment.id }
++        val annotations = database.organizationAnnotationDao().byAdapters(candidates.map { it.identity })
++            .associateBy { it.recordingAdapterKey }
++        val selectedSources = candidates.associate { candidate ->
++            val exact = byLogicalId[candidate.identity.removePrefix("logical:")].orEmpty()
++                .mapNotNull { it.captureAuthority as? HistoricalCaptureAuthority.Exact }
++            candidate.identity to exact.flatMapTo(linkedSetOf()) { it.capturedInAnyRevision }
++                .mapTo(linkedSetOf(), TrackingSourceComponent::toPublicSource)
++                .intersect(range.sources)
++        }
++        val seedsBySource = HistorySource.entries.associateWith { source ->
++            candidates.filter { source in selectedSources[it.identity].orEmpty() }
++                .mapNotNull { it.segmentId }.distinct()
++        }
++        val wifiRead = readSource(HistorySource.WIFI, seedsBySource, range) { ids ->
++            when (val page = wifi.selectBySegmentIdsInTransaction(ids)) {
++                is WifiComposedPage.Available -> page.entries.associate {
++                    "logical:${it.logicalTrackingId}" to HistorySection.Wifi(it.entry)
++                }
++                is WifiComposedPage.Failed -> throw NativeHistorySourceUnavailable(
++                    if (page.cause == com.adsamcik.tracker.stats.api.repository.WifiHistoryCause.READ_BUDGET_EXCEEDED) HistoryProblemReason.DEPENDENCY_OVERFLOW
++                    else HistoryProblemReason.INTEGRITY_UNAVAILABLE,
++                )
++            }
++        }
++        val cellRead = readSource(HistorySource.CELL, seedsBySource, range) { ids ->
++            when (val page = cell.selectBySegmentIdsInTransaction(ids)) {
++                is CellComposedPage.Available -> page.entries.associate {
++                    "logical:${it.logicalTrackingId}" to HistorySection.Cell(it.entry)
++                }
++                is CellComposedPage.Failed -> throw NativeHistorySourceUnavailable(
++                    if (page.cause == com.adsamcik.tracker.stats.api.repository.CellHistoryCause.READ_BUDGET_EXCEEDED) HistoryProblemReason.DEPENDENCY_OVERFLOW
++                    else HistoryProblemReason.INTEGRITY_UNAVAILABLE,
++                )
++            }
++        }
++        val activityRead = readSource(HistorySource.ACTIVITY, seedsBySource, range) { ids ->
++            when (val page = activity.selectBySegmentIdsInTransaction(ids)) {
++                is ActivityComposedPage.Available -> page.entries.associate {
++                    "logical:${it.logicalTrackingId}" to HistorySection.Activity(it.entry)
++                }
++                is ActivityComposedPage.Failed -> throw NativeHistorySourceUnavailable(
++                    if (page.cause == com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause.READ_BUDGET_EXCEEDED) HistoryProblemReason.DEPENDENCY_OVERFLOW
++                    else HistoryProblemReason.INTEGRITY_UNAVAILABLE,
++                )
++            }
++        }
++        val pressureRead = readSource(HistorySource.PRESSURE, seedsBySource, range) { ids ->
++            if (ids.size > MAX_PRESSURE_MEMBERS) throw NativeHistorySourceUnavailable(
++                HistoryProblemReason.DEPENDENCY_OVERFLOW,
++            )
++            val page = pressure.selectLogicalBySegmentIdsInTransaction(ids)
++            if (page.hasDependencyOverflow) throw NativeHistorySourceUnavailable(
++                HistoryProblemReason.DEPENDENCY_OVERFLOW,
++            )
++            page.mapNotNull { entry ->
++                (entry.identity as? PressureHistoryEntryIdentity.Logical)?.let { id ->
++                    "logical:${id.logicalTrackingId}" to
++                        HistorySection.Pressure(entry.physicalMembers.toPublicPressureHistory())
++                }
++            }.toMap()
++        }
++        val sourceReads = mapOf(HistorySource.WIFI to wifiRead, HistorySource.CELL to cellRead,
++            HistorySource.ACTIVITY to activityRead, HistorySource.PRESSURE to pressureRead)
++        val locationRead = if (HistorySource.LOCATION in range.sources) {
++            readLocationCompatibility(candidates, members, legacy, range)
++        } else NativeHistoryLocationSections(emptyMap(), null)
++        return candidates.mapNotNull { candidate ->
++            currentCoroutineContext().ensureActive()
++            val origins = buildSet {
++                add(if (candidate.category == "legacy") HistoryOrigin.LEGACY else HistoryOrigin.LOCAL)
++                if (candidate.identity in annotations) add(HistoryOrigin.ORGANIZATION)
++            }
++            if (origins.none { it in range.origins }) return@mapNotNull null
++            val rowMembers = if (candidate.category == "legacy") {
++                listOfNotNull(byLegacyId[candidate.segmentId])
++            } else byLogicalId[candidate.identity.removePrefix("logical:")].orEmpty()
++            val captures = rowMembers.map { it.captureAuthority as? HistoricalCaptureAuthority.Exact }
++            val exactMembership = candidate.category == "native" && rowMembers.isNotEmpty() &&
++                captures.all { it != null } && SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
++                    captures.filterNotNull().map { capture -> capture.revisions.map { it.manifestRevision } },
++                )
++            val sources = selectedSources[candidate.identity].orEmpty()
++            val problems = linkedSetOf<HistoryProblem>()
++            val sections = buildList {
++                if (exactMembership || candidate.category == "legacy") {
++                    if (HistorySource.STEPS in range.sources &&
++                        (HistorySource.STEPS in sources || candidate.category == "legacy")
++                    ) rowMembers.forEach { member ->
++                        val history = member.steps.toPublicHistory()
++                        if (HistorySource.STEPS in sources || history.count != null) {
++                            add(HistorySection.Steps(member.segment.id, history))
++                        }
++                    }
++                    sourceReads.forEach { (source, read) ->
++                        if (source in sources) {
++                            read.sections[candidate.identity]?.let(::add)
++                                ?: problems.add(HistoryProblem(source, read.problem
++                                    ?: HistoryProblemReason.INTEGRITY_UNAVAILABLE))
++                        }
++                    }
++                    if (HistorySource.LOCATION in range.sources &&
++                        (HistorySource.LOCATION in sources || candidate.category == "legacy")
++                    ) {
++                        locationRead.sections[candidate.identity]?.let(::addAll)
++                        locationRead.problem?.let { problems.add(HistoryProblem(HistorySource.LOCATION, it)) }
++                    }
++                } else {
++                    range.sources.forEach { problems.add(HistoryProblem(it,
++                        membershipProblem ?: HistoryProblemReason.INTEGRITY_UNAVAILABLE)) }
++                }
++            }
++            if (sections.isEmpty() && problems.isEmpty()) return@mapNotNull null
++            if (candidate.temporalUncertain) problems.add(HistoryProblem(null, HistoryProblemReason.TIME_UNCERTAIN))
++            val position = HistoryPosition(candidate.startTimeMs, "local", candidate.identity)
++            val annotation = annotations[candidate.identity]
++            val narrowed = if (annotation?.startTimeMs != null && annotation.endTimeMs != null && rowMembers.isNotEmpty()) {
++                val originalStart = rowMembers.minOf { it.segment.startTimeMs }
++                val originalEnd = rowMembers.maxOf { it.segment.endTimeMs }
++                val original = UnifiedHistoryRow(
++                    HistoryPosition(originalStart, "local", candidate.identity),
++                    originalEnd.takeIf { it >= originalStart }, origins, HistoryPurpose.CAPTURE,
++                    sections = sections,
++                )
++                // Organization edits select retained evidence; they cannot clip or prorate a count.
++                selectOrganizationInterval(listOf(original), annotation.startTimeMs, annotation.endTimeMs,
++                    rowMembers.associate { it.segment.id to (it.segment.startTimeMs to it.segment.endTimeMs) })
++            } else OrganizationIntervalSections(sections, emptySet())
++            problems += narrowed.problems
++            position to UnifiedHistoryRow(position, candidate.endTimeMs?.takeIf { it >= candidate.startTimeMs },
++                origins, HistoryPurpose.CAPTURE, annotation?.name, narrowed.sections, problems)
++        }.toMap()
++    }
++
++    private suspend fun readSource(source: HistorySource, seeds: Map<HistorySource, List<Long>>,
++        range: HistoryRange, read: suspend (List<Long>) -> Map<String, HistorySection>): NativeHistorySections {
++        val ids = seeds[source].orEmpty()
++        if (source !in range.sources || ids.isEmpty()) return NativeHistorySections(emptyMap(), null)
++        return try {
++            NativeHistorySections(read(ids), null)
++        } catch (cancelled: CancellationException) {
++            throw cancelled
++        } catch (failure: NativeHistorySourceUnavailable) {
++            NativeHistorySections(emptyMap(), failure.reason)
++        } catch (_: android.database.sqlite.SQLiteException) {
++            NativeHistorySections(emptyMap(), HistoryProblemReason.STORAGE_UNAVAILABLE)
++        } catch (_: RuntimeException) {
++            NativeHistorySections(emptyMap(), HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++        }
++    }
++
++    /** Keep saved points visible; source-owned retained proof labels only authenticated native points. */
++    private suspend fun readLocationCompatibility(candidates: List<UnifiedHistoryCandidate>,
++        members: List<HistoricalSegmentEvidence>, legacy: List<HistoricalSegmentEvidence>,
++        range: HistoryRange): NativeHistoryLocationSections {
++        val selected = members.filter { member ->
++            (member.captureAuthority as? HistoricalCaptureAuthority.Exact)
++                ?.capturedInAnyRevision?.contains(TrackingSourceComponent.LOCATION) == true
++        } + legacy
++        if (selected.isEmpty()) return NativeHistoryLocationSections(emptyMap(), null)
++        // Session organization does not widen the measured dates selected by History.
++        val from = maxOf(range.fromInclusiveMs, selected.minOf { it.segment.startTimeMs }.coerceAtLeast(0))
++        val to = minOf(range.toExclusiveMs - 1, selected.maxOf { it.segment.endTimeMs })
++        if (to < from) return NativeHistoryLocationSections(emptyMap(), null)
++        return try {
++            val probe = database.locationPurposeDao().visiblePathChunk(from, to, null, null,
++                MAX_LOCATION_POINTS + 1)
++            if (probe.size > MAX_LOCATION_POINTS) return NativeHistoryLocationSections(emptyMap(),
++                HistoryProblemReason.DEPENDENCY_OVERFLOW)
++            val fileImportedIds = probe.map { it.sample.id }.chunked(64).flatMap {
++                database.locationPurposeDao().importedHistorySampleIds(it) }.toSet()
++            val purposes = probe.map { it.sample.id }.chunked(64).flatMap { ids ->
++                val rows = database.locationPurposeDao().contextPurposes(ids, ids.size * 2 + 1)
++                if (rows.size > ids.size * 2) return NativeHistoryLocationSections(emptyMap(),
++                    HistoryProblemReason.DEPENDENCY_OVERFLOW)
++                rows
++            }.filter { it.purpose == "SESSION_CAPTURE" }.groupBy { it.sampleId }
++            val receipts = database.locationPurposeDao().contextReceiptsOverWindow(from,
++                if (to == Long.MAX_VALUE) to else to + 1, MAX_LOCATION_POINTS + 1)
++            var proofProblem: HistoryProblemReason? = null
++            val qualified = if (receipts.size > MAX_LOCATION_POINTS) {
++                proofProblem = HistoryProblemReason.DEPENDENCY_OVERFLOW
++                null
++            } else try {
++                qualifiedLocation.qualifyInTransaction(receipts)
++            } catch (cancelled: CancellationException) {
++                throw cancelled
++            } catch (_: android.database.sqlite.SQLiteException) {
++                proofProblem = HistoryProblemReason.STORAGE_UNAVAILABLE
++                null
++            } catch (_: RuntimeException) {
++                proofProblem = HistoryProblemReason.INTEGRITY_UNAVAILABLE
++                null
++            }
++            val sourceSamples = receipts.associate { it.sourceEventId to it.sampleId }
++            val qualifiedBySample = qualified?.points.orEmpty().filter {
++                it.scope is RadioContextScope.Session }.groupBy { sourceSamples[it.sourceEventId] }
++            val groups = candidates.associate { candidate ->
++                val points = probe.filter { point ->
++                    if (candidate.category == "legacy") {
++                        point.sample.timeMs >= candidate.startTimeMs &&
++                            point.sample.timeMs <= (candidate.endTimeMs ?: Long.MAX_VALUE) &&
++                            !point.ambientOnly && point.sample.id !in fileImportedIds
++                    } else purposes[point.sample.id].orEmpty().any {
++                        it.logicalTrackingId == candidate.identity.removePrefix("logical:")
++                    }
++                }.mapNotNull { point ->
++                    val sample = point.sample
++                    val latitude = sample.latE7 ?: return@mapNotNull null
++                    val longitude = sample.lonE7 ?: return@mapNotNull null
++                    val publicPoint = HistoryLocationPoint(sample.timeMs, latitude, longitude,
++                        sample.hAccM, point.continuityId, sample.id)
++                    val nativeProof = candidate.category == "native" && qualifiedBySample[sample.id].orEmpty().any {
++                        val owner = (it.scope as RadioContextScope.Session).owner
++                        owner.logicalTrackingId == candidate.identity.removePrefix("logical:") &&
++                            it.observedWallTimeMs == sample.timeMs && it.latitudeE7 == latitude && it.longitudeE7 == longitude }
++                    publicPoint to if (nativeProof) HistoryLocationCoverage.QUALIFIED else HistoryLocationCoverage.LEGACY_UNVERIFIABLE
++                }
++                val sections = points.groupBy { it.second }.map { (coverage, values) ->
++                    HistorySection.Location(values.map { it.first }, coverage) }
++                candidate.identity to sections
++            }
++            NativeHistoryLocationSections(groups, proofProblem ?: qualified?.historyProblem ?: if (qualified != null &&
++                com.adsamcik.tracker.stats.api.repository.RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in qualified.gaps)
++                    HistoryProblemReason.DEPENDENCY_OVERFLOW else null)
++        } catch (cancelled: CancellationException) {
++            throw cancelled
++        } catch (_: android.database.sqlite.SQLiteException) {
++            NativeHistoryLocationSections(emptyMap(), HistoryProblemReason.STORAGE_UNAVAILABLE)
++        } catch (_: RuntimeException) {
++            NativeHistoryLocationSections(emptyMap(), HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++        }
++    }
++
++    private data class NativeHistorySections(val sections: Map<String, HistorySection>, val problem: HistoryProblemReason?)
++    private data class NativeHistoryLocationSections(val sections: Map<String, List<HistorySection.Location>>, val problem: HistoryProblemReason?)
++    private class NativeHistorySourceUnavailable(val reason: HistoryProblemReason) : RuntimeException(null, null, false, false)
++    private companion object {
++        const val MAX_CANDIDATES = 100
++        const val MAX_PRESSURE_MEMBERS = 64
++        const val MAX_LOCATION_POINTS = 4_096
++    }
++}
+--- /dev/null
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt
+@@ -0,0 +1,799 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import android.content.Context
++import androidx.room.withTransaction
++import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.activeRetentionFloorSettlement
++import com.adsamcik.tracker.shared.base.database.TRACKING_HISTORY_INVALIDATION_TABLES
++import com.adsamcik.tracker.shared.base.database.dao.LocationHistoryDayRow
++import com.adsamcik.tracker.shared.base.database.dao.UnifiedHistoryCandidate
++import com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
++import com.adsamcik.tracker.shared.base.di.IoDispatcher
++import com.adsamcik.tracker.stats.api.repository.AmbientCellOrigin
++import com.adsamcik.tracker.stats.api.repository.AmbientCellReadRequest
++import com.adsamcik.tracker.stats.api.repository.AmbientCellReadResult
++import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryDay
++import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause
++import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryFactOriginKind
++import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRangeRequest
++import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRead
++import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryValue
++import com.adsamcik.tracker.stats.api.repository.AmbientStepsImportedDisposition
++import com.adsamcik.tracker.stats.api.repository.AmbientStepsStructuralDay
++import com.adsamcik.tracker.stats.api.repository.AmbientWifiOrigin
++import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadRequest
++import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadResult
++import com.adsamcik.tracker.stats.api.repository.HistoryContinuation
++import com.adsamcik.tracker.stats.api.repository.HistoryLocationCoverage
++import com.adsamcik.tracker.stats.api.repository.HistoryLocationPoint
++import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
++import com.adsamcik.tracker.stats.api.repository.HistoryObservationWindow
++import com.adsamcik.tracker.stats.api.repository.HistoryPosition
++import com.adsamcik.tracker.stats.api.repository.HistoryProblem
++import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
++import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
++import com.adsamcik.tracker.stats.api.repository.HistoryRange
++import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
++import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
++import com.adsamcik.tracker.stats.api.repository.HistorySection
++import com.adsamcik.tracker.stats.api.repository.HistorySource
++import com.adsamcik.tracker.stats.api.repository.HistoryStreamBuffer
++import com.adsamcik.tracker.stats.api.repository.LocationFileArchiveRead
++import com.adsamcik.tracker.stats.api.repository.LocationFileArchiveRequest
++import com.adsamcik.tracker.stats.api.repository.OrganizedSession
++import com.adsamcik.tracker.stats.api.repository.OrganizationSessionId
++import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelectionCodec
++import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelector
++import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
++import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
++import com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow
++import com.adsamcik.tracker.stats.api.repository.mergeHistoryBuffers
++import dagger.hilt.android.qualifiers.ApplicationContext
++import java.time.Instant
++import java.time.LocalDate
++import java.time.ZoneId
++import javax.inject.Inject
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.CoroutineDispatcher
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.withContext
++
++/** Read-only, finite key discovery and source-owned qualification in one Room transaction. */
++internal class UnifiedHistoryRangeReader @Inject constructor(
++    private val database: AppDatabase,
++    private val native: UnifiedHistoryNativeReader,
++    private val wifi: DefaultWifiHistoryRepository,
++    private val cell: DefaultCellHistoryRepository,
++    private val activity: DefaultActivityHistoryRepository,
++    private val pressure: PressureHistoryPageReader,
++    private val backgroundSteps: DefaultAmbientStepsHistoryRepository,
++    private val backgroundWifi: RoomAmbientWifiRepository,
++    private val backgroundCell: RoomAmbientCellRepository,
++    @ApplicationContext private val context: Context,
++    @IoDispatcher private val io: CoroutineDispatcher,
++) {
++    private val importedSteps = ImportedStepsProductReader(database)
++    private val dayLocation = RetainedLocationContextReader(database)
++
++    suspend fun read(request: HistoryRangeRequest): HistoryRangeRead = withContext(io) {
++        if (!database.isOpen) return@withContext HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
++        try {
++            database.withTransaction { readInTransaction(request) }
++        } catch (cancelled: CancellationException) {
++            throw cancelled
++        } catch (_: android.database.sqlite.SQLiteException) {
++            HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
++        } catch (_: RuntimeException) {
++            HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++        }
++    }
++
++    private suspend fun readInTransaction(request: HistoryRangeRequest): HistoryRangeRead {
++        if (database.activeRetentionFloorSettlement() != null) {
++            return HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++        }
++        val state = database.sourceEvidenceStateDao().get()
++            ?: return HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++        if (!state.hasValidRangeShape()) return HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++        try { ZoneId.of(request.range.viewZoneId) } catch (_: RuntimeException) {
++            return HistoryRangeRead.Unavailable(HistoryProblemReason.TIME_UNCERTAIN)
++        }
++        val snapshot = TrackingHistoryReadSnapshot(state.collectedDataEpoch, state.revision)
++        val problems = linkedSetOf<HistoryProblem>()
++        val streams = mutableListOf<HistoryStreamBuffer<RangeHistoryCandidate>>()
++        val range = request.range
++        val after = request.after?.consumed
++        suspend fun addKeys(kind: RangeHistoryKind, source: HistorySource?, tag: String,
++            read: suspend () -> List<UnifiedHistoryCandidate>) {
++            try {
++                currentCoroutineContext().ensureActive()
++                val keys = read().map { seed -> RangeHistoryCandidate(kind, source, seed,
++                    HistoryPosition(seed.startTimeMs, tag, seed.identity)) }
++                streams += keys.toHistoryBuffer()
++            } catch (cancelled: CancellationException) {
++                throw cancelled
++            } catch (failure: RangeHistoryUnavailable) {
++                problems += HistoryProblem(source, failure.reason)
++            } catch (_: android.database.sqlite.SQLiteException) {
++                problems += HistoryProblem(source, HistoryProblemReason.STORAGE_UNAVAILABLE)
++            } catch (_: RuntimeException) {
++                problems += HistoryProblem(source, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++            }
++        }
++        if (HistoryPurpose.CAPTURE in range.purposes && range.sources.isNotEmpty()) {
++            if (range.origins.any { it in setOf(HistoryOrigin.LOCAL, HistoryOrigin.LEGACY, HistoryOrigin.ORGANIZATION) }) {
++                addKeys(RangeHistoryKind.NATIVE, null, "local") {
++                    database.trackingHistoryReadDao().unifiedHistoryCandidates(
++                        UnifiedHistoryCandidateQueries.native(range, after))
++                }
++            }
++            if (HistoryOrigin.IMPORTED in range.origins) for (source in range.sources) {
++                if (source == HistorySource.LOCATION) continue
++                val name = source.name.lowercase(java.util.Locale.ROOT)
++                addKeys(RangeHistoryKind.IMPORTED, source, "imported:$name") {
++                    database.trackingHistoryReadDao().unifiedHistoryCandidates(
++                        UnifiedHistoryCandidateQueries.imported(name, range, after))
++                }
++            }
++        }
++        if (HistoryPurpose.BACKGROUND in range.purposes &&
++            range.origins.any { it in setOf(HistoryOrigin.LOCAL, HistoryOrigin.IMPORTED, HistoryOrigin.LEGACY) }) {
++            for (source in range.sources.intersect(BACKGROUND_SOURCES)) {
++                if (source != HistorySource.LOCATION && range.origins.none {
++                    it == HistoryOrigin.LOCAL || it == HistoryOrigin.IMPORTED }) continue
++                addKeys(RangeHistoryKind.BACKGROUND, source, "background") {
++                    backgroundKeys(source, range, after)
++                }
++            }
++        }
++        if (HistoryPurpose.ORGANIZATION in range.purposes && HistoryOrigin.ORGANIZATION in range.origins) {
++            addKeys(RangeHistoryKind.ORGANIZATION, null, "organization") {
++                database.trackingHistoryReadDao().unifiedHistoryCandidates(
++                    UnifiedHistoryCandidateQueries.organization(range, after))
++            }
++        }
++        var nativeRows: Map<HistoryPosition, UnifiedHistoryRow>? = null
++        val importedRows = mutableMapOf<HistorySource, RangeHistorySections>()
++        val backgroundRows = mutableMapOf<HistorySource, RangeHistorySections>()
++        var annotationRows: Map<String, OrganizationAnnotationEntity>? = null
++        val labels = NativeSessionActivity.entries.associate { it.id to context.getString(it.nameRes) }.toMutableMap()
++        var localOrganizationContents: HistoryRangeRead? = null
++        var loadedOrganizationContents = false
++        var localOrganizationStepBounds: Map<Long, Pair<Long, Long>>? = null
++        var localOrganizationStepsProblem: HistoryProblemReason? = null
++        var remainingOrganizationSelectors = MAX_CANDIDATES
++        var remainingOrganizationLocationPoints = MAX_DAY_FACTS
++        suspend fun nativeSnapshot(): Map<HistoryPosition, UnifiedHistoryRow> {
++            nativeRows?.let { return it }
++            val candidates = streams.flatMap { it.candidates }.filter { it.kind == RangeHistoryKind.NATIVE }
++            val rows = try {
++                native.readInTransaction(candidates.map { it.seed }, range)
++            } catch (cancelled: CancellationException) { throw cancelled
++            } catch (_: android.database.sqlite.SQLiteException) {
++                candidates.associate { it.position to unavailableRow(it.position, it.seed.endTimeMs,
++                    if (it.seed.category == "legacy") HistoryOrigin.LEGACY else HistoryOrigin.LOCAL,
++                    HistoryPurpose.CAPTURE, null, HistoryProblemReason.STORAGE_UNAVAILABLE) }
++            } catch (_: RuntimeException) {
++                candidates.associate { it.position to unavailableRow(it.position, it.seed.endTimeMs,
++                    if (it.seed.category == "legacy") HistoryOrigin.LEGACY else HistoryOrigin.LOCAL,
++                    HistoryPurpose.CAPTURE, null, HistoryProblemReason.INTEGRITY_UNAVAILABLE) }
++            }
++            return rows.also { nativeRows = it }
++        }
++        suspend fun organizationLabels(rows: Collection<OrganizationAnnotationEntity>): Map<Long, String> {
++            val ids = rows.mapNotNull { it.activityLabelId }.distinct().filter { it >= 0 && it !in labels }
++            require(ids.size <= MAX_CANDIDATES)
++            ids.chunked(64).forEach { batch -> labels += database.activityDao().getByIds(batch).associate { it.id to it.name } }
++            return labels
++        }
++        suspend fun organizationSnapshot(): Map<String, OrganizationAnnotationEntity> {
++            annotationRows?.let { return it }
++            val ids = streams.flatMap { it.candidates }.filter { it.kind == RangeHistoryKind.ORGANIZATION }
++                .map { it.seed.identity.removePrefix("annotation:") }
++            return database.organizationAnnotationDao().byIds(ids).associateBy { it.localId }.also { annotationRows = it }
++        }
++        suspend fun localOrganizationSnapshot(): HistoryRangeRead? {
++            if (loadedOrganizationContents) return localOrganizationContents
++            loadedOrganizationContents = true
++            val intervals = organizationSnapshot().values.filter {
++                it.importedSourceSelection == null && it.startTimeMs != null && it.endTimeMs != null && it.endTimeMs > it.startTimeMs }
++            if (intervals.isEmpty()) return null
++            val contentsRange = range.copy(fromInclusiveMs = intervals.minOf { requireNotNull(it.startTimeMs) },
++                toExclusiveMs = intervals.maxOf { requireNotNull(it.endTimeMs) },
++                purposes = range.purposes - HistoryPurpose.ORGANIZATION,
++                origins = range.origins - HistoryOrigin.ORGANIZATION)
++            val read = try {
++                readInTransaction(HistoryRangeRequest(contentsRange))
++            } catch (cancelled: CancellationException) {
++                throw cancelled
++            } catch (_: android.database.sqlite.SQLiteException) {
++                HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
++            } catch (_: RuntimeException) {
++                HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++            }
++            return read.also { localOrganizationContents = it }
++        }
++        suspend fun organizationStepBounds(contents: HistoryRangeRead?): Map<Long, Pair<Long, Long>> {
++            localOrganizationStepBounds?.let { return it }
++            val ids = (contents as? HistoryRangeRead.Page)?.rows.orEmpty().flatMap { it.sections }
++                .filterIsInstance<HistorySection.Steps>().map { it.segmentId }.distinct()
++            val bounds = try {
++                if (ids.size > MAX_DAY_FACTS) throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
++                ids.chunked(64).flatMap { database.trackingHistoryReadDao().segments(it) }
++                    .associate { it.id to (it.startTimeMs to it.endTimeMs) }
++            } catch (cancelled: CancellationException) { throw cancelled
++            } catch (failure: RangeHistoryUnavailable) {
++                localOrganizationStepsProblem = failure.reason
++                emptyMap()
++            } catch (_: android.database.sqlite.SQLiteException) {
++                localOrganizationStepsProblem = HistoryProblemReason.STORAGE_UNAVAILABLE
++                emptyMap()
++            } catch (_: RuntimeException) {
++                localOrganizationStepsProblem = HistoryProblemReason.INTEGRITY_UNAVAILABLE
++                emptyMap()
++            }
++            return bounds.also { localOrganizationStepBounds = it }
++        }
++        val result = mergeHistoryBuffers(streams, request.limit) { position, representatives ->
++            currentCoroutineContext().ensureActive()
++            if (representatives.any { it.kind == RangeHistoryKind.NATIVE }) {
++                return@mergeHistoryBuffers nativeSnapshot()[position]
++            }
++            if (representatives.any { it.kind == RangeHistoryKind.ORGANIZATION }) {
++                val seed = representatives.single().seed
++                val row = try { organizationSnapshot()[seed.identity.removePrefix("annotation:")]
++                } catch (cancelled: CancellationException) { throw cancelled
++                } catch (_: android.database.sqlite.SQLiteException) {
++                    return@mergeHistoryBuffers unavailableRow(position, seed.endTimeMs,
++                        HistoryOrigin.ORGANIZATION, HistoryPurpose.ORGANIZATION, null,
++                        HistoryProblemReason.STORAGE_UNAVAILABLE)
++                } catch (_: RuntimeException) {
++                    return@mergeHistoryBuffers unavailableRow(position, seed.endTimeMs,
++                        HistoryOrigin.ORGANIZATION, HistoryPurpose.ORGANIZATION, null,
++                        HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++                }
++                    ?: return@mergeHistoryBuffers unavailableRow(position, seed.endTimeMs,
++                        HistoryOrigin.ORGANIZATION, HistoryPurpose.ORGANIZATION, null,
++                        HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++                val group = try { row.toOrganizedSession(snapshot, range.viewZoneId,
++                    organizationLabels(organizationSnapshot().values))
++                } catch (cancelled: CancellationException) { throw cancelled
++                } catch (_: android.database.sqlite.SQLiteException) { return@mergeHistoryBuffers unavailableRow(position, seed.endTimeMs,
++                    HistoryOrigin.ORGANIZATION, HistoryPurpose.ORGANIZATION, null, HistoryProblemReason.STORAGE_UNAVAILABLE)
++                } catch (_: RuntimeException) { return@mergeHistoryBuffers unavailableRow(position, seed.endTimeMs,
++                    HistoryOrigin.ORGANIZATION, HistoryPurpose.ORGANIZATION, null, HistoryProblemReason.INTEGRITY_UNAVAILABLE) }
++                val contents = if (row.importedSourceSelection == null) {
++                    localOrganizationSnapshot()
++                } else null
++                val members = (contents as? HistoryRangeRead.Page)?.rows.orEmpty().filter { member ->
++                    val end = row.endTimeMs
++                    end != null && member.position.startTimeMs < end &&
++                        (member.toExclusiveMs == null || member.toExclusiveMs > position.startTimeMs ||
++                            member.toExclusiveMs == member.position.startTimeMs && member.position.startTimeMs >= position.startTimeMs) }
++                val intervalSelection = if (row.importedSourceSelection == null && row.endTimeMs != null) {
++                    selectOrganizationInterval(members, position.startTimeMs, row.endTimeMs,
++                        organizationStepBounds(contents), localOrganizationStepsProblem)
++                } else OrganizationIntervalSections(emptyList(), emptySet())
++                val sourceSections = intervalSelection.sections.toMutableList()
++                val groupProblems = linkedSetOf<HistoryProblem>()
++                groupProblems += intervalSelection.problems
++                if (contents is HistoryRangeRead.Page) {
++                    groupProblems += contents.problems
++                    groupProblems += members.flatMap { it.problems }
++                    // An older unseen recording may still overlap this annotation's interval.
++                    if (contents.next != null) {
++                        groupProblems += HistoryProblem(null, HistoryProblemReason.DEPENDENCY_OVERFLOW) }
++                } else if (contents is HistoryRangeRead.Unavailable) groupProblems += HistoryProblem(null, contents.reason)
++                if (row.importedSourceSelection != null && group.importedSourceSelection?.isNotEmpty() == true) {
++                    val selected = group.importedSourceSelection.filter { it.source in range.sources }
++                    if (selected.size > remainingOrganizationSelectors) {
++                        selected.map { it.source }.distinct().forEach {
++                            groupProblems += HistoryProblem(it, HistoryProblemReason.DEPENDENCY_OVERFLOW) }
++                    } else {
++                        remainingOrganizationSelectors -= selected.size
++                        val read = selectedOrganization(selected, range, snapshot, remainingOrganizationLocationPoints)
++                        remainingOrganizationLocationPoints -= read.locationMembersRead
++                        sourceSections += read.sections
++                        groupProblems += read.problems
++                    }
++                }
++                return@mergeHistoryBuffers UnifiedHistoryRow(position, seed.endTimeMs?.takeIf { it >= position.startTimeMs },
++                    setOf(HistoryOrigin.ORGANIZATION), HistoryPurpose.ORGANIZATION, row.name,
++                    listOf(HistorySection.Organization(group)) + sourceSections, groupProblems)
++            }
++            val sections = mutableListOf<HistorySection>()
++            val rowProblems = linkedSetOf<HistoryProblem>()
++            val origins = linkedSetOf<HistoryOrigin>()
++            for (candidate in representatives) {
++                val source = requireNotNull(candidate.source)
++                val sourceRead = when (candidate.kind) {
++                    RangeHistoryKind.IMPORTED -> importedRows.getOrPutSuspending(source) {
++                        val seeds = streams.flatMap { it.candidates }.filter {
++                            it.kind == RangeHistoryKind.IMPORTED && it.source == source }
++                        selectedImported(source, seeds, range)
++                    }
++                    RangeHistoryKind.BACKGROUND -> backgroundRows.getOrPutSuspending(source) {
++                        val seeds = streams.flatMap { it.candidates }.filter {
++                            it.kind == RangeHistoryKind.BACKGROUND && it.source == source }
++                        selectedBackground(source, seeds, range, snapshot)
++                    }
++                    else -> error("Native and annotation candidates were handled above")
++                }
++                sourceRead.sections[candidate.seed.identity]?.let { section ->
++                    sections += section
++                    origins += sourceRead.origins[candidate.seed.identity].orEmpty()
++                }
++                sections += sourceRead.additionalSections[candidate.seed.identity].orEmpty()
++                sourceRead.problems[candidate.seed.identity]?.let { rowProblems += HistoryProblem(source, it) }
++                if (candidate.seed.temporalUncertain) rowProblems += HistoryProblem(source, HistoryProblemReason.TIME_UNCERTAIN)
++            }
++            if (sections.isEmpty() && rowProblems.isEmpty()) null else UnifiedHistoryRow(position,
++                representatives.mapNotNull { it.seed.endTimeMs }.maxOrNull()?.takeIf { it >= position.startTimeMs },
++                origins.ifEmpty { if (representatives.first().kind == RangeHistoryKind.IMPORTED)
++                    setOf(HistoryOrigin.IMPORTED) else range.origins.intersect(setOf(HistoryOrigin.LOCAL, HistoryOrigin.IMPORTED)) },
++                if (representatives.first().kind == RangeHistoryKind.IMPORTED) HistoryPurpose.CAPTURE else HistoryPurpose.BACKGROUND,
++                sections = sections, problems = rowProblems)
++        }
++        if (database.sourceEvidenceStateDao().get() != state) {
++            return HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++        }
++        return HistoryRangeRead.Page(result.rows, snapshot,
++            result.consumed?.takeIf { result.hasMore }?.let { HistoryContinuation(range, it) }, problems)
++    }
++
++    /** Finite key-only per-zone probes become one globally ordered source buffer before limiting. */
++    private suspend fun backgroundKeys(source: HistorySource, range: HistoryRange,
++        after: HistoryPosition?): List<UnifiedHistoryCandidate> {
++        if (source != HistorySource.STEPS) return displayedDayKeys(source, range, after)
++        val name = source.name.lowercase(java.util.Locale.ROOT)
++        val zones = database.trackingHistoryReadDao().unifiedHistoryZones(
++            UnifiedHistoryCandidateQueries.backgroundZones(name, range))
++        if (zones.size > MAX_CANDIDATES) throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
++        val keys = mutableListOf<UnifiedHistoryCandidate>()
++        for (zoneName in zones) {
++            currentCoroutineContext().ensureActive()
++            val zone = try { ZoneId.of(zoneName) } catch (_: RuntimeException) {
++                throw RangeHistoryUnavailable(HistoryProblemReason.TIME_UNCERTAIN)
++            }
++            val first = Instant.ofEpochMilli(range.fromInclusiveMs).atZone(zone).toLocalDate().toEpochDay()
++            val last = Instant.ofEpochMilli(range.toExclusiveMs - 1).atZone(zone).toLocalDate().toEpochDay()
++            val afterDay = after?.let {
++                val date = Instant.ofEpochMilli(it.startTimeMs).atZone(zone).toLocalDate()
++                val position = HistoryPosition(date.atStartOfDay(zone).toInstant().toEpochMilli(),
++                    "background", "${date.toEpochDay()}:$zoneName")
++                date.toEpochDay() - if (position <= it) 1L else 0L
++            }
++            val probe = database.trackingHistoryReadDao().unifiedHistoryCandidates(
++                UnifiedHistoryCandidateQueries.backgroundDays(name, range, zoneName, first, last, afterDay))
++            if (probe.size > MAX_CANDIDATES + 1) throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
++            probe.forEach { seed ->
++                val day = LocalDate.ofEpochDay(requireNotNull(seed.epochDay))
++                val start = day.atStartOfDay(zone).toInstant().toEpochMilli()
++                val end = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
++                if (start < 0 || end <= start) throw RangeHistoryUnavailable(HistoryProblemReason.TIME_UNCERTAIN)
++                keys += seed.copy(startTimeMs = start, endTimeMs = end)
++            }
++        }
++        return keys.distinctBy { it.identity }.sortedWith(compareBy {
++            HistoryPosition(it.startTimeMs, "background", it.identity) }).take(MAX_CANDIDATES + 1)
++    }
++
++    /** At most 101 key-only probes; skip a whole displayed day rather than paging its individual readings. */
++    private suspend fun displayedDayKeys(source: HistorySource, range: HistoryRange,
++        after: HistoryPosition?): List<UnifiedHistoryCandidate> {
++        val zone = ZoneId.of(range.viewZoneId)
++        val name = source.name.lowercase(java.util.Locale.ROOT)
++        var before = range.toExclusiveMs
++        if (after != null) {
++            val date = Instant.ofEpochMilli(after.startTimeMs).atZone(zone).toLocalDate()
++            val start = date.atStartOfDay(zone).toInstant().toEpochMilli().coerceAtLeast(0L)
++            val dayPosition = HistoryPosition(start, "background", "${date.toEpochDay()}:${range.viewZoneId}")
++            before = minOf(before, if (dayPosition <= after) start
++                else date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli())
++        }
++        val keys = mutableListOf<UnifiedHistoryCandidate>()
++        while (before > range.fromInclusiveMs && keys.size <= MAX_CANDIDATES) {
++            currentCoroutineContext().ensureActive()
++            val seed = database.trackingHistoryReadDao().unifiedHistoryCandidates(
++                UnifiedHistoryCandidateQueries.backgroundObservationBefore(name, range, before)).singleOrNull() ?: break
++            val day = Instant.ofEpochMilli(seed.startTimeMs).atZone(zone).toLocalDate()
++            val start = day.atStartOfDay(zone).toInstant().toEpochMilli().coerceAtLeast(0L)
++            val end = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
++            if (end <= start || start >= before) throw RangeHistoryUnavailable(HistoryProblemReason.TIME_UNCERTAIN)
++            keys += seed.copy(identity = "${day.toEpochDay()}:${range.viewZoneId}", startTimeMs = start,
++                endTimeMs = end, zoneId = range.viewZoneId, epochDay = day.toEpochDay())
++            before = start
++        }
++        return keys
++    }
++
++    private suspend fun selectedImported(source: HistorySource, candidates: List<RangeHistoryCandidate>,
++        range: HistoryRange): RangeHistorySections = sourceRead(candidates) {
++        if (candidates.any { it.seed.candidateConflict }) throw RangeHistoryUnavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++        selectedImportedEntries(source, candidates.map { it.seed.identity }, range)
++    }
++
++    private suspend fun selectedImportedEntries(source: HistorySource, ids: List<String>,
++        range: HistoryRange): RangeHistorySections {
++        val values: Map<String, HistorySection> = when (source) {
++            HistorySource.WIFI -> wifi.selectedImportedInTransaction(ids, range).mapValues { HistorySection.Wifi(it.value) }
++            HistorySource.CELL -> cell.selectedImportedInTransaction(ids, range).mapValues { HistorySection.Cell(it.value) }
++            HistorySource.ACTIVITY -> activity.selectedImportedForSharedHistoryInTransaction(ids,
++                range).entriesOrThrow().associate { it.identity.value to HistorySection.Activity(it.entry) }
++            HistorySource.PRESSURE -> pressure.selectedImportedInTransaction(ids, range)
++                .entriesOrThrow().associate { it.identity.value to HistorySection.Pressure(it.entry.pressure) }
++            HistorySource.STEPS -> {
++                val (entries, failures) = importedSteps.selectedInTransaction(ids)
++                return RangeHistorySections(entries.mapValues { HistorySection.ImportedSteps(it.value) },
++                    failures.mapValues { if (it.value == com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsReadFailure.DEPENDENCY_OVERFLOW)
++                        HistoryProblemReason.DEPENDENCY_OVERFLOW else HistoryProblemReason.INTEGRITY_UNAVAILABLE },
++                    entries.keys.associateWith { setOf(HistoryOrigin.IMPORTED) })
++            }
++            HistorySource.LOCATION -> error("Location uses saved point membership, not typed capture envelopes")
++        }
++        return RangeHistorySections(values, emptyMap(), values.keys.associateWith { setOf(HistoryOrigin.IMPORTED) })
++    }
++
++    private suspend fun selectedBackground(source: HistorySource, candidates: List<RangeHistoryCandidate>,
++        range: HistoryRange, snapshot: TrackingHistoryReadSnapshot): RangeHistorySections = sourceRead(candidates) {
++        val from = maxOf(range.fromInclusiveMs, candidates.minOf { it.seed.startTimeMs })
++        val to = minOf(range.toExclusiveMs, candidates.maxOf { requireNotNull(it.seed.endTimeMs) })
++        val values = linkedMapOf<String, HistorySection>()
++        val origins = linkedMapOf<String, Set<HistoryOrigin>>()
++        val additional = linkedMapOf<String, List<HistorySection>>()
++        val problems = linkedMapOf<String, HistoryProblemReason>()
++        fun window(candidate: RangeHistoryCandidate) = HistoryObservationWindow(
++            maxOf(range.fromInclusiveMs, candidate.seed.startTimeMs),
++            minOf(range.toExclusiveMs, requireNotNull(candidate.seed.endTimeMs)))
++        when (source) {
++            HistorySource.LOCATION -> {
++                val points = database.locationPurposeDao().sessionlessHistoryOverWindow(from, to, MAX_DAY_FACTS + 1,
++                    HistoryOrigin.LOCAL in range.origins, HistoryOrigin.IMPORTED in range.origins, HistoryOrigin.LEGACY in range.origins)
++                if (points.size > MAX_DAY_FACTS) throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
++                var qualificationProblem: HistoryProblemReason? = null
++                var sourceSamples = emptyMap<String, Long>()
++                val qualified = try {
++                    val receipts = points.map { it.point.sample.id }.chunked(64).flatMap { ids ->
++                        currentCoroutineContext().ensureActive()
++                        database.locationPurposeDao().contextReceiptsForSamples(ids, ids.size + 1).also {
++                            if (it.size > ids.size) throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW) }
++                    }
++                    sourceSamples = receipts.associate { it.sourceEventId to it.sampleId }
++                    dayLocation.qualifyInTransaction(receipts)
++                }
++                catch (cancelled: CancellationException) { throw cancelled }
++                catch (failure: RangeHistoryUnavailable) {
++                    qualificationProblem = failure.reason
++                    RetainedLocationContextSnapshot(emptyList())
++                }
++                catch (_: android.database.sqlite.SQLiteException) {
++                    qualificationProblem = HistoryProblemReason.STORAGE_UNAVAILABLE
++                    RetainedLocationContextSnapshot(emptyList())
++                } catch (_: RuntimeException) {
++                    qualificationProblem = HistoryProblemReason.INTEGRITY_UNAVAILABLE
++                    RetainedLocationContextSnapshot(emptyList())
++                }
++                val qualifiedBySample = qualified.points.filter { it.scope is com.adsamcik.tracker.stats.api.repository.RadioContextScope.Ambient }
++                    .groupBy { sourceSamples[it.sourceEventId] }
++                fun hasQualifiedAmbient(row: LocationHistoryDayRow): Boolean {
++                    val sample = row.point.sample
++                    return qualifiedBySample[sample.id].orEmpty().any { it.observedWallTimeMs == sample.timeMs &&
++                        it.latitudeE7 == sample.latE7 && it.longitudeE7 == sample.lonE7 }
++                }
++                candidates.forEach { candidate ->
++                    val display = window(candidate)
++                    val selected = points.filter { row -> display.contains(row.point.sample.timeMs) &&
++                        (hasQualifiedAmbient(row) || row.hasCurrentImportCopy ||
++                            row.point.sample.id !in qualified.erasedNativeSampleIds) }
++                    val sections = selected.groupBy { row ->
++                        if (hasQualifiedAmbient(row)) HistoryLocationCoverage.QUALIFIED
++                        else HistoryLocationCoverage.LEGACY_UNVERIFIABLE
++                    }.map { (coverage, rows) -> HistorySection.Location(rows.map { row ->
++                        val sample = row.point.sample
++                        HistoryLocationPoint(sample.timeMs, requireNotNull(sample.latE7), requireNotNull(sample.lonE7),
++                            sample.hAccM?.takeIf { it.isFinite() && it >= 0f }, row.point.continuityId, sample.id)
++                    }, coverage) }
++                    if (sections.isNotEmpty()) {
++                        values[candidate.seed.identity] = sections.first()
++                        additional[candidate.seed.identity] = sections.drop(1)
++                        origins[candidate.seed.identity] = selected.mapTo(linkedSetOf()) { HistoryOrigin.valueOf(it.historyOrigin) }
++                        if (com.adsamcik.tracker.stats.api.repository.RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in qualified.gaps)
++                            problems[candidate.seed.identity] = HistoryProblemReason.DEPENDENCY_OVERFLOW
++                        (qualificationProblem ?: qualified.historyProblem)?.let { problems[candidate.seed.identity] = it }
++                    }
++                }
++            }
++            HistorySource.WIFI -> {
++                val selectedOrigins = range.origins.mapNotNullTo(linkedSetOf()) { it.toWifiOrigin() }
++                val read = backgroundWifi.readObservationWindowInTransaction(AmbientWifiReadRequest(from, to, selectedOrigins, MAX_DAY_FACTS))
++                val payload = when (read) {
++                    is AmbientWifiReadResult.Snapshot -> read
++                    AmbientWifiReadResult.DependencyOverflow -> throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
++                    AmbientWifiReadResult.StorageUnavailable -> throw RangeHistoryUnavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++                }
++                candidates.forEach { candidate ->
++                    val display = window(candidate)
++                    val facts = payload.facts.filter { if (it.networks.isEmpty()) display.contains(it.observedTimeMs)
++                        else it.networks.any { network -> display.contains(network.observedTimeMs) } }
++                    val gaps = payload.gaps.filter { it.startTimeMs < display.toExclusiveMs && it.endTimeMs > display.fromInclusiveMs }
++                    if (facts.isNotEmpty() || gaps.isNotEmpty()) {
++                        values[candidate.seed.identity] = HistorySection.BackgroundWifi(payload.copy(facts = facts, gaps = gaps), display)
++                        origins[candidate.seed.identity] = (facts.map { it.origin } + gaps.map { it.origin }).mapTo(linkedSetOf()) {
++                            if (it == AmbientWifiOrigin.LOCAL_DEVICE) HistoryOrigin.LOCAL else HistoryOrigin.IMPORTED }
++                    }
++                }
++            }
++            HistorySource.CELL -> {
++                val selectedOrigins = range.origins.mapNotNullTo(linkedSetOf()) { it.toCellOrigin() }
++                val read = backgroundCell.readObservationWindowInTransaction(AmbientCellReadRequest(from, to, selectedOrigins, MAX_DAY_FACTS))
++                val payload = when (read) {
++                    is AmbientCellReadResult.Snapshot -> read
++                    AmbientCellReadResult.DependencyOverflow -> throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
++                    AmbientCellReadResult.StorageUnavailable -> throw RangeHistoryUnavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++                }
++                candidates.forEach { candidate ->
++                    val display = window(candidate)
++                    val facts = payload.facts.filter { if (it.towers.isEmpty()) display.contains(it.observedTimeMs)
++                        else it.towers.any { tower -> display.contains(tower.observedTimeMs) } }
++                    val gaps = payload.gaps.filter { it.startTimeMs < display.toExclusiveMs && it.endTimeMs > display.fromInclusiveMs }
++                    if (facts.isNotEmpty() || gaps.isNotEmpty()) {
++                        values[candidate.seed.identity] = HistorySection.BackgroundCell(payload.copy(facts = facts, gaps = gaps), display)
++                        origins[candidate.seed.identity] = (facts.map { it.origin } + gaps.map { it.origin }).mapTo(linkedSetOf()) {
++                            if (it == AmbientCellOrigin.LOCAL_DEVICE) HistoryOrigin.LOCAL else HistoryOrigin.IMPORTED }
++                    }
++                }
++            }
++            HistorySource.STEPS -> {
++                val days = candidates.map { AmbientStepsStructuralDay(requireNotNull(it.seed.epochDay), requireNotNull(it.seed.zoneId)) }
++                    .sortedWith(compareBy({ it.epochDay }, { it.storedZoneId }))
++                val batches = mutableListOf<MutableList<AmbientStepsStructuralDay>>()
++                for (day in days) {
++                    val batch = batches.lastOrNull()
++                    if (batch == null || day.epochDay - batch.first().epochDay >= AmbientStepsHistoryRangeRequest.MAX_DAY_COUNT) {
++                        batches += mutableListOf(day)
++                    } else batch += day
++                }
++                var factCount = 0
++                for (batch in batches) {
++                    currentCoroutineContext().ensureActive()
++                    val read = backgroundSteps.readBackgroundInCurrentTransaction(AmbientStepsHistoryRangeRequest(batch),
++                        snapshot.sourceEvidenceRevision, HistoryOrigin.LOCAL in range.origins, HistoryOrigin.IMPORTED in range.origins)
++                    val payload = when (read) {
++                        is AmbientStepsHistoryRead.Snapshot -> read
++                        is AmbientStepsHistoryRead.DependencyOverflow -> throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
++                        is AmbientStepsHistoryRead.Unavailable -> throw RangeHistoryUnavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++                        AmbientStepsHistoryRead.StorageUnavailable -> throw RangeHistoryUnavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
++                    }
++                    for (day in payload.days) {
++                        factCount = Math.addExact(factCount, day.factOrigins.size)
++                        if (factCount > MAX_DAY_FACTS) throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
++                        val id = "${day.day.epochDay}:${day.day.storedZoneId}"
++                        if (day.factOrigins.isEmpty() && day.importedDisposition == AmbientStepsImportedDisposition.NONE &&
++                            (day.total as? AmbientStepsHistoryValue.Unavailable)?.causes == setOf(AmbientStepsHistoryCause.NO_EVIDENCE)) continue
++                        values[id] = HistorySection.BackgroundSteps(day)
++                        origins[id] = day.factOrigins.mapTo(linkedSetOf()) {
++                            if (it.kind == AmbientStepsHistoryFactOriginKind.NATIVE_PROVIDER) HistoryOrigin.LOCAL else HistoryOrigin.IMPORTED
++                        }.ifEmpty { range.origins.intersect(setOf(HistoryOrigin.LOCAL, HistoryOrigin.IMPORTED)) }
++                    }
++                }
++            }
++            else -> error("Source has no sessionless structural-day product")
++        }
++        RangeHistorySections(values, problems, origins, additional)
++    }
++
++    private suspend fun selectedOrganization(selectors: List<OrganizationSourceSelector>, range: HistoryRange,
++        snapshot: TrackingHistoryReadSnapshot, locationBudget: Int): OrganizationHistorySections {
++        if (selectors.isEmpty() || HistoryOrigin.IMPORTED !in range.origins) return OrganizationHistorySections()
++        val sections = mutableListOf<HistorySection>()
++        val problems = linkedSetOf<HistoryProblem>()
++        val locationPoints = linkedMapOf<Long, HistoryLocationPoint>()
++        var locationMembers = 0
++        suspend fun readSource(source: HistorySource, block: suspend () -> Unit) {
++            try { currentCoroutineContext().ensureActive(); block()
++            } catch (cancelled: CancellationException) { throw cancelled
++            } catch (failure: RangeHistoryUnavailable) { problems += HistoryProblem(source, failure.reason)
++            } catch (_: AmbientStepsHistorySelectionOverflow) {
++                problems += HistoryProblem(source, HistoryProblemReason.DEPENDENCY_OVERFLOW)
++            } catch (_: android.database.sqlite.SQLiteException) {
++                problems += HistoryProblem(source, HistoryProblemReason.STORAGE_UNAVAILABLE)
++            } catch (_: RuntimeException) { problems += HistoryProblem(source, HistoryProblemReason.INTEGRITY_UNAVAILABLE) }
++        }
++        if (HistoryPurpose.CAPTURE in range.purposes) {
++            selectors.filterIsInstance<OrganizationSourceSelector.CapturedEntry>().groupBy { it.source }.forEach { (source, selected) ->
++                readSource(source) {
++                    val result = selectedImportedEntries(source, selected.map { it.entryIdentity },
++                        range.copy(origins = setOf(HistoryOrigin.IMPORTED)))
++                    sections += result.sections.values
++                    result.problems.values.forEach { problems += HistoryProblem(source, it) }
++                    if (result.sections.size + result.problems.size != selected.size) {
++                        problems += HistoryProblem(source, HistoryProblemReason.INTEGRITY_UNAVAILABLE) }
++                }
++            }
++        }
++        if (range.purposes.any { it == HistoryPurpose.CAPTURE || it == HistoryPurpose.BACKGROUND }) {
++            for (selector in selectors.filterIsInstance<OrganizationSourceSelector.LocationFile>()) {
++                readSource(HistorySource.LOCATION) {
++                    val result = selectedLocationFile(selector.archiveIdentity, snapshot, locationBudget - locationMembers,
++                        range.purposes) { count ->
++                        // Charge admitted membership before payload work, even if a later member is malformed.
++                        locationMembers = Math.addExact(locationMembers, count)
++                    }
++                    locationPoints.putAll(result.points)
++                    if (result.hasMissingMembers) problems += HistoryProblem(HistorySource.LOCATION,
++                        HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++                    if (result.hasUnknownPurpose) problems += HistoryProblem(HistorySource.LOCATION,
++                        HistoryProblemReason.TIME_UNCERTAIN)
++                }
++            }
++            if (locationPoints.isNotEmpty()) sections += HistorySection.Location(locationPoints.values.sortedBy { it.timeMs },
++                HistoryLocationCoverage.LEGACY_UNVERIFIABLE)
++        }
++        if (HistoryPurpose.BACKGROUND in range.purposes) {
++            val selected = selectors.filterIsInstance<OrganizationSourceSelector.BackgroundStepsDay>()
++            if (selected.isNotEmpty()) readSource(HistorySource.STEPS) {
++                sections += backgroundSteps.readSelectedImportedInCurrentTransaction(selected.map { it.dayIdentity },
++                    snapshot.sourceEvidenceRevision).values.map { HistorySection.BackgroundSteps(it) }
++            }
++            // The current radio importer does not retain aliases for members skipped during overlapping-file dedup.
++            // An archive receipt alone cannot reconstruct that exact file membership.
++            selectors.filterIsInstance<OrganizationSourceSelector.BackgroundRadioArchive>().map { it.source }
++                .distinct().forEach { problems += HistoryProblem(it, HistoryProblemReason.INTEGRITY_UNAVAILABLE) }
++        }
++        return OrganizationHistorySections(sections, problems, locationMembers)
++    }
++
++    private suspend fun selectedLocationFile(identity: String, snapshot: TrackingHistoryReadSnapshot,
++        budget: Int, purposes: Set<HistoryPurpose>, admitMembers: (Int) -> Unit): SelectedLocationFilePoints {
++        val selection = RoomLocationFileArchiveRepository(database, io).readInTransaction(
++            LocationFileArchiveRequest(identity, snapshot.collectedDataEpoch))
++        val archive = selection as? LocationFileArchiveRead.Found
++            ?: throw RangeHistoryUnavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++        if (archive.declaredPointCount > budget) throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
++        admitMembers(archive.declaredPointCount)
++        val floor = database.sourceEvidenceStateDao().get()?.retainedFromMs
++        val dao = database.locationFileIdentityDao()
++        val result = linkedMapOf<Long, HistoryLocationPoint>()
++        val unrestricted = HistoryPurpose.CAPTURE in purposes && HistoryPurpose.BACKGROUND in purposes
++        var availableMembers = 0
++        var unknownPurpose = false
++        var after = -1
++        var count = 0
++        while (count < archive.declaredPointCount) {
++            currentCoroutineContext().ensureActive()
++            val membership = dao.archivePointPage(identity, after, minOf(256, archive.declaredPointCount - count))
++            check(membership.isNotEmpty() && membership.withIndex().all { (index, point) -> point.ordinal == count + index })
++            val samples = database.locationSampleDao().byIds(membership.mapNotNull { it.sampleId }.distinct()).associateBy { it.id }
++            val currentIds = dao.byPortableIds(membership.map { it.portableId }).associateBy { it.portableId }
++            val localIds = if (unrestricted) emptyList() else currentIds.values.filter { !it.imported }.map { it.sampleId }
++            val localPurposeRows = if (localIds.isEmpty()) emptyList() else {
++                val rows = database.locationPurposeDao().contextPurposes(localIds, localIds.size * 2 + 1)
++                if (rows.size > localIds.size * 2) throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
++                rows
++            }
++            val savedLocalPurposes = localPurposeRows.groupBy { it.sampleId }
++            for (point in membership) {
++                val sample = samples[point.sampleId] ?: continue
++                val savedIdentity = currentIds[point.portableId] ?: continue
++                if (savedIdentity.sampleId != sample.id || floor?.let { sample.timeMs < it } == true) continue
++                val latitude = sample.latE7 ?: continue
++                val longitude = sample.lonE7 ?: continue
++                availableMembers++
++                if (!unrestricted) {
++                    // Descriptive saved labels select history only; they never grant native recording authority.
++                    val savedPurposes = if (savedIdentity.imported) when (savedIdentity.reportedOrigin.lowercase(java.util.Locale.ROOT)) {
++                        "session" -> setOf(HistoryPurpose.CAPTURE)
++                        "background" -> setOf(HistoryPurpose.BACKGROUND)
++                        "both" -> setOf(HistoryPurpose.CAPTURE, HistoryPurpose.BACKGROUND)
++                        else -> emptySet()
++                    } else savedLocalPurposes[sample.id].orEmpty().mapNotNullTo(linkedSetOf()) {
++                        when (it.purpose) {
++                            "SESSION_CAPTURE" -> HistoryPurpose.CAPTURE
++                            "AMBIENT_PRODUCT" -> HistoryPurpose.BACKGROUND
++                            else -> null
++                        }
++                    }
++                    if (savedPurposes.isEmpty()) {
++                        unknownPurpose = true
++                        continue
++                    }
++                    if (savedPurposes.none { it in purposes }) continue
++                }
++                result[sample.id] = HistoryLocationPoint(sample.timeMs, latitude, longitude, sample.hAccM, null, sample.id)
++            }
++            count = Math.addExact(count, membership.size)
++            after = membership.last().ordinal
++        }
++        return SelectedLocationFilePoints(result, availableMembers < archive.availablePointCount ||
++            archive.availablePointCount < archive.declaredPointCount, unknownPurpose)
++    }
++
++    private suspend fun sourceRead(candidates: List<RangeHistoryCandidate>,
++        read: suspend () -> RangeHistorySections): RangeHistorySections = try {
++        currentCoroutineContext().ensureActive()
++        read()
++    } catch (cancelled: CancellationException) {
++        throw cancelled
++    } catch (failure: RangeHistoryUnavailable) {
++        RangeHistorySections(emptyMap(), candidates.associate { it.seed.identity to failure.reason }, emptyMap())
++    } catch (_: AmbientStepsHistorySelectionOverflow) {
++        RangeHistorySections(emptyMap(), candidates.associate { it.seed.identity to HistoryProblemReason.DEPENDENCY_OVERFLOW }, emptyMap())
++    } catch (_: android.database.sqlite.SQLiteException) {
++        RangeHistorySections(emptyMap(), candidates.associate { it.seed.identity to HistoryProblemReason.STORAGE_UNAVAILABLE }, emptyMap())
++    } catch (_: RuntimeException) {
++        RangeHistorySections(emptyMap(), candidates.associate { it.seed.identity to HistoryProblemReason.INTEGRITY_UNAVAILABLE }, emptyMap())
++    }
++
++    companion object {
++        private const val MAX_CANDIDATES = 100
++        private const val MAX_DAY_FACTS = 4_096
++        private val BACKGROUND_SOURCES = setOf(HistorySource.LOCATION, HistorySource.STEPS, HistorySource.WIFI, HistorySource.CELL)
++        val invalidationTables: List<String> = (TRACKING_HISTORY_INVALIDATION_TABLES +
++            DefaultAmbientStepsHistoryRepository.AMBIENT_HISTORY_DEPENDENCY_TABLES + listOf(
++                "activity", "ambient_wifi_authority", "ambient_wifi_retention_authority", "ambient_wifi_fact_cursor",
++                "ambient_cell_authority", "ambient_cell_retention_authority", "ambient_cell_fact_cursor",
++                "imported_ambient_wifi_receipt", "imported_ambient_cell_receipt",
++                "wifi_selected_deletion_receipt", "wifi_selected_deletion_protected_identity",
++                "imported_pressure_retention_receipt", "imported_pressure_retained_identity",
++                "imported_pressure_identity_fence", "imported_pressure_source_erase", "imported_pressure_source_erase_witness",
++                "location_sample", "location_accepted_receipt", "location_sample_purpose_authority",
++                "ambient_location_retention_authority", "location_file_identity", "location_file_archive", "location_file_archive_point",
++                "collected_data_deletion_operation",
++            )).distinct()
++    }
++}
++
++private enum class RangeHistoryKind { NATIVE, IMPORTED, BACKGROUND, ORGANIZATION }
++private data class RangeHistoryCandidate(val kind: RangeHistoryKind, val source: HistorySource?,
++    val seed: UnifiedHistoryCandidate, val position: HistoryPosition)
++private data class RangeHistorySections(val sections: Map<String, HistorySection>,
++    val problems: Map<String, HistoryProblemReason>, val origins: Map<String, Set<HistoryOrigin>>,
++    val additionalSections: Map<String, List<HistorySection>> = emptyMap())
++private class RangeHistoryUnavailable(val reason: HistoryProblemReason) : RuntimeException(null, null, false, false)
++private data class OrganizationHistorySections(val sections: List<HistorySection> = emptyList(),
++    val problems: Set<HistoryProblem> = emptySet(), val locationMembersRead: Int = 0)
++private data class SelectedLocationFilePoints(val points: Map<Long, HistoryLocationPoint>,
++    val hasMissingMembers: Boolean, val hasUnknownPurpose: Boolean)
++
++private fun List<RangeHistoryCandidate>.toHistoryBuffer(): HistoryStreamBuffer<RangeHistoryCandidate> {
++    require(size <= 101)
++    val candidates = take(100)
++    return HistoryStreamBuffer(candidates, { it.position }, getOrNull(100)?.position)
++}
++private suspend fun <K, V> MutableMap<K, V>.getOrPutSuspending(key: K, create: suspend () -> V): V =
++    get(key) ?: create().also { put(key, it) }
++private fun <T> ImportedHistoryEligiblePage<T>.entriesOrThrow(): List<T> = when (this) {
++    is ImportedHistoryEligiblePage.Available -> entries
++    is ImportedHistoryEligiblePage.Unavailable -> throw RangeHistoryUnavailable(
++        if (reason == SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
++            HistoryProblemReason.DEPENDENCY_OVERFLOW else HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++}
++private fun SourceEvidenceState.hasValidRangeShape() = id == SourceEvidenceState.SINGLETON_ID &&
++    revision >= 0 && collectedDataEpoch >= 0 && retainedFromMs?.let { it >= 0 } != false &&
++    deletedSourceEventHighWaterOrdinal >= 0 && updatedAtMs >= 0
++private fun HistoryOrigin.toWifiOrigin(): AmbientWifiOrigin? = when (this) {
++    HistoryOrigin.LOCAL -> AmbientWifiOrigin.LOCAL_DEVICE
++    HistoryOrigin.IMPORTED -> AmbientWifiOrigin.PORTABLE_IMPORT
++    else -> null
++}
++private fun HistoryOrigin.toCellOrigin(): AmbientCellOrigin? = when (this) {
++    HistoryOrigin.LOCAL -> AmbientCellOrigin.LOCAL_DEVICE
++    HistoryOrigin.IMPORTED -> AmbientCellOrigin.PORTABLE_IMPORT
++    else -> null
++}
++private fun OrganizationAnnotationEntity.toOrganizedSession(snapshot: TrackingHistoryReadSnapshot,
++    viewZoneId: String, labels: Map<Long, String>): OrganizedSession {
++    val zone = displayZoneId ?: viewZoneId
++    ZoneId.of(zone)
++    return OrganizedSession(OrganizationSessionId.Annotation(localId), revision, snapshot.collectedDataEpoch,
++        name, activityLabelId, labels[activityLabelId] ?: importedActivityLabel, zone, startTimeMs, endTimeMs,
++        false, startTimeMs == null || endTimeMs == null || endTimeMs <= startTimeMs,
++        importedSourceSelection = importedSourceSelection?.let(OrganizationSourceSelectionCodec::decode))
++}
++private fun unavailableRow(position: HistoryPosition, end: Long?, origin: HistoryOrigin,
++    purpose: HistoryPurpose, source: HistorySource?, reason: HistoryProblemReason) = UnifiedHistoryRow(
++    position, end?.takeIf { it >= position.startTimeMs }, setOf(origin), purpose,
++    sections = emptyList(), problems = setOf(HistoryProblem(source, reason)))
+--- /dev/null
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryOrganizationSelection.kt
+@@ -0,0 +1,92 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import com.adsamcik.tracker.stats.api.repository.HistoryProblem
++import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
++import com.adsamcik.tracker.stats.api.repository.HistorySection
++import com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow
++
++/** A retrospective interval selects existing evidence; it never prorates or changes its authority. */
++internal fun selectOrganizationInterval(
++    members: List<UnifiedHistoryRow>,
++    fromInclusiveMs: Long,
++    toExclusiveMs: Long,
++    stepsBounds: Map<Long, Pair<Long, Long>>,
++    stepsBoundsProblem: HistoryProblemReason? = null,
++): OrganizationIntervalSections {
++    val sections = mutableListOf<HistorySection>()
++    val problems = linkedSetOf<HistoryProblem>()
++    fun contains(start: Long, end: Long) = start >= fromInclusiveMs && end >= start &&
++        end <= toExclusiveMs && (end > start || start < toExclusiveMs)
++    fun containsObservation(start: Long, observed: Long, uncertainty: Long) =
++        start >= fromInclusiveMs && observed in fromInclusiveMs until toExclusiveMs &&
++            uncertainty <= observed - fromInclusiveMs && uncertainty <= toExclusiveMs - 1L - observed
++    for (member in members) for (section in member.sections) {
++        fun crossing() { problems += HistoryProblem(section.source, HistoryProblemReason.TIME_UNCERTAIN) }
++        when (section) {
++            is HistorySection.Location -> {
++                val points = section.points.filter { it.timeMs in fromInclusiveMs until toExclusiveMs }
++                if (points.isNotEmpty()) sections += section.copy(points = points)
++            }
++            is HistorySection.Steps -> {
++                val bounds = stepsBounds[section.segmentId]
++                if (bounds == null) problems += HistoryProblem(section.source,
++                    stepsBoundsProblem ?: HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++                else if (contains(bounds.first, bounds.second)) sections += section else crossing()
++            }
++            is HistorySection.ImportedSteps -> {
++                if (contains(section.history.startTime.raw, section.history.endTime.raw)) sections += section else crossing()
++            }
++            is HistorySection.BackgroundSteps -> {
++                if (contains(section.day.structuralDayStartTimeMs, section.day.structuralDayEndTimeMs)) {
++                    sections += section
++                } else crossing()
++            }
++            is HistorySection.Activity -> {
++                // Its active-time total and untimed gaps cannot be split by a wall-time boundary.
++                if (contains(section.history.startTime.raw, section.history.endTime.raw)) sections += section else crossing()
++            }
++            is HistorySection.Pressure -> {
++                val end = member.toExclusiveMs
++                if (end != null && contains(member.position.startTimeMs, end) &&
++                    section.history.windows.all { it.intervalStartTime.raw >= fromInclusiveMs &&
++                        it.intervalEndTime.raw < toExclusiveMs }) {
++                    sections += section
++                } else crossing()
++            }
++            is HistorySection.Wifi -> {
++                val observations = section.history.observations.filter {
++                    containsObservation(it.intervalStartTime.raw, it.observedTime.raw, it.wallTimeUncertaintyMs) }
++                if (observations.size != section.history.observations.size) crossing()
++                if (observations.isNotEmpty()) sections += section.copy(history = section.history.copy(observations = observations))
++                else if (section.history.observations.isEmpty() && contains(section.history.startTime.raw, section.history.endTime.raw)) {
++                    sections += section
++                } else crossing()
++            }
++            is HistorySection.Cell -> {
++                val observations = section.history.observations.filter {
++                    containsObservation(it.intervalStartTime.raw, it.observedTime.raw, it.wallTimeUncertaintyMs) }
++                if (observations.size != section.history.observations.size) crossing()
++                if (observations.isNotEmpty()) sections += section.copy(history = section.history.copy(observations = observations))
++                else if (section.history.observations.isEmpty() && contains(section.history.startTime.raw, section.history.endTime.raw)) {
++                    sections += section
++                } else crossing()
++            }
++            is HistorySection.BackgroundWifi -> {
++                val facts = section.read.facts.filter { it.coverageStartTimeMs >= fromInclusiveMs && it.latestPossibleTimeMs < toExclusiveMs }
++                val gaps = section.read.gaps.filter { contains(it.startTimeMs, it.endTimeMs) }
++                if (facts.size != section.read.facts.size || gaps.size != section.read.gaps.size) crossing()
++                if (facts.isNotEmpty() || gaps.isNotEmpty()) sections += section.copy(read = section.read.copy(facts = facts, gaps = gaps))
++            }
++            is HistorySection.BackgroundCell -> {
++                val facts = section.read.facts.filter { it.coverageStartTimeMs >= fromInclusiveMs && it.latestPossibleTimeMs < toExclusiveMs }
++                val gaps = section.read.gaps.filter { contains(it.startTimeMs, it.endTimeMs) }
++                if (facts.size != section.read.facts.size || gaps.size != section.read.gaps.size) crossing()
++                if (facts.isNotEmpty() || gaps.isNotEmpty()) sections += section.copy(read = section.read.copy(facts = facts, gaps = gaps))
++            }
++            is HistorySection.Organization -> Unit
++        }
++    }
++    return OrganizationIntervalSections(sections, problems)
++}
++
++internal data class OrganizationIntervalSections(val sections: List<HistorySection>, val problems: Set<HistoryProblem>)
+--- /dev/null
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryPagingSource.kt
+@@ -0,0 +1,47 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import androidx.paging.PagingSource
++import androidx.paging.PagingState
++import androidx.room.InvalidationTracker
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.stats.api.repository.HistoryContinuation
++import com.adsamcik.tracker.stats.api.repository.HistoryRange
++import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
++import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
++import com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow
++import kotlinx.coroutines.CancellationException
++
++/** Forward keyset browsing. Refresh restarts the chosen range; it never broadens its dates. */
++internal class UnifiedHistoryPagingSource(
++    private val database: AppDatabase,
++    private val range: HistoryRange,
++    private val read: suspend (HistoryRangeRequest) -> HistoryRangeRead,
++) : PagingSource<HistoryContinuation, UnifiedHistoryRow>() {
++    private val observer = object : InvalidationTracker.Observer(
++        UnifiedHistoryRangeReader.invalidationTables.toTypedArray()) {
++        override fun onInvalidated(tables: Set<String>) { invalidate() }
++    }
++    init {
++        database.invalidationTracker.addWeakObserver(observer)
++        registerInvalidatedCallback { database.invalidationTracker.removeObserver(observer) }
++    }
++
++    override suspend fun load(params: LoadParams<HistoryContinuation>): LoadResult<HistoryContinuation, UnifiedHistoryRow> {
++        if (invalid) return LoadResult.Invalid()
++        if (params is LoadParams.Prepend) return LoadResult.Page(emptyList(), null, null)
++        return try {
++            when (val result = read(HistoryRangeRequest(range, params.loadSize.coerceIn(1, 100), params.key))) {
++                is HistoryRangeRead.Page -> if (invalid) LoadResult.Invalid() else LoadResult.Page(
++                    result.rows, prevKey = null, nextKey = result.next)
++                is HistoryRangeRead.Unavailable -> LoadResult.Error(
++                    IllegalStateException("History is unavailable: ${result.reason.name}"))
++            }
++        } catch (cancelled: CancellationException) {
++            throw cancelled
++        } catch (failure: RuntimeException) {
++            LoadResult.Error(failure)
++        }
++    }
++
++    override fun getRefreshKey(state: PagingState<HistoryContinuation, UnifiedHistoryRow>): HistoryContinuation? = null
++}
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt
+@@ -48,7 +48,11 @@
+ import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
+ import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
+ import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage as ApiStepsHistoryCoverage
+-import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
++import com.adsamcik.tracker.stats.api.repository.HistoryRange
++import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
++import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
++import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
++import com.adsamcik.tracker.stats.api.repository.PagedTrackingHistoryRepository
+ import com.adsamcik.tracker.stats.api.repository.TrackingHistoryUnavailableReason
+ import com.adsamcik.tracker.stats.api.value.EpochMs
+ import kotlinx.coroutines.CoroutineDispatcher
+@@ -60,8 +64,10 @@
+ import kotlinx.coroutines.flow.mapLatest
+ import kotlinx.coroutines.withContext
+ import javax.inject.Inject
++import javax.inject.Singleton
+ 
+ /** Room-backed, read-only history facade. */
++@Singleton
+ internal class DefaultTrackingHistoryRepository private constructor(
+ 	private val database: AppDatabase,
+ 	private val stepsSelector: StepsSegmentHistorySelector,
+@@ -74,7 +80,8 @@
+ 		TrackingHistoryIntegrationObserver(),
+ 	private val sourceFactLookupReader: RoomSourceFactLookupReader =
+ 		RoomSourceFactLookupReader(database, ioDispatcher),
+-) : TrackingHistoryRepository {
++	private val rangeReader: UnifiedHistoryRangeReader? = null,
++) : PagedTrackingHistoryRepository {
+ 	private val importedReader = ImportedStepsProductReader(database)
+ 
+ 	@Inject
+@@ -87,6 +94,7 @@
+ 		sourceUnionReader: TrackingHistorySourceUnionReader,
+ 		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+ 		bootClockDomainProvider: BootClockDomainProvider,
++		rangeReader: UnifiedHistoryRangeReader,
+ 		integrationObserver: TrackingHistoryIntegrationObserver =
+ 			TrackingHistoryIntegrationObserver(),
+ 	) : this(
+@@ -98,12 +106,26 @@
+ 		sourceUnionReader = sourceUnionReader,
+ 		ioDispatcher = ioDispatcher,
+ 		integrationObserver = integrationObserver,
++		rangeReader = rangeReader,
+ 		sourceFactLookupReader = RoomSourceFactLookupReader(
+ 			database,
+ 			ioDispatcher,
+ 			bootClockDomainProvider,
+ 		),
+ 	)
++
++	override suspend fun readRange(request: HistoryRangeRequest): HistoryRangeRead =
++		rangeReader?.read(request) ?: HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++
++	@OptIn(ExperimentalCoroutinesApi::class)
++	override fun observeRange(request: HistoryRangeRequest): Flow<HistoryRangeRead> =
++		database.invalidationTracker.createFlow(*UnifiedHistoryRangeReader.invalidationTables.toTypedArray(),
++			emitInitialState = true).mapLatest { readRange(request) }.distinctUntilChanged().flowOn(ioDispatcher)
++
++	override fun pagingSource(range: HistoryRange):
++		androidx.paging.PagingSource<com.adsamcik.tracker.stats.api.repository.HistoryContinuation,
++			com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow> =
++		UnifiedHistoryPagingSource(database, range, ::readRange)
+ 
+ 	/** Steps-only host fixtures install no active Pressure lane. Production uses Hilt. */
+ 	internal constructor(
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/LogicalTrackingHistoryReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/LogicalTrackingHistoryReader.kt
+@@ -247,6 +247,19 @@
+         }
+     }
+ 
++    /** One bounded membership cohort, shared by arbitrary-range history instead of row cascades. */
++    internal suspend fun selectedLogicalMembersInTransaction(
++        logicalIds: List<String>,
++    ): SelectedLogicalHistoryRead {
++        require(logicalIds.size <= 100 && logicalIds.distinct().size == logicalIds.size)
++        require(logicalIds.all(String::isNotBlank))
++        return try {
++            SelectedLogicalHistoryRead.Content(loadLogicalMemberEvidence(logicalIds))
++        } catch (overflow: LogicalHistoryPageDependencyOverflow) {
++            SelectedLogicalHistoryRead.Unavailable(overflow.limit)
++        }
++    }
++
+ 	private suspend fun loadLogicalMemberEvidence(
+ 		logicalIds: List<String>,
+ 	): List<HistoricalSegmentEvidence> {
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt
+@@ -93,6 +93,35 @@
+ 				}
+ 			}
+ 		}
++
++	/** Selected range keys share import qualification, origin comparison and detail ownership. */
++	internal suspend fun selectedImportedInTransaction(
++		identities: List<String>,
++		range: com.adsamcik.tracker.stats.api.repository.HistoryRange,
++	): Map<String, WifiHistoryEntry> {
++		require(identities.size in 1..MAX_RESULTS && identities.distinct().size == identities.size)
++		val evaluations = identities.map { identity ->
++			currentCoroutineContext().ensureActive()
++			importedProductEvaluator.selectIdentityInTransaction(WifiImportedHistorySelectionKey(identity))
++				?: throw ImportedWifiHistoryCompositionFailure()
++		}
++		val collisions = evaluations.filterIsInstance<ImportedWifiProductEvaluation.Readable>()
++			.mapNotNull { it.collidingLocalLogicalTrackingId }.distinct()
++		if (collisions.size > MAX_EXACT_ORIGIN_COLLISIONS) throw ImportedWifiHistoryCompositionFailure()
++		val localPortable = collisions.associateWith { logicalId ->
++			currentCoroutineContext().ensureActive()
++			when (val read = localPortableReader.readInTransaction(ExportPortableCapturedWifiRequest(logicalId))) {
++				is ReadLocalPortableCapturedWifiResult.Ready -> read.entry
++				is ReadLocalPortableCapturedWifiResult.Outcome -> throw ImportedWifiHistoryCompositionFailure()
++			}
++		}
++		val visible = database.nativeLogicalIdsVisibleInRange(collisions.toSet(), range)
++		val composed = WifiHistoryOriginComposer.composeSelectedImported(evaluations, localPortable, visible)
++		val byIdentity = evaluations.associateBy { it.candidate.selection.key.value }
++		return composed.mapValues { (identity, entry) ->
++			database.withImportedWifiDetails(requireNotNull(byIdentity[identity]), entry)
++		}
++	}
+ 
+ 	override suspend fun lookup(selection: WifiHistorySelection): WifiHistoryQuery =
+ 		withContext(ioDispatcher) {
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryOriginComposer.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryOriginComposer.kt
+@@ -10,6 +10,15 @@
+ 
+ /** Pure origin merge. Wall overlap and count equality never establish Wi-Fi ownership. */
+ internal object WifiHistoryOriginComposer {
++	fun composeSelectedImported(
++		imported: List<ImportedWifiProductEvaluation>,
++		localPortableByLogicalId: Map<String, PortableCapturedWifiEntryV1>,
++		visibleLocalLogicalIds: Set<String>,
++	): Map<String, WifiHistoryEntry> = composeRows(emptyList(), imported,
++		localPortableByLogicalId, imported.size, visibleLocalLogicalIds)
++		.filterIsInstance<OriginWifiRow.Imported>()
++		.associate { it.evaluation.candidate.selection.key.value to it.entry }
++
+ 	fun compose(
+ 		live: List<ComposedWifiEntry>,
+ 		imported: List<ImportedWifiProductEvaluation>,
+@@ -61,6 +70,7 @@
+ 		imported: List<ImportedWifiProductEvaluation>,
+ 		localPortableByLogicalId: Map<String, PortableCapturedWifiEntryV1>,
+ 		limit: Int,
++		visibleLocalLogicalIds: Set<String>? = null,
+ 	): List<OriginWifiRow> {
+ 		require(limit > 0)
+ 		if (localPortableByLogicalId.any { (logicalId, entry) ->
+@@ -70,7 +80,8 @@
+ 				) != entry.identity
+ 			}
+ 		) throw ImportedWifiHistoryCompositionFailure()
+-		val liveLogicalIds = live.mapTo(hashSetOf(), ComposedWifiEntry::logicalTrackingId)
++		val liveLogicalIds = visibleLocalLogicalIds
++			?: live.mapTo(hashSetOf(), ComposedWifiEntry::logicalTrackingId)
+ 		val ownership = PortableWifiOpaqueOwnershipVerifier.fromEntries(
+ 			localPortableByLogicalId.values,
+ 		) ?: throw ImportedWifiHistoryCompositionFailure()
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt
+@@ -111,6 +111,41 @@
+ 	private val importedProductReader = ImportedCellProductReader(database)
+ 	private val rangeContinuationIssuer = Any()
+ 
++	/** Bounded selected import cohort; exact local equality alone suppresses a visible duplicate. */
++	internal suspend fun selectedImportedInTransaction(
++		identities: List<String>,
++		range: com.adsamcik.tracker.stats.api.repository.HistoryRange,
++	): Map<String, CellHistoryEntry> {
++		require(identities.size in 1..MAX_RESULTS && identities.distinct().size == identities.size)
++		val evaluations = identities.map { identity ->
++			currentCoroutineContext().ensureActive()
++			importedProductReader.selectIdentityInTransaction(PortableCellOpaqueIdentity(identity))
++				?: throw ImportedCellHistoryCompositionFailure()
++		}
++		val collisions = evaluations.filterIsInstance<ImportedCellProductEvaluation.Readable>()
++			.filter { it.localOriginHandle != null }
++		val localPortable = collisions.associate { evaluation ->
++			currentCoroutineContext().ensureActive()
++			val local = importedProductReader.readLocalOriginInTransaction(evaluation, laneExecutionAuthority)
++				as? ReadLocalPortableCapturedCellResult.Ready ?: throw ImportedCellHistoryCompositionFailure()
++			evaluation.candidate.identity to local.entry
++		}
++		val visible = database.nativeLogicalIdsVisibleInRange(collisions.mapTo(linkedSetOf()) {
++			requireNotNull(it.localOriginHandle).logicalTrackingId }, range)
++		val visibleIdentities = visible.mapTo(linkedSetOf()) { logicalId ->
++			PortableCellOpaqueIdentity.derive(PortableCellIdentityKind.LOGICAL_ENTRY, logicalId).value }
++		val composed = CellHistoryOriginComposer.compose(emptyList(), visibleIdentities,
++			collisions.mapTo(linkedSetOf()) { it.candidate.identity }, evaluations, localPortable,
++			identities.size)
++		val byIdentity = evaluations.associateBy { it.candidate.identity }
++		return composed.associate { entry ->
++			val selected = entry.selection as? ImportedCellHistorySelection
++				?: throw ImportedCellHistoryCompositionFailure()
++			selected.identity.value to database.withImportedCellDetails(
++				requireNotNull(byIdentity[selected.identity.value]), entry)
++		}
++	}
++
+ 	override suspend fun detail(selection: CellHistoryEntrySelection): CellHistoryQuery =
+ 		when (selection) {
+ 			is LocalCellHistorySelection -> local(selection)
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt
+@@ -503,9 +503,11 @@
+ 					it is ImportedActivityProductEvaluation.Readable ||
+ 						it is ImportedActivityProductEvaluation.Retained
+ 				},
+-				localEntries = localPrepared.map { it.composed.entry },
++				localEntries = localPrepared.map { it.composed },
+ 				localEntryIdentities = localOpaqueIdentities.keys,
+ 			)
++		} catch (_: ActivityLocalOwnershipBudgetExceeded) {
++			return ActivityHistoryRangePage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+ 		} catch (_: ImportedActivityHistoryCompositionFailure) {
+ 			return ActivityHistoryRangePage.Failed(
+ 				ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+@@ -516,6 +518,8 @@
+ 				localPrepared.map(ActivityRangeWorkItem.Local::composed),
+ 				localPortableEntries,
+ 			)
++		} catch (_: ActivityLocalOwnershipBudgetExceeded) {
++			return ActivityHistoryRangePage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+ 		} catch (_: ImportedActivityHistoryCompositionFailure) {
+ 			return ActivityHistoryRangePage.Failed(
+ 				ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+@@ -682,6 +686,30 @@
+ 				},
+ 			)
+ 		}
++		return qualifyImportedForSharedHistoryInTransaction(imported, limit)
++	}
++
++	/** Arbitrary-range keys reuse the same ownership, origin and selection qualification. */
++	internal suspend fun selectedImportedForSharedHistoryInTransaction(
++		identities: List<String>,
++		range: com.adsamcik.tracker.stats.api.repository.HistoryRange,
++	): ImportedHistoryEligiblePage<ActivityImportedHistoryEligibleEntry> {
++		require(identities.size in 1..MAX_ACTIVITY_HISTORY_RESULTS)
++		require(identities.distinct().size == identities.size)
++		val imported = identities.map { identity ->
++			currentCoroutineContext().ensureActive()
++			importedProductReader.selectIdentityInTransaction(PortableActivityOpaqueIdentity(identity))
++				?: return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
++		}
++		return qualifyImportedForSharedHistoryInTransaction(imported, identities.size, range, includeActivityOnly = true)
++	}
++
++	private suspend fun qualifyImportedForSharedHistoryInTransaction(
++		imported: List<ImportedActivityProductEvaluation>,
++		limit: Int,
++		range: com.adsamcik.tracker.stats.api.repository.HistoryRange? = null,
++		includeActivityOnly: Boolean = false,
++	): ImportedHistoryEligiblePage<ActivityImportedHistoryEligibleEntry> {
+ 		val selectionSnapshot = if (
+ 			imported.any { it is ImportedActivityProductEvaluation.Readable }
+ 		) {
+@@ -799,9 +827,14 @@
+ 		val remainingLocalProtectedIdentities = localProtectedIdentities.filterKeys {
+ 			it.value !in localPortableEntries
+ 		}
++		val visibleLocalLogicalIds = if (range == null) localLogicalIds else {
++			// Only selected exact collisions need a metadata visibility probe; qualification is above.
++			database.nativeLogicalIdsVisibleInRange(collisionLocal.mapTo(linkedSetOf()) {
++				it.logicalTrackingId }, range)
++		}
+ 		val mapped = try {
+ 			ActivityHistoryOriginComposer.composeImported(
+-				liveLogicalTrackingIds = localLogicalIds,
++				liveLogicalTrackingIds = visibleLocalLogicalIds,
+ 				imported = authenticated.map { it.evaluation },
+ 				localPortableEntriesByIdentity = localPortableEntries,
+ 				localProtectedIdentitiesByEntry = remainingLocalProtectedIdentities,
+@@ -815,7 +848,7 @@
+ 		val accepted = mapped.mapNotNull { result ->
+ 			val entry = result.entry ?: return@mapNotNull null
+ 			if (entry.origin != com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin.IMPORTED ||
+-				entry.capturesOnlyActivity ||
++				(!includeActivityOnly && entry.capturesOnlyActivity) ||
+ 				entry.state == com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState.FAILED
+ 			) {
+ 				return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductReader.kt
+@@ -92,6 +92,14 @@
+         }
+     }
+ 
++    /** Batches the source-owned retained reader while retaining entry-local failures. */
++    internal suspend fun selectedInTransaction(identities: List<String>):
++        Pair<Map<String, ImportedStepsHistoryEntry>, Map<String, ImportedStepsReadFailure>> {
++        require(identities.size <= 100 && identities.distinct().size == identities.size)
++        val read = readSessionEntries(identities)
++        return read.entries.associate { it.metadata.identity to it.toListEntry() } to read.unverifiableEntries
++    }
++
+ 	suspend fun recentInTransaction(limit: Int): List<ImportedStepsHistoryEntry> {
+ 		require(limit in 1..100)
+ 		val entries = database.importedStepsDao().recentEntries(limit)
+@@ -343,7 +351,7 @@
+ 		}.sortedWith(compareBy<ImportedStepsHistoryMember> { it.startTime }.thenBy { it.segmentId })
+ 		return ImportedStepsHistoryEntry(
+ 			TrackingHistoryEntryKey("imported-steps:${metadata.identity}"),
+-			members.minOf { it.startTime }, members.maxOf { it.endTime }, members,
++			EpochMs(metadata.startTimeMs), EpochMs(metadata.endTimeMs), members,
+ 		)
+ 	}
+ 
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryPublicMapper.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryPublicMapper.kt
+@@ -54,7 +54,7 @@
+ 	causes = reasons.mapTo(linkedSetOf(), PressureHistoryReason::toPublicCause),
+ )
+ 
+-private fun List<PressurePhysicalHistory>.toPublicPressureHistory(): PressureHistory {
++internal fun List<PressurePhysicalHistory>.toPublicPressureHistory(): PressureHistory {
+ 	val publicMembers = map(PressurePhysicalHistory::toPublicPressureHistory)
+ 	val retainedWindows = publicMembers.flatMap(PressureHistory::windows)
+ 	val availability = when {
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryPageReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryPageReader.kt
+@@ -30,6 +30,53 @@
+ 	private val integrationObserver: TrackingHistoryIntegrationObserver =
+ 		TrackingHistoryIntegrationObserver(),
+ ) : PressureImportedHistoryEligibleReader {
++	/** Source-qualified keys from arbitrary ranges reuse exact native/import duplicate authority. */
++	internal suspend fun selectedImportedInTransaction(
++		identities: List<String>,
++		range: com.adsamcik.tracker.stats.api.repository.HistoryRange,
++	): ImportedHistoryEligiblePage<PressureImportedHistoryEligibleEntry> {
++		require(identities.size in 1..100 && identities.distinct().size == identities.size)
++		val candidates = database.importedPressureDao().selectedHistoryCandidates(identities)
++		if (candidates.size != identities.size || candidates.map { it.identity }.toSet() != identities.toSet()) {
++			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
++		}
++		val localEntries = try {
++			loadExactLocalDuplicateEntries(identities.asSequence())
++		} catch (_: NativePortableOwnerBudgetExceeded) {
++			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
++		} catch (_: NativePortableOwnerMembershipInvalid) {
++			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
++		} catch (overflow: PressureHistoryPageDependencyOverflow) {
++			return unavailable(overflow.reason)
++		}
++		authenticateLocalDuplicateAuthorities(localEntries)
++			?: return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
++		val collisionIds = localEntries.mapNotNullTo(linkedSetOf()) { entry ->
++			val id = (entry.identity as? PressureHistoryEntryIdentity.Logical)?.logicalTrackingId
++			id?.takeIf { logicalId -> PortablePressureOpaqueIdentity.derive(
++				PortablePressureIdentityKind.LOGICAL_ENTRY, logicalId).value in identities }
++		}
++		val visible = database.nativeLogicalIdsVisibleInRange(collisionIds, range).mapTo(linkedSetOf()) {
++			PortablePressureOpaqueIdentity.derive(PortablePressureIdentityKind.LOGICAL_ENTRY, it) }
++		val entries = mutableListOf<PressureImportedHistoryEligibleEntry>()
++		for (candidate in candidates) {
++			currentCoroutineContext().ensureActive()
++			val evaluation = importedEvaluator.evaluateCandidateInTransaction(candidate)
++			when (val decision = evaluation.qualifyWithExactNativeOwners()) {
++				is PressureImportedEligibilityDecision.Accepted -> entries += decision.entry
++				PressureImportedEligibilityDecision.Suppressed -> if (PortablePressureOpaqueIdentity(candidate.identity) !in visible) {
++					when (val unsuppressed = evaluation.toSharedHistoryEligibility(emptyMap())) {
++						is PressureImportedEligibilityDecision.Accepted -> entries += unsuppressed.entry
++						is PressureImportedEligibilityDecision.Unavailable -> return unavailable(unsuppressed.reason)
++						PressureImportedEligibilityDecision.Suppressed -> error("Empty native authority cannot suppress an import")
++					}
++				}
++				is PressureImportedEligibilityDecision.Unavailable -> return unavailable(decision.reason)
++			}
++		}
++		return ImportedHistoryEligiblePage.Available(entries)
++	}
++
+ 	internal suspend fun selectRecent(limit: Int): List<PressureOnlyHistoryEntry> =
+ 		database.withTransaction {
+ 			require(limit in 1..ImportedPressureDao.MAX_HISTORY_ENTRY_CANDIDATES)
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultAmbientStepsHistoryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultAmbientStepsHistoryRepository.kt
+@@ -237,6 +237,40 @@
+ 		includeImported = includeImported,
+ 	)
+ 
++	/** Exact bundle day IDs reuse the retained lineage and total composer, never a time-only join. */
++	internal suspend fun readSelectedImportedInCurrentTransaction(
++		identities: List<String>, expectedSourceEvidenceRevision: Long,
++	): Map<String, AmbientStepsHistoryDay> {
++		require(identities.size in 1..100 && identities.distinct().size == identities.size)
++		val headers = importedDao.latestDaysForIdentities(identities, identities.size + 1)
++		val fences = importedDao.fencesForIdentities(identities, identities.size + 1)
++		check(headers.size + fences.size == identities.size &&
++			(headers.map { it.dayIdentity } + fences.map { it.dayIdentity }).toSet() == identities.toSet())
++		val daysById = headers.associate { it.dayIdentity to AmbientStepsStructuralDay(it.structuralEpochDay, it.storedZoneId) } +
++			fences.associate { it.dayIdentity to AmbientStepsStructuralDay(it.structuralEpochDay, it.storedZoneId) }
++		check(daysById.values.distinct().size == daysById.size)
++		val sorted = daysById.values.sortedWith(compareBy({ it.epochDay }, { it.storedZoneId }))
++		val batches = mutableListOf<MutableList<AmbientStepsStructuralDay>>()
++		for (day in sorted) {
++			val batch = batches.lastOrNull()
++			if (batch == null || day.epochDay - batch.first().epochDay >= AmbientStepsHistoryRangeRequest.MAX_DAY_COUNT) {
++				batches.add(mutableListOf(day))
++			} else batch.add(day)
++		}
++		val products = batches.flatMap { batch ->
++			currentCoroutineContext().ensureActive()
++			val selected = daysById.filterValues { it in batch }.keys
++			when (val read = readRangeInCurrentTransaction(AmbientStepsHistoryRangeRequest(batch),
++				expectedSourceEvidenceRevision, includeSessions = false, includeLocal = false,
++				selectedImportedDayIds = selected)) {
++				is AmbientStepsHistoryRead.Snapshot -> read.days
++				is AmbientStepsHistoryRead.DependencyOverflow -> throw AmbientStepsHistorySelectionOverflow()
++				else -> error("Imported Steps day membership is unavailable")
++			}
++		}.associateBy { it.day }
++		return daysById.mapValues { (_, day) -> requireNotNull(products[day]) }
++	}
++
+ 	@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
+ 	private suspend fun readRangeInCurrentTransaction(
+ 		request: AmbientStepsHistoryRangeRequest,
+@@ -244,6 +278,7 @@
+ 		includeSessions: Boolean,
+ 		includeLocal: Boolean = true,
+ 		includeImported: Boolean = true,
++		selectedImportedDayIds: Set<String>? = null,
+ 	): AmbientStepsHistoryRead {
+ 		require(expectedSourceEvidenceRevision >= 0L)
+ 		val evidence = database.sourceEvidenceStateDao().get()
+@@ -271,7 +306,7 @@
+ 		val imported = if (!includeImported) {
+ 			ImportedAmbientStepsRangeRead.Ready(emptyMap(), emptyMap(), emptyMap(), emptyMap())
+ 		} else when (
+-			val read = ImportedAmbientStepsRangeReader(database, importedDao).read(range, evidence)
++			val read = ImportedAmbientStepsRangeReader(database, importedDao).read(range, evidence, selectedImportedDayIds)
+ 		) {
+ 			is ImportedAmbientStepsRangeRead.Ready -> read
+ 			is ImportedAmbientStepsRangeRead.DependencyOverflow ->
+@@ -799,6 +834,8 @@
+ 	data object Unverifiable : ImportedAmbientStepsRangeRead
+ }
+ 
++internal class AmbientStepsHistorySelectionOverflow : RuntimeException(null, null, false, false)
++
+ private class ImportedAmbientStepsRangeReader(
+ 	private val database: AppDatabase,
+ 	private val dao: ImportedAmbientStepsDao,
+@@ -807,6 +844,7 @@
+ 	suspend fun read(
+ 		range: AmbientStepsRequestedRange,
+ 		evidence: SourceEvidenceState,
++		selectedDayIds: Set<String>? = null,
+ 	): ImportedAmbientStepsRangeRead {
+ 		try {
+ 			dao.authenticateAllAmbientStepsFences(evidence.collectedDataEpoch)
+@@ -820,7 +858,8 @@
+ 			}
+ 		}
+ 		val sourceDeleted = sourceDeletionActive(evidence)
+-		val fences = dao.fencesForStructuralRange(
++		val fences = if (selectedDayIds != null) dao.fencesForIdentities(selectedDayIds.toList(), MAX_IMPORTED_DAY_CANDIDATES + 1)
++		else dao.fencesForStructuralRange(
+ 			range.firstEpochDay,
+ 			range.lastEpochDayInclusive,
+ 			range.zoneIds,
+@@ -837,7 +876,8 @@
+ 				AmbientStepsHistoryKey(it.structuralEpochDay, it.storedZoneId)
+ 			}.values.any { it.size != 1 }
+ 		) return ImportedAmbientStepsRangeRead.Unverifiable
+-		val candidates = dao.latestDaysForStructuralRange(
++		val candidates = if (selectedDayIds != null) dao.latestDaysForIdentities(selectedDayIds.toList(), MAX_IMPORTED_DAY_CANDIDATES + 1)
++		else dao.latestDaysForStructuralRange(
+ 			range.firstEpochDay,
+ 			range.lastEpochDayInclusive,
+ 			range.zoneIds,
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayComposer.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayComposer.kt
+@@ -288,7 +288,9 @@
+ 	)
+ 	if (orderedFacts.isEmpty()) {
+ 		val totalCauses = buildSet {
+-			add(AmbientStepsDayCause.NO_AMBIENT_FACT)
++			if (AmbientStepsDayCause.AMBIENT_IMPORTED_DELETED !in sourceCauses &&
++				AmbientStepsDayCause.AMBIENT_IMPORTED_RETAINED !in sourceCauses
++			) add(AmbientStepsDayCause.NO_AMBIENT_FACT)
+ 			addAll(sourceCauses)
+ 			if (gaps.any { it.endTimeMs > day.startTimeMs && it.startTimeMs < day.endTimeMs }) {
+ 				add(AmbientStepsDayCause.AMBIENT_GAP)
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt
+@@ -22,6 +22,13 @@
+ 	@androidx.room.ColumnInfo(name = "has_session_purpose") val hasSessionPurpose: Boolean = false,
+ 	@androidx.room.ColumnInfo(name = "has_visible_background_purpose")
+ 	val hasVisibleBackgroundPurpose: Boolean = false,
++)
++
++/** Descriptive saved origin; it does not authorize collection or map enrichment. */
++data class LocationHistoryDayRow(
++	@Embedded val point: LocationPathSampleRow,
++	@androidx.room.ColumnInfo(name = "history_origin") val historyOrigin: String,
++	@androidx.room.ColumnInfo(name = "has_current_import_copy") val hasCurrentImportCopy: Boolean,
+ )
+ 
+ /** Location authority only; this DAO never creates a canonical sample. */
+@@ -73,6 +80,35 @@
+ 		WHERE location_sample.id IN (:sampleIds) AND ${LocationReadScope.HISTORY_RETAINED}
+ 		ORDER BY location_sample.time_ms, location_sample.id""")
+ 	suspend fun savedFileSamples(sampleIds: List<Long>): List<LocationPathSampleRow>
++	/** File provenance is descriptive; a coincident old session interval is not file membership. */
++	@Query("""SELECT location_sample.id FROM location_sample WHERE location_sample.id IN (:sampleIds)
++		AND (EXISTS (SELECT 1 FROM location_file_identity i WHERE i.sample_id = location_sample.id AND i.imported = 1)
++		OR ${LocationReadScope.HISTORY_CURRENT_IMPORT_COPY})""")
++	suspend fun importedHistorySampleIds(sampleIds: List<Long>): List<Long>
++	@Query("SELECT * FROM location_accepted_receipt WHERE sample_id IN (:sampleIds) " +
++		"ORDER BY observed_wall_time_ms, sample_id LIMIT :limit")
++	suspend fun contextReceiptsForSamples(sampleIds: List<Long>, limit: Int): List<LocationAcceptedReceiptEntity>
++
++	/** Bounded ordinary sessionless history. Native qualification labels points but never hides legacy data. */
++	@Query("""SELECT location_sample.*, lr.source_instance_id || ':' || lr.registration_generation AS continuity_id,
++		lr.source_sequence AS continuity_sequence, 0 AS ambient_only,
++		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
++		AND lp.purpose = 'SESSION_CAPTURE') AS has_session_purpose,
++		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
++		AND lp.purpose = 'AMBIENT_PRODUCT') AS has_visible_background_purpose,
++		${LocationReadScope.HISTORY_ORIGIN} AS history_origin,
++		${LocationReadScope.HISTORY_CURRENT_IMPORT_COPY} AS has_current_import_copy
++		FROM location_sample LEFT JOIN location_accepted_receipt lr ON lr.sample_id = location_sample.id
++		WHERE location_sample.time_ms >= :fromMs AND location_sample.time_ms < :toMs
++		AND location_sample.lat_e7 BETWEEN -900000000 AND 900000000
++		AND location_sample.lon_e7 BETWEEN -1800000000 AND 1800000000
++		AND ${LocationReadScope.HISTORY_RETAINED} AND ${LocationReadScope.SESSIONLESS_HISTORY}
++		AND ((${LocationReadScope.HISTORY_ORIGIN} = 'LOCAL' AND :includeLocal)
++		OR (${LocationReadScope.HISTORY_ORIGIN} = 'IMPORTED' AND :includeImported)
++		OR (${LocationReadScope.HISTORY_ORIGIN} = 'LEGACY' AND :includeLegacy))
++		ORDER BY location_sample.time_ms, location_sample.id LIMIT :limit""")
++	suspend fun sessionlessHistoryOverWindow(fromMs: Long, toMs: Long, limit: Int,
++		includeLocal: Boolean, includeImported: Boolean, includeLegacy: Boolean): List<LocationHistoryDayRow>
+ 	/** Discovery only; source-owned reader qualifies the receipt and each purpose in the same snapshot. */
+ 	@Query("SELECT * FROM location_accepted_receipt WHERE observed_wall_time_ms >= :fromMs " +
+ 		"AND observed_wall_time_ms < :toMs ORDER BY observed_wall_time_ms, sample_id LIMIT :limit")
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationReadScope.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationReadScope.kt
+@@ -14,6 +14,23 @@
+ 		AND NOT EXISTS (SELECT 1 FROM collected_data_deletion_operation WHERE phase IN
+ 		('RETENTION_PREPARED', 'RETENTION_DATASTORE_ACKNOWLEDGED', 'RETENTION_ROOM_GUARD_COMMITTED',
+ 		'RETENTION_AUTHORITY_REISSUED', 'RETENTION_PROVIDER_RECONCILED', 'RETENTION_SOURCE_MAINTENANCE_COMPLETED'))"""
++	/** Display organization only. An ambient sibling remains visible independently of a session. */
++	const val SESSIONLESS_HISTORY = """($HISTORY_CURRENT_IMPORT_COPY OR EXISTS (SELECT 1 FROM location_file_identity i
++		WHERE i.sample_id = location_sample.id AND i.imported = 1) OR EXISTS (SELECT 1 FROM location_sample_purpose_authority lp
++		WHERE lp.sample_id = location_sample.id AND lp.purpose = 'AMBIENT_PRODUCT') OR
++		(NOT EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
++		AND lp.purpose = 'SESSION_CAPTURE') AND NOT EXISTS (
++		SELECT 1 FROM session_segment s LEFT JOIN organization_annotation a
++		ON a.recording_adapter_key = 'segment:' || s.id
++		WHERE s.logical_tracking_id IS NULL AND s.service_run_id IS NULL AND COALESCE(a.hidden, 0) = 0
++		AND COALESCE(a.start_time_ms, s.start_time_ms) >= 0
++		AND COALESCE(a.end_time_ms, s.end_time_ms) >= COALESCE(a.start_time_ms, s.start_time_ms)
++		AND location_sample.time_ms >= COALESCE(a.start_time_ms, s.start_time_ms)
++		AND location_sample.time_ms <= COALESCE(a.end_time_ms, s.end_time_ms))))"""
++	const val HISTORY_ORIGIN = """CASE WHEN $HISTORY_CURRENT_IMPORT_COPY OR EXISTS (SELECT 1 FROM location_file_identity i
++		WHERE i.sample_id = location_sample.id AND i.imported = 1) THEN 'IMPORTED'
++		WHEN EXISTS (SELECT 1 FROM location_accepted_receipt r WHERE r.sample_id = location_sample.id)
++		THEN 'LOCAL' ELSE 'LEGACY' END"""
+ 	const val CAPTURE_OR_LEGACY = "(NOT EXISTS (SELECT 1 FROM location_accepted_receipt lr WHERE lr.sample_id = location_sample.id) OR EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id AND lp.purpose = 'SESSION_CAPTURE'))"
+ 	// Historical visibility follows the exact grant saved with each point. A later
+ 	// source toggle or live-retention revoke stops new acquisition, not old reads.
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ImportedPressureDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ImportedPressureDao.kt
+@@ -83,6 +83,22 @@
+ 			"ORDER BY import_revision DESC LIMIT 1",
+ 	)
+ 	abstract suspend fun latestEntryRevision(identity: String): ImportedPressureEntryRevisionEntity?
++
++	/** Real source shells for selected range keys; conflicting live/retained owners remain visible. */
++	@Query("""SELECT e.identity, e.import_revision, e.content_checksum, e.start_time_ms,
++		e.end_time_ms, e.received_at_ms,
++		(SELECT r.start_time_ms FROM imported_pressure_run r WHERE r.entry_identity = e.identity
++			AND r.entry_import_revision = e.import_revision ORDER BY r.start_time_ms DESC, r.identity DESC LIMIT 1) AS recency_start_time_ms,
++		(SELECT r.identity FROM imported_pressure_run r WHERE r.entry_identity = e.identity
++			AND r.entry_import_revision = e.import_revision ORDER BY r.start_time_ms DESC, r.identity DESC LIMIT 1) AS recency_tie_identity,
++		'LIVE' AS candidate_state FROM imported_pressure_entry_revision e
++		WHERE e.identity IN (:identities) AND e.import_revision =
++			(SELECT MAX(n.import_revision) FROM imported_pressure_entry_revision n WHERE n.identity = e.identity)
++		UNION ALL SELECT entry_identity, latest_import_revision, latest_content_checksum,
++			start_time_ms, end_time_ms, received_at_ms, recency_start_time_ms, recency_tie_identity,
++			'RETAINED' FROM imported_pressure_retention_receipt WHERE entry_identity IN (:identities)
++		ORDER BY recency_start_time_ms DESC, recency_tie_identity DESC LIMIT 201""")
++	abstract suspend fun selectedHistoryCandidates(identities: List<String>): List<ImportedPressureHistoryCandidate>
+ 
+ 	/**
+ 	 * Numeric authority preflight over the exact live-plus-retained recent candidate relation.
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ImportedAmbientStepsDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ImportedAmbientStepsDao.kt
+@@ -377,6 +377,16 @@
+ 		storedZoneIds: List<String>,
+ 		limit: Int,
+ 	): List<ImportedAmbientStepsDayRevisionEntity>
++
++	/** Exact imported organization membership, without adopting another day at the same time. */
++	@Query("SELECT day.* FROM imported_ambient_steps_day_revision day WHERE day.day_identity IN (:identities) " +
++		"AND day.import_revision = (SELECT MAX(n.import_revision) FROM imported_ambient_steps_day_revision n " +
++		"WHERE n.day_identity = day.day_identity) ORDER BY day.structural_epoch_day, day.stored_zone_id, day.day_identity LIMIT :limit")
++	abstract suspend fun latestDaysForIdentities(identities: List<String>, limit: Int): List<ImportedAmbientStepsDayRevisionEntity>
++
++	@Query("SELECT * FROM imported_ambient_steps_day_fence WHERE day_identity IN (:identities) " +
++		"ORDER BY structural_epoch_day, stored_zone_id, day_identity LIMIT :limit")
++	abstract suspend fun fencesForIdentities(identities: List<String>, limit: Int): List<ImportedAmbientStepsDayFenceEntity>
+ 
+ 	@Query(
+ 		"""
+--- a/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/TrackingHistoryRepository.kt
++++ b/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/TrackingHistoryRepository.kt
+@@ -455,8 +455,9 @@
+ 		require(physicalMembers.isNotEmpty())
+ 		require(physicalMembers.size <= MAX_PHYSICAL_MEMBERS) { "Imported Steps entries support at most 64 physical runs" }
+ 		require(physicalMembers.map { it.segmentId }.distinct().size == physicalMembers.size)
+-		require(startTime == physicalMembers.minOf { it.startTime })
+-		require(endTime == physicalMembers.maxOf { it.endTime })
++		// The original entry interval survives deletion of an individual physical member.
++		require(startTime <= physicalMembers.minOf { it.startTime })
++		require(endTime >= physicalMembers.maxOf { it.endTime })
+ 	}
+ 
+ 	private companion object {
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt
+@@ -213,6 +213,12 @@
+ 
+ 	@Binds
+ 	@Singleton
++	abstract fun bindPagedTrackingHistoryRepository(
++		impl: DefaultTrackingHistoryRepository,
++	): com.adsamcik.tracker.stats.api.repository.PagedTrackingHistoryRepository
++
++	@Binds
++	@Singleton
+ 	abstract fun bindSourceFactQueryRepository(
+ 		impl: DefaultSourceFactQueryRepository,
+ 	): SourceFactQueryRepository
+--- /dev/null
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryDayGroupingRoomTest.kt
+@@ -0,0 +1,135 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import android.app.Application
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.data.LocationFileIdentityEntity
++import com.adsamcik.tracker.shared.base.database.data.LocationSample
++import com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity
++import com.adsamcik.tracker.shared.base.database.data.SampleQuality
++import com.adsamcik.tracker.shared.base.database.data.SessionSegment
++import com.adsamcik.tracker.shared.model.SegmentSource
++import com.adsamcik.tracker.stats.api.repository.*
++import java.time.Instant
++import java.time.LocalDate
++import java.time.ZoneId
++import kotlin.test.*
++import kotlinx.coroutines.test.runTest
++import org.junit.After
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++/** Actual Room discovery/retained saved-point reads. Providers and UI are deliberately not activated. */
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class UnifiedHistoryDayGroupingRoomTest {
++    private lateinit var database: AppDatabase
++    private lateinit var reader: UnifiedHistoryRangeReader
++
++    @Before fun setup() = runTest {
++        val context: Application = ApplicationProvider.getApplicationContext()
++        database = AppDatabase.testDatabase(context)
++        database.sourceEvidenceStateDao().ensure()
++        reader = rangeReaderForRoomTest(database, context)
++    }
++    @After fun close() = database.close()
++
++    @Test fun `UTC midnight and a different displayed zone group the same saved points honestly`() = runTest {
++        val midnight = Instant.parse("2026-10-03T00:00:00Z").toEpochMilli()
++        val ids = listOf(point(midnight - 1), point(midnight))
++        val utc = page(range(midnight - 1, midnight + 1))
++        assertEquals(2, utc.rows.size)
++        assertEquals(listOf(midnight, midnight - 1), utc.rows.flatMap { it.locations().map { p -> p.timeMs } })
++        val newYork = page(range(midnight - 1, midnight + 1, "America/New_York"))
++        assertEquals(1, newYork.rows.size)
++        assertEquals("${LocalDate.of(2026, 10, 2).toEpochDay()}:America/New_York", newYork.rows.single().position.stableId)
++        assertEquals(ids.toSet(), newYork.rows.single().locations().map { it.sampleId }.toSet())
++        assertEquals(setOf(HistoryOrigin.IMPORTED), newYork.rows.single().origins)
++        assertEquals(listOf(midnight - 1, midnight), newYork.rows.single().locations().map { it.timeMs })
++        assertEquals(2L, database.locationSampleDao().countAll())
++        assertNull(database.sourcePolicyDao().authority())
++    }
++
++    @Test fun `a Prague spring clock change has a 23 hour displayed day and half open boundaries`() = runTest {
++        val zone = ZoneId.of("Europe/Prague")
++        val date = LocalDate.of(2026, 3, 29)
++        val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
++        val end = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
++        point(start - 1)
++        val selected = listOf(point(start), point(end - 1))
++        point(end)
++        val row = page(range(start, end, zone.id)).rows.single()
++        assertEquals(23 * 3_600_000L, requireNotNull(row.toExclusiveMs) - row.position.startTimeMs)
++        assertEquals(start, row.position.startTimeMs)
++        assertEquals(end, row.toExclusiveMs)
++        assertEquals(selected.toSet(), row.locations().map { it.sampleId }.toSet())
++    }
++
++    @Test fun `sparse all time day pagination skips whole dense days without losing the frontier`() = runTest {
++        val start = Instant.parse("2020-01-01T00:00:00Z").toEpochMilli()
++        for (index in 0..250) {
++            point(start + index * 2 * DAY + 1)
++            point(start + index * 2 * DAY + 2)
++        }
++        val selection = range(start, start + 502 * DAY)
++        var after: HistoryContinuation? = null
++        val positions = mutableListOf<HistoryPosition>()
++        val sampleIds = mutableListOf<Long?>()
++        do {
++            val page = assertIs<HistoryRangeRead.Page>(reader.read(HistoryRangeRequest(selection, 37, after)))
++            positions += page.rows.map { it.position }
++            sampleIds += page.rows.flatMap { it.locations().map { point -> point.sampleId } }
++            after = page.next
++        } while (after != null)
++        assertEquals(251, positions.size)
++        assertEquals(251, positions.distinct().size)
++        assertTrue(positions.zipWithNext().all { (a, b) -> a < b })
++        assertEquals(502, sampleIds.size)
++        assertEquals(502, sampleIds.distinct().size)
++    }
++
++    @Test fun `a file point does not join an unrelated old session merely through its time`() = runTest {
++        database.sessionSegmentDao().insert(SessionSegment(1, 1_000, 2_000, 0f, null, null, null,
++            1, SegmentSource.USER_CREATED, null, 2_000))
++        val existing = point(1_100, imported = false)
++        val imported = point(1_200)
++        val result = page(range(0, 3_000).copy(origins = setOf(HistoryOrigin.LEGACY, HistoryOrigin.IMPORTED),
++            purposes = setOf(HistoryPurpose.CAPTURE, HistoryPurpose.BACKGROUND)))
++        assertEquals(listOf(existing), result.rows.single { it.purpose == HistoryPurpose.CAPTURE }.locations().map { it.sampleId })
++        assertEquals(listOf(imported), result.rows.single { it.purpose == HistoryPurpose.BACKGROUND }.locations().map { it.sampleId })
++    }
++
++    @Test fun `a hidden or narrowed legacy display interval does not make its remaining saved points disappear`() = runTest {
++        database.sessionSegmentDao().insert(SessionSegment(1, 1_000, 2_000, 0f, null, null, null,
++            1, SegmentSource.USER_CREATED, null, 2_000))
++        val saved = point(1_100, imported = false)
++        database.organizationAnnotationDao().insert(OrganizationAnnotationEntity("edited", 1, 0, 0,
++            "segment:1", 1_500, 2_000, "UTC", null, null, false))
++        assertEquals(listOf(saved), page(range(0, 3_000).copy(origins = setOf(HistoryOrigin.LEGACY)))
++            .rows.single().locations().map { it.sampleId })
++    }
++
++    @Test fun `an oversized day reports a source limit instead of returning a truncated point list`() = runTest {
++        for (time in 1L..4_097L) point(time)
++        val row = page(range(0, DAY)).rows.single()
++        assertTrue(row.sections.isEmpty())
++        assertEquals(setOf(HistoryProblem(HistorySource.LOCATION, HistoryProblemReason.DEPENDENCY_OVERFLOW)), row.problems)
++    }
++
++    private suspend fun page(range: HistoryRange) = assertIs<HistoryRangeRead.Page>(reader.read(HistoryRangeRequest(range)))
++    private fun range(from: Long, to: Long, zone: String = "UTC") = HistoryRange(from, to, zone,
++        setOf(HistorySource.LOCATION), setOf(HistoryOrigin.IMPORTED), setOf(HistoryPurpose.BACKGROUND))
++    private fun UnifiedHistoryRow.locations() = sections.filterIsInstance<HistorySection.Location>().flatMap { it.points }
++    private suspend fun point(time: Long, imported: Boolean = true): Long {
++        val id = database.locationSampleDao().insert(LocationSample(timeMs = time, elapsedRealtimeNanos = 0,
++            latE7 = 500_000_000, lonE7 = 140_000_000, altitudeM = null, rawGpsAltitudeM = null,
++            hAccM = 10f, vAccM = null, speedMps = null, speedAccuracyMps = null, provider = "import",
++            quality = SampleQuality.HIGH, motionState = null, policy = null, bucketId = null, createdAt = time))
++        database.locationFileIdentityDao().insertIfAbsent(LocationFileIdentityEntity("day-point:$id", id, imported, "unknown"))
++        return id
++    }
++    private companion object { const val DAY = 86_400_000L }
++}
+--- /dev/null
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReaderRoomTest.kt
+@@ -0,0 +1,348 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import android.app.Application
++import androidx.paging.PagingSource
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.data.ImportedWifiEntryRevisionEntity
++import com.adsamcik.tracker.shared.base.database.data.LocationFileArchiveEntity
++import com.adsamcik.tracker.shared.base.database.data.LocationFileArchivePointEntity
++import com.adsamcik.tracker.shared.base.database.data.LocationFileIdentityEntity
++import com.adsamcik.tracker.shared.base.database.data.LocationSample
++import com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity
++import com.adsamcik.tracker.shared.base.database.data.SampleQuality
++import com.adsamcik.tracker.shared.base.database.data.SessionSegment
++import com.adsamcik.tracker.shared.model.SegmentSource
++import com.adsamcik.tracker.stats.api.repository.HistoryContinuation
++import com.adsamcik.tracker.stats.api.repository.HistoryLocationCoverage
++import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
++import com.adsamcik.tracker.stats.api.repository.HistoryProblem
++import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
++import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
++import com.adsamcik.tracker.stats.api.repository.HistoryRange
++import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
++import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
++import com.adsamcik.tracker.stats.api.repository.HistorySection
++import com.adsamcik.tracker.stats.api.repository.HistorySource
++import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelectionCodec
++import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelector
++import io.kotest.matchers.shouldBe
++import io.kotest.matchers.types.shouldBeInstanceOf
++import io.mockk.coEvery
++import io.mockk.mockk
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.withContext
++import kotlinx.coroutines.withTimeout
++import kotlinx.coroutines.test.runTest
++import org.junit.After
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++/** Source-authored only: real Room key selection and saved Location/annotation readers. */
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class UnifiedHistoryRangeReaderRoomTest {
++    private lateinit var database: AppDatabase
++    private lateinit var reader: UnifiedHistoryRangeReader
++    private lateinit var wifi: DefaultWifiHistoryRepository
++    private lateinit var context: Application
++
++    @Before fun setup() = runTest {
++        context = ApplicationProvider.getApplicationContext()
++        database = AppDatabase.testDatabase(context)
++        database.sourceEvidenceStateDao().ensure()
++        wifi = mockk()
++        reader = rangeReaderForRoomTest(database, context, wifi)
++    }
++    @After fun close() = database.close()
++
++    @Test fun `old Location history pages beyond one hundred rows without changing dates`() = runTest {
++        for (id in 1L..251L) legacyLocation(id, id * 10, id * 10 + 5)
++        val range = range(0, 3_000)
++        var continuation: HistoryContinuation? = null
++        val identities = mutableListOf<String>()
++        do {
++            val page = reader.read(HistoryRangeRequest(range, limit = 73, after = continuation))
++                .shouldBeInstanceOf<HistoryRangeRead.Page>()
++            page.rows.forEach { row ->
++                row.sources shouldBe setOf(HistorySource.LOCATION)
++                row.sections.single().shouldBeInstanceOf<HistorySection.Location>().coverage shouldBe
++                    HistoryLocationCoverage.LEGACY_UNVERIFIABLE
++            }
++            identities += page.rows.map { it.position.stableId }
++            continuation = page.next
++            continuation?.range?.shouldBe(range)
++        } while (continuation != null)
++        identities.size shouldBe 251
++        identities.distinct().size shouldBe 251
++        identities.first() shouldBe "segment:251"
++        identities.last() shouldBe "segment:1"
++        reader.read(HistoryRangeRequest(range(4_000, 5_000))).shouldBeInstanceOf<HistoryRangeRead.Page>()
++            .rows shouldBe emptyList()
++    }
++
++    @Test fun `unavailable Wi-Fi sibling keeps valid Location and an explicit source problem`() = runTest {
++        legacyLocation(1, 100, 200)
++        val id = "a".repeat(64)
++        database.importedWifiDao().insertEntryRevision(ImportedWifiEntryRevisionEntity(id, 1, null,
++            "b".repeat(64), ImportedWifiEntryRevisionEntity.SOURCE_FORMAT,
++            ImportedWifiEntryRevisionEntity.SOURCE_SCHEMA_VERSION, "MANUAL", 150, 180,
++            0, "job", "entry", "wifi.trackerwifi", 200))
++        coEvery { wifi.selectedImportedInTransaction(listOf(id), any()) } throws IllegalStateException("Unavailable source fixture")
++        val page = reader.read(HistoryRangeRequest(range(0, 300).copy(sources = setOf(HistorySource.LOCATION, HistorySource.WIFI),
++            origins = setOf(HistoryOrigin.LEGACY, HistoryOrigin.IMPORTED)))).shouldBeInstanceOf<HistoryRangeRead.Page>()
++        page.rows.size shouldBe 2
++        page.rows.first().problems shouldBe setOf(HistoryProblem(HistorySource.WIFI, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
++        page.rows.last().sections.single().shouldBeInstanceOf<HistorySection.Location>().points.single().timeMs shouldBe 101L
++    }
++
++    @Test fun `missing optional Location qualification never hides ordinary saved points`() = runTest {
++        legacyLocation(1, 100, 200)
++        val proof = mockk<RetainedLocationContextReader>()
++        coEvery { proof.qualifyInTransaction(any()) } throws android.database.sqlite.SQLiteException("Unavailable proof fixture")
++        reader = rangeReaderForRoomTest(database, context, wifi, proof)
++        val row = reader.read(HistoryRangeRequest(range(0, 300))).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
++        row.sections.single().shouldBeInstanceOf<HistorySection.Location>().points.single().timeMs shouldBe 101L
++        row.sections.single().shouldBeInstanceOf<HistorySection.Location>().coverage shouldBe HistoryLocationCoverage.LEGACY_UNVERIFIABLE
++        row.problems shouldBe setOf(HistoryProblem(HistorySource.LOCATION, HistoryProblemReason.STORAGE_UNAVAILABLE))
++    }
++
++    @Test fun `native compatibility keeps saved Location and propagates caught proof read failures`() = runTest {
++        legacyLocation(1, 100, 200)
++        val proof = mockk<RetainedLocationContextReader>()
++        reader = rangeReaderForRoomTest(database, context, wifi, proof)
++        for (reason in listOf(HistoryProblemReason.STORAGE_UNAVAILABLE, HistoryProblemReason.INTEGRITY_UNAVAILABLE)) {
++            coEvery { proof.qualifyInTransaction(any()) } returns RetainedLocationContextSnapshot(
++                emptyList(), setOf(com.adsamcik.tracker.stats.api.repository.RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE),
++                historyProblem = reason)
++            val row = reader.read(HistoryRangeRequest(range(0, 300))).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
++            row.sections.single().shouldBeInstanceOf<HistorySection.Location>().points.single().timeMs shouldBe 101L
++            row.sections.single().shouldBeInstanceOf<HistorySection.Location>().coverage shouldBe HistoryLocationCoverage.LEGACY_UNVERIFIABLE
++            row.problems shouldBe setOf(HistoryProblem(HistorySource.LOCATION, reason))
++        }
++    }
++
++    @Test fun `imported annotation uses exact Location IDs and never coincident-time substitutions`() = runTest {
++        val first = point("first", 1_000)
++        val second = point("second", 1_000)
++        point("unrelated", 1_000)
++        val archive = "c".repeat(64)
++        archive(archive, listOf(first, second))
++        annotation("group", 500, 1_500, listOf(OrganizationSourceSelector.LocationFile(archive)))
++        val page = reader.read(HistoryRangeRequest(organizationRange())).shouldBeInstanceOf<HistoryRangeRead.Page>()
++        val row = page.rows.single()
++        row.sections.filterIsInstance<HistorySection.Location>().single().points.size shouldBe 2
++        row.problems shouldBe emptySet()
++        row.sections.filterIsInstance<HistorySection.Organization>().single().session.name shouldBe "group"
++        database.locationSampleDao().deleteExactIds(listOf(first.second))
++        point("replacement", 1_000)
++        val after = reader.read(HistoryRangeRequest(organizationRange())).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
++        after.sections.filterIsInstance<HistorySection.Location>().single().points.size shouldBe 1
++        after.problems shouldBe setOf(HistoryProblem(HistorySource.LOCATION, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
++    }
++
++    @Test fun `retention and original archive epoch stay source-owned while metadata survives`() = runTest {
++        val archive = "d".repeat(64)
++        archive(archive, listOf(point("old", 1_000), point("kept", 2_000)))
++        annotation("group", 500, 2_500, listOf(OrganizationSourceSelector.LocationFile(archive)))
++        database.sourceEvidenceStateDao().updateLifecycle(0, 1_500, 3_000)
++        val retained = reader.read(HistoryRangeRequest(organizationRange())).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
++        retained.sections.filterIsInstance<HistorySection.Location>().single().points.map { it.timeMs } shouldBe listOf(2_000L)
++        retained.problems shouldBe setOf(HistoryProblem(HistorySource.LOCATION, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
++        database.sourceEvidenceStateDao().updateLifecycle(1, 1_500, 4_000)
++        val changed = reader.read(HistoryRangeRequest(organizationRange())).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
++        changed.sections.filterIsInstance<HistorySection.Location>() shouldBe emptyList()
++        changed.sections.filterIsInstance<HistorySection.Organization>().size shouldBe 1
++        changed.problems shouldBe setOf(HistoryProblem(HistorySource.LOCATION, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
++    }
++
++    @Test fun `same Location file preserves all data and filters only known saved purpose labels`() = runTest {
++        val archive = "e".repeat(64)
++        val points = listOf(point("session", 1_001, "session"), point("background", 1_002, "background"),
++            point("both", 1_003, "both"), point("unknown", 1_004, "unknown"))
++        point("unrelated", 1_003, "both")
++        archive(archive, points)
++        annotation("mixed", 500, 1_500, listOf(OrganizationSourceSelector.LocationFile(archive)))
++        suspend fun read(purposes: Set<HistoryPurpose>) = reader.read(HistoryRangeRequest(
++            organizationRange().copy(purposes = purposes + HistoryPurpose.ORGANIZATION)))
++            .shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
++        val all = read(setOf(HistoryPurpose.CAPTURE, HistoryPurpose.BACKGROUND))
++        all.sections.filterIsInstance<HistorySection.Location>().single().points.map { it.timeMs } shouldBe
++            listOf(1_001L, 1_002L, 1_003L, 1_004L)
++        all.problems shouldBe emptySet()
++        val capture = read(setOf(HistoryPurpose.CAPTURE))
++        capture.sections.filterIsInstance<HistorySection.Location>().single().points.map { it.timeMs } shouldBe
++            listOf(1_001L, 1_003L)
++        capture.problems shouldBe setOf(HistoryProblem(HistorySource.LOCATION, HistoryProblemReason.TIME_UNCERTAIN))
++        val background = read(setOf(HistoryPurpose.BACKGROUND))
++        background.sections.filterIsInstance<HistorySection.Location>().single().points.map { it.timeMs } shouldBe
++            listOf(1_002L, 1_003L)
++        background.problems shouldBe setOf(HistoryProblem(HistorySource.LOCATION, HistoryProblemReason.TIME_UNCERTAIN))
++        background.sections.filterIsInstance<HistorySection.Location>().single().coverage shouldBe
++            HistoryLocationCoverage.LEGACY_UNVERIFIABLE
++        database.locationFileIdentityDao().byPortableIds(points.map { it.first }).map { it.portableId }.toSet() shouldBe
++            points.map { it.first }.toSet()
++    }
++
++    @Test fun `metadata-only imported group never borrows same-time legacy capture`() = runTest {
++        legacyLocation(1, 1_000, 2_000)
++        annotation("metadata", 500, 2_500, emptyList())
++        val page = reader.read(HistoryRangeRequest(organizationRange())).shouldBeInstanceOf<HistoryRangeRead.Page>()
++        page.rows.single().sections.map { it.source } shouldBe listOf(null)
++        page.rows.single().problems shouldBe emptySet()
++    }
++
++    @Test fun `local retrospective group preserves origin filters and original measurements`() = runTest {
++        legacyLocation(1, 1_000, 2_000)
++        annotation("walk", 500, 2_500, null)
++        val filtered = reader.read(HistoryRangeRequest(organizationRange().copy(origins = setOf(HistoryOrigin.ORGANIZATION))))
++            .shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
++        filtered.sections.filterIsInstance<HistorySection.Location>() shouldBe emptyList()
++        val selected = reader.read(HistoryRangeRequest(organizationRange().copy(origins = setOf(HistoryOrigin.ORGANIZATION, HistoryOrigin.LEGACY))))
++            .shouldBeInstanceOf<HistoryRangeRead.Page>()
++        selected.rows.single { it.purpose == HistoryPurpose.ORGANIZATION }.sections.filterIsInstance<HistorySection.Location>()
++            .single().points.single().timeMs shouldBe 1_001L
++        database.sessionSegmentDao().countTotal() shouldBe 1L
++    }
++
++    @Test fun `narrow annotation selects exact Location timestamps and withholds crossing Steps total`() = runTest {
++        database.sessionSegmentDao().insert(SessionSegment(1, 1_000, 2_000, 0f, 100,
++            null, null, 4, SegmentSource.USER_CREATED, null, 2_000))
++        point("before", 1_099)
++        point("first", 1_100)
++        point("last", 1_499)
++        point("after", 1_500)
++        annotation("short", 1_100, 1_500, null)
++        annotation("whole", 900, 2_100, null)
++        val page = reader.read(HistoryRangeRequest(organizationRange().copy(
++            sources = setOf(HistorySource.LOCATION, HistorySource.STEPS),
++            origins = setOf(HistoryOrigin.LEGACY, HistoryOrigin.ORGANIZATION))))
++            .shouldBeInstanceOf<HistoryRangeRead.Page>()
++        val short = page.rows.single { it.name == "short" }
++        short.sections.filterIsInstance<HistorySection.Location>().single().points.map { it.timeMs } shouldBe
++            listOf(1_100L, 1_499L)
++        short.sections.filterIsInstance<HistorySection.Steps>() shouldBe emptyList()
++        short.problems shouldBe setOf(HistoryProblem(HistorySource.STEPS, HistoryProblemReason.TIME_UNCERTAIN))
++        val whole = page.rows.single { it.name == "whole" }
++        whole.sections.filterIsInstance<HistorySection.Steps>().single().history.count shouldBe 100L
++        // Organization neither cuts the original stored total nor creates a new acquisition row.
++        database.sessionSegmentDao().countTotal() shouldBe 1L
++        database.trackingHistoryReadDao().segments(listOf(1L)).single().steps shouldBe 100
++    }
++
++    @Test fun `malformed organization metadata does not discard an independent saved source`() = runTest {
++        legacyLocation(1, 100, 200)
++        database.organizationAnnotationDao().insert(OrganizationAnnotationEntity("broken", 1, 0, 0,
++            null, 150, 250, "UTC", "broken", null, false, "invalid selection"))
++        val page = reader.read(HistoryRangeRequest(range(0, 300).copy(
++            origins = setOf(HistoryOrigin.LEGACY, HistoryOrigin.ORGANIZATION),
++            purposes = setOf(HistoryPurpose.CAPTURE, HistoryPurpose.ORGANIZATION))))
++            .shouldBeInstanceOf<HistoryRangeRead.Page>()
++        page.rows.size shouldBe 2
++        page.rows.first().problems shouldBe setOf(HistoryProblem(null, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
++        page.rows.last().sections.filterIsInstance<HistorySection.Location>().single().points.single().timeMs shouldBe 101L
++    }
++
++    @Test fun `linked recording interval selects exact Location and withholds its crossing Steps total`() = runTest {
++        database.sessionSegmentDao().insert(SessionSegment(1, 1_000, 2_000, 0f, 100,
++            null, null, 4, SegmentSource.USER_CREATED, null, 2_000))
++        val saved = listOf(point("before-linked", 1_099), point("first-linked", 1_100),
++            point("last-linked", 1_499), point("after-linked", 1_500))
++        database.organizationAnnotationDao().insert(OrganizationAnnotationEntity("linked-short", 1, 0, 0,
++            "segment:1", 1_100, 1_500, "UTC", "Short walk", null, false))
++        val row = reader.read(HistoryRangeRequest(range(0, 3_000).copy(
++            sources = setOf(HistorySource.LOCATION, HistorySource.STEPS),
++            origins = setOf(HistoryOrigin.LEGACY, HistoryOrigin.ORGANIZATION))))
++            .shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
++        row.name shouldBe "Short walk"
++        row.position.startTimeMs shouldBe 1_100L
++        row.toExclusiveMs shouldBe 1_500L
++        row.sections.filterIsInstance<HistorySection.Location>().single().points.map { it.timeMs } shouldBe
++            listOf(1_100L, 1_499L)
++        row.sections.filterIsInstance<HistorySection.Steps>() shouldBe emptyList()
++        row.problems shouldBe setOf(HistoryProblem(HistorySource.STEPS, HistoryProblemReason.TIME_UNCERTAIN))
++        database.trackingHistoryReadDao().segments(listOf(1L)).single().steps shouldBe 100
++        database.locationSampleDao().byIds(saved.map { it.second }).map { it.timeMs }.sorted() shouldBe
++            listOf(1_099L, 1_100L, 1_499L, 1_500L)
++    }
++
++    @Test fun `truncated shared contents always marks later annotation partial for an unseen long recording`() = runTest {
++        repeat(100) { offset -> legacyLocation(offset + 1L, 1_000L + offset * 10L, 1_005L + offset * 10L) }
++        legacyLocation(101, 50, 11_000)
++        point("inside-long-recording", 10_500)
++        annotation("early", 100, 200, null)
++        annotation("late", 10_000, 11_000, null)
++        val range = organizationRange().copy(toExclusiveMs = 12_000,
++            origins = setOf(HistoryOrigin.LEGACY, HistoryOrigin.ORGANIZATION))
++        val row = reader.read(HistoryRangeRequest(range, limit = 1))
++            .shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
++        row.name shouldBe "late"
++        row.sections.filterIsInstance<HistorySection.Location>() shouldBe emptyList()
++        row.problems shouldBe setOf(HistoryProblem(null, HistoryProblemReason.DEPENDENCY_OVERFLOW))
++        // The unconsumed recording starts before this group but really overlaps it.
++        database.trackingHistoryReadDao().segments(listOf(101L)).single().endTimeMs shouldBe 11_000L
++    }
++
++    @Test fun `paging keeps the bounded range and metadata changes invalidate its source`() = runTest {
++        for (id in 1L..125L) legacyLocation(id, id * 10, id * 10 + 5)
++        val source = UnifiedHistoryPagingSource(database, range(0, 2_000), reader::read)
++        val first = source.load(PagingSource.LoadParams.Refresh<HistoryContinuation>(null, 200, false))
++            .shouldBeInstanceOf<PagingSource.LoadResult.Page<HistoryContinuation, com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow>>()
++        first.data.size shouldBe 100
++        first.prevKey shouldBe null
++        val next = requireNotNull(first.nextKey)
++        next.range shouldBe range(0, 2_000)
++        val second = source.load(PagingSource.LoadParams.Append(next, 200, false))
++            .shouldBeInstanceOf<PagingSource.LoadResult.Page<HistoryContinuation, com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow>>()
++        (first.data + second.data).map { it.position }.distinct().size shouldBe 125
++        second.nextKey shouldBe null
++        val invalidated = CompletableDeferred<Unit>()
++        source.registerInvalidatedCallback { invalidated.complete(Unit) }
++        database.organizationAnnotationDao().insert(OrganizationAnnotationEntity("hidden", 1, 0, 0,
++            "segment:1", null, null, null, null, null, true))
++        database.invalidationTracker.refreshAsync()
++        withContext(Dispatchers.IO) { withTimeout(5_000) { invalidated.await() } }
++        source.invalid shouldBe true
++        source.load(PagingSource.LoadParams.Refresh<HistoryContinuation>(null, 10, false))
++            .shouldBeInstanceOf<PagingSource.LoadResult.Invalid<HistoryContinuation, com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow>>()
++    }
++
++    @Test fun `invalid display zone is unavailable instead of shifting observation dates`() = runTest {
++        reader.read(HistoryRangeRequest(range(0, 100).copy(viewZoneId = "not/a-zone"))) shouldBe
++            HistoryRangeRead.Unavailable(HistoryProblemReason.TIME_UNCERTAIN)
++    }
++
++    private fun range(from: Long, to: Long) = HistoryRange(from, to, "UTC", setOf(HistorySource.LOCATION),
++        setOf(HistoryOrigin.LEGACY), setOf(HistoryPurpose.CAPTURE))
++    private fun organizationRange() = HistoryRange(0, 3_000, "UTC", setOf(HistorySource.LOCATION),
++        setOf(HistoryOrigin.ORGANIZATION, HistoryOrigin.IMPORTED),
++        setOf(HistoryPurpose.ORGANIZATION, HistoryPurpose.CAPTURE, HistoryPurpose.BACKGROUND))
++    private suspend fun legacyLocation(id: Long, start: Long, end: Long) {
++        database.sessionSegmentDao().insert(SessionSegment(id, start, end, 0f, null, null, null,
++            1, SegmentSource.USER_CREATED, null, end))
++        point("legacy:$id", start + 1, imported = false)
++    }
++    private suspend fun point(id: String, time: Long, origin: String = "unknown", imported: Boolean = true): Pair<String, Long> {
++        val sampleId = database.locationSampleDao().insert(LocationSample(timeMs = time,
++            elapsedRealtimeNanos = 0, latE7 = 500_000_000, lonE7 = 140_000_000,
++            altitudeM = null, rawGpsAltitudeM = null, hAccM = 10f, vAccM = null,
++            speedMps = null, speedAccuracyMps = null, provider = "import", quality = SampleQuality.HIGH,
++            motionState = null, policy = null, bucketId = null, createdAt = time))
++        database.locationFileIdentityDao().insertIfAbsent(LocationFileIdentityEntity(id, sampleId, imported, origin))
++        return id to sampleId
++    }
++    private suspend fun archive(id: String, points: List<Pair<String, Long>>) {
++        database.locationFileIdentityDao().recordArchive(LocationFileArchiveEntity(id,
++            LocationFileArchiveEntity.FORMAT, LocationFileArchiveEntity.VERSION, 0, points.size))
++        database.locationFileIdentityDao().recordArchivePoints(points.mapIndexed { index, point ->
++            LocationFileArchivePointEntity(id, index, point.first, point.second) })
++    }
++    private suspend fun annotation(id: String, from: Long, to: Long, selection: List<OrganizationSourceSelector>?) {
++        database.organizationAnnotationDao().insert(OrganizationAnnotationEntity(id, 1, 0, 0, null,
++            from, to, "UTC", id, null, false, selection?.let(OrganizationSourceSelectionCodec::encode)))
++    }
++}
+--- /dev/null
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRoomFixtures.kt
+@@ -0,0 +1,26 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import android.app.Application
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
++import io.mockk.mockk
++import kotlinx.coroutines.Dispatchers
++
++/** Unused capture sources are deliberately absent; Location, radio, keys and organization use real Room. */
++internal fun rangeReaderForRoomTest(database: AppDatabase, context: Application,
++    wifi: DefaultWifiHistoryRepository = mockk(),
++    qualifiedLocation: RetainedLocationContextReader = RetainedLocationContextReader(database)): UnifiedHistoryRangeReader {
++    val io = Dispatchers.Unconfined
++    val lane = SourceProductLaneExecutionAuthority { false }
++    val steps = StepsSegmentHistorySelector(database, lane)
++    val logical = LogicalTrackingHistoryReader(database, steps)
++    val pressure = PressureHistorySelector(database, lane)
++    val activity = DefaultActivityHistoryRepository(database, lane, io)
++    val cell = mockk<DefaultCellHistoryRepository>()
++    return UnifiedHistoryRangeReader(database,
++        UnifiedHistoryNativeReader(database, logical, steps, wifi, cell, activity, pressure, qualifiedLocation),
++        wifi, cell, activity, PressureHistoryPageReader(database, pressure, ImportedPressureHistoryEvaluator(database),
++            PortablePressureRoomReader(database, pressure)),
++        DefaultAmbientStepsHistoryRepository(database, database.importedAmbientStepsDao(), steps, mockk(), io),
++        RoomAmbientWifiRepository(database, io), RoomAmbientCellRepository(database, io), context, io)
++}
+--- /dev/null
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryMeasuredDayRoomTest.kt
+@@ -0,0 +1,250 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import android.app.Application
++import androidx.room.withTransaction
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.AmbientRadioRetentionDecision
++import com.adsamcik.tracker.shared.base.database.applyAmbientCellRetentionDecision
++import com.adsamcik.tracker.shared.base.database.applyAmbientWifiRetentionDecision
++import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellChildEntity
++import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiChildEntity
++import com.adsamcik.tracker.shared.base.database.data.LocationFileIdentityEntity
++import com.adsamcik.tracker.shared.base.database.data.LocationSample
++import com.adsamcik.tracker.shared.base.database.data.PortableRadioChildIntegrity
++import com.adsamcik.tracker.shared.base.database.data.SampleQuality
++import com.adsamcik.tracker.shared.base.database.data.SessionSegment
++import com.adsamcik.tracker.shared.model.SegmentSource
++import com.adsamcik.tracker.stats.api.repository.*
++import java.time.Instant
++import java.time.ZoneId
++import kotlin.test.*
++import kotlinx.coroutines.test.UnconfinedTestDispatcher
++import kotlinx.coroutines.test.runTest
++import org.junit.After
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++/** Actual Room discovery, source import/qualification and day composition; no provider is started. */
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class UnifiedHistoryMeasuredDayRoomTest {
++    private lateinit var database: AppDatabase
++    private lateinit var reader: UnifiedHistoryRangeReader
++    private val io = UnconfinedTestDispatcher()
++
++    @Before fun setup() = runTest {
++        val context: Application = ApplicationProvider.getApplicationContext()
++        database = AppDatabase.testDatabase(context)
++        database.sourceEvidenceStateDao().ensure()
++        database.applyAmbientWifiRetentionDecision(
++            AmbientRadioRetentionDecision.GrantPortableImport("wifi-retention", 0, "boot", 0, 0))
++        database.applyAmbientCellRetentionDecision(
++            AmbientRadioRetentionDecision.GrantPortableImport("cell-retention", 0, "boot", 0, 0))
++        reader = rangeReaderForRoomTest(database, context)
++    }
++
++    @After fun close() = database.close()
++
++    @Test fun `a captured Location recording does not widen the selected measured dates`() = runTest {
++        legacySession(1, 10, 400)
++        val outside = listOf(point(99, false), point(200, false))
++        val inside = listOf(point(100, false), point(199, false))
++        val row = page(HistoryRange(100, 200, "UTC", setOf(HistorySource.LOCATION),
++            setOf(HistoryOrigin.LEGACY), setOf(HistoryPurpose.CAPTURE))).rows.single()
++        assertEquals("segment:1", row.position.stableId)
++        assertEquals(inside, row.locations().map { it.sampleId })
++        assertTrue(row.locations().none { it.sampleId in outside })
++        assertEquals(listOf(100L, 199L), row.locations().map { it.timeMs })
++        assertEquals(HistoryLocationCoverage.LEGACY_UNVERIFIABLE,
++            row.sections.filterIsInstance<HistorySection.Location>().single().coverage)
++        assertEquals(4L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `out of date saved points do not exhaust the selected Location payload budget`() = runTest {
++        legacySession(1, 0, 20_000)
++        database.withTransaction { for (time in 1L..4_097L) point(time, false) }
++        val saved = point(10_000, false)
++        val row = page(HistoryRange(10_000, 10_001, "UTC", setOf(HistorySource.LOCATION),
++            setOf(HistoryOrigin.LEGACY), setOf(HistoryPurpose.CAPTURE))).rows.single()
++        assertEquals(listOf(saved), row.locations().map { it.sampleId })
++        assertTrue(row.problems.isEmpty())
++        assertEquals(4_098L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `one overnight delivery shows each radio child once on its measured local day`() = runTest {
++        val measured = listOf(DAY - 1, DAY)
++        val archives = importRadios("overnight", measured, DAY + 500)
++        val range = radioRange(DAY - 1, DAY + 1)
++        var next: HistoryContinuation? = null
++        val rows = mutableListOf<UnifiedHistoryRow>()
++        do {
++            val read = page(range, 1, next)
++            rows += read.rows
++            next = read.next
++        } while (next != null)
++        assertEquals(2, rows.size)
++        assertEquals(listOf(DAY, DAY - 1), rows.flatMap { it.wifi().networks.map { child -> child.observedTimeMs } })
++        assertEquals(listOf(DAY, DAY - 1), rows.flatMap { it.cell().towers.map { child -> child.observedTimeMs } })
++        rows.forEach {
++            assertEquals(1, it.wifi().readingCount)
++            assertEquals(1, it.cell().readingCount)
++            assertEquals(2, it.wifi().read.facts.single().observationCount)
++            assertEquals(2, it.cell().read.facts.single().observationCount)
++            assertEquals("America/Los_Angeles", it.wifi().read.facts.single().storedZoneId)
++        }
++        assertEquals(archives.first, rows.first().wifi().read.facts.single().identity)
++        assertEquals(archives.second, rows.last().cell().read.facts.single().identity)
++        assertNull(database.sourcePolicyDao().authority())
++        assertEquals(2, database.importedRadioChildDao().wifiBackgroundChildrenForFacts(
++            listOf(rows.first().wifi().read.facts.single().identity), 10).size)
++    }
++
++    @Test fun `changing display zone regroups radio children without editing the source day or bounds`() = runTest {
++        val measured = listOf(DAY - 1, DAY)
++        importRadios("zone", measured, DAY + 500)
++        val utc = page(radioRange(DAY - 1, DAY + 1))
++        val newYork = page(radioRange(DAY - 1, DAY + 1).copy(viewZoneId = "America/New_York"))
++        assertEquals(2, utc.rows.size)
++        val row = newYork.rows.single()
++        assertEquals(measured, row.wifi().networks.map { it.observedTimeMs })
++        assertEquals(measured, row.cell().towers.map { it.observedTimeMs })
++        assertEquals(2, row.wifi().readingCount)
++        assertEquals(2, row.cell().readingCount)
++        assertEquals(utc.rows.first().wifi().read.facts.single(), row.wifi().read.facts.single())
++        assertEquals(utc.rows.first().cell().read.facts.single(), row.cell().read.facts.single())
++        assertTrue(row.position.stableId.endsWith(":America/New_York"))
++    }
++
++    @Test fun `a later delivery time cannot create a measured zero or move its earlier child`() = runTest {
++        importRadios("delayed", listOf(DAY - 1), DAY + 500)
++        val earlier = page(radioRange(0, DAY)).rows.single()
++        assertEquals(listOf(DAY - 1), earlier.wifi().networks.map { it.observedTimeMs })
++        assertEquals(listOf(DAY - 1), earlier.cell().towers.map { it.observedTimeMs })
++        assertTrue(page(radioRange(DAY, DAY + 1_000)).rows.isEmpty())
++    }
++
++    @Test fun `positive radio gaps include the day start and exclude the next day boundary`() = runTest {
++        val intervals = listOf((DAY - 1) to DAY, DAY to (DAY + 1), (2 * DAY) to (2 * DAY + 1))
++        importGaps("boundary", intervals)
++        val row = page(radioRange(DAY, 2 * DAY)).rows.single()
++        assertEquals(listOf(DAY to (DAY + 1)), row.wifi().read.gaps.map { it.startTimeMs to it.endTimeMs })
++        assertEquals(listOf(DAY to (DAY + 1)), row.cell().read.gaps.map { it.startTimeMs to it.endTimeMs })
++        assertNull(row.wifi().readingCount)
++        assertNull(row.cell().readingCount)
++    }
++
++    @Test fun `an overnight gap keeps its actual unsplit interval in both displayed day sections`() = runTest {
++        importGaps("crossing", listOf((DAY - 1) to (DAY + 1)))
++        val rows = page(radioRange(DAY - 1, DAY + 1)).rows
++        assertEquals(2, rows.size)
++        assertEquals(1, rows.map { it.wifi().read.gaps.single().identity }.distinct().size)
++        assertEquals(1, rows.map { it.cell().read.gaps.single().identity }.distinct().size)
++        rows.forEach {
++            assertEquals((DAY - 1) to (DAY + 1), it.wifi().read.gaps.single().let { gap -> gap.startTimeMs to gap.endTimeMs })
++            assertEquals((DAY - 1) to (DAY + 1), it.cell().read.gaps.single().let { gap -> gap.startTimeMs to gap.endTimeMs })
++            assertNull(it.wifi().readingCount)
++            assertNull(it.cell().readingCount)
++        }
++    }
++
++    @Test fun `an unavailable radio sibling does not discard saved Location or the other radio`() = runTest {
++        importRadios("sibling", listOf(DAY), DAY + 1)
++        val saved = point(DAY)
++        val archiveId = AmbientWifiPortableIntegrity.opaqueIdentity("archive", "sibling")
++        database.ambientWifiFactDao().deleteImportReceipts(listOf(archiveId))
++        val row = page(radioRange(DAY, DAY + 10).copy(
++            sources = setOf(HistorySource.LOCATION, HistorySource.WIFI, HistorySource.CELL))).rows.single()
++        assertEquals(listOf(saved), row.locations().map { it.sampleId })
++        assertEquals(1, row.cell().readingCount)
++        assertTrue(row.sections.none { it is HistorySection.BackgroundWifi })
++        assertTrue(HistoryProblem(HistorySource.WIFI, HistoryProblemReason.INTEGRITY_UNAVAILABLE) in row.problems)
++    }
++
++    private suspend fun page(range: HistoryRange, limit: Int = 100, after: HistoryContinuation? = null) =
++        assertIs<HistoryRangeRead.Page>(reader.read(HistoryRangeRequest(range, limit, after)))
++
++    private fun radioRange(from: Long, to: Long) = HistoryRange(from, to, "UTC",
++        setOf(HistorySource.WIFI, HistorySource.CELL), setOf(HistoryOrigin.IMPORTED), setOf(HistoryPurpose.BACKGROUND))
++
++    private fun UnifiedHistoryRow.wifi() = sections.filterIsInstance<HistorySection.BackgroundWifi>().single()
++    private fun UnifiedHistoryRow.cell() = sections.filterIsInstance<HistorySection.BackgroundCell>().single()
++    private fun UnifiedHistoryRow.locations() = sections.filterIsInstance<HistorySection.Location>().flatMap { it.points }
++
++    private suspend fun legacySession(id: Long, start: Long, end: Long) {
++        database.sessionSegmentDao().insert(SessionSegment(id, start, end, 0f, null, null, null,
++            1, SegmentSource.USER_CREATED, null, end))
++    }
++
++    private suspend fun point(time: Long, imported: Boolean = true): Long {
++        val id = database.locationSampleDao().insert(LocationSample(timeMs = time, elapsedRealtimeNanos = 0,
++            latE7 = 500_000_000, lonE7 = 140_000_000, altitudeM = null, rawGpsAltitudeM = null,
++            hAccM = 10f, vAccM = null, speedMps = null, speedAccuracyMps = null, provider = "import",
++            quality = SampleQuality.HIGH, motionState = null, policy = null, bucketId = null, createdAt = time))
++        database.locationFileIdentityDao().insertIfAbsent(LocationFileIdentityEntity("measured:$id", id, imported, "unknown"))
++        return id
++    }
++
++    private suspend fun importRadios(name: String, measured: List<Long>, delivered: Long): Pair<String, String> {
++        val zone = "America/Los_Angeles"
++        val epochDay = Instant.ofEpochMilli(delivered).atZone(ZoneId.of(zone)).toLocalDate().toEpochDay()
++        val wifiId = AmbientWifiPortableIntegrity.opaqueIdentity("fact", name)
++        val cellId = AmbientCellPortableIntegrity.opaqueIdentity("fact", name)
++        val wifiFact = AmbientWifiFact(wifiId, AmbientWifiOrigin.PORTABLE_IMPORT, measured.min() - 1, delivered,
++            delivered + 1, epochDay, zone, AmbientWifiCoverage.UNVERIFIABLE, measured.size, measured.size,
++            0, 0, 0, -60, -60, -60.0)
++        val cellFact = AmbientCellFact(cellId, AmbientCellOrigin.PORTABLE_IMPORT, measured.min() - 1, delivered,
++            delivered + 1, epochDay, zone, AmbientCellCoverage.UNVERIFIABLE, AmbientCellSubscriptionCompleteness.UNKNOWN,
++            measured.size, measured.size, AmbientCellTechnologyMix(0, 0, 0, 0, measured.size, 0),
++            AmbientCellQualityDistribution(measured.size, 0, 0, 0, 0, 0))
++        val wifiArchive = AmbientWifiPortableIntegrity.createArchive(
++            AmbientWifiPortableIntegrity.opaqueIdentity("archive", name),
++            listOf(AmbientWifiPortableIntegrity.createFact(wifiFact)), emptyList())
++        val cellArchive = AmbientCellPortableIntegrity.createArchive(
++            AmbientCellPortableIntegrity.opaqueIdentity("archive", name),
++            listOf(AmbientCellPortableIntegrity.createFact(cellFact)), emptyList())
++        assertIs<ImportPortableAmbientWifiResult.Applied>(RoomAmbientWifiPortableTransfer(database,
++            RoomAmbientWifiRepository(database, io), io).importArchive(ImportPortableAmbientWifiRequest(wifiArchive,
++            PortableAmbientWifiImportReceipt("wifi:$name", "wifi:$name", "wifi", delivered + 10), 0)))
++        assertIs<ImportPortableAmbientCellResult.Applied>(RoomAmbientCellPortableTransfer(database,
++            RoomAmbientCellRepository(database, io), io).importArchive(ImportPortableAmbientCellRequest(cellArchive,
++            PortableAmbientCellImportReceipt("cell:$name", "cell:$name", "cell", delivered + 10), 0)))
++        database.importedRadioChildDao().insertWifiBackground(measured.mapIndexed { index, time ->
++            ImportedAmbientWifiChildEntity(wifiArchive.archiveId, wifiId, 1, index, index + 1L, time, 1,
++                "bssid:$index", "Network $index", 2412, -60,
++                PortableRadioChildIntegrity.digest("wifi", listOf(wifiId), listOf(1L, index, index + 1L,
++                    time, 1L, "bssid:$index", "Network $index", 2412, -60)))
++        })
++        database.importedRadioChildDao().insertCellBackground(measured.mapIndexed { index, time ->
++            ImportedAmbientCellChildEntity(cellArchive.archiveId, cellId, 1, index, index + 1L, time, 1,
++                "LTE:$index", "LTE", true, -60, PortableRadioChildIntegrity.digest("cell", listOf(cellId),
++                    listOf(1L, index, index + 1L, time, 1L, "LTE:$index", "LTE", true, -60)))
++        })
++        return wifiId to cellId
++    }
++
++    private suspend fun importGaps(name: String, intervals: List<Pair<Long, Long>>) {
++        val wifi = AmbientWifiPortableIntegrity.createArchive(
++            AmbientWifiPortableIntegrity.opaqueIdentity("archive", name), emptyList(), intervals.mapIndexed { index, (start, end) ->
++                AmbientWifiPortableIntegrity.createGap(AmbientWifiGap(
++                    AmbientWifiPortableIntegrity.opaqueIdentity("gap", "$name:$index"), AmbientWifiOrigin.PORTABLE_IMPORT,
++                    start / DAY, start, end, "UTC", "OS_LIMITED")) })
++        val cell = AmbientCellPortableIntegrity.createArchive(
++            AmbientCellPortableIntegrity.opaqueIdentity("archive", name), emptyList(), intervals.mapIndexed { index, (start, end) ->
++                AmbientCellPortableIntegrity.createGap(AmbientCellGap(
++                    AmbientCellPortableIntegrity.opaqueIdentity("gap", "$name:$index"), AmbientCellOrigin.PORTABLE_IMPORT,
++                    start / DAY, start, end, "UTC", "OS_LIMITED")) })
++        val received = intervals.maxOf { it.second } + 10
++        assertIs<ImportPortableAmbientWifiResult.Applied>(RoomAmbientWifiPortableTransfer(database,
++            RoomAmbientWifiRepository(database, io), io).importArchive(ImportPortableAmbientWifiRequest(wifi,
++            PortableAmbientWifiImportReceipt("wifi:$name", "wifi:$name", "wifi", received), 0)))
++        assertIs<ImportPortableAmbientCellResult.Applied>(RoomAmbientCellPortableTransfer(database,
++            RoomAmbientCellRepository(database, io), io).importArchive(ImportPortableAmbientCellRequest(cell,
++            PortableAmbientCellImportReceipt("cell:$name", "cell:$name", "cell", received), 0)))
++    }
++
++    private companion object { const val DAY = 86_400_000L }
++}
+--- a/stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/ImportedStepsHistoryContractTest.kt
++++ b/stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/ImportedStepsHistoryContractTest.kt
+@@ -18,12 +18,15 @@
+ 	}
+ 
+ 	@Test
+-	fun importedMemberNavigationRequiresDistinctPositivePhysicalIdentitiesAndExactEnvelope() {
++	fun importedMemberNavigationRequiresDistinctPositivePhysicalIdentitiesInsideOriginalEnvelope() {
+ 		val member = ImportedStepsHistoryMember(1L, EpochMs(10L), EpochMs(20L), steps())
+ 		val entry = ImportedStepsHistoryEntry(TrackingHistoryEntryKey("imported"), EpochMs(10L), EpochMs(20L), listOf(member))
+ 		assertFailsWith<IllegalArgumentException> { member.copy(segmentId = 0L) }
+ 		assertFailsWith<IllegalArgumentException> { entry.copy(physicalMembers = listOf(member, member)) }
+-		assertFailsWith<IllegalArgumentException> { entry.copy(startTime = EpochMs(9L)) }
++		assertEquals(EpochMs(9L), entry.copy(startTime = EpochMs(9L)).startTime)
++		assertEquals(EpochMs(30L), entry.copy(endTime = EpochMs(30L)).endTime)
++		assertFailsWith<IllegalArgumentException> { entry.copy(startTime = EpochMs(11L)) }
++		assertFailsWith<IllegalArgumentException> { entry.copy(endTime = EpochMs(19L)) }
+ 		assertFailsWith<IllegalArgumentException> { entry.copy(physicalMembers = emptyList()) }
+ 		assertFailsWith<IllegalArgumentException> {
+ 			entry.copy(physicalMembers = (1L..65L).map { member.copy(segmentId = it) })
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt
+@@ -83,6 +83,39 @@
+ 	@After
+ 	fun tearDown() = database.close()
+ 
++    @Test fun `selected imported Steps preserves original entry bounds after member deletion`() = runTest {
++        val original = PortableStepsEntryV1.create(opaque('1'), PortableStepsSessionMode.MANUAL, 10L, 40L,
++            listOf(run('2', 10L, 20L, 9L), run('3', 30L, 40L, 4L)))
++        seed(original)
++        mutate("DELETE FROM step_fact_revision WHERE service_run_id = '${original.runs.first().identity.value}'")
++        mutate("DELETE FROM imported_steps_run WHERE session_segment_id = 41")
++        mutate("DELETE FROM session_segment WHERE id = 41")
++        val read = database.withTransaction { ImportedStepsProductReader(database).selectedInTransaction(listOf(original.identity.value)) }
++        read.second shouldBe emptyMap()
++        read.first.getValue(original.identity.value).startTime.raw shouldBe 10L
++        read.first.getValue(original.identity.value).endTime.raw shouldBe 40L
++        read.first.getValue(original.identity.value).physicalMembers.single().steps.count shouldBe 4L
++    }
++
++    @Test fun `unified range authenticates imported Steps and rejects a changed data epoch`() = runTest {
++        val original = entry(listOf(run('2', 10L, 20L, 9L)))
++        seed(original)
++        val context: Application = ApplicationProvider.getApplicationContext()
++        val rangeReader = rangeReaderForRoomTest(database, context)
++        val range = com.adsamcik.tracker.stats.api.repository.HistoryRange(0, 100, "UTC",
++            setOf(HistorySource.STEPS), setOf(com.adsamcik.tracker.stats.api.repository.HistoryOrigin.IMPORTED),
++            setOf(com.adsamcik.tracker.stats.api.repository.HistoryPurpose.CAPTURE))
++        val request = com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest(range)
++        val initial = rangeReader.read(request) as com.adsamcik.tracker.stats.api.repository.HistoryRangeRead.Page
++        (initial.rows.single().sections.single() as com.adsamcik.tracker.stats.api.repository.HistorySection.ImportedSteps)
++            .history.physicalMembers.single().steps.count shouldBe 9L
++        database.sourceEvidenceStateDao().updateLifecycle(1, null, 200)
++        val changed = rangeReader.read(request) as com.adsamcik.tracker.stats.api.repository.HistoryRangeRead.Page
++        changed.rows.single().sections shouldBe emptyList()
++        changed.rows.single().problems shouldBe setOf(com.adsamcik.tracker.stats.api.repository.HistoryProblem(
++            HistorySource.STEPS, com.adsamcik.tracker.stats.api.repository.HistoryProblemReason.INTEGRITY_UNAVAILABLE))
++    }
++
+     @Test
+     fun `exact selected import is reauthenticated and missing or corrupt evidence is typed`() = runTest {
+         val original = entry(listOf(run('2', 10L, 20L, 9L)))
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportedAmbientStepsTransferTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportedAmbientStepsTransferTest.kt
+@@ -136,6 +136,69 @@
+ 	}
+ 
+ 	@Test
++	fun `exact selected Steps day does not borrow neighboring imported membership`() = runTest {
++		val first = completeDay(LocalDate.of(2026, 10, 25), 7L, zoneId = "Europe/Prague")
++		val second = completeDay(LocalDate.of(2026, 10, 26), 90L, zoneId = "Europe/Prague")
++		val input = archive(first, second)
++		importer(database).importArchive(request(input)) shouldBe applied(input, 2)
++		val selected = database.withTransaction {
++			history(database).readSelectedImportedInCurrentTransaction(listOf(first.identity.value),
++				requireNotNull(database.sourceEvidenceStateDao().get()).revision)
++		}
++		selected.keys shouldBe setOf(first.identity.value)
++		selected.values.single().total shouldBe AmbientStepsHistoryValue.Exact(7L)
++		selected.values.single().opaqueDayIdentity shouldBe first.identity.value
++		selected.values.single().structuralDayEndTimeMs - selected.values.single().structuralDayStartTimeMs shouldBe
++			25L * 60 * 60 * 1_000
++	}
++
++	@Test
++	fun `exact selected Steps day preserves deletion and rejects stale epoch`() = runTest {
++		val day = completeDay(LocalDate.of(2026, 1, 18), 4L)
++		val input = archive(day)
++		importer(database).importArchive(request(input)) shouldBe applied(input, 1)
++		RoomDeleteImportedAmbientStepsDay(database, database.importedAmbientStepsDao(), Dispatchers.Unconfined)
++			.deleteDay(DeleteImportedAmbientStepsDayRequest(day.identity, EPOCH, day.structuralDayEndTimeMs)) shouldBe
++			DeleteImportedAmbientStepsDayResult.Deleted(1)
++		val selected = database.withTransaction {
++			history(database).readSelectedImportedInCurrentTransaction(listOf(day.identity.value),
++				requireNotNull(database.sourceEvidenceStateDao().get()).revision)
++		}
++		selected.values.single().importedDisposition shouldBe AmbientStepsImportedDisposition.DELETED
++		selected.values.single().total.count shouldBe null
++		database.sourceEvidenceStateDao().updateLifecycle(EPOCH + 1, null, day.structuralDayEndTimeMs + 1)
++		assertFailsWith<IllegalStateException> {
++			database.withTransaction {
++				history(database).readSelectedImportedInCurrentTransaction(listOf(day.identity.value),
++					requireNotNull(database.sourceEvidenceStateDao().get()).revision)
++			}
++		}
++	}
++
++	@Test
++	fun `unified background history uses imported stored calendar day on DST transition`() = runTest {
++		val day = completeDay(LocalDate.of(2026, 10, 25), 12L, zoneId = "Europe/Prague")
++		val input = archive(day)
++		importer(database).importArchive(request(input)) shouldBe applied(input, 1)
++		val context: Application = ApplicationProvider.getApplicationContext()
++		val reader = rangeReaderForRoomTest(database, context)
++		val range = com.adsamcik.tracker.stats.api.repository.HistoryRange(day.structuralDayStartTimeMs,
++			day.structuralDayEndTimeMs, "America/New_York",
++			setOf(com.adsamcik.tracker.stats.api.repository.HistorySource.STEPS),
++			setOf(com.adsamcik.tracker.stats.api.repository.HistoryOrigin.IMPORTED),
++			setOf(com.adsamcik.tracker.stats.api.repository.HistoryPurpose.BACKGROUND))
++		val page = reader.read(com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest(range)) as
++			com.adsamcik.tracker.stats.api.repository.HistoryRangeRead.Page
++		page.rows.single().position.startTimeMs shouldBe day.structuralDayStartTimeMs
++		page.rows.single().toExclusiveMs shouldBe day.structuralDayEndTimeMs
++		page.rows.single().origins shouldBe setOf(com.adsamcik.tracker.stats.api.repository.HistoryOrigin.IMPORTED)
++		val section = page.rows.single().sections.single() as com.adsamcik.tracker.stats.api.repository.HistorySection.BackgroundSteps
++		section.day.total shouldBe AmbientStepsHistoryValue.Exact(12L)
++		section.day.day.storedZoneId shouldBe "Europe/Prague"
++		page.next shouldBe null
++	}
++
++	@Test
+ 	fun `two database import read and reexport roundtrip preserves DST gaps and covered zero`() = runTest {
+ 		val archive = archive(
+ 			completeDay(LocalDate.of(2026, 10, 25), count = 0L, zoneId = "Europe/Prague"),

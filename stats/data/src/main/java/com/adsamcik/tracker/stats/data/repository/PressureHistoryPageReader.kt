@@ -30,6 +30,53 @@ internal class PressureHistoryPageReader @Inject constructor(
 	private val integrationObserver: TrackingHistoryIntegrationObserver =
 		TrackingHistoryIntegrationObserver(),
 ) : PressureImportedHistoryEligibleReader {
+	/** Source-qualified keys from arbitrary ranges reuse exact native/import duplicate authority. */
+	internal suspend fun selectedImportedInTransaction(
+		identities: List<String>,
+		range: com.adsamcik.tracker.stats.api.repository.HistoryRange,
+	): ImportedHistoryEligiblePage<PressureImportedHistoryEligibleEntry> {
+		require(identities.size in 1..100 && identities.distinct().size == identities.size)
+		val candidates = database.importedPressureDao().selectedHistoryCandidates(identities)
+		if (candidates.size != identities.size || candidates.map { it.identity }.toSet() != identities.toSet()) {
+			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+		}
+		val localEntries = try {
+			loadExactLocalDuplicateEntries(identities.asSequence())
+		} catch (_: NativePortableOwnerBudgetExceeded) {
+			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
+		} catch (_: NativePortableOwnerMembershipInvalid) {
+			return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+		} catch (overflow: PressureHistoryPageDependencyOverflow) {
+			return unavailable(overflow.reason)
+		}
+		authenticateLocalDuplicateAuthorities(localEntries)
+			?: return unavailable(SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE)
+		val collisionIds = localEntries.mapNotNullTo(linkedSetOf()) { entry ->
+			val id = (entry.identity as? PressureHistoryEntryIdentity.Logical)?.logicalTrackingId
+			id?.takeIf { logicalId -> PortablePressureOpaqueIdentity.derive(
+				PortablePressureIdentityKind.LOGICAL_ENTRY, logicalId).value in identities }
+		}
+		val visible = database.nativeLogicalIdsVisibleInRange(collisionIds, range).mapTo(linkedSetOf()) {
+			PortablePressureOpaqueIdentity.derive(PortablePressureIdentityKind.LOGICAL_ENTRY, it) }
+		val entries = mutableListOf<PressureImportedHistoryEligibleEntry>()
+		for (candidate in candidates) {
+			currentCoroutineContext().ensureActive()
+			val evaluation = importedEvaluator.evaluateCandidateInTransaction(candidate)
+			when (val decision = evaluation.qualifyWithExactNativeOwners()) {
+				is PressureImportedEligibilityDecision.Accepted -> entries += decision.entry
+				PressureImportedEligibilityDecision.Suppressed -> if (PortablePressureOpaqueIdentity(candidate.identity) !in visible) {
+					when (val unsuppressed = evaluation.toSharedHistoryEligibility(emptyMap())) {
+						is PressureImportedEligibilityDecision.Accepted -> entries += unsuppressed.entry
+						is PressureImportedEligibilityDecision.Unavailable -> return unavailable(unsuppressed.reason)
+						PressureImportedEligibilityDecision.Suppressed -> error("Empty native authority cannot suppress an import")
+					}
+				}
+				is PressureImportedEligibilityDecision.Unavailable -> return unavailable(decision.reason)
+			}
+		}
+		return ImportedHistoryEligiblePage.Available(entries)
+	}
+
 	internal suspend fun selectRecent(limit: Int): List<PressureOnlyHistoryEntry> =
 		database.withTransaction {
 			require(limit in 1..ImportedPressureDao.MAX_HISTORY_ENTRY_CANDIDATES)

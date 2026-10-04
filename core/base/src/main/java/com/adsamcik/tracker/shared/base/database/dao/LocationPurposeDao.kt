@@ -24,6 +24,13 @@ data class LocationPathSampleRow(
 	val hasVisibleBackgroundPurpose: Boolean = false,
 )
 
+/** Descriptive saved origin; it does not authorize collection or map enrichment. */
+data class LocationHistoryDayRow(
+	@Embedded val point: LocationPathSampleRow,
+	@androidx.room.ColumnInfo(name = "history_origin") val historyOrigin: String,
+	@androidx.room.ColumnInfo(name = "has_current_import_copy") val hasCurrentImportCopy: Boolean,
+)
+
 /** Location authority only; this DAO never creates a canonical sample. */
 @Dao
 interface LocationPurposeDao {
@@ -73,6 +80,35 @@ interface LocationPurposeDao {
 		WHERE location_sample.id IN (:sampleIds) AND ${LocationReadScope.HISTORY_RETAINED}
 		ORDER BY location_sample.time_ms, location_sample.id""")
 	suspend fun savedFileSamples(sampleIds: List<Long>): List<LocationPathSampleRow>
+	/** File provenance is descriptive; a coincident old session interval is not file membership. */
+	@Query("""SELECT location_sample.id FROM location_sample WHERE location_sample.id IN (:sampleIds)
+		AND (EXISTS (SELECT 1 FROM location_file_identity i WHERE i.sample_id = location_sample.id AND i.imported = 1)
+		OR ${LocationReadScope.HISTORY_CURRENT_IMPORT_COPY})""")
+	suspend fun importedHistorySampleIds(sampleIds: List<Long>): List<Long>
+	@Query("SELECT * FROM location_accepted_receipt WHERE sample_id IN (:sampleIds) " +
+		"ORDER BY observed_wall_time_ms, sample_id LIMIT :limit")
+	suspend fun contextReceiptsForSamples(sampleIds: List<Long>, limit: Int): List<LocationAcceptedReceiptEntity>
+
+	/** Bounded ordinary sessionless history. Native qualification labels points but never hides legacy data. */
+	@Query("""SELECT location_sample.*, lr.source_instance_id || ':' || lr.registration_generation AS continuity_id,
+		lr.source_sequence AS continuity_sequence, 0 AS ambient_only,
+		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
+		AND lp.purpose = 'SESSION_CAPTURE') AS has_session_purpose,
+		EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id
+		AND lp.purpose = 'AMBIENT_PRODUCT') AS has_visible_background_purpose,
+		${LocationReadScope.HISTORY_ORIGIN} AS history_origin,
+		${LocationReadScope.HISTORY_CURRENT_IMPORT_COPY} AS has_current_import_copy
+		FROM location_sample LEFT JOIN location_accepted_receipt lr ON lr.sample_id = location_sample.id
+		WHERE location_sample.time_ms >= :fromMs AND location_sample.time_ms < :toMs
+		AND location_sample.lat_e7 BETWEEN -900000000 AND 900000000
+		AND location_sample.lon_e7 BETWEEN -1800000000 AND 1800000000
+		AND ${LocationReadScope.HISTORY_RETAINED} AND ${LocationReadScope.SESSIONLESS_HISTORY}
+		AND ((${LocationReadScope.HISTORY_ORIGIN} = 'LOCAL' AND :includeLocal)
+		OR (${LocationReadScope.HISTORY_ORIGIN} = 'IMPORTED' AND :includeImported)
+		OR (${LocationReadScope.HISTORY_ORIGIN} = 'LEGACY' AND :includeLegacy))
+		ORDER BY location_sample.time_ms, location_sample.id LIMIT :limit""")
+	suspend fun sessionlessHistoryOverWindow(fromMs: Long, toMs: Long, limit: Int,
+		includeLocal: Boolean, includeImported: Boolean, includeLegacy: Boolean): List<LocationHistoryDayRow>
 	/** Discovery only; source-owned reader qualifies the receipt and each purpose in the same snapshot. */
 	@Query("SELECT * FROM location_accepted_receipt WHERE observed_wall_time_ms >= :fromMs " +
 		"AND observed_wall_time_ms < :toMs ORDER BY observed_wall_time_ms, sample_id LIMIT :limit")

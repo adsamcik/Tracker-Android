@@ -1,0 +1,28 @@
+--- original-selected/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReaderRoomTest.kt
++++ repaired-selected/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReaderRoomTest.kt
+@@ -212,10 +212,10 @@
+     @Test fun `narrow annotation selects exact Location timestamps and withholds crossing Steps total`() = runTest {
+         database.sessionSegmentDao().insert(SessionSegment(1, 1_000, 2_000, 0f, 100,
+             null, null, 4, SegmentSource.USER_CREATED, null, 2_000))
+-        point("before", 1_099)
+-        point("first", 1_100)
+-        point("last", 1_499)
+-        point("after", 1_500)
++        point("before", 1_099, imported = false)
++        point("first", 1_100, imported = false)
++        point("last", 1_499, imported = false)
++        point("after", 1_500, imported = false)
+         annotation("short", 1_100, 1_500, null)
+         annotation("whole", 900, 2_100, null)
+         val page = reader.read(HistoryRangeRequest(organizationRange().copy(
+@@ -250,8 +250,8 @@
+     @Test fun `linked recording interval selects exact Location and withholds its crossing Steps total`() = runTest {
+         database.sessionSegmentDao().insert(SessionSegment(1, 1_000, 2_000, 0f, 100,
+             null, null, 4, SegmentSource.USER_CREATED, null, 2_000))
+-        val saved = listOf(point("before-linked", 1_099), point("first-linked", 1_100),
+-            point("last-linked", 1_499), point("after-linked", 1_500))
++        val saved = listOf(point("before-linked", 1_099, imported = false), point("first-linked", 1_100, imported = false),
++            point("last-linked", 1_499, imported = false), point("after-linked", 1_500, imported = false))
+         database.organizationAnnotationDao().insert(OrganizationAnnotationEntity("linked-short", 1, 0, 0,
+             "segment:1", 1_100, 1_500, "UTC", "Short walk", null, false))
+         val row = reader.read(HistoryRangeRequest(range(0, 3_000).copy(

@@ -74,6 +74,11 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 3 source milestones
 
+- [x] Select the bounded unified History reader/paging foundation after repairing
+  eight legacy fixture origins. Thirty paths and 35 authored/revised scenarios
+  remain unexecuted; independent source acceptance is recorded in
+  `convergence/2026-10-04/HISTORY_RANGE_FOUNDATION_REPAIRED_SELECTED/SOURCE_REVIEW.md`.
+  Complete History presentation, source subsets and all 25 full chains stay open.
 - [x] `9d48e176b0`: independently reviewed ordinary-transfer physical draining,
   retained export after Off and per-request Share cleanup. Forty newly authored
   cases remain unexecuted; preserved recovery exports and later notices are open.

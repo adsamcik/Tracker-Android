@@ -1,0 +1,21 @@
+{
+  "base_head": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+  "phase": "IMPLEMENTATION_ONLY",
+  "paths": [
+    {
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/ImportedStepsHistoryContractTest.kt",
+      "base_sha256": "789e4cdda4abf415d5afefea33396f7c7b69bd5aab5b34d7451d656f5bea19ff",
+      "working_before_sha256": "a30cde18f183f3c6bee1c38f2d200569514eaa77b0f64298785c4ffd3b29a7f3"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "base_sha256": "fa25d74c98bc01ec759bb16fb4224d116468f8b24444fcb3a2dc6b449e7e7e42",
+      "working_before_sha256": "f6866fb15b4b8bd642c4262feb3adcb975921751e77d4d14803ef148fd4fe817"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportedAmbientStepsTransferTest.kt",
+      "base_sha256": "8497ff42932606eda83cea0c9adcebca25c8a3726cf4a7648f0cc235028b22de",
+      "working_before_sha256": "edc1324df03ab9ae575338ff70cf7213d8a82b13357a73866792fb84d3781985"
+    }
+  ]
+}

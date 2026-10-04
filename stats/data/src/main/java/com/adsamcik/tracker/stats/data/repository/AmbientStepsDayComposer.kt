@@ -288,7 +288,9 @@ internal fun composeAmbientStepsDay(
 	)
 	if (orderedFacts.isEmpty()) {
 		val totalCauses = buildSet {
-			add(AmbientStepsDayCause.NO_AMBIENT_FACT)
+			if (AmbientStepsDayCause.AMBIENT_IMPORTED_DELETED !in sourceCauses &&
+				AmbientStepsDayCause.AMBIENT_IMPORTED_RETAINED !in sourceCauses
+			) add(AmbientStepsDayCause.NO_AMBIENT_FACT)
 			addAll(sourceCauses)
 			if (gaps.any { it.endTimeMs > day.startTimeMs && it.startTimeMs < day.endTimeMs }) {
 				add(AmbientStepsDayCause.AMBIENT_GAP)

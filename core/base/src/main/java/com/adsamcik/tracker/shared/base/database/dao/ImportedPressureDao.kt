@@ -84,6 +84,22 @@ abstract class ImportedPressureDao {
 	)
 	abstract suspend fun latestEntryRevision(identity: String): ImportedPressureEntryRevisionEntity?
 
+	/** Real source shells for selected range keys; conflicting live/retained owners remain visible. */
+	@Query("""SELECT e.identity, e.import_revision, e.content_checksum, e.start_time_ms,
+		e.end_time_ms, e.received_at_ms,
+		(SELECT r.start_time_ms FROM imported_pressure_run r WHERE r.entry_identity = e.identity
+			AND r.entry_import_revision = e.import_revision ORDER BY r.start_time_ms DESC, r.identity DESC LIMIT 1) AS recency_start_time_ms,
+		(SELECT r.identity FROM imported_pressure_run r WHERE r.entry_identity = e.identity
+			AND r.entry_import_revision = e.import_revision ORDER BY r.start_time_ms DESC, r.identity DESC LIMIT 1) AS recency_tie_identity,
+		'LIVE' AS candidate_state FROM imported_pressure_entry_revision e
+		WHERE e.identity IN (:identities) AND e.import_revision =
+			(SELECT MAX(n.import_revision) FROM imported_pressure_entry_revision n WHERE n.identity = e.identity)
+		UNION ALL SELECT entry_identity, latest_import_revision, latest_content_checksum,
+			start_time_ms, end_time_ms, received_at_ms, recency_start_time_ms, recency_tie_identity,
+			'RETAINED' FROM imported_pressure_retention_receipt WHERE entry_identity IN (:identities)
+		ORDER BY recency_start_time_ms DESC, recency_tie_identity DESC LIMIT 201""")
+	abstract suspend fun selectedHistoryCandidates(identities: List<String>): List<ImportedPressureHistoryCandidate>
+
 	/**
 	 * Numeric authority preflight over the exact live-plus-retained recent candidate relation.
 	 *

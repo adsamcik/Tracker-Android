@@ -1,0 +1,224 @@
+[
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryCandidateQueries.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "bba0fb3e1f32e444ba1615f592a0722a4839e8f764684565b0e61128f9649032",
+    "workingBeforeSha256": "917706a0e13c04c34bad3d57e2812fac211626ccd6e406b39a08e4e39ad0b0b9"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryNativeVisibility.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": null,
+    "workingBeforeSha256": "a4139fba9cf44f3dcf6e9ef19716e5c5f212cd9fe29b035c34e5ae9b0bb1e0a0"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryNativeReader.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": null,
+    "workingBeforeSha256": "b49d1b8a3e537dc4eaa43231150c797f1e90045ceeafa5365f1a0f5e3180aa4b"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": null,
+    "workingBeforeSha256": "e9fc318dc9abd7105e7cc798c06f2a9a284453aa7cf0bfec8b654a9d5fa0676f"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryOrganizationSelection.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": null,
+    "workingBeforeSha256": "35da7c6d689421c55910941aab74a93beac25cfd4a5618783e7986099645daee"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryPagingSource.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": null,
+    "workingBeforeSha256": "889f1f0d63d9b74f01a57839dc50f99b836c5674b66d0f6ae00af20e20fc0ca0"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "934dddc333fadbd5b367595f65e51d4ac98deea98e8807e5f0ffccf9d0653fb9",
+    "workingBeforeSha256": "754eb9dd90efa49e47de5e4af84223a9bf4636ed3a8ce434cbd6a99b17a85093"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/LogicalTrackingHistoryReader.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "be3d397a2681e084a7e012770929582f17c7f4b8faee457bef23b862f789a746",
+    "workingBeforeSha256": "e4693b50478d8e0c885313a06cd5e173142651069a02dca7382a6483d31e7139"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "b94e137680283e218f8e26ca2a337d4716e29b2e3a523e2ebf08f06711b84460",
+    "workingBeforeSha256": "480a0cc32a4a426cd0c588d00f59705d123fd64fb6778d0cf774f57e00a94d34"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryOriginComposer.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "914f58362b98c60ba0c905775b309830abc6c880fd85f74367a0f1b6d9a86b3b",
+    "workingBeforeSha256": "83c920871b2fe74944b924d7033978d2745c74875f0174f406606e4655180411"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "0e74677cee576686b42af0c5ba5d6cb1a759434745eafb293e4c73e635a57422",
+    "workingBeforeSha256": "667ef9dcd1a317be73a7ec903ae4ad80e5c2064b4479c0ed5070a850ed751679"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "809167b510dbb884ba31a67ed3d6f30bc690ebd76162735658d89e7fedeeaf12",
+    "workingBeforeSha256": "7e4499cf311ce0c8497bf1743d2a78f513e4c9b1ae00a8c8cc91c724749b73ef"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductReader.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "f9b303da1f2bcda73088c061072ecb6b0ebac3cff1a298bb534113c89325c705",
+    "workingBeforeSha256": "0cdd4066e187e9e0e037c1ba72968bb782b7d4d11aefc5cac91bd8313b34fda8"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryPublicMapper.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "d7e7ee436cd1293f10f933c488d28d150f0ef65cf41b725f600d92c9b456de45",
+    "workingBeforeSha256": "9800522702f7f79d8d56025b212f15c7ddfed7ec92aa4cf045041800dbda6545"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryPageReader.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "a33a8a774256fb15a5e54df56f79d67e39442e6896ea30071d3d9421c44d38b6",
+    "workingBeforeSha256": "6652105b410b705cd46df5bbeecdbd273327efbce0ddbd64202fbade5d0f0373"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelector.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "608a1d1cc6ca1850705342313686c9753713daafc34662c41a23ab6f4260b082",
+    "workingBeforeSha256": "0b2d6b42695cfc4747d8a060a6e56b2227fabd7de77414593842161d4e695682"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryReadModel.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "3a8568cbc39d0581fbafe2e9f68460ce3651cbbac448ca95482a06639d496c05",
+    "workingBeforeSha256": "518671aee7096e9624f0401a7de3ec6c44ea4f8d5e5f37486d3e8ed687a9a1b1"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultAmbientStepsHistoryRepository.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "fe382a34be781401c9b3e2467444f664f2ea5aaa93c7c4e7e714bc387a99f3ff",
+    "workingBeforeSha256": "b1242d5e3423a7e426600d6734adb28f2239e117c4a5b04d1edf20946f93c955"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayComposer.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "c9a6c8e243704c3136ad415a6d1721df864323d5d05369dfe1e36a076c31fe5b",
+    "workingBeforeSha256": "3355b65eff703e94f3d4cdb95f4b29f673ebadf040a65456bd63b9907c23ebc2"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "b4734008da7f500a39bd681237d7c1f82c7ef81e6c5a638753dd82e4df52df13",
+    "workingBeforeSha256": "4be9af862324bcb021f489122d101c040c522e071b6e5a4e0be97fd019b5e7e6"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "b00925819664a4af723c0a28c7e78f5307a4abd12d7fd3ed7f83bab283a540e4",
+    "workingBeforeSha256": "2c0cf2fe7bf958b4ef1f57386615de32de462e103d66997aa5ddc0ae654d983a"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "7b26cecd95d2ca3ee9de099f7cc6b6904d5527f49d0c38cc797ffc8b7278d3a0",
+    "workingBeforeSha256": "7b26cecd95d2ca3ee9de099f7cc6b6904d5527f49d0c38cc797ffc8b7278d3a0"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomLocationFileArchiveRepository.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "73fda421a9a2f7193d6cd45b49a0f03ece597ce9d1cb69adde5d529a3b3ea370",
+    "workingBeforeSha256": "73fda421a9a2f7193d6cd45b49a0f03ece597ce9d1cb69adde5d529a3b3ea370"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "b7f6c2c755a7dac40c30efc192734142d264765962f5f3507ded24a151e9f417",
+    "workingBeforeSha256": "40d1c057904b90670e3c2628d2139193a8bb7564be8adb6d7cfce8eb1d4f11fb"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationReadScope.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "f87f4c6fe765dd9d95129292c340a690b5bdac96f10f7a0854285446948e3554",
+    "workingBeforeSha256": "902d7f9e09347a442e2b5a3d22fbab495a99a07c436a76f9cf9be59af9976c04"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/OrganizationAnnotationDao.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "b6c7a32ddcbcf5622756b0b4213865874e4d3ae17741fbdf3b4efc0126e71078",
+    "workingBeforeSha256": "3301eacc43ed21f0a1aa16e28ea07cb0c72b18e31c1bec9a160ed295ab06d288"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/TrackingHistoryReadDao.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "1b380ae3222d263601f793dcb811322999a9865ab728f7164d1fa64e884dbba1",
+    "workingBeforeSha256": "a87144596cd6a12f1dc3402988473fc37ec40d392c755c2a803a9f8756437884"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ImportedPressureDao.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "5e801d07c4894c188632d6d8fd25cf71c3ac96279733247968c913390cc50129",
+    "workingBeforeSha256": "9de2815bcf2b97ac44248a34abca6355d19c5562c17aad4d583b2a97f1f65682"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ImportedAmbientStepsDao.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "cea885a5ba7c4e1e1a9678de8a9c0ee3adfc67cc9b29a572fa504f19591543f3",
+    "workingBeforeSha256": "c75e8ca7ce8a9d28c381bc37786ec6ec64af6af3c77ebe70ffffe02fe6e1cb78"
+  },
+  {
+    "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/TrackingHistoryRepository.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "0981e39764bfb8d1c2eee807c177c6f8dc08202bbdfcb7ed7e667a53bd4e202c",
+    "workingBeforeSha256": "4003e403a2abb7522a7d4f74c2baaf1075949eac0bfe9575dc3ca3f893ca46b4"
+  },
+  {
+    "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/PagedTrackingHistoryRepository.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "08e94992992aee24a0bae1a8e9300c515f6e430c6dcdba6701e95005f8fd9203",
+    "workingBeforeSha256": "94d20e2746778063cc4c1c41bb69c14d71319378b5a6630126f34026519c4de6"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "b0a9b72fa3afad46a204927a4c869a210f3f745825e294fa96640f54f2bdc148",
+    "workingBeforeSha256": "1f17176f313769013513514bbc8a455688c79eef936871304ab9b259ca38252d"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryCandidateQueriesRoomTest.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "d391119dce63344f91ea3f12db9211180958ebae6be261c7915475ca29cf94bf",
+    "workingBeforeSha256": "57ae42582b55a83a2e928d8c48bf1833d285ecd290cdae9225878a7f3147da11"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryDayGroupingRoomTest.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": null,
+    "workingBeforeSha256": "d0b5e420d0799b88b5da9846610bfeb41ca960f1957c81342400f5cf147b8b87"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReaderRoomTest.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": null,
+    "workingBeforeSha256": "247a3ce57cdec9cb0e1db842a391981407c32bdfe98a323aa3fa76151a728ae3"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRoomFixtures.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": null,
+    "workingBeforeSha256": "3ed4ad5c04307230a070cac2fe3063aa74443bc9a62811a3e3d6ce26e7dda5a9"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryMeasuredDayRoomTest.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": null,
+    "workingBeforeSha256": "c9ecccbd30cd60f7f2dd8107c76dae240c3cd42b73531f61298c7f173e95a342"
+  }
+]

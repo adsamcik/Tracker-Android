@@ -111,6 +111,41 @@ internal class DefaultCellHistoryRepository internal constructor(
 	private val importedProductReader = ImportedCellProductReader(database)
 	private val rangeContinuationIssuer = Any()
 
+	/** Bounded selected import cohort; exact local equality alone suppresses a visible duplicate. */
+	internal suspend fun selectedImportedInTransaction(
+		identities: List<String>,
+		range: com.adsamcik.tracker.stats.api.repository.HistoryRange,
+	): Map<String, CellHistoryEntry> {
+		require(identities.size in 1..MAX_RESULTS && identities.distinct().size == identities.size)
+		val evaluations = identities.map { identity ->
+			currentCoroutineContext().ensureActive()
+			importedProductReader.selectIdentityInTransaction(PortableCellOpaqueIdentity(identity))
+				?: throw ImportedCellHistoryCompositionFailure()
+		}
+		val collisions = evaluations.filterIsInstance<ImportedCellProductEvaluation.Readable>()
+			.filter { it.localOriginHandle != null }
+		val localPortable = collisions.associate { evaluation ->
+			currentCoroutineContext().ensureActive()
+			val local = importedProductReader.readLocalOriginInTransaction(evaluation, laneExecutionAuthority)
+				as? ReadLocalPortableCapturedCellResult.Ready ?: throw ImportedCellHistoryCompositionFailure()
+			evaluation.candidate.identity to local.entry
+		}
+		val visible = database.nativeLogicalIdsVisibleInRange(collisions.mapTo(linkedSetOf()) {
+			requireNotNull(it.localOriginHandle).logicalTrackingId }, range)
+		val visibleIdentities = visible.mapTo(linkedSetOf()) { logicalId ->
+			PortableCellOpaqueIdentity.derive(PortableCellIdentityKind.LOGICAL_ENTRY, logicalId).value }
+		val composed = CellHistoryOriginComposer.compose(emptyList(), visibleIdentities,
+			collisions.mapTo(linkedSetOf()) { it.candidate.identity }, evaluations, localPortable,
+			identities.size)
+		val byIdentity = evaluations.associateBy { it.candidate.identity }
+		return composed.associate { entry ->
+			val selected = entry.selection as? ImportedCellHistorySelection
+				?: throw ImportedCellHistoryCompositionFailure()
+			selected.identity.value to database.withImportedCellDetails(
+				requireNotNull(byIdentity[selected.identity.value]), entry)
+		}
+	}
+
 	override suspend fun detail(selection: CellHistoryEntrySelection): CellHistoryQuery =
 		when (selection) {
 			is LocalCellHistorySelection -> local(selection)

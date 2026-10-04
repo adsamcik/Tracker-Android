@@ -455,8 +455,9 @@ data class ImportedStepsHistoryEntry(
 		require(physicalMembers.isNotEmpty())
 		require(physicalMembers.size <= MAX_PHYSICAL_MEMBERS) { "Imported Steps entries support at most 64 physical runs" }
 		require(physicalMembers.map { it.segmentId }.distinct().size == physicalMembers.size)
-		require(startTime == physicalMembers.minOf { it.startTime })
-		require(endTime == physicalMembers.maxOf { it.endTime })
+		// The original entry interval survives deletion of an individual physical member.
+		require(startTime <= physicalMembers.minOf { it.startTime })
+		require(endTime >= physicalMembers.maxOf { it.endTime })
 	}
 
 	private companion object {

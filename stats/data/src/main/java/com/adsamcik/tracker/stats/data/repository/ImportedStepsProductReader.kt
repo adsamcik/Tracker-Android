@@ -92,6 +92,14 @@ internal class ImportedStepsProductReader(
         }
     }
 
+    /** Batches the source-owned retained reader while retaining entry-local failures. */
+    internal suspend fun selectedInTransaction(identities: List<String>):
+        Pair<Map<String, ImportedStepsHistoryEntry>, Map<String, ImportedStepsReadFailure>> {
+        require(identities.size <= 100 && identities.distinct().size == identities.size)
+        val read = readSessionEntries(identities)
+        return read.entries.associate { it.metadata.identity to it.toListEntry() } to read.unverifiableEntries
+    }
+
 	suspend fun recentInTransaction(limit: Int): List<ImportedStepsHistoryEntry> {
 		require(limit in 1..100)
 		val entries = database.importedStepsDao().recentEntries(limit)
@@ -343,7 +351,7 @@ internal class ImportedStepsProductReader(
 		}.sortedWith(compareBy<ImportedStepsHistoryMember> { it.startTime }.thenBy { it.segmentId })
 		return ImportedStepsHistoryEntry(
 			TrackingHistoryEntryKey("imported-steps:${metadata.identity}"),
-			members.minOf { it.startTime }, members.maxOf { it.endTime }, members,
+			EpochMs(metadata.startTimeMs), EpochMs(metadata.endTimeMs), members,
 		)
 	}
 

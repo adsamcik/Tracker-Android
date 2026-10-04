@@ -83,6 +83,39 @@ class ImportedStepsProductRoomTest {
 	@After
 	fun tearDown() = database.close()
 
+    @Test fun `selected imported Steps preserves original entry bounds after member deletion`() = runTest {
+        val original = PortableStepsEntryV1.create(opaque('1'), PortableStepsSessionMode.MANUAL, 10L, 40L,
+            listOf(run('2', 10L, 20L, 9L), run('3', 30L, 40L, 4L)))
+        seed(original)
+        mutate("DELETE FROM step_fact_revision WHERE service_run_id = '${original.runs.first().identity.value}'")
+        mutate("DELETE FROM imported_steps_run WHERE session_segment_id = 41")
+        mutate("DELETE FROM session_segment WHERE id = 41")
+        val read = database.withTransaction { ImportedStepsProductReader(database).selectedInTransaction(listOf(original.identity.value)) }
+        read.second shouldBe emptyMap()
+        read.first.getValue(original.identity.value).startTime.raw shouldBe 10L
+        read.first.getValue(original.identity.value).endTime.raw shouldBe 40L
+        read.first.getValue(original.identity.value).physicalMembers.single().steps.count shouldBe 4L
+    }
+
+    @Test fun `unified range authenticates imported Steps and rejects a changed data epoch`() = runTest {
+        val original = entry(listOf(run('2', 10L, 20L, 9L)))
+        seed(original)
+        val context: Application = ApplicationProvider.getApplicationContext()
+        val rangeReader = rangeReaderForRoomTest(database, context)
+        val range = com.adsamcik.tracker.stats.api.repository.HistoryRange(0, 100, "UTC",
+            setOf(HistorySource.STEPS), setOf(com.adsamcik.tracker.stats.api.repository.HistoryOrigin.IMPORTED),
+            setOf(com.adsamcik.tracker.stats.api.repository.HistoryPurpose.CAPTURE))
+        val request = com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest(range)
+        val initial = rangeReader.read(request) as com.adsamcik.tracker.stats.api.repository.HistoryRangeRead.Page
+        (initial.rows.single().sections.single() as com.adsamcik.tracker.stats.api.repository.HistorySection.ImportedSteps)
+            .history.physicalMembers.single().steps.count shouldBe 9L
+        database.sourceEvidenceStateDao().updateLifecycle(1, null, 200)
+        val changed = rangeReader.read(request) as com.adsamcik.tracker.stats.api.repository.HistoryRangeRead.Page
+        changed.rows.single().sections shouldBe emptyList()
+        changed.rows.single().problems shouldBe setOf(com.adsamcik.tracker.stats.api.repository.HistoryProblem(
+            HistorySource.STEPS, com.adsamcik.tracker.stats.api.repository.HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+    }
+
     @Test
     fun `exact selected import is reauthenticated and missing or corrupt evidence is typed`() = runTest {
         val original = entry(listOf(run('2', 10L, 20L, 9L)))

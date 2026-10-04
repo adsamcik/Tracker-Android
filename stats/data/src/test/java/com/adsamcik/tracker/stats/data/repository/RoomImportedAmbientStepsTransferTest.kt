@@ -136,6 +136,69 @@ class RoomImportedAmbientStepsTransferTest {
 	}
 
 	@Test
+	fun `exact selected Steps day does not borrow neighboring imported membership`() = runTest {
+		val first = completeDay(LocalDate.of(2026, 10, 25), 7L, zoneId = "Europe/Prague")
+		val second = completeDay(LocalDate.of(2026, 10, 26), 90L, zoneId = "Europe/Prague")
+		val input = archive(first, second)
+		importer(database).importArchive(request(input)) shouldBe applied(input, 2)
+		val selected = database.withTransaction {
+			history(database).readSelectedImportedInCurrentTransaction(listOf(first.identity.value),
+				requireNotNull(database.sourceEvidenceStateDao().get()).revision)
+		}
+		selected.keys shouldBe setOf(first.identity.value)
+		selected.values.single().total shouldBe AmbientStepsHistoryValue.Exact(7L)
+		selected.values.single().opaqueDayIdentity shouldBe first.identity.value
+		selected.values.single().structuralDayEndTimeMs - selected.values.single().structuralDayStartTimeMs shouldBe
+			25L * 60 * 60 * 1_000
+	}
+
+	@Test
+	fun `exact selected Steps day preserves deletion and rejects stale epoch`() = runTest {
+		val day = completeDay(LocalDate.of(2026, 1, 18), 4L)
+		val input = archive(day)
+		importer(database).importArchive(request(input)) shouldBe applied(input, 1)
+		RoomDeleteImportedAmbientStepsDay(database, database.importedAmbientStepsDao(), Dispatchers.Unconfined)
+			.deleteDay(DeleteImportedAmbientStepsDayRequest(day.identity, EPOCH, day.structuralDayEndTimeMs)) shouldBe
+			DeleteImportedAmbientStepsDayResult.Deleted(1)
+		val selected = database.withTransaction {
+			history(database).readSelectedImportedInCurrentTransaction(listOf(day.identity.value),
+				requireNotNull(database.sourceEvidenceStateDao().get()).revision)
+		}
+		selected.values.single().importedDisposition shouldBe AmbientStepsImportedDisposition.DELETED
+		selected.values.single().total.count shouldBe null
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH + 1, null, day.structuralDayEndTimeMs + 1)
+		assertFailsWith<IllegalStateException> {
+			database.withTransaction {
+				history(database).readSelectedImportedInCurrentTransaction(listOf(day.identity.value),
+					requireNotNull(database.sourceEvidenceStateDao().get()).revision)
+			}
+		}
+	}
+
+	@Test
+	fun `unified background history uses imported stored calendar day on DST transition`() = runTest {
+		val day = completeDay(LocalDate.of(2026, 10, 25), 12L, zoneId = "Europe/Prague")
+		val input = archive(day)
+		importer(database).importArchive(request(input)) shouldBe applied(input, 1)
+		val context: Application = ApplicationProvider.getApplicationContext()
+		val reader = rangeReaderForRoomTest(database, context)
+		val range = com.adsamcik.tracker.stats.api.repository.HistoryRange(day.structuralDayStartTimeMs,
+			day.structuralDayEndTimeMs, "America/New_York",
+			setOf(com.adsamcik.tracker.stats.api.repository.HistorySource.STEPS),
+			setOf(com.adsamcik.tracker.stats.api.repository.HistoryOrigin.IMPORTED),
+			setOf(com.adsamcik.tracker.stats.api.repository.HistoryPurpose.BACKGROUND))
+		val page = reader.read(com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest(range)) as
+			com.adsamcik.tracker.stats.api.repository.HistoryRangeRead.Page
+		page.rows.single().position.startTimeMs shouldBe day.structuralDayStartTimeMs
+		page.rows.single().toExclusiveMs shouldBe day.structuralDayEndTimeMs
+		page.rows.single().origins shouldBe setOf(com.adsamcik.tracker.stats.api.repository.HistoryOrigin.IMPORTED)
+		val section = page.rows.single().sections.single() as com.adsamcik.tracker.stats.api.repository.HistorySection.BackgroundSteps
+		section.day.total shouldBe AmbientStepsHistoryValue.Exact(12L)
+		section.day.day.storedZoneId shouldBe "Europe/Prague"
+		page.next shouldBe null
+	}
+
+	@Test
 	fun `two database import read and reexport roundtrip preserves DST gaps and covered zero`() = runTest {
 		val archive = archive(
 			completeDay(LocalDate.of(2026, 10, 25), count = 0L, zoneId = "Europe/Prague"),

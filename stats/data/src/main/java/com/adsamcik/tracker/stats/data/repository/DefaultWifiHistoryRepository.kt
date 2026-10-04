@@ -94,6 +94,35 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			}
 		}
 
+	/** Selected range keys share import qualification, origin comparison and detail ownership. */
+	internal suspend fun selectedImportedInTransaction(
+		identities: List<String>,
+		range: com.adsamcik.tracker.stats.api.repository.HistoryRange,
+	): Map<String, WifiHistoryEntry> {
+		require(identities.size in 1..MAX_RESULTS && identities.distinct().size == identities.size)
+		val evaluations = identities.map { identity ->
+			currentCoroutineContext().ensureActive()
+			importedProductEvaluator.selectIdentityInTransaction(WifiImportedHistorySelectionKey(identity))
+				?: throw ImportedWifiHistoryCompositionFailure()
+		}
+		val collisions = evaluations.filterIsInstance<ImportedWifiProductEvaluation.Readable>()
+			.mapNotNull { it.collidingLocalLogicalTrackingId }.distinct()
+		if (collisions.size > MAX_EXACT_ORIGIN_COLLISIONS) throw ImportedWifiHistoryCompositionFailure()
+		val localPortable = collisions.associateWith { logicalId ->
+			currentCoroutineContext().ensureActive()
+			when (val read = localPortableReader.readInTransaction(ExportPortableCapturedWifiRequest(logicalId))) {
+				is ReadLocalPortableCapturedWifiResult.Ready -> read.entry
+				is ReadLocalPortableCapturedWifiResult.Outcome -> throw ImportedWifiHistoryCompositionFailure()
+			}
+		}
+		val visible = database.nativeLogicalIdsVisibleInRange(collisions.toSet(), range)
+		val composed = WifiHistoryOriginComposer.composeSelectedImported(evaluations, localPortable, visible)
+		val byIdentity = evaluations.associateBy { it.candidate.selection.key.value }
+		return composed.mapValues { (identity, entry) ->
+			database.withImportedWifiDetails(requireNotNull(byIdentity[identity]), entry)
+		}
+	}
+
 	override suspend fun lookup(selection: WifiHistorySelection): WifiHistoryQuery =
 		withContext(ioDispatcher) {
 			database.withTransaction {

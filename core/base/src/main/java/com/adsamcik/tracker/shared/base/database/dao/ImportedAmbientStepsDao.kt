@@ -378,6 +378,16 @@ abstract class ImportedAmbientStepsDao {
 		limit: Int,
 	): List<ImportedAmbientStepsDayRevisionEntity>
 
+	/** Exact imported organization membership, without adopting another day at the same time. */
+	@Query("SELECT day.* FROM imported_ambient_steps_day_revision day WHERE day.day_identity IN (:identities) " +
+		"AND day.import_revision = (SELECT MAX(n.import_revision) FROM imported_ambient_steps_day_revision n " +
+		"WHERE n.day_identity = day.day_identity) ORDER BY day.structural_epoch_day, day.stored_zone_id, day.day_identity LIMIT :limit")
+	abstract suspend fun latestDaysForIdentities(identities: List<String>, limit: Int): List<ImportedAmbientStepsDayRevisionEntity>
+
+	@Query("SELECT * FROM imported_ambient_steps_day_fence WHERE day_identity IN (:identities) " +
+		"ORDER BY structural_epoch_day, stored_zone_id, day_identity LIMIT :limit")
+	abstract suspend fun fencesForIdentities(identities: List<String>, limit: Int): List<ImportedAmbientStepsDayFenceEntity>
+
 	@Query(
 		"""
 		WITH latest_revision AS (
