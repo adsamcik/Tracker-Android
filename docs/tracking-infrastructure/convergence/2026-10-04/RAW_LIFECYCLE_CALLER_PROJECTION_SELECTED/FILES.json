@@ -1,0 +1,26 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "baseHead": "07d5c664918affa8cc843fd243b38032bb9c782c",
+  "parentHeadAtFreeze": "640a27da4ff8edeb16311d2461ef35dd4f6d076c",
+  "paths": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt",
+      "role": "production",
+      "workingSha256": "e557fda96b0ce3060f282d04769e5b065456b550726e56f23c38d7ac556f1208",
+      "baseLfSha256": "c4497a24b427c67c02c760df82e6ba8c4502aab575e4f1a7c6ba1a158e417bd9",
+      "selectedLfSha256": "051198f0d90c6d94db3f348f9d983305c772a5dc9eb6591fd257c656e2ee270b",
+      "selection": "Only21st existing caller authority type/value projection or its raw Room regression; excludes lookup/runtime/R11 companions."
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDaoTest.kt",
+      "role": "test",
+      "workingSha256": "29d77969205626926ebfa4e920c6a44183f6ad0d34e42151a998f932a6b74881",
+      "baseLfSha256": "82eefaa781bea2886e7c6d5d7bece8325b4cd22d79d77aecd17ad1e06c7a6ff4",
+      "selectedLfSha256": "f48a123a92846277f5c5007a7204e1227bdc53708cf5c9dae9651bf8d387bb08",
+      "selection": "Only21st existing caller authority type/value projection or its raw Room regression; excludes lookup/runtime/R11 companions."
+    }
+  ],
+  "patchSha256": "cb672db33e6bb37561b2baf2f9eece27f6eb0f02bedb5c981efd112d5c23ff8b",
+  "authoredTestsExecuted": false
+}

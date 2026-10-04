@@ -122,6 +122,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Select the existing raw lifecycle query's missing caller-reference field,
+  matching the existing 21-field validator and preserving malformed-value rejection.
+  Two selected paths and one authored Room scenario have fresh static review; the
+  scenario is unexecuted. Receipt:
+  `convergence/2026-10-04/RAW_LIFECYCLE_CALLER_PROJECTION_SELECTED/SOURCE_REVIEW.md`.
+  Complete source lineage and the separate native-owner lookup remain open.
 - [x] Repair Dashboard route previews south/west of zero using actual saved-point
   extents. Preserve the existing drawing and accessibility behavior; five new
   geometry cases and three unchanged Compose cases remain unexecuted. Independent

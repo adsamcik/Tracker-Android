@@ -751,7 +751,8 @@ private const val RAW_LIFECYCLE_INTENT_PROJECTION =
 		"typeof(trigger_received_elapsed_realtime_nanos) || '|' || " +
 		"typeof(trigger_expires_elapsed_realtime_nanos) || '|' || typeof(stop_reason) || '|' || " +
 		"typeof(stop_deadline_boot_id) || '|' || typeof(stop_deadline_elapsed_realtime_nanos) || '|' || " +
-		"typeof(intent_checksum) || '|' || typeof(trigger_collected_data_epoch) " +
+		"typeof(intent_checksum) || '|' || typeof(trigger_collected_data_epoch) || '|' || " +
+		"typeof(source_caller_authority_reference) " +
 		"AS storage_class_signature, " +
 		"CASE WHEN typeof(logical_tracking_id) = 'text' THEN logical_tracking_id END " +
 		"AS logical_tracking_id, " +
@@ -783,7 +784,9 @@ private const val RAW_LIFECYCLE_INTENT_PROJECTION =
 		"THEN stop_deadline_elapsed_realtime_nanos END AS stop_deadline_elapsed_realtime_nanos, " +
 		"CASE WHEN typeof(intent_checksum) = 'text' THEN intent_checksum END AS intent_checksum, " +
 		"CASE WHEN typeof(trigger_collected_data_epoch) IN ('integer', 'null') " +
-		"THEN trigger_collected_data_epoch END AS trigger_collected_data_epoch"
+		"THEN trigger_collected_data_epoch END AS trigger_collected_data_epoch, " +
+		"CASE WHEN typeof(source_caller_authority_reference) IN ('text', 'null') " +
+		"THEN source_caller_authority_reference END AS source_caller_authority_reference"
 
 private const val RAW_COMPLETENESS_PROJECTION =
 	"typeof(logical_tracking_id) || '|' || typeof(service_run_id) || '|' || " +

@@ -477,6 +477,28 @@ class SourceSessionDaoTest {
 	}
 
 	@Test
+	fun `raw lifecycle intent retains caller authority needed to authenticate its checksum`() = runTest {
+		val intent = finalizedIntent().copy(
+			desiredState = "ACTIVE",
+			stopReason = null,
+			intentChecksum = "a".repeat(64),
+			sourceCallerAuthorityReference = "caller:verified",
+		)
+		dao.insertLifecycleIntent(intent)
+
+		dao.rawLifecycleIntentsForManifestBounded(LOGICAL_ID, 1L, 2)
+			.single().validatedOrNull() shouldBe intent
+
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_lifecycle_intent_version SET source_caller_authority_reference = X'01' " +
+				"WHERE logical_tracking_id = ? AND intent_revision = ?",
+			arrayOf<Any>(LOGICAL_ID, 1L),
+		)
+		dao.rawLifecycleIntentsForManifestBounded(LOGICAL_ID, 1L, 2)
+			.single().validatedOrNull() shouldBe null
+	}
+
+	@Test
 	fun `writer transition boundary rejects every nonterminal durable lifecycle shape`() = runTest {
 		dao.hasLifecycleBoundaryBlocker() shouldBe false
 		dao.hasIncompleteServiceRun() shouldBe false

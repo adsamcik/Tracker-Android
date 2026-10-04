@@ -20,6 +20,11 @@ description of its earlier input; this file records subsequent repair progress.
 
 ## Authored slices and local commit receipts
 
+- October 4 raw lifecycle query now projects the existing nullable caller reference
+  and its 21st storage class required by the existing validator. Two selected paths
+  and one actual Room case are independently source-reviewed, unexecuted:
+  `../2026-10-04/RAW_LIFECYCLE_CALLER_PROJECTION_SELECTED/SOURCE_REVIEW.md`.
+  The separately rejected native-owner comparison is being repaired; no fullchain closes.
 - October 4 Dashboard preview repair uses the actual saved-point extents in every
   hemisphere, preserving drawing, copy and callers. Two selected source/test paths
   and five new geometry cases have independent static review; no cases were run:
