@@ -148,6 +148,11 @@ class ActiveDatabasePreflight internal constructor(
 				)
 			FinalV28MarkerState.VALID -> Unit
 		}
+		val lifecycleIndexes = if (version == 28) FINAL_V28_LIFECYCLE_PROOF_INDEXES else {
+			FINAL_V28_LIFECYCLE_PROOF_INDEXES.filterNot {
+				it.name == FINAL_V29_CAPTURED_RADIO_RETENTION_EVENT_INDEX.name
+			}
+		}
 		if (!FINAL_V28_REQUIRED_TABLES.all(database::hasTable) ||
 			!database.hasExactColumns(
 				FINAL_V28_SOURCE_EVENT_RETENTION_PROOF_TABLE,
@@ -192,7 +197,7 @@ class ActiveDatabasePreflight internal constructor(
 			!FINAL_V28_STEPS_TABLE_COLUMNS.all { (table, columns) ->
 				database.hasExactColumns(table, columns)
 			} ||
-			!FINAL_V28_LIFECYCLE_PROOF_INDEXES.all(database::hasExactIndex) ||
+			!lifecycleIndexes.all(database::hasExactIndex) ||
 			!database.hasTrigger(FINAL_V28_PRESSURE_RETENTION_TRIGGER) ||
 			!FINAL_V28_STEPS_INDEXES.all(database::hasExactIndex) ||
 			!FINAL_V28_STEPS_TRIGGERS.all(database::hasTrigger) ||
@@ -208,6 +213,7 @@ class ActiveDatabasePreflight internal constructor(
 		}
 		if (version == 28) return ActiveDatabasePreflightResult.FinalV28
 		if (!FINAL_V29_ADDITIONAL_COLUMNS.all(database::hasExactColumn) ||
+			!database.hasExactIndex(FINAL_V29_CAPTURED_RADIO_RETENTION_EVENT_INDEX) ||
 			!FINAL_V29_NATIVE_PORTABLE_COLUMNS.all(database::hasExactColumn) ||
 			!database.hasExactColumns("native_portable_ownership", listOf("source_kind", "identity_kind", "opaque_identity", "raw_identity", "logical_tracking_id", "service_run_id")) ||
 			!FINAL_V29_NATIVE_PORTABLE_INDEXES.all(database::hasExactIndex) ||
@@ -847,6 +853,12 @@ private val FINAL_V28_LOCATION_DECISION_COLUMNS = setOf(
 	"writer_projection_version",
 	"writer_binding_generation",
 	"writer_owner_generation",
+)
+private val FINAL_V29_CAPTURED_RADIO_RETENTION_EVENT_INDEX = FinalV28IndexSentinel(
+	FINAL_V28_CAPTURED_RADIO_RETENTION_PROOF_TABLE,
+	"idx_captured_radio_retention_event",
+	listOf("source_kind", "source_event_id"),
+	unique = false,
 )
 private val FINAL_V28_LIFECYCLE_PROOF_INDEXES = listOf(
 	FinalV28IndexSentinel(

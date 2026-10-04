@@ -26,16 +26,53 @@ interface CapturedRadioFactRetentionProofDao {
 
 	@Query(
 		"SELECT * FROM captured_radio_fact_retention_proof " +
-			"WHERE source_kind = :sourceKind AND source_event_id = :sourceEventId LIMIT 1",
+			"WHERE source_kind = :sourceKind AND source_event_id = :sourceEventId " +
+			"ORDER BY logical_fact_id LIMIT 2",
 	)
-	suspend fun byEvent(
+	suspend fun eventCandidates(
 		sourceKind: Int,
 		sourceEventId: String,
-	): CapturedRadioFactRetentionProofEntity?
+	): List<CapturedRadioFactRetentionProofEntity>
+
+	/** Legacy unscoped lookup is usable only when the event has one retained fact. */
+	suspend fun byEvent(sourceKind: Int, sourceEventId: String): CapturedRadioFactRetentionProofEntity? =
+		eventCandidates(sourceKind, sourceEventId).singleOrNull()
 
 	@Query(
 		"SELECT * FROM captured_radio_fact_retention_proof " +
-			"WHERE source_kind = :sourceKind ORDER BY source_admission_ordinal",
+			"WHERE source_kind = :sourceKind AND source_event_id = :sourceEventId " +
+			"AND logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId " +
+			"AND source_policy_revision = :sourcePolicyRevision " +
+			"AND capture_consent_epoch = :captureConsentEpoch " +
+			"ORDER BY logical_fact_id LIMIT 2",
+	)
+	suspend fun eventCandidatesForRun(
+		sourceKind: Int,
+		sourceEventId: String,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		sourcePolicyRevision: Long,
+		captureConsentEpoch: Long,
+	): List<CapturedRadioFactRetentionProofEntity>
+
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM captured_radio_fact_retention_proof " +
+			"WHERE source_kind = :sourceKind AND source_event_id = :sourceEventId " +
+			"AND (source_admission_ordinal != :sourceAdmissionOrdinal " +
+			"OR collected_data_epoch != :collectedDataEpoch " +
+			"OR wal_integrity_identity != :walIntegrityIdentity))",
+	)
+	suspend fun hasConflictingEventIdentity(
+		sourceKind: Int,
+		sourceEventId: String,
+		sourceAdmissionOrdinal: Long,
+		collectedDataEpoch: Long,
+		walIntegrityIdentity: String,
+	): Boolean
+
+	@Query(
+		"SELECT * FROM captured_radio_fact_retention_proof " +
+			"WHERE source_kind = :sourceKind ORDER BY source_admission_ordinal, logical_fact_id",
 	)
 	suspend fun allForSource(sourceKind: Int): List<CapturedRadioFactRetentionProofEntity>
 
@@ -46,7 +83,7 @@ interface CapturedRadioFactRetentionProofDao {
 			"AND source_admission_ordinal >= :firstAdmissionOrdinal " +
 			"AND source_admission_ordinal <= :lastAdmissionOrdinal " +
 			"AND retained_from_ms <= :retainedFromMs " +
-			"ORDER BY source_admission_ordinal LIMIT 1",
+			"ORDER BY source_admission_ordinal, logical_fact_id LIMIT 1",
 	)
 	suspend fun firstForCapturedRun(
 		sourceKind: Int,

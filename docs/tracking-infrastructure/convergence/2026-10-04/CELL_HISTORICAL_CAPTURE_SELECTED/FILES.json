@@ -1,0 +1,196 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+  "authorPacketSha256": "91d3a5723e6809c61abd27269eb2a8804e1d0ff369304154bc0f23b18ebc8607",
+  "paths": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapter.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "93b665d76beca101ed7a12df8a280c3bead39e99a2726be1dfebe0779267ce15",
+      "selectedSha256": "12dea869255f9369ad00e09bb518e4417c0a19eca31e6c1e774788bf5b432b7e",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactClassifier.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "ecb3fb5ebfcff9bab651c21b8fded520f7c6186b050881b75daa265db7df716e",
+      "selectedSha256": "7b0d0706dc8b4f3c684e679c01a6a5ab9918a63d307b2daeea81e1c17aa54f2f",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFact.kt",
+      "role": "unchanged dependency",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "2d027d9e7915a381888dca89b3abed85fc6d3c20e1a49c05f0715d7bd4feae25",
+      "selectedSha256": "2d027d9e7915a381888dca89b3abed85fc6d3c20e1a49c05f0715d7bd4feae25",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactWriter.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "ce56afab9c6f0e20cc1d345c4efcfea84123a74dd5d4596539f538e72b2bc3fe",
+      "selectedSha256": "35900a883e36a7037df82a1d49b73721c1b7f9bcd4cc2350e8805a48337e02da",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellSessionFactProjectionLane.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "096944b36ac99c80a81fd5feff6cc6b3459126bc980de3e658c0b83527d705bc",
+      "selectedSha256": "f395349ab14a2c264940ce45ad6c6a5f2e796520651178d30b67dadcdd60e2b8",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/DefaultSourceLifecycleProofAdapter.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "c940f71d41101b2951dbd69be85d8ac50fcf9be66cadc90dc122f8c432e3b8c3",
+      "selectedSha256": "1f591079d0e9f911ebd13540855345aedda6739e4ec7bb7cd264bb56816f24f5",
+      "predecessorDiffersFromHead": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellWalCarrierAuthenticator.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "ccf26862132e267666e4604cf019f15e2f9689d461fed1ec24d8c14fded61375",
+      "selectedSha256": "acc58c0a9cf0a447e2a0c0b0e3eab44976116c9e12206a5c773670e16d1a814c",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellCapturedFactEntities.kt",
+      "role": "unchanged dependency",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "f0c0706d6f191981b55d397184efe398130dc37d4702ae86fbf1cacbb7bcdc14",
+      "selectedSha256": "f0c0706d6f191981b55d397184efe398130dc37d4702ae86fbf1cacbb7bcdc14",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellPurposeItemQualification.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "9518e0eede7f6e663058a29d20b551d867629927afbc50304b621cd153f51b68",
+      "selectedSha256": "23c719444f6988f8566616d414d603b0c9972e853f23f3c975f3659144036afa",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "74f2bf579b1052d15225921c6e0a686b373747c8c39d7b0d622c23c5cc85a8ce",
+      "selectedSha256": "210dcfdcaef63446513339630da9f8f0a5f2e209813c38cf169d3898c72a777b",
+      "predecessorDiffersFromHead": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "c9236f9fd6e7819fb77a65b65ccaa3826306d76c87e57d3660490cf69dcf3ccf",
+      "selectedSha256": "98ee067959e8482c4134eb337b7f5d9d5fe9397cdfb2866621304626ace64af8",
+      "predecessorDiffersFromHead": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "566ffe69182982740544b9dad82eeb103fa97b1aebf07cfe8edf6c021cfda716",
+      "selectedSha256": "2ace9aec6738f2183a89ba0aa33d45dae2edb976b74f022030ae2e03baa1bb22",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/CellCapturedFactDao.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "c5f78bdfa1b4f07043a0b454bb63146e18217ed4629db9676ac4c935bf6e2f90",
+      "selectedSha256": "38f7e4f69ae54954e6350bf06d8831274335a23170ba41d428955e85d16f2e3a",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CapturedRadioFactRetentionProofEntity.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "b9161f1dbb9afe8226c49cb72bee1fc7f86d0f2b6c9374968afb0cfda58b387f",
+      "selectedSha256": "9d21a6140bc537073ed6184aac8851a3558871830776f03e425656c529572197",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/CapturedRadioFactRetentionProofDao.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "1e5437da5a5dfa56b9db291469a9c2be55c4ecd6e9a59461ce325aa37feed2d0",
+      "selectedSha256": "b0f16f7745eed603fa800065edcc0a6a090f4f49cb9a63c0bf3c8461b4e98793",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CapturedRadioFactRetentionProofStore.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "bf5aada25061f23f4105ccae5c1a098fc10ed27cc495b85e9d5d414e206de39e",
+      "selectedSha256": "075b4adbce9dc47c3f3224f2abbb14127359635783d0b536b3c798a315579560",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "a95d228677092eb96b25c1f69f3d5f45f9a0fa5631789ce2fd9b9ff41982851f",
+      "selectedSha256": "3d227e5f7d5d9e67ab3181f892e32fa3f90134d11c1a5e55208638594cb1cbbd",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultSourceFactQueryRepository.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "b82c5b2baf843791bc880f1122e49661edc57052aacf9327cd9be21ca2c20225",
+      "selectedSha256": "f33d6e75ac0b48427e05f3f65211fa219614dfc7013c0a84c1aef01f573cb6dc",
+      "predecessorDiffersFromHead": true
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CapturedRadioFactRetentionProofRoomTest.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "239916b1373f673a3cb1e585b81384b7c966a2649cb5d3c3c62cd24a8da452be",
+      "selectedSha256": "46cbe88093b6ab50b0e18520230e2072ad37c55e8baef947ab6be0651d4787c8",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "ba7a6e2d8085c2eb4686fa1eb29b77283d27afbc0ccad8a667421234eeb03311",
+      "selectedSha256": "56e3a93da7a199bc82fffcd16dce1e6900cb968944a7e3db4db75937db86fd41",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "89bd9fb5a449306c88adc538dc04d493099485191354f3a7bfcc077f192b5286",
+      "selectedSha256": "6934ae53a9d76bdbac595c0040a7a58ac689252c2e61bd5f68d75cf4af87950d",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "57dc8dd370955c06aec73b37d4a943b16f9505424a43677d8456d981f9fa24fd",
+      "selectedSha256": "765aaaac29bca2e7f422740f154ae892e43c6cfe9d2ee41333f5fa069fd62fe6",
+      "predecessorDiffersFromHead": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "role": "authored",
+      "baseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+      "baseSha256": "a505a45b494ae9e6eb6aa31afc654a442cabd1d3414b64d7cbea2aad9ff1ff2a",
+      "selectedSha256": "b062db31dc3d860ffa0074fa8bef504663d9a7ac8de2a8762254c25896c0ab45",
+      "predecessorDiffersFromHead": false
+    }
+  ],
+  "authoredCaseCount": 13,
+  "executedGates": [],
+  "schemaDependency": "RADIO_RETENTION_EVENT_INDEX_REVISED_SELECTED; original author schema packet remains preserved and rejected",
+  "predecessorSelection": "Four approved radio detail/error handling and test-fixture inputs differ from HEAD and are explicitly included for fresh review. All other before inputs match HEAD LF."
+}

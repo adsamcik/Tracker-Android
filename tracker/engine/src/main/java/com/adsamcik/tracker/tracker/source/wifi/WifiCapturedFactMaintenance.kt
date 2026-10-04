@@ -420,7 +420,8 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				val retainedEventProofs = loadSourceEventRetentionProofsForSourceErase(limits)
 				val retainedScopeProofs = loadSourceEventRetentionScopeProofsForSourceErase(limits)
 				val scopeAuthorities = linkedMapOf<WifiCapturedRunScope, RetainedCaptureScopeIdentity>()
-				val eventAuthorities = mutableMapOf<String, RetainedCaptureEventIdentity>()
+				val eventAuthorities = mutableMapOf<Pair<String, String>, RetainedCaptureEventIdentity>()
+				val rawEventIdentities = mutableMapOf<String, Pair<Long, String>>()
 				fun registerScope(
 					identity: RetainedCaptureScopeIdentity,
 					eventIdentity: RetainedCaptureEventIdentity? = null,
@@ -444,8 +445,13 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 						expectedDeletedSourceEventHighWaterOrdinal
 					) block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 					if (eventIdentity != null) {
+						val rawIdentity = eventIdentity.sourceAdmissionOrdinal to eventIdentity.walIntegrityIdentity
+						val original = rawEventIdentities.putIfAbsent(eventIdentity.eventId, rawIdentity)
+						if (original != null && original != rawIdentity) {
+							block(WifiCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+						}
 						val retained = eventAuthorities.putIfAbsent(
-							eventIdentity.eventId,
+							eventIdentity.eventId to eventIdentity.scope.logicalRunScopeDigest,
 							eventIdentity,
 						)
 						if (retained != null && retained != eventIdentity) {

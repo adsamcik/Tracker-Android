@@ -122,6 +122,14 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Select historical Cell groups and shared radio receipt ownership across
+  projection, retained readers, deletion and replay. Fresh review accepted the
+  26-path composition, including saved-child integrity, policy-scoped erase and
+  the 28-to-29 nonunique event index conversion. Twenty-two new scenarios and
+  one extended migration scenario are authored and unexecuted. Receipt:
+  `convergence/2026-10-04/CELL_RUNTIME_COMPOSED_SELECTION/SOURCE_REVIEW_COMPOSITION.md`.
+  Empty-purpose settlement, Wi-Fi historical capture, reconfiguration proofs,
+  future-dated siblings, source files and all 25 full chains remain open.
 - [x] Reuse the exact native ownership lookup for ordinary recent Activity imports,
   including native owners beyond the display's 100-row frontier. Preserve display
   ordering and typed limits; one authored real Room scenario is independently

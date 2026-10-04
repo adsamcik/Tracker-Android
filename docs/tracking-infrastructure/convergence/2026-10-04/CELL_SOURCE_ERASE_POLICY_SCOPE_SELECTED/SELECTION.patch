@@ -1,0 +1,287 @@
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt
+@@ -841,7 +841,7 @@
+ 			val retainedEventProofs = loadCellSourceEventRetentionProofsForSourceErase(limits)
+ 			val retainedScopeProofs = loadCellSourceEventRetentionScopeProofsForSourceErase(limits)
+ 			val scopeAuthorities = linkedMapOf<CellCapturedRunScope, RetainedCaptureScopeIdentity>()
+-			val eventAuthorities = mutableMapOf<Pair<String, String>, RetainedCaptureEventIdentity>()
++			val eventAuthorities = mutableMapOf<CellCapturedEventAuthorityKey, RetainedCaptureEventIdentity>()
+ 			val rawEventIdentities = mutableMapOf<String, Pair<Long, String>>()
+ 			fun registerScope(
+ 				identity: RetainedCaptureScopeIdentity,
+@@ -872,7 +872,12 @@
+ 						block(CellCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+ 					}
+ 					val retained = eventAuthorities.putIfAbsent(
+-						eventIdentity.eventId to eventIdentity.scope.logicalRunScopeDigest,
++						CellCapturedEventAuthorityKey(
++							eventIdentity.eventId,
++							eventIdentity.scope.logicalRunScopeDigest,
++							eventIdentity.sourcePolicyRevision,
++							eventIdentity.captureConsentEpoch,
++						),
+ 						eventIdentity,
+ 					)
+ 					if (retained != null && retained != eventIdentity) {
+@@ -3013,6 +3018,14 @@
+ 	val serviceRunId: String,
+ )
+ 
++/** One original callback may cover several policy/consent intervals in the same run. */
++private data class CellCapturedEventAuthorityKey(
++	val eventId: String,
++	val logicalRunScopeDigest: String,
++	val sourcePolicyRevision: Long,
++	val captureConsentEpoch: Long,
++)
++
+ private fun CellCapturedRunScope.retainedIdentity(
+ 	collectedDataEpoch: Long,
+ ): RetainedCaptureScopeIdentity = RetainedCaptureScopeIdentity(
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt
+@@ -7,6 +7,8 @@
+ import androidx.room.withTransaction
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+ import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
++import com.adsamcik.tracker.shared.base.database.CellCapturedSourceDeletionResult
++import com.adsamcik.tracker.shared.base.database.deleteCapturedCellFactsAfterConsentReset
+ import com.adsamcik.tracker.shared.base.database.pruneCapturedCellFactsAffectedByRetentionFloor
+ import com.adsamcik.tracker.shared.base.database.deleteSelectedCapturedCellFactsInTransaction
+ import com.adsamcik.tracker.shared.base.database.ReadLocalPortableCapturedCellResult
+@@ -1717,6 +1719,85 @@
+ 		assertIs<AmbientCellProjectionResult.Duplicate>(projector.project(wal.admissionOrdinal))
+ 	}
+ 
++	@Test
++	fun `source erase accepts two historical Cell policies inside one run and fences their replay together`() = runTest {
++		val event = installHistoricalCellGroups(sameRunPolicyRotation = true)
++		assertEquals(2, assertIs<CellSessionFactDrainResult.Complete>(
++			CellSessionFactProjectionLane(database, subject, writer).drainAvailable()).factsInserted)
++		val facts = historicalCellFacts()
++		assertEquals(setOf(LOGICAL_ID), facts.map { it.logicalTrackingId }.toSet())
++		assertEquals(setOf(RUN_ID), facts.map { it.serviceRunId }.toSet())
++		assertEquals(setOf(POLICY_REVISION, POLICY_REVISION + 1L), facts.map { it.sourcePolicyRevision }.toSet())
++		assertEquals(setOf(MANIFEST_REVISION, MANIFEST_REVISION + 1L), facts.map { it.manifestRevision }.toSet())
++		assertEquals(setOf(CONSENT_EPOCH), facts.map { it.captureConsentEpoch }.toSet())
++		assertEquals(listOf(0, 1), facts.flatMap { historicalCellChildren(it).map { child -> child.itemIndex } }.sorted())
++		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(event.value))
++		val revokedEpoch = revokeHistoricalCellCapture()
++		val deletedAt = maxOf(System.currentTimeMillis(), SESSION_END_WALL_MS) + 10_000L
++
++		assertEquals(CellCapturedSourceDeletionResult.Deleted(2, 2, 1),
++			database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, revokedEpoch, deletedAt))
++		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
++		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
++		assertEquals(1L, database.cellCapturedFactDao().deletionGenerationCount())
++		assertEquals(1L, database.sourceDeletionFenceDao().countAll())
++		facts.forEach { assertEquals(emptyList(), historicalCellChildren(it)) }
++		assertEquals(wal.integrityIdentity,
++			database.sourceEventWalDao().getByEventId(event.value)?.integrityIdentity)
++		val replay = assertIs<CellCapturedWriteResult.Groups>(writer.write(event))
++		assertEquals(2, replay.results.filterIsInstance<CellCapturedWriteResult.AdapterRejected>().size)
++		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
++		assertEquals(CellCapturedSourceDeletionResult.AlreadyDeleted,
++			database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, revokedEpoch, deletedAt + 1L))
++	}
++
++	@Test
++	fun `proof only same run Cell policy and consent siblings erase under one original run fence`() = runTest {
++		val event = installHistoricalCellGroups(sameRunPolicyRotation = true, rotateCaptureConsent = true)
++		CellSessionFactProjectionLane(database, subject, writer).drainAvailable()
++		val facts = historicalCellFacts()
++		assertEquals(2, facts.size)
++		assertEquals(setOf(CONSENT_EPOCH, CONSENT_EPOCH + 1L), facts.map { it.captureConsentEpoch }.toSet())
++		val floor = OBSERVED_WALL_MS + 1L
++		val retainedAt = maxOf(System.currentTimeMillis(), SESSION_END_WALL_MS) + 10_000L
++		database.sourceEvidenceStateDao().updateLifecycle(0L, floor, retainedAt)
++		assertEquals(CellCapturedRetentionResult.Pruned(2, 2),
++			database.pruneCapturedCellFactsAffectedByRetentionFloor(floor, 0L, 0L, retainedAt))
++		val proofs = database.capturedRadioFactRetentionProofDao().allForSource(CELL_SOURCE)
++		assertEquals(2, proofs.size)
++		assertEquals(setOf(event.value), proofs.map { it.sourceEventId }.toSet())
++		database.openHelper.writableDatabase.execSQL("DELETE FROM source_event_wal WHERE event_id = ?",
++			arrayOf(event.value))
++		val revokedEpoch = revokeHistoricalCellCapture()
++
++		assertEquals(CellCapturedSourceDeletionResult.Deleted(0, 0, 1),
++			database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, revokedEpoch, retainedAt + 1L))
++		assertEquals(emptyList(), database.capturedRadioFactRetentionProofDao().allForSource(CELL_SOURCE))
++		assertEquals(1L, database.cellCapturedFactDao().deletionGenerationCount())
++		assertEquals(1L, database.sourceDeletionFenceDao().countAll())
++		assertEquals(CellCapturedSourceDeletionResult.AlreadyDeleted,
++			database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, revokedEpoch, retainedAt + 2L))
++	}
++
++	private suspend fun revokeHistoricalCellCapture(): Long {
++		val dao = database.sourcePolicyDao()
++		val authority = requireNotNull(dao.authority())
++		val previous = requireNotNull(dao.policyAtRevision(authority.currentPolicyRevision, CELL_SOURCE))
++		val revokedEpoch = requireNotNull(dao.latestConsentEpoch(CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE)).epoch + 1L
++		val revokedAt = SESSION_END_WALL_MS + 1L
++		val nextRevision = authority.currentPolicyRevision + 1L
++		dao.insertPolicies(listOf(previous.copy(policyRevision = nextRevision, enabled = false,
++			capturePersistenceEligible = false, captureConsentEpoch = null,
++			effectiveElapsedRealtimeNanos = REGISTRATION_END_NANOS + 1L,
++			effectiveWallTimeMs = revokedAt, changeReason = "TEST_CAPTURE_ERASE")))
++		dao.insertConsentEpochs(listOf(SourceConsentEpochEntity(CELL_SOURCE,
++			SourceBrokerPurpose.SESSION_CAPTURE, revokedEpoch, false, false, nextRevision,
++			BOOT_ID, REGISTRATION_END_NANOS + 1L, revokedAt, "TEST_CAPTURE_ERASE")))
++		assertEquals(1, dao.compareAndSetAuthority(authority.bootstrapState, authority.currentPolicyRevision,
++			SourcePolicyAuthorityEntity.STATE_ACTIVE, nextRevision, null, revokedAt))
++		return revokedEpoch
++	}
++
+ 	private suspend fun historicalCellFacts() = database.cellCapturedFactDao().currentRevisionsForWriterAdmission(
+ 		SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+ 		SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION, 1L, 10,
+@@ -1736,7 +1817,10 @@
+ 		observedWallMs: Long = OBSERVED_WALL_MS,
+ 		extraUnsupportedItem: Boolean = false,
+ 		background: Boolean = false,
++		sameRunPolicyRotation: Boolean = false,
++		rotateCaptureConsent: Boolean = false,
+ 	): SourceEventId {
++		require(!rotateCaptureConsent || sameRunPolicyRotation)
+ 		val backgroundDemand = if (background) demand(true).copy(demandId = "cell-background-sibling",
+ 			consumerId = "app:cell-background-sibling", purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+ 			logicalTrackingId = null, serviceRunId = null, manifestRevision = null, lifecycleLeaseGeneration = null,
+@@ -1765,39 +1849,67 @@
+ 		val end = 1_650_000_000L
+ 		val splitWall = observedWallMs - 50L
+ 		val endWall = observedWallMs + 50L
++		val secondLogical = if (sameRunPolicyRotation) LOGICAL_ID else HISTORICAL_SECOND_LOGICAL
++		val secondRun = if (sameRunPolicyRotation) RUN_ID else HISTORICAL_SECOND_RUN
++		val secondPolicy = POLICY_REVISION + if (sameRunPolicyRotation) 1L else 0L
++		val secondManifestRevision = MANIFEST_REVISION + if (sameRunPolicyRotation) 1L else 0L
++		val secondPlan = PLAN_REVISION + if (sameRunPolicyRotation) 1L else 0L
++		val secondConsent = CONSENT_EPOCH + if (rotateCaptureConsent) 1L else 0L
++		if (sameRunPolicyRotation) {
++			val policyDao = database.sourcePolicyDao()
++			val originalPolicy = requireNotNull(policyDao.policyAtRevision(POLICY_REVISION, CELL_SOURCE))
++			policyDao.insertPolicies(listOf(originalPolicy.copy(policyRevision = secondPolicy,
++				captureConsentEpoch = secondConsent, effectiveElapsedRealtimeNanos = split,
++				effectiveWallTimeMs = splitWall, changeReason = "TEST_POLICY_RECONCILIATION")))
++			if (rotateCaptureConsent) policyDao.insertConsentEpochs(listOf(SourceConsentEpochEntity(
++				CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, secondConsent, true, true, secondPolicy,
++				BOOT_ID, split, splitWall, "TEST_CAPTURE_REGRANT")))
++			assertEquals(1, policyDao.compareAndSetAuthority(SourcePolicyAuthorityEntity.STATE_ACTIVE,
++				POLICY_REVISION, SourcePolicyAuthorityEntity.STATE_ACTIVE, secondPolicy, null, splitWall))
++			insertPlan(cellPlan().copy(revision = secondPlan), secondPolicy, splitWall)
++		}
+ 		val firstSession = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
+-		database.sourceSessionDao().updateSession(firstSession.copy(cutoffAtMs = splitWall,
+-			cutoffElapsedNanos = split, completedAtMs = splitWall, finalAdmissionOrdinal = 0L))
++		val firstEndWall = if (sameRunPolicyRotation) endWall else splitWall
++		val firstEndNanos = if (sameRunPolicyRotation) end else split
++		database.sourceSessionDao().updateSession(firstSession.copy(cutoffAtMs = firstEndWall,
++			cutoffElapsedNanos = firstEndNanos, completedAtMs = firstEndWall, finalAdmissionOrdinal = 0L,
++			desiredPlanRevision = secondPlan, currentManifestRevision = secondManifestRevision))
+ 		val firstRun = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
+-		database.sourceSessionDao().updateServiceRun(firstRun.copy(completedAtMs = splitWall,
+-			presentationAcknowledgedAtMs = splitWall))
+-		database.openHelper.writableDatabase.execSQL(
+-			"UPDATE session_segment SET end_time_ms = ? WHERE id = ?", arrayOf(splitWall, SEGMENT_ID))
++		database.sourceSessionDao().updateServiceRun(firstRun.copy(completedAtMs = firstEndWall,
++			presentationAcknowledgedAtMs = firstEndWall, desiredPlanRevision = secondPlan))
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE session_segment SET end_time_ms = ? WHERE id = ?", arrayOf(firstEndWall, SEGMENT_ID))
+ 		database.openHelper.writableDatabase.execSQL(
+ 			"UPDATE source_demand SET retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
+ 			arrayOf(split, splitWall, DEMAND_ID))
+-		val secondSegment = database.sessionSegmentDao().insert(segment(HISTORICAL_SECOND_RUN).copy(
+-			id = 0L, logicalTrackingId = HISTORICAL_SECOND_LOGICAL, startTimeMs = splitWall, endTimeMs = endWall))
+-		database.sourceSessionDao().insertSession(firstSession.copy(logicalTrackingId = HISTORICAL_SECOND_LOGICAL,
+-			startedAtMs = splitWall, startedElapsedNanos = split, cutoffAtMs = endWall,
+-			cutoffElapsedNanos = end, completedAtMs = endWall, finalAdmissionOrdinal = 0L))
+-		database.sourceSessionDao().insertServiceRun(firstRun.copy(serviceRunId = HISTORICAL_SECOND_RUN,
+-			logicalTrackingId = HISTORICAL_SECOND_LOGICAL, sessionSegmentId = secondSegment,
+-			startedAtMs = splitWall, startedElapsedNanos = split, completedAtMs = endWall,
+-			presentationAcknowledgedAtMs = endWall, startDeliveryToken = "second-cell-start-token",
+-			androidDeliveryUpdatedAtMs = splitWall))
++		if (!sameRunPolicyRotation) {
++			val secondSegment = database.sessionSegmentDao().insert(segment(secondRun).copy(
++				id = 0L, logicalTrackingId = HISTORICAL_SECOND_LOGICAL, startTimeMs = splitWall, endTimeMs = endWall))
++			database.sourceSessionDao().insertSession(firstSession.copy(logicalTrackingId = HISTORICAL_SECOND_LOGICAL,
++				startedAtMs = splitWall, startedElapsedNanos = split, cutoffAtMs = endWall,
++				cutoffElapsedNanos = end, completedAtMs = endWall, finalAdmissionOrdinal = 0L))
++			database.sourceSessionDao().insertServiceRun(firstRun.copy(serviceRunId = HISTORICAL_SECOND_RUN,
++				logicalTrackingId = HISTORICAL_SECOND_LOGICAL, sessionSegmentId = secondSegment,
++				startedAtMs = splitWall, startedElapsedNanos = split, completedAtMs = endWall,
++				presentationAcknowledgedAtMs = endWall, startDeliveryToken = "second-cell-start-token",
++				androidDeliveryUpdatedAtMs = splitWall))
++		}
+ 		val source = database.sourceSessionDao().manifestSources(LOGICAL_ID, MANIFEST_REVISION).single()
+-		val secondSource = source.copy(logicalTrackingId = HISTORICAL_SECOND_LOGICAL)
++		val secondSource = source.copy(logicalTrackingId = secondLogical,
++			manifestRevision = secondManifestRevision, consentEpoch = secondConsent)
+ 		val manifest = requireNotNull(database.sourceSessionDao().manifest(LOGICAL_ID, MANIFEST_REVISION))
+-		val secondManifest = manifest.copy(logicalTrackingId = HISTORICAL_SECOND_LOGICAL,
+-			serviceRunId = HISTORICAL_SECOND_RUN, effectiveElapsedRealtimeNanos = split,
+-			effectiveWallTimeMs = splitWall)
++		val secondManifest = manifest.copy(logicalTrackingId = secondLogical,
++			serviceRunId = secondRun, manifestRevision = secondManifestRevision, sourcePolicyRevision = secondPolicy,
++			acquisitionPlanRevision = secondPlan, effectiveElapsedRealtimeNanos = split, effectiveWallTimeMs = splitWall,
++			startOrigin = if (sameRunPolicyRotation) "POLICY_RECONCILIATION" else manifest.startOrigin,
++			changeReason = if (sameRunPolicyRotation) "POLICY_RECONCILIATION" else manifest.changeReason)
+ 		database.sourceSessionDao().insertManifest(secondManifest.copy(
+ 			manifestChecksum = SessionManifestIntegrity.compute(secondManifest, listOf(secondSource))))
+ 		database.sourceSessionDao().insertManifestSources(listOf(secondSource))
+ 		val secondDemand = demand().copy(demandId = "second-cell-demand",
+-			consumerId = "session:$HISTORICAL_SECOND_LOGICAL", logicalTrackingId = HISTORICAL_SECOND_LOGICAL,
+-			serviceRunId = HISTORICAL_SECOND_RUN, requestedElapsedRealtimeNanos = split, requestedAtMs = splitWall,
++			consumerId = "session:$secondLogical", logicalTrackingId = secondLogical, serviceRunId = secondRun,
++			manifestRevision = secondManifestRevision, sourcePolicyRevision = secondPolicy, consentEpoch = secondConsent,
++			requestedElapsedRealtimeNanos = split, requestedAtMs = splitWall,
+ 			retireElapsedRealtimeNanos = end, retiredAtMs = endWall)
+ 		database.sourceBrokerDao().insertDemands(listOf(secondDemand))
+ 		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(CELL_SOURCE,
+@@ -1829,7 +1941,7 @@
+ 			registrationGeneration = REGISTRATION_GENERATION, physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+ 			authorizationRevision = 3L, registrationPurposeEligibilityMask = denied.first().purposeEligibilityMask,
+ 			registrationEligibilityFingerprint = denied.first().authorizationFingerprint, sourceSequence = 0L,
+-			configRevision = PLAN_REVISION, planAttribution = PlanAttribution.RECEIVE_TIME_ONLY, clockDomainId = BOOT_ID,
++			configRevision = secondPlan, planAttribution = PlanAttribution.RECEIVE_TIME_ONLY, clockDomainId = BOOT_ID,
+ 			observedElapsedRealtimeNanos = towers.maxOf { requireNotNull(it.providerTimestampNanos) },
+ 			receivedElapsedRealtimeNanos = RECEIVED_NANOS, wallTimeMs = observedWallMs,
+ 			wallTimeUncertaintyMs = WALL_UNCERTAINTY_MS, capturedCollectedDataEpoch = 0L, acquiredAtMs = observedWallMs,
+@@ -1839,7 +1951,7 @@
+ 			SourceDeliveryCandidate(cellProviderDeliveryIdentity(BOOT_ID, towers, CELL_WAL_PAYLOAD_VERSION),
+ 				listOf(SourceDeliveryUnit(0, evidence, towers.minOf { requireNotNull(it.providerTimestampNanos) }))))
+ 		val event = assertIs<DeliveryAdmissionResult.Admitted>(result, result.toString()).units.single().eventId
+-		listOf(LOGICAL_ID to RUN_ID, HISTORICAL_SECOND_LOGICAL to HISTORICAL_SECOND_RUN).forEach { (logical, run) ->
++		listOf(LOGICAL_ID to RUN_ID, secondLogical to secondRun).distinct().forEach { (logical, run) ->
+ 			database.sourceSessionDao().saveCompleteness(SourceSessionCompletenessEntity(logical, run, CELL_SOURCE,
+ 				SOURCE_INSTANCE, REGISTRATION_GENERATION, null, null, true, "PROVIDER_COMPLETENESS_UNOBSERVABLE", "COMPLETE",
+ 				null, null, observedWallMs + 1_000L))
+@@ -2223,21 +2335,25 @@
+ 		)
+ 	}
+ 
+-	private suspend fun insertPlan(plan: CellPlan) {
++	private suspend fun insertPlan(
++		plan: CellPlan,
++		sourcePolicyRevision: Long = POLICY_REVISION,
++		createdAtMs: Long = RUN_START_WALL_MS,
++	) {
+ 		val encoded = planCodec.encode(plan)
+ 		database.sourcePlanStateDao().insertRevision(
+ 			AcquisitionPlanRevisionEntity(
+-				revision = PLAN_REVISION,
++				revision = plan.revision,
+ 				planId = "cell-plan",
+-				createdAtMs = RUN_START_WALL_MS,
++				createdAtMs = createdAtMs,
+ 				status = "EFFECTIVE",
+-				sourcePolicyRevision = POLICY_REVISION,
++				sourcePolicyRevision = sourcePolicyRevision,
+ 			),
+ 		)
+ 		database.sourcePlanStateDao().insertDesiredPlans(
+ 			listOf(
+ 				SourceDesiredPlanEntity(
+-					revision = PLAN_REVISION,
++					revision = plan.revision,
+ 					sourceKind = CELL_SOURCE,
+ 					payloadVersion = 1,
+ 					payload = encoded.bytes,

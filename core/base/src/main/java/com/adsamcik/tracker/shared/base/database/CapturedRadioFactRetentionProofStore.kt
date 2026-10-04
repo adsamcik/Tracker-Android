@@ -3,8 +3,8 @@ package com.adsamcik.tracker.shared.base.database
 import com.adsamcik.tracker.shared.base.database.data.CapturedRadioFactRetentionProofEntity
 
 /**
- * Persists an exact proof set idempotently. A primary-key or event collision with different
- * authority is corruption and must roll back the enclosing retention transaction.
+ * Persists each independently qualified fact idempotently. Sibling facts may share one raw
+ * event; a changed fact key or conflicting raw event identity rolls back retention.
  */
 suspend fun AppDatabase.persistCapturedRadioFactRetentionProofs(
 	proofs: List<CapturedRadioFactRetentionProofEntity>,
@@ -17,7 +17,6 @@ suspend fun AppDatabase.persistCapturedRadioFactRetentionProofs(
 			proof.logicalFactId,
 		)
 	}.size == proofs.size)
-	require(proofs.distinctBy { it.sourceKind to it.sourceEventId }.size == proofs.size)
 	val dao = capturedRadioFactRetentionProofDao()
 	for (proof in proofs) {
 		require(proof.hasValidStoredIntegrity())
@@ -27,9 +26,12 @@ suspend fun AppDatabase.persistCapturedRadioFactRetentionProofs(
 			proof.writerProjectionVersion,
 			proof.logicalFactId,
 		)
-		val eventCollision = dao.byEvent(proof.sourceKind, proof.sourceEventId)
-		if (factCollision != null || eventCollision != null) {
-			check(factCollision == proof && eventCollision == proof) {
+		check(!dao.hasConflictingEventIdentity(
+			proof.sourceKind, proof.sourceEventId, proof.sourceAdmissionOrdinal,
+			proof.collectedDataEpoch, proof.walIntegrityIdentity,
+		)) { "Captured radio retention event identity collision" }
+		if (factCollision != null) {
+			check(factCollision == proof) {
 				"Captured radio retention proof identity collision"
 			}
 			continue
@@ -42,7 +44,7 @@ suspend fun AppDatabase.persistCapturedRadioFactRetentionProofs(
 			proof.writerProjectionId,
 			proof.writerProjectionVersion,
 			proof.logicalFactId,
-		) == proof && dao.byEvent(proof.sourceKind, proof.sourceEventId) == proof) {
+		) == proof) {
 			"Captured radio retention proof did not round-trip exactly"
 		}
 	}

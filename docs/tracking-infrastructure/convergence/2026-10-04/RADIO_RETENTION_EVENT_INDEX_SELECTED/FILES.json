@@ -1,0 +1,64 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "baseHead": "07d5c664918affa8cc843fd243b38032bb9c782c",
+  "parentHeadAtAuthorship": "640a27da4ff8edeb16311d2461ef35dd4f6d076c",
+  "paths": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AdditionalTrackingSchema.kt",
+      "role": "production",
+      "beforeSha256": "0acb3ab37b7aac662763046046b1cd09452f188070942e7ad27e5a0d02683572",
+      "workingSha256": "1e149f1da67f7940eb597982a806217f80d0f07caa55a2fa4e358fb0e651d50b",
+      "selectedBaseLfSha256": "0acb3ab37b7aac662763046046b1cd09452f188070942e7ad27e5a0d02683572",
+      "selectedLfSha256": "1e149f1da67f7940eb597982a806217f80d0f07caa55a2fa4e358fb0e651d50b",
+      "selection": "Only nonunique secondary event-index DDL, known28migration and version-specific preflight; original data/PK preserved"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt",
+      "role": "production",
+      "beforeSha256": "9dc9708b2fa78ee66f6c6d278fe6c14e9affc808908c1bc5e06810c91b5c6250",
+      "workingSha256": "4edc1d756190d8430681467189015d6a8bb0af91b713e266f5a0b06ebaaf51f9",
+      "selectedBaseLfSha256": "9dc9708b2fa78ee66f6c6d278fe6c14e9affc808908c1bc5e06810c91b5c6250",
+      "selectedLfSha256": "4edc1d756190d8430681467189015d6a8bb0af91b713e266f5a0b06ebaaf51f9",
+      "selection": "Only nonunique secondary event-index DDL, known28migration and version-specific preflight; original data/PK preserved"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt",
+      "role": "production",
+      "beforeSha256": "cc3f087ad35d0232cf4495401f460141e991f9d7545abac3277b2aa761054eec",
+      "workingSha256": "7e5cf515685863675d97257acbb3dc55881ac402afe127fb9ea72492e51ebf37",
+      "selectedBaseLfSha256": "a07c184e1be9995617ec3179ebf7fbb4b007081d9b47070ce84fea4d2240e2d1",
+      "selectedLfSha256": "be0be61f760e3b8bbf1017b5810fa3616218770b85d09ee2ee2f4e4e8cfa1590",
+      "selection": "Only nonunique secondary event-index DDL, known28migration and version-specific preflight; original data/PK preserved"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt",
+      "role": "test",
+      "beforeSha256": "e6ac30ead4e1abcf30b3c24fa3fd3b05ee3131ed3d37e3c88fc7d67946249852",
+      "workingSha256": "ed3fb5dedc47e1e6e4f69f430efa016da9dcda29947c44b2d82cea6f929bff74",
+      "selectedBaseLfSha256": "e6ac30ead4e1abcf30b3c24fa3fd3b05ee3131ed3d37e3c88fc7d67946249852",
+      "selectedLfSha256": "ed3fb5dedc47e1e6e4f69f430efa016da9dcda29947c44b2d82cea6f929bff74",
+      "selection": "Authored actual migration/index and fresh/stale preflight scenarios only, unexecuted"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioRetentionEventIndexPreflightTest.kt",
+      "role": "test",
+      "beforeSha256": null,
+      "workingSha256": "82e178aa8bff786385853249ebecbe02a2a4ac73852fb5f04ece0ceed5b8b1f3",
+      "selectedBaseLfSha256": null,
+      "selectedLfSha256": "82e178aa8bff786385853249ebecbe02a2a4ac73852fb5f04ece0ceed5b8b1f3",
+      "selection": "Authored actual migration/index and fresh/stale preflight scenarios only, unexecuted"
+    }
+  ],
+  "patchSha256": "c46e441fb6926542b06a73189d2d4e8144e784c80a7d77035729b24395014f46",
+  "dependencies": [
+    "NATIVE_PORTABLE_OWNERSHIP_REVISED_SELECTED schema/marker hunks",
+    "NATIVE_PORTABLE_OWNERSHIP_MIGRATION_FIXTURE_SELECTED existing fixture",
+    "Runtime-owned CapturedRadioFactRetentionProofEntity nonunique index and exact owner-aware DAO/store/consumer selection; root must compose this separately before acceptance"
+  ],
+  "schemaVersionUnchanged": 29,
+  "authoredNewTests": 2,
+  "existingMigrationScenarioExtended": 1,
+  "testsExecuted": false,
+  "blockedOld29Policy": "Preserve unsupported earlier unshipped29 with unique event index; no same-version rewriting."
+}

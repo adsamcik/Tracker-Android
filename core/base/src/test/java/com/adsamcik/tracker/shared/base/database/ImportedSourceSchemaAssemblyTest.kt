@@ -62,6 +62,26 @@ class ImportedSourceSchemaAssemblyTest {
 	}
 
 	@Test
+	fun `historical radio retention DDL remains unique until v29 conversion matches fresh Room`() {
+		val migrated = migrationSchema.writableDatabase
+		val table = "captured_radio_fact_retention_proof"
+		val index = "idx_captured_radio_retention_event"
+		val historical = TableInfo.read(migrated, table)
+		requireNotNull(historical.indices).single { it.name == index }.unique shouldBe true
+
+		// The historical helper is used by 27-to-28; only 28-to-29 converts this index.
+		// The actual migration and retained rows are covered by RadioObservationChildMigrationTest.
+		migrated.execSQL("DROP INDEX $index")
+		migrated.execSQL("CREATE INDEX $index ON $table(source_kind, source_event_id)")
+		val current = TableInfo.read(room.openHelper.writableDatabase, table)
+		requireNotNull(current.indices).single { it.name == index }.unique shouldBe false
+		TableInfo.read(migrated, table) shouldBe current
+
+		createAdditionalTrackingTables(migrated)
+		TableInfo.read(migrated, table) shouldBe current
+	}
+
+	@Test
 	fun `source table creation can repeat without changing retained data`() {
 		val migrated = migrationSchema.writableDatabase
 		createImportedPressureMaintenanceTables(migrated)

@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.CellPurposeItems
 import com.adsamcik.tracker.shared.base.database.qualifyCellPurposeItems
+import com.adsamcik.tracker.shared.base.database.qualifyCellCapturePurposeItems
 import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
@@ -72,6 +73,7 @@ internal sealed interface CellCapturedWriteResult {
 	data class NoEvidence(val classification: CellCapturedFactClassification) : CellCapturedWriteResult
 	data class AdapterRejected(val reason: CellWalAdapterRejection) : CellCapturedWriteResult
 	data class Rejected(val reason: CellCapturedWriteRejection) : CellCapturedWriteResult
+	data class Groups(val results: List<CellCapturedWriteResult>) : CellCapturedWriteResult
 }
 
 /**
@@ -105,9 +107,17 @@ internal class CellCapturedFactWriter @Inject constructor(
 	internal suspend fun writeInCurrentTransaction(
 		eventId: SourceEventId,
 		checkpoint: suspend (CellCapturedWriteCheckpoint) -> Unit = {},
-	): CellCapturedWriteResult = when (
-		val result = adapter.qualify(eventId, ::classifyWithStoredState)
-	) {
+	): CellCapturedWriteResult = writeQualified(
+		adapter.qualify(eventId, ::classifyWithStoredState), checkpoint,
+	)
+
+	private suspend fun writeQualified(
+		result: CellWalAdapterResult,
+		checkpoint: suspend (CellCapturedWriteCheckpoint) -> Unit,
+	): CellCapturedWriteResult = when (result) {
+		is CellWalAdapterResult.Groups -> CellCapturedWriteResult.Groups(
+			result.results.map { writeQualified(it, checkpoint) },
+		)
 		is CellWalAdapterResult.Rejected -> CellCapturedWriteResult.AdapterRejected(result.reason)
 		is CellWalAdapterResult.Evaluated -> {
 			checkpoint(CellCapturedWriteCheckpoint.QUALIFIED)
@@ -332,26 +342,17 @@ internal class CellCapturedFactWriter @Inject constructor(
 		if (fact.payloadVersion != CELL_WAL_PAYLOAD_VERSION) return
 		val wal = database.sourceEventWalDao().getByEventId(fact.sourceEventId)
 			?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-		val carrier = when (val result = CellWalCarrierAuthenticator.authenticate(fact, wal)) {
+		val raw = when (val result = CellWalCarrierAuthenticator.authenticate(wal)) {
 			is CellWalCarrierAuthentication.Authenticated -> result.carrier
 			is CellWalCarrierAuthentication.Rejected ->
 				reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 		}
-		val callback = database.sourceBrokerDao().authorizationRevision(
-			SOURCE_KIND, fact.registrationGeneration, fact.authorizationRevision,
-		).toAuthorizationSnapshotOrNull() ?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-		val demandId = callback.authorizedMembers.singleOrNull { member ->
-			member.purpose == PURPOSE && member.persistenceEligible &&
-				member.logicalTrackingId == fact.logicalTrackingId &&
-				member.serviceRunId == fact.serviceRunId &&
-				member.manifestRevision == fact.manifestRevision &&
-				member.consentEpoch == fact.captureConsentEpoch
-		}?.demandId ?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-		val purpose = database.qualifyCellPurposeItems(
-			wal, carrier.payload, demandId,
-			fact.providerAcceptanceStartNanos, fact.providerAcceptanceEndNanos,
-		) as? CellPurposeItems.Qualified
+		val purpose = database.qualifyCellCapturePurposeItems(wal, raw.payload, fact) as? CellPurposeItems.Qualified
 			?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		val carrier = when (val result = CellWalCarrierAuthenticator.authenticate(fact, wal, purpose.indexes.toSet())) {
+			is CellWalCarrierAuthentication.Authenticated -> result.carrier
+			is CellWalCarrierAuthentication.Rejected -> reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+		}
 		val accepted = requireNotNull(carrier.childQualification).children.withIndex()
 			.filter { it.value.disposition == CellWalChildDisposition.ACCEPTED }
 		if (accepted.isEmpty() || accepted.any { it.index !in purpose.indexes } ||
@@ -709,7 +710,7 @@ internal class CellCapturedFactWriter @Inject constructor(
 		val purpose = if (row.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
 			val wal = database.sourceEventWalDao().getByEventId(row.sourceEventId)
 				?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-			val carrier = when (val authentication = CellWalCarrierAuthenticator.authenticate(row, wal)) {
+			val carrier = when (val authentication = CellWalCarrierAuthenticator.authenticate(wal)) {
 				is CellWalCarrierAuthentication.Authenticated -> authentication.carrier
 				is CellWalCarrierAuthentication.Rejected ->
 					reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
@@ -720,7 +721,10 @@ internal class CellCapturedFactWriter @Inject constructor(
 				wal, carrier.payload, demandId, registrationStart, registrationEnd,
 			) as? CellPurposeItems.Qualified
 				?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-			val accepted = carrier.childQualification?.children?.withIndex()
+			val selected = CellWalCarrierAuthenticator.authenticate(row, wal, qualified.indexes.toSet())
+				as? CellWalCarrierAuthentication.Authenticated
+				?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+			val accepted = selected.carrier.childQualification?.children?.withIndex()
 				?.filter { it.value.disposition == CellWalChildDisposition.ACCEPTED }
 				?.map { it.index }.orEmpty()
 			if (qualified.indexes.isEmpty() || accepted.any { it !in qualified.indexes } ||
@@ -754,7 +758,7 @@ internal class CellCapturedFactWriter @Inject constructor(
 			(nextAuthorization.effectiveBootId != row.clockDomainId ||
 				nextAuthorization.effectiveElapsedRealtimeNanos < authorization.effectiveElapsedRealtimeNanos)
 		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-		val authorizationEnd = minOf(
+		val authorizationEnd = purpose?.continuousUntilNanos ?: minOf(
 			registrationEnd,
 			nextAuthorization?.effectiveElapsedRealtimeNanos ?: Long.MAX_VALUE,
 		)
@@ -795,7 +799,10 @@ internal class CellCapturedFactWriter @Inject constructor(
 		}.getOrNull() ?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 		val firstDay = Instant.ofEpochMilli(earliestWall).atZone(zone).toLocalDate().toEpochDay()
 		val lastDay = Instant.ofEpochMilli(latestWall).atZone(zone).toLocalDate().toEpochDay()
-		if (firstDay != lastDay || firstDay != row.structuralEpochDay) {
+		val measuredDay = Instant.ofEpochMilli(row.observedWallTimeMs).atZone(zone).toLocalDate().toEpochDay()
+		if (if (row.payloadVersion == CELL_WAL_PAYLOAD_VERSION) measuredDay != row.structuralEpochDay else
+			firstDay != lastDay || firstDay != row.structuralEpochDay
+		) {
 			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 		}
 		val capturedSources = sources.sourceKinds(SessionManifestPurposeCode.SESSION_CAPTURE) {
@@ -939,16 +946,19 @@ internal class CellCapturedFactWriter @Inject constructor(
 		currentRetainedFromMs: Long?,
 	) {
 		val dao = database.capturedRadioFactRetentionProofDao()
-		val byEvent = dao.byEvent(SOURCE_KIND, fact.sourceEventId)
+		val conflictingEvent = dao.hasConflictingEventIdentity(
+			SOURCE_KIND, fact.sourceEventId, fact.sourceAdmissionOrdinal,
+			fact.collectedDataEpoch, fact.walIntegrityIdentity,
+		)
 		val byFact = dao.byFact(
 			SOURCE_KIND,
 			fact.writerProjectionId,
 			fact.writerProjectionVersion,
 			fact.logicalFactId,
 		)
-		if (byEvent == null && byFact == null) return
-		if (byEvent == null || byFact == null || byEvent != byFact ||
-			!byEvent.authenticatesRequest(
+		if (!conflictingEvent && byFact == null) return
+		if (conflictingEvent || byFact == null ||
+			!byFact.authenticatesRequest(
 				expectedSourceKind = SOURCE_KIND,
 				expectedWriterProjectionId = fact.writerProjectionId,
 				expectedWriterProjectionVersion = fact.writerProjectionVersion,

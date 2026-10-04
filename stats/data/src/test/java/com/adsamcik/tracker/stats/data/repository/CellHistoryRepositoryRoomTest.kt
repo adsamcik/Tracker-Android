@@ -1176,6 +1176,53 @@ class CellHistoryRepositoryRoomTest {
 	}
 
 	@Test
+	fun `historical Cell history and exact lookup use stored purpose after a denied callback beyond End`() = runTest {
+		val original = perReadingGroup(buildGroup(246, 1, setOf(0)))
+		val originalRun = original.runs.single()
+		val denied = originalRun.authorizations.first { it.authorizationRevision == 3L }
+		fun callbackWal(fact: CellCapturedFactRevisionEntity): SourceEventWalEntity {
+			val unsigned = walFor(fact).copy(logicalTrackingId = null, serviceRunId = null,
+				authorizationRevision = denied.authorizationRevision,
+				authorizationFingerprint = denied.authorizationFingerprint,
+				authorizationPurposeEligibilityMask = 0L, planAttribution = 2,
+				sourcePolicyRevision = null, captureConsentEpoch = null,
+				sessionManifestRevision = null, lifecycleLeaseGeneration = null)
+			return unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
+		}
+		val facts = originalRun.facts.map { originalFact ->
+			val received = originalFact.copy(receivedElapsedNanos = denied.effectiveElapsedRealtimeNanos + 1_000_000L)
+			val raw = callbackWal(received)
+			val unsigned = received.copy(walIntegrityIdentity = raw.integrityIdentity)
+			unsigned.copy(effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(unsigned))
+		}
+		val run = originalRun.copy(facts = facts,
+			cursors = facts.groupBy { it.logicalFactId }.values.map { cursor(it.maxBy { fact -> fact.semanticRevision }) },
+			completeness = originalRun.completeness.copy(lastAdmissionOrdinal = null, lastSourceSequence = null))
+		val group = original.copy(session = original.session.copy(finalAdmissionOrdinal = 0L), runs = listOf(run))
+		persist(listOf(group))
+		persistPerReadingChildren(group)
+		facts.distinctBy { it.sourceEventId }.forEach { fact ->
+			val raw = callbackWal(fact)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_event_wal SET logical_tracking_id = NULL, service_run_id = NULL, " +
+					"source_policy_revision = NULL, capture_consent_epoch = NULL, session_manifest_revision = NULL, " +
+					"lifecycle_lease_generation = NULL, authorization_revision = ?, authorization_fingerprint = ?, " +
+					"authorization_purpose_eligibility_mask = 0, plan_attribution = 2, integrity_identity = ? " +
+					"WHERE event_id = ?",
+				arrayOf(raw.authorizationRevision, raw.authorizationFingerprint, raw.integrityIdentity, raw.eventId))
+		}
+
+		val entry = (repository { true }.recent(1) as CellHistoryPage.Available).entries.single()
+		entry.state shouldBe CellHistoryProductState.PARTIAL
+		entry.observations shouldHaveSize 2
+		entry.observations.all { it.towers.size == 1 } shouldBe true
+		val current = run.facts.filter { it.semanticRevision == 2L }.single()
+		val lookup = RoomSourceFactLookupReader(database, UnconfinedTestDispatcher(testScheduler))
+			.lookup(cellFactLookupRequest(current))
+		(lookup as SourceFactLookupResult.Found).state.lineage.semanticRevision shouldBe current.semanticRevision
+	}
+
+	@Test
 	fun `version six Cell history rejects a parent that claims permission before it began`() = runTest {
 		val authorized = perReadingGroup(buildGroup(245, 1, setOf(0)))
 		val group = authorized.copy(runs = authorized.runs.map { run ->
@@ -1190,6 +1237,51 @@ class CellHistoryRepositoryRoomTest {
 		entry.state shouldBe CellHistoryProductState.FAILED
 		entry.causes shouldBe setOf(CellHistoryCause.WRITER_PROVENANCE_INVALID)
 		entry.observations shouldBe emptyList()
+	}
+
+	@Test
+	fun `version six Cell exact lookup rejects missing tower rows consistently with history`() = runTest {
+		val group = perReadingGroup(buildGroup(247, 1, setOf(0)))
+		persist(listOf(group))
+		persistPerReadingChildren(group)
+		val current = group.runs.single().facts.single { it.semanticRevision == 2L }
+		val reader = RoomSourceFactLookupReader(database, UnconfinedTestDispatcher(testScheduler))
+		(reader.lookup(cellFactLookupRequest(current)) as SourceFactLookupResult.Found)
+			.state.lineage.semanticRevision shouldBe current.semanticRevision
+		val before = (repository { true }.session(group.runs.single().segment.id) as CellHistoryQuery.Found).entry
+		before.observations shouldHaveSize 2
+		database.radioObservationChildDao().deleteCellSessionRevision(
+			current.writerProjectionId, current.writerProjectionVersion,
+			current.logicalFactId, current.semanticRevision) shouldBe 1
+
+		reader.lookup(cellFactLookupRequest(current)) shouldBe
+			SourceFactLookupResult.Failed(SourceProofReason.INTEGRITY_FAILURE)
+		val after = (repository { true }.session(group.runs.single().segment.id) as CellHistoryQuery.Found).entry
+		after.state shouldBe CellHistoryProductState.FAILED
+		after.causes shouldBe setOf(CellHistoryCause.WRITER_PROVENANCE_INVALID)
+		after.observations shouldBe emptyList()
+	}
+
+	@Test
+	fun `version six Cell exact lookup rejects corrupted tower rows consistently with history`() = runTest {
+		val group = perReadingGroup(buildGroup(248, 1, setOf(0)))
+		persist(listOf(group))
+		persistPerReadingChildren(group)
+		val current = group.runs.single().facts.single { it.semanticRevision == 2L }
+		val reader = RoomSourceFactLookupReader(database, UnconfinedTestDispatcher(testScheduler))
+		(reader.lookup(cellFactLookupRequest(current)) as SourceFactLookupResult.Found)
+			.state.lineage.semanticRevision shouldBe current.semanticRevision
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_captured_child SET tower_identity = ? WHERE logical_fact_id = ? " +
+				"AND semantic_revision = ?",
+			arrayOf<Any>("changed-tower", current.logicalFactId, current.semanticRevision))
+
+		reader.lookup(cellFactLookupRequest(current)) shouldBe
+			SourceFactLookupResult.Failed(SourceProofReason.INTEGRITY_FAILURE)
+		val after = (repository { true }.session(group.runs.single().segment.id) as CellHistoryQuery.Found).entry
+		after.state shouldBe CellHistoryProductState.FAILED
+		after.causes shouldBe setOf(CellHistoryCause.WRITER_PROVENANCE_INVALID)
+		after.observations shouldBe emptyList()
 	}
 
 	private fun perReadingGroup(group: Group) = group.copy(runs = group.runs.map { run ->

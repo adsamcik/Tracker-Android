@@ -169,6 +169,7 @@ object CellWalCarrierAuthenticator {
 	fun authenticate(
 		wal: SourceEventWalEntity,
 		expectedAuthority: CellWalCaptureAuthority? = null,
+		qualifiedItemIndexes: Set<Int>? = null,
 	): CellWalCarrierAuthentication {
 		if (wal.sourceKind != SourceDestinationOwnerEntity.SOURCE_CELL) {
 			return rejected(CellWalCarrierFailure.WRONG_SOURCE)
@@ -192,10 +193,10 @@ object CellWalCarrierAuthenticator {
 		if (wal.activityAutomationEpoch != null) {
 			return rejected(CellWalCarrierFailure.ACTIVITY_AUTOMATION_PRESENT)
 		}
-		if (!wal.hasCapturePurpose()) {
+		if (wal.payloadVersion == LEGACY_CELL_WAL_PAYLOAD_VERSION && !wal.hasCapturePurpose()) {
 			return rejected(CellWalCarrierFailure.NON_CAPTURE_PURPOSE)
 		}
-		if (!wal.hasCompleteCaptureBinding()) {
+		if (wal.payloadVersion == LEGACY_CELL_WAL_PAYLOAD_VERSION && !wal.hasCompleteCaptureBinding()) {
 			return rejected(CellWalCarrierFailure.INCOMPLETE_CAPTURE_BINDING)
 		}
 		if (!wal.hasCanonicalProviderEnvelope()) {
@@ -271,8 +272,11 @@ object CellWalCarrierAuthenticator {
 		if (expectedAuthority != null && !wal.matches(expectedAuthority, payload)) {
 			return rejected(CellWalCarrierFailure.CAPTURE_AUTHORITY_MISMATCH)
 		}
+		if (qualifiedItemIndexes?.any { it !in payload.observations.indices } == true ||
+			(qualifiedItemIndexes != null && wal.payloadVersion != CELL_WAL_PAYLOAD_VERSION)
+		) return rejected(CellWalCarrierFailure.CAPTURE_AUTHORITY_MISMATCH)
 		val qualification = expectedAuthority?.let { authority ->
-			qualifyChildren(wal, payload, authority)
+			qualifyChildren(wal, payload, authority, qualifiedItemIndexes)
 				?: return rejected(CellWalCarrierFailure.STRUCTURAL_DAY_MISMATCH)
 		}
 		return CellWalCarrierAuthentication.Authenticated(
@@ -292,8 +296,9 @@ object CellWalCarrierAuthenticator {
 	fun authenticate(
 		fact: CellCapturedFactRevisionEntity,
 		wal: SourceEventWalEntity,
+		qualifiedItemIndexes: Set<Int>? = null,
 	): CellWalCarrierAuthentication {
-		val authenticated = authenticate(wal, fact.captureAuthority())
+		val authenticated = authenticate(wal, fact.captureAuthority(), qualifiedItemIndexes)
 		if (authenticated !is CellWalCarrierAuthentication.Authenticated) return authenticated
 		if (!fact.hasExactWalLink(wal, authenticated.carrier)) {
 			return rejected(CellWalCarrierFailure.FACT_LINKAGE_MISMATCH)
@@ -310,7 +315,9 @@ object CellWalCarrierAuthenticator {
 		wal: SourceEventWalEntity,
 		children: List<CellCapturedChildEntity>,
 	): CellWalCarrierAuthentication {
-		val authenticated = authenticate(fact, wal)
+		val authenticated = authenticate(fact, wal,
+			children.map(CellCapturedChildEntity::itemIndex).toSet()
+				.takeIf { wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION })
 		if (authenticated !is CellWalCarrierAuthentication.Authenticated) return authenticated
 		if (wal.payloadVersion == LEGACY_CELL_WAL_PAYLOAD_VERSION && children.isEmpty()) {
 			return authenticated
@@ -357,6 +364,7 @@ object CellWalCarrierAuthenticator {
 		wal: SourceEventWalEntity,
 		payload: CellWalPayload,
 		authority: CellWalCaptureAuthority,
+		qualifiedItemIndexes: Set<Int>?,
 	): CellWalChildQualification? {
 		val carrier = AuthenticatedCellWalCarrier(
 			deliveryIdentity = requireNotNull(wal.deliveryIdentity),
@@ -369,16 +377,18 @@ object CellWalCarrierAuthenticator {
 			wallTimeUncertaintyMs = requireNotNull(wal.wallTimeUncertaintyMs),
 		)
 		return qualifyChildrenFromAuthenticatedCarrier(carrier, authority,
-			preserveProviderRounding = wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION)
+			preserveProviderRounding = wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION,
+			qualifiedItemIndexes = qualifiedItemIndexes)
 	}
 
 	private fun qualifyChildrenFromAuthenticatedCarrier(
 		carrier: AuthenticatedCellWalCarrier,
 		authority: CellWalCaptureAuthority,
 		preserveProviderRounding: Boolean,
+		qualifiedItemIndexes: Set<Int>? = null,
 	): CellWalChildQualification? {
 		if (authority.maximumObservationAgeNanos < 0L) return null
-		val children = carrier.payload.observations.map { observation ->
+		val children = carrier.payload.observations.mapIndexed { index, observation ->
 			val providerTime = requireNotNull(observation.providerTimestampNanos)
 			val disposition = when {
 				providerTime > carrier.receivedElapsedNanos ->
@@ -388,6 +398,7 @@ object CellWalCarrierAuthenticator {
 					authority.maximumObservationAgeNanos -> CellWalChildDisposition.STALE
 				!observation.hasSupportedCellProductShape() ->
 					CellWalChildDisposition.UNSUPPORTED_TECHNOLOGY
+				qualifiedItemIndexes != null && index !in qualifiedItemIndexes -> CellWalChildDisposition.STALE
 				else -> CellWalChildDisposition.ACCEPTED
 			}
 			CellWalQualifiedChild(observation, disposition)
@@ -421,7 +432,10 @@ object CellWalCarrierAuthenticator {
 			.atZone(zone).toLocalDate().toEpochDay()
 		val lastDay = Instant.ofEpochMilli(providerWallInterval.last)
 			.atZone(zone).toLocalDate().toEpochDay()
-		if (firstDay != authority.structuralEpochDay || lastDay != authority.structuralEpochDay) {
+		val measuredDay = Instant.ofEpochMilli(observedWall).atZone(zone).toLocalDate().toEpochDay()
+		if (if (preserveProviderRounding) measuredDay != authority.structuralEpochDay else
+			firstDay != authority.structuralEpochDay || lastDay != authority.structuralEpochDay
+		) {
 			return null
 		}
 		return CellWalChildQualification(
@@ -515,7 +529,8 @@ private fun SourceEventWalEntity.hasCanonicalProviderEnvelope(): Boolean =
 		deliveryUnitIndex == 0 &&
 		deliveryUnitCount == 1 &&
 		sourceSequence >= 0L &&
-		planAttribution == CAPTURED_REGISTRATION_PLAN_ORDINAL &&
+		(if (payloadVersion == CELL_WAL_PAYLOAD_VERSION) hasCanonicalPerReadingBinding() else
+			planAttribution == CAPTURED_REGISTRATION_PLAN_ORDINAL) &&
 		observedIntervalStartNanos?.let { it > 0L } == true &&
 		observedElapsedNanos >= requireNotNull(observedIntervalStartNanos) &&
 		receivedElapsedNanos >= observedElapsedNanos &&
@@ -532,22 +547,38 @@ private fun SourceEventWalEntity.matches(
 	authority: CellWalCaptureAuthority,
 	payload: CellWalPayload,
 ): Boolean =
-	logicalTrackingId == authority.logicalTrackingId &&
-		serviceRunId == authority.serviceRunId &&
-		sourceInstanceId == authority.sourceInstanceId &&
-		registrationGeneration == authority.registrationGeneration &&
+	(payloadVersion == CELL_WAL_PAYLOAD_VERSION || (
+		logicalTrackingId == authority.logicalTrackingId && serviceRunId == authority.serviceRunId &&
 		configRevision == authority.configurationRevision &&
-		physicalConfigurationFingerprint == authority.physicalConfigurationFingerprint &&
 		authorizationRevision == authority.authorizationRevision &&
 		authorizationFingerprint == authority.authorizationFingerprint &&
 		authorizationPurposeEligibilityMask == authority.purposeEligibilityMask &&
 		sourcePolicyRevision == authority.sourcePolicyRevision &&
 		captureConsentEpoch == authority.captureConsentEpoch &&
 		sessionManifestRevision == authority.manifestRevision &&
-		lifecycleLeaseGeneration == authority.lifecycleLeaseGeneration &&
+		lifecycleLeaseGeneration == authority.lifecycleLeaseGeneration)) &&
+		sourceInstanceId == authority.sourceInstanceId &&
+		registrationGeneration == authority.registrationGeneration &&
+		physicalConfigurationFingerprint == authority.physicalConfigurationFingerprint &&
 		capturedCollectedDataEpoch == authority.collectedDataEpoch &&
 		clockDomainId == authority.clockDomainId &&
-		payload.observationZoneId == authority.zoneId
+		(payloadVersion == CELL_WAL_PAYLOAD_VERSION || payload.observationZoneId == authority.zoneId)
+
+/** v6 records the real callback, including a denied callback after historical capture ended. */
+private fun SourceEventWalEntity.hasCanonicalPerReadingBinding(): Boolean {
+	if (sourceInstanceId.isBlank() || registrationGeneration <= 0L ||
+		configRevision?.let { it > 0L } != true || physicalConfigurationFingerprint.isNullOrBlank() ||
+		authorizationRevision?.let { it > 0L } != true ||
+		authorizationFingerprint?.let(LOWERCASE_SHA_256::matches) != true ||
+		authorizationPurposeEligibilityMask and SourceBrokerPurpose.ALL_MASK != authorizationPurposeEligibilityMask ||
+		capturedCollectedDataEpoch < 0L || clockDomainId.isBlank()
+	) return false
+	return if (hasCapturePurpose()) hasCompleteCaptureBinding() &&
+		planAttribution == CAPTURED_REGISTRATION_PLAN_ORDINAL else
+		listOf(logicalTrackingId, serviceRunId, sourcePolicyRevision, captureConsentEpoch,
+			sessionManifestRevision, lifecycleLeaseGeneration).all { it == null } &&
+			planAttribution == RECEIVE_TIME_ONLY_PLAN_ORDINAL
+}
 
 private fun CellWalCaptureAuthority.contains(providerTimeNanos: Long): Boolean =
 	providerTimeNanos in providerAcceptance &&
@@ -616,22 +647,19 @@ private fun CellCapturedFactRevisionEntity.hasExactWalLink(
 		deliveryUnitIndex == wal.deliveryUnitIndex &&
 		deliveryUnitCount == wal.deliveryUnitCount &&
 		sourceSequence == wal.sourceSequence &&
-		logicalTrackingId == wal.logicalTrackingId &&
-		serviceRunId == wal.serviceRunId &&
+		(payloadVersion == CELL_WAL_PAYLOAD_VERSION || (
+			logicalTrackingId == wal.logicalTrackingId && serviceRunId == wal.serviceRunId &&
+			configurationRevision == wal.configRevision && authorizationRevision == wal.authorizationRevision &&
+			authorizationFingerprint == wal.authorizationFingerprint &&
+			purposeEligibilityMask == wal.authorizationPurposeEligibilityMask &&
+			sourcePolicyRevision == wal.sourcePolicyRevision && captureConsentEpoch == wal.captureConsentEpoch &&
+			manifestRevision == wal.sessionManifestRevision && lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration)) &&
 		sourceInstanceId == wal.sourceInstanceId &&
 		registrationGeneration == wal.registrationGeneration &&
-		configurationRevision == wal.configRevision &&
 		physicalConfigurationFingerprint == wal.physicalConfigurationFingerprint &&
-		authorizationRevision == wal.authorizationRevision &&
-		authorizationFingerprint == wal.authorizationFingerprint &&
-		purposeEligibilityMask == wal.authorizationPurposeEligibilityMask &&
-		sourcePolicyRevision == wal.sourcePolicyRevision &&
-		captureConsentEpoch == wal.captureConsentEpoch &&
-		manifestRevision == wal.sessionManifestRevision &&
-		lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration &&
 		collectedDataEpoch == wal.capturedCollectedDataEpoch &&
 		clockDomainId == wal.clockDomainId &&
-		storedZoneId == carrier.payload.observationZoneId &&
+		(payloadVersion == CELL_WAL_PAYLOAD_VERSION || storedZoneId == carrier.payload.observationZoneId) &&
 		observedIntervalStartNanos == wal.observedIntervalStartNanos &&
 		observedElapsedNanos == wal.observedElapsedNanos &&
 		receivedElapsedNanos == wal.receivedElapsedNanos &&
@@ -641,7 +669,7 @@ private fun CellCapturedFactRevisionEntity.hasExactWalLink(
 		qualityFlags == wal.qualityFlags &&
 		qualityConfidence == wal.qualityConfidence &&
 		planAttribution == CellCapturedFactRevisionEntity.PLAN_ATTRIBUTION_CAPTURED_REGISTRATION &&
-		wal.planAttribution == CAPTURED_REGISTRATION_PLAN_ORDINAL
+		(payloadVersion == CELL_WAL_PAYLOAD_VERSION || wal.planAttribution == CAPTURED_REGISTRATION_PLAN_ORDINAL)
 
 @Suppress("ComplexCondition", "LongMethod")
 private fun CellCapturedFactRevisionEntity.hasExactPayloadSemantics(
@@ -744,11 +772,12 @@ private val CELL_WAL_OBSERVATION_ORDER = compareBy<CellWalPayloadObservation>(
 	CellWalPayloadObservation::signalLevelDbm,
 	CellWalPayloadObservation::providerTimestampNanos,
 )
-internal fun CellWalPayloadObservation.hasSupportedCellProductShape(): Boolean =
+fun CellWalPayloadObservation.hasSupportedCellProductShape(): Boolean =
 	radioType in SUPPORTED_CELL_RADIO_TYPES
 
 private val SUPPORTED_CELL_RADIO_TYPES = setOf("GSM", "CDMA", "WCDMA", "TDSCDMA", "LTE", "NR")
 private val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
 private const val CAPTURED_REGISTRATION_PLAN_ORDINAL = 0
+private const val RECEIVE_TIME_ONLY_PLAN_ORDINAL = 2
 private const val CELL_PROVIDER_WALL_UNCERTAINTY_MS = 1L
 private const val NANOS_PER_MILLISECOND = 1_000_000L

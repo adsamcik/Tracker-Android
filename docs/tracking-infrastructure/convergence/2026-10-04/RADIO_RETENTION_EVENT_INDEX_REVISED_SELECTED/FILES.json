@@ -1,0 +1,85 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "baseHead": "07d5c664918affa8cc843fd243b38032bb9c782c",
+  "parentHeadAtAuthorship": "640a27da4ff8edeb16311d2461ef35dd4f6d076c",
+  "paths": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AdditionalTrackingSchema.kt",
+      "role": "production",
+      "beforeSha256": "0acb3ab37b7aac662763046046b1cd09452f188070942e7ad27e5a0d02683572",
+      "workingSha256": "0acb3ab37b7aac662763046046b1cd09452f188070942e7ad27e5a0d02683572",
+      "selectedBaseLfSha256": "0acb3ab37b7aac662763046046b1cd09452f188070942e7ad27e5a0d02683572",
+      "selectedLfSha256": "0acb3ab37b7aac662763046046b1cd09452f188070942e7ad27e5a0d02683572",
+      "selection": "Historical28 UNIQUE DDL retained verbatim; no owned delta relative to original selected BASE. Actualworking S1 repair reverses rejected29 helper change.",
+      "ownedDeltaFromSelectedBase": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt",
+      "role": "production",
+      "beforeSha256": "9dc9708b2fa78ee66f6c6d278fe6c14e9affc808908c1bc5e06810c91b5c6250",
+      "workingSha256": "4edc1d756190d8430681467189015d6a8bb0af91b713e266f5a0b06ebaaf51f9",
+      "selectedBaseLfSha256": "9dc9708b2fa78ee66f6c6d278fe6c14e9affc808908c1bc5e06810c91b5c6250",
+      "selectedLfSha256": "4edc1d756190d8430681467189015d6a8bb0af91b713e266f5a0b06ebaaf51f9",
+      "selection": "Only nonunique secondary event-index DDL, known28migration and version-specific preflight; original data/PK preserved",
+      "ownedDeltaFromSelectedBase": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt",
+      "role": "production",
+      "beforeSha256": "cc3f087ad35d0232cf4495401f460141e991f9d7545abac3277b2aa761054eec",
+      "workingSha256": "7e5cf515685863675d97257acbb3dc55881ac402afe127fb9ea72492e51ebf37",
+      "selectedBaseLfSha256": "a07c184e1be9995617ec3179ebf7fbb4b007081d9b47070ce84fea4d2240e2d1",
+      "selectedLfSha256": "be0be61f760e3b8bbf1017b5810fa3616218770b85d09ee2ee2f4e4e8cfa1590",
+      "selection": "Only nonunique secondary event-index DDL, known28migration and version-specific preflight; original data/PK preserved",
+      "ownedDeltaFromSelectedBase": true
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt",
+      "role": "test",
+      "beforeSha256": "e6ac30ead4e1abcf30b3c24fa3fd3b05ee3131ed3d37e3c88fc7d67946249852",
+      "workingSha256": "ed3fb5dedc47e1e6e4f69f430efa016da9dcda29947c44b2d82cea6f929bff74",
+      "selectedBaseLfSha256": "e6ac30ead4e1abcf30b3c24fa3fd3b05ee3131ed3d37e3c88fc7d67946249852",
+      "selectedLfSha256": "ed3fb5dedc47e1e6e4f69f430efa016da9dcda29947c44b2d82cea6f929bff74",
+      "selection": "Authored actual migration/index and fresh/stale preflight scenarios only, unexecuted",
+      "ownedDeltaFromSelectedBase": true
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioRetentionEventIndexPreflightTest.kt",
+      "role": "test",
+      "beforeSha256": null,
+      "workingSha256": "82e178aa8bff786385853249ebecbe02a2a4ac73852fb5f04ece0ceed5b8b1f3",
+      "selectedBaseLfSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selectedLfSha256": "82e178aa8bff786385853249ebecbe02a2a4ac73852fb5f04ece0ceed5b8b1f3",
+      "selection": "Authored actual migration/index and fresh/stale preflight scenarios only, unexecuted",
+      "ownedDeltaFromSelectedBase": true
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ImportedSourceSchemaAssemblyTest.kt",
+      "role": "test",
+      "beforeSha256": "fc704e92a839c2fb5124e9a06b29d8e076305894af482c22c8fbfd8159aa9d4a",
+      "workingSha256": "77effe280d3348e9108ec99a3b23038b67c9274e8a33d04cb054fe36c1db98bd",
+      "selectedBaseLfSha256": "fc704e92a839c2fb5124e9a06b29d8e076305894af482c22c8fbfd8159aa9d4a",
+      "selectedLfSha256": "77effe280d3348e9108ec99a3b23038b67c9274e8a33d04cb054fe36c1db98bd",
+      "selection": "One dedicated affected-table full TableInfo parity case: historical helper UNIQUE, explicit expected29 conversion, current freshRoom NONUNIQUE, repeat helper preserves current index. Actual migration conversion/row survival remain in separate real migration case.",
+      "ownedDeltaFromSelectedBase": true
+    }
+  ],
+  "patchSha256": "ec58d5a3e426236e0e27d1489ffc3b2f8db52a80ee5384aa03fca863371d1b46",
+  "dependencies": [
+    "NATIVE_PORTABLE_OWNERSHIP_REVISED_SELECTED schema/marker hunks",
+    "NATIVE_PORTABLE_OWNERSHIP_MIGRATION_FIXTURE_SELECTED existing fixture",
+    "Runtime-owned CapturedRadioFactRetentionProofEntity nonunique index and exact owner-aware DAO/store/consumer selection; root must compose this separately before acceptance"
+  ],
+  "schemaVersionUnchanged": 29,
+  "authoredNewTests": 3,
+  "existingMigrationScenarioExtended": 1,
+  "testsExecuted": false,
+  "blockedOld29Policy": "Preserve unsupported earlier unshipped29 with unique event index; no same-version rewriting.",
+  "repairPatchSha256": "fd225f4cddd7d96731a543e49b78bc8708a610212a23af4adde2a162e22e91cb",
+  "rejectedPriorFreeze": "../RADIO_RETENTION_EVENT_INDEX_SELECTED/FILES.json",
+  "rejectedPriorManifestSha256": "4c6af5a9b886e1c4563f4d462613a836544c6d7161ddd179577a34a7a701cb02",
+  "changedSelectedPaths": 5,
+  "historicalHelperCallers": "Production MIGRATION_27_28 only; ImportedSourceSchemaAssemblyTest onCreate and repeat case. No fresh Room29 production caller.",
+  "fixtureBoundary": "Dedicated additive full affected-table parity is authored; it does not run the full28\u219229 migration. RadioObservationChildMigrationTest separately runs the actual28\u219229 conversion with retained rows. All cases unexecuted."
+}

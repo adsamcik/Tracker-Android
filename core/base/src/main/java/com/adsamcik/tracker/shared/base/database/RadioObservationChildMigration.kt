@@ -33,6 +33,10 @@ val MIGRATION_28_29: Migration = object : Migration(28, 29) {
 		createRadioObservationChildTables(db)
 		copyKnownLegacyRadioRows(db)
 		installLegacyRadioChildMirrors(db)
+		// One callback may contain several independently qualified original fact groups.
+		db.execSQL("DROP INDEX IF EXISTS idx_captured_radio_retention_event")
+		db.execSQL("CREATE INDEX idx_captured_radio_retention_event " +
+			"ON captured_radio_fact_retention_proof(source_kind, source_event_id)")
 		createNativePortableOwnershipTable(db)
 		rebuildNativePortableOwnership(db)
 		installNativePortableOwnershipDeletionTriggers(db)

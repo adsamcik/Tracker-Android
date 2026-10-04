@@ -323,6 +323,13 @@ remain held. No test or gate has run.
   rows preserve descriptive dual origins for session-export reuse. None ran.
 
 ## Remaining in these slices
+- [x] Select historical Cell per-purpose groups and exact shared radio receipts,
+  including policy-scoped erase, bounded saved-child integrity in all readers and
+  the corrected 28-to-29 event index conversion. Twenty-six source/test paths,
+  twenty-two new scenarios and one extended migration scenario have fresh static
+  composition review in `../2026-10-04/CELL_RUNTIME_COMPOSED_SELECTION/SOURCE_REVIEW_COMPOSITION.md`.
+  They remain unexecuted. Cell empty-purpose settlement, later-manifest proofs,
+  historical Wi-Fi, future-dated siblings, files and all 25 full chains stay open.
 - [x] Select the exact Steps V1/V2 export prerequisite: nine paths, twenty-seven
   authored unexecuted Room cases and three existing fake companions. All explicitly
   selected native groups must be exportable; a valid sibling cannot hide missing,

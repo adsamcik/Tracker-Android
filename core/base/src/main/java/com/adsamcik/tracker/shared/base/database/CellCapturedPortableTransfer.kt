@@ -4,6 +4,7 @@ package com.adsamcik.tracker.shared.base.database
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -1012,7 +1013,6 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 	if (retainedFloor != null) {
 		val lastAdmissionOrdinal = minOf(
 			lane.contiguousAdmissionOrdinal,
-			session.finalAdmissionOrdinal ?: Long.MAX_VALUE,
 			lane.captureAdmissionCutoffOrdinal ?: Long.MAX_VALUE,
 		)
 		if (lastAdmissionOrdinal >= lane.activationOrdinal) {
@@ -1053,14 +1053,7 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 		lineage.revisions.last().sourceEventId
 	}.mapValues { (_, lineages) ->
 		lineages.minOf { lineage ->
-			lineage.revisions.minOf { revision ->
-				requireNotNull(CanonicalRetentionBounds.cellCoverage(
-					walObservedWallTimeMs = revision.observedWallTimeMs,
-					wallTimeUncertaintyMs = revision.wallTimeUncertaintyMs,
-					walObservedElapsedRealtimeNanos = revision.observedElapsedNanos,
-					coverageStartElapsedRealtimeNanos = revision.coverageIntervalStartNanos,
-				))
-			}
+			audit.canonicalRetentionLowerBoundById.getValue(lineage.logicalFactId)
 		}
 	}
 	val retainedWal = selectedWal.filter { carrier ->
@@ -1110,7 +1103,14 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 		cellCompleteness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull(),
 		selectedWal.maxOfOrNull(CellCapturedWalCarrier::admissionOrdinal),
 	).maxOrNull()
-	if (targetOrdinal != null && session.finalAdmissionOrdinal?.let { targetOrdinal > it } == true) {
+	val legacyTarget = listOfNotNull(
+		selectedLineages.filter { it.revisions.last().payloadVersion != CELL_WAL_PAYLOAD_VERSION }
+			.maxOfOrNull { it.revisions.last().sourceAdmissionOrdinal },
+		selectedWal.filter { it.payloadVersion != CELL_WAL_PAYLOAD_VERSION }
+			.maxOfOrNull(CellCapturedWalCarrier::admissionOrdinal),
+		cellCompleteness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull(),
+	).maxOrNull()
+	if (legacyTarget != null && session.finalAdmissionOrdinal?.let { legacyTarget > it } == true) {
 		return result(unverifiableWriter())
 	}
 	if (targetOrdinal != null && (targetOrdinal < lane.activationOrdinal ||
@@ -1124,7 +1124,8 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 		cellCompleteness.none { row ->
 			fact.serviceRunId == row.serviceRunId && fact.sourceInstanceId == row.sourceInstanceId &&
 				fact.registrationGeneration == row.registrationGeneration &&
-				row.lastAdmissionOrdinal?.let { it >= fact.sourceAdmissionOrdinal } == true
+				(fact.payloadVersion == CELL_WAL_PAYLOAD_VERSION ||
+					row.lastAdmissionOrdinal?.let { it >= fact.sourceAdmissionOrdinal } == true)
 		}
 	}) return result(unverifiableWriter())
 	val failures = if (targetOrdinal == null || lane.activationOrdinal > targetOrdinal) emptyList() else {
@@ -1146,14 +1147,7 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 	if (retainedWal.any { it.eventId !in factEventIds }) return result(unverifiableWriter())
 
 	val timeRetainedLineages = selectedLineages.filter { lineage ->
-		retainedFloor == null || lineage.revisions.minOf { revision ->
-			requireNotNull(CanonicalRetentionBounds.cellCoverage(
-				walObservedWallTimeMs = revision.observedWallTimeMs,
-				wallTimeUncertaintyMs = revision.wallTimeUncertaintyMs,
-				walObservedElapsedRealtimeNanos = revision.observedElapsedNanos,
-				coverageStartElapsedRealtimeNanos = revision.coverageIntervalStartNanos,
-			))
-		} >= retainedFloor
+		retainedFloor == null || audit.canonicalRetentionLowerBoundById.getValue(lineage.logicalFactId) >= retainedFloor
 	}
 	val timeRetainedIds = timeRetainedLineages.mapTo(mutableSetOf(), CellCapturedLineage::logicalFactId)
 	// Never export a coverage-only correction whose authenticated aggregate owner was lost at the
@@ -1183,7 +1177,8 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 			val fact = lineage.revisions.last()
 			val aggregate = audit.aggregateById[fact.logicalFactId]
 				?: throw IllegalArgumentException("Authenticated Cell aggregate missing")
-			fact.toPortableObservation(aggregate)
+			fact.toPortableObservation(aggregate,
+				audit.canonicalRetentionLowerBoundById.getValue(lineage.logicalFactId))
 		}.sortedWith(PORTABLE_CELL_OBSERVATION_ORDER)
 		val availability = when {
 			!captured -> PortableCellRunAvailability.NOT_CAPTURED
@@ -1230,14 +1225,8 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 
 private fun CellCapturedFactRevisionEntity.toPortableObservation(
 	aggregate: CellHistoricalIdentityFreeAggregate,
+	coverageStart: Long,
 ): PortableCapturedCellObservationV1 {
-	val coverageStart = Math.subtractExact(
-		Math.subtractExact(
-			observedWallTimeMs,
-			Math.subtractExact(observedElapsedNanos, coverageIntervalStartNanos) / NANOS_PER_MILLISECOND,
-		),
-		wallTimeUncertaintyMs,
-	)
 	val latest = Math.addExact(observedWallTimeMs, wallTimeUncertaintyMs)
 	val payload = PortableCellObservationPayload(
 		identity = PortableCellOpaqueIdentity.derive(PortableCellIdentityKind.OBSERVATION, logicalFactId),

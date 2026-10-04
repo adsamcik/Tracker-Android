@@ -1,0 +1,39 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "predecessorBaseHead": "f3b026e4d1fa96e38c0bfd912abdc7c956feb0bf",
+  "paths": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt",
+      "baseSha256": "210dcfdcaef63446513339630da9f8f0a5f2e209813c38cf169d3898c72a777b",
+      "beforeSha256": "f00868bbd77ce00a53bef127b5f7fee86581051705db3734c441d19b6c507732",
+      "actualSha256": "d14fcbece2cc685f576721c5afe544b7984238586027e7f3711ec6e762b995ed",
+      "selectedSha256": "047d3ffac17cdaed23fe2b6464222ddc08c1ef8da1b5e4a284f4614bd8fe66ba",
+      "selection": "only this narrow R8 delta over the frozen historical Cell selected predecessor"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+      "baseSha256": "98ee067959e8482c4134eb337b7f5d9d5fe9397cdfb2866621304626ace64af8",
+      "beforeSha256": "8c9d3c414186d3f3f2fb8e7feacf048e5bea196c2bf7f55dcc1054d3f29a6bd0",
+      "actualSha256": "81633d71468ac00597402e96da82f19263bf49aeb3037c2b633f255dd0809ebe",
+      "selectedSha256": "a43972d50b3bbb3a374029bac4e476c5656b0186471c8073b8346c1a62f5d4d6",
+      "selection": "only this narrow R8 delta over the frozen historical Cell selected predecessor"
+    }
+  ],
+  "dependencies": [
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-04/CELL_HISTORICAL_CAPTURE_SELECTED/FILES.json",
+      "sha256": "4454dcbd97ab7bd55b874a936cdae28c1333b0234753b62516629b4bf37f322b"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_RETENTION_EVENT_INDEX_REVISED_SELECTED/FILES.json",
+      "sha256": "75b6bdff34ad51aebdf02c820ec58c1a4b32af3a0af8797a20d47e11a07f4056"
+    }
+  ],
+  "patchSha256": "1d5983115b69a58d9abe4603e4e70aac62e9fe15fc42e603eb43f0cf1b8e9243",
+  "authoredTests": [
+    "source erase accepts two historical Cell policies inside one run and fences their replay together",
+    "proof only same run Cell policy and consent siblings erase under one original run fence"
+  ],
+  "execution": "No compilation, tests, gates, schema checks, devices, providers, Git or integration were executed."
+}

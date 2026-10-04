@@ -229,8 +229,8 @@ class CellSessionFactProjectionLane private constructor(
 								return@withTransaction CellProjectionPass.TerminalBlocked(failure, through)
 							}
 							val wal = (authenticated as CellPreflightAuthentication.Authenticated).wal
-							if (wal.authorizationPurposeEligibilityMask and
-								SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
+							if (wal.payloadVersion != com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION &&
+								wal.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
 							) {
 								// CONTROL and ambient/opportunistic observations are not captured history.
 								database.sourceProjectionStateDao().deleteFailure(
@@ -258,7 +258,7 @@ class CellSessionFactProjectionLane private constructor(
 							advanceCursor(lane, through)
 							return@withTransaction CellProjectionPass.TerminalBlocked(failure, through)
 						}
-						if (result.factInserted) inserted++
+						inserted += result.factsInserted
 						validated++
 						database.sourceProjectionStateDao().deleteFailure(
 							WRITER_ID,
@@ -395,8 +395,8 @@ class CellSessionFactProjectionLane private constructor(
 
 	private fun SourceEventWalEntity.isLifecycleRejected(
 		state: SourceEvidenceState,
-	): Boolean = authorizationPurposeEligibilityMask and
-		SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
+	): Boolean = (payloadVersion != com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION &&
+		authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L) ||
 		capturedCollectedDataEpoch != state.collectedDataEpoch ||
 		state.retainedFromMs?.let { retainedFrom ->
 			acquiredAtMs < retainedFrom ||
@@ -404,6 +404,8 @@ class CellSessionFactProjectionLane private constructor(
 		} == true
 
 	private suspend fun SourceEventWalEntity.isDeletedScope(): Boolean {
+		// v6 can contain independently valid historical groups beside a deleted callback scope.
+		if (payloadVersion == com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION) return false
 		val logical = logicalTrackingId ?: return false
 		val run = serviceRunId ?: return false
 		return database.sourceDeletionFenceDao().contains(
@@ -513,36 +515,54 @@ class CellSessionFactProjectionLane private constructor(
 }
 
 private fun CellWalAdapterResult.toProjectionResult(): CellCandidateProjectionResult = when (this) {
+	is CellWalAdapterResult.Groups -> results.map {
+		if (it is CellWalAdapterResult.Rejected && it.reason.isSettledCaptureGroup())
+			CellCandidateProjectionResult(0, null) else it.toProjectionResult()
+	}.combined()
 	is CellWalAdapterResult.Evaluated -> CellCandidateProjectionResult(
-		factInserted = false,
+		factsInserted = 0,
 		failureCode = classification.failureCodeOrNull(),
 	)
 	is CellWalAdapterResult.Rejected -> CellCandidateProjectionResult(
-		factInserted = false,
+		factsInserted = 0,
 		failureCode = "CELL_ADAPTER_${reason.name}",
 	)
 }
 
 private fun CellCapturedWriteResult.toProjectionResult(): CellCandidateProjectionResult = when (this) {
-	is CellCapturedWriteResult.Applied -> CellCandidateProjectionResult(true, null)
-	is CellCapturedWriteResult.Unchanged -> CellCandidateProjectionResult(false, null)
+	is CellCapturedWriteResult.Groups -> results.map {
+		if (it is CellCapturedWriteResult.AdapterRejected && it.reason.isSettledCaptureGroup())
+			CellCandidateProjectionResult(0, null) else it.toProjectionResult()
+	}.combined()
+	is CellCapturedWriteResult.Applied -> CellCandidateProjectionResult(1, null)
+	is CellCapturedWriteResult.Unchanged -> CellCandidateProjectionResult(0, null)
 	is CellCapturedWriteResult.AdapterRejected -> CellCandidateProjectionResult(
-		false,
+		0,
 		"CELL_ADAPTER_${reason.name}",
 	)
 	is CellCapturedWriteResult.Rejected -> CellCandidateProjectionResult(
-		false,
+		0,
 		"CELL_WRITE_${reason.name}",
 	)
 	is CellCapturedWriteResult.NoEvidence -> CellCandidateProjectionResult(
-		false,
+		0,
 		classification.failureCodeOrNull(),
 	)
 }
 
 private data class CellCandidateProjectionResult(
-	val factInserted: Boolean,
+	val factsInserted: Int,
 	val failureCode: String?,
+)
+
+private fun List<CellCandidateProjectionResult>.combined() = CellCandidateProjectionResult(
+	factsInserted = sumOf { it.factsInserted }, failureCode = firstNotNullOfOrNull { it.failureCode },
+)
+
+private fun CellWalAdapterRejection.isSettledCaptureGroup(): Boolean = this in setOf(
+	CellWalAdapterRejection.DELETED_SCOPE,
+	CellWalAdapterRejection.SCOPE_DELETION_AUTHORITY_MISMATCH,
+	CellWalAdapterRejection.BEFORE_RETENTION_FLOOR,
 )
 
 private sealed interface CellPreflightAuthentication {

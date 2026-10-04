@@ -2,6 +2,9 @@ package com.adsamcik.tracker.stats.data.repository
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.CellPurposeItems
+import com.adsamcik.tracker.shared.base.database.qualifyCellCapturePurposeItems
+import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.PressureFactLineageProof
 import com.adsamcik.tracker.shared.base.database.PressureFactProofAuthenticator
 import com.adsamcik.tracker.shared.base.database.PressureFactProofExpectation
@@ -699,7 +702,11 @@ internal class RoomSourceFactLookupReader(
 		) ?: return SourceFactLookupResult.Unavailable(
 			SourceProofReason.IMMUTABLE_AUTHORITY_MISSING,
 		)
-		val walAuthentication = WifiWalCarrierAuthenticator.authenticate(fact, wal)
+		val children = database.radioObservationChildDao().wifiSessionChildren(
+			fact.writerProjectionId, fact.writerProjectionVersion,
+			fact.logicalFactId, fact.semanticRevision, MAX_WIFI_CHILDREN + 1,
+		)
+		val walAuthentication = WifiWalCarrierAuthenticator.authenticate(fact, wal, children)
 			as? WifiWalCarrierAuthentication.Authenticated
 			?: return SourceFactLookupResult.Failed(SourceProofReason.INTEGRITY_FAILURE)
 		var aggregateOwnerCursor: WifiCapturedFactCursorEntity? = null
@@ -815,8 +822,7 @@ internal class RoomSourceFactLookupReader(
 			lineage.sourceAdmissionOrdinal,
 			SourceProofReason.CURSOR_BEHIND,
 		)
-		val walAuthentication = CellWalCarrierAuthenticator.authenticate(fact, wal)
-			as? com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated
+		val walAuthentication = authenticateCellFactCarrier(fact, wal)
 			?: return SourceFactLookupResult.Failed(SourceProofReason.INTEGRITY_FAILURE)
 		var aggregateOwnerCursor:
 			com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity? = null
@@ -851,8 +857,7 @@ internal class RoomSourceFactLookupReader(
 					?: return SourceFactLookupResult.Unavailable(
 						SourceProofReason.IMMUTABLE_AUTHORITY_MISSING,
 					)
-				aggregateWalAuthentication = CellWalCarrierAuthenticator.authenticate(owner, ownerWal)
-					as? com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated
+				aggregateWalAuthentication = authenticateCellFactCarrier(owner, ownerWal)
 					?: return SourceFactLookupResult.Failed(SourceProofReason.INTEGRITY_FAILURE)
 				aggregateOwnerCursor = ownerCursor
 				owner
@@ -965,6 +970,29 @@ internal class RoomSourceFactLookupReader(
 		}.getOrNull()
 	}
 
+	private suspend fun authenticateCellFactCarrier(
+		fact: CellCapturedFactRevisionEntity,
+		wal: com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity,
+	): com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated? {
+		if (wal.payloadVersion != CELL_WAL_PAYLOAD_VERSION) {
+			return CellWalCarrierAuthenticator.authenticate(fact, wal)
+				as? com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated
+		}
+		val raw = CellWalCarrierAuthenticator.authenticate(wal)
+			as? com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated ?: return null
+		val children = database.radioObservationChildDao().cellSessionChildren(
+			fact.writerProjectionId, fact.writerProjectionVersion,
+			fact.logicalFactId, fact.semanticRevision, raw.carrier.payload.observations.size + 1,
+		)
+		val stored = CellWalCarrierAuthenticator.authenticate(fact, wal, children)
+			as? com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated ?: return null
+		val purpose = database.qualifyCellCapturePurposeItems(wal, raw.carrier.payload, fact)
+			as? CellPurposeItems.Qualified ?: return null
+		val exact = CellWalCarrierAuthenticator.authenticate(fact, wal, purpose.indexes.toSet())
+			as? com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated ?: return null
+		return stored.takeIf { it.carrier.childQualification == exact.carrier.childQualification }
+	}
+
 	private suspend fun capturedRadioRetentionLookup(
 		request: SourceFactLookupRequest,
 		retainedFromMs: Long?,
@@ -979,13 +1007,12 @@ internal class RoomSourceFactLookupReader(
 			writer.projectionId,
 			writer.projectionVersion,
 			logicalFactId,
-		)
-		val byEvent = dao.byEvent(
-			request.key.source.stableCode(),
-			request.key.evidenceIdentity.value,
-		)
-		if (byFact == null && byEvent == null) return null
-		if (byFact == null || byEvent == null || byFact != byEvent) {
+		) ?: return null
+		if (dao.hasConflictingEventIdentity(
+			request.key.source.stableCode(), request.key.evidenceIdentity.value,
+			lineage.sourceAdmissionOrdinal, request.key.collectedDataEpoch,
+			byFact.walIntegrityIdentity,
+		)) {
 			return SourceFactLookupResult.Failed(SourceProofReason.INTEGRITY_FAILURE)
 		}
 		val scope = request.key.scope as SourceProofScope.Run
@@ -1236,6 +1263,7 @@ internal class RoomSourceFactLookupReader(
 	}
 
 	private companion object {
+		const val MAX_WIFI_CHILDREN = 64
 		const val MAX_ACTIVITY_REVISIONS = 4_096
 		const val MAX_ACTIVITY_CHILD_ROWS = 4_096
 		const val ACTIVITY_WAL_ID_BATCH_SIZE = 400

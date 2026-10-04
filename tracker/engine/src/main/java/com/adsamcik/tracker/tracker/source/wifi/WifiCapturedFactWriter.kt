@@ -479,16 +479,19 @@ internal class WifiCapturedFactWriter @Inject constructor(
 		currentRetainedFromMs: Long?,
 	) {
 		val dao = database.capturedRadioFactRetentionProofDao()
-		val byEvent = dao.byEvent(SOURCE_KIND, fact.sourceEventId)
+		val conflictingEvent = dao.hasConflictingEventIdentity(
+			SOURCE_KIND, fact.sourceEventId, fact.sourceAdmissionOrdinal,
+			fact.collectedDataEpoch, fact.walIntegrityIdentity,
+		)
 		val byFact = dao.byFact(
 			SOURCE_KIND,
 			fact.writerProjectionId,
 			fact.writerProjectionVersion,
 			fact.logicalFactId,
 		)
-		if (byEvent == null && byFact == null) return
-		if (byEvent == null || byFact == null || byEvent != byFact ||
-			!byEvent.authenticatesRequest(
+		if (!conflictingEvent && byFact == null) return
+		if (conflictingEvent || byFact == null ||
+			!byFact.authenticatesRequest(
 				expectedSourceKind = SOURCE_KIND,
 				expectedWriterProjectionId = fact.writerProjectionId,
 				expectedWriterProjectionVersion = fact.writerProjectionVersion,

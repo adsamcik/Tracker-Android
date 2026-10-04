@@ -1,0 +1,199 @@
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt
+@@ -33,6 +33,10 @@
+ 		createRadioObservationChildTables(db)
+ 		copyKnownLegacyRadioRows(db)
+ 		installLegacyRadioChildMirrors(db)
++		// One callback may contain several independently qualified original fact groups.
++		db.execSQL("DROP INDEX IF EXISTS idx_captured_radio_retention_event")
++		db.execSQL("CREATE INDEX idx_captured_radio_retention_event " +
++			"ON captured_radio_fact_retention_proof(source_kind, source_event_id)")
+ 		createNativePortableOwnershipTable(db)
+ 		rebuildNativePortableOwnership(db)
+ 		installNativePortableOwnershipDeletionTriggers(db)
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt
+@@ -147,6 +147,11 @@
+ 					ActiveDatabaseBlockReason.INVALID_FINAL_V28_MARKER,
+ 				)
+ 			FinalV28MarkerState.VALID -> Unit
++		}
++		val lifecycleIndexes = if (version == 28) FINAL_V28_LIFECYCLE_PROOF_INDEXES else {
++			FINAL_V28_LIFECYCLE_PROOF_INDEXES.filterNot {
++				it.name == FINAL_V29_CAPTURED_RADIO_RETENTION_EVENT_INDEX.name
++			}
+ 		}
+ 		if (!FINAL_V28_REQUIRED_TABLES.all(database::hasTable) ||
+ 			!database.hasExactColumns(
+@@ -192,7 +197,7 @@
+ 			!FINAL_V28_STEPS_TABLE_COLUMNS.all { (table, columns) ->
+ 				database.hasExactColumns(table, columns)
+ 			} ||
+-			!FINAL_V28_LIFECYCLE_PROOF_INDEXES.all(database::hasExactIndex) ||
++			!lifecycleIndexes.all(database::hasExactIndex) ||
+ 			!database.hasTrigger(FINAL_V28_PRESSURE_RETENTION_TRIGGER) ||
+ 			!FINAL_V28_STEPS_INDEXES.all(database::hasExactIndex) ||
+ 			!FINAL_V28_STEPS_TRIGGERS.all(database::hasTrigger) ||
+@@ -208,6 +213,7 @@
+ 		}
+ 		if (version == 28) return ActiveDatabasePreflightResult.FinalV28
+ 		if (!FINAL_V29_ADDITIONAL_COLUMNS.all(database::hasExactColumn) ||
++			!database.hasExactIndex(FINAL_V29_CAPTURED_RADIO_RETENTION_EVENT_INDEX) ||
+ 			!FINAL_V29_NATIVE_PORTABLE_COLUMNS.all(database::hasExactColumn) ||
+ 			!database.hasExactColumns("native_portable_ownership", listOf("source_kind", "identity_kind", "opaque_identity", "raw_identity", "logical_tracking_id", "service_run_id")) ||
+ 			!FINAL_V29_NATIVE_PORTABLE_INDEXES.all(database::hasExactIndex) ||
+@@ -848,6 +854,12 @@
+ 	"writer_binding_generation",
+ 	"writer_owner_generation",
+ )
++private val FINAL_V29_CAPTURED_RADIO_RETENTION_EVENT_INDEX = FinalV28IndexSentinel(
++	FINAL_V28_CAPTURED_RADIO_RETENTION_PROOF_TABLE,
++	"idx_captured_radio_retention_event",
++	listOf("source_kind", "source_event_id"),
++	unique = false,
++)
+ private val FINAL_V28_LIFECYCLE_PROOF_INDEXES = listOf(
+ 	FinalV28IndexSentinel(
+ 		"source_event_retention_proof",
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt
+@@ -39,6 +39,7 @@
+ 						createLegacyRadioTables(db)
+ 						createPurposeParentTables(db)
+ 						createNativePortableOwnerParents(db)
++						createEarlierRadioRetentionEventIndex(db)
+ 						db.execSQL("INSERT INTO wifi_captured_fact_revision VALUES ('older-writer',1,'older-fact',1)")
+ 						db.execSQL("CREATE TABLE location_sample (id INTEGER NOT NULL PRIMARY KEY)")
+ 						db.execSQL("CREATE TABLE location_accepted_receipt (sample_id INTEGER NOT NULL PRIMARY KEY)")
+@@ -71,7 +72,14 @@
+ 		)
+ 		try {
+ 			val db = helper.writableDatabase
++			readLong(db, "SELECT \"unique\" FROM pragma_index_list('captured_radio_fact_retention_proof') " +
++				"WHERE name='idx_captured_radio_retention_event'") shouldBe 1L
+ 			MIGRATION_28_29.migrate(db)
++			readLong(db, "SELECT \"unique\" FROM pragma_index_list('captured_radio_fact_retention_proof') " +
++				"WHERE name='idx_captured_radio_retention_event'") shouldBe 0L
++			db.execSQL("INSERT INTO captured_radio_fact_retention_proof VALUES (6,'writer',1,'second-fact','shared-callback')")
++			readLong(db, "SELECT count(*) FROM captured_radio_fact_retention_proof " +
++				"WHERE source_kind=6 AND source_event_id='shared-callback'") shouldBe 2L
+ 			readLong(db, "SELECT count(*) FROM native_portable_ownership") shouldBe 7L
+ 			readLong(db, "SELECT count(*) FROM native_portable_ownership WHERE " +
+ 				"source_kind=2 AND identity_kind='CAPTURE_WINDOW' AND raw_identity='activity-window'") shouldBe 1L
+@@ -201,6 +209,16 @@
+ 			"('pressure-window', 'original-logical', 'original-run')")
+ 	}
+ 
++	private fun createEarlierRadioRetentionEventIndex(db: SupportSQLiteDatabase) {
++		db.execSQL("CREATE TABLE captured_radio_fact_retention_proof (source_kind INTEGER NOT NULL, " +
++			"writer_projection_id TEXT NOT NULL, writer_projection_version INTEGER NOT NULL, " +
++			"logical_fact_id TEXT NOT NULL, source_event_id TEXT NOT NULL, " +
++			"PRIMARY KEY(source_kind, writer_projection_id, writer_projection_version, logical_fact_id))")
++		db.execSQL("CREATE UNIQUE INDEX idx_captured_radio_retention_event " +
++			"ON captured_radio_fact_retention_proof(source_kind, source_event_id)")
++		db.execSQL("INSERT INTO captured_radio_fact_retention_proof VALUES (6,'writer',1,'first-fact','shared-callback')")
++	}
++
+ 	private fun readString(db: SupportSQLiteDatabase, sql: String): String? =
+ 		db.query(sql).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+ 
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioRetentionEventIndexPreflightTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioRetentionEventIndexPreflightTest.kt
+@@ -0,0 +1,68 @@
++package com.adsamcik.tracker.shared.base.database
++
++import android.app.Application
++import androidx.room.util.TableInfo
++import androidx.test.core.app.ApplicationProvider
++import io.kotest.matchers.shouldBe
++import org.junit.After
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class RadioRetentionEventIndexPreflightTest {
++	private lateinit var context: Application
++
++	@Before
++	fun setUp() {
++		context = ApplicationProvider.getApplicationContext()
++		context.deleteDatabase(DATABASE_NAME)
++	}
++
++	@After
++	fun tearDown() {
++		context.deleteDatabase(DATABASE_NAME)
++	}
++
++	@Test
++	fun `fresh v29 retains the nonunique event index and passes current preflight`() {
++		val database = AppDatabase.fileBuilder(context, DATABASE_NAME).allowMainThreadQueries().build()
++		try {
++			val table = TableInfo.read(database.openHelper.writableDatabase, TABLE)
++			requireNotNull(table.indices).single { it.name == INDEX }.unique shouldBe false
++		} finally {
++			database.close()
++		}
++
++		ActiveDatabasePreflight(context.getDatabasePath(DATABASE_NAME)).inspect() shouldBe
++			ActiveDatabasePreflightResult.FinalV29
++	}
++
++	@Test
++	fun `earlier unshipped v29 unique event index stays preserved and blocked`() {
++		val database = AppDatabase.fileBuilder(context, DATABASE_NAME).allowMainThreadQueries().build()
++		try {
++			val db = database.openHelper.writableDatabase
++			db.execSQL("DROP INDEX $INDEX")
++			db.execSQL("CREATE UNIQUE INDEX $INDEX ON $TABLE(source_kind, source_event_id)")
++		} finally {
++			database.close()
++		}
++		val file = context.getDatabasePath(DATABASE_NAME)
++		val before = file.readBytes().toList()
++
++		ActiveDatabasePreflight(file).inspect() shouldBe ActiveDatabasePreflightResult.Blocked(
++			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA,
++		)
++		file.readBytes().toList() shouldBe before
++	}
++
++	private companion object {
++		const val DATABASE_NAME = "radio-retention-event-index-test.db"
++		const val TABLE = "captured_radio_fact_retention_proof"
++		const val INDEX = "idx_captured_radio_retention_event"
++	}
++}
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ImportedSourceSchemaAssemblyTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ImportedSourceSchemaAssemblyTest.kt
+@@ -59,6 +59,26 @@
+ 		TABLES.forEach { table ->
+ 			TableInfo.read(migrated, table) shouldBe TableInfo.read(fresh, table)
+ 		}
++	}
++
++	@Test
++	fun `historical radio retention DDL remains unique until v29 conversion matches fresh Room`() {
++		val migrated = migrationSchema.writableDatabase
++		val table = "captured_radio_fact_retention_proof"
++		val index = "idx_captured_radio_retention_event"
++		val historical = TableInfo.read(migrated, table)
++		requireNotNull(historical.indices).single { it.name == index }.unique shouldBe true
++
++		// The historical helper is used by 27-to-28; only 28-to-29 converts this index.
++		// The actual migration and retained rows are covered by RadioObservationChildMigrationTest.
++		migrated.execSQL("DROP INDEX $index")
++		migrated.execSQL("CREATE INDEX $index ON $table(source_kind, source_event_id)")
++		val current = TableInfo.read(room.openHelper.writableDatabase, table)
++		requireNotNull(current.indices).single { it.name == index }.unique shouldBe false
++		TableInfo.read(migrated, table) shouldBe current
++
++		createAdditionalTrackingTables(migrated)
++		TableInfo.read(migrated, table) shouldBe current
+ 	}
+ 
+ 	@Test

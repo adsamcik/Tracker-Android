@@ -20,7 +20,6 @@ import java.security.MessageDigest
 	indices = [
 		Index(
 			value = ["source_kind", "source_event_id"],
-			unique = true,
 			name = "idx_captured_radio_retention_event",
 		),
 		Index(

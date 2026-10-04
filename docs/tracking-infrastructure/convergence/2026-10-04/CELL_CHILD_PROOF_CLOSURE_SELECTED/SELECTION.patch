@@ -1,0 +1,159 @@
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/DefaultSourceLifecycleProofAdapter.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/DefaultSourceLifecycleProofAdapter.kt
+@@ -1885,10 +1885,17 @@
+ 		}
+ 		val raw = CellWalCarrierAuthenticator.authenticate(wal)
+ 			as? CellWalCarrierAuthentication.Authenticated ?: return null
++		val children = database.radioObservationChildDao().cellSessionChildren(
++			fact.writerProjectionId, fact.writerProjectionVersion,
++			fact.logicalFactId, fact.semanticRevision, raw.carrier.payload.observations.size + 1,
++		)
++		val stored = CellWalCarrierAuthenticator.authenticate(fact, wal, children)
++			as? CellWalCarrierAuthentication.Authenticated ?: return null
+ 		val purpose = database.qualifyCellCapturePurposeItems(wal, raw.carrier.payload, fact)
+ 			as? CellPurposeItems.Qualified ?: return null
+-		return CellWalCarrierAuthenticator.authenticate(fact, wal, purpose.indexes.toSet())
+-			as? CellWalCarrierAuthentication.Authenticated
++		val exact = CellWalCarrierAuthenticator.authenticate(fact, wal, purpose.indexes.toSet())
++			as? CellWalCarrierAuthentication.Authenticated ?: return null
++		return stored.takeIf { it.carrier.childQualification == exact.carrier.childQualification }
+ 	}
+ 
+ 	/** An aggregate owner is requalified in its original session, never the callback's header. */
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultSourceFactQueryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultSourceFactQueryRepository.kt
+@@ -980,10 +980,17 @@
+ 		}
+ 		val raw = CellWalCarrierAuthenticator.authenticate(wal)
+ 			as? com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated ?: return null
++		val children = database.radioObservationChildDao().cellSessionChildren(
++			fact.writerProjectionId, fact.writerProjectionVersion,
++			fact.logicalFactId, fact.semanticRevision, raw.carrier.payload.observations.size + 1,
++		)
++		val stored = CellWalCarrierAuthenticator.authenticate(fact, wal, children)
++			as? com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated ?: return null
+ 		val purpose = database.qualifyCellCapturePurposeItems(wal, raw.carrier.payload, fact)
+ 			as? CellPurposeItems.Qualified ?: return null
+-		return CellWalCarrierAuthenticator.authenticate(fact, wal, purpose.indexes.toSet())
+-			as? com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated
++		val exact = CellWalCarrierAuthenticator.authenticate(fact, wal, purpose.indexes.toSet())
++			as? com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated ?: return null
++		return stored.takeIf { it.carrier.childQualification == exact.carrier.childQualification }
+ 	}
+ 
+ 	private suspend fun capturedRadioRetentionLookup(
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt
+@@ -1798,6 +1798,58 @@
+ 		return revokedEpoch
+ 	}
+ 
++	@Test
++	fun `Cell lifecycle proves all 256 towers and rejects an extra stored child`() = runTest {
++		val originals = observations()
++		val towers = List(256) { index ->
++			originals[index % originals.size].copy(identifierToken = "tower-$index")
++		}
++		installValidFixture(candidateWriter = true, observations = towers,
++			payloadVersion = CELL_WAL_PAYLOAD_VERSION)
++		assertEquals(1, assertIs<CellSessionFactDrainResult.Complete>(
++			CellSessionFactProjectionLane(database, subject, writer).drainAvailable()).factsInserted)
++		val saved = historicalCellFacts().single()
++		val children = database.radioObservationChildDao().cellSessionChildren(
++			saved.writerProjectionId, saved.writerProjectionVersion,
++			saved.logicalFactId, saved.semanticRevision, 257)
++		assertEquals(256, children.size)
++		val key = historicalCellKey(EVENT_ID, LOGICAL_ID, RUN_ID)
++		val adapter = lifecycleFactory().create(TrackingSource.CELL)
++		val recording = assertIs<SourceProofResult.Proven<RecordingProofState>>(adapter.recording(key)).state
++		assertIs<SourceProofResult.Proven<*>>(adapter.materialized(key, recording))
++		// An extra row must be read and rejected, rather than hidden by a 256-row limit.
++		database.radioObservationChildDao().insertCellSession(listOf(children.first().copy(itemIndex = 256)))
++		val after = assertIs<SourceProofResult.Failed>(adapter.materialized(key, recording))
++		assertEquals(SourceProofReason.INTEGRITY_FAILURE, after.reason)
++	}
++
++	@Test
++	fun `missing Cell tower rows invalidate only their original historical fact`() = runTest {
++		val event = installHistoricalCellGroups()
++		assertEquals(2, assertIs<CellSessionFactDrainResult.Complete>(
++			CellSessionFactProjectionLane(database, subject, writer).drainAvailable()).factsInserted)
++		val facts = historicalCellFacts()
++		val adapter = lifecycleFactory().create(TrackingSource.CELL)
++		val recordings = facts.associate { saved ->
++			val key = historicalCellKey(event, saved.logicalTrackingId, saved.serviceRunId)
++			val recording = assertIs<SourceProofResult.Proven<RecordingProofState>>(adapter.recording(key)).state
++			assertIs<SourceProofResult.Proven<*>>(adapter.materialized(key, recording))
++			saved.logicalFactId to recording
++		}
++		val broken = facts.first()
++		assertEquals(1, database.radioObservationChildDao().deleteCellSessionRevision(
++			broken.writerProjectionId, broken.writerProjectionVersion,
++			broken.logicalFactId, broken.semanticRevision))
++		val key = historicalCellKey(event, broken.logicalTrackingId, broken.serviceRunId)
++		val failed = assertIs<SourceProofResult.Failed>(
++			adapter.materialized(key, recordings.getValue(broken.logicalFactId)))
++		assertEquals(SourceProofReason.INTEGRITY_FAILURE, failed.reason)
++		val sibling = facts.last()
++		assertIs<SourceProofResult.Proven<*>>(adapter.materialized(
++			historicalCellKey(event, sibling.logicalTrackingId, sibling.serviceRunId),
++			recordings.getValue(sibling.logicalFactId)))
++	}
++
+ 	private suspend fun historicalCellFacts() = database.cellCapturedFactDao().currentRevisionsForWriterAdmission(
+ 		SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+ 		SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION, 1L, 10,
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt
+@@ -1239,6 +1239,51 @@
+ 		entry.observations shouldBe emptyList()
+ 	}
+ 
++	@Test
++	fun `version six Cell exact lookup rejects missing tower rows consistently with history`() = runTest {
++		val group = perReadingGroup(buildGroup(247, 1, setOf(0)))
++		persist(listOf(group))
++		persistPerReadingChildren(group)
++		val current = group.runs.single().facts.single { it.semanticRevision == 2L }
++		val reader = RoomSourceFactLookupReader(database, UnconfinedTestDispatcher(testScheduler))
++		(reader.lookup(cellFactLookupRequest(current)) as SourceFactLookupResult.Found)
++			.state.lineage.semanticRevision shouldBe current.semanticRevision
++		val before = (repository { true }.session(group.runs.single().segment.id) as CellHistoryQuery.Found).entry
++		before.observations shouldHaveSize 2
++		database.radioObservationChildDao().deleteCellSessionRevision(
++			current.writerProjectionId, current.writerProjectionVersion,
++			current.logicalFactId, current.semanticRevision) shouldBe 1
++
++		reader.lookup(cellFactLookupRequest(current)) shouldBe
++			SourceFactLookupResult.Failed(SourceProofReason.INTEGRITY_FAILURE)
++		val after = (repository { true }.session(group.runs.single().segment.id) as CellHistoryQuery.Found).entry
++		after.state shouldBe CellHistoryProductState.FAILED
++		after.causes shouldBe setOf(CellHistoryCause.WRITER_PROVENANCE_INVALID)
++		after.observations shouldBe emptyList()
++	}
++
++	@Test
++	fun `version six Cell exact lookup rejects corrupted tower rows consistently with history`() = runTest {
++		val group = perReadingGroup(buildGroup(248, 1, setOf(0)))
++		persist(listOf(group))
++		persistPerReadingChildren(group)
++		val current = group.runs.single().facts.single { it.semanticRevision == 2L }
++		val reader = RoomSourceFactLookupReader(database, UnconfinedTestDispatcher(testScheduler))
++		(reader.lookup(cellFactLookupRequest(current)) as SourceFactLookupResult.Found)
++			.state.lineage.semanticRevision shouldBe current.semanticRevision
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE cell_captured_child SET tower_identity = ? WHERE logical_fact_id = ? " +
++				"AND semantic_revision = ?",
++			arrayOf<Any>("changed-tower", current.logicalFactId, current.semanticRevision))
++
++		reader.lookup(cellFactLookupRequest(current)) shouldBe
++			SourceFactLookupResult.Failed(SourceProofReason.INTEGRITY_FAILURE)
++		val after = (repository { true }.session(group.runs.single().segment.id) as CellHistoryQuery.Found).entry
++		after.state shouldBe CellHistoryProductState.FAILED
++		after.causes shouldBe setOf(CellHistoryCause.WRITER_PROVENANCE_INVALID)
++		after.observations shouldBe emptyList()
++	}
++
+ 	private fun perReadingGroup(group: Group) = group.copy(runs = group.runs.map { run ->
+ 		val provider = requireNotNull(run.provider)
+ 		val firstPoint = run.facts.minOf { it.coverageIntervalStartNanos }

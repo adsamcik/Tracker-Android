@@ -70,10 +70,31 @@ internal data class CellWalObservationEvidence(
 	val payloadBytes: List<Byte>,
 	val createdAtMs: Long,
 	val capturedAuthority: CellCaptureAuthority,
+	/** Original v6 callback envelope; historical purpose headers never rewrite the admitted WAL. */
+	val originalWal: SourceEventWalEntity? = null,
 ) {
 	fun calculatedWalIntegrityIdentity(): String = toWalEntity().calculatedIntegrityIdentity()
 
-	internal fun toWalEntity(): SourceEventWalEntity = SourceEventWalEntity(
+	internal fun toWalEntity(): SourceEventWalEntity = originalWal ?: reconstructedWal()
+
+	internal fun hasExactOriginalEnvelope(): Boolean {
+		val original = originalWal ?: return true
+		val reconstructed = reconstructedWal().copy(
+			logicalTrackingId = original.logicalTrackingId, serviceRunId = original.serviceRunId,
+			configRevision = original.configRevision, planAttribution = original.planAttribution,
+			authorizationRevision = original.authorizationRevision,
+			authorizationPurposeEligibilityMask = original.authorizationPurposeEligibilityMask,
+			authorizationFingerprint = original.authorizationFingerprint,
+			sourcePolicyRevision = original.sourcePolicyRevision, captureConsentEpoch = original.captureConsentEpoch,
+			sessionManifestRevision = original.sessionManifestRevision,
+			lifecycleLeaseGeneration = original.lifecycleLeaseGeneration,
+		)
+		return sourceAdmissionOrdinal == original.admissionOrdinal &&
+			reconstructed.calculatedIntegrityIdentity() == original.integrityIdentity &&
+			reconstructed.payload.contentEquals(original.payload) && walIntegrityIdentity == original.integrityIdentity
+	}
+
+	private fun reconstructedWal(): SourceEventWalEntity = SourceEventWalEntity(
 		admissionOrdinal = sourceAdmissionOrdinal,
 		eventId = sourceEventId.value,
 		providerDedupKey = providerDedupKey,
@@ -155,6 +176,7 @@ internal data class CellObservationInput(
 	val origin: CellObservationOrigin,
 	val outcome: CellProviderOutcome,
 	val walEvidence: CellWalObservationEvidence?,
+	val qualifiedItemIndexes: Set<Int>? = null,
 )
 
 internal enum class CellAbsentReason { PROVIDER_ABSENT, OPERATIONAL_ONLY }
@@ -235,14 +257,18 @@ internal object CellCapturedFactClassifier {
 		val wal = input.walEvidence ?: return CellCapturedFactClassification.SourceUnverifiable(
 			CellSourceUnverifiableReason.DELIVERY_IDENTITY_MISSING,
 		)
-		if (wal.capturedAuthority != authority) {
+		if (wal.capturedAuthority != authority || !wal.hasExactCaptureContext(authority)) {
 			return CellCapturedFactClassification.Rejected(
 				CellFactRejection.CAPTURE_AUTHORITY_MISMATCH,
 			)
 		}
+		if (!wal.hasExactOriginalEnvelope()) return CellCapturedFactClassification.Rejected(
+			CellFactRejection.WAL_INTEGRITY_UNVERIFIABLE,
+		)
 		val authenticated = when (val authentication = CellWalCarrierAuthenticator.authenticate(
 			wal.toWalEntity(),
 			authority.toWalCaptureAuthority(),
+			input.qualifiedItemIndexes,
 		)) {
 			is CellWalCarrierAuthentication.Authenticated -> authentication.carrier
 			is CellWalCarrierAuthentication.Rejected ->
@@ -603,6 +629,16 @@ internal object CellCapturedFactClassifier {
 			this == CellObservationOrigin.REFRESH_RESULT_CALLBACK
 
 }
+
+private fun CellWalObservationEvidence.hasExactCaptureContext(authority: CellCaptureAuthority): Boolean =
+	logicalTrackingId == authority.logicalTrackingId && serviceRunId == authority.serviceRunId &&
+		configurationRevision == authority.configurationRevision &&
+		authorizationRevision == authority.authorizationRevision &&
+		authorizationFingerprint == authority.authorizationFingerprint &&
+		purposeEligibilityMask == authority.purposeEligibilityMask &&
+		sourcePolicyRevision == authority.sourcePolicyRevision && captureConsentEpoch == authority.captureConsentEpoch &&
+		sessionManifestRevision == authority.sessionManifestRevision &&
+		lifecycleLeaseGeneration == authority.lifecycleLeaseGeneration
 
 internal const val MAX_CELL_CHILDREN_PER_DELIVERY = 256
 internal const val MAX_CELL_SUBSCRIPTIONS_PER_DELIVERY = 8

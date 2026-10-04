@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteConstraintException
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.persistCapturedRadioFactRetentionProofs
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CapturedRadioFactRetentionProofEntity
@@ -1765,6 +1766,41 @@ class WifiWalQualificationAdapterTest {
 		assertEquals(0L, database.wifiCapturedFactDao().deletionGenerationCount())
 		assertEquals(1L, database.sourceEventRetentionProofDao().countAll())
 		assertEquals(1L, database.sourceEventRetentionScopeProofDao().countForSource(WIFI_SOURCE))
+	}
+
+	@Test
+	fun `Wi-Fi source erase fences independent retained scopes sharing the original callback`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val markedAtMs = OBSERVED_WALL_MS + 10_000L
+		database.sourceEvidenceStateDao().synchronizeLifecycle(0L, OBSERVED_WALL_MS, markedAtMs)
+		assertEquals(WifiCapturedRetentionResult.Pruned(1, 1),
+			maintenance.pruneAffectedByRetentionFloor(OBSERVED_WALL_MS, 0L, 0L, markedAtMs))
+		val first = database.capturedRadioFactRetentionProofDao().allForSource(WIFI_SOURCE).single()
+		// This storage-consumer fixture represents a second independently retained session fact.
+		// It exercises source cleanup only; historical Wi-Fi capture remains a separate slice.
+		val secondId = "9".repeat(64)
+		val secondMutation = WifiCapturedFactRevisionIntegrity.mutationId(secondId, first.semanticRevision)
+		val secondRun = "second-retained-wifi-run"
+		val secondDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(WIFI_SOURCE,
+			SourceBrokerPurpose.SESSION_CAPTURE, LOGICAL_ID, secondRun)
+		val unsigned = first.copy(logicalFactId = secondId, mutationId = secondMutation,
+			cursorMutationId = secondMutation, serviceRunId = secondRun, logicalRunScopeDigest = secondDigest)
+		val second = unsigned.copy(effectChecksum = unsigned.calculatedEffectChecksum())
+		database.withTransaction { database.persistCapturedRadioFactRetentionProofs(listOf(second)) }
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_event_wal WHERE source_kind = ?",
+			arrayOf(WIFI_SOURCE))
+		revokeCaptureConsent()
+
+		assertEquals(WifiCapturedSourceDeletionResult.Deleted(0, 0, 2),
+			maintenance.deleteAfterCaptureConsentReset(0L, 0L, REVOKED_POLICY_REVISION,
+				REVOKED_CONSENT_EPOCH, DELETE_AT_MS))
+		assertEquals(0L, database.capturedRadioFactRetentionProofDao().countAll())
+		assertEquals(2L, database.wifiCapturedFactDao().deletionGenerationCount())
+		for (digest in listOf(first.logicalRunScopeDigest, secondDigest)) {
+			assertEquals(true, database.sourceDeletionFenceDao().contains(WIFI_SOURCE,
+				SourceBrokerPurpose.SESSION_CAPTURE, SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN, digest))
+		}
 	}
 
 	@Test

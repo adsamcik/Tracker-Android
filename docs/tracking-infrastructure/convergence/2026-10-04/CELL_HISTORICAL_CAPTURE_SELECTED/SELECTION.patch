@@ -1,0 +1,3176 @@
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapter.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapter.kt
+@@ -3,6 +3,8 @@
+ import androidx.room.withTransaction
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+ import com.adsamcik.tracker.shared.base.database.CellPurposeItems
++import com.adsamcik.tracker.shared.base.database.RadioPurposeItems
++import com.adsamcik.tracker.shared.base.database.cellPurposeWindow
+ import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
+ import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalFailure
+ import com.adsamcik.tracker.shared.base.database.authenticateHistoricalProviderRegistration
+@@ -10,6 +12,7 @@
+ import com.adsamcik.tracker.shared.base.database.data.CellWalCaptureAuthority
+ import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication
+ import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
++import com.adsamcik.tracker.shared.base.database.data.hasSupportedCellProductShape
+ import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierFailure
+ import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+ import com.adsamcik.tracker.shared.base.database.data.CellWalProviderInterval
+@@ -17,6 +20,8 @@
+ import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+ import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
+ import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
++import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+@@ -77,6 +82,7 @@
+ 	) : CellWalAdapterResult
+ 
+ 	data class Rejected(val reason: CellWalAdapterRejection) : CellWalAdapterResult
++	data class Groups(val results: List<CellWalAdapterResult>) : CellWalAdapterResult
+ }
+ 
+ /**
+@@ -103,14 +109,49 @@
+ 		classify: suspend (CellObservationInput, CellCaptureAuthority) ->
+ 			CellCapturedFactClassification,
+ 	): CellWalAdapterResult = database.withTransaction {
++		val wal = database.sourceEventWalDao().getByEventId(eventId.value)
++			?: return@withTransaction rejected(CellWalAdapterRejection.MISSING_EVENT)
++		if (wal.payloadVersion != CELL_WAL_PAYLOAD_VERSION) {
++			return@withTransaction qualifyGroup(eventId, wal, classify)
++		}
++		val carrier = when (val result = CellWalCarrierAuthenticator.authenticate(wal)) {
++			is CellWalCarrierAuthentication.Authenticated -> result.carrier
++			is CellWalCarrierAuthentication.Rejected -> return@withTransaction rejected(result.reason.toAdapterRejection())
++		}
++		val registration = database.sourceBrokerDao().registration(CELL_SOURCE, wal.registrationGeneration)
++			?: return@withTransaction rejected(CellWalAdapterRejection.MISSING_REGISTRATION)
++		val start = registration.acceptedElapsedRealtimeNanos
++			?: return@withTransaction rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
++		val end = registration.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE
++		val items = database.qualifyCellPurposeItems(wal, carrier.payload, start, end)
++			?: return@withTransaction rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
++		val members = items.historicalMembers().filter { member ->
++			member.purpose == SourceBrokerPurpose.SESSION_CAPTURE && member.persistenceEligible &&
++				items.forDemand(requireNotNull(member.demandId)).isNotEmpty()
++		}.map { member ->
++			// Preserve the original attribution for a demand still present at callback time.
++			items.callbackAuthorization.authorizedMembers.singleOrNull { it.demandId == member.demandId }
++				?: member
++		}
++		val results = members.map { member -> qualifyGroup(eventId, wal, classify, member, items) }
++		if (results.singleOrNull() is CellWalAdapterResult.Evaluated) results.single()
++		else CellWalAdapterResult.Groups(results)
++	}
++
++	@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
++	private suspend fun qualifyGroup(
++		eventId: SourceEventId,
++		wal: SourceEventWalEntity,
++		classify: suspend (CellObservationInput, CellCaptureAuthority) -> CellCapturedFactClassification,
++		historicalMember: SourceAuthorizationEntity? = null,
++		purposeItems: RadioPurposeItems? = null,
++	): CellWalAdapterResult {
+ 		val walDao = database.sourceEventWalDao()
+-		val wal = walDao.getByEventId(eventId.value)
+-			?: return@withTransaction rejected(CellWalAdapterRejection.MISSING_EVENT)
+ 		val authenticatedCarrier = when (val authentication =
+ 			CellWalCarrierAuthenticator.authenticate(wal)) {
+ 			is CellWalCarrierAuthentication.Authenticated -> authentication.carrier
+ 			is CellWalCarrierAuthentication.Rejected ->
+-				return@withTransaction rejected(authentication.reason.toAdapterRejection())
++				return rejected(authentication.reason.toAdapterRejection())
+ 		}
+ 		val sequenceRow = walDao.getBySourceSequence(
+ 			CELL_SOURCE,
+@@ -121,12 +162,12 @@
+ 			sequenceRow.admissionOrdinal != wal.admissionOrdinal ||
+ 			sequenceRow.integrityIdentity != wal.integrityIdentity
+ 		) {
+-			return@withTransaction rejected(CellWalAdapterRejection.SOURCE_SEQUENCE_MISMATCH)
++			return rejected(CellWalAdapterRejection.SOURCE_SEQUENCE_MISMATCH)
+ 		}
+ 
+ 		val deliveryIdentity = wal.deliveryIdentity?.let { value ->
+ 			runCatching { SourceDeliveryIdentity(value) }.getOrNull()
+-		} ?: return@withTransaction rejected(CellWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
++		} ?: return rejected(CellWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
+ 		val completeDelivery = walDao.deliveryUnitsBounded(
+ 			CELL_SOURCE,
+ 			wal.capturedCollectedDataEpoch,
+@@ -147,22 +188,26 @@
+ 			completeDelivery.payloadVersion != wal.payloadVersion ||
+ 			completeDelivery.payloadChecksum != wal.payloadChecksum
+ 		) {
+-			return@withTransaction rejected(CellWalAdapterRejection.WAL_INTEGRITY_MISMATCH)
++			return rejected(CellWalAdapterRejection.WAL_INTEGRITY_MISMATCH)
+ 		}
+ 		if (authenticatedCarrier.deliveryIdentity != deliveryIdentity.value) {
+-			return@withTransaction rejected(CellWalAdapterRejection.DELIVERY_IDENTITY_MISMATCH)
+-		}
+-
+-		val configRevision = wal.configRevision
+-		val policyRevision = wal.sourcePolicyRevision
+-		val consentEpoch = wal.captureConsentEpoch
+-		val manifestRevision = wal.sessionManifestRevision
+-		val leaseGeneration = wal.lifecycleLeaseGeneration
+-		val logicalTrackingId = wal.logicalTrackingId
+-		val serviceRunId = wal.serviceRunId
++			return rejected(CellWalAdapterRejection.DELIVERY_IDENTITY_MISMATCH)
++		}
++
++		val logicalTrackingId = historicalMember?.logicalTrackingId ?: wal.logicalTrackingId
++		val serviceRunId = historicalMember?.serviceRunId ?: wal.serviceRunId
++		val manifestRevision = historicalMember?.manifestRevision ?: wal.sessionManifestRevision
++		val historicalManifest = if (historicalMember != null && logicalTrackingId != null && manifestRevision != null) {
++			database.sourceSessionDao().manifest(logicalTrackingId, manifestRevision)
++		} else null
++		val configRevision = if (historicalMember != null) historicalManifest?.acquisitionPlanRevision else wal.configRevision
++		val policyRevision = historicalMember?.sourcePolicyRevision ?: wal.sourcePolicyRevision
++		val consentEpoch = historicalMember?.consentEpoch ?: wal.captureConsentEpoch
++		val leaseGeneration = historicalMember?.lifecycleLeaseGeneration ?: wal.lifecycleLeaseGeneration
+ 		val physicalFingerprint = wal.physicalConfigurationFingerprint
+-		val authorizationRevision = wal.authorizationRevision
+-		val authorizationFingerprint = wal.authorizationFingerprint
++		val authorizationRevision = historicalMember?.authorizationRevision ?: wal.authorizationRevision
++		val authorizationFingerprint = historicalMember?.authorizationFingerprint ?: wal.authorizationFingerprint
++		val purposeMask = historicalMember?.purposeEligibilityMask ?: wal.authorizationPurposeEligibilityMask
+ 		val wallTime = wal.wallTimeMs
+ 		val wallUncertainty = wal.wallTimeUncertaintyMs
+ 		if (configRevision == null || policyRevision == null || consentEpoch == null ||
+@@ -170,7 +215,7 @@
+ 			serviceRunId == null || physicalFingerprint == null || authorizationRevision == null ||
+ 			authorizationFingerprint == null || wallTime == null || wallUncertainty == null
+ 		) {
+-			return@withTransaction rejected(CellWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
++			return rejected(CellWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
+ 		}
+ 		val deletionIdentity = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+ 			sourceKind = CELL_SOURCE,
+@@ -185,14 +230,14 @@
+ 				scopeIdentityDigest = deletionIdentity,
+ 			)
+ 		) {
+-			return@withTransaction rejected(CellWalAdapterRejection.DELETED_SCOPE)
++			return rejected(CellWalAdapterRejection.DELETED_SCOPE)
+ 		}
+ 
+ 		val planDao = database.sourcePlanStateDao()
+ 		val planHeader = planDao.revision(configRevision)
+ 		val desiredPlan = planDao.desiredPlan(configRevision, CELL_SOURCE)
+ 		if (planHeader == null || desiredPlan == null) {
+-			return@withTransaction rejected(CellWalAdapterRejection.MISSING_HISTORICAL_PLAN)
++			return rejected(CellWalAdapterRejection.MISSING_HISTORICAL_PLAN)
+ 		}
+ 		val plan = runCatching { planCodec.decode(desiredPlan.payload) as? CellPlan }.getOrNull()
+ 		val reencodedPlan = plan?.let { runCatching { planCodec.encode(it) }.getOrNull() }
+@@ -204,22 +249,22 @@
+ 			plan.physicalConfigurationFingerprint() != physicalFingerprint ||
+ 			planHeader.sourcePolicyRevision != policyRevision
+ 		) {
+-			return@withTransaction rejected(CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
++			return rejected(CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
+ 		}
+ 
+ 		val observedStart = requireNotNull(wal.observedIntervalStartNanos)
+ 		val brokerDao = database.sourceBrokerDao()
+ 		val providerTimes = if (wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+ 			val saved = brokerDao.registration(CELL_SOURCE, wal.registrationGeneration)
+-				?: return@withTransaction rejected(CellWalAdapterRejection.MISSING_REGISTRATION)
++				?: return rejected(CellWalAdapterRejection.MISSING_REGISTRATION)
+ 			val acceptedStart = saved.acceptedElapsedRealtimeNanos
+-				?: return@withTransaction rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
++				?: return rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
+ 			val end = saved.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE
+ 			authenticatedCarrier.payload.observations.mapNotNull { it.providerTimestampNanos }
+ 				.filter { it >= acceptedStart && it < end && it <= wal.receivedElapsedNanos }
+ 		} else null
+ 		if (providerTimes?.isEmpty() == true) {
+-			return@withTransaction rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
++			return rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
+ 		}
+ 		val providerObservationStart = providerTimes?.minOrNull() ?: wal.observedElapsedNanos
+ 		val providerObservationEnd = providerTimes?.maxOrNull() ?: wal.observedElapsedNanos
+@@ -243,7 +288,7 @@
+ 			is ProviderRegistrationIntervalAuthentication.Authenticated ->
+ 				registrationAuthentication
+ 			is ProviderRegistrationIntervalAuthentication.Rejected ->
+-				return@withTransaction rejected(
++				return rejected(
+ 					if (registrationAuthentication.reason ==
+ 						ProviderRegistrationIntervalFailure.MISSING_REGISTRATION
+ 					) {
+@@ -259,14 +304,14 @@
+ 		if (registration.ownerScope != EXPECTED_OWNER_SCOPE ||
+ 			registration.providerResidency !=
+ 			ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND
+-		) return@withTransaction rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
++		) return rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
+ 
+ 		val authorization = brokerDao.authorizationRevision(
+ 			CELL_SOURCE,
+ 			wal.registrationGeneration,
+ 			authorizationRevision,
+ 		).toSnapshotOrNull()
+-			?: return@withTransaction rejected(CellWalAdapterRejection.MISSING_AUTHORIZATION)
++			?: return rejected(CellWalAdapterRejection.MISSING_AUTHORIZATION)
+ 		val captureMember = authorization.authorizedMembers.singleOrNull { member ->
+ 			member.purpose == SourceBrokerPurpose.SESSION_CAPTURE && member.persistenceEligible &&
+ 				member.logicalTrackingId == logicalTrackingId && member.serviceRunId == serviceRunId &&
+@@ -292,11 +337,11 @@
+ 			recomputedAuthorization?.sortedBy { it.memberId } != authorization.members.sortedBy { it.memberId } ||
+ 			captureMember == null || authorization.isDenied ||
+ 			authorization.authorizationFingerprint != authorizationFingerprint ||
+-			authorization.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask ||
++			authorization.purposeEligibilityMask != purposeMask ||
+ 			authorization.purposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
+ 			authorization.effectiveBootId != wal.clockDomainId
+ 		) {
+-			return@withTransaction rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
++			return rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
+ 		}
+ 		val nextAuthorizationRows = brokerDao.nextAuthorizationRevision(
+ 			CELL_SOURCE,
+@@ -307,53 +352,59 @@
+ 			null
+ 		} else {
+ 			nextAuthorizationRows.toSnapshotOrNull()
+-				?: return@withTransaction rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
+-		}
+-		val authorizationEnd = when {
++				?: return rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
++		}
++		val callbackAuthorizationEnd = when {
+ 			nextAuthorization == null -> registrationEnd
+ 			nextAuthorization.effectiveBootId != wal.clockDomainId ||
+ 				nextAuthorization.effectiveElapsedRealtimeNanos < authorization.effectiveElapsedRealtimeNanos ->
+-				return@withTransaction rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
++				return rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
+ 			else -> minOf(registrationEnd, nextAuthorization.effectiveElapsedRealtimeNanos)
+ 		}
++		val qualifiedPurpose = if (purposeItems != null) {
++			purposeItems.cellPurposeWindow(authenticatedCarrier.payload,
++				requireNotNull(captureMember.demandId), registrationEnd) as? CellPurposeItems.Qualified
++				?: return rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
++		} else null
++		val authorizationEnd = qualifiedPurpose?.continuousUntilNanos ?: callbackAuthorizationEnd
+ 
+ 		val policyDao = database.sourcePolicyDao()
+ 		val policy = policyDao.policyAtRevision(policyRevision, CELL_SOURCE)
+-			?: return@withTransaction rejected(CellWalAdapterRejection.MISSING_POLICY)
++			?: return rejected(CellWalAdapterRejection.MISSING_POLICY)
+ 		if (!policy.enabled || !policy.capturePersistenceEligible ||
+ 			policy.captureConsentEpoch != consentEpoch || policy.effectiveBootId != wal.clockDomainId
+ 		) {
+-			return@withTransaction rejected(CellWalAdapterRejection.POLICY_MISMATCH)
++			return rejected(CellWalAdapterRejection.POLICY_MISMATCH)
+ 		}
+ 		val consent = policyDao.consentEpoch(
+ 			CELL_SOURCE,
+ 			SourceBrokerPurpose.SESSION_CAPTURE,
+ 			consentEpoch,
+-		) ?: return@withTransaction rejected(CellWalAdapterRejection.MISSING_CONSENT)
++		) ?: return rejected(CellWalAdapterRejection.MISSING_CONSENT)
+ 		if (!consent.eligible || !consent.persistenceEligible ||
+ 			consent.policyRevision > policyRevision || consent.effectiveBootId != wal.clockDomainId
+ 		) {
+-			return@withTransaction rejected(CellWalAdapterRejection.CONSENT_MISMATCH)
++			return rejected(CellWalAdapterRejection.CONSENT_MISMATCH)
+ 		}
+ 
+ 		val sessionDao = database.sourceSessionDao()
+ 		val run = sessionDao.serviceRun(serviceRunId)
+ 		val session = sessionDao.session(logicalTrackingId)
+ 		if (run == null || session == null) {
+-			return@withTransaction rejected(CellWalAdapterRejection.MISSING_SESSION)
++			return rejected(CellWalAdapterRejection.MISSING_SESSION)
+ 		}
+ 		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
+ 		if (run.logicalTrackingId != logicalTrackingId || run.bootId != wal.clockDomainId ||
+ 			run.leaseGeneration != leaseGeneration || session.logicalTrackingId != logicalTrackingId ||
+ 			session.lifecycleLeaseGeneration < leaseGeneration
+ 		) {
+-			return@withTransaction rejected(CellWalAdapterRejection.SESSION_MISMATCH)
++			return rejected(CellWalAdapterRejection.SESSION_MISMATCH)
+ 		}
+ 		val manifests = sessionDao.manifestsForServiceRun(serviceRunId, MAX_MANIFESTS_PER_RUN + 1)
+ 		if (manifests.size > MAX_MANIFESTS_PER_RUN ||
+ 			!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)
+ 		) {
+-			return@withTransaction rejected(CellWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
++			return rejected(CellWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
+ 		}
+ 		val allManifestSources = database.trackingHistoryReadDao().manifestSources(
+ 			listOf(serviceRunId),
+@@ -368,10 +419,10 @@
+ 				},
+ 			)
+ 		}) {
+-			return@withTransaction rejected(CellWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
++			return rejected(CellWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
+ 		}
+ 		val manifestIndex = manifests.indexOfFirst { it.manifestRevision == manifestRevision }
+-		if (manifestIndex < 0) return@withTransaction rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
++		if (manifestIndex < 0) return rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
+ 		val manifest = manifests[manifestIndex]
+ 		val manifestSources = allManifestSources.filter { source ->
+ 			source.logicalTrackingId == logicalTrackingId && source.manifestRevision == manifestRevision
+@@ -380,7 +431,7 @@
+ 			SourceKind.entries.none { it.stableCode == source.sourceKind } ||
+ 				source.purpose !in SessionManifestPurposeCode.ALL
+ 		}) {
+-			return@withTransaction rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
++			return rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
+ 		}
+ 		val capturedSources = manifestSources
+ 			.filter { it.purpose == SessionManifestPurposeCode.SESSION_CAPTURE && it.persistenceEligible }
+@@ -405,24 +456,24 @@
+ 			cellManifestSource.consentEpoch != consentEpoch ||
+ 			cellManifestSource.qosCode != policy.qosCode || SourceKind.CELL !in capturedSources
+ 		) {
+-			return@withTransaction rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
++			return rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
+ 		}
+ 		val zone = runCatching { ZoneId.of(manifest.zoneId) }.getOrNull()
+-			?: return@withTransaction rejected(CellWalAdapterRejection.INVALID_STORED_ZONE)
++			?: return rejected(CellWalAdapterRejection.INVALID_STORED_ZONE)
+ 
+ 		val segmentId = run.sessionSegmentId
+ 		val segment = segmentId?.let { database.sessionSegmentDao().getById(it) }
+-		if (segment == null) return@withTransaction rejected(CellWalAdapterRejection.MISSING_SEGMENT)
++		if (segment == null) return rejected(CellWalAdapterRejection.MISSING_SEGMENT)
+ 		if (segment.logicalTrackingId != logicalTrackingId || segment.serviceRunId != serviceRunId) {
+-			return@withTransaction rejected(CellWalAdapterRejection.SEGMENT_MISMATCH)
++			return rejected(CellWalAdapterRejection.SEGMENT_MISMATCH)
+ 		}
+ 
+ 		val evidenceState = database.sourceEvidenceStateDao().get()
+-			?: return@withTransaction rejected(CellWalAdapterRejection.DELETED_EVIDENCE)
++			?: return rejected(CellWalAdapterRejection.DELETED_EVIDENCE)
+ 		if (evidenceState.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
+ 			wal.admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal
+ 		) {
+-			return@withTransaction rejected(CellWalAdapterRejection.DELETED_EVIDENCE)
++			return rejected(CellWalAdapterRejection.DELETED_EVIDENCE)
+ 		}
+ 		val deletionState = database.cellCapturedFactDao().deletionGeneration(
+ 			logicalTrackingId,
+@@ -432,24 +483,13 @@
+ 			// The Cell WAL carrier does not capture a source-local deletion generation. It proves the
+ 			// initial generation only through the already-validated global collected-data epoch;
+ 			// assigning a later current generation here would resurrect pre-deletion evidence.
+-			return@withTransaction rejected(
++			return rejected(
+ 				CellWalAdapterRejection.SCOPE_DELETION_AUTHORITY_MISMATCH,
+ 			)
+ 		}
+ 		val scopeDeletionGeneration = 0L
+-		val qualifiedPurpose = if (wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+-			when (val purposeItems = database.qualifyCellPurposeItems(
+-				wal, authenticatedCarrier.payload, requireNotNull(captureMember.demandId),
+-				registrationStart, registrationEnd,
+-			)) {
+-				is CellPurposeItems.Qualified -> purposeItems
+-				CellPurposeItems.Unverifiable -> return@withTransaction rejected(
+-					CellWalAdapterRejection.AUTHORIZATION_MISMATCH,
+-				)
+-			}
+-		} else null
+ 		if (qualifiedPurpose?.indexes?.isEmpty() == true) {
+-			return@withTransaction CellWalAdapterResult.Evaluated(
++			return CellWalAdapterResult.Evaluated(
+ 				CellCapturedFactClassification.Stale(authenticatedCarrier.payload.observations.size),
+ 			)
+ 		}
+@@ -464,13 +504,23 @@
+ 				sessionRunEffect = interval(manifest.effectiveElapsedRealtimeNanos, manifestEnd),
+ 				deletionEffect = interval(run.startedElapsedNanos, sessionEnd),
+ 			)
+-		}.getOrNull() ?: return@withTransaction rejected(
++		}.getOrNull() ?: return rejected(
+ 			CellWalAdapterRejection.TEMPORAL_AUTHORITY_UNVERIFIABLE,
+ 		)
+ 		val maximumAgeNanos = qualifiedPurpose?.let {
+ 			minOf(plan.maximumObservationAgeNanos(), it.demandMaximumAgeNanos)
+ 		} ?: plan.maximumObservationAgeNanos()
+-		val structuralDay = Instant.ofEpochMilli(wallTime).atZone(zone).toLocalDate().toEpochDay()
++		val selectedEnd = qualifiedPurpose?.indexes?.mapNotNull { index ->
++			val item = authenticatedCarrier.payload.observations[index]
++			val time = requireNotNull(item.providerTimestampNanos)
++			// Structural day follows measured accepted data, never an unsupported sibling.
++			time.takeIf { item.hasSupportedCellProductShape() && time in temporal &&
++				it <= wal.receivedElapsedNanos && wal.receivedElapsedNanos - it <= maximumAgeNanos }
++		}?.maxOrNull() ?: wal.observedElapsedNanos
++		val selectedWall = runCatching { Math.subtractExact(wallTime,
++			(wal.observedElapsedNanos - selectedEnd) / NANOS_PER_MILLISECOND) }.getOrNull()
++			?: return rejected(CellWalAdapterRejection.STRUCTURAL_DAY_UNVERIFIABLE)
++		val structuralDay = Instant.ofEpochMilli(selectedWall).atZone(zone).toLocalDate().toEpochDay()
+ 		val sharedAuthority = CellWalCaptureAuthority(
+ 			logicalTrackingId = logicalTrackingId,
+ 			serviceRunId = serviceRunId,
+@@ -480,7 +530,7 @@
+ 			physicalConfigurationFingerprint = physicalFingerprint,
+ 			authorizationRevision = authorizationRevision,
+ 			authorizationFingerprint = authorizationFingerprint,
+-			purposeEligibilityMask = wal.authorizationPurposeEligibilityMask,
++			purposeEligibilityMask = purposeMask,
+ 			sourcePolicyRevision = policyRevision,
+ 			captureConsentEpoch = consentEpoch,
+ 			manifestRevision = manifestRevision,
+@@ -497,17 +547,17 @@
+ 			maximumObservationAgeNanos = maximumAgeNanos,
+ 		)
+ 		val qualification = when (val authentication =
+-			CellWalCarrierAuthenticator.authenticate(wal, sharedAuthority)) {
++			CellWalCarrierAuthenticator.authenticate(wal, sharedAuthority, qualifiedPurpose?.indexes?.toSet())) {
+ 			is CellWalCarrierAuthentication.Authenticated ->
+ 				requireNotNull(authentication.carrier.childQualification)
+ 			is CellWalCarrierAuthentication.Rejected ->
+-				return@withTransaction rejected(authentication.reason.toAdapterRejection())
++				return rejected(authentication.reason.toAdapterRejection())
+ 		}
+ 		if (qualification.providerWallInterval?.let { wallInterval ->
+ 				evidenceState.retainedFromMs?.let { wallInterval.first < it } == true
+ 			} == true
+ 		) {
+-			return@withTransaction rejected(CellWalAdapterRejection.BEFORE_RETENTION_FLOOR)
++			return rejected(CellWalAdapterRejection.BEFORE_RETENTION_FLOOR)
+ 		}
+ 		val authority = runCatching {
+ 			CellCaptureAuthority(
+@@ -522,7 +572,7 @@
+ 				physicalConfigurationFingerprint = physicalFingerprint,
+ 				authorizationRevision = authorizationRevision,
+ 				authorizationFingerprint = authorizationFingerprint,
+-				purposeEligibilityMask = wal.authorizationPurposeEligibilityMask,
++				purposeEligibilityMask = purposeMask,
+ 				sourcePolicyRevision = policyRevision,
+ 				captureConsentEpoch = consentEpoch,
+ 				sessionManifestRevision = manifestRevision,
+@@ -535,7 +585,7 @@
+ 				temporalAuthority = temporal,
+ 				maximumObservationAgeNanos = maximumAgeNanos,
+ 			)
+-		}.getOrNull() ?: return@withTransaction rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
++		}.getOrNull() ?: return rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
+ 		val evidence = CellWalObservationEvidence(
+ 			sourceEventId = eventId,
+ 			sourceKind = SourceKind.CELL,
+@@ -554,7 +604,7 @@
+ 			physicalConfigurationFingerprint = physicalFingerprint,
+ 			authorizationRevision = authorizationRevision,
+ 			authorizationFingerprint = authorizationFingerprint,
+-			purposeEligibilityMask = wal.authorizationPurposeEligibilityMask,
++			purposeEligibilityMask = purposeMask,
+ 			sourceSequence = wal.sourceSequence,
+ 			sourcePolicyRevision = policyRevision,
+ 			captureConsentEpoch = consentEpoch,
+@@ -579,13 +629,15 @@
+ 			payloadBytes = wal.payload.toList(),
+ 			createdAtMs = wal.createdAtMs,
+ 			capturedAuthority = authority,
+-		)
+-		CellWalAdapterResult.Evaluated(
++			originalWal = wal.takeIf { historicalMember != null },
++		)
++		return CellWalAdapterResult.Evaluated(
+ 			classify(
+ 				CellObservationInput(
+ 					origin = CellObservationOrigin.PROVIDER_CALLBACK,
+ 					outcome = CellProviderOutcome.DELIVERED,
+ 					walEvidence = evidence,
++					qualifiedItemIndexes = qualifiedPurpose?.indexes?.toSet(),
+ 				),
+ 				authority,
+ 			),
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactClassifier.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactClassifier.kt
+@@ -70,10 +70,31 @@
+ 	val payloadBytes: List<Byte>,
+ 	val createdAtMs: Long,
+ 	val capturedAuthority: CellCaptureAuthority,
++	/** Original v6 callback envelope; historical purpose headers never rewrite the admitted WAL. */
++	val originalWal: SourceEventWalEntity? = null,
+ ) {
+ 	fun calculatedWalIntegrityIdentity(): String = toWalEntity().calculatedIntegrityIdentity()
+ 
+-	internal fun toWalEntity(): SourceEventWalEntity = SourceEventWalEntity(
++	internal fun toWalEntity(): SourceEventWalEntity = originalWal ?: reconstructedWal()
++
++	internal fun hasExactOriginalEnvelope(): Boolean {
++		val original = originalWal ?: return true
++		val reconstructed = reconstructedWal().copy(
++			logicalTrackingId = original.logicalTrackingId, serviceRunId = original.serviceRunId,
++			configRevision = original.configRevision, planAttribution = original.planAttribution,
++			authorizationRevision = original.authorizationRevision,
++			authorizationPurposeEligibilityMask = original.authorizationPurposeEligibilityMask,
++			authorizationFingerprint = original.authorizationFingerprint,
++			sourcePolicyRevision = original.sourcePolicyRevision, captureConsentEpoch = original.captureConsentEpoch,
++			sessionManifestRevision = original.sessionManifestRevision,
++			lifecycleLeaseGeneration = original.lifecycleLeaseGeneration,
++		)
++		return sourceAdmissionOrdinal == original.admissionOrdinal &&
++			reconstructed.calculatedIntegrityIdentity() == original.integrityIdentity &&
++			reconstructed.payload.contentEquals(original.payload) && walIntegrityIdentity == original.integrityIdentity
++	}
++
++	private fun reconstructedWal(): SourceEventWalEntity = SourceEventWalEntity(
+ 		admissionOrdinal = sourceAdmissionOrdinal,
+ 		eventId = sourceEventId.value,
+ 		providerDedupKey = providerDedupKey,
+@@ -155,6 +176,7 @@
+ 	val origin: CellObservationOrigin,
+ 	val outcome: CellProviderOutcome,
+ 	val walEvidence: CellWalObservationEvidence?,
++	val qualifiedItemIndexes: Set<Int>? = null,
+ )
+ 
+ internal enum class CellAbsentReason { PROVIDER_ABSENT, OPERATIONAL_ONLY }
+@@ -235,14 +257,18 @@
+ 		val wal = input.walEvidence ?: return CellCapturedFactClassification.SourceUnverifiable(
+ 			CellSourceUnverifiableReason.DELIVERY_IDENTITY_MISSING,
+ 		)
+-		if (wal.capturedAuthority != authority) {
++		if (wal.capturedAuthority != authority || !wal.hasExactCaptureContext(authority)) {
+ 			return CellCapturedFactClassification.Rejected(
+ 				CellFactRejection.CAPTURE_AUTHORITY_MISMATCH,
+ 			)
+ 		}
++		if (!wal.hasExactOriginalEnvelope()) return CellCapturedFactClassification.Rejected(
++			CellFactRejection.WAL_INTEGRITY_UNVERIFIABLE,
++		)
+ 		val authenticated = when (val authentication = CellWalCarrierAuthenticator.authenticate(
+ 			wal.toWalEntity(),
+ 			authority.toWalCaptureAuthority(),
++			input.qualifiedItemIndexes,
+ 		)) {
+ 			is CellWalCarrierAuthentication.Authenticated -> authentication.carrier
+ 			is CellWalCarrierAuthentication.Rejected ->
+@@ -604,5 +630,15 @@
+ 
+ }
+ 
++private fun CellWalObservationEvidence.hasExactCaptureContext(authority: CellCaptureAuthority): Boolean =
++	logicalTrackingId == authority.logicalTrackingId && serviceRunId == authority.serviceRunId &&
++		configurationRevision == authority.configurationRevision &&
++		authorizationRevision == authority.authorizationRevision &&
++		authorizationFingerprint == authority.authorizationFingerprint &&
++		purposeEligibilityMask == authority.purposeEligibilityMask &&
++		sourcePolicyRevision == authority.sourcePolicyRevision && captureConsentEpoch == authority.captureConsentEpoch &&
++		sessionManifestRevision == authority.sessionManifestRevision &&
++		lifecycleLeaseGeneration == authority.lifecycleLeaseGeneration
++
+ internal const val MAX_CELL_CHILDREN_PER_DELIVERY = 256
+ internal const val MAX_CELL_SUBSCRIPTIONS_PER_DELIVERY = 8
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactWriter.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactWriter.kt
+@@ -4,6 +4,7 @@
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+ import com.adsamcik.tracker.shared.base.database.CellPurposeItems
+ import com.adsamcik.tracker.shared.base.database.qualifyCellPurposeItems
++import com.adsamcik.tracker.shared.base.database.qualifyCellCapturePurposeItems
+ import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
+ import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
+ import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
+@@ -72,6 +73,7 @@
+ 	data class NoEvidence(val classification: CellCapturedFactClassification) : CellCapturedWriteResult
+ 	data class AdapterRejected(val reason: CellWalAdapterRejection) : CellCapturedWriteResult
+ 	data class Rejected(val reason: CellCapturedWriteRejection) : CellCapturedWriteResult
++	data class Groups(val results: List<CellCapturedWriteResult>) : CellCapturedWriteResult
+ }
+ 
+ /**
+@@ -105,9 +107,17 @@
+ 	internal suspend fun writeInCurrentTransaction(
+ 		eventId: SourceEventId,
+ 		checkpoint: suspend (CellCapturedWriteCheckpoint) -> Unit = {},
+-	): CellCapturedWriteResult = when (
+-		val result = adapter.qualify(eventId, ::classifyWithStoredState)
+-	) {
++	): CellCapturedWriteResult = writeQualified(
++		adapter.qualify(eventId, ::classifyWithStoredState), checkpoint,
++	)
++
++	private suspend fun writeQualified(
++		result: CellWalAdapterResult,
++		checkpoint: suspend (CellCapturedWriteCheckpoint) -> Unit,
++	): CellCapturedWriteResult = when (result) {
++		is CellWalAdapterResult.Groups -> CellCapturedWriteResult.Groups(
++			result.results.map { writeQualified(it, checkpoint) },
++		)
+ 		is CellWalAdapterResult.Rejected -> CellCapturedWriteResult.AdapterRejected(result.reason)
+ 		is CellWalAdapterResult.Evaluated -> {
+ 			checkpoint(CellCapturedWriteCheckpoint.QUALIFIED)
+@@ -332,26 +342,17 @@
+ 		if (fact.payloadVersion != CELL_WAL_PAYLOAD_VERSION) return
+ 		val wal = database.sourceEventWalDao().getByEventId(fact.sourceEventId)
+ 			?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+-		val carrier = when (val result = CellWalCarrierAuthenticator.authenticate(fact, wal)) {
++		val raw = when (val result = CellWalCarrierAuthenticator.authenticate(wal)) {
+ 			is CellWalCarrierAuthentication.Authenticated -> result.carrier
+ 			is CellWalCarrierAuthentication.Rejected ->
+ 				reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+ 		}
+-		val callback = database.sourceBrokerDao().authorizationRevision(
+-			SOURCE_KIND, fact.registrationGeneration, fact.authorizationRevision,
+-		).toAuthorizationSnapshotOrNull() ?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+-		val demandId = callback.authorizedMembers.singleOrNull { member ->
+-			member.purpose == PURPOSE && member.persistenceEligible &&
+-				member.logicalTrackingId == fact.logicalTrackingId &&
+-				member.serviceRunId == fact.serviceRunId &&
+-				member.manifestRevision == fact.manifestRevision &&
+-				member.consentEpoch == fact.captureConsentEpoch
+-		}?.demandId ?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+-		val purpose = database.qualifyCellPurposeItems(
+-			wal, carrier.payload, demandId,
+-			fact.providerAcceptanceStartNanos, fact.providerAcceptanceEndNanos,
+-		) as? CellPurposeItems.Qualified
++		val purpose = database.qualifyCellCapturePurposeItems(wal, raw.payload, fact) as? CellPurposeItems.Qualified
+ 			?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
++		val carrier = when (val result = CellWalCarrierAuthenticator.authenticate(fact, wal, purpose.indexes.toSet())) {
++			is CellWalCarrierAuthentication.Authenticated -> result.carrier
++			is CellWalCarrierAuthentication.Rejected -> reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
++		}
+ 		val accepted = requireNotNull(carrier.childQualification).children.withIndex()
+ 			.filter { it.value.disposition == CellWalChildDisposition.ACCEPTED }
+ 		if (accepted.isEmpty() || accepted.any { it.index !in purpose.indexes } ||
+@@ -709,7 +710,7 @@
+ 		val purpose = if (row.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+ 			val wal = database.sourceEventWalDao().getByEventId(row.sourceEventId)
+ 				?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+-			val carrier = when (val authentication = CellWalCarrierAuthenticator.authenticate(row, wal)) {
++			val carrier = when (val authentication = CellWalCarrierAuthenticator.authenticate(wal)) {
+ 				is CellWalCarrierAuthentication.Authenticated -> authentication.carrier
+ 				is CellWalCarrierAuthentication.Rejected ->
+ 					reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+@@ -720,7 +721,10 @@
+ 				wal, carrier.payload, demandId, registrationStart, registrationEnd,
+ 			) as? CellPurposeItems.Qualified
+ 				?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+-			val accepted = carrier.childQualification?.children?.withIndex()
++			val selected = CellWalCarrierAuthenticator.authenticate(row, wal, qualified.indexes.toSet())
++				as? CellWalCarrierAuthentication.Authenticated
++				?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
++			val accepted = selected.carrier.childQualification?.children?.withIndex()
+ 				?.filter { it.value.disposition == CellWalChildDisposition.ACCEPTED }
+ 				?.map { it.index }.orEmpty()
+ 			if (qualified.indexes.isEmpty() || accepted.any { it !in qualified.indexes } ||
+@@ -754,7 +758,7 @@
+ 			(nextAuthorization.effectiveBootId != row.clockDomainId ||
+ 				nextAuthorization.effectiveElapsedRealtimeNanos < authorization.effectiveElapsedRealtimeNanos)
+ 		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+-		val authorizationEnd = minOf(
++		val authorizationEnd = purpose?.continuousUntilNanos ?: minOf(
+ 			registrationEnd,
+ 			nextAuthorization?.effectiveElapsedRealtimeNanos ?: Long.MAX_VALUE,
+ 		)
+@@ -795,7 +799,10 @@
+ 		}.getOrNull() ?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+ 		val firstDay = Instant.ofEpochMilli(earliestWall).atZone(zone).toLocalDate().toEpochDay()
+ 		val lastDay = Instant.ofEpochMilli(latestWall).atZone(zone).toLocalDate().toEpochDay()
+-		if (firstDay != lastDay || firstDay != row.structuralEpochDay) {
++		val measuredDay = Instant.ofEpochMilli(row.observedWallTimeMs).atZone(zone).toLocalDate().toEpochDay()
++		if (if (row.payloadVersion == CELL_WAL_PAYLOAD_VERSION) measuredDay != row.structuralEpochDay else
++			firstDay != lastDay || firstDay != row.structuralEpochDay
++		) {
+ 			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
+ 		}
+ 		val capturedSources = sources.sourceKinds(SessionManifestPurposeCode.SESSION_CAPTURE) {
+@@ -939,16 +946,19 @@
+ 		currentRetainedFromMs: Long?,
+ 	) {
+ 		val dao = database.capturedRadioFactRetentionProofDao()
+-		val byEvent = dao.byEvent(SOURCE_KIND, fact.sourceEventId)
++		val conflictingEvent = dao.hasConflictingEventIdentity(
++			SOURCE_KIND, fact.sourceEventId, fact.sourceAdmissionOrdinal,
++			fact.collectedDataEpoch, fact.walIntegrityIdentity,
++		)
+ 		val byFact = dao.byFact(
+ 			SOURCE_KIND,
+ 			fact.writerProjectionId,
+ 			fact.writerProjectionVersion,
+ 			fact.logicalFactId,
+ 		)
+-		if (byEvent == null && byFact == null) return
+-		if (byEvent == null || byFact == null || byEvent != byFact ||
+-			!byEvent.authenticatesRequest(
++		if (!conflictingEvent && byFact == null) return
++		if (conflictingEvent || byFact == null ||
++			!byFact.authenticatesRequest(
+ 				expectedSourceKind = SOURCE_KIND,
+ 				expectedWriterProjectionId = fact.writerProjectionId,
+ 				expectedWriterProjectionVersion = fact.writerProjectionVersion,
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellSessionFactProjectionLane.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellSessionFactProjectionLane.kt
+@@ -229,8 +229,8 @@
+ 								return@withTransaction CellProjectionPass.TerminalBlocked(failure, through)
+ 							}
+ 							val wal = (authenticated as CellPreflightAuthentication.Authenticated).wal
+-							if (wal.authorizationPurposeEligibilityMask and
+-								SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
++							if (wal.payloadVersion != com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION &&
++								wal.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
+ 							) {
+ 								// CONTROL and ambient/opportunistic observations are not captured history.
+ 								database.sourceProjectionStateDao().deleteFailure(
+@@ -258,7 +258,7 @@
+ 							advanceCursor(lane, through)
+ 							return@withTransaction CellProjectionPass.TerminalBlocked(failure, through)
+ 						}
+-						if (result.factInserted) inserted++
++						inserted += result.factsInserted
+ 						validated++
+ 						database.sourceProjectionStateDao().deleteFailure(
+ 							WRITER_ID,
+@@ -395,8 +395,8 @@
+ 
+ 	private fun SourceEventWalEntity.isLifecycleRejected(
+ 		state: SourceEvidenceState,
+-	): Boolean = authorizationPurposeEligibilityMask and
+-		SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
++	): Boolean = (payloadVersion != com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION &&
++		authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L) ||
+ 		capturedCollectedDataEpoch != state.collectedDataEpoch ||
+ 		state.retainedFromMs?.let { retainedFrom ->
+ 			acquiredAtMs < retainedFrom ||
+@@ -404,6 +404,8 @@
+ 		} == true
+ 
+ 	private suspend fun SourceEventWalEntity.isDeletedScope(): Boolean {
++		// v6 can contain independently valid historical groups beside a deleted callback scope.
++		if (payloadVersion == com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION) return false
+ 		val logical = logicalTrackingId ?: return false
+ 		val run = serviceRunId ?: return false
+ 		return database.sourceDeletionFenceDao().contains(
+@@ -513,36 +515,54 @@
+ }
+ 
+ private fun CellWalAdapterResult.toProjectionResult(): CellCandidateProjectionResult = when (this) {
++	is CellWalAdapterResult.Groups -> results.map {
++		if (it is CellWalAdapterResult.Rejected && it.reason.isSettledCaptureGroup())
++			CellCandidateProjectionResult(0, null) else it.toProjectionResult()
++	}.combined()
+ 	is CellWalAdapterResult.Evaluated -> CellCandidateProjectionResult(
+-		factInserted = false,
++		factsInserted = 0,
+ 		failureCode = classification.failureCodeOrNull(),
+ 	)
+ 	is CellWalAdapterResult.Rejected -> CellCandidateProjectionResult(
+-		factInserted = false,
++		factsInserted = 0,
+ 		failureCode = "CELL_ADAPTER_${reason.name}",
+ 	)
+ }
+ 
+ private fun CellCapturedWriteResult.toProjectionResult(): CellCandidateProjectionResult = when (this) {
+-	is CellCapturedWriteResult.Applied -> CellCandidateProjectionResult(true, null)
+-	is CellCapturedWriteResult.Unchanged -> CellCandidateProjectionResult(false, null)
++	is CellCapturedWriteResult.Groups -> results.map {
++		if (it is CellCapturedWriteResult.AdapterRejected && it.reason.isSettledCaptureGroup())
++			CellCandidateProjectionResult(0, null) else it.toProjectionResult()
++	}.combined()
++	is CellCapturedWriteResult.Applied -> CellCandidateProjectionResult(1, null)
++	is CellCapturedWriteResult.Unchanged -> CellCandidateProjectionResult(0, null)
+ 	is CellCapturedWriteResult.AdapterRejected -> CellCandidateProjectionResult(
+-		false,
++		0,
+ 		"CELL_ADAPTER_${reason.name}",
+ 	)
+ 	is CellCapturedWriteResult.Rejected -> CellCandidateProjectionResult(
+-		false,
++		0,
+ 		"CELL_WRITE_${reason.name}",
+ 	)
+ 	is CellCapturedWriteResult.NoEvidence -> CellCandidateProjectionResult(
+-		false,
++		0,
+ 		classification.failureCodeOrNull(),
+ 	)
+ }
+ 
+ private data class CellCandidateProjectionResult(
+-	val factInserted: Boolean,
++	val factsInserted: Int,
+ 	val failureCode: String?,
++)
++
++private fun List<CellCandidateProjectionResult>.combined() = CellCandidateProjectionResult(
++	factsInserted = sumOf { it.factsInserted }, failureCode = firstNotNullOfOrNull { it.failureCode },
++)
++
++private fun CellWalAdapterRejection.isSettledCaptureGroup(): Boolean = this in setOf(
++	CellWalAdapterRejection.DELETED_SCOPE,
++	CellWalAdapterRejection.SCOPE_DELETION_AUTHORITY_MISMATCH,
++	CellWalAdapterRejection.BEFORE_RETENTION_FLOOR,
+ )
+ 
+ private sealed interface CellPreflightAuthentication {
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/DefaultSourceLifecycleProofAdapter.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/DefaultSourceLifecycleProofAdapter.kt
+@@ -2,6 +2,8 @@
+ 
+ import androidx.room.withTransaction
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.CellPurposeItems
++import com.adsamcik.tracker.shared.base.database.qualifyCellCapturePurposeItems
+ import com.adsamcik.tracker.shared.base.database.PressureFactLineageProof
+ import com.adsamcik.tracker.shared.base.database.PressureFactProofAuthenticator
+ import com.adsamcik.tracker.shared.base.database.PressureFactProofExpectation
+@@ -28,6 +30,7 @@
+ import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
+ import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
+ import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication
++import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+ import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
+ import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
+ import com.adsamcik.tracker.shared.base.database.data.MAX_ACTIVITY_WAL_PAYLOAD_BYTES
+@@ -526,12 +529,27 @@
+ 		if (isRunDeleted(key)) {
+ 			return deleted(SourceProofStage.RECORDING, SourceProofReason.DELETED)
+ 		}
+-		return when (val result = cellQualifier.qualify(SourceEventId(key.evidenceIdentity.value))) {
++		val qualified = cellQualifier.qualify(SourceEventId(key.evidenceIdentity.value))
++		val result = if (qualified is CellWalAdapterResult.Groups) {
++			val scope = key.scope as SourceProofScope.Run
++			qualified.results.filterIsInstance<CellWalAdapterResult.Evaluated>().singleOrNull { evaluated ->
++				val authority = when (val classification = evaluated.classification) {
++					is CellCapturedFactClassification.FreshChanged -> classification.fact.authority
++					is CellCapturedFactClassification.FreshUnchanged -> classification.fact.authority
++					else -> null
++				}
++				authority != null && authority.logicalTrackingId.value == scope.logicalTrackingId &&
++					authority.serviceRunId.value == scope.serviceRunId &&
++					authority.sourcePolicyRevision == key.sourcePolicyRevision &&
++					authority.captureConsentEpoch == key.captureConsentEpoch
++			} ?: return missingCellGroupRecording(key)
++		} else qualified
++		return when (result) {
+ 			is CellWalAdapterResult.Evaluated -> when (val classification = result.classification) {
+ 				is CellCapturedFactClassification.FreshChanged ->
+-					recordingCellFact(key, classification.fact.coverage)
++					recordingCellFact(key, classification.fact)
+ 				is CellCapturedFactClassification.FreshUnchanged ->
+-					recordingCellFact(key, classification.fact.coverage)
++					recordingCellFact(key, classification.fact)
+ 				is CellCapturedFactClassification.Replay ->
+ 					recordingFromWal(key, SourceKind.CELL) { wal, revision ->
+ 						recordingState(
+@@ -579,29 +597,40 @@
+ 				} else {
+ 					result.reason.toRecordingResult()
+ 				}
++			is CellWalAdapterResult.Groups -> unavailable(SourceProofStage.RECORDING, SourceProofReason.IMMUTABLE_AUTHORITY_MISSING)
+ 		}
+ 	}
+ 
+ 	private suspend fun recordingCellFact(
+ 		key: SourceProofKey,
+-		coverage: com.adsamcik.tracker.tracker.source.cell.CellCoverageEvidence,
++		fact: com.adsamcik.tracker.tracker.source.cell.CellCapturedFact,
+ 	): SourceProofResult<RecordingProofState> =
+-		recordingFromWal(key, SourceKind.CELL) { wal, revision ->
++		recordingFromWal(key, SourceKind.CELL, cellFact = fact) { wal, revision ->
+ 			recordingState(
+ 				key,
+ 				wal,
+ 				revision,
+ 				providerCoverage(
+-					coverage.providerIntervalStartElapsedRealtimeNanos,
+-					coverage.providerIntervalEndElapsedRealtimeNanos,
++					fact.coverage.providerIntervalStartElapsedRealtimeNanos,
++					fact.coverage.providerIntervalEndElapsedRealtimeNanos,
+ 				),
+-				if (coverage.childCompleteness.name == "COMPLETE") {
++				if (fact.coverage.childCompleteness.name == "COMPLETE") {
+ 					SourceProofCompleteness.COMPLETE
+ 				} else {
+ 					SourceProofCompleteness.PARTIAL
+ 				},
+ 			)
+ 		}
++
++	private suspend fun missingCellGroupRecording(key: SourceProofKey): SourceProofResult<RecordingProofState> {
++		val scope = key.scope as SourceProofScope.Run
++		val retained = database.capturedRadioFactRetentionProofDao().eventCandidatesForRun(
++			SourceKind.CELL.stableCode, key.evidenceIdentity.value,
++			scope.logicalTrackingId, scope.serviceRunId, key.sourcePolicyRevision, key.captureConsentEpoch,
++		)
++		return if (retained.isNotEmpty()) missingRecordingEvidence(key) else
++			unavailable(SourceProofStage.RECORDING, SourceProofReason.IMMUTABLE_AUTHORITY_MISSING)
++	}
+ 
+ 	private suspend fun materializedLocation(
+ 		key: SourceProofKey,
+@@ -1330,7 +1359,11 @@
+ 			)
+ 		}
+ 		val fact = resolution.current
+-		val walAuthentication = WifiWalCarrierAuthenticator.authenticate(fact, wal)
++		val children = database.radioObservationChildDao().wifiSessionChildren(
++			fact.writerProjectionId, fact.writerProjectionVersion,
++			fact.logicalFactId, fact.semanticRevision, 65,
++		)
++		val walAuthentication = WifiWalCarrierAuthenticator.authenticate(fact, wal, children)
+ 			as? WifiWalCarrierAuthentication.Authenticated
+ 			?: return@withTransaction failed(
+ 				SourceProofStage.MATERIALIZED,
+@@ -1479,17 +1512,22 @@
+ 		materializationDeletion(key, recording)?.let { return@withTransaction it }
+ 		val wal = database.sourceEventWalDao().getByEventId(key.evidenceIdentity.value)
+ 			?: return@withTransaction deletedOrMissing(key, recording, CELL_WRITER)
++		val scope = key.scope as SourceProofScope.Run
+ 		val admissionRevisions = database.cellCapturedFactDao().revisionsForWriterAdmission(
+ 			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+ 			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+ 			recording.lineage.sourceAdmissionOrdinal,
+ 			MAX_RADIO_REVISION_CHAIN + 1,
++			scope.logicalTrackingId, scope.serviceRunId,
++			key.sourcePolicyRevision, key.captureConsentEpoch,
+ 		)
+ 		val current = database.cellCapturedFactDao().currentRevisionsForWriterAdmission(
+ 			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+ 			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+ 			recording.lineage.sourceAdmissionOrdinal,
+ 			2,
++			scope.logicalTrackingId, scope.serviceRunId,
++			key.sourcePolicyRevision, key.captureConsentEpoch,
+ 		)
+ 		val retained = current.singleOrNull()?.let { fact ->
+ 			database.cellCapturedFactDao().revisionsForFact(
+@@ -1524,8 +1562,7 @@
+ 			)
+ 		}
+ 		val fact = resolution.current
+-		val walAuthentication = CellWalCarrierAuthenticator.authenticate(fact, wal)
+-			as? CellWalCarrierAuthentication.Authenticated
++		val walAuthentication = authenticateCellFactCarrier(fact, wal)
+ 			?: return@withTransaction failed(
+ 				SourceProofStage.MATERIALIZED,
+ 				SourceProofReason.INTEGRITY_FAILURE,
+@@ -1585,9 +1622,7 @@
+ 						SourceProofReason.IMMUTABLE_AUTHORITY_MISSING,
+ 						recording.lineage,
+ 					)
+-				aggregateWalAuthentication =
+-					CellWalCarrierAuthenticator.authenticate(owner, ownerWal)
+-						as? CellWalCarrierAuthentication.Authenticated
++				aggregateWalAuthentication = authenticateCellFactCarrier(owner, ownerWal)
+ 						?: return@withTransaction failed(
+ 							SourceProofStage.MATERIALIZED,
+ 							SourceProofReason.INTEGRITY_FAILURE,
+@@ -1601,13 +1636,18 @@
+ 					captureConsentEpoch = owner.captureConsentEpoch,
+ 					collectedDataEpoch = owner.collectedDataEpoch,
+ 				)
+-				historicalSessionAuthority(
++				val ownerFailure = if (ownerWal.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
++					if (hasHistoricalCellFactAuthority(owner, ownerWal)) null else failed(
++						SourceProofStage.RECORDING, SourceProofReason.IMMUTABLE_AUTHORITY_MISSING,
++					)
++				} else historicalSessionAuthority(
+ 					key = ownerKey,
+ 					wal = ownerWal,
+ 					expectedSource = SourceKind.CELL,
+ 					observedStartNanos = owner.coverageIntervalStartNanos,
+ 					observedEndNanos = owner.coverageIntervalEndNanos,
+-				)?.let { failure ->
++				)
++				ownerFailure?.let { failure ->
+ 					return@withTransaction failed(
+ 						SourceProofStage.MATERIALIZED,
+ 						when (failure) {
+@@ -1835,6 +1875,52 @@
+ 	}
+ 
+ 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
++	private suspend fun authenticateCellFactCarrier(
++		fact: CellCapturedFactRevisionEntity,
++		wal: SourceEventWalEntity,
++	): CellWalCarrierAuthentication.Authenticated? {
++		if (wal.payloadVersion != CELL_WAL_PAYLOAD_VERSION) {
++			return CellWalCarrierAuthenticator.authenticate(fact, wal)
++				as? CellWalCarrierAuthentication.Authenticated
++		}
++		val raw = CellWalCarrierAuthenticator.authenticate(wal)
++			as? CellWalCarrierAuthentication.Authenticated ?: return null
++		val purpose = database.qualifyCellCapturePurposeItems(wal, raw.carrier.payload, fact)
++			as? CellPurposeItems.Qualified ?: return null
++		return CellWalCarrierAuthenticator.authenticate(fact, wal, purpose.indexes.toSet())
++			as? CellWalCarrierAuthentication.Authenticated
++	}
++
++	/** An aggregate owner is requalified in its original session, never the callback's header. */
++	private suspend fun hasHistoricalCellFactAuthority(
++		owner: CellCapturedFactRevisionEntity,
++		wal: SourceEventWalEntity,
++	): Boolean {
++		val qualified = cellQualifier.qualify(SourceEventId(wal.eventId))
++		val groups = if (qualified is CellWalAdapterResult.Groups) qualified.results else listOf(qualified)
++		return groups.filterIsInstance<CellWalAdapterResult.Evaluated>().mapNotNull { evaluated ->
++			when (val classification = evaluated.classification) {
++				is CellCapturedFactClassification.FreshChanged -> classification.fact
++				is CellCapturedFactClassification.FreshUnchanged -> classification.fact
++				else -> null
++			}
++		}.singleOrNull { candidate ->
++			val authority = candidate.authority
++			authority.logicalTrackingId.value == owner.logicalTrackingId &&
++				authority.serviceRunId.value == owner.serviceRunId &&
++				authority.sessionSegmentId == owner.sessionSegmentId &&
++				authority.sessionManifestRevision == owner.manifestRevision &&
++				authority.lifecycleLeaseGeneration == owner.lifecycleLeaseGeneration &&
++				authority.sourcePolicyRevision == owner.sourcePolicyRevision &&
++				authority.captureConsentEpoch == owner.captureConsentEpoch &&
++				authority.collectedDataEpoch == owner.collectedDataEpoch &&
++				authority.authorizationRevision == owner.authorizationRevision &&
++				authority.authorizationFingerprint == owner.authorizationFingerprint &&
++				candidate.coverage.providerIntervalStartElapsedRealtimeNanos == owner.coverageIntervalStartNanos &&
++				candidate.coverage.providerIntervalEndElapsedRealtimeNanos == owner.coverageIntervalEndNanos
++		} != null
++	}
++
+ 	private suspend fun historicalSessionAuthority(
+ 		key: SourceProofKey,
+ 		wal: SourceEventWalEntity,
+@@ -2284,6 +2370,7 @@
+ 		key: SourceProofKey,
+ 		expectedSource: SourceKind,
+ 		maximumPayloadBytes: Int = Int.MAX_VALUE,
++		cellFact: com.adsamcik.tracker.tracker.source.cell.CellCapturedFact? = null,
+ 		block: suspend (
+ 			SourceEventWalEntity,
+ 			Long,
+@@ -2307,6 +2394,11 @@
+ 				SourceProofReason.INTEGRITY_FAILURE,
+ 			)
+ 		}
++		val historicalCell = cellFact?.takeIf {
++			expectedSource == SourceKind.CELL && wal.payloadVersion ==
++				com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
++		}
++		val captureAuthority = historicalCell?.authority
+ 		val lifecycle = database.sourceEvidenceStateDao().get()
+ 			?: return@withTransaction unavailable(
+ 				SourceProofStage.RECORDING,
+@@ -2343,35 +2435,41 @@
+ 			PressureRetentionAuthorityState.ABSENT -> Unit
+ 		}
+ 		if (lifecycle.retainedFromMs?.let { floor ->
+-			wal.earliestPossibleWallTimeMs()?.let { it < floor } ?: true
++			val earliest = historicalCell?.let { fact ->
++				com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds.cellCoverage(
++					requireNotNull(wal.wallTimeMs), requireNotNull(wal.wallTimeUncertaintyMs),
++					wal.observedElapsedNanos, fact.coverage.providerIntervalStartElapsedRealtimeNanos,
++				)
++			} ?: wal.earliestPossibleWallTimeMs()
++			earliest?.let { it < floor } ?: true
+ 		} == true) {
+ 			return@withTransaction deleted(
+ 				SourceProofStage.RECORDING,
+ 				SourceProofReason.RETENTION_EXPIRED,
+ 			)
+ 		}
+-		if (wal.sourcePolicyRevision != key.sourcePolicyRevision) {
++		if ((captureAuthority?.sourcePolicyRevision ?: wal.sourcePolicyRevision) != key.sourcePolicyRevision) {
+ 			return@withTransaction failed(
+ 				SourceProofStage.RECORDING,
+ 				SourceProofReason.POLICY_MISMATCH,
+ 			)
+ 		}
+-		if (wal.captureConsentEpoch != key.captureConsentEpoch) {
++		if ((captureAuthority?.captureConsentEpoch ?: wal.captureConsentEpoch) != key.captureConsentEpoch) {
+ 			return@withTransaction failed(
+ 				SourceProofStage.RECORDING,
+ 				SourceProofReason.CONSENT_MISMATCH,
+ 			)
+ 		}
+ 		val scope = key.scope as SourceProofScope.Run
+-		if (wal.logicalTrackingId != scope.logicalTrackingId ||
+-			wal.serviceRunId != scope.serviceRunId
++		if ((captureAuthority?.logicalTrackingId?.value ?: wal.logicalTrackingId) != scope.logicalTrackingId ||
++			(captureAuthority?.serviceRunId?.value ?: wal.serviceRunId) != scope.serviceRunId
+ 		) {
+ 			return@withTransaction failed(
+ 				SourceProofStage.RECORDING,
+ 				SourceProofReason.SCOPE_MISMATCH,
+ 			)
+ 		}
+-		if (wal.authorizationPurposeEligibilityMask and
++		if ((captureAuthority?.purposeEligibilityMask ?: wal.authorizationPurposeEligibilityMask) and
+ 			SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
+ 		) {
+ 			return@withTransaction unavailable(
+@@ -2464,6 +2562,46 @@
+ 				SourceProofReason.INTEGRITY_FAILURE,
+ 			)
+ 			PressureRetentionAuthorityState.ABSENT -> Unit
++		}
++		if (key.source in setOf(TrackingSource.WIFI, TrackingSource.CELL)) {
++			val scope = key.scope as SourceProofScope.Run
++			val candidates = database.capturedRadioFactRetentionProofDao().eventCandidatesForRun(
++				key.source.stableCode, key.evidenceIdentity.value,
++				scope.logicalTrackingId, scope.serviceRunId,
++				key.sourcePolicyRevision, key.captureConsentEpoch,
++			)
++			if (candidates.isNotEmpty()) {
++				val expectation = if (key.source == TrackingSource.WIFI) WIFI_WRITER else CELL_WRITER
++				val proof = candidates.singleOrNull()
++				if (proof == null || !proof.authenticatesRequest(
++						expectedSourceKind = key.source.stableCode,
++						expectedWriterProjectionId = expectation.projectionId,
++						expectedWriterProjectionVersion = expectation.projectionVersion,
++						expectedWriterBindingGeneration = expectation.bindingGeneration,
++						expectedWriterOwnerGeneration = expectation.ownerGeneration,
++						expectedLogicalFactId = proof.logicalFactId,
++						expectedSemanticRevision = proof.semanticRevision,
++						expectedCursorRevision = proof.cursorRevision,
++						expectedSourceEventId = key.evidenceIdentity.value,
++						expectedSourceAdmissionOrdinal = proof.sourceAdmissionOrdinal,
++						expectedSourcePolicyRevision = key.sourcePolicyRevision,
++						expectedCaptureConsentEpoch = key.captureConsentEpoch,
++						expectedCollectedDataEpoch = key.collectedDataEpoch,
++						expectedScopeDeletionGeneration = 0L,
++						expectedLogicalRunScopeDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
++							key.source.stableCode, SourceBrokerPurpose.SESSION_CAPTURE,
++							scope.logicalTrackingId, scope.serviceRunId,
++						),
++						currentRetainedFromMs = lifecycle.retainedFromMs,
++					)
++				) return@withTransaction failed(SourceProofStage.RECORDING, SourceProofReason.INTEGRITY_FAILURE)
++				return@withTransaction deleted(
++					SourceProofStage.RECORDING,
++					if (proof.sourceAdmissionOrdinal <= lifecycle.deletedSourceEventHighWaterOrdinal) {
++						SourceProofReason.DELETED
++					} else SourceProofReason.RETENTION_EXPIRED,
++				)
++			}
+ 		}
+ 		val retentionProof = database.sourceEventRetentionProofDao().get(
+ 			sourceKind = source.toSourceKind().stableCode,
+@@ -2610,11 +2748,21 @@
+ 			TrackingSource.CELL -> CELL_WRITER
+ 			else -> return null
+ 		}
+-		val proof = database.capturedRadioFactRetentionProofDao().byEvent(
++		val scope = key.scope as SourceProofScope.Run
++		val candidates = database.capturedRadioFactRetentionProofDao().eventCandidatesForRun(
+ 			key.source.stableCode,
+ 			key.evidenceIdentity.value,
+-		) ?: return null
+-		val scope = key.scope as SourceProofScope.Run
++			scope.logicalTrackingId,
++			scope.serviceRunId,
++			key.sourcePolicyRevision,
++			key.captureConsentEpoch,
++		)
++		if (candidates.isEmpty()) return null
++		val proof = candidates.singleOrNull() ?: return failed(
++			SourceProofStage.MATERIALIZED,
++			SourceProofReason.INTEGRITY_FAILURE,
++			recording.lineage,
++		)
+ 		return if (proof.authenticatesRequest(
+ 				expectedSourceKind = key.source.stableCode,
+ 				expectedWriterProjectionId = expectation.projectionId,
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellWalCarrierAuthenticator.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellWalCarrierAuthenticator.kt
+@@ -169,6 +169,7 @@
+ 	fun authenticate(
+ 		wal: SourceEventWalEntity,
+ 		expectedAuthority: CellWalCaptureAuthority? = null,
++		qualifiedItemIndexes: Set<Int>? = null,
+ 	): CellWalCarrierAuthentication {
+ 		if (wal.sourceKind != SourceDestinationOwnerEntity.SOURCE_CELL) {
+ 			return rejected(CellWalCarrierFailure.WRONG_SOURCE)
+@@ -192,10 +193,10 @@
+ 		if (wal.activityAutomationEpoch != null) {
+ 			return rejected(CellWalCarrierFailure.ACTIVITY_AUTOMATION_PRESENT)
+ 		}
+-		if (!wal.hasCapturePurpose()) {
++		if (wal.payloadVersion == LEGACY_CELL_WAL_PAYLOAD_VERSION && !wal.hasCapturePurpose()) {
+ 			return rejected(CellWalCarrierFailure.NON_CAPTURE_PURPOSE)
+ 		}
+-		if (!wal.hasCompleteCaptureBinding()) {
++		if (wal.payloadVersion == LEGACY_CELL_WAL_PAYLOAD_VERSION && !wal.hasCompleteCaptureBinding()) {
+ 			return rejected(CellWalCarrierFailure.INCOMPLETE_CAPTURE_BINDING)
+ 		}
+ 		if (!wal.hasCanonicalProviderEnvelope()) {
+@@ -271,8 +272,11 @@
+ 		if (expectedAuthority != null && !wal.matches(expectedAuthority, payload)) {
+ 			return rejected(CellWalCarrierFailure.CAPTURE_AUTHORITY_MISMATCH)
+ 		}
++		if (qualifiedItemIndexes?.any { it !in payload.observations.indices } == true ||
++			(qualifiedItemIndexes != null && wal.payloadVersion != CELL_WAL_PAYLOAD_VERSION)
++		) return rejected(CellWalCarrierFailure.CAPTURE_AUTHORITY_MISMATCH)
+ 		val qualification = expectedAuthority?.let { authority ->
+-			qualifyChildren(wal, payload, authority)
++			qualifyChildren(wal, payload, authority, qualifiedItemIndexes)
+ 				?: return rejected(CellWalCarrierFailure.STRUCTURAL_DAY_MISMATCH)
+ 		}
+ 		return CellWalCarrierAuthentication.Authenticated(
+@@ -292,8 +296,9 @@
+ 	fun authenticate(
+ 		fact: CellCapturedFactRevisionEntity,
+ 		wal: SourceEventWalEntity,
++		qualifiedItemIndexes: Set<Int>? = null,
+ 	): CellWalCarrierAuthentication {
+-		val authenticated = authenticate(wal, fact.captureAuthority())
++		val authenticated = authenticate(wal, fact.captureAuthority(), qualifiedItemIndexes)
+ 		if (authenticated !is CellWalCarrierAuthentication.Authenticated) return authenticated
+ 		if (!fact.hasExactWalLink(wal, authenticated.carrier)) {
+ 			return rejected(CellWalCarrierFailure.FACT_LINKAGE_MISMATCH)
+@@ -310,7 +315,9 @@
+ 		wal: SourceEventWalEntity,
+ 		children: List<CellCapturedChildEntity>,
+ 	): CellWalCarrierAuthentication {
+-		val authenticated = authenticate(fact, wal)
++		val authenticated = authenticate(fact, wal,
++			children.map(CellCapturedChildEntity::itemIndex).toSet()
++				.takeIf { wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION })
+ 		if (authenticated !is CellWalCarrierAuthentication.Authenticated) return authenticated
+ 		if (wal.payloadVersion == LEGACY_CELL_WAL_PAYLOAD_VERSION && children.isEmpty()) {
+ 			return authenticated
+@@ -357,6 +364,7 @@
+ 		wal: SourceEventWalEntity,
+ 		payload: CellWalPayload,
+ 		authority: CellWalCaptureAuthority,
++		qualifiedItemIndexes: Set<Int>?,
+ 	): CellWalChildQualification? {
+ 		val carrier = AuthenticatedCellWalCarrier(
+ 			deliveryIdentity = requireNotNull(wal.deliveryIdentity),
+@@ -369,16 +377,18 @@
+ 			wallTimeUncertaintyMs = requireNotNull(wal.wallTimeUncertaintyMs),
+ 		)
+ 		return qualifyChildrenFromAuthenticatedCarrier(carrier, authority,
+-			preserveProviderRounding = wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION)
++			preserveProviderRounding = wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION,
++			qualifiedItemIndexes = qualifiedItemIndexes)
+ 	}
+ 
+ 	private fun qualifyChildrenFromAuthenticatedCarrier(
+ 		carrier: AuthenticatedCellWalCarrier,
+ 		authority: CellWalCaptureAuthority,
+ 		preserveProviderRounding: Boolean,
++		qualifiedItemIndexes: Set<Int>? = null,
+ 	): CellWalChildQualification? {
+ 		if (authority.maximumObservationAgeNanos < 0L) return null
+-		val children = carrier.payload.observations.map { observation ->
++		val children = carrier.payload.observations.mapIndexed { index, observation ->
+ 			val providerTime = requireNotNull(observation.providerTimestampNanos)
+ 			val disposition = when {
+ 				providerTime > carrier.receivedElapsedNanos ->
+@@ -388,6 +398,7 @@
+ 					authority.maximumObservationAgeNanos -> CellWalChildDisposition.STALE
+ 				!observation.hasSupportedCellProductShape() ->
+ 					CellWalChildDisposition.UNSUPPORTED_TECHNOLOGY
++				qualifiedItemIndexes != null && index !in qualifiedItemIndexes -> CellWalChildDisposition.STALE
+ 				else -> CellWalChildDisposition.ACCEPTED
+ 			}
+ 			CellWalQualifiedChild(observation, disposition)
+@@ -421,7 +432,10 @@
+ 			.atZone(zone).toLocalDate().toEpochDay()
+ 		val lastDay = Instant.ofEpochMilli(providerWallInterval.last)
+ 			.atZone(zone).toLocalDate().toEpochDay()
+-		if (firstDay != authority.structuralEpochDay || lastDay != authority.structuralEpochDay) {
++		val measuredDay = Instant.ofEpochMilli(observedWall).atZone(zone).toLocalDate().toEpochDay()
++		if (if (preserveProviderRounding) measuredDay != authority.structuralEpochDay else
++			firstDay != authority.structuralEpochDay || lastDay != authority.structuralEpochDay
++		) {
+ 			return null
+ 		}
+ 		return CellWalChildQualification(
+@@ -515,7 +529,8 @@
+ 		deliveryUnitIndex == 0 &&
+ 		deliveryUnitCount == 1 &&
+ 		sourceSequence >= 0L &&
+-		planAttribution == CAPTURED_REGISTRATION_PLAN_ORDINAL &&
++		(if (payloadVersion == CELL_WAL_PAYLOAD_VERSION) hasCanonicalPerReadingBinding() else
++			planAttribution == CAPTURED_REGISTRATION_PLAN_ORDINAL) &&
+ 		observedIntervalStartNanos?.let { it > 0L } == true &&
+ 		observedElapsedNanos >= requireNotNull(observedIntervalStartNanos) &&
+ 		receivedElapsedNanos >= observedElapsedNanos &&
+@@ -532,22 +547,38 @@
+ 	authority: CellWalCaptureAuthority,
+ 	payload: CellWalPayload,
+ ): Boolean =
+-	logicalTrackingId == authority.logicalTrackingId &&
+-		serviceRunId == authority.serviceRunId &&
+-		sourceInstanceId == authority.sourceInstanceId &&
+-		registrationGeneration == authority.registrationGeneration &&
++	(payloadVersion == CELL_WAL_PAYLOAD_VERSION || (
++		logicalTrackingId == authority.logicalTrackingId && serviceRunId == authority.serviceRunId &&
+ 		configRevision == authority.configurationRevision &&
+-		physicalConfigurationFingerprint == authority.physicalConfigurationFingerprint &&
+ 		authorizationRevision == authority.authorizationRevision &&
+ 		authorizationFingerprint == authority.authorizationFingerprint &&
+ 		authorizationPurposeEligibilityMask == authority.purposeEligibilityMask &&
+ 		sourcePolicyRevision == authority.sourcePolicyRevision &&
+ 		captureConsentEpoch == authority.captureConsentEpoch &&
+ 		sessionManifestRevision == authority.manifestRevision &&
+-		lifecycleLeaseGeneration == authority.lifecycleLeaseGeneration &&
++		lifecycleLeaseGeneration == authority.lifecycleLeaseGeneration)) &&
++		sourceInstanceId == authority.sourceInstanceId &&
++		registrationGeneration == authority.registrationGeneration &&
++		physicalConfigurationFingerprint == authority.physicalConfigurationFingerprint &&
+ 		capturedCollectedDataEpoch == authority.collectedDataEpoch &&
+ 		clockDomainId == authority.clockDomainId &&
+-		payload.observationZoneId == authority.zoneId
++		(payloadVersion == CELL_WAL_PAYLOAD_VERSION || payload.observationZoneId == authority.zoneId)
++
++/** v6 records the real callback, including a denied callback after historical capture ended. */
++private fun SourceEventWalEntity.hasCanonicalPerReadingBinding(): Boolean {
++	if (sourceInstanceId.isBlank() || registrationGeneration <= 0L ||
++		configRevision?.let { it > 0L } != true || physicalConfigurationFingerprint.isNullOrBlank() ||
++		authorizationRevision?.let { it > 0L } != true ||
++		authorizationFingerprint?.let(LOWERCASE_SHA_256::matches) != true ||
++		authorizationPurposeEligibilityMask and SourceBrokerPurpose.ALL_MASK != authorizationPurposeEligibilityMask ||
++		capturedCollectedDataEpoch < 0L || clockDomainId.isBlank()
++	) return false
++	return if (hasCapturePurpose()) hasCompleteCaptureBinding() &&
++		planAttribution == CAPTURED_REGISTRATION_PLAN_ORDINAL else
++		listOf(logicalTrackingId, serviceRunId, sourcePolicyRevision, captureConsentEpoch,
++			sessionManifestRevision, lifecycleLeaseGeneration).all { it == null } &&
++			planAttribution == RECEIVE_TIME_ONLY_PLAN_ORDINAL
++}
+ 
+ private fun CellWalCaptureAuthority.contains(providerTimeNanos: Long): Boolean =
+ 	providerTimeNanos in providerAcceptance &&
+@@ -616,22 +647,19 @@
+ 		deliveryUnitIndex == wal.deliveryUnitIndex &&
+ 		deliveryUnitCount == wal.deliveryUnitCount &&
+ 		sourceSequence == wal.sourceSequence &&
+-		logicalTrackingId == wal.logicalTrackingId &&
+-		serviceRunId == wal.serviceRunId &&
++		(payloadVersion == CELL_WAL_PAYLOAD_VERSION || (
++			logicalTrackingId == wal.logicalTrackingId && serviceRunId == wal.serviceRunId &&
++			configurationRevision == wal.configRevision && authorizationRevision == wal.authorizationRevision &&
++			authorizationFingerprint == wal.authorizationFingerprint &&
++			purposeEligibilityMask == wal.authorizationPurposeEligibilityMask &&
++			sourcePolicyRevision == wal.sourcePolicyRevision && captureConsentEpoch == wal.captureConsentEpoch &&
++			manifestRevision == wal.sessionManifestRevision && lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration)) &&
+ 		sourceInstanceId == wal.sourceInstanceId &&
+ 		registrationGeneration == wal.registrationGeneration &&
+-		configurationRevision == wal.configRevision &&
+ 		physicalConfigurationFingerprint == wal.physicalConfigurationFingerprint &&
+-		authorizationRevision == wal.authorizationRevision &&
+-		authorizationFingerprint == wal.authorizationFingerprint &&
+-		purposeEligibilityMask == wal.authorizationPurposeEligibilityMask &&
+-		sourcePolicyRevision == wal.sourcePolicyRevision &&
+-		captureConsentEpoch == wal.captureConsentEpoch &&
+-		manifestRevision == wal.sessionManifestRevision &&
+-		lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration &&
+ 		collectedDataEpoch == wal.capturedCollectedDataEpoch &&
+ 		clockDomainId == wal.clockDomainId &&
+-		storedZoneId == carrier.payload.observationZoneId &&
++		(payloadVersion == CELL_WAL_PAYLOAD_VERSION || storedZoneId == carrier.payload.observationZoneId) &&
+ 		observedIntervalStartNanos == wal.observedIntervalStartNanos &&
+ 		observedElapsedNanos == wal.observedElapsedNanos &&
+ 		receivedElapsedNanos == wal.receivedElapsedNanos &&
+@@ -641,7 +669,7 @@
+ 		qualityFlags == wal.qualityFlags &&
+ 		qualityConfidence == wal.qualityConfidence &&
+ 		planAttribution == CellCapturedFactRevisionEntity.PLAN_ATTRIBUTION_CAPTURED_REGISTRATION &&
+-		wal.planAttribution == CAPTURED_REGISTRATION_PLAN_ORDINAL
++		(payloadVersion == CELL_WAL_PAYLOAD_VERSION || wal.planAttribution == CAPTURED_REGISTRATION_PLAN_ORDINAL)
+ 
+ @Suppress("ComplexCondition", "LongMethod")
+ private fun CellCapturedFactRevisionEntity.hasExactPayloadSemantics(
+@@ -744,11 +772,12 @@
+ 	CellWalPayloadObservation::signalLevelDbm,
+ 	CellWalPayloadObservation::providerTimestampNanos,
+ )
+-internal fun CellWalPayloadObservation.hasSupportedCellProductShape(): Boolean =
++fun CellWalPayloadObservation.hasSupportedCellProductShape(): Boolean =
+ 	radioType in SUPPORTED_CELL_RADIO_TYPES
+ 
+ private val SUPPORTED_CELL_RADIO_TYPES = setOf("GSM", "CDMA", "WCDMA", "TDSCDMA", "LTE", "NR")
+ private val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
+ private const val CAPTURED_REGISTRATION_PLAN_ORDINAL = 0
++private const val RECEIVE_TIME_ONLY_PLAN_ORDINAL = 2
+ private const val CELL_PROVIDER_WALL_UNCERTAINTY_MS = 1L
+ private const val NANOS_PER_MILLISECOND = 1_000_000L
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellPurposeItemQualification.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellPurposeItemQualification.kt
+@@ -1,6 +1,8 @@
+ package com.adsamcik.tracker.shared.base.database
+ 
+ import com.adsamcik.tracker.shared.base.database.data.CellWalPayload
++import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+ 
+ /** Exact item indexes for one uninterrupted demand interval, reconstructed from retained authority. */
+@@ -27,6 +29,29 @@
+ 	return qualified.cellPurposeWindow(payload, demandId, providerEndExclusiveNanos)
+ }
+ 
++/** Reconstructs the fact's own capture member, independently of the callback's current purpose. */
++suspend fun AppDatabase.qualifyCellCapturePurposeItems(
++	wal: SourceEventWalEntity,
++	payload: CellWalPayload,
++	fact: CellCapturedFactRevisionEntity,
++	providerStartInclusiveNanos: Long = fact.providerAcceptanceStartNanos,
++	providerEndExclusiveNanos: Long = fact.providerAcceptanceEndNanos,
++): CellPurposeItems {
++	val items = qualifyCellPurposeItems(wal, payload, providerStartInclusiveNanos,
++		providerEndExclusiveNanos) ?: return CellPurposeItems.Unverifiable
++	val member = items.authorizationTimeline.flatMap { it.authorizedMembers }.singleOrNull {
++		it.purpose == SourceBrokerPurpose.SESSION_CAPTURE && it.persistenceEligible &&
++			it.authorizationRevision == fact.authorizationRevision &&
++			it.authorizationFingerprint == fact.authorizationFingerprint &&
++			it.purposeEligibilityMask == fact.purposeEligibilityMask &&
++			it.logicalTrackingId == fact.logicalTrackingId && it.serviceRunId == fact.serviceRunId &&
++			it.manifestRevision == fact.manifestRevision &&
++			it.lifecycleLeaseGeneration == fact.lifecycleLeaseGeneration &&
++			it.sourcePolicyRevision == fact.sourcePolicyRevision && it.consentEpoch == fact.captureConsentEpoch
++	} ?: return CellPurposeItems.Unverifiable
++	return items.cellPurposeWindow(payload, requireNotNull(member.demandId), providerEndExclusiveNanos)
++}
++
+ /** Reuses the same uninterrupted demand window in retained history and the live writer. */
+ fun RadioPurposeItems.cellPurposeWindow(
+ 	payload: CellWalPayload,
+@@ -51,8 +76,12 @@
+ 	while (first > 0 && active(first - 1)) first--
+ 	var after = activeIndex + 1
+ 	while (after < timeline.size && active(after)) after++
+-	val start = timeline[first].effectiveElapsedRealtimeNanos
+-	val end = timeline.getOrNull(after)?.effectiveElapsedRealtimeNanos ?: providerEndExclusiveNanos
++	val start = maxOf(timeline[first].effectiveElapsedRealtimeNanos, demand.requestedElapsedRealtimeNanos)
++	val end = minOf(timeline.getOrNull(after)?.effectiveElapsedRealtimeNanos ?: providerEndExclusiveNanos,
++		providerEndExclusiveNanos,
++		demand.retireElapsedRealtimeNanos?.takeIf { demand.retireBootId == demand.requestedBootId }
++			?: Long.MAX_VALUE)
++	if (end <= start) return CellPurposeItems.Unverifiable
+ 	val maximumAgeNanos = if (demand.maximumAgeMs > Long.MAX_VALUE / NANOS_PER_MILLISECOND) {
+ 		Long.MAX_VALUE
+ 	} else demand.maximumAgeMs * NANOS_PER_MILLISECOND
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt
+@@ -24,6 +24,7 @@
+ import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
++import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+@@ -540,12 +541,17 @@
+ 		runIds,
+ 		receipt.expectedRunCount + 1,
+ 	)
+-	val fences = trackingHistoryReadDao().deletionFences(
+-		CELL_SOURCE,
+-		CAPTURE_PURPOSE,
+-		SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+-		deletedRuns.map(CellCapturedDeletedRunEntity::scopeIdentityDigest),
+-	)
++	val fences = try {
++		trackingHistoryReadDao().deletionFences(
++			CELL_SOURCE,
++			CAPTURE_PURPOSE,
++			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
++			deletedRuns.map(CellCapturedDeletedRunEntity::scopeIdentityDigest),
++		)
++	} catch (_: IllegalArgumentException) {
++		// Room constructs validated fence entities before this method can check their fields.
++		return DeletedCapturedCellSelectionAuthentication.Unverifiable
++	}
+ 	if (generations.size != receipt.expectedRunCount || fences.size != receipt.expectedRunCount) {
+ 		return DeletedCapturedCellSelectionAuthentication.Unverifiable
+ 	}
+@@ -835,7 +841,8 @@
+ 			val retainedEventProofs = loadCellSourceEventRetentionProofsForSourceErase(limits)
+ 			val retainedScopeProofs = loadCellSourceEventRetentionScopeProofsForSourceErase(limits)
+ 			val scopeAuthorities = linkedMapOf<CellCapturedRunScope, RetainedCaptureScopeIdentity>()
+-			val eventAuthorities = mutableMapOf<String, RetainedCaptureEventIdentity>()
++			val eventAuthorities = mutableMapOf<Pair<String, String>, RetainedCaptureEventIdentity>()
++			val rawEventIdentities = mutableMapOf<String, Pair<Long, String>>()
+ 			fun registerScope(
+ 				identity: RetainedCaptureScopeIdentity,
+ 				eventIdentity: RetainedCaptureEventIdentity? = null,
+@@ -859,8 +866,13 @@
+ 					expectedDeletedSourceEventHighWaterOrdinal
+ 				) block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 				if (eventIdentity != null) {
++					val rawIdentity = eventIdentity.sourceAdmissionOrdinal to eventIdentity.walIntegrityIdentity
++					val original = rawEventIdentities.putIfAbsent(eventIdentity.eventId, rawIdentity)
++					if (original != null && original != rawIdentity) {
++						block(CellCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
++					}
+ 					val retained = eventAuthorities.putIfAbsent(
+-						eventIdentity.eventId,
++						eventIdentity.eventId to eventIdentity.scope.logicalRunScopeDigest,
+ 						eventIdentity,
+ 					)
+ 					if (retained != null && retained != eventIdentity) {
+@@ -1365,8 +1377,14 @@
+ 	}
+ 	val wal = sourceEventWalDao().getByEventId(revision.sourceEventId)
+ 		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
++	val rawCarrier = CellWalCarrierAuthenticator.authenticate(wal) as? CellWalCarrierAuthentication.Authenticated
++		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
++	val selectedPurpose = if (revision.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
++		qualifyCellCapturePurposeItems(wal, rawCarrier.carrier.payload, revision) as? CellPurposeItems.Qualified
++			?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
++	} else null
+ 	val walAuthentication = (
+-		CellWalCarrierAuthenticator.authenticate(revision, wal)
++		CellWalCarrierAuthenticator.authenticate(revision, wal, selectedPurpose?.indexes?.toSet())
+ 			as? CellWalCarrierAuthentication.Authenticated
+ 		) ?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 	val authenticatedAggregate = walAuthentication.carrier.childQualification?.aggregate
+@@ -1385,7 +1403,7 @@
+ 		run.startedElapsedNanos != revision.deletionEffectStartNanos ||
+ 		segment.logicalTrackingId != revision.logicalTrackingId ||
+ 		segment.serviceRunId != revision.serviceRunId ||
+-		(session.finalAdmissionOrdinal != null &&
++		(revision.payloadVersion != CELL_WAL_PAYLOAD_VERSION && session.finalAdmissionOrdinal != null &&
+ 			revision.sourceAdmissionOrdinal > session.finalAdmissionOrdinal) ||
+ 		session.clockDomainId != revision.clockDomainId ||
+ 		session.lifecycleLeaseGeneration < revision.lifecycleLeaseGeneration ||
+@@ -1528,7 +1546,7 @@
+ 			nextAuthorization.effectiveElapsedRealtimeNanos <
+ 				authorization.effectiveElapsedRealtimeNanos)
+ 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+-	val authorizationEnd = minOf(
++	val callbackAuthorizationEnd = minOf(
+ 		registrationEnd,
+ 		nextAuthorization?.effectiveElapsedRealtimeNanos ?: Long.MAX_VALUE,
+ 	)
+@@ -1562,6 +1580,7 @@
+ 		) as? CellPurposeItems.Qualified
+ 			?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 	} else null
++	val authorizationEnd = purpose?.continuousUntilNanos ?: callbackAuthorizationEnd
+ 	val acceptedIndexes = walAuthentication.carrier.childQualification?.children
+ 		?.withIndex()?.filter { it.value.disposition ==
+ 			com.adsamcik.tracker.shared.base.database.data.CellWalChildDisposition.ACCEPTED }
+@@ -1598,7 +1617,9 @@
+ 		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 	val firstDay = Instant.ofEpochMilli(earliestWall).atZone(zone).toLocalDate().toEpochDay()
+ 	val lastDay = Instant.ofEpochMilli(latestWall).atZone(zone).toLocalDate().toEpochDay()
+-	if (firstDay != lastDay || firstDay != revision.structuralEpochDay ||
++	val measuredDay = Instant.ofEpochMilli(revision.observedWallTimeMs).atZone(zone).toLocalDate().toEpochDay()
++	if ((if (revision.payloadVersion == CELL_WAL_PAYLOAD_VERSION) measuredDay != revision.structuralEpochDay else
++		firstDay != lastDay || firstDay != revision.structuralEpochDay) ||
+ 		earliestWall < segment.startTimeMs || latestWall > segment.endTimeMs ||
+ 		revision.coverageIntervalStartNanos < registrationStart ||
+ 		revision.coverageIntervalEndNanos >= registrationEnd ||
+@@ -2230,6 +2251,13 @@
+ 			if (wal.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch ||
+ 				wal.admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal
+ 			) continue
++			if (wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
++				val groups = authenticateHistoricalCapturedCellWalCarriers(wal, limits)
++				scopes += groups.map { it.scope }
++				carriers += groups
++				latestDurableTimeMs = maxOf(latestDurableTimeMs, wal.createdAtMs)
++				continue
++			}
+ 			val captureBindingFields = listOf(
+ 				wal.logicalTrackingId,
+ 				wal.serviceRunId,
+@@ -2341,6 +2369,13 @@
+ 		if (wal.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch ||
+ 			wal.admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal
+ 		) continue
++		if (wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
++			val groups = authenticateHistoricalCapturedCellWalCarriers(wal, limits)
++			scopes += groups.map { it.scope }
++			carriers += groups
++			latestDurableTimeMs = maxOf(latestDurableTimeMs, wal.createdAtMs)
++			continue
++		}
+ 		val captureBindingFields = listOf(
+ 			wal.logicalTrackingId,
+ 			wal.serviceRunId,
+@@ -2392,6 +2427,38 @@
+ 	return CellCapturedWalAudit(scopes, carriers, latestDurableTimeMs)
+ }
+ 
++/** One raw callback can retain several historical session scopes, each with its own readings. */
++private suspend fun AppDatabase.authenticateHistoricalCapturedCellWalCarriers(
++	wal: SourceEventWalEntity,
++	limits: CellCapturedMaintenanceLimits,
++): List<CellCapturedWalCarrier> {
++	val carrier = (CellWalCarrierAuthenticator.authenticate(wal) as? CellWalCarrierAuthentication.Authenticated)
++		?.carrier ?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
++	val registration = sourceBrokerDao().registration(CELL_SOURCE, wal.registrationGeneration)
++		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
++	val start = registration.acceptedElapsedRealtimeNanos
++		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
++	val end = registration.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE
++	val items = qualifyCellPurposeItems(wal, carrier.payload, start, end)
++		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
++	return items.historicalMembers().filter { member ->
++		member.purpose == CAPTURE_PURPOSE && member.persistenceEligible &&
++			items.forDemand(requireNotNull(member.demandId)).isNotEmpty()
++	}.map { member ->
++		val purpose = items.cellPurposeWindow(carrier.payload, requireNotNull(member.demandId), end)
++			as? CellPurposeItems.Qualified
++			?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
++		val times = purpose.indexes.map { requireNotNull(carrier.payload.observations[it].providerTimestampNanos) }
++		val selectedStart = times.minOrNull() ?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
++		val selectedEnd = requireNotNull(times.maxOrNull())
++		val scope = authenticateCapturedCellWalScopeForDeletion(wal, limits, member, purpose, selectedStart, selectedEnd)
++		CellCapturedWalCarrier(wal.eventId, wal.admissionOrdinal, scope, wal.sourceInstanceId,
++			wal.registrationGeneration, requireNotNull(member.sourcePolicyRevision), requireNotNull(member.consentEpoch),
++			wal.capturedCollectedDataEpoch, wal.integrityIdentity,
++			requireNotNull(capturePointWallInterval(wal, selectedStart, selectedEnd)).first, wal.payloadVersion)
++	}
++}
++
+ /**
+  * Proves that a retained WAL-only scope was genuinely capture-authorized before it can receive a
+  * no-resurrection fence. This deliberately does not decode provider payload: deletion neither
+@@ -2401,21 +2468,29 @@
+ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
+ 	wal: SourceEventWalEntity,
+ 	limits: CellCapturedMaintenanceLimits,
++	historicalMember: SourceAuthorizationEntity? = null,
++	purposeItems: CellPurposeItems.Qualified? = null,
++	selectedStartNanos: Long = wal.observedElapsedNanos,
++	selectedEndNanos: Long = wal.observedElapsedNanos,
+ ): CellCapturedRunScope {
+-	val logicalTrackingId = requireNotNull(wal.logicalTrackingId)
+-	val serviceRunId = requireNotNull(wal.serviceRunId)
+-	val configurationRevision = requireNotNull(wal.configRevision)
+-	val policyRevision = requireNotNull(wal.sourcePolicyRevision)
+-	val consentEpoch = requireNotNull(wal.captureConsentEpoch)
+-	val manifestRevision = requireNotNull(wal.sessionManifestRevision)
+-	val leaseGeneration = requireNotNull(wal.lifecycleLeaseGeneration)
++	val logicalTrackingId = requireNotNull(historicalMember?.logicalTrackingId ?: wal.logicalTrackingId)
++	val serviceRunId = requireNotNull(historicalMember?.serviceRunId ?: wal.serviceRunId)
++	val manifestRevision = requireNotNull(historicalMember?.manifestRevision ?: wal.sessionManifestRevision)
++	val configurationRevision = if (historicalMember != null) {
++		sourceSessionDao().manifest(logicalTrackingId, manifestRevision)?.acquisitionPlanRevision
++			?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
++	} else requireNotNull(wal.configRevision)
++	val policyRevision = requireNotNull(historicalMember?.sourcePolicyRevision ?: wal.sourcePolicyRevision)
++	val consentEpoch = requireNotNull(historicalMember?.consentEpoch ?: wal.captureConsentEpoch)
++	val leaseGeneration = requireNotNull(historicalMember?.lifecycleLeaseGeneration ?: wal.lifecycleLeaseGeneration)
+ 	val physicalFingerprint = requireNotNull(wal.physicalConfigurationFingerprint)
+-	val authorizationRevision = requireNotNull(wal.authorizationRevision)
+-	val authorizationFingerprint = requireNotNull(wal.authorizationFingerprint)
++	val authorizationRevision = historicalMember?.authorizationRevision ?: requireNotNull(wal.authorizationRevision)
++	val authorizationFingerprint = historicalMember?.authorizationFingerprint ?: requireNotNull(wal.authorizationFingerprint)
++	val purposeMask = historicalMember?.purposeEligibilityMask ?: wal.authorizationPurposeEligibilityMask
+ 	val observedStart = requireNotNull(wal.observedIntervalStartNanos)
+ 	// Earlier children may be stale. The delivery's latest observed child anchors its
+ 	// capture attribution; retained facts qualify their individual children separately.
+-	val capturePoint = wal.observedElapsedNanos
++	val capturePoint = selectedStartNanos
+ 	if (observedStart < 0L || wal.observedElapsedNanos < observedStart ||
+ 		wal.receivedElapsedNanos < wal.observedElapsedNanos || wal.wallTimeMs == null ||
+ 		wal.wallTimeMs < 0L || wal.wallTimeUncertaintyMs == null || wal.wallTimeUncertaintyMs < 0L
+@@ -2441,7 +2516,7 @@
+ 		completeDelivery.sourceInstanceId != wal.sourceInstanceId ||
+ 		completeDelivery.registrationGeneration != wal.registrationGeneration ||
+ 		completeDelivery.physicalConfigurationFingerprint != physicalFingerprint ||
+-		completeDelivery.authorizationRevision != authorizationRevision ||
++		completeDelivery.authorizationRevision != wal.authorizationRevision ||
+ 		completeDelivery.observedElapsedNanos != wal.observedElapsedNanos ||
+ 		completeDelivery.observedIntervalStartNanos != observedStart ||
+ 		completeDelivery.payloadVersion != wal.payloadVersion ||
+@@ -2488,12 +2563,12 @@
+ 	)
+ 	val authorization = authorizationRows.toAuthorizationSnapshotOrNull()
+ 		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+-	val endAuthorization = boundedAuthorizationAt(
++	val endAuthorization = if (purposeItems == null) boundedAuthorizationAt(
+ 		wal.registrationGeneration,
+ 		wal.clockDomainId,
+ 		wal.observedElapsedNanos,
+ 		limits,
+-	)
++	) else null
+ 	val nextRows = cellCapturedFactDao().maintenanceNextAuthorizationMembers(
+ 		CELL_SOURCE,
+ 		wal.registrationGeneration,
+@@ -2508,7 +2583,7 @@
+ 			nextAuthorization.effectiveElapsedRealtimeNanos <
+ 				authorization.effectiveElapsedRealtimeNanos)
+ 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+-	val authorizationEnd = minOf(
++	val authorizationEnd = purposeItems?.continuousUntilNanos ?: minOf(
+ 		registrationEnd,
+ 		nextAuthorization?.effectiveElapsedRealtimeNanos ?: Long.MAX_VALUE,
+ 	)
+@@ -2533,14 +2608,14 @@
+ 		)
+ 	}.getOrNull()
+ 	if (authorization.isDenied || captureMember == null ||
+-		endAuthorization != authorization || demandIds.distinct().size != authorization.authorizedMembers.size ||
++		(purposeItems == null && endAuthorization != authorization) || demandIds.distinct().size != authorization.authorizedMembers.size ||
+ 		demands.size != authorization.authorizedMembers.size ||
+ 		recomputed?.sortedBy { it.memberId } != authorization.members.sortedBy { it.memberId } ||
+ 		authorization.authorizationFingerprint != authorizationFingerprint ||
+-		authorization.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask ||
++		authorization.purposeEligibilityMask != purposeMask ||
+ 		authorization.effectiveBootId != wal.clockDomainId ||
+-		authorization.effectiveElapsedRealtimeNanos > capturePoint ||
+-		wal.observedElapsedNanos >= authorizationEnd
++		(purposeItems?.continuousFromNanos ?: authorization.effectiveElapsedRealtimeNanos) > capturePoint ||
++		selectedEndNanos >= authorizationEnd
+ 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 
+ 	val sessionDao = sourceSessionDao()
+@@ -2552,9 +2627,9 @@
+ 		run.bootId != wal.clockDomainId || run.leaseGeneration != leaseGeneration ||
+ 		session.clockDomainId != wal.clockDomainId || session.lifecycleLeaseGeneration < leaseGeneration ||
+ 		run.startedElapsedNanos > capturePoint ||
+-		(session.finalAdmissionOrdinal != null && wal.admissionOrdinal > session.finalAdmissionOrdinal) ||
++		(purposeItems == null && session.finalAdmissionOrdinal != null && wal.admissionOrdinal > session.finalAdmissionOrdinal) ||
+ 		(session.cutoffAtMs == null) != (session.cutoffElapsedNanos == null) ||
+-		wal.observedElapsedNanos >= (session.cutoffElapsedNanos ?: Long.MAX_VALUE)
++		selectedEndNanos >= (session.cutoffElapsedNanos ?: Long.MAX_VALUE)
+ 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 	val manifests = sessionDao.manifestsForServiceRun(serviceRunId, limits.maximumManifestsPerRun + 1)
+ 	val sources = trackingHistoryReadDao().manifestSources(
+@@ -2590,14 +2665,14 @@
+ 		?: minOf(session.cutoffElapsedNanos ?: Long.MAX_VALUE, registrationEnd, authorizationEnd)
+ 	val segmentId = run.sessionSegmentId
+ 	val segment = segmentId?.let { sessionSegmentDao().getById(it) }
+-	val wallInterval = capturePointWallInterval(wal)
++	val wallInterval = capturePointWallInterval(wal, selectedStartNanos, selectedEndNanos)
+ 		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 	if (binding == null || !binding.isExactCapturedCellWalBinding(consentEpoch) ||
+ 		manifest.serviceRunId != serviceRunId || manifest.sourcePolicyRevision != policyRevision ||
+ 		manifest.acquisitionPlanRevision != configurationRevision ||
+ 		manifest.effectiveBootId != wal.clockDomainId ||
+ 		manifest.effectiveElapsedRealtimeNanos > capturePoint ||
+-		wal.observedElapsedNanos >= manifestEnd || manifest.zoneId.isBlank() ||
++		selectedEndNanos >= manifestEnd || manifest.zoneId.isBlank() ||
+ 		!hasValidZone(manifest.zoneId) || policy.qosCode != binding.qosCode || segment == null ||
+ 		segment.logicalTrackingId != logicalTrackingId || segment.serviceRunId != serviceRunId ||
+ 		wallInterval.first < segment.startTimeMs || wallInterval.last > segment.endTimeMs
+@@ -2760,7 +2835,10 @@
+ 	coverageStartElapsedRealtimeNanos = coverageStartNanos,
+ ) ?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 
+-private fun capturePointWallInterval(wal: SourceEventWalEntity): LongRange? {
++private fun capturePointWallInterval(wal: SourceEventWalEntity,
++	selectedStartNanos: Long = wal.observedElapsedNanos,
++	selectedEndNanos: Long = wal.observedElapsedNanos,
++): LongRange? {
+ 	val wallTimeMs = wal.wallTimeMs ?: return null
+ 	val uncertaintyMs = wal.wallTimeUncertaintyMs ?: return null
+ 	return runCatching {
+@@ -2768,9 +2846,11 @@
+ 			walObservedWallTimeMs = wallTimeMs,
+ 			wallTimeUncertaintyMs = uncertaintyMs,
+ 			walObservedElapsedRealtimeNanos = wal.observedElapsedNanos,
+-			coverageStartElapsedRealtimeNanos = wal.observedElapsedNanos,
++			coverageStartElapsedRealtimeNanos = selectedStartNanos,
+ 		) ?: return null
+-		val latest = Math.addExact(wallTimeMs, uncertaintyMs)
++		val latestWall = Math.subtractExact(wallTimeMs, (wal.observedElapsedNanos - selectedEndNanos) / 1_000_000L)
++		val rounding = if ((wal.observedElapsedNanos - selectedEndNanos) % 1_000_000L == 0L) 0L else 1L
++		val latest = Math.addExact(latestWall, Math.addExact(uncertaintyMs, rounding))
+ 		earliest..latest
+ 	}.getOrNull()
+ }
+@@ -3013,6 +3093,7 @@
+ 	val collectedDataEpoch: Long,
+ 	val walIntegrityIdentity: String,
+ 	val earliestPossibleWallTimeMs: Long,
++	val payloadVersion: Int = com.adsamcik.tracker.shared.base.database.data.LEGACY_CELL_WAL_PAYLOAD_VERSION,
+ )
+ 
+ private data class AuthenticatedCellFactAuthority(
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt
+@@ -4,9 +4,24 @@
+ 
+ import android.app.Application
+ import androidx.test.core.app.ApplicationProvider
++import androidx.room.withTransaction
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+ import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
+ import com.adsamcik.tracker.shared.base.database.pruneCapturedCellFactsAffectedByRetentionFloor
++import com.adsamcik.tracker.shared.base.database.deleteSelectedCapturedCellFactsInTransaction
++import com.adsamcik.tracker.shared.base.database.ReadLocalPortableCapturedCellResult
++import com.adsamcik.tracker.shared.base.database.RoomReadLocalPortableCapturedCell
++import com.adsamcik.tracker.shared.base.database.AmbientRadioRetentionDecision
++import com.adsamcik.tracker.shared.base.database.applyAmbientCellRetentionDecision
++import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityEntity
++import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegrity
++import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
++import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
++import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+ import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+ import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
+ import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
+@@ -49,9 +64,16 @@
+ import com.adsamcik.tracker.stats.api.repository.SourceProofStage
+ import com.adsamcik.tracker.tracker.source.activity.ActivityCapturedWalAdmissionAdapter
+ import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
++import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
++import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
++import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
+ import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
+ import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
++import com.adsamcik.tracker.tracker.source.ingress.RoomDurableSourceIngress
++import com.adsamcik.tracker.tracker.source.ingress.DeliveryAdmissionResult
+ import com.adsamcik.tracker.tracker.source.lifecycle.DefaultSourceLifecycleProofAdapterFactory
++import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellFactProjector
++import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellProjectionResult
+ import com.adsamcik.tracker.tracker.source.location.LocationWalQualificationAdapter
+ import com.adsamcik.tracker.tracker.source.model.CellMode
+ import com.adsamcik.tracker.tracker.source.model.CellObservationEvidence
+@@ -63,10 +85,17 @@
+ import com.adsamcik.tracker.tracker.source.model.RetryBackoff
+ import com.adsamcik.tracker.tracker.source.model.SourceEventId
+ import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
++import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
++import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
++import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
++import com.adsamcik.tracker.tracker.source.model.SourceQuality
+ import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
+ import com.adsamcik.tracker.tracker.source.runtime.cellProviderDeliveryIdentity
+ import com.adsamcik.tracker.tracker.source.wifi.WifiWalQualificationAdapter
+ import io.mockk.mockk
++import io.mockk.coEvery
++import javax.inject.Provider
+ import java.time.Instant
+ import java.time.ZoneId
+ import kotlin.coroutines.cancellation.CancellationException
+@@ -74,6 +103,7 @@
+ import kotlin.test.assertFailsWith
+ import kotlin.test.assertIs
+ import kotlinx.coroutines.test.runTest
++import kotlinx.coroutines.Dispatchers
+ import org.junit.After
+ import org.junit.Before
+ import org.junit.Test
+@@ -258,8 +288,9 @@
+ 	@Test
+ 	fun `provider wall uncertainty spanning civil days is not assigned to one day`() = runTest {
+ 		installValidFixture(
+-			zoneId = "UTC",
+-			observedWallMs = 86_400_000L,
++			// The fixture's observation is 22:13:20 UTC. This offset puts the same
++			// authorized observation exactly on a local midnight boundary.
++			zoneId = "UTC+01:46:40",
+ 		)
+ 
+ 		assertEquals(
+@@ -937,7 +968,7 @@
+ 	@Test
+ 	fun `dependent Cell replay cannot resurrect after its older aggregate owner expires`() = runTest {
+ 		installValidFixture(candidateWriter = true)
+-		assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
++		val ownerApplied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+ 		val shifted = observations().map { observation ->
+ 			observation.copy(
+ 				providerTimestampNanos = requireNotNull(observation.providerTimestampNanos) +
+@@ -945,7 +976,9 @@
+ 			)
+ 		}
+ 		insertAdditionalWal(SECOND_EVENT_ID, shifted, SOURCE_SEQUENCE + 1L)
+-		assertIs<CellCapturedWriteResult.Applied>(writer.write(SECOND_EVENT_ID))
++		val dependentApplied = assertIs<CellCapturedWriteResult.Applied>(writer.write(SECOND_EVENT_ID))
++		assertFactWalAuthenticated(EVENT_ID, ownerApplied)
++		assertFactWalAuthenticated(SECOND_EVENT_ID, dependentApplied)
+ 		val floor = OBSERVED_WALL_MS + 1L
+ 		val markedAtMs = OBSERVED_WALL_MS + 10_000L
+ 		database.sourceEvidenceStateDao().updateLifecycle(0L, floor, markedAtMs)
+@@ -979,6 +1012,8 @@
+ 			insertAdditionalWal(SECOND_EVENT_ID, shifted, SOURCE_SEQUENCE + 1L)
+ 			val dependentApplied =
+ 				assertIs<CellCapturedWriteResult.Applied>(writer.write(SECOND_EVENT_ID))
++			assertFactWalAuthenticated(EVENT_ID, ownerApplied)
++			assertFactWalAuthenticated(SECOND_EVENT_ID, dependentApplied)
+ 			val dependent = fact(dependentApplied.logicalFactId, dependentApplied.semanticRevision)
+ 			val owner = fact(ownerApplied.logicalFactId, ownerApplied.semanticRevision)
+ 			installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+@@ -1011,7 +1046,8 @@
+ 			)
+ 			val adapter = lifecycleFactory().create(TrackingSource.CELL)
+ 
+-			assertIs<SourceProofResult.Proven<*>>(adapter.materialized(key, recording))
++			val materialized = adapter.materialized(key, recording)
++			assertIs<SourceProofResult.Proven<*>>(materialized, materialized.toString())
+ 
+ 			val ownerCursor = requireNotNull(database.cellCapturedFactDao().cursor(
+ 				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+@@ -1083,9 +1119,9 @@
+ 
+ 	@Test
+ 	fun `same retained WAL can append an exact semantic correction`() = runTest {
+-		installValidFixture(candidateWriter = true)
++		installValidFixture(candidateWriter = true, openAuthority = true)
+ 		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+-		rewriteLatestAggregateAsHistorical(first.logicalFactId)
++		settleFixtureAuthority()
+ 
+ 		val corrected = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+ 		val revision = requireNotNull(
+@@ -1240,9 +1276,9 @@
+ 
+ 	@Test
+ 	fun `cursor CAS collision rolls back an appended correction`() = runTest {
+-		installValidFixture(candidateWriter = true)
++		installValidFixture(candidateWriter = true, openAuthority = true)
+ 		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+-		rewriteLatestAggregateAsHistorical(first.logicalFactId)
++		settleFixtureAuthority()
+ 		val evidenceRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+ 
+ 		val result = writer.write(EVENT_ID) { checkpoint ->
+@@ -1273,18 +1309,26 @@
+ 
+ 	@Test
+ 	fun `destination authority rotation after qualification rolls back the write`() = runTest {
+-		installValidFixture(candidateWriter = true)
++		installValidFixture(candidateWriter = true, openAuthority = true)
+ 		assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
++		settleFixtureAuthority()
+ 
+ 		val result = writer.write(EVENT_ID) { checkpoint ->
+ 			if (checkpoint == CellCapturedWriteCheckpoint.QUALIFIED) {
+ 				database.openHelper.writableDatabase.execSQL(
+-					"UPDATE source_destination_owner SET owner_generation = 2 " +
++					"UPDATE source_destination_owner SET owner_generation = 3 " +
+ 						"WHERE source_kind = ? AND destination = ?",
+ 					arrayOf<Any?>(
+ 						CELL_SOURCE,
+ 						SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+ 					),
++				)
++				assertEquals(
++					3L,
++					database.sourceDestinationOwnerDao().get(
++						CELL_SOURCE,
++						SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
++					)?.ownerGeneration,
+ 				)
+ 			}
+ 		}
+@@ -1465,6 +1509,342 @@
+ 		assertEquals(1, fact.acceptedChildCount)
+ 		assertEquals(1, fact.staleChildCount)
+ 		assertEquals(OBSERVED_END_NANOS, fact.coverageIntervalStartNanos)
++	}
++
++	private suspend fun assertFactWalAuthenticated(
++		eventId: SourceEventId,
++		applied: CellCapturedWriteResult.Applied,
++	) {
++		val revision = fact(applied.logicalFactId, applied.semanticRevision)
++		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(eventId.value))
++		val authentication = CellWalCarrierAuthenticator.authenticate(revision, wal)
++		assertIs<CellWalCarrierAuthentication.Authenticated>(
++			authentication,
++			authentication.toString(),
++		)
++	}
++
++	@Test
++	fun `actual v6 ingress with denied callback saves two historical sessions and original tower indexes`() = runTest {
++		val event = installHistoricalCellGroups()
++		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(event.value))
++		assertEquals(null, wal.logicalTrackingId)
++		assertEquals(null, wal.serviceRunId)
++		assertEquals(0L, wal.authorizationPurposeEligibilityMask)
++		assertEquals(PlanAttribution.RECEIVE_TIME_ONLY.ordinal, wal.planAttribution)
++		assertEquals(OBSERVED_START_NANOS, wal.observedIntervalStartNanos)
++		assertEquals(OBSERVED_END_NANOS, wal.observedElapsedNanos)
++		val lane = CellSessionFactProjectionLane(database, subject, writer)
++		val drained = assertIs<CellSessionFactDrainResult.Complete>(lane.drainAvailable())
++		assertEquals(2, drained.factsInserted)
++		val facts = historicalCellFacts()
++		assertEquals(listOf(LOGICAL_ID, HISTORICAL_SECOND_LOGICAL), facts.map { it.logicalTrackingId })
++		assertEquals(listOf(1L, 2L), facts.map { it.authorizationRevision })
++		assertEquals(listOf(0, 1), facts.flatMap { historicalCellChildren(it).map { child -> child.itemIndex } })
++		assertEquals(listOf("first-tower", "second-tower"),
++			facts.flatMap { historicalCellChildren(it).map { child -> child.towerIdentity } })
++		facts.forEach { fact ->
++			assertEquals(1, fact.acceptedChildCount)
++			assertIs<CellWalCarrierAuthentication.Authenticated>(
++				CellWalCarrierAuthenticator.authenticate(fact, wal, historicalCellChildren(fact)))
++			val key = historicalCellKey(event, fact.logicalTrackingId, fact.serviceRunId)
++			val adapter = lifecycleFactory().create(TrackingSource.CELL)
++			val recording = assertIs<SourceProofResult.Proven<RecordingProofState>>(adapter.recording(key)).state
++			assertIs<SourceProofResult.Proven<*>>(adapter.materialized(key, recording))
++		}
++		val replay = assertIs<CellCapturedWriteResult.Groups>(writer.write(event))
++		assertEquals(2, replay.results.filterIsInstance<CellCapturedWriteResult.Unchanged>().size)
++		assertEquals(2L, database.cellCapturedFactDao().revisionCount())
++		assertEquals(2L, database.cellCapturedFactDao().cursorCount())
++		assertEquals(0, assertIs<CellSessionFactDrainResult.Complete>(lane.drainAvailable()).factsInserted)
++	}
++
++	@Test
++	fun `historical Cell purpose selectors keep a pre-consent reading out of the next session`() = runTest {
++		val event = installHistoricalCellGroups()
++		val groups = assertIs<CellWalAdapterResult.Groups>(subject.qualify(event))
++		val facts = groups.results.filterIsInstance<CellWalAdapterResult.Evaluated>().map {
++			assertIs<CellCapturedFactClassification.FreshChanged>(it.classification).fact
++		}
++		assertEquals(listOf(OBSERVED_START_NANOS, OBSERVED_END_NANOS),
++			facts.map { it.coverage.providerIntervalStartElapsedRealtimeNanos })
++		assertEquals(listOf(1, 1), facts.map { it.coverage.acceptedChildCount })
++		assertEquals(listOf(1, 1), facts.map { it.coverage.staleChildCount })
++		val second = groups.results.filterIsInstance<CellWalAdapterResult.Evaluated>().last()
++		assertEquals(HISTORICAL_SECOND_LOGICAL,
++			assertIs<CellCapturedFactClassification.FreshChanged>(second.classification).fact.authority.logicalTrackingId.value)
++	}
++
++	@Test
++	fun `unsupported Cell item cannot hide two independently valid historical sessions`() = runTest {
++		val event = installHistoricalCellGroups(extraUnsupportedItem = true)
++		assertEquals(2, assertIs<CellSessionFactDrainResult.Complete>(
++			CellSessionFactProjectionLane(database, subject, writer).drainAvailable()).factsInserted)
++		val facts = historicalCellFacts()
++		assertEquals(listOf(1, 1), facts.map { it.acceptedChildCount })
++		assertEquals(listOf(0, 1), facts.map { it.unsupportedTechnologyChildCount })
++		assertEquals(listOf(0, 1), facts.flatMap { historicalCellChildren(it).map { child -> child.itemIndex } })
++		assertEquals(3, payloadCodec.decode(SourceKind.CELL, CELL_WAL_PAYLOAD_VERSION,
++			requireNotNull(database.sourceEventWalDao().getByEventId(event.value)).payload)
++			.let { assertIs<CellSnapshotPayload>(it).observations.size })
++	}
++
++	@Test
++	fun `cancel after first historical Cell revision rolls back every sibling and lane checkpoint`() = runTest {
++		val event = installHistoricalCellGroups()
++		assertFailsWith<CancellationException> {
++			writer.write(event) { checkpoint ->
++				if (checkpoint == CellCapturedWriteCheckpoint.REVISION_INSERTED) throw CancellationException("cancel first group")
++			}
++		}
++		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
++		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
++		assertEquals(0L, database.sourceProjectionStateDao().activeProductLane(CELL_SOURCE)?.contiguousAdmissionOrdinal)
++		assertEquals(2, assertIs<CellSessionFactDrainResult.Complete>(
++			CellSessionFactProjectionLane(database, subject, writer).drainAvailable()).factsInserted)
++	}
++
++	@Test
++	fun `deleted historical Cell session does not discard its authorized sibling`() = runTest {
++		val event = installHistoricalCellGroups()
++		CellSessionFactProjectionLane(database, subject, writer).drainAvailable()
++		database.withTransaction {
++			database.deleteSelectedCapturedCellFactsInTransaction(LOGICAL_ID, listOf(RUN_ID), 0L,
++				maxOf(System.currentTimeMillis(), OBSERVED_WALL_MS) + 10_000L)
++		}
++		assertEquals(listOf(HISTORICAL_SECOND_LOGICAL), historicalCellFacts().map { it.logicalTrackingId })
++		val replay = assertIs<CellCapturedWriteResult.Groups>(writer.write(event))
++		assertEquals(1, replay.results.filterIsInstance<CellCapturedWriteResult.Unchanged>().size)
++		assertEquals(1, replay.results.filterIsInstance<CellCapturedWriteResult.AdapterRejected>().size)
++		assertEquals(1L, database.cellCapturedFactDao().revisionCount())
++		val reset = database.sourceProjectionStateDao().activeProductLane(CELL_SOURCE)!!
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE source_product_projection_lane SET contiguous_admission_ordinal = 0 WHERE source_kind = ?",
++			arrayOf(CELL_SOURCE))
++		assertEquals(1L, assertIs<CellSessionFactDrainResult.Complete>(
++			CellSessionFactProjectionLane(database, subject, writer).drainAvailable()).lastCompletedOrdinal)
++		assertEquals(reset.contiguousAdmissionOrdinal,
++			database.sourceProjectionStateDao().activeProductLane(CELL_SOURCE)?.contiguousAdmissionOrdinal)
++	}
++
++	@Test
++	fun `two Cell receipts sharing original callback survive retention and fence replay per session`() = runTest {
++		val event = installHistoricalCellGroups()
++		CellSessionFactProjectionLane(database, subject, writer).drainAvailable()
++		val before = historicalCellFacts()
++		val adapter = lifecycleFactory().create(TrackingSource.CELL)
++		val recordings = before.associate { fact ->
++			fact.logicalFactId to assertIs<SourceProofResult.Proven<RecordingProofState>>(adapter.recording(
++				historicalCellKey(event, fact.logicalTrackingId, fact.serviceRunId))).state
++		}
++		val floor = OBSERVED_WALL_MS + 1L
++		val retainedAt = maxOf(System.currentTimeMillis(), OBSERVED_WALL_MS) + 10_000L
++		database.sourceEvidenceStateDao().updateLifecycle(0L, floor, retainedAt)
++		assertEquals(CellCapturedRetentionResult.Pruned(2, 2),
++			database.pruneCapturedCellFactsAffectedByRetentionFloor(floor, 0L, 0L, retainedAt))
++		val proofs = database.capturedRadioFactRetentionProofDao().allForSource(CELL_SOURCE)
++		assertEquals(2, proofs.size)
++		assertEquals(setOf(event.value), proofs.map { it.sourceEventId }.toSet())
++		assertEquals(before.map { it.logicalFactId }.toSet(), proofs.map { it.logicalFactId }.toSet())
++		before.forEach { fact ->
++			val key = historicalCellKey(event, fact.logicalTrackingId, fact.serviceRunId)
++			assertEquals(SourceProofResult.Deleted(SourceProofStage.RECORDING, SourceProofReason.RETENTION_EXPIRED),
++				adapter.recording(key))
++			assertIs<SourceProofResult.Deleted>(adapter.materialized(key, recordings.getValue(fact.logicalFactId)))
++		}
++		val replay = assertIs<CellCapturedWriteResult.Groups>(writer.write(event))
++		assertEquals(2, replay.results.filterIsInstance<CellCapturedWriteResult.AdapterRejected>().size)
++		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
++		// Raw cleanup no longer has a current session header; each original receipt owns its scope.
++		database.openHelper.writableDatabase.execSQL("DELETE FROM source_event_wal WHERE event_id = ?",
++			arrayOf(event.value))
++		before.forEach { fact ->
++			val key = historicalCellKey(event, fact.logicalTrackingId, fact.serviceRunId)
++			assertEquals(SourceProofResult.Deleted(SourceProofStage.RECORDING, SourceProofReason.RETENTION_EXPIRED),
++				lifecycleFactory().create(TrackingSource.CELL).recording(key))
++		}
++	}
++
++	@Test
++	fun `historical Cell sessions around midnight keep original days and portable observation scope`() = runTest {
++		val midnight = java.time.LocalDate.of(2026, 10, 4).atStartOfDay(ZoneId.of(ZONE_ID)).toInstant().toEpochMilli()
++		val event = installHistoricalCellGroups(observedWallMs = midnight + 50L)
++		CellSessionFactProjectionLane(database, subject, writer).drainAvailable()
++		val facts = historicalCellFacts()
++		assertEquals(listOf(java.time.LocalDate.of(2026, 10, 3).toEpochDay(),
++			java.time.LocalDate.of(2026, 10, 4).toEpochDay()), facts.map { it.structuralEpochDay })
++		assertEquals(listOf(midnight - 50L, midnight + 50L), facts.map { it.observedWallTimeMs })
++		val reader = RoomReadLocalPortableCapturedCell(database, SourceProductLaneExecutionAuthority { lane ->
++			lane.sourceKind == CELL_SOURCE && lane.projectionId == CellSessionFactProjectionLane.WRITER_ID &&
++				lane.projectionVersion == CellSessionFactProjectionLane.WRITER_VERSION
++		})
++		facts.forEach { fact ->
++			val result = database.withTransaction { reader.readInTransaction(fact.logicalTrackingId) }
++			val entry = assertIs<ReadLocalPortableCapturedCellResult.Ready>(result, result.toString()).entry
++			assertEquals(1, entry.observations.size)
++			assertEquals(fact.observedWallTimeMs, entry.observations.single().observedTimeMs)
++			assertEquals(fact.observedWallTimeMs - WALL_UNCERTAINTY_MS,
++				entry.observations.single().coverageStartTimeMs)
++			assertEquals(1, entry.observations.single().observationCount)
++		}
++		assertEquals(event.value, facts.first().sourceEventId)
++		assertEquals(event.value, facts.last().sourceEventId)
++	}
++
++	@Test
++	fun `historical Cell capture and background copies qualify independently and deleting one session keeps both siblings`() = runTest {
++		val event = installHistoricalCellGroups(background = true)
++		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(event.value))
++		assertEquals(null, wal.logicalTrackingId)
++		assertEquals(SourceBrokerPurpose.MASK_AMBIENT_PRODUCT, wal.authorizationPurposeEligibilityMask)
++		assertEquals(2, assertIs<CellSessionFactDrainResult.Complete>(
++			CellSessionFactProjectionLane(database, subject, writer).drainAvailable()).factsInserted)
++		val projector = AmbientCellFactProjector(database, payloadCodec, Dispatchers.Unconfined,
++			BootClockDomainProvider { BOOT_ID })
++		assertIs<AmbientCellProjectionResult.FactWritten>(projector.project(wal.admissionOrdinal))
++		val ambient = database.ambientCellFactDao().effectiveLocalOverWindow(
++			OBSERVED_WALL_MS - 1_000L, OBSERVED_WALL_MS + 1_000L, 10).single().fact
++		assertEquals(2, ambient.observationCount)
++		assertEquals(listOf("first-tower", "second-tower"), database.radioObservationChildDao().cellBackgroundChildren(
++			ambient.writerId, ambient.writerVersion, ambient.logicalFactId, ambient.semanticRevision, 65).map { it.towerIdentity })
++		database.withTransaction {
++			database.deleteSelectedCapturedCellFactsInTransaction(LOGICAL_ID, listOf(RUN_ID), 0L,
++				maxOf(System.currentTimeMillis(), OBSERVED_WALL_MS) + 10_000L)
++		}
++		assertEquals(listOf(HISTORICAL_SECOND_LOGICAL), historicalCellFacts().map { it.logicalTrackingId })
++		assertEquals(2, database.radioObservationChildDao().cellBackgroundChildren(ambient.writerId,
++			ambient.writerVersion, ambient.logicalFactId, ambient.semanticRevision, 65).size)
++		assertIs<AmbientCellProjectionResult.Duplicate>(projector.project(wal.admissionOrdinal))
++	}
++
++	private suspend fun historicalCellFacts() = database.cellCapturedFactDao().currentRevisionsForWriterAdmission(
++		SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
++		SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION, 1L, 10,
++	).sortedBy { it.logicalTrackingId }
++
++	private suspend fun historicalCellChildren(fact: CellCapturedFactRevisionEntity) =
++		database.radioObservationChildDao().cellSessionChildren(fact.writerProjectionId,
++			fact.writerProjectionVersion, fact.logicalFactId, fact.semanticRevision, 65)
++
++	private fun historicalCellKey(event: SourceEventId, logical: String, run: String) = SourceProofKey(
++		TrackingSource.CELL, TrackingPurpose.SESSION_CAPTURE, SourceEvidenceIdentity(event.value),
++		POLICY_REVISION, CONSENT_EPOCH, 0L, SourceProofScope.Run(logical, run),
++	)
++
++	/** Uses real Room admission and original immutable provider/authorization rows; no provider starts. */
++	private suspend fun installHistoricalCellGroups(
++		observedWallMs: Long = OBSERVED_WALL_MS,
++		extraUnsupportedItem: Boolean = false,
++		background: Boolean = false,
++	): SourceEventId {
++		val backgroundDemand = if (background) demand(true).copy(demandId = "cell-background-sibling",
++			consumerId = "app:cell-background-sibling", purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
++			logicalTrackingId = null, serviceRunId = null, manifestRevision = null, lifecycleLeaseGeneration = null,
++			requestedElapsedRealtimeNanos = POLICY_START_NANOS) else null
++		val siblings = listOfNotNull(backgroundDemand)
++		installValidFixture(candidateWriter = true, payloadVersion = CELL_WAL_PAYLOAD_VERSION,
++			insertWal = false, additionalDemands = siblings)
++		if (backgroundDemand != null) {
++			database.applyAmbientCellRetentionDecision(AmbientRadioRetentionDecision.GrantLiveAmbient(
++				"privacy:cell:ambient:v1", 0L, POLICY_REVISION, CONSENT_EPOCH,
++				BOOT_ID, POLICY_START_NANOS, RUN_START_WALL_MS))
++			database.ambientCellFactDao().insertAuthority(AmbientCellAuthorityIntegrity.create(1L,
++				AmbientCellAuthorityEntity.STATE_ACTIVE, POLICY_REVISION, CONSENT_EPOCH,
++				"privacy:cell:ambient:v1", 1L, 0L, 0L, BOOT_ID, POLICY_START_NANOS, RUN_START_WALL_MS,
++				1L, "ambient-cell-test-owner", 1L, backgroundDemand.demandId))
++		}
++		if (observedWallMs != OBSERVED_WALL_MS) {
++			// This fixture represents the same real provider interval on another local calendar day.
++			database.openHelper.writableDatabase.execSQL(
++				"UPDATE provider_registration_generation SET reserved_at_ms = ?, accepted_at_ms = ?, retired_at_ms = ? " +
++					"WHERE source_kind = ? AND registration_generation = ?",
++				arrayOf(observedWallMs - 1_000L, observedWallMs - 900L, observedWallMs + 1_000L,
++					CELL_SOURCE, REGISTRATION_GENERATION))
++		}
++		val split = 1_550_000_000L
++		val end = 1_650_000_000L
++		val splitWall = observedWallMs - 50L
++		val endWall = observedWallMs + 50L
++		val firstSession = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
++		database.sourceSessionDao().updateSession(firstSession.copy(cutoffAtMs = splitWall,
++			cutoffElapsedNanos = split, completedAtMs = splitWall, finalAdmissionOrdinal = 0L))
++		val firstRun = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
++		database.sourceSessionDao().updateServiceRun(firstRun.copy(completedAtMs = splitWall,
++			presentationAcknowledgedAtMs = splitWall))
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE session_segment SET end_time_ms = ? WHERE id = ?", arrayOf(splitWall, SEGMENT_ID))
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE source_demand SET retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
++			arrayOf(split, splitWall, DEMAND_ID))
++		val secondSegment = database.sessionSegmentDao().insert(segment(HISTORICAL_SECOND_RUN).copy(
++			id = 0L, logicalTrackingId = HISTORICAL_SECOND_LOGICAL, startTimeMs = splitWall, endTimeMs = endWall))
++		database.sourceSessionDao().insertSession(firstSession.copy(logicalTrackingId = HISTORICAL_SECOND_LOGICAL,
++			startedAtMs = splitWall, startedElapsedNanos = split, cutoffAtMs = endWall,
++			cutoffElapsedNanos = end, completedAtMs = endWall, finalAdmissionOrdinal = 0L))
++		database.sourceSessionDao().insertServiceRun(firstRun.copy(serviceRunId = HISTORICAL_SECOND_RUN,
++			logicalTrackingId = HISTORICAL_SECOND_LOGICAL, sessionSegmentId = secondSegment,
++			startedAtMs = splitWall, startedElapsedNanos = split, completedAtMs = endWall,
++			presentationAcknowledgedAtMs = endWall, startDeliveryToken = "second-cell-start-token",
++			androidDeliveryUpdatedAtMs = splitWall))
++		val source = database.sourceSessionDao().manifestSources(LOGICAL_ID, MANIFEST_REVISION).single()
++		val secondSource = source.copy(logicalTrackingId = HISTORICAL_SECOND_LOGICAL)
++		val manifest = requireNotNull(database.sourceSessionDao().manifest(LOGICAL_ID, MANIFEST_REVISION))
++		val secondManifest = manifest.copy(logicalTrackingId = HISTORICAL_SECOND_LOGICAL,
++			serviceRunId = HISTORICAL_SECOND_RUN, effectiveElapsedRealtimeNanos = split,
++			effectiveWallTimeMs = splitWall)
++		database.sourceSessionDao().insertManifest(secondManifest.copy(
++			manifestChecksum = SessionManifestIntegrity.compute(secondManifest, listOf(secondSource))))
++		database.sourceSessionDao().insertManifestSources(listOf(secondSource))
++		val secondDemand = demand().copy(demandId = "second-cell-demand",
++			consumerId = "session:$HISTORICAL_SECOND_LOGICAL", logicalTrackingId = HISTORICAL_SECOND_LOGICAL,
++			serviceRunId = HISTORICAL_SECOND_RUN, requestedElapsedRealtimeNanos = split, requestedAtMs = splitWall,
++			retireElapsedRealtimeNanos = end, retiredAtMs = endWall)
++		database.sourceBrokerDao().insertDemands(listOf(secondDemand))
++		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(CELL_SOURCE,
++			REGISTRATION_GENERATION, 2L, listOf(secondDemand) + siblings, BOOT_ID, split, splitWall))
++		val denied = SourceBrokerAuthorization.rows(CELL_SOURCE, REGISTRATION_GENERATION, 3L,
++			siblings, BOOT_ID, end, endWall)
++		database.sourceBrokerDao().insertAuthorizations(denied)
++		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
++		val catalog = ExecutableSourceLaneCatalog.explicit(ExecutableSourceLaneCatalog.CELL_SESSION_FACTS)
++		RoomTrackingRolloutStateStore(database, catalog).save(TrackingRolloutState.eventCanonical(
++			sources = setOf(SourceKind.CELL), captureModes = mapOf(SourceKind.CELL to setOf(CaptureReachabilityMode.MANUAL))),
++			updatedAtMs = observedWallMs)
++		val registration = requireNotNull(database.sourceBrokerDao().registration(CELL_SOURCE, REGISTRATION_GENERATION))
++		database.sourceRegistrationStateDao().insertIfAbsent(SourceRegistrationStateEntity(CELL_SOURCE,
++			registration.ownerScope, SOURCE_INSTANCE, BOOT_ID, REGISTRATION_GENERATION, 0L, 3L, 0L, observedWallMs))
++		val lifecycle = mockk<CollectedDataLifecycleStore>()
++		coEvery { lifecycle.snapshot() } returns CollectedDataLifecycleSnapshot(0L, null)
++		val gate = object : TrackingStartupGate {
++			override val isReady = true
++			override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
++				TrackingStartupResult.Ready(false, 0L)
++		}
++		val towers = observations().mapIndexed { index, item -> item.copy(
++			identifierToken = if (index == 0) "first-tower" else "second-tower") } +
++			if (extraUnsupportedItem) listOf(CellObservationEvidence("unsupported-tower", "UNKNOWN", true, -70,
++				OBSERVED_END_NANOS - 1L)) else emptyList()
++		val evidence = SourceEvidenceCandidate(providerDedupKey = null, logicalTrackingId = null,
++			serviceRunId = null, source = SourceKind.CELL, sourceInstanceId = SourceInstanceId(SOURCE_INSTANCE),
++			registrationGeneration = REGISTRATION_GENERATION, physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
++			authorizationRevision = 3L, registrationPurposeEligibilityMask = denied.first().purposeEligibilityMask,
++			registrationEligibilityFingerprint = denied.first().authorizationFingerprint, sourceSequence = 0L,
++			configRevision = PLAN_REVISION, planAttribution = PlanAttribution.RECEIVE_TIME_ONLY, clockDomainId = BOOT_ID,
++			observedElapsedRealtimeNanos = towers.maxOf { requireNotNull(it.providerTimestampNanos) },
++			receivedElapsedRealtimeNanos = RECEIVED_NANOS, wallTimeMs = observedWallMs,
++			wallTimeUncertaintyMs = WALL_UNCERTAINTY_MS, capturedCollectedDataEpoch = 0L, acquiredAtMs = observedWallMs,
++			quality = SourceQuality(), payloadVersion = CELL_WAL_PAYLOAD_VERSION,
++			payload = CellSnapshotPayload(null, towers, CellRefreshOutcome.CALLBACK, ZONE_ID))
++		val result = RoomDurableSourceIngress(database, lifecycle, payloadCodec, catalog, Provider { gate }).admit(
++			SourceDeliveryCandidate(cellProviderDeliveryIdentity(BOOT_ID, towers, CELL_WAL_PAYLOAD_VERSION),
++				listOf(SourceDeliveryUnit(0, evidence, towers.minOf { requireNotNull(it.providerTimestampNanos) }))))
++		val event = assertIs<DeliveryAdmissionResult.Admitted>(result, result.toString()).units.single().eventId
++		listOf(LOGICAL_ID to RUN_ID, HISTORICAL_SECOND_LOGICAL to HISTORICAL_SECOND_RUN).forEach { (logical, run) ->
++			database.sourceSessionDao().saveCompleteness(SourceSessionCompletenessEntity(logical, run, CELL_SOURCE,
++				SOURCE_INSTANCE, REGISTRATION_GENERATION, null, null, true, "PROVIDER_COMPLETENESS_UNOBSERVABLE", "COMPLETE",
++				null, null, observedWallMs + 1_000L))
++		}
++		return event
+ 	}
+ 
+ 	private suspend fun installValidFixture(
+@@ -1480,6 +1860,8 @@
+ 		observations: List<CellObservationEvidence> = observations(),
+ 		openAuthority: Boolean = false,
+ 		payloadVersion: Int = PAYLOAD_VERSION,
++		insertWal: Boolean = true,
++		additionalDemands: List<SourceDemandEntity> = emptyList(),
+ 	) {
+ 		database.sourceEvidenceStateDao().ensure(evidenceState)
+ 		if (deletionGeneration != null) {
+@@ -1506,12 +1888,12 @@
+ 		}
+ 		val plan = cellPlan()
+ 		insertPlan(plan)
+-		installPolicyAndConsent()
++		installPolicyAndConsent(background = additionalDemands.isNotEmpty())
+ 		val segmentId = database.sessionSegmentDao().insert(segment(segmentRunId))
+ 		assertEquals(SEGMENT_ID, segmentId)
+ 		installSessionAndManifest(segmentId, zoneId, candidateWriter, openAuthority)
+ 		val demand = demand(openAuthority)
+-		database.sourceBrokerDao().insertDemands(listOf(demand))
++		database.sourceBrokerDao().insertDemands(listOf(demand) + additionalDemands)
+ 		database.sourceBrokerDao().insertRegistration(
+ 			registration(plan.physicalConfigurationFingerprint(), openAuthority = openAuthority),
+ 		)
+@@ -1519,12 +1901,13 @@
+ 			sourceKind = CELL_SOURCE,
+ 			registrationGeneration = REGISTRATION_GENERATION,
+ 			authorizationRevision = AUTHORIZATION_REVISION,
+-			demands = listOf(demand),
++			demands = listOf(demand) + additionalDemands,
+ 			effectiveBootId = BOOT_ID,
+ 			effectiveElapsedRealtimeNanos = AUTHORIZATION_START_NANOS,
+ 			effectiveWallTimeMs = RUN_START_WALL_MS,
+ 		)
+ 		database.sourceBrokerDao().insertAuthorizations(authorization)
++		if (!insertWal) return
+ 		val payload = CellSnapshotPayload(
+ 			null,
+ 			observations,
+@@ -1621,6 +2004,11 @@
+ 		)
+ 		val wal = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
+ 		assertEquals(2L, database.sourceEventWalDao().insertIgnoringDuplicate(wal))
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE logical_tracking_session SET final_admission_ordinal = 2 " +
++				"WHERE logical_tracking_id = ? AND final_admission_ordinal IS NOT NULL",
++			arrayOf<Any>(LOGICAL_ID),
++		)
+ 	}
+ 
+ 	private suspend fun installCellLane(stage: String) {
+@@ -1775,34 +2163,6 @@
+ 			"UPDATE source_demand SET status = 'RETIRED', retire_boot_id = ?, " +
+ 				"retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
+ 			arrayOf<Any?>(BOOT_ID, SESSION_END_NANOS, SESSION_END_WALL_MS, DEMAND_ID),
+-		)
+-	}
+-
+-	private suspend fun rewriteLatestAggregateAsHistorical(logicalFactId: String) {
+-		val current = requireNotNull(
+-			database.cellCapturedFactDao().revision(
+-				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+-				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+-				logicalFactId,
+-				1L,
+-			),
+-		)
+-		val unsigned = current.copy(
+-			registeredObservationCount = 0,
+-			effectChecksum = ZERO_CHECKSUM,
+-		)
+-		val historical = unsigned.copy(
+-			effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(unsigned),
+-		)
+-		database.openHelper.writableDatabase.execSQL(
+-			"UPDATE cell_captured_fact_revision SET registered_observation_count = ?, " +
+-				"effect_checksum = ? WHERE logical_fact_id = ? AND semantic_revision = 1",
+-			arrayOf<Any?>(0, historical.effectChecksum, logicalFactId),
+-		)
+-		database.openHelper.writableDatabase.execSQL(
+-			"UPDATE cell_captured_fact_cursor SET latest_effect_checksum = ? " +
+-				"WHERE logical_fact_id = ?",
+-			arrayOf(historical.effectChecksum, logicalFactId),
+ 		)
+ 	}
+ 
+@@ -1887,7 +2247,7 @@
+ 		)
+ 	}
+ 
+-	private suspend fun installPolicyAndConsent() {
++	private suspend fun installPolicyAndConsent(background: Boolean = false) {
+ 		val policyDao = database.sourcePolicyDao()
+ 		policyDao.ensureAuthority(
+ 			SourcePolicyAuthorityEntity(
+@@ -1909,10 +2269,10 @@
+ 					locationRequiredAccuracyMeters = null,
+ 					capturePersistenceEligible = true,
+ 					controlPersistenceEligible = false,
+-					ambientPersistenceEligible = false,
++					ambientPersistenceEligible = background,
+ 					captureConsentEpoch = CONSENT_EPOCH,
+ 					controlConsentEpoch = null,
+-					ambientConsentEpoch = null,
++					ambientConsentEpoch = CONSENT_EPOCH.takeIf { background },
+ 					effectiveBootId = BOOT_ID,
+ 					effectiveElapsedRealtimeNanos = POLICY_START_NANOS,
+ 					effectiveWallTimeMs = RUN_START_WALL_MS,
+@@ -1936,6 +2296,9 @@
+ 				),
+ 			),
+ 		)
++		if (background) policyDao.insertConsentEpochs(listOf(SourceConsentEpochEntity(
++			CELL_SOURCE, SourceBrokerPurpose.AMBIENT_PRODUCT, CONSENT_EPOCH, true, true, POLICY_REVISION,
++			BOOT_ID, POLICY_START_NANOS, RUN_START_WALL_MS, "TEST_BACKGROUND_SIBLING")))
+ 	}
+ 
+ 	private suspend fun installSessionAndManifest(
+@@ -2100,7 +2463,7 @@
+ 		adaptiveReductionAllowed = false,
+ 		maximumAgeMs = 1_000L,
+ 		desiredLatencyMs = 1_000L,
+-		requestedDeliveryLatencyMs = 0L,
++		requestedDeliveryLatencyMs = null,
+ 		requestedBootId = BOOT_ID,
+ 		requestedElapsedRealtimeNanos = RUN_START_NANOS,
+ 		requestedAtMs = RUN_START_WALL_MS,
+@@ -2145,6 +2508,8 @@
+ 		val SECOND_EVENT_ID = SourceEventId("cell-event-1")
+ 		val CELL_SOURCE = SourceKind.CELL.stableCode
+ 		const val LOGICAL_ID = "logical-cell"
++		const val HISTORICAL_SECOND_LOGICAL = "logical-cell-second"
++		const val HISTORICAL_SECOND_RUN = "run-cell-second"
+ 		const val RUN_ID = "run-cell"
+ 		const val SOURCE_INSTANCE = "cell-instance"
+ 		const val DEMAND_ID = "cell-demand"
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt
+@@ -4,6 +4,7 @@
+ 
+ import androidx.room.withTransaction
+ import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
++import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+ import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
+ import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+ import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+@@ -1012,7 +1013,6 @@
+ 	if (retainedFloor != null) {
+ 		val lastAdmissionOrdinal = minOf(
+ 			lane.contiguousAdmissionOrdinal,
+-			session.finalAdmissionOrdinal ?: Long.MAX_VALUE,
+ 			lane.captureAdmissionCutoffOrdinal ?: Long.MAX_VALUE,
+ 		)
+ 		if (lastAdmissionOrdinal >= lane.activationOrdinal) {
+@@ -1053,14 +1053,7 @@
+ 		lineage.revisions.last().sourceEventId
+ 	}.mapValues { (_, lineages) ->
+ 		lineages.minOf { lineage ->
+-			lineage.revisions.minOf { revision ->
+-				requireNotNull(CanonicalRetentionBounds.cellCoverage(
+-					walObservedWallTimeMs = revision.observedWallTimeMs,
+-					wallTimeUncertaintyMs = revision.wallTimeUncertaintyMs,
+-					walObservedElapsedRealtimeNanos = revision.observedElapsedNanos,
+-					coverageStartElapsedRealtimeNanos = revision.coverageIntervalStartNanos,
+-				))
+-			}
++			audit.canonicalRetentionLowerBoundById.getValue(lineage.logicalFactId)
+ 		}
+ 	}
+ 	val retainedWal = selectedWal.filter { carrier ->
+@@ -1110,7 +1103,14 @@
+ 		cellCompleteness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull(),
+ 		selectedWal.maxOfOrNull(CellCapturedWalCarrier::admissionOrdinal),
+ 	).maxOrNull()
+-	if (targetOrdinal != null && session.finalAdmissionOrdinal?.let { targetOrdinal > it } == true) {
++	val legacyTarget = listOfNotNull(
++		selectedLineages.filter { it.revisions.last().payloadVersion != CELL_WAL_PAYLOAD_VERSION }
++			.maxOfOrNull { it.revisions.last().sourceAdmissionOrdinal },
++		selectedWal.filter { it.payloadVersion != CELL_WAL_PAYLOAD_VERSION }
++			.maxOfOrNull(CellCapturedWalCarrier::admissionOrdinal),
++		cellCompleteness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull(),
++	).maxOrNull()
++	if (legacyTarget != null && session.finalAdmissionOrdinal?.let { legacyTarget > it } == true) {
+ 		return result(unverifiableWriter())
+ 	}
+ 	if (targetOrdinal != null && (targetOrdinal < lane.activationOrdinal ||
+@@ -1124,7 +1124,8 @@
+ 		cellCompleteness.none { row ->
+ 			fact.serviceRunId == row.serviceRunId && fact.sourceInstanceId == row.sourceInstanceId &&
+ 				fact.registrationGeneration == row.registrationGeneration &&
+-				row.lastAdmissionOrdinal?.let { it >= fact.sourceAdmissionOrdinal } == true
++				(fact.payloadVersion == CELL_WAL_PAYLOAD_VERSION ||
++					row.lastAdmissionOrdinal?.let { it >= fact.sourceAdmissionOrdinal } == true)
+ 		}
+ 	}) return result(unverifiableWriter())
+ 	val failures = if (targetOrdinal == null || lane.activationOrdinal > targetOrdinal) emptyList() else {
+@@ -1146,14 +1147,7 @@
+ 	if (retainedWal.any { it.eventId !in factEventIds }) return result(unverifiableWriter())
+ 
+ 	val timeRetainedLineages = selectedLineages.filter { lineage ->
+-		retainedFloor == null || lineage.revisions.minOf { revision ->
+-			requireNotNull(CanonicalRetentionBounds.cellCoverage(
+-				walObservedWallTimeMs = revision.observedWallTimeMs,
+-				wallTimeUncertaintyMs = revision.wallTimeUncertaintyMs,
+-				walObservedElapsedRealtimeNanos = revision.observedElapsedNanos,
+-				coverageStartElapsedRealtimeNanos = revision.coverageIntervalStartNanos,
+-			))
+-		} >= retainedFloor
++		retainedFloor == null || audit.canonicalRetentionLowerBoundById.getValue(lineage.logicalFactId) >= retainedFloor
+ 	}
+ 	val timeRetainedIds = timeRetainedLineages.mapTo(mutableSetOf(), CellCapturedLineage::logicalFactId)
+ 	// Never export a coverage-only correction whose authenticated aggregate owner was lost at the
+@@ -1183,7 +1177,8 @@
+ 			val fact = lineage.revisions.last()
+ 			val aggregate = audit.aggregateById[fact.logicalFactId]
+ 				?: throw IllegalArgumentException("Authenticated Cell aggregate missing")
+-			fact.toPortableObservation(aggregate)
++			fact.toPortableObservation(aggregate,
++				audit.canonicalRetentionLowerBoundById.getValue(lineage.logicalFactId))
+ 		}.sortedWith(PORTABLE_CELL_OBSERVATION_ORDER)
+ 		val availability = when {
+ 			!captured -> PortableCellRunAvailability.NOT_CAPTURED
+@@ -1230,14 +1225,8 @@
+ 
+ private fun CellCapturedFactRevisionEntity.toPortableObservation(
+ 	aggregate: CellHistoricalIdentityFreeAggregate,
++	coverageStart: Long,
+ ): PortableCapturedCellObservationV1 {
+-	val coverageStart = Math.subtractExact(
+-		Math.subtractExact(
+-			observedWallTimeMs,
+-			Math.subtractExact(observedElapsedNanos, coverageIntervalStartNanos) / NANOS_PER_MILLISECOND,
+-		),
+-		wallTimeUncertaintyMs,
+-	)
+ 	val latest = Math.addExact(observedWallTimeMs, wallTimeUncertaintyMs)
+ 	val payload = PortableCellObservationPayload(
+ 		identity = PortableCellOpaqueIdentity.derive(PortableCellIdentityKind.OBSERVATION, logicalFactId),
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/CellCapturedFactDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/CellCapturedFactDao.kt
+@@ -183,20 +183,30 @@
+ 	@Query(
+ 		"SELECT * FROM cell_captured_fact_revision WHERE writer_projection_id = :writerProjectionId " +
+ 			"AND writer_projection_version = :writerProjectionVersion " +
+-			"AND source_admission_ordinal = :sourceAdmissionOrdinal LIMIT :limit",
++			"AND source_admission_ordinal = :sourceAdmissionOrdinal " +
++			"AND (:logicalTrackingId IS NULL OR logical_tracking_id = :logicalTrackingId) " +
++			"AND (:serviceRunId IS NULL OR service_run_id = :serviceRunId) " +
++			"AND (:sourcePolicyRevision IS NULL OR source_policy_revision = :sourcePolicyRevision) " +
++			"AND (:captureConsentEpoch IS NULL OR capture_consent_epoch = :captureConsentEpoch) " +
++			"ORDER BY logical_fact_id, semantic_revision LIMIT :limit",
+ 	)
+ 	suspend fun revisionsForWriterAdmission(
+ 		writerProjectionId: String,
+ 		writerProjectionVersion: Int,
+ 		sourceAdmissionOrdinal: Long,
+ 		limit: Int,
++		logicalTrackingId: String? = null,
++		serviceRunId: String? = null,
++		sourcePolicyRevision: Long? = null,
++		captureConsentEpoch: Long? = null,
+ 	): List<CellCapturedFactRevisionEntity>
+ 
+ 	/**
+ 	 * Bounded reverse lookup of cursor-authenticated current heads for one immutable admission.
+ 	 *
+-	 * An empty result with retained admission revisions means the cursor is absent or mismatched;
+-	 * multiple rows mean the admission ambiguously claims more than one current fact lineage.
++	 * An empty result with retained admission revisions means the cursor is absent or mismatched.
++	 * One admission can legitimately have independent historical session facts. Callers that
++	 * require one lineage must select its run and consent before applying the bound.
+ 	 */
+ 	@Query(
+ 		"SELECT revision.* FROM cell_captured_fact_revision AS revision " +
+@@ -218,13 +228,22 @@
+ 			"AND fact_cursor.updated_at_ms = revision.applied_at_ms " +
+ 			"WHERE revision.writer_projection_id = :writerProjectionId " +
+ 			"AND revision.writer_projection_version = :writerProjectionVersion " +
+-			"AND revision.source_admission_ordinal = :sourceAdmissionOrdinal LIMIT :limit",
++			"AND revision.source_admission_ordinal = :sourceAdmissionOrdinal " +
++			"AND (:logicalTrackingId IS NULL OR revision.logical_tracking_id = :logicalTrackingId) " +
++			"AND (:serviceRunId IS NULL OR revision.service_run_id = :serviceRunId) " +
++			"AND (:sourcePolicyRevision IS NULL OR revision.source_policy_revision = :sourcePolicyRevision) " +
++			"AND (:captureConsentEpoch IS NULL OR revision.capture_consent_epoch = :captureConsentEpoch) " +
++			"ORDER BY revision.logical_fact_id, revision.semantic_revision LIMIT :limit",
+ 	)
+ 	suspend fun currentRevisionsForWriterAdmission(
+ 		writerProjectionId: String,
+ 		writerProjectionVersion: Int,
+ 		sourceAdmissionOrdinal: Long,
+ 		limit: Int,
++		logicalTrackingId: String? = null,
++		serviceRunId: String? = null,
++		sourcePolicyRevision: Long? = null,
++		captureConsentEpoch: Long? = null,
+ 	): List<CellCapturedFactRevisionEntity>
+ 
+ 	@Query("SELECT COUNT(*) FROM cell_captured_fact_revision")
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CapturedRadioFactRetentionProofEntity.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CapturedRadioFactRetentionProofEntity.kt
+@@ -20,7 +20,6 @@
+ 	indices = [
+ 		Index(
+ 			value = ["source_kind", "source_event_id"],
+-			unique = true,
+ 			name = "idx_captured_radio_retention_event",
+ 		),
+ 		Index(
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/CapturedRadioFactRetentionProofDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/CapturedRadioFactRetentionProofDao.kt
+@@ -26,16 +26,53 @@
+ 
+ 	@Query(
+ 		"SELECT * FROM captured_radio_fact_retention_proof " +
+-			"WHERE source_kind = :sourceKind AND source_event_id = :sourceEventId LIMIT 1",
++			"WHERE source_kind = :sourceKind AND source_event_id = :sourceEventId " +
++			"ORDER BY logical_fact_id LIMIT 2",
+ 	)
+-	suspend fun byEvent(
++	suspend fun eventCandidates(
+ 		sourceKind: Int,
+ 		sourceEventId: String,
+-	): CapturedRadioFactRetentionProofEntity?
++	): List<CapturedRadioFactRetentionProofEntity>
++
++	/** Legacy unscoped lookup is usable only when the event has one retained fact. */
++	suspend fun byEvent(sourceKind: Int, sourceEventId: String): CapturedRadioFactRetentionProofEntity? =
++		eventCandidates(sourceKind, sourceEventId).singleOrNull()
+ 
+ 	@Query(
+ 		"SELECT * FROM captured_radio_fact_retention_proof " +
+-			"WHERE source_kind = :sourceKind ORDER BY source_admission_ordinal",
++			"WHERE source_kind = :sourceKind AND source_event_id = :sourceEventId " +
++			"AND logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId " +
++			"AND source_policy_revision = :sourcePolicyRevision " +
++			"AND capture_consent_epoch = :captureConsentEpoch " +
++			"ORDER BY logical_fact_id LIMIT 2",
++	)
++	suspend fun eventCandidatesForRun(
++		sourceKind: Int,
++		sourceEventId: String,
++		logicalTrackingId: String,
++		serviceRunId: String,
++		sourcePolicyRevision: Long,
++		captureConsentEpoch: Long,
++	): List<CapturedRadioFactRetentionProofEntity>
++
++	@Query(
++		"SELECT EXISTS(SELECT 1 FROM captured_radio_fact_retention_proof " +
++			"WHERE source_kind = :sourceKind AND source_event_id = :sourceEventId " +
++			"AND (source_admission_ordinal != :sourceAdmissionOrdinal " +
++			"OR collected_data_epoch != :collectedDataEpoch " +
++			"OR wal_integrity_identity != :walIntegrityIdentity))",
++	)
++	suspend fun hasConflictingEventIdentity(
++		sourceKind: Int,
++		sourceEventId: String,
++		sourceAdmissionOrdinal: Long,
++		collectedDataEpoch: Long,
++		walIntegrityIdentity: String,
++	): Boolean
++
++	@Query(
++		"SELECT * FROM captured_radio_fact_retention_proof " +
++			"WHERE source_kind = :sourceKind ORDER BY source_admission_ordinal, logical_fact_id",
+ 	)
+ 	suspend fun allForSource(sourceKind: Int): List<CapturedRadioFactRetentionProofEntity>
+ 
+@@ -46,7 +83,7 @@
+ 			"AND source_admission_ordinal >= :firstAdmissionOrdinal " +
+ 			"AND source_admission_ordinal <= :lastAdmissionOrdinal " +
+ 			"AND retained_from_ms <= :retainedFromMs " +
+-			"ORDER BY source_admission_ordinal LIMIT 1",
++			"ORDER BY source_admission_ordinal, logical_fact_id LIMIT 1",
+ 	)
+ 	suspend fun firstForCapturedRun(
+ 		sourceKind: Int,
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CapturedRadioFactRetentionProofStore.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CapturedRadioFactRetentionProofStore.kt
+@@ -3,8 +3,8 @@
+ import com.adsamcik.tracker.shared.base.database.data.CapturedRadioFactRetentionProofEntity
+ 
+ /**
+- * Persists an exact proof set idempotently. A primary-key or event collision with different
+- * authority is corruption and must roll back the enclosing retention transaction.
++ * Persists each independently qualified fact idempotently. Sibling facts may share one raw
++ * event; a changed fact key or conflicting raw event identity rolls back retention.
+  */
+ suspend fun AppDatabase.persistCapturedRadioFactRetentionProofs(
+ 	proofs: List<CapturedRadioFactRetentionProofEntity>,
+@@ -17,7 +17,6 @@
+ 			proof.logicalFactId,
+ 		)
+ 	}.size == proofs.size)
+-	require(proofs.distinctBy { it.sourceKind to it.sourceEventId }.size == proofs.size)
+ 	val dao = capturedRadioFactRetentionProofDao()
+ 	for (proof in proofs) {
+ 		require(proof.hasValidStoredIntegrity())
+@@ -27,9 +26,12 @@
+ 			proof.writerProjectionVersion,
+ 			proof.logicalFactId,
+ 		)
+-		val eventCollision = dao.byEvent(proof.sourceKind, proof.sourceEventId)
+-		if (factCollision != null || eventCollision != null) {
+-			check(factCollision == proof && eventCollision == proof) {
++		check(!dao.hasConflictingEventIdentity(
++			proof.sourceKind, proof.sourceEventId, proof.sourceAdmissionOrdinal,
++			proof.collectedDataEpoch, proof.walIntegrityIdentity,
++		)) { "Captured radio retention event identity collision" }
++		if (factCollision != null) {
++			check(factCollision == proof) {
+ 				"Captured radio retention proof identity collision"
+ 			}
+ 			continue
+@@ -42,7 +44,7 @@
+ 			proof.writerProjectionId,
+ 			proof.writerProjectionVersion,
+ 			proof.logicalFactId,
+-		) == proof && dao.byEvent(proof.sourceKind, proof.sourceEventId) == proof) {
++		) == proof) {
+ 			"Captured radio retention proof did not round-trip exactly"
+ 		}
+ 	}
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt
+@@ -479,16 +479,19 @@
+ 		currentRetainedFromMs: Long?,
+ 	) {
+ 		val dao = database.capturedRadioFactRetentionProofDao()
+-		val byEvent = dao.byEvent(SOURCE_KIND, fact.sourceEventId)
++		val conflictingEvent = dao.hasConflictingEventIdentity(
++			SOURCE_KIND, fact.sourceEventId, fact.sourceAdmissionOrdinal,
++			fact.collectedDataEpoch, fact.walIntegrityIdentity,
++		)
+ 		val byFact = dao.byFact(
+ 			SOURCE_KIND,
+ 			fact.writerProjectionId,
+ 			fact.writerProjectionVersion,
+ 			fact.logicalFactId,
+ 		)
+-		if (byEvent == null && byFact == null) return
+-		if (byEvent == null || byFact == null || byEvent != byFact ||
+-			!byEvent.authenticatesRequest(
++		if (!conflictingEvent && byFact == null) return
++		if (conflictingEvent || byFact == null ||
++			!byFact.authenticatesRequest(
+ 				expectedSourceKind = SOURCE_KIND,
+ 				expectedWriterProjectionId = fact.writerProjectionId,
+ 				expectedWriterProjectionVersion = fact.writerProjectionVersion,
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultSourceFactQueryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultSourceFactQueryRepository.kt
+@@ -2,6 +2,9 @@
+ 
+ import androidx.room.withTransaction
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.CellPurposeItems
++import com.adsamcik.tracker.shared.base.database.qualifyCellCapturePurposeItems
++import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+ import com.adsamcik.tracker.shared.base.database.PressureFactLineageProof
+ import com.adsamcik.tracker.shared.base.database.PressureFactProofAuthenticator
+ import com.adsamcik.tracker.shared.base.database.PressureFactProofExpectation
+@@ -699,7 +702,11 @@
+ 		) ?: return SourceFactLookupResult.Unavailable(
+ 			SourceProofReason.IMMUTABLE_AUTHORITY_MISSING,
+ 		)
+-		val walAuthentication = WifiWalCarrierAuthenticator.authenticate(fact, wal)
++		val children = database.radioObservationChildDao().wifiSessionChildren(
++			fact.writerProjectionId, fact.writerProjectionVersion,
++			fact.logicalFactId, fact.semanticRevision, MAX_WIFI_CHILDREN + 1,
++		)
++		val walAuthentication = WifiWalCarrierAuthenticator.authenticate(fact, wal, children)
+ 			as? WifiWalCarrierAuthentication.Authenticated
+ 			?: return SourceFactLookupResult.Failed(SourceProofReason.INTEGRITY_FAILURE)
+ 		var aggregateOwnerCursor: WifiCapturedFactCursorEntity? = null
+@@ -815,8 +822,7 @@
+ 			lineage.sourceAdmissionOrdinal,
+ 			SourceProofReason.CURSOR_BEHIND,
+ 		)
+-		val walAuthentication = CellWalCarrierAuthenticator.authenticate(fact, wal)
+-			as? com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated
++		val walAuthentication = authenticateCellFactCarrier(fact, wal)
+ 			?: return SourceFactLookupResult.Failed(SourceProofReason.INTEGRITY_FAILURE)
+ 		var aggregateOwnerCursor:
+ 			com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity? = null
+@@ -851,8 +857,7 @@
+ 					?: return SourceFactLookupResult.Unavailable(
+ 						SourceProofReason.IMMUTABLE_AUTHORITY_MISSING,
+ 					)
+-				aggregateWalAuthentication = CellWalCarrierAuthenticator.authenticate(owner, ownerWal)
+-					as? com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated
++				aggregateWalAuthentication = authenticateCellFactCarrier(owner, ownerWal)
+ 					?: return SourceFactLookupResult.Failed(SourceProofReason.INTEGRITY_FAILURE)
+ 				aggregateOwnerCursor = ownerCursor
+ 				owner
+@@ -965,6 +970,22 @@
+ 		}.getOrNull()
+ 	}
+ 
++	private suspend fun authenticateCellFactCarrier(
++		fact: CellCapturedFactRevisionEntity,
++		wal: com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity,
++	): com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated? {
++		if (wal.payloadVersion != CELL_WAL_PAYLOAD_VERSION) {
++			return CellWalCarrierAuthenticator.authenticate(fact, wal)
++				as? com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated
++		}
++		val raw = CellWalCarrierAuthenticator.authenticate(wal)
++			as? com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated ?: return null
++		val purpose = database.qualifyCellCapturePurposeItems(wal, raw.carrier.payload, fact)
++			as? CellPurposeItems.Qualified ?: return null
++		return CellWalCarrierAuthenticator.authenticate(fact, wal, purpose.indexes.toSet())
++			as? com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication.Authenticated
++	}
++
+ 	private suspend fun capturedRadioRetentionLookup(
+ 		request: SourceFactLookupRequest,
+ 		retainedFromMs: Long?,
+@@ -979,13 +1000,12 @@
+ 			writer.projectionId,
+ 			writer.projectionVersion,
+ 			logicalFactId,
+-		)
+-		val byEvent = dao.byEvent(
+-			request.key.source.stableCode(),
+-			request.key.evidenceIdentity.value,
+-		)
+-		if (byFact == null && byEvent == null) return null
+-		if (byFact == null || byEvent == null || byFact != byEvent) {
++		) ?: return null
++		if (dao.hasConflictingEventIdentity(
++			request.key.source.stableCode(), request.key.evidenceIdentity.value,
++			lineage.sourceAdmissionOrdinal, request.key.collectedDataEpoch,
++			byFact.walIntegrityIdentity,
++		)) {
+ 			return SourceFactLookupResult.Failed(SourceProofReason.INTEGRITY_FAILURE)
+ 		}
+ 		val scope = request.key.scope as SourceProofScope.Run
+@@ -1236,6 +1256,7 @@
+ 	}
+ 
+ 	private companion object {
++		const val MAX_WIFI_CHILDREN = 64
+ 		const val MAX_ACTIVITY_REVISIONS = 4_096
+ 		const val MAX_ACTIVITY_CHILD_ROWS = 4_096
+ 		const val ACTIVITY_WAL_ID_BATCH_SIZE = 400
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CapturedRadioFactRetentionProofRoomTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CapturedRadioFactRetentionProofRoomTest.kt
+@@ -74,6 +74,52 @@
+ 			proof,
+ 			scopeDeletionGeneration = proof.scopeDeletionGeneration + 1L,
+ 		) shouldBe false
++	}
++
++	@Test
++	fun `one original callback retains independent session facts for both radio sources`() = runTest {
++		for (source in listOf(SourceDestinationOwnerEntity.SOURCE_CELL, SourceDestinationOwnerEntity.SOURCE_WIFI)) {
++			val first = proof(source, "shared-$source", "1")
++			val unsignedSecond = proof(source, "shared-$source", "2").copy(
++				logicalTrackingId = "second-logical", serviceRunId = "second-run",
++				logicalRunScopeDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(source,
++					SourceBrokerPurpose.SESSION_CAPTURE, "second-logical", "second-run"))
++			val second = unsignedSecond.copy(effectChecksum = unsignedSecond.calculatedEffectChecksum())
++			database.persistCapturedRadioFactRetentionProofs(listOf(first, second))
++			database.persistCapturedRadioFactRetentionProofs(listOf(first, second))
++			val dao = database.capturedRadioFactRetentionProofDao()
++			dao.allForSource(source) shouldBe listOf(first, second)
++			dao.byEvent(source, first.sourceEventId) shouldBe null
++			dao.eventCandidatesForRun(source, first.sourceEventId, "logical", "run", 1L, 1L) shouldBe listOf(first)
++			dao.eventCandidatesForRun(source, first.sourceEventId, "second-logical", "second-run", 1L, 1L) shouldBe listOf(second)
++			dao.sourceErasePage(source, first.sourceAdmissionOrdinal, first.logicalFactId, 2) shouldBe listOf(second)
++		}
++		database.capturedRadioFactRetentionProofDao().countAll() shouldBe 4L
++	}
++
++	@Test
++	fun `same event with conflicting raw identity is rejected without losing its existing sibling`() = runTest {
++		val source = SourceDestinationOwnerEntity.SOURCE_CELL
++		val first = proof(source, "shared-cell", "1")
++		database.persistCapturedRadioFactRetentionProofs(listOf(first))
++		val unsigned = proof(source, "shared-cell", "2").copy(walIntegrityIdentity = "5".repeat(64))
++		val conflicting = unsigned.copy(effectChecksum = unsigned.calculatedEffectChecksum())
++		kotlin.test.assertFailsWith<IllegalStateException> {
++			database.persistCapturedRadioFactRetentionProofs(listOf(conflicting))
++		}
++		database.capturedRadioFactRetentionProofDao().allForSource(source) shouldBe listOf(first)
++	}
++
++	@Test
++	fun `run lookup refuses to choose one of two conflicting logical facts within the same scope`() = runTest {
++		val source = SourceDestinationOwnerEntity.SOURCE_CELL
++		val first = proof(source, "ambiguous-cell", "1")
++		val second = proof(source, "ambiguous-cell", "2")
++		database.persistCapturedRadioFactRetentionProofs(listOf(first, second))
++		val candidates = database.capturedRadioFactRetentionProofDao().eventCandidatesForRun(
++			source, "ambiguous-cell", "logical", "run", 1L, 1L)
++		candidates.size shouldBe 2
++		candidates.singleOrNull() shouldBe null
+ 	}
+ 
+ 	private fun authenticates(
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt
+@@ -420,7 +420,8 @@
+ 				val retainedEventProofs = loadSourceEventRetentionProofsForSourceErase(limits)
+ 				val retainedScopeProofs = loadSourceEventRetentionScopeProofsForSourceErase(limits)
+ 				val scopeAuthorities = linkedMapOf<WifiCapturedRunScope, RetainedCaptureScopeIdentity>()
+-				val eventAuthorities = mutableMapOf<String, RetainedCaptureEventIdentity>()
++				val eventAuthorities = mutableMapOf<Pair<String, String>, RetainedCaptureEventIdentity>()
++				val rawEventIdentities = mutableMapOf<String, Pair<Long, String>>()
+ 				fun registerScope(
+ 					identity: RetainedCaptureScopeIdentity,
+ 					eventIdentity: RetainedCaptureEventIdentity? = null,
+@@ -444,8 +445,13 @@
+ 						expectedDeletedSourceEventHighWaterOrdinal
+ 					) block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 					if (eventIdentity != null) {
++						val rawIdentity = eventIdentity.sourceAdmissionOrdinal to eventIdentity.walIntegrityIdentity
++						val original = rawEventIdentities.putIfAbsent(eventIdentity.eventId, rawIdentity)
++						if (original != null && original != rawIdentity) {
++							block(WifiCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
++						}
+ 						val retained = eventAuthorities.putIfAbsent(
+-							eventIdentity.eventId,
++							eventIdentity.eventId to eventIdentity.scope.logicalRunScopeDigest,
+ 							eventIdentity,
+ 						)
+ 						if (retained != null && retained != eventIdentity) {
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt
+@@ -5,6 +5,7 @@
+ import androidx.room.withTransaction
+ import androidx.test.core.app.ApplicationProvider
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.persistCapturedRadioFactRetentionProofs
+ import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
+ import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+ import com.adsamcik.tracker.shared.base.database.data.CapturedRadioFactRetentionProofEntity
+@@ -1768,6 +1769,41 @@
+ 	}
+ 
+ 	@Test
++	fun `Wi-Fi source erase fences independent retained scopes sharing the original callback`() = runTest {
++		installValidFixture(candidateWriter = true)
++		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
++		val markedAtMs = OBSERVED_WALL_MS + 10_000L
++		database.sourceEvidenceStateDao().synchronizeLifecycle(0L, OBSERVED_WALL_MS, markedAtMs)
++		assertEquals(WifiCapturedRetentionResult.Pruned(1, 1),
++			maintenance.pruneAffectedByRetentionFloor(OBSERVED_WALL_MS, 0L, 0L, markedAtMs))
++		val first = database.capturedRadioFactRetentionProofDao().allForSource(WIFI_SOURCE).single()
++		// This storage-consumer fixture represents a second independently retained session fact.
++		// It exercises source cleanup only; historical Wi-Fi capture remains a separate slice.
++		val secondId = "9".repeat(64)
++		val secondMutation = WifiCapturedFactRevisionIntegrity.mutationId(secondId, first.semanticRevision)
++		val secondRun = "second-retained-wifi-run"
++		val secondDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(WIFI_SOURCE,
++			SourceBrokerPurpose.SESSION_CAPTURE, LOGICAL_ID, secondRun)
++		val unsigned = first.copy(logicalFactId = secondId, mutationId = secondMutation,
++			cursorMutationId = secondMutation, serviceRunId = secondRun, logicalRunScopeDigest = secondDigest)
++		val second = unsigned.copy(effectChecksum = unsigned.calculatedEffectChecksum())
++		database.withTransaction { database.persistCapturedRadioFactRetentionProofs(listOf(second)) }
++		database.openHelper.writableDatabase.execSQL("DELETE FROM source_event_wal WHERE source_kind = ?",
++			arrayOf(WIFI_SOURCE))
++		revokeCaptureConsent()
++
++		assertEquals(WifiCapturedSourceDeletionResult.Deleted(0, 0, 2),
++			maintenance.deleteAfterCaptureConsentReset(0L, 0L, REVOKED_POLICY_REVISION,
++				REVOKED_CONSENT_EPOCH, DELETE_AT_MS))
++		assertEquals(0L, database.capturedRadioFactRetentionProofDao().countAll())
++		assertEquals(2L, database.wifiCapturedFactDao().deletionGenerationCount())
++		for (digest in listOf(first.logicalRunScopeDigest, secondDigest)) {
++			assertEquals(true, database.sourceDeletionFenceDao().contains(WIFI_SOURCE,
++				SourceBrokerPurpose.SESSION_CAPTURE, SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN, digest))
++		}
++	}
++
++	@Test
+ 	fun `Wi-Fi mixed retained proof scopes for one event fail closed`() = runTest {
+ 		installValidFixture(candidateWriter = true)
+ 		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt
+@@ -233,7 +233,12 @@
+ 			relatedRevisions.maxOfOrNull(CellCapturedFactRevisionEntity::sourceAdmissionOrdinal),
+ 			cellCompleteness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull(),
+ 		)
+-		if (!hasValidSessionSettlement(session, runs, manifestsByRun, targetOrdinal) ||
++		val legacyTargetOrdinal = maxOfOrNull(
++			relatedRevisions.filter { it.payloadVersion != CELL_WAL_PAYLOAD_VERSION }
++				.maxOfOrNull(CellCapturedFactRevisionEntity::sourceAdmissionOrdinal),
++			cellCompleteness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull(),
++		)
++		if (!hasValidSessionSettlement(session, runs, manifestsByRun, legacyTargetOrdinal) ||
+ 			targetOrdinal?.let { target -> target < lane.activationOrdinal ||
+ 				lane.captureAdmissionCutoffOrdinal?.let { it < target } == true } == true ||
+ 			snapshot.terminalFailures.isNotEmpty()
+@@ -249,7 +254,7 @@
+ 			admissionsByDelivery.size != snapshot.admissions.size
+ 		) return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
+ 		val current = mutableListOf<AuthenticatedCellHistoryFact>()
+-		val factOwnerByEvent = linkedMapOf<String, String>()
++		val factOwnerByEvent = linkedMapOf<Pair<String, Long>, String>()
+ 		for ((_, lineage) in relatedRevisions.groupBy(CellCapturedFactRevisionEntity::logicalFactId)) {
+ 			val latest = validateLineage(lineage.sortedBy(CellCapturedFactRevisionEntity::semanticRevision), snapshot)
+ 				?: return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED)
+@@ -257,16 +262,11 @@
+ 				?: return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED)
+ 			val wal = admissionsByEventId[latest.sourceEventId]
+ 				?: return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
+-			val walAuthentication = CellWalCarrierAuthenticator.authenticate(
+-				latest, wal,
+-				snapshot.childrenByRevision[latest.logicalFactId to latest.semanticRevision].orEmpty(),
+-			)
+-				as? CellWalCarrierAuthentication.Authenticated
++			val walAuthentication = authenticateFactCarrier(latest, wal, snapshot)
+ 			val aggregateWal = admissionsByEventId[aggregate.sourceEventId]
+ 				?: return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
+ 			val aggregateWalAuthentication =
+-				CellWalCarrierAuthenticator.authenticate(aggregate, aggregateWal)
+-					as? CellWalCarrierAuthentication.Authenticated
++				authenticateFactCarrier(aggregate, aggregateWal, snapshot)
+ 			val retentionLowerBound = walAuthentication?.let { authentication ->
+ 				CellWalCarrierAuthenticator.retentionLowerBound(latest, authentication.carrier)
+ 			}
+@@ -308,7 +308,8 @@
+ 					aggregateWalAuthentication.carrier,
+ 				)
+ 			) return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
+-			val priorFact = factOwnerByEvent.putIfAbsent(latest.sourceEventId, latest.logicalFactId)
++			val priorFact = factOwnerByEvent.putIfAbsent(
++				latest.sourceEventId to latest.manifestRevision, latest.logicalFactId)
+ 			if (priorFact != null && priorFact != latest.logicalFactId) {
+ 				return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
+ 			}
+@@ -595,7 +596,7 @@
+ 			provider.collectedDataEpoch == fact.collectedDataEpoch &&
+ 			provider.acceptedElapsedRealtimeNanos == fact.providerAcceptanceStartNanos &&
+ 			providerEnd == fact.providerAcceptanceEndNanos &&
+-			hasExactAuthorization(fact, authorizations, providerEnd, snapshot.demands, perReading) &&
++			hasExactAuthorization(fact, authorizations, providerEnd, snapshot.demands, perReading, purpose) &&
+ 			fact.availability == CellCapturedFactRevisionEntity.AVAILABILITY_AVAILABLE &&
+ 			fact.subscriptionCompleteness == CellCapturedFactRevisionEntity.SUBSCRIPTION_COMPLETENESS_UNKNOWN &&
+ 			aggregate.aggregateShapeIsValid() &&
+@@ -608,6 +609,7 @@
+ 		providerEnd: Long,
+ 		demands: Map<String, SourceDemandEntity>,
+ 		perReading: Boolean = false,
++		purpose: CellPurposeItems.Qualified? = null,
+ 	): Boolean {
+ 		val exact = rows.filter { it.authorizationRevision == fact.authorizationRevision }
+ 		if (exact.isEmpty() || exact.any { row ->
+@@ -652,7 +654,27 @@
+ 			})
+ 		}.minWithOrNull(compareBy(SourceAuthorizationEntity::effectiveElapsedRealtimeNanos,
+ 			SourceAuthorizationEntity::authorizationRevision))?.effectiveElapsedRealtimeNanos ?: Long.MAX_VALUE
+-		return memberMatches && minOf(providerEnd, nextAuthorizationStart) == fact.authorizationEffectEndNanos
++		val expectedEnd = if (perReading) purpose?.continuousUntilNanos ?: return false
++			else minOf(providerEnd, nextAuthorizationStart)
++		return memberMatches && expectedEnd == fact.authorizationEffectEndNanos
++	}
++
++	private fun authenticateFactCarrier(
++		fact: CellCapturedFactRevisionEntity,
++		wal: SourceEventWalEntity,
++		snapshot: CellHistorySnapshot,
++	): CellWalCarrierAuthentication.Authenticated? {
++		val children = snapshot.childrenByRevision[fact.logicalFactId to fact.semanticRevision].orEmpty()
++		val stored = CellWalCarrierAuthenticator.authenticate(fact, wal, children)
++			as? CellWalCarrierAuthentication.Authenticated ?: return null
++		if (fact.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
++			val purpose = qualifiedCellPurposeWindow(fact, snapshot,
++				fact.providerAcceptanceStartNanos, fact.providerAcceptanceEndNanos) ?: return null
++			val exact = CellWalCarrierAuthenticator.authenticate(fact, wal, purpose.indexes.toSet())
++				as? CellWalCarrierAuthentication.Authenticated ?: return null
++			if (exact.carrier.childQualification != stored.carrier.childQualification) return null
++		}
++		return stored
+ 	}
+ 
+ 	/** The same per-reading rule and uninterrupted demand window used by the Cell writer. */
+@@ -669,21 +691,24 @@
+ 			.groupBy(SourceAuthorizationEntity::authorizationRevision).values.map { rows ->
+ 				rows.toAuthorizationSnapshotOrNull() ?: return null
+ 			}.sortedBy { it.authorizationRevision }
+-		val callback = all.singleOrNull { it.authorizationRevision == fact.authorizationRevision } ?: return null
++		val callback = all.singleOrNull { it.authorizationRevision == wal.authorizationRevision } ?: return null
+ 		if (all.lastOrNull { it.effectiveBootId == wal.clockDomainId &&
+ 			it.effectiveElapsedRealtimeNanos <= wal.receivedElapsedNanos } != callback ||
+ 			callback.authorizationFingerprint != wal.authorizationFingerprint ||
+ 			callback.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask) return null
+ 		val first = all.lastOrNull { it.effectiveElapsedRealtimeNanos <= requireNotNull(wal.observedIntervalStartNanos) }
+ 			?: all.firstOrNull() ?: return null
+-		val timeline = all.filter { it.authorizationRevision in first.authorizationRevision..fact.authorizationRevision }
++		val timeline = all.filter { it.authorizationRevision in first.authorizationRevision..callback.authorizationRevision }
+ 		val ids = timeline.flatMap { it.authorizedMembers.mapNotNull { member -> member.demandId } }.distinct()
+ 		val demands = ids.map { snapshot.demands[it] ?: return null }
+ 		val qualified = RadioPurposeItemQualifier.cell(carrier.payload, RadioPurposeItemAuthority(
+ 			CELL_SOURCE, fact.registrationGeneration, fact.clockDomainId, providerStart, providerEnd,
+ 			wal.receivedElapsedNanos, timeline, demands), wal.payloadVersion)
+ 			as? RadioPurposeItemQualification.Qualified ?: return null
+-		val member = callback.authorizedMembers.singleOrNull { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
++		val member = timeline.flatMap { it.authorizedMembers }.singleOrNull {
++			it.authorizationRevision == fact.authorizationRevision &&
++			it.authorizationFingerprint == fact.authorizationFingerprint &&
++			it.purposeEligibilityMask == fact.purposeEligibilityMask && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+ 			it.persistenceEligible && it.logicalTrackingId == fact.logicalTrackingId &&
+ 			it.serviceRunId == fact.serviceRunId && it.manifestRevision == fact.manifestRevision &&
+ 			it.lifecycleLeaseGeneration == fact.lifecycleLeaseGeneration &&
+@@ -883,7 +908,9 @@
+ 		val latest = Math.addExact(observedWallTimeMs, wallTimeUncertaintyMs)
+ 		val firstDay = Instant.ofEpochMilli(earliest).atZone(zone).toLocalDate().toEpochDay()
+ 		val lastDay = Instant.ofEpochMilli(latest).atZone(zone).toLocalDate().toEpochDay()
+-		earliest >= 0L && firstDay == lastDay && firstDay == structuralEpochDay
++		val measuredDay = Instant.ofEpochMilli(observedWallTimeMs).atZone(zone).toLocalDate().toEpochDay()
++		earliest >= 0L && if (payloadVersion == CELL_WAL_PAYLOAD_VERSION) measuredDay == structuralEpochDay else
++			firstDay == lastDay && firstDay == structuralEpochDay
+ 	}.getOrDefault(false)
+ 
+ 	private fun isExactCellWriter(source: SessionManifestSourceEntity): Boolean =
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt
+@@ -1176,6 +1176,53 @@
+ 	}
+ 
+ 	@Test
++	fun `historical Cell history and exact lookup use stored purpose after a denied callback beyond End`() = runTest {
++		val original = perReadingGroup(buildGroup(246, 1, setOf(0)))
++		val originalRun = original.runs.single()
++		val denied = originalRun.authorizations.first { it.authorizationRevision == 3L }
++		fun callbackWal(fact: CellCapturedFactRevisionEntity): SourceEventWalEntity {
++			val unsigned = walFor(fact).copy(logicalTrackingId = null, serviceRunId = null,
++				authorizationRevision = denied.authorizationRevision,
++				authorizationFingerprint = denied.authorizationFingerprint,
++				authorizationPurposeEligibilityMask = 0L, planAttribution = 2,
++				sourcePolicyRevision = null, captureConsentEpoch = null,
++				sessionManifestRevision = null, lifecycleLeaseGeneration = null)
++			return unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
++		}
++		val facts = originalRun.facts.map { originalFact ->
++			val received = originalFact.copy(receivedElapsedNanos = denied.effectiveElapsedRealtimeNanos + 1_000_000L)
++			val raw = callbackWal(received)
++			val unsigned = received.copy(walIntegrityIdentity = raw.integrityIdentity)
++			unsigned.copy(effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(unsigned))
++		}
++		val run = originalRun.copy(facts = facts,
++			cursors = facts.groupBy { it.logicalFactId }.values.map { cursor(it.maxBy { fact -> fact.semanticRevision }) },
++			completeness = originalRun.completeness.copy(lastAdmissionOrdinal = null, lastSourceSequence = null))
++		val group = original.copy(session = original.session.copy(finalAdmissionOrdinal = 0L), runs = listOf(run))
++		persist(listOf(group))
++		persistPerReadingChildren(group)
++		facts.distinctBy { it.sourceEventId }.forEach { fact ->
++			val raw = callbackWal(fact)
++			database.openHelper.writableDatabase.execSQL(
++				"UPDATE source_event_wal SET logical_tracking_id = NULL, service_run_id = NULL, " +
++					"source_policy_revision = NULL, capture_consent_epoch = NULL, session_manifest_revision = NULL, " +
++					"lifecycle_lease_generation = NULL, authorization_revision = ?, authorization_fingerprint = ?, " +
++					"authorization_purpose_eligibility_mask = 0, plan_attribution = 2, integrity_identity = ? " +
++					"WHERE event_id = ?",
++				arrayOf(raw.authorizationRevision, raw.authorizationFingerprint, raw.integrityIdentity, raw.eventId))
++		}
++
++		val entry = (repository { true }.recent(1) as CellHistoryPage.Available).entries.single()
++		entry.state shouldBe CellHistoryProductState.PARTIAL
++		entry.observations shouldHaveSize 2
++		entry.observations.all { it.towers.size == 1 } shouldBe true
++		val current = run.facts.filter { it.semanticRevision == 2L }.single()
++		val lookup = RoomSourceFactLookupReader(database, UnconfinedTestDispatcher(testScheduler))
++			.lookup(cellFactLookupRequest(current))
++		(lookup as SourceFactLookupResult.Found).state.lineage.semanticRevision shouldBe current.semanticRevision
++	}
++
++	@Test
+ 	fun `version six Cell history rejects a parent that claims permission before it began`() = runTest {
+ 		val authorized = perReadingGroup(buildGroup(245, 1, setOf(0)))
+ 		val group = authorized.copy(runs = authorized.runs.map { run ->

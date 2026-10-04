@@ -183,20 +183,30 @@ interface CellCapturedFactDao {
 	@Query(
 		"SELECT * FROM cell_captured_fact_revision WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion " +
-			"AND source_admission_ordinal = :sourceAdmissionOrdinal LIMIT :limit",
+			"AND source_admission_ordinal = :sourceAdmissionOrdinal " +
+			"AND (:logicalTrackingId IS NULL OR logical_tracking_id = :logicalTrackingId) " +
+			"AND (:serviceRunId IS NULL OR service_run_id = :serviceRunId) " +
+			"AND (:sourcePolicyRevision IS NULL OR source_policy_revision = :sourcePolicyRevision) " +
+			"AND (:captureConsentEpoch IS NULL OR capture_consent_epoch = :captureConsentEpoch) " +
+			"ORDER BY logical_fact_id, semantic_revision LIMIT :limit",
 	)
 	suspend fun revisionsForWriterAdmission(
 		writerProjectionId: String,
 		writerProjectionVersion: Int,
 		sourceAdmissionOrdinal: Long,
 		limit: Int,
+		logicalTrackingId: String? = null,
+		serviceRunId: String? = null,
+		sourcePolicyRevision: Long? = null,
+		captureConsentEpoch: Long? = null,
 	): List<CellCapturedFactRevisionEntity>
 
 	/**
 	 * Bounded reverse lookup of cursor-authenticated current heads for one immutable admission.
 	 *
-	 * An empty result with retained admission revisions means the cursor is absent or mismatched;
-	 * multiple rows mean the admission ambiguously claims more than one current fact lineage.
+	 * An empty result with retained admission revisions means the cursor is absent or mismatched.
+	 * One admission can legitimately have independent historical session facts. Callers that
+	 * require one lineage must select its run and consent before applying the bound.
 	 */
 	@Query(
 		"SELECT revision.* FROM cell_captured_fact_revision AS revision " +
@@ -218,13 +228,22 @@ interface CellCapturedFactDao {
 			"AND fact_cursor.updated_at_ms = revision.applied_at_ms " +
 			"WHERE revision.writer_projection_id = :writerProjectionId " +
 			"AND revision.writer_projection_version = :writerProjectionVersion " +
-			"AND revision.source_admission_ordinal = :sourceAdmissionOrdinal LIMIT :limit",
+			"AND revision.source_admission_ordinal = :sourceAdmissionOrdinal " +
+			"AND (:logicalTrackingId IS NULL OR revision.logical_tracking_id = :logicalTrackingId) " +
+			"AND (:serviceRunId IS NULL OR revision.service_run_id = :serviceRunId) " +
+			"AND (:sourcePolicyRevision IS NULL OR revision.source_policy_revision = :sourcePolicyRevision) " +
+			"AND (:captureConsentEpoch IS NULL OR revision.capture_consent_epoch = :captureConsentEpoch) " +
+			"ORDER BY revision.logical_fact_id, revision.semantic_revision LIMIT :limit",
 	)
 	suspend fun currentRevisionsForWriterAdmission(
 		writerProjectionId: String,
 		writerProjectionVersion: Int,
 		sourceAdmissionOrdinal: Long,
 		limit: Int,
+		logicalTrackingId: String? = null,
+		serviceRunId: String? = null,
+		sourcePolicyRevision: Long? = null,
+		captureConsentEpoch: Long? = null,
 	): List<CellCapturedFactRevisionEntity>
 
 	@Query("SELECT COUNT(*) FROM cell_captured_fact_revision")

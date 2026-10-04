@@ -76,6 +76,52 @@ class CapturedRadioFactRetentionProofRoomTest {
 		) shouldBe false
 	}
 
+	@Test
+	fun `one original callback retains independent session facts for both radio sources`() = runTest {
+		for (source in listOf(SourceDestinationOwnerEntity.SOURCE_CELL, SourceDestinationOwnerEntity.SOURCE_WIFI)) {
+			val first = proof(source, "shared-$source", "1")
+			val unsignedSecond = proof(source, "shared-$source", "2").copy(
+				logicalTrackingId = "second-logical", serviceRunId = "second-run",
+				logicalRunScopeDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(source,
+					SourceBrokerPurpose.SESSION_CAPTURE, "second-logical", "second-run"))
+			val second = unsignedSecond.copy(effectChecksum = unsignedSecond.calculatedEffectChecksum())
+			database.persistCapturedRadioFactRetentionProofs(listOf(first, second))
+			database.persistCapturedRadioFactRetentionProofs(listOf(first, second))
+			val dao = database.capturedRadioFactRetentionProofDao()
+			dao.allForSource(source) shouldBe listOf(first, second)
+			dao.byEvent(source, first.sourceEventId) shouldBe null
+			dao.eventCandidatesForRun(source, first.sourceEventId, "logical", "run", 1L, 1L) shouldBe listOf(first)
+			dao.eventCandidatesForRun(source, first.sourceEventId, "second-logical", "second-run", 1L, 1L) shouldBe listOf(second)
+			dao.sourceErasePage(source, first.sourceAdmissionOrdinal, first.logicalFactId, 2) shouldBe listOf(second)
+		}
+		database.capturedRadioFactRetentionProofDao().countAll() shouldBe 4L
+	}
+
+	@Test
+	fun `same event with conflicting raw identity is rejected without losing its existing sibling`() = runTest {
+		val source = SourceDestinationOwnerEntity.SOURCE_CELL
+		val first = proof(source, "shared-cell", "1")
+		database.persistCapturedRadioFactRetentionProofs(listOf(first))
+		val unsigned = proof(source, "shared-cell", "2").copy(walIntegrityIdentity = "5".repeat(64))
+		val conflicting = unsigned.copy(effectChecksum = unsigned.calculatedEffectChecksum())
+		kotlin.test.assertFailsWith<IllegalStateException> {
+			database.persistCapturedRadioFactRetentionProofs(listOf(conflicting))
+		}
+		database.capturedRadioFactRetentionProofDao().allForSource(source) shouldBe listOf(first)
+	}
+
+	@Test
+	fun `run lookup refuses to choose one of two conflicting logical facts within the same scope`() = runTest {
+		val source = SourceDestinationOwnerEntity.SOURCE_CELL
+		val first = proof(source, "ambiguous-cell", "1")
+		val second = proof(source, "ambiguous-cell", "2")
+		database.persistCapturedRadioFactRetentionProofs(listOf(first, second))
+		val candidates = database.capturedRadioFactRetentionProofDao().eventCandidatesForRun(
+			source, "ambiguous-cell", "logical", "run", 1L, 1L)
+		candidates.size shouldBe 2
+		candidates.singleOrNull() shouldBe null
+	}
+
 	private fun authenticates(
 		proof: CapturedRadioFactRetentionProofEntity,
 		bindingGeneration: Long = proof.writerBindingGeneration,

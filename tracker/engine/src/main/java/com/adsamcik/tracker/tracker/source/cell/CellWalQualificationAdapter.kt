@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.source.cell
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.CellPurposeItems
+import com.adsamcik.tracker.shared.base.database.RadioPurposeItems
+import com.adsamcik.tracker.shared.base.database.cellPurposeWindow
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalFailure
 import com.adsamcik.tracker.shared.base.database.authenticateHistoricalProviderRegistration
@@ -10,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.qualifyCellPurposeItems
 import com.adsamcik.tracker.shared.base.database.data.CellWalCaptureAuthority
 import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthentication
 import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierAuthenticator
+import com.adsamcik.tracker.shared.base.database.data.hasSupportedCellProductShape
 import com.adsamcik.tracker.shared.base.database.data.CellWalCarrierFailure
 import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.CellWalProviderInterval
@@ -17,6 +20,8 @@ import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenera
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -77,6 +82,7 @@ internal sealed interface CellWalAdapterResult {
 	) : CellWalAdapterResult
 
 	data class Rejected(val reason: CellWalAdapterRejection) : CellWalAdapterResult
+	data class Groups(val results: List<CellWalAdapterResult>) : CellWalAdapterResult
 }
 
 /**
@@ -103,14 +109,49 @@ internal class CellWalQualificationAdapter @Inject constructor(
 		classify: suspend (CellObservationInput, CellCaptureAuthority) ->
 			CellCapturedFactClassification,
 	): CellWalAdapterResult = database.withTransaction {
-		val walDao = database.sourceEventWalDao()
-		val wal = walDao.getByEventId(eventId.value)
+		val wal = database.sourceEventWalDao().getByEventId(eventId.value)
 			?: return@withTransaction rejected(CellWalAdapterRejection.MISSING_EVENT)
+		if (wal.payloadVersion != CELL_WAL_PAYLOAD_VERSION) {
+			return@withTransaction qualifyGroup(eventId, wal, classify)
+		}
+		val carrier = when (val result = CellWalCarrierAuthenticator.authenticate(wal)) {
+			is CellWalCarrierAuthentication.Authenticated -> result.carrier
+			is CellWalCarrierAuthentication.Rejected -> return@withTransaction rejected(result.reason.toAdapterRejection())
+		}
+		val registration = database.sourceBrokerDao().registration(CELL_SOURCE, wal.registrationGeneration)
+			?: return@withTransaction rejected(CellWalAdapterRejection.MISSING_REGISTRATION)
+		val start = registration.acceptedElapsedRealtimeNanos
+			?: return@withTransaction rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
+		val end = registration.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE
+		val items = database.qualifyCellPurposeItems(wal, carrier.payload, start, end)
+			?: return@withTransaction rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
+		val members = items.historicalMembers().filter { member ->
+			member.purpose == SourceBrokerPurpose.SESSION_CAPTURE && member.persistenceEligible &&
+				items.forDemand(requireNotNull(member.demandId)).isNotEmpty()
+		}.map { member ->
+			// Preserve the original attribution for a demand still present at callback time.
+			items.callbackAuthorization.authorizedMembers.singleOrNull { it.demandId == member.demandId }
+				?: member
+		}
+		val results = members.map { member -> qualifyGroup(eventId, wal, classify, member, items) }
+		if (results.singleOrNull() is CellWalAdapterResult.Evaluated) results.single()
+		else CellWalAdapterResult.Groups(results)
+	}
+
+	@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
+	private suspend fun qualifyGroup(
+		eventId: SourceEventId,
+		wal: SourceEventWalEntity,
+		classify: suspend (CellObservationInput, CellCaptureAuthority) -> CellCapturedFactClassification,
+		historicalMember: SourceAuthorizationEntity? = null,
+		purposeItems: RadioPurposeItems? = null,
+	): CellWalAdapterResult {
+		val walDao = database.sourceEventWalDao()
 		val authenticatedCarrier = when (val authentication =
 			CellWalCarrierAuthenticator.authenticate(wal)) {
 			is CellWalCarrierAuthentication.Authenticated -> authentication.carrier
 			is CellWalCarrierAuthentication.Rejected ->
-				return@withTransaction rejected(authentication.reason.toAdapterRejection())
+				return rejected(authentication.reason.toAdapterRejection())
 		}
 		val sequenceRow = walDao.getBySourceSequence(
 			CELL_SOURCE,
@@ -121,12 +162,12 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			sequenceRow.admissionOrdinal != wal.admissionOrdinal ||
 			sequenceRow.integrityIdentity != wal.integrityIdentity
 		) {
-			return@withTransaction rejected(CellWalAdapterRejection.SOURCE_SEQUENCE_MISMATCH)
+			return rejected(CellWalAdapterRejection.SOURCE_SEQUENCE_MISMATCH)
 		}
 
 		val deliveryIdentity = wal.deliveryIdentity?.let { value ->
 			runCatching { SourceDeliveryIdentity(value) }.getOrNull()
-		} ?: return@withTransaction rejected(CellWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
+		} ?: return rejected(CellWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
 		val completeDelivery = walDao.deliveryUnitsBounded(
 			CELL_SOURCE,
 			wal.capturedCollectedDataEpoch,
@@ -147,22 +188,26 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			completeDelivery.payloadVersion != wal.payloadVersion ||
 			completeDelivery.payloadChecksum != wal.payloadChecksum
 		) {
-			return@withTransaction rejected(CellWalAdapterRejection.WAL_INTEGRITY_MISMATCH)
+			return rejected(CellWalAdapterRejection.WAL_INTEGRITY_MISMATCH)
 		}
 		if (authenticatedCarrier.deliveryIdentity != deliveryIdentity.value) {
-			return@withTransaction rejected(CellWalAdapterRejection.DELIVERY_IDENTITY_MISMATCH)
+			return rejected(CellWalAdapterRejection.DELIVERY_IDENTITY_MISMATCH)
 		}
 
-		val configRevision = wal.configRevision
-		val policyRevision = wal.sourcePolicyRevision
-		val consentEpoch = wal.captureConsentEpoch
-		val manifestRevision = wal.sessionManifestRevision
-		val leaseGeneration = wal.lifecycleLeaseGeneration
-		val logicalTrackingId = wal.logicalTrackingId
-		val serviceRunId = wal.serviceRunId
+		val logicalTrackingId = historicalMember?.logicalTrackingId ?: wal.logicalTrackingId
+		val serviceRunId = historicalMember?.serviceRunId ?: wal.serviceRunId
+		val manifestRevision = historicalMember?.manifestRevision ?: wal.sessionManifestRevision
+		val historicalManifest = if (historicalMember != null && logicalTrackingId != null && manifestRevision != null) {
+			database.sourceSessionDao().manifest(logicalTrackingId, manifestRevision)
+		} else null
+		val configRevision = if (historicalMember != null) historicalManifest?.acquisitionPlanRevision else wal.configRevision
+		val policyRevision = historicalMember?.sourcePolicyRevision ?: wal.sourcePolicyRevision
+		val consentEpoch = historicalMember?.consentEpoch ?: wal.captureConsentEpoch
+		val leaseGeneration = historicalMember?.lifecycleLeaseGeneration ?: wal.lifecycleLeaseGeneration
 		val physicalFingerprint = wal.physicalConfigurationFingerprint
-		val authorizationRevision = wal.authorizationRevision
-		val authorizationFingerprint = wal.authorizationFingerprint
+		val authorizationRevision = historicalMember?.authorizationRevision ?: wal.authorizationRevision
+		val authorizationFingerprint = historicalMember?.authorizationFingerprint ?: wal.authorizationFingerprint
+		val purposeMask = historicalMember?.purposeEligibilityMask ?: wal.authorizationPurposeEligibilityMask
 		val wallTime = wal.wallTimeMs
 		val wallUncertainty = wal.wallTimeUncertaintyMs
 		if (configRevision == null || policyRevision == null || consentEpoch == null ||
@@ -170,7 +215,7 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			serviceRunId == null || physicalFingerprint == null || authorizationRevision == null ||
 			authorizationFingerprint == null || wallTime == null || wallUncertainty == null
 		) {
-			return@withTransaction rejected(CellWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
+			return rejected(CellWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
 		}
 		val deletionIdentity = SourceDeletionFenceEntity.logicalServiceRunIdentity(
 			sourceKind = CELL_SOURCE,
@@ -185,14 +230,14 @@ internal class CellWalQualificationAdapter @Inject constructor(
 				scopeIdentityDigest = deletionIdentity,
 			)
 		) {
-			return@withTransaction rejected(CellWalAdapterRejection.DELETED_SCOPE)
+			return rejected(CellWalAdapterRejection.DELETED_SCOPE)
 		}
 
 		val planDao = database.sourcePlanStateDao()
 		val planHeader = planDao.revision(configRevision)
 		val desiredPlan = planDao.desiredPlan(configRevision, CELL_SOURCE)
 		if (planHeader == null || desiredPlan == null) {
-			return@withTransaction rejected(CellWalAdapterRejection.MISSING_HISTORICAL_PLAN)
+			return rejected(CellWalAdapterRejection.MISSING_HISTORICAL_PLAN)
 		}
 		val plan = runCatching { planCodec.decode(desiredPlan.payload) as? CellPlan }.getOrNull()
 		val reencodedPlan = plan?.let { runCatching { planCodec.encode(it) }.getOrNull() }
@@ -204,22 +249,22 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			plan.physicalConfigurationFingerprint() != physicalFingerprint ||
 			planHeader.sourcePolicyRevision != policyRevision
 		) {
-			return@withTransaction rejected(CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
+			return rejected(CellWalAdapterRejection.HISTORICAL_PLAN_MISMATCH)
 		}
 
 		val observedStart = requireNotNull(wal.observedIntervalStartNanos)
 		val brokerDao = database.sourceBrokerDao()
 		val providerTimes = if (wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
 			val saved = brokerDao.registration(CELL_SOURCE, wal.registrationGeneration)
-				?: return@withTransaction rejected(CellWalAdapterRejection.MISSING_REGISTRATION)
+				?: return rejected(CellWalAdapterRejection.MISSING_REGISTRATION)
 			val acceptedStart = saved.acceptedElapsedRealtimeNanos
-				?: return@withTransaction rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
+				?: return rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
 			val end = saved.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE
 			authenticatedCarrier.payload.observations.mapNotNull { it.providerTimestampNanos }
 				.filter { it >= acceptedStart && it < end && it <= wal.receivedElapsedNanos }
 		} else null
 		if (providerTimes?.isEmpty() == true) {
-			return@withTransaction rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
+			return rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
 		}
 		val providerObservationStart = providerTimes?.minOrNull() ?: wal.observedElapsedNanos
 		val providerObservationEnd = providerTimes?.maxOrNull() ?: wal.observedElapsedNanos
@@ -243,7 +288,7 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			is ProviderRegistrationIntervalAuthentication.Authenticated ->
 				registrationAuthentication
 			is ProviderRegistrationIntervalAuthentication.Rejected ->
-				return@withTransaction rejected(
+				return rejected(
 					if (registrationAuthentication.reason ==
 						ProviderRegistrationIntervalFailure.MISSING_REGISTRATION
 					) {
@@ -259,14 +304,14 @@ internal class CellWalQualificationAdapter @Inject constructor(
 		if (registration.ownerScope != EXPECTED_OWNER_SCOPE ||
 			registration.providerResidency !=
 			ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND
-		) return@withTransaction rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
+		) return rejected(CellWalAdapterRejection.REGISTRATION_MISMATCH)
 
 		val authorization = brokerDao.authorizationRevision(
 			CELL_SOURCE,
 			wal.registrationGeneration,
 			authorizationRevision,
 		).toSnapshotOrNull()
-			?: return@withTransaction rejected(CellWalAdapterRejection.MISSING_AUTHORIZATION)
+			?: return rejected(CellWalAdapterRejection.MISSING_AUTHORIZATION)
 		val captureMember = authorization.authorizedMembers.singleOrNull { member ->
 			member.purpose == SourceBrokerPurpose.SESSION_CAPTURE && member.persistenceEligible &&
 				member.logicalTrackingId == logicalTrackingId && member.serviceRunId == serviceRunId &&
@@ -292,11 +337,11 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			recomputedAuthorization?.sortedBy { it.memberId } != authorization.members.sortedBy { it.memberId } ||
 			captureMember == null || authorization.isDenied ||
 			authorization.authorizationFingerprint != authorizationFingerprint ||
-			authorization.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask ||
+			authorization.purposeEligibilityMask != purposeMask ||
 			authorization.purposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
 			authorization.effectiveBootId != wal.clockDomainId
 		) {
-			return@withTransaction rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
+			return rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
 		}
 		val nextAuthorizationRows = brokerDao.nextAuthorizationRevision(
 			CELL_SOURCE,
@@ -307,53 +352,59 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			null
 		} else {
 			nextAuthorizationRows.toSnapshotOrNull()
-				?: return@withTransaction rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
+				?: return rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
 		}
-		val authorizationEnd = when {
+		val callbackAuthorizationEnd = when {
 			nextAuthorization == null -> registrationEnd
 			nextAuthorization.effectiveBootId != wal.clockDomainId ||
 				nextAuthorization.effectiveElapsedRealtimeNanos < authorization.effectiveElapsedRealtimeNanos ->
-				return@withTransaction rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
+				return rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
 			else -> minOf(registrationEnd, nextAuthorization.effectiveElapsedRealtimeNanos)
 		}
+		val qualifiedPurpose = if (purposeItems != null) {
+			purposeItems.cellPurposeWindow(authenticatedCarrier.payload,
+				requireNotNull(captureMember.demandId), registrationEnd) as? CellPurposeItems.Qualified
+				?: return rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH)
+		} else null
+		val authorizationEnd = qualifiedPurpose?.continuousUntilNanos ?: callbackAuthorizationEnd
 
 		val policyDao = database.sourcePolicyDao()
 		val policy = policyDao.policyAtRevision(policyRevision, CELL_SOURCE)
-			?: return@withTransaction rejected(CellWalAdapterRejection.MISSING_POLICY)
+			?: return rejected(CellWalAdapterRejection.MISSING_POLICY)
 		if (!policy.enabled || !policy.capturePersistenceEligible ||
 			policy.captureConsentEpoch != consentEpoch || policy.effectiveBootId != wal.clockDomainId
 		) {
-			return@withTransaction rejected(CellWalAdapterRejection.POLICY_MISMATCH)
+			return rejected(CellWalAdapterRejection.POLICY_MISMATCH)
 		}
 		val consent = policyDao.consentEpoch(
 			CELL_SOURCE,
 			SourceBrokerPurpose.SESSION_CAPTURE,
 			consentEpoch,
-		) ?: return@withTransaction rejected(CellWalAdapterRejection.MISSING_CONSENT)
+		) ?: return rejected(CellWalAdapterRejection.MISSING_CONSENT)
 		if (!consent.eligible || !consent.persistenceEligible ||
 			consent.policyRevision > policyRevision || consent.effectiveBootId != wal.clockDomainId
 		) {
-			return@withTransaction rejected(CellWalAdapterRejection.CONSENT_MISMATCH)
+			return rejected(CellWalAdapterRejection.CONSENT_MISMATCH)
 		}
 
 		val sessionDao = database.sourceSessionDao()
 		val run = sessionDao.serviceRun(serviceRunId)
 		val session = sessionDao.session(logicalTrackingId)
 		if (run == null || session == null) {
-			return@withTransaction rejected(CellWalAdapterRejection.MISSING_SESSION)
+			return rejected(CellWalAdapterRejection.MISSING_SESSION)
 		}
 		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
 		if (run.logicalTrackingId != logicalTrackingId || run.bootId != wal.clockDomainId ||
 			run.leaseGeneration != leaseGeneration || session.logicalTrackingId != logicalTrackingId ||
 			session.lifecycleLeaseGeneration < leaseGeneration
 		) {
-			return@withTransaction rejected(CellWalAdapterRejection.SESSION_MISMATCH)
+			return rejected(CellWalAdapterRejection.SESSION_MISMATCH)
 		}
 		val manifests = sessionDao.manifestsForServiceRun(serviceRunId, MAX_MANIFESTS_PER_RUN + 1)
 		if (manifests.size > MAX_MANIFESTS_PER_RUN ||
 			!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)
 		) {
-			return@withTransaction rejected(CellWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
+			return rejected(CellWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
 		}
 		val allManifestSources = database.trackingHistoryReadDao().manifestSources(
 			listOf(serviceRunId),
@@ -368,10 +419,10 @@ internal class CellWalQualificationAdapter @Inject constructor(
 				},
 			)
 		}) {
-			return@withTransaction rejected(CellWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
+			return rejected(CellWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
 		}
 		val manifestIndex = manifests.indexOfFirst { it.manifestRevision == manifestRevision }
-		if (manifestIndex < 0) return@withTransaction rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
+		if (manifestIndex < 0) return rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
 		val manifest = manifests[manifestIndex]
 		val manifestSources = allManifestSources.filter { source ->
 			source.logicalTrackingId == logicalTrackingId && source.manifestRevision == manifestRevision
@@ -380,7 +431,7 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			SourceKind.entries.none { it.stableCode == source.sourceKind } ||
 				source.purpose !in SessionManifestPurposeCode.ALL
 		}) {
-			return@withTransaction rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
+			return rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
 		}
 		val capturedSources = manifestSources
 			.filter { it.purpose == SessionManifestPurposeCode.SESSION_CAPTURE && it.persistenceEligible }
@@ -405,24 +456,24 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			cellManifestSource.consentEpoch != consentEpoch ||
 			cellManifestSource.qosCode != policy.qosCode || SourceKind.CELL !in capturedSources
 		) {
-			return@withTransaction rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
+			return rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
 		}
 		val zone = runCatching { ZoneId.of(manifest.zoneId) }.getOrNull()
-			?: return@withTransaction rejected(CellWalAdapterRejection.INVALID_STORED_ZONE)
+			?: return rejected(CellWalAdapterRejection.INVALID_STORED_ZONE)
 
 		val segmentId = run.sessionSegmentId
 		val segment = segmentId?.let { database.sessionSegmentDao().getById(it) }
-		if (segment == null) return@withTransaction rejected(CellWalAdapterRejection.MISSING_SEGMENT)
+		if (segment == null) return rejected(CellWalAdapterRejection.MISSING_SEGMENT)
 		if (segment.logicalTrackingId != logicalTrackingId || segment.serviceRunId != serviceRunId) {
-			return@withTransaction rejected(CellWalAdapterRejection.SEGMENT_MISMATCH)
+			return rejected(CellWalAdapterRejection.SEGMENT_MISMATCH)
 		}
 
 		val evidenceState = database.sourceEvidenceStateDao().get()
-			?: return@withTransaction rejected(CellWalAdapterRejection.DELETED_EVIDENCE)
+			?: return rejected(CellWalAdapterRejection.DELETED_EVIDENCE)
 		if (evidenceState.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
 			wal.admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal
 		) {
-			return@withTransaction rejected(CellWalAdapterRejection.DELETED_EVIDENCE)
+			return rejected(CellWalAdapterRejection.DELETED_EVIDENCE)
 		}
 		val deletionState = database.cellCapturedFactDao().deletionGeneration(
 			logicalTrackingId,
@@ -432,24 +483,13 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			// The Cell WAL carrier does not capture a source-local deletion generation. It proves the
 			// initial generation only through the already-validated global collected-data epoch;
 			// assigning a later current generation here would resurrect pre-deletion evidence.
-			return@withTransaction rejected(
+			return rejected(
 				CellWalAdapterRejection.SCOPE_DELETION_AUTHORITY_MISMATCH,
 			)
 		}
 		val scopeDeletionGeneration = 0L
-		val qualifiedPurpose = if (wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
-			when (val purposeItems = database.qualifyCellPurposeItems(
-				wal, authenticatedCarrier.payload, requireNotNull(captureMember.demandId),
-				registrationStart, registrationEnd,
-			)) {
-				is CellPurposeItems.Qualified -> purposeItems
-				CellPurposeItems.Unverifiable -> return@withTransaction rejected(
-					CellWalAdapterRejection.AUTHORIZATION_MISMATCH,
-				)
-			}
-		} else null
 		if (qualifiedPurpose?.indexes?.isEmpty() == true) {
-			return@withTransaction CellWalAdapterResult.Evaluated(
+			return CellWalAdapterResult.Evaluated(
 				CellCapturedFactClassification.Stale(authenticatedCarrier.payload.observations.size),
 			)
 		}
@@ -464,13 +504,23 @@ internal class CellWalQualificationAdapter @Inject constructor(
 				sessionRunEffect = interval(manifest.effectiveElapsedRealtimeNanos, manifestEnd),
 				deletionEffect = interval(run.startedElapsedNanos, sessionEnd),
 			)
-		}.getOrNull() ?: return@withTransaction rejected(
+		}.getOrNull() ?: return rejected(
 			CellWalAdapterRejection.TEMPORAL_AUTHORITY_UNVERIFIABLE,
 		)
 		val maximumAgeNanos = qualifiedPurpose?.let {
 			minOf(plan.maximumObservationAgeNanos(), it.demandMaximumAgeNanos)
 		} ?: plan.maximumObservationAgeNanos()
-		val structuralDay = Instant.ofEpochMilli(wallTime).atZone(zone).toLocalDate().toEpochDay()
+		val selectedEnd = qualifiedPurpose?.indexes?.mapNotNull { index ->
+			val item = authenticatedCarrier.payload.observations[index]
+			val time = requireNotNull(item.providerTimestampNanos)
+			// Structural day follows measured accepted data, never an unsupported sibling.
+			time.takeIf { item.hasSupportedCellProductShape() && time in temporal &&
+				it <= wal.receivedElapsedNanos && wal.receivedElapsedNanos - it <= maximumAgeNanos }
+		}?.maxOrNull() ?: wal.observedElapsedNanos
+		val selectedWall = runCatching { Math.subtractExact(wallTime,
+			(wal.observedElapsedNanos - selectedEnd) / NANOS_PER_MILLISECOND) }.getOrNull()
+			?: return rejected(CellWalAdapterRejection.STRUCTURAL_DAY_UNVERIFIABLE)
+		val structuralDay = Instant.ofEpochMilli(selectedWall).atZone(zone).toLocalDate().toEpochDay()
 		val sharedAuthority = CellWalCaptureAuthority(
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
@@ -480,7 +530,7 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			physicalConfigurationFingerprint = physicalFingerprint,
 			authorizationRevision = authorizationRevision,
 			authorizationFingerprint = authorizationFingerprint,
-			purposeEligibilityMask = wal.authorizationPurposeEligibilityMask,
+			purposeEligibilityMask = purposeMask,
 			sourcePolicyRevision = policyRevision,
 			captureConsentEpoch = consentEpoch,
 			manifestRevision = manifestRevision,
@@ -497,17 +547,17 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			maximumObservationAgeNanos = maximumAgeNanos,
 		)
 		val qualification = when (val authentication =
-			CellWalCarrierAuthenticator.authenticate(wal, sharedAuthority)) {
+			CellWalCarrierAuthenticator.authenticate(wal, sharedAuthority, qualifiedPurpose?.indexes?.toSet())) {
 			is CellWalCarrierAuthentication.Authenticated ->
 				requireNotNull(authentication.carrier.childQualification)
 			is CellWalCarrierAuthentication.Rejected ->
-				return@withTransaction rejected(authentication.reason.toAdapterRejection())
+				return rejected(authentication.reason.toAdapterRejection())
 		}
 		if (qualification.providerWallInterval?.let { wallInterval ->
 				evidenceState.retainedFromMs?.let { wallInterval.first < it } == true
 			} == true
 		) {
-			return@withTransaction rejected(CellWalAdapterRejection.BEFORE_RETENTION_FLOOR)
+			return rejected(CellWalAdapterRejection.BEFORE_RETENTION_FLOOR)
 		}
 		val authority = runCatching {
 			CellCaptureAuthority(
@@ -522,7 +572,7 @@ internal class CellWalQualificationAdapter @Inject constructor(
 				physicalConfigurationFingerprint = physicalFingerprint,
 				authorizationRevision = authorizationRevision,
 				authorizationFingerprint = authorizationFingerprint,
-				purposeEligibilityMask = wal.authorizationPurposeEligibilityMask,
+				purposeEligibilityMask = purposeMask,
 				sourcePolicyRevision = policyRevision,
 				captureConsentEpoch = consentEpoch,
 				sessionManifestRevision = manifestRevision,
@@ -535,7 +585,7 @@ internal class CellWalQualificationAdapter @Inject constructor(
 				temporalAuthority = temporal,
 				maximumObservationAgeNanos = maximumAgeNanos,
 			)
-		}.getOrNull() ?: return@withTransaction rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
+		}.getOrNull() ?: return rejected(CellWalAdapterRejection.MANIFEST_MISMATCH)
 		val evidence = CellWalObservationEvidence(
 			sourceEventId = eventId,
 			sourceKind = SourceKind.CELL,
@@ -554,7 +604,7 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			physicalConfigurationFingerprint = physicalFingerprint,
 			authorizationRevision = authorizationRevision,
 			authorizationFingerprint = authorizationFingerprint,
-			purposeEligibilityMask = wal.authorizationPurposeEligibilityMask,
+			purposeEligibilityMask = purposeMask,
 			sourceSequence = wal.sourceSequence,
 			sourcePolicyRevision = policyRevision,
 			captureConsentEpoch = consentEpoch,
@@ -579,13 +629,15 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			payloadBytes = wal.payload.toList(),
 			createdAtMs = wal.createdAtMs,
 			capturedAuthority = authority,
+			originalWal = wal.takeIf { historicalMember != null },
 		)
-		CellWalAdapterResult.Evaluated(
+		return CellWalAdapterResult.Evaluated(
 			classify(
 				CellObservationInput(
 					origin = CellObservationOrigin.PROVIDER_CALLBACK,
 					outcome = CellProviderOutcome.DELIVERED,
 					walEvidence = evidence,
+					qualifiedItemIndexes = qualifiedPurpose?.indexes?.toSet(),
 				),
 				authority,
 			),

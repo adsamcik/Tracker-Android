@@ -39,6 +39,7 @@ class RadioObservationChildMigrationTest {
 						createLegacyRadioTables(db)
 						createPurposeParentTables(db)
 						createNativePortableOwnerParents(db)
+						createEarlierRadioRetentionEventIndex(db)
 						db.execSQL("INSERT INTO wifi_captured_fact_revision VALUES ('older-writer',1,'older-fact',1)")
 						db.execSQL("CREATE TABLE location_sample (id INTEGER NOT NULL PRIMARY KEY)")
 						db.execSQL("CREATE TABLE location_accepted_receipt (sample_id INTEGER NOT NULL PRIMARY KEY)")
@@ -71,7 +72,14 @@ class RadioObservationChildMigrationTest {
 		)
 		try {
 			val db = helper.writableDatabase
+			readLong(db, "SELECT \"unique\" FROM pragma_index_list('captured_radio_fact_retention_proof') " +
+				"WHERE name='idx_captured_radio_retention_event'") shouldBe 1L
 			MIGRATION_28_29.migrate(db)
+			readLong(db, "SELECT \"unique\" FROM pragma_index_list('captured_radio_fact_retention_proof') " +
+				"WHERE name='idx_captured_radio_retention_event'") shouldBe 0L
+			db.execSQL("INSERT INTO captured_radio_fact_retention_proof VALUES (6,'writer',1,'second-fact','shared-callback')")
+			readLong(db, "SELECT count(*) FROM captured_radio_fact_retention_proof " +
+				"WHERE source_kind=6 AND source_event_id='shared-callback'") shouldBe 2L
 			readLong(db, "SELECT count(*) FROM native_portable_ownership") shouldBe 7L
 			readLong(db, "SELECT count(*) FROM native_portable_ownership WHERE " +
 				"source_kind=2 AND identity_kind='CAPTURE_WINDOW' AND raw_identity='activity-window'") shouldBe 1L
@@ -199,6 +207,16 @@ class RadioObservationChildMigrationTest {
 			"logical_tracking_id TEXT NOT NULL, service_run_id TEXT NOT NULL)")
 		db.execSQL("INSERT INTO pressure_fact_revision VALUES " +
 			"('pressure-window', 'original-logical', 'original-run')")
+	}
+
+	private fun createEarlierRadioRetentionEventIndex(db: SupportSQLiteDatabase) {
+		db.execSQL("CREATE TABLE captured_radio_fact_retention_proof (source_kind INTEGER NOT NULL, " +
+			"writer_projection_id TEXT NOT NULL, writer_projection_version INTEGER NOT NULL, " +
+			"logical_fact_id TEXT NOT NULL, source_event_id TEXT NOT NULL, " +
+			"PRIMARY KEY(source_kind, writer_projection_id, writer_projection_version, logical_fact_id))")
+		db.execSQL("CREATE UNIQUE INDEX idx_captured_radio_retention_event " +
+			"ON captured_radio_fact_retention_proof(source_kind, source_event_id)")
+		db.execSQL("INSERT INTO captured_radio_fact_retention_proof VALUES (6,'writer',1,'first-fact','shared-callback')")
 	}
 
 	private fun readString(db: SupportSQLiteDatabase, sql: String): String? =

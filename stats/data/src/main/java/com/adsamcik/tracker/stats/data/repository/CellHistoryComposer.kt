@@ -233,7 +233,12 @@ internal object CellHistoryComposer {
 			relatedRevisions.maxOfOrNull(CellCapturedFactRevisionEntity::sourceAdmissionOrdinal),
 			cellCompleteness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull(),
 		)
-		if (!hasValidSessionSettlement(session, runs, manifestsByRun, targetOrdinal) ||
+		val legacyTargetOrdinal = maxOfOrNull(
+			relatedRevisions.filter { it.payloadVersion != CELL_WAL_PAYLOAD_VERSION }
+				.maxOfOrNull(CellCapturedFactRevisionEntity::sourceAdmissionOrdinal),
+			cellCompleteness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull(),
+		)
+		if (!hasValidSessionSettlement(session, runs, manifestsByRun, legacyTargetOrdinal) ||
 			targetOrdinal?.let { target -> target < lane.activationOrdinal ||
 				lane.captureAdmissionCutoffOrdinal?.let { it < target } == true } == true ||
 			snapshot.terminalFailures.isNotEmpty()
@@ -249,7 +254,7 @@ internal object CellHistoryComposer {
 			admissionsByDelivery.size != snapshot.admissions.size
 		) return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
 		val current = mutableListOf<AuthenticatedCellHistoryFact>()
-		val factOwnerByEvent = linkedMapOf<String, String>()
+		val factOwnerByEvent = linkedMapOf<Pair<String, Long>, String>()
 		for ((_, lineage) in relatedRevisions.groupBy(CellCapturedFactRevisionEntity::logicalFactId)) {
 			val latest = validateLineage(lineage.sortedBy(CellCapturedFactRevisionEntity::semanticRevision), snapshot)
 				?: return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED)
@@ -257,16 +262,11 @@ internal object CellHistoryComposer {
 				?: return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED)
 			val wal = admissionsByEventId[latest.sourceEventId]
 				?: return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
-			val walAuthentication = CellWalCarrierAuthenticator.authenticate(
-				latest, wal,
-				snapshot.childrenByRevision[latest.logicalFactId to latest.semanticRevision].orEmpty(),
-			)
-				as? CellWalCarrierAuthentication.Authenticated
+			val walAuthentication = authenticateFactCarrier(latest, wal, snapshot)
 			val aggregateWal = admissionsByEventId[aggregate.sourceEventId]
 				?: return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
 			val aggregateWalAuthentication =
-				CellWalCarrierAuthenticator.authenticate(aggregate, aggregateWal)
-					as? CellWalCarrierAuthentication.Authenticated
+				authenticateFactCarrier(aggregate, aggregateWal, snapshot)
 			val retentionLowerBound = walAuthentication?.let { authentication ->
 				CellWalCarrierAuthenticator.retentionLowerBound(latest, authentication.carrier)
 			}
@@ -308,7 +308,8 @@ internal object CellHistoryComposer {
 					aggregateWalAuthentication.carrier,
 				)
 			) return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
-			val priorFact = factOwnerByEvent.putIfAbsent(latest.sourceEventId, latest.logicalFactId)
+			val priorFact = factOwnerByEvent.putIfAbsent(
+				latest.sourceEventId to latest.manifestRevision, latest.logicalFactId)
 			if (priorFact != null && priorFact != latest.logicalFactId) {
 				return failed(logicalId, segments, CellHistoryCause.WRITER_PROVENANCE_INVALID)
 			}
@@ -595,7 +596,7 @@ internal object CellHistoryComposer {
 			provider.collectedDataEpoch == fact.collectedDataEpoch &&
 			provider.acceptedElapsedRealtimeNanos == fact.providerAcceptanceStartNanos &&
 			providerEnd == fact.providerAcceptanceEndNanos &&
-			hasExactAuthorization(fact, authorizations, providerEnd, snapshot.demands, perReading) &&
+			hasExactAuthorization(fact, authorizations, providerEnd, snapshot.demands, perReading, purpose) &&
 			fact.availability == CellCapturedFactRevisionEntity.AVAILABILITY_AVAILABLE &&
 			fact.subscriptionCompleteness == CellCapturedFactRevisionEntity.SUBSCRIPTION_COMPLETENESS_UNKNOWN &&
 			aggregate.aggregateShapeIsValid() &&
@@ -608,6 +609,7 @@ internal object CellHistoryComposer {
 		providerEnd: Long,
 		demands: Map<String, SourceDemandEntity>,
 		perReading: Boolean = false,
+		purpose: CellPurposeItems.Qualified? = null,
 	): Boolean {
 		val exact = rows.filter { it.authorizationRevision == fact.authorizationRevision }
 		if (exact.isEmpty() || exact.any { row ->
@@ -652,7 +654,27 @@ internal object CellHistoryComposer {
 			})
 		}.minWithOrNull(compareBy(SourceAuthorizationEntity::effectiveElapsedRealtimeNanos,
 			SourceAuthorizationEntity::authorizationRevision))?.effectiveElapsedRealtimeNanos ?: Long.MAX_VALUE
-		return memberMatches && minOf(providerEnd, nextAuthorizationStart) == fact.authorizationEffectEndNanos
+		val expectedEnd = if (perReading) purpose?.continuousUntilNanos ?: return false
+			else minOf(providerEnd, nextAuthorizationStart)
+		return memberMatches && expectedEnd == fact.authorizationEffectEndNanos
+	}
+
+	private fun authenticateFactCarrier(
+		fact: CellCapturedFactRevisionEntity,
+		wal: SourceEventWalEntity,
+		snapshot: CellHistorySnapshot,
+	): CellWalCarrierAuthentication.Authenticated? {
+		val children = snapshot.childrenByRevision[fact.logicalFactId to fact.semanticRevision].orEmpty()
+		val stored = CellWalCarrierAuthenticator.authenticate(fact, wal, children)
+			as? CellWalCarrierAuthentication.Authenticated ?: return null
+		if (fact.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+			val purpose = qualifiedCellPurposeWindow(fact, snapshot,
+				fact.providerAcceptanceStartNanos, fact.providerAcceptanceEndNanos) ?: return null
+			val exact = CellWalCarrierAuthenticator.authenticate(fact, wal, purpose.indexes.toSet())
+				as? CellWalCarrierAuthentication.Authenticated ?: return null
+			if (exact.carrier.childQualification != stored.carrier.childQualification) return null
+		}
+		return stored
 	}
 
 	/** The same per-reading rule and uninterrupted demand window used by the Cell writer. */
@@ -669,21 +691,24 @@ internal object CellHistoryComposer {
 			.groupBy(SourceAuthorizationEntity::authorizationRevision).values.map { rows ->
 				rows.toAuthorizationSnapshotOrNull() ?: return null
 			}.sortedBy { it.authorizationRevision }
-		val callback = all.singleOrNull { it.authorizationRevision == fact.authorizationRevision } ?: return null
+		val callback = all.singleOrNull { it.authorizationRevision == wal.authorizationRevision } ?: return null
 		if (all.lastOrNull { it.effectiveBootId == wal.clockDomainId &&
 			it.effectiveElapsedRealtimeNanos <= wal.receivedElapsedNanos } != callback ||
 			callback.authorizationFingerprint != wal.authorizationFingerprint ||
 			callback.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask) return null
 		val first = all.lastOrNull { it.effectiveElapsedRealtimeNanos <= requireNotNull(wal.observedIntervalStartNanos) }
 			?: all.firstOrNull() ?: return null
-		val timeline = all.filter { it.authorizationRevision in first.authorizationRevision..fact.authorizationRevision }
+		val timeline = all.filter { it.authorizationRevision in first.authorizationRevision..callback.authorizationRevision }
 		val ids = timeline.flatMap { it.authorizedMembers.mapNotNull { member -> member.demandId } }.distinct()
 		val demands = ids.map { snapshot.demands[it] ?: return null }
 		val qualified = RadioPurposeItemQualifier.cell(carrier.payload, RadioPurposeItemAuthority(
 			CELL_SOURCE, fact.registrationGeneration, fact.clockDomainId, providerStart, providerEnd,
 			wal.receivedElapsedNanos, timeline, demands), wal.payloadVersion)
 			as? RadioPurposeItemQualification.Qualified ?: return null
-		val member = callback.authorizedMembers.singleOrNull { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+		val member = timeline.flatMap { it.authorizedMembers }.singleOrNull {
+			it.authorizationRevision == fact.authorizationRevision &&
+			it.authorizationFingerprint == fact.authorizationFingerprint &&
+			it.purposeEligibilityMask == fact.purposeEligibilityMask && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
 			it.persistenceEligible && it.logicalTrackingId == fact.logicalTrackingId &&
 			it.serviceRunId == fact.serviceRunId && it.manifestRevision == fact.manifestRevision &&
 			it.lifecycleLeaseGeneration == fact.lifecycleLeaseGeneration &&
@@ -883,7 +908,9 @@ internal object CellHistoryComposer {
 		val latest = Math.addExact(observedWallTimeMs, wallTimeUncertaintyMs)
 		val firstDay = Instant.ofEpochMilli(earliest).atZone(zone).toLocalDate().toEpochDay()
 		val lastDay = Instant.ofEpochMilli(latest).atZone(zone).toLocalDate().toEpochDay()
-		earliest >= 0L && firstDay == lastDay && firstDay == structuralEpochDay
+		val measuredDay = Instant.ofEpochMilli(observedWallTimeMs).atZone(zone).toLocalDate().toEpochDay()
+		earliest >= 0L && if (payloadVersion == CELL_WAL_PAYLOAD_VERSION) measuredDay == structuralEpochDay else
+			firstDay == lastDay && firstDay == structuralEpochDay
 	}.getOrDefault(false)
 
 	private fun isExactCellWriter(source: SessionManifestSourceEntity): Boolean =

@@ -1,0 +1,39 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "paths": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/DefaultSourceLifecycleProofAdapter.kt",
+      "beforeSha256": "1f591079d0e9f911ebd13540855345aedda6739e4ec7bb7cd264bb56816f24f5",
+      "selectedSha256": "6ce429c3a6e4dc690c85c80cf6f9c84a10a3e3f51cc3f15d5afef92f888d0078",
+      "role": "production"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultSourceFactQueryRepository.kt",
+      "beforeSha256": "f33d6e75ac0b48427e05f3f65211fa219614dfc7013c0a84c1aef01f573cb6dc",
+      "selectedSha256": "3ce7b7d1e62efead726a74a2610fea021eae54c06f41de6e89026c70b11bc893",
+      "role": "production"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+      "beforeSha256": "a43972d50b3bbb3a374029bac4e476c5656b0186471c8073b8346c1a62f5d4d6",
+      "selectedSha256": "419a6241eea2ca3a1f0b52737d7090c4cefc0626b8504cd2f12617ae91255fbe",
+      "role": "test"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "beforeSha256": "b062db31dc3d860ffa0074fa8bef504663d9a7ac8de2a8762254c25896c0ab45",
+      "selectedSha256": "be3b37be23cba5fb8d5e8af869ec586ffd54e69a73593583a85d3345afa52c1e",
+      "role": "test"
+    }
+  ],
+  "dependencies": [
+    "CELL_HISTORICAL_CAPTURE_SELECTED original rejected R7/R8 packet with exact reviewed predecessor inputs",
+    "CELL_SOURCE_ERASE_POLICY_SCOPE_SELECTED test fixture; its production R8 fix remains separate",
+    "RADIO_RETENTION_EVENT_INDEX_REVISED_SELECTED"
+  ],
+  "authoredNewCases": 4,
+  "executedGates": [],
+  "selection": "Only two existing Cell-private helper bodies plus four actual Room source cases. Wi-Fi next-slice working edits excluded from selected production snapshots.",
+  "bound": "Raw canonical Cell payload has at most256observations; child query uses real count+1 up to257."
+}

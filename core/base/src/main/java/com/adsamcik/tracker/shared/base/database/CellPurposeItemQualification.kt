@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.shared.base.database
 
 import com.adsamcik.tracker.shared.base.database.data.CellWalPayload
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 
 /** Exact item indexes for one uninterrupted demand interval, reconstructed from retained authority. */
@@ -27,6 +29,29 @@ suspend fun AppDatabase.qualifyCellPurposeItems(
 	return qualified.cellPurposeWindow(payload, demandId, providerEndExclusiveNanos)
 }
 
+/** Reconstructs the fact's own capture member, independently of the callback's current purpose. */
+suspend fun AppDatabase.qualifyCellCapturePurposeItems(
+	wal: SourceEventWalEntity,
+	payload: CellWalPayload,
+	fact: CellCapturedFactRevisionEntity,
+	providerStartInclusiveNanos: Long = fact.providerAcceptanceStartNanos,
+	providerEndExclusiveNanos: Long = fact.providerAcceptanceEndNanos,
+): CellPurposeItems {
+	val items = qualifyCellPurposeItems(wal, payload, providerStartInclusiveNanos,
+		providerEndExclusiveNanos) ?: return CellPurposeItems.Unverifiable
+	val member = items.authorizationTimeline.flatMap { it.authorizedMembers }.singleOrNull {
+		it.purpose == SourceBrokerPurpose.SESSION_CAPTURE && it.persistenceEligible &&
+			it.authorizationRevision == fact.authorizationRevision &&
+			it.authorizationFingerprint == fact.authorizationFingerprint &&
+			it.purposeEligibilityMask == fact.purposeEligibilityMask &&
+			it.logicalTrackingId == fact.logicalTrackingId && it.serviceRunId == fact.serviceRunId &&
+			it.manifestRevision == fact.manifestRevision &&
+			it.lifecycleLeaseGeneration == fact.lifecycleLeaseGeneration &&
+			it.sourcePolicyRevision == fact.sourcePolicyRevision && it.consentEpoch == fact.captureConsentEpoch
+	} ?: return CellPurposeItems.Unverifiable
+	return items.cellPurposeWindow(payload, requireNotNull(member.demandId), providerEndExclusiveNanos)
+}
+
 /** Reuses the same uninterrupted demand window in retained history and the live writer. */
 fun RadioPurposeItems.cellPurposeWindow(
 	payload: CellWalPayload,
@@ -51,8 +76,12 @@ fun RadioPurposeItems.cellPurposeWindow(
 	while (first > 0 && active(first - 1)) first--
 	var after = activeIndex + 1
 	while (after < timeline.size && active(after)) after++
-	val start = timeline[first].effectiveElapsedRealtimeNanos
-	val end = timeline.getOrNull(after)?.effectiveElapsedRealtimeNanos ?: providerEndExclusiveNanos
+	val start = maxOf(timeline[first].effectiveElapsedRealtimeNanos, demand.requestedElapsedRealtimeNanos)
+	val end = minOf(timeline.getOrNull(after)?.effectiveElapsedRealtimeNanos ?: providerEndExclusiveNanos,
+		providerEndExclusiveNanos,
+		demand.retireElapsedRealtimeNanos?.takeIf { demand.retireBootId == demand.requestedBootId }
+			?: Long.MAX_VALUE)
+	if (end <= start) return CellPurposeItems.Unverifiable
 	val maximumAgeNanos = if (demand.maximumAgeMs > Long.MAX_VALUE / NANOS_PER_MILLISECOND) {
 		Long.MAX_VALUE
 	} else demand.maximumAgeMs * NANOS_PER_MILLISECOND

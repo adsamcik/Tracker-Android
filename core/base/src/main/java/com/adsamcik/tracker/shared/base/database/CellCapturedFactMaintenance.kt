@@ -24,6 +24,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
@@ -540,12 +541,17 @@ suspend fun AppDatabase.authenticateDeletedCapturedCellSelectionInTransaction(
 		runIds,
 		receipt.expectedRunCount + 1,
 	)
-	val fences = trackingHistoryReadDao().deletionFences(
-		CELL_SOURCE,
-		CAPTURE_PURPOSE,
-		SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
-		deletedRuns.map(CellCapturedDeletedRunEntity::scopeIdentityDigest),
-	)
+	val fences = try {
+		trackingHistoryReadDao().deletionFences(
+			CELL_SOURCE,
+			CAPTURE_PURPOSE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			deletedRuns.map(CellCapturedDeletedRunEntity::scopeIdentityDigest),
+		)
+	} catch (_: IllegalArgumentException) {
+		// Room constructs validated fence entities before this method can check their fields.
+		return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	}
 	if (generations.size != receipt.expectedRunCount || fences.size != receipt.expectedRunCount) {
 		return DeletedCapturedCellSelectionAuthentication.Unverifiable
 	}
@@ -835,7 +841,8 @@ internal suspend fun AppDatabase.deleteCapturedCellFactsAfterConsentReset(
 			val retainedEventProofs = loadCellSourceEventRetentionProofsForSourceErase(limits)
 			val retainedScopeProofs = loadCellSourceEventRetentionScopeProofsForSourceErase(limits)
 			val scopeAuthorities = linkedMapOf<CellCapturedRunScope, RetainedCaptureScopeIdentity>()
-			val eventAuthorities = mutableMapOf<String, RetainedCaptureEventIdentity>()
+			val eventAuthorities = mutableMapOf<CellCapturedEventAuthorityKey, RetainedCaptureEventIdentity>()
+			val rawEventIdentities = mutableMapOf<String, Pair<Long, String>>()
 			fun registerScope(
 				identity: RetainedCaptureScopeIdentity,
 				eventIdentity: RetainedCaptureEventIdentity? = null,
@@ -859,8 +866,18 @@ internal suspend fun AppDatabase.deleteCapturedCellFactsAfterConsentReset(
 					expectedDeletedSourceEventHighWaterOrdinal
 				) block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 				if (eventIdentity != null) {
+					val rawIdentity = eventIdentity.sourceAdmissionOrdinal to eventIdentity.walIntegrityIdentity
+					val original = rawEventIdentities.putIfAbsent(eventIdentity.eventId, rawIdentity)
+					if (original != null && original != rawIdentity) {
+						block(CellCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+					}
 					val retained = eventAuthorities.putIfAbsent(
-						eventIdentity.eventId,
+						CellCapturedEventAuthorityKey(
+							eventIdentity.eventId,
+							eventIdentity.scope.logicalRunScopeDigest,
+							eventIdentity.sourcePolicyRevision,
+							eventIdentity.captureConsentEpoch,
+						),
 						eventIdentity,
 					)
 					if (retained != null && retained != eventIdentity) {
@@ -1365,8 +1382,14 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 	}
 	val wal = sourceEventWalDao().getByEventId(revision.sourceEventId)
 		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	val rawCarrier = CellWalCarrierAuthenticator.authenticate(wal) as? CellWalCarrierAuthentication.Authenticated
+		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	val selectedPurpose = if (revision.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+		qualifyCellCapturePurposeItems(wal, rawCarrier.carrier.payload, revision) as? CellPurposeItems.Qualified
+			?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	} else null
 	val walAuthentication = (
-		CellWalCarrierAuthenticator.authenticate(revision, wal)
+		CellWalCarrierAuthenticator.authenticate(revision, wal, selectedPurpose?.indexes?.toSet())
 			as? CellWalCarrierAuthentication.Authenticated
 		) ?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	val authenticatedAggregate = walAuthentication.carrier.childQualification?.aggregate
@@ -1385,7 +1408,7 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 		run.startedElapsedNanos != revision.deletionEffectStartNanos ||
 		segment.logicalTrackingId != revision.logicalTrackingId ||
 		segment.serviceRunId != revision.serviceRunId ||
-		(session.finalAdmissionOrdinal != null &&
+		(revision.payloadVersion != CELL_WAL_PAYLOAD_VERSION && session.finalAdmissionOrdinal != null &&
 			revision.sourceAdmissionOrdinal > session.finalAdmissionOrdinal) ||
 		session.clockDomainId != revision.clockDomainId ||
 		session.lifecycleLeaseGeneration < revision.lifecycleLeaseGeneration ||
@@ -1528,7 +1551,7 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 			nextAuthorization.effectiveElapsedRealtimeNanos <
 				authorization.effectiveElapsedRealtimeNanos)
 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-	val authorizationEnd = minOf(
+	val callbackAuthorizationEnd = minOf(
 		registrationEnd,
 		nextAuthorization?.effectiveElapsedRealtimeNanos ?: Long.MAX_VALUE,
 	)
@@ -1562,6 +1585,7 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 		) as? CellPurposeItems.Qualified
 			?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	} else null
+	val authorizationEnd = purpose?.continuousUntilNanos ?: callbackAuthorizationEnd
 	val acceptedIndexes = walAuthentication.carrier.childQualification?.children
 		?.withIndex()?.filter { it.value.disposition ==
 			com.adsamcik.tracker.shared.base.database.data.CellWalChildDisposition.ACCEPTED }
@@ -1598,7 +1622,9 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	val firstDay = Instant.ofEpochMilli(earliestWall).atZone(zone).toLocalDate().toEpochDay()
 	val lastDay = Instant.ofEpochMilli(latestWall).atZone(zone).toLocalDate().toEpochDay()
-	if (firstDay != lastDay || firstDay != revision.structuralEpochDay ||
+	val measuredDay = Instant.ofEpochMilli(revision.observedWallTimeMs).atZone(zone).toLocalDate().toEpochDay()
+	if ((if (revision.payloadVersion == CELL_WAL_PAYLOAD_VERSION) measuredDay != revision.structuralEpochDay else
+		firstDay != lastDay || firstDay != revision.structuralEpochDay) ||
 		earliestWall < segment.startTimeMs || latestWall > segment.endTimeMs ||
 		revision.coverageIntervalStartNanos < registrationStart ||
 		revision.coverageIntervalEndNanos >= registrationEnd ||
@@ -2230,6 +2256,13 @@ internal suspend fun AppDatabase.loadCapturedCellWalScopesForDeletion(
 			if (wal.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch ||
 				wal.admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal
 			) continue
+			if (wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+				val groups = authenticateHistoricalCapturedCellWalCarriers(wal, limits)
+				scopes += groups.map { it.scope }
+				carriers += groups
+				latestDurableTimeMs = maxOf(latestDurableTimeMs, wal.createdAtMs)
+				continue
+			}
 			val captureBindingFields = listOf(
 				wal.logicalTrackingId,
 				wal.serviceRunId,
@@ -2341,6 +2374,13 @@ internal suspend fun AppDatabase.loadPortableCapturedCellWalScopes(
 		if (wal.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch ||
 			wal.admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal
 		) continue
+		if (wal.payloadVersion == CELL_WAL_PAYLOAD_VERSION) {
+			val groups = authenticateHistoricalCapturedCellWalCarriers(wal, limits)
+			scopes += groups.map { it.scope }
+			carriers += groups
+			latestDurableTimeMs = maxOf(latestDurableTimeMs, wal.createdAtMs)
+			continue
+		}
 		val captureBindingFields = listOf(
 			wal.logicalTrackingId,
 			wal.serviceRunId,
@@ -2392,6 +2432,38 @@ internal suspend fun AppDatabase.loadPortableCapturedCellWalScopes(
 	return CellCapturedWalAudit(scopes, carriers, latestDurableTimeMs)
 }
 
+/** One raw callback can retain several historical session scopes, each with its own readings. */
+private suspend fun AppDatabase.authenticateHistoricalCapturedCellWalCarriers(
+	wal: SourceEventWalEntity,
+	limits: CellCapturedMaintenanceLimits,
+): List<CellCapturedWalCarrier> {
+	val carrier = (CellWalCarrierAuthenticator.authenticate(wal) as? CellWalCarrierAuthentication.Authenticated)
+		?.carrier ?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	val registration = sourceBrokerDao().registration(CELL_SOURCE, wal.registrationGeneration)
+		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	val start = registration.acceptedElapsedRealtimeNanos
+		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	val end = registration.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE
+	val items = qualifyCellPurposeItems(wal, carrier.payload, start, end)
+		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	return items.historicalMembers().filter { member ->
+		member.purpose == CAPTURE_PURPOSE && member.persistenceEligible &&
+			items.forDemand(requireNotNull(member.demandId)).isNotEmpty()
+	}.map { member ->
+		val purpose = items.cellPurposeWindow(carrier.payload, requireNotNull(member.demandId), end)
+			as? CellPurposeItems.Qualified
+			?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		val times = purpose.indexes.map { requireNotNull(carrier.payload.observations[it].providerTimestampNanos) }
+		val selectedStart = times.minOrNull() ?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		val selectedEnd = requireNotNull(times.maxOrNull())
+		val scope = authenticateCapturedCellWalScopeForDeletion(wal, limits, member, purpose, selectedStart, selectedEnd)
+		CellCapturedWalCarrier(wal.eventId, wal.admissionOrdinal, scope, wal.sourceInstanceId,
+			wal.registrationGeneration, requireNotNull(member.sourcePolicyRevision), requireNotNull(member.consentEpoch),
+			wal.capturedCollectedDataEpoch, wal.integrityIdentity,
+			requireNotNull(capturePointWallInterval(wal, selectedStart, selectedEnd)).first, wal.payloadVersion)
+	}
+}
+
 /**
  * Proves that a retained WAL-only scope was genuinely capture-authorized before it can receive a
  * no-resurrection fence. This deliberately does not decode provider payload: deletion neither
@@ -2401,21 +2473,29 @@ internal suspend fun AppDatabase.loadPortableCapturedCellWalScopes(
 private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 	wal: SourceEventWalEntity,
 	limits: CellCapturedMaintenanceLimits,
+	historicalMember: SourceAuthorizationEntity? = null,
+	purposeItems: CellPurposeItems.Qualified? = null,
+	selectedStartNanos: Long = wal.observedElapsedNanos,
+	selectedEndNanos: Long = wal.observedElapsedNanos,
 ): CellCapturedRunScope {
-	val logicalTrackingId = requireNotNull(wal.logicalTrackingId)
-	val serviceRunId = requireNotNull(wal.serviceRunId)
-	val configurationRevision = requireNotNull(wal.configRevision)
-	val policyRevision = requireNotNull(wal.sourcePolicyRevision)
-	val consentEpoch = requireNotNull(wal.captureConsentEpoch)
-	val manifestRevision = requireNotNull(wal.sessionManifestRevision)
-	val leaseGeneration = requireNotNull(wal.lifecycleLeaseGeneration)
+	val logicalTrackingId = requireNotNull(historicalMember?.logicalTrackingId ?: wal.logicalTrackingId)
+	val serviceRunId = requireNotNull(historicalMember?.serviceRunId ?: wal.serviceRunId)
+	val manifestRevision = requireNotNull(historicalMember?.manifestRevision ?: wal.sessionManifestRevision)
+	val configurationRevision = if (historicalMember != null) {
+		sourceSessionDao().manifest(logicalTrackingId, manifestRevision)?.acquisitionPlanRevision
+			?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	} else requireNotNull(wal.configRevision)
+	val policyRevision = requireNotNull(historicalMember?.sourcePolicyRevision ?: wal.sourcePolicyRevision)
+	val consentEpoch = requireNotNull(historicalMember?.consentEpoch ?: wal.captureConsentEpoch)
+	val leaseGeneration = requireNotNull(historicalMember?.lifecycleLeaseGeneration ?: wal.lifecycleLeaseGeneration)
 	val physicalFingerprint = requireNotNull(wal.physicalConfigurationFingerprint)
-	val authorizationRevision = requireNotNull(wal.authorizationRevision)
-	val authorizationFingerprint = requireNotNull(wal.authorizationFingerprint)
+	val authorizationRevision = historicalMember?.authorizationRevision ?: requireNotNull(wal.authorizationRevision)
+	val authorizationFingerprint = historicalMember?.authorizationFingerprint ?: requireNotNull(wal.authorizationFingerprint)
+	val purposeMask = historicalMember?.purposeEligibilityMask ?: wal.authorizationPurposeEligibilityMask
 	val observedStart = requireNotNull(wal.observedIntervalStartNanos)
 	// Earlier children may be stale. The delivery's latest observed child anchors its
 	// capture attribution; retained facts qualify their individual children separately.
-	val capturePoint = wal.observedElapsedNanos
+	val capturePoint = selectedStartNanos
 	if (observedStart < 0L || wal.observedElapsedNanos < observedStart ||
 		wal.receivedElapsedNanos < wal.observedElapsedNanos || wal.wallTimeMs == null ||
 		wal.wallTimeMs < 0L || wal.wallTimeUncertaintyMs == null || wal.wallTimeUncertaintyMs < 0L
@@ -2441,7 +2521,7 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 		completeDelivery.sourceInstanceId != wal.sourceInstanceId ||
 		completeDelivery.registrationGeneration != wal.registrationGeneration ||
 		completeDelivery.physicalConfigurationFingerprint != physicalFingerprint ||
-		completeDelivery.authorizationRevision != authorizationRevision ||
+		completeDelivery.authorizationRevision != wal.authorizationRevision ||
 		completeDelivery.observedElapsedNanos != wal.observedElapsedNanos ||
 		completeDelivery.observedIntervalStartNanos != observedStart ||
 		completeDelivery.payloadVersion != wal.payloadVersion ||
@@ -2488,12 +2568,12 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 	)
 	val authorization = authorizationRows.toAuthorizationSnapshotOrNull()
 		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-	val endAuthorization = boundedAuthorizationAt(
+	val endAuthorization = if (purposeItems == null) boundedAuthorizationAt(
 		wal.registrationGeneration,
 		wal.clockDomainId,
 		wal.observedElapsedNanos,
 		limits,
-	)
+	) else null
 	val nextRows = cellCapturedFactDao().maintenanceNextAuthorizationMembers(
 		CELL_SOURCE,
 		wal.registrationGeneration,
@@ -2508,7 +2588,7 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 			nextAuthorization.effectiveElapsedRealtimeNanos <
 				authorization.effectiveElapsedRealtimeNanos)
 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-	val authorizationEnd = minOf(
+	val authorizationEnd = purposeItems?.continuousUntilNanos ?: minOf(
 		registrationEnd,
 		nextAuthorization?.effectiveElapsedRealtimeNanos ?: Long.MAX_VALUE,
 	)
@@ -2533,14 +2613,14 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 		)
 	}.getOrNull()
 	if (authorization.isDenied || captureMember == null ||
-		endAuthorization != authorization || demandIds.distinct().size != authorization.authorizedMembers.size ||
+		(purposeItems == null && endAuthorization != authorization) || demandIds.distinct().size != authorization.authorizedMembers.size ||
 		demands.size != authorization.authorizedMembers.size ||
 		recomputed?.sortedBy { it.memberId } != authorization.members.sortedBy { it.memberId } ||
 		authorization.authorizationFingerprint != authorizationFingerprint ||
-		authorization.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask ||
+		authorization.purposeEligibilityMask != purposeMask ||
 		authorization.effectiveBootId != wal.clockDomainId ||
-		authorization.effectiveElapsedRealtimeNanos > capturePoint ||
-		wal.observedElapsedNanos >= authorizationEnd
+		(purposeItems?.continuousFromNanos ?: authorization.effectiveElapsedRealtimeNanos) > capturePoint ||
+		selectedEndNanos >= authorizationEnd
 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 
 	val sessionDao = sourceSessionDao()
@@ -2552,9 +2632,9 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 		run.bootId != wal.clockDomainId || run.leaseGeneration != leaseGeneration ||
 		session.clockDomainId != wal.clockDomainId || session.lifecycleLeaseGeneration < leaseGeneration ||
 		run.startedElapsedNanos > capturePoint ||
-		(session.finalAdmissionOrdinal != null && wal.admissionOrdinal > session.finalAdmissionOrdinal) ||
+		(purposeItems == null && session.finalAdmissionOrdinal != null && wal.admissionOrdinal > session.finalAdmissionOrdinal) ||
 		(session.cutoffAtMs == null) != (session.cutoffElapsedNanos == null) ||
-		wal.observedElapsedNanos >= (session.cutoffElapsedNanos ?: Long.MAX_VALUE)
+		selectedEndNanos >= (session.cutoffElapsedNanos ?: Long.MAX_VALUE)
 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	val manifests = sessionDao.manifestsForServiceRun(serviceRunId, limits.maximumManifestsPerRun + 1)
 	val sources = trackingHistoryReadDao().manifestSources(
@@ -2590,14 +2670,14 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 		?: minOf(session.cutoffElapsedNanos ?: Long.MAX_VALUE, registrationEnd, authorizationEnd)
 	val segmentId = run.sessionSegmentId
 	val segment = segmentId?.let { sessionSegmentDao().getById(it) }
-	val wallInterval = capturePointWallInterval(wal)
+	val wallInterval = capturePointWallInterval(wal, selectedStartNanos, selectedEndNanos)
 		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	if (binding == null || !binding.isExactCapturedCellWalBinding(consentEpoch) ||
 		manifest.serviceRunId != serviceRunId || manifest.sourcePolicyRevision != policyRevision ||
 		manifest.acquisitionPlanRevision != configurationRevision ||
 		manifest.effectiveBootId != wal.clockDomainId ||
 		manifest.effectiveElapsedRealtimeNanos > capturePoint ||
-		wal.observedElapsedNanos >= manifestEnd || manifest.zoneId.isBlank() ||
+		selectedEndNanos >= manifestEnd || manifest.zoneId.isBlank() ||
 		!hasValidZone(manifest.zoneId) || policy.qosCode != binding.qosCode || segment == null ||
 		segment.logicalTrackingId != logicalTrackingId || segment.serviceRunId != serviceRunId ||
 		wallInterval.first < segment.startTimeMs || wallInterval.last > segment.endTimeMs
@@ -2760,7 +2840,10 @@ private fun earliestCoveredWallTime(
 	coverageStartElapsedRealtimeNanos = coverageStartNanos,
 ) ?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 
-private fun capturePointWallInterval(wal: SourceEventWalEntity): LongRange? {
+private fun capturePointWallInterval(wal: SourceEventWalEntity,
+	selectedStartNanos: Long = wal.observedElapsedNanos,
+	selectedEndNanos: Long = wal.observedElapsedNanos,
+): LongRange? {
 	val wallTimeMs = wal.wallTimeMs ?: return null
 	val uncertaintyMs = wal.wallTimeUncertaintyMs ?: return null
 	return runCatching {
@@ -2768,9 +2851,11 @@ private fun capturePointWallInterval(wal: SourceEventWalEntity): LongRange? {
 			walObservedWallTimeMs = wallTimeMs,
 			wallTimeUncertaintyMs = uncertaintyMs,
 			walObservedElapsedRealtimeNanos = wal.observedElapsedNanos,
-			coverageStartElapsedRealtimeNanos = wal.observedElapsedNanos,
+			coverageStartElapsedRealtimeNanos = selectedStartNanos,
 		) ?: return null
-		val latest = Math.addExact(wallTimeMs, uncertaintyMs)
+		val latestWall = Math.subtractExact(wallTimeMs, (wal.observedElapsedNanos - selectedEndNanos) / 1_000_000L)
+		val rounding = if ((wal.observedElapsedNanos - selectedEndNanos) % 1_000_000L == 0L) 0L else 1L
+		val latest = Math.addExact(latestWall, Math.addExact(uncertaintyMs, rounding))
 		earliest..latest
 	}.getOrNull()
 }
@@ -2933,6 +3018,14 @@ internal data class CellCapturedRunScope(
 	val serviceRunId: String,
 )
 
+/** One original callback may cover several policy/consent intervals in the same run. */
+private data class CellCapturedEventAuthorityKey(
+	val eventId: String,
+	val logicalRunScopeDigest: String,
+	val sourcePolicyRevision: Long,
+	val captureConsentEpoch: Long,
+)
+
 private fun CellCapturedRunScope.retainedIdentity(
 	collectedDataEpoch: Long,
 ): RetainedCaptureScopeIdentity = RetainedCaptureScopeIdentity(
@@ -3013,6 +3106,7 @@ internal data class CellCapturedWalCarrier(
 	val collectedDataEpoch: Long,
 	val walIntegrityIdentity: String,
 	val earliestPossibleWallTimeMs: Long,
+	val payloadVersion: Int = com.adsamcik.tracker.shared.base.database.data.LEGACY_CELL_WAL_PAYLOAD_VERSION,
 )
 
 private data class AuthenticatedCellFactAuthority(
