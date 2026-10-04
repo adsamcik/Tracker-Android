@@ -18,6 +18,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -36,24 +37,29 @@ import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
+import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
 
 @Composable
 internal fun AutomaticTrackingAvailabilityCard(
 	uiState: TrackingSettingsUiState,
 	modifier: Modifier = Modifier,
+	onEnableTransitions: () -> Unit = {},
 ) {
 	if (!uiState.autoTrackingEnabled || uiState.automaticTrackingOperational) return
 	val unavailable = uiState.automaticControlAvailability as?
 		AutomaticTrackingOperationalAvailability.Unavailable
 	val summary = when {
-		unavailable != null -> stringResource(
-			com.adsamcik.tracker.R.string.settings_automatic_policy_unavailable_summary,
+		!uiState.transitionDetectionEnabled -> stringResource(
+			com.adsamcik.tracker.R.string.automatic_control_enable_transitions_summary,
 		)
 		uiState.automaticTrackingPermissionRequired -> stringResource(
 			com.adsamcik.tracker.R.string.settings_automatic_permission_required_summary,
 		)
+		unavailable?.reason == AutomaticTrackingUnavailableReason.PROVIDER_UNAVAILABLE -> stringResource(
+			com.adsamcik.tracker.R.string.automatic_control_provider_unavailable_summary,
+		)
 		else -> stringResource(
-			com.adsamcik.tracker.R.string.settings_automatic_unavailable_summary,
+			com.adsamcik.tracker.R.string.automatic_control_pending_summary,
 		)
 	}
 	Card(
@@ -79,15 +85,11 @@ internal fun AutomaticTrackingAvailabilityCard(
 					style = MaterialTheme.typography.titleMedium,
 				)
 				Text(text = summary, style = MaterialTheme.typography.bodyMedium)
-				unavailable?.let { status ->
-					Text(
-						text = stringResource(
-							com.adsamcik.tracker.R.string.settings_automatic_status_code,
-							status.reason.stableCode,
-						),
-						modifier = Modifier.testTag("automaticTrackingUnavailableCode"),
-						style = MaterialTheme.typography.labelSmall,
-					)
+				if (!uiState.transitionDetectionEnabled) {
+					TextButton(onClick = onEnableTransitions,
+						modifier = Modifier.testTag("automaticEnableTransitions")) {
+						Text(stringResource(com.adsamcik.tracker.R.string.automatic_control_enable_transitions))
+					}
 				}
 			}
 		}

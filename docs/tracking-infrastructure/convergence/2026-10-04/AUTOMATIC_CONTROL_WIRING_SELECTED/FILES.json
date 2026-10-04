@@ -1,0 +1,518 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+  "additionalArbiterTestBaseHead": "fa340240624710a5e2c77cd8883492515f4b6b39",
+  "currentParentReportedByRoot": "fa340240624710a5e2c77cd8883492515f4b6b39",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/TrackingPurposePublicationRuntime.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "12bf029d873235e863d6450adc297370c0ff2401c3486ab67374a75da4778828",
+      "workingBeforeSha256": "1f764230173648ce7c5f9f02e1439379f8cde7252165e6a1f55bfbc6d622d41c",
+      "actualSha256": "bb6d0cbc23444c200271d533f96836c992c443842eec20ad632f313050dd5ca9",
+      "selectedSha256": "6365d2708528ae7fe67931e9fc290498b48cf3215543792ee65fe6e1d800e43d",
+      "new": false,
+      "selectedMatchesActualText": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/AutomaticStartTransitionMonitor.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "4d630e2f826e28bf8e022e32e5bb45d2ca84326f67a9dc1cec04d8c8c10f546f",
+      "workingBeforeSha256": "703f307dbd6940d1bd0b6419087a17afec51a3e81fa7e26caa3e525a3b52b211",
+      "actualSha256": "8d8ecd7e05a73ff6cc8a1769683b397a9b73da296a667e4b15341b77bc3fa013",
+      "selectedSha256": "555e659b1bde5f7aa5052242288e3cb3e979e2ac1d734e99bc39c6f503d5569b",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/DefaultAutomaticControlPurposeOwner.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "95b7671a78a177901bd55f4ebf15f59b2bd56f76d7325695ba9a9b536798a3b0",
+      "selectedSha256": "95b7671a78a177901bd55f4ebf15f59b2bd56f76d7325695ba9a9b536798a3b0",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "6b1c3999f39587d060bd07d9f6d76812dbaed52f3ee14bdb2b05f6da7b596725",
+      "workingBeforeSha256": "b1f0f7e82b4943c8dfbceeade10e8640d789e3e9e525b0f432ace68956ceccc2",
+      "actualSha256": "e4506a7ad0efb01616de98ef3263c6a2a310e7f67245e4d446d9ab07d39e6464",
+      "selectedSha256": "e4506a7ad0efb01616de98ef3263c6a2a310e7f67245e4d446d9ab07d39e6464",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/catalog/SourceProviderAvailability.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "6afee11333e156c734aae64fc3f9e2d5645401e22c9697094a781f19008045d3",
+      "workingBeforeSha256": "bec963d89b960849ec4c894f2bda18032032b7a822f72b0d5c704607cb1d4b19",
+      "actualSha256": "13f3ead4ab8a562dfbb3a04935e94362abc8f29cb88714d4b10ea0d59dbb63e6",
+      "selectedSha256": "f3d5f19389e06e59b3485becf35934ccef591ac765cab52ef0cf42ef1d596ff2",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/catalog/SourceProductFactories.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "401763366c73bbd1c7d3a4a89c5b28f2bc53cbcdd47f6e9ec725122a50864ed3",
+      "workingBeforeSha256": "3e51538b1843243e35920d00920a4b2bd164088dbe9b386a24cc797242eeab96",
+      "actualSha256": "22659c5ce5df7429b44466879a1ef3f11389dd916e1bb1c1af82e63a5a5dc820",
+      "selectedSha256": "86d4d6a2541afcdd32c9b8ceb5b3571050b77528baed5d9da5bb75e425743816",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackingPurposeAvailability.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "87333779da57c3e3b399ff1df8cdc19afe02acdb25fd9b317cc4f10156b59612",
+      "workingBeforeSha256": "97a2efe79a28818447b2efa10e7a919c3c28b6ac50307dd097252729444abb03",
+      "actualSha256": "1624d117ed943eedd8086970f4ac0a825a9d08d065d5078046be2e1b269d9d0c",
+      "selectedSha256": "caf80e1614543ecb2edeac1cb742c633bbbfed0874ee148fd5a739600f410e46",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "6e0145339b1a645b3cdf4da05121a9e99e3970c91ae33711e44fddb63eccb59f",
+      "workingBeforeSha256": "6e0145339b1a645b3cdf4da05121a9e99e3970c91ae33711e44fddb63eccb59f",
+      "actualSha256": "f2c6b86cf0109a665f2191c150364a13d0a8978e789dddca83b0888edf90ad10",
+      "selectedSha256": "f2c6b86cf0109a665f2191c150364a13d0a8978e789dddca83b0888edf90ad10",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/SourcePurposeSettings.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "359516cc13fcb10d623340bfb978d8aca02ecc052d562e88bd10585ca13a87c0",
+      "workingBeforeSha256": "359516cc13fcb10d623340bfb978d8aca02ecc052d562e88bd10585ca13a87c0",
+      "actualSha256": "4768b22a15fdfc0c32a60362073059824ab40f6cad0f1962a75687e306e0526b",
+      "selectedSha256": "4768b22a15fdfc0c32a60362073059824ab40f6cad0f1962a75687e306e0526b",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "1d7e42930d0c04093b81c945151df2276aa8ac72c80a8af81851db7c9925918f",
+      "workingBeforeSha256": "1d7e42930d0c04093b81c945151df2276aa8ac72c80a8af81851db7c9925918f",
+      "actualSha256": "83605275b0ec029205a9e053e5cc2f1e45a3cc0e5caf07605aee800f29e6d0ce",
+      "selectedSha256": "83605275b0ec029205a9e053e5cc2f1e45a3cc0e5caf07605aee800f29e6d0ce",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/TrackingPurposePublicationRuntimeTest.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "52cd920bbcf4feb96abd332acb77bd972a3e81ebecd73751a041fb1e5624c081",
+      "workingBeforeSha256": "6fcf5bdee55b250ae8cc09c7b6a15cad73afac9632dfcdd8eac1e1a96af102da",
+      "actualSha256": "7a2f7a3802e6ffc56fc5f7f1b70fb1e13ac08c80f94eeb34cd06596c67c86f24",
+      "selectedSha256": "992bfd4ff83257a53e9c8ead20a19da50674996552387435e683ec49ff6f5429",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/AutomaticStartTransitionMonitorTest.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "cb008baeae3c591dd698ca24cd6e8d8c68f728fc2ca2cea17ed2adde5eb7d26c",
+      "workingBeforeSha256": "d0ead87745fd7f8bff0f6ec67ed40a3a97695a1798b50384d7d41e0dcfd0852f",
+      "actualSha256": "181c2b55ebdd7c265b0d22b6788ca5734d94c5c9daae46c592e649cab099f87b",
+      "selectedSha256": "df73ccae3844c9a89ef95af9ec94f01d71abf232c6f932c5d2a4b5945b711f8b",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/AutomaticStepsControlRoomTest.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "6cadd5f1318c86272561ef24855b18eed91796ac144b689fcf1021b5357b1fea",
+      "selectedSha256": "6cadd5f1318c86272561ef24855b18eed91796ac144b689fcf1021b5357b1fea",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApiLogicTest.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "88d78ebc0097f25d08dc86a318d5b1ea20983bbf6cad02007c6f3a898e9a095e",
+      "workingBeforeSha256": "fe910126d6bdfbf63fa10c840fd19a216b0733a84d072de022346aab339c843b",
+      "actualSha256": "2d0789215ae9226b694ce1829548f92d2b6cea281501ccecb39821b5b74cb4e2",
+      "selectedSha256": "2820b5dfca060578b9f30ef575629a1c59594642d3e0bc8a072beda01040ae37",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/catalog/DefaultSourceImplementationCatalogTest.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "4eb26844bbfae1e281dbe8cb5b938e9828496e587c1184135ace0de62988499d",
+      "workingBeforeSha256": "93bdb253dc6420f4d20b4d157d98a5a32754155eebcb05022b39000bd0293114",
+      "actualSha256": "cc6c3e53806e0315bee285ed77e34725f40e7d0e9b7772a9855b02a086f21661",
+      "selectedSha256": "8a2f0570e43030c9b23410be52ce107d0dbde2c59a19a6b88c1233c58c582154",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "data/preferences/src/test/java/com/adsamcik/tracker/shared/preferences/tracking/RoomSourcePolicyRepositoryTest.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "98ee8ba69de6092263ca25890431b468f2c97512a7366300931626ebbd664e8f",
+      "workingBeforeSha256": "98ee8ba69de6092263ca25890431b468f2c97512a7366300931626ebbd664e8f",
+      "actualSha256": "ec10fc1144dc9f38bab291a704857dc66a336cee65bf93b3ad383ef91fb89b3f",
+      "selectedSha256": "ec10fc1144dc9f38bab291a704857dc66a336cee65bf93b3ad383ef91fb89b3f",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModelTest.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "523e14488e326bfbba51c861883540d9534b26dad6bad77a3e52f4f29e92a637",
+      "workingBeforeSha256": "523e14488e326bfbba51c861883540d9534b26dad6bad77a3e52f4f29e92a637",
+      "actualSha256": "6790cc82e08e8569734c80688693e38388312b7ddd5656de53d9738a81308882",
+      "selectedSha256": "6790cc82e08e8569734c80688693e38388312b7ddd5656de53d9738a81308882",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "aeb6faa25905844d25d69f24571e7e4188c5dcc536fffb06282368364fb1bef9",
+      "workingBeforeSha256": "aeb6faa25905844d25d69f24571e7e4188c5dcc536fffb06282368364fb1bef9",
+      "actualSha256": "102dab5c64f58e99ac2f09589a363864422a510a1e98fd88aeb0204bde8a915b",
+      "selectedSha256": "102dab5c64f58e99ac2f09589a363864422a510a1e98fd88aeb0204bde8a915b",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "47c9ebb29bbfba9e32fa78d3232329ba05273819e9feaab9cd4676f1dea4dd5e",
+      "selectedSha256": "182d6a1c1bef0688426cacafdd9b23ac50fa912d11ac9f6a8b71901413d004e2",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-bg-rBG/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "9d562542682a25d365e22dc9cde9c1366fbaccb4ba22802f46f6d67295153c12",
+      "selectedSha256": "cac7f42a17e9385d558a3db533f85304716197f0da16bff846d517cc86d3e709",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-cs-rCZ/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "dd2afe7e32a5e97de750b3ca74d4df778693c16a4d3e853c0f71814d75d01c5a",
+      "selectedSha256": "d6047eaf61d68d847ba1e449da9e381477fcdfe6a8d331523b47210cf167de18",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-da-rDK/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "4d287b402c8b221fc26a1e7eab36c1147c83c4729ad951f3cd90e60a4221eb0b",
+      "selectedSha256": "76e0ddf73def801069700139ebdf86613c78d5d2d38aedff445a1de61de16689",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-de-rDE/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "35a3454b671d155e4a077908fa7f0778c1e37d26f7872246bcb3982223c6df57",
+      "selectedSha256": "53a95e895afc5be92a339044708392e7aebe7183a59bcb77369d3fa87c55c67a",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-el-rGR/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "67e15863a6e5dc34b0bf931b65cf1adc815abc2f77a8627e12d5a3002e14b9c5",
+      "selectedSha256": "b0a6724463db15bcaa5b9279fa612623841b5ae2c8afe67d593b5622d6b12964",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-es-rES/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "b9f1c8f4c97778067d2dfb23678f59c4d22d03ca24336c8b403ce322ae4e054b",
+      "selectedSha256": "397647efe2e823127d939771f615bf56215cac8c71f37190dfdd61c0e38543a9",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-et-rEE/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "5a32895a5f7275967431fd05dfca0d7a31b164989bc9bc12e771b4d740c18abe",
+      "selectedSha256": "4b40e5e17d2d1a4bd504c011bd385056d66954a90662ef60d4410a0cd6063aba",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-fi-rFI/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "5275b1ea94fda71a4948452797406293c9218c6d160d6fda86268b30038ea4b9",
+      "selectedSha256": "835f2cd0c22cf639cc7c68e28aedb7c7c327cb26183c9beca15bc042243ebfc8",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-fr-rFR/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "5f9d5ada99f785256bf68acc9592767d13fbdf171c45a67bcf75922e264120cc",
+      "selectedSha256": "d77666c5717ee756597a648ac30b1ada3b76cdc8c60d498bb6b5028cdbcf41ab",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-ga-rIE/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "cb7c48dc09acd1573371ae07db2f3ba57dd765300817d0e2dba832fb0c6fc9c0",
+      "selectedSha256": "08b07ea42535cbd67bbe54941db09b1d7ec2f14ce9bf17c8debd24a35299c9f5",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-hi-rIN/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "f8ebe7b45215496699d0f3fea5ca04158424cdd9357dbec86cbd0e0222f51cdc",
+      "selectedSha256": "10c1fdbd6f6065097ee3c3f8b29fbf01280d8fd8d193f0aab88fa646c5f31bd6",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-hr-rHR/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "9815731b21633c38c6aee64ad8c2958ff1b3ef1d52636b43f69738890b1524c2",
+      "selectedSha256": "89bbab3ff9e307ae079ae33d8069716442fc705f46fb6955e870af55b6b388be",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-hu-rHU/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "c4da9048ad0829f85cf60b10a2b24cc972eb811a3c37dce603d2b208555b675d",
+      "selectedSha256": "f4f2515545acee6ee0f47e85a576de027bdd36db234cb0112c1003729952caba",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-it-rIT/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "796d9810ed9740fcd81b5a0ee221ebdd39de79e7506521c3f3ae363d36f0aef2",
+      "selectedSha256": "76b2a2c7bef0103db0ab7ff512e9e396d6300e21a35ba142864efb0fa466dbac",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-ja-rJP/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "6ed584e98d4cbba78331157042c39fb61e97891b89cbf1389eaef3533a0fa523",
+      "selectedSha256": "738e7c8c8af194fc47e87e73861037fa63fc1c87d373fb00ddf7abd1704e1e45",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-lt-rLT/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "a0ea8728fd5f023fdd9338b163985d2ef55c625fad79e58e562918b34c86913b",
+      "selectedSha256": "a20d178c588bf4549e57b2433199ffcd8193202b07ef83b3b3df5cbdfc00654f",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-lv-rLV/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "d1df1ae03e82cdf7effb3a87b20105deb93b99cd28775cc8f6eea8d9443edecc",
+      "selectedSha256": "f0728302ec0f648e5a85049d26151f1584d17227deb0f1239952b197457c1b74",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-mt-rMT/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "619dcb52248ec89c94ed8711c3d8f2c5b0b88280bf251358cfa093ee83d570e8",
+      "selectedSha256": "77c9e5c0ac682785ad8f462d9d5ac9916bc181864d7d3b03fb5add2178c4a0b1",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-nl-rNL/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "d2c35b2c2d87e24183b080f5af6bf37ed462aa1c743d78e8694a03fbf508fcb0",
+      "selectedSha256": "34b2ad195068733f34c357843b4c1f58603673a27d6d91c58da260a1fc8af4f5",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-pl-rPL/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "c43908ffe2dbe21988f545a3228cfa7a909dc0e7a112a71b69592610037610b2",
+      "selectedSha256": "8bad6f66420ed0e6675bce5b5c6cf4e7235d0877290c71aead47fd0bd6f97321",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-pt-rPT/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "2cbd9f9e7cb33ece614795291e91665739fce82fd9fcc0e5f10e40e7d4246a3e",
+      "selectedSha256": "b4bf2e8387cb48ff259cc594326cbab4a6f31629ebea35d5be0f6f0cc40c7a35",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-ro-rRO/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "1e518e06a12a5e4a7b5dde7edd86c6b643db5226ada396f9319c15f5777670d0",
+      "selectedSha256": "a955f19b9d8756b7c160f086ca7c25cc5ca824e0d248cb5f28364740e05a4428",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-sk-rSK/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "b583f111ac701b32061351eca6fb8f0ac53f148b583d035c6282a51ef57a43e9",
+      "selectedSha256": "d2dcfe6b5492de094cb4bea91130e51bfd037efea0c934e54542f22b5776b05e",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-sl-rSI/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "ebc110a2d0f4607261c880537083d1fe441cd6d63bbdfa30473ff8ace7e11d2a",
+      "selectedSha256": "894980b4ecf97d9c08b337c8ee308ef10d37da4249b38748a932d92bca173c90",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-sv-rSE/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "c5f8274577485f9b9818239384a1b3837665fbadeb73c15c8960477c92fd7bea",
+      "selectedSha256": "a7d88a3d07047bee4624103be932f8c0adae2bf95d48bc05a36e778ba2ab4b01",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-zh-rCN/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "812a46597f181045569dcd33f92cea73f4e5e4b641a3c7862f51f90bde3ad662",
+      "selectedSha256": "0df4695e00353c9a0127d57a44dd4a214b48c5bcd3e6ad066d0a6f4dd0befeb3",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "app/src/main/res/values-zh-rTW/automatic_control_strings.xml",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": null,
+      "workingBeforeSha256": null,
+      "actualSha256": "8f8ce39787cbbbc360c4dc952ed12375e24840994cd878932b481268e53cedb4",
+      "selectedSha256": "e4f9d4ce8ecff8bcbcc523d09fe375b3307217fdcd75a36038bff0602cdf0598",
+      "new": true,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CurrentTrackingPurposeAvailabilityProjection.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "1e0694b55a8a8327f7d7bbef2204b7fd3afa60fff7d5ad7657b80b93c97eb9ea",
+      "workingBeforeSha256": "fb3caabdd56019d2b7f874b38e443f5f45b250ee1370bd87fb04c998444aa34f",
+      "actualSha256": "4bb0ef23bbeff809ca7bc7fa4c74ce55964caae936383da7e9574a9132ef258d",
+      "selectedSha256": "930402b4468fe7d0279654ac43129732753ffe8f53dc0f30f209843d578b174d",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/controller/DefaultLockManager.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "25a6b20dfd241a83c675cd55fd04128ca20c5e88fe17d3f3676ad6acec6f372b",
+      "workingBeforeSha256": "2d6427c3e37099b83d4636f0bdf27738c73e060e04a29e575fe8df8ae0d8acfc",
+      "actualSha256": "c882f943d0280a75f354718209c40f93cc608f47e5c033df3bf83816c80f627c",
+      "selectedSha256": "9ca57967de3bbcd2ea24717590f0f469ac703983ee17ea3ab8b983b9a2261b63",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/controller/DefaultLockManagerTest.kt",
+      "baseHead": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+      "baseSha256": "603371170b5fef3123b69bccf1828b4be2fc026aabf78ae309b347aa92105b54",
+      "workingBeforeSha256": "3ef09e8586652c18768ad466283bdc6aef106fd517c73b831f535063345337d3",
+      "actualSha256": "04cb92c056de9d4e6a0945c97d98ba48c0355a8f3e3ce9cf0240e2076f8f1a48",
+      "selectedSha256": "e22b945a6c5c0b3d93a5eab9a1df3b8d4ed0dcd221a779282a550a9d6a6cb0e3",
+      "new": false,
+      "selectedMatchesActualText": true
+    },
+    {
+      "path": "sensor/activity/src/test/java/com/adsamcik/tracker/activity/api/registration/DefaultActivityRegistrationArbiterTest.kt",
+      "baseHead": "fa340240624710a5e2c77cd8883492515f4b6b39",
+      "baseSha256": "8076e9b80c32b67df379206836e5994bedfa80a5e3b453a299aa22c26849d33c",
+      "workingBeforeSha256": "a1227d5d52e4bf2209f4f6d3f0d5e9af43777215c6ae2ebe151ff653097a1fd5",
+      "actualSha256": "6ce6d2a68a08e82a466d0f68af3a4f471e38ef0120875df40eabfefb7877fe10",
+      "selectedSha256": "37c8d501c4a36b819da402832b370da3afc839fcc08fe0954753ae097236f41f",
+      "new": false,
+      "selectedMatchesActualText": true
+    }
+  ],
+  "unchangedDependencies": [
+    {
+      "path": "data/preferences/src/main/java/com/adsamcik/tracker/shared/preferences/tracking/RoomSourcePolicyRepository.kt",
+      "baseSha256": "2e3c99e103356eb4d1eaa7da4134749f25815415abe6f7ca046a3b1f203359ba",
+      "actualSha256": "2e3c99e103356eb4d1eaa7da4134749f25815415abe6f7ca046a3b1f203359ba"
+    }
+  ],
+  "patchSha256": "71bc509ba4395afefcb0bf0e7bddc19a587bba3a703d1202cbcb7cb10cbf7d9f",
+  "executedChecks": []
+}

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automatic_control_enable_transitions">Povoliť rozpoznávanie pohybu</string>
+    <string name="automatic_control_enable_transitions_summary">Automatické spustenie vyžaduje rozpoznávanie pohybu.</string>
+    <string name="automatic_control_provider_unavailable_summary">Automatické spustenie vyžaduje podporovanú službu rozpoznávania aktivity.</string>
+    <string name="automatic_control_pending_summary">Automatické spustenie nie je pripravené. Skontrolujte voľby sledovania a oprávnenia.</string>
+</resources>

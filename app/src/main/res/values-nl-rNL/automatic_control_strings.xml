@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automatic_control_enable_transitions">Bewegingsdetectie inschakelen</string>
+    <string name="automatic_control_enable_transitions_summary">Automatisch starten vereist bewegingsdetectie.</string>
+    <string name="automatic_control_provider_unavailable_summary">Automatisch starten vereist een ondersteunde dienst voor activiteitsherkenning.</string>
+    <string name="automatic_control_pending_summary">Automatisch starten is nog niet klaar. Controleer je trackingkeuzes en machtigingen.</string>
+</resources>

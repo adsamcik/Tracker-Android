@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automatic_control_enable_transitions">Bewegungserkennung aktivieren</string>
+    <string name="automatic_control_enable_transitions_summary">Automatische Starts benötigen Bewegungserkennung.</string>
+    <string name="automatic_control_provider_unavailable_summary">Automatische Starts benötigen einen unterstützten Dienst zur Aktivitätserkennung.</string>
+    <string name="automatic_control_pending_summary">Automatische Starts sind noch nicht bereit. Prüfe deine Auswahl und Berechtigungen.</string>
+</resources>

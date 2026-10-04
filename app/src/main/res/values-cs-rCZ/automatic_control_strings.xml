@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automatic_control_enable_transitions">Povolit rozpoznávání pohybu</string>
+    <string name="automatic_control_enable_transitions_summary">Automatické spuštění vyžaduje rozpoznávání pohybu.</string>
+    <string name="automatic_control_provider_unavailable_summary">Automatické spuštění vyžaduje podporovanou službu rozpoznávání aktivity.</string>
+    <string name="automatic_control_pending_summary">Automatické spuštění není připravené. Zkontrolujte volby sledování a oprávnění.</string>
+</resources>

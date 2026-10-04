@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automatic_control_enable_transitions">Ενεργοποίηση ανίχνευσης κίνησης</string>
+    <string name="automatic_control_enable_transitions_summary">Η αυτόματη έναρξη απαιτεί ανίχνευση κίνησης.</string>
+    <string name="automatic_control_provider_unavailable_summary">Η αυτόματη έναρξη απαιτεί υποστηριζόμενη υπηρεσία αναγνώρισης δραστηριότητας.</string>
+    <string name="automatic_control_pending_summary">Η αυτόματη έναρξη δεν είναι έτοιμη. Ελέγξτε τις επιλογές καταγραφής και τις άδειες.</string>
+</resources>

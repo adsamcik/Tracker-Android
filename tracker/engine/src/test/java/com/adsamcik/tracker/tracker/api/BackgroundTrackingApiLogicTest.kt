@@ -27,6 +27,37 @@ import org.junit.jupiter.api.Test
 @DisplayName("BackgroundTrackingApi Logic")
 class BackgroundTrackingApiLogicTest {
 	@Test
+	fun `ambient recovery debt cannot block an independently accepted automatic owner`() {
+		val ambient = TrackingPurposeSettingsReconciliationResult.Debt(TrackingPurposeSettingsReconciliationDebt(listOf(
+			TrackingPurposeSettingsReconciliationFailure(AmbientTrackingSource.STEPS,
+				TrackingPurposeSettingsReconciliationFailureReason.OWNER_MISSING))))
+		automaticReconciliationCompleted(ambient) shouldBe true
+		val automatic = TrackingPurposeSettingsReconciliationResult.Debt(TrackingPurposeSettingsReconciliationDebt(listOf(
+			TrackingPurposeSettingsReconciliationFailure(null,
+				TrackingPurposeSettingsReconciliationFailureReason.AUTOMATIC_CONTROL_RECONCILIATION_FAILED))))
+		automaticReconciliationCompleted(automatic) shouldBe false
+	}
+
+	@Test
+	fun `recovery consumes owner publication and preserves repairable failure reasons`() {
+		automaticControlPublicationRecoveryResult(readyAutomaticControl()) shouldBe
+			AutomaticControlRecoveryResult.ACCEPTED
+		listOf(AutomaticTrackingUnavailableReason.REGISTRATION_PENDING,
+			AutomaticTrackingUnavailableReason.PROVIDER_UNAVAILABLE).forEach { reason ->
+			automaticControlPublicationRecoveryResult(
+				AutomaticTrackingOperationalAvailability.Unavailable(reason),
+			) shouldBe AutomaticControlRecoveryResult.RETRYABLE
+		}
+		listOf(AutomaticTrackingUnavailableReason.TRANSITION_DETECTION_DISABLED,
+			AutomaticTrackingUnavailableReason.PERMISSION_REQUIRED,
+			AutomaticTrackingUnavailableReason.AUTHORITY_UNAVAILABLE).forEach { reason ->
+			automaticControlPublicationRecoveryResult(
+				AutomaticTrackingOperationalAvailability.Unavailable(reason),
+			) shouldBe AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
+		}
+	}
+
+	@Test
 	fun `settings observation retries after failure instead of ending the collector`() = runTest {
 		var subscriptions = 0
 		val failures = mutableListOf<String>()

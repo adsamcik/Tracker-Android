@@ -149,7 +149,8 @@ private sealed interface CurrentTrackingPurposeAuthorityState {
 				?: return@mapNotNull null
 			val registeredExecution = executions[sourcePurpose] ?: 0L
 			val executionRevision = registeredExecution.takeIf {
-				sourcePolicy.persistenceEligible(sourcePurpose.purpose) &&
+				(sourcePurpose.purpose == TrackingPurpose.CONTROL ||
+					sourcePolicy.persistenceEligible(sourcePurpose.purpose)) &&
 					rollout.supportsExecution(sourcePurpose)
 			} ?: 0L
 			sourcePurpose to TrackingPurposeAuthorityVector(

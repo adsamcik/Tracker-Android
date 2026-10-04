@@ -103,7 +103,7 @@ class TrackingPurposePublicationRuntimeTest {
 				),
 			)
 			val policy = MutableSourcePolicyRepository(
-				policySnapshot(revision = 12L, controlPersistenceEligible = true),
+				policySnapshot(revision = 12L, controlPersistenceEligible = false),
 			)
 			val lifecycle = MutableLifecycleStore(CollectedDataLifecycleSnapshot(3L, null))
 			val rollout = MutableRolloutStateStore(controlRollout(revision = 9L))
@@ -198,7 +198,7 @@ class TrackingPurposePublicationRuntimeTest {
 		}
 
 	@Test
-	fun `authority reader publishes exact stable revisions and masks unapproved control execution`() =
+	fun `authority reader executes temporary control without recorded product persistence`() =
 		runTest {
 			val policy = policySnapshot(revision = 12L)
 			val lifecycle = MutableLifecycleStore(CollectedDataLifecycleSnapshot(3L, null))
@@ -233,7 +233,7 @@ class TrackingPurposePublicationRuntimeTest {
 			) shouldBe authority(
 				source = TrackingSource.ACTIVITY,
 				purpose = TrackingPurpose.CONTROL,
-				executionRevision = 0L,
+				executionRevision = 8L,
 			)
 		}
 
@@ -1441,6 +1441,45 @@ class TrackingPurposePublicationRuntimeTest {
 			AmbientTrackingSource.WIFI,
 			AmbientTrackingSource.CELL,
 		)
+	}
+
+	@Test
+	fun `lost automatic consent retains cleanup ownership until physical retirement succeeds`() = runTest {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		var current: TrackingPurposeAuthoritySnapshot? = authority(TrackingSource.ACTIVITY, TrackingPurpose.CONTROL, 1L)
+		var tokens = 0
+		val issuer = SerializedTrackingPurposeLeaseIssuer(
+			TrackingPurposeAuthorityReader { sourcePurpose, revision ->
+				current?.takeIf { it.sourcePurpose == sourcePurpose }?.copy(executionRevision = revision)
+			}, store, TrackingPurposeOwnerCasTokenFactory { "lost-${++tokens}" },
+		)
+		val retention = object : RetentionAuthorityProducer by AlwaysApprovedRetentionAuthorityProducer {
+			override suspend fun reconcileLiveAmbient(source: TrackingSource): RetentionAuthorityResult =
+				RetentionAuthorityResult.Unavailable(source, RetentionAuthorityScope.LIVE_AMBIENT,
+					RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE)
+		}
+		val runtime = DefaultTrackingPurposePublicationRuntime(issuer, store,
+			TrackingPurposeExecutionRevisionRegistry(), retention,
+			ownerCallbackScope = backgroundScope)
+		var cleanupComplete = false
+		val cleaned = mutableListOf<TrackingPurposeLeaseIdentity>()
+		runtime.registerAutomaticControlOwner(1L, object : com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationCallback {
+			override suspend fun reconcile(lease: com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationLease) =
+				AutomaticTrackingOperationalAvailability.Ready(lease.identity)
+			override suspend fun compensate(lease: com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationLease): Boolean {
+				cleaned += lease.identity
+				return cleanupComplete
+			}
+		})
+		val original = requireNotNull(issuer.currentAutomaticControlLease())
+		current = null
+		runtime.reconcileCurrentSettings().shouldBeInstanceOf<TrackingPurposeSettingsReconciliationResult.Debt>()
+		issuer.currentAutomaticControlLease() shouldBe original
+		store.availability.value.automaticControl.isOperational shouldBe false
+		cleanupComplete = true
+		runtime.reconcileCurrentSettings().shouldBeInstanceOf<TrackingPurposeSettingsReconciliationResult.Complete>()
+		issuer.currentAutomaticControlLease() shouldBe null
+		cleaned shouldBe listOf(original.identity, original.identity)
 	}
 
 	private fun fixture(

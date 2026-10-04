@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 enum class AutomaticTrackingUnavailableReason(
 	val stableCode: String,
-	val containmentReason: TrackingDecisionContainmentReason,
+	val containmentReason: TrackingDecisionContainmentReason? = null,
 ) {
 	AUTO_005_CONTROL_EVIDENCE_UNRESOLVED(
 		"AUTO_005_CONTROL_EVIDENCE_UNRESOLVED",
@@ -18,6 +18,11 @@ enum class AutomaticTrackingUnavailableReason(
 		"CONTROL_RETENTION_POLICY_UNAVAILABLE",
 		TrackingDecisionContainmentReason.RETENTION_AUTHORITY_UNAVAILABLE,
 	),
+	TRANSITION_DETECTION_DISABLED("TRANSITION_DETECTION_DISABLED"),
+	PERMISSION_REQUIRED("PERMISSION_REQUIRED"),
+	PROVIDER_UNAVAILABLE("PROVIDER_UNAVAILABLE"),
+	REGISTRATION_PENDING("REGISTRATION_PENDING"),
+	AUTHORITY_UNAVAILABLE("AUTHORITY_UNAVAILABLE"),
 }
 
 sealed interface AutomaticTrackingOperationalAvailability {
@@ -715,8 +720,8 @@ fun interface AmbientSourceReconciliationCallback {
 
 fun interface AutomaticControlReconciliationCallback {
 	/**
-	 * Returns status for one exact Activity CONTROL lease. Until AUTO-005 is resolved, production
-	 * reconciliation remains [AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE].
+	 * Registers and reports one exact Activity CONTROL lease. Ready requires an accepted physical
+	 * registration; temporary control evidence is independently expired after 48 hours.
 	 */
 	suspend fun reconcile(
 		lease: AutomaticControlReconciliationLease,

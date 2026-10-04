@@ -26,6 +26,31 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class RoomSourcePolicyRepositoryTest {
+	@Test
+	fun `Steps alone can authorize temporary automatic control without Activity capture or epoch churn`() = runTest {
+		val settings = readySettings().copy(locationEnabled = false, activityEnabled = false,
+			stepsEnabled = true, barometerEnabled = false, autoTrackingMode = 2,
+			sourceCollectionSettings = SourceCollectionSettings(location = SourceCollectionFrequency.OFF,
+				activity = SourceCollectionFrequency.OFF, steps = SourceCollectionFrequency.BALANCED,
+				pressure = SourceCollectionFrequency.OFF, wifi = SourceCollectionFrequency.OFF,
+				cell = SourceCollectionFrequency.OFF))
+		val original = repository.bootstrapFromLegacy(settings)
+		original[TrackingSourceComponent.STEPS].enabled shouldBe true
+		original[TrackingSourceComponent.ACTIVITY].enabled shouldBe false
+		original[TrackingSourceComponent.LOCATION].enabled shouldBe false
+		val control = original[TrackingSourceComponent.ACTIVITY]
+		control.controlConsentEpoch shouldBe 1L
+		control.controlPersistenceEligible shouldBe false
+		val quality = repository.replaceCaptureSettings(original.revision,
+			settings.copy(overallBalanceLevel = 5, balanceProfileVersion = 1,
+				locationProfileVersion = 1, locationBalanceLevel = 5), "QUALITY")
+		quality[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe control.controlConsentEpoch
+		quality[TrackingSourceComponent.ACTIVITY].controlPersistenceEligible shouldBe false
+		database.sourcePolicyDao().policiesAtRevision(original.revision)
+			.first { it.sourceKind == TrackingSourceComponent.ACTIVITY.stableCode }
+			.controlPersistenceEligible shouldBe false
+	}
+
 	private lateinit var database: AppDatabase
 	private lateinit var repository: RoomSourcePolicyRepository
 	private var elapsedNanos = 100L

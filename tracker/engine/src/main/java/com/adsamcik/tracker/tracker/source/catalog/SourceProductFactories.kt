@@ -194,6 +194,10 @@ enum class SourcePortableUnsupportedReason {
 }
 
 sealed interface SourceRetentionContract {
+	/** Temporary automatic-start evidence; never a recorded Activity product. */
+	data object ActivityControl : SourceRetentionContract {
+		val maximumAgeNanos = com.adsamcik.tracker.shared.base.database.ACTIVITY_CONTROL_RETENTION_NANOS
+	}
 	data class SessionCapture(
 		val portableImportScope: RetentionAuthorityScope?,
 	) : SourceRetentionContract
@@ -327,9 +331,7 @@ sealed interface SourceProductBinding {
 	data object ActivityControl : SourceProductBinding {
 		override val source = TrackingSource.ACTIVITY
 		override val purpose = TrackingPurpose.CONTROL
-		override val capability = SourceProductCapability.Contained(
-			TrackingDecisionContainmentReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
-		)
+		override val capability = SourceProductCapability.Dormant
 		override val writer = SourceWriterContract.NotApplicable(
 			SourceWriterUnsupportedReason.CONTROL_HAS_NO_PRODUCT_WRITER,
 		)
@@ -346,9 +348,7 @@ sealed interface SourceProductBinding {
 		override val portable = SourcePortableContract.Unsupported(
 			SourcePortableUnsupportedReason.CONTROL_EVIDENCE_IS_NOT_PORTABLE,
 		)
-		override val retention = SourceRetentionContract.Contained(
-			TrackingDecisionContainmentReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
-		)
+		override val retention = SourceRetentionContract.ActivityControl
 	}
 
 	data object LocationAmbient : SourceProductBinding {

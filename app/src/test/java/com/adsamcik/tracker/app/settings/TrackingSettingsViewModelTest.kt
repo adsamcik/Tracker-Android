@@ -1272,6 +1272,33 @@ class TrackingSettingsViewModelTest {
 				io.mockk.verify { activityWatcherController.applyAutoTrackingMode(0) }
 			}
 
+		@Test
+		fun `automatic permission repair remains visible before owner can publish Ready`() = runTest(testDispatcher) {
+			permissionsGranted = false
+			paramsFlow.value = paramsFlow.value.copy(autoTrackingMode = 2)
+			val vm = createViewModel()
+			advanceUntilIdle()
+			vm.uiState.value.autoTrackingMode shouldBe 2
+			vm.uiState.value.automaticTrackingPermissionRequired shouldBe true
+			vm.uiState.value.automaticTrackingOperational shouldBe false
+		}
+
+		@Test
+		fun `stale Ready cannot conceal disabled transition detection`() = runTest(testDispatcher) {
+			paramsFlow.value = paramsFlow.value.copy(autoTrackingMode = 2, transitionDetectionEnabled = false)
+			val control = purposeIdentity(TrackingSource.ACTIVITY, TrackingPurpose.CONTROL,
+				collectedDataEpoch = 3L, rolloutRevision = 9L)
+			purposeAvailabilityFlow.value = CurrentTrackingPurposeAvailability(
+				published = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.copy(
+					automaticControl = AutomaticTrackingOperationalAvailability.Ready(control)),
+				currentAuthorities = mapOf(control.sourcePurpose to control.toAuthorityVector()))
+			val vm = createViewModel()
+			advanceUntilIdle()
+			vm.uiState.value.transitionDetectionEnabled shouldBe false
+			vm.uiState.value.automaticTrackingOperational shouldBe false
+			vm.uiState.value.autoTrackingMode shouldBe 2
+		}
+
         @Test
         fun `granted auto tracking permission preserves the choice saved before launch`() = runTest(testDispatcher) {
             val vm = createViewModel()

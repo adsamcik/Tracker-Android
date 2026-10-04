@@ -447,9 +447,7 @@ class DefaultSourceImplementationCatalogTest {
 			TrackingPurpose.CONTROL,
 		) as SourcePurposeBinding.Executable
 		control.activationDefault shouldBe SourceActivationDefault.CONTROL_OFF
-		control.products.capability shouldBe SourceProductCapability.Contained(
-			TrackingDecisionContainmentReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
-		)
+		control.products.capability shouldBe SourceProductCapability.Dormant
 		control.products.writer shouldBe SourceWriterContract.NotApplicable(
 			SourceWriterUnsupportedReason.CONTROL_HAS_NO_PRODUCT_WRITER,
 		)
@@ -654,9 +652,7 @@ class DefaultSourceImplementationCatalogTest {
 			key(TrackingSource.CELL, TrackingPurpose.SESSION_CAPTURE) to
 				portableSessionRetention,
 			key(TrackingSource.ACTIVITY, TrackingPurpose.CONTROL) to
-				SourceRetentionContract.Contained(
-					TrackingDecisionContainmentReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
-				),
+				SourceRetentionContract.ActivityControl,
 			key(TrackingSource.LOCATION, TrackingPurpose.AMBIENT_PRODUCT) to
 				SourceRetentionContract.Ambient(
 					RetentionAuthorityScope.LIVE_AMBIENT,

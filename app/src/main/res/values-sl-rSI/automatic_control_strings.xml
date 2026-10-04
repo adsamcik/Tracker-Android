@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automatic_control_enable_transitions">Omogoči zaznavanje gibanja</string>
+    <string name="automatic_control_enable_transitions_summary">Samodejni začetek zahteva zaznavanje gibanja.</string>
+    <string name="automatic_control_provider_unavailable_summary">Samodejni začetek zahteva podprto storitev prepoznavanja dejavnosti.</string>
+    <string name="automatic_control_pending_summary">Samodejni začetek ni pripravljen. Preverite izbire sledenja in dovoljenja.</string>
+</resources>

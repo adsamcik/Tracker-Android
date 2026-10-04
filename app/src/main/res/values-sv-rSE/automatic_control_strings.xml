@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automatic_control_enable_transitions">Aktivera rörelsedetektering</string>
+    <string name="automatic_control_enable_transitions_summary">Automatisk start kräver rörelsedetektering.</string>
+    <string name="automatic_control_provider_unavailable_summary">Automatisk start kräver en tjänst för aktivitetsigenkänning som stöds.</string>
+    <string name="automatic_control_pending_summary">Automatisk start är inte redo. Kontrollera dina spårningsval och behörigheter.</string>
+</resources>

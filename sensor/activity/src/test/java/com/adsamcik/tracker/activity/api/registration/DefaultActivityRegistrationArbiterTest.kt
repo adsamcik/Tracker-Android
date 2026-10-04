@@ -679,6 +679,63 @@ class DefaultActivityRegistrationArbiterTest {
 	}
 
 	@Test
+	fun `cold clear removes persisted automatic handle without rearming it`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		val started = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+		val identity = requireNotNull(started.snapshot.identity)
+		appScope.cancel()
+		database.sourceBrokerDao().retireConsumer("app:auto", "boot-1", 200L, 200L)
+		// Keep the startup observer queued: this proves the explicit negative call owns cleanup.
+		appScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+		subject = createSubject(appScope)
+
+		val cleared = subject.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+
+		cleared.status shouldBe ActivityRegistrationStatus.APPLIED
+		cleared.snapshot.active shouldBe false
+		removedIdentities shouldBe listOf(identity)
+		coVerify(exactly = 1) { backend.applyRegistration(any(), any()) }
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
+			?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRED
+	}
+
+	@Test
+	fun `cold clear reports removal debt until persisted provider handle is acknowledged`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		val started = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+		val identity = requireNotNull(started.snapshot.identity)
+		appScope.cancel()
+		database.sourceBrokerDao().retireConsumer("app:auto", "boot-1", 200L, 200L)
+		appScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+		subject = createSubject(appScope)
+		coEvery { backend.removeRegistration(identity) } throws IllegalStateException("removal pending")
+
+		val pending = subject.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+
+		pending.status shouldBe ActivityRegistrationStatus.DEGRADED
+		pending.snapshot.active shouldBe false
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
+			?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRING
+		coEvery { backend.removeRegistration(identity) } coAnswers { removedIdentities += identity }
+		val acknowledged = subject.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+		acknowledged.status shouldBe ActivityRegistrationStatus.APPLIED
+		removedIdentities shouldBe listOf(identity)
+		coVerify(exactly = 1) { backend.applyRegistration(any(), any()) }
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
+			?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRED
+	}
+
+	@Test
 	fun `containment between provider reserve and durable accept removes and fails reservation`() = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),

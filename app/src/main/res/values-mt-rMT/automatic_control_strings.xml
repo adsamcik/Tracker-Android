@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automatic_control_enable_transitions">Attiva s-sejbien tal-moviment</string>
+    <string name="automatic_control_enable_transitions_summary">Il-bidu awtomatiku jeħtieġ is-sejbien tal-moviment.</string>
+    <string name="automatic_control_provider_unavailable_summary">Il-bidu awtomatiku jeħtieġ servizz appoġġjat ta’ rikonoxximent tal-attività.</string>
+    <string name="automatic_control_pending_summary">Il-bidu awtomatiku mhux lest. Iċċekkja l-għażliet tat-traċċar u l-permessi.</string>
+</resources>

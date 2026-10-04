@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automatic_control_enable_transitions">启用运动检测</string>
+    <string name="automatic_control_enable_transitions_summary">自动开始需要运动检测。</string>
+    <string name="automatic_control_provider_unavailable_summary">自动开始需要受支持的活动识别服务。</string>
+    <string name="automatic_control_pending_summary">自动开始尚未就绪。请检查跟踪选择和权限。</string>
+</resources>

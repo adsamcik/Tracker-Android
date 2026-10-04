@@ -1,0 +1,2154 @@
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/TrackingPurposePublicationRuntime.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/TrackingPurposePublicationRuntime.kt
+@@ -232,7 +232,8 @@
+ 		}
+ 		val rollout = rolloutStateStore.load()
+ 		val executionRevision = registeredExecutionRevision.takeIf {
+-			policy.persistenceEligible(sourcePurpose.purpose) &&
++			(sourcePurpose.purpose == TrackingPurpose.CONTROL ||
++				policy.persistenceEligible(sourcePurpose.purpose)) &&
+ 				rollout.supportsExecution(sourcePurpose)
+ 		} ?: 0L
+ 		return TrackingPurposeAuthoritySnapshot(
+@@ -272,7 +273,7 @@
+ 		val authority = readAuthority(sourcePurpose, executionRevision)
+ 		if (authority == null) {
+ 			reporter.invalidateAutomaticControl()
+-			automaticIdentity = null
++			// Retain the exact cleanup token until its physical owner acknowledges retirement.
+ 			automaticInFlight = false
+ 			return@withLock AutomaticLeaseRefresh.Rejected
+ 		}
+@@ -503,6 +504,7 @@
+ 	private val ownerCallbackTimeoutMillis: Long = SOURCE_OWNER_CALLBACK_TIMEOUT_MILLIS,
+ 	private val retryScheduler: TrackingPurposeReconciliationRetryScheduler? = null,
+ 	private val ambientLocationPurposeOwnerProvider: Provider<AmbientLocationPurposeOwner>? = null,
++	private val automaticControlPurposeOwnerProvider: Provider<DefaultAutomaticControlPurposeOwner>? = null,
+ ) : TrackingPurposeSettingsReconciler,
+ 	TrackingPurposeSourceOwnerRegistrar,
+ 	TrackingRetentionFloorReconciler,
+@@ -521,6 +523,7 @@
+ 		@ApplicationScope ownerCallbackScope: CoroutineScope,
+ 		retryScheduler: TrackingPurposeReconciliationRetryScheduler,
+ 		ambientLocationPurposeOwnerProvider: Provider<AmbientLocationPurposeOwner>,
++		automaticControlPurposeOwnerProvider: Provider<DefaultAutomaticControlPurposeOwner>,
+ 	) : this(
+ 		leaseIssuer,
+ 		reporter,
+@@ -534,6 +537,7 @@
+ 		SOURCE_OWNER_CALLBACK_TIMEOUT_MILLIS,
+ 		retryScheduler,
+ 		ambientLocationPurposeOwnerProvider,
++		automaticControlPurposeOwnerProvider,
+ 	)
+ 
+ 	private val ownerMutex = Mutex()
+@@ -606,6 +610,7 @@
+ 
+ 		val reconciledSources = mutableSetOf<AmbientTrackingSource>()
+ 		val ready = withCurrentReadyGeneration { startupGeneration ->
++			ensureBuiltInAutomaticOwner()
+ 			ensureBuiltInAmbientOwners(AmbientTrackingSource.entries.toSet())
+ 			if (!reconcileAutomaticControl(startupGeneration)) {
+ 				failures += TrackingPurposeSettingsReconciliationFailure(
+@@ -658,6 +663,7 @@
+ 	private suspend fun closeAllOwners(
+ 		unavailableReason: com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason,
+ 	): TrackingPurposeSettingsReconciliationResult {
++		ensureBuiltInAutomaticOwner()
+ 		ensureBuiltInAmbientOwners(AmbientTrackingSource.entries.toSet())
+ 		val failures = mutableListOf<TrackingPurposeSettingsReconciliationFailure>()
+ 		automaticOperationMutex.withLock {
+@@ -681,7 +687,14 @@
+ 					)
+ 				}
+ 			} else {
+-				leaseIssuer.clearAutomaticControl()
++				if (retireUnownedAutomatic(owner) == OwnerCleanup.COMPLETE) {
++					leaseIssuer.clearAutomaticControl()
++				} else {
++					failures += TrackingPurposeSettingsReconciliationFailure(
++						source = null,
++						reason = TrackingPurposeSettingsReconciliationFailureReason.COMPENSATION_FAILED,
++					)
++				}
+ 			}
+ 		}
+ 		val sources = ownerMutex.withLock {
+@@ -827,6 +840,26 @@
+ 		)
+ 	}
+ 
++	private suspend fun ensureBuiltInAutomaticOwner() = ownerMutex.withLock {
++		if (automaticOwner == null && automaticControlPurposeOwnerProvider != null) {
++			val sourcePurpose = TrackingSource.ACTIVITY.forPurpose(TrackingPurpose.CONTROL)
++			val provider = automaticControlPurposeOwnerProvider
++			automaticOwner = AutomaticControlOwnerRegistration(
++				TrackingPurposeSourceOwnerRegistration(sourcePurpose, "builtin:automatic:activity"),
++				1L,
++				object : AutomaticControlReconciliationCallback {
++					override suspend fun reconcile(
++						lease: com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationLease,
++					) = provider.get().reconcile(lease)
++					override suspend fun compensate(
++						lease: com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationLease,
++					) = provider.get().compensate(lease)
++				},
++			)
++			executionRevisionRegistry.update(sourcePurpose, 1L)
++		}
++	}
++
+ 	private suspend fun ensureBuiltInAmbientOwners(
+ 		sources: Set<AmbientTrackingSource>,
+ 	) {
+@@ -1181,11 +1214,14 @@
+ 
+ 	private suspend fun reconcileAutomaticControlLocked(expectedStartupGeneration: Long?): Boolean {
+ 		val owner = ownerMutex.withLock { automaticOwner }
++		val previousLease = leaseIssuer.currentAutomaticControlLease()
+ 		val refresh = leaseIssuer.refreshAutomaticControl(owner?.executionRevision ?: 0L)
+ 		val lease = when (refresh) {
+ 			is AutomaticLeaseRefresh.Issued -> refresh.lease
+ 			is AutomaticLeaseRefresh.InProgress -> refresh.lease
+-			AutomaticLeaseRefresh.Rejected -> return true
++			AutomaticLeaseRefresh.Rejected -> return if (owner != null && previousLease != null) {
++				compensateAndCancelAutomatic(owner, previousLease) == OwnerCleanup.COMPLETE
++			} else retireUnownedAutomatic(owner) == OwnerCleanup.COMPLETE
+ 		}
+ 		executionRevisionRegistry.bind(lease.identity)
+ 		if (!isCurrentAutomaticOwner(owner)) {
+@@ -1647,6 +1683,14 @@
+ 			clearAutomaticOwnerFlight(lease.identity)
+ 		}
+ 		cleanup
++	}
++
++	private suspend fun retireUnownedAutomatic(owner: AutomaticControlOwnerRegistration?): OwnerCleanup {
++		val provider = automaticControlPurposeOwnerProvider ?: return OwnerCleanup.COMPLETE
++		if (owner?.registration?.registrationId != "builtin:automatic:activity") return OwnerCleanup.COMPLETE
++		return runBoundedCleanup(
++			OwnerCleanupKey("ACTIVITY_CONTROL", owner.registration.registrationId, OwnerCleanupPurpose.COMPENSATION),
++		) { provider.get().retireWhenUnowned() }
+ 	}
+ 
+ 	private suspend fun runBoundedAutomaticOwnerCall(
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/AutomaticStartTransitionMonitor.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/AutomaticStartTransitionMonitor.kt
+@@ -86,14 +86,12 @@
+ 		}
+ 		return when (guardedMutation) {
+ 			is AmbientRadioLeaseMutation.Applied -> guardedMutation.value
+-			AmbientRadioLeaseMutation.Stale -> withContext(NonCancellable) {
+-				compensateRejectedActivation(
+-					boundaryBootId,
+-					elapsedRealtimeNanos,
+-					boundaryWallTimeMs,
+-					desiredLatencyMs,
+-				)
+-			}
++			// This caller never entered the mutation. Cleanup could remove a successor's demand.
++			AmbientRadioLeaseMutation.Stale -> ActivityRegistrationResult(
++				ActivityRegistrationStatus.BLOCKED,
++				arbiter.snapshot(),
++				ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND,
++			)
+ 		}
+ 	}
+ 
+--- /dev/null
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/DefaultAutomaticControlPurposeOwner.kt
+@@ -0,0 +1,138 @@
++package com.adsamcik.tracker.tracker.source.runtime
++
++import android.content.Context
++import com.adsamcik.tracker.activity.ActivityTransitionData
++import com.adsamcik.tracker.stats.api.DetectedActivityType
++import com.adsamcik.tracker.activity.ActivityTransitionType
++import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationFailureCode
++import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationOwner
++import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
++import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
++import com.adsamcik.tracker.shared.base.data.GroupedActivity
++import com.adsamcik.tracker.shared.preferences.Preferences
++import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
++import com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationCallback
++import com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationLease
++import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
++import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
++import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
++import com.adsamcik.tracker.tracker.controller.LockManager
++import com.adsamcik.tracker.tracker.source.catalog.AndroidActivityRecognitionSourceStateProvider
++import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
++import com.adsamcik.tracker.tracker.source.projection.ActivityControlRetentionMaintenance
++import dagger.hilt.android.qualifiers.ApplicationContext
++import javax.inject.Inject
++import javax.inject.Singleton
++import kotlinx.coroutines.flow.first
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
++
++/** The existing Activity owner executes automatic control only during its exact purpose flight. */
++@Singleton
++@Suppress("LongParameterList")
++internal class DefaultAutomaticControlPurposeOwner @Inject constructor(
++	@ApplicationContext private val context: Context,
++	private val paramsRepository: TrackingParamsRepository,
++	private val stateProvider: AndroidActivityRecognitionSourceStateProvider,
++	private val lockManager: LockManager,
++	private val monitor: AutomaticStartTransitionMonitor,
++	private val epochAuthority: ActivityAutomationEpochAuthority,
++	private val retentionMaintenance: ActivityControlRetentionMaintenance,
++) : AutomaticControlReconciliationCallback {
++	private val mutex = Mutex()
++	private var ownedIdentity: TrackingPurposeLeaseIdentity? = null
++
++	override suspend fun reconcile(
++		lease: AutomaticControlReconciliationLease,
++	): AutomaticTrackingOperationalAvailability = mutex.withLock {
++		ownedIdentity = lease.identity
++		// Settings and WorkManager can arrive before the module initializer. Await the same restore.
++		lockManager.initializeFromPersistence(context)
++		val params = paramsRepository.data.first()
++		val state = stateProvider.snapshot()
++		val blocked = when {
++			params.sourcePolicyRevision != lease.identity.policyRevision || params.autoTrackingMode <= 0 ||
++				lease.identity.executionRevision <= 0L -> AutomaticTrackingUnavailableReason.AUTHORITY_UNAVAILABLE
++			!params.transitionDetectionEnabled -> AutomaticTrackingUnavailableReason.TRANSITION_DETECTION_DISABLED
++			!state.permissionGranted -> AutomaticTrackingUnavailableReason.PERMISSION_REQUIRED
++			!state.providerAvailable -> AutomaticTrackingUnavailableReason.PROVIDER_UNAVAILABLE
++			else -> null
++		}
++		if (blocked != null) return@withLock unavailableAfterRetirement(lease, blocked)
++		if (retentionMaintenance.pruneDue()) return@withLock unavailableAfterRetirement(
++			lease, AutomaticTrackingUnavailableReason.REGISTRATION_PENDING,
++		)
++		// Suppression is stamped before registration; locked/power-saving callbacks cannot start.
++		epochAuthority.currentForValidation()
++		val frequency = Preferences(context).fetchIntStringKey(
++			context.getString(com.adsamcik.tracker.activity.R.string.settings_activity_freq_key),
++			context.getString(com.adsamcik.tracker.activity.R.string.settings_activity_freq_default).toInt(),
++		)
++		val registration = monitor.reconcile(
++			enabled = true,
++			useTransitionApi = true,
++			continuousIntervalSeconds = frequency,
++			transitions = automaticStartTransitions(params.autoTrackingMode),
++			// This is private in-flight authority. Public Ready is published only after acceptance.
++			controlAvailability = AutomaticTrackingOperationalAvailability.Ready(lease.identity),
++		)
++		if (registration.acceptedControl()) AutomaticTrackingOperationalAvailability.Ready(lease.identity)
++		else unavailableAfterRetirement(lease, registration.unavailableReason())
++	}
++
++	override suspend fun compensate(lease: AutomaticControlReconciliationLease): Boolean = mutex.withLock {
++		// A delayed loser cannot retire a newer purpose activation.
++		if (ownedIdentity != null && ownedIdentity != lease.identity) return@withLock true
++		val retired = retire(lease.identity)
++		if (retired) ownedIdentity = null
++		retired
++	}
++
++	/** Cold recovery has no process-local lease, but the system may retain the old request. */
++	internal suspend fun retireWhenUnowned(): Boolean = mutex.withLock {
++		// A timed-out cleanup may acquire the mutex after a successor has already activated.
++		if (ownedIdentity != null) return@withLock false
++		retire(null)
++	}
++
++	private suspend fun unavailableAfterRetirement(
++		lease: AutomaticControlReconciliationLease,
++		reason: AutomaticTrackingUnavailableReason,
++	): AutomaticTrackingOperationalAvailability.Unavailable {
++		check(retire(lease.identity)) { "Automatic Activity cleanup is pending" }
++		return AutomaticTrackingOperationalAvailability.Unavailable(reason, lease.identity)
++	}
++
++	private suspend fun retire(identity: TrackingPurposeLeaseIdentity?): Boolean {
++		val result = monitor.reconcile(false, false, 1, emptySet(),
++			AutomaticTrackingOperationalAvailability.Unavailable(
++				AutomaticTrackingUnavailableReason.AUTHORITY_UNAVAILABLE, identity,
++			))
++		return result.status == ActivityRegistrationStatus.APPLIED &&
++			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR !in result.snapshot.owners
++	}
++}
++
++private fun ActivityRegistrationResult.acceptedControl(): Boolean =
++	status in setOf(ActivityRegistrationStatus.APPLIED, ActivityRegistrationStatus.DEGRADED) &&
++		snapshot.active && ActivityRegistrationOwner.AUTOMATIC_START_MONITOR in snapshot.owners
++
++private fun ActivityRegistrationResult.unavailableReason(): AutomaticTrackingUnavailableReason = when (failureCode) {
++	ActivityRegistrationFailureCode.PERMISSION_MISSING -> AutomaticTrackingUnavailableReason.PERMISSION_REQUIRED
++	ActivityRegistrationFailureCode.PROVIDER_UNAVAILABLE -> AutomaticTrackingUnavailableReason.PROVIDER_UNAVAILABLE
++	else -> AutomaticTrackingUnavailableReason.REGISTRATION_PENDING
++}
++
++/** Preserves the existing automatic-mode transition set; continuous samples never trigger starts. */
++internal fun automaticStartTransitions(requiredActivityId: Int): Set<ActivityTransitionData> = buildSet {
++	if (requiredActivityId >= GroupedActivity.IN_VEHICLE.ordinal) {
++		add(ActivityTransitionData(DetectedActivityType.IN_VEHICLE, ActivityTransitionType.ENTER))
++		add(ActivityTransitionData(DetectedActivityType.ON_BICYCLE, ActivityTransitionType.ENTER))
++	}
++	if (requiredActivityId >= GroupedActivity.ON_FOOT.ordinal) {
++		add(ActivityTransitionData(DetectedActivityType.ON_FOOT, ActivityTransitionType.ENTER))
++		add(ActivityTransitionData(DetectedActivityType.RUNNING, ActivityTransitionType.ENTER))
++		add(ActivityTransitionData(DetectedActivityType.WALKING, ActivityTransitionType.ENTER))
++	}
++	if (isNotEmpty()) add(ActivityTransitionData(DetectedActivityType.STILL, ActivityTransitionType.ENTER))
++}
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt
+@@ -8,7 +8,6 @@
+ import android.content.pm.PackageManager
+ import android.os.Build
+ import androidx.annotation.MainThread
+-import com.adsamcik.tracker.activity.ActivityTransitionData
+ import com.adsamcik.tracker.activity.ActivityTransitionType
+ import com.adsamcik.tracker.activity.api.backend.ActivityUpdate
+ import com.adsamcik.tracker.activity.api.backend.ActivityUpdateSource
+@@ -45,7 +44,6 @@
+ import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
+ import com.adsamcik.tracker.tracker.R
+ import com.adsamcik.tracker.tracker.service.ActivityWatcherController
+-import com.adsamcik.tracker.tracker.source.runtime.AutomaticStartTransitionMonitor
+ import com.adsamcik.tracker.tracker.source.runtime.SharedStepSourceController
+ import com.adsamcik.tracker.tracker.source.model.SourceKind
+ import com.adsamcik.tracker.tracker.service.ForegroundSourceCapabilities
+@@ -82,7 +80,6 @@
+ import kotlinx.coroutines.flow.asStateFlow
+ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.withContext
+-import kotlinx.coroutines.withTimeoutOrNull
+ 
+ /**
+  * Hilt EntryPoint for accessing dependencies from BackgroundTrackingApi singleton
+@@ -90,7 +87,6 @@
+ @EntryPoint
+ @InstallIn(SingletonComponent::class)
+ interface BackgroundTrackingApiEntryPoint {
+-	fun automaticStartTransitionMonitor(): AutomaticStartTransitionMonitor
+ 	fun sharedStepSourceController(): SharedStepSourceController
+ 	fun lockManager(): LockManager
+ 	fun trackerStateReader(): TrackerStateReader
+@@ -102,6 +98,7 @@
+ 	fun trackingRolloutStateStore(): RoomTrackingRolloutStateStore
+ 	fun currentTrackingPurposeAvailabilityReader(): CurrentTrackingPurposeAvailabilityReader
+ 	fun trackingPurposeSettingsReconciler(): TrackingPurposeSettingsReconciler
++	fun trackingPurposeAvailabilityReader(): TrackingPurposeAvailabilityReader
+ }
+ 
+ /** WorkManager disposition for restoring the optional automatic Activity control registration. */
+@@ -147,17 +144,11 @@
+ 
+ 	private const val DEFAULT_ACTIVITY_FREQ_SECONDS = 10
+ 	private const val SOURCE_POLICY_RETRY_DELAY_MILLIS = 250L
+-	private const val AUTOMATIC_CONTAINMENT_MAX_RETRY_DELAY_MILLIS = 30_000L
+-	private const val AUTOMATIC_USER_STOP_TIMEOUT_MS = 20_000L
+ 	@Volatile
+ 	private var currentPurposeAvailability = CurrentTrackingPurposeAvailability.SAFE_DEFAULT
+ 	@Volatile
+ 	private var automaticControlAvailability =
+ 		currentPurposeAvailability.automaticControl
+-	private var handledAutomaticContainmentKey: AutomaticControlContainmentKey? = null
+-	private var pendingAutomaticContainmentKey: AutomaticControlContainmentKey? = null
+-	private var automaticContainmentJob: Job? = null
+-	private var automaticContainmentGeneration = 0L
+ 	/** Allows a contradictory automatic-activity update to be corrected before a terminal stop. */
+ 	private const val AUTOMATIC_STOP_GRACE_MILLIS = 30_000L
+ 	private var appContext: Context? = null
+@@ -460,154 +451,39 @@
+ 		groupedActivity: GroupedActivity,
+ 	): Boolean = canContinueWithParams(groupedActivity, cachedParamsSnapshot().autoTrackingMode)
+ 
+-	private fun buildTransitions(): List<ActivityTransitionData> {
+-		val transitions = mutableListOf<ActivityTransitionData>()
+-		val requiredActivityId = cachedParamsSnapshot().autoTrackingMode
+-
+-		if (requiredActivityId >= GroupedActivity.IN_VEHICLE.ordinal) {
+-			transitions.add(
+-				ActivityTransitionData(
+-					DetectedActivityType.IN_VEHICLE,
+-					ActivityTransitionType.ENTER
+-				)
+-			)
+-			transitions.add(
+-				ActivityTransitionData(
+-					DetectedActivityType.ON_BICYCLE,
+-					ActivityTransitionType.ENTER
+-				)
+-			)
+-		}
+-
+-		if (requiredActivityId >= GroupedActivity.ON_FOOT.ordinal) {
+-			transitions.add(
+-				ActivityTransitionData(DetectedActivityType.ON_FOOT, ActivityTransitionType.ENTER)
+-			)
+-			transitions.add(
+-				ActivityTransitionData(DetectedActivityType.RUNNING, ActivityTransitionType.ENTER)
+-			)
+-			transitions.add(
+-				ActivityTransitionData(DetectedActivityType.WALKING, ActivityTransitionType.ENTER)
+-			)
+-		}
+-
+-		if (transitions.isNotEmpty()) {
+-			transitions.add(
+-				ActivityTransitionData(DetectedActivityType.STILL, ActivityTransitionType.ENTER)
+-			)
+-		}
+-
+-		return transitions
+-	}
+-
+ 	private fun reinitializeRequest(
+ 		context: Context,
+-		useTransitionApi: Boolean,
+ 		recoveryCompletion: CompletableDeferred<AutomaticControlRecoveryResult>? = null,
+-		hadActiveRegistration: Boolean = isActive,
+ 	) {
+ 		val generation = ++requestMutationGeneration
+-		val monitor = getEntryPoint(context).automaticStartTransitionMonitor()
+-		val watcherController = getWatcherController(context)
+ 		enqueueRequestMutation {
+-			var recoveryResult = AutomaticControlRecoveryResult.RETRYABLE
+-			var hasUsableActivityRegistration = hadActiveRegistration
++			var result = AutomaticControlRecoveryResult.RETRYABLE
+ 			try {
+-				val result = monitor.reconcile(
+-					enabled = true,
+-					useTransitionApi = useTransitionApi,
+-					continuousIntervalSeconds = activityFreqSeconds,
+-					transitions = buildTransitions().toSet(),
+-					controlAvailability = automaticControlAvailability,
+-				)
+-				recoveryResult = automaticControlRecoveryResult(result)
+-				check(recoveryResult == AutomaticControlRecoveryResult.ACCEPTED) {
+-					"Unable to arm background activity recognition request: ${result.failureCode}"
++				if (generation != requestMutationGeneration) return@enqueueRequestMutation
++				retireLegacyStepAutomaticControl(context)
++				val entryPoint = getEntryPoint(context)
++				val reconciliation = entryPoint.trackingPurposeSettingsReconciler().reconcileCurrentSettings()
++				if (automaticReconciliationCompleted(reconciliation)) {
++					// The owner already registered under its in-flight lease. Do not activate it again.
++					result = automaticControlPublicationRecoveryResult(
++						entryPoint.trackingPurposeAvailabilityReader().availability.value.automaticControl,
++					)
+ 				}
+-				hasUsableActivityRegistration = true
+-				if (generation != requestMutationGeneration || !isActive) {
+-					recoveryResult = if (isActive) {
+-						AutomaticControlRecoveryResult.RETRYABLE
+-					} else {
+-						AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
+-					}
+-					return@enqueueRequestMutation
++				if (generation == requestMutationGeneration) {
++					applyAutomaticControlAvailability(entryPoint.currentTrackingPurposeAvailabilityReader().availability.value)
++					getWatcherController(context).poke()
+ 				}
+-
+-				// Automatic start is Activity-owned. Retire any durable Steps control left by an older
+-				// build before considering the registration reconciled.
+-				retireLegacyStepAutomaticControl(context)
+-				recognitionUpdatesJob?.cancel()
+-				recognitionUpdatesJob = null
+-				watcherController.poke()
+-			} catch (exception: CancellationException) {
+-				recoveryCompletion?.cancel(exception)
+-				throw exception
+-			} catch (exception: Exception) {
+-				if (recoveryResult == AutomaticControlRecoveryResult.ACCEPTED) {
+-					recoveryResult = AutomaticControlRecoveryResult.RETRYABLE
++				if (result == AutomaticControlRecoveryResult.RETRYABLE && recoveryCompletion == null) {
++					entryPoint.automaticControlRecoveryScheduler().enqueue()
+ 				}
+-				val retainExistingRegistration =
+-					shouldRetainAutomaticControlAfterReinitializeFailure(
+-						hasUsableRegistration = hasUsableActivityRegistration,
+-						recoveryResult = recoveryResult,
+-					)
+-				if (generation == requestMutationGeneration && isActive && !retainExistingRegistration) {
+-					isActive = false
+-					val cleanupGeneration = ++requestMutationGeneration
+-					recognitionUpdatesJob?.cancel()
+-					recognitionUpdatesJob = null
+-					try {
+-						retireLegacyStepAutomaticControl(context)
+-					} catch (cleanupFailure: CancellationException) {
+-						throw cleanupFailure
+-					} catch (cleanupFailure: Exception) {
+-						exception.addSuppressed(cleanupFailure)
+-					}
+-					var cleanupFailureAttached = false
+-					val removed = reconcileActivityRequestRemoval(
+-						shouldContinue = {
+-							cleanupGeneration == requestMutationGeneration && !isActive
+-						},
+-						onFailure = { cleanupFailure ->
+-							if (!cleanupFailureAttached) {
+-								exception.addSuppressed(cleanupFailure)
+-								cleanupFailureAttached = true
+-							}
+-						},
+-					) {
+-						val cleanup = monitor.reconcile(
+-							enabled = false,
+-							useTransitionApi = false,
+-							continuousIntervalSeconds = activityFreqSeconds,
+-							transitions = emptySet(),
+-							controlAvailability = automaticControlAvailability,
+-						)
+-						val cleanupRecoveryResult = automaticControlDisabledRecoveryResult(cleanup)
+-						if (cleanupRecoveryResult == AutomaticControlRecoveryResult.RETRYABLE) {
+-							recoveryResult = cleanupRecoveryResult
+-						}
+-						check(cleanupRecoveryResult != AutomaticControlRecoveryResult.RETRYABLE) {
+-							"Unable to clear automatic activity demand: ${cleanup.failureCode}"
+-						}
+-					}
+-					if (removed) {
+-						watcherController.poke()
+-					} else {
+-						recoveryResult = AutomaticControlRecoveryResult.RETRYABLE
+-					}
+-				}
+-				if (recoveryResult == AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED) {
+-					return@enqueueRequestMutation
+-				}
+-				if (recoveryCompletion == null) {
+-					// Desired state remains durable. The unique WorkManager owner gives optional
+-					// automatic control a small retry budget without disturbing an existing provider.
+-					getEntryPoint(context).automaticControlRecoveryScheduler().enqueue()
+-				}
+-				throw exception
++			} catch (cancelled: CancellationException) {
++				recoveryCompletion?.cancel(cancelled)
++				throw cancelled
++			} catch (failure: Exception) {
++				if (recoveryCompletion == null) getEntryPoint(context).automaticControlRecoveryScheduler().enqueue()
++				throw failure
+ 			} finally {
+-				recoveryCompletion?.complete(recoveryResult)
++				recoveryCompletion?.complete(result)
+ 			}
+ 		}
+ 	}
+@@ -632,16 +508,7 @@
+ 	private fun enable(
+ 		context: Context,
+ 		recoveryCompletion: CompletableDeferred<AutomaticControlRecoveryResult>? = null,
+-	) {
+-		val hadActiveRegistration = isActive
+-		isActive = true
+-		reinitializeRequest(
+-			context,
+-			cachedParamsSnapshot().transitionDetectionEnabled,
+-			recoveryCompletion,
+-			hadActiveRegistration,
+-		)
+-	}
++	) = reinitializeRequest(context, recoveryCompletion)
+ 
+ 	private fun disable(
+ 		context: Context,
+@@ -649,73 +516,7 @@
+ 	) {
+ 		isActive = false
+ 		cancelAutomaticStopGrace()
+-		val generation = ++requestMutationGeneration
+-
+-		val monitor = getEntryPoint(context).automaticStartTransitionMonitor()
+-		val watcherController = getWatcherController(context)
+-		enqueueRequestMutation {
+-			var recoveryResult = AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
+-			try {
+-				if (generation != requestMutationGeneration || isActive) {
+-					return@enqueueRequestMutation
+-				}
+-				recognitionUpdatesJob?.cancel()
+-				recognitionUpdatesJob = null
+-				var legacyStepRetirementFailure: Exception? = null
+-				try {
+-					retireLegacyStepAutomaticControl(context)
+-				} catch (exception: CancellationException) {
+-					throw exception
+-				} catch (exception: Exception) {
+-					legacyStepRetirementFailure = exception
+-				}
+-				val removed = reconcileActivityRequestRemoval(
+-					shouldContinue = { generation == requestMutationGeneration && !isActive },
+-				) {
+-					recoveryResult = reconcileUnavailableAutomaticControl(
+-						availability = automaticControlAvailability,
+-						reconcileDisabled = {
+-							monitor.reconcile(
+-								enabled = false,
+-								useTransitionApi = false,
+-								continuousIntervalSeconds = activityFreqSeconds,
+-								transitions = emptySet(),
+-								controlAvailability = automaticControlAvailability,
+-							)
+-						},
+-					) ?: automaticControlDisabledRecoveryResult(
+-						monitor.reconcile(
+-							enabled = false,
+-							useTransitionApi = false,
+-							continuousIntervalSeconds = activityFreqSeconds,
+-							transitions = emptySet(),
+-							controlAvailability = automaticControlAvailability,
+-						),
+-					)
+-					check(recoveryResult != AutomaticControlRecoveryResult.RETRYABLE) {
+-						"Unable to clear automatic activity demand"
+-					}
+-				}
+-				legacyStepRetirementFailure?.let { throw it }
+-				recoveryResult = if (removed || generation != requestMutationGeneration || isActive) {
+-					AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
+-				} else {
+-					AutomaticControlRecoveryResult.RETRYABLE
+-				}
+-				if (removed) watcherController.poke()
+-			} catch (exception: CancellationException) {
+-				recoveryCompletion?.cancel(exception)
+-				throw exception
+-			} catch (exception: Exception) {
+-				recoveryResult = AutomaticControlRecoveryResult.RETRYABLE
+-				if (recoveryCompletion == null) {
+-					getEntryPoint(context).automaticControlRecoveryScheduler().enqueue()
+-				}
+-				throw exception
+-			} finally {
+-				recoveryCompletion?.complete(recoveryResult)
+-			}
+-		}
++		reinitializeRequest(context, recoveryCompletion)
+ 	}
+ 
+ 	private fun enqueueRequestMutation(block: suspend () -> Unit) {
+@@ -870,7 +671,7 @@
+ 			activityFreqSeconds = frequencySeconds
+ 			if (changed && isActive) {
+ 				if (entryPoint.trackingStartupGate().permitsNewCollection) {
+-					reinitializeRequest(ctx, cachedParamsSnapshot().transitionDetectionEnabled)
++					reinitializeRequest(ctx)
+ 				} else {
+ 					disable(ctx)
+ 				}
+@@ -941,14 +742,15 @@
+ 
+ 	/** Retires the legacy Android Activity request for an explicit all-source stop. */
+ 	suspend fun stopAutomaticControlForUser(context: Context): Boolean {
+-		val ctx = context.applicationContext
+ 		val mainImmediate = (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
+ 		return withContext(mainImmediate) {
+-			initialize(ctx)
+-			val completion = CompletableDeferred<AutomaticControlRecoveryResult>()
+-			disable(ctx, completion)
+-			withTimeoutOrNull(AUTOMATIC_USER_STOP_TIMEOUT_MS) { completion.await() } ==
+-				AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
++			isActive = false
++			cancelAutomaticStopGrace()
++			requestMutationGeneration++
++			requestMutationJob?.cancel()
++			requestMutationJob?.join()
++			retireLegacyStepAutomaticControl(context.applicationContext)
++			true
+ 		}
+ 	}
+ 
+@@ -970,18 +772,14 @@
+ 				effectiveValue == GroupedActivity.STILL.ordinal || !context.hasActivityPermission ->
+ 					disable(context, recoveryCompletion)
+ 				!isActive -> enable(context, recoveryCompletion)
+-				else -> reinitializeRequest(
+-					context,
+-					cachedParamsSnapshot().transitionDetectionEnabled,
+-					recoveryCompletion,
+-				)
++				else -> reinitializeRequest(context, recoveryCompletion)
+ 			}
+ 		} else {
+ 			when (resolveAutoTrackingPreferenceAction(effectiveValue, isActive, context.hasActivityPermission)) {
+ 				AutoTrackingPreferenceAction.DISABLE -> disable(context)
+ 				AutoTrackingPreferenceAction.ENABLE -> enable(context)
+ 				AutoTrackingPreferenceAction.REINITIALIZE ->
+-					reinitializeRequest(context, cachedParamsSnapshot().transitionDetectionEnabled)
++					reinitializeRequest(context)
+ 				AutoTrackingPreferenceAction.NONE -> Unit
+ 			}
+ 		}
+@@ -995,20 +793,14 @@
+ 
+ 	private fun reconcileControlEligibility(
+ 		activityEligible: Boolean,
+-		activityAuthorityChanged: Boolean = false,
++		@Suppress("UNUSED_PARAMETER") activityAuthorityChanged: Boolean = false,
+ 	) {
+-		val previousActivityEligibility = activityControlEligible
+ 		activityControlEligible = activityEligible
+ 		val context = appContext ?: return
+-		when {
+-			!activityEligible && isActive && automaticControlAvailability.isOperational ->
+-				handleTrackingActivityPreferenceChange(cachedParamsSnapshot().autoTrackingMode)
+-			activityEligible && !previousActivityEligibility && paramsInitialized ->
+-				handleTrackingActivityPreferenceChange(cachedParamsSnapshot().autoTrackingMode)
+-			activityEligible && previousActivityEligibility && activityAuthorityChanged &&
+-				paramsInitialized ->
+-				handleTrackingActivityPreferenceChange(cachedParamsSnapshot().autoTrackingMode)
+-		}
++		isActive = activityEligible && cachedParamsSnapshot().autoTrackingMode > 0 &&
++			cachedParamsSnapshot().transitionDetectionEnabled && context.hasActivityPermission &&
++			getEntryPoint(context).trackingStartupGate().permitsNewCollection
++		if (!isActive) cancelAutomaticStopGrace()
+ 	}
+ 
+ 	private fun applyAutomaticControlAvailability(
+@@ -1033,7 +825,7 @@
+ 		val context = appContext ?: return
+ 		if (isActive) {
+ 			if (getEntryPoint(context).trackingStartupGate().permitsNewCollection) {
+-				reinitializeRequest(context, enabled)
++				reinitializeRequest(context)
+ 			} else {
+ 				disable(context)
+ 			}
+@@ -1055,23 +847,7 @@
+ 	@MainThread
+ 	fun revalidatePermissions(context: Context) {
+ 		val ctx = appContext ?: return
+-		when (
+-			resolveDetectionPermissionAction(
+-				isActive = isActive,
+-				hasActivityPermission = ctx.hasActivityPermission,
+-				autoTrackingMode = effectiveAutomaticControlMode(
+-					cachedParamsSnapshot().autoTrackingMode,
+-					activityControlEligible,
+-					getEntryPoint(ctx).trackingStartupGate().permitsNewCollection,
+-				),
+-			)
+-		) {
+-			AutoTrackingPreferenceAction.DISABLE -> disable(ctx)
+-			AutoTrackingPreferenceAction.ENABLE -> enable(ctx)
+-			AutoTrackingPreferenceAction.REINITIALIZE,
+-			AutoTrackingPreferenceAction.NONE,
+-			-> Unit
+-		}
++		if (cachedParamsSnapshot().autoTrackingMode > 0 || isActive) reinitializeRequest(ctx)
+ 	}
+ 
+ 	/**
+@@ -1102,8 +878,6 @@
+ 		activityWatcherJob = null
+ 		recognitionUpdatesJob?.cancel()
+ 		recognitionUpdatesJob = null
+-		automaticContainmentJob?.cancel()
+-		automaticContainmentJob = null
+ 		cancelAutomaticStopGrace()
+ 		val scope = preferenceScope
+ 		val finalMutation = requestMutationJob
+@@ -1130,9 +904,6 @@
+ 		activityControlConsentEpoch = null
+ 		currentPurposeAvailability = CurrentTrackingPurposeAvailability.SAFE_DEFAULT
+ 		automaticControlAvailability = currentPurposeAvailability.automaticControl
+-		handledAutomaticContainmentKey = null
+-		pendingAutomaticContainmentKey = null
+-		automaticContainmentGeneration = 0L
+ 		publishActivityAutomationAuthority()
+ 	}
+ 
+@@ -1147,102 +918,9 @@
+ 		)
+ 		activityAutomationAuthority = snapshot
+ 		_activityAutomationAuthorityReady.value = snapshot.isCoherent
+-		reconcileAutomaticControlContainment(snapshot)
+-	}
+-
+-	private fun reconcileAutomaticControlContainment(
+-		authority: ActivityAutomationAuthoritySnapshot,
+-	) {
+-		val context = appContext ?: return
+-		val key = automaticControlContainmentKeyOrNull(
+-			paramsInitialized = authority.paramsInitialized,
+-			activePolicyRevision = authority.activePolicyRevision,
+-			paramsPolicyRevision = authority.paramsPolicyRevision,
+-			controlConsentEpoch = authority.activityControlConsentEpoch,
+-			configuredMode = cachedParamsSnapshot().autoTrackingMode,
+-			availability = automaticControlAvailability,
+-		)
+-		if (key == null) {
+-			automaticContainmentGeneration++
+-			automaticContainmentJob?.cancel()
+-			automaticContainmentJob = null
+-			handledAutomaticContainmentKey = null
+-			pendingAutomaticContainmentKey = null
+-			return
+-		}
+-		if (handledAutomaticContainmentKey == key || pendingAutomaticContainmentKey == key) return
+-
+-		val scope = preferenceScope ?: return
+-		val generation = ++automaticContainmentGeneration
+-		automaticContainmentJob?.cancel()
+-		pendingAutomaticContainmentKey = key
+-		automaticContainmentJob = scope.launch {
+-			val result = runAutomaticControlContainmentRetryLoop(
+-				isCurrent = {
+-					generation == automaticContainmentGeneration &&
+-						pendingAutomaticContainmentKey == key &&
+-						automaticControlContainmentKeyOrNull(
+-							paramsInitialized = activityAutomationAuthority.paramsInitialized,
+-							activePolicyRevision =
+-								activityAutomationAuthority.activePolicyRevision,
+-							paramsPolicyRevision =
+-								activityAutomationAuthority.paramsPolicyRevision,
+-							controlConsentEpoch =
+-								activityAutomationAuthority.activityControlConsentEpoch,
+-							configuredMode = cachedParamsSnapshot().autoTrackingMode,
+-							availability = automaticControlAvailability,
+-						) == key
+-				},
+-				startImmediateCleanup = {
+-					CompletableDeferred<AutomaticControlRecoveryResult>().also { completion ->
+-						disable(context, completion)
+-						if (TrackerServiceApi.hasLiveCapture(context)) {
+-							val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
+-							if (sessionInfo?.isInitiatedByUser == false) {
+-								TrackerServiceApi.stopService(
+-									context,
+-									TrackingStopCandidateReason.EXPLICIT_REQUEST,
+-								)
+-							}
+-						}
+-					}
+-				},
+-				establishRetryOwnership = {
+-					getEntryPoint(context).automaticControlRecoveryScheduler().enqueue()
+-				},
+-				waitBeforeRetry = { delayMillis -> delay(delayMillis) },
+-				onAttemptCompleted = { attempt ->
+-					attempt.cleanupFailure?.let { error ->
+-						TrackerDiagnosticLog.failure(
+-							TrackerDiagnosticFailureCode.ACTIVITY_RECOGNITION_FAILED,
+-							TrackingDiagnosticFailureReason.RECOVERY_FAILURE,
+-						)
+-					}
+-					attempt.retryOwnershipFailure?.let { error ->
+-						TrackerDiagnosticLog.failure(
+-							TrackerDiagnosticFailureCode.ACTIVITY_RECOGNITION_FAILED,
+-							TrackingDiagnosticFailureReason.RECOVERY_FAILURE,
+-						)
+-					}
+-				},
+-				initialRetryDelayMillis = SOURCE_POLICY_RETRY_DELAY_MILLIS,
+-				maxRetryDelayMillis = AUTOMATIC_CONTAINMENT_MAX_RETRY_DELAY_MILLIS,
+-			)
+-			if (generation != automaticContainmentGeneration) return@launch
+-			when (result) {
+-				is AutomaticControlContainmentLoopResult.Handled -> {
+-					pendingAutomaticContainmentKey = null
+-					handledAutomaticContainmentKey = key
+-					automaticContainmentJob = null
+-				}
+-				is AutomaticControlContainmentLoopResult.Cancelled -> {
+-					pendingAutomaticContainmentKey = null
+-					handledAutomaticContainmentKey = null
+-					automaticContainmentJob = null
+-				}
+-			}
+-		}
+-	}
++	}
++
++
+ }
+ 
+ internal fun <T> Flow<T>.retryingTrackingSettingsObservation(
+@@ -1261,6 +939,24 @@
+ 	val configuredMode: Int,
+ 	val unavailableReason: AutomaticTrackingUnavailableReason,
+ )
++
++internal fun automaticControlPublicationRecoveryResult(
++	availability: AutomaticTrackingOperationalAvailability,
++): AutomaticControlRecoveryResult = when (availability) {
++	is AutomaticTrackingOperationalAvailability.Ready -> AutomaticControlRecoveryResult.ACCEPTED
++	is AutomaticTrackingOperationalAvailability.Unavailable -> when (availability.reason) {
++		AutomaticTrackingUnavailableReason.REGISTRATION_PENDING,
++		AutomaticTrackingUnavailableReason.PROVIDER_UNAVAILABLE,
++		AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
++		-> AutomaticControlRecoveryResult.RETRYABLE
++		else -> AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
++	}
++}
++
++/** An unavailable ambient sibling must not turn accepted automatic control into retry debt. */
++internal fun automaticReconciliationCompleted(result: TrackingPurposeSettingsReconciliationResult): Boolean =
++	result is TrackingPurposeSettingsReconciliationResult.Complete ||
++		result is TrackingPurposeSettingsReconciliationResult.Debt && result.debt.failures.none { it.source == null }
+ 
+ internal fun automaticControlContainmentKeyOrNull(
+ 	paramsInitialized: Boolean,
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/catalog/SourceProviderAvailability.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/catalog/SourceProviderAvailability.kt
+@@ -167,9 +167,7 @@
+ 	): SourceProviderAvailabilityReader {
+ 		return when {
+ 			source == TrackingSource.ACTIVITY && purpose == TrackingPurpose.CONTROL ->
+-				containedAvailability(
+-					TrackingDecisionContainmentReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
+-				)
++				ActivitySessionSourceProviderAvailabilityReader(activityRecognitionSourceStateProvider)
+ 			source == TrackingSource.LOCATION && purpose == TrackingPurpose.AMBIENT_PRODUCT ->
+ 				containedAvailability(
+ 					TrackingDecisionContainmentReason.EXPANDED_AMBIENT_LOCATION_UNAVAILABLE,
+@@ -209,7 +207,7 @@
+ ) : SourceProviderAvailabilityReader {
+ 	override suspend fun read(request: SourceAvailabilityRequest): SourceProviderAvailability {
+ 		require(request.source == SourceKind.ACTIVITY)
+-		require(request.purpose == TrackingPurpose.SESSION_CAPTURE)
++		require(request.purpose in setOf(TrackingPurpose.SESSION_CAPTURE, TrackingPurpose.CONTROL))
+ 		val state = stateProvider.snapshot()
+ 		return when {
+ 			!state.permissionGranted -> SourceProviderAvailability.PermissionRequired(
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/catalog/SourceProductFactories.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/catalog/SourceProductFactories.kt
+@@ -194,6 +194,10 @@
+ }
+ 
+ sealed interface SourceRetentionContract {
++	/** Temporary automatic-start evidence; never a recorded Activity product. */
++	data object ActivityControl : SourceRetentionContract {
++		val maximumAgeNanos = com.adsamcik.tracker.shared.base.database.ACTIVITY_CONTROL_RETENTION_NANOS
++	}
+ 	data class SessionCapture(
+ 		val portableImportScope: RetentionAuthorityScope?,
+ 	) : SourceRetentionContract
+@@ -327,9 +331,7 @@
+ 	data object ActivityControl : SourceProductBinding {
+ 		override val source = TrackingSource.ACTIVITY
+ 		override val purpose = TrackingPurpose.CONTROL
+-		override val capability = SourceProductCapability.Contained(
+-			TrackingDecisionContainmentReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
+-		)
++		override val capability = SourceProductCapability.Dormant
+ 		override val writer = SourceWriterContract.NotApplicable(
+ 			SourceWriterUnsupportedReason.CONTROL_HAS_NO_PRODUCT_WRITER,
+ 		)
+@@ -346,9 +348,7 @@
+ 		override val portable = SourcePortableContract.Unsupported(
+ 			SourcePortableUnsupportedReason.CONTROL_EVIDENCE_IS_NOT_PORTABLE,
+ 		)
+-		override val retention = SourceRetentionContract.Contained(
+-			TrackingDecisionContainmentReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
+-		)
++		override val retention = SourceRetentionContract.ActivityControl
+ 	}
+ 
+ 	data object LocationAmbient : SourceProductBinding {
+--- a/tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackingPurposeAvailability.kt
++++ b/tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackingPurposeAvailability.kt
+@@ -8,7 +8,7 @@
+ 
+ enum class AutomaticTrackingUnavailableReason(
+ 	val stableCode: String,
+-	val containmentReason: TrackingDecisionContainmentReason,
++	val containmentReason: TrackingDecisionContainmentReason? = null,
+ ) {
+ 	AUTO_005_CONTROL_EVIDENCE_UNRESOLVED(
+ 		"AUTO_005_CONTROL_EVIDENCE_UNRESOLVED",
+@@ -18,6 +18,11 @@
+ 		"CONTROL_RETENTION_POLICY_UNAVAILABLE",
+ 		TrackingDecisionContainmentReason.RETENTION_AUTHORITY_UNAVAILABLE,
+ 	),
++	TRANSITION_DETECTION_DISABLED("TRANSITION_DETECTION_DISABLED"),
++	PERMISSION_REQUIRED("PERMISSION_REQUIRED"),
++	PROVIDER_UNAVAILABLE("PROVIDER_UNAVAILABLE"),
++	REGISTRATION_PENDING("REGISTRATION_PENDING"),
++	AUTHORITY_UNAVAILABLE("AUTHORITY_UNAVAILABLE"),
+ }
+ 
+ sealed interface AutomaticTrackingOperationalAvailability {
+@@ -715,8 +720,8 @@
+ 
+ fun interface AutomaticControlReconciliationCallback {
+ 	/**
+-	 * Returns status for one exact Activity CONTROL lease. Until AUTO-005 is resolved, production
+-	 * reconciliation remains [AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE].
++	 * Registers and reports one exact Activity CONTROL lease. Ready requires an accepted physical
++	 * registration; temporary control evidence is independently expired after 48 hours.
+ 	 */
+ 	suspend fun reconcile(
+ 		lease: AutomaticControlReconciliationLease,
+--- a/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt
+@@ -676,9 +676,8 @@
+                 autoTrackingEnabled = params.autoTrackingMode > 0,
+ 				automaticTrackingOperational = params.autoTrackingMode > 0 &&
+ 					purposeAvailability.automaticControl.isOperational &&
+-					activityPermissionGranted,
++					activityPermissionGranted && params.transitionDetectionEnabled,
+ 				automaticTrackingPermissionRequired = params.autoTrackingMode > 0 &&
+-					purposeAvailability.automaticControl.isOperational &&
+ 					!activityPermissionGranted,
+ 				automaticControlAvailability = purposeAvailability.automaticControl,
+                 transitionDetectionEnabled = params.transitionDetectionEnabled,
+--- a/app/src/main/java/com/adsamcik/tracker/app/settings/tracking/SourcePurposeSettings.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/settings/tracking/SourcePurposeSettings.kt
+@@ -18,6 +18,7 @@
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Switch
++import androidx.compose.material3.TextButton
+ import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Alignment
+@@ -36,24 +37,29 @@
+ import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
+ import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+ import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
++import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
+ 
+ @Composable
+ internal fun AutomaticTrackingAvailabilityCard(
+ 	uiState: TrackingSettingsUiState,
+ 	modifier: Modifier = Modifier,
++	onEnableTransitions: () -> Unit = {},
+ ) {
+ 	if (!uiState.autoTrackingEnabled || uiState.automaticTrackingOperational) return
+ 	val unavailable = uiState.automaticControlAvailability as?
+ 		AutomaticTrackingOperationalAvailability.Unavailable
+ 	val summary = when {
+-		unavailable != null -> stringResource(
+-			com.adsamcik.tracker.R.string.settings_automatic_policy_unavailable_summary,
++		!uiState.transitionDetectionEnabled -> stringResource(
++			com.adsamcik.tracker.R.string.automatic_control_enable_transitions_summary,
+ 		)
+ 		uiState.automaticTrackingPermissionRequired -> stringResource(
+ 			com.adsamcik.tracker.R.string.settings_automatic_permission_required_summary,
+ 		)
++		unavailable?.reason == AutomaticTrackingUnavailableReason.PROVIDER_UNAVAILABLE -> stringResource(
++			com.adsamcik.tracker.R.string.automatic_control_provider_unavailable_summary,
++		)
+ 		else -> stringResource(
+-			com.adsamcik.tracker.R.string.settings_automatic_unavailable_summary,
++			com.adsamcik.tracker.R.string.automatic_control_pending_summary,
+ 		)
+ 	}
+ 	Card(
+@@ -79,15 +85,11 @@
+ 					style = MaterialTheme.typography.titleMedium,
+ 				)
+ 				Text(text = summary, style = MaterialTheme.typography.bodyMedium)
+-				unavailable?.let { status ->
+-					Text(
+-						text = stringResource(
+-							com.adsamcik.tracker.R.string.settings_automatic_status_code,
+-							status.reason.stableCode,
+-						),
+-						modifier = Modifier.testTag("automaticTrackingUnavailableCode"),
+-						style = MaterialTheme.typography.labelSmall,
+-					)
++				if (!uiState.transitionDetectionEnabled) {
++					TextButton(onClick = onEnableTransitions,
++						modifier = Modifier.testTag("automaticEnableTransitions")) {
++						Text(stringResource(com.adsamcik.tracker.R.string.automatic_control_enable_transitions))
++					}
+ 				}
+ 			}
+ 		}
+--- a/app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt
+@@ -482,7 +482,9 @@
+             )
+         }
+ 		item {
+-			AutomaticTrackingAvailabilityCard(uiState)
++			AutomaticTrackingAvailabilityCard(uiState, onEnableTransitions = {
++				onTransitionDetectionChanged(true)
++			})
+ 		}
+         if (uiState.automaticTrackingOperational && uiState.locationEnabled &&
+             uiState.permissionCapabilities.isManualLocationOnly
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/TrackingPurposePublicationRuntimeTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/TrackingPurposePublicationRuntimeTest.kt
+@@ -103,7 +103,7 @@
+ 				),
+ 			)
+ 			val policy = MutableSourcePolicyRepository(
+-				policySnapshot(revision = 12L, controlPersistenceEligible = true),
++				policySnapshot(revision = 12L, controlPersistenceEligible = false),
+ 			)
+ 			val lifecycle = MutableLifecycleStore(CollectedDataLifecycleSnapshot(3L, null))
+ 			val rollout = MutableRolloutStateStore(controlRollout(revision = 9L))
+@@ -198,7 +198,7 @@
+ 		}
+ 
+ 	@Test
+-	fun `authority reader publishes exact stable revisions and masks unapproved control execution`() =
++	fun `authority reader executes temporary control without recorded product persistence`() =
+ 		runTest {
+ 			val policy = policySnapshot(revision = 12L)
+ 			val lifecycle = MutableLifecycleStore(CollectedDataLifecycleSnapshot(3L, null))
+@@ -233,7 +233,7 @@
+ 			) shouldBe authority(
+ 				source = TrackingSource.ACTIVITY,
+ 				purpose = TrackingPurpose.CONTROL,
+-				executionRevision = 0L,
++				executionRevision = 8L,
+ 			)
+ 		}
+ 
+@@ -1441,6 +1441,45 @@
+ 			AmbientTrackingSource.WIFI,
+ 			AmbientTrackingSource.CELL,
+ 		)
++	}
++
++	@Test
++	fun `lost automatic consent retains cleanup ownership until physical retirement succeeds`() = runTest {
++		val store = AtomicTrackingPurposeAvailabilityStore()
++		var current: TrackingPurposeAuthoritySnapshot? = authority(TrackingSource.ACTIVITY, TrackingPurpose.CONTROL, 1L)
++		var tokens = 0
++		val issuer = SerializedTrackingPurposeLeaseIssuer(
++			TrackingPurposeAuthorityReader { sourcePurpose, revision ->
++				current?.takeIf { it.sourcePurpose == sourcePurpose }?.copy(executionRevision = revision)
++			}, store, TrackingPurposeOwnerCasTokenFactory { "lost-${++tokens}" },
++		)
++		val retention = object : RetentionAuthorityProducer by AlwaysApprovedRetentionAuthorityProducer {
++			override suspend fun reconcileLiveAmbient(source: TrackingSource): RetentionAuthorityResult =
++				RetentionAuthorityResult.Unavailable(source, RetentionAuthorityScope.LIVE_AMBIENT,
++					RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE)
++		}
++		val runtime = DefaultTrackingPurposePublicationRuntime(issuer, store,
++			TrackingPurposeExecutionRevisionRegistry(), retention,
++			ownerCallbackScope = backgroundScope)
++		var cleanupComplete = false
++		val cleaned = mutableListOf<TrackingPurposeLeaseIdentity>()
++		runtime.registerAutomaticControlOwner(1L, object : com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationCallback {
++			override suspend fun reconcile(lease: com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationLease) =
++				AutomaticTrackingOperationalAvailability.Ready(lease.identity)
++			override suspend fun compensate(lease: com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationLease): Boolean {
++				cleaned += lease.identity
++				return cleanupComplete
++			}
++		})
++		val original = requireNotNull(issuer.currentAutomaticControlLease())
++		current = null
++		runtime.reconcileCurrentSettings().shouldBeInstanceOf<TrackingPurposeSettingsReconciliationResult.Debt>()
++		issuer.currentAutomaticControlLease() shouldBe original
++		store.availability.value.automaticControl.isOperational shouldBe false
++		cleanupComplete = true
++		runtime.reconcileCurrentSettings().shouldBeInstanceOf<TrackingPurposeSettingsReconciliationResult.Complete>()
++		issuer.currentAutomaticControlLease() shouldBe null
++		cleaned shouldBe listOf(original.identity, original.identity)
+ 	}
+ 
+ 	private fun fixture(
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/AutomaticStartTransitionMonitorTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/AutomaticStartTransitionMonitorTest.kt
+@@ -259,6 +259,7 @@
+ 	@Test
+ 	fun `stale parent lease prevents control demand and provider activation`() = runTest {
+ 		val dispatcher = mockk<SourceCallerDemandDispatcher>()
++		io.mockk.every { arbiter.snapshot() } returns cleared().snapshot
+ 		coEvery {
+ 			dispatcher.retireAutomaticControl(any(), any(), any(), any(), any(), any(), any())
+ 		} returns GuardedPurposeDemandResult.Applied(Unit, null)
+@@ -284,6 +285,8 @@
+ 		coVerify(exactly = 0) { dispatcher.dispatchAutomaticControl(any()) }
+ 		coVerify(exactly = 0) { activityProjectionLane.ensureRegisteredAtLiveTail() }
+ 		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
++		coVerify(exactly = 0) { arbiter.clearDemand(any()) }
++		coVerify(exactly = 0) { dispatcher.retireAutomaticControl(any(), any(), any(), any(), any(), any(), any()) }
+ 	}
+ 
+ 	@Test
+--- /dev/null
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/AutomaticStepsControlRoomTest.kt
+@@ -0,0 +1,358 @@
++package com.adsamcik.tracker.tracker.source.runtime
++
++import android.app.Application
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.activity.ActivityTransitionData
++import com.adsamcik.tracker.activity.api.registration.*
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
++import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
++import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
++import com.adsamcik.tracker.shared.base.time.FixedClock
++import com.adsamcik.tracker.shared.model.tracking.TrackingSource
++import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
++import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
++import com.adsamcik.tracker.shared.preferences.retention.*
++import com.adsamcik.tracker.shared.preferences.tracking.*
++import com.adsamcik.tracker.tracker.api.*
++import com.adsamcik.tracker.tracker.controller.LockManager
++import com.adsamcik.tracker.tracker.source.catalog.ActivityRecognitionSourceState
++import com.adsamcik.tracker.tracker.source.catalog.AndroidActivityRecognitionSourceStateProvider
++import com.adsamcik.tracker.tracker.source.coordinator.*
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
++import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
++import com.adsamcik.tracker.tracker.source.projection.ActivityControlRetentionMaintenance
++import io.kotest.matchers.shouldBe
++import io.kotest.matchers.types.shouldBeInstanceOf
++import io.mockk.coEvery
++import io.mockk.every
++import io.mockk.mockk
++import javax.inject.Provider
++import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.async
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.test.runCurrent
++import kotlinx.coroutines.test.advanceTimeBy
++import kotlinx.coroutines.test.runTest
++import org.junit.After
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++/** Real policy, lease, caller receipt, broker and projection registration; OS provider is a fixture. */
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class AutomaticStepsControlRoomTest {
++	private lateinit var application: Application
++	private lateinit var database: AppDatabase
++	private var permitsCollection = true
++	private var permissionGranted = true
++	private var providerAvailable = true
++	private var locked = false
++
++	@Before fun setUp() {
++		application = ApplicationProvider.getApplicationContext()
++		database = AppDatabase.testDatabase(application)
++	}
++	@After fun tearDown() = database.close()
++
++	@Test fun `built in owner arms Steps only control during flight then refuses post publication activation`() = runTest {
++		val f = fixture(backgroundScope)
++		f.arbiter.beforeSet = {
++			f.store.availability.value.automaticControl.isOperational shouldBe false
++			val demands = database.sourceBrokerDao().activeDemands(SourceKind.ACTIVITY.stableCode)
++			demands.size shouldBe 1
++			demands.single().purpose shouldBe SourceBrokerPurpose.CONTROL_AUTOSTART
++			demands.single().persistenceEligible shouldBe false
++		}
++		f.runtime.reconcileCurrentSettings()
++		val ready = f.store.availability.value.automaticControl.shouldBeInstanceOf<AutomaticTrackingOperationalAvailability.Ready>()
++		f.arbiter.setCount shouldBe 1
++		val policy = (f.policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
++		policy[TrackingSource.ACTIVITY].capturePersistenceEligible shouldBe false
++		policy[TrackingSource.LOCATION].enabled shouldBe false
++		val stale = f.monitor.reconcile(true, true, 5, automaticStartTransitions(2), ready)
++		stale.status shouldBe ActivityRegistrationStatus.BLOCKED
++		f.arbiter.setCount shouldBe 1
++		f.arbiter.clearCount shouldBe 0
++	}
++
++	@Test fun `persisted lock restore is awaited and suppression stamped before registration`() = runTest {
++		val f = fixture(backgroundScope)
++		val restore = CompletableDeferred<Unit>()
++		coEvery { f.locks.initializeFromPersistence(application) } coAnswers { restore.await(); locked = true }
++		f.arbiter.beforeSet = {
++			requireNotNull(database.activityAutomationEpochDao().current()).lockSuppressed shouldBe true
++		}
++		val request = async { f.runtime.reconcileCurrentSettings() }
++		runCurrent()
++		f.arbiter.setCount shouldBe 0
++		restore.complete(Unit)
++		request.await()
++		f.arbiter.setCount shouldBe 1
++	}
++
++	@Test fun `disabled transitions preserve chosen automatic mode and never arm continuous fallback`() = runTest {
++		val f = fixture(backgroundScope, transitions = false)
++		f.runtime.reconcileCurrentSettings()
++		f.store.availability.value.automaticControl.shouldBeInstanceOf<AutomaticTrackingOperationalAvailability.Unavailable>()
++			.reason shouldBe AutomaticTrackingUnavailableReason.TRANSITION_DETECTION_DISABLED
++		f.params.value.autoTrackingMode shouldBe 2
++		f.arbiter.setCount shouldBe 0
++		database.sourceBrokerDao().activeDemands(SourceKind.ACTIVITY.stableCode) shouldBe emptyList()
++	}
++
++	@Test fun `missing permission exposes repair and does not activate any provider`() = runTest {
++		val f = fixture(backgroundScope)
++		permissionGranted = false
++		f.runtime.reconcileCurrentSettings()
++		f.store.availability.value.automaticControl.shouldBeInstanceOf<AutomaticTrackingOperationalAvailability.Unavailable>()
++			.reason shouldBe AutomaticTrackingUnavailableReason.PERMISSION_REQUIRED
++		f.arbiter.setCount shouldBe 0
++		permissionGranted = true
++		f.runtime.reconcileCurrentSettings()
++		f.store.availability.value.automaticControl.isOperational shouldBe true
++		f.arbiter.setCount shouldBe 1
++	}
++
++	@Test fun `unavailable provider remains truthful without recording Activity`() = runTest {
++		val f = fixture(backgroundScope)
++		providerAvailable = false
++		f.runtime.reconcileCurrentSettings()
++		f.store.availability.value.automaticControl.shouldBeInstanceOf<AutomaticTrackingOperationalAvailability.Unavailable>()
++			.reason shouldBe AutomaticTrackingUnavailableReason.PROVIDER_UNAVAILABLE
++		f.arbiter.setCount shouldBe 0
++	}
++
++	@Test fun `failed provider registration removes durable control instead of publishing Ready`() = runTest {
++		val f = fixture(backgroundScope)
++		f.arbiter.rejectRegistration = true
++		f.runtime.reconcileCurrentSettings()
++		f.store.availability.value.automaticControl.shouldBeInstanceOf<AutomaticTrackingOperationalAvailability.Unavailable>()
++			.reason shouldBe AutomaticTrackingUnavailableReason.PROVIDER_UNAVAILABLE
++		database.sourceBrokerDao().activeDemands(SourceKind.ACTIVITY.stableCode) shouldBe emptyList()
++		f.store.availability.value.automaticControl.isOperational shouldBe false
++	}
++
++	@Test fun `revocation retires only control and preserves the existing captured Activity sibling`() = runTest {
++		val f = fixture(backgroundScope)
++		f.arbiter.owners += ActivityRegistrationOwner.ACTIVE_SESSION
++		f.runtime.reconcileCurrentSettings()
++		val old = requireNotNull(f.issuer.currentAutomaticControlLease())
++		val disabled = f.params.value.copy(autoTrackingMode = 0)
++		val updated = f.policies.replaceCaptureSettings(f.params.value.sourcePolicyRevision, disabled, "DISABLE_AUTO")
++		f.params.value = disabled.copy(sourcePolicyRevision = updated.revision)
++		f.runtime.reconcileCurrentSettings()
++		f.issuer.currentAutomaticControlLease() shouldBe null
++		f.arbiter.owners shouldBe setOf(ActivityRegistrationOwner.ACTIVE_SESSION)
++		database.sourceBrokerDao().activeDemands(SourceKind.ACTIVITY.stableCode) shouldBe emptyList()
++		f.owner.compensate(old) shouldBe true
++		f.arbiter.owners shouldBe setOf(ActivityRegistrationOwner.ACTIVE_SESSION)
++	}
++
++	@Test fun `Off fences registration and acknowledged cleanup closes the exact previous purpose`() = runTest {
++		val f = fixture(backgroundScope)
++		f.runtime.reconcileCurrentSettings()
++		permitsCollection = false
++		f.runtime.closeForUserStop().shouldBeInstanceOf<TrackingPurposeSettingsReconciliationResult.Complete>()
++		f.runtime.reconcileCurrentSettings()
++		f.arbiter.setCount shouldBe 1
++		f.store.availability.value.automaticControl.isOperational shouldBe false
++		database.sourceBrokerDao().activeDemands(SourceKind.ACTIVITY.stableCode) shouldBe emptyList()
++	}
++
++	@Test fun `unacknowledged provider removal retains cleanup lease for retry`() = runTest {
++		val f = fixture(backgroundScope)
++		f.runtime.reconcileCurrentSettings()
++		val previous = requireNotNull(f.issuer.currentAutomaticControlLease())
++		f.arbiter.rejectRemoval = true
++		f.runtime.closeForUserStop().shouldBeInstanceOf<TrackingPurposeSettingsReconciliationResult.Debt>()
++		f.issuer.currentAutomaticControlLease() shouldBe previous
++		f.store.availability.value.automaticControl.isOperational shouldBe false
++		f.arbiter.rejectRemoval = false
++		f.runtime.closeForUserStop().shouldBeInstanceOf<TrackingPurposeSettingsReconciliationResult.Complete>()
++		f.issuer.currentAutomaticControlLease() shouldBe null
++	}
++
++	@Test fun `stale compensation cannot remove a newer accepted activation`() = runTest {
++		val f = fixture(backgroundScope)
++		f.runtime.reconcileCurrentSettings()
++		val old = requireNotNull(f.issuer.currentAutomaticControlLease())
++		f.runtime.reconcileCurrentSettings()
++		val successor = requireNotNull(f.issuer.currentAutomaticControlLease())
++		(old.identity == successor.identity) shouldBe false
++		val before = f.arbiter.clearCount
++		f.owner.compensate(old) shouldBe true
++		f.arbiter.clearCount shouldBe before
++		f.store.availability.value.automaticControl.isOperational shouldBe true
++	}
++
++	@Test fun `cold disabled automatic authority cleans up without a fabricated lease and preserves capture`() = runTest {
++		val f = fixture(backgroundScope, automaticMode = 0)
++		f.arbiter.owners += setOf(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR, ActivityRegistrationOwner.ACTIVE_SESSION)
++		f.issuer.currentAutomaticControlLease() shouldBe null
++
++		f.runtime.reconcileCurrentSettings()
++
++		f.arbiter.clearCount shouldBe 1
++		f.arbiter.setCount shouldBe 0
++		f.arbiter.owners shouldBe setOf(ActivityRegistrationOwner.ACTIVE_SESSION)
++		f.issuer.currentAutomaticControlLease() shouldBe null
++		f.store.availability.value.automaticControl.isOperational shouldBe false
++	}
++
++	@Test fun `cold Off waits for acknowledged cleanup even with no process lease`() = runTest {
++		val f = fixture(backgroundScope)
++		f.arbiter.owners += ActivityRegistrationOwner.AUTOMATIC_START_MONITOR
++		f.arbiter.rejectRemoval = true
++		permitsCollection = false
++
++		f.runtime.closeForUserStop().shouldBeInstanceOf<TrackingPurposeSettingsReconciliationResult.Debt>()
++		f.issuer.currentAutomaticControlLease() shouldBe null
++		f.arbiter.setCount shouldBe 0
++		f.arbiter.rejectRemoval = false
++		f.runtime.closeForUserStop().shouldBeInstanceOf<TrackingPurposeSettingsReconciliationResult.Complete>()
++		f.arbiter.clearCount shouldBe 2
++	}
++
++	@Test fun `timed out cold cleanup must finish before a successor can become ready`() = runTest {
++		val f = fixture(backgroundScope)
++		val remove = CompletableDeferred<Unit>()
++		f.arbiter.beforeClear = { remove.await() }
++		val closing = async { f.runtime.closeForUserStop() }
++		runCurrent()
++		advanceTimeBy(2_001L)
++		runCurrent()
++		closing.await().shouldBeInstanceOf<TrackingPurposeSettingsReconciliationResult.Debt>()
++		val successor = async { f.runtime.reconcileCurrentSettings() }
++		runCurrent()
++		f.arbiter.setCount shouldBe 0
++		f.store.availability.value.automaticControl.isOperational shouldBe false
++
++		remove.complete(Unit)
++		successor.await()
++		f.arbiter.setCount shouldBe 1
++		f.store.availability.value.automaticControl.isOperational shouldBe true
++	}
++
++	@Test fun `late unowned cleanup cannot retire a newly accepted activation`() = runTest {
++		val f = fixture(backgroundScope)
++		f.runtime.reconcileCurrentSettings()
++		val before = f.arbiter.clearCount
++
++		f.owner.retireWhenUnowned() shouldBe false
++
++		f.arbiter.clearCount shouldBe before
++		f.arbiter.owners shouldBe setOf(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
++		f.store.availability.value.automaticControl.isOperational shouldBe true
++	}
++
++	private suspend fun fixture(scope: CoroutineScope, transitions: Boolean = true, automaticMode: Int = 2): Fixture {
++		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 3L, updatedAtMs = 1L))
++		database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
++			SourceDestinationOwnerEntity.SOURCE_STEPS, SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
++			SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS, SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION, 1L))
++		val binding = ExecutableSourceLaneCatalog.PREFERRED_STEPS_SESSION_FACTS
++		val rollout = installCanonicalProductLanesForTest(database, listOf(binding), 7L)
++		rollout.save(TrackingRolloutState.eventCanonical(setOf(SourceKind.STEPS), 8L,
++			controlSources = setOf(SourceKind.ACTIVITY), captureModes = mapOf(SourceKind.STEPS to binding.captureModes)), 8L)
++		val policies = RoomSourcePolicyRepository(database) { SourcePolicyEffectiveTime("boot-1", 1L, 1L) }
++		val selected = TrackingParamsState(legacySettingsMigrationCompleted = true,
++			locationEnabled = false, activityEnabled = false, stepsEnabled = true, barometerEnabled = false,
++			autoTrackingMode = automaticMode, transitionDetectionEnabled = transitions,
++			sourceCollectionSettings = SourceCollectionSettings(location = SourceCollectionFrequency.OFF,
++				activity = SourceCollectionFrequency.OFF, steps = SourceCollectionFrequency.BALANCED,
++				pressure = SourceCollectionFrequency.OFF, wifi = SourceCollectionFrequency.OFF, cell = SourceCollectionFrequency.OFF))
++		val policy = policies.bootstrapFromLegacy(selected)
++		val params = MutableStateFlow(selected.copy(sourcePolicyRevision = policy.revision))
++		val repository = mockk<TrackingParamsRepository> { every { data } returns params }
++		val gate = mockk<TrackingStartupGate> {
++			every { isReady } returns true
++			every { currentGeneration } returns 1L
++			every { permitsNewCollection } answers { permitsCollection }
++		}
++		val lifecycle = mockk<CollectedDataLifecycleStore> {
++			coEvery { snapshot() } returns CollectedDataLifecycleSnapshot(3L, null)
++		}
++		val retention = mockk<RetentionAuthorityProducer> {
++			coEvery { reconcileCurrentSettings() } returns listOf(TrackingSource.STEPS, TrackingSource.WIFI, TrackingSource.CELL).map {
++				RetentionAuthorityResult.Unchanged(it, RetentionAuthorityScope.LIVE_AMBIENT, RetentionAuthorityState.ACTIVE, 1L)
++			}
++			coEvery { currentLiveAmbient(any(), any(), any(), any(), any()) } returns
++				CurrentRetentionAuthority.Unavailable(RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE)
++			coEvery { reconcileLiveAmbient(any()) } answers {
++				RetentionAuthorityResult.Unavailable(firstArg(), RetentionAuthorityScope.LIVE_AMBIENT,
++					RetentionAuthorityUnavailableReason.PURPOSE_AUTHORITY_UNAVAILABLE)
++			}
++		}
++		val exact = CurrentTrackingPurposeAuthorityReader(policies, lifecycle, rollout, retention, Provider { gate })
++		val store = AtomicTrackingPurposeAvailabilityStore()
++		val issuer = SerializedTrackingPurposeLeaseIssuer(exact, store, TrackingPurposeOwnerCasTokenFactory { java.util.UUID.randomUUID().toString() })
++		val registry = TrackingPurposeExecutionRevisionRegistry()
++		val publicReader = mockk<CurrentTrackingPurposeAvailabilityReader> {
++			every { availability } returns MutableStateFlow(CurrentTrackingPurposeAvailability.SAFE_DEFAULT)
++		}
++		val clockDomain = BootClockDomainProvider { "boot-1" }
++		val authority = CurrentSourceCallerAuthorityReader(database, rollout, publicReader, exact, registry, clockDomain, Provider { gate })
++		val receipts = RoomSourceCallerAcceptedAuthorityRepository(database)
++		val broker = SourceBroker(database, rollout)
++		val dispatcher = GuardedSourceCallerDemandDispatcher(authority, ExactSourceCallerGuard(authority, receipts, Provider { gate }), broker, receipts)
++		val arbiter = RecordingControlArbiter()
++		val monitor = AutomaticStartTransitionMonitor(arbiter, dispatcher, clockDomain,
++			ActivityAutomationProjectionLane(database, mockk(), mockk()), issuer)
++		val locks = mockk<LockManager>(relaxed = true) { every { isLocked } answers { locked } }
++		val device = mockk<AndroidActivityRecognitionSourceStateProvider> {
++			every { snapshot() } answers { ActivityRecognitionSourceState(permissionGranted, providerAvailable) }
++		}
++		val epoch = ActivityAutomationEpochAuthority(database, application, locks, FixedClock(1_000L, 100L),
++			com.adsamcik.tracker.shared.base.time.BootClockDomainProvider { "boot-1" })
++		val owner = DefaultAutomaticControlPurposeOwner(application, repository, device, locks, monitor, epoch,
++			ActivityControlRetentionMaintenance(database, clockDomain, gate))
++		val runtime = DefaultTrackingPurposePublicationRuntime(issuer, store, registry, retention,
++			ownerCallbackScope = scope, automaticControlPurposeOwnerProvider = Provider { owner })
++		return Fixture(params, policies, store, issuer, runtime, owner, monitor, arbiter, locks)
++	}
++
++	private data class Fixture(val params: MutableStateFlow<TrackingParamsState>, val policies: RoomSourcePolicyRepository,
++		val store: AtomicTrackingPurposeAvailabilityStore, val issuer: SerializedTrackingPurposeLeaseIssuer,
++		val runtime: DefaultTrackingPurposePublicationRuntime, val owner: DefaultAutomaticControlPurposeOwner,
++		val monitor: AutomaticStartTransitionMonitor, val arbiter: RecordingControlArbiter, val locks: LockManager)
++}
++
++private class RecordingControlArbiter : ActivityRegistrationArbiter {
++	val owners = linkedSetOf<ActivityRegistrationOwner>()
++	var setCount = 0
++	var clearCount = 0
++	var rejectRegistration = false
++	var rejectRemoval = false
++	var beforeSet: suspend () -> Unit = {}
++	var beforeClear: suspend () -> Unit = {}
++	override suspend fun setDemand(owner: ActivityRegistrationOwner, demand: ActivityRegistrationDemand): ActivityRegistrationResult {
++		setCount++
++		beforeSet()
++		demand.continuousRecognitionIntervalSeconds shouldBe null
++		if (rejectRegistration) return ActivityRegistrationResult(ActivityRegistrationStatus.FAILED, snapshot(), ActivityRegistrationFailureCode.PROVIDER_UNAVAILABLE)
++		owners += owner
++		return result()
++	}
++	override suspend fun clearDemand(owner: ActivityRegistrationOwner): ActivityRegistrationResult {
++		clearCount++
++		beforeClear()
++		owners -= owner
++		return if (rejectRemoval) ActivityRegistrationResult(ActivityRegistrationStatus.DEGRADED, snapshot(),
++			ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED, retryable = true) else result()
++	}
++	override suspend fun reconcileDurableDemands() = result()
++	override suspend fun closeForCollectedDataDeletion() = result()
++	override suspend fun resumeAfterCollectedDataDeletion() = result()
++	override suspend fun retryPendingProviderCleanup() = ActivityProviderCleanupResult.COMPLETE
++	override fun snapshot() = ActivityRegistrationSnapshot(owners.isNotEmpty(),
++		ActivityRegistrationIdentity("fixture-activity", 1L, 3L, "boot-1", "fixture-transitions")
++			.takeIf { owners.isNotEmpty() }, owners.toSet(), null, emptySet<ActivityTransitionData>())
++	private fun result() = ActivityRegistrationResult(ActivityRegistrationStatus.APPLIED, snapshot())
++}
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApiLogicTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApiLogicTest.kt
+@@ -26,6 +26,37 @@
+ 
+ @DisplayName("BackgroundTrackingApi Logic")
+ class BackgroundTrackingApiLogicTest {
++	@Test
++	fun `ambient recovery debt cannot block an independently accepted automatic owner`() {
++		val ambient = TrackingPurposeSettingsReconciliationResult.Debt(TrackingPurposeSettingsReconciliationDebt(listOf(
++			TrackingPurposeSettingsReconciliationFailure(AmbientTrackingSource.STEPS,
++				TrackingPurposeSettingsReconciliationFailureReason.OWNER_MISSING))))
++		automaticReconciliationCompleted(ambient) shouldBe true
++		val automatic = TrackingPurposeSettingsReconciliationResult.Debt(TrackingPurposeSettingsReconciliationDebt(listOf(
++			TrackingPurposeSettingsReconciliationFailure(null,
++				TrackingPurposeSettingsReconciliationFailureReason.AUTOMATIC_CONTROL_RECONCILIATION_FAILED))))
++		automaticReconciliationCompleted(automatic) shouldBe false
++	}
++
++	@Test
++	fun `recovery consumes owner publication and preserves repairable failure reasons`() {
++		automaticControlPublicationRecoveryResult(readyAutomaticControl()) shouldBe
++			AutomaticControlRecoveryResult.ACCEPTED
++		listOf(AutomaticTrackingUnavailableReason.REGISTRATION_PENDING,
++			AutomaticTrackingUnavailableReason.PROVIDER_UNAVAILABLE).forEach { reason ->
++			automaticControlPublicationRecoveryResult(
++				AutomaticTrackingOperationalAvailability.Unavailable(reason),
++			) shouldBe AutomaticControlRecoveryResult.RETRYABLE
++		}
++		listOf(AutomaticTrackingUnavailableReason.TRANSITION_DETECTION_DISABLED,
++			AutomaticTrackingUnavailableReason.PERMISSION_REQUIRED,
++			AutomaticTrackingUnavailableReason.AUTHORITY_UNAVAILABLE).forEach { reason ->
++			automaticControlPublicationRecoveryResult(
++				AutomaticTrackingOperationalAvailability.Unavailable(reason),
++			) shouldBe AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
++		}
++	}
++
+ 	@Test
+ 	fun `settings observation retries after failure instead of ending the collector`() = runTest {
+ 		var subscriptions = 0
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/catalog/DefaultSourceImplementationCatalogTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/catalog/DefaultSourceImplementationCatalogTest.kt
+@@ -447,9 +447,7 @@
+ 			TrackingPurpose.CONTROL,
+ 		) as SourcePurposeBinding.Executable
+ 		control.activationDefault shouldBe SourceActivationDefault.CONTROL_OFF
+-		control.products.capability shouldBe SourceProductCapability.Contained(
+-			TrackingDecisionContainmentReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
+-		)
++		control.products.capability shouldBe SourceProductCapability.Dormant
+ 		control.products.writer shouldBe SourceWriterContract.NotApplicable(
+ 			SourceWriterUnsupportedReason.CONTROL_HAS_NO_PRODUCT_WRITER,
+ 		)
+@@ -654,9 +652,7 @@
+ 			key(TrackingSource.CELL, TrackingPurpose.SESSION_CAPTURE) to
+ 				portableSessionRetention,
+ 			key(TrackingSource.ACTIVITY, TrackingPurpose.CONTROL) to
+-				SourceRetentionContract.Contained(
+-					TrackingDecisionContainmentReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
+-				),
++				SourceRetentionContract.ActivityControl,
+ 			key(TrackingSource.LOCATION, TrackingPurpose.AMBIENT_PRODUCT) to
+ 				SourceRetentionContract.Ambient(
+ 					RetentionAuthorityScope.LIVE_AMBIENT,
+--- a/data/preferences/src/test/java/com/adsamcik/tracker/shared/preferences/tracking/RoomSourcePolicyRepositoryTest.kt
++++ b/data/preferences/src/test/java/com/adsamcik/tracker/shared/preferences/tracking/RoomSourcePolicyRepositoryTest.kt
+@@ -26,6 +26,31 @@
+ @RunWith(RobolectricTestRunner::class)
+ @Config(sdk = [34])
+ class RoomSourcePolicyRepositoryTest {
++	@Test
++	fun `Steps alone can authorize temporary automatic control without Activity capture or epoch churn`() = runTest {
++		val settings = readySettings().copy(locationEnabled = false, activityEnabled = false,
++			stepsEnabled = true, barometerEnabled = false, autoTrackingMode = 2,
++			sourceCollectionSettings = SourceCollectionSettings(location = SourceCollectionFrequency.OFF,
++				activity = SourceCollectionFrequency.OFF, steps = SourceCollectionFrequency.BALANCED,
++				pressure = SourceCollectionFrequency.OFF, wifi = SourceCollectionFrequency.OFF,
++				cell = SourceCollectionFrequency.OFF))
++		val original = repository.bootstrapFromLegacy(settings)
++		original[TrackingSourceComponent.STEPS].enabled shouldBe true
++		original[TrackingSourceComponent.ACTIVITY].enabled shouldBe false
++		original[TrackingSourceComponent.LOCATION].enabled shouldBe false
++		val control = original[TrackingSourceComponent.ACTIVITY]
++		control.controlConsentEpoch shouldBe 1L
++		control.controlPersistenceEligible shouldBe false
++		val quality = repository.replaceCaptureSettings(original.revision,
++			settings.copy(overallBalanceLevel = 5, balanceProfileVersion = 1,
++				locationProfileVersion = 1, locationBalanceLevel = 5), "QUALITY")
++		quality[TrackingSourceComponent.ACTIVITY].controlConsentEpoch shouldBe control.controlConsentEpoch
++		quality[TrackingSourceComponent.ACTIVITY].controlPersistenceEligible shouldBe false
++		database.sourcePolicyDao().policiesAtRevision(original.revision)
++			.first { it.sourceKind == TrackingSourceComponent.ACTIVITY.stableCode }
++			.controlPersistenceEligible shouldBe false
++	}
++
+ 	private lateinit var database: AppDatabase
+ 	private lateinit var repository: RoomSourcePolicyRepository
+ 	private var elapsedNanos = 100L
+--- a/app/src/test/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModelTest.kt
++++ b/app/src/test/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModelTest.kt
+@@ -1272,6 +1272,33 @@
+ 				io.mockk.verify { activityWatcherController.applyAutoTrackingMode(0) }
+ 			}
+ 
++		@Test
++		fun `automatic permission repair remains visible before owner can publish Ready`() = runTest(testDispatcher) {
++			permissionsGranted = false
++			paramsFlow.value = paramsFlow.value.copy(autoTrackingMode = 2)
++			val vm = createViewModel()
++			advanceUntilIdle()
++			vm.uiState.value.autoTrackingMode shouldBe 2
++			vm.uiState.value.automaticTrackingPermissionRequired shouldBe true
++			vm.uiState.value.automaticTrackingOperational shouldBe false
++		}
++
++		@Test
++		fun `stale Ready cannot conceal disabled transition detection`() = runTest(testDispatcher) {
++			paramsFlow.value = paramsFlow.value.copy(autoTrackingMode = 2, transitionDetectionEnabled = false)
++			val control = purposeIdentity(TrackingSource.ACTIVITY, TrackingPurpose.CONTROL,
++				collectedDataEpoch = 3L, rolloutRevision = 9L)
++			purposeAvailabilityFlow.value = CurrentTrackingPurposeAvailability(
++				published = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.copy(
++					automaticControl = AutomaticTrackingOperationalAvailability.Ready(control)),
++				currentAuthorities = mapOf(control.sourcePurpose to control.toAuthorityVector()))
++			val vm = createViewModel()
++			advanceUntilIdle()
++			vm.uiState.value.transitionDetectionEnabled shouldBe false
++			vm.uiState.value.automaticTrackingOperational shouldBe false
++			vm.uiState.value.autoTrackingMode shouldBe 2
++		}
++
+         @Test
+         fun `granted auto tracking permission preserves the choice saved before launch`() = runTest(testDispatcher) {
+             val vm = createViewModel()
+--- a/app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt
++++ b/app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt
+@@ -298,7 +298,7 @@
+     }
+ 
+ 	@Test
+-	fun automaticIntentShowsStablePolicyUnavailableStatusWithoutOperationalControls() {
++	fun automaticIntentShowsPlainUnavailableStatusWithoutInternalCodes() {
+ 		composeTestRule.setContent {
+ 			AppTheme {
+ 				TrackingSettingsContent(
+@@ -316,17 +316,33 @@
+ 
+ 		scrollTo("Automatic tracking isn’t available")
+ 		composeTestRule.onNodeWithTag("automaticTrackingUnavailable").assertIsDisplayed()
+-		scrollTo("CONTROL_RETENTION_POLICY_UNAVAILABLE")
+ 		composeTestRule.onNodeWithText(
+ 			"CONTROL_RETENTION_POLICY_UNAVAILABLE",
+ 			substring = true,
+-		).assertIsDisplayed()
+-		scrollTo("Manual tracking is unchanged.")
+-		composeTestRule.onNodeWithText("Manual tracking is unchanged.", substring = true)
++		).assertDoesNotExist()
++		composeTestRule.onNodeWithText("Automatic starts are not ready. Check your tracking choices and permissions.")
+ 			.assertIsDisplayed()
+ 		composeTestRule.onNodeWithText("Battery-efficient motion detection", substring = true)
+ 			.assertDoesNotExist()
+ 	}
++
++	@Test
++	fun disabledTransitionsOfferAnExplicitRepairWithoutChangingSavedMode() {
++		var repaired: Boolean? = null
++		composeTestRule.setContent {
++			AppTheme {
++				TrackingSettingsContent(uiState = defaultUiState.copy(
++					transitionDetectionEnabled = false, automaticTrackingOperational = false,
++					automaticControlAvailability = AutomaticTrackingOperationalAvailability.Unavailable(
++						AutomaticTrackingUnavailableReason.TRANSITION_DETECTION_DISABLED)),
++					onTransitionDetectionChanged = { repaired = it })
++			}
++		}
++		scrollTo("Enable motion detection")
++		composeTestRule.onNodeWithTag("automaticEnableTransitions").performClick()
++		repaired shouldBe true
++	}
++
+ 
+     @Test
+     fun transitionDetectionIsHiddenWhenAutomaticTrackingIsDisabled() {
+--- /dev/null
++++ b/app/src/main/res/values/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Enable motion detection</string>
++    <string name="automatic_control_enable_transitions_summary">Automatic starts need motion detection.</string>
++    <string name="automatic_control_provider_unavailable_summary">Automatic starts need a supported activity-recognition service.</string>
++    <string name="automatic_control_pending_summary">Automatic starts are not ready. Check your tracking choices and permissions.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-bg-rBG/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Включване на разпознаването на движение</string>
++    <string name="automatic_control_enable_transitions_summary">Автоматичното стартиране изисква разпознаване на движение.</string>
++    <string name="automatic_control_provider_unavailable_summary">Автоматичното стартиране изисква поддържана услуга за разпознаване на активност.</string>
++    <string name="automatic_control_pending_summary">Автоматичното стартиране не е готово. Проверете избора си и разрешенията.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-cs-rCZ/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Povolit rozpoznávání pohybu</string>
++    <string name="automatic_control_enable_transitions_summary">Automatické spuštění vyžaduje rozpoznávání pohybu.</string>
++    <string name="automatic_control_provider_unavailable_summary">Automatické spuštění vyžaduje podporovanou službu rozpoznávání aktivity.</string>
++    <string name="automatic_control_pending_summary">Automatické spuštění není připravené. Zkontrolujte volby sledování a oprávnění.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-da-rDK/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Aktivér bevægelsesregistrering</string>
++    <string name="automatic_control_enable_transitions_summary">Automatisk start kræver bevægelsesregistrering.</string>
++    <string name="automatic_control_provider_unavailable_summary">Automatisk start kræver en understøttet tjeneste til aktivitetsregistrering.</string>
++    <string name="automatic_control_pending_summary">Automatisk start er ikke klar. Kontrollér dine sporingsvalg og tilladelser.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-de-rDE/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Bewegungserkennung aktivieren</string>
++    <string name="automatic_control_enable_transitions_summary">Automatische Starts benötigen Bewegungserkennung.</string>
++    <string name="automatic_control_provider_unavailable_summary">Automatische Starts benötigen einen unterstützten Dienst zur Aktivitätserkennung.</string>
++    <string name="automatic_control_pending_summary">Automatische Starts sind noch nicht bereit. Prüfe deine Auswahl und Berechtigungen.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-el-rGR/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Ενεργοποίηση ανίχνευσης κίνησης</string>
++    <string name="automatic_control_enable_transitions_summary">Η αυτόματη έναρξη απαιτεί ανίχνευση κίνησης.</string>
++    <string name="automatic_control_provider_unavailable_summary">Η αυτόματη έναρξη απαιτεί υποστηριζόμενη υπηρεσία αναγνώρισης δραστηριότητας.</string>
++    <string name="automatic_control_pending_summary">Η αυτόματη έναρξη δεν είναι έτοιμη. Ελέγξτε τις επιλογές καταγραφής και τις άδειες.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-es-rES/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Activar detección de movimiento</string>
++    <string name="automatic_control_enable_transitions_summary">El inicio automático requiere detectar movimiento.</string>
++    <string name="automatic_control_provider_unavailable_summary">El inicio automático requiere un servicio compatible de reconocimiento de actividad.</string>
++    <string name="automatic_control_pending_summary">El inicio automático no está listo. Revisa tus opciones de seguimiento y permisos.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-et-rEE/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Luba liikumise tuvastamine</string>
++    <string name="automatic_control_enable_transitions_summary">Automaatne käivitamine vajab liikumise tuvastamist.</string>
++    <string name="automatic_control_provider_unavailable_summary">Automaatne käivitamine vajab toetatud tegevuse tuvastamise teenust.</string>
++    <string name="automatic_control_pending_summary">Automaatne käivitamine pole valmis. Kontrolli jälgimisvalikuid ja õigusi.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-fi-rFI/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Ota liikkeentunnistus käyttöön</string>
++    <string name="automatic_control_enable_transitions_summary">Automaattinen aloitus vaatii liikkeentunnistuksen.</string>
++    <string name="automatic_control_provider_unavailable_summary">Automaattinen aloitus vaatii tuetun aktiivisuudentunnistuspalvelun.</string>
++    <string name="automatic_control_pending_summary">Automaattinen aloitus ei ole valmis. Tarkista seurantavalinnat ja käyttöoikeudet.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-fr-rFR/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Activer la détection de mouvement</string>
++    <string name="automatic_control_enable_transitions_summary">Le démarrage automatique nécessite la détection de mouvement.</string>
++    <string name="automatic_control_provider_unavailable_summary">Le démarrage automatique nécessite un service de reconnaissance d’activité compatible.</string>
++    <string name="automatic_control_pending_summary">Le démarrage automatique est indisponible. Vérifiez vos choix de suivi et les autorisations.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-ga-rIE/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Cumasaigh braite gluaiseachta</string>
++    <string name="automatic_control_enable_transitions_summary">Teastaíonn braite gluaiseachta chun tosú go huathoibríoch.</string>
++    <string name="automatic_control_provider_unavailable_summary">Teastaíonn seirbhís aitheanta gníomhaíochta a dtacaítear léi chun tosú go huathoibríoch.</string>
++    <string name="automatic_control_pending_summary">Níl tosú uathoibríoch réidh. Seiceáil do roghanna rianaithe agus ceadanna.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-hi-rIN/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">गति पहचान चालू करें</string>
++    <string name="automatic_control_enable_transitions_summary">अपने आप शुरू करने के लिए गति पहचान ज़रूरी है।</string>
++    <string name="automatic_control_provider_unavailable_summary">अपने आप शुरू करने के लिए समर्थित गतिविधि पहचान सेवा ज़रूरी है।</string>
++    <string name="automatic_control_pending_summary">अपने आप शुरू करना अभी तैयार नहीं है। ट्रैकिंग विकल्प और अनुमतियाँ जाँचें।</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-hr-rHR/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Uključi prepoznavanje kretanja</string>
++    <string name="automatic_control_enable_transitions_summary">Automatsko pokretanje zahtijeva prepoznavanje kretanja.</string>
++    <string name="automatic_control_provider_unavailable_summary">Automatsko pokretanje zahtijeva podržanu uslugu prepoznavanja aktivnosti.</string>
++    <string name="automatic_control_pending_summary">Automatsko pokretanje nije spremno. Provjerite odabire praćenja i dopuštenja.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-hu-rHU/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Mozgásérzékelés bekapcsolása</string>
++    <string name="automatic_control_enable_transitions_summary">Az automatikus indításhoz mozgásérzékelés szükséges.</string>
++    <string name="automatic_control_provider_unavailable_summary">Az automatikus indításhoz támogatott tevékenységfelismerő szolgáltatás szükséges.</string>
++    <string name="automatic_control_pending_summary">Az automatikus indítás nem áll készen. Ellenőrizd a követési beállításokat és engedélyeket.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-it-rIT/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Attiva rilevamento movimento</string>
++    <string name="automatic_control_enable_transitions_summary">Gli avvii automatici richiedono il rilevamento del movimento.</string>
++    <string name="automatic_control_provider_unavailable_summary">Gli avvii automatici richiedono un servizio di riconoscimento attività supportato.</string>
++    <string name="automatic_control_pending_summary">Gli avvii automatici non sono pronti. Controlla le scelte di tracciamento e le autorizzazioni.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-ja-rJP/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">動きの検出を有効にする</string>
++    <string name="automatic_control_enable_transitions_summary">自動開始には動きの検出が必要です。</string>
++    <string name="automatic_control_provider_unavailable_summary">自動開始には対応するアクティビティ認識サービスが必要です。</string>
++    <string name="automatic_control_pending_summary">自動開始の準備ができていません。記録の設定と権限を確認してください。</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-lt-rLT/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Įjungti judėjimo aptikimą</string>
++    <string name="automatic_control_enable_transitions_summary">Automatiniam paleidimui reikia judėjimo aptikimo.</string>
++    <string name="automatic_control_provider_unavailable_summary">Automatiniam paleidimui reikia palaikomos veiklos atpažinimo paslaugos.</string>
++    <string name="automatic_control_pending_summary">Automatinis paleidimas neparuoštas. Patikrinkite sekimo pasirinkimus ir leidimus.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-lv-rLV/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Ieslēgt kustības noteikšanu</string>
++    <string name="automatic_control_enable_transitions_summary">Automātiskai sākšanai vajadzīga kustības noteikšana.</string>
++    <string name="automatic_control_provider_unavailable_summary">Automātiskai sākšanai vajadzīgs atbalstīts aktivitātes atpazīšanas pakalpojums.</string>
++    <string name="automatic_control_pending_summary">Automātiskā sākšana nav gatava. Pārbaudiet izsekošanas izvēles un atļaujas.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-mt-rMT/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Attiva s-sejbien tal-moviment</string>
++    <string name="automatic_control_enable_transitions_summary">Il-bidu awtomatiku jeħtieġ is-sejbien tal-moviment.</string>
++    <string name="automatic_control_provider_unavailable_summary">Il-bidu awtomatiku jeħtieġ servizz appoġġjat ta’ rikonoxximent tal-attività.</string>
++    <string name="automatic_control_pending_summary">Il-bidu awtomatiku mhux lest. Iċċekkja l-għażliet tat-traċċar u l-permessi.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-nl-rNL/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Bewegingsdetectie inschakelen</string>
++    <string name="automatic_control_enable_transitions_summary">Automatisch starten vereist bewegingsdetectie.</string>
++    <string name="automatic_control_provider_unavailable_summary">Automatisch starten vereist een ondersteunde dienst voor activiteitsherkenning.</string>
++    <string name="automatic_control_pending_summary">Automatisch starten is nog niet klaar. Controleer je trackingkeuzes en machtigingen.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-pl-rPL/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Włącz wykrywanie ruchu</string>
++    <string name="automatic_control_enable_transitions_summary">Automatyczne uruchamianie wymaga wykrywania ruchu.</string>
++    <string name="automatic_control_provider_unavailable_summary">Automatyczne uruchamianie wymaga obsługiwanej usługi rozpoznawania aktywności.</string>
++    <string name="automatic_control_pending_summary">Automatyczne uruchamianie nie jest gotowe. Sprawdź opcje śledzenia i uprawnienia.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-pt-rPT/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Ativar deteção de movimento</string>
++    <string name="automatic_control_enable_transitions_summary">O início automático requer deteção de movimento.</string>
++    <string name="automatic_control_provider_unavailable_summary">O início automático requer um serviço de reconhecimento de atividade compatível.</string>
++    <string name="automatic_control_pending_summary">O início automático não está pronto. Verifique as opções de registo e as permissões.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-ro-rRO/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Activează detectarea mișcării</string>
++    <string name="automatic_control_enable_transitions_summary">Pornirea automată necesită detectarea mișcării.</string>
++    <string name="automatic_control_provider_unavailable_summary">Pornirea automată necesită un serviciu compatibil de recunoaștere a activității.</string>
++    <string name="automatic_control_pending_summary">Pornirea automată nu este pregătită. Verifică opțiunile de urmărire și permisiunile.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-sk-rSK/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Povoliť rozpoznávanie pohybu</string>
++    <string name="automatic_control_enable_transitions_summary">Automatické spustenie vyžaduje rozpoznávanie pohybu.</string>
++    <string name="automatic_control_provider_unavailable_summary">Automatické spustenie vyžaduje podporovanú službu rozpoznávania aktivity.</string>
++    <string name="automatic_control_pending_summary">Automatické spustenie nie je pripravené. Skontrolujte voľby sledovania a oprávnenia.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-sl-rSI/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Omogoči zaznavanje gibanja</string>
++    <string name="automatic_control_enable_transitions_summary">Samodejni začetek zahteva zaznavanje gibanja.</string>
++    <string name="automatic_control_provider_unavailable_summary">Samodejni začetek zahteva podprto storitev prepoznavanja dejavnosti.</string>
++    <string name="automatic_control_pending_summary">Samodejni začetek ni pripravljen. Preverite izbire sledenja in dovoljenja.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-sv-rSE/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">Aktivera rörelsedetektering</string>
++    <string name="automatic_control_enable_transitions_summary">Automatisk start kräver rörelsedetektering.</string>
++    <string name="automatic_control_provider_unavailable_summary">Automatisk start kräver en tjänst för aktivitetsigenkänning som stöds.</string>
++    <string name="automatic_control_pending_summary">Automatisk start är inte redo. Kontrollera dina spårningsval och behörigheter.</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-zh-rCN/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">启用运动检测</string>
++    <string name="automatic_control_enable_transitions_summary">自动开始需要运动检测。</string>
++    <string name="automatic_control_provider_unavailable_summary">自动开始需要受支持的活动识别服务。</string>
++    <string name="automatic_control_pending_summary">自动开始尚未就绪。请检查跟踪选择和权限。</string>
++</resources>
+--- /dev/null
++++ b/app/src/main/res/values-zh-rTW/automatic_control_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="automatic_control_enable_transitions">啟用動作偵測</string>
++    <string name="automatic_control_enable_transitions_summary">自動開始需要動作偵測。</string>
++    <string name="automatic_control_provider_unavailable_summary">自動開始需要支援的活動辨識服務。</string>
++    <string name="automatic_control_pending_summary">自動開始尚未就緒。請檢查追蹤選項和權限。</string>
++</resources>
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CurrentTrackingPurposeAvailabilityProjection.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CurrentTrackingPurposeAvailabilityProjection.kt
+@@ -149,7 +149,8 @@
+ 				?: return@mapNotNull null
+ 			val registeredExecution = executions[sourcePurpose] ?: 0L
+ 			val executionRevision = registeredExecution.takeIf {
+-				sourcePolicy.persistenceEligible(sourcePurpose.purpose) &&
++				(sourcePurpose.purpose == TrackingPurpose.CONTROL ||
++					sourcePolicy.persistenceEligible(sourcePurpose.purpose)) &&
+ 					rollout.supportsExecution(sourcePurpose)
+ 			} ?: 0L
+ 			sourcePurpose to TrackingPurposeAuthorityVector(
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/controller/DefaultLockManager.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/controller/DefaultLockManager.kt
+@@ -16,7 +16,8 @@
+ import com.adsamcik.tracker.tracker.locker.DisableTillRechargeWorker
+ import com.adsamcik.tracker.tracker.receiver.TrackerTimeUnlockReceiver
+ import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
+-import java.util.concurrent.atomic.AtomicBoolean
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
+ 
+@@ -39,7 +40,8 @@
+     private val trackerStateReader: TrackerStateReader,
+     private val activityWatcherController: ActivityWatcherServiceController,
+ ) : LockManager {
+-    private val persistenceInitialized = AtomicBoolean(false)
++    private val persistenceInitializationMutex = Mutex()
++    private var persistenceInitialized = false
+ 
+     
+     /**
+@@ -69,8 +71,8 @@
+         }
+     }
+     
+-    override suspend fun initializeFromPersistence(context: Context) {
+-        if (!persistenceInitialized.compareAndSet(false, true)) return
++    override suspend fun initializeFromPersistence(context: Context) = persistenceInitializationMutex.withLock {
++        if (persistenceInitialized) return@withLock
+ 
+         try {
+             val preferences = Preferences(context)
+@@ -95,8 +97,8 @@
+             }
+ 
+             refreshLockState(context)
++            persistenceInitialized = true
+         } catch (t: Throwable) {
+-            persistenceInitialized.set(false)
+             throw t
+         }
+     }
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/controller/DefaultLockManagerTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/controller/DefaultLockManagerTest.kt
+@@ -19,6 +19,10 @@
+ import io.mockk.runs
+ import io.mockk.unmockkAll
+ import io.mockk.verify
++import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.async
++import kotlinx.coroutines.test.runCurrent
++import kotlin.test.assertFalse
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.test.runTest
+ import org.junit.jupiter.api.AfterEach
+@@ -130,6 +134,29 @@
+ 	}
+ 
+ 	@Test
++	fun `concurrent persisted lock initialization waits for the first authoritative restore`() = runTest {
++		val reading = CompletableDeferred<Unit>()
++		val release = CompletableDeferred<Unit>()
++		coEvery { anyConstructed<Preferences>().fetchLong("disabled_time", 0L) } coAnswers {
++			reading.complete(Unit)
++			release.await()
++			0L
++		}
++		coEvery { anyConstructed<Preferences>().fetchBooleanRes(
++			R.string.settings_disabled_recharge_key, R.string.settings_disabled_recharge_default) } returns true
++		val first = async { lockManager.initializeFromPersistence(context) }
++		reading.await()
++		val second = async { lockManager.initializeFromPersistence(context) }
++		runCurrent()
++		assertFalse(second.isCompleted)
++		release.complete(Unit)
++		first.await()
++		second.await()
++		assertTrue(lockManager.isChargeLocked)
++		coVerify(exactly = 1) { anyConstructed<Preferences>().fetchLong("disabled_time", 0L) }
++	}
++
++	@Test
+ 	fun `unlockTimeLock does not force watcher off via watcherPreference argument`() = runTest {
+ 		// A recharge lock remains active so isLockedRightNow() stays true after the time lock
+ 		// clears. Previously unlockTimeLock called poke(watcherPreference = isLockedRightNow()),
+--- a/sensor/activity/src/test/java/com/adsamcik/tracker/activity/api/registration/DefaultActivityRegistrationArbiterTest.kt
++++ b/sensor/activity/src/test/java/com/adsamcik/tracker/activity/api/registration/DefaultActivityRegistrationArbiterTest.kt
+@@ -679,6 +679,63 @@
+ 	}
+ 
+ 	@Test
++	fun `cold clear removes persisted automatic handle without rearming it`() = runTest {
++		database.sourceBrokerDao().insertDemands(
++			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
++		)
++		val started = subject.setDemand(
++			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
++			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
++		)
++		val identity = requireNotNull(started.snapshot.identity)
++		appScope.cancel()
++		database.sourceBrokerDao().retireConsumer("app:auto", "boot-1", 200L, 200L)
++		// Keep the startup observer queued: this proves the explicit negative call owns cleanup.
++		appScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
++		subject = createSubject(appScope)
++
++		val cleared = subject.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
++
++		cleared.status shouldBe ActivityRegistrationStatus.APPLIED
++		cleared.snapshot.active shouldBe false
++		removedIdentities shouldBe listOf(identity)
++		coVerify(exactly = 1) { backend.applyRegistration(any(), any()) }
++		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
++			?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRED
++	}
++
++	@Test
++	fun `cold clear reports removal debt until persisted provider handle is acknowledged`() = runTest {
++		database.sourceBrokerDao().insertDemands(
++			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
++		)
++		val started = subject.setDemand(
++			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
++			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
++		)
++		val identity = requireNotNull(started.snapshot.identity)
++		appScope.cancel()
++		database.sourceBrokerDao().retireConsumer("app:auto", "boot-1", 200L, 200L)
++		appScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
++		subject = createSubject(appScope)
++		coEvery { backend.removeRegistration(identity) } throws IllegalStateException("removal pending")
++
++		val pending = subject.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
++
++		pending.status shouldBe ActivityRegistrationStatus.DEGRADED
++		pending.snapshot.active shouldBe false
++		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
++			?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRING
++		coEvery { backend.removeRegistration(identity) } coAnswers { removedIdentities += identity }
++		val acknowledged = subject.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
++		acknowledged.status shouldBe ActivityRegistrationStatus.APPLIED
++		removedIdentities shouldBe listOf(identity)
++		coVerify(exactly = 1) { backend.applyRegistration(any(), any()) }
++		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
++			?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRED
++	}
++
++	@Test
+ 	fun `containment between provider reserve and durable accept removes and fails reservation`() = runTest {
+ 		database.sourceBrokerDao().insertDemands(
+ 			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),

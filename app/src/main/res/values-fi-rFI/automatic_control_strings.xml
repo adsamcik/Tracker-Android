@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automatic_control_enable_transitions">Ota liikkeentunnistus käyttöön</string>
+    <string name="automatic_control_enable_transitions_summary">Automaattinen aloitus vaatii liikkeentunnistuksen.</string>
+    <string name="automatic_control_provider_unavailable_summary">Automaattinen aloitus vaatii tuetun aktiivisuudentunnistuspalvelun.</string>
+    <string name="automatic_control_pending_summary">Automaattinen aloitus ei ole valmis. Tarkista seurantavalinnat ja käyttöoikeudet.</string>
+</resources>

@@ -19,6 +19,10 @@ import io.mockk.spyk
 import io.mockk.runs
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runCurrent
+import kotlin.test.assertFalse
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
@@ -127,6 +131,29 @@ class DefaultLockManagerTest {
 			)
 		}
 		verify(exactly = 0) { anyConstructed<Preferences>().edit(any()) }
+	}
+
+	@Test
+	fun `concurrent persisted lock initialization waits for the first authoritative restore`() = runTest {
+		val reading = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		coEvery { anyConstructed<Preferences>().fetchLong("disabled_time", 0L) } coAnswers {
+			reading.complete(Unit)
+			release.await()
+			0L
+		}
+		coEvery { anyConstructed<Preferences>().fetchBooleanRes(
+			R.string.settings_disabled_recharge_key, R.string.settings_disabled_recharge_default) } returns true
+		val first = async { lockManager.initializeFromPersistence(context) }
+		reading.await()
+		val second = async { lockManager.initializeFromPersistence(context) }
+		runCurrent()
+		assertFalse(second.isCompleted)
+		release.complete(Unit)
+		first.await()
+		second.await()
+		assertTrue(lockManager.isChargeLocked)
+		coVerify(exactly = 1) { anyConstructed<Preferences>().fetchLong("disabled_time", 0L) }
 	}
 
 	@Test

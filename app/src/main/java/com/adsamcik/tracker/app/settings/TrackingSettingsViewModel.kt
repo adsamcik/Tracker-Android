@@ -676,9 +676,8 @@ class TrackingSettingsViewModel internal constructor(
                 autoTrackingEnabled = params.autoTrackingMode > 0,
 				automaticTrackingOperational = params.autoTrackingMode > 0 &&
 					purposeAvailability.automaticControl.isOperational &&
-					activityPermissionGranted,
+					activityPermissionGranted && params.transitionDetectionEnabled,
 				automaticTrackingPermissionRequired = params.autoTrackingMode > 0 &&
-					purposeAvailability.automaticControl.isOperational &&
 					!activityPermissionGranted,
 				automaticControlAvailability = purposeAvailability.automaticControl,
                 transitionDetectionEnabled = params.transitionDetectionEnabled,

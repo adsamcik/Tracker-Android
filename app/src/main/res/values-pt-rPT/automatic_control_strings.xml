@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automatic_control_enable_transitions">Ativar deteção de movimento</string>
+    <string name="automatic_control_enable_transitions_summary">O início automático requer deteção de movimento.</string>
+    <string name="automatic_control_provider_unavailable_summary">O início automático requer um serviço de reconhecimento de atividade compatível.</string>
+    <string name="automatic_control_pending_summary">O início automático não está pronto. Verifique as opções de registo e as permissões.</string>
+</resources>

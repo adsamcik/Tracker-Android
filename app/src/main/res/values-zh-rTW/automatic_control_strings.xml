@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automatic_control_enable_transitions">啟用動作偵測</string>
+    <string name="automatic_control_enable_transitions_summary">自動開始需要動作偵測。</string>
+    <string name="automatic_control_provider_unavailable_summary">自動開始需要支援的活動辨識服務。</string>
+    <string name="automatic_control_pending_summary">自動開始尚未就緒。請檢查追蹤選項和權限。</string>
+</resources>

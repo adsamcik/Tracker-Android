@@ -86,14 +86,12 @@ class AutomaticStartTransitionMonitor @Inject internal constructor(
 		}
 		return when (guardedMutation) {
 			is AmbientRadioLeaseMutation.Applied -> guardedMutation.value
-			AmbientRadioLeaseMutation.Stale -> withContext(NonCancellable) {
-				compensateRejectedActivation(
-					boundaryBootId,
-					elapsedRealtimeNanos,
-					boundaryWallTimeMs,
-					desiredLatencyMs,
-				)
-			}
+			// This caller never entered the mutation. Cleanup could remove a successor's demand.
+			AmbientRadioLeaseMutation.Stale -> ActivityRegistrationResult(
+				ActivityRegistrationStatus.BLOCKED,
+				arbiter.snapshot(),
+				ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND,
+			)
 		}
 	}
 

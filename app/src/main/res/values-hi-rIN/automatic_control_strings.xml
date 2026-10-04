@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automatic_control_enable_transitions">गति पहचान चालू करें</string>
+    <string name="automatic_control_enable_transitions_summary">अपने आप शुरू करने के लिए गति पहचान ज़रूरी है।</string>
+    <string name="automatic_control_provider_unavailable_summary">अपने आप शुरू करने के लिए समर्थित गतिविधि पहचान सेवा ज़रूरी है।</string>
+    <string name="automatic_control_pending_summary">अपने आप शुरू करना अभी तैयार नहीं है। ट्रैकिंग विकल्प और अनुमतियाँ जाँचें।</string>
+</resources>

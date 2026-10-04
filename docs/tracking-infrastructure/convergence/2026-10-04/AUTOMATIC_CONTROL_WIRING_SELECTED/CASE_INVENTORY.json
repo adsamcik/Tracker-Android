@@ -1,0 +1,108 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "newTestCount": 24,
+  "files": [
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/TrackingPurposePublicationRuntimeTest.kt",
+      "newTestAnnotationCount": 1,
+      "newOrRenamedScenarioNames": [
+        "authority reader executes temporary control without recorded product persistence",
+        "lost automatic consent retains cleanup ownership until physical retirement succeeds"
+      ],
+      "executed": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/AutomaticStartTransitionMonitorTest.kt",
+      "newTestAnnotationCount": 0,
+      "newOrRenamedScenarioNames": [],
+      "executed": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/AutomaticStepsControlRoomTest.kt",
+      "newTestAnnotationCount": 14,
+      "newOrRenamedScenarioNames": [
+        "built in owner arms Steps only control during flight then refuses post publication activation",
+        "persisted lock restore is awaited and suppression stamped before registration",
+        "disabled transitions preserve chosen automatic mode and never arm continuous fallback",
+        "missing permission exposes repair and does not activate any provider",
+        "unavailable provider remains truthful without recording Activity",
+        "failed provider registration removes durable control instead of publishing Ready",
+        "revocation retires only control and preserves the existing captured Activity sibling",
+        "Off fences registration and acknowledged cleanup closes the exact previous purpose",
+        "unacknowledged provider removal retains cleanup lease for retry",
+        "stale compensation cannot remove a newer accepted activation",
+        "cold disabled automatic authority cleans up without a fabricated lease and preserves capture",
+        "cold Off waits for acknowledged cleanup even with no process lease",
+        "timed out cold cleanup must finish before a successor can become ready",
+        "late unowned cleanup cannot retire a newly accepted activation"
+      ],
+      "executed": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApiLogicTest.kt",
+      "newTestAnnotationCount": 2,
+      "newOrRenamedScenarioNames": [
+        "ambient recovery debt cannot block an independently accepted automatic owner",
+        "recovery consumes owner publication and preserves repairable failure reasons"
+      ],
+      "executed": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/catalog/DefaultSourceImplementationCatalogTest.kt",
+      "newTestAnnotationCount": 0,
+      "newOrRenamedScenarioNames": [],
+      "executed": false
+    },
+    {
+      "path": "data/preferences/src/test/java/com/adsamcik/tracker/shared/preferences/tracking/RoomSourcePolicyRepositoryTest.kt",
+      "newTestAnnotationCount": 1,
+      "newOrRenamedScenarioNames": [
+        "Steps alone can authorize temporary automatic control without Activity capture or epoch churn"
+      ],
+      "executed": false
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModelTest.kt",
+      "newTestAnnotationCount": 2,
+      "newOrRenamedScenarioNames": [
+        "automatic permission repair remains visible before owner can publish Ready",
+        "stale Ready cannot conceal disabled transition detection"
+      ],
+      "executed": false
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+      "newTestAnnotationCount": 1,
+      "newOrRenamedScenarioNames": [
+        "automaticIntentShowsPlainUnavailableStatusWithoutInternalCodes",
+        "disabledTransitionsOfferAnExplicitRepairWithoutChangingSavedMode"
+      ],
+      "executed": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/controller/DefaultLockManagerTest.kt",
+      "newTestAnnotationCount": 1,
+      "newOrRenamedScenarioNames": [
+        "concurrent persisted lock initialization waits for the first authoritative restore"
+      ],
+      "executed": false
+    },
+    {
+      "path": "sensor/activity/src/test/java/com/adsamcik/tracker/activity/api/registration/DefaultActivityRegistrationArbiterTest.kt",
+      "newTestAnnotationCount": 2,
+      "newOrRenamedScenarioNames": [
+        "cold clear removes persisted automatic handle without rearming it",
+        "cold clear reports removal debt until persisted provider handle is acknowledged"
+      ],
+      "executed": false
+    }
+  ],
+  "existingCaseAdjustments": [
+    "Temporary CONTROL gets a nonzero bound execution without product persistence; retained ambient still requires it.",
+    "Stale monitor lease does not clear or retire a successor before entering mutation.",
+    "Catalog CONTROL capability/retention describes existing operational requirements and 48-hour expiry.",
+    "Plain unavailable settings copy replaces internal reason code."
+  ],
+  "execution": []
+}

@@ -475,6 +475,15 @@ push is claimed by this continuation.
 
 ## October 4 tracking-system continuation
 
+- [x] Connect the existing Activity owner to automatic CONTROL publication.
+  Arm transitions inside the exact publication flight, restore saved locks first,
+  keep trigger evidence separate from recorded Activity, and await acknowledged
+  automatic-only retirement, including cold recovery. Disabled transitions retain
+  the choice with a repair. Fifty source/test/locale paths and 24 new scenarios
+  have independent revised source acceptance at `../2026-10-04/AUTOMATIC_CONTROL_WIRING_REVISED_SELECTED/SOURCE_REVIEW.md`.
+  All scenarios are NOT_RUN; callback-to-accepted-session/storage/UI and the
+  complete automatic chain remain open. The rejected initial packet is retained.
+
 - [x] Preserve delayed passive Location fixes across an unrelated quality change.
   Receiver and transactional WAL admission authenticate the original observed-time
   retention grant while keeping current consent, dataset and deletion-floor checks.

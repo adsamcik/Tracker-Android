@@ -482,7 +482,9 @@ internal fun TrackingSettingsContent(
             )
         }
 		item {
-			AutomaticTrackingAvailabilityCard(uiState)
+			AutomaticTrackingAvailabilityCard(uiState, onEnableTransitions = {
+				onTransitionDetectionChanged(true)
+			})
 		}
         if (uiState.automaticTrackingOperational && uiState.locationEnabled &&
             uiState.permissionCapabilities.isManualLocationOnly

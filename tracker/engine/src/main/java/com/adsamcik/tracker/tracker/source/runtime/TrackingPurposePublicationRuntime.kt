@@ -232,7 +232,8 @@ internal class CurrentTrackingPurposeAuthorityReader @Inject constructor(
 		}
 		val rollout = rolloutStateStore.load()
 		val executionRevision = registeredExecutionRevision.takeIf {
-			policy.persistenceEligible(sourcePurpose.purpose) &&
+			(sourcePurpose.purpose == TrackingPurpose.CONTROL ||
+				policy.persistenceEligible(sourcePurpose.purpose)) &&
 				rollout.supportsExecution(sourcePurpose)
 		} ?: 0L
 		return TrackingPurposeAuthoritySnapshot(
@@ -272,7 +273,7 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 		val authority = readAuthority(sourcePurpose, executionRevision)
 		if (authority == null) {
 			reporter.invalidateAutomaticControl()
-			automaticIdentity = null
+			// Retain the exact cleanup token until its physical owner acknowledges retirement.
 			automaticInFlight = false
 			return@withLock AutomaticLeaseRefresh.Rejected
 		}
@@ -503,6 +504,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 	private val ownerCallbackTimeoutMillis: Long = SOURCE_OWNER_CALLBACK_TIMEOUT_MILLIS,
 	private val retryScheduler: TrackingPurposeReconciliationRetryScheduler? = null,
 	private val ambientLocationPurposeOwnerProvider: Provider<AmbientLocationPurposeOwner>? = null,
+	private val automaticControlPurposeOwnerProvider: Provider<DefaultAutomaticControlPurposeOwner>? = null,
 ) : TrackingPurposeSettingsReconciler,
 	TrackingPurposeSourceOwnerRegistrar,
 	TrackingRetentionFloorReconciler,
@@ -521,6 +523,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		@ApplicationScope ownerCallbackScope: CoroutineScope,
 		retryScheduler: TrackingPurposeReconciliationRetryScheduler,
 		ambientLocationPurposeOwnerProvider: Provider<AmbientLocationPurposeOwner>,
+		automaticControlPurposeOwnerProvider: Provider<DefaultAutomaticControlPurposeOwner>,
 	) : this(
 		leaseIssuer,
 		reporter,
@@ -534,6 +537,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		SOURCE_OWNER_CALLBACK_TIMEOUT_MILLIS,
 		retryScheduler,
 		ambientLocationPurposeOwnerProvider,
+		automaticControlPurposeOwnerProvider,
 	)
 
 	private val ownerMutex = Mutex()
@@ -606,6 +610,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 
 		val reconciledSources = mutableSetOf<AmbientTrackingSource>()
 		val ready = withCurrentReadyGeneration { startupGeneration ->
+			ensureBuiltInAutomaticOwner()
 			ensureBuiltInAmbientOwners(AmbientTrackingSource.entries.toSet())
 			if (!reconcileAutomaticControl(startupGeneration)) {
 				failures += TrackingPurposeSettingsReconciliationFailure(
@@ -658,6 +663,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 	private suspend fun closeAllOwners(
 		unavailableReason: com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason,
 	): TrackingPurposeSettingsReconciliationResult {
+		ensureBuiltInAutomaticOwner()
 		ensureBuiltInAmbientOwners(AmbientTrackingSource.entries.toSet())
 		val failures = mutableListOf<TrackingPurposeSettingsReconciliationFailure>()
 		automaticOperationMutex.withLock {
@@ -681,7 +687,14 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 					)
 				}
 			} else {
-				leaseIssuer.clearAutomaticControl()
+				if (retireUnownedAutomatic(owner) == OwnerCleanup.COMPLETE) {
+					leaseIssuer.clearAutomaticControl()
+				} else {
+					failures += TrackingPurposeSettingsReconciliationFailure(
+						source = null,
+						reason = TrackingPurposeSettingsReconciliationFailureReason.COMPENSATION_FAILED,
+					)
+				}
 			}
 		}
 		val sources = ownerMutex.withLock {
@@ -825,6 +838,26 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 					TrackingRetentionFloorReconciliationFailureReason.STARTUP_GENERATION_CHANGED,
 			),
 		)
+	}
+
+	private suspend fun ensureBuiltInAutomaticOwner() = ownerMutex.withLock {
+		if (automaticOwner == null && automaticControlPurposeOwnerProvider != null) {
+			val sourcePurpose = TrackingSource.ACTIVITY.forPurpose(TrackingPurpose.CONTROL)
+			val provider = automaticControlPurposeOwnerProvider
+			automaticOwner = AutomaticControlOwnerRegistration(
+				TrackingPurposeSourceOwnerRegistration(sourcePurpose, "builtin:automatic:activity"),
+				1L,
+				object : AutomaticControlReconciliationCallback {
+					override suspend fun reconcile(
+						lease: com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationLease,
+					) = provider.get().reconcile(lease)
+					override suspend fun compensate(
+						lease: com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationLease,
+					) = provider.get().compensate(lease)
+				},
+			)
+			executionRevisionRegistry.update(sourcePurpose, 1L)
+		}
 	}
 
 	private suspend fun ensureBuiltInAmbientOwners(
@@ -1181,11 +1214,14 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 
 	private suspend fun reconcileAutomaticControlLocked(expectedStartupGeneration: Long?): Boolean {
 		val owner = ownerMutex.withLock { automaticOwner }
+		val previousLease = leaseIssuer.currentAutomaticControlLease()
 		val refresh = leaseIssuer.refreshAutomaticControl(owner?.executionRevision ?: 0L)
 		val lease = when (refresh) {
 			is AutomaticLeaseRefresh.Issued -> refresh.lease
 			is AutomaticLeaseRefresh.InProgress -> refresh.lease
-			AutomaticLeaseRefresh.Rejected -> return true
+			AutomaticLeaseRefresh.Rejected -> return if (owner != null && previousLease != null) {
+				compensateAndCancelAutomatic(owner, previousLease) == OwnerCleanup.COMPLETE
+			} else retireUnownedAutomatic(owner) == OwnerCleanup.COMPLETE
 		}
 		executionRevisionRegistry.bind(lease.identity)
 		if (!isCurrentAutomaticOwner(owner)) {
@@ -1647,6 +1683,14 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 			clearAutomaticOwnerFlight(lease.identity)
 		}
 		cleanup
+	}
+
+	private suspend fun retireUnownedAutomatic(owner: AutomaticControlOwnerRegistration?): OwnerCleanup {
+		val provider = automaticControlPurposeOwnerProvider ?: return OwnerCleanup.COMPLETE
+		if (owner?.registration?.registrationId != "builtin:automatic:activity") return OwnerCleanup.COMPLETE
+		return runBoundedCleanup(
+			OwnerCleanupKey("ACTIVITY_CONTROL", owner.registration.registrationId, OwnerCleanupPurpose.COMPENSATION),
+		) { provider.get().retireWhenUnowned() }
 	}
 
 	private suspend fun runBoundedAutomaticOwnerCall(

@@ -16,7 +16,8 @@ import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.locker.DisableTillRechargeWorker
 import com.adsamcik.tracker.tracker.receiver.TrackerTimeUnlockReceiver
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
-import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -39,7 +40,8 @@ class DefaultLockManager(
     private val trackerStateReader: TrackerStateReader,
     private val activityWatcherController: ActivityWatcherServiceController,
 ) : LockManager {
-    private val persistenceInitialized = AtomicBoolean(false)
+    private val persistenceInitializationMutex = Mutex()
+    private var persistenceInitialized = false
 
     
     /**
@@ -69,8 +71,8 @@ class DefaultLockManager(
         }
     }
     
-    override suspend fun initializeFromPersistence(context: Context) {
-        if (!persistenceInitialized.compareAndSet(false, true)) return
+    override suspend fun initializeFromPersistence(context: Context) = persistenceInitializationMutex.withLock {
+        if (persistenceInitialized) return@withLock
 
         try {
             val preferences = Preferences(context)
@@ -95,8 +97,8 @@ class DefaultLockManager(
             }
 
             refreshLockState(context)
+            persistenceInitialized = true
         } catch (t: Throwable) {
-            persistenceInitialized.set(false)
             throw t
         }
     }

@@ -298,7 +298,7 @@ class TrackingSettingsScreenTest {
     }
 
 	@Test
-	fun automaticIntentShowsStablePolicyUnavailableStatusWithoutOperationalControls() {
+	fun automaticIntentShowsPlainUnavailableStatusWithoutInternalCodes() {
 		composeTestRule.setContent {
 			AppTheme {
 				TrackingSettingsContent(
@@ -316,17 +316,33 @@ class TrackingSettingsScreenTest {
 
 		scrollTo("Automatic tracking isn’t available")
 		composeTestRule.onNodeWithTag("automaticTrackingUnavailable").assertIsDisplayed()
-		scrollTo("CONTROL_RETENTION_POLICY_UNAVAILABLE")
 		composeTestRule.onNodeWithText(
 			"CONTROL_RETENTION_POLICY_UNAVAILABLE",
 			substring = true,
-		).assertIsDisplayed()
-		scrollTo("Manual tracking is unchanged.")
-		composeTestRule.onNodeWithText("Manual tracking is unchanged.", substring = true)
+		).assertDoesNotExist()
+		composeTestRule.onNodeWithText("Automatic starts are not ready. Check your tracking choices and permissions.")
 			.assertIsDisplayed()
 		composeTestRule.onNodeWithText("Battery-efficient motion detection", substring = true)
 			.assertDoesNotExist()
 	}
+
+	@Test
+	fun disabledTransitionsOfferAnExplicitRepairWithoutChangingSavedMode() {
+		var repaired: Boolean? = null
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(uiState = defaultUiState.copy(
+					transitionDetectionEnabled = false, automaticTrackingOperational = false,
+					automaticControlAvailability = AutomaticTrackingOperationalAvailability.Unavailable(
+						AutomaticTrackingUnavailableReason.TRANSITION_DETECTION_DISABLED)),
+					onTransitionDetectionChanged = { repaired = it })
+			}
+		}
+		scrollTo("Enable motion detection")
+		composeTestRule.onNodeWithTag("automaticEnableTransitions").performClick()
+		repaired shouldBe true
+	}
+
 
     @Test
     fun transitionDetectionIsHiddenWhenAutomaticTrackingIsDisabled() {

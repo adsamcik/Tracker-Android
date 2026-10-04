@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automatic_control_enable_transitions">Cumasaigh braite gluaiseachta</string>
+    <string name="automatic_control_enable_transitions_summary">Teastaíonn braite gluaiseachta chun tosú go huathoibríoch.</string>
+    <string name="automatic_control_provider_unavailable_summary">Teastaíonn seirbhís aitheanta gníomhaíochta a dtacaítear léi chun tosú go huathoibríoch.</string>
+    <string name="automatic_control_pending_summary">Níl tosú uathoibríoch réidh. Seiceáil do roghanna rianaithe agus ceadanna.</string>
+</resources>

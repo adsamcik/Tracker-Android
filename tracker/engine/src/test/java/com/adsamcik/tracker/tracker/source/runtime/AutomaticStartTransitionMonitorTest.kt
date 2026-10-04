@@ -259,6 +259,7 @@ class AutomaticStartTransitionMonitorTest {
 	@Test
 	fun `stale parent lease prevents control demand and provider activation`() = runTest {
 		val dispatcher = mockk<SourceCallerDemandDispatcher>()
+		io.mockk.every { arbiter.snapshot() } returns cleared().snapshot
 		coEvery {
 			dispatcher.retireAutomaticControl(any(), any(), any(), any(), any(), any(), any())
 		} returns GuardedPurposeDemandResult.Applied(Unit, null)
@@ -284,6 +285,8 @@ class AutomaticStartTransitionMonitorTest {
 		coVerify(exactly = 0) { dispatcher.dispatchAutomaticControl(any()) }
 		coVerify(exactly = 0) { activityProjectionLane.ensureRegisteredAtLiveTail() }
 		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
+		coVerify(exactly = 0) { arbiter.clearDemand(any()) }
+		coVerify(exactly = 0) { dispatcher.retireAutomaticControl(any(), any(), any(), any(), any(), any(), any()) }
 	}
 
 	@Test

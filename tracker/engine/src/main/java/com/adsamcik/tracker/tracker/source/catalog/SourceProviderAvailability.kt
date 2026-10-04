@@ -167,9 +167,7 @@ internal class DefaultSourceProviderAvailabilityReaderFactory(
 	): SourceProviderAvailabilityReader {
 		return when {
 			source == TrackingSource.ACTIVITY && purpose == TrackingPurpose.CONTROL ->
-				containedAvailability(
-					TrackingDecisionContainmentReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
-				)
+				ActivitySessionSourceProviderAvailabilityReader(activityRecognitionSourceStateProvider)
 			source == TrackingSource.LOCATION && purpose == TrackingPurpose.AMBIENT_PRODUCT ->
 				containedAvailability(
 					TrackingDecisionContainmentReason.EXPANDED_AMBIENT_LOCATION_UNAVAILABLE,
@@ -209,7 +207,7 @@ internal class ActivitySessionSourceProviderAvailabilityReader(
 ) : SourceProviderAvailabilityReader {
 	override suspend fun read(request: SourceAvailabilityRequest): SourceProviderAvailability {
 		require(request.source == SourceKind.ACTIVITY)
-		require(request.purpose == TrackingPurpose.SESSION_CAPTURE)
+		require(request.purpose in setOf(TrackingPurpose.SESSION_CAPTURE, TrackingPurpose.CONTROL))
 		val state = stateProvider.snapshot()
 		return when {
 			!state.permissionGranted -> SourceProviderAvailability.PermissionRequired(

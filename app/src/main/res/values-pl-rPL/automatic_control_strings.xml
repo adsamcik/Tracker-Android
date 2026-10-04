@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automatic_control_enable_transitions">Włącz wykrywanie ruchu</string>
+    <string name="automatic_control_enable_transitions_summary">Automatyczne uruchamianie wymaga wykrywania ruchu.</string>
+    <string name="automatic_control_provider_unavailable_summary">Automatyczne uruchamianie wymaga obsługiwanej usługi rozpoznawania aktywności.</string>
+    <string name="automatic_control_pending_summary">Automatyczne uruchamianie nie jest gotowe. Sprawdź opcje śledzenia i uprawnienia.</string>
+</resources>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automatic_control_enable_transitions">Įjungti judėjimo aptikimą</string>
+    <string name="automatic_control_enable_transitions_summary">Automatiniam paleidimui reikia judėjimo aptikimo.</string>
+    <string name="automatic_control_provider_unavailable_summary">Automatiniam paleidimui reikia palaikomos veiklos atpažinimo paslaugos.</string>
+    <string name="automatic_control_pending_summary">Automatinis paleidimas neparuoštas. Patikrinkite sekimo pasirinkimus ir leidimus.</string>
+</resources>
