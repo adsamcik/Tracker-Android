@@ -336,6 +336,12 @@ remain held. No test or gate has run.
 
 ## Remaining in these slices
 
+- [x] Select the existing passive Location recovery query omitted from the DAO,
+  with one authored, unexecuted actual Room scenario. Exact latest-generation
+  metadata protects planned reservations and refuses an unsupported latest plan.
+  Independent source receipt:
+  `../2026-10-04/LOCATION_RECOVERY_PLAN_QUERY_SELECTED/SOURCE_REVIEW.md`.
+  Full source ownership/recovery, device evidence and all 25 chains remain open.
 - [x] Select shared all-day saved-data status through existing source-owned readers
   and the real History consumer, with separate collection availability and no
   sensor activation. Thirteen source/test paths and 33 authored, unexecuted cases

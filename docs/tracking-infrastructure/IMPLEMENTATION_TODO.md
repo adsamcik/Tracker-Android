@@ -147,6 +147,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Complete the existing passive Location recovery caller's missing DAO query.
+  Select the four-line exact-registration lookup and one new actual Room scenario
+  for latest authorization, planned reservation protection and invalid-plan refusal.
+  Independent source acceptance is in
+  `convergence/2026-10-04/LOCATION_RECOVERY_PLAN_QUERY_SELECTED/SOURCE_REVIEW.md`.
+  The scenario is unexecuted; full Location transitions/recovery/device proof remain open.
 - [x] Select one shared read-only all-day saved-data query, reusing History's
   existing source-owned Steps, radio and Location qualification. Collection
   availability stays separate from retained data; no provider or new store starts.

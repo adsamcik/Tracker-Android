@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState
 import com.adsamcik.tracker.shared.base.database.fenceSourcePurposesInTransaction
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.LocationRegistrationPlanIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientLocationRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
@@ -1685,6 +1686,44 @@ class SourceRegistrationRepositoryTest {
 		subject.abandonUnplannedSystemLocationReservation(row) shouldBe true
 		database.sourceBrokerDao().registration(SourceKind.LOCATION.stableCode,
 			row.registrationGeneration)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_FAILED
+	}
+
+	@Test
+	fun `passive recovery uses only the latest plan of its exact registration`() = runTest {
+		val plan = installPassiveLocationRegistrationForTest()
+		val reserved = subject.beginSystemRearmableLocation(plan, 110L, 110L)
+		val row = requireNotNull(database.sourceBrokerDao().registration(
+			SourceKind.LOCATION.stableCode, reserved.state.registrationGeneration))
+		val dao = database.locationPurposeDao()
+		dao.latestRegistrationPlan(row.registrationGeneration) shouldBe null
+		subject.passiveLocationIdentity(row) shouldBe null
+
+		subject.recordLocationPlan(reserved, plan)
+		val original = requireNotNull(dao.latestRegistrationPlan(row.registrationGeneration))
+		fun stored(generation: Long, configuration: Long, authorization: Long, version: Int = original.payloadVersion) =
+			LocationRegistrationPlanIntegrity.create(
+				generation, original.sourceInstanceId, configuration, authorization,
+				original.physicalConfigurationFingerprint, version, original.payloadChecksum, original.payload)
+		// Another registration and a higher configuration number cannot choose this handle.
+		dao.insertRegistrationPlanIfAbsent(stored(row.registrationGeneration + 1L,
+			original.configurationRevision, original.authorizationRevision + 10L))
+		dao.insertRegistrationPlanIfAbsent(stored(row.registrationGeneration,
+			original.configurationRevision + 10L, original.authorizationRevision))
+		val latest = stored(row.registrationGeneration, original.configurationRevision,
+			original.authorizationRevision + 1L)
+		dao.insertRegistrationPlanIfAbsent(latest)
+		dao.latestRegistrationPlan(row.registrationGeneration)?.effectChecksum shouldBe latest.effectChecksum
+		dao.latestRegistrationPlan(row.registrationGeneration + 2L) shouldBe null
+		subject.passiveLocationIdentity(row).shouldNotBeNull()
+		subject.abandonUnplannedSystemLocationReservation(row) shouldBe false
+		database.sourceBrokerDao().registration(SourceKind.LOCATION.stableCode,
+			row.registrationGeneration)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RESERVED
+
+		// Unsupported latest metadata must fence recovery, rather than borrow an older valid plan.
+		dao.insertRegistrationPlanIfAbsent(stored(row.registrationGeneration,
+			original.configurationRevision, original.authorizationRevision + 2L, version = 5))
+		subject.passiveLocationIdentity(row) shouldBe null
+		subject.abandonUnplannedSystemLocationReservation(row) shouldBe false
 	}
 
 	@Test

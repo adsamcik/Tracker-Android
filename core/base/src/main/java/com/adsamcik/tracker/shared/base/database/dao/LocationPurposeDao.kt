@@ -243,6 +243,10 @@ interface LocationPurposeDao {
 	@Query("SELECT * FROM location_registration_plan WHERE registration_generation = :generation AND configuration_revision = :configurationRevision AND authorization_revision = :authorizationRevision")
 	suspend fun registrationPlan(generation: Long, configurationRevision: Long, authorizationRevision: Long): LocationRegistrationPlanEntity?
 
+	@Query("SELECT * FROM location_registration_plan WHERE registration_generation = :generation " +
+		"ORDER BY authorization_revision DESC LIMIT 1")
+	suspend fun latestRegistrationPlan(generation: Long): LocationRegistrationPlanEntity?
+
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertReceiptIfAbsent(value: LocationAcceptedReceiptEntity): Long
 

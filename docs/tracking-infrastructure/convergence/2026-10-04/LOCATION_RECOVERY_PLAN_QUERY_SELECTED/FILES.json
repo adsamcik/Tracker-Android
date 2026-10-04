@@ -1,0 +1,22 @@
+{
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "35c3bf7c8d57ecddea437c679549b4f68cd3be0d",
+  "files": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+      "base_sha256": "3d61e54656ee4b5d1294b103462a0ddea377de2324927a5dc0334948de926ef2",
+      "working_before_sha256": "40d1c057904b90670e3c2628d2139193a8bb7564be8adb6d7cfce8eb1d4f11fb",
+      "working_after_sha256": "40d1c057904b90670e3c2628d2139193a8bb7564be8adb6d7cfce8eb1d4f11fb",
+      "selected_sha256": "651f891f264ff091399c60891685811f6867033a8a06ee2337bfd7bec0eb6c98",
+      "selected_bytes": 21958
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepositoryTest.kt",
+      "base_sha256": "8d4da184f6df13ffc582828a6a65cda5b7a894619c4f22234770d7a772775c5c",
+      "working_before_sha256": "496d8ea597aea761c22168701f4ec38c8a4f62c9e67e3ecc659d54254c4b6424",
+      "working_after_sha256": "63c84f5e7f9b0e755db1b9b630bc701c2fa9be7bb82b0bd952a901254709567a",
+      "selected_sha256": "63c84f5e7f9b0e755db1b9b630bc701c2fa9be7bb82b0bd952a901254709567a",
+      "selected_bytes": 80798
+    }
+  ]
+}
