@@ -1,0 +1,51 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_commit": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+  "files": [
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourceParticipationMatrixTest.kt",
+      "base_blob": null,
+      "selected_sha256": "a5fd296d8f810d4368627731ff5aa444044f5fb419f23066795720d0a13dd5bf"
+    }
+  ],
+  "review": {
+    "path": "docs/tracking-infrastructure/convergence/2026-10-04/SOURCE_PARTICIPATION_MATRIX_SOURCE_REVIEW.md",
+    "sha256": "2bb5f36c64781325841120b9b8955adb27651b95c6565894e227f26d0609fbf8"
+  },
+  "dependencies": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SemanticAcquisitionPlanFactory.kt",
+      "git_blob": "06212f317244eb12913c493fad35e1690c423151",
+      "sha256": "dc802085b93da362eb41d0121ec5069bd4e6d63db02cc045ae0b1c0065e880cb"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePlanResolver.kt",
+      "git_blob": "6015891ecf3f518cc71ba301b3cb52fb1296fd93",
+      "sha256": "c3147e8c598fc1add5cbd348105622faa1286292b02a443e07fd609f73da4f47"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourcePlan.kt",
+      "git_blob": "273e47053a8146a6362417869d3f903b478cde83",
+      "sha256": "eada66d1bc344e3a807a6ee091e8948e7d75c34e555e553b0d5c96c7eaeeeba6"
+    },
+    {
+      "path": "data/preferences/src/main/java/com/adsamcik/tracker/shared/preferences/tracking/TrackingParamsState.kt",
+      "git_blob": "c03d9dec947637132dcfffabe3637ec0f27b060b",
+      "sha256": "d5845d5e82c2142b57b2be8950358ce1872f809d2169a93b9c74561e0c4f6151"
+    },
+    {
+      "path": "data/preferences/src/main/java/com/adsamcik/tracker/shared/preferences/tracking/SourceBalanceSettings.kt",
+      "git_blob": "6ffc9a5c5268afec6e9c4dce331eb06fc24375f7",
+      "sha256": "bf557296b6891e0efb3e6f6f4735fedcae7d5434d4e67398f92aa8e61a923292"
+    },
+    {
+      "path": "data/preferences/src/main/java/com/adsamcik/tracker/shared/preferences/tracking/SourceCollectionSettings.kt",
+      "git_blob": "060c860c03b555c82c90376bf7c1f0558f8e63b5",
+      "sha256": "afaa0f03e8848de6453c3e9848ca1458f79f2900a6c0ff574979aabe1258a83e"
+    }
+  ],
+  "test_methods": 4,
+  "test_execution": "NOT_RUN",
+  "evidence_limit": "Factory/resolver planning only; no provider, retirement, storage, UI or device proof."
+}

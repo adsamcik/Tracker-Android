@@ -147,6 +147,14 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Author and independently review planning coverage for every source subset
+  (including all Off) at all five balance positions, live-source join/leave,
+  source-local permission loss and individual quality overrides. Four test
+  methods in `SourceParticipationMatrixTest` use the actual factory/resolver.
+  Receipt: `convergence/2026-10-04/SOURCE_PARTICIPATION_MATRIX_SOURCE_REVIEW.md`.
+  All are NOT_RUN and prove no provider ownership, storage, UI or full-chain
+  behavior. The complete subset/lifecycle acceptance prerequisites remain open.
+
 - [x] Trace the adaptive policy and all-day Steps execution from exact committed
   code. Five-level participation/live focus, current hints/energy, shared owner
   dispatch, passive radios/request budgets, and read-only enrichment are connected
