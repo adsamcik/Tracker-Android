@@ -1,0 +1,174 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+  "dependencies": [
+    {
+      "path": "settings.gradle.kts",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "16fb6f1ecf24118f1669d34999affe9b2f4250cb",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a",
+      "working_sha256": "50e3a5e45bd9f5a2732d905d28edd64e32764904a63ed0b1dccb58080bbd55cb",
+      "working_matches_head": false,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "app/build.gradle.kts",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "75577f4965fefd762741485faa9f95e149d6a056",
+      "sha256": "2d13275df63ee2010c45805a69dbbea6eb2ad7680cdddb0b7dbdc85969b1ef9c",
+      "working_sha256": "981ce6ad1cf50459b14af1300532dd40234df800afb702cf578c0b59ef4da4b5",
+      "working_matches_head": false,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidConventionPlugins.kt",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "f541fe24f174c6e7b7bd9d74751358de3027003d",
+      "sha256": "6530e14a5465d6023516b430b05e792a49b2cbc802c2b9455101272c17c36229",
+      "working_sha256": "f0ad0ae794d782ae4824af92af4d206658e06b338ead862ecccd04fe391f8da2",
+      "working_matches_head": false,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidFeatureConventionPlugins.kt",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "871b0c3cb28b0d145ffd75f56d87c40e19bae4db",
+      "sha256": "e2df2278893f6fc1b47d6b51c15095e1e5638d2185ec35290fab465771772567",
+      "working_sha256": "25e2412d796696bbbf6e5868a655af376c56f2af592a54d3a259e95a8428783b",
+      "working_matches_head": false,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "cb4ac7de31a597d3a7b3f4a710ac2cfa3532a3b8",
+      "sha256": "f2c6b86cf0109a665f2191c150364a13d0a8978e789dddca83b0888edf90ad10",
+      "working_sha256": "f2c6b86cf0109a665f2191c150364a13d0a8978e789dddca83b0888edf90ad10",
+      "working_matches_head": true,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModelTest.kt",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "a5a341c8b9af2bbe178978187b7ce68a00d211d2",
+      "sha256": "6790cc82e08e8569734c80688693e38388312b7ddd5656de53d9738a81308882",
+      "working_sha256": "6790cc82e08e8569734c80688693e38388312b7ddd5656de53d9738a81308882",
+      "working_matches_head": true,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "98a413f087ae8c32aac81eac1288a16a05f6592f",
+      "sha256": "25b445df746ca9d9f223e0ae00c901d7744b68d77df278b976286d9030250c82",
+      "working_sha256": "08e7731a79322537414f3a6e7ed8751f29b40597262949b86333accf1e7f0d2d",
+      "working_matches_head": false,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/components/SettingsComponents.kt",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "d589d8d0f503eb59569547aa5193f3050349781f",
+      "sha256": "34b1384cacdde98b9d500ea0d10644bfabaddc4a7b78866d8c1ef5687a9811e5",
+      "working_sha256": "4ed848f1ff8d87ec7b371797f01d7f9939f41f77ccecefa0a18fef6d3530bfba",
+      "working_matches_head": false,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingStatusComponents.kt",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "6d22132c47cab88b5c8e9406739eccb8108df80f",
+      "sha256": "9713858010a967cee8a2164eb5dcb2206ddd65f5a0eae58475cbdbd5fba9971b",
+      "working_sha256": "d384460421bfa0bd7f41e619257f86812e3c20fdcaa519d8358bd7ed5cea385f",
+      "working_matches_head": false,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/SourcePurposeSettings.kt",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "682a7d85e2f9953fb8577f5ded146f9f1903c700",
+      "sha256": "4768b22a15fdfc0c32a60362073059824ab40f6cad0f1962a75687e306e0526b",
+      "working_sha256": "4768b22a15fdfc0c32a60362073059824ab40f6cad0f1962a75687e306e0526b",
+      "working_matches_head": true,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/extension/ContextExtensions.kt",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "aa2d8a0dd18a24d9b1ad764a387e56bbf9790069",
+      "sha256": "08f565783498b894a244021ceb0d016a2c94a4fb60aef7e2bf63a93d8669fb4c",
+      "working_sha256": "92cf3ae9e55681aad0da5517fd45c748ac60c92407ea08a15fb850275ae87f53",
+      "working_matches_head": false,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackingPurposeAvailability.kt",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "e75fdae0abcabe203ae61d9f8f9d95e7918f262f",
+      "sha256": "caf80e1614543ecb2edeac1cb742c633bbbfed0874ee148fd5a739600f410e46",
+      "working_sha256": "1624d117ed943eedd8086970f4ac0a825a9d08d065d5078046be2e1b269d9d0c",
+      "working_matches_head": false,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/AmbientStepsCapability.kt",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "af69d28fc725bdc0ffcb131402b58dce44744b5c",
+      "sha256": "ee463e426d784791eeac4adc54b2849b08614699d13e675ae3a5f6243d01d043",
+      "working_sha256": "b11b7c8c44142bdb81f8c67849f0497ea463e33c66665067bf65667e10f77ea8",
+      "working_matches_head": false,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/AmbientStepsPurposeOwner.kt",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "a0e7ea98a2f6a722dde854665fbed56ae56de8bf",
+      "sha256": "3158385a53b93436b8d420921be8928ac562b88582122c97eda347c002818f38",
+      "working_sha256": "1c14abceac6a003d0e91a630eac7e982e23945b6f91144c177e5a037d0b839c2",
+      "working_matches_head": false,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "app/src/main/AndroidManifest.xml",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "3ff88753afadd4e64431977f1e2f2ed45ab10a4e",
+      "sha256": "e02a3ae5a48392479eb3a3ffce207319669cad0687ed707b3df78192068d71c9",
+      "working_sha256": "2316a2e18946a475c04036269cef3d724a48243f38e8d3a2fb123eaf61434446",
+      "working_matches_head": false,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "tracker/engine/src/main/AndroidManifest.xml",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "4a668a4114442f9ada395af6027b2a75069d8e46",
+      "sha256": "03539ecdd919df33156ef5a6a2be5f605c17ba49868a2982fba11613f9b5cbef",
+      "working_sha256": "89a30daaa84ac150b5519a94734b9791be038ec9120349661e6fd2e5ab5ec410",
+      "working_matches_head": false,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "app/src/main/res/values/strings.xml",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "0ecb0bf82c5ae39728e3604a2d0a26f737a4ecdf",
+      "sha256": "087569fa06d0d777c4a1a778550892459f4c529e3ef6f219207fc4c5f2baa2a4",
+      "working_sha256": "df5513fbf573628c7bd1b6e87fea2a4f5c2567f7cf1986e43d21cc67881d1fa9",
+      "working_matches_head": false,
+      "required_input": "exact committed snapshot; no working draft selected"
+    },
+    {
+      "path": "app/src/main/res/values-cs-rCZ/strings.xml",
+      "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "git_blob": "6f730269052c1e31fbc5d46161bfe3d08f709124",
+      "sha256": "04924414132c4d097467fd56c5c204a13becbb19e4b201720875d0d268f8eb8d",
+      "working_sha256": "a87cd8b8691844059a35c6ba2a38c24356d9d930d6a045721cda0a1fbdad8372",
+      "working_matches_head": false,
+      "required_input": "exact committed snapshot; no working draft selected"
+    }
+  ],
+  "source_trace": {
+    "path": "docs/tracking-infrastructure/convergence/2026-10-04/ALL_DAY_STEPS_PERMISSION_REPAIR_SOURCE_TRACE.md",
+    "snapshot": "APPROVED_SOURCE_TRACE.md",
+    "sha256": "84e4161e6bc1217ce55501ccac6b3ebf8bd12d8df1128a07772334a4b345f4d9",
+    "origin": "parent-assigned independent source trace; not a production dependency"
+  }
+}

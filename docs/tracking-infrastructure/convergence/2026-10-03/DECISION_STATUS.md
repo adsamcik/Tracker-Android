@@ -96,6 +96,14 @@ runtime storage format or second database ledger is selected.
 
 ## Questions presented, awaiting answers
 
+- [ ] Wait up to two seconds for current Steps provider availability after a
+  successful provider-only enable, using the existing availability Flow and
+  intent generation. Recheck the current choice before prompting; timeout keeps
+  the existing Allow motion access for Steps action. This October 4 timing
+  question is pending and adds no saved request or new provider/interface.
+  The source-order finding is recorded in
+  `../2026-10-04/ALL_DAY_STEPS_PERMISSION_REPAIR_SELECTED/ENABLE_ORDER_REVIEW.md`.
+
 - [ ] Show trustworthy saved daily Steps counts as recorded so far, mark real
   missing coverage as an incomplete day, and retain each independently valid
   day's number. Reuse the existing daily reader for display; conflicting/invalid

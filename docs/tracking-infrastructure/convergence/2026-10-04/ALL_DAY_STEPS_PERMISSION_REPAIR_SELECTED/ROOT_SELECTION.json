@@ -1,0 +1,70 @@
+{
+  "head": "5000ed377e1b02a1ade7df39d5c125e91605c58c",
+  "phase": "IMPLEMENTATION_ONLY",
+  "files": [
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt",
+      "sha256": "9e7df2287dff60903eb6e6febd26736003f66099304a0cf1727b9784ab58111c"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+      "sha256": "2428754faaec9bc24a76154acb7a4c2d2c4884d1680345fcf73f47f3bb2592ac"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-04/ALL_DAY_STEPS_PERMISSION_REPAIR_SELECTED/APPROVED_SOURCE_TRACE.md",
+      "sha256": "84e4161e6bc1217ce55501ccac6b3ebf8bd12d8df1128a07772334a4b345f4d9"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-04/ALL_DAY_STEPS_PERMISSION_REPAIR_SELECTED/ARTIFACT_PINS.json",
+      "sha256": "f57d28e183259719a2f2f0cb2d40e8fefb941c4873b3a5bf7aa66293043599fc"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-04/ALL_DAY_STEPS_PERMISSION_REPAIR_SELECTED/DEPENDENCY_INPUTS.json",
+      "sha256": "cba7ab2f85059e71671f18af1e56c986cd869fb681ca6fde471810e81c21aa64"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-04/ALL_DAY_STEPS_PERMISSION_REPAIR_SELECTED/ENABLE_ORDER_REVIEW.md",
+      "sha256": "2913355ff50701c349f18ebe3f2f7fc5d6f6d9d4d36bb62b39cd8f7b72a9f48c"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-04/ALL_DAY_STEPS_PERMISSION_REPAIR_SELECTED/FILES.json",
+      "sha256": "c351d7d82c464a61f77a83cece4452cff2f729303aa3a5f0e69fba3bf6bfb7ea"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-04/ALL_DAY_STEPS_PERMISSION_REPAIR_SELECTED/HEAD_BASE.json",
+      "sha256": "62cf4fa1403cfaa41bd329104ef08fcb263e6f5a88ca61276b76d959bf889324"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-04/ALL_DAY_STEPS_PERMISSION_REPAIR_SELECTED/SELECTION.patch",
+      "sha256": "0d63e2b58ce0d12b8de5c8b06cb9ff4e73ce0121f81f4a0b7560a43f7a1bc506"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-04/ALL_DAY_STEPS_PERMISSION_REPAIR_SELECTED/SOURCE_AUTHOR_RECEIPT.md",
+      "sha256": "77f498074f27e8bad43563f2a8a2af6faa83a6907747512fa2eae77b63c1603a"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-04/ALL_DAY_STEPS_PERMISSION_REPAIR_SELECTED/SOURCE_BOUNDARY.md",
+      "sha256": "91f296260d76539d6383e6a9cf5d6c8ddb9a171cfaa127c7883f86a8b67a4fb1"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-04/ALL_DAY_STEPS_PERMISSION_REPAIR_SELECTED/SOURCE_REVIEW.md",
+      "sha256": "1e7bdf6b45fd1fc033bc73671a12de20fc8ec09df793a60c1e335eb533d18c09"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-04/ALL_DAY_STEPS_PERMISSION_REPAIR_SELECTED/TEST_CASES.json",
+      "sha256": "9d85c105d730e491e7475ad498c6a702a7dd3aa828c4f8d3c94fe81b4050b2f4"
+    },
+    {
+      "path": "docs/tracking-infrastructure/IMPLEMENTATION_TODO.md",
+      "sha256": "51d94040512d5b64243859c1a7f007f8c8d2e70ef2a1b5e317a3926513e18f9a"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-09-30/IMPLEMENTATION_PROGRESS.md",
+      "sha256": "0e2b38f72ba6fbbf5767539a18a34a4f51ee00c4ecc2bd8d6eb765dbba3c2c83"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-03/DECISION_STATUS.md",
+      "sha256": "d4f0f24980be7ac41af4012c22bc86dceff2811ea4d72003d203f49bee71dc33"
+    }
+  ]
+}

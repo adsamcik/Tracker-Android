@@ -1,0 +1,31 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+  "files": [
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt",
+      "base_head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "base_sha256": "83605275b0ec029205a9e053e5cc2f1e45a3cc0e5caf07605aee800f29e6d0ce",
+      "working_before_sha256": "83605275b0ec029205a9e053e5cc2f1e45a3cc0e5caf07605aee800f29e6d0ce",
+      "selected_sha256": "9e7df2287dff60903eb6e6febd26736003f66099304a0cf1727b9784ab58111c",
+      "working_after_sha256": "9e7df2287dff60903eb6e6febd26736003f66099304a0cf1727b9784ab58111c",
+      "selected_bytes": 54942,
+      "selection": "BASE plus approved Steps provider permission repair only; working before exactly matched BASE"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+      "base_head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+      "base_sha256": "102dab5c64f58e99ac2f09589a363864422a510a1e98fd88aeb0204bde8a915b",
+      "working_before_sha256": "102dab5c64f58e99ac2f09589a363864422a510a1e98fd88aeb0204bde8a915b",
+      "selected_sha256": "2428754faaec9bc24a76154acb7a4c2d2c4884d1680345fcf73f47f3bb2592ac",
+      "working_after_sha256": "2428754faaec9bc24a76154acb7a4c2d2c4884d1680345fcf73f47f3bb2592ac",
+      "selected_bytes": 45902,
+      "selection": "BASE plus approved Steps provider permission repair only; working before exactly matched BASE"
+    }
+  ],
+  "new_authored_cases": 10,
+  "selection_patch_sha256": "0d63e2b58ce0d12b8de5c8b06cb9ff4e73ce0121f81f4a0b7560a43f7a1bc506",
+  "independent_review": "PENDING",
+  "execution": "NOT_RUN"
+}

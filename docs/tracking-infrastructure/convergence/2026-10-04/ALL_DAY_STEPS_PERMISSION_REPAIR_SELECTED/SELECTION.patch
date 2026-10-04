@@ -1,0 +1,469 @@
+--- a/app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt
+@@ -60,6 +60,8 @@
+ import androidx.compose.ui.platform.testTag
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.semantics.Role
++import androidx.compose.ui.semantics.contentDescription
++import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.unit.dp
+ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+ import androidx.lifecycle.Lifecycle
+@@ -67,6 +69,7 @@
+ import com.adsamcik.tracker.app.settings.TrackingSettingsUiState
+ import com.adsamcik.tracker.app.settings.TrackingSettingsViewModel
+ import com.adsamcik.tracker.app.settings.LocationSettingsPermissionKind
++import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
+ import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+ import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
+ import com.adsamcik.tracker.app.settings.components.SectionHeader
+@@ -219,19 +222,28 @@
+         },
+         onStepsEnabledChanged = { enabled ->
+             trackingVm.setStepsEnabled(enabled) {
+-                if (enabled && trackingVm.uiState.value.stepCounterAvailable &&
+-                    !trackingVm.uiState.value.activityPermissionGranted &&
+-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+-                    lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
++                if (enabled && trackingVm.uiState.value.shouldRequestStepsMotionPermission(
++                        Build.VERSION.SDK_INT,
++                        lifecycleOwner.lifecycle.currentState,
++                        context.hasActivityPermission,
++                    )
+                 ) {
+                     stepsPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                 }
+             }
+         },
+-		onHealthConnectStepsPermission = {
++		onStepsProviderPermission = {
+ 			val current = trackingVm.uiState.value
+-			if (current.stepsEnabled &&
+-				current.ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).reason in setOf(
++			val reason = current.ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).reason
++			if (reason == AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED) {
++				if (current.shouldRequestStepsMotionPermission(
++						Build.VERSION.SDK_INT,
++						lifecycleOwner.lifecycle.currentState,
++						context.hasActivityPermission,
++					)) {
++					stepsPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
++				}
++			} else if (current.stepsEnabled && reason in setOf(
+ 					AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED,
+ 					AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL,
+ 				) &&
+@@ -323,7 +335,7 @@
+     onLocationEnabledChanged: (Boolean) -> Unit = {},
+     onActivityEnabledChanged: (Boolean) -> Unit = {},
+     onStepsEnabledChanged: (Boolean) -> Unit = {},
+-	onHealthConnectStepsPermission: () -> Unit = {},
++	onStepsProviderPermission: () -> Unit = {},
+     onBarometerEnabledChanged: (Boolean) -> Unit = {},
+     onRetrySettingsSave: () -> Unit = {},
+ 	onAmbientLocationEnabledChanged: (Boolean) -> Unit = {},
+@@ -578,7 +590,7 @@
+                     uiState = uiState,
+                     onSourceFrequencyChanged = onSourceFrequencyChanged,
+ 					onLocationEnabledChanged = onLocationEnabledChanged,
+-					onHealthConnectStepsPermission = onHealthConnectStepsPermission,
++					onStepsProviderPermission = onStepsProviderPermission,
+                 )
+             }
+         } else {
+@@ -588,7 +600,7 @@
+                     onLocationEnabledChanged = onLocationEnabledChanged,
+                     onActivityEnabledChanged = onActivityEnabledChanged,
+                     onStepsEnabledChanged = onStepsEnabledChanged,
+-					onHealthConnectStepsPermission = onHealthConnectStepsPermission,
++					onStepsProviderPermission = onStepsProviderPermission,
+                     onBarometerEnabledChanged = onBarometerEnabledChanged,
+                     onWifiEnabledChanged = onWifiEnabledChanged,
+                     onCellEnabledChanged = onCellEnabledChanged,
+@@ -737,7 +749,7 @@
+     onLocationEnabledChanged: (Boolean) -> Unit,
+     onActivityEnabledChanged: (Boolean) -> Unit,
+     onStepsEnabledChanged: (Boolean) -> Unit,
+-	onHealthConnectStepsPermission: () -> Unit,
++	onStepsProviderPermission: () -> Unit,
+     onBarometerEnabledChanged: (Boolean) -> Unit,
+     onWifiEnabledChanged: (Boolean) -> Unit,
+     onCellEnabledChanged: (Boolean) -> Unit,
+@@ -784,7 +796,7 @@
+             checked = uiState.stepsEnabled,
+             onCheckedChange = onStepsEnabledChanged,
+         )
+-		StepsHealthConnectRepair(uiState, onHealthConnectStepsPermission)
++		StepsProviderPermissionRepair(uiState, onStepsProviderPermission)
+ 
+ 		SourceBalanceOverrideItem(TrackingSourceComponent.STEPS, uiState, onSourceBalanceSelected)
+         SettingsRowDivider()
+@@ -835,32 +847,53 @@
+ }
+ 
+ @Composable
+-private fun StepsHealthConnectRepair(
++private fun StepsProviderPermissionRepair(
+ 	uiState: TrackingSettingsUiState,
+ 	onClick: () -> Unit,
+ ) {
+ 	val reason = uiState.ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).reason
+ 	if (!uiState.stepsEnabled || reason !in setOf(
++		AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED,
+ 		AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED,
+ 		AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL,
+ 	)) return
++	val motionRepair = reason == AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED
++	val label = stringResource(when (reason) {
++		AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED ->
++			com.adsamcik.tracker.R.string.setup_perm_grant_steps_content_description
++		AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL ->
++			com.adsamcik.tracker.R.string.settings_steps_allow_background_updates
++		else -> com.adsamcik.tracker.R.string.settings_steps_allow_health_connect
++	})
+ 	TextButton(
+ 		onClick = onClick,
+-		modifier = Modifier.testTag("stepsHealthConnectRepair"),
++		modifier = Modifier
++			.testTag(if (motionRepair) "stepsMotionRepair" else "stepsHealthConnectRepair")
++			.semantics { contentDescription = label },
+ 	) {
+-		Text(stringResource(if (reason == AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL) {
+-			com.adsamcik.tracker.R.string.settings_steps_allow_background_updates
+-		} else com.adsamcik.tracker.R.string.settings_steps_allow_health_connect))
++		Text(label)
+ 	}
+ 	if (uiState.stepsProviderRepairFailed) {
+ 		Text(
+-			text = stringResource(com.adsamcik.tracker.R.string.settings_steps_health_connect_repair_failed),
++			text = stringResource(if (motionRepair) {
++				com.adsamcik.tracker.R.string.settings_ambient_steps_health_connect_probe_failed
++			} else com.adsamcik.tracker.R.string.settings_steps_health_connect_repair_failed),
+ 			style = MaterialTheme.typography.bodySmall,
+ 			color = MaterialTheme.colorScheme.error,
+-			modifier = Modifier.testTag("stepsHealthConnectRepairError"),
++			modifier = Modifier.testTag(if (motionRepair) "stepsMotionRepairError" else "stepsHealthConnectRepairError"),
+ 		)
+ 	}
+ }
++
++/** Permission repair never changes participation or resumes a stopped collection. */
++internal fun TrackingSettingsUiState.shouldRequestStepsMotionPermission(
++	sdkInt: Int,
++	lifecycleState: Lifecycle.State,
++	motionPermissionGranted: Boolean,
++): Boolean = stepsEnabled && !motionPermissionGranted &&
++	(stepCounterAvailable || ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).reason ==
++		AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED) &&
++	sdkInt >= Build.VERSION_CODES.Q && lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
+ 
+ @Composable
+ private fun TrackingTurnOffSetting(
+@@ -911,7 +944,7 @@
+     uiState: TrackingSettingsUiState,
+     onSourceFrequencyChanged: (TrackingSourceComponent, SourceCollectionFrequency) -> Unit,
+ 	onLocationEnabledChanged: (Boolean) -> Unit,
+-	onHealthConnectStepsPermission: () -> Unit,
++	onStepsProviderPermission: () -> Unit,
+ ) {
+     SettingsGroupCard {
+ 		if (uiState.locationProfileVersion != null) {
+@@ -956,7 +989,7 @@
+             optionPlans = uiState.sourceFrequencyOptions[SourceKind.STEPS].orEmpty(),
+             onFrequencySelected = { onSourceFrequencyChanged(TrackingSourceComponent.STEPS, it) },
+         )
+-		StepsHealthConnectRepair(uiState, onHealthConnectStepsPermission)
++		StepsProviderPermissionRepair(uiState, onStepsProviderPermission)
+         SettingsRowDivider()
+         SourceFrequencySettingsItem(
+             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_barometer_enabled_title),
+--- a/app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt
++++ b/app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt
+@@ -2,8 +2,10 @@
+ 
+ import android.content.Context
+ import android.content.res.Configuration
++import android.os.Build
+ import android.os.LocaleList
+ import androidx.compose.runtime.CompositionLocalProvider
++import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.test.core.app.ApplicationProvider
+@@ -11,6 +13,7 @@
+ import androidx.compose.ui.test.assertIsDisplayed
+ import androidx.compose.ui.test.assertContentDescriptionEquals
+ import androidx.compose.ui.test.assertIsOff
++import androidx.compose.ui.test.assertIsOn
+ import androidx.compose.ui.test.hasText
+ import androidx.compose.ui.test.hasTestTag
+ import androidx.compose.ui.test.junit4.createComposeRule
+@@ -24,6 +27,8 @@
+ import com.adsamcik.tracker.app.common.ui.BatteryImpact
+ import com.adsamcik.tracker.app.settings.TrackingSettingsUiState
+ import com.adsamcik.tracker.app.settings.tracking.TrackingSettingsContent
++import com.adsamcik.tracker.app.settings.tracking.shouldRequestStepsMotionPermission
++import androidx.lifecycle.Lifecycle
+ import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
+ import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
+ import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionSettings
+@@ -603,7 +608,7 @@
+ 						stepsEnabled = true,
+ 						ambientSourceAvailability = availability,
+ 					),
+-					onHealthConnectStepsPermission = { repairRequested = true },
++					onStepsProviderPermission = { repairRequested = true },
+ 				)
+ 			}
+ 		}
+@@ -645,6 +650,241 @@
+ 			substring = true,
+ 		).assertIsDisplayed()
+ 	}
++
++	@Test
++	fun localRecordingMotionRepairWorksWithoutDirectSensorInBasicSettings() {
++		var repairs = 0
++		var choiceChanges = 0
++		composeTestRule.setContent {
++			AppTheme {
++				TrackingSettingsContent(
++					uiState = localRecordingMotionPermissionState(),
++					onStepsProviderPermission = { repairs++ },
++					onStepsEnabledChanged = { choiceChanges++ },
++					onActivityEnabledChanged = { choiceChanges++ },
++					onAutoTrackingModeChanged = { choiceChanges++ },
++				)
++			}
++		}
++
++		composeTestRule.onNodeWithTag("stepsMotionRepair").performScrollTo()
++			.assertIsDisplayed()
++			.assertContentDescriptionEquals("Allow motion access for Steps")
++			.performClick()
++		composeTestRule.onNodeWithText("Step count").assertIsOn()
++		repairs shouldBe 1
++		choiceChanges shouldBe 0
++		composeTestRule.onNodeWithTag("stepsHealthConnectRepair").assertDoesNotExist()
++	}
++
++	@Test
++	fun localRecordingMotionRepairWorksWithoutDirectSensorInAdvancedSettings() {
++		var repairs = 0
++		var frequencyChanges = 0
++		composeTestRule.setContent {
++			AppTheme {
++				TrackingSettingsContent(
++					uiState = localRecordingMotionPermissionState().copy(
++						advancedSourceControlsEnabled = true,
++					),
++					onStepsProviderPermission = { repairs++ },
++					onSourceFrequencyChanged = { _, _ -> frequencyChanges++ },
++				)
++			}
++		}
++
++		composeTestRule.onNodeWithTag("stepsMotionRepair").performScrollTo()
++			.assertContentDescriptionEquals("Allow motion access for Steps")
++			.performClick()
++		repairs shouldBe 1
++		frequencyChanges shouldBe 0
++		composeTestRule.onNodeWithTag("stepsHealthConnectRepair").assertDoesNotExist()
++	}
++
++	@Test
++	fun deselectingStepsRemovesTheMotionRepairWithoutChangingOtherChoices() {
++		val current = mutableStateOf(localRecordingMotionPermissionState())
++		var repairs = 0
++		composeTestRule.setContent {
++			AppTheme {
++				TrackingSettingsContent(
++					uiState = current.value,
++					onStepsProviderPermission = { repairs++ },
++				)
++			}
++		}
++		composeTestRule.onNodeWithTag("stepsMotionRepair").performScrollTo().assertIsDisplayed()
++		composeTestRule.runOnIdle {
++			current.value = current.value.copy(stepsEnabled = false, ambientStepsEnabled = false)
++		}
++
++		composeTestRule.onNodeWithTag("stepsMotionRepair").assertDoesNotExist()
++		current.value.shouldRequestStepsMotionPermission(
++			34, Lifecycle.State.RESUMED, motionPermissionGranted = false,
++		) shouldBe false
++		current.value.activityEnabled shouldBe false
++		current.value.autoTrackingMode shouldBe 0
++		repairs shouldBe 0
++	}
++
++	@Test
++	fun changedStepsProviderUsesTheCurrentHealthConnectRepairInsteadOfMotion() {
++		val current = mutableStateOf(localRecordingMotionPermissionState())
++		var repairs = 0
++		composeTestRule.setContent {
++			AppTheme {
++				TrackingSettingsContent(current.value, onStepsProviderPermission = { repairs++ })
++			}
++		}
++		composeTestRule.onNodeWithTag("stepsMotionRepair").performScrollTo().assertIsDisplayed()
++		composeTestRule.runOnIdle {
++			current.value = current.value.copy(
++				ambientSourceAvailability = current.value.ambientSourceAvailability +
++					(AmbientTrackingSource.STEPS to AmbientSourceOperationalAvailability(
++						source = AmbientTrackingSource.STEPS,
++						state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
++						mechanism = AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
++						reason = AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED,
++					)),
++			)
++		}
++
++		composeTestRule.onNodeWithTag("stepsMotionRepair").assertDoesNotExist()
++		current.value.shouldRequestStepsMotionPermission(
++			34, Lifecycle.State.RESUMED, motionPermissionGranted = false,
++		) shouldBe false
++		composeTestRule.onNodeWithTag("stepsHealthConnectRepair").performScrollTo().performClick()
++		repairs shouldBe 1
++	}
++
++	@Test
++	fun motionRepairKeepsTurnOffTrackingAndSavedChoicesIntact() {
++		val state = localRecordingMotionPermissionState().copy(trackingTurnedOff = true)
++		var repairs = 0
++		var settingChanges = 0
++		composeTestRule.setContent {
++			AppTheme {
++				TrackingSettingsContent(
++					uiState = state,
++					onStepsProviderPermission = { repairs++ },
++					onStepsEnabledChanged = { settingChanges++ },
++					onActivityEnabledChanged = { settingChanges++ },
++					onAutoTrackingModeChanged = { settingChanges++ },
++					onTurnOffTracking = { settingChanges++ },
++				)
++			}
++		}
++		composeTestRule.onNodeWithTag("stepsMotionRepair").performScrollTo().performClick()
++
++		repairs shouldBe 1
++		settingChanges shouldBe 0
++		state.trackingTurnedOff shouldBe true
++		state.stepsEnabled shouldBe true
++	}
++
++	@Test
++	fun localRecordingRepairFailureUsesExistingProviderCopyAndKeepsRetryAvailable() {
++		var repairs = 0
++		composeTestRule.setContent {
++			AppTheme {
++				TrackingSettingsContent(
++					uiState = localRecordingMotionPermissionState().copy(stepsProviderRepairFailed = true),
++					onStepsProviderPermission = { repairs++ },
++				)
++			}
++		}
++		composeTestRule.onNodeWithTag("stepsMotionRepairError").performScrollTo().assertIsDisplayed()
++		composeTestRule.onNodeWithText("Could not check the step provider. Try again later.")
++			.assertIsDisplayed()
++		composeTestRule.onNodeWithTag("stepsHealthConnectRepairError").assertDoesNotExist()
++		composeTestRule.onNodeWithTag("stepsMotionRepair").performScrollTo().performClick()
++		repairs shouldBe 1
++	}
++
++	@Test
++	fun enablingStepsCanRequestMotionForEitherDirectSensorOrLocalRecording() {
++		val providerOnly = localRecordingMotionPermissionState()
++		providerOnly.shouldRequestStepsMotionPermission(
++			34, Lifecycle.State.RESUMED, motionPermissionGranted = false,
++		) shouldBe true
++		defaultUiState.copy(stepCounterAvailable = true, activityPermissionGranted = false)
++			.shouldRequestStepsMotionPermission(
++				34, Lifecycle.State.RESUMED, motionPermissionGranted = false,
++			) shouldBe true
++		providerOnly.activityEnabled shouldBe false
++		providerOnly.autoTrackingMode shouldBe 0
++	}
++
++	@Test
++	fun stepsMotionPermissionRequiresCurrentSelectionAndroidPermissionAndResumedScreen() {
++		val state = localRecordingMotionPermissionState()
++		state.copy(stepsEnabled = false).shouldRequestStepsMotionPermission(
++			34, Lifecycle.State.RESUMED, motionPermissionGranted = false,
++		) shouldBe false
++		state.shouldRequestStepsMotionPermission(
++			Build.VERSION_CODES.P, Lifecycle.State.RESUMED, motionPermissionGranted = false,
++		) shouldBe false
++		state.shouldRequestStepsMotionPermission(
++			Build.VERSION_CODES.Q, Lifecycle.State.RESUMED, motionPermissionGranted = false,
++		) shouldBe true
++		listOf(Lifecycle.State.DESTROYED, Lifecycle.State.INITIALIZED,
++			Lifecycle.State.CREATED, Lifecycle.State.STARTED).forEach { lifecycle ->
++			state.shouldRequestStepsMotionPermission(
++				34, lifecycle, motionPermissionGranted = false,
++			) shouldBe false
++		}
++		state.shouldRequestStepsMotionPermission(
++			34, Lifecycle.State.RESUMED, motionPermissionGranted = true,
++		) shouldBe false
++	}
++
++	@Test
++	fun currentMotionGrantOverridesBothStaleSettingsGrantStates() {
++		localRecordingMotionPermissionState().copy(activityPermissionGranted = true)
++			.shouldRequestStepsMotionPermission(
++				34, Lifecycle.State.RESUMED, motionPermissionGranted = false,
++			) shouldBe true
++		localRecordingMotionPermissionState().copy(activityPermissionGranted = false)
++			.shouldRequestStepsMotionPermission(
++				34, Lifecycle.State.RESUMED, motionPermissionGranted = true,
++			) shouldBe false
++	}
++
++	@Test
++	fun unavailableProviderWithoutDirectSensorDoesNotRequestMotion() {
++		val state = localRecordingMotionPermissionState()
++		listOf(AmbientSourceUnavailableReason.LOCAL_RECORDING_UNAVAILABLE,
++			AmbientSourceUnavailableReason.HEALTH_CONNECT_UNAVAILABLE,
++			AmbientSourceUnavailableReason.RECONCILIATION_PENDING).forEach { reason ->
++			state.copy(ambientSourceAvailability = state.ambientSourceAvailability +
++				(AmbientTrackingSource.STEPS to AmbientSourceOperationalAvailability(
++					source = AmbientTrackingSource.STEPS,
++					state = if (reason == AmbientSourceUnavailableReason.RECONCILIATION_PENDING) {
++						AmbientSourceOperationalState.WAITING
++					} else AmbientSourceOperationalState.UNAVAILABLE,
++					reason = reason,
++				)))
++				.shouldRequestStepsMotionPermission(
++					34, Lifecycle.State.RESUMED, motionPermissionGranted = false,
++				) shouldBe false
++		}
++	}
++
++	private fun localRecordingMotionPermissionState() = defaultUiState.copy(
++		stepsEnabled = true,
++		activityEnabled = false,
++		autoTrackingMode = 0,
++		autoTrackingEnabled = false,
++		activityPermissionGranted = false,
++		stepCounterAvailable = false,
++		ambientSourceAvailability = defaultUiState.ambientSourceAvailability +
++			(AmbientTrackingSource.STEPS to AmbientSourceOperationalAvailability(
++				source = AmbientTrackingSource.STEPS,
++				state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
++				mechanism = AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
++				reason = AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED,
++			)),
++	)
+ 
+ 	@Test
+ 	fun HealthConnectForegroundReadyStateExplainsOptionalBackgroundGaps() {
+@@ -668,7 +908,7 @@
+ 						stepsEnabled = true,
+ 						ambientSourceAvailability = availability,
+ 					),
+-					onHealthConnectStepsPermission = { repairRequested = true },
++					onStepsProviderPermission = { repairRequested = true },
+ 				)
+ 			}
+ 		}

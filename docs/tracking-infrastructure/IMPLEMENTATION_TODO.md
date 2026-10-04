@@ -147,6 +147,16 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Connect the existing Steps motion-permission repair in basic/advanced
+  Settings for supported LocalRecording without requiring a direct sensor.
+  Current Android grants override stale cached values; reuse existing actions,
+  copy and current-choice owner refresh without resuming Off. Two source/test
+  paths and ten new authored cases have independent static acceptance in
+  `convergence/2026-10-04/ALL_DAY_STEPS_PERMISSION_REPAIR_SELECTED/SOURCE_REVIEW.md`.
+  All cases are NOT_RUN. Provider-only first-enable publication can lag the
+  callback; the repair action appears when status arrives. Its separate bounded
+  prompt-ordering question and complete permission/device chains remain open.
+
 - [x] Author and independently review planning coverage for every source subset
   (including all Off) at all five balance positions, live-source join/leave,
   source-local permission loss and individual quality overrides. Four test

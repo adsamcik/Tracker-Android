@@ -1,0 +1,67 @@
+{
+  "authored_cases": [
+    {
+      "name": "localRecordingMotionRepairWorksWithoutDirectSensorInBasicSettings",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+      "line": 655,
+      "execution": "NOT_RUN"
+    },
+    {
+      "name": "localRecordingMotionRepairWorksWithoutDirectSensorInAdvancedSettings",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+      "line": 681,
+      "execution": "NOT_RUN"
+    },
+    {
+      "name": "deselectingStepsRemovesTheMotionRepairWithoutChangingOtherChoices",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+      "line": 705,
+      "execution": "NOT_RUN"
+    },
+    {
+      "name": "changedStepsProviderUsesTheCurrentHealthConnectRepairInsteadOfMotion",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+      "line": 731,
+      "execution": "NOT_RUN"
+    },
+    {
+      "name": "motionRepairKeepsTurnOffTrackingAndSavedChoicesIntact",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+      "line": 761,
+      "execution": "NOT_RUN"
+    },
+    {
+      "name": "localRecordingRepairFailureUsesExistingProviderCopyAndKeepsRetryAvailable",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+      "line": 786,
+      "execution": "NOT_RUN"
+    },
+    {
+      "name": "enablingStepsCanRequestMotionForEitherDirectSensorOrLocalRecording",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+      "line": 805,
+      "execution": "NOT_RUN"
+    },
+    {
+      "name": "stepsMotionPermissionRequiresCurrentSelectionAndroidPermissionAndResumedScreen",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+      "line": 819,
+      "execution": "NOT_RUN"
+    },
+    {
+      "name": "currentMotionGrantOverridesBothStaleSettingsGrantStates",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+      "line": 842,
+      "execution": "NOT_RUN"
+    },
+    {
+      "name": "unavailableProviderWithoutDirectSensorDoesNotRequestMotion",
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+      "line": 854,
+      "execution": "NOT_RUN"
+    }
+  ],
+  "new_case_count": 10,
+  "selected_test_file_cases": 51,
+  "all_execution": "NOT_RUN"
+}

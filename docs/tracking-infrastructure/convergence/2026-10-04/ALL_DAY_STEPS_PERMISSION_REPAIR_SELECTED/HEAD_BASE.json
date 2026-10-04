@@ -1,0 +1,20 @@
+{
+  "head": "d2bff19a88ba5224c4dd2e883fd313163c4a17dc",
+  "phase": "IMPLEMENTATION_ONLY / IMPLEMENTED_UNVALIDATED",
+  "paths": [
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt",
+      "base_sha256": "83605275b0ec029205a9e053e5cc2f1e45a3cc0e5caf07605aee800f29e6d0ce",
+      "working_before_sha256": "83605275b0ec029205a9e053e5cc2f1e45a3cc0e5caf07605aee800f29e6d0ce",
+      "git_blob": "3b49501cc21afe00b0f473d83104aeb2bd12b577",
+      "working_matches_base": true
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/compose/TrackingSettingsScreenTest.kt",
+      "base_sha256": "102dab5c64f58e99ac2f09589a363864422a510a1e98fd88aeb0204bde8a915b",
+      "working_before_sha256": "102dab5c64f58e99ac2f09589a363864422a510a1e98fd88aeb0204bde8a915b",
+      "git_blob": "f5e1f1d8c1e2ee1ea847e177b3917cbe5ac5ff43",
+      "working_matches_base": true
+    }
+  ]
+}
