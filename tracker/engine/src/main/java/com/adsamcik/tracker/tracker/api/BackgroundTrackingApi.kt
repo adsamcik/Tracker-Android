@@ -320,23 +320,51 @@ object BackgroundTrackingApi {
 		requestAutomaticStart: suspend (AutomaticTrackingStartTrigger) -> ActivityAutomationDeliveryResult,
 	): ActivityAutomationDeliveryResult {
 		val authority = activityAutomationAuthority
-		val publishedControl = automaticControlAvailability as?
-			AutomaticTrackingOperationalAvailability.Ready
-			?: return ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
-		val controlCurrent = try {
+		val params = cachedParamsSnapshot()
+		if (!authority.isCoherent || params.sourcePolicyRevision != authority.activePolicyRevision) {
+			return ActivityAutomationDeliveryResult.RETRY
+		}
+		val availabilityReader = try {
 			getEntryPoint(context).currentTrackingPurposeAvailabilityReader()
-				.isCurrent(publishedControl.identity)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
-			false
+			return ActivityAutomationDeliveryResult.RETRY
+		}
+		val currentRevision = availabilityReader.authorityRevision.value
+		if (
+			!currentRevision.isAvailable ||
+			currentRevision.policyRevision != authority.activePolicyRevision
+		) {
+			return ActivityAutomationDeliveryResult.RETRY
+		}
+		// The API's Flow collector can lag the source-owned publication on a cold callback.
+		val currentAvailability = availabilityReader.availability.value
+		val publishedControl = currentAvailability.automaticControl
+		if (publishedControl !is AutomaticTrackingOperationalAvailability.Ready) {
+			return when (automaticControlPublicationRecoveryResult(publishedControl)) {
+				AutomaticControlRecoveryResult.RETRYABLE -> ActivityAutomationDeliveryResult.RETRY
+				else -> ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
+			}
+		}
+		val controlCurrent = try {
+			availabilityReader.isCurrent(publishedControl.identity)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return ActivityAutomationDeliveryResult.RETRY
 		}
 		if (!controlCurrent) return ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
 		durableActivityAuthorityDisposition(
 			paramsInitialized = authority.paramsInitialized,
 			activePolicyRevision = authority.activePolicyRevision,
 			paramsPolicyRevision = authority.paramsPolicyRevision,
-			activityControlEligible = authority.activityControlEligible,
+			activityControlEligible = effectiveAutomaticControlEligibility(
+				controlConsentEligible = authority.activityControlConsentEpoch != null,
+				currentPolicyRevision = authority.activePolicyRevision,
+				currentConsentEpoch = authority.activityControlConsentEpoch,
+				availability = currentAvailability,
+			),
 			currentControlConsentEpoch = authority.activityControlConsentEpoch,
 			effectControlConsentEpoch = controlConsentEpoch,
 			currentAutomationEpoch = currentAutomationEpoch,
@@ -345,7 +373,7 @@ object BackgroundTrackingApi {
 		val rollout = getEntryPoint(context).trackingRolloutStateStore().load()
 		val startPlan = activityAutomaticStartPlan(
 			context.applicationContext,
-			cachedParamsSnapshot(),
+			params,
 			rollout,
 		)
 		if (startPlan.captureSourceMask == 0L) {

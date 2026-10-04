@@ -1,0 +1,70 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "head": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomationOutboxDispatcher.kt",
+      "sha256": "1b46a127d0bc3f7c836e9b8408bb0ecab91fa516bf4cb18acc4c3d32290c8c0f",
+      "bytes": 30091,
+      "first_packet_dependency_sha256": "f1b273d2f288edfe38fcd3058d0b4346388203e5028fa5e6b0a00fce2c2a713c",
+      "matches_first_packet_pin": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CurrentTrackingPurposeAvailabilityProjection.kt",
+      "sha256": "930402b4468fe7d0279654ac43129732753ffe8f53dc0f30f209843d578b174d",
+      "bytes": 8947,
+      "first_packet_dependency_sha256": "4bb0ef23bbeff809ca7bc7fa4c74ce55964caae936383da7e9574a9132ef258d",
+      "matches_first_packet_pin": false
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackingPurposeAvailability.kt",
+      "sha256": "caf80e1614543ecb2edeac1cb742c633bbbfed0874ee148fd5a739600f410e46",
+      "bytes": 47953,
+      "first_packet_dependency_sha256": "1624d117ed943eedd8086970f4ac0a825a9d08d065d5078046be2e1b269d9d0c",
+      "matches_first_packet_pin": false
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackingPurposeContract.kt",
+      "sha256": "3c9212ceab9c6aa5f69d6f63d8a6d76851298818b80f997056899f25f21998ec",
+      "bytes": 6007,
+      "first_packet_dependency_sha256": "ba9235fa799ef98a7a809e353232eca6e3e7ce643cd3c026c9051791db8d859a",
+      "matches_first_packet_pin": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutState.kt",
+      "sha256": "d7a5acb4fa6468fca6a43f96992e130a63100bf6e2564b51c1056b0a3ce555bc",
+      "bytes": 6867,
+      "first_packet_dependency_sha256": "65a374fd2e35a80141e1963481c8a50e6667c4218c5da310f2b5dc33d5a5448a",
+      "matches_first_packet_pin": false
+    },
+    {
+      "path": "data/preferences/src/main/java/com/adsamcik/tracker/shared/preferences/tracking/TrackingParamsState.kt",
+      "sha256": "d5845d5e82c2142b57b2be8950358ce1872f809d2169a93b9c74561e0c4f6151",
+      "bytes": 4338,
+      "first_packet_dependency_sha256": "d5845d5e82c2142b57b2be8950358ce1872f809d2169a93b9c74561e0c4f6151",
+      "matches_first_packet_pin": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomaticStartActionRepository.kt",
+      "sha256": "985777fa3de6fdd952286d61c7435aebde47f25ab739315fc5c21dbd5aae4f77",
+      "bytes": 27866,
+      "first_packet_dependency_sha256": null,
+      "matches_first_packet_pin": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityControlRetentionMaintenance.kt",
+      "sha256": "9c9416091c9bf24c818be35b51f79853aedf08f049b17827615a794b17847a5a",
+      "bytes": 7948,
+      "first_packet_dependency_sha256": null,
+      "matches_first_packet_pin": true
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackerServiceApi.kt",
+      "sha256": "7ccd36412e7ca85632959189942b4acb9a3cdd508b9d06c443af3a0bbd2ccb6a",
+      "bytes": 34710,
+      "first_packet_dependency_sha256": null,
+      "matches_first_packet_pin": true
+    }
+  ]
+}

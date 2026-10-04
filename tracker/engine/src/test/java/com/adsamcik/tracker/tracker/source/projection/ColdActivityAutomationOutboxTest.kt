@@ -1,0 +1,385 @@
+package com.adsamcik.tracker.tracker.source.projection
+
+import android.app.Application
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorManager
+import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.activity.ActivityTransitionType
+import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.shared.base.data.GroupedActivity
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.SourceProjectionStateDao
+import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
+import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
+import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
+import com.adsamcik.tracker.tracker.api.BackgroundTrackingApiEntryPoint
+import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailability
+import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
+import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import com.adsamcik.tracker.tracker.api.TrackingPurpose
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAuthorityRevision
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAuthorityVector
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
+import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
+import com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult
+import com.adsamcik.tracker.tracker.api.TrackingSource
+import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
+import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
+import com.adsamcik.tracker.tracker.source.model.SourceKind
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.runTest
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+/**
+ * Actual outbox, consumer and Background API. Cache fields simulate collector arrival order;
+ * source authority, Android hardware, action storage and Android enqueue remain fixtures.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28])
+class ColdActivityAutomationOutboxTest {
+	private lateinit var context: Context
+	private val database = mockk<AppDatabase>()
+	private val dao = mockk<SourceProjectionStateDao>()
+	private val validator = mockk<ActivityAutomationEffectValidator>()
+	private val retention = mockk<ActivityControlRetentionMaintenance>()
+	private val actions = mockk<ActivityAutomaticStartActionRepository>()
+	private val entryPoint = mockk<BackgroundTrackingApiEntryPoint>(relaxed = true)
+	private val reader = mockk<CurrentTrackingPurposeAvailabilityReader>()
+	private val publication = MutableStateFlow(CurrentTrackingPurposeAvailability.SAFE_DEFAULT)
+	private val revision = MutableStateFlow(TrackingPurposeAuthorityRevision.UNAVAILABLE)
+	private lateinit var dispatcher: ActivityAutomationOutboxDispatcher
+	private var pending = true
+	private var callbackTime = 1_200L
+	private val requests = mutableListOf<AutomaticTrackingStartTrigger>()
+	private val identity = TrackingPurposeLeaseIdentity(
+		source = TrackingSource.ACTIVITY,
+		purpose = TrackingPurpose.CONTROL,
+		policyRevision = 3L,
+		consentEpoch = 8L,
+		collectedDataEpoch = 0L,
+		rolloutRevision = 1L,
+		executionRevision = 1L,
+		ownerCasToken = "cold-control",
+	)
+
+	@Before
+	fun setUp() {
+		BackgroundTrackingApi.shutdown()
+		val application = ApplicationProvider.getApplicationContext<Application>()
+		val sensors = mockk<SensorManager>()
+		val devicePackageManager = mockk<PackageManager>()
+		every { sensors.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns mockk<Sensor>()
+		every { sensors.getDefaultSensor(Sensor.TYPE_PRESSURE) } returns null
+		every { devicePackageManager.hasSystemFeature(any()) } answers {
+			arg<String>(0) == PackageManager.FEATURE_SENSOR_STEP_COUNTER
+		}
+		context = object : ContextWrapper(application) {
+			override fun getApplicationContext(): Context = this
+			override fun getPackageManager(): PackageManager = devicePackageManager
+			override fun getSystemService(name: String): Any? =
+				if (name == Context.SENSOR_SERVICE) sensors else super.getSystemService(name)
+		}
+		mockkObject(Assist, TrackerServiceApi)
+		every { Assist.isPlayServicesAvailable(any()) } returns true
+		every { TrackerServiceApi.hasLiveCapture(any()) } returns false
+		coEvery { TrackerServiceApi.startServiceAndAwaitEnqueueResult(any(), any(), any(), any(), any()) } coAnswers {
+			requests += requireNotNull(arg<AutomaticTrackingStartTrigger?>(3))
+			TrackingStartDispatchResult.Enqueued
+		}
+		every { database.sourceProjectionStateDao() } returns dao
+		coEvery { dao.pendingOutbox(any(), any(), any(), any()) } answers {
+			if (pending) listOf(effect()) else emptyList()
+		}
+		coEvery { dao.failure(any(), any(), any()) } returns null
+		coEvery { dao.deleteFailure(any(), any(), any()) } returns 0
+		coEvery { dao.saveFailure(any()) } returns Unit
+		coEvery { dao.markOutboxTerminal(any(), any(), any()) } answers { pending = false; 1 }
+		coEvery { dao.markOutboxDelivered(any(), any()) } answers { pending = false; 1 }
+		coEvery { retention.pruneDue() } returns false
+		coEvery { validator.validate(any()) } returns ActivityAutomationEffectValidation.Eligible(8L, 17L)
+		every { reader.availability } returns publication
+		every { reader.authorityRevision } returns revision
+		coEvery { reader.isCurrent(any()) } answers { publication.value.isCurrent(arg(0)) }
+		every { entryPoint.currentTrackingPurposeAvailabilityReader() } returns reader
+		every { entryPoint.lockManager().isLocked } returns false
+		every { entryPoint.trackerStateReader().sessionInfoFlow } returns MutableStateFlow(null)
+		coEvery { entryPoint.trackingRolloutStateStore().load() } returns TrackingRolloutState.eventCanonical(
+			sources = setOf(SourceKind.STEPS),
+			controlSources = setOf(SourceKind.ACTIVITY),
+			captureModes = mapOf(SourceKind.STEPS to setOf(CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE)),
+		)
+		val action = mockk<ActivityAutomaticStartActionEntity>()
+		coEvery { actions.reconcileLifecycleIntentAcceptance(any(), any(), any()) } returns
+			ActivityAutomaticStartAcceptance.Missing
+		coEvery { actions.reserve(any()) } returns ActivityAutomaticStartReserveResult.Reserved(action)
+		coEvery { actions.authorizeExternalStart(any(), any()) } returns
+			ActivityAutomaticStartRequestAuthorization.Authorized(action)
+		coEvery { actions.validateForService(any()) } returns ActivityAutomaticStartServiceValidation.Valid(action)
+		coEvery { actions.markReservedReplayExpired(any(), any(), any(), any()) } returns true
+		dispatcher = ActivityAutomationOutboxDispatcher(
+			database,
+			validator,
+			BackgroundTrackingActivityAutomationEffectConsumer(context, actions),
+			retention,
+		)
+		setCacheField("entryPoint", entryPoint)
+	}
+
+	@After
+	fun tearDown() {
+		BackgroundTrackingApi.shutdown()
+		unmockkObject(Assist, TrackerServiceApi)
+	}
+
+	@Test
+	fun `first cold callback remains pending before policy and settings arrive`() = runTest {
+		drain() shouldBe 0
+		pending shouldBe true
+		dispatcher.drainRequired.value shouldBe true
+		coVerify(exactly = 0) { reader.isCurrent(any()) }
+		assertNoEnqueueOrAcknowledgement()
+	}
+
+	@Test
+	fun `current source publication bypasses a lagging API collector for Steps only`() = runTest {
+		drain() shouldBe 0
+		publishCoherentSettings()
+		publishReady()
+		// No API availability collector ran: its cached eligibility and publication remain defaults.
+		drain() shouldBe 0
+		requests.size shouldBe 1
+		requests.single().requestedCaptureSourceMask shouldBe 1L shl (SourceKind.STEPS.stableCode - 1)
+		requests.single().intendedCaptureSourceMask shouldBe requests.single().requestedCaptureSourceMask
+		requests.single().sourcePolicyRevision shouldBe 3L
+		requests.single().automationEpoch shouldBe 17L
+		pending shouldBe true // Enqueue is START_REQUESTED, not service/Room acceptance.
+		coVerify(exactly = 0) { dao.markOutboxDelivered(any(), any()) }
+		coVerify(exactly = 0) { dao.markOutboxTerminal(any(), any(), any()) }
+	}
+
+	@Test
+	fun `unavailable source revision and newer policy emission retain bounded retry`() = runTest {
+		publishCoherentSettings()
+		publication.value = currentAvailability(AutomaticTrackingOperationalAvailability.Ready(identity))
+		drain() shouldBe 0
+		revision.value = TrackingPurposeAuthorityRevision(4L, 0L, 1L)
+		drain() shouldBe 0
+		pending shouldBe true
+		assertNoEnqueueOrAcknowledgement()
+	}
+
+	@Test
+	fun `registration provider and projection startup failures remain pending without Ready`() = runTest {
+		publishCoherentSettings()
+		revision.value = TrackingPurposeAuthorityRevision(3L, 0L, 1L)
+		listOf(
+			AutomaticTrackingUnavailableReason.REGISTRATION_PENDING,
+			AutomaticTrackingUnavailableReason.PROVIDER_UNAVAILABLE,
+			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+		).forEach { reason ->
+			publication.value = currentAvailability(AutomaticTrackingOperationalAvailability.Unavailable(reason))
+			drain() shouldBe 0
+			pending shouldBe true
+		}
+		assertNoEnqueueOrAcknowledgement()
+	}
+
+	@Test
+	fun `proved permission transition and authority loss terminalize without borrowing cached Ready`() = runTest {
+		publishCoherentSettings()
+		publishReady()
+		setCacheField("automaticControlAvailability", AutomaticTrackingOperationalAvailability.Ready(identity))
+		setCacheField("activityControlEligible", true)
+		publishCacheAuthority()
+		listOf(
+			AutomaticTrackingUnavailableReason.PERMISSION_REQUIRED,
+			AutomaticTrackingUnavailableReason.TRANSITION_DETECTION_DISABLED,
+			AutomaticTrackingUnavailableReason.AUTHORITY_UNAVAILABLE,
+		).forEach { reason ->
+			pending = true
+			publication.value = currentAvailability(AutomaticTrackingOperationalAvailability.Unavailable(reason))
+			drain() shouldBe 0
+			pending shouldBe false
+		}
+		requests shouldBe emptyList()
+		coVerify(exactly = 3) { dao.markOutboxTerminal("effect", "CURRENT_POLICY_SUPPRESSED_AUTOMATION", any()) }
+	}
+
+	@Test
+	fun `current reader construction failure retries before inspecting cached publication`() = runTest {
+		publishCoherentSettings()
+		every { entryPoint.currentTrackingPurposeAvailabilityReader() } throws
+			IllegalStateException("entry point unavailable")
+		drain() shouldBe 0
+		pending shouldBe true
+		assertNoEnqueueOrAcknowledgement()
+	}
+
+	@Test
+	fun `transient current authority read failure retries and cancellation escapes unacknowledged`() = runTest {
+		publishCoherentSettings()
+		publishReady()
+		coEvery { reader.isCurrent(any()) } throws IllegalStateException("storage unavailable")
+		drain() shouldBe 0
+		pending shouldBe true
+		val cancellation = CancellationException("callback closed")
+		coEvery { reader.isCurrent(any()) } throws cancellation
+		shouldThrow<CancellationException> { drain() } shouldBe cancellation
+		pending shouldBe true
+		assertNoEnqueueOrAcknowledgement()
+	}
+
+	@Test
+	fun `stale Ready cannot enqueue after its exact current check fails`() = runTest {
+		publishCoherentSettings()
+		publishReady()
+		coEvery { reader.isCurrent(identity) } returns false
+		drain() shouldBe 0
+		pending shouldBe false
+		requests shouldBe emptyList()
+	}
+
+	@Test
+	fun `new consent and automation epochs suppress an old otherwise current callback`() = runTest {
+		publishCoherentSettings(consentEpoch = 9L)
+		publishReady(identity.copy(consentEpoch = 9L))
+		drain() shouldBe 0
+		pending shouldBe false
+		pending = true
+		publishCoherentSettings()
+		publishReady()
+		coEvery { validator.validate(any()) } returns ActivityAutomationEffectValidation.Eligible(8L, 18L)
+		drain() shouldBe 0
+		pending shouldBe false
+		requests shouldBe emptyList()
+	}
+
+	@Test
+	fun `cold retry cannot extend a transition beyond its live callback deadline`() = runTest {
+		drain() shouldBe 0
+		publishCoherentSettings()
+		publishReady()
+		callbackTime = 7_000_001_100L
+		drain() shouldBe 0
+		pending shouldBe false
+		requests shouldBe emptyList()
+		coVerify(exactly = 1) { dao.markOutboxTerminal("effect", "START_CONTEXT_EXPIRED", any()) }
+	}
+
+	@Test
+	fun `settings emission that precedes its policy remains retryable despite Ready`() = runTest {
+		publishCoherentSettings(paramsRevision = 4L)
+		publishReady()
+		drain() shouldBe 0
+		pending shouldBe true
+		assertNoEnqueueOrAcknowledgement()
+	}
+
+	private suspend fun drain(): Int = dispatcher.drain(
+		startPermit = ActivityAutomationStartPermit.FreshTransitionCallback(setOf(1L)),
+		elapsedRealtimeNanos = { callbackTime },
+	)
+
+	private fun publishCoherentSettings(consentEpoch: Long = 8L, paramsRevision: Long = 3L) {
+		setCacheField("cachedParams", TrackingParamsState(
+			locationEnabled = false,
+			activityEnabled = false,
+			stepsEnabled = true,
+			barometerEnabled = false,
+			autoTrackingMode = GroupedActivity.ON_FOOT.ordinal,
+			sourcePolicyRevision = paramsRevision,
+		))
+		setCacheField("paramsInitialized", true)
+		setCacheField("activeSourcePolicyRevision", 3L)
+		setCacheField("activityControlConsentEpoch", consentEpoch)
+		publishCacheAuthority()
+	}
+
+	private fun publishReady(readyIdentity: TrackingPurposeLeaseIdentity = identity) {
+		revision.value = TrackingPurposeAuthorityRevision(3L, 0L, 1L)
+		publication.value = currentAvailability(AutomaticTrackingOperationalAvailability.Ready(readyIdentity))
+	}
+
+	private fun currentAvailability(control: AutomaticTrackingOperationalAvailability) =
+		CurrentTrackingPurposeAvailability(
+			published = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.copy(automaticControl = control),
+			currentAuthorities = (control as? AutomaticTrackingOperationalAvailability.Ready)?.identity?.let {
+				mapOf(it.sourcePurpose to TrackingPurposeAuthorityVector(
+					sourcePurpose = it.sourcePurpose,
+					policyRevision = it.policyRevision,
+					consentEpoch = it.consentEpoch,
+					collectedDataEpoch = it.collectedDataEpoch,
+					rolloutRevision = it.rolloutRevision,
+					executionRevision = it.executionRevision,
+				))
+			}.orEmpty(),
+		)
+
+	private fun assertNoEnqueueOrAcknowledgement() {
+		requests shouldBe emptyList()
+		coVerify(exactly = 0) { actions.reserve(any()) }
+		coVerify(exactly = 0) { dao.markOutboxDelivered(any(), any()) }
+		coVerify(exactly = 0) { dao.markOutboxTerminal(any(), any(), any()) }
+	}
+
+	private fun setCacheField(name: String, value: Any?) {
+		BackgroundTrackingApi::class.java.getDeclaredField(name).apply { isAccessible = true }
+			.set(BackgroundTrackingApi, value)
+	}
+
+	private fun publishCacheAuthority() {
+		BackgroundTrackingApi::class.java.getDeclaredMethod("publishActivityAutomationAuthority")
+			.apply { isAccessible = true }.invoke(BackgroundTrackingApi)
+	}
+
+	private fun effect() = SourceProjectionOutboxEntity(
+		stableId = "effect",
+		projectionId = ActivityAutomationProjection.ID,
+		projectionVersion = ActivityAutomationProjection.VERSION,
+		admissionOrdinal = 1L,
+		effectKind = ActivityAutomationProjection.OUTBOX_KIND,
+		payloadVersion = ActivityAutomationProjection.PAYLOAD_VERSION,
+		payload = ByteArrayOutputStream().use { bytes ->
+			DataOutputStream(bytes).use { output ->
+				output.writeInt(ActivityAutomationProjection.KIND_TRANSITION)
+				output.writeInt(1)
+				output.writeInt(90)
+				output.writeInt(ActivityTransitionType.ENTER.value)
+				output.writeUTF("boot")
+				output.writeLong(1_000L)
+				output.writeLong(1_100L)
+				output.writeLong(1L)
+				output.writeLong(2L)
+				output.writeUTF("authorization")
+				output.writeLong(0L)
+				output.writeLong(17L)
+			}
+			bytes.toByteArray()
+		},
+		createdAtMs = 1L,
+		deliveredAtMs = null,
+	)
+}

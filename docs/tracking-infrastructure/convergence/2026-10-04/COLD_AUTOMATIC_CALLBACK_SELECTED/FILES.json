@@ -1,0 +1,70 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "39718842674c35a5052c696c1a28d2c1f73c9b05",
+  "current_parent_reported": "879ee7f5d8",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt",
+      "kind": "production",
+      "base_sha256": "64cc949eb93acb416eb0749685b4e3e9a3b62bc88a4b72604a1f83e1b94cad5e",
+      "selected_sha256": "1b500c2c83dc65b767594382f923532c323230a25a83844d88989c5c87c9c8ba",
+      "actual_sha256": "1b500c2c83dc65b767594382f923532c323230a25a83844d88989c5c87c9c8ba"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/ColdActivityAutomationOutboxTest.kt",
+      "kind": "test",
+      "base_sha256": null,
+      "selected_sha256": "4b15eb3402a83d515e20feaab66d454e41380c9952ee7e3bf1c6a2c4fc3b07bc",
+      "actual_sha256": "4b15eb3402a83d515e20feaab66d454e41380c9952ee7e3bf1c6a2c4fc3b07bc"
+    }
+  ],
+  "patch_sha256": "8823982a7f3719e5499285d9529094dbd1c3546ce8cc401571f6d44f34807ded",
+  "authored_test_methods": 11,
+  "test_execution": "NOT_RUN",
+  "scenarios": [
+    "First cold callback stays pending before policy/settings",
+    "Coherent policy + source Ready bypasses lagging API availability collector and requests Steps only; enqueue is not acceptance",
+    "Current source revision unavailable or newer than cached policy stays retryable",
+    "Registration/provider/current-projection pending statuses stay retryable without Ready",
+    "Known permission/transition/authority loss terminalizes without borrowing cached Ready",
+    "Current reader construction failure stays retryable",
+    "Transient exact current read retries; original cancellation escapes with no acknowledgement",
+    "Failed exact current Ready check prevents enqueue",
+    "Changed consent and automation epochs suppress old callback",
+    "Retry past original callback deadline becomes durable replay and cannot start",
+    "Settings emission preceding matching policy stays retryable"
+  ],
+  "unchanged_source_dependencies": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomationOutboxDispatcher.kt",
+      "sha256": "f1b273d2f288edfe38fcd3058d0b4346388203e5028fa5e6b0a00fce2c2a713c"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CurrentTrackingPurposeAvailabilityProjection.kt",
+      "sha256": "4bb0ef23bbeff809ca7bc7fa4c74ce55964caae936383da7e9574a9132ef258d"
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackingPurposeAvailability.kt",
+      "sha256": "1624d117ed943eedd8086970f4ac0a825a9d08d065d5078046be2e1b269d9d0c"
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackingPurposeContract.kt",
+      "sha256": "ba9235fa799ef98a7a809e353232eca6e3e7ce643cd3c026c9051791db8d859a"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutState.kt",
+      "sha256": "65a374fd2e35a80141e1963481c8a50e6667c4218c5da310f2b5dc33d5a5448a"
+    },
+    {
+      "path": "data/preferences/src/main/java/com/adsamcik/tracker/shared/preferences/tracking/TrackingParamsState.kt",
+      "sha256": "d5845d5e82c2142b57b2be8950358ce1872f809d2169a93b9c74561e0c4f6151"
+    }
+  ],
+  "excluded": [
+    "A1 fresh-callback reservation lock conflict",
+    "A2 service/Room acceptance lock conflict",
+    "Held manual pending-Off acceptance implementation",
+    "Automatic full chain/service/provider readiness"
+  ]
+}

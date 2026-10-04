@@ -1,0 +1,97 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "39718842674c35a5052c696c1a28d2c1f73c9b05",
+  "current_parent_reported": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt",
+      "kind": "production",
+      "base_sha256": "64cc949eb93acb416eb0749685b4e3e9a3b62bc88a4b72604a1f83e1b94cad5e",
+      "selected_sha256": "1b500c2c83dc65b767594382f923532c323230a25a83844d88989c5c87c9c8ba",
+      "actual_sha256": "1b500c2c83dc65b767594382f923532c323230a25a83844d88989c5c87c9c8ba"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/ColdActivityAutomationOutboxTest.kt",
+      "kind": "test",
+      "base_sha256": null,
+      "selected_sha256": "4b15eb3402a83d515e20feaab66d454e41380c9952ee7e3bf1c6a2c4fc3b07bc",
+      "actual_sha256": "4b15eb3402a83d515e20feaab66d454e41380c9952ee7e3bf1c6a2c4fc3b07bc"
+    }
+  ],
+  "patch_sha256": "8823982a7f3719e5499285d9529094dbd1c3546ce8cc401571f6d44f34807ded",
+  "authored_test_methods": 11,
+  "test_execution": "NOT_RUN",
+  "scenarios": [
+    "First cold callback stays pending before policy/settings",
+    "Coherent policy + source Ready bypasses lagging API availability collector and requests Steps only; enqueue is not acceptance",
+    "Current source revision unavailable or newer than cached policy stays retryable",
+    "Registration/provider/current-projection pending statuses stay retryable without Ready",
+    "Known permission/transition/authority loss terminalizes without borrowing cached Ready",
+    "Current reader construction failure stays retryable",
+    "Transient exact current read retries; original cancellation escapes with no acknowledgement",
+    "Failed exact current Ready check prevents enqueue",
+    "Changed consent and automation epochs suppress old callback",
+    "Retry past original callback deadline becomes durable replay and cannot start",
+    "Settings emission preceding matching policy stays retryable"
+  ],
+  "unchanged_source_dependencies": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomationOutboxDispatcher.kt",
+      "sha256": "1b46a127d0bc3f7c836e9b8408bb0ecab91fa516bf4cb18acc4c3d32290c8c0f",
+      "snapshot": "DEPENDENCIES/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomationOutboxDispatcher.kt"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CurrentTrackingPurposeAvailabilityProjection.kt",
+      "sha256": "930402b4468fe7d0279654ac43129732753ffe8f53dc0f30f209843d578b174d",
+      "snapshot": "DEPENDENCIES/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CurrentTrackingPurposeAvailabilityProjection.kt"
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackingPurposeAvailability.kt",
+      "sha256": "caf80e1614543ecb2edeac1cb742c633bbbfed0874ee148fd5a739600f410e46",
+      "snapshot": "DEPENDENCIES/tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackingPurposeAvailability.kt"
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackingPurposeContract.kt",
+      "sha256": "3c9212ceab9c6aa5f69d6f63d8a6d76851298818b80f997056899f25f21998ec",
+      "snapshot": "DEPENDENCIES/tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackingPurposeContract.kt"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutState.kt",
+      "sha256": "d7a5acb4fa6468fca6a43f96992e130a63100bf6e2564b51c1056b0a3ce555bc",
+      "snapshot": "DEPENDENCIES/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutState.kt"
+    },
+    {
+      "path": "data/preferences/src/main/java/com/adsamcik/tracker/shared/preferences/tracking/TrackingParamsState.kt",
+      "sha256": "d5845d5e82c2142b57b2be8950358ce1872f809d2169a93b9c74561e0c4f6151",
+      "snapshot": "DEPENDENCIES/data/preferences/src/main/java/com/adsamcik/tracker/shared/preferences/tracking/TrackingParamsState.kt"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomaticStartActionRepository.kt",
+      "sha256": "985777fa3de6fdd952286d61c7435aebde47f25ab739315fc5c21dbd5aae4f77",
+      "snapshot": "DEPENDENCIES/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomaticStartActionRepository.kt"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityControlRetentionMaintenance.kt",
+      "sha256": "9c9416091c9bf24c818be35b51f79853aedf08f049b17827615a794b17847a5a",
+      "snapshot": "DEPENDENCIES/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityControlRetentionMaintenance.kt"
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackerServiceApi.kt",
+      "sha256": "7ccd36412e7ca85632959189942b4acb9a3cdd508b9d06c443af3a0bbd2ccb6a",
+      "snapshot": "DEPENDENCIES/tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackerServiceApi.kt"
+    }
+  ],
+  "excluded": [
+    "A1 fresh-callback reservation lock conflict",
+    "A2 service/Room acceptance lock conflict",
+    "Held manual pending-Off acceptance implementation",
+    "Automatic full chain/service/provider readiness"
+  ],
+  "revision": "Committed dependency pins only; production, test and selection patch unchanged",
+  "dependency_head": "879ee7f5d8ea06effa7da1002f600edb9d2b2db0",
+  "preserved_initial_manifest_sha256": "c730b784c1866881a9d59a8c591ca7dcccfdf65f422f2c3b730b79c35aa77e3e",
+  "preserved_initial_boundary_sha256": "35eec8f617f77d200cda8586c95fc3b98151f413dab26fda036bb8f5d0345dc8",
+  "dependency_metadata_sha256": "869cc9ef3b8f1ff2942191763097655643140729567e2bbf8f7064a7af5f21f6",
+  "source_comparison": "All nine committed dependency snapshots equal working source after CRLF/LF normalization. Five original working-byte pins differed solely by line endings; no held source delta is required."
+}

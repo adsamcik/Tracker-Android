@@ -147,6 +147,14 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Preserve cold automatic callbacks while settings/current publication are
+  loading. Read the existing current source-owned availability instead of a
+  lagging API cache, with exact current/consent/epoch checks and the original
+  callback deadline. Two paths and eleven composed outbox/consumer/API cases
+  have independent static acceptance in `convergence/2026-10-04/COLD_AUTOMATIC_CALLBACK_REVISED_SELECTED/SOURCE_REVIEW.md`. Cases are NOT_RUN;
+  fixture enqueue is not accepted tracking. The two separate Start lock-order
+  decisions, real provider chain and all full assembly prerequisites remain open.
+
 - [x] Author shared Location cold-recovery and temporary-lease transition
   coverage: exact passive reuse, removal/acknowledgement retry before active
   takeover, passive/active/passive replacement, and independent map/game
