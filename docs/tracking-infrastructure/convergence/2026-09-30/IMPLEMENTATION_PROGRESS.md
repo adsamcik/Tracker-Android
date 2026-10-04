@@ -20,6 +20,12 @@ description of its earlier input; this file records subsequent repair progress.
 
 ## Authored slices and local commit receipts
 
+- October 4 ordinary Activity recent history now uses exact requested-key native
+  owners independently of its 100-row display frontier. One new actual Room case
+  keeps an independent import readable while a foreign claim of an older native
+  window is rejected consistently by ordinary/shared readers. Static receipt:
+  `../2026-10-04/ACTIVITY_RECENT_EXACT_OWNERSHIP_SELECTED/SOURCE_REVIEW.md`.
+  The source scenario is unexecuted; full range History and all chains stay open.
 - October 4 shared Pressure import reader now checks exact original entry/run/window
   owners before comparing values, including retained imports and deleted/retained
   native owners. Five new actual Room scenarios are authored and independently

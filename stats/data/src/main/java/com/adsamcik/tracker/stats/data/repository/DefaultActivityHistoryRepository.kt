@@ -214,11 +214,23 @@ internal class DefaultActivityHistoryRepository private constructor(
 		val hasImportedOwnership = importedEvaluations.any {
 			it is ImportedActivityProductEvaluation.Readable || it is ImportedActivityProductEvaluation.Retained
 		}
+		// Presentation recency cannot establish that an imported identity has no older native owner.
+		val ownershipLocal = when (val page = loadLocalOwnershipForImportedEligibility(importedEvaluations)) {
+			is ActivityComposedPage.Failed -> return ActivitySourceComposedPage.Failed(page.cause)
+			is ActivityComposedPage.Available -> page.entries
+		}
+		val ownershipLogicalIds = ownershipLocal.mapTo(linkedSetOf(), ComposedActivityEntry::logicalTrackingId)
+		val ownershipIdentities = ownershipLogicalIds.mapTo(linkedSetOf()) { logicalId ->
+			PortableActivityOpaqueIdentity.derive(PortableActivityIdentityKind.LOGICAL_ENTRY, logicalId).value
+		}
+		if (ownershipIdentities.size != ownershipLogicalIds.size) {
+			return ActivitySourceComposedPage.Failed(ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+		}
 		val localPortableEntries = try {
 			loadLocalPortableOwnershipSnapshot(
 				hasImportedOwnership,
-				local,
-				localIdentityByOpaque.keys,
+				ownershipLocal,
+				ownershipIdentities,
 			)
 		} catch (_: ActivityLocalOwnershipBudgetExceeded) {
 			return ActivitySourceComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
@@ -229,7 +241,7 @@ internal class DefaultActivityHistoryRepository private constructor(
 		}
 		val localProtectedIdentities = try {
 			if (hasImportedOwnership) {
-				loadValueFreeLocalProtectedOwnership(local, localPortableEntries)
+				loadValueFreeLocalProtectedOwnership(ownershipLocal, localPortableEntries)
 			} else {
 				emptyMap()
 			}
@@ -242,7 +254,7 @@ internal class DefaultActivityHistoryRepository private constructor(
 		}
 		return try {
 			val mappedImported = ActivityHistoryOriginComposer.composeImported(
-				liveLogicalTrackingIds = localIdentities,
+				liveLogicalTrackingIds = localIdentities + ownershipLogicalIds,
 				imported = importedEvaluations,
 				localPortableEntriesByIdentity = localPortableEntries,
 				localProtectedIdentitiesByEntry = localProtectedIdentities,

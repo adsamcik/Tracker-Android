@@ -122,6 +122,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Reuse the exact native ownership lookup for ordinary recent Activity imports,
+  including native owners beyond the display's 100-row frontier. Preserve display
+  ordering and typed limits; one authored real Room scenario is independently
+  statically reviewed and unexecuted in
+  `convergence/2026-10-04/ACTIVITY_RECENT_EXACT_OWNERSHIP_SELECTED/SOURCE_REVIEW.md`.
+  Unified range History and the complete product chain remain open.
 - [x] Select shared Pressure import matching for exact native entry/run/window
   identities, including deleted and retained owners. Five new actual Room cases
   are independently statically reviewed and unexecuted in

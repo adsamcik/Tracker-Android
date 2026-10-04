@@ -1,0 +1,40 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "baseHead": "07d5c664918affa8cc843fd243b38032bb9c782c",
+  "baseOrigin": "Exact frozen N5 selected source with approved ownership lookup and committed exact selector prerequisites; narrow companion delta only",
+  "dependencies": [
+    "NATIVE_PORTABLE_OWNERSHIP_REVISED_SELECTED",
+    "ACTIVITY_EXACT_OWNERSHIP_COMPARISON_N5_SELECTED",
+    "Committed exact source selector0887e81c9d and raw caller projectionf3b026e4d1"
+  ],
+  "dependencyManifestSha256": "5f248c029b663d31011675754d703102f0f2a2ae9febf0c0a7864f700bacbbfa",
+  "paths": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt",
+      "role": "production",
+      "workingBeforeSha256": "a9f0892f509d5293f3d6b0d2019610de912856de1277bf1a3395e3c58d94dd71",
+      "workingAfterSha256": "7e4499cf311ce0c8497bf1743d2a78f513e4c9b1ae00a8c8cc91c724749b73ef",
+      "selectedBaseLfSha256": "0aeb19979d70b3d8deb0262e0b9145b2185d7ec5eff47321f2c0ba9687539546",
+      "selectedLfSha256": "809167b510dbb884ba31a67ed3d6f30bc690ebd76162735658d89e7fedeeaf12",
+      "mixed": true,
+      "selection": "Ordinary recent comparison uses exact requested-key owners; source ordering remains unchanged"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "role": "test",
+      "workingBeforeSha256": "6454c523b4f87dd7c6cb594b2151fb4bc317abd8dc81e20eefdee6efef741bff",
+      "workingAfterSha256": "8d18064cf0ba8af2969417c690c57d5153a5f91afcf333cf75296d16ac0a3b56",
+      "selectedBaseLfSha256": "6454c523b4f87dd7c6cb594b2151fb4bc317abd8dc81e20eefdee6efef741bff",
+      "selectedLfSha256": "8d18064cf0ba8af2969417c690c57d5153a5f91afcf333cf75296d16ac0a3b56",
+      "mixed": false,
+      "selection": "One actual Room frontier regression plus optional window-ID preservation in existing test data helpers (defaults unchanged)"
+    }
+  ],
+  "patchSha256": "0c17f97d888f1c80048fac1b5a33ef03869012d639b35c593e301d8dfdea4304",
+  "workingDeltaSha256": "0c17f97d888f1c80048fac1b5a33ef03869012d639b35c593e301d8dfdea4304",
+  "authoredTests": 1,
+  "testsExecuted": false,
+  "excludedDrafts": "Held Activity range/visibility R11 foundation and earlier argument/epoch/budget deltas stay excluded; unchanged by this slice.",
+  "sourceLimits": "Existing100owner exact lookup and128physical-member/512revision source snapshot bounds; existing typed READ_BUDGET_EXCEEDED maintained. No larger/global census or read-time hash scan."
+}

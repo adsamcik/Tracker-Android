@@ -1138,6 +1138,70 @@ class ActivityHistoryComposerTest {
 	}
 
 	@Test
+	fun `ordinary recent Activity rejects an older retained window claim beyond its native frontier`() = runTest {
+		val original = fixture(listOf(RunSpec(1L, "older-retained-run", "UTC")))
+		persistPortableFixture(original)
+		val portable = readLocalPortableEntry(original)
+		database.sourceEvidenceStateDao().updateLifecycle(
+			0L, firstRecordedActivityTime(portable) + 1L, 100_000L,
+		) shouldBe 1
+		repeat(101) { index ->
+			val revision = index + 2L
+			persistFixture(fixture(
+				listOf(RunSpec(revision, "newer-factless-run-$index", "UTC")),
+				"newer-factless-logical-$index",
+			).copy(
+				revisions = emptyList(), cursors = emptyList(), fragmentsByRevision = emptyMap(),
+				evidenceByRevision = emptyMap(),
+			))
+		}
+		val frontier = database.activityCapturedFactDao().logicalHistoryCandidatePage(
+			100, null, null, ACTIVITY_SOURCE,
+		)
+		frontier shouldHaveSize 100
+		frontier.none { it.segment.logicalTrackingId == LOGICAL_ID } shouldBe true
+		val repository = activityRepository(testScheduler)
+		val localPage = repository.recent(10) as ActivityHistoryPage.Available
+		localPage.entries shouldHaveSize 10
+		localPage.entries.all { it.state == ActivityHistoryProductState.UNAVAILABLE &&
+			it.causes == setOf(ActivityHistoryCause.NO_QUALIFIED_FACTS) } shouldBe true
+
+		val independent = shiftPortable(portable, 500_000L, "frontier-independent")
+		importPortable(independent, testScheduler, jobId = "frontier-independent", receivedAtMs = 600_000L)
+		val before = repository.recent(1) as ActivityHistoryPage.Available
+		before.entries.single().importedSelection?.identity?.value shouldBe independent.identity.value
+		before.entries.single().state shouldBe ActivityHistoryProductState.READY
+		val sharedBefore = database.withTransaction {
+			repository.recentImportedEligibleForSharedHistoryInTransaction(10)
+		} as ImportedHistoryEligiblePage.Available
+		sharedBefore.entries.single().entry.importedSelection?.identity?.value shouldBe independent.identity.value
+
+		val claim = shiftPortable(portable, 600_000L, "frontier-window-claim", preserveWindowIdentities = true)
+		(claim.identity == portable.identity) shouldBe false
+		(claim.runs.single().identity == portable.runs.single().identity) shouldBe false
+		(claim.runs.single().deletionScopeDigest == portable.runs.single().deletionScopeDigest) shouldBe false
+		claim.runs.single().windows.single().identity shouldBe portable.runs.single().windows.single().identity
+		importPortable(claim, testScheduler, jobId = "frontier-window-claim", receivedAtMs = 700_000L)
+
+		val after = repository.recent(2) as ActivityHistoryPage.Available
+		after.entries shouldHaveSize 2
+		after.entries.first().let { conflict ->
+			conflict.origin shouldBe ActivityHistoryOrigin.IMPORTED
+			conflict.state shouldBe ActivityHistoryProductState.FAILED
+			conflict.causes shouldBe setOf(ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+			conflict.activeTime shouldBe null
+			conflict.fragments shouldBe emptyList()
+		}
+		after.entries.last().importedSelection?.identity?.value shouldBe independent.identity.value
+		after.entries.last().state shouldBe ActivityHistoryProductState.READY
+		database.withTransaction {
+			repository.recentImportedEligibleForSharedHistoryInTransaction(10)
+		} shouldBe ImportedHistoryEligiblePage.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+		)
+	}
+
+	@Test
 	fun `shared imported bridge suppresses exact duplicate and rejects corrupt origin reuse`() = runTest {
 		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
 		persistPortableFixture(snapshot)
@@ -2761,10 +2825,11 @@ class ActivityHistoryComposerTest {
 	private fun reidentifyPortable(
 		entry: PortableActivityEntryV1,
 		seed: String,
+		preserveWindowIdentities: Boolean = false,
 	): PortableActivityEntryV1 {
 		val runs = entry.runs.mapIndexed { runIndex, run ->
 			val windows = run.windows.mapIndexed { windowIndex, window ->
-				val identity = PortableActivityOpaqueIdentity.derive(
+				val identity = if (preserveWindowIdentities) window.identity else PortableActivityOpaqueIdentity.derive(
 					PortableActivityIdentityKind.CAPTURE_WINDOW,
 					"$seed-window-$runIndex-$windowIndex",
 				)
@@ -2844,8 +2909,9 @@ class ActivityHistoryComposerTest {
 		entry: PortableActivityEntryV1,
 		deltaMs: Long,
 		seed: String,
+		preserveWindowIdentities: Boolean = false,
 	): PortableActivityEntryV1 {
-		val identified = reidentifyPortable(entry, seed)
+		val identified = reidentifyPortable(entry, seed, preserveWindowIdentities)
 		val runs = identified.runs.map { run ->
 			val windows = run.windows.map { window ->
 				val fragments = window.fragments.map { fragment ->
