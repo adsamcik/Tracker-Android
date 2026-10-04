@@ -1,0 +1,23 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "d8d5b0db44897e88fbda12c03a1caab99b9eb1e5",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt",
+      "base_sha256": "f72b066f70899d23e32c67801b5053b622de03d2913003f5e4825c1d4e79f670",
+      "working_before_sha256": "870777da5d54f5503b0d2fd758b36c7bed621b755c9d3eb00e59081dcdd4d9bc",
+      "working_after_sha256": "4b5914828d2d605aef9e92d68ae79a8e8169c9425ef2c040eeec8d96b22bdd3e",
+      "selected_sha256": "c6bd386fea877a9ec42c5e574e5a8771ccd84b0ae4c785023084f0731485be00"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSessionTest.kt",
+      "base_sha256": "6936c352dd58664715d0910458b0ddcc096c72b5943a26bef3beb06bedeea075",
+      "working_before_sha256": "4e5edd00547be0755221a0ab438a5d5e0b35084d652c8c9be919f18899cf8671",
+      "working_after_sha256": "72ee1f0ab5b9c78b1ce44d3a7473ee1c44132c96e6fb28acb6539785a82b1c9c",
+      "selected_sha256": "8dc919ac66903d1bc6c97df7102284cf8729da54389b8def8eb88d60731bfaca"
+    }
+  ],
+  "new_cases": 2,
+  "executed_checks": []
+}

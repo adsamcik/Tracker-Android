@@ -1,0 +1,145 @@
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt
+@@ -1280,8 +1280,14 @@
+ 				}
+ 				reconcileLocationMotionScope()
+ 				refreshBackgroundLocationPlan()
+-				val retryOutcome = if (sessionInfo != null && !gracefulStopRequested) retryPendingSourceSessionReconfiguration() else null
+-				if (retryOutcome is SourceSessionReconfigureOutcome.Rejected) {
++				// Re-evaluate current power/thermal inputs as well as pending provider work.
++				// The source-session fingerprint keeps an unchanged tick a no-op.
++				val policyOutcome = if (sessionInfo != null && !gracefulStopRequested) {
++					reconfigureSourceSession(
++						sourcePlanInputs(trackingParamsRepository.data.first(), orchestrator.currentSourceDemands()),
++					)
++				} else null
++				if (policyOutcome is SourceSessionReconfigureOutcome.Rejected) {
+ 					requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
+ 				}
+ 				collectionMotionController.tick(SystemClock.elapsedRealtimeNanos())
+@@ -1459,11 +1465,6 @@
+ 		inputs: SourceSessionPlanInputs,
+ 	): SourceSessionReconfigureOutcome =
+ 		reconcileSourceSessionOutcome(sourceSession.reconfigure(inputs))
+-
+-	private suspend fun retryPendingSourceSessionReconfiguration(): SourceSessionReconfigureOutcome? =
+-		sourceSession.retryPendingReconfiguration()?.let { outcome ->
+-			reconcileSourceSessionOutcome(outcome)
+-		}
+ 
+ 	private suspend fun reconcileSourceSessionOutcome(
+ 		outcome: SourceSessionReconfigureOutcome,
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSessionTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSessionTest.kt
+@@ -991,6 +991,111 @@
+ 	}
+ 
+ 	@Test
++	fun `thermal-only policy changes reduce chosen Pressure restore quality and leave Steps continuous`() = runTest {
++		assertLiveThermalReconfiguration(retryBeforeApply = false)
++	}
++
++	@Test
++	fun `current thermal policy retries durable provider debt without restoring its older quality`() = runTest {
++		assertLiveThermalReconfiguration(retryBeforeApply = true)
++	}
++
++	private suspend fun assertLiveThermalReconfiguration(retryBeforeApply: Boolean) {
++		val rollout = allEventCanonical(revision = 5)
++		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 7).copy(
++			barometerEnabled = true,
++			sourceCollectionSettings = SourceCollectionSettings(
++				location = SourceCollectionFrequency.OFF,
++				activity = SourceCollectionFrequency.OFF,
++				steps = SourceCollectionFrequency.BALANCED,
++				pressure = SourceCollectionFrequency.BALANCED,
++				wifi = SourceCollectionFrequency.OFF,
++				cell = SourceCollectionFrequency.OFF,
++			),
++		)
++		val baseline = inputs(enabled)
++		val thermal = baseline.copy(
++			resolutionContext = baseline.resolutionContext.copy(severeThermalPressure = true),
++		)
++		val reference = SourceCallerReplayReference("live-thermal-authority")
++		var descriptor = ActiveTrackingSessionDescriptor(
++			isUserInitiated = true,
++			isAmbient = false,
++			policyTier = PolicyTier.PRECISION,
++			logicalTrackingId = "logical",
++			serviceRunId = "run",
++			sourceCallerAuthorityReference = reference,
++		)
++		coEvery { activeSessionStore.read() } answers {
++			ActiveTrackingSessionStoreResult.Success(descriptor)
++		}
++		coEvery { activeSessionStore.replaceExact(any(), any()) } answers {
++			val expected = firstArg<ActiveTrackingSessionDescriptor>()
++			val replacement = secondArg<ActiveTrackingSessionDescriptor>()
++			if (expected == descriptor) descriptor = replacement
++			ActiveTrackingSessionStoreResult.Success(descriptor)
++		}
++		val starts = mutableListOf<SessionStartRequest>()
++		coEvery { lifecycle.start(capture(starts)) } coAnswers {
++			val request = firstArg<SessionStartRequest>()
++			seedPreparedAppliedPlan(request.plan)
++			SessionStartResult.Started("logical", "run", appliedStates(request.plan), DesiredPlanStatus.EFFECTIVE, reference)
++		}
++		val requests = mutableListOf<SessionReconfigureRequest>()
++		coEvery { lifecycle.reconfigure(capture(requests)) } coAnswers {
++			val request = firstArg<SessionReconfigureRequest>()
++			if (retryBeforeApply && requests.size <= 2) {
++				SessionReconfigureResult.Retryable(request.plan.revision, "SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED", setOf(SourceKind.STEPS))
++			} else {
++				seedPreparedAppliedPlan(request.plan)
++				SessionReconfigureResult.Applied(request.plan.revision, appliedStates(request.plan), DesiredPlanStatus.EFFECTIVE, reference)
++			}
++		}
++		subject.start(
++			SourceSessionStartRequest(
++				rollout = rollout,
++				ownership = TrackingSessionOwnership.resolve(rollout, enabled),
++				logicalTrackingId = "logical",
++				serviceRunId = "run",
++				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
++				foregroundCapabilityFlags = 1,
++				planInputs = baseline,
++				ownerToken = "owner",
++			),
++		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
++		val initial = starts.single().plan
++		subject.reconfigure(baseline) shouldBe SourceSessionReconfigureOutcome.Unchanged
++		requests.size shouldBe 0
++
++		val firstThermal = subject.reconfigure(thermal)
++		if (retryBeforeApply) {
++			firstThermal.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Retryable>()
++			descriptor.catalogReconfigurationDebt?.desiredPlanFingerprint shouldBe requests.last().desiredPlanFingerprint
++			subject.reconfigure(thermal).shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
++		} else firstThermal.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
++		val hot = requests.last().plan
++		hot.plans.filterValues { it.enabled }.keys shouldBe setOf(SourceKind.STEPS, SourceKind.PRESSURE)
++		(hot.plans.getValue(SourceKind.PRESSURE) as PressurePlan).let {
++			it.hardwareSamplePeriodMicros shouldBe 1_000_000
++			it.maximumReportLatencyMicros shouldBe 60_000_000
++			it.aggregationWindowMs shouldBe 60_000L
++		}
++		(hot.plans.getValue(SourceKind.STEPS) as StepsPlan).copy(revision = 0) shouldBe
++			(initial.plans.getValue(SourceKind.STEPS) as StepsPlan).copy(revision = 0)
++		descriptor.catalogReconfigurationDebt shouldBe null
++		descriptor.appliedSourcePlanIdentity shouldBe descriptor.desiredSourcePlanIdentity
++		subject.reconfigure(thermal) shouldBe SourceSessionReconfigureOutcome.Unchanged
++
++		subject.reconfigure(baseline).shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
++		val cooled = requests.last().plan
++		(cooled.plans.getValue(SourceKind.PRESSURE) as PressurePlan).copy(revision = 0) shouldBe
++			(initial.plans.getValue(SourceKind.PRESSURE) as PressurePlan).copy(revision = 0)
++		cooled.plans.filterValues { it.enabled }.keys shouldBe setOf(SourceKind.STEPS, SourceKind.PRESSURE)
++		subject.reconfigure(baseline) shouldBe SourceSessionReconfigureOutcome.Unchanged
++		requests.size shouldBe if (retryBeforeApply) 4 else 2
++	}
++
++	@Test
+ 	fun `newer policy input received before start supersedes the captured request`() = runTest {
+ 		val rollout = allEventCanonical(revision = 5)
+ 		val captured = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)

@@ -147,6 +147,13 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Refresh live acquisition from current thermal/power inputs on the existing
+  30-second policy tick. Reuse exact source-session fingerprints and current-plan
+  debt handling; unchanged ticks add no provider work. Two source/test paths and
+  two new actual Room planning scenarios have independent source acceptance at
+  `convergence/2026-10-04/LIVE_THERMAL_POLICY_SELECTED/SOURCE_REVIEW.md`. Both are NOT_RUN; physical thermal/battery
+  evidence and the full adaptive tracking chain remain open.
+
 - [x] Connect the existing Activity owner to automatic CONTROL publication.
   Arm transitions inside the exact publication flight, restore saved locks first,
   keep trigger evidence separate from recorded Activity, and await acknowledged

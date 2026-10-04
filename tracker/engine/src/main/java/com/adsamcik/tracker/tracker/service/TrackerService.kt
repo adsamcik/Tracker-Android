@@ -1280,8 +1280,14 @@ internal class TrackerService : CoreService() {
 				}
 				reconcileLocationMotionScope()
 				refreshBackgroundLocationPlan()
-				val retryOutcome = if (sessionInfo != null && !gracefulStopRequested) retryPendingSourceSessionReconfiguration() else null
-				if (retryOutcome is SourceSessionReconfigureOutcome.Rejected) {
+				// Re-evaluate current power/thermal inputs as well as pending provider work.
+				// The source-session fingerprint keeps an unchanged tick a no-op.
+				val policyOutcome = if (sessionInfo != null && !gracefulStopRequested) {
+					reconfigureSourceSession(
+						sourcePlanInputs(trackingParamsRepository.data.first(), orchestrator.currentSourceDemands()),
+					)
+				} else null
+				if (policyOutcome is SourceSessionReconfigureOutcome.Rejected) {
 					requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
 				}
 				collectionMotionController.tick(SystemClock.elapsedRealtimeNanos())
@@ -1459,11 +1465,6 @@ internal class TrackerService : CoreService() {
 		inputs: SourceSessionPlanInputs,
 	): SourceSessionReconfigureOutcome =
 		reconcileSourceSessionOutcome(sourceSession.reconfigure(inputs))
-
-	private suspend fun retryPendingSourceSessionReconfiguration(): SourceSessionReconfigureOutcome? =
-		sourceSession.retryPendingReconfiguration()?.let { outcome ->
-			reconcileSourceSessionOutcome(outcome)
-		}
 
 	private suspend fun reconcileSourceSessionOutcome(
 		outcome: SourceSessionReconfigureOutcome,
