@@ -74,6 +74,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 3 source milestones
 
+- [x] Preserve the original Wi-Fi/Cell cooldown in the existing local reservation
+  ledger, including different later quality levels, reboot and incomplete state.
+  Two changed source/test paths and eight new cases are independently reviewed in
+  `convergence/2026-10-04/RADIO_ORIGINAL_COOLDOWN_V2_SELECTED/SOURCE_REVIEW.md`.
+  All eleven ledger cases are unexecuted; full runtime/power and all 25 chains
+  remain open. No new store, database table or backup behavior is selected.
 - [x] Select historical Wi-Fi per-purpose capture groups and independently ended
   sessions after exact acknowledged retirement. Thirteen changed source/test paths
   preserve R11 and Cell counterparts; 30 authored scenarios remain unexecuted.

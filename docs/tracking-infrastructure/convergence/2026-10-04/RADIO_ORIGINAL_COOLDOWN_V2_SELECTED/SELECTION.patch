@@ -1,0 +1,175 @@
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/RadioActiveRequestAllowance.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/RadioActiveRequestAllowance.kt
+@@ -74,6 +74,7 @@
+ 						.putString("${prefix}_boot", bootId)
+ 						.putLong("${prefix}_elapsed", nowElapsedRealtimeMs)
+ 						.putLong("${prefix}_wall", nowWallTimeMs)
++						.putLong("${prefix}_interval", minimumIntervalMs)
+ 						.commit()) RadioActiveRequestDecision.Unavailable else result
+ 			}
+ 		} catch (cancelled: CancellationException) {
+@@ -98,16 +99,30 @@
+ 		if (preferences.getString("${prefix}_session", null) == logicalTrackingId) {
+ 			return RadioActiveRequestDecision.Spent
+ 		}
++		val stateKeys = listOf("session", "boot", "elapsed", "wall", "interval")
++		if (stateKeys.none { preferences.contains("${prefix}_$it") }) {
++			return RadioActiveRequestDecision.ReadyAt(nowElapsedRealtimeMs)
++		}
++		// A partial saved reservation is not a fresh source. Passive readings remain available.
++		if (stateKeys.any { !preferences.contains("${prefix}_$it") } ||
++			preferences.getString("${prefix}_session", null).isNullOrBlank()) {
++			return RadioActiveRequestDecision.Unavailable
++		}
+ 		val priorBoot = preferences.getString("${prefix}_boot", null)
+-			?: return RadioActiveRequestDecision.ReadyAt(nowElapsedRealtimeMs)
++			?.takeIf(String::isNotBlank) ?: return RadioActiveRequestDecision.Unavailable
+ 		val priorElapsed = preferences.getLong("${prefix}_elapsed", -1L)
+ 		val priorWall = preferences.getLong("${prefix}_wall", -1L)
+-		if (priorElapsed < 0L || priorWall < 0L) return RadioActiveRequestDecision.Unavailable
++		val priorInterval = preferences.getLong("${prefix}_interval", -1L)
++		if (priorElapsed < 0L || priorWall < 0L || priorInterval < 0L) {
++			return RadioActiveRequestDecision.Unavailable
++		}
++		// A new profile/session may ask for a longer cooldown, but cannot shorten the spent one.
++		val cooldownMs = maxOf(priorInterval, minimumIntervalMs)
+ 		val remaining = if (priorBoot == bootId) {
+ 			if (nowElapsedRealtimeMs < priorElapsed) return RadioActiveRequestDecision.Unavailable
+-			(minimumIntervalMs - (nowElapsedRealtimeMs - priorElapsed)).coerceAtLeast(0L)
++			(cooldownMs - (nowElapsedRealtimeMs - priorElapsed)).coerceAtLeast(0L)
+ 		} else {
+-			(minimumIntervalMs - (nowWallTimeMs - priorWall).coerceAtLeast(0L)).coerceAtLeast(0L)
++			(cooldownMs - (nowWallTimeMs - priorWall).coerceAtLeast(0L)).coerceAtLeast(0L)
+ 		}
+ 		val deadline = if (remaining > Long.MAX_VALUE - nowElapsedRealtimeMs) Long.MAX_VALUE
+ 			else nowElapsedRealtimeMs + remaining
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/RadioActiveRequestAllowanceTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/RadioActiveRequestAllowanceTest.kt
+@@ -2,6 +2,8 @@
+ 
+ import android.app.Application
+ import android.content.Context
++import android.content.ContextWrapper
++import android.content.SharedPreferences
+ import androidx.test.core.app.ApplicationProvider
+ import com.adsamcik.tracker.tracker.source.model.SourceKind
+ import io.kotest.matchers.shouldBe
+@@ -63,4 +65,118 @@
+ 		reopened.inspect(SourceKind.CELL, "trip-b", 60_000L, "boot-2", 500L, 130_000L) shouldBe
+ 			RadioActiveRequestDecision.ReadyAt(30_500L)
+ 	}
++
++	@Test fun `a later session quality cannot shorten the original cooldown`() = runTest {
++		val first = RadioActiveRequestAllowance(context, UnconfinedTestDispatcher(testScheduler))
++		first.reserve(SourceKind.CELL, "trip-a", 300_000L, "boot-1", 1_000L, 10_000L) shouldBe
++			RadioActiveRequestDecision.ReadyAt(1_000L)
++		val reopened = RadioActiveRequestAllowance(context, UnconfinedTestDispatcher(testScheduler))
++		reopened.reserve(SourceKind.CELL, "trip-b", 120_000L, "boot-1", 2_000L, 11_000L) shouldBe
++			RadioActiveRequestDecision.ReadyAt(301_000L)
++		reopened.inspect(SourceKind.CELL, "trip-a", 0L, "boot-1", 400_000L, 409_000L) shouldBe
++			RadioActiveRequestDecision.Spent
++		reopened.reserve(SourceKind.CELL, "trip-b", 120_000L, "boot-1", 301_000L, 310_000L) shouldBe
++			RadioActiveRequestDecision.ReadyAt(301_000L)
++		reopened.inspect(SourceKind.CELL, "trip-b", 0L, "boot-1", 302_000L, 311_000L) shouldBe
++			RadioActiveRequestDecision.Spent
++	}
++
++	@Test fun `reboot retains the original interval instead of the new shorter one`() = runTest {
++		val ledger = RadioActiveRequestAllowance(context, UnconfinedTestDispatcher(testScheduler))
++		ledger.reserve(SourceKind.WIFI, "trip-a", 120_000L, "boot-1", 10_000L, 100_000L)
++		val reopened = RadioActiveRequestAllowance(context, UnconfinedTestDispatcher(testScheduler))
++		reopened.inspect(SourceKind.WIFI, "trip-b", 60_000L, "boot-2", 500L, 130_000L) shouldBe
++			RadioActiveRequestDecision.ReadyAt(90_500L)
++	}
++
++	@Test fun `a longer current cooldown still applies and wall rollback cannot shorten it`() = runTest {
++		val ledger = RadioActiveRequestAllowance(context, UnconfinedTestDispatcher(testScheduler))
++		ledger.reserve(SourceKind.WIFI, "trip-a", 60_000L, "boot-1", 1_000L, 100_000L)
++		ledger.inspect(SourceKind.WIFI, "trip-b", 120_000L, "boot-1", 2_000L, 101_000L) shouldBe
++			RadioActiveRequestDecision.ReadyAt(121_000L)
++		ledger.inspect(SourceKind.WIFI, "trip-b", 120_000L, "boot-2", 500L, 90_000L) shouldBe
++			RadioActiveRequestDecision.ReadyAt(120_500L)
++	}
++
++	@Test fun `a partial saved reservation cannot look like a fresh source`() = runTest {
++		val prefix = "source_${SourceKind.WIFI.stableCode}"
++		val saved = context.getSharedPreferences("radio_active_request_allowance", Context.MODE_PRIVATE)
++		saved.edit().putString("${prefix}_session", "trip-a").commit()
++		val ledger = RadioActiveRequestAllowance(context, UnconfinedTestDispatcher(testScheduler))
++		ledger.inspect(SourceKind.WIFI, "trip-a", 0L, "boot-1", 1_000L, 1_000L) shouldBe
++			RadioActiveRequestDecision.Spent
++		ledger.reserve(SourceKind.WIFI, "trip-b", 0L, "boot-1", 1_000L, 1_000L) shouldBe
++			RadioActiveRequestDecision.Unavailable
++		ledger.inspect(SourceKind.CELL, "trip-b", 0L, "boot-1", 1_000L, 1_000L) shouldBe
++			RadioActiveRequestDecision.ReadyAt(1_000L)
++	}
++
++	@Test fun `missing original interval keeps an old candidate reservation spent`() = runTest {
++		val ledger = RadioActiveRequestAllowance(context, UnconfinedTestDispatcher(testScheduler))
++		ledger.reserve(SourceKind.WIFI, "trip-a", 60_000L, "boot-1", 1_000L, 1_000L)
++		val prefix = "source_${SourceKind.WIFI.stableCode}"
++		context.getSharedPreferences("radio_active_request_allowance", Context.MODE_PRIVATE)
++			.edit().remove("${prefix}_interval").commit()
++		val reopened = RadioActiveRequestAllowance(context, UnconfinedTestDispatcher(testScheduler))
++		reopened.inspect(SourceKind.WIFI, "trip-a", 0L, "boot-1", 70_000L, 70_000L) shouldBe
++			RadioActiveRequestDecision.Spent
++		reopened.reserve(SourceKind.WIFI, "trip-b", 0L, "boot-1", 70_000L, 70_000L) shouldBe
++			RadioActiveRequestDecision.Unavailable
++	}
++
++	@Test fun `wrong stored types and blank identities do not grant a request`() = runTest {
++		val ledger = RadioActiveRequestAllowance(context, UnconfinedTestDispatcher(testScheduler))
++		ledger.reserve(SourceKind.CELL, "trip-a", 60_000L, "boot-1", 1_000L, 1_000L)
++		val prefix = "source_${SourceKind.CELL.stableCode}"
++		val saved = context.getSharedPreferences("radio_active_request_allowance", Context.MODE_PRIVATE)
++		saved.edit().putString("${prefix}_interval", "not a number").commit()
++		ledger.reserve(SourceKind.CELL, "trip-b", 0L, "boot-1", 70_000L, 70_000L) shouldBe
++			RadioActiveRequestDecision.Unavailable
++		saved.edit().putLong("${prefix}_interval", 60_000L).putString("${prefix}_session", "").commit()
++		ledger.inspect(SourceKind.CELL, "trip-b", 0L, "boot-1", 70_000L, 70_000L) shouldBe
++			RadioActiveRequestDecision.Unavailable
++	}
++
++	@Test fun `cooldown arithmetic saturates instead of overflowing and rejects elapsed rollback`() = runTest {
++		val ledger = RadioActiveRequestAllowance(context, UnconfinedTestDispatcher(testScheduler))
++		ledger.reserve(SourceKind.WIFI, "trip-a", Long.MAX_VALUE, "boot-1", 10_000L, 10_000L)
++		ledger.inspect(SourceKind.WIFI, "trip-b", 0L, "boot-1", 10_001L, 10_001L) shouldBe
++			RadioActiveRequestDecision.ReadyAt(Long.MAX_VALUE)
++		ledger.reserve(SourceKind.WIFI, "trip-b", 0L, "boot-1", 9_999L, 10_001L) shouldBe
++			RadioActiveRequestDecision.Unavailable
++	}
++
++	@Test fun `a failed commit cannot grant a request or refund its cached spend`() = runTest {
++		val real = context.getSharedPreferences("radio_active_request_allowance", Context.MODE_PRIVATE)
++		val failed = object : SharedPreferences by real {
++			override fun edit(): SharedPreferences.Editor {
++				val delegate = real.edit()
++				return object : SharedPreferences.Editor by delegate {
++					override fun putString(key: String, value: String?): SharedPreferences.Editor {
++						delegate.putString(key, value)
++						return this
++					}
++					override fun putLong(key: String, value: Long): SharedPreferences.Editor {
++						delegate.putLong(key, value)
++						return this
++					}
++					override fun commit(): Boolean {
++						delegate.commit()
++						return false
++					}
++				}
++			}
++		}
++		val storageFailureContext = object : ContextWrapper(context) {
++			override fun getSharedPreferences(name: String, mode: Int): SharedPreferences = failed
++		}
++		val ledger = RadioActiveRequestAllowance(storageFailureContext, UnconfinedTestDispatcher(testScheduler))
++		ledger.reserve(SourceKind.WIFI, "trip-a", 120_000L, "boot-1", 1_000L, 1_000L) shouldBe
++			RadioActiveRequestDecision.Unavailable
++		ledger.reserve(SourceKind.WIFI, "trip-a", 0L, "boot-1", 2_000L, 2_000L) shouldBe
++			RadioActiveRequestDecision.Spent
++		val reopened = RadioActiveRequestAllowance(context, UnconfinedTestDispatcher(testScheduler))
++		reopened.inspect(SourceKind.WIFI, "trip-b", 60_000L, "boot-1", 2_000L, 2_000L) shouldBe
++			RadioActiveRequestDecision.ReadyAt(121_000L)
++	}
+ }

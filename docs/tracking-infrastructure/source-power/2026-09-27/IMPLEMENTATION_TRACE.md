@@ -1,5 +1,17 @@
 # Source-specific power implementation trace
 
+## October 4 current-input correction
+
+The actor-local-only description below is historical. Later commit `a2a4cddc91`
+already saves one active request per session in existing local preferences. Keep
+that implementation; a second Room checkpoint is not required just to persist
+the limit. The current source trace is
+`../../convergence/2026-10-04/RADIO_REQUEST_LIMIT_SOURCE_TRACE.md`. The independently
+reviewed two-path repair in `RADIO_ORIGINAL_COOLDOWN_V2_SELECTED` now saves the
+original interval in that ledger. Eight additional tests are authored, unexecuted;
+complete source-power and provider evidence remain open. This correction does not
+open validation.
+
 Status: bounded independent slice IMPLEMENTED_UNVALIDATED; entire source-power item OPEN.
 Base: codex/source-native-map-context-root at 815a4285b0658ef9dc8b3949ab667d364c4030c5.
 Main dev/v10 remains 13f1a99871b59d29b3d059f374fc415490da6943.

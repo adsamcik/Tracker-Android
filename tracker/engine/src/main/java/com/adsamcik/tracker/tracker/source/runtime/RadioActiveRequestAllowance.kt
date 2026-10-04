@@ -74,6 +74,7 @@ class RadioActiveRequestAllowance @Inject constructor(
 						.putString("${prefix}_boot", bootId)
 						.putLong("${prefix}_elapsed", nowElapsedRealtimeMs)
 						.putLong("${prefix}_wall", nowWallTimeMs)
+						.putLong("${prefix}_interval", minimumIntervalMs)
 						.commit()) RadioActiveRequestDecision.Unavailable else result
 			}
 		} catch (cancelled: CancellationException) {
@@ -98,16 +99,30 @@ class RadioActiveRequestAllowance @Inject constructor(
 		if (preferences.getString("${prefix}_session", null) == logicalTrackingId) {
 			return RadioActiveRequestDecision.Spent
 		}
+		val stateKeys = listOf("session", "boot", "elapsed", "wall", "interval")
+		if (stateKeys.none { preferences.contains("${prefix}_$it") }) {
+			return RadioActiveRequestDecision.ReadyAt(nowElapsedRealtimeMs)
+		}
+		// A partial saved reservation is not a fresh source. Passive readings remain available.
+		if (stateKeys.any { !preferences.contains("${prefix}_$it") } ||
+			preferences.getString("${prefix}_session", null).isNullOrBlank()) {
+			return RadioActiveRequestDecision.Unavailable
+		}
 		val priorBoot = preferences.getString("${prefix}_boot", null)
-			?: return RadioActiveRequestDecision.ReadyAt(nowElapsedRealtimeMs)
+			?.takeIf(String::isNotBlank) ?: return RadioActiveRequestDecision.Unavailable
 		val priorElapsed = preferences.getLong("${prefix}_elapsed", -1L)
 		val priorWall = preferences.getLong("${prefix}_wall", -1L)
-		if (priorElapsed < 0L || priorWall < 0L) return RadioActiveRequestDecision.Unavailable
+		val priorInterval = preferences.getLong("${prefix}_interval", -1L)
+		if (priorElapsed < 0L || priorWall < 0L || priorInterval < 0L) {
+			return RadioActiveRequestDecision.Unavailable
+		}
+		// A new profile/session may ask for a longer cooldown, but cannot shorten the spent one.
+		val cooldownMs = maxOf(priorInterval, minimumIntervalMs)
 		val remaining = if (priorBoot == bootId) {
 			if (nowElapsedRealtimeMs < priorElapsed) return RadioActiveRequestDecision.Unavailable
-			(minimumIntervalMs - (nowElapsedRealtimeMs - priorElapsed)).coerceAtLeast(0L)
+			(cooldownMs - (nowElapsedRealtimeMs - priorElapsed)).coerceAtLeast(0L)
 		} else {
-			(minimumIntervalMs - (nowWallTimeMs - priorWall).coerceAtLeast(0L)).coerceAtLeast(0L)
+			(cooldownMs - (nowWallTimeMs - priorWall).coerceAtLeast(0L)).coerceAtLeast(0L)
 		}
 		val deadline = if (remaining > Long.MAX_VALUE - nowElapsedRealtimeMs) Long.MAX_VALUE
 			else nowElapsedRealtimeMs + remaining

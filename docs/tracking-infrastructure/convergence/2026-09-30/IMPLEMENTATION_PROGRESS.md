@@ -459,6 +459,15 @@ remain held. No test or gate has run.
 No executed validation, final schema generation, provider activation, merge or
 push is claimed by this continuation.
 
+## October 4 tracking-system continuation
+
+- [x] Preserve an active radio request's original cooldown in the existing local
+  preference ledger instead of adding another runtime-state store. Two changed
+  source/test paths and eight new scenarios are independently source-reviewed in
+  `../2026-10-04/RADIO_ORIGINAL_COOLDOWN_V2_SELECTED/SOURCE_REVIEW.md`.
+  All eleven ledger methods are NOT_RUN; composed runtime/power/device evidence
+  and the full source-power prerequisite remain open.
+
 ## Released baseline clarification
 
 **October 3 answer:** the user confirmed that `master` meant `main`, which is the

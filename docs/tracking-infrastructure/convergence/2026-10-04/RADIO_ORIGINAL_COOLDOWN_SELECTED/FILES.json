@@ -1,0 +1,20 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_head": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/RadioActiveRequestAllowance.kt",
+      "base_sha256": "5f56f6c1f05f1281331c689e9226ac244d4d2c86bcdb2379e9574a1d565e6c74",
+      "before_sha256": "5f56f6c1f05f1281331c689e9226ac244d4d2c86bcdb2379e9574a1d565e6c74",
+      "selected_sha256": "5512a905a1290a55b5c7ef37170367749885f97fccd2b58757109824cf3e3019",
+      "after_working_sha256": "5512a905a1290a55b5c7ef37170367749885f97fccd2b58757109824cf3e3019"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/RadioActiveRequestAllowanceTest.kt",
+      "base_sha256": "0f866b0c5a882cce82135732e4380da7486c75aed2a321c964c0545c660c2d0c",
+      "before_sha256": "0f866b0c5a882cce82135732e4380da7486c75aed2a321c964c0545c660c2d0c",
+      "selected_sha256": "1b53c301ddba30602d43729c4a393b37252cc69b8684ca35e67bc4ce2834370f",
+      "after_working_sha256": "1b53c301ddba30602d43729c4a393b37252cc69b8684ca35e67bc4ce2834370f"
+    }
+  ]
+}

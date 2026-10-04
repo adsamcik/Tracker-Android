@@ -1,0 +1,26 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "head": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/RadioActiveRequestAllowance.kt",
+      "head_sha256": "5f56f6c1f05f1281331c689e9226ac244d4d2c86bcdb2379e9574a1d565e6c74",
+      "working_sha256": "5f56f6c1f05f1281331c689e9226ac244d4d2c86bcdb2379e9574a1d565e6c74"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntime.kt",
+      "head_sha256": "b74b58e8fdded10365180f3a57ebf12a847bea4d3aa806f8b0c67871580725aa",
+      "working_sha256": "b74b58e8fdded10365180f3a57ebf12a847bea4d3aa806f8b0c67871580725aa"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntime.kt",
+      "head_sha256": "4f776ff138f228485132b0fa0bef4161314d26f6c9bed5b46af18b5f24df2b4f",
+      "working_sha256": "4f776ff138f228485132b0fa0bef4161314d26f6c9bed5b46af18b5f24df2b4f"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/RadioActiveRequestAllowanceTest.kt",
+      "head_sha256": "0f866b0c5a882cce82135732e4380da7486c75aed2a321c964c0545c660c2d0c",
+      "working_sha256": "0f866b0c5a882cce82135732e4380da7486c75aed2a321c964c0545c660c2d0c"
+    }
+  ]
+}

@@ -77,8 +77,10 @@ open; validation and integration are deferred. The historical registry below is 
 - [x] Complete five-level configuration across sources: production and focused test sources
   authored and independently source-reviewed, **IMPLEMENTED_UNVALIDATED**. See `five-level/2026-09-27/IMPLEMENTATION_TRACE.md`.
 - [ ] Implement source-specific power behavior: independent Steps reporting/request-ownership
-  fixes and focused test sources authored; durable intent budget, carried cooldown and profile
-  freshness remain open pending the recovery contract. See `source-power/2026-09-27/IMPLEMENTATION_TRACE.md`.
+  fixes and a durable per-session radio allowance are authored. The independently reviewed
+  October 4 repair preserves the original cooldown in that existing ledger. Full host/power
+  transitions and provider evidence remain open; no second checkpoint store is needed.
+  See `convergence/2026-10-04/RADIO_ORIGINAL_COOLDOWN_V2_SELECTED/SOURCE_REVIEW.md`.
 - [ ] Finish shared provider and host ownership: bounded claimant, retirement, capture/host type and
   control-state fixes authored; optional radio hosting and feature Location leases remain pending
   contract confirmation. See `provider-host/2026-09-27/IMPLEMENTATION_TRACE.md`.
@@ -202,16 +204,20 @@ projector callers. No checked source slice implies tests passed or activation is
 - [x] Fence queued Wi-Fi/Cell attempts by immutable owner/plan/deadline and live prerequisites;
   preserve passive observations. Production/test source slice authored.
 - [x] Exact Cell request callback/SIM/timeout ownership; no inferred Wi-Fi request attribution.
-- [ ] Confirm the versioned durable radio checkpoint and transactional reservation contract.
-- [ ] Preserve spent intent allowance/cooldown across profile, authorization, physical, SIM and
-  recovery changes; operational cleanup cannot refund it.
+- [x] Keep the existing preference reservation ledger instead of adding the earlier proposed
+  second Room checkpoint. Save the original interval in the same reservation commit and
+  preserve it across a later quality change or reboot; malformed state grants no fresh attempt.
+  Two paths and eight new test cases are independently source-reviewed, unexecuted.
+- [ ] Complete composed provider/host/permission/power transitions using the saved allowance;
+  operational cleanup must not refund it. Ledger-only cases are not full-chain evidence.
 - [ ] Separate adopted-profile 60s desired freshness from useful provider item age.
 - [ ] Author durable contract/Room cases and independently review the complete power slice.
 
 The checked slices above are IMPLEMENTED_UNVALIDATED source work. The whole task remains open;
 its initial/final bounded static review is recorded in `source-power/2026-09-27/REVIEW_RECEIPT.md`.
-No checkpoint proposal is implicitly approved. Existing per-registration budget reset paths remain
-until its dependent slice is completed.
+The earlier Room checkpoint proposal is not selected. The later existing preference ledger
+prevents an actor's per-registration budget reset from refunding its spent session request.
+Complete runtime and device evidence remains deferred.
 
 ### Shared provider and host ownership slices
 

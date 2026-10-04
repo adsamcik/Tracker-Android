@@ -1,0 +1,16 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_head": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/RadioActiveRequestAllowance.kt",
+      "base_sha256": "5f56f6c1f05f1281331c689e9226ac244d4d2c86bcdb2379e9574a1d565e6c74",
+      "before_sha256": "5f56f6c1f05f1281331c689e9226ac244d4d2c86bcdb2379e9574a1d565e6c74"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/RadioActiveRequestAllowanceTest.kt",
+      "base_sha256": "0f866b0c5a882cce82135732e4380da7486c75aed2a321c964c0545c660c2d0c",
+      "before_sha256": "0f866b0c5a882cce82135732e4380da7486c75aed2a321c964c0545c660c2d0c"
+    }
+  ]
+}
