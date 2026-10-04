@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.qualifyWifiPurposeItems
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.CellPurposeItems
 import com.adsamcik.tracker.shared.base.database.qualifyCellCapturePurposeItems
@@ -702,14 +703,10 @@ internal class RoomSourceFactLookupReader(
 		) ?: return SourceFactLookupResult.Unavailable(
 			SourceProofReason.IMMUTABLE_AUTHORITY_MISSING,
 		)
-		val children = database.radioObservationChildDao().wifiSessionChildren(
-			fact.writerProjectionId, fact.writerProjectionVersion,
-			fact.logicalFactId, fact.semanticRevision, MAX_WIFI_CHILDREN + 1,
-		)
-		val walAuthentication = WifiWalCarrierAuthenticator.authenticate(fact, wal, children)
-			as? WifiWalCarrierAuthentication.Authenticated
+		val walAuthentication = authenticateWifiFactCarrier(fact, wal)
 			?: return SourceFactLookupResult.Failed(SourceProofReason.INTEGRITY_FAILURE)
 		var aggregateOwnerCursor: WifiCapturedFactCursorEntity? = null
+		var aggregateWalAuthentication = walAuthentication
 		val aggregate = when (fact.factKind) {
 			WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE -> fact
 			WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY -> {
@@ -730,6 +727,10 @@ internal class RoomSourceFactLookupReader(
 				) ?: return SourceFactLookupResult.Unavailable(
 					SourceProofReason.IMMUTABLE_AUTHORITY_MISSING,
 				)
+				val ownerWal = database.sourceEventWalDao().getByEventId(owner.sourceEventId)
+					?: return SourceFactLookupResult.Unavailable(SourceProofReason.IMMUTABLE_AUTHORITY_MISSING)
+				aggregateWalAuthentication = authenticateWifiFactCarrier(owner, ownerWal)
+					?: return SourceFactLookupResult.Failed(SourceProofReason.INTEGRITY_FAILURE)
 				owner
 			}
 			else -> return SourceFactLookupResult.Failed(SourceProofReason.INTEGRITY_FAILURE)
@@ -764,6 +765,7 @@ internal class RoomSourceFactLookupReader(
 				walAuthentication.carrier,
 				fact,
 			) ||
+			!WifiWalCarrierAuthenticator.authenticatesAggregate(aggregate, aggregateWalAuthentication.carrier) ||
 			cursor.cursorRevision != lineage.cursorRevision ||
 			!fact.matches(request)
 		) {
@@ -968,6 +970,33 @@ internal class RoomSourceFactLookupReader(
 				structuralEpochDay = fact.structuralEpochDay,
 			)
 		}.getOrNull()
+	}
+
+
+	private suspend fun authenticateWifiFactCarrier(
+		fact: WifiCapturedFactRevisionEntity,
+		wal: com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity,
+	): WifiWalCarrierAuthentication.Authenticated? {
+		val children = database.radioObservationChildDao().wifiSessionChildren(
+			fact.writerProjectionId, fact.writerProjectionVersion,
+			fact.logicalFactId, fact.semanticRevision, 65,
+		)
+		val stored = WifiWalCarrierAuthenticator.authenticate(fact, wal, children)
+			as? WifiWalCarrierAuthentication.Authenticated ?: return null
+		if (wal.payloadVersion != com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION) return stored
+		val items = database.qualifyWifiPurposeItems(wal, stored.carrier.payload,
+			fact.providerAcceptanceStartNanos, fact.providerAcceptanceEndNanos) ?: return null
+		val member = items.authorizationTimeline.flatMap { it.authorizedMembers }.singleOrNull {
+			it.purpose == SourceBrokerPurpose.SESSION_CAPTURE && it.persistenceEligible &&
+				it.authorizationRevision == fact.authorizationRevision && it.authorizationFingerprint == fact.authorizationFingerprint &&
+				it.purposeEligibilityMask == fact.purposeEligibilityMask &&
+				it.logicalTrackingId == fact.logicalTrackingId && it.serviceRunId == fact.serviceRunId &&
+				it.manifestRevision == fact.manifestRevision && it.lifecycleLeaseGeneration == fact.lifecycleLeaseGeneration &&
+				it.sourcePolicyRevision == fact.sourcePolicyRevision && it.consentEpoch == fact.captureConsentEpoch
+		} ?: return null
+		val indexes = items.forDemand(requireNotNull(member.demandId)).toSet()
+		if (indexes.isEmpty() || children.any { it.itemIndex !in indexes }) return null
+		return stored
 	}
 
 	private suspend fun authenticateCellFactCarrier(

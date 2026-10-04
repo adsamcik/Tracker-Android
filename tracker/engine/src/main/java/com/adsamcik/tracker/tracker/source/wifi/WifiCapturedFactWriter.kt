@@ -57,6 +57,7 @@ internal sealed interface WifiCapturedWriteResult {
 	data class NoEvidence(val classification: WifiCapturedFactClassification) : WifiCapturedWriteResult
 	data class AdapterRejected(val reason: WifiWalAdapterRejection) : WifiCapturedWriteResult
 	data class Rejected(val reason: WifiCapturedWriteRejection) : WifiCapturedWriteResult
+	data class Groups(val results: List<WifiCapturedWriteResult>) : WifiCapturedWriteResult
 }
 
 /**
@@ -85,9 +86,15 @@ internal class WifiCapturedFactWriter @Inject constructor(
 	internal suspend fun writeInCurrentTransaction(
 		eventId: SourceEventId,
 		checkpoint: suspend (WifiCapturedWriteCheckpoint) -> Unit = {},
+	): WifiCapturedWriteResult = writeQualified(adapter.qualify(eventId, ::classifyWithStoredState), checkpoint)
+
+	private suspend fun writeQualified(
+		result: WifiWalAdapterResult,
+		checkpoint: suspend (WifiCapturedWriteCheckpoint) -> Unit,
 	): WifiCapturedWriteResult {
 		currentCoroutineContext().ensureActive()
-		return when (val result = adapter.qualify(eventId, ::classifyWithStoredState)) {
+		return when (result) {
+			is WifiWalAdapterResult.Groups -> WifiCapturedWriteResult.Groups(result.results.map { writeQualified(it, checkpoint) })
 			is WifiWalAdapterResult.Rejected -> WifiCapturedWriteResult.AdapterRejected(result.reason)
 			is WifiWalAdapterResult.Evaluated -> {
 				checkpoint(WifiCapturedWriteCheckpoint.QUALIFIED)

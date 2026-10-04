@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.lifecycle
 
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.qualifyWifiPurposeItems
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.CellPurposeItems
 import com.adsamcik.tracker.shared.base.database.qualifyCellCapturePurposeItems
@@ -446,15 +447,28 @@ private class DefaultSourceLifecycleProofAdapter(
 			)
 		}
 
-	private suspend fun recordingWifi(
-		key: SourceProofKey,
-	): SourceProofResult<RecordingProofState> =
-		when (val result = wifiQualifier.qualify(SourceEventId(key.evidenceIdentity.value))) {
+	private suspend fun recordingWifi(key: SourceProofKey): SourceProofResult<RecordingProofState> {
+		if (isRunDeleted(key)) return deleted(SourceProofStage.RECORDING, SourceProofReason.DELETED)
+		val qualified = wifiQualifier.qualify(SourceEventId(key.evidenceIdentity.value))
+		val result = if (qualified is WifiWalAdapterResult.Groups) {
+			val scope = key.scope as SourceProofScope.Run
+			qualified.results.filterIsInstance<WifiWalAdapterResult.Evaluated>().singleOrNull { evaluated ->
+				val authority = when (val classification = evaluated.classification) {
+					is WifiCapturedFactClassification.FreshChanged -> classification.fact.authority
+					is WifiCapturedFactClassification.FreshUnchanged -> classification.fact.authority
+					else -> null
+				}
+				authority != null && authority.logicalTrackingId.value == scope.logicalTrackingId &&
+					authority.serviceRunId.value == scope.serviceRunId &&
+					authority.sourcePolicyRevision == key.sourcePolicyRevision && authority.captureConsentEpoch == key.captureConsentEpoch
+			} ?: return missingWifiGroupRecording(key)
+		} else qualified
+		return when (result) {
 			is WifiWalAdapterResult.Evaluated -> when (val classification = result.classification) {
 				is WifiCapturedFactClassification.FreshChanged ->
-					recordingWifiFact(key, classification.fact.coverage)
+					recordingWifiFact(key, classification.fact)
 				is WifiCapturedFactClassification.FreshUnchanged ->
-					recordingWifiFact(key, classification.fact.coverage)
+					recordingWifiFact(key, classification.fact)
 				is WifiCapturedFactClassification.Replay ->
 					recordingFromWal(key, SourceKind.WIFI) { wal, revision ->
 						recordingState(
@@ -500,28 +514,40 @@ private class DefaultSourceLifecycleProofAdapter(
 				} else {
 					result.reason.toRecordingResult()
 				}
+			is WifiWalAdapterResult.Groups -> unavailable(SourceProofStage.RECORDING, SourceProofReason.IMMUTABLE_AUTHORITY_MISSING)
 		}
+	}
 
 	private suspend fun recordingWifiFact(
 		key: SourceProofKey,
-		coverage: com.adsamcik.tracker.tracker.source.wifi.WifiCoverageEvidence,
+		fact: com.adsamcik.tracker.tracker.source.wifi.WifiCapturedFact,
 	): SourceProofResult<RecordingProofState> =
-		recordingFromWal(key, SourceKind.WIFI) { wal, revision ->
+		recordingFromWal(key, SourceKind.WIFI, wifiFact = fact) { wal, revision ->
 			recordingState(
 				key,
 				wal,
 				revision,
 				providerCoverage(
-					coverage.providerIntervalStartElapsedRealtimeNanos,
-					coverage.providerIntervalEndElapsedRealtimeNanos,
+					fact.coverage.providerIntervalStartElapsedRealtimeNanos,
+					fact.coverage.providerIntervalEndElapsedRealtimeNanos,
 				),
-				if (coverage.completeness.name == "COMPLETE") {
+				if (fact.coverage.completeness.name == "COMPLETE") {
 					SourceProofCompleteness.COMPLETE
 				} else {
 					SourceProofCompleteness.PARTIAL
 				},
 			)
 		}
+
+	private suspend fun missingWifiGroupRecording(key: SourceProofKey): SourceProofResult<RecordingProofState> {
+		val scope = key.scope as SourceProofScope.Run
+		val retained = database.capturedRadioFactRetentionProofDao().eventCandidatesForRun(
+			SourceKind.WIFI.stableCode, key.evidenceIdentity.value,
+			scope.logicalTrackingId, scope.serviceRunId, key.sourcePolicyRevision, key.captureConsentEpoch,
+		)
+		return if (retained.isNotEmpty()) missingRecordingEvidence(key) else
+			unavailable(SourceProofStage.RECORDING, SourceProofReason.IMMUTABLE_AUTHORITY_MISSING)
+	}
 
 	private suspend fun recordingCell(
 		key: SourceProofKey,
@@ -1319,12 +1345,18 @@ private class DefaultSourceLifecycleProofAdapter(
 			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,
 			recording.lineage.sourceAdmissionOrdinal,
 			MAX_RADIO_REVISION_CHAIN + 1,
+			logicalTrackingId = (key.scope as SourceProofScope.Run).logicalTrackingId,
+			serviceRunId = (key.scope as SourceProofScope.Run).serviceRunId,
+			sourcePolicyRevision = key.sourcePolicyRevision, captureConsentEpoch = key.captureConsentEpoch,
 		)
 		val current = database.wifiCapturedFactDao().currentRevisionsForWriterAdmission(
 			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
 			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,
 			recording.lineage.sourceAdmissionOrdinal,
 			2,
+			logicalTrackingId = (key.scope as SourceProofScope.Run).logicalTrackingId,
+			serviceRunId = (key.scope as SourceProofScope.Run).serviceRunId,
+			sourcePolicyRevision = key.sourcePolicyRevision, captureConsentEpoch = key.captureConsentEpoch,
 		)
 		val retained = current.singleOrNull()?.let { fact ->
 			database.wifiCapturedFactDao().revisionsForFact(
@@ -1359,18 +1391,14 @@ private class DefaultSourceLifecycleProofAdapter(
 			)
 		}
 		val fact = resolution.current
-		val children = database.radioObservationChildDao().wifiSessionChildren(
-			fact.writerProjectionId, fact.writerProjectionVersion,
-			fact.logicalFactId, fact.semanticRevision, 65,
-		)
-		val walAuthentication = WifiWalCarrierAuthenticator.authenticate(fact, wal, children)
-			as? WifiWalCarrierAuthentication.Authenticated
+		val walAuthentication = authenticateWifiFactCarrier(fact, wal)
 			?: return@withTransaction failed(
 				SourceProofStage.MATERIALIZED,
 				SourceProofReason.INTEGRITY_FAILURE,
 				recording.lineage,
 			)
 		var aggregateOwnerCursor: WifiCapturedFactCursorEntity? = null
+		var aggregateWalAuthentication = walAuthentication
 		val aggregate = when (fact.factKind) {
 			WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE -> fact
 			WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY -> {
@@ -1405,6 +1433,14 @@ private class DefaultSourceLifecycleProofAdapter(
 					SourceProofReason.IMMUTABLE_AUTHORITY_MISSING,
 					recording.lineage,
 				)
+				val ownerWal = database.sourceEventWalDao().getByEventId(owner.sourceEventId)
+					?: return@withTransaction unavailable(
+						SourceProofStage.MATERIALIZED, SourceProofReason.IMMUTABLE_AUTHORITY_MISSING, recording.lineage,
+					)
+				aggregateWalAuthentication = authenticateWifiFactCarrier(owner, ownerWal)
+					?: return@withTransaction failed(
+						SourceProofStage.MATERIALIZED, SourceProofReason.INTEGRITY_FAILURE, recording.lineage,
+					)
 				owner
 			}
 			else -> return@withTransaction failed(
@@ -1457,7 +1493,8 @@ private class DefaultSourceLifecycleProofAdapter(
 				aggregate,
 				walAuthentication.carrier,
 				fact,
-			)
+			) ||
+			!WifiWalCarrierAuthenticator.authenticatesAggregate(aggregate, aggregateWalAuthentication.carrier)
 		) {
 			return@withTransaction failed(
 				SourceProofStage.MATERIALIZED,
@@ -1873,6 +1910,33 @@ private class DefaultSourceLifecycleProofAdapter(
 		return failure?.toLifecycleMaterializationResult(lineage)
 			?: pending(SourceProofStage.MATERIALIZED, fallbackReason, lineage)
 	}
+
+	private suspend fun authenticateWifiFactCarrier(
+		fact: WifiCapturedFactRevisionEntity,
+		wal: com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity,
+	): WifiWalCarrierAuthentication.Authenticated? {
+		val children = database.radioObservationChildDao().wifiSessionChildren(
+			fact.writerProjectionId, fact.writerProjectionVersion,
+			fact.logicalFactId, fact.semanticRevision, 65,
+		)
+		val stored = WifiWalCarrierAuthenticator.authenticate(fact, wal, children)
+			as? WifiWalCarrierAuthentication.Authenticated ?: return null
+		if (wal.payloadVersion != com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION) return stored
+		val items = database.qualifyWifiPurposeItems(wal, stored.carrier.payload,
+			fact.providerAcceptanceStartNanos, fact.providerAcceptanceEndNanos) ?: return null
+		val member = items.authorizationTimeline.flatMap { it.authorizedMembers }.singleOrNull {
+			it.purpose == SourceBrokerPurpose.SESSION_CAPTURE && it.persistenceEligible &&
+				it.authorizationRevision == fact.authorizationRevision && it.authorizationFingerprint == fact.authorizationFingerprint &&
+				it.purposeEligibilityMask == fact.purposeEligibilityMask &&
+				it.logicalTrackingId == fact.logicalTrackingId && it.serviceRunId == fact.serviceRunId &&
+				it.manifestRevision == fact.manifestRevision && it.lifecycleLeaseGeneration == fact.lifecycleLeaseGeneration &&
+				it.sourcePolicyRevision == fact.sourcePolicyRevision && it.consentEpoch == fact.captureConsentEpoch
+		} ?: return null
+		val indexes = items.forDemand(requireNotNull(member.demandId)).toSet()
+		if (indexes.isEmpty() || children.any { it.itemIndex !in indexes }) return null
+		return stored
+	}
+
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private suspend fun authenticateCellFactCarrier(
@@ -2378,6 +2442,7 @@ private class DefaultSourceLifecycleProofAdapter(
 		expectedSource: SourceKind,
 		maximumPayloadBytes: Int = Int.MAX_VALUE,
 		cellFact: com.adsamcik.tracker.tracker.source.cell.CellCapturedFact? = null,
+		wifiFact: com.adsamcik.tracker.tracker.source.wifi.WifiCapturedFact? = null,
 		block: suspend (
 			SourceEventWalEntity,
 			Long,
@@ -2406,6 +2471,9 @@ private class DefaultSourceLifecycleProofAdapter(
 				com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
 		}
 		val captureAuthority = historicalCell?.authority
+		val historicalWifi = wifiFact?.takeIf { expectedSource == SourceKind.WIFI && wal.payloadVersion ==
+			com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION }
+		val wifiAuthority = historicalWifi?.authority
 		val lifecycle = database.sourceEvidenceStateDao().get()
 			?: return@withTransaction unavailable(
 				SourceProofStage.RECORDING,
@@ -2447,6 +2515,11 @@ private class DefaultSourceLifecycleProofAdapter(
 					requireNotNull(wal.wallTimeMs), requireNotNull(wal.wallTimeUncertaintyMs),
 					wal.observedElapsedNanos, fact.coverage.providerIntervalStartElapsedRealtimeNanos,
 				)
+			} ?: historicalWifi?.let { fact ->
+				com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds.wifiCoverage(
+					requireNotNull(wal.wallTimeMs), requireNotNull(wal.wallTimeUncertaintyMs),
+					fact.coverage.providerIntervalStartElapsedRealtimeNanos, wal.observedElapsedNanos,
+				)
 			} ?: wal.earliestPossibleWallTimeMs()
 			earliest?.let { it < floor } ?: true
 		} == true) {
@@ -2455,28 +2528,28 @@ private class DefaultSourceLifecycleProofAdapter(
 				SourceProofReason.RETENTION_EXPIRED,
 			)
 		}
-		if ((captureAuthority?.sourcePolicyRevision ?: wal.sourcePolicyRevision) != key.sourcePolicyRevision) {
+		if ((wifiAuthority?.sourcePolicyRevision ?: captureAuthority?.sourcePolicyRevision ?: wal.sourcePolicyRevision) != key.sourcePolicyRevision) {
 			return@withTransaction failed(
 				SourceProofStage.RECORDING,
 				SourceProofReason.POLICY_MISMATCH,
 			)
 		}
-		if ((captureAuthority?.captureConsentEpoch ?: wal.captureConsentEpoch) != key.captureConsentEpoch) {
+		if ((wifiAuthority?.captureConsentEpoch ?: captureAuthority?.captureConsentEpoch ?: wal.captureConsentEpoch) != key.captureConsentEpoch) {
 			return@withTransaction failed(
 				SourceProofStage.RECORDING,
 				SourceProofReason.CONSENT_MISMATCH,
 			)
 		}
 		val scope = key.scope as SourceProofScope.Run
-		if ((captureAuthority?.logicalTrackingId?.value ?: wal.logicalTrackingId) != scope.logicalTrackingId ||
-			(captureAuthority?.serviceRunId?.value ?: wal.serviceRunId) != scope.serviceRunId
+		if ((wifiAuthority?.logicalTrackingId?.value ?: captureAuthority?.logicalTrackingId?.value ?: wal.logicalTrackingId) != scope.logicalTrackingId ||
+			(wifiAuthority?.serviceRunId?.value ?: captureAuthority?.serviceRunId?.value ?: wal.serviceRunId) != scope.serviceRunId
 		) {
 			return@withTransaction failed(
 				SourceProofStage.RECORDING,
 				SourceProofReason.SCOPE_MISMATCH,
 			)
 		}
-		if ((captureAuthority?.purposeEligibilityMask ?: wal.authorizationPurposeEligibilityMask) and
+		if ((wifiAuthority?.purposeEligibilityMask ?: captureAuthority?.purposeEligibilityMask ?: wal.authorizationPurposeEligibilityMask) and
 			SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
 		) {
 			return@withTransaction unavailable(

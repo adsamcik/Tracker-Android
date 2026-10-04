@@ -1,0 +1,525 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "SOURCE_PINS_ONLY",
+  "dependencyInputs": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "280ffeafa2470a796f8c1e0fce462b0fb7ca1a1a4259fd2fce6b526496336ec0",
+      "bytes": 6573,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "AGENTS.md",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/build.gradle.kts",
+      "sha256": "b72339e2333e903f3bafa544317e88ddf9fa3755c5aa22788cf40c4a326a66be",
+      "bytes": 2225,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/build.gradle.kts",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AdditionalTrackingSchema.kt",
+      "sha256": "0acb3ab37b7aac662763046046b1cd09452f188070942e7ad27e5a0d02683572",
+      "bytes": 43171,
+      "inputKind": "frozen revised schema SELECTED",
+      "inputSource": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_RETENTION_EVENT_INDEX_REVISED_SELECTED/SELECTED/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AdditionalTrackingSchema.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CapturedRadioFactRetentionProofStore.kt",
+      "sha256": "075b4adbce9dc47c3f3224f2abbb14127359635783d0b536b3c798a315579560",
+      "bytes": 1590,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CapturedRadioFactRetentionProofStore.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt",
+      "sha256": "be0be61f760e3b8bbf1017b5810fa3616218770b85d09ee2ee2f4e4e8cfa1590",
+      "bytes": 54136,
+      "inputKind": "frozen revised schema SELECTED",
+      "inputSource": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_RETENTION_EVENT_INDEX_REVISED_SELECTED/SELECTED/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ProviderRegistrationIntervalAuthenticator.kt",
+      "sha256": "115c14157ccaeac657244116dfc97fc3ddf79c31c681800241265c3ee465ca36",
+      "bytes": 16314,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ProviderRegistrationIntervalAuthenticator.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt",
+      "sha256": "4edc1d756190d8430681467189015d6a8bb0af91b713e266f5a0b06ebaaf51f9",
+      "bytes": 17792,
+      "inputKind": "frozen revised schema SELECTED",
+      "inputSource": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_RETENTION_EVENT_INDEX_REVISED_SELECTED/SELECTED/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioPurposeItemAuthorityReader.kt",
+      "sha256": "a3ce13ce020af787619552367832f047284c7d7fb15a6d66583159573ee1cb30",
+      "bytes": 6250,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioPurposeItemAuthorityReader.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SourceBrokerAuthorizationTransactions.kt",
+      "sha256": "5727d1d3da063df926725137652dc85f236cfc2dee5dff98fe7578c7c53ac606",
+      "bytes": 3023,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SourceBrokerAuthorizationTransactions.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/CapturedRadioFactRetentionProofDao.kt",
+      "sha256": "b0f16f7745eed603fa800065edcc0a6a090f4f49cb9a63c0bf3c8461b4e98793",
+      "bytes": 4481,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/CapturedRadioFactRetentionProofDao.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/RadioObservationChildDao.kt",
+      "sha256": "a1536f2f75d5030958c49c8238a563fb3658db8ec4a3ed5dc553666c5ddd9e6a",
+      "bytes": 19615,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/RadioObservationChildDao.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceBrokerDao.kt",
+      "sha256": "e4bc653351c833be81bb9e3b9b57e277ce75ec28aa31a1fb4d0629c1b9a18d69",
+      "bytes": 44795,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceBrokerDao.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceDeletionFenceDao.kt",
+      "sha256": "885c112049f4151873f596ea41523fee4f2ccaeddb671a1b356b3852e35f8c10",
+      "bytes": 2548,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceDeletionFenceDao.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceDestinationOwnerDao.kt",
+      "sha256": "402b489b3caffaeb9ddf3f808aae3179da7f5b98fbc46df0f5b335f605270582",
+      "bytes": 1979,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceDestinationOwnerDao.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceEventWalDao.kt",
+      "sha256": "e215026eeb65bcf6490c73a364661e7cef2e7b190c6b29715136607fea4eaae1",
+      "bytes": 58252,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceEventWalDao.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceEvidenceStateDao.kt",
+      "sha256": "a8c858342350ca2212fb2ac3f12f7132b1d6ded5209de03ee2ee59a033690e61",
+      "bytes": 5316,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceEvidenceStateDao.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourcePolicyDao.kt",
+      "sha256": "6e90a071b58a6aaa6c04422d1b71e9facb7a62ff68700a3717eafe42afd4a4f3",
+      "bytes": 4493,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourcePolicyDao.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceProjectionStateDao.kt",
+      "sha256": "50ea77d5ce9a445fdfd33d28c622ca9c9f4107db257979d4183a60ed9ee44e0a",
+      "bytes": 28967,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceProjectionStateDao.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt",
+      "sha256": "e557fda96b0ce3060f282d04769e5b065456b550726e56f23c38d7ac556f1208",
+      "bytes": 45648,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CanonicalRetentionBounds.kt",
+      "sha256": "5a4294af2252963413c1bd208415295453ef693a2d8eb88bec069895eb71746c",
+      "bytes": 5651,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CanonicalRetentionBounds.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CapturedRadioFactRetentionProofEntity.kt",
+      "sha256": "9d21a6140bc537073ed6184aac8851a3558871830776f03e425656c529572197",
+      "bytes": 21653,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CapturedRadioFactRetentionProofEntity.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RadioPurposeItemQualifier.kt",
+      "sha256": "50f52cfd58e71d1613302c753a4d131375a984afc80bb7e1f8fc695ed71eecfd",
+      "bytes": 7765,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RadioPurposeItemQualifier.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RetainedCaptureScopeIdentity.kt",
+      "sha256": "dceebd3fb85aa19aa4101071848c0cb7fc5a8adbfaca80b5eea2887529b8cb1e",
+      "bytes": 1166,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RetainedCaptureScopeIdentity.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
+      "sha256": "b8f904e77abf0906a1679eb9fdc55add67487d0289bfa1f57f97584352f21833",
+      "bytes": 8455,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceBrokerEntities.kt",
+      "sha256": "752d4b90d523ef1543d3032b31da63e0aa2943a13462b6b79fa40f28930b7fe0",
+      "bytes": 23034,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceBrokerEntities.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDeletionFenceEntity.kt",
+      "sha256": "2b1822dd69d1c7858e5f4ce2246d3b8b171808021d115f018272e240c8487655",
+      "bytes": 5728,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDeletionFenceEntity.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDestinationOwnerEntity.kt",
+      "sha256": "fdb116afbe4539002f0413a28a25a369987d7a747e5ad596dad1b6248acc51e6",
+      "bytes": 4594,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDestinationOwnerEntity.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceEventWalEntity.kt",
+      "sha256": "e88f7fb45bde057731d4a3744178b8c2f40c7bbcab21a7f1220865901f7082cd",
+      "bytes": 7268,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceEventWalEntity.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourcePolicyEntities.kt",
+      "sha256": "c9f315d2e1fd2d2074107036714c2eb3cc2f626ff0301a18b4aa7876bd6404eb",
+      "bytes": 5036,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourcePolicyEntities.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceSessionEntities.kt",
+      "sha256": "e678a30f4da0008411c3c2bb592900e7a390040198fd0a3201476be40e8f31d0",
+      "bytes": 47535,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceSessionEntities.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ImportedSourceSchemaAssemblyTest.kt",
+      "sha256": "77effe280d3348e9108ec99a3b23038b67c9274e8a33d04cb054fe36c1db98bd",
+      "bytes": 5948,
+      "inputKind": "frozen revised schema SELECTED",
+      "inputSource": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_RETENTION_EVENT_INDEX_REVISED_SELECTED/SELECTED/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ImportedSourceSchemaAssemblyTest.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt",
+      "sha256": "ed3fb5dedc47e1e6e4f69f430efa016da9dcda29947c44b2d82cea6f929bff74",
+      "bytes": 15171,
+      "inputKind": "frozen revised schema SELECTED",
+      "inputSource": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_RETENTION_EVENT_INDEX_REVISED_SELECTED/SELECTED/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioRetentionEventIndexPreflightTest.kt",
+      "sha256": "82e178aa8bff786385853249ebecbe02a2a4ac73852fb5f04ece0ceed5b8b1f3",
+      "bytes": 2166,
+      "inputKind": "frozen revised schema SELECTED",
+      "inputSource": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_RETENTION_EVENT_INDEX_REVISED_SELECTED/SELECTED/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioRetentionEventIndexPreflightTest.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-03/DECISION_STATUS.md",
+      "sha256": "aaceb710f1c7a5e5e5d3ac3ca6718eba980e3bc4f99a3e5e60505bef046d3708",
+      "bytes": 23131,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "docs/tracking-infrastructure/convergence/2026-10-03/DECISION_STATUS.md",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "docs/tracking-infrastructure/planning/2026-09-26-provider-freedom/TASK_CONTEXT.md",
+      "sha256": "cc499401d15858bae15b8d09531738327dbd49d61eecb45a2ccaf3fd77ea5e1b",
+      "bytes": 68986,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "docs/tracking-infrastructure/planning/2026-09-26-provider-freedom/TASK_CONTEXT.md",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "gradle/libs.versions.toml",
+      "sha256": "1a8d21d42377fd61ffa188ad8bd9a9fa54f59f77d06c4047bb2781fba01f9e4f",
+      "bytes": 16530,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "gradle/libs.versions.toml",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "50e3a5e45bd9f5a2732d905d28edd64e32764904a63ed0b1dccb58080bbd55cb",
+      "bytes": 2486,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "settings.gradle.kts",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/WifiCapturedPortableFormatV1.kt",
+      "sha256": "66a71f8e345cc68526bff11a6e36ca2352785feff63c5c6f98d38472b1e2f1ce",
+      "bytes": 23643,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/WifiCapturedPortableFormatV1.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SourceLifecycleProof.kt",
+      "sha256": "b7ef8e76a72e60325d69ba0181772b0bb7e027cefcedd74d7b8633ffe9b40e92",
+      "bytes": 9671,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SourceLifecycleProof.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/WifiHistoryRepository.kt",
+      "sha256": "8675d12207d4d60d4f16069c5b5c53acaec1e8373413a6ae263cb2440d24e784",
+      "bytes": 11503,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/WifiHistoryRepository.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "sha256": "8b4678b9f381f55f09fa241a602934de40affaf8e3a6906a03c4c3cbd5a9a9d2",
+      "bytes": 1745,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "stats/data/build.gradle.kts",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt",
+      "sha256": "480a0cc32a4a426cd0c588d00f59705d123fd64fb6778d0cf774f57e00a94d34",
+      "bytes": 47196,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRangeSupport.kt",
+      "sha256": "5699248292a9b51d526d0cbc24db3cab5eee9e55b6f1da8b2a9d87d2198243c4",
+      "bytes": 8591,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRangeSupport.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "sha256": "27f8c478df1702b3e775e054593830442ca4e30249485a16bed1006334f5f967",
+      "bytes": 3581,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "tracker/engine/build.gradle.kts",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt",
+      "sha256": "5962fde0080c44fde2e1556e5abc8646cbffd0e66ed230ecf9bf4ce435f00554",
+      "bytes": 7146,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecovery.kt",
+      "sha256": "2f1560588b28e4cab5bf009e010a1d3d4dbc6fdabf7aecbf1d02bbb9d92191c0",
+      "bytes": 22282,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecovery.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePlanCodec.kt",
+      "sha256": "02096c01cde52a13bb6012d7236b59ebab1308bf74389be4f7f88925610ea19e",
+      "bytes": 7804,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePlanCodec.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceIngress.kt",
+      "sha256": "88f6fcb9a13d7f2ae052fa268c9eba6bb07abb10f757125fc34bd2022bac3264",
+      "bytes": 98273,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceIngress.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/SourcePayloadCodec.kt",
+      "sha256": "c7e66dfa662bfaaff51d3d9ffca55955182e055fc1a565f77c1664257b97f2f7",
+      "bytes": 34865,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/SourcePayloadCodec.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/ConnectivityRuntimeSupport.kt",
+      "sha256": "5c84dfec6dd4f9debd7d42af694941f91b98c4208a455304cc1b59a12100296e",
+      "bytes": 10318,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/ConnectivityRuntimeSupport.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntime.kt",
+      "sha256": "b74b58e8fdded10365180f3a57ebf12a847bea4d3aa806f8b0c67871580725aa",
+      "bytes": 61657,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntime.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/RoomDeleteSelectedWifiHistory.kt",
+      "sha256": "7396e09481af8c991adcb875c2517986e3533bafbf9abbfadb837365e74db6a0",
+      "bytes": 48267,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/RoomDeleteSelectedWifiHistory.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransferModule.kt",
+      "sha256": "b0845c3f75c22a6af28fcc7e4845ece62b2ebc9b2522a568cccac798643bbb60",
+      "bytes": 2007,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransferModule.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedRetentionService.kt",
+      "sha256": "d49f574a76962bcc0bc13ba3b9c90c6a838d631ca6f5773281c509fa8befaf86",
+      "bytes": 2261,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedRetentionService.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiSelectedDeletionAuthority.kt",
+      "sha256": "a5cbb454c96cafb99dc5903a800b512b4112ce187134b09d338211e2fbe18c35",
+      "bytes": 9809,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiSelectedDeletionAuthority.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/ConnectivityObservationAdmissionTest.kt",
+      "sha256": "44b27b74a07e9aeb725237cfc60ecfb08f00a7f2fb23f68be98e40dc1d0e3392",
+      "bytes": 5441,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/ConnectivityObservationAdmissionTest.kt",
+      "role": "source dependency or existing source scenario; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_RETENTION_EVENT_INDEX_REVISED_SELECTED/FILES.json",
+      "sha256": "75b6bdff34ad51aebdf02c820ec58c1a4b32af3a0af8797a20d47e11a07f4056",
+      "bytes": 5934,
+      "inputKind": "frozen revised schema companion receipt",
+      "inputSource": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_RETENTION_EVENT_INDEX_REVISED_SELECTED/FILES.json"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_RETENTION_EVENT_INDEX_REVISED_SELECTED/SELECTION.patch",
+      "sha256": "ec58d5a3e426236e0e27d1489ffc3b2f8db52a80ee5384aa03fca863371d1b46",
+      "bytes": 9376,
+      "inputKind": "frozen revised schema companion receipt",
+      "inputSource": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_RETENTION_EVENT_INDEX_REVISED_SELECTED/SELECTION.patch"
+    },
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_RETENTION_EVENT_INDEX_REVISED_SELECTED/SOURCE_REVIEW.md",
+      "sha256": "dfdbd6c7600800fa7a6251e5218596723d6eda8f588bc29ac496b6603459ed53",
+      "bytes": 3311,
+      "inputKind": "frozen revised schema companion receipt",
+      "inputSource": "docs/tracking-infrastructure/convergence/2026-10-04/RADIO_RETENTION_EVENT_INDEX_REVISED_SELECTED/SOURCE_REVIEW.md"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RadioObservationChildren.kt",
+      "sha256": "7e06faf1bc9c38b636fd8021433284912780b7bdd9259422b02d88898a9cde40",
+      "bytes": 9777,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RadioObservationChildren.kt",
+      "role": "exact source contract dependency; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RadioObservationChildIntegrity.kt",
+      "sha256": "1b2fe2d97c2635a251215807516417801c9ea5df85b73b9676ef7baad2e3cd15",
+      "bytes": 2364,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RadioObservationChildIntegrity.kt",
+      "role": "exact source contract dependency; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceEvidenceState.kt",
+      "sha256": "f607ad52d0ba33daf76e214703405cf3955b56937d6312ba8fd35a06e6b77f6b",
+      "bytes": 1344,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceEvidenceState.kt",
+      "role": "exact source contract dependency; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStore.kt",
+      "sha256": "dd8745c81d859174e8b192ae76ed2cdec53b6ef5116ca8c7005e23ff706735ca",
+      "bytes": 47008,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStore.kt",
+      "role": "exact source contract dependency; unchanged by Wi-Fi slice"
+    },
+    {
+      "path": "core/common/src/main/java/com/adsamcik/tracker/shared/base/startup/TrackingStartupGate.kt",
+      "sha256": "a63bfe3a1540b0b38b7e75d8ca2befc36ee5e8fda6d65ce1b7b4243c524a5ec6",
+      "bytes": 7413,
+      "inputKind": "frozen working dependency, not a Git-state assertion",
+      "inputSource": "core/common/src/main/java/com/adsamcik/tracker/shared/base/startup/TrackingStartupGate.kt",
+      "role": "exact source contract dependency; unchanged by Wi-Fi slice"
+    }
+  ],
+  "unresolvedFilenameAliases": [],
+  "composition": "The exact c053 parent owns the selected Cell R7/retention/schema prerequisites. These files pin read context; they do not select held dependency drafts into the Wi-Fi delta.",
+  "resolvedAliases": {
+    "RadioObservationChildEntities.kt": "RadioObservationChildren.kt + RadioObservationChildIntegrity.kt",
+    "SourceEvidenceStateEntity.kt": "SourceEvidenceState.kt",
+    "ExecutableSourceLaneCatalog.kt": "TrackingRolloutStateStore.kt",
+    "TrackingStartupGate.kt": "core/common shared startup contract",
+    "WifiHistoryPlanIntegrity.kt": "SELECTED WifiHistoryComposer.kt",
+    "SourceFactQueryRepository.kt": "SourceLifecycleProof.kt"
+  }
+}

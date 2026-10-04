@@ -1,0 +1,72 @@
+[
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapter.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "62b3411b8c8599cfae3efc7e682b2eb680989121a003f568251b770dc0db6bd4"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactClassifier.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "0105e1578de271761aa4d0c0c93e3ad23f6d6056d876534bce150470a8939832"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "3d227e5f7d5d9e67ab3181f892e32fa3f90134d11c1a5e55208638594cb1cbbd"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiSessionFactProjectionLane.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "19f1e63b05c9152e50879e82f5eff4d5e544351c04ca79845aee43304fc49814"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "56e3a93da7a199bc82fffcd16dce1e6900cb968944a7e3db4db75937db86fd41"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "51830928591699bfe2c860aab373dce06ed2756e1656ff9c1c1241c090ca3b4a"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFact.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "7b5c0810465c1f623bf278be4b541c2ac78f5fea7c148e39f61db9b2065567ab"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/DefaultSourceLifecycleProofAdapter.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "6ce429c3a6e4dc690c85c80cf6f9c84a10a3e3f51cc3f15d5afef92f888d0078"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticator.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "97b1bb7cf14ff514ca5c294d6cbbaedce55ec1e78ed0ac9d0d4a939f0f3eec94"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/WifiCapturedFactDao.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "bae9582fce08814fdfc8fc7d953e6f267ac466fb57b73a6c590778e31aa95890"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryComposer.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "c2e531ce68d9b3aae18dcf0c499ae93eead4eb49514d8b6733a4b618ccc31daf"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultSourceFactQueryRepository.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "3ce7b7d1e62efead726a74a2610fea021eae54c06f41de6e89026c70b11bc893"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "6934ae53a9d76bdbac595c0040a7a58ac689252c2e61bd5f68d75cf4af87950d"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+    "baseHead": "c053ec16d4c2fc2cdf6609331de98c0d00cce2e6",
+    "baseSha256": "cd64e07d00325a7df6cd4eb5ec6eb95edb28686e2cbef0b4bb592b763f67a98a"
+  }
+]

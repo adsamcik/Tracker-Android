@@ -4,6 +4,7 @@ package com.adsamcik.tracker.tracker.source.wifi
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
@@ -23,6 +24,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
@@ -349,14 +351,14 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 		val selectedLineages = audit.lineages.filter {
 			it.scope.logicalTrackingId == request.logicalTrackingId && it.scope.serviceRunId in runIds
 		}
-		val selectedWal = audit.wal.captureByEventId.values.filter {
+		val selectedWal = audit.wal.captureByEventId.values.flatten().filter {
 			it.scope.logicalTrackingId == request.logicalTrackingId && it.scope.serviceRunId in runIds
 		}
 		val closureEventIds = audit.lineages.mapTo(mutableSetOf()) { it.revisions.last().sourceEventId }
 		if (audit.lineages.any { lineage ->
 			(lineage.scope.logicalTrackingId == request.logicalTrackingId) !=
 				(lineage.scope.serviceRunId in runIds)
-		} || audit.wal.captureByEventId.values.any { wal ->
+		} || audit.wal.captureByEventId.values.flatten().any { wal ->
 			(wal.scope.logicalTrackingId == request.logicalTrackingId) !=
 				(wal.scope.serviceRunId in runIds) ||
 				(wal !in selectedWal && wal.evidence.sourceEventId.value !in closureEventIds)
@@ -427,14 +429,29 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 			selectedCapturedRunIds.any { runId -> wifiCompleteness.none { it.serviceRunId == runId } }
 		) return outcome(unverifiableWriter())
 		val positiveCompleteness = wifiCompleteness.filter { it.registrationGeneration > 0L }
+		var portableAuthorityQueryCount = audit.wal.portableAuthorityQueryCount
+		if (portableAuthorityQueryCount > WIFI_PORTABLE_AUTHORITY_QUERY_LIMIT) return outcome(overflow())
 		val portableAuthority = audit.wal.portableAuthority ?: return outcome(unverifiableWriter())
-		if (audit.wal.portableAuthorityQueryCount > WIFI_PORTABLE_AUTHORITY_QUERY_LIMIT ||
-			positiveCompleteness.any { row ->
+		if (positiveCompleteness.any { row ->
 				val registration = portableAuthority.registrationsByGeneration[row.registrationGeneration]
 					?: return@any true
 				val run = runs.singleOrNull { it.serviceRunId == row.serviceRunId } ?: return@any true
 				val authorizations = portableAuthority.authorizationsByGeneration[row.registrationGeneration]
 					.orEmpty()
+				val perReading = selectedWal.all { it.evidence.payloadVersion == WIFI_WAL_PAYLOAD_VERSION }
+				// A shared owner stays ACTIVE after End; only this run's acknowledged drain closes its prefix.
+				val sharedRetirement = if (perReading && registration.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE) {
+					if (++portableAuthorityQueryCount > WIFI_PORTABLE_AUTHORITY_QUERY_LIMIT) return outcome(overflow())
+					database.sourceSessionDao().rawRunRetirement(
+						row.logicalTrackingId, row.serviceRunId, WIFI_SOURCE,
+						row.sourceInstanceId, row.registrationGeneration,
+					).singleOrNull()?.validatedOrNull()?.takeIf {
+						it.matchesPortableWifiSharedSettlement(row, run) &&
+							registration.acceptedAtMs?.let { accepted -> accepted <= it.cutoffWallTimeMs } == true &&
+							registration.acceptedElapsedRealtimeNanos?.let { accepted -> accepted <= it.cutoffElapsedRealtimeNanos } == true
+					}
+						?: return@any true
+				} else null
 				!registration.hasPortableRegistrationShape(
 					row,
 					run,
@@ -443,6 +460,8 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 					registration,
 					run,
 					portableAuthority,
+					perReading = perReading,
+					sharedRetirement = sharedRetirement,
 				) || portableAuthority.exactPortableActions(registration, run) == null ||
 					!row.hasExactPortableTail(audit.wal.settlementByAdmissionOrdinal)
 			}
@@ -466,7 +485,8 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 			wifiCompleteness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull(),
 			selectedWal.maxOfOrNull { it.evidence.sourceAdmissionOrdinal },
 		).maxOrNull()
-		if (targetOrdinal != null && (session.finalAdmissionOrdinal?.let { targetOrdinal > it } == true ||
+		if (targetOrdinal != null && (selectedWal.any { it.evidence.payloadVersion != WIFI_WAL_PAYLOAD_VERSION } &&
+			session.finalAdmissionOrdinal?.let { targetOrdinal > it } == true ||
 			targetOrdinal < lane.activationOrdinal ||
 			lane.captureAdmissionCutoffOrdinal?.let { it < targetOrdinal } == true)
 		) return outcome(unverifiableWriter())
@@ -478,7 +498,8 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 			wifiCompleteness.none { row ->
 				row.serviceRunId == fact.serviceRunId && row.sourceInstanceId == fact.sourceInstanceId &&
 					row.registrationGeneration == fact.registrationGeneration &&
-					row.lastAdmissionOrdinal?.let { it >= fact.sourceAdmissionOrdinal } == true
+					(fact.payloadVersion == WIFI_WAL_PAYLOAD_VERSION ||
+						row.lastAdmissionOrdinal?.let { it >= fact.sourceAdmissionOrdinal } == true)
 			}
 		}) return outcome(unverifiableWriter())
 		if (selectedWal.any { wal ->
@@ -486,7 +507,8 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 				row.serviceRunId == wal.scope.serviceRunId &&
 					row.sourceInstanceId == wal.evidence.sourceInstanceId.value &&
 					row.registrationGeneration == wal.evidence.registrationGeneration &&
-					row.lastAdmissionOrdinal?.let { it >= wal.evidence.sourceAdmissionOrdinal } == true
+					(wal.evidence.payloadVersion == WIFI_WAL_PAYLOAD_VERSION ||
+						row.lastAdmissionOrdinal?.let { it >= wal.evidence.sourceAdmissionOrdinal } == true)
 			}
 		}) return outcome(unverifiableWriter())
 
@@ -831,6 +853,8 @@ private fun List<SourceAuthorizationSnapshot>.hasExactPortableCaptureRetirement(
 	registration: ProviderRegistrationGenerationEntity,
 	run: SourceServiceRunEntity,
 	authority: WifiPortableAuthoritySnapshot,
+	perReading: Boolean = false,
+	sharedRetirement: SourceRunRetirementEntity? = null,
 ): Boolean {
 	if (isEmpty() || any snapshotLoop@{ snapshot ->
 			snapshot.members.first().registrationGeneration != registration.registrationGeneration ||
@@ -849,7 +873,8 @@ private fun List<SourceAuthorizationSnapshot>.hasExactPortableCaptureRetirement(
 	))
 	if (ordered.map(SourceAuthorizationSnapshot::authorizationRevision).distinct().size != ordered.size) return false
 	val allCaptureDemands = ordered.flatMap(SourceAuthorizationSnapshot::authorizedMembers)
-		.filter { it.purpose == CAPTURE_PURPOSE }
+		.filter { it.purpose == CAPTURE_PURPOSE && (!perReading ||
+			it.logicalTrackingId == run.logicalTrackingId && it.serviceRunId == run.serviceRunId) }
 		.mapNotNull { it.demandId?.let(authority.demandsById::get) }
 		.distinctBy(SourceDemandEntity::demandId)
 	if (allCaptureDemands.isEmpty() || allCaptureDemands.any { demand ->
@@ -874,10 +899,30 @@ private fun List<SourceAuthorizationSnapshot>.hasExactPortableCaptureRetirement(
 				snapshot.authorizedMembers.any { it.demandId == demand.demandId }
 			}
 	}) return false
+	if (sharedRetirement != null) {
+		// Earlier policy demands can close sooner; the final selected demand must close at the drain cutoff.
+		if (allCaptureDemands.any { demand ->
+			val retiredElapsed = demand.retireElapsedRealtimeNanos ?: return@any true
+			val retiredWall = demand.retiredAtMs ?: return@any true
+			retiredElapsed > sharedRetirement.cutoffElapsedRealtimeNanos || retiredWall > sharedRetirement.cutoffWallTimeMs
+		}) return false
+		val selectedDemandIds = allCaptureDemands.mapTo(mutableSetOf(), SourceDemandEntity::demandId)
+		val lastSelectedCapture = ordered.lastOrNull { snapshot ->
+			snapshot.authorizedMembers.any { member -> member.demandId in selectedDemandIds }
+		} ?: return false
+		val finalClosing = ordered.firstOrNull { snapshot ->
+			PORTABLE_WIFI_AUTHORIZATION_ORDER.compare(snapshot, lastSelectedCapture) > 0 &&
+				snapshot.authorizedMembers.none { member -> member.demandId in selectedDemandIds }
+		} ?: return false
+		if (finalClosing.effectiveElapsedRealtimeNanos != sharedRetirement.cutoffElapsedRealtimeNanos ||
+			finalClosing.members.first().effectiveWallTimeMs != sharedRetirement.cutoffWallTimeMs ||
+			allCaptureDemands.maxOf { requireNotNull(it.retireElapsedRealtimeNanos) } != sharedRetirement.cutoffElapsedRealtimeNanos
+		) return false
+	}
 	val lastCapture = ordered.lastOrNull { snapshot ->
 		snapshot.authorizedMembers.any { it.purpose == CAPTURE_PURPOSE }
 	} ?: return false
-	if (lastCapture.authorizationRevision != registration.captureCallbackBarrierAuthorizationRevision) return false
+	if (!perReading && lastCapture.authorizationRevision != registration.captureCallbackBarrierAuthorizationRevision) return false
 	val registrationPlans = authority.plansForRegistration(registration)
 	if (registrationPlans.isEmpty() || ordered.flatMap(SourceAuthorizationSnapshot::authorizedMembers)
 		.filter { it.purpose != CAPTURE_PURPOSE }
@@ -887,7 +932,7 @@ private fun List<SourceAuthorizationSnapshot>.hasExactPortableCaptureRetirement(
 			registrationPlans.none { authority.planSatisfiesDemand(it, demand) }
 		}
 	) return false
-	if (registration.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE) {
+	if (!perReading && registration.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE) {
 		val continuation = ordered.last().authorizedMembers
 		if (continuation.isEmpty() || continuation.any { member ->
 			member.purpose !in setOf(
@@ -899,6 +944,25 @@ private fun List<SourceAuthorizationSnapshot>.hasExactPortableCaptureRetirement(
 	}
 	return true
 }
+
+@Suppress("ComplexCondition")
+private fun SourceRunRetirementEntity.matchesPortableWifiSharedSettlement(
+	row: SourceSessionCompletenessEntity,
+	run: SourceServiceRunEntity,
+): Boolean = logicalTrackingId == row.logicalTrackingId && serviceRunId == row.serviceRunId &&
+	sourceKind == WIFI_SOURCE && sourceInstanceId == row.sourceInstanceId &&
+	registrationGeneration == row.registrationGeneration && leaseGeneration == run.leaseGeneration &&
+	state == SourceRunRetirementEntity.STATE_ACKNOWLEDGED && stopStatus == "COMPLETE" &&
+	row.stopStatus == stopStatus && appDrainComplete == true && row.appDrainComplete &&
+	lastAdmissionOrdinal == row.lastAdmissionOrdinal && lastSourceSequence == row.lastSourceSequence &&
+	providerCoverage == row.providerCoverage && failedAdmissionCount == 0L &&
+	unresolvedSequenceStart == null && unresolvedSequenceEnd == null &&
+	row.unresolvedSequenceStart == null && row.unresolvedSequenceEnd == null &&
+	registrationRemovalOutcome == "NOT_REGISTERED" && providerFlushOutcome == "NOT_SUPPORTED" &&
+	callbackEntryBarrierSequence?.let { it >= (lastSourceSequence ?: 0L) } == true &&
+	cutoffElapsedRealtimeNanos >= run.startedElapsedNanos && cutoffWallTimeMs >= run.startedAtMs &&
+	cutoffWallTimeMs <= row.updatedAtMs &&
+	run.completedAtMs?.let { cutoffWallTimeMs <= it } == true && updatedAtMs >= cutoffWallTimeMs
 
 private fun SourceDemandEntity.hasExactPortableCaptureBinding(
 	registration: ProviderRegistrationGenerationEntity,
@@ -931,10 +995,10 @@ private fun SourceSessionCompletenessEntity.hasExactPortableTail(
 	if (ordinal == null) return lastSourceSequence == null
 	if (lastSourceSequence == null) return false
 	val settlement = settlements[ordinal] ?: return false
-	val scope = settlement.captureScope
+	val scopes = settlement.captureScopes
 	return settlement.sourceInstanceId == sourceInstanceId &&
 		settlement.registrationGeneration == registrationGeneration &&
-		(scope == null || scope.logicalTrackingId == logicalTrackingId && scope.serviceRunId == serviceRunId)
+		(scopes.isEmpty() || WifiCapturedRunScope(logicalTrackingId, serviceRunId) in scopes)
 }
 
 private fun LifecycleDesiredActionEntity.authenticatesPortableCompleteness(
@@ -954,7 +1018,8 @@ private fun LifecycleDesiredActionEntity.authenticatesPortableCompleteness(
 		failureCode == null && retryTrigger == null && logicalTrackingId == run.logicalTrackingId &&
 		serviceRunId == run.serviceRunId && desiredPlanRevision == manifest.acquisitionPlanRevision &&
 		sourcePolicyRevision == manifest.sourcePolicyRevision && consentEpoch == binding.consentEpoch &&
-		startOrigin == manifest.startOrigin && startOrigin == run.startOrigin && bootId == run.bootId &&
+		startOrigin == manifest.startOrigin &&
+		(manifest.manifestRevision != run.preparedManifestRevision || startOrigin == run.startOrigin) && bootId == run.bootId &&
 		leaseGeneration == run.leaseGeneration && sourceInstanceId == registration.sourceInstanceId &&
 		registrationGeneration == registration.registrationGeneration &&
 		requestedAtMs == manifest.effectiveWallTimeMs &&
@@ -1084,12 +1149,14 @@ private fun WifiCapturedFactRevisionEntity.earliestPossibleWallTimeMs(): Long {
 }
 
 private fun AuthenticatedWifiWal.earliestPossibleWallTimeMs(): Long {
+	val measured = derivedAggregate?.productEffect
 	return requireNotNull(CanonicalRetentionBounds.wifiCoverage(
-		coverageEndWallTimeMs = evidence.clock.observedWallTimeMs,
-		wallTimeUncertaintyMs = evidence.clock.wallTimeUncertaintyMs,
-		coverageStartElapsedRealtimeNanos =
-			evidence.clock.observedIntervalStartElapsedRealtimeNanos,
-		coverageEndElapsedRealtimeNanos = evidence.clock.observedElapsedRealtimeNanos,
+		coverageEndWallTimeMs = measured?.observedWallTimeMs ?: evidence.clock.observedWallTimeMs,
+		wallTimeUncertaintyMs = measured?.wallTimeUncertaintyMs ?: evidence.clock.wallTimeUncertaintyMs,
+		coverageStartElapsedRealtimeNanos = measured?.coverage?.providerIntervalStartElapsedRealtimeNanos
+			?: evidence.clock.observedIntervalStartElapsedRealtimeNanos,
+		coverageEndElapsedRealtimeNanos = measured?.coverage?.providerIntervalEndElapsedRealtimeNanos
+			?: evidence.clock.observedElapsedRealtimeNanos,
 	))
 }
 

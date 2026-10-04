@@ -81,11 +81,31 @@ internal data class WifiWalObservationEvidence(
 	val payloadVersion: Int,
 	val payloadBytes: List<Byte>,
 	val payloadChecksum: String,
+	/** Original callback envelope; selected historical purpose headers never rewrite it. */
+	val originalWal: SourceEventWalEntity? = null,
 ) {
 	/** Recomputes the production `source_event_wal` identity over every integrity-bound field. */
 	fun calculatedWalIntegrityIdentity(): String = asWalEntity().calculatedIntegrityIdentity()
 
-	internal fun asWalEntity(): SourceEventWalEntity = SourceEventWalEntity(
+	internal fun asWalEntity(): SourceEventWalEntity = originalWal ?: reconstructedWal()
+
+	internal fun hasExactOriginalEnvelope(): Boolean {
+		val original = originalWal ?: return true
+		val reconstructed = reconstructedWal().copy(
+			logicalTrackingId = original.logicalTrackingId, serviceRunId = original.serviceRunId,
+			configRevision = original.configRevision, planAttribution = original.planAttribution,
+			authorizationRevision = original.authorizationRevision,
+			authorizationPurposeEligibilityMask = original.authorizationPurposeEligibilityMask,
+			authorizationFingerprint = original.authorizationFingerprint,
+			sourcePolicyRevision = original.sourcePolicyRevision, captureConsentEpoch = original.captureConsentEpoch,
+			sessionManifestRevision = original.sessionManifestRevision, lifecycleLeaseGeneration = original.lifecycleLeaseGeneration,
+		)
+		return sourceAdmissionOrdinal == original.admissionOrdinal &&
+			reconstructed.calculatedIntegrityIdentity() == original.integrityIdentity &&
+			reconstructed.payload.contentEquals(original.payload) && walIntegrityIdentity == original.integrityIdentity
+	}
+
+	private fun reconstructedWal(): SourceEventWalEntity = SourceEventWalEntity(
 		admissionOrdinal = sourceAdmissionOrdinal,
 		eventId = sourceEventId.value,
 		providerDedupKey = providerDedupKey,
@@ -480,7 +500,7 @@ internal object WifiCapturedFactClassifier {
 			!LOWERCASE_SHA_256.matches(wal.payloadChecksum)
 		) return null
 		val bytes = wal.payloadBytes.toByteArray()
-		if (bytes.sha256() != wal.payloadChecksum ||
+		if (!wal.hasExactOriginalEnvelope() || bytes.sha256() != wal.payloadChecksum ||
 			wal.calculatedWalIntegrityIdentity() != wal.walIntegrityIdentity ||
 			!isSupportedWifiWalPayloadVersion(wal.payloadVersion)
 		) {
@@ -502,7 +522,7 @@ internal object WifiCapturedFactClassifier {
 		if (!LOWERCASE_SHA_256.matches(wal.payloadChecksum) || bytes.sha256() != wal.payloadChecksum) {
 			return rejected(WifiFactRejection.PAYLOAD_INTEGRITY_UNVERIFIABLE)
 		}
-		if (wal.calculatedWalIntegrityIdentity() != wal.walIntegrityIdentity) {
+		if (!wal.hasExactOriginalEnvelope() || wal.calculatedWalIntegrityIdentity() != wal.walIntegrityIdentity) {
 			return rejected(WifiFactRejection.WAL_INTEGRITY_UNVERIFIABLE)
 		}
 		return rejected(WifiFactRejection.PAYLOAD_DECODE_FAILED)

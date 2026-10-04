@@ -229,8 +229,8 @@ class WifiSessionFactProjectionLane private constructor(
 								return@withTransaction WifiProjectionPass.TerminalBlocked(failure, through)
 							}
 							val wal = (authenticated as WifiPreflightAuthentication.Authenticated).wal
-							if (wal.authorizationPurposeEligibilityMask and
-								SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
+							if (wal.payloadVersion != com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION &&
+								wal.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
 							) {
 								// CONTROL and ambient/opportunistic observations are not captured history.
 								database.sourceProjectionStateDao().deleteFailure(
@@ -258,7 +258,7 @@ class WifiSessionFactProjectionLane private constructor(
 							advanceCursor(lane, through)
 							return@withTransaction WifiProjectionPass.TerminalBlocked(failure, through)
 						}
-						if (result.factInserted) inserted++
+						inserted += result.factsInserted
 						validated++
 						database.sourceProjectionStateDao().deleteFailure(
 							WRITER_ID,
@@ -397,11 +397,13 @@ class WifiSessionFactProjectionLane private constructor(
 	// scalars are not equivalent, so only an authenticated adapter/writer retention failure settles it.
 	private fun SourceEventWalEntity.isLifecycleRejected(
 		state: SourceEvidenceState,
-	): Boolean = authorizationPurposeEligibilityMask and
-		SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
+	): Boolean = (payloadVersion != com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION &&
+		authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L) ||
 		capturedCollectedDataEpoch != state.collectedDataEpoch
 
 	private suspend fun SourceEventWalEntity.isDeletedScope(): Boolean {
+		// A v6 callback header cannot settle failures for independently owned historical items.
+		if (payloadVersion == com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION) return false
 		val logical = logicalTrackingId ?: return false
 		val run = serviceRunId ?: return false
 		return database.sourceDeletionFenceDao().contains(
@@ -511,36 +513,54 @@ class WifiSessionFactProjectionLane private constructor(
 }
 
 private fun WifiWalAdapterResult.toProjectionResult(): WifiCandidateProjectionResult = when (this) {
+	is WifiWalAdapterResult.Groups -> results.map {
+		if (it is WifiWalAdapterResult.Rejected && it.reason.isSettledCaptureGroup())
+			WifiCandidateProjectionResult(0, null) else it.toProjectionResult()
+	}.combined()
 	is WifiWalAdapterResult.Evaluated -> WifiCandidateProjectionResult(
-		factInserted = false,
+		factsInserted = 0,
 		failureCode = classification.failureCodeOrNull(),
 	)
 	is WifiWalAdapterResult.Rejected -> WifiCandidateProjectionResult(
-		factInserted = false,
+		factsInserted = 0,
 		failureCode = "WIFI_ADAPTER_${reason.name}",
 	)
 }
 
 private fun WifiCapturedWriteResult.toProjectionResult(): WifiCandidateProjectionResult = when (this) {
-	is WifiCapturedWriteResult.Applied -> WifiCandidateProjectionResult(true, null)
-	is WifiCapturedWriteResult.Unchanged -> WifiCandidateProjectionResult(false, null)
+	is WifiCapturedWriteResult.Groups -> results.map {
+		if (it is WifiCapturedWriteResult.AdapterRejected && it.reason.isSettledCaptureGroup())
+			WifiCandidateProjectionResult(0, null) else it.toProjectionResult()
+	}.combined()
+	is WifiCapturedWriteResult.Applied -> WifiCandidateProjectionResult(1, null)
+	is WifiCapturedWriteResult.Unchanged -> WifiCandidateProjectionResult(0, null)
 	is WifiCapturedWriteResult.AdapterRejected -> WifiCandidateProjectionResult(
-		false,
+		0,
 		"WIFI_ADAPTER_${reason.name}",
 	)
 	is WifiCapturedWriteResult.Rejected -> WifiCandidateProjectionResult(
-		false,
+		0,
 		"WIFI_WRITE_${reason.name}",
 	)
 	is WifiCapturedWriteResult.NoEvidence -> WifiCandidateProjectionResult(
-		false,
+		0,
 		classification.failureCodeOrNull(),
 	)
 }
 
 private data class WifiCandidateProjectionResult(
-	val factInserted: Boolean,
+	val factsInserted: Int,
 	val failureCode: String?,
+)
+
+private fun List<WifiCandidateProjectionResult>.combined() = WifiCandidateProjectionResult(
+	factsInserted = sumOf { it.factsInserted }, failureCode = firstNotNullOfOrNull { it.failureCode },
+)
+
+private fun WifiWalAdapterRejection.isSettledCaptureGroup(): Boolean = this in setOf(
+	WifiWalAdapterRejection.DELETED_SCOPE,
+	WifiWalAdapterRejection.SCOPE_DELETION_AUTHORITY_MISMATCH,
+	WifiWalAdapterRejection.BEFORE_RETENTION_FLOOR,
 )
 
 private sealed interface WifiPreflightAuthentication {

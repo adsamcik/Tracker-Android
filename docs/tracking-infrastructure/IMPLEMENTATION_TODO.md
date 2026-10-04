@@ -74,6 +74,12 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 3 source milestones
 
+- [x] Select historical Wi-Fi per-purpose capture groups and independently ended
+  sessions after exact acknowledged retirement. Thirteen changed source/test paths
+  preserve R11 and Cell counterparts; 30 authored scenarios remain unexecuted.
+  Fresh acceptance is in `convergence/2026-10-04/WIFI_HISTORICAL_CAPTURE_REPAIRED_V2_SELECTED/SOURCE_REVIEW.md`.
+  The earlier failed inputs are preserved. Full radio, lifecycle and all 25 chains
+  remain open; this selects no new backup or file format.
 - [x] Select the bounded unified History reader/paging foundation after repairing
   eight legacy fixture origins. Thirty paths and 35 authored/revised scenarios
   remain unexecuted; independent source acceptance is recorded in

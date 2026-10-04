@@ -298,7 +298,7 @@ object WifiWalCarrierAuthenticator {
 		if (!LOWERCASE_SHA_256.matches(wal.integrityIdentity) ||
 			wal.integrityIdentity != wal.calculatedIntegrityIdentity()
 		) return rejected(WifiWalCarrierFailure.WAL_INTEGRITY_MISMATCH)
-		if (!wal.hasCompleteCaptureBinding()) {
+		if (wal.payloadVersion != WIFI_WAL_PAYLOAD_VERSION && !wal.hasCompleteCaptureBinding()) {
 			return rejected(WifiWalCarrierFailure.INCOMPLETE_CAPTURE_BINDING)
 		}
 		if (!wal.hasCanonicalProducerEnvelope()) {
@@ -578,7 +578,8 @@ private fun SourceEventWalEntity.hasCanonicalProducerEnvelope(): Boolean =
 		deliveryUnitIndex == 0 &&
 		deliveryUnitCount == 1 &&
 		sourceSequence >= 0L &&
-		planAttribution == CAPTURED_REGISTRATION_PLAN_ATTRIBUTION &&
+		(if (payloadVersion == WIFI_WAL_PAYLOAD_VERSION) hasCanonicalPerReadingBinding() else
+			planAttribution == CAPTURED_REGISTRATION_PLAN_ATTRIBUTION) &&
 		activityAutomationEpoch == null &&
 		observedIntervalStartNanos?.let { it > 0L } == true &&
 		observedElapsedNanos >= requireNotNull(observedIntervalStartNanos) &&
@@ -594,26 +595,39 @@ private fun SourceEventWalEntity.hasCanonicalProducerEnvelope(): Boolean =
 		qualityConfidence == null
 
 @Suppress("ComplexCondition")
+/** v6 retains the real callback header independently of historical capture purposes. */
+private fun SourceEventWalEntity.hasCanonicalPerReadingBinding(): Boolean {
+	if (sourceInstanceId.isBlank() || registrationGeneration <= 0L ||
+		configRevision?.let { it > 0L } == false || physicalConfigurationFingerprint.isNullOrBlank() ||
+		authorizationRevision?.let { it > 0L } != true ||
+		authorizationFingerprint?.let(LOWERCASE_SHA_256::matches) != true ||
+		authorizationPurposeEligibilityMask and SourceBrokerPurpose.ALL_MASK != authorizationPurposeEligibilityMask ||
+		capturedCollectedDataEpoch < 0L || clockDomainId.isBlank()
+	) return false
+	return if (authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L) {
+		hasCompleteCaptureBinding() && planAttribution == CAPTURED_REGISTRATION_PLAN_ATTRIBUTION
+	} else listOf(logicalTrackingId, serviceRunId, sourcePolicyRevision, captureConsentEpoch,
+		sessionManifestRevision, lifecycleLeaseGeneration).all { it == null } &&
+		configRevision?.let { it > 0L } == true && planAttribution == RECEIVE_TIME_ONLY_PLAN_ATTRIBUTION
+}
+
+@Suppress("ComplexCondition")
 private fun SourceEventWalEntity.matches(
 	authority: WifiWalCaptureAuthority,
 	payload: WifiWalPayload,
 ): Boolean =
-	logicalTrackingId == authority.logicalTrackingId &&
-		serviceRunId == authority.serviceRunId &&
-		sourceInstanceId == authority.sourceInstanceId &&
-		registrationGeneration == authority.registrationGeneration &&
+	(payloadVersion == WIFI_WAL_PAYLOAD_VERSION || (
+		logicalTrackingId == authority.logicalTrackingId && serviceRunId == authority.serviceRunId &&
 		(configRevision == null || configRevision == authority.configurationRevision) &&
-		physicalConfigurationFingerprint == authority.physicalConfigurationFingerprint &&
 		authorizationRevision == authority.authorizationRevision &&
 		authorizationFingerprint == authority.authorizationFingerprint &&
 		authorizationPurposeEligibilityMask == authority.purposeEligibilityMask &&
-		sourcePolicyRevision == authority.sourcePolicyRevision &&
-		captureConsentEpoch == authority.captureConsentEpoch &&
-		sessionManifestRevision == authority.manifestRevision &&
-		lifecycleLeaseGeneration == authority.lifecycleLeaseGeneration &&
-		capturedCollectedDataEpoch == authority.collectedDataEpoch &&
-		clockDomainId == authority.clockDomainId &&
-		payload.observationZoneId == authority.zoneId
+		sourcePolicyRevision == authority.sourcePolicyRevision && captureConsentEpoch == authority.captureConsentEpoch &&
+		sessionManifestRevision == authority.manifestRevision && lifecycleLeaseGeneration == authority.lifecycleLeaseGeneration)) &&
+		sourceInstanceId == authority.sourceInstanceId && registrationGeneration == authority.registrationGeneration &&
+		physicalConfigurationFingerprint == authority.physicalConfigurationFingerprint &&
+		capturedCollectedDataEpoch == authority.collectedDataEpoch && clockDomainId == authority.clockDomainId &&
+		(payloadVersion == WIFI_WAL_PAYLOAD_VERSION || payload.observationZoneId == authority.zoneId)
 
 private fun WifiCapturedFactRevisionEntity.captureAuthority() = WifiWalCaptureAuthority(
 	logicalTrackingId = logicalTrackingId,
@@ -665,19 +679,20 @@ private fun WifiCapturedFactRevisionEntity.hasExactWalLink(
 		deliveryUnitCount == wal.deliveryUnitCount &&
 		sourceSequence == wal.sourceSequence &&
 		planAttribution == WifiCapturedFactRevisionEntity.PLAN_ATTRIBUTION_CAPTURED_REGISTRATION &&
+		(wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION || (
 		logicalTrackingId == wal.logicalTrackingId &&
 		serviceRunId == wal.serviceRunId &&
-		sourceInstanceId == wal.sourceInstanceId &&
-		registrationGeneration == wal.registrationGeneration &&
 		(wal.configRevision == null || configurationRevision == wal.configRevision) &&
-		physicalConfigurationFingerprint == wal.physicalConfigurationFingerprint &&
 		authorizationRevision == wal.authorizationRevision &&
 		authorizationFingerprint == wal.authorizationFingerprint &&
 		purposeEligibilityMask == wal.authorizationPurposeEligibilityMask &&
 		sourcePolicyRevision == wal.sourcePolicyRevision &&
 		captureConsentEpoch == wal.captureConsentEpoch &&
 		manifestRevision == wal.sessionManifestRevision &&
-		lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration &&
+		lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration)) &&
+		sourceInstanceId == wal.sourceInstanceId &&
+		registrationGeneration == wal.registrationGeneration &&
+		physicalConfigurationFingerprint == wal.physicalConfigurationFingerprint &&
 		collectedDataEpoch == wal.capturedCollectedDataEpoch &&
 		clockDomainId == wal.clockDomainId &&
 		observedIntervalStartNanos == wal.observedIntervalStartNanos &&
@@ -856,3 +871,5 @@ private val WIFI_WAL_OBSERVATION_ORDER = compareBy<WifiWalPayloadObservation>(
 	WifiWalPayloadObservation::identifierToken,
 	WifiWalPayloadObservation::networkName,
 )
+
+private const val RECEIVE_TIME_ONLY_PLAN_ATTRIBUTION = 2

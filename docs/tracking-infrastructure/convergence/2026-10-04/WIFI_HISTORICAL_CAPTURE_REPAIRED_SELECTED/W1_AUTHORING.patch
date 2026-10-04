@@ -1,0 +1,351 @@
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt
+@@ -24,6 +24,7 @@
+ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+ import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
+ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+ import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
+@@ -429,13 +430,24 @@
+ 		) return outcome(unverifiableWriter())
+ 		val positiveCompleteness = wifiCompleteness.filter { it.registrationGeneration > 0L }
+ 		val portableAuthority = audit.wal.portableAuthority ?: return outcome(unverifiableWriter())
+-		if (audit.wal.portableAuthorityQueryCount > WIFI_PORTABLE_AUTHORITY_QUERY_LIMIT ||
++		var portableAuthorityQueryCount = audit.wal.portableAuthorityQueryCount
++		if (portableAuthorityQueryCount > WIFI_PORTABLE_AUTHORITY_QUERY_LIMIT ||
+ 			positiveCompleteness.any { row ->
+ 				val registration = portableAuthority.registrationsByGeneration[row.registrationGeneration]
+ 					?: return@any true
+ 				val run = runs.singleOrNull { it.serviceRunId == row.serviceRunId } ?: return@any true
+ 				val authorizations = portableAuthority.authorizationsByGeneration[row.registrationGeneration]
+ 					.orEmpty()
++				val perReading = selectedWal.all { it.evidence.payloadVersion == WIFI_WAL_PAYLOAD_VERSION }
++				// A shared owner stays ACTIVE after End; only this run's acknowledged drain closes its prefix.
++				val sharedRetirement = if (perReading && registration.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE) {
++					if (++portableAuthorityQueryCount > WIFI_PORTABLE_AUTHORITY_QUERY_LIMIT) return@any true
++					database.sourceSessionDao().rawRunRetirement(
++						row.logicalTrackingId, row.serviceRunId, WIFI_SOURCE,
++						row.sourceInstanceId, row.registrationGeneration,
++					).singleOrNull()?.validatedOrNull()?.takeIf { it.matchesPortableWifiSharedSettlement(row, run) }
++						?: return@any true
++				} else null
+ 				!registration.hasPortableRegistrationShape(
+ 					row,
+ 					run,
+@@ -444,7 +456,8 @@
+ 					registration,
+ 					run,
+ 					portableAuthority,
+-					perReading = selectedWal.all { it.evidence.payloadVersion == WIFI_WAL_PAYLOAD_VERSION },
++					perReading = perReading,
++					sharedRetirement = sharedRetirement,
+ 				) || portableAuthority.exactPortableActions(registration, run) == null ||
+ 					!row.hasExactPortableTail(audit.wal.settlementByAdmissionOrdinal)
+ 			}
+@@ -837,6 +850,7 @@
+ 	run: SourceServiceRunEntity,
+ 	authority: WifiPortableAuthoritySnapshot,
+ 	perReading: Boolean = false,
++	sharedRetirement: SourceRunRetirementEntity? = null,
+ ): Boolean {
+ 	if (isEmpty() || any snapshotLoop@{ snapshot ->
+ 			snapshot.members.first().registrationGeneration != registration.registrationGeneration ||
+@@ -881,6 +895,26 @@
+ 				snapshot.authorizedMembers.any { it.demandId == demand.demandId }
+ 			}
+ 	}) return false
++	if (sharedRetirement != null) {
++		// Earlier policy demands can close sooner; the final selected demand must close at the drain cutoff.
++		if (allCaptureDemands.any { demand ->
++			val retiredElapsed = demand.retireElapsedRealtimeNanos ?: return@any true
++			val retiredWall = demand.retiredAtMs ?: return@any true
++			retiredElapsed > sharedRetirement.cutoffElapsedRealtimeNanos || retiredWall > sharedRetirement.cutoffWallTimeMs
++		}) return false
++		val selectedDemandIds = allCaptureDemands.mapTo(mutableSetOf(), SourceDemandEntity::demandId)
++		val lastSelectedCapture = ordered.lastOrNull { snapshot ->
++			snapshot.authorizedMembers.any { member -> member.demandId in selectedDemandIds }
++		} ?: return false
++		val finalClosing = ordered.firstOrNull { snapshot ->
++			PORTABLE_WIFI_AUTHORIZATION_ORDER.compare(snapshot, lastSelectedCapture) > 0 &&
++				snapshot.authorizedMembers.none { member -> member.demandId in selectedDemandIds }
++		} ?: return false
++		if (finalClosing.effectiveElapsedRealtimeNanos != sharedRetirement.cutoffElapsedRealtimeNanos ||
++			finalClosing.members.first().effectiveWallTimeMs != sharedRetirement.cutoffWallTimeMs ||
++			allCaptureDemands.maxOf { requireNotNull(it.retireElapsedRealtimeNanos) } != sharedRetirement.cutoffElapsedRealtimeNanos
++		) return false
++	}
+ 	val lastCapture = ordered.lastOrNull { snapshot ->
+ 		snapshot.authorizedMembers.any { it.purpose == CAPTURE_PURPOSE }
+ 	} ?: return false
+@@ -906,6 +940,25 @@
+ 	}
+ 	return true
+ }
++
++@Suppress("ComplexCondition")
++private fun SourceRunRetirementEntity.matchesPortableWifiSharedSettlement(
++	row: SourceSessionCompletenessEntity,
++	run: SourceServiceRunEntity,
++): Boolean = logicalTrackingId == row.logicalTrackingId && serviceRunId == row.serviceRunId &&
++	sourceKind == WIFI_SOURCE && sourceInstanceId == row.sourceInstanceId &&
++	registrationGeneration == row.registrationGeneration && leaseGeneration == run.leaseGeneration &&
++	state == SourceRunRetirementEntity.STATE_ACKNOWLEDGED && stopStatus == "COMPLETE" &&
++	row.stopStatus == stopStatus && appDrainComplete == true && row.appDrainComplete &&
++	lastAdmissionOrdinal == row.lastAdmissionOrdinal && lastSourceSequence == row.lastSourceSequence &&
++	providerCoverage == row.providerCoverage && failedAdmissionCount == 0L &&
++	unresolvedSequenceStart == null && unresolvedSequenceEnd == null &&
++	row.unresolvedSequenceStart == null && row.unresolvedSequenceEnd == null &&
++	registrationRemovalOutcome == "NOT_REGISTERED" && providerFlushOutcome == "NOT_SUPPORTED" &&
++	callbackEntryBarrierSequence?.let { it >= (lastSourceSequence ?: 0L) } == true &&
++	cutoffElapsedRealtimeNanos >= run.startedElapsedNanos && cutoffWallTimeMs >= run.startedAtMs &&
++	cutoffWallTimeMs <= row.updatedAtMs &&
++	run.completedAtMs?.let { cutoffWallTimeMs <= it } == true && updatedAtMs >= cutoffWallTimeMs
+ 
+ private fun SourceDemandEntity.hasExactPortableCaptureBinding(
+ 	registration: ProviderRegistrationGenerationEntity,
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt
+@@ -65,6 +65,7 @@
+ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
+ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+ import com.adsamcik.tracker.shared.base.database.data.WifiCaptureDeletionGenerationEntity
+@@ -764,12 +765,9 @@
+ 
+ 	@Test
+ 	fun `an ended Wi-Fi session with no callbacks exports while another capture keeps the physical owner`() = runTest {
+-		installHistoricalWifiGroups(currentSecond = true)
+-		database.openHelper.writableDatabase.execSQL("DELETE FROM source_event_wal WHERE source_kind = ?", arrayOf(WIFI_SOURCE))
+-		database.openHelper.writableDatabase.execSQL(
+-			"UPDATE provider_registration_generation SET status = ?, retired_at_ms = NULL, retired_elapsed_realtime_nanos = NULL " +
+-				"WHERE source_kind = ? AND registration_generation = ?",
+-			arrayOf(ProviderRegistrationGenerationEntity.STATUS_ACTIVE, WIFI_SOURCE, REGISTRATION_GENERATION))
++		installSharedHistoricalWifiSettlement()
++		assertEquals(SourceDemandEntity.STATUS_ACTIVE, database.sourceBrokerDao()
++			.demandsByIds(listOf("historical-second-wifi-demand")).single().status)
+ 		val emitted = mutableListOf<PortableCapturedWifiEntryV1>()
+ 		assertIs<ExportPortableCapturedWifiResult.Exported>(portableExporter().export(
+ 			ExportPortableCapturedWifiRequest(LOGICAL_ID)) { emitted += it })
+@@ -781,6 +779,217 @@
+ 			arrayOf("$DEMAND_ID-0"))
+ 		assertIs<ExportPortableCapturedWifiResult.Unverifiable>(portableExporter().export(
+ 			ExportPortableCapturedWifiRequest(LOGICAL_ID)) {})
++	}
++
++	@Test
++	fun `acknowledged empty Wi-Fi session exports while independent background tracking stays active`() = runTest {
++		installSharedHistoricalWifiSettlement(background = true)
++		val background = database.sourceBrokerDao().demandsByIds(listOf("shared-wifi-background")).single()
++		val before = requireNotNull(database.sourceBrokerDao().registration(WIFI_SOURCE, REGISTRATION_GENERATION))
++		val emitted = mutableListOf<PortableCapturedWifiEntryV1>()
++		assertIs<ExportPortableCapturedWifiResult.Exported>(portableExporter().export(
++			ExportPortableCapturedWifiRequest(LOGICAL_ID)) { emitted += it })
++		assertEquals(PortableWifiRunAvailability.NO_RETAINED_OBSERVATION, emitted.single().runs.single().availability)
++		assertEquals(SourceDemandEntity.STATUS_ACTIVE, background.status)
++		assertEquals(before, database.sourceBrokerDao().registration(WIFI_SOURCE, REGISTRATION_GENERATION))
++		assertEquals(background, database.sourceBrokerDao().demandsByIds(listOf(background.demandId)).single())
++	}
++
++	@Test
++	fun `empty shared Wi-Fi session cannot export before its retirement acknowledgement exists`() = runTest {
++		installSharedHistoricalWifiSettlement(includeReceipt = false)
++		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
++	}
++
++	@Test
++	fun `empty shared Wi-Fi session cannot export with only a requested retirement`() = runTest {
++		installSharedHistoricalWifiSettlement()
++		updateSharedWifiRetirement { it.copy(state = SourceRunRetirementEntity.STATE_REQUESTED,
++			appliedRevision = null, callbackEntryBarrierSequence = null, lastSourceSequence = null,
++			lastAdmissionOrdinal = null, failedAdmissionCount = null, unresolvedSequenceStart = null,
++			unresolvedSequenceEnd = null, registrationRemovalOutcome = null, providerFlushOutcome = null,
++			providerCoverage = null, appDrainComplete = null, stopStatus = null) }
++		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
++	}
++
++	@Test
++	fun `empty shared Wi-Fi session rejects a retirement from an older lease`() = runTest {
++		installSharedHistoricalWifiSettlement()
++		updateSharedWifiRetirement { it.copy(leaseGeneration = LEASE_GENERATION + 1L) }
++		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
++	}
++
++	@Test
++	fun `empty shared Wi-Fi session rejects a retirement cutoff different from its final closing`() = runTest {
++		installSharedHistoricalWifiSettlement()
++		// Wall time remains in bounds; only the measured cutoff no longer matches the closing authorization.
++		updateSharedWifiRetirement { it.copy(cutoffElapsedRealtimeNanos = it.cutoffElapsedRealtimeNanos + 1L) }
++		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
++	}
++
++	@Test
++	fun `empty shared Wi-Fi session rejects a retirement tail not present in completeness`() = runTest {
++		installSharedHistoricalWifiSettlement()
++		updateSharedWifiRetirement { it.copy(lastAdmissionOrdinal = 1L, lastSourceSequence = 0L) }
++		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
++	}
++
++	@Test
++	fun `shared Wi-Fi session rejects an acknowledgement with failed admission`() = runTest {
++		installSharedHistoricalWifiSettlement()
++		updateSharedWifiRetirement { it.copy(failedAdmissionCount = 1L) }
++		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
++	}
++
++	@Test
++	fun `shared Wi-Fi session rejects an acknowledgement with unresolved callbacks`() = runTest {
++		installSharedHistoricalWifiSettlement()
++		updateSharedWifiRetirement { it.copy(unresolvedSequenceStart = 1L, unresolvedSequenceEnd = 2L) }
++		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
++	}
++
++	@Test
++	fun `shared Wi-Fi session requires a completed callback drain`() = runTest {
++		installSharedHistoricalWifiSettlement()
++		updateSharedWifiRetirement { it.copy(appDrainComplete = false) }
++		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
++	}
++
++	@Test
++	fun `shared Wi-Fi session cannot borrow a later sibling snapshot instead of its final closing`() = runTest {
++		installSharedHistoricalWifiSettlement()
++		val sibling = database.sourceBrokerDao().demandsByIds(listOf("historical-second-wifi-demand")).single()
++		database.openHelper.writableDatabase.execSQL(
++			"DELETE FROM source_authorization WHERE source_kind = ? AND registration_generation = ? AND authorization_revision = 2",
++			arrayOf(WIFI_SOURCE, REGISTRATION_GENERATION))
++		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(WIFI_SOURCE, REGISTRATION_GENERATION,
++			3L, listOf(sibling), BOOT_ID, 1_650_000_000L, OBSERVED_WALL_MS + 50L))
++		// Both demand retirement and the immutable replacement closing agree with each other, but miss the acknowledged cutoff.
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE source_demand SET retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
++			arrayOf(1_650_000_000L, OBSERVED_WALL_MS + 50L, "$DEMAND_ID-0"))
++		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
++	}
++
++	@Test
++	fun `shared Wi-Fi callback prefix exports only when its acknowledged tail matches`() = runTest {
++		installSharedHistoricalWifiSettlement(withObservation = true)
++		val emitted = mutableListOf<PortableCapturedWifiEntryV1>()
++		assertIs<ExportPortableCapturedWifiResult.Exported>(portableExporter().export(
++			ExportPortableCapturedWifiRequest(LOGICAL_ID)) { emitted += it })
++		assertEquals(1, emitted.single().runs.single().observations.size)
++		updateSharedWifiRetirement { it.copy(lastAdmissionOrdinal = 2L) }
++		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
++	}
++
++	@Test
++	fun `shared Wi-Fi callback prefix cannot outrun its acknowledged entry barrier`() = runTest {
++		installSharedHistoricalWifiSettlement(withObservation = true)
++		val row = database.trackingHistoryReadDao().completenessForSource(WIFI_SOURCE, LOGICAL_ID,
++			listOf(RUN_ID), 2).single()
++		database.sourceSessionDao().saveCompleteness(row.copy(lastSourceSequence = 2L))
++		updateSharedWifiRetirement { it.copy(lastSourceSequence = 2L, callbackEntryBarrierSequence = 1L) }
++		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
++	}
++
++	@Test
++	fun `shared Wi-Fi settlement preserves earlier policy windows before its final cutoff`() = runTest {
++		installSharedHistoricalWifiSettlement()
++		val sessionDao = database.sourceSessionDao()
++		val changeElapsed = 1_400_000_000L
++		val changeWall = OBSERVED_WALL_MS - 200L
++		val source = sessionDao.manifestSources(LOGICAL_ID, MANIFEST_REVISION).single().copy(manifestRevision = 2L)
++		val unsigned = requireNotNull(sessionDao.manifest(LOGICAL_ID, MANIFEST_REVISION)).copy(
++			manifestRevision = 2L, startOrigin = "POLICY_RECONCILIATION", changeReason = "POLICY_RECONCILIATION",
++			effectiveElapsedRealtimeNanos = changeElapsed, effectiveWallTimeMs = changeWall)
++		sessionDao.insertManifest(unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source))))
++		sessionDao.insertManifestSources(listOf(source))
++		sessionDao.updateSession(requireNotNull(sessionDao.session(LOGICAL_ID)).copy(currentManifestRevision = 2L))
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE source_demand SET retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
++			arrayOf(changeElapsed, changeWall, "$DEMAND_ID-0"))
++		val finalDemand = demand().copy(demandId = "shared-final-policy-wifi", manifestRevision = 2L,
++			requestedElapsedRealtimeNanos = changeElapsed, requestedAtMs = changeWall,
++			retireElapsedRealtimeNanos = 1_550_000_000L, retiredAtMs = OBSERVED_WALL_MS - 50L)
++		database.sourceBrokerDao().insertDemands(listOf(finalDemand))
++		val sibling = database.sourceBrokerDao().demandsByIds(listOf("historical-second-wifi-demand")).single()
++		database.openHelper.writableDatabase.execSQL(
++			"DELETE FROM source_authorization WHERE source_kind = ? AND registration_generation = ? AND authorization_revision = 2",
++			arrayOf(WIFI_SOURCE, REGISTRATION_GENERATION))
++		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(WIFI_SOURCE, REGISTRATION_GENERATION,
++			2L, listOf(finalDemand), BOOT_ID, changeElapsed, changeWall))
++		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(WIFI_SOURCE, REGISTRATION_GENERATION,
++			3L, listOf(sibling), BOOT_ID, 1_550_000_000L, OBSERVED_WALL_MS - 50L))
++		sessionDao.insertLifecycleActions(listOf(startAction(actionId = "shared-final-policy-action", actionRevision = 3L).copy(
++			manifestRevision = 2L, startOrigin = "POLICY_RECONCILIATION", requestedAtMs = changeWall,
++			requestedElapsedRealtimeNanos = changeElapsed, acknowledgedAtMs = changeWall + 1L,
++			acknowledgedElapsedRealtimeNanos = changeElapsed + 1L)))
++		assertIs<ExportPortableCapturedWifiResult.Exported>(portableExporter().export(
++			ExportPortableCapturedWifiRequest(LOGICAL_ID)) {})
++	}
++
++	private fun sharedWifiSettlementUnverifiable() = ExportPortableCapturedWifiResult.Unverifiable(
++		PortableWifiUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE)
++
++	private suspend fun updateSharedWifiRetirement(update: (SourceRunRetirementEntity) -> SourceRunRetirementEntity) {
++		val row = requireNotNull(database.sourceSessionDao().runRetirement(LOGICAL_ID, RUN_ID, WIFI_SOURCE,
++			SOURCE_INSTANCE, REGISTRATION_GENERATION))
++		assertEquals(1, database.sourceSessionDao().updateRunRetirement(update(row)))
++	}
++
++	private suspend fun installSharedHistoricalWifiSettlement(
++		background: Boolean = false,
++		includeReceipt: Boolean = true,
++		withObservation: Boolean = false,
++	) {
++		installHistoricalWifiGroups(currentSecond = true)
++		if (withObservation) {
++			assertIs<WifiSessionFactDrainResult.Complete>(WifiSessionFactProjectionLane(database, subject, writer).drainAvailable())
++		} else database.openHelper.writableDatabase.execSQL("DELETE FROM source_event_wal WHERE source_kind = ?", arrayOf(WIFI_SOURCE))
++		val sessionDao = database.sourceSessionDao()
++		if (background) {
++			installRetainedNoncapturePolicyAndConsent(1_550_000_000L, OBSERVED_WALL_MS - 50L)
++			val ambient = nonCaptureDemand(78, SourceBrokerPurpose.AMBIENT_PRODUCT).copy(demandId = "shared-wifi-background",
++				requestedElapsedRealtimeNanos = 1_550_000_000L, requestedAtMs = OBSERVED_WALL_MS - 50L)
++			database.sourceBrokerDao().insertDemands(listOf(ambient))
++			database.openHelper.writableDatabase.execSQL(
++				"DELETE FROM source_authorization WHERE source_kind = ? AND registration_generation = ? AND authorization_revision = 2",
++				arrayOf(WIFI_SOURCE, REGISTRATION_GENERATION))
++			database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(WIFI_SOURCE, REGISTRATION_GENERATION,
++				2L, listOf(ambient), BOOT_ID, 1_550_000_000L, OBSERVED_WALL_MS - 50L))
++		} else {
++			// The sibling is genuinely ongoing, not a finalized fixture merely attached to an ACTIVE registration.
++			database.openHelper.writableDatabase.execSQL(
++				"UPDATE source_demand SET status = 'ACTIVE', retire_boot_id = NULL, retire_elapsed_realtime_nanos = NULL, retired_at_ms = NULL " +
++					"WHERE demand_id = ?", arrayOf("historical-second-wifi-demand"))
++			val siblingRun = requireNotNull(sessionDao.serviceRun("historical-wifi-second-run"))
++			sessionDao.updateServiceRun(siblingRun.copy(state = "ACTIVE", completedAtMs = null, completionReason = null,
++				runtimeAcknowledgement = "START_ACCEPTED", presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
++				presentationAcknowledgedAtMs = null))
++			sessionDao.updateSession(requireNotNull(sessionDao.session("historical-wifi-second")).copy(state = "ACTIVE",
++				cutoffAtMs = null, cutoffElapsedNanos = null, completedAtMs = null, finalAdmissionOrdinal = null,
++				currentServiceRunId = siblingRun.serviceRunId))
++		}
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE provider_registration_generation SET status = 'ACTIVE', retired_at_ms = NULL, " +
++				"retired_elapsed_realtime_nanos = NULL, failure_code = NULL WHERE source_kind = ? AND registration_generation = ?",
++			arrayOf(WIFI_SOURCE, REGISTRATION_GENERATION))
++		val completeness = SourceSessionCompletenessEntity(LOGICAL_ID, RUN_ID, WIFI_SOURCE, SOURCE_INSTANCE,
++			REGISTRATION_GENERATION, 1L.takeIf { withObservation }, 0L.takeIf { withObservation }, true,
++			"PROVIDER_COMPLETENESS_UNOBSERVABLE", "COMPLETE", null, null, OBSERVED_WALL_MS + 1_000L)
++		sessionDao.saveCompleteness(completeness)
++		if (includeReceipt) sessionDao.insertRunRetirementIntent(SourceRunRetirementEntity(
++			logicalTrackingId = LOGICAL_ID, serviceRunId = RUN_ID, sourceKind = WIFI_SOURCE,
++			sourceInstanceId = SOURCE_INSTANCE, registrationGeneration = REGISTRATION_GENERATION,
++			actionId = "wifi-start-action", attemptCount = 1, leaseGeneration = LEASE_GENERATION,
++			cutoffElapsedRealtimeNanos = 1_550_000_000L, cutoffWallTimeMs = OBSERVED_WALL_MS - 50L,
++			state = SourceRunRetirementEntity.STATE_ACKNOWLEDGED, appliedRevision = PLAN_REVISION,
++			callbackEntryBarrierSequence = if (withObservation) 1L else 0L,
++			lastSourceSequence = completeness.lastSourceSequence, lastAdmissionOrdinal = completeness.lastAdmissionOrdinal,
++			failedAdmissionCount = 0L, unresolvedSequenceStart = null, unresolvedSequenceEnd = null,
++			registrationRemovalOutcome = "NOT_REGISTERED", providerFlushOutcome = "NOT_SUPPORTED",
++			providerCoverage = completeness.providerCoverage, appDrainComplete = true, stopStatus = "COMPLETE",
++			updatedAtMs = OBSERVED_WALL_MS + 1_000L))
+ 	}
+ 
+ 	@Test

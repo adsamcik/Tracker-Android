@@ -336,6 +336,13 @@ remain held. No test or gate has run.
 
 ## Remaining in these slices
 
+- [x] Select historical Wi-Fi session capture across policy changes and independent
+  purpose lifetimes. Shared ACTIVE providers require the selected run's exact
+  retirement ACK, drain, final closing cutoff and acceptance-before-cutoff bounds.
+  Query exhaustion keeps the existing dependency-overflow result. Thirteen changed
+  paths and 30 authored unexecuted cases have independent source acceptance in
+  `../2026-10-04/WIFI_HISTORICAL_CAPTURE_REPAIRED_V2_SELECTED/SOURCE_REVIEW.md`.
+  Original failed packets remain preserved; R11/Cell repairs remain intact.
 - [x] Select the bounded unified History reader/paging foundation, reusing native,
   background, imported and organization readers without starting providers. Thirty
   frozen source/test paths and 35 authored/revised unexecuted scenarios have fresh
@@ -418,16 +425,19 @@ remain held. No test or gate has run.
   preserving actual reading times and IDs rather than splitting deliveries. The
   October 4 answer also approves selected-date source exports with optional
   complete sessions; old bounds and codec/import compatibility remain to finish.
-- [ ] Complete historical session radio capture groups after the pending contract
-  answer; a single current callback capture tuple remains insufficient.
+- [x] Select historical Cell and Wi-Fi session capture groups through original
+  callback identity, per-reading membership and independently qualified purposes.
+  Full runtime/History/product execution and all-source lifecycle evidence remain
+  deferred; source selection alone does not close either full radio chain.
 - [x] Review and commit independent optional Wi-Fi/Cell service hosting and
   sessionless Steps motion hints; add the host preference migration/default.
 - [x] Review and commit common original-job epoch plus existing Activity/Pressure/
   Steps adapters; Location was selected with membership. Radio remains separate.
 - [x] Select radio import adapters/child attachment with their epoch scenarios;
   exporter/registry and complete external file flow remain separate.
-- [ ] Preserve exact membership of overlapping imported background radio files;
-  a new file-to-reading/gap list proposal is awaiting the user answer.
+- [ ] Preserve exact membership of overlapping imported background radio files.
+  Individual readings and overlap merging are approved; source implementation
+  is deferred while completing the tracking architecture.
 - [x] Repair typed Steps/Pressure annotation identity validation without changing IDs.
 - [ ] Finish bundle exact membership for native Steps duplicates and overlapping
   imported radio files; the selected metadata path refuses missing receipts.

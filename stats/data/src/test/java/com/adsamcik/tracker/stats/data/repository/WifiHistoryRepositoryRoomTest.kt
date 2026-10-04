@@ -978,6 +978,23 @@ class WifiHistoryRepositoryRoomTest {
 	}
 
 	@Test
+	fun `denied v6 callback after End keeps Wi-Fi native history and exact fact lookup`() = runTest {
+		val group = deniedV6CallbackGroup(buildGroup(249, 1, setOf(0)))
+		persist(listOf(group))
+		persistV6Children(group)
+		val entry = (repository { true }.recent(1) as WifiHistoryPage.Available).entries.single()
+		entry.observations shouldHaveSize 1
+		entry.observations.single().networks shouldHaveSize 2
+		val fact = group.runs.single().facts.last()
+		val lookup = RoomSourceFactLookupReader(database, Dispatchers.IO, BootClockDomainProvider { BOOT_ID }).lookup(wifiFactLookupRequest(fact))
+		assertIs<SourceFactLookupResult.Found>(lookup)
+		database.openHelper.writableDatabase.execSQL("DELETE FROM wifi_captured_child WHERE item_index = 0")
+		assertIs<SourceFactLookupResult.Failed>(RoomSourceFactLookupReader(database, Dispatchers.IO, BootClockDomainProvider { BOOT_ID })
+			.lookup(wifiFactLookupRequest(fact)))
+		assertRecentWriterFailure()
+	}
+
+	@Test
 	fun `v6 history keeps readings on both sides of a callback authorization rotation`() = runTest {
 		val group = v6RotatedGroup(buildGroup(244, 1, setOf(0)))
 		persist(listOf(group))
@@ -1036,6 +1053,61 @@ class WifiHistoryRepositoryRoomTest {
 		persist(listOf(group))
 		persistV6Children(group)
 		assertRecentWriterFailure()
+	}
+
+	@Test
+	fun `late Wi-Fi history keeps each saved network on its own local date across midnight`() = runTest {
+		val midnight = java.time.LocalDate.of(2026, 10, 4).atStartOfDay(java.time.ZoneId.of(ZONE_ID)).toInstant().toEpochMilli()
+		val group = deniedV6CallbackGroup(buildGroup(250, 1, setOf(0), firstWallTimeMs = midnight - 150L))
+		persist(listOf(group))
+		persistV6Children(group)
+		val entry = (repository { true }.recent(1) as WifiHistoryPage.Available).entries.single()
+		val networks = entry.observations.single().networks
+		networks shouldHaveSize 2
+		networks.map { java.time.Instant.ofEpochMilli(it.observedTimeMs).atZone(java.time.ZoneId.of(ZONE_ID)).toLocalDate() }
+			shouldBe listOf(java.time.LocalDate.of(2026, 10, 3), java.time.LocalDate.of(2026, 10, 4))
+		val raw = group.runs.single().admissions.single()
+		kotlin.test.assertTrue(requireNotNull(raw.receivedWallTimeMs) > midnight)
+		kotlin.test.assertTrue(group.session.cutoffAtMs!! < requireNotNull(raw.receivedWallTimeMs))
+	}
+
+	@Test
+	fun `exact Wi-Fi lookup cannot borrow an aggregate whose own provider delivery is missing`() = runTest {
+		val group = buildGroup(251, 1, setOf(0), includeReuse = true)
+		persist(listOf(group))
+		promoteWifiLaneToCanonical()
+		val facts = group.runs.single().facts
+		val dependent = facts.single { it.factKind == WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY }
+		val owner = facts.single { it.logicalFactId == dependent.aggregateOwnerLogicalFactId &&
+			it.semanticRevision == dependent.aggregateOwnerSemanticRevision }
+		val reader = RoomSourceFactLookupReader(database, UnconfinedTestDispatcher(), BootClockDomainProvider { BOOT_ID })
+		assertIs<SourceFactLookupResult.Found>(reader.lookup(wifiFactLookupRequest(dependent)))
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_event_wal WHERE event_id = ?", arrayOf(owner.sourceEventId))
+		reader.lookup(wifiFactLookupRequest(dependent)) shouldBe
+			SourceFactLookupResult.Unavailable(SourceProofReason.IMMUTABLE_AUTHORITY_MISSING)
+		assertRecentWriterFailure()
+	}
+
+	private fun deniedV6CallbackGroup(input: Group): Group {
+		val original = v6RotatedGroup(input)
+		return original.copy(session = original.session.copy(finalAdmissionOrdinal = 0L),
+			runs = original.runs.map { run ->
+				val closing = run.authorizations.first { it.authorizationRevision == 3L }
+				val unsignedWal = run.admissions.single().copy(logicalTrackingId = null, serviceRunId = null,
+					configRevision = run.manifest.acquisitionPlanRevision, sourcePolicyRevision = null, captureConsentEpoch = null,
+					sessionManifestRevision = null, lifecycleLeaseGeneration = null, planAttribution = 2,
+					authorizationRevision = 3L, authorizationFingerprint = closing.authorizationFingerprint,
+					authorizationPurposeEligibilityMask = 0L,
+					receivedElapsedNanos = closing.effectiveElapsedRealtimeNanos + 1L,
+					receivedWallTimeMs = closing.effectiveWallTimeMs + 1L)
+				val wal = unsignedWal.copy(integrityIdentity = unsignedWal.calculatedIntegrityIdentity())
+				val facts = run.facts.map { fact -> fact.copy(walIntegrityIdentity = wal.integrityIdentity,
+					receivedElapsedNanos = wal.receivedElapsedNanos).let {
+					it.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(it))
+				} }
+				run.copy(admissions = listOf(wal), facts = facts, cursors = listOf(cursor(facts.last())),
+					completeness = run.completeness?.copy(lastAdmissionOrdinal = null, lastSourceSequence = null))
+			})
 	}
 
 	private fun v6RotatedGroup(group: Group, excludeFirst: Boolean = false, excludeLast: Boolean = false): Group = group.copy(
@@ -1216,6 +1288,7 @@ class WifiHistoryRepositoryRoomTest {
 		partialResult: Boolean = false,
 		active: Boolean = false,
 		includeReuse: Boolean = false,
+		firstWallTimeMs: Long? = null,
 	): Group {
 		require(groupIndex > 0 && runCount > 0)
 		val logicalId = "logical-wifi-$groupIndex"
@@ -1225,7 +1298,7 @@ class WifiHistoryRepositoryRoomTest {
 				manifestRevision = local + 1L,
 				globalRevision = global,
 				runId = "wifi-run-$groupIndex-${local + 1}",
-				startWallMs = WALL_BASE_MS + groupIndex * 1_000_000L + local * RUN_DURATION_MS,
+				startWallMs = (firstWallTimeMs ?: (WALL_BASE_MS + groupIndex * 1_000_000L)) + local * RUN_DURATION_MS,
 				startElapsedNanos = 1_000_000_000L + groupIndex * 100_000_000_000L +
 					local * RUN_DURATION_NANOS,
 				hasFact = local in factRunIndexes,

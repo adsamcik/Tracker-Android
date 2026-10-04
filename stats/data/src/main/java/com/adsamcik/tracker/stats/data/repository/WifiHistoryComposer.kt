@@ -239,11 +239,20 @@ internal object WifiHistoryComposer {
 			return unavailable(logicalId, segments, zones,
 				WifiHistoryCause.RETENTION_LIMIT, capturesOnlyWifi)
 		}
-		val admissions = snapshot.admissions.filter { it.serviceRunId in runIds }
+		val admissionFactIds = related.mapTo(mutableSetOf(), WifiCapturedFactRevisionEntity::sourceEventId)
+		val admissions = snapshot.admissions.filter { it.serviceRunId in runIds || it.eventId in admissionFactIds }
 		if (admissions.any {
 				WifiWalCarrierAuthenticator.authenticate(it) !is
 					WifiWalCarrierAuthentication.Authenticated ||
-					!it.isValidHistoryCarrier(logicalId, snapshot, manifestsByRun, evidence)
+					!(if (it.payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
+					val members = snapshot.authorizationsByRegistration[it.registrationGeneration].orEmpty().filter { member ->
+						member.authorizationRevision <= requireNotNull(it.authorizationRevision) &&
+							member.purpose == SourceBrokerPurpose.SESSION_CAPTURE && member.persistenceEligible &&
+							member.logicalTrackingId == logicalId && member.serviceRunId in runIds
+					}.distinctBy { member -> member.demandId }
+					members.any { member -> it.isValidHistoryCarrier(logicalId, snapshot, manifestsByRun, evidence,
+						snapshot.authorizationsByRegistration[it.registrationGeneration].orEmpty().last { row -> row.demandId == member.demandId && row.authorizationRevision <= requireNotNull(it.authorizationRevision) }) }
+				} else it.isValidHistoryCarrier(logicalId, snapshot, manifestsByRun, evidence))
 			}
 		) {
 			return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
@@ -260,14 +269,19 @@ internal object WifiHistoryComposer {
 			completeness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull(),
 			admissions.maxOfOrNull(SourceEventWalEntity::admissionOrdinal),
 		).maxOrNull()
-		if (!hasValidSessionSettlement(session, runs, manifestsByRun, targetOrdinal) ||
+		val legacyTargetOrdinal = listOfNotNull(
+			related.filter { it.payloadVersion != WIFI_WAL_PAYLOAD_VERSION }.maxOfOrNull { it.sourceAdmissionOrdinal },
+			completeness.mapNotNull { it.lastAdmissionOrdinal }.maxOrNull(),
+			admissions.filter { it.payloadVersion != WIFI_WAL_PAYLOAD_VERSION }.maxOfOrNull { it.admissionOrdinal },
+		).maxOrNull()
+		if (!hasValidSessionSettlement(session, runs, manifestsByRun, legacyTargetOrdinal) ||
 			targetOrdinal?.let { it < lane.activationOrdinal ||
 				lane.captureAdmissionCutoffOrdinal?.let { cutoff -> cutoff < it } == true } == true ||
 			snapshot.terminalFailures.isNotEmpty()
 		) return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
 
 		val current = mutableListOf<Pair<WifiCapturedFactRevisionEntity, WifiCapturedFactRevisionEntity>>()
-		val factOwnerByEvent = linkedMapOf<String, String>()
+		val factOwnerByEvent = linkedMapOf<Pair<String, Long>, String>()
 		for ((_, lineage) in related.groupBy(WifiCapturedFactRevisionEntity::logicalFactId)) {
 			val latest = validateLineage(lineage.sortedBy(WifiCapturedFactRevisionEntity::semanticRevision), snapshot)
 				?: return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED)
@@ -280,20 +294,31 @@ internal object WifiHistoryComposer {
 				snapshot.childrenByRevision[latest.logicalFactId to latest.semanticRevision].orEmpty(),
 			)
 				as? WifiWalCarrierAuthentication.Authenticated
+			val aggregateWal = admissionsByEventId[aggregate.sourceEventId]
+				?: return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
+			val aggregateWalAuthentication = WifiWalCarrierAuthenticator.authenticate(
+				aggregate, aggregateWal,
+				snapshot.childrenByRevision[aggregate.logicalFactId to aggregate.semanticRevision].orEmpty(),
+			) as? WifiWalCarrierAuthentication.Authenticated
 			if (admissionsByOrdinal[latest.sourceAdmissionOrdinal] != wal ||
 				admissionsByDelivery[latest.sourceDeliveryIdentity] != wal ||
 				walAuthentication == null ||
+				admissionsByOrdinal[aggregate.sourceAdmissionOrdinal] != aggregateWal ||
+				admissionsByDelivery[aggregate.sourceDeliveryIdentity] != aggregateWal ||
+				aggregateWalAuthentication == null ||
+				!WifiWalCarrierAuthenticator.authenticatesAggregate(aggregate, aggregateWalAuthentication.carrier) ||
 				!WifiWalCarrierAuthenticator.authenticatesAggregate(
 					aggregate,
 					walAuthentication.carrier,
 					latest,
 				)
 			) return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
-			val priorFact = factOwnerByEvent.putIfAbsent(latest.sourceEventId, latest.logicalFactId)
+			val priorFact = factOwnerByEvent.putIfAbsent(latest.sourceEventId to latest.manifestRevision, latest.logicalFactId)
 			if (priorFact != null && priorFact != latest.logicalFactId) {
 				return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
 			}
-			if (!factHasExactAuthority(latest, aggregate, snapshot, manifestsByRun, bindings, evidence)) {
+			if (!factHasExactAuthority(latest, aggregate, snapshot, manifestsByRun, bindings, evidence) ||
+				!factHasExactAuthority(aggregate, aggregate, snapshot, manifestsByRun, bindings, evidence)) {
 				return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
 			}
 			if (latest.logicalFactId in carriedFactIds) current += latest to aggregate
@@ -443,16 +468,18 @@ internal object WifiHistoryComposer {
 			result.acceptedIndexesByDemandId)
 	}
 
-	private fun RadioPurposeItems.captureIndexes(wal: SourceEventWalEntity): List<Int>? {
-		val member = historicalMembers().singleOrNull { member ->
+	private fun RadioPurposeItems.captureIndexes(
+		logicalId: String, runId: String, manifestRevision: Long, lease: Long, policy: Long, consent: Long,
+		authorizationRevision: Long,
+	): List<Int>? {
+		val member = authorizationTimeline.flatMap { it.authorizedMembers }.singleOrNull { member ->
 			member.purpose == SourceBrokerPurpose.SESSION_CAPTURE && member.persistenceEligible &&
-				member.logicalTrackingId == wal.logicalTrackingId && member.serviceRunId == wal.serviceRunId &&
-				member.manifestRevision == wal.sessionManifestRevision &&
-				member.lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration &&
-				member.sourcePolicyRevision == wal.sourcePolicyRevision && member.consentEpoch == wal.captureConsentEpoch &&
-				member.demandId?.let { forDemand(it).isNotEmpty() } == true
+				member.authorizationRevision == authorizationRevision &&
+				member.logicalTrackingId == logicalId && member.serviceRunId == runId &&
+				member.manifestRevision == manifestRevision && member.lifecycleLeaseGeneration == lease &&
+				member.sourcePolicyRevision == policy && member.consentEpoch == consent
 		} ?: return null
-		return forDemand(requireNotNull(member.demandId))
+		return forDemand(requireNotNull(member.demandId)).takeIf { it.isNotEmpty() }
 	}
 
 	private fun SourceEventWalEntity.isValidHistoryCarrier(
@@ -460,16 +487,18 @@ internal object WifiHistoryComposer {
 		snapshot: WifiHistorySnapshot,
 		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 		evidence: SourceEvidenceState,
+		historicalMember: SourceAuthorizationEntity? = null,
 	): Boolean {
-		val manifestRevision = sessionManifestRevision ?: return false
-		val policyRevision = sourcePolicyRevision ?: return false
-		val consentEpoch = captureConsentEpoch ?: return false
-		val lease = lifecycleLeaseGeneration ?: return false
-		val manifest = manifestsByRun[serviceRunId].orEmpty()
+		val manifestRevision = historicalMember?.manifestRevision ?: sessionManifestRevision ?: return false
+		val policyRevision = historicalMember?.sourcePolicyRevision ?: sourcePolicyRevision ?: return false
+		val consentEpoch = historicalMember?.consentEpoch ?: captureConsentEpoch ?: return false
+		val lease = historicalMember?.lifecycleLeaseGeneration ?: lifecycleLeaseGeneration ?: return false
+		val ownedRun = historicalMember?.serviceRunId ?: serviceRunId ?: return false
+		val manifest = manifestsByRun[ownedRun].orEmpty()
 			.singleOrNull { it.manifestRevision == manifestRevision } ?: return false
 		val binding = snapshot.sourcesByManifest[WifiManifestKey(logicalId, manifestRevision)].orEmpty()
 			.singleOrNull(::isWifiCaptureMembership) ?: return false
-		val plan = configRevision?.let(snapshot.desiredPlans::get)?.let(WifiHistoryPlanIntegrity::decode)
+		val plan = manifest.acquisitionPlanRevision.let(snapshot.desiredPlans::get)?.let(WifiHistoryPlanIntegrity::decode)
 			?: return false
 		val provider = snapshot.providerRegistrations[registrationGeneration] ?: return false
 		val providerTimes = if (payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
@@ -503,15 +532,15 @@ internal object WifiHistoryComposer {
 		) as? ProviderRegistrationIntervalAuthentication.Authenticated ?: return false
 		val providerStart = providerAuthentication.interval.startInclusiveNanos
 		val providerEnd = providerAuthentication.interval.endExclusiveNanos
-		val authorizationRevision = authorizationRevision ?: return false
+		val selectedAuthorizationRevision = historicalMember?.authorizationRevision ?: authorizationRevision ?: return false
 		val authorization = snapshot.authorizationsByRegistration[registrationGeneration].orEmpty()
-			.filter { it.authorizationRevision == authorizationRevision }
+			.filter { it.authorizationRevision == selectedAuthorizationRevision }
 		val purposeItems = if (payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
 			snapshot.qualifyPurposeItems(this, providerStart, providerEnd, plan) ?: return false
 		} else null
 		if (purposeItems == null &&
 			!hasExactWalAuthorization(this, authorization, snapshot.demands, providerEnd, plan)) return false
-		val indexes = purposeItems?.captureIndexes(this) ?: if (purposeItems != null) return false else null
+		val indexes = purposeItems?.captureIndexes(logicalId, ownedRun, manifestRevision, lease, policyRevision, consentEpoch, selectedAuthorizationRevision) ?: if (purposeItems != null) return false else null
 		val carrier = if (indexes != null) (WifiWalCarrierAuthenticator.authenticate(this)
 			as? WifiWalCarrierAuthentication.Authenticated)?.carrier ?: return false else null
 		val qualifiedTimes = indexes?.map { requireNotNull(carrier).payload.observations[it].providerTimestampNanos
@@ -524,11 +553,11 @@ internal object WifiHistoryComposer {
 			.asSequence().filter { it.effectiveBootId == clockDomainId &&
 				(it.effectiveElapsedRealtimeNanos > callbackStart ||
 					it.effectiveElapsedRealtimeNanos == callbackStart &&
-						it.authorizationRevision > authorizationRevision) }
+						it.authorizationRevision > selectedAuthorizationRevision) }
 			.minWithOrNull(compareBy(SourceAuthorizationEntity::effectiveElapsedRealtimeNanos,
 				SourceAuthorizationEntity::authorizationRevision))?.effectiveElapsedRealtimeNanos ?: Long.MAX_VALUE
 		val authorizationEnd = minOf(providerEnd, nextAuthorization)
-		val action = snapshot.startActions.singleOrNull { it.serviceRunId == serviceRunId &&
+		val action = snapshot.startActions.singleOrNull { it.serviceRunId == ownedRun &&
 			it.manifestRevision == manifestRevision } ?: return false
 		val appliedAt = maxOf(providerStart, if (purposeItems != null) manifest.effectiveElapsedRealtimeNanos
 			else authorizationStart)
@@ -540,14 +569,14 @@ internal object WifiHistoryComposer {
 			Math.subtractExact(observedElapsedNanos, observedStart) / NANOS_PER_MILLISECOND), uncertainty) }
 			.getOrNull() ?: return false
 		return sourceKind == WIFI_SOURCE && admissionOrdinal > 0L && sourceInstanceId.isNotBlank() &&
-			registrationGeneration > 0L && sourceSequence >= 0L && this.logicalTrackingId == logicalId &&
-			serviceRunId == manifest.serviceRunId && configRevision == manifest.acquisitionPlanRevision &&
+			registrationGeneration > 0L && sourceSequence >= 0L && (historicalMember?.logicalTrackingId ?: this.logicalTrackingId) == logicalId &&
+			ownedRun == manifest.serviceRunId && (payloadVersion == WIFI_WAL_PAYLOAD_VERSION || configRevision == manifest.acquisitionPlanRevision) &&
 			plan.enabled && plan.physicalFingerprint == physicalConfigurationFingerprint &&
-			authorizationRevision > 0L &&
+			selectedAuthorizationRevision > 0L &&
 			(purposeItems != null || authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L) &&
-			LOWERCASE_SHA_256.matches(authorizationFingerprint.orEmpty()) && planAttribution == CAPTURED_PLAN_ORDINAL &&
+			LOWERCASE_SHA_256.matches(authorizationFingerprint.orEmpty()) && (payloadVersion == WIFI_WAL_PAYLOAD_VERSION || planAttribution == CAPTURED_PLAN_ORDINAL) &&
 			clockDomainId == manifest.effectiveBootId && policyRevision == manifest.sourcePolicyRevision &&
-			consentEpoch == binding.consentEpoch && lease == snapshot.runs[serviceRunId]?.leaseGeneration &&
+			consentEpoch == binding.consentEpoch && lease == snapshot.runs[ownedRun]?.leaseGeneration &&
 			capturedCollectedDataEpoch == evidence.collectedDataEpoch &&
 			admissionOrdinal > evidence.deletedSourceEventHighWaterOrdinal && deliveryUnitIndex == 0 &&
 			deliveryUnitCount == 1 && LOWERCASE_SHA_256.matches(deliveryIdentity.orEmpty()) &&
@@ -562,9 +591,10 @@ internal object WifiHistoryComposer {
 			providerStart <= observedStart &&
 			observedEnd < providerEnd && authorizationStart <= observedStart &&
 			observedEnd < authorizationEnd && manifest.effectiveElapsedRealtimeNanos <= observedStart &&
-			action.authenticates(this, manifest, appliedAt, observedStart) &&
-			(snapshot.deletionGenerations[logicalId to serviceRunId]?.generation ?: 0L) == 0L &&
-			(logicalId to serviceRunId) !in snapshot.deletedScopes && earliestWall >= 0L &&
+			(if (historicalMember != null) action.authenticatesHistorical(this, manifest, historicalMember, appliedAt, observedStart)
+				else action.authenticates(this, manifest, appliedAt, observedStart)) &&
+			(snapshot.deletionGenerations[logicalId to ownedRun]?.generation ?: 0L) == 0L &&
+			(logicalId to ownedRun) !in snapshot.deletedScopes && earliestWall >= 0L &&
 			evidence.retainedFromMs?.let { earliestWall >= it } != false
 	}
 
@@ -737,7 +767,8 @@ internal object WifiHistoryComposer {
 		val authorizations = snapshot.authorizationsByRegistration[fact.registrationGeneration].orEmpty()
 		val purposeItems = if (perReading) snapshot.qualifyPurposeItems(wal, providerStart, providerEnd, plan)
 			?: return false else null
-		val qualifiedIndexes = purposeItems?.captureIndexes(wal) ?: if (perReading) return false else null
+		val qualifiedIndexes = purposeItems?.captureIndexes(fact.logicalTrackingId, fact.serviceRunId, fact.manifestRevision,
+			fact.lifecycleLeaseGeneration, fact.sourcePolicyRevision, fact.captureConsentEpoch, fact.authorizationRevision) ?: if (perReading) return false else null
 		val rawCarrier = if (perReading) (WifiWalCarrierAuthenticator.authenticate(wal)
 			as? WifiWalCarrierAuthentication.Authenticated)?.carrier ?: return false else null
 		val qualifiedStart = qualifiedIndexes?.minOf { index ->
@@ -861,7 +892,7 @@ internal object WifiHistoryComposer {
 		val contractsMatch = exactDemands.all { demand ->
 			demand.hasCompatibleWifiPhysicalContract(plan, fact.clockDomainId)
 		}
-		return (perReading || captureMemberCount == 1) && contractsMatch &&
+		return captureMemberCount == 1 && contractsMatch &&
 			minOf(providerEnd, next) == fact.authorizationEffectEndNanos
 	}
 
@@ -887,13 +918,31 @@ internal object WifiHistoryComposer {
 			serviceRunId == fact.serviceRunId && manifestRevision == fact.manifestRevision &&
 			desiredPlanRevision == fact.configurationRevision && sourcePolicyRevision == fact.sourcePolicyRevision &&
 			consentEpoch == fact.captureConsentEpoch && startOrigin == manifest.startOrigin &&
-			startOrigin == run.startOrigin && bootId == fact.clockDomainId &&
+			(manifest.manifestRevision != run.preparedManifestRevision || startOrigin == run.startOrigin) && bootId == fact.clockDomainId &&
 			leaseGeneration == fact.lifecycleLeaseGeneration && sourceInstanceId == fact.sourceInstanceId &&
 			registrationGeneration == fact.registrationGeneration && requestedAtMs == manifest.effectiveWallTimeMs &&
 			acknowledgedWall >= requestedAtMs &&
 			requestedElapsedRealtimeNanos == manifest.effectiveElapsedRealtimeNanos &&
 			requestedElapsedRealtimeNanos <= appliedAt && appliedAt <= acknowledgedElapsed &&
 			appliedAt <= firstQualifiedNanos
+	}
+
+	private fun LifecycleDesiredActionEntity.authenticatesHistorical(
+		wal: SourceEventWalEntity, manifest: SessionManifestVersionEntity, member: SourceAuthorizationEntity,
+		appliedAt: Long, firstQualified: Long,
+	): Boolean {
+		val acknowledgedWall = acknowledgedAtMs ?: return false
+		val acknowledgedElapsed = acknowledgedElapsedRealtimeNanos ?: return false
+		return actionRevision > 0L && actionFamily == "SOURCE_RUNTIME" && sourceKind == WIFI_SOURCE &&
+			desiredState == "STARTED" && status == "START_ACCEPTED" && attemptCount > 0 &&
+			failureCode == null && retryTrigger == null && logicalTrackingId == member.logicalTrackingId &&
+			serviceRunId == member.serviceRunId && manifestRevision == member.manifestRevision &&
+			desiredPlanRevision == manifest.acquisitionPlanRevision && sourcePolicyRevision == member.sourcePolicyRevision &&
+			consentEpoch == member.consentEpoch && startOrigin == manifest.startOrigin && bootId == wal.clockDomainId &&
+			leaseGeneration == member.lifecycleLeaseGeneration && sourceInstanceId == wal.sourceInstanceId &&
+			registrationGeneration == wal.registrationGeneration && requestedAtMs == manifest.effectiveWallTimeMs &&
+			requestedElapsedRealtimeNanos == manifest.effectiveElapsedRealtimeNanos && acknowledgedWall >= requestedAtMs &&
+			requestedElapsedRealtimeNanos <= appliedAt && appliedAt <= acknowledgedElapsed && appliedAt <= firstQualified
 	}
 
 	private fun toObservation(
@@ -1019,7 +1068,8 @@ internal object WifiHistoryComposer {
 			val ownedAdmissions = admissions.filter {
 				it.serviceRunId == row.serviceRunId &&
 					it.sourceInstanceId == row.sourceInstanceId &&
-					it.registrationGeneration == row.registrationGeneration
+					it.registrationGeneration == row.registrationGeneration &&
+					(it.payloadVersion != WIFI_WAL_PAYLOAD_VERSION || row.lastAdmissionOrdinal?.let { end -> it.admissionOrdinal <= end } == true)
 			}
 			if (ownedAdmissions.isEmpty()) {
 				row.lastAdmissionOrdinal == null && row.lastSourceSequence == null

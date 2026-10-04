@@ -1,0 +1,156 @@
+[
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "actual v6 Wi-Fi ingress after End saves both historical sessions from a denied callback",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "Wi-Fi callback owned by the next session does not lend its consent to the previous scan",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "malformed Wi-Fi item cannot hide independently valid historical session scans",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "cancellation after first historical Wi-Fi group rolls back all siblings and lane progress",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "an unchanged Wi-Fi authorization rotation preserves historical scans inside the same demand",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "source erase accepts retained Wi-Fi policy siblings inside one run and keeps raw collision fencing",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "deleting one historical Wi-Fi session cannot discard a valid sibling in the same callback",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "failed historical Wi-Fi delivery is not settled by its denied callback header",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "an ended Wi-Fi session with no callbacks exports while another capture keeps the physical owner",
+    "execution": "NOT_RUN",
+    "repair": "Fixture now stores exact acknowledged run retirement and leaves another actual session ACTIVE."
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "retention of an earlier Wi-Fi group keeps the later measured group exportable and replayable",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "Wi-Fi lifecycle cannot reuse an aggregate whose required network child was removed",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "native Wi-Fi policy change inside one run retains both groups and source erase accepts their receipts",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+    "case": "denied v6 callback after End keeps Wi-Fi native history and exact fact lookup",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+    "case": "late Wi-Fi history keeps each saved network on its own local date across midnight",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+    "case": "exact Wi-Fi lookup cannot borrow an aggregate whose own provider delivery is missing",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "acknowledged empty Wi-Fi session exports while independent background tracking stays active",
+    "slice": "W1 retirement acknowledgement repair",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "empty shared Wi-Fi session cannot export before its retirement acknowledgement exists",
+    "slice": "W1 retirement acknowledgement repair",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "empty shared Wi-Fi session cannot export with only a requested retirement",
+    "slice": "W1 retirement acknowledgement repair",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "empty shared Wi-Fi session rejects a retirement from an older lease",
+    "slice": "W1 retirement acknowledgement repair",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "empty shared Wi-Fi session rejects a retirement cutoff different from its final closing",
+    "slice": "W1 retirement acknowledgement repair",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "empty shared Wi-Fi session rejects a retirement tail not present in completeness",
+    "slice": "W1 retirement acknowledgement repair",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "shared Wi-Fi session rejects an acknowledgement with failed admission",
+    "slice": "W1 retirement acknowledgement repair",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "shared Wi-Fi session rejects an acknowledgement with unresolved callbacks",
+    "slice": "W1 retirement acknowledgement repair",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "shared Wi-Fi session requires a completed callback drain",
+    "slice": "W1 retirement acknowledgement repair",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "shared Wi-Fi session cannot borrow a later sibling snapshot instead of its final closing",
+    "slice": "W1 retirement acknowledgement repair",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "shared Wi-Fi callback prefix exports only when its acknowledged tail matches",
+    "slice": "W1 retirement acknowledgement repair",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "shared Wi-Fi callback prefix cannot outrun its acknowledged entry barrier",
+    "slice": "W1 retirement acknowledgement repair",
+    "execution": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "case": "shared Wi-Fi settlement preserves earlier policy windows before its final cutoff",
+    "slice": "W1 retirement acknowledgement repair",
+    "execution": "NOT_RUN"
+  }
+]

@@ -91,6 +91,14 @@ recorded separately from implementation and source review.
 
 ## Questions presented, awaiting answers
 
+- [ ] Repair the Start acceptance lock order with existing coordination in two
+  steps: service/Room acceptance under the existing startup/Stop lease, then exact
+  current-command publication of resumed collection. A newer Start/End/Off rejects
+  publication and compensates only the original prepared attempt. Durable Off
+  remains saved until publication. No new locking system. Presented in the
+  October 4 asynchronous startup-coordination question; no answer or implicit
+  approval is assumed.
+
 - [ ] Show an export-settings load error with Retry and disable only affected
   settings controls, preserving unreadable bytes and other tracking/data surfaces.
 - [ ] Retire an old unfinished notice before reusing its exact external file and

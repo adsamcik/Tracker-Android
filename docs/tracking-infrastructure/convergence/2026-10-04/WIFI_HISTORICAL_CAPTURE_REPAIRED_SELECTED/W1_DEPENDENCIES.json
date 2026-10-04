@@ -1,0 +1,36 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "SOURCE_PINS_ONLY",
+  "dependencyInputs": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceRunRetirementEntity.kt",
+      "sha256": "d0d8d012fd7eb467a78b641acac77501bc99332057ab18c87e8a625446c96468",
+      "bytes": 16391,
+      "inputKind": "frozen current read context, not a Git-state or staging assertion"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceSessionEntities.kt",
+      "sha256": "e678a30f4da0008411c3c2bb592900e7a390040198fd0a3201476be40e8f31d0",
+      "bytes": 47535,
+      "inputKind": "frozen current read context, not a Git-state or staging assertion"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt",
+      "sha256": "e557fda96b0ce3060f282d04769e5b065456b550726e56f23c38d7ac556f1208",
+      "bytes": 45648,
+      "inputKind": "frozen current read context, not a Git-state or staging assertion"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt",
+      "sha256": "466f426a9fe9c685660b3a48bd922d17db30a491a0957ddefe829572c0a342ed",
+      "bytes": 90043,
+      "inputKind": "frozen current read context, not a Git-state or staging assertion"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt",
+      "sha256": "ed66597ecb12603de050ecdd6d10045e1cfc10cc9bb06b602d4417a2bd8fb631",
+      "bytes": 190294,
+      "inputKind": "frozen current read context, not a Git-state or staging assertion"
+    }
+  ]
+}

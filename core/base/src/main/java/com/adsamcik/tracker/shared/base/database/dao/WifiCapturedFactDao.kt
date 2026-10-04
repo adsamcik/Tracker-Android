@@ -179,24 +179,34 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<WifiCapturedFactRevisionEntity>
 
-	/** Indexed bounded reverse lookup from one immutable Wi-Fi admission to its fact lineage. */
+	/** Indexed bounded reverse lookup from one immutable Wifi admission to its fact lineage. */
 	@Query(
 		"SELECT * FROM wifi_captured_fact_revision WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion " +
-			"AND source_admission_ordinal = :sourceAdmissionOrdinal LIMIT :limit",
+			"AND source_admission_ordinal = :sourceAdmissionOrdinal " +
+			"AND (:logicalTrackingId IS NULL OR logical_tracking_id = :logicalTrackingId) " +
+			"AND (:serviceRunId IS NULL OR service_run_id = :serviceRunId) " +
+			"AND (:sourcePolicyRevision IS NULL OR source_policy_revision = :sourcePolicyRevision) " +
+			"AND (:captureConsentEpoch IS NULL OR capture_consent_epoch = :captureConsentEpoch) " +
+			"ORDER BY logical_fact_id, semantic_revision LIMIT :limit",
 	)
 	suspend fun revisionsForWriterAdmission(
 		writerProjectionId: String,
 		writerProjectionVersion: Int,
 		sourceAdmissionOrdinal: Long,
 		limit: Int,
+		logicalTrackingId: String? = null,
+		serviceRunId: String? = null,
+		sourcePolicyRevision: Long? = null,
+		captureConsentEpoch: Long? = null,
 	): List<WifiCapturedFactRevisionEntity>
 
 	/**
 	 * Bounded reverse lookup of cursor-authenticated current heads for one immutable admission.
 	 *
-	 * An empty result with retained admission revisions means the cursor is absent or mismatched;
-	 * multiple rows mean the admission ambiguously claims more than one current fact lineage.
+	 * An empty result with retained admission revisions means the cursor is absent or mismatched.
+	 * One admission can legitimately have independent historical session facts. Callers that
+	 * require one lineage must select its run and consent before applying the bound.
 	 */
 	@Query(
 		"SELECT revision.* FROM wifi_captured_fact_revision AS revision " +
@@ -218,13 +228,22 @@ interface WifiCapturedFactDao {
 			"AND fact_cursor.updated_at_ms = revision.applied_at_ms " +
 			"WHERE revision.writer_projection_id = :writerProjectionId " +
 			"AND revision.writer_projection_version = :writerProjectionVersion " +
-			"AND revision.source_admission_ordinal = :sourceAdmissionOrdinal LIMIT :limit",
+			"AND revision.source_admission_ordinal = :sourceAdmissionOrdinal " +
+			"AND (:logicalTrackingId IS NULL OR revision.logical_tracking_id = :logicalTrackingId) " +
+			"AND (:serviceRunId IS NULL OR revision.service_run_id = :serviceRunId) " +
+			"AND (:sourcePolicyRevision IS NULL OR revision.source_policy_revision = :sourcePolicyRevision) " +
+			"AND (:captureConsentEpoch IS NULL OR revision.capture_consent_epoch = :captureConsentEpoch) " +
+			"ORDER BY revision.logical_fact_id, revision.semantic_revision LIMIT :limit",
 	)
 	suspend fun currentRevisionsForWriterAdmission(
 		writerProjectionId: String,
 		writerProjectionVersion: Int,
 		sourceAdmissionOrdinal: Long,
 		limit: Int,
+		logicalTrackingId: String? = null,
+		serviceRunId: String? = null,
+		sourcePolicyRevision: Long? = null,
+		captureConsentEpoch: Long? = null,
 	): List<WifiCapturedFactRevisionEntity>
 
 	@Query(
@@ -885,9 +904,11 @@ interface WifiCapturedFactDao {
 
 	@Query(
 		"SELECT * FROM source_event_wal WHERE source_kind = :sourceKind " +
-			"AND service_run_id IN (:serviceRunIds) AND session_manifest_revision IS NOT NULL " +
+			"AND ((service_run_id IN (:serviceRunIds) AND session_manifest_revision IS NOT NULL " +
 			"AND capture_consent_epoch IS NOT NULL " +
-			"AND (authorization_purpose_eligibility_mask & :capturePurposeMask) != 0 " +
+			"AND (authorization_purpose_eligibility_mask & :capturePurposeMask) != 0) " +
+			"OR EXISTS (SELECT 1 FROM wifi_captured_fact_revision AS fact " +
+			"WHERE fact.source_event_id = source_event_wal.event_id AND fact.service_run_id IN (:serviceRunIds))) " +
 			"ORDER BY service_run_id, admission_ordinal LIMIT :limit",
 	)
 	suspend fun historyAdmissionWal(

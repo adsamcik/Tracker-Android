@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -420,7 +421,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				val retainedEventProofs = loadSourceEventRetentionProofsForSourceErase(limits)
 				val retainedScopeProofs = loadSourceEventRetentionScopeProofsForSourceErase(limits)
 				val scopeAuthorities = linkedMapOf<WifiCapturedRunScope, RetainedCaptureScopeIdentity>()
-				val eventAuthorities = mutableMapOf<Pair<String, String>, RetainedCaptureEventIdentity>()
+				val eventAuthorities = mutableMapOf<List<Any>, RetainedCaptureEventIdentity>()
 				val rawEventIdentities = mutableMapOf<String, Pair<Long, String>>()
 				fun registerScope(
 					identity: RetainedCaptureScopeIdentity,
@@ -451,7 +452,8 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 							block(WifiCapturedSourceDeletionBlockedReason.DELETION_FENCE_CONFLICT)
 						}
 						val retained = eventAuthorities.putIfAbsent(
-							eventIdentity.eventId to eventIdentity.scope.logicalRunScopeDigest,
+							listOf(eventIdentity.eventId, eventIdentity.scope.logicalRunScopeDigest,
+								eventIdentity.sourcePolicyRevision, eventIdentity.captureConsentEpoch),
 							eventIdentity,
 						)
 						if (retained != null && retained != eventIdentity) {
@@ -462,7 +464,8 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				for (scope in audit.lineages.map(WifiCapturedLineage::scope) + audit.wal.scopes) {
 					registerScope(scope.retainedIdentity(expectedCollectedDataEpoch))
 				}
-				for ((eventId, wal) in audit.wal.captureByEventId) {
+				for (wal in audit.wal.captureByEventId.values.flatten()) {
+					val eventId = wal.evidence.sourceEventId.value
 					val scope = wal.scope.retainedIdentity(expectedCollectedDataEpoch)
 					registerScope(
 						scope,
@@ -758,7 +761,13 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			if (latest.collectedDataEpoch != evidence.collectedDataEpoch ||
 				latest.sourceAdmissionOrdinal <= evidence.deletedSourceEventHighWaterOrdinal
 			) block(WifiCapturedRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
-			val walAuthority = wal.captureByEventId[latest.sourceEventId]
+			val walAuthority = wal.captureByEventId[latest.sourceEventId]?.singleOrNull {
+				it.authority.logicalTrackingId.value == latest.logicalTrackingId &&
+					it.authority.serviceRunId.value == latest.serviceRunId &&
+					it.authority.sessionManifestRevision == latest.manifestRevision &&
+					it.authority.sourcePolicyRevision == latest.sourcePolicyRevision &&
+					it.authority.captureConsentEpoch == latest.captureConsentEpoch
+			}
 				?: block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 			if (!latest.matchesAuthenticatedWal(walAuthority)) {
 				block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
@@ -864,7 +873,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			completeness,
 		)
 
-		val captureByEventId = linkedMapOf<String, AuthenticatedWifiWal>()
+		val captureByEventId = linkedMapOf<String, List<AuthenticatedWifiWal>>()
 		val settlementByAdmissionOrdinal = linkedMapOf<Long, WifiPortableWalSettlement>()
 		val scopes = linkedSetOf<WifiCapturedRunScope>()
 		var latestDurableTimeMs = 0L
@@ -897,17 +906,17 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				wifiProviderDeliveryIdentity(wal.clockDomainId, payload.accessPoints, wal.payloadVersion).value !=
 					wal.deliveryIdentity
 			) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-			if (!captureEligible) {
+			if (!captureEligible && wal.payloadVersion != WIFI_WAL_PAYLOAD_VERSION) {
 				authenticateNoncaptureWal(wal, limits, portableAuthority)
 				settlementByAdmissionOrdinal[wal.admissionOrdinal] = WifiPortableWalSettlement(
 					wal.sourceInstanceId,
 					wal.registrationGeneration,
 					wal.sourceSequence,
-					null,
+					emptySet(),
 				)
 				continue
 			}
-			val authenticated = authenticateCaptureWal(wal, payload, evidence, limits, portableAuthority)
+			val authenticated = authenticateCaptureGroups(wal, payload, evidence, limits, portableAuthority)
 			if (captureByEventId.put(wal.eventId, authenticated) != null) {
 				block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 			}
@@ -915,9 +924,9 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				wal.sourceInstanceId,
 				wal.registrationGeneration,
 				wal.sourceSequence,
-				authenticated.scope,
+				authenticated.mapTo(linkedSetOf()) { it.scope },
 			)
-			scopes += authenticated.scope
+			scopes += authenticated.map { it.scope }
 			latestDurableTimeMs = maxOf(latestDurableTimeMs, wal.createdAtMs)
 		}
 		if (settlementByAdmissionOrdinal.size != rows.size) {
@@ -1234,7 +1243,13 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			if (latest.collectedDataEpoch != evidence.collectedDataEpoch ||
 				latest.sourceAdmissionOrdinal <= evidence.deletedSourceEventHighWaterOrdinal
 			) block(WifiCapturedRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
-			val walAuthority = wal.captureByEventId[latest.sourceEventId]
+			val walAuthority = wal.captureByEventId[latest.sourceEventId]?.singleOrNull {
+				it.authority.logicalTrackingId.value == latest.logicalTrackingId &&
+					it.authority.serviceRunId.value == latest.serviceRunId &&
+					it.authority.sessionManifestRevision == latest.manifestRevision &&
+					it.authority.sourcePolicyRevision == latest.sourcePolicyRevision &&
+					it.authority.captureConsentEpoch == latest.captureConsentEpoch
+			}
 				?: block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 			if (!latest.matchesAuthenticatedWal(walAuthority)) {
 				block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
@@ -1502,7 +1517,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 		val dao = database.wifiCapturedFactDao()
 		val total = dao.maintenanceWalCount(WIFI_SOURCE)
 		if (total > limits.maximumWalEvents) throw WifiCapturedMaintenanceLimitExceeded()
-		val captureByEventId = linkedMapOf<String, AuthenticatedWifiWal>()
+		val captureByEventId = linkedMapOf<String, List<AuthenticatedWifiWal>>()
 		val scopes = linkedSetOf<WifiCapturedRunScope>()
 		var afterAdmissionOrdinal = 0L
 		var loaded = 0
@@ -1556,16 +1571,16 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 					wifiProviderDeliveryIdentity(wal.clockDomainId, payload.accessPoints, wal.payloadVersion).value !=
 						wal.deliveryIdentity
 				) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-				if (!captureEligible) {
+				if (!captureEligible && wal.payloadVersion != WIFI_WAL_PAYLOAD_VERSION) {
 					authenticateNoncaptureWal(wal, limits)
 					checkpoint(WifiCapturedMaintenanceCheckpoint.WAL_AUTHENTICATED)
 					continue
 				}
-				val authenticated = authenticateCaptureWal(wal, payload, evidence, limits)
+				val authenticated = authenticateCaptureGroups(wal, payload, evidence, limits)
 				if (captureByEventId.put(wal.eventId, authenticated) != null) {
 					block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 				}
-				scopes += authenticated.scope
+				scopes += authenticated.map { it.scope }
 				latestDurableTimeMs = maxOf(latestDurableTimeMs, wal.createdAtMs)
 				checkpoint(WifiCapturedMaintenanceCheckpoint.WAL_AUTHENTICATED)
 			}
@@ -1818,6 +1833,38 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 		) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	}
 
+	private suspend fun authenticateCaptureGroups(
+		wal: SourceEventWalEntity,
+		payload: WifiResultSnapshotPayload,
+		evidence: SourceEvidenceState,
+		limits: WifiCapturedMaintenanceLimits,
+		portable: WifiPortableAuthoritySnapshot? = null,
+	): List<AuthenticatedWifiWal> {
+		if (wal.payloadVersion != WIFI_WAL_PAYLOAD_VERSION) return listOf(
+			authenticateCaptureWal(wal, payload, evidence, limits, portable),
+		)
+		val registration = if (portable != null) portable.registrationsByGeneration[wal.registrationGeneration]
+			else database.sourceBrokerDao().registration(WIFI_SOURCE, wal.registrationGeneration)
+		val start = registration?.acceptedElapsedRealtimeNanos
+			?: block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		val end = registration.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE
+		val decoded = (WifiWalPayloadCodec.decodeCanonical(wal.payloadVersion, wal.payload)
+			as? WifiWalPayloadDecodeResult.Decoded)?.payload
+			?: block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		val items = (if (portable != null) portable.qualifyPurposeItems(wal, decoded, start, end)
+			else database.qualifyWifiPurposeItems(wal, decoded, start, end))
+			?: block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		val members = items.historicalMembers().filter {
+			it.purpose == CAPTURE_PURPOSE && it.persistenceEligible &&
+				items.forDemand(requireNotNull(it.demandId)).isNotEmpty() &&
+				(portable == null || it.logicalTrackingId == portable.session.logicalTrackingId &&
+					it.serviceRunId in portable.runsById)
+		}.map { member ->
+			items.authorizationTimeline.flatMap { it.authorizedMembers }.last { it.demandId == member.demandId }
+		}
+		return members.map { authenticateCaptureWal(wal, payload, evidence, limits, portable, it, items) }
+	}
+
 	@Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition")
 	private suspend fun authenticateCaptureWal(
 		wal: SourceEventWalEntity,
@@ -1825,17 +1872,20 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 		evidence: SourceEvidenceState,
 		limits: WifiCapturedMaintenanceLimits,
 		portable: WifiPortableAuthoritySnapshot? = null,
+		historicalMember: SourceAuthorizationEntity? = null,
+		knownPurposeItems: RadioPurposeItems? = null,
 	): AuthenticatedWifiWal {
 		val perReading = wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION
-		val logicalTrackingId = wal.logicalTrackingId
-		val serviceRunId = wal.serviceRunId
-		val policyRevision = wal.sourcePolicyRevision
-		val consentEpoch = wal.captureConsentEpoch
-		val manifestRevision = wal.sessionManifestRevision
-		val leaseGeneration = wal.lifecycleLeaseGeneration
+		val logicalTrackingId = historicalMember?.logicalTrackingId ?: wal.logicalTrackingId
+		val serviceRunId = historicalMember?.serviceRunId ?: wal.serviceRunId
+		val policyRevision = historicalMember?.sourcePolicyRevision ?: wal.sourcePolicyRevision
+		val consentEpoch = historicalMember?.consentEpoch ?: wal.captureConsentEpoch
+		val manifestRevision = historicalMember?.manifestRevision ?: wal.sessionManifestRevision
+		val leaseGeneration = historicalMember?.lifecycleLeaseGeneration ?: wal.lifecycleLeaseGeneration
+		val purposeMask = historicalMember?.purposeEligibilityMask ?: wal.authorizationPurposeEligibilityMask
 		val physicalFingerprint = wal.physicalConfigurationFingerprint
-		val authorizationRevision = wal.authorizationRevision
-		val authorizationFingerprint = wal.authorizationFingerprint
+		val authorizationRevision = historicalMember?.authorizationRevision ?: wal.authorizationRevision
+		val authorizationFingerprint = historicalMember?.authorizationFingerprint ?: wal.authorizationFingerprint
 		val observedStart = wal.observedIntervalStartNanos
 		val wallTime = wal.wallTimeMs
 		val wallUncertainty = wal.wallTimeUncertaintyMs
@@ -1846,7 +1896,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			authorizationRevision == null || authorizationRevision <= 0L ||
 			authorizationFingerprint?.matches(LOWERCASE_SHA_256) != true || observedStart == null ||
 			wallTime == null || wallUncertainty == null ||
-			wal.activityAutomationEpoch != null || wal.planAttribution != CAPTURED_PLAN_ATTRIBUTION
+			wal.activityAutomationEpoch != null || !perReading && wal.planAttribution != CAPTURED_PLAN_ATTRIBUTION
 		) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 
 		val sessionDao = database.sourceSessionDao()
@@ -1861,7 +1911,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 		val currentRun = session.currentServiceRunId?.let { currentRunId ->
 			if (portable != null) portable.runsById[currentRunId] else sessionDao.serviceRun(currentRunId)
 		}
-		if (!session.hasValidLifecycleShape(wal.admissionOrdinal) || !run.hasValidLifecycleShape() ||
+		if (!session.hasValidLifecycleShape(wal.admissionOrdinal, perReading) || !run.hasValidLifecycleShape() ||
 			!run.hasValidRelationshipTo(session, currentRun)
 		) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 		if (run.state in TERMINAL_SESSION_STATES && session.state !in TERMINAL_SESSION_STATES &&
@@ -1896,7 +1946,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 		val manifest = manifests[manifestIndex]
 		val configurationRevision = manifest.acquisitionPlanRevision
 		if (configurationRevision <= 0L ||
-			wal.configRevision?.let { it != configurationRevision } == true
+			!perReading && wal.configRevision?.let { it != configurationRevision } == true
 		) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 
 		val planHeader = if (portable != null) portable.planHeadersByRevision[configurationRevision]
@@ -1993,7 +2043,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 		val demands = if (portable != null) demandIds.mapNotNull(portable.demandsById::get)
 		else brokerDao.demandsByIds(demandIds)
 		val demandsById = demands.associateBy(SourceDemandEntity::demandId)
-		val purposeItems = if (perReading) {
+		val purposeItems = knownPurposeItems ?: if (perReading) {
 			val canonicalPayload = (WifiWalPayloadCodec.decodeCanonical(wal.payloadVersion, wal.payload)
 				as? WifiWalPayloadDecodeResult.Decoded)?.payload
 				?: block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
@@ -2007,8 +2057,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			wal.observedElapsedNanos,
 			wal.receivedElapsedNanos,
 		) ?: block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-		val qualifiedCaptureMembers = (purposeItems?.historicalMembers()
-			?: qualifiedAuthorization.authorizedMembers).filter { member ->
+		val qualifiedCaptureMembers = qualifiedAuthorization.authorizedMembers.filter { member ->
 			member.purpose == CAPTURE_PURPOSE &&
 				(purposeItems == null || purposeItems.forDemand(requireNotNull(member.demandId)).isNotEmpty())
 		}
@@ -2033,13 +2082,12 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 		if (captureMember == null || !perReading && qualifiedCaptureMembers.size != 1 ||
 			(!perReading && (authorization.isDenied || startAuthorization != authorization ||
 				endAuthorization != authorization)) ||
-			(perReading && purposeItems?.callbackAuthorization != authorization) ||
 			demandIds.distinct().size != authorization.authorizedMembers.size ||
 			demands.size != authorization.authorizedMembers.size ||
 			recomputedAuthorization?.sortedBy { row -> row.memberId } !=
 			authorization.members.sortedBy { row -> row.memberId } ||
 			authorization.authorizationFingerprint != authorizationFingerprint ||
-			qualifiedAuthorization.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask ||
+			qualifiedAuthorization.purposeEligibilityMask != purposeMask ||
 			authorization.effectiveBootId != wal.clockDomainId ||
 			!perReading && (authorization.effectiveElapsedRealtimeNanos > observedStart ||
 				wal.observedElapsedNanos >= authorizationEnd)
@@ -2172,6 +2220,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				configurationRevision,
 				appliedAtElapsedNanos,
 				qualifiedStart,
+				captureMember,
 			) != true || requireNotNull(registration.acceptedAtMs) > requireNotNull(action.acknowledgedAtMs)
 		) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 
@@ -2199,7 +2248,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			physicalConfigurationFingerprint = physicalFingerprint,
 			authorizationRevision = authorizationRevision,
 			authorizationFingerprint = authorizationFingerprint,
-			purposeEligibilityMask = wal.authorizationPurposeEligibilityMask,
+			purposeEligibilityMask = purposeMask,
 			sourcePolicyRevision = policyRevision,
 			captureConsentEpoch = consentEpoch,
 			sessionManifestRevision = manifestRevision,
@@ -2242,11 +2291,11 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			serviceRunId = authority.serviceRunId,
 			sourceInstanceId = authority.sourceInstanceId,
 			registrationGeneration = wal.registrationGeneration,
-			configurationRevision = wal.configRevision,
+			configurationRevision = configurationRevision,
 			physicalConfigurationFingerprint = physicalFingerprint,
 			authorizationRevision = authorizationRevision,
 			authorizationFingerprint = authorizationFingerprint,
-			purposeEligibilityMask = wal.authorizationPurposeEligibilityMask,
+			purposeEligibilityMask = purposeMask,
 			sourceSequence = wal.sourceSequence,
 			sourcePolicyRevision = policyRevision,
 			captureConsentEpoch = consentEpoch,
@@ -2270,6 +2319,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			payloadVersion = wal.payloadVersion,
 			payloadBytes = wal.payload.toList(),
 			payloadChecksum = wal.payloadChecksum,
+			originalWal = wal.takeIf { perReading },
 		)
 		val classified = WifiCapturedFactClassifier.classify(
 			WifiObservationInput(
@@ -3155,17 +3205,18 @@ private fun LifecycleDesiredActionEntity.authenticates(
 	configurationRevision: Long,
 	appliedAtElapsedNanos: Long,
 	firstQualifiedNanos: Long = wal.observedIntervalStartNanos ?: Long.MIN_VALUE,
+	purposeMember: SourceAuthorizationEntity? = null,
 ): Boolean {
 	val acknowledgedWall = acknowledgedAtMs ?: return false
 	val acknowledgedElapsed = acknowledgedElapsedRealtimeNanos ?: return false
 	return actionRevision > 0L && actionFamily == "SOURCE_RUNTIME" && sourceKind == WIFI_SOURCE &&
 		desiredState == "STARTED" && status == "START_ACCEPTED" && attemptCount > 0 &&
-		failureCode == null && retryTrigger == null && logicalTrackingId == wal.logicalTrackingId &&
-		serviceRunId == wal.serviceRunId && manifestRevision == wal.sessionManifestRevision &&
-		desiredPlanRevision == configurationRevision && sourcePolicyRevision == wal.sourcePolicyRevision &&
-		consentEpoch == wal.captureConsentEpoch && startOrigin == manifest.startOrigin &&
-		startOrigin == run.startOrigin && bootId == wal.clockDomainId &&
-		leaseGeneration == wal.lifecycleLeaseGeneration && sourceInstanceId == wal.sourceInstanceId &&
+		failureCode == null && retryTrigger == null && logicalTrackingId == (purposeMember?.logicalTrackingId ?: wal.logicalTrackingId) &&
+		serviceRunId == (purposeMember?.serviceRunId ?: wal.serviceRunId) && manifestRevision == (purposeMember?.manifestRevision ?: wal.sessionManifestRevision) &&
+		desiredPlanRevision == configurationRevision && sourcePolicyRevision == (purposeMember?.sourcePolicyRevision ?: wal.sourcePolicyRevision) &&
+		consentEpoch == (purposeMember?.consentEpoch ?: wal.captureConsentEpoch) && startOrigin == manifest.startOrigin &&
+		(manifest.manifestRevision != run.preparedManifestRevision || startOrigin == run.startOrigin) && bootId == wal.clockDomainId &&
+		leaseGeneration == (purposeMember?.lifecycleLeaseGeneration ?: wal.lifecycleLeaseGeneration) && sourceInstanceId == wal.sourceInstanceId &&
 		registrationGeneration == wal.registrationGeneration && requestedAtMs == manifest.effectiveWallTimeMs &&
 		acknowledgedWall >= requestedAtMs &&
 		requestedElapsedRealtimeNanos == manifest.effectiveElapsedRealtimeNanos &&
@@ -3191,7 +3242,8 @@ private fun LifecycleDesiredActionEntity.authenticatesCurrentReplacement(
 		manifestRevision == manifest.manifestRevision &&
 		desiredPlanRevision == manifest.acquisitionPlanRevision &&
 		sourcePolicyRevision == manifest.sourcePolicyRevision && consentEpoch == wifiSource.consentEpoch &&
-		startOrigin == manifest.startOrigin && startOrigin == run.startOrigin && bootId == run.bootId &&
+		startOrigin == manifest.startOrigin &&
+		(manifest.manifestRevision != run.preparedManifestRevision || startOrigin == run.startOrigin) && bootId == run.bootId &&
 		bootId == session.lifecycleBootId && leaseGeneration == run.leaseGeneration &&
 		leaseGeneration == session.lifecycleLeaseGeneration && requestedAtMs == manifest.effectiveWallTimeMs &&
 		requestedElapsedRealtimeNanos == manifest.effectiveElapsedRealtimeNanos &&
@@ -3208,7 +3260,7 @@ private fun SessionManifestSourceEntity.isExactWifiWriter(consentEpoch: Long): B
 
 private fun Set<SourceKind>.toStableCodes(): String = map(SourceKind::stableCode).sorted().joinToString(",")
 
-private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(admissionOrdinal: Long): Boolean {
+private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(admissionOrdinal: Long, perReading: Boolean = false): Boolean {
 	if (state !in ALL_SESSION_STATES || lifecycleRevision <= 0L || desiredPlanRevision <= 0L ||
 		startedAtMs < 0L || startedElapsedNanos < 0L || lifecycleLeaseGeneration <= 0L ||
 		lifecycleBootId.isNullOrBlank() || currentManifestRevision?.let { it <= 0L } != false
@@ -3226,7 +3278,7 @@ private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(admissionOrdinal
 		return false
 	}
 	return if (terminal) {
-		currentServiceRunId == null && finalAdmissionOrdinal?.let { it >= admissionOrdinal } == true
+		currentServiceRunId == null && finalAdmissionOrdinal?.let { it >= 0L && (perReading || it >= admissionOrdinal) } == true
 	} else {
 		!currentServiceRunId.isNullOrBlank() && finalAdmissionOrdinal == null
 	}
@@ -3385,7 +3437,7 @@ internal data class AuthenticatedWifiWal(
 }
 
 internal data class WifiCapturedWalAudit(
-	val captureByEventId: Map<String, AuthenticatedWifiWal>,
+	val captureByEventId: Map<String, List<AuthenticatedWifiWal>>,
 	val scopes: Set<WifiCapturedRunScope>,
 	val latestDurableTimeMs: Long,
 	val settlementByAdmissionOrdinal: Map<Long, WifiPortableWalSettlement> = emptyMap(),
@@ -3397,7 +3449,7 @@ internal data class WifiPortableWalSettlement(
 	val sourceInstanceId: String,
 	val registrationGeneration: Long,
 	val sourceSequence: Long,
-	val captureScope: WifiCapturedRunScope?,
+	val captureScopes: Set<WifiCapturedRunScope>,
 )
 
 internal data class WifiPortableAuthoritySnapshot(

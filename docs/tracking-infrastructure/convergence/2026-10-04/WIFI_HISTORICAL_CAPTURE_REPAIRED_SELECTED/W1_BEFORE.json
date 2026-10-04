@@ -1,0 +1,12 @@
+[
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt",
+    "beforeSha256": "f6740e035201148363c43b3372143f4f57ac2d263f8c642aed3a39383a24a434",
+    "beforeBytes": 61538
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "beforeSha256": "2e8934fc39586f5238dc69ddab438cc75de2cc2f7404c07182ecc38bbb806260",
+    "beforeBytes": 222910
+  }
+]

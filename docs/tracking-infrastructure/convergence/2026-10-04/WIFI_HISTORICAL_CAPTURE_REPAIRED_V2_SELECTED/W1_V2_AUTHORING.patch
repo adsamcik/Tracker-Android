@@ -1,0 +1,74 @@
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt
+@@ -429,10 +429,10 @@
+ 			selectedCapturedRunIds.any { runId -> wifiCompleteness.none { it.serviceRunId == runId } }
+ 		) return outcome(unverifiableWriter())
+ 		val positiveCompleteness = wifiCompleteness.filter { it.registrationGeneration > 0L }
++		var portableAuthorityQueryCount = audit.wal.portableAuthorityQueryCount
++		if (portableAuthorityQueryCount > WIFI_PORTABLE_AUTHORITY_QUERY_LIMIT) return outcome(overflow())
+ 		val portableAuthority = audit.wal.portableAuthority ?: return outcome(unverifiableWriter())
+-		var portableAuthorityQueryCount = audit.wal.portableAuthorityQueryCount
+-		if (portableAuthorityQueryCount > WIFI_PORTABLE_AUTHORITY_QUERY_LIMIT ||
+-			positiveCompleteness.any { row ->
++		if (positiveCompleteness.any { row ->
+ 				val registration = portableAuthority.registrationsByGeneration[row.registrationGeneration]
+ 					?: return@any true
+ 				val run = runs.singleOrNull { it.serviceRunId == row.serviceRunId } ?: return@any true
+@@ -441,11 +441,15 @@
+ 				val perReading = selectedWal.all { it.evidence.payloadVersion == WIFI_WAL_PAYLOAD_VERSION }
+ 				// A shared owner stays ACTIVE after End; only this run's acknowledged drain closes its prefix.
+ 				val sharedRetirement = if (perReading && registration.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE) {
+-					if (++portableAuthorityQueryCount > WIFI_PORTABLE_AUTHORITY_QUERY_LIMIT) return@any true
++					if (++portableAuthorityQueryCount > WIFI_PORTABLE_AUTHORITY_QUERY_LIMIT) return outcome(overflow())
+ 					database.sourceSessionDao().rawRunRetirement(
+ 						row.logicalTrackingId, row.serviceRunId, WIFI_SOURCE,
+ 						row.sourceInstanceId, row.registrationGeneration,
+-					).singleOrNull()?.validatedOrNull()?.takeIf { it.matchesPortableWifiSharedSettlement(row, run) }
++					).singleOrNull()?.validatedOrNull()?.takeIf {
++						it.matchesPortableWifiSharedSettlement(row, run) &&
++							registration.acceptedAtMs?.let { accepted -> accepted <= it.cutoffWallTimeMs } == true &&
++							registration.acceptedElapsedRealtimeNanos?.let { accepted -> accepted <= it.cutoffElapsedRealtimeNanos } == true
++					}
+ 						?: return@any true
+ 				} else null
+ 				!registration.hasPortableRegistrationShape(
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt
+@@ -796,6 +796,37 @@
+ 	}
+ 
+ 	@Test
++	fun `empty shared Wi-Fi session rejects provider wall acceptance after its acknowledged cutoff`() = runTest {
++		installSharedHistoricalWifiSettlement()
++		val retirement = requireNotNull(database.sourceSessionDao().runRetirement(
++			LOGICAL_ID, RUN_ID, WIFI_SOURCE, SOURCE_INSTANCE, REGISTRATION_GENERATION))
++		val acceptedWall = retirement.cutoffWallTimeMs + 1L
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE provider_registration_generation SET accepted_at_ms = ? WHERE source_kind = ? AND registration_generation = ?",
++			arrayOf(acceptedWall, WIFI_SOURCE, REGISTRATION_GENERATION))
++		// Keep accepted <= START acknowledgement valid; the independently acknowledged End is earlier.
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE lifecycle_desired_action SET acknowledged_at_ms = ? WHERE action_id = ?",
++			arrayOf(acceptedWall + 1L, "wifi-start-action"))
++		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
++	}
++
++	@Test
++	fun `empty shared Wi-Fi session rejects provider elapsed acceptance after its acknowledged cutoff`() = runTest {
++		installSharedHistoricalWifiSettlement()
++		val retirement = requireNotNull(database.sourceSessionDao().runRetirement(
++			LOGICAL_ID, RUN_ID, WIFI_SOURCE, SOURCE_INSTANCE, REGISTRATION_GENERATION))
++		val acceptedElapsed = retirement.cutoffElapsedRealtimeNanos + 1L
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE provider_registration_generation SET accepted_elapsed_realtime_nanos = ? WHERE source_kind = ? AND registration_generation = ?",
++			arrayOf(acceptedElapsed, WIFI_SOURCE, REGISTRATION_GENERATION))
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE lifecycle_desired_action SET acknowledged_elapsed_realtime_nanos = ? WHERE action_id = ?",
++			arrayOf(acceptedElapsed + 1L, "wifi-start-action"))
++		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
++	}
++
++	@Test
+ 	fun `empty shared Wi-Fi session cannot export before its retirement acknowledgement exists`() = runTest {
+ 		installSharedHistoricalWifiSettlement(includeReceipt = false)
+ 		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
