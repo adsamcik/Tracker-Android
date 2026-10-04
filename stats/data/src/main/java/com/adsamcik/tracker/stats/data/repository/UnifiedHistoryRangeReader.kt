@@ -74,9 +74,10 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
     private val backgroundCell: RoomAmbientCellRepository,
     @ApplicationContext private val context: Context,
     @IoDispatcher private val io: CoroutineDispatcher,
+    private val allDaySources: RoomAllDaySourceStatusQuery = RoomAllDaySourceStatusQuery(
+        database, backgroundSteps, backgroundWifi, backgroundCell, io),
 ) {
     private val importedSteps = ImportedStepsProductReader(database)
-    private val dayLocation = RetainedLocationContextReader(database)
 
     suspend fun read(request: HistoryRangeRequest): HistoryRangeRead = withContext(io) {
         if (!database.isOpen) return@withContext HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
@@ -462,7 +463,7 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
                             if (it.size > ids.size) throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW) }
                     }
                     sourceSamples = receipts.associate { it.sourceEventId to it.sampleId }
-                    dayLocation.qualifyInTransaction(receipts)
+                    allDaySources.qualifyLocationInTransaction(receipts)
                 }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (failure: RangeHistoryUnavailable) {
@@ -508,7 +509,7 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
             }
             HistorySource.WIFI -> {
                 val selectedOrigins = range.origins.mapNotNullTo(linkedSetOf()) { it.toWifiOrigin() }
-                val read = backgroundWifi.readObservationWindowInTransaction(AmbientWifiReadRequest(from, to, selectedOrigins, MAX_DAY_FACTS))
+                val read = allDaySources.readWifiHistoryInTransaction(AmbientWifiReadRequest(from, to, selectedOrigins, MAX_DAY_FACTS))
                 val payload = when (read) {
                     is AmbientWifiReadResult.Snapshot -> read
                     AmbientWifiReadResult.DependencyOverflow -> throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
@@ -528,7 +529,7 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
             }
             HistorySource.CELL -> {
                 val selectedOrigins = range.origins.mapNotNullTo(linkedSetOf()) { it.toCellOrigin() }
-                val read = backgroundCell.readObservationWindowInTransaction(AmbientCellReadRequest(from, to, selectedOrigins, MAX_DAY_FACTS))
+                val read = allDaySources.readCellHistoryInTransaction(AmbientCellReadRequest(from, to, selectedOrigins, MAX_DAY_FACTS))
                 val payload = when (read) {
                     is AmbientCellReadResult.Snapshot -> read
                     AmbientCellReadResult.DependencyOverflow -> throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
@@ -559,7 +560,7 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
                 var factCount = 0
                 for (batch in batches) {
                     currentCoroutineContext().ensureActive()
-                    val read = backgroundSteps.readBackgroundInCurrentTransaction(AmbientStepsHistoryRangeRequest(batch),
+                    val read = allDaySources.readStepsHistoryInTransaction(AmbientStepsHistoryRangeRequest(batch),
                         snapshot.sourceEvidenceRevision, HistoryOrigin.LOCAL in range.origins, HistoryOrigin.IMPORTED in range.origins)
                     val payload = when (read) {
                         is AmbientStepsHistoryRead.Snapshot -> read
@@ -771,7 +772,7 @@ private fun <T> ImportedHistoryEligiblePage<T>.entriesOrThrow(): List<T> = when 
         if (reason == SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
             HistoryProblemReason.DEPENDENCY_OVERFLOW else HistoryProblemReason.INTEGRITY_UNAVAILABLE)
 }
-private fun SourceEvidenceState.hasValidRangeShape() = id == SourceEvidenceState.SINGLETON_ID &&
+internal fun SourceEvidenceState.hasValidRangeShape() = id == SourceEvidenceState.SINGLETON_ID &&
     revision >= 0 && collectedDataEpoch >= 0 && retainedFromMs?.let { it >= 0 } != false &&
     deletedSourceEventHighWaterOrdinal >= 0 && updatedAtMs >= 0
 private fun HistoryOrigin.toWifiOrigin(): AmbientWifiOrigin? = when (this) {

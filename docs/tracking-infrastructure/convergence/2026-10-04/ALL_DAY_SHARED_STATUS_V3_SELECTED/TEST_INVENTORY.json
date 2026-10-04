@@ -1,0 +1,177 @@
+{
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "execution": "NOT_RUN",
+  "new_case_count": 33,
+  "cases": [
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinatorTest.kt",
+      "case": "empty all-day status neither subscribes nor queries any source",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinatorTest.kt",
+      "case": "all-day Steps status uses only the requested real provider window with no WAL stage",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinatorTest.kt",
+      "case": "all-day source failure preserves independently requested saved siblings",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinatorTest.kt",
+      "case": "all-day status rejects two windows for one source",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinatorTest.kt",
+      "case": "all-day invalidation keeps a complete read and only the latest pending gap update",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinatorTest.kt",
+      "case": "cancelling all-day status drains the requested read and closes its invalidation observer",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinatorTest.kt",
+      "case": "all-day cursor gap authority retention and accepted Location receipt changes invalidate status",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "case": "all-day status preserves actual provider windows without requiring a session or WAL event",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "case": "all-day metadata and shared History follow the same Steps correction and retraction",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "case": "all-day status keeps a gap-only provider day as a real gap rather than a measured zero",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "case": "all-day status observes cursor progress without requiring another saved fact",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "case": "turning all-day Steps off does not remove trustworthy saved metadata",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "case": "all-day Steps metadata excludes legacy captured totals while shared History honors origin selection",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "case": "corrupt retained Steps lineage produces an explicit unavailable status",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "case": "closed storage yields unavailable all-day data without a zero count",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "case": "all-day native Steps retains the real local DST day and provider window",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "case": "invalid stored Steps calendar is unavailable without consulting provider history",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt",
+      "case": "all-day native radio status works without Location or a session",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt",
+      "case": "all-day radio status keeps a valid sibling alongside an explicit qualification gap",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt",
+      "case": "all-day radio status preserves saved native facts after current collection is off",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt",
+      "case": "all-day radio status preserves exact epoch and finite read limits",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt",
+      "case": "a radio cursor-only mismatch is a status gap and cannot hide the other source",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "case": "all-day Location status reads native saved points without radio or Steps dependencies",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "case": "all-day Location status excludes unverifiable points while retaining local history",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "case": "all-day Location status keeps the historical grant when collection is off",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "case": "all-day Location status obeys retention and full-clear epoch boundaries",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "case": "an imported copy cannot hide independently valid native all-day Location status",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "case": "all-day native status finds each overnight child on its own measured day",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "case": "missing mandatory Wi-Fi children make status unavailable while Cell details remain usable",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/AllDaySourceStatusQueryTest.kt",
+      "case": "sourceRequestsPreserveStoredCivilDayAndBoundedReadingWindow",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/AllDaySourceStatusQueryTest.kt",
+      "case": "finiteSourceRequestsRejectUnboundedLimits",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/AllDaySourceStatusQueryTest.kt",
+      "case": "unsupportedSessionlessSourcesStayExplicit",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "case": "all-day native status rejects malformed evidence without changing saved data",
+      "status": "NOT_RUN"
+    }
+  ],
+  "required_test_companion": {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+    "selected": "Existing insertWifi/insertCell/installAuthority wallOffsetMs and storedZoneId helper extensions plus Instant/ZoneId imports.",
+    "excluded": "Held History midnight test and History-specific imports."
+  }
+}

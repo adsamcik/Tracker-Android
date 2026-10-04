@@ -1,0 +1,10 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_head": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+  "files": [
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "base_sha256": "64e8c3a30249a262b34ac79198966d9dac143ddc73bd21c90180ac064faa580b"
+    }
+  ]
+}

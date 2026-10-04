@@ -1,0 +1,73 @@
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt
+@@ -772,7 +772,7 @@
+         if (reason == SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
+             HistoryProblemReason.DEPENDENCY_OVERFLOW else HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+ }
+-private fun SourceEvidenceState.hasValidRangeShape() = id == SourceEvidenceState.SINGLETON_ID &&
++internal fun SourceEvidenceState.hasValidRangeShape() = id == SourceEvidenceState.SINGLETON_ID &&
+     revision >= 0 && collectedDataEpoch >= 0 && retainedFromMs?.let { it >= 0 } != false &&
+     deletedSourceEventHighWaterOrdinal >= 0 && updatedAtMs >= 0
+ private fun HistoryOrigin.toWifiOrigin(): AmbientWifiOrigin? = when (this) {
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAllDaySourceStatusQuery.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAllDaySourceStatusQuery.kt
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAllDaySourceStatusQuery.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAllDaySourceStatusQuery.kt
+@@ -59,6 +59,9 @@
+ 				}
+ 				val evidence = database.sourceEvidenceStateDao().get()
+ 					?: return@withTransaction unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++				if (!evidence.hasValidRangeShape()) {
++					return@withTransaction unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++				}
+ 				val snapshot = TrackingHistoryReadSnapshot(evidence.collectedDataEpoch, evidence.revision)
+ 				when (request) {
+ 					is AllDaySourceStatusRequest.Steps -> readSteps(request, evidence, snapshot)
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt
+@@ -42,7 +42,7 @@
+         assertEquals(1L, database.locationSampleDao().countAll())
+     }
+ 
+-    @Test fun `all-day Location status excludes unknown and imported points without hiding their history`() = runBlocking {
++    @Test fun `all-day Location status excludes unverifiable points while retaining local history`() = runBlocking {
+         val legacy = installPoint(sealed = false)
+         database.locationSampleDao().insert(sample().copy(id = 0, sourceEventId = "foreign", sourceSignalId = "foreign"))
+         val status = assertIs<AllDaySourceStatusRead.Location>(statusQuery().read(
+@@ -96,6 +96,35 @@
+             AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))))
+         assertEquals("event", read.points.single().sourceEventId)
+         assertTrue(read.qualificationGaps.isEmpty())
++    }
++
++    @Test fun `all-day native status rejects malformed evidence without changing saved data`() = runBlocking {
++        val receipt = installPoint()
++        val request = AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))
++        val query = statusQuery()
++        assertEquals("event", assertIs<AllDaySourceStatusRead.Location>(query.read(request))
++            .points.single().sourceEventId)
++        val evidence = requireNotNull(database.sourceEvidenceStateDao().get())
++        val savedPoints = database.locationSampleDao().byIds(listOf(receipt.sampleId))
++        val columns = listOf("revision" to evidence.revision,
++            "collected_data_epoch" to evidence.collectedDataEpoch,
++            "retained_from_ms" to evidence.retainedFromMs,
++            "deleted_source_event_high_water_ordinal" to evidence.deletedSourceEventHighWaterOrdinal,
++            "updated_at_ms" to evidence.updatedAtMs)
++        for ((column, originalValue) in columns) {
++            database.openHelper.writableDatabase.execSQL(
++                "UPDATE source_evidence_state SET $column = -1 WHERE id = 1")
++            val malformed = requireNotNull(database.sourceEvidenceStateDao().get())
++            assertEquals(HistoryProblemReason.INTEGRITY_UNAVAILABLE,
++                assertIs<AllDaySourceStatusRead.Unavailable>(query.read(request)).reason)
++            assertEquals(savedPoints, database.locationSampleDao().byIds(listOf(receipt.sampleId)))
++            assertEquals(malformed, database.sourceEvidenceStateDao().get())
++            database.openHelper.writableDatabase.execSQL(
++                "UPDATE source_evidence_state SET $column = ? WHERE id = 1", arrayOf(originalValue))
++            assertEquals("event", assertIs<AllDaySourceStatusRead.Location>(query.read(request))
++                .points.single().sourceEventId)
++        }
++        assertEquals(evidence, database.sourceEvidenceStateDao().get())
+     }
+ 
+     private fun statusQuery() = RoomAllDaySourceStatusQuery(database, mockk(), mockk(), mockk(),

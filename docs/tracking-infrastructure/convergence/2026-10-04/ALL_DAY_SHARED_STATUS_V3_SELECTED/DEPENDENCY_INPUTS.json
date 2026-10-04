@@ -1,0 +1,352 @@
+{
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "note": "57 exact frozen dependencies; four irrelevant dirty drafts replaced with exported HEAD-exact source after independent call-chain review. No dependency edits selected.",
+  "files": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/NativeAmbientStepsRangeReader.kt",
+      "sha256": "93e9784b6b0783fede77b82e131a689049ecf53f5b1f998c1b21f37cfe3870ff",
+      "bytes": 37249,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayComposer.kt",
+      "sha256": "3355b65eff703e94f3d4cdb95f4b29f673ebadf040a65456bd63b9907c23ebc2",
+      "bytes": 17136,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultAmbientStepsHistoryRepository.kt",
+      "sha256": "1fa25cc97722547746372e56822b70e8824ae8fbf8e50b0f703949c7419a2bff",
+      "bytes": 54232,
+      "disposition": "HEAD_EXACT_FROZEN_DEPENDENCY_ONLY_NOT_SELECTED",
+      "dependency_head": "1056464a1376e3574f3a744a6eaf5e3402accaf7"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepository.kt",
+      "sha256": "0bf2c0dab8faad4299eff89566818dffdcc10e86c590ef97c907d9813714d8ec",
+      "bytes": 44834,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedAmbientStepsRoomReader.kt",
+      "sha256": "3e5e6f7e38f801300645663fd6c33238dfe3be9689e8fad36a564d68a31ab00a",
+      "bytes": 19395,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductReader.kt",
+      "sha256": "0cdd4066e187e9e0e037c1ba72968bb782b7d4d11aefc5cac91bd8313b34fda8",
+      "bytes": 18079,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelector.kt",
+      "sha256": "1e885569d9b73dc0332c7067e8f26469452ce351c2a695d1d620828fe5442816",
+      "bytes": 32925,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomStepsCountDomainCompatibilityQuery.kt",
+      "sha256": "5659535a71899983996f46a61db0bba06183b436e4b16c6cadd0d903a2330cc6",
+      "bytes": 25035,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioReader.kt",
+      "sha256": "c9520643950a5dae7d7d12ee4b8df9cbcf9985ee3ac3ae408eb3de6d56559b9f",
+      "bytes": 26326,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioAuthority.kt",
+      "sha256": "f57ce97d9ce31017edce9eca2a5538e7142aab447f939bf527e58dd8a4f38e72",
+      "bytes": 8505,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioOwner.kt",
+      "sha256": "2997f1e6166a494fb152816bc3589485967d70b2d13e66bc6ab5406e11a5a25a",
+      "bytes": 1670,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedImportedAmbientRadioReader.kt",
+      "sha256": "0e13532a730f43cb08fb9e2fa9dc31e04d60fda2e4ad8847c441f386962be97c",
+      "bytes": 12485,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "sha256": "7b26cecd95d2ca3ee9de099f7cc6b6904d5527f49d0c38cc797ffc8b7278d3a0",
+      "bytes": 13657,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RadioLocationContextResolver.kt",
+      "sha256": "ea2886867afc0efd7613647a351ca2538c181dfe2f411400fb2e5d70c47c9627",
+      "bytes": 7539,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "sha256": "c6f44d42e063aaddf1b55aff3c850c4c14ab7cb26ae39bef6d25af4ee59d0d49",
+      "bytes": 65036,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/TrackingHistoryInvalidationTables.kt",
+      "sha256": "ff3a360d2f9cbe5d6512052519d3920640bf0aec62a94d651a32e142e7cc4db3",
+      "bytes": 3886,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RetentionFloorSettlementJournal.kt",
+      "sha256": "4078bcbdd6a1b19bcb5b1da5720ce04aaef7cb0bdeb2eb12bd164dab983ef226",
+      "bytes": 24148,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientStepsFactRevisionDao.kt",
+      "sha256": "599d0d2349a65cf7299236d36798164ce4d117360e29d811387a8854924dbba2",
+      "bytes": 16355,
+      "disposition": "HEAD_EXACT_FROZEN_DEPENDENCY_ONLY_NOT_SELECTED",
+      "dependency_head": "1056464a1376e3574f3a744a6eaf5e3402accaf7"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientStepsImportStateDao.kt",
+      "sha256": "f144f911973161802a18b28a5b53325fd7621bc84046c40a27fbee5fbf84c11e",
+      "bytes": 29662,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourcePolicyDao.kt",
+      "sha256": "6e90a071b58a6aaa6c04422d1b71e9facb7a62ff68700a3717eafe42afd4a4f3",
+      "bytes": 4493,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceEvidenceStateDao.kt",
+      "sha256": "a8c858342350ca2212fb2ac3f12f7132b1d6ded5209de03ee2ee59a033690e61",
+      "bytes": 5316,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceDestinationOwnerDao.kt",
+      "sha256": "402b489b3caffaeb9ddf3f808aae3179da7f5b98fbc46df0f5b335f605270582",
+      "bytes": 1979,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceBrokerDao.kt",
+      "sha256": "e4bc653351c833be81bb9e3b9b57e277ce75ec28aa31a1fb4d0629c1b9a18d69",
+      "bytes": 44795,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+      "sha256": "3d61e54656ee4b5d1294b103462a0ddea377de2324927a5dc0334948de926ef2",
+      "bytes": 21722,
+      "disposition": "HEAD_EXACT_FROZEN_DEPENDENCY_ONLY_NOT_SELECTED",
+      "dependency_head": "1056464a1376e3574f3a744a6eaf5e3402accaf7"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationReadScope.kt",
+      "sha256": "902d7f9e09347a442e2b5a3d22fbab495a99a07c436a76f9cf9be59af9976c04",
+      "bytes": 4817,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/RadioObservationChildDao.kt",
+      "sha256": "d8ee527389d7f5b6011c6a617c51a213b7f64f6cd580613f621b7a35b6dca779",
+      "bytes": 14031,
+      "disposition": "HEAD_EXACT_FROZEN_DEPENDENCY_ONLY_NOT_SELECTED",
+      "dependency_head": "1056464a1376e3574f3a744a6eaf5e3402accaf7"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientWifiFactDao.kt",
+      "sha256": "e7ba7bc11d3927058cbd63ff5362ed9900ed338e870cba201ea3a1df5f389168",
+      "bytes": 31309,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientCellFactDao.kt",
+      "sha256": "51ffc96e01a15765a4c1cb027edefa254f17076d6aeea13b18b35e1665fa9acd",
+      "bytes": 32989,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientStepsFactIntegrity.kt",
+      "sha256": "50d77dea905af187833e259013f6f2c48d1195822c4b3bf14b436d9dfdba06c9",
+      "bytes": 3024,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientStepsFactRevisionEntity.kt",
+      "sha256": "83ed0f5953ea650de32ad1653afbfcc49585d22ef398e31e7bef828ded2faa7b",
+      "bytes": 9738,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientStepsImportStateEntities.kt",
+      "sha256": "9115495a460d07cc993c20cb8b8fc0645f88d5c7502ea82813cf05eb4e6af905",
+      "bytes": 14378,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientStepsImportAuthorityTransitionEntity.kt",
+      "sha256": "6790babef144c4bbea990def65e7d66e255447d04687bccdf0ddb5c32b3cd6b2",
+      "bytes": 7189,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientStepsRetentionAuthority.kt",
+      "sha256": "83c3b62674e14b60e1579f2595e8e02b1ac91324ff4d7c2977b5d75f57f4bdf2",
+      "bytes": 4899,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceBrokerEntities.kt",
+      "sha256": "752d4b90d523ef1543d3032b31da63e0aa2943a13462b6b79fa40f28930b7fe0",
+      "bytes": 23034,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourcePolicyEntities.kt",
+      "sha256": "c9f315d2e1fd2d2074107036714c2eb3cc2f626ff0301a18b4aa7876bd6404eb",
+      "bytes": 5036,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceEvidenceState.kt",
+      "sha256": "f607ad52d0ba33daf76e214703405cf3955b56937d6312ba8fd35a06e6b77f6b",
+      "bytes": 1344,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDestinationOwnerEntity.kt",
+      "sha256": "fdb116afbe4539002f0413a28a25a369987d7a747e5ad596dad1b6248acc51e6",
+      "bytes": 4594,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationPurposeAuthority.kt",
+      "sha256": "a5458aaf0845c03ba475f0a82244ee75109a11c4460faf54350d867dcc0dc59b",
+      "bytes": 7535,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RadioObservationChildren.kt",
+      "sha256": "7e06faf1bc9c38b636fd8021433284912780b7bdd9259422b02d88898a9cde40",
+      "bytes": 9777,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RadioObservationChildIntegrity.kt",
+      "sha256": "1b2fe2d97c2635a251215807516417801c9ea5df85b73b9676ef7baad2e3cd15",
+      "bytes": 2364,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientWifiFacts.kt",
+      "sha256": "afe7824313d8c7f49cf8ab6afee48754d6793a1f5f500fc3a667460d2f203362",
+      "bytes": 34120,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientCellFacts.kt",
+      "sha256": "3ecc350e5e3f59da82e495693bdc807bcf7ad06ff2a39b770d971e449d04e3bd",
+      "bytes": 36918,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AmbientStepsHistoryRepository.kt",
+      "sha256": "544b13d8f4a6a6d5067ebbd39c2232a5b4886caf85f6e84cfb3fa1203d17ae61",
+      "bytes": 10319,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AmbientWifiRepository.kt",
+      "sha256": "c6e5637a92e14960a5c891629999af075f246211cde36aba29e884ef0b48d11d",
+      "bytes": 3265,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AmbientCellRepository.kt",
+      "sha256": "b4f8aa21b2ba3ac383281ef044a75c3a5af8e4fbf30fadc97a1dce648c310b22",
+      "bytes": 4144,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/RadioLocationContextRepository.kt",
+      "sha256": "5218d2cfbc654d7e388db43f38c3a07073809bc070a242834af8cd1e30c1ea97",
+      "bytes": 4911,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistory.kt",
+      "sha256": "b3b19bf1d7c2e0866b90802ecc586acea74a2888449a728d07cc32cf386f4dc6",
+      "bytes": 8384,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/TrackingHistoryRepository.kt",
+      "sha256": "4003e403a2abb7522a7d4f74c2baaf1075949eac0bfe9575dc3ca3f893ca46b4",
+      "bytes": 31725,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/WifiHistoryRepository.kt",
+      "sha256": "8675d12207d4d60d4f16069c5b5c53acaec1e8373413a6ae263cb2440d24e784",
+      "bytes": 11503,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/CellHistoryRepository.kt",
+      "sha256": "b8448d9269dd85f2d6961ec0864192a6edd09ba48ab282f87013c2288c5c25f8",
+      "bytes": 14623,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/AmbientStepsDataModule.kt",
+      "sha256": "76703d98c83d8e35f3268616d62204191c146ebd1c18bca4fd15b7413afc7f70",
+      "bytes": 3858,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCatalog.kt",
+      "sha256": "061f818f209b408982b392e4b4e48c2a73ef6504fb21f764b190cfaf45286008",
+      "bytes": 1976,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRoomFixtures.kt",
+      "sha256": "3ed4ad5c04307230a070cac2fe3063aa74443bc9a62811a3e3d6ce26e7dda5a9",
+      "bytes": 1623,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "50e3a5e45bd9f5a2732d905d28edd64e32764904a63ed0b1dccb58080bbd55cb",
+      "bytes": 2486,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "sha256": "8b4678b9f381f55f09fa241a602934de40affaf8e3a6906a03c4c3cbd5a9a9d2",
+      "bytes": 1745,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "stats/api/build.gradle.kts",
+      "sha256": "6633679d27b5f36a32c2d4a637f21a7b214a30fac65f297e3c9f1e752599cbb7",
+      "bytes": 734,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "sha256": "27f8c478df1702b3e775e054593830442ca4e30249485a16bed1006334f5f967",
+      "bytes": 3581,
+      "disposition": "FROZEN_DEPENDENCY_ONLY_NOT_SELECTED"
+    }
+  ]
+}

@@ -89,6 +89,11 @@ The October 4 answers to `call_5rlNzPZRo5KcVPZByFUzIOqs` approve the measured-da
 rule and selected-data/optional-complete-session export scope above. Approval is
 recorded separately from implementation and source review.
 
+The October 4 optional radio-storage question is no longer needed. The candidate
+already has the approved local preference reservation ledger. The selected,
+independently reviewed original-cooldown repair uses that existing store; no new
+runtime storage format or second database ledger is selected.
+
 ## Questions presented, awaiting answers
 
 - [ ] Repair the Start acceptance lock order with existing coordination in two

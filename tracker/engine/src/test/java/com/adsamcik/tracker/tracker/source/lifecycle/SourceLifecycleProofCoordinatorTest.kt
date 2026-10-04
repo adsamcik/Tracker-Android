@@ -3,6 +3,15 @@ package com.adsamcik.tracker.tracker.source.lifecycle
 import com.adsamcik.tracker.shared.base.database.TRACKING_HISTORY_INVALIDATION_TABLES
 import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource
+import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusQuery
+import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRead
+import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRequest
+import com.adsamcik.tracker.stats.api.repository.AllDayStepsGapStatus
+import com.adsamcik.tracker.stats.api.repository.AllDayStepsWindowStatus
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsStructuralDay
+import com.adsamcik.tracker.stats.api.repository.HistoryObservationWindow
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
 import com.adsamcik.tracker.stats.api.repository.MaterializedProofState
 import com.adsamcik.tracker.stats.api.repository.QueryableProofState
 import com.adsamcik.tracker.stats.api.repository.RecordingProofState
@@ -45,6 +54,143 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class SourceLifecycleProofCoordinatorTest {
+
+	@Test
+	fun `empty all-day status neither subscribes nor queries any source`() = runTest {
+		val subscriptions = AtomicInteger()
+		val counters = CallCounters()
+		val reads = AtomicInteger()
+		val coordinator = SourceLifecycleProofCoordinator(callbackFlow {
+			subscriptions.incrementAndGet(); trySend(Unit); awaitClose {}
+		}, successfulDescriptors(counters), successfulQueryRepository(counters), StandardTestDispatcher(testScheduler),
+			AllDaySourceStatusQuery { reads.incrementAndGet(); allDayStepsRead() })
+		coordinator.observeAllDay(emptySet()).first().sources shouldBe emptyMap()
+		subscriptions.get() shouldBe 0
+		reads.get() shouldBe 0
+		counters.adapterCreations.get() shouldBe 0
+		counters.queries.get() shouldBe 0
+	}
+
+	@Test
+	fun `all-day Steps status uses only the requested real provider window with no WAL stage`() = runTest {
+		val counters = CallCounters()
+		val seen = mutableListOf<AllDaySourceStatusRequest>()
+		val expected = allDayStepsRead()
+		val request = allDayStepsRequest()
+		val coordinator = SourceLifecycleProofCoordinator(flowOf(Unit), successfulDescriptors(counters),
+			successfulQueryRepository(counters), StandardTestDispatcher(testScheduler), AllDaySourceStatusQuery {
+				seen += it; expected
+			})
+		coordinator.observeAllDay(setOf(request)).first().sources shouldBe mapOf(TrackingSource.STEPS to expected)
+		seen shouldBe listOf(request)
+		expected.windows.single().identity shouldBe "provider-window"
+		expected.windows.single().semanticRevision shouldBe 2L
+		counters.adapterCreations.get() shouldBe 0
+		counters.recording.get() shouldBe 0
+		counters.materialized.get() shouldBe 0
+		counters.queries.get() shouldBe 0
+	}
+
+	@Test
+	fun `all-day source failure preserves independently requested saved siblings`() = runTest {
+		val counters = CallCounters()
+		val seen = mutableListOf<TrackingSource>()
+		val steps = allDayStepsRead()
+		val cell = AllDaySourceStatusRead.Cell(TrackingHistoryReadSnapshot(7L, 11L), emptyList(), emptyList(), emptySet())
+		val coordinator = SourceLifecycleProofCoordinator(flowOf(Unit), successfulDescriptors(counters),
+			successfulQueryRepository(counters), StandardTestDispatcher(testScheduler), AllDaySourceStatusQuery {
+				seen += it.source
+				when (it.source) {
+					TrackingSource.WIFI -> error("unavailable retained Wi-Fi dependency")
+					TrackingSource.CELL -> cell
+					else -> steps
+				}
+			})
+		val requests = linkedSetOf(AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(0L, 2_000L)),
+			AllDaySourceStatusRequest.Cell(HistoryObservationWindow(0L, 2_000L)), allDayStepsRequest())
+		val result = coordinator.observeAllDay(requests).first().sources
+		result shouldBe mapOf(TrackingSource.WIFI to AllDaySourceStatusRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE),
+			TrackingSource.CELL to cell, TrackingSource.STEPS to steps)
+		seen shouldBe listOf(TrackingSource.WIFI, TrackingSource.CELL, TrackingSource.STEPS)
+		counters.adapterCreations.get() shouldBe 0
+	}
+
+	@Test
+	fun `all-day status rejects two windows for one source`() = runTest {
+		val counters = CallCounters()
+		val coordinator = SourceLifecycleProofCoordinator(flowOf(Unit), successfulDescriptors(counters),
+			successfulQueryRepository(counters), StandardTestDispatcher(testScheduler), AllDaySourceStatusQuery { allDayStepsRead() })
+		assertFailsWith<IllegalArgumentException> {
+			coordinator.observeAllDay(setOf(AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(0L, 1_000L)),
+				AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(1_000L, 2_000L))))
+		}
+	}
+
+	@Test
+	fun `all-day invalidation keeps a complete read and only the latest pending gap update`() = runTest {
+		val invalidations = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 64)
+		invalidations.tryEmit(Unit)
+		val release = CompletableDeferred<Unit>()
+		val entered = CompletableDeferred<Unit>()
+		var reads = 0
+		val counters = CallCounters()
+		val coordinator = SourceLifecycleProofCoordinator(invalidations, successfulDescriptors(counters),
+			successfulQueryRepository(counters), StandardTestDispatcher(testScheduler), AllDaySourceStatusQuery {
+				reads++
+				val result = allDayStepsRead(if (reads == 1) emptyList() else
+					listOf(AllDayStepsGapStatus(AmbientStepsStructuralDay(0L, "UTC"), 1_000L, 2_000L)))
+				if (reads == 1) { entered.complete(Unit); release.await() }
+				result
+			})
+		val collection = async { coordinator.observeAllDay(setOf(allDayStepsRequest())).take(2).toList() }
+		runCurrent(); entered.await()
+		repeat(32) { invalidations.emit(Unit) }
+		release.complete(Unit)
+		advanceUntilIdle()
+		val results = collection.await().map { it.sources.getValue(TrackingSource.STEPS) as AllDaySourceStatusRead.Steps }
+		reads shouldBe 2
+		results.first().gaps shouldBe emptyList()
+		results.last().gaps.single().startTimeMs shouldBe 1_000L
+		counters.adapterCreations.get() shouldBe 0
+	}
+
+	@Test
+	fun `cancelling all-day status drains the requested read and closes its invalidation observer`() = runTest {
+		val entered = CompletableDeferred<Unit>()
+		val queryCancelled = AtomicInteger()
+		val observerClosed = AtomicInteger()
+		val counters = CallCounters()
+		val coordinator = SourceLifecycleProofCoordinator(callbackFlow {
+			trySend(Unit); awaitClose { observerClosed.incrementAndGet() }
+		}, successfulDescriptors(counters), successfulQueryRepository(counters), StandardTestDispatcher(testScheduler),
+			AllDaySourceStatusQuery {
+				entered.complete(Unit)
+				try { awaitCancellation() } finally { queryCancelled.incrementAndGet() }
+			})
+		val collection = launch { coordinator.observeAllDay(setOf(allDayStepsRequest())).collect() }
+		runCurrent(); entered.await()
+		collection.cancelAndJoin()
+		queryCancelled.get() shouldBe 1
+		observerClosed.get() shouldBe 1
+		counters.adapterCreations.get() shouldBe 0
+	}
+
+	@Test
+	fun `all-day cursor gap authority retention and accepted Location receipt changes invalidate status`() {
+		SOURCE_LIFECYCLE_PROOF_OBSERVED_TABLES.toSet().containsAll(setOf(
+			"ambient_steps_import_cursor", "ambient_steps_import_gap", "ambient_steps_import_authority_transition",
+			"ambient_steps_retention_authority", "ambient_wifi_authority", "ambient_wifi_retention_authority",
+			"ambient_wifi_fact_cursor", "ambient_cell_authority", "ambient_cell_retention_authority", "ambient_cell_fact_cursor",
+			"location_accepted_receipt", "location_sample_purpose_authority", "ambient_location_retention_authority",
+			"collected_data_deletion_operation")) shouldBe true
+	}
+
+	private fun allDayStepsRequest() = AllDaySourceStatusRequest.Steps(
+		AmbientStepsHistoryRangeRequest(listOf(AmbientStepsStructuralDay(0L, "UTC"))))
+	private fun allDayStepsRead(gaps: List<AllDayStepsGapStatus> = emptyList()) = AllDaySourceStatusRead.Steps(
+		TrackingHistoryReadSnapshot(7L, 11L), listOf(AllDayStepsWindowStatus("provider-window", 2L,
+			AmbientStepsStructuralDay(0L, "UTC"), 0L, 1_000L)), gaps, emptySet(), emptySet())
+
 	@Test
 	fun `empty observation emits without subscribing to database invalidation`() = runTest {
 		val subscriptions = AtomicInteger()

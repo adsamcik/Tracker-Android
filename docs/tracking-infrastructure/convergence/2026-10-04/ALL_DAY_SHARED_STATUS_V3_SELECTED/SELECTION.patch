@@ -1,0 +1,1309 @@
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt
+@@ -319,3 +319,14 @@
+ 		ioDispatcher = ioDispatcher,
+ 	)
+ }
++
++/** Shared saved-data status stays read-only and delegates to existing source readers. */
++@Module
++@InstallIn(SingletonComponent::class)
++internal abstract class AllDaySourceStatusDataModule {
++	@Binds
++	@Singleton
++	abstract fun bindAllDaySourceStatusQuery(
++		impl: com.adsamcik.tracker.stats.data.repository.RoomAllDaySourceStatusQuery,
++	): com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusQuery
++}
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt
+@@ -74,9 +74,10 @@
+     private val backgroundCell: RoomAmbientCellRepository,
+     @ApplicationContext private val context: Context,
+     @IoDispatcher private val io: CoroutineDispatcher,
++    private val allDaySources: RoomAllDaySourceStatusQuery = RoomAllDaySourceStatusQuery(
++        database, backgroundSteps, backgroundWifi, backgroundCell, io),
+ ) {
+     private val importedSteps = ImportedStepsProductReader(database)
+-    private val dayLocation = RetainedLocationContextReader(database)
+ 
+     suspend fun read(request: HistoryRangeRequest): HistoryRangeRead = withContext(io) {
+         if (!database.isOpen) return@withContext HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
+@@ -462,7 +463,7 @@
+                             if (it.size > ids.size) throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW) }
+                     }
+                     sourceSamples = receipts.associate { it.sourceEventId to it.sampleId }
+-                    dayLocation.qualifyInTransaction(receipts)
++                    allDaySources.qualifyLocationInTransaction(receipts)
+                 }
+                 catch (cancelled: CancellationException) { throw cancelled }
+                 catch (failure: RangeHistoryUnavailable) {
+@@ -508,7 +509,7 @@
+             }
+             HistorySource.WIFI -> {
+                 val selectedOrigins = range.origins.mapNotNullTo(linkedSetOf()) { it.toWifiOrigin() }
+-                val read = backgroundWifi.readObservationWindowInTransaction(AmbientWifiReadRequest(from, to, selectedOrigins, MAX_DAY_FACTS))
++                val read = allDaySources.readWifiHistoryInTransaction(AmbientWifiReadRequest(from, to, selectedOrigins, MAX_DAY_FACTS))
+                 val payload = when (read) {
+                     is AmbientWifiReadResult.Snapshot -> read
+                     AmbientWifiReadResult.DependencyOverflow -> throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
+@@ -528,7 +529,7 @@
+             }
+             HistorySource.CELL -> {
+                 val selectedOrigins = range.origins.mapNotNullTo(linkedSetOf()) { it.toCellOrigin() }
+-                val read = backgroundCell.readObservationWindowInTransaction(AmbientCellReadRequest(from, to, selectedOrigins, MAX_DAY_FACTS))
++                val read = allDaySources.readCellHistoryInTransaction(AmbientCellReadRequest(from, to, selectedOrigins, MAX_DAY_FACTS))
+                 val payload = when (read) {
+                     is AmbientCellReadResult.Snapshot -> read
+                     AmbientCellReadResult.DependencyOverflow -> throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
+@@ -559,7 +560,7 @@
+                 var factCount = 0
+                 for (batch in batches) {
+                     currentCoroutineContext().ensureActive()
+-                    val read = backgroundSteps.readBackgroundInCurrentTransaction(AmbientStepsHistoryRangeRequest(batch),
++                    val read = allDaySources.readStepsHistoryInTransaction(AmbientStepsHistoryRangeRequest(batch),
+                         snapshot.sourceEvidenceRevision, HistoryOrigin.LOCAL in range.origins, HistoryOrigin.IMPORTED in range.origins)
+                     val payload = when (read) {
+                         is AmbientStepsHistoryRead.Snapshot -> read
+@@ -771,7 +772,7 @@
+         if (reason == SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
+             HistoryProblemReason.DEPENDENCY_OVERFLOW else HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+ }
+-private fun SourceEvidenceState.hasValidRangeShape() = id == SourceEvidenceState.SINGLETON_ID &&
++internal fun SourceEvidenceState.hasValidRangeShape() = id == SourceEvidenceState.SINGLETON_ID &&
+     revision >= 0 && collectedDataEpoch >= 0 && retainedFromMs?.let { it >= 0 } != false &&
+     deletedSourceEventHighWaterOrdinal >= 0 && updatedAtMs >= 0
+ private fun HistoryOrigin.toWifiOrigin(): AmbientWifiOrigin? = when (this) {
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt
+@@ -67,6 +67,10 @@
+ 	internal suspend fun readObservationWindowInTransaction(request: AmbientWifiReadRequest): AmbientWifiReadResult =
+ 		readQualifiedWindowInTransaction(request, includeObservationOverlap = true).strictResult()
+ 
++	/** Saved-data status preserves valid siblings and typed gaps on the measured reading window. */
++	internal suspend fun readQualifiedObservationWindowInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult> =
++		readQualifiedWindowInTransaction(request, includeObservationOverlap = true)
++
+ 	/** Optional paired consumers keep independently qualified rows and the explicit read gaps. */
+ 	internal suspend fun readQualifiedInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult> =
+ 		readQualifiedWindowInTransaction(request, includeObservationOverlap = false)
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt
+@@ -69,6 +69,10 @@
+ 	/** Display-day history can select an earlier child without widening ordinary export scope. */
+ 	internal suspend fun readObservationWindowInTransaction(request: AmbientCellReadRequest): AmbientCellReadResult =
+ 		readQualifiedWindowInTransaction(request, includeObservationOverlap = true).strictResult()
++
++	/** Saved-data status preserves valid siblings and typed gaps on the measured reading window. */
++	internal suspend fun readQualifiedObservationWindowInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult> =
++		readQualifiedWindowInTransaction(request, includeObservationOverlap = true)
+ 
+ 	/** Optional paired consumers keep independently qualified rows and the explicit read gaps. */
+ 	internal suspend fun readQualifiedInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult> =
+diff --git a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinator.kt b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinator.kt
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinator.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinator.kt
+@@ -5,6 +5,10 @@
+ import com.adsamcik.tracker.shared.base.database.TRACKING_HISTORY_INVALIDATION_TABLES
+ import com.adsamcik.tracker.shared.base.di.IoDispatcher
+ import com.adsamcik.tracker.shared.model.tracking.TrackingSource
++import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusQuery
++import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRead
++import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRequest
++import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+ import com.adsamcik.tracker.stats.api.repository.MaterializedProofState
+ import com.adsamcik.tracker.stats.api.repository.QueryableProofState
+ import com.adsamcik.tracker.stats.api.repository.SourceFactLookupRequest
+@@ -35,6 +39,9 @@
+ 	}
+ }
+ 
++/** Qualified saved all-day data uses source-specific identities; it has no invented WAL stages. */
++data class AllDaySourceStatusSnapshot(val sources: Map<TrackingSource, AllDaySourceStatusRead>)
++
+ /**
+  * App-scoped read-only proof observer.
+  *
+@@ -49,18 +56,21 @@
+ 	descriptors: Set<SourceLifecycleProofDescriptor>,
+ 	private val queryRepository: SourceFactQueryRepository,
+ 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
++	private val allDayQuery: AllDaySourceStatusQuery? = null,
+ ) {
+ 	@Inject
+ 	internal constructor(
+ 		database: AppDatabase,
+ 		catalog: SourceLifecycleProofCatalog,
+ 		queryRepository: SourceFactQueryRepository,
++		allDayQuery: AllDaySourceStatusQuery,
+ 		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+ 	) : this(
+ 		invalidations = database.lifecycleInvalidations(),
+ 		descriptors = catalog.descriptors,
+ 		queryRepository = queryRepository,
+ 		ioDispatcher = ioDispatcher,
++		allDayQuery = allDayQuery,
+ 	)
+ 
+ 	private val descriptorsBySource = descriptors.associateBy(SourceLifecycleProofDescriptor::source)
+@@ -77,6 +87,27 @@
+ 				snapshot(keys)
+ 			}
+ 			.flowOn(ioDispatcher)
++	}
++
++	fun observeAllDay(requests: Set<AllDaySourceStatusRequest>): Flow<AllDaySourceStatusSnapshot> {
++		require(requests.size == requests.map(AllDaySourceStatusRequest::source).distinct().size) {
++			"Each source must have one bounded all-day request"
++		}
++		if (requests.isEmpty()) return flowOf(AllDaySourceStatusSnapshot(emptyMap()))
++		return invalidations.conflate().map {
++			val results = linkedMapOf<TrackingSource, AllDaySourceStatusRead>()
++			for (request in requests) {
++				results[request.source] = try {
++					allDayQuery?.read(request)
++						?: AllDaySourceStatusRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++				} catch (cancelled: CancellationException) {
++					throw cancelled
++				} catch (_: Exception) {
++					AllDaySourceStatusRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++				}
++			}
++			AllDaySourceStatusSnapshot(results)
++		}.flowOn(ioDispatcher)
+ 	}
+ 
+ 	internal suspend fun snapshot(keys: Set<SourceProofKey>): SourceLifecycleProofSnapshot {
+@@ -236,6 +267,20 @@
+ 	"location_observation",
+ 	"location_observation_decision",
+ 	"location_sample",
++	"location_sample_purpose_authority",
++	"location_accepted_receipt",
++	"collected_data_deletion_operation",
++	"ambient_location_retention_authority",
++	"ambient_steps_import_cursor",
++	"ambient_steps_import_gap",
++	"ambient_steps_import_authority_transition",
++	"ambient_steps_retention_authority",
++	"ambient_wifi_authority",
++	"ambient_wifi_retention_authority",
++	"ambient_wifi_fact_cursor",
++	"ambient_cell_authority",
++	"ambient_cell_retention_authority",
++	"ambient_cell_fact_cursor",
+ )
+ 
+ internal val SOURCE_LIFECYCLE_PROOF_OBSERVED_TABLES =
+diff --git a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinatorTest.kt b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinatorTest.kt
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinatorTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinatorTest.kt
+@@ -3,6 +3,15 @@
+ import com.adsamcik.tracker.shared.base.database.TRACKING_HISTORY_INVALIDATION_TABLES
+ import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
+ import com.adsamcik.tracker.shared.model.tracking.TrackingSource
++import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusQuery
++import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRead
++import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRequest
++import com.adsamcik.tracker.stats.api.repository.AllDayStepsGapStatus
++import com.adsamcik.tracker.stats.api.repository.AllDayStepsWindowStatus
++import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRangeRequest
++import com.adsamcik.tracker.stats.api.repository.AmbientStepsStructuralDay
++import com.adsamcik.tracker.stats.api.repository.HistoryObservationWindow
++import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+ import com.adsamcik.tracker.stats.api.repository.MaterializedProofState
+ import com.adsamcik.tracker.stats.api.repository.QueryableProofState
+ import com.adsamcik.tracker.stats.api.repository.RecordingProofState
+@@ -45,6 +54,143 @@
+ import org.junit.Test
+ 
+ class SourceLifecycleProofCoordinatorTest {
++
++	@Test
++	fun `empty all-day status neither subscribes nor queries any source`() = runTest {
++		val subscriptions = AtomicInteger()
++		val counters = CallCounters()
++		val reads = AtomicInteger()
++		val coordinator = SourceLifecycleProofCoordinator(callbackFlow {
++			subscriptions.incrementAndGet(); trySend(Unit); awaitClose {}
++		}, successfulDescriptors(counters), successfulQueryRepository(counters), StandardTestDispatcher(testScheduler),
++			AllDaySourceStatusQuery { reads.incrementAndGet(); allDayStepsRead() })
++		coordinator.observeAllDay(emptySet()).first().sources shouldBe emptyMap()
++		subscriptions.get() shouldBe 0
++		reads.get() shouldBe 0
++		counters.adapterCreations.get() shouldBe 0
++		counters.queries.get() shouldBe 0
++	}
++
++	@Test
++	fun `all-day Steps status uses only the requested real provider window with no WAL stage`() = runTest {
++		val counters = CallCounters()
++		val seen = mutableListOf<AllDaySourceStatusRequest>()
++		val expected = allDayStepsRead()
++		val request = allDayStepsRequest()
++		val coordinator = SourceLifecycleProofCoordinator(flowOf(Unit), successfulDescriptors(counters),
++			successfulQueryRepository(counters), StandardTestDispatcher(testScheduler), AllDaySourceStatusQuery {
++				seen += it; expected
++			})
++		coordinator.observeAllDay(setOf(request)).first().sources shouldBe mapOf(TrackingSource.STEPS to expected)
++		seen shouldBe listOf(request)
++		expected.windows.single().identity shouldBe "provider-window"
++		expected.windows.single().semanticRevision shouldBe 2L
++		counters.adapterCreations.get() shouldBe 0
++		counters.recording.get() shouldBe 0
++		counters.materialized.get() shouldBe 0
++		counters.queries.get() shouldBe 0
++	}
++
++	@Test
++	fun `all-day source failure preserves independently requested saved siblings`() = runTest {
++		val counters = CallCounters()
++		val seen = mutableListOf<TrackingSource>()
++		val steps = allDayStepsRead()
++		val cell = AllDaySourceStatusRead.Cell(TrackingHistoryReadSnapshot(7L, 11L), emptyList(), emptyList(), emptySet())
++		val coordinator = SourceLifecycleProofCoordinator(flowOf(Unit), successfulDescriptors(counters),
++			successfulQueryRepository(counters), StandardTestDispatcher(testScheduler), AllDaySourceStatusQuery {
++				seen += it.source
++				when (it.source) {
++					TrackingSource.WIFI -> error("unavailable retained Wi-Fi dependency")
++					TrackingSource.CELL -> cell
++					else -> steps
++				}
++			})
++		val requests = linkedSetOf(AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(0L, 2_000L)),
++			AllDaySourceStatusRequest.Cell(HistoryObservationWindow(0L, 2_000L)), allDayStepsRequest())
++		val result = coordinator.observeAllDay(requests).first().sources
++		result shouldBe mapOf(TrackingSource.WIFI to AllDaySourceStatusRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE),
++			TrackingSource.CELL to cell, TrackingSource.STEPS to steps)
++		seen shouldBe listOf(TrackingSource.WIFI, TrackingSource.CELL, TrackingSource.STEPS)
++		counters.adapterCreations.get() shouldBe 0
++	}
++
++	@Test
++	fun `all-day status rejects two windows for one source`() = runTest {
++		val counters = CallCounters()
++		val coordinator = SourceLifecycleProofCoordinator(flowOf(Unit), successfulDescriptors(counters),
++			successfulQueryRepository(counters), StandardTestDispatcher(testScheduler), AllDaySourceStatusQuery { allDayStepsRead() })
++		assertFailsWith<IllegalArgumentException> {
++			coordinator.observeAllDay(setOf(AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(0L, 1_000L)),
++				AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(1_000L, 2_000L))))
++		}
++	}
++
++	@Test
++	fun `all-day invalidation keeps a complete read and only the latest pending gap update`() = runTest {
++		val invalidations = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 64)
++		invalidations.tryEmit(Unit)
++		val release = CompletableDeferred<Unit>()
++		val entered = CompletableDeferred<Unit>()
++		var reads = 0
++		val counters = CallCounters()
++		val coordinator = SourceLifecycleProofCoordinator(invalidations, successfulDescriptors(counters),
++			successfulQueryRepository(counters), StandardTestDispatcher(testScheduler), AllDaySourceStatusQuery {
++				reads++
++				val result = allDayStepsRead(if (reads == 1) emptyList() else
++					listOf(AllDayStepsGapStatus(AmbientStepsStructuralDay(0L, "UTC"), 1_000L, 2_000L)))
++				if (reads == 1) { entered.complete(Unit); release.await() }
++				result
++			})
++		val collection = async { coordinator.observeAllDay(setOf(allDayStepsRequest())).take(2).toList() }
++		runCurrent(); entered.await()
++		repeat(32) { invalidations.emit(Unit) }
++		release.complete(Unit)
++		advanceUntilIdle()
++		val results = collection.await().map { it.sources.getValue(TrackingSource.STEPS) as AllDaySourceStatusRead.Steps }
++		reads shouldBe 2
++		results.first().gaps shouldBe emptyList()
++		results.last().gaps.single().startTimeMs shouldBe 1_000L
++		counters.adapterCreations.get() shouldBe 0
++	}
++
++	@Test
++	fun `cancelling all-day status drains the requested read and closes its invalidation observer`() = runTest {
++		val entered = CompletableDeferred<Unit>()
++		val queryCancelled = AtomicInteger()
++		val observerClosed = AtomicInteger()
++		val counters = CallCounters()
++		val coordinator = SourceLifecycleProofCoordinator(callbackFlow {
++			trySend(Unit); awaitClose { observerClosed.incrementAndGet() }
++		}, successfulDescriptors(counters), successfulQueryRepository(counters), StandardTestDispatcher(testScheduler),
++			AllDaySourceStatusQuery {
++				entered.complete(Unit)
++				try { awaitCancellation() } finally { queryCancelled.incrementAndGet() }
++			})
++		val collection = launch { coordinator.observeAllDay(setOf(allDayStepsRequest())).collect() }
++		runCurrent(); entered.await()
++		collection.cancelAndJoin()
++		queryCancelled.get() shouldBe 1
++		observerClosed.get() shouldBe 1
++		counters.adapterCreations.get() shouldBe 0
++	}
++
++	@Test
++	fun `all-day cursor gap authority retention and accepted Location receipt changes invalidate status`() {
++		SOURCE_LIFECYCLE_PROOF_OBSERVED_TABLES.toSet().containsAll(setOf(
++			"ambient_steps_import_cursor", "ambient_steps_import_gap", "ambient_steps_import_authority_transition",
++			"ambient_steps_retention_authority", "ambient_wifi_authority", "ambient_wifi_retention_authority",
++			"ambient_wifi_fact_cursor", "ambient_cell_authority", "ambient_cell_retention_authority", "ambient_cell_fact_cursor",
++			"location_accepted_receipt", "location_sample_purpose_authority", "ambient_location_retention_authority",
++			"collected_data_deletion_operation")) shouldBe true
++	}
++
++	private fun allDayStepsRequest() = AllDaySourceStatusRequest.Steps(
++		AmbientStepsHistoryRangeRequest(listOf(AmbientStepsStructuralDay(0L, "UTC"))))
++	private fun allDayStepsRead(gaps: List<AllDayStepsGapStatus> = emptyList()) = AllDaySourceStatusRead.Steps(
++		TrackingHistoryReadSnapshot(7L, 11L), listOf(AllDayStepsWindowStatus("provider-window", 2L,
++			AmbientStepsStructuralDay(0L, "UTC"), 0L, 1_000L)), gaps, emptySet(), emptySet())
++
+ 	@Test
+ 	fun `empty observation emits without subscribing to database invalidation`() = runTest {
+ 		val subscriptions = AtomicInteger()
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt
+@@ -23,6 +23,9 @@
+ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
++import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRead
++import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRequest
++import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+ import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRead
+ import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRead
+ import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRequest
+@@ -60,6 +63,178 @@
+ 
+ 	@After
+ 	fun tearDown() = database.close()
++
++
++	@Test
++	fun `all-day status preserves actual provider windows without requiring a session or WAL event`() = runTest {
++		val fingerprint = seedPublicAuthority()
++		val saved = fact(10L, startTimeMs = 1_000L, endTimeMs = 2_000L, authorizationFingerprint = fingerprint)
++		database.ambientStepsFactRevisionDao().insert(saved)
++		val read = statusQuery().read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps
++		val window = read.windows.single()
++		window.identity shouldBe saved.logicalFactId
++		window.semanticRevision shouldBe 1L
++		window.day shouldBe AmbientStepsStructuralDay(0L, "UTC")
++		window.startTimeMs shouldBe 1_000L
++		window.endTimeMs shouldBe 2_000L
++		read.snapshot.collectedDataEpoch shouldBe 7L
++		database.openHelper.readableDatabase.query("SELECT COUNT(*) FROM logical_tracking_session").use {
++			it.moveToFirst(); it.getLong(0) shouldBe 0L
++		}
++		database.openHelper.readableDatabase.query("SELECT COUNT(*) FROM source_event_wal").use {
++			it.moveToFirst(); it.getLong(0) shouldBe 0L
++		}
++	}
++
++	@Test
++	fun `all-day metadata and shared History follow the same Steps correction and retraction`() = runTest {
++		val fingerprint = seedPublicAuthority()
++		val initial = fact(10L, authorizationFingerprint = fingerprint)
++		database.ambientStepsFactRevisionDao().insert(initial)
++		val query = statusQuery()
++		val corrected = signed(initial.copy(semanticRevision = 2L,
++			mutationId = AmbientStepsFactIntegrity.mutationId(initial.logicalFactId, 2L,
++				AmbientStepsFactRevisionEntity.OPERATION_UPSERT), stepCount = 12L,
++			observedAtMs = DAY_END + 1L, appliedAtMs = DAY_END + 1L))
++		database.ambientStepsFactRevisionDao().insert(corrected)
++		val status = query.read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps
++		status.windows.single().identity shouldBe initial.logicalFactId
++		status.windows.single().semanticRevision shouldBe 2L
++		val history = database.withTransaction {
++			query.readStepsHistoryInTransaction(stepsRange(), requireNotNull(database.sourceEvidenceStateDao().get()).revision,
++				includeLocal = true, includeImported = false)
++		} as AmbientStepsHistoryRead.Snapshot
++		history.days.single().total shouldBe AmbientStepsHistoryValue.Exact(12L)
++		database.ambientStepsFactRevisionDao().insert(retract(corrected))
++		val after = query.read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps
++		after.windows shouldBe emptyList()
++		after.materializingDays shouldBe setOf(AmbientStepsStructuralDay(0L, "UTC"))
++	}
++
++	@Test
++	fun `all-day status keeps a gap-only provider day as a real gap rather than a measured zero`() = runTest {
++		seedPublicAuthority(cursorWithGap())
++		database.ambientStepsImportStateDao().insertGap(gap(1L, GAP_START))
++		val read = statusQuery().read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps
++		read.windows shouldBe emptyList()
++		read.gaps.single().day shouldBe AmbientStepsStructuralDay(0L, "UTC")
++		read.gaps.single().startTimeMs shouldBe GAP_START
++		read.gaps.single().endTimeMs shouldBe GAP_END
++	}
++
++	@Test
++	fun `all-day status observes cursor progress without requiring another saved fact`() = runTest {
++		val fingerprint = seedPublicAuthority(cursor().copy(importedThroughTimeMs = 1_000L,
++			lastObservedAtMs = 1_000L, updatedAtMs = 1_000L))
++		val saved = fact(10L, endTimeMs = 1_000L, authorizationFingerprint = fingerprint)
++		database.ambientStepsFactRevisionDao().insert(saved)
++		val query = statusQuery()
++		val before = query.read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps
++		before.windows.single().identity shouldBe saved.logicalFactId
++		before.materializingDays shouldBe setOf(AmbientStepsStructuralDay(0L, "UTC"))
++		// Existing importer state is updated alone; no made-up provider event or count is added.
++		val current = database.ambientStepsImportStateDao().activeCursors(2).single()
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE ambient_steps_import_cursor SET imported_through_time_ms = ?, last_observed_at_ms = ?, " +
++				"updated_at_ms = ?, cursor_revision = ? WHERE registration_generation = ?",
++			arrayOf(DAY_END, DAY_END, DAY_END, current.cursorRevision + 1L, current.registrationGeneration))
++		val after = query.read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps
++		after.windows shouldBe before.windows
++		after.materializingDays shouldBe emptySet()
++		database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
++	}
++
++	@Test
++	fun `turning all-day Steps off does not remove trustworthy saved metadata`() = runTest {
++		val fingerprint = seedPublicAuthority()
++		val saved = fact(10L, authorizationFingerprint = fingerprint)
++		database.ambientStepsFactRevisionDao().insert(saved)
++		database.sourcePolicyDao().insertPolicies(listOf(policy(2L).copy(enabled = false,
++			ambientPersistenceEligible = false, ambientConsentEpoch = null)))
++		database.sourcePolicyDao().compareAndSetAuthority(SourcePolicyAuthorityEntity.STATE_ACTIVE, 1L,
++			SourcePolicyAuthorityEntity.STATE_ACTIVE, 2L, null, 2L) shouldBe 1
++		val read = statusQuery().read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps
++		read.windows.single().identity shouldBe saved.logicalFactId
++		read.materializingDays shouldBe emptySet()
++	}
++
++	@Test
++	fun `all-day Steps metadata excludes legacy captured totals while shared History honors origin selection`() = runTest {
++		val fingerprint = seedPublicAuthority()
++		val saved = fact(10L, authorizationFingerprint = fingerprint)
++		database.ambientStepsFactRevisionDao().insert(saved)
++		database.sessionSegmentDao().insert(com.adsamcik.tracker.shared.base.database.data.SessionSegment(
++			startTimeMs = 0L, endTimeMs = DAY_END, distanceM = 0f, steps = 999, primaryActivity = null,
++			activityConfidence = null, sampleCount = 1,
++			source = com.adsamcik.tracker.shared.model.SegmentSource.USER_CREATED,
++			inferenceVersion = null, createdAt = DAY_END))
++		val query = statusQuery()
++		(query.read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps)
++			.windows.map { it.identity } shouldBe listOf(saved.logicalFactId)
++		val importedOnly = database.withTransaction {
++			query.readStepsHistoryInTransaction(stepsRange(), requireNotNull(database.sourceEvidenceStateDao().get()).revision,
++				includeLocal = false, includeImported = true)
++		} as AmbientStepsHistoryRead.Snapshot
++		importedOnly.days.single().factOrigins shouldBe emptyList()
++		importedOnly.days.single().total.count shouldBe null
++	}
++
++	@Test
++	fun `corrupt retained Steps lineage produces an explicit unavailable status`() = runTest {
++		val fingerprint = seedPublicAuthority()
++		database.ambientStepsFactRevisionDao().insert(fact(10L, authorizationFingerprint = fingerprint)
++			.copy(effectChecksum = "0".repeat(64)))
++		statusQuery().read(AllDaySourceStatusRequest.Steps(stepsRange())) shouldBe
++			AllDaySourceStatusRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++		database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
++	}
++
++	@Test
++	fun `closed storage yields unavailable all-day data without a zero count`() = runTest {
++		val query = statusQuery()
++		database.close()
++		query.read(AllDaySourceStatusRequest.Steps(stepsRange())) shouldBe
++			AllDaySourceStatusRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
++	}
++
++	@Test
++	fun `all-day native Steps retains the real local DST day and provider window`() = runTest {
++		val date = java.time.LocalDate.of(2026, 3, 29)
++		val zone = java.time.ZoneId.of("Europe/Prague")
++		val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
++		val end = date.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli()
++		val fingerprint = seedPublicAuthority(cursor().copy(importedThroughTimeMs = end, lastObservedAtMs = end,
++			lastObservedZoneId = zone.id, updatedAtMs = end))
++		val id = AmbientStepsFactIntegrity.logicalFactId(PROVIDER, 1L, 1L, SOURCE_INSTANCE,
++			start, date.toEpochDay(), zone.id, 7L)
++		val utcDayStart = date.toEpochDay() * DAY_END
++		val saved = signed(fact(10L, utcDayStart, utcDayStart + DAY_END, date.toEpochDay(),
++			authorizationFingerprint = fingerprint).copy(logicalFactId = id,
++			mutationId = AmbientStepsFactIntegrity.mutationId(id, 1L, AmbientStepsFactRevisionEntity.OPERATION_UPSERT),
++			storedZoneId = zone.id, structuralDayStartTimeMs = start, structuralDayEndTimeMs = end,
++			windowStartTimeMs = start, windowEndTimeMs = end, observedAtMs = end, appliedAtMs = end))
++		database.ambientStepsFactRevisionDao().insert(saved)
++		val request = AllDaySourceStatusRequest.Steps(AmbientStepsHistoryRangeRequest(
++			listOf(AmbientStepsStructuralDay(date.toEpochDay(), zone.id))))
++		val read = statusQuery().read(request) as AllDaySourceStatusRead.Steps
++		read.windows.single().day shouldBe AmbientStepsStructuralDay(date.toEpochDay(), zone.id)
++		read.windows.single().startTimeMs shouldBe start
++		read.windows.single().endTimeMs shouldBe end
++		end - start shouldBe 23L * 60L * 60L * 1_000L
++	}
++
++	@Test
++	fun `invalid stored Steps calendar is unavailable without consulting provider history`() = runTest {
++		database.sourceEvidenceStateDao().ensure()
++		statusQuery().read(AllDaySourceStatusRequest.Steps(AmbientStepsHistoryRangeRequest(
++			listOf(AmbientStepsStructuralDay(0L, "not-a-zone"))))) shouldBe
++			AllDaySourceStatusRead.Unavailable(HistoryProblemReason.TIME_UNCERTAIN)
++	}
++
++	private fun stepsRange() = AmbientStepsHistoryRangeRequest(listOf(AmbientStepsStructuralDay(0L, "UTC")))
++	private fun statusQuery() = RoomAllDaySourceStatusQuery(database, historyRepository(),
++		RoomAmbientWifiRepository(database, Dispatchers.Unconfined),
++		RoomAmbientCellRepository(database, Dispatchers.Unconfined), Dispatchers.Unconfined)
+ 
+     @Test
+     fun `shared background read does not reintroduce captured legacy steps`() = runTest {
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt
+@@ -1,6 +1,7 @@
+ package com.adsamcik.tracker.stats.data.repository
+ 
+ import android.app.Application
++import androidx.room.withTransaction
+ import androidx.test.core.app.ApplicationProvider
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+ import com.adsamcik.tracker.shared.base.database.data.*
+@@ -25,6 +26,97 @@
+ 
+     @Before fun setup() { database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>()) }
+     @After fun cleanup() = database.close()
++
++
++    @Test fun `all-day native radio status works without Location or a session`() = runTest {
++        installAuthority(WIFI); installAuthority(CELL)
++        val savedWifi = wifi(); val savedCell = cell()
++        insert(savedWifi); insert(savedCell)
++        val query = statusQuery()
++        val wifiStatus = assertIs<AllDaySourceStatusRead.Wifi>(query.read(AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(0, 3_000))))
++        val cellStatus = assertIs<AllDaySourceStatusRead.Cell>(query.read(AllDaySourceStatusRequest.Cell(HistoryObservationWindow(0, 3_000))))
++        assertEquals(savedWifi.logicalFactId, wifiStatus.facts.single().identity)
++        assertEquals(savedCell.logicalFactId, cellStatus.facts.single().identity)
++        assertEquals(1L, wifiStatus.facts.single().semanticRevision)
++        assertEquals(1L, cellStatus.facts.single().semanticRevision)
++        assertEquals(savedWifi.coverageStartTimeMs, wifiStatus.facts.single().coverageStartTimeMs)
++        assertEquals(savedCell.observedWallTimeMs, cellStatus.facts.single().observedTimeMs)
++        assertTrue(wifiStatus.qualificationGaps.isEmpty()); assertTrue(cellStatus.qualificationGaps.isEmpty())
++        assertEquals(0L, database.locationSampleDao().countAll())
++        database.openHelper.readableDatabase.query("SELECT COUNT(*) FROM logical_tracking_session").use {
++            assertTrue(it.moveToFirst()); assertEquals(0L, it.getLong(0))
++        }
++    }
++
++    @Test fun `all-day radio status keeps a valid sibling alongside an explicit qualification gap`() = runTest {
++        installAuthority(WIFI); installAuthority(CELL)
++        val savedWifi = wifi(); val savedCell = cell()
++        insert(savedWifi); insert(wifiCoverage(savedWifi, consentEpoch = 1L))
++        insert(savedCell); insert(cellCoverage(savedCell, consentEpoch = 1L))
++        val query = statusQuery()
++        val wifiStatus = assertIs<AllDaySourceStatusRead.Wifi>(query.read(AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(0, 3_000))))
++        val cellStatus = assertIs<AllDaySourceStatusRead.Cell>(query.read(AllDaySourceStatusRequest.Cell(HistoryObservationWindow(0, 3_000))))
++        assertEquals(listOf(savedWifi.logicalFactId), wifiStatus.facts.map { it.identity })
++        assertEquals(listOf(savedCell.logicalFactId), cellStatus.facts.map { it.identity })
++        assertEquals(setOf(RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE), wifiStatus.qualificationGaps)
++        assertEquals(setOf(RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE), cellStatus.qualificationGaps)
++        // History retains its existing strict behavior, rather than silently accepting an incomplete request.
++        database.withTransaction {
++            assertEquals(AmbientWifiReadResult.StorageUnavailable, query.readWifiHistoryInTransaction(
++                AmbientWifiReadRequest(0, 3_000, setOf(AmbientWifiOrigin.LOCAL_DEVICE), 10)))
++            assertEquals(AmbientCellReadResult.StorageUnavailable, query.readCellHistoryInTransaction(
++                AmbientCellReadRequest(0, 3_000, setOf(AmbientCellOrigin.LOCAL_DEVICE), 10)))
++        }
++    }
++
++    @Test fun `all-day radio status preserves saved native facts after current collection is off`() = runTest {
++        installAuthority(WIFI); installAuthority(CELL)
++        insert(wifi()); insert(cell())
++        for (source in listOf(WIFI, CELL)) database.sourcePolicyDao().insertPolicies(listOf(
++            SourcePolicyEntity(2, source, false, 1, null, null, null, false, false, false,
++                null, null, 1, "boot", 3_000_000_000, 3_000, "USER")))
++        val query = statusQuery()
++        assertEquals(1, assertIs<AllDaySourceStatusRead.Wifi>(query.read(
++            AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(0, 3_000)))).facts.size)
++        assertEquals(1, assertIs<AllDaySourceStatusRead.Cell>(query.read(
++            AllDaySourceStatusRequest.Cell(HistoryObservationWindow(0, 3_000)))).facts.size)
++    }
++
++    @Test fun `all-day radio status preserves exact epoch and finite read limits`() = runTest {
++        installAuthority(WIFI); installAuthority(CELL)
++        val savedWifi = wifi(); val savedCell = cell()
++        insert(savedWifi); insert(wifiCoverage(savedWifi))
++        insert(savedCell); insert(cellCoverage(savedCell))
++        val query = statusQuery()
++        for (request in listOf(AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(0, 3_000), 1),
++                AllDaySourceStatusRequest.Cell(HistoryObservationWindow(0, 3_000), 1))) {
++            assertEquals(AllDaySourceStatusRead.Unavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW), query.read(request))
++        }
++        database.sourceEvidenceStateDao().updateAfterFullDeletion(1, null, 2, 3_000)
++        database.openHelper.writableDatabase.execSQL("DELETE FROM source_demand")
++        val wifiStatus = assertIs<AllDaySourceStatusRead.Wifi>(query.read(AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(0, 3_000))))
++        val cellStatus = assertIs<AllDaySourceStatusRead.Cell>(query.read(AllDaySourceStatusRequest.Cell(HistoryObservationWindow(0, 3_000))))
++        assertTrue(wifiStatus.facts.isEmpty()); assertTrue(cellStatus.facts.isEmpty())
++        assertEquals(1L, wifiStatus.snapshot.collectedDataEpoch)
++        assertEquals(1L, cellStatus.snapshot.collectedDataEpoch)
++    }
++
++    @Test fun `a radio cursor-only mismatch is a status gap and cannot hide the other source`() = runTest {
++        installAuthority(WIFI); installAuthority(CELL)
++        insert(wifi()); insert(cell())
++        database.openHelper.writableDatabase.execSQL("UPDATE ambient_wifi_fact_cursor SET latest_effect_checksum = ?", arrayOf("0".repeat(64)))
++        val query = statusQuery()
++        val wifiStatus = assertIs<AllDaySourceStatusRead.Wifi>(query.read(AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(0, 3_000))))
++        val cellStatus = assertIs<AllDaySourceStatusRead.Cell>(query.read(AllDaySourceStatusRequest.Cell(HistoryObservationWindow(0, 3_000))))
++        assertTrue(wifiStatus.facts.isEmpty())
++        assertEquals(setOf(RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE), wifiStatus.qualificationGaps)
++        assertEquals(1, cellStatus.facts.size)
++        assertTrue(cellStatus.qualificationGaps.isEmpty())
++    }
++
++    private fun statusQuery() = RoomAllDaySourceStatusQuery(database, mockk(),
++        RoomAmbientWifiRepository(database, kotlinx.coroutines.Dispatchers.Unconfined),
++        RoomAmbientCellRepository(database, kotlinx.coroutines.Dispatchers.Unconfined), kotlinx.coroutines.Dispatchers.Unconfined)
+ 
+     @Test fun `ambient Wi-Fi and Cell qualify without sessions and retain coarse Location context`() = runTest {
+         installAuthority(WIFI)
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt
+@@ -6,6 +6,7 @@
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+ import com.adsamcik.tracker.shared.base.database.data.*
+ import com.adsamcik.tracker.stats.api.repository.*
++import io.mockk.mockk
+ import kotlin.test.*
+ import kotlinx.coroutines.runBlocking
+ import org.junit.After
+@@ -27,6 +28,107 @@
+         database.sourceEvidenceStateDao().ensure()
+     }
+     @After fun cleanup() = database.close()
++
++
++    @Test fun `all-day Location status reads native saved points without radio or Steps dependencies`() = runBlocking {
++        installPoint()
++        val read = assertIs<AllDaySourceStatusRead.Location>(statusQuery().read(
++            AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))))
++        assertEquals("event", read.points.single().sourceEventId)
++        assertEquals(AllDayReadingTime(1_000, 10), read.points.single().time)
++        assertTrue(read.qualificationGaps.isEmpty())
++        assertNull(read.problem)
++        assertNull(database.sourceEventWalDao().getByEventId("event"))
++        assertEquals(1L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `all-day Location status excludes unverifiable points while retaining local history`() = runBlocking {
++        val legacy = installPoint(sealed = false)
++        database.locationSampleDao().insert(sample().copy(id = 0, sourceEventId = "foreign", sourceSignalId = "foreign"))
++        val status = assertIs<AllDaySourceStatusRead.Location>(statusQuery().read(
++            AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))))
++        assertTrue(status.points.isEmpty())
++        assertEquals(2L, database.locationSampleDao().countAll())
++        val context: Application = ApplicationProvider.getApplicationContext()
++        val history = assertIs<HistoryRangeRead.Page>(rangeReaderForRoomTest(database, context).read(
++            HistoryRangeRequest(HistoryRange(0, 2_000, "UTC", setOf(HistorySource.LOCATION),
++                setOf(HistoryOrigin.LOCAL), setOf(HistoryPurpose.BACKGROUND)))))
++        assertTrue(history.rows.flatMap { it.sections }.filterIsInstance<HistorySection.Location>()
++            .flatMap { it.points }.any { it.sampleId == legacy.sampleId })
++    }
++
++    @Test fun `all-day Location status keeps the historical grant when collection is off`() = runBlocking {
++        val receipt = installPoint()
++        database.sourcePolicyDao().insertPolicies(listOf(policy().copy(policyRevision = 2,
++            ambientPersistenceEligible = false, enabled = false, ambientConsentEpoch = 1)))
++        val query = statusQuery()
++        assertEquals("event", assertIs<AllDaySourceStatusRead.Location>(query.read(
++            AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000)))).points.single().sourceEventId)
++        database.openHelper.writableDatabase.execSQL("UPDATE location_sample SET lat_e7 = 1 WHERE id = ?", arrayOf(receipt.sampleId))
++        val changed = assertIs<AllDaySourceStatusRead.Location>(query.read(
++            AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))))
++        assertTrue(changed.points.isEmpty())
++        assertTrue(RadioLocationContextGap.LOCATION_PROVENANCE_UNVERIFIABLE in changed.qualificationGaps)
++        assertEquals(1L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `all-day Location status obeys retention and full-clear epoch boundaries`() = runBlocking {
++        installPoint()
++        val query = statusQuery()
++        database.sourceEvidenceStateDao().updateLifecycle(0, 1_000, 2_000)
++        assertTrue(assertIs<AllDaySourceStatusRead.Location>(query.read(
++            AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000)))).points.isEmpty())
++        database.sourceEvidenceStateDao().updateAfterFullDeletion(1, null, 1, 2_001)
++        val afterClear = assertIs<AllDaySourceStatusRead.Location>(query.read(
++            AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))))
++        assertTrue(afterClear.points.isEmpty())
++        assertEquals(1L, afterClear.snapshot.collectedDataEpoch)
++        assertEquals(1L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `an imported copy cannot hide independently valid native all-day Location status`() = runBlocking {
++        val receipt = installPoint()
++        database.locationFileIdentityDao().insertIfAbsent(LocationFileIdentityEntity("imported-copy", receipt.sampleId, true, "unknown"))
++        database.locationFileIdentityDao().recordArchive(LocationFileArchiveEntity("a".repeat(64),
++            LocationFileArchiveEntity.FORMAT, LocationFileArchiveEntity.VERSION, 0, 1))
++        database.locationFileIdentityDao().recordArchivePoints(listOf(LocationFileArchivePointEntity("a".repeat(64), 0, "imported-copy", receipt.sampleId)))
++        val read = assertIs<AllDaySourceStatusRead.Location>(statusQuery().read(
++            AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))))
++        assertEquals("event", read.points.single().sourceEventId)
++        assertTrue(read.qualificationGaps.isEmpty())
++    }
++
++    @Test fun `all-day native status rejects malformed evidence without changing saved data`() = runBlocking {
++        val receipt = installPoint()
++        val request = AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))
++        val query = statusQuery()
++        assertEquals("event", assertIs<AllDaySourceStatusRead.Location>(query.read(request))
++            .points.single().sourceEventId)
++        val evidence = requireNotNull(database.sourceEvidenceStateDao().get())
++        val savedPoints = database.locationSampleDao().byIds(listOf(receipt.sampleId))
++        val columns = listOf("revision" to evidence.revision,
++            "collected_data_epoch" to evidence.collectedDataEpoch,
++            "retained_from_ms" to evidence.retainedFromMs,
++            "deleted_source_event_high_water_ordinal" to evidence.deletedSourceEventHighWaterOrdinal,
++            "updated_at_ms" to evidence.updatedAtMs)
++        for ((column, originalValue) in columns) {
++            database.openHelper.writableDatabase.execSQL(
++                "UPDATE source_evidence_state SET $column = -1 WHERE id = 1")
++            val malformed = requireNotNull(database.sourceEvidenceStateDao().get())
++            assertEquals(HistoryProblemReason.INTEGRITY_UNAVAILABLE,
++                assertIs<AllDaySourceStatusRead.Unavailable>(query.read(request)).reason)
++            assertEquals(savedPoints, database.locationSampleDao().byIds(listOf(receipt.sampleId)))
++            assertEquals(malformed, database.sourceEvidenceStateDao().get())
++            database.openHelper.writableDatabase.execSQL(
++                "UPDATE source_evidence_state SET $column = ? WHERE id = 1", arrayOf(originalValue))
++            assertEquals("event", assertIs<AllDaySourceStatusRead.Location>(query.read(request))
++                .points.single().sourceEventId)
++        }
++        assertEquals(evidence, database.sourceEvidenceStateDao().get())
++    }
++
++    private fun statusQuery() = RoomAllDaySourceStatusQuery(database, mockk(), mockk(), mockk(),
++        kotlinx.coroutines.Dispatchers.Unconfined)
+ 
+     @Test fun `retained ambient coarse point works without raw WAL or an active session`() = runBlocking {
+         installPoint()
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt
+@@ -25,6 +25,11 @@
+ import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityIntegrity
+ import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityIntegrity
+ import com.adsamcik.tracker.shared.base.database.data.WifiChildChecksumInput
++import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRead
++import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRequest
++import com.adsamcik.tracker.stats.api.repository.AllDayReadingTime
++import com.adsamcik.tracker.stats.api.repository.HistoryObservationWindow
++import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+ import com.adsamcik.tracker.stats.api.repository.AmbientCellDayReadRequest
+ import com.adsamcik.tracker.stats.api.repository.AmbientCellOrigin
+ import com.adsamcik.tracker.stats.api.repository.AmbientCellReadRequest
+@@ -33,6 +38,9 @@
+ import com.adsamcik.tracker.stats.api.repository.AmbientWifiOrigin
+ import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadRequest
+ import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadResult
++import io.mockk.mockk
++import java.time.Instant
++import java.time.ZoneId
+ import kotlin.test.assertEquals
+ import kotlin.test.assertIs
+ import kotlinx.coroutines.test.UnconfinedTestDispatcher
+@@ -60,6 +68,42 @@
+ 	@After
+ 	fun tearDown() = database.close()
+ 
++	@Test fun `all-day native status finds each overnight child on its own measured day`() = runTest {
++		val offset = 86_400_000L - 1_950L
++		val originalWifi = insertWifi(true, wallOffsetMs = offset, storedZoneId = "America/Los_Angeles")
++		val originalCell = insertCell(true, wallOffsetMs = offset, storedZoneId = "America/Los_Angeles")
++		val query = RoomAllDaySourceStatusQuery(database, mockk(),
++			RoomAmbientWifiRepository(database, dispatcher), RoomAmbientCellRepository(database, dispatcher), dispatcher)
++		for ((window, expectedTime) in listOf(HistoryObservationWindow(86_399_000L, 86_400_000L) to 86_399_950L,
++			HistoryObservationWindow(86_400_000L, 86_401_000L) to 86_400_050L)) {
++			val wifi = assertIs<AllDaySourceStatusRead.Wifi>(query.read(AllDaySourceStatusRequest.Wifi(window))).facts.single()
++			val cell = assertIs<AllDaySourceStatusRead.Cell>(query.read(AllDaySourceStatusRequest.Cell(window))).facts.single()
++			assertEquals(listOf(AllDayReadingTime(expectedTime, 1L)), wifi.readings)
++			assertEquals(listOf(AllDayReadingTime(expectedTime, 1L)), cell.readings)
++			assertEquals(originalWifi.logicalFactId, wifi.identity)
++			assertEquals(originalCell.logicalFactId, cell.identity)
++			assertEquals(1L, wifi.semanticRevision); assertEquals(1L, cell.semanticRevision)
++			assertEquals(originalWifi.observedWallTimeMs, wifi.observedTimeMs)
++			assertEquals(originalCell.observedWallTimeMs, cell.observedTimeMs)
++		}
++		assertEquals(originalWifi, database.ambientWifiFactDao().revision(originalWifi.writerId,
++			originalWifi.writerVersion, originalWifi.logicalFactId, 1))
++		assertEquals(originalCell, database.ambientCellFactDao().revision(originalCell.writerId,
++			originalCell.writerVersion, originalCell.logicalFactId, 1))
++	}
++
++	@Test fun `missing mandatory Wi-Fi children make status unavailable while Cell details remain usable`() = runTest {
++		insertWifi(true); insertCell(true)
++		database.openHelper.writableDatabase.execSQL("DELETE FROM ambient_wifi_child WHERE item_index = 1")
++		val query = RoomAllDaySourceStatusQuery(database, mockk(),
++			RoomAmbientWifiRepository(database, dispatcher), RoomAmbientCellRepository(database, dispatcher), dispatcher)
++		val window = HistoryObservationWindow(0L, 3_000L)
++		assertEquals(AllDaySourceStatusRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE),
++			query.read(AllDaySourceStatusRequest.Wifi(window)))
++		assertEquals(listOf(1_900L, 2_000L), assertIs<AllDaySourceStatusRead.Cell>(query.read(
++			AllDaySourceStatusRequest.Cell(window))).facts.single().readings.map { it.observedTimeMs })
++	}
++
+ 	@Test
+ 	fun `Wi-Fi v6 becomes unavailable when every current detail is missing`() = runTest {
+ 		val fact = insertWifi(detailGroup = true)
+@@ -167,9 +211,11 @@
+ 	private fun cellDay() = AmbientCellDayReadRequest(0L, "UTC", setOf(AmbientCellOrigin.LOCAL_DEVICE), 10)
+ 
+ 	@Suppress("LongMethod")
+-	private suspend fun insertWifi(detailGroup: Boolean, firstChildTimeMs: Long = 1_900L): AmbientWifiFactRevisionEntity {
++	private suspend fun insertWifi(detailGroup: Boolean, firstChildTimeMs: Long = 1_900L,
++		wallOffsetMs: Long = 0L, storedZoneId: String = "UTC"): AmbientWifiFactRevisionEntity {
+ 		val demand = "wifi-demand".takeIf { detailGroup }
+-		val authorization = installAuthority(SourceDestinationOwnerEntity.SOURCE_WIFI, "wifi", demand)
++		val authorization = installAuthority(SourceDestinationOwnerEntity.SOURCE_WIFI, "wifi", demand, wallOffsetMs)
++		val day = Instant.ofEpochMilli(wallOffsetMs + 2_000L).atZone(ZoneId.of(storedZoneId)).toLocalDate()
+ 		val delivery = "a".repeat(64)
+ 		val id = AmbientWifiFactIntegrity.logicalFactId(delivery, 1L, 0L, 0L, demand)
+ 		val unsigned = AmbientWifiFactRevisionEntity(
+@@ -187,25 +233,27 @@
+ 			purposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+ 			sourcePolicyRevision = 1L, ambientConsentEpoch = 1L, retentionPolicyId = "wifi-retention",
+ 			retentionApprovalRevision = 1L, collectedDataEpoch = 0L, scopeDeletionGeneration = 0L,
+-			clockDomainId = "boot", storedZoneId = "UTC", structuralEpochDay = 0L,
+-			structuralDayStartTimeMs = 0L, structuralDayEndTimeMs = 86_400_000L,
+-			observedIntervalStartNanos = 1_000_000_000L, observedElapsedNanos = 1_100_000_000L,
+-			receivedElapsedNanos = 1_200_000_000L, coverageStartTimeMs = 1_900L,
+-			observedWallTimeMs = 2_000L, wallTimeUncertaintyMs = 1L,
++			clockDomainId = "boot", storedZoneId = storedZoneId, structuralEpochDay = day.toEpochDay(),
++			structuralDayStartTimeMs = day.atStartOfDay(ZoneId.of(storedZoneId)).toInstant().toEpochMilli(),
++			structuralDayEndTimeMs = day.plusDays(1).atStartOfDay(ZoneId.of(storedZoneId)).toInstant().toEpochMilli(),
++			observedIntervalStartNanos = 1_000_000_000L + wallOffsetMs * 1_000_000L,
++			observedElapsedNanos = 1_100_000_000L + wallOffsetMs * 1_000_000L,
++			receivedElapsedNanos = 1_200_000_000L + wallOffsetMs * 1_000_000L, coverageStartTimeMs = wallOffsetMs + 1_900L,
++			observedWallTimeMs = wallOffsetMs + 2_000L, wallTimeUncertaintyMs = 1L,
+ 			coverageCompleteness = AmbientWifiFactRevisionEntity.COMPLETENESS_COMPLETE,
+ 			observationCount = 2, twoPointFourGhzCount = 1, fiveGhzCount = 1,
+ 			sixGhzCount = 0, otherBandCount = 0, strongestSignalDbm = -40, weakestSignalDbm = -70,
+ 			signalSumDbm = -110L, qualityFlags = 0L, qualityConfidence = null,
+-			effectChecksum = "0".repeat(64), appliedAtMs = 2_100L, purposeDemandId = demand,
++			effectChecksum = "0".repeat(64), appliedAtMs = wallOffsetMs + 2_100L, purposeDemandId = demand,
+ 		)
+ 		val fact = unsigned.copy(effectChecksum = AmbientWifiFactIntegrity.effectChecksum(unsigned))
+ 		database.ambientWifiFactDao().insertRevision(fact)
+ 		database.ambientWifiFactDao().insertCursor(AmbientWifiFactCursorEntity(
+ 			fact.writerId, fact.writerVersion, id, 1L, fact.mutationId, fact.effectChecksum,
+-			1L, 0L, 0L, 1L, 2_100L))
++			1L, 0L, 0L, 1L, wallOffsetMs + 2_100L))
+ 		if (detailGroup) database.radioObservationChildDao().insertWifiBackground((0..1).map { index ->
+-			val providerTime = 1_000_000_000L + index * 100_000_000L
+-			val wall = if (index == 0) firstChildTimeMs else 2_000L
++			val providerTime = 1_000_000_000L + index * 100_000_000L + wallOffsetMs * 1_000_000L
++			val wall = wallOffsetMs + if (index == 0) firstChildTimeMs else 2_000L
+ 			val bssid = "aa:bb:cc:dd:ee:f$index"
+ 			val name = if (index == 0) "Home" else "Cafe"
+ 			val frequency = if (index == 0) 2_412 else 5_180
+@@ -220,9 +268,11 @@
+ 	}
+ 
+ 	@Suppress("LongMethod")
+-	private suspend fun insertCell(detailGroup: Boolean, firstChildTimeMs: Long = 1_900L): AmbientCellFactRevisionEntity {
++	private suspend fun insertCell(detailGroup: Boolean, firstChildTimeMs: Long = 1_900L,
++		wallOffsetMs: Long = 0L, storedZoneId: String = "UTC"): AmbientCellFactRevisionEntity {
+ 		val demand = "cell-demand".takeIf { detailGroup }
+-		val authorization = installAuthority(SourceDestinationOwnerEntity.SOURCE_CELL, "cell", demand)
++		val authorization = installAuthority(SourceDestinationOwnerEntity.SOURCE_CELL, "cell", demand, wallOffsetMs)
++		val day = Instant.ofEpochMilli(wallOffsetMs + 2_000L).atZone(ZoneId.of(storedZoneId)).toLocalDate()
+ 		val delivery = "e".repeat(64)
+ 		val id = AmbientCellFactIntegrity.logicalFactId(delivery, 1L, 0L, 0L, demand)
+ 		val unsigned = AmbientCellFactRevisionEntity(
+@@ -240,11 +290,13 @@
+ 			purposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+ 			sourcePolicyRevision = 1L, ambientConsentEpoch = 1L, retentionPolicyId = "cell-retention",
+ 			retentionApprovalRevision = 1L, collectedDataEpoch = 0L, scopeDeletionGeneration = 0L,
+-			clockDomainId = "boot", storedZoneId = "UTC", structuralEpochDay = 0L,
+-			structuralDayStartTimeMs = 0L, structuralDayEndTimeMs = 86_400_000L,
+-			observedIntervalStartNanos = 1_000_000_000L, observedElapsedNanos = 1_100_000_000L,
+-			receivedElapsedNanos = 1_200_000_000L, coverageStartTimeMs = 1_900L,
+-			observedWallTimeMs = 2_000L, wallTimeUncertaintyMs = 1L,
++			clockDomainId = "boot", storedZoneId = storedZoneId, structuralEpochDay = day.toEpochDay(),
++			structuralDayStartTimeMs = day.atStartOfDay(ZoneId.of(storedZoneId)).toInstant().toEpochMilli(),
++			structuralDayEndTimeMs = day.plusDays(1).atStartOfDay(ZoneId.of(storedZoneId)).toInstant().toEpochMilli(),
++			observedIntervalStartNanos = 1_000_000_000L + wallOffsetMs * 1_000_000L,
++			observedElapsedNanos = 1_100_000_000L + wallOffsetMs * 1_000_000L,
++			receivedElapsedNanos = 1_200_000_000L + wallOffsetMs * 1_000_000L, coverageStartTimeMs = wallOffsetMs + 1_900L,
++			observedWallTimeMs = wallOffsetMs + 2_000L, wallTimeUncertaintyMs = 1L,
+ 			coverageCompleteness = AmbientCellFactRevisionEntity.COMPLETENESS_COMPLETE,
+ 			subscriptionCompleteness = AmbientCellFactRevisionEntity.SUBSCRIPTION_COMPLETE,
+ 			observationCount = 2, registeredObservationCount = 1,
+@@ -252,16 +304,16 @@
+ 			qualityUnknownCount = 0, qualityNoneOrUnknownCount = 0, qualityPoorCount = 1,
+ 			qualityModerateCount = 0, qualityGoodCount = 1, qualityGreatCount = 0,
+ 			qualityFlags = 0L, qualityConfidence = null, effectChecksum = "0".repeat(64),
+-			appliedAtMs = 2_100L, purposeDemandId = demand,
++			appliedAtMs = wallOffsetMs + 2_100L, purposeDemandId = demand,
+ 		)
+ 		val fact = unsigned.copy(effectChecksum = AmbientCellFactIntegrity.effectChecksum(unsigned))
+ 		database.ambientCellFactDao().insertRevision(fact)
+ 		database.ambientCellFactDao().insertCursor(AmbientCellFactCursorEntity(
+ 			fact.writerId, fact.writerVersion, id, 1L, fact.mutationId, fact.effectChecksum,
+-			1L, 0L, 0L, 1L, 2_100L))
++			1L, 0L, 0L, 1L, wallOffsetMs + 2_100L))
+ 		if (detailGroup) database.radioObservationChildDao().insertCellBackground((0..1).map { index ->
+-			val providerTime = 1_000_000_000L + index * 100_000_000L
+-			val wall = if (index == 0) firstChildTimeMs else 2_000L
++			val providerTime = 1_000_000_000L + index * 100_000_000L + wallOffsetMs * 1_000_000L
++			val wall = wallOffsetMs + if (index == 0) firstChildTimeMs else 2_000L
+ 			val tower = if (index == 0) "LTE:123" else "NR:456"
+ 			val radio = if (index == 0) "LTE" else "NR"
+ 			val registered = index == 0
+@@ -276,7 +328,7 @@
+ 	}
+ 
+ 	/** Exact historical grant; detail tests must not fail merely because authority is absent. */
+-	private suspend fun installAuthority(source: Int, name: String, factDemandId: String?): String {
++	private suspend fun installAuthority(source: Int, name: String, factDemandId: String?, wallOffsetMs: Long = 0L): String {
+ 		database.sourceEvidenceStateDao().ensure()
+ 		database.sourcePolicyDao().insertPolicies(listOf(SourcePolicyEntity(1, source, true, 1,
+ 			null, null, null, false, false, true, null, null, 1, "boot", 0, 0, "USER")))
+@@ -285,7 +337,8 @@
+ 		database.sourceBrokerDao().insertRegistration(ProviderRegistrationGenerationEntity(source, 1,
+ 			"$name-instance", "owner", "boot", "$name-passive", 0,
+ 			ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND, "process",
+-			ProviderRegistrationGenerationEntity.STATUS_RETIRED, 0, 0, 0, 0, 3_000, 3_000_000_000, null))
++			ProviderRegistrationGenerationEntity.STATUS_RETIRED, 0, 0, 0, 0,
++			wallOffsetMs + 3_000, 3_000_000_000 + wallOffsetMs * 1_000_000L, null))
+ 		val demand = SourceDemandEntity(demandId = factDemandId ?: "$name-legacy-demand",
+ 			consumerId = "$name-consumer", sourceKind = source, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+ 			logicalTrackingId = null, serviceRunId = null, manifestRevision = null, lifecycleLeaseGeneration = null,
+diff --git a/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AllDaySourceStatusQuery.kt b/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AllDaySourceStatusQuery.kt
+--- a/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AllDaySourceStatusQuery.kt
++++ b/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AllDaySourceStatusQuery.kt
+@@ -0,0 +1,112 @@
++package com.adsamcik.tracker.stats.api.repository
++
++import com.adsamcik.tracker.shared.model.tracking.TrackingSource
++
++/** Saved native evidence only. Reading status never starts collection or changes its availability. */
++fun interface AllDaySourceStatusQuery {
++	suspend fun read(request: AllDaySourceStatusRequest): AllDaySourceStatusRead
++}
++
++sealed interface AllDaySourceStatusRequest {
++	val source: TrackingSource
++
++	data class Steps(val range: AmbientStepsHistoryRangeRequest) : AllDaySourceStatusRequest {
++		override val source: TrackingSource = TrackingSource.STEPS
++	}
++
++	data class Wifi(val window: HistoryObservationWindow, val limit: Int = 4_096) : AllDaySourceStatusRequest {
++		override val source: TrackingSource = TrackingSource.WIFI
++		init { require(limit in 1..4_096) }
++	}
++
++	data class Cell(val window: HistoryObservationWindow, val limit: Int = 4_096) : AllDaySourceStatusRequest {
++		override val source: TrackingSource = TrackingSource.CELL
++		init { require(limit in 1..4_096) }
++	}
++
++	data class Location(val window: HistoryObservationWindow, val limit: Int = 4_096) : AllDaySourceStatusRequest {
++		override val source: TrackingSource = TrackingSource.LOCATION
++		init { require(limit in 1..4_096) }
++	}
++
++	/** Activity and Pressure currently have no supported sessionless product. */
++	data class Unsupported(override val source: TrackingSource) : AllDaySourceStatusRequest {
++		init { require(source == TrackingSource.ACTIVITY || source == TrackingSource.PRESSURE) }
++	}
++}
++
++/** A provider aggregate is a real window and revision, not a fabricated admitted sensor event. */
++data class AllDayStepsWindowStatus(
++	val identity: String,
++	val semanticRevision: Long,
++	val day: AmbientStepsStructuralDay,
++	val startTimeMs: Long,
++	val endTimeMs: Long,
++) {
++	init { require(identity.isNotBlank()); require(semanticRevision > 0L); require(startTimeMs >= 0L && endTimeMs > startTimeMs) }
++}
++
++data class AllDayStepsGapStatus(val day: AmbientStepsStructuralDay, val startTimeMs: Long, val endTimeMs: Long)
++
++/** Original reading clocks; this carries no network, tower, signal or coordinate values. */
++data class AllDayReadingTime(val observedTimeMs: Long, val wallTimeUncertaintyMs: Long) {
++	init { require(observedTimeMs >= 0L && wallTimeUncertaintyMs >= 0L) }
++}
++
++data class AllDayWifiFactStatus(
++	val identity: String,
++	val semanticRevision: Long,
++	val coverage: AmbientWifiCoverage,
++	val coverageStartTimeMs: Long,
++	val observedTimeMs: Long,
++	val latestPossibleTimeMs: Long,
++	val readings: List<AllDayReadingTime>,
++)
++
++data class AllDayCellFactStatus(
++	val identity: String,
++	val semanticRevision: Long,
++	val coverage: AmbientCellCoverage,
++	val subscriptionCompleteness: AmbientCellSubscriptionCompleteness,
++	val coverageStartTimeMs: Long,
++	val observedTimeMs: Long,
++	val latestPossibleTimeMs: Long,
++	val readings: List<AllDayReadingTime>,
++)
++
++data class AllDayLocationPointStatus(val sourceEventId: String, val time: AllDayReadingTime)
++
++/** Source-specific saved-data results; none claims that a provider is currently recording. */
++sealed interface AllDaySourceStatusRead {
++	data class Steps(
++		val snapshot: TrackingHistoryReadSnapshot,
++		val windows: List<AllDayStepsWindowStatus>,
++		val gaps: List<AllDayStepsGapStatus>,
++		val materializingDays: Set<AmbientStepsStructuralDay>,
++		val unavailableDays: Set<AmbientStepsStructuralDay>,
++	) : AllDaySourceStatusRead
++
++	data class Wifi(
++		val snapshot: TrackingHistoryReadSnapshot,
++		val facts: List<AllDayWifiFactStatus>,
++		val gaps: List<AmbientWifiGap>,
++		val qualificationGaps: Set<RadioContextReadGapReason>,
++	) : AllDaySourceStatusRead
++
++	data class Cell(
++		val snapshot: TrackingHistoryReadSnapshot,
++		val facts: List<AllDayCellFactStatus>,
++		val gaps: List<AmbientCellGap>,
++		val qualificationGaps: Set<RadioContextReadGapReason>,
++	) : AllDaySourceStatusRead
++
++	data class Location(
++		val snapshot: TrackingHistoryReadSnapshot,
++		val points: List<AllDayLocationPointStatus>,
++		val qualificationGaps: Set<RadioLocationContextGap>,
++		val problem: HistoryProblemReason? = null,
++	) : AllDaySourceStatusRead
++
++	data object Unsupported : AllDaySourceStatusRead
++	data class Unavailable(val reason: HistoryProblemReason) : AllDaySourceStatusRead
++}
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAllDaySourceStatusQuery.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAllDaySourceStatusQuery.kt
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAllDaySourceStatusQuery.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAllDaySourceStatusQuery.kt
+@@ -0,0 +1,172 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import androidx.room.withTransaction
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.activeRetentionFloorSettlement
++import com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
++import com.adsamcik.tracker.shared.base.di.IoDispatcher
++import com.adsamcik.tracker.stats.api.repository.AllDayCellFactStatus
++import com.adsamcik.tracker.stats.api.repository.AllDayLocationPointStatus
++import com.adsamcik.tracker.stats.api.repository.AllDayReadingTime
++import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusQuery
++import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRead
++import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRequest
++import com.adsamcik.tracker.stats.api.repository.AllDayStepsGapStatus
++import com.adsamcik.tracker.stats.api.repository.AllDayStepsWindowStatus
++import com.adsamcik.tracker.stats.api.repository.AllDayWifiFactStatus
++import com.adsamcik.tracker.stats.api.repository.AmbientCellOrigin
++import com.adsamcik.tracker.stats.api.repository.AmbientCellReadRequest
++import com.adsamcik.tracker.stats.api.repository.AmbientCellReadResult
++import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRangeRequest
++import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRead
++import com.adsamcik.tracker.stats.api.repository.AmbientStepsStructuralDay
++import com.adsamcik.tracker.stats.api.repository.AmbientWifiOrigin
++import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadRequest
++import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadResult
++import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
++import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
++import java.time.LocalDate
++import java.time.ZoneId
++import javax.inject.Inject
++import javax.inject.Singleton
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.CoroutineDispatcher
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.withContext
++
++/** Shared read-only source facade. Existing source readers own every qualification and total. */
++@Singleton
++internal class RoomAllDaySourceStatusQuery @Inject constructor(
++	private val database: AppDatabase,
++	private val steps: DefaultAmbientStepsHistoryRepository,
++	private val wifi: RoomAmbientWifiRepository,
++	private val cell: RoomAmbientCellRepository,
++	@IoDispatcher private val io: CoroutineDispatcher,
++) : AllDaySourceStatusQuery {
++	private val nativeSteps = NativeAmbientStepsRangeReader(database)
++	private val location = RetainedLocationContextReader(database)
++
++	override suspend fun read(request: AllDaySourceStatusRequest): AllDaySourceStatusRead = withContext(io) {
++		currentCoroutineContext().ensureActive()
++		if (request is AllDaySourceStatusRequest.Unsupported) return@withContext AllDaySourceStatusRead.Unsupported
++		if (!database.isOpen) return@withContext unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
++		try {
++			database.withTransaction {
++				if (database.activeRetentionFloorSettlement() != null) {
++					return@withTransaction unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++				}
++				val evidence = database.sourceEvidenceStateDao().get()
++					?: return@withTransaction unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++				if (!evidence.hasValidRangeShape()) {
++					return@withTransaction unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++				}
++				val snapshot = TrackingHistoryReadSnapshot(evidence.collectedDataEpoch, evidence.revision)
++				when (request) {
++					is AllDaySourceStatusRequest.Steps -> readSteps(request, evidence, snapshot)
++					is AllDaySourceStatusRequest.Wifi -> readWifi(request, snapshot)
++					is AllDaySourceStatusRequest.Cell -> readCell(request, snapshot)
++					is AllDaySourceStatusRequest.Location -> readLocation(request, snapshot)
++					is AllDaySourceStatusRequest.Unsupported -> AllDaySourceStatusRead.Unsupported
++				}
++			}
++		} catch (cancelled: CancellationException) {
++			throw cancelled
++		} catch (_: android.database.sqlite.SQLiteException) {
++			unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
++		} catch (_: RuntimeException) {
++			unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++		}
++	}
++
++	/** History keeps its requested local/imported membership and existing count-domain composer. */
++	internal suspend fun readStepsHistoryInTransaction(request: AmbientStepsHistoryRangeRequest,
++		expectedRevision: Long, includeLocal: Boolean, includeImported: Boolean): AmbientStepsHistoryRead =
++		steps.readBackgroundInCurrentTransaction(request, expectedRevision, includeLocal, includeImported)
++
++	/** Preserve the existing strict History result; optional status keeps qualification gaps below. */
++	internal suspend fun readWifiHistoryInTransaction(request: AmbientWifiReadRequest): AmbientWifiReadResult =
++		wifi.readObservationWindowInTransaction(request)
++
++	internal suspend fun readCellHistoryInTransaction(request: AmbientCellReadRequest): AmbientCellReadResult =
++		cell.readObservationWindowInTransaction(request)
++
++	internal suspend fun qualifyLocationInTransaction(receipts: List<LocationAcceptedReceiptEntity>): RetainedLocationContextSnapshot =
++		location.qualifyInTransaction(receipts)
++
++	private suspend fun readSteps(request: AllDaySourceStatusRequest.Steps, evidence: SourceEvidenceState,
++		snapshot: TrackingHistoryReadSnapshot): AllDaySourceStatusRead {
++		val days = try {
++			request.range.days.map { day ->
++				val date = LocalDate.ofEpochDay(day.epochDay)
++				val zone = ZoneId.of(day.storedZoneId)
++				AmbientStepsDayIdentity(day.epochDay, day.storedZoneId,
++					date.atStartOfDay(zone).toInstant().toEpochMilli(),
++					date.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli())
++			}
++		} catch (_: RuntimeException) { return unavailable(HistoryProblemReason.TIME_UNCERTAIN) }
++		return when (val read = nativeSteps.read(AmbientStepsRequestedRange(days), evidence)) {
++			is NativeAmbientStepsRangeRead.DependencyOverflow -> unavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
++			NativeAmbientStepsRangeRead.Unverifiable -> unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++			is NativeAmbientStepsRangeRead.Ready -> AllDaySourceStatusRead.Steps(snapshot,
++				read.factsByDay.values.flatten().map { fact ->
++					AllDayStepsWindowStatus(fact.logicalFactId, fact.correctionRevision,
++						AmbientStepsStructuralDay(fact.day.epochDay, fact.day.storedZoneId), fact.startTimeMs, fact.endTimeMs)
++				},
++				read.gapsByDay.flatMap { (key, gaps) -> gaps.map { gap ->
++					AllDayStepsGapStatus(AmbientStepsStructuralDay(key.epochDay, key.storedZoneId), gap.startTimeMs, gap.endTimeMs)
++				} },
++				read.materializingDays.mapTo(linkedSetOf()) { AmbientStepsStructuralDay(it.epochDay, it.storedZoneId) },
++				read.unverifiableDays.mapTo(linkedSetOf()) { AmbientStepsStructuralDay(it.epochDay, it.storedZoneId) })
++		}
++	}
++
++	private suspend fun readWifi(request: AllDaySourceStatusRequest.Wifi,
++		snapshot: TrackingHistoryReadSnapshot): AllDaySourceStatusRead {
++		val window = request.window
++		val read = wifi.readQualifiedObservationWindowInTransaction(AmbientWifiReadRequest(
++			window.fromInclusiveMs, window.toExclusiveMs, setOf(AmbientWifiOrigin.LOCAL_DEVICE), request.limit))
++		return when (val result = read.result) {
++			AmbientWifiReadResult.DependencyOverflow -> unavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
++			AmbientWifiReadResult.StorageUnavailable -> unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
++			is AmbientWifiReadResult.Snapshot -> AllDaySourceStatusRead.Wifi(snapshot, result.facts.map { fact ->
++				AllDayWifiFactStatus(fact.identity, fact.semanticRevision, fact.coverage, fact.coverageStartTimeMs,
++					fact.observedTimeMs, fact.latestPossibleTimeMs, fact.networks.filter { window.contains(it.observedTimeMs) }
++						.map { AllDayReadingTime(it.observedTimeMs, it.wallTimeUncertaintyMs) })
++			}, result.gaps, read.readGaps)
++		}
++	}
++
++	private suspend fun readCell(request: AllDaySourceStatusRequest.Cell,
++		snapshot: TrackingHistoryReadSnapshot): AllDaySourceStatusRead {
++		val window = request.window
++		val read = cell.readQualifiedObservationWindowInTransaction(AmbientCellReadRequest(
++			window.fromInclusiveMs, window.toExclusiveMs, setOf(AmbientCellOrigin.LOCAL_DEVICE), request.limit))
++		return when (val result = read.result) {
++			AmbientCellReadResult.DependencyOverflow -> unavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
++			AmbientCellReadResult.StorageUnavailable -> unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
++			is AmbientCellReadResult.Snapshot -> AllDaySourceStatusRead.Cell(snapshot, result.facts.map { fact ->
++				AllDayCellFactStatus(fact.identity, fact.semanticRevision, fact.coverage, fact.subscriptionCompleteness,
++					fact.coverageStartTimeMs, fact.observedTimeMs, fact.latestPossibleTimeMs,
++					fact.towers.filter { window.contains(it.observedTimeMs) }
++						.map { AllDayReadingTime(it.observedTimeMs, it.wallTimeUncertaintyMs) })
++			}, result.gaps, read.readGaps)
++		}
++	}
++
++	private suspend fun readLocation(request: AllDaySourceStatusRequest.Location,
++		snapshot: TrackingHistoryReadSnapshot): AllDaySourceStatusRead {
++		// An imported copy does not replace the independently retained native Ambient grant.
++		val receipts = database.locationPurposeDao().contextReceiptsOverWindow(request.window.fromInclusiveMs,
++			request.window.toExclusiveMs, request.limit + 1)
++		if (receipts.size > request.limit) return unavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
++		val read = qualifyLocationInTransaction(receipts)
++		return AllDaySourceStatusRead.Location(snapshot, read.points.filter { it.scope is RadioContextScope.Ambient }
++			.distinctBy { it.sourceEventId }.map { point ->
++				AllDayLocationPointStatus(point.sourceEventId, AllDayReadingTime(point.observedWallTimeMs, point.wallTimeUncertaintyMs))
++			}, read.gaps, read.historyProblem)
++	}
++
++	private fun unavailable(reason: HistoryProblemReason) = AllDaySourceStatusRead.Unavailable(reason)
++}
+diff --git a/stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/AllDaySourceStatusQueryTest.kt b/stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/AllDaySourceStatusQueryTest.kt
+--- a/stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/AllDaySourceStatusQueryTest.kt
++++ b/stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/AllDaySourceStatusQueryTest.kt
+@@ -0,0 +1,37 @@
++package com.adsamcik.tracker.stats.api.repository
++
++import com.adsamcik.tracker.shared.model.tracking.TrackingSource
++import kotlin.test.Test
++import kotlin.test.assertEquals
++import kotlin.test.assertFailsWith
++
++class AllDaySourceStatusQueryTest {
++	@Test
++	fun sourceRequestsPreserveStoredCivilDayAndBoundedReadingWindow() {
++		val day = AmbientStepsStructuralDay(20_541L, "Europe/Prague")
++		val steps = AllDaySourceStatusRequest.Steps(AmbientStepsHistoryRangeRequest(listOf(day)))
++		assertEquals(TrackingSource.STEPS, steps.source)
++		assertEquals(listOf(day), steps.range.days)
++		val window = HistoryObservationWindow(1_000L, 2_000L)
++		assertEquals(window, AllDaySourceStatusRequest.Wifi(window, 1).window)
++		assertEquals(window, AllDaySourceStatusRequest.Cell(window, 4_096).window)
++		assertEquals(window, AllDaySourceStatusRequest.Location(window).window)
++	}
++
++	@Test
++	fun finiteSourceRequestsRejectUnboundedLimits() {
++		val window = HistoryObservationWindow(1_000L, 2_000L)
++		for (limit in listOf(0, 4_097)) {
++			assertFailsWith<IllegalArgumentException> { AllDaySourceStatusRequest.Wifi(window, limit) }
++			assertFailsWith<IllegalArgumentException> { AllDaySourceStatusRequest.Cell(window, limit) }
++			assertFailsWith<IllegalArgumentException> { AllDaySourceStatusRequest.Location(window, limit) }
++		}
++	}
++
++	@Test
++	fun unsupportedSessionlessSourcesStayExplicit() {
++		assertEquals(TrackingSource.ACTIVITY, AllDaySourceStatusRequest.Unsupported(TrackingSource.ACTIVITY).source)
++		assertEquals(TrackingSource.PRESSURE, AllDaySourceStatusRequest.Unsupported(TrackingSource.PRESSURE).source)
++		assertFailsWith<IllegalArgumentException> { AllDaySourceStatusRequest.Unsupported(TrackingSource.STEPS) }
++	}
++}

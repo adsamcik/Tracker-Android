@@ -70,6 +70,10 @@ internal class RoomAmbientCellRepository(
 	internal suspend fun readObservationWindowInTransaction(request: AmbientCellReadRequest): AmbientCellReadResult =
 		readQualifiedWindowInTransaction(request, includeObservationOverlap = true).strictResult()
 
+	/** Saved-data status preserves valid siblings and typed gaps on the measured reading window. */
+	internal suspend fun readQualifiedObservationWindowInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult> =
+		readQualifiedWindowInTransaction(request, includeObservationOverlap = true)
+
 	/** Optional paired consumers keep independently qualified rows and the explicit read gaps. */
 	internal suspend fun readQualifiedInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult> =
 		readQualifiedWindowInTransaction(request, includeObservationOverlap = false)

@@ -147,6 +147,14 @@ lifecycle work are still being assembled. None of these marks claims a gate pass
 
 ### October 4 source milestones
 
+- [x] Select one shared read-only all-day saved-data query, reusing History's
+  existing source-owned Steps, radio and Location qualification. Collection
+  availability stays separate from retained data; no provider or new store starts.
+  Thirteen selected source/test paths and 33 authored scenarios are independently
+  reviewed in `convergence/2026-10-04/ALL_DAY_SHARED_STATUS_V3_SELECTED/SOURCE_REVIEW.md`.
+  V3 reuses the existing History state validator and excludes unrelated draft
+  dependencies. All scenarios remain unexecuted; UI consumers, full source chains,
+  convergence and local dev/v10 integration remain open.
 - [x] Preserve initial Manual/Automatic authority while accepting valid later
   Steps/Pressure policy reconciliation through the existing complete run timeline.
   Two production comparisons and sixteen authored Room scenarios have independent

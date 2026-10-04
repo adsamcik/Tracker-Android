@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.*
@@ -25,6 +26,97 @@ class RoomRetainedAmbientRadioContextTest {
 
     @Before fun setup() { database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>()) }
     @After fun cleanup() = database.close()
+
+
+    @Test fun `all-day native radio status works without Location or a session`() = runTest {
+        installAuthority(WIFI); installAuthority(CELL)
+        val savedWifi = wifi(); val savedCell = cell()
+        insert(savedWifi); insert(savedCell)
+        val query = statusQuery()
+        val wifiStatus = assertIs<AllDaySourceStatusRead.Wifi>(query.read(AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(0, 3_000))))
+        val cellStatus = assertIs<AllDaySourceStatusRead.Cell>(query.read(AllDaySourceStatusRequest.Cell(HistoryObservationWindow(0, 3_000))))
+        assertEquals(savedWifi.logicalFactId, wifiStatus.facts.single().identity)
+        assertEquals(savedCell.logicalFactId, cellStatus.facts.single().identity)
+        assertEquals(1L, wifiStatus.facts.single().semanticRevision)
+        assertEquals(1L, cellStatus.facts.single().semanticRevision)
+        assertEquals(savedWifi.coverageStartTimeMs, wifiStatus.facts.single().coverageStartTimeMs)
+        assertEquals(savedCell.observedWallTimeMs, cellStatus.facts.single().observedTimeMs)
+        assertTrue(wifiStatus.qualificationGaps.isEmpty()); assertTrue(cellStatus.qualificationGaps.isEmpty())
+        assertEquals(0L, database.locationSampleDao().countAll())
+        database.openHelper.readableDatabase.query("SELECT COUNT(*) FROM logical_tracking_session").use {
+            assertTrue(it.moveToFirst()); assertEquals(0L, it.getLong(0))
+        }
+    }
+
+    @Test fun `all-day radio status keeps a valid sibling alongside an explicit qualification gap`() = runTest {
+        installAuthority(WIFI); installAuthority(CELL)
+        val savedWifi = wifi(); val savedCell = cell()
+        insert(savedWifi); insert(wifiCoverage(savedWifi, consentEpoch = 1L))
+        insert(savedCell); insert(cellCoverage(savedCell, consentEpoch = 1L))
+        val query = statusQuery()
+        val wifiStatus = assertIs<AllDaySourceStatusRead.Wifi>(query.read(AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(0, 3_000))))
+        val cellStatus = assertIs<AllDaySourceStatusRead.Cell>(query.read(AllDaySourceStatusRequest.Cell(HistoryObservationWindow(0, 3_000))))
+        assertEquals(listOf(savedWifi.logicalFactId), wifiStatus.facts.map { it.identity })
+        assertEquals(listOf(savedCell.logicalFactId), cellStatus.facts.map { it.identity })
+        assertEquals(setOf(RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE), wifiStatus.qualificationGaps)
+        assertEquals(setOf(RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE), cellStatus.qualificationGaps)
+        // History retains its existing strict behavior, rather than silently accepting an incomplete request.
+        database.withTransaction {
+            assertEquals(AmbientWifiReadResult.StorageUnavailable, query.readWifiHistoryInTransaction(
+                AmbientWifiReadRequest(0, 3_000, setOf(AmbientWifiOrigin.LOCAL_DEVICE), 10)))
+            assertEquals(AmbientCellReadResult.StorageUnavailable, query.readCellHistoryInTransaction(
+                AmbientCellReadRequest(0, 3_000, setOf(AmbientCellOrigin.LOCAL_DEVICE), 10)))
+        }
+    }
+
+    @Test fun `all-day radio status preserves saved native facts after current collection is off`() = runTest {
+        installAuthority(WIFI); installAuthority(CELL)
+        insert(wifi()); insert(cell())
+        for (source in listOf(WIFI, CELL)) database.sourcePolicyDao().insertPolicies(listOf(
+            SourcePolicyEntity(2, source, false, 1, null, null, null, false, false, false,
+                null, null, 1, "boot", 3_000_000_000, 3_000, "USER")))
+        val query = statusQuery()
+        assertEquals(1, assertIs<AllDaySourceStatusRead.Wifi>(query.read(
+            AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(0, 3_000)))).facts.size)
+        assertEquals(1, assertIs<AllDaySourceStatusRead.Cell>(query.read(
+            AllDaySourceStatusRequest.Cell(HistoryObservationWindow(0, 3_000)))).facts.size)
+    }
+
+    @Test fun `all-day radio status preserves exact epoch and finite read limits`() = runTest {
+        installAuthority(WIFI); installAuthority(CELL)
+        val savedWifi = wifi(); val savedCell = cell()
+        insert(savedWifi); insert(wifiCoverage(savedWifi))
+        insert(savedCell); insert(cellCoverage(savedCell))
+        val query = statusQuery()
+        for (request in listOf(AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(0, 3_000), 1),
+                AllDaySourceStatusRequest.Cell(HistoryObservationWindow(0, 3_000), 1))) {
+            assertEquals(AllDaySourceStatusRead.Unavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW), query.read(request))
+        }
+        database.sourceEvidenceStateDao().updateAfterFullDeletion(1, null, 2, 3_000)
+        database.openHelper.writableDatabase.execSQL("DELETE FROM source_demand")
+        val wifiStatus = assertIs<AllDaySourceStatusRead.Wifi>(query.read(AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(0, 3_000))))
+        val cellStatus = assertIs<AllDaySourceStatusRead.Cell>(query.read(AllDaySourceStatusRequest.Cell(HistoryObservationWindow(0, 3_000))))
+        assertTrue(wifiStatus.facts.isEmpty()); assertTrue(cellStatus.facts.isEmpty())
+        assertEquals(1L, wifiStatus.snapshot.collectedDataEpoch)
+        assertEquals(1L, cellStatus.snapshot.collectedDataEpoch)
+    }
+
+    @Test fun `a radio cursor-only mismatch is a status gap and cannot hide the other source`() = runTest {
+        installAuthority(WIFI); installAuthority(CELL)
+        insert(wifi()); insert(cell())
+        database.openHelper.writableDatabase.execSQL("UPDATE ambient_wifi_fact_cursor SET latest_effect_checksum = ?", arrayOf("0".repeat(64)))
+        val query = statusQuery()
+        val wifiStatus = assertIs<AllDaySourceStatusRead.Wifi>(query.read(AllDaySourceStatusRequest.Wifi(HistoryObservationWindow(0, 3_000))))
+        val cellStatus = assertIs<AllDaySourceStatusRead.Cell>(query.read(AllDaySourceStatusRequest.Cell(HistoryObservationWindow(0, 3_000))))
+        assertTrue(wifiStatus.facts.isEmpty())
+        assertEquals(setOf(RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE), wifiStatus.qualificationGaps)
+        assertEquals(1, cellStatus.facts.size)
+        assertTrue(cellStatus.qualificationGaps.isEmpty())
+    }
+
+    private fun statusQuery() = RoomAllDaySourceStatusQuery(database, mockk(),
+        RoomAmbientWifiRepository(database, kotlinx.coroutines.Dispatchers.Unconfined),
+        RoomAmbientCellRepository(database, kotlinx.coroutines.Dispatchers.Unconfined), kotlinx.coroutines.Dispatchers.Unconfined)
 
     @Test fun `ambient Wi-Fi and Cell qualify without sessions and retain coarse Location context`() = runTest {
         installAuthority(WIFI)

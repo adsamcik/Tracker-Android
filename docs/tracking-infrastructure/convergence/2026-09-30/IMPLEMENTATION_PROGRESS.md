@@ -336,6 +336,14 @@ remain held. No test or gate has run.
 
 ## Remaining in these slices
 
+- [x] Select shared all-day saved-data status through existing source-owned readers
+  and the real History consumer, with separate collection availability and no
+  sensor activation. Thirteen source/test paths and 33 authored, unexecuted cases
+  have independent V3 source acceptance in
+  `../2026-10-04/ALL_DAY_SHARED_STATUS_V3_SELECTED/SOURCE_REVIEW.md`.
+  The existing History state guard rejects malformed authority; unrelated held
+  dependencies remain excluded. Product status consumers and all 25 complete
+  chains, validation and integration stay open.
 - [x] Select historical Wi-Fi session capture across policy changes and independent
   purpose lifetimes. Shared ACTIVE providers require the selected run's exact
   retirement ACK, drain, final closing cutoff and acceptance-before-cutoff bounds.

@@ -1,0 +1,21 @@
+{
+  "head": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+  "files": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultAmbientStepsHistoryRepository.kt",
+      "sha256": "1fa25cc97722547746372e56822b70e8824ae8fbf8e50b0f703949c7419a2bff"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientStepsFactRevisionDao.kt",
+      "sha256": "599d0d2349a65cf7299236d36798164ce4d117360e29d811387a8854924dbba2"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+      "sha256": "3d61e54656ee4b5d1294b103462a0ddea377de2324927a5dc0334948de926ef2"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/RadioObservationChildDao.kt",
+      "sha256": "d8ee527389d7f5b6011c6a617c51a213b7f64f6cd580613f621b7a35b6dca779"
+    }
+  ]
+}

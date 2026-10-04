@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.*
 import com.adsamcik.tracker.stats.api.repository.*
+import io.mockk.mockk
 import kotlin.test.*
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -27,6 +28,107 @@ class RetainedLocationContextReaderTest {
         database.sourceEvidenceStateDao().ensure()
     }
     @After fun cleanup() = database.close()
+
+
+    @Test fun `all-day Location status reads native saved points without radio or Steps dependencies`() = runBlocking {
+        installPoint()
+        val read = assertIs<AllDaySourceStatusRead.Location>(statusQuery().read(
+            AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))))
+        assertEquals("event", read.points.single().sourceEventId)
+        assertEquals(AllDayReadingTime(1_000, 10), read.points.single().time)
+        assertTrue(read.qualificationGaps.isEmpty())
+        assertNull(read.problem)
+        assertNull(database.sourceEventWalDao().getByEventId("event"))
+        assertEquals(1L, database.locationSampleDao().countAll())
+    }
+
+    @Test fun `all-day Location status excludes unverifiable points while retaining local history`() = runBlocking {
+        val legacy = installPoint(sealed = false)
+        database.locationSampleDao().insert(sample().copy(id = 0, sourceEventId = "foreign", sourceSignalId = "foreign"))
+        val status = assertIs<AllDaySourceStatusRead.Location>(statusQuery().read(
+            AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))))
+        assertTrue(status.points.isEmpty())
+        assertEquals(2L, database.locationSampleDao().countAll())
+        val context: Application = ApplicationProvider.getApplicationContext()
+        val history = assertIs<HistoryRangeRead.Page>(rangeReaderForRoomTest(database, context).read(
+            HistoryRangeRequest(HistoryRange(0, 2_000, "UTC", setOf(HistorySource.LOCATION),
+                setOf(HistoryOrigin.LOCAL), setOf(HistoryPurpose.BACKGROUND)))))
+        assertTrue(history.rows.flatMap { it.sections }.filterIsInstance<HistorySection.Location>()
+            .flatMap { it.points }.any { it.sampleId == legacy.sampleId })
+    }
+
+    @Test fun `all-day Location status keeps the historical grant when collection is off`() = runBlocking {
+        val receipt = installPoint()
+        database.sourcePolicyDao().insertPolicies(listOf(policy().copy(policyRevision = 2,
+            ambientPersistenceEligible = false, enabled = false, ambientConsentEpoch = 1)))
+        val query = statusQuery()
+        assertEquals("event", assertIs<AllDaySourceStatusRead.Location>(query.read(
+            AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000)))).points.single().sourceEventId)
+        database.openHelper.writableDatabase.execSQL("UPDATE location_sample SET lat_e7 = 1 WHERE id = ?", arrayOf(receipt.sampleId))
+        val changed = assertIs<AllDaySourceStatusRead.Location>(query.read(
+            AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))))
+        assertTrue(changed.points.isEmpty())
+        assertTrue(RadioLocationContextGap.LOCATION_PROVENANCE_UNVERIFIABLE in changed.qualificationGaps)
+        assertEquals(1L, database.locationSampleDao().countAll())
+    }
+
+    @Test fun `all-day Location status obeys retention and full-clear epoch boundaries`() = runBlocking {
+        installPoint()
+        val query = statusQuery()
+        database.sourceEvidenceStateDao().updateLifecycle(0, 1_000, 2_000)
+        assertTrue(assertIs<AllDaySourceStatusRead.Location>(query.read(
+            AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000)))).points.isEmpty())
+        database.sourceEvidenceStateDao().updateAfterFullDeletion(1, null, 1, 2_001)
+        val afterClear = assertIs<AllDaySourceStatusRead.Location>(query.read(
+            AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))))
+        assertTrue(afterClear.points.isEmpty())
+        assertEquals(1L, afterClear.snapshot.collectedDataEpoch)
+        assertEquals(1L, database.locationSampleDao().countAll())
+    }
+
+    @Test fun `an imported copy cannot hide independently valid native all-day Location status`() = runBlocking {
+        val receipt = installPoint()
+        database.locationFileIdentityDao().insertIfAbsent(LocationFileIdentityEntity("imported-copy", receipt.sampleId, true, "unknown"))
+        database.locationFileIdentityDao().recordArchive(LocationFileArchiveEntity("a".repeat(64),
+            LocationFileArchiveEntity.FORMAT, LocationFileArchiveEntity.VERSION, 0, 1))
+        database.locationFileIdentityDao().recordArchivePoints(listOf(LocationFileArchivePointEntity("a".repeat(64), 0, "imported-copy", receipt.sampleId)))
+        val read = assertIs<AllDaySourceStatusRead.Location>(statusQuery().read(
+            AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))))
+        assertEquals("event", read.points.single().sourceEventId)
+        assertTrue(read.qualificationGaps.isEmpty())
+    }
+
+    @Test fun `all-day native status rejects malformed evidence without changing saved data`() = runBlocking {
+        val receipt = installPoint()
+        val request = AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))
+        val query = statusQuery()
+        assertEquals("event", assertIs<AllDaySourceStatusRead.Location>(query.read(request))
+            .points.single().sourceEventId)
+        val evidence = requireNotNull(database.sourceEvidenceStateDao().get())
+        val savedPoints = database.locationSampleDao().byIds(listOf(receipt.sampleId))
+        val columns = listOf("revision" to evidence.revision,
+            "collected_data_epoch" to evidence.collectedDataEpoch,
+            "retained_from_ms" to evidence.retainedFromMs,
+            "deleted_source_event_high_water_ordinal" to evidence.deletedSourceEventHighWaterOrdinal,
+            "updated_at_ms" to evidence.updatedAtMs)
+        for ((column, originalValue) in columns) {
+            database.openHelper.writableDatabase.execSQL(
+                "UPDATE source_evidence_state SET $column = -1 WHERE id = 1")
+            val malformed = requireNotNull(database.sourceEvidenceStateDao().get())
+            assertEquals(HistoryProblemReason.INTEGRITY_UNAVAILABLE,
+                assertIs<AllDaySourceStatusRead.Unavailable>(query.read(request)).reason)
+            assertEquals(savedPoints, database.locationSampleDao().byIds(listOf(receipt.sampleId)))
+            assertEquals(malformed, database.sourceEvidenceStateDao().get())
+            database.openHelper.writableDatabase.execSQL(
+                "UPDATE source_evidence_state SET $column = ? WHERE id = 1", arrayOf(originalValue))
+            assertEquals("event", assertIs<AllDaySourceStatusRead.Location>(query.read(request))
+                .points.single().sourceEventId)
+        }
+        assertEquals(evidence, database.sourceEvidenceStateDao().get())
+    }
+
+    private fun statusQuery() = RoomAllDaySourceStatusQuery(database, mockk(), mockk(), mockk(),
+        kotlinx.coroutines.Dispatchers.Unconfined)
 
     @Test fun `retained ambient coarse point works without raw WAL or an active session`() = runBlocking {
         installPoint()

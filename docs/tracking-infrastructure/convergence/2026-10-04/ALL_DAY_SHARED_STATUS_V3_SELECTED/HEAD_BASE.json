@@ -1,0 +1,34 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_head": "32c8cd8fe60bf77457b83dbc84694188e485e3d6",
+  "files": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt",
+      "base_sha256": "65a4e54cf0c96fb2ba7f68483862399f09c8ad5ed392bea16fcb4da227aafef4"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "base_sha256": "e9fc318dc9abd7105e7cc798c06f2a9a284453aa7cf0bfec8b654a9d5fa0676f"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt",
+      "base_sha256": "b4734008da7f500a39bd681237d7c1f82c7ef81e6c5a638753dd82e4df52df13"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt",
+      "base_sha256": "b00925819664a4af723c0a28c7e78f5307a4abd12d7fd3ed7f83bab283a540e4"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinator.kt",
+      "base_sha256": "67fd82db2eb4c0c88929173aa3f73afe4cc280df2100633fa99c6a4a99c56764"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinatorTest.kt",
+      "base_sha256": "56f63884639c644d649e8d6d7d647fe9ed3ba0495003ac1ebe3b88f25968181a"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "base_sha256": "ef34af60485257d0e6a2a8a9d336f7658a918b5c35483a8aef0f90294d03309a"
+    }
+  ]
+}

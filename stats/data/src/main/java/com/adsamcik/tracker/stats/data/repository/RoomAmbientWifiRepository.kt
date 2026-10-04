@@ -67,6 +67,10 @@ internal class RoomAmbientWifiRepository(
 	internal suspend fun readObservationWindowInTransaction(request: AmbientWifiReadRequest): AmbientWifiReadResult =
 		readQualifiedWindowInTransaction(request, includeObservationOverlap = true).strictResult()
 
+	/** Saved-data status preserves valid siblings and typed gaps on the measured reading window. */
+	internal suspend fun readQualifiedObservationWindowInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult> =
+		readQualifiedWindowInTransaction(request, includeObservationOverlap = true)
+
 	/** Optional paired consumers keep independently qualified rows and the explicit read gaps. */
 	internal suspend fun readQualifiedInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult> =
 		readQualifiedWindowInTransaction(request, includeObservationOverlap = false)

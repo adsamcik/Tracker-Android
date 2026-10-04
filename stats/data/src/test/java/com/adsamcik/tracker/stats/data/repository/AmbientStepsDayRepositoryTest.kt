@@ -23,6 +23,9 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
+import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRead
+import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRequest
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRead
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRead
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRequest
@@ -60,6 +63,178 @@ class AmbientStepsDayRepositoryTest {
 
 	@After
 	fun tearDown() = database.close()
+
+
+	@Test
+	fun `all-day status preserves actual provider windows without requiring a session or WAL event`() = runTest {
+		val fingerprint = seedPublicAuthority()
+		val saved = fact(10L, startTimeMs = 1_000L, endTimeMs = 2_000L, authorizationFingerprint = fingerprint)
+		database.ambientStepsFactRevisionDao().insert(saved)
+		val read = statusQuery().read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps
+		val window = read.windows.single()
+		window.identity shouldBe saved.logicalFactId
+		window.semanticRevision shouldBe 1L
+		window.day shouldBe AmbientStepsStructuralDay(0L, "UTC")
+		window.startTimeMs shouldBe 1_000L
+		window.endTimeMs shouldBe 2_000L
+		read.snapshot.collectedDataEpoch shouldBe 7L
+		database.openHelper.readableDatabase.query("SELECT COUNT(*) FROM logical_tracking_session").use {
+			it.moveToFirst(); it.getLong(0) shouldBe 0L
+		}
+		database.openHelper.readableDatabase.query("SELECT COUNT(*) FROM source_event_wal").use {
+			it.moveToFirst(); it.getLong(0) shouldBe 0L
+		}
+	}
+
+	@Test
+	fun `all-day metadata and shared History follow the same Steps correction and retraction`() = runTest {
+		val fingerprint = seedPublicAuthority()
+		val initial = fact(10L, authorizationFingerprint = fingerprint)
+		database.ambientStepsFactRevisionDao().insert(initial)
+		val query = statusQuery()
+		val corrected = signed(initial.copy(semanticRevision = 2L,
+			mutationId = AmbientStepsFactIntegrity.mutationId(initial.logicalFactId, 2L,
+				AmbientStepsFactRevisionEntity.OPERATION_UPSERT), stepCount = 12L,
+			observedAtMs = DAY_END + 1L, appliedAtMs = DAY_END + 1L))
+		database.ambientStepsFactRevisionDao().insert(corrected)
+		val status = query.read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps
+		status.windows.single().identity shouldBe initial.logicalFactId
+		status.windows.single().semanticRevision shouldBe 2L
+		val history = database.withTransaction {
+			query.readStepsHistoryInTransaction(stepsRange(), requireNotNull(database.sourceEvidenceStateDao().get()).revision,
+				includeLocal = true, includeImported = false)
+		} as AmbientStepsHistoryRead.Snapshot
+		history.days.single().total shouldBe AmbientStepsHistoryValue.Exact(12L)
+		database.ambientStepsFactRevisionDao().insert(retract(corrected))
+		val after = query.read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps
+		after.windows shouldBe emptyList()
+		after.materializingDays shouldBe setOf(AmbientStepsStructuralDay(0L, "UTC"))
+	}
+
+	@Test
+	fun `all-day status keeps a gap-only provider day as a real gap rather than a measured zero`() = runTest {
+		seedPublicAuthority(cursorWithGap())
+		database.ambientStepsImportStateDao().insertGap(gap(1L, GAP_START))
+		val read = statusQuery().read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps
+		read.windows shouldBe emptyList()
+		read.gaps.single().day shouldBe AmbientStepsStructuralDay(0L, "UTC")
+		read.gaps.single().startTimeMs shouldBe GAP_START
+		read.gaps.single().endTimeMs shouldBe GAP_END
+	}
+
+	@Test
+	fun `all-day status observes cursor progress without requiring another saved fact`() = runTest {
+		val fingerprint = seedPublicAuthority(cursor().copy(importedThroughTimeMs = 1_000L,
+			lastObservedAtMs = 1_000L, updatedAtMs = 1_000L))
+		val saved = fact(10L, endTimeMs = 1_000L, authorizationFingerprint = fingerprint)
+		database.ambientStepsFactRevisionDao().insert(saved)
+		val query = statusQuery()
+		val before = query.read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps
+		before.windows.single().identity shouldBe saved.logicalFactId
+		before.materializingDays shouldBe setOf(AmbientStepsStructuralDay(0L, "UTC"))
+		// Existing importer state is updated alone; no made-up provider event or count is added.
+		val current = database.ambientStepsImportStateDao().activeCursors(2).single()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE ambient_steps_import_cursor SET imported_through_time_ms = ?, last_observed_at_ms = ?, " +
+				"updated_at_ms = ?, cursor_revision = ? WHERE registration_generation = ?",
+			arrayOf(DAY_END, DAY_END, DAY_END, current.cursorRevision + 1L, current.registrationGeneration))
+		val after = query.read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps
+		after.windows shouldBe before.windows
+		after.materializingDays shouldBe emptySet()
+		database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `turning all-day Steps off does not remove trustworthy saved metadata`() = runTest {
+		val fingerprint = seedPublicAuthority()
+		val saved = fact(10L, authorizationFingerprint = fingerprint)
+		database.ambientStepsFactRevisionDao().insert(saved)
+		database.sourcePolicyDao().insertPolicies(listOf(policy(2L).copy(enabled = false,
+			ambientPersistenceEligible = false, ambientConsentEpoch = null)))
+		database.sourcePolicyDao().compareAndSetAuthority(SourcePolicyAuthorityEntity.STATE_ACTIVE, 1L,
+			SourcePolicyAuthorityEntity.STATE_ACTIVE, 2L, null, 2L) shouldBe 1
+		val read = statusQuery().read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps
+		read.windows.single().identity shouldBe saved.logicalFactId
+		read.materializingDays shouldBe emptySet()
+	}
+
+	@Test
+	fun `all-day Steps metadata excludes legacy captured totals while shared History honors origin selection`() = runTest {
+		val fingerprint = seedPublicAuthority()
+		val saved = fact(10L, authorizationFingerprint = fingerprint)
+		database.ambientStepsFactRevisionDao().insert(saved)
+		database.sessionSegmentDao().insert(com.adsamcik.tracker.shared.base.database.data.SessionSegment(
+			startTimeMs = 0L, endTimeMs = DAY_END, distanceM = 0f, steps = 999, primaryActivity = null,
+			activityConfidence = null, sampleCount = 1,
+			source = com.adsamcik.tracker.shared.model.SegmentSource.USER_CREATED,
+			inferenceVersion = null, createdAt = DAY_END))
+		val query = statusQuery()
+		(query.read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps)
+			.windows.map { it.identity } shouldBe listOf(saved.logicalFactId)
+		val importedOnly = database.withTransaction {
+			query.readStepsHistoryInTransaction(stepsRange(), requireNotNull(database.sourceEvidenceStateDao().get()).revision,
+				includeLocal = false, includeImported = true)
+		} as AmbientStepsHistoryRead.Snapshot
+		importedOnly.days.single().factOrigins shouldBe emptyList()
+		importedOnly.days.single().total.count shouldBe null
+	}
+
+	@Test
+	fun `corrupt retained Steps lineage produces an explicit unavailable status`() = runTest {
+		val fingerprint = seedPublicAuthority()
+		database.ambientStepsFactRevisionDao().insert(fact(10L, authorizationFingerprint = fingerprint)
+			.copy(effectChecksum = "0".repeat(64)))
+		statusQuery().read(AllDaySourceStatusRequest.Steps(stepsRange())) shouldBe
+			AllDaySourceStatusRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+		database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `closed storage yields unavailable all-day data without a zero count`() = runTest {
+		val query = statusQuery()
+		database.close()
+		query.read(AllDaySourceStatusRequest.Steps(stepsRange())) shouldBe
+			AllDaySourceStatusRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
+	}
+
+	@Test
+	fun `all-day native Steps retains the real local DST day and provider window`() = runTest {
+		val date = java.time.LocalDate.of(2026, 3, 29)
+		val zone = java.time.ZoneId.of("Europe/Prague")
+		val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
+		val end = date.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli()
+		val fingerprint = seedPublicAuthority(cursor().copy(importedThroughTimeMs = end, lastObservedAtMs = end,
+			lastObservedZoneId = zone.id, updatedAtMs = end))
+		val id = AmbientStepsFactIntegrity.logicalFactId(PROVIDER, 1L, 1L, SOURCE_INSTANCE,
+			start, date.toEpochDay(), zone.id, 7L)
+		val utcDayStart = date.toEpochDay() * DAY_END
+		val saved = signed(fact(10L, utcDayStart, utcDayStart + DAY_END, date.toEpochDay(),
+			authorizationFingerprint = fingerprint).copy(logicalFactId = id,
+			mutationId = AmbientStepsFactIntegrity.mutationId(id, 1L, AmbientStepsFactRevisionEntity.OPERATION_UPSERT),
+			storedZoneId = zone.id, structuralDayStartTimeMs = start, structuralDayEndTimeMs = end,
+			windowStartTimeMs = start, windowEndTimeMs = end, observedAtMs = end, appliedAtMs = end))
+		database.ambientStepsFactRevisionDao().insert(saved)
+		val request = AllDaySourceStatusRequest.Steps(AmbientStepsHistoryRangeRequest(
+			listOf(AmbientStepsStructuralDay(date.toEpochDay(), zone.id))))
+		val read = statusQuery().read(request) as AllDaySourceStatusRead.Steps
+		read.windows.single().day shouldBe AmbientStepsStructuralDay(date.toEpochDay(), zone.id)
+		read.windows.single().startTimeMs shouldBe start
+		read.windows.single().endTimeMs shouldBe end
+		end - start shouldBe 23L * 60L * 60L * 1_000L
+	}
+
+	@Test
+	fun `invalid stored Steps calendar is unavailable without consulting provider history`() = runTest {
+		database.sourceEvidenceStateDao().ensure()
+		statusQuery().read(AllDaySourceStatusRequest.Steps(AmbientStepsHistoryRangeRequest(
+			listOf(AmbientStepsStructuralDay(0L, "not-a-zone"))))) shouldBe
+			AllDaySourceStatusRead.Unavailable(HistoryProblemReason.TIME_UNCERTAIN)
+	}
+
+	private fun stepsRange() = AmbientStepsHistoryRangeRequest(listOf(AmbientStepsStructuralDay(0L, "UTC")))
+	private fun statusQuery() = RoomAllDaySourceStatusQuery(database, historyRepository(),
+		RoomAmbientWifiRepository(database, Dispatchers.Unconfined),
+		RoomAmbientCellRepository(database, Dispatchers.Unconfined), Dispatchers.Unconfined)
 
     @Test
     fun `shared background read does not reintroduce captured legacy steps`() = runTest {

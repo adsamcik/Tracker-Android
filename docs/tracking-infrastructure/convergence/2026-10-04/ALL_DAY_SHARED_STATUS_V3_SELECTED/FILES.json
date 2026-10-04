@@ -1,0 +1,140 @@
+{
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "32c8cd8fe60bf77457b83dbc84694188e485e3d6",
+  "extra_fixture_head": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+  "files": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt",
+      "base_sha256": "65a4e54cf0c96fb2ba7f68483862399f09c8ad5ed392bea16fcb4da227aafef4",
+      "working_before_sha256": "1f17176f313769013513514bbc8a455688c79eef936871304ab9b259ca38252d",
+      "working_after_sha256": "fbe501392a41472fbdc67e8085e6c07f81e2dbbfd5dbce8535c50cbb1072ffb9",
+      "selected_sha256": "7e84d8cc24badede1e45ae51a68f281e5e02c8114353d6af169a2ceb0f34c6a1",
+      "selected_bytes": 12731,
+      "selected_matches_working_normalized": false,
+      "has_excluded_working_content": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "base_sha256": "e9fc318dc9abd7105e7cc798c06f2a9a284453aa7cf0bfec8b654a9d5fa0676f",
+      "working_before_sha256": "e9fc318dc9abd7105e7cc798c06f2a9a284453aa7cf0bfec8b654a9d5fa0676f",
+      "working_after_sha256": "a4e2502b000482d7318fcf12eb1cfd7e177672fd23950b2bdea645517fd32804",
+      "selected_sha256": "83b2a25aabdebaf20fa70613a0b9d764e14f997ffec86d93c6d124466ff22823",
+      "selected_bytes": 56322,
+      "selected_matches_working_normalized": true,
+      "has_excluded_working_content": false
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt",
+      "base_sha256": "b4734008da7f500a39bd681237d7c1f82c7ef81e6c5a638753dd82e4df52df13",
+      "working_before_sha256": "4be9af862324bcb021f489122d101c040c522e071b6e5a4e0be97fd019b5e7e6",
+      "working_after_sha256": "2fedd3d9a85ab92937e7ac386901114f57a5286eb421827d057c986cc8343646",
+      "selected_sha256": "495f31cdcce065e7dd360b70eb657d4a3b0e88e8011a205c6ec6c3980c87f049",
+      "selected_bytes": 18050,
+      "selected_matches_working_normalized": true,
+      "has_excluded_working_content": false
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt",
+      "base_sha256": "b00925819664a4af723c0a28c7e78f5307a4abd12d7fd3ed7f83bab283a540e4",
+      "working_before_sha256": "2c0cf2fe7bf958b4ef1f57386615de32de462e103d66997aa5ddc0ae654d983a",
+      "working_after_sha256": "a7e9717b06c528fbcb2ec873968c0a2fcf8df078373b420bd72317e7f0e241fe",
+      "selected_sha256": "3e8af12b657c0481458018472e958132e5126c817436b65279a78226afc3e270",
+      "selected_bytes": 19127,
+      "selected_matches_working_normalized": true,
+      "has_excluded_working_content": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinator.kt",
+      "base_sha256": "67fd82db2eb4c0c88929173aa3f73afe4cc280df2100633fa99c6a4a99c56764",
+      "working_before_sha256": "67fd82db2eb4c0c88929173aa3f73afe4cc280df2100633fa99c6a4a99c56764",
+      "working_after_sha256": "b7887bbdfa69ca95362afebe18bed0d9b3cbe60fcb413fc60abf875c83f1672b",
+      "selected_sha256": "b7887bbdfa69ca95362afebe18bed0d9b3cbe60fcb413fc60abf875c83f1672b",
+      "selected_bytes": 11072,
+      "selected_matches_working_normalized": true,
+      "has_excluded_working_content": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinatorTest.kt",
+      "base_sha256": "56f63884639c644d649e8d6d7d647fe9ed3ba0495003ac1ebe3b88f25968181a",
+      "working_before_sha256": "56f63884639c644d649e8d6d7d647fe9ed3ba0495003ac1ebe3b88f25968181a",
+      "working_after_sha256": "82f8f0dade4100ca5baa812a2ab3f216d75b87725907bb2ef7c9c2336135271c",
+      "selected_sha256": "82f8f0dade4100ca5baa812a2ab3f216d75b87725907bb2ef7c9c2336135271c",
+      "selected_bytes": 36412,
+      "selected_matches_working_normalized": true,
+      "has_excluded_working_content": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "base_sha256": "ef34af60485257d0e6a2a8a9d336f7658a918b5c35483a8aef0f90294d03309a",
+      "working_before_sha256": "ef34af60485257d0e6a2a8a9d336f7658a918b5c35483a8aef0f90294d03309a",
+      "working_after_sha256": "cf42de714c769d3bb38168032057571946d9e582ceb34b1f94f6a3cb66c91bf5",
+      "selected_sha256": "cf42de714c769d3bb38168032057571946d9e582ceb34b1f94f6a3cb66c91bf5",
+      "selected_bytes": 49811,
+      "selected_matches_working_normalized": true,
+      "has_excluded_working_content": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt",
+      "base_sha256": "00ba5053a674a05c078882fa13f1f09bafd1df1db4110dd99e0a99b19ae21743",
+      "working_before_sha256": "bbe507bfe88d310f24970eb90d1a192712ebe62ad657a7ec6985ec054b69df13",
+      "working_after_sha256": "40b9b11f6d48b4fb5baf88703eb9746343f3714642f9c02883be84b649a5da47",
+      "selected_sha256": "40b9b11f6d48b4fb5baf88703eb9746343f3714642f9c02883be84b649a5da47",
+      "selected_bytes": 37573,
+      "selected_matches_working_normalized": true,
+      "has_excluded_working_content": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "base_sha256": "7c352e70431fb37d85277dea28940db8c0e82aa672be740450889c99d5c203b3",
+      "working_before_sha256": "92c2871a7fd2cbb1152f2d2f70395a6943b8ffe4c4b7c912c90920f710c458d3",
+      "working_after_sha256": "99518a3263ae08905681750f29571eb04f4cdc7c8ef806e46cb51a78125f5761",
+      "selected_sha256": "09976a7b6b61a702afe787c6527b4ca2d5cf64b550194ba2937332c8943384d2",
+      "selected_bytes": 21938,
+      "selected_matches_working_normalized": false,
+      "has_excluded_working_content": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "base_sha256": "64e8c3a30249a262b34ac79198966d9dac143ddc73bd21c90180ac064faa580b",
+      "working_before_sha256": "78fa12632d2779455f57d63903a066405b5626230d572c1c90e2456d16caeb36",
+      "working_after_sha256": "314e6688c17322220b9f6faf16dc6fc642157e0ab13be7d347663ae08e054557",
+      "selected_sha256": "efab1c68ac3f4570d66abea5bf30f47f594ef00c580450d7c5f35827b55ee775",
+      "selected_bytes": 22065,
+      "selected_matches_working_normalized": false,
+      "has_excluded_working_content": true
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AllDaySourceStatusQuery.kt",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "working_after_sha256": "685cd195f7403fd9d58e5fe6c1ad339debbd173e524080358c68cc290cdf02a5",
+      "selected_sha256": "685cd195f7403fd9d58e5fe6c1ad339debbd173e524080358c68cc290cdf02a5",
+      "selected_bytes": 4183,
+      "selected_matches_working_normalized": true,
+      "has_excluded_working_content": false
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAllDaySourceStatusQuery.kt",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "working_after_sha256": "8a516d33725fc4746bdec115525dfe191fdf156ab8c7601c4aea21d325cff746",
+      "selected_sha256": "ee928670b4789939d46348003c39b8720b190e98087f1a7d8b0250efbe800984",
+      "selected_bytes": 10311,
+      "selected_matches_working_normalized": true,
+      "has_excluded_working_content": false
+    },
+    {
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/AllDaySourceStatusQueryTest.kt",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "working_after_sha256": "630f5e2fe6dd35e9a268f7048924ecac697e936182c612ff3da1bf0560bef8d1",
+      "selected_sha256": "630f5e2fe6dd35e9a268f7048924ecac697e936182c612ff3da1bf0560bef8d1",
+      "selected_bytes": 1697,
+      "selected_matches_working_normalized": true,
+      "has_excluded_working_content": false
+    }
+  ],
+  "preserved_first_selection": "../ALL_DAY_SHARED_STATUS_SELECTED",
+  "preserved_previous_selection": "../ALL_DAY_SHARED_STATUS_V2_SELECTED",
+  "repair": "AD1 existing History shape guard; AD2 fixture naming accuracy"
+}

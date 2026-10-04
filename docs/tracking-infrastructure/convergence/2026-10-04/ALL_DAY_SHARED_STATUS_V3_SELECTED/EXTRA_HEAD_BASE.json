@@ -1,0 +1,13 @@
+{
+  "base_head": "1056464a1376e3574f3a744a6eaf5e3402accaf7",
+  "files": [
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt",
+      "base_sha256": "00ba5053a674a05c078882fa13f1f09bafd1df1db4110dd99e0a99b19ae21743"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "base_sha256": "7c352e70431fb37d85277dea28940db8c0e82aa672be740450889c99d5c203b3"
+    }
+  ]
+}

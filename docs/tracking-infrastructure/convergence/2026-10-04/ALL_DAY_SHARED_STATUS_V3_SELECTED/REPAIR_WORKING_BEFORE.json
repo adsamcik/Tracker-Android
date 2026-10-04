@@ -1,0 +1,18 @@
+{
+  "files": [
+    {
+      "sha256": "b6fd791ccf148ffb9fcf8cad54aaa13220eee5a5c3ca1c3a5740850bcb691adf",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt"
+    },
+    {
+      "sha256": "10e044049a2c5419bf88c6a11287637ba6d9153810ef991e2e89a8bec6f529fc",
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAllDaySourceStatusQuery.kt"
+    },
+    {
+      "sha256": "c35d0cc8982e4cdca2686f7fabb38415374c6b3c0d9fa780bfcfa01cb0ff9cef",
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt"
+    }
+  ],
+  "phase": "IMPLEMENTATION_ONLY",
+  "preserved_packet": "ALL_DAY_SHARED_STATUS_V2_SELECTED"
+}

@@ -319,3 +319,14 @@ internal object DurableMetricDirtyTrackerModule {
 		ioDispatcher = ioDispatcher,
 	)
 }
+
+/** Shared saved-data status stays read-only and delegates to existing source readers. */
+@Module
+@InstallIn(SingletonComponent::class)
+internal abstract class AllDaySourceStatusDataModule {
+	@Binds
+	@Singleton
+	abstract fun bindAllDaySourceStatusQuery(
+		impl: com.adsamcik.tracker.stats.data.repository.RoomAllDaySourceStatusQuery,
+	): com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusQuery
+}

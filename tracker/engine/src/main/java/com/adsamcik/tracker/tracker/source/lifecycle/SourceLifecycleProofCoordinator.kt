@@ -5,6 +5,10 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.TRACKING_HISTORY_INVALIDATION_TABLES
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource
+import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusQuery
+import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRead
+import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRequest
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
 import com.adsamcik.tracker.stats.api.repository.MaterializedProofState
 import com.adsamcik.tracker.stats.api.repository.QueryableProofState
 import com.adsamcik.tracker.stats.api.repository.SourceFactLookupRequest
@@ -35,6 +39,9 @@ data class SourceLifecycleProofSnapshot(
 	}
 }
 
+/** Qualified saved all-day data uses source-specific identities; it has no invented WAL stages. */
+data class AllDaySourceStatusSnapshot(val sources: Map<TrackingSource, AllDaySourceStatusRead>)
+
 /**
  * App-scoped read-only proof observer.
  *
@@ -49,18 +56,21 @@ class SourceLifecycleProofCoordinator internal constructor(
 	descriptors: Set<SourceLifecycleProofDescriptor>,
 	private val queryRepository: SourceFactQueryRepository,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+	private val allDayQuery: AllDaySourceStatusQuery? = null,
 ) {
 	@Inject
 	internal constructor(
 		database: AppDatabase,
 		catalog: SourceLifecycleProofCatalog,
 		queryRepository: SourceFactQueryRepository,
+		allDayQuery: AllDaySourceStatusQuery,
 		@IoDispatcher ioDispatcher: CoroutineDispatcher,
 	) : this(
 		invalidations = database.lifecycleInvalidations(),
 		descriptors = catalog.descriptors,
 		queryRepository = queryRepository,
 		ioDispatcher = ioDispatcher,
+		allDayQuery = allDayQuery,
 	)
 
 	private val descriptorsBySource = descriptors.associateBy(SourceLifecycleProofDescriptor::source)
@@ -77,6 +87,27 @@ class SourceLifecycleProofCoordinator internal constructor(
 				snapshot(keys)
 			}
 			.flowOn(ioDispatcher)
+	}
+
+	fun observeAllDay(requests: Set<AllDaySourceStatusRequest>): Flow<AllDaySourceStatusSnapshot> {
+		require(requests.size == requests.map(AllDaySourceStatusRequest::source).distinct().size) {
+			"Each source must have one bounded all-day request"
+		}
+		if (requests.isEmpty()) return flowOf(AllDaySourceStatusSnapshot(emptyMap()))
+		return invalidations.conflate().map {
+			val results = linkedMapOf<TrackingSource, AllDaySourceStatusRead>()
+			for (request in requests) {
+				results[request.source] = try {
+					allDayQuery?.read(request)
+						?: AllDaySourceStatusRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (_: Exception) {
+					AllDaySourceStatusRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+				}
+			}
+			AllDaySourceStatusSnapshot(results)
+		}.flowOn(ioDispatcher)
 	}
 
 	internal suspend fun snapshot(keys: Set<SourceProofKey>): SourceLifecycleProofSnapshot {
@@ -236,6 +267,20 @@ internal val SOURCE_LIFECYCLE_PROOF_SPECIFIC_TABLES = listOf(
 	"location_observation",
 	"location_observation_decision",
 	"location_sample",
+	"location_sample_purpose_authority",
+	"location_accepted_receipt",
+	"collected_data_deletion_operation",
+	"ambient_location_retention_authority",
+	"ambient_steps_import_cursor",
+	"ambient_steps_import_gap",
+	"ambient_steps_import_authority_transition",
+	"ambient_steps_retention_authority",
+	"ambient_wifi_authority",
+	"ambient_wifi_retention_authority",
+	"ambient_wifi_fact_cursor",
+	"ambient_cell_authority",
+	"ambient_cell_retention_authority",
+	"ambient_cell_fact_cursor",
 )
 
 internal val SOURCE_LIFECYCLE_PROOF_OBSERVED_TABLES =

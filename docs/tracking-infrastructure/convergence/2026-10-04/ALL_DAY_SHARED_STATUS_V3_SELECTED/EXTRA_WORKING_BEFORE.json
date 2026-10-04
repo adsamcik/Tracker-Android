@@ -1,0 +1,16 @@
+[
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomRetainedAmbientRadioContextTest.kt",
+    "sha256": "bbe507bfe88d310f24970eb90d1a192712ebe62ad657a7ec6985ec054b69df13",
+    "bytes": 31249,
+    "base_sha256": "00ba5053a674a05c078882fa13f1f09bafd1df1db4110dd99e0a99b19ae21743",
+    "same_as_base": false
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+    "sha256": "92c2871a7fd2cbb1152f2d2f70395a6943b8ffe4c4b7c912c90920f710c458d3",
+    "bytes": 29125,
+    "base_sha256": "7c352e70431fb37d85277dea28940db8c0e82aa672be740450889c99d5c203b3",
+    "same_as_base": false
+  }
+]
