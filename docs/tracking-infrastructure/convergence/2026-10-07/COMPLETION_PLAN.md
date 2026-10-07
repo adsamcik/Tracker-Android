@@ -374,6 +374,10 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
   have fresh V2 acceptance in `DAILY_STEPS_DISPLAY_SELECTED/SOURCE_REVIEW.md`;
   NOT_RUN. Incomplete days are isolated, useful source-aware fallbacks preserved,
   strict game/reward APIs remain strict. Full source/device chains stay open.
+- [x] Select composed Location Off and independent temporary-use coverage through
+  real command persistence, Room authorization/caller retirement and shared owners:
+  one new method in `LOCATION_OFF_UI_COMPOSITION_SELECTED/SOURCE_REVIEW.md`,
+  NOT_RUN. Backend/sink fixtures do not prove WAL, hosting or Android behavior.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

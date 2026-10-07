@@ -1,10 +1,13 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import android.app.Application
 import android.content.Context
 import android.os.SystemClock
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
+import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.location.UiLocationRequest
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
@@ -21,13 +24,28 @@ import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
+import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
+import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
+import com.adsamcik.tracker.tracker.api.SourceCallerDemandIdentity
+import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReporter
+import com.adsamcik.tracker.tracker.resilience.SharedPreferencesTrackingLifecycleCommandAuthority
+import com.adsamcik.tracker.tracker.service.BackgroundLocationHost
+import com.adsamcik.tracker.tracker.service.DefaultTrackingTurnOffController
 import com.adsamcik.tracker.testing.fake.FakeLocationSource
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import io.mockk.verify
 import java.time.Duration
+import javax.inject.Provider
 import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
 import kotlinx.coroutines.CancellationException
@@ -242,6 +260,183 @@ class LocationSourceRuntimeTest {
 	}
 
 	@Test
+	fun `composed Off fences durable Location while fresh temporary leases remain independent`() = runTest {
+		val dispatcher = StandardTestDispatcher(testScheduler)
+		Dispatchers.setMain(dispatcher)
+		val context = ApplicationProvider.getApplicationContext<Application>()
+		val preferences = context.getSharedPreferences(
+			SharedPreferencesTrackingLifecycleCommandAuthority.PREFERENCES_NAME, Context.MODE_PRIVATE)
+		assertTrue(preferences.edit().clear().commit())
+		val database = AppDatabase.testDatabase(context)
+		mockkObject(BackgroundTrackingApi)
+		try {
+			ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+			val clock = BootClockDomainProvider { "boot-1" }
+			val commands = SharedPreferencesTrackingLifecycleCommandAuthority(context, dispatcher, clock)
+			val identity = AmbientReconciliationIdentity(
+				AmbientTrackingSource.LOCATION, 1L, 1L, 1L, 1L, "location-owner", 1L,
+				retentionPolicyId = "location-retention", retentionApprovalRevision = 1L)
+			val reference = SourceCallerReplayReference("location-off-ui")
+			val authorities = RoomSourceCallerAcceptedAuthorityRepository(database)
+			assertTrue(authorities.insertIfAbsent(reference, StoredSourceCallerAuthority(
+				StoredSourceCallerOrigin.PURPOSE_OWNER, TrackingPurpose.AMBIENT_PRODUCT,
+				setOf(SourceCallerDemandIdentity(identity.purposeLeaseIdentity, manifestIdentity = null))), 1L))
+			val demand = SourceDemandEntity(
+				demandId = "location-off-ui-demand", consumerId = "ambient:location",
+				sourceKind = SourceKind.LOCATION.stableCode, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+				logicalTrackingId = null, serviceRunId = null, manifestRevision = null,
+				lifecycleLeaseGeneration = null, sourcePolicyRevision = 1L, consentEpoch = 1L,
+				persistenceEligible = true, qosCode = 0, maximumAgeMs = 60_000L,
+				desiredLatencyMs = 1_000L, requestedBootId = "boot-1",
+				requestedElapsedRealtimeNanos = 1L, requestedAtMs = 1L,
+				status = SourceDemandEntity.STATUS_ACTIVE, retireBootId = null,
+				retireElapsedRealtimeNanos = null, retiredAtMs = null,
+				sourceCallerAuthorityReference = reference.value,
+				liveAmbientRetentionPolicyId = identity.retentionPolicyId,
+				liveAmbientRetentionApprovalRevision = identity.retentionApprovalRevision)
+			val fixture = locationRuntimeFixture(backgroundScope)
+			val plan = fixture.plan.copy(mode = LocationMode.HIGH_ACCURACY,
+				requestedIntervalMs = 1_000L, minimumUpdateIntervalMs = 250L, maximumBatchDelayMs = 0L)
+			val original = registration(plan, 1L, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)
+			val rows = SourceBrokerAuthorization.rows(SourceKind.LOCATION.stableCode,
+				original.state.registrationGeneration, 1L, listOf(demand), "boot-1", 1L, 1L)
+			val active = original.copy(authorization = requireNotNull(rows.toAuthorizationSnapshotOrNull()))
+			val dao = database.sourceBrokerDao()
+			dao.insertDemands(listOf(demand))
+			dao.insertRegistration(systemLocationRow(active).copy(
+				providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+				providerProcessIncarnationId = "process-1"))
+			dao.insertAuthorizations(rows)
+			coEvery { fixture.registrations.begin(any(), any(), any(), any(), any()) } returns active
+			coEvery { fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any()) } returns active
+			val broker = SourceBroker(database)
+			val factory = mockk<DurableSourceEventSinkFactory>()
+			every { factory.unbound } returns fixture.sink
+			val shared = SharedLocationSourceController(fixture.runtime, broker, factory)
+			assertTrue(shared.reconcileAmbientJoin(plan, identity.policyRevision) is AmbientLocationRuntimeJoinResult.Active)
+
+			val reporter = mockk<TrackingPurposeAvailabilityReporter>(relaxed = true)
+			val host = BackgroundLocationHost(context, database, mockk(), mockk(), commands, mockk(), reporter)
+			val locationOwner = AmbientLocationPurposeOwner(context, broker, mockk(), host, shared,
+				mockk(), mockk(), mockk(), clock, reporter, mockk(), mockk())
+			val issuer = mockk<SerializedTrackingPurposeLeaseIssuer>(relaxed = true)
+			coEvery { issuer.currentAutomaticControlLease() } returns null
+			coEvery { issuer.currentAmbientLease(AmbientTrackingSource.LOCATION) } returns AmbientReconciliationLease(identity)
+			val owners = DefaultTrackingPurposePublicationRuntime(
+				leaseIssuer = issuer, reporter = reporter,
+				executionRevisionRegistry = TrackingPurposeExecutionRevisionRegistry(),
+				retentionAuthorityProducer = mockk(), ownerCallbackScope = backgroundScope,
+				ownerCallbackTimeoutMillis = 2_000L,
+				ambientLocationPurposeOwnerProvider = Provider { locationOwner })
+			coEvery { BackgroundTrackingApi.stopAutomaticControlForUser(any()) } returns true
+			val off = DefaultTrackingTurnOffController(context, commands, database, clock, owners)
+			val lifecycleOwner = mockk<LifecycleOwner>()
+			val lifecycle = LifecycleRegistry(lifecycleOwner)
+			every { lifecycleOwner.lifecycle } returns lifecycle
+			lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+			lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START)
+			val provider = SharedUiLocationProvider(shared, lifecycle)
+			val mapFixes = mutableListOf<android.location.Location>()
+			val gameFixes = mutableListOf<android.location.Location>()
+			val map = backgroundScope.launch {
+				provider.locationUpdates(UiLocationRequest("my-location", 1_000L, 250L,
+					highAccuracy = true, maximumAgeMillis = 10_000L)).collect { mapFixes += it }
+			}
+			var game: kotlinx.coroutines.Job? = null
+			try {
+				runCurrent()
+				assertEquals(listOf("my-location"), provider.activeRequests.value.map { it.tag })
+				val oldTrackingCallback = fixture.providerCallback()
+				oldTrackingCallback(listOf(location(50.0, SystemClock.elapsedRealtimeNanos())))
+				runCurrent()
+				assertEquals(listOf(50.0), mapFixes.map { it.latitude })
+				assertEquals(1, fixture.sink.deliveries.size)
+				val admittedBeforeOff = fixture.sink.deliveries.toList()
+				assertEquals(SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+					requireNotNull(dao.latestAuthorization(SourceKind.LOCATION.stableCode,
+						active.state.registrationGeneration).toAuthorizationSnapshotOrNull()).purposeEligibilityMask)
+
+				val reservation = requireNotNull(off.reserveAndFence())
+				assertEquals(reservation.exitId, commands.pendingCollectionResumeExitId)
+				assertEquals(SourceDemandEntity.STATUS_RETIRING, dao.demandHistory(demand.consumerId).single().status)
+				assertTrue(broker.authorizationDemands(SourceKind.LOCATION).isEmpty())
+				assertEquals(0L, requireNotNull(dao.latestAuthorization(SourceKind.LOCATION.stableCode,
+					active.state.registrationGeneration).toAuthorizationSnapshotOrNull()).purposeEligibilityMask)
+				assertEquals(rows, dao.authorizationRevision(SourceKind.LOCATION.stableCode,
+					active.state.registrationGeneration, 1L))
+				assertNull(off.closeOwnersAfterSessionStop(reservation.exitId))
+				// There is no session in this case; acknowledge its session-stop phase before owner closure.
+				assertTrue(commands.markStopHandled(reservation.stop))
+				assertEquals(true, off.closeOwnersAfterSessionStop(reservation.exitId))
+				assertEquals(SourceDemandEntity.STATUS_RETIRED, dao.demandHistory(demand.consumerId).single().status)
+				assertEquals(StoredSourceCallerAuthorityLoadResult.Retired, authorities.load(reference))
+				assertEquals(reservation.exitId,
+					SharedPreferencesTrackingLifecycleCommandAuthority(context, dispatcher, clock).pendingCollectionResumeExitId)
+				verify(exactly = 1) { reporter.publishAmbientUnavailable(
+					AmbientTrackingSource.LOCATION, AmbientSourceUnavailableReason.USER_TURNED_OFF) }
+				coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
+
+				// Off does not cancel an explicit map request or prohibit a new independent game request.
+				game = backgroundScope.launch {
+					provider.locationUpdates(UiLocationRequest("game", 1_000L, 250L,
+						highAccuracy = true, maximumAgeMillis = 5_000L, cancelOnAppBackground = false))
+						.collect { gameFixes += it }
+				}
+				runCurrent()
+				assertEquals(setOf("my-location", "game"), provider.activeRequests.value.map { it.tag }.toSet())
+				val mapBeforeLateCallback = mapFixes.size
+				val gameBeforeLateCallback = gameFixes.size
+				oldTrackingCallback(listOf(location(49.0, SystemClock.elapsedRealtimeNanos())))
+				runCurrent()
+				assertEquals(mapBeforeLateCallback, mapFixes.size)
+				assertEquals(gameBeforeLateCallback, gameFixes.size)
+				val temporaryCallback = fixture.providerCallback()
+				temporaryCallback(listOf(location(51.0, SystemClock.elapsedRealtimeNanos() - 7_000_000_000L)))
+				runCurrent()
+				assertEquals(51.0, mapFixes.last().latitude, 0.0)
+				assertEquals(gameBeforeLateCallback, gameFixes.size)
+				temporaryCallback(listOf(location(52.0, SystemClock.elapsedRealtimeNanos())))
+				runCurrent()
+				assertEquals(52.0, mapFixes.last().latitude, 0.0)
+				assertEquals(52.0, gameFixes.last().latitude, 0.0)
+				assertEquals(admittedBeforeOff, fixture.sink.deliveries)
+
+				map.cancelAndJoin()
+				runCurrent()
+				assertEquals(listOf("game"), provider.activeRequests.value.map { it.tag })
+				val stoppedMapCount = mapFixes.size
+				temporaryCallback(listOf(location(53.0, SystemClock.elapsedRealtimeNanos())))
+				runCurrent()
+				assertEquals(stoppedMapCount, mapFixes.size)
+				assertEquals(53.0, gameFixes.last().latitude, 0.0)
+				requireNotNull(game).cancelAndJoin()
+				runCurrent()
+				assertTrue(provider.activeRequests.value.isEmpty())
+				val stoppedGameCount = gameFixes.size
+				temporaryCallback(listOf(location(54.0, SystemClock.elapsedRealtimeNanos())))
+				runCurrent()
+				assertEquals(stoppedGameCount, gameFixes.size)
+				assertEquals(admittedBeforeOff, fixture.sink.deliveries)
+				assertTrue(broker.authorizationDemands(SourceKind.LOCATION).isEmpty())
+				assertEquals(reservation.exitId, commands.pendingCollectionResumeExitId)
+				coVerify(exactly = 1) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
+				coVerify(exactly = 0) { fixture.registrations.beginSystemRearmableLocation(any(), any(), any()) }
+				coVerify(exactly = 2) { fixture.fusedBackend.start(any(), any()) }
+				coVerify(exactly = 2) { fixture.fusedBackend.stop() }
+			} finally {
+				map.cancelAndJoin()
+				game?.cancelAndJoin()
+				shared.close()
+			}
+		} finally {
+			unmockkObject(BackgroundTrackingApi)
+			database.close()
+			preferences.edit().clear().commit()
+			Dispatchers.resetMain()
+		}
+	}
+
+	@Test
 	fun `composed feature flows apply independent freshness and retain the remaining lease`() = runTest {
 		Dispatchers.setMain(StandardTestDispatcher(testScheduler))
 		try {
@@ -289,7 +484,7 @@ class LocationSourceRuntimeTest {
 				runCurrent()
 				assertEquals(listOf(50.0, 51.0), mapFixes.map { it.latitude })
 				assertEquals(listOf(51.0, 52.0), gameFixes.map { it.latitude })
-				game.cancelAndJoin()
+				requireNotNull(game).cancelAndJoin()
 				assertTrue(provider.activeRequests.value.isEmpty())
 				coVerify(exactly = 1) { fixture.fusedBackend.start(any(), any()) }
 				coVerify(exactly = 1) { fixture.fusedBackend.stop() }
@@ -301,7 +496,7 @@ class LocationSourceRuntimeTest {
 				coVerify(exactly = 0) { fixture.registrations.beginSystemRearmableLocation(any(), any(), any()) }
 			} finally {
 				map.cancelAndJoin()
-				game.cancelAndJoin()
+				requireNotNull(game).cancelAndJoin()
 			}
 		} finally {
 			Dispatchers.resetMain()
@@ -363,7 +558,7 @@ class LocationSourceRuntimeTest {
 				runCurrent()
 				assertEquals(listOf(50.0, 52.0), mapFixes.map { it.latitude })
 				assertEquals(listOf(50.0, 51.0, 52.0), gameFixes.map { it.latitude })
-				game.cancelAndJoin()
+				requireNotNull(game).cancelAndJoin()
 				assertEquals(listOf("map"), provider.activeRequests.value.map { it.tag })
 				coVerify(exactly = 0) { fixture.fusedBackend.stop() }
 				val retiredCallback = fixture.providerCallback()
@@ -385,7 +580,7 @@ class LocationSourceRuntimeTest {
 				coVerify(exactly = 0) { fixture.registrations.beginSystemRearmableLocation(any(), any(), any()) }
 			} finally {
 				map.cancelAndJoin()
-				game.cancelAndJoin()
+				requireNotNull(game).cancelAndJoin()
 				observer.cancelAndJoin()
 			}
 		} finally {

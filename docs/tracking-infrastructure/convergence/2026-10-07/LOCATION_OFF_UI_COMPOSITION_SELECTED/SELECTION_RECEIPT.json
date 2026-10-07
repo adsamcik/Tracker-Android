@@ -1,0 +1,23 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "selection_parent": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+  "source_files": [
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt",
+      "base_sha256": "a5b3b598b0531d92b17e62606fbc65558b14d243585578423d912752e54d7214",
+      "selected_sha256": "b3549eab568283bc91df750cbe45a6bc824e4386d65f60b87b5d5a65797a9d48",
+      "working_before_sha256": "a5b3b598b0531d92b17e62606fbc65558b14d243585578423d912752e54d7214",
+      "disposition": "clean committed base plus one authored composition method; no live-source edit"
+    }
+  ],
+  "dependency_count": 34,
+  "dependency_drift": [],
+  "working_applied": [
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt"
+  ],
+  "working_preserved": [],
+  "authored_new_methods": 1,
+  "other_selected_changes": "Four redundant requireNotNull(game) calls in existing methods; no behavior change.",
+  "evidence": "Independent static source acceptance only; all tests NOT_RUN; boundaries in SOURCE_BOUNDARY.md."
+}

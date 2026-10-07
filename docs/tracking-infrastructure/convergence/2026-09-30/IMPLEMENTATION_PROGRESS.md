@@ -669,3 +669,14 @@ list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS
   fresh V2 acceptance after fixing neighbouring-day settlement, Location-only
   sparse values and ambiguous Compose selectors. Whole-source/provider/gates and
   final integration remain open.
+
+### 2026-10-08 — Location Off and temporary-use composition
+
+Selected one independently accepted test method through real Off persistence, Room
+authorization/caller retirement, built-in ambient Location closure and shared
+provider/UI ownership. Map/game freshness, retired-callback rejection and
+independent release are authored assertions, NOT_RUN. Existing fixture backend,
+registration acknowledgements and sink submissions do not prove WAL, hosting,
+active-session teardown or device behavior. See
+`../2026-10-07/LOCATION_OFF_UI_COMPOSITION_SELECTED/SOURCE_REVIEW.md`. All 25 full-chain
+prerequisites remain OPEN; IMPLEMENTED_UNVALIDATED.

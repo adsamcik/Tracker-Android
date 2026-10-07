@@ -1,0 +1,14 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_commit": "0cdd3575fa5893d96986caa680d24ab08f3b7ad8",
+  "paths": [
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt",
+      "base_sha256": "a5b3b598b0531d92b17e62606fbc65558b14d243585578423d912752e54d7214",
+      "selected_sha256": "b3549eab568283bc91df750cbe45a6bc824e4386d65f60b87b5d5a65797a9d48",
+      "working_before_sha256": "a5b3b598b0531d92b17e62606fbc65558b14d243585578423d912752e54d7214",
+      "disposition": "clean committed base plus one authored composition method; no live-source edit"
+    }
+  ]
+}
