@@ -596,3 +596,9 @@ list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS
   planner cases; independent static acceptance is recorded in
   `../2026-10-07/LEGACY_CLEANUP_DRAIN_ORDER_SELECTED/SOURCE_REVIEW.md`. All
   are NOT_RUN; mixed coordinator drafts and full End/ownership proof remain open.
+
+- [x] Preserve cancellation from the real initial History detail DAO read instead
+  of converting it into a storage error. One new suspended repository case and
+  four preserved tests have independent static acceptance in
+  `../2026-10-07/TRIP_DETAIL_CANCELLATION_SELECTED/SOURCE_REVIEW.md`. All
+  are NOT_RUN; result mappings unchanged and full History proof remains open.

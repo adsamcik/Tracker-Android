@@ -1,0 +1,21 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "test_methods": 5,
+  "new_test_methods": 1,
+  "new_scenarios": 1,
+  "preserved_test_methods": 4,
+  "execution": "NOT_RUN",
+  "new_cases": [
+    {
+      "method": "cancelling a pending trip detail read remains cancellation",
+      "scope": "actual DefaultTripRepository; strict suspended TripDao mock; independent repository Result capture; exact one read",
+      "execution": "NOT_RUN"
+    }
+  ],
+  "preserved_cases": [
+    "observeTrips maps non-Steps values and coerces invalid fields",
+    "getTripDetail returns NotFound when dao returns null",
+    "getTripDetail wraps dao exceptions as database errors",
+    "exact imported zero-sample detail carries origin before any supplementary lookup"
+  ]
+}

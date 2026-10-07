@@ -1,0 +1,21 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+  "files": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTripRepository.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "base_sha256": "b88f99dcb169ae1272bbac79d7a0bed32ddd8dfda7ab03e77803766e412502a3",
+      "working_before_sha256": "404bf033ede7ffb0a066c7f88daac2716215b89c122aa4392f4150cb15a012b0",
+      "before_difference": "EOL only; normalized contents equal committed input"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultTripRepositoryTest.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "base_sha256": "ba33f0f33dda3392304e54f1312e71556f476dc43f59bf5ed3188cfa0b13ed99",
+      "working_before_sha256": "c30cf380d5c5930c7b7bc66d01acf60f2fd919883a902788cfc029ad44aed6b7",
+      "before_difference": "EOL only; normalized contents equal committed input"
+    }
+  ]
+}

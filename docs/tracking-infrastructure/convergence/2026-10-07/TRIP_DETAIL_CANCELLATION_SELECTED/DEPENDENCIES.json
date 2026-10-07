@@ -1,0 +1,83 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+  "dependencies": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/TripDao.kt",
+      "base_commit": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "d982d66c43dcaa15f09cc866b393d75a198e534c",
+      "sha256": "e268071b0b9f66c308ebde982015ce152652b773d4f26c0bdc6aa2964a1475d9",
+      "bytes": 5686
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/TripRepository.kt",
+      "base_commit": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "c394414372fac12326a8d8db22ccef6a1f3feecf",
+      "sha256": "4021629a8de9139b9af8eafa895ed75c3f1e1ee0932aa97558d05cf5a518278c",
+      "bytes": 1210
+    },
+    {
+      "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/TripPresentationRepository.kt",
+      "base_commit": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "82b042350a12348adb55fd82d4a2f2f0cf18f871",
+      "sha256": "f0be9be44f35c87c55dc785e9956f8b6a60ffb2d9618dadbf25a800e16c0f1bc",
+      "bytes": 666
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/error/StatsError.kt",
+      "base_commit": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "bcba1363337a563e69c81c08b3d8c1c99e100251",
+      "sha256": "1c658906f30303782f5a3c24b74468ee7f0c895b451513cdbb2bd54c122efbb3",
+      "bytes": 724
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt",
+      "base_commit": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "b668c63900722aa3295ab62cc88f45c68dc74384",
+      "sha256": "7e84d8cc24badede1e45ae51a68f281e5e02c8114353d6af169a2ceb0f34c6a1",
+      "bytes": 12731
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/TripDetailPresenter.kt",
+      "base_commit": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "599cbaf91e3e1ecb11cc8ffdf34623a1367719c9",
+      "sha256": "1dd5ef020d1e9061d3e97d24a087d3dc71f009176f0e042d159edac0cce7046d",
+      "bytes": 3739
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/TripDetailPresenterViewModel.kt",
+      "base_commit": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "3ee9ed110520a860fcf6126978703e6016e8b583",
+      "sha256": "bbacbd539de25a4b7c3fc6054924c1b825a53a96a6f30d45c42c4cf904e7909d",
+      "bytes": 15365
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "base_commit": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "e040d4c2c629dad9382cd9c543abce570f775221",
+      "sha256": "a276144c34315be81b125df52eb7611f08e92a7629abb3d1f3587a3e92a93f24",
+      "bytes": 1690
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidFeatureConventionPlugins.kt",
+      "base_commit": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "871b0c3cb28b0d145ffd75f56d87c40e19bae4db",
+      "sha256": "e2df2278893f6fc1b47d6b51c15095e1e5638d2185ec35290fab465771772567",
+      "bytes": 4646
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidConventionPlugins.kt",
+      "base_commit": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "f541fe24f174c6e7b7bd9d74751358de3027003d",
+      "sha256": "6530e14a5465d6023516b430b05e792a49b2cbc802c2b9455101272c17c36229",
+      "bytes": 3618
+    },
+    {
+      "path": "settings.gradle.kts",
+      "base_commit": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "16fb6f1ecf24118f1669d34999affe9b2f4250cb",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a",
+      "bytes": 2408
+    }
+  ]
+}

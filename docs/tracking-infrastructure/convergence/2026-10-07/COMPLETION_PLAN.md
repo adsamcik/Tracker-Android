@@ -326,6 +326,9 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
 - [x] Select existing legacy cleanup drain validation-order repair and four actual
   Room planner cases: `LEGACY_CLEANUP_DRAIN_ORDER_SELECTED/SOURCE_REVIEW.md`.
   Mixed drafts preserved; cases NOT_RUN, full End/ownership chains remain open.
+- [x] Select History detail cancellation repair and one suspended repository-read
+  case: `TRIP_DETAIL_CANCELLATION_SELECTED/SOURCE_REVIEW.md`. Existing
+  result mappings preserved; cases NOT_RUN, full History composition remains open.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

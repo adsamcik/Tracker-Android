@@ -1,0 +1,67 @@
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTripRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTripRepository.kt
+@@ -15,6 +15,7 @@
+ import com.adsamcik.tracker.stats.api.value.DistanceM
+ import com.adsamcik.tracker.stats.api.value.DurationMs
+ import com.adsamcik.tracker.stats.api.value.EpochMs
++import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.flow.Flow
+ import kotlinx.coroutines.flow.flow
+ import kotlinx.coroutines.flow.map
+@@ -40,6 +41,8 @@
+ 			} else {
+ 				StatsError.NotFound("Trip not found", "Trip", id.toString()).left()
+ 			}
++		} catch (cancelled: CancellationException) {
++			throw cancelled
+ 		} catch (e: Exception) {
+ 			StatsError.DatabaseError("Failed to load trip: ${e.message}", e).left()
+ 		}
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultTripRepositoryTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultTripRepositoryTest.kt
+@@ -5,9 +5,15 @@
+ import com.adsamcik.tracker.shared.base.database.data.Trip
+ import com.adsamcik.tracker.stats.api.TransportMode
+ import com.adsamcik.tracker.stats.api.error.StatsError
++import com.adsamcik.tracker.stats.api.repository.TripSummary
+ import io.kotest.matchers.shouldBe
+ import io.mockk.coEvery
+ import io.mockk.mockk
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.CoroutineStart
++import kotlinx.coroutines.awaitCancellation
++import kotlinx.coroutines.launch
+ import kotlinx.coroutines.flow.first
+ import kotlinx.coroutines.flow.flowOf
+ import kotlinx.coroutines.test.runTest
+@@ -58,6 +64,29 @@
+ 		error shouldBe StatsError.DatabaseError("Failed to load trip: boom", failure)
+ 	}
+ 
++	@Test
++	fun `cancelling a pending trip detail read remains cancellation`() = runTest {
++		val enteredDao = CompletableDeferred<Unit>()
++		coEvery { tripDao.getById(6L) } coAnswers {
++			enteredDao.complete(Unit)
++			awaitCancellation()
++		}
++		// Capture the repository result independently of the cancelled child job.
++		val outcome = CompletableDeferred<Result<arrow.core.Either<StatsError, TripSummary>>>()
++		val reading = launch(start = CoroutineStart.UNDISPATCHED) {
++			outcome.complete(runCatching { repository.getTripDetail(6L) })
++		}
++		enteredDao.await()
++		outcome.isCompleted shouldBe false
++
++		reading.cancel(CancellationException("Trip detail request cancelled"))
++		reading.join()
++
++		(outcome.await().exceptionOrNull() is CancellationException) shouldBe true
++		io.mockk.coVerify(exactly = 1) { tripDao.getById(6L) }
++		io.mockk.confirmVerified(tripDao)
++	}
++
+ 	private fun everyRecentTripsFlow(vararg trips: Trip) {
+ 		io.mockk.every { tripDao.getRecentTripsFlow(100) } returns flowOf(trips.toList())
+ 	}
