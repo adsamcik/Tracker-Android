@@ -1,0 +1,195 @@
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt
+@@ -2,6 +2,9 @@
+ 
+ import android.content.Context
+ import android.os.SystemClock
++import androidx.lifecycle.Lifecycle
++import androidx.lifecycle.LifecycleOwner
++import androidx.lifecycle.LifecycleRegistry
+ import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+ import com.adsamcik.tracker.shared.base.location.UiLocationRequest
+ import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
+@@ -29,6 +32,7 @@
+ import kotlin.test.assertSame
+ import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.CompletableDeferred
+ import kotlinx.coroutines.CoroutineExceptionHandler
+ import kotlinx.coroutines.ExperimentalCoroutinesApi
+@@ -36,6 +40,7 @@
+ import kotlinx.coroutines.SupervisorJob
+ import kotlinx.coroutines.async
+ import kotlinx.coroutines.cancel
++import kotlinx.coroutines.cancelAndJoin
+ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.flow.collect
+ import kotlinx.coroutines.flow.first
+@@ -45,6 +50,8 @@
+ import kotlinx.coroutines.test.runCurrent
+ import kotlinx.coroutines.test.runTest
+ import kotlinx.coroutines.test.StandardTestDispatcher
++import kotlinx.coroutines.test.resetMain
++import kotlinx.coroutines.test.setMain
+ import org.junit.Assert.assertEquals
+ import org.junit.Assert.assertFalse
+ import org.junit.Assert.assertNull
+@@ -234,6 +241,157 @@
+ 		collector.cancel()
+ 	}
+ 
++	@Test
++	fun `composed feature flows apply independent freshness and retain the remaining lease`() = runTest {
++		Dispatchers.setMain(StandardTestDispatcher(testScheduler))
++		try {
++			ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
++			val fixture = locationRuntimeFixture(backgroundScope)
++			val broker = mockk<SourceBroker>()
++			coEvery { broker.authorizationDemands(SourceKind.LOCATION) } returns emptyList()
++			val factory = mockk<DurableSourceEventSinkFactory>()
++			every { factory.unbound } returns fixture.sink
++			val shared = SharedLocationSourceController(fixture.runtime, broker, factory)
++			val lifecycleOwner = mockk<LifecycleOwner>()
++			val lifecycle = LifecycleRegistry(lifecycleOwner)
++			every { lifecycleOwner.lifecycle } returns lifecycle
++			lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
++			lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START)
++			val provider = SharedUiLocationProvider(shared, lifecycle)
++			val mapFixes = mutableListOf<android.location.Location>()
++			val gameFixes = mutableListOf<android.location.Location>()
++			val map = backgroundScope.launch {
++				provider.locationUpdates(UiLocationRequest("map", 1_000L,
++					maximumAgeMillis = 10_000L)).collect { mapFixes += it }
++			}
++			val game = backgroundScope.launch {
++				provider.locationUpdates(UiLocationRequest("game", 1_000L,
++					maximumAgeMillis = 5_000L, cancelOnAppBackground = false))
++					.collect { gameFixes += it }
++			}
++			try {
++				runCurrent()
++				assertEquals(setOf("map", "game"), provider.activeRequests.value.map { it.tag }.toSet())
++				val callback = fixture.providerCallback()
++				callback(listOf(location(50.0, SystemClock.elapsedRealtimeNanos() - 7_000_000_000L)))
++				runCurrent()
++				assertEquals(listOf(50.0), mapFixes.map { it.latitude })
++				assertTrue(gameFixes.isEmpty())
++				callback(listOf(location(51.0, SystemClock.elapsedRealtimeNanos())))
++				runCurrent()
++				assertEquals(listOf(50.0, 51.0), mapFixes.map { it.latitude })
++				assertEquals(listOf(51.0), gameFixes.map { it.latitude })
++
++				map.cancelAndJoin()
++				assertEquals(listOf("game"), provider.activeRequests.value.map { it.tag })
++				coVerify(exactly = 0) { fixture.fusedBackend.stop() }
++				fixture.providerCallback()(listOf(location(52.0, SystemClock.elapsedRealtimeNanos())))
++				runCurrent()
++				assertEquals(listOf(50.0, 51.0), mapFixes.map { it.latitude })
++				assertEquals(listOf(51.0, 52.0), gameFixes.map { it.latitude })
++				game.cancelAndJoin()
++				assertTrue(provider.activeRequests.value.isEmpty())
++				coVerify(exactly = 1) { fixture.fusedBackend.start(any(), any()) }
++				coVerify(exactly = 1) { fixture.fusedBackend.stop() }
++				callback(listOf(location(53.0, SystemClock.elapsedRealtimeNanos())))
++				runCurrent()
++				assertEquals(listOf(51.0, 52.0), gameFixes.map { it.latitude })
++				assertTrue(fixture.sink.deliveries.isEmpty())
++				coVerify(exactly = 0) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
++				coVerify(exactly = 0) { fixture.registrations.beginSystemRearmableLocation(any(), any(), any()) }
++			} finally {
++				map.cancelAndJoin()
++				game.cancelAndJoin()
++			}
++		} finally {
++			Dispatchers.resetMain()
++		}
++	}
++
++	@Test
++	fun `composed map lifecycle releases and reacquires independently of the game flow`() = runTest {
++		Dispatchers.setMain(StandardTestDispatcher(testScheduler))
++		try {
++			ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
++			val fixture = locationRuntimeFixture(backgroundScope)
++			val broker = mockk<SourceBroker>()
++			coEvery { broker.authorizationDemands(SourceKind.LOCATION) } returns emptyList()
++			val factory = mockk<DurableSourceEventSinkFactory>()
++			every { factory.unbound } returns fixture.sink
++			val shared = SharedLocationSourceController(fixture.runtime, broker, factory)
++			val observedEvents = mutableListOf<UiLocationEvent>()
++			val observer = backgroundScope.launch {
++				shared.uiLocationEvents.collect { observedEvents += it }
++			}
++			val lifecycleOwner = mockk<LifecycleOwner>()
++			val lifecycle = LifecycleRegistry(lifecycleOwner)
++			every { lifecycleOwner.lifecycle } returns lifecycle
++			lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
++			lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START)
++			val provider = SharedUiLocationProvider(shared, lifecycle)
++			val mapFixes = mutableListOf<android.location.Location>()
++			val gameFixes = mutableListOf<android.location.Location>()
++			val map = backgroundScope.launch {
++				provider.locationUpdates(UiLocationRequest("map", 1_000L,
++					maximumAgeMillis = 10_000L)).collect { mapFixes += it }
++			}
++			val game = backgroundScope.launch {
++				provider.locationUpdates(UiLocationRequest("game", 1_000L,
++					maximumAgeMillis = 5_000L, cancelOnAppBackground = false))
++					.collect { gameFixes += it }
++			}
++			try {
++				runCurrent()
++				fixture.providerCallback()(listOf(location(50.0, SystemClock.elapsedRealtimeNanos())))
++				runCurrent()
++				assertEquals(listOf(50.0), mapFixes.map { it.latitude })
++				assertEquals(listOf(50.0), gameFixes.map { it.latitude })
++
++				lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
++				runCurrent()
++				assertEquals(listOf("game"), provider.activeRequests.value.map { it.tag })
++				coVerify(exactly = 0) { fixture.fusedBackend.stop() }
++				fixture.providerCallback()(listOf(location(51.0, SystemClock.elapsedRealtimeNanos())))
++				runCurrent()
++				assertEquals(listOf(50.0), mapFixes.map { it.latitude })
++				assertEquals(listOf(50.0, 51.0), gameFixes.map { it.latitude })
++
++				lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START)
++				runCurrent()
++				assertEquals(setOf("map", "game"), provider.activeRequests.value.map { it.tag }.toSet())
++				fixture.providerCallback()(listOf(location(52.0, SystemClock.elapsedRealtimeNanos())))
++				runCurrent()
++				assertEquals(listOf(50.0, 52.0), mapFixes.map { it.latitude })
++				assertEquals(listOf(50.0, 51.0, 52.0), gameFixes.map { it.latitude })
++				game.cancelAndJoin()
++				assertEquals(listOf("map"), provider.activeRequests.value.map { it.tag })
++				coVerify(exactly = 0) { fixture.fusedBackend.stop() }
++				val retiredCallback = fixture.providerCallback()
++				retiredCallback(listOf(location(53.0, SystemClock.elapsedRealtimeNanos())))
++				runCurrent()
++				assertEquals(listOf(50.0, 52.0, 53.0), mapFixes.map { it.latitude })
++				assertEquals(listOf(50.0, 51.0, 52.0), gameFixes.map { it.latitude })
++				map.cancelAndJoin()
++				assertTrue(provider.activeRequests.value.isEmpty())
++				coVerify(exactly = 1) { fixture.fusedBackend.start(any(), any()) }
++				coVerify(exactly = 1) { fixture.fusedBackend.stop() }
++				val eventsAfterLastRelease = observedEvents.size
++				retiredCallback(listOf(location(54.0, SystemClock.elapsedRealtimeNanos())))
++				runCurrent()
++				assertEquals(eventsAfterLastRelease, observedEvents.size)
++				assertEquals(listOf(50.0, 52.0, 53.0), mapFixes.map { it.latitude })
++				assertTrue(fixture.sink.deliveries.isEmpty())
++				coVerify(exactly = 0) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
++				coVerify(exactly = 0) { fixture.registrations.beginSystemRearmableLocation(any(), any(), any()) }
++			} finally {
++				map.cancelAndJoin()
++				game.cancelAndJoin()
++				observer.cancelAndJoin()
++			}
++		} finally {
++			Dispatchers.resetMain()
++		}
++	}
+ 	@Test
+ 	fun `synchronous first UI fix remains available when feature collector subscribes after start`() = runTest {
+ 		val fixture = locationRuntimeFixture(backgroundScope, callbacksDuringStart = 1)

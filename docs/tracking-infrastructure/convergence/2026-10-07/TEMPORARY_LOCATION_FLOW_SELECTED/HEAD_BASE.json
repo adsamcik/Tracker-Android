@@ -1,0 +1,9 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_commit": "6c6ac351939c19d398b0a9160613401f2612505f",
+  "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt",
+  "head_sha256": "8210c010de0f96f4d16afbe9e0c19af9efa18dbfb9017bf8c9543e80adb56e06",
+  "working_before_sha256": "8210c010de0f96f4d16afbe9e0c19af9efa18dbfb9017bf8c9543e80adb56e06",
+  "working_equals_head": true
+}

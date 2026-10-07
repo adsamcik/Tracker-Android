@@ -320,6 +320,9 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
 - [x] Select the first actual all-day facade capability/cancellation test slice:
   three methods, four scenarios and independent source acceptance in
   `ALL_DAY_UNSUPPORTED_FACADE_SELECTED/SOURCE_REVIEW.md`. All remain NOT_RUN.
+- [x] Select composed temporary Location flow source: two methods through the
+  actual provider/controller/runtime, independent freshness and lifecycle release/rejoin.
+  Static review: `TEMPORARY_LOCATION_FLOW_SELECTED/SOURCE_REVIEW.md`; NOT_RUN.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

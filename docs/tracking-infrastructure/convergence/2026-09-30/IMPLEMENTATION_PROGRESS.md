@@ -584,3 +584,9 @@ list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS
   access. Independent static acceptance is recorded in
   `../2026-10-07/ALL_DAY_UNSUPPORTED_FACADE_SELECTED/SOURCE_REVIEW.md`. All are
   NOT_RUN; T19 and the full source/assembly prerequisites remain open.
+
+- [x] Author two actual shared UI-provider/controller/runtime temporary Location
+  flow methods covering independent freshness, cancellation, map lifecycle
+  rejoin and retired callback fencing. Independent static acceptance:
+  `../2026-10-07/TEMPORARY_LOCATION_FLOW_SELECTED/SOURCE_REVIEW.md`. NOT_RUN;
+  Android/storage edges remain fixtures and the full T10/T19 chains stay open.

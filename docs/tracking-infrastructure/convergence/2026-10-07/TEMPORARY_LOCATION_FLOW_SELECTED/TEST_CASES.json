@@ -1,0 +1,20 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "verification": "NOT_RUN",
+  "cases": [
+    {
+      "method": "composed feature flows apply independent freshness and retain the remaining lease",
+      "status": "NOT_RUN",
+      "components": "actual SharedUiLocationProvider + SharedLocationSourceController + LocationSourceRuntime + LifecycleRegistry",
+      "scope": "10-second map / 5-second game filtering; fresh delivery; independent cancellation; one requested backend; no durable registration or sink delivery",
+      "fixtures": "empty broker read, recording sink, existing fake Android backend and registration boundaries"
+    },
+    {
+      "method": "composed map lifecycle releases and reacquires independently of the game flow",
+      "status": "NOT_RUN",
+      "components": "actual SharedUiLocationProvider + SharedLocationSourceController + LocationSourceRuntime + LifecycleRegistry",
+      "scope": "map process-background release/foreground rejoin while game collector continues; last cancellation closes backend; retired callback fencing; no durable registration or sink delivery",
+      "fixtures": "empty broker read, recording sink, existing fake Android backend and registration boundaries"
+    }
+  ]
+}

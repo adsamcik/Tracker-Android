@@ -1,0 +1,84 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "commit": "6c6ac351939c19d398b0a9160613401f2612505f",
+  "inputs": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedUiLocationProvider.kt",
+      "git_blob": "7ab2e07f27fe7b10075f4b9fb705192be2531b7d",
+      "sha256": "80b3947ad5f4d1b91273932fcb8817b4b6a4aacefbc22dfe2e066f997834aa07",
+      "snapshot_file": "DEPENDENCY_INPUTS/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedUiLocationProvider.kt"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedLocationSourceController.kt",
+      "git_blob": "bda7156ba2478dc467e1a347c2a6f056a422f92c",
+      "sha256": "9c06ea6e5e9d37a3dbcdf4be1bbbeddf7cfbb436440f3e97d72cd329ae99e9e6",
+      "snapshot_file": "DEPENDENCY_INPUTS/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedLocationSourceController.kt"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntime.kt",
+      "git_blob": "33133d55eb096c6ef8b0f5d51f05593b18fb5d3f",
+      "sha256": "6429bffcfe704600ac5433d794e59e9f3e3c75ebf99f1dbf81ed99c8b47d82ee",
+      "snapshot_file": "DEPENDENCY_INPUTS/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntime.kt"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationEvidenceNormalizer.kt",
+      "git_blob": "dbe7c7ddf6672bae9d751d2ef8e456637d9a9e98",
+      "sha256": "fa5ad894f933278dd9ebd1d3e545afad7444e6a2d12d2558e5f8ad1fc8b5ea6b",
+      "snapshot_file": "DEPENDENCY_INPUTS/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationEvidenceNormalizer.kt"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationPrerequisites.kt",
+      "git_blob": "dac6146f8759c42bef5d770ad4a26d62e7599cbe",
+      "sha256": "852a31eab960b8ceeeb18c3e2921c7649672b34c1477df4d4113c39646ee55a0",
+      "snapshot_file": "DEPENDENCY_INPUTS/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationPrerequisites.kt"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourcePlan.kt",
+      "git_blob": "273e47053a8146a6362417869d3f903b478cde83",
+      "sha256": "eada66d1bc344e3a807a6ee091e8948e7d75c34e555e553b0d5c96c7eaeeeba6",
+      "snapshot_file": "DEPENDENCY_INPUTS/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourcePlan.kt"
+    },
+    {
+      "path": "core/common/src/main/java/com/adsamcik/tracker/shared/base/location/UiLocationProvider.kt",
+      "git_blob": "44acefdf6de57aeec1cb854478841fd2e96eeecf",
+      "sha256": "5bb82fc5009d408f9d3e307af1449109197cad81a590bb0fe1744c012932dc9c",
+      "snapshot_file": "DEPENDENCY_INPUTS/core/common/src/main/java/com/adsamcik/tracker/shared/base/location/UiLocationProvider.kt"
+    },
+    {
+      "path": "core/testing/src/main/kotlin/com/adsamcik/tracker/testing/fake/FakeLocationSource.kt",
+      "git_blob": "480bc10ad355a0fb1fa65904091efd2ec25c746e",
+      "sha256": "3d99ab9de5314cd6ddfd49ce8d9b9244d042ae7b36b3ad4bd845d956fabe00a1",
+      "snapshot_file": "DEPENDENCY_INPUTS/core/testing/src/main/kotlin/com/adsamcik/tracker/testing/fake/FakeLocationSource.kt"
+    },
+    {
+      "path": "settings.gradle.kts",
+      "git_blob": "16fb6f1ecf24118f1669d34999affe9b2f4250cb",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a",
+      "snapshot_file": "DEPENDENCY_INPUTS/settings.gradle.kts"
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "git_blob": "9a3eb6a544cc9347d26f9f866948e6349c77c182",
+      "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c",
+      "snapshot_file": "DEPENDENCY_INPUTS/tracker/engine/build.gradle.kts"
+    },
+    {
+      "path": "tracker/engine/src/main/AndroidManifest.xml",
+      "git_blob": "4a668a4114442f9ada395af6027b2a75069d8e46",
+      "sha256": "03539ecdd919df33156ef5a6a2be5f605c17ba49868a2982fba11613f9b5cbef",
+      "snapshot_file": "DEPENDENCY_INPUTS/tracker/engine/src/main/AndroidManifest.xml"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidConventionPlugins.kt",
+      "git_blob": "f541fe24f174c6e7b7bd9d74751358de3027003d",
+      "sha256": "6530e14a5465d6023516b430b05e792a49b2cbc802c2b9455101272c17c36229",
+      "snapshot_file": "DEPENDENCY_INPUTS/build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidConventionPlugins.kt"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedUiLocationProviderTest.kt",
+      "git_blob": "fbe90cd8d70834bc8c7f887daee89ca9b5c628a7",
+      "sha256": "7586bd3aea47a85f5d44210d192d78886d2b440d5a79f237fa71f680bd78a316",
+      "snapshot_file": "DEPENDENCY_INPUTS/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedUiLocationProviderTest.kt"
+    }
+  ]
+}

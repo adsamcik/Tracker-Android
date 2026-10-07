@@ -1,0 +1,24 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "verification": "NOT_RUN",
+  "base_commit": "6c6ac351939c19d398b0a9160613401f2612505f",
+  "selection": [
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt",
+      "base_sha256": "8210c010de0f96f4d16afbe9e0c19af9efa18dbfb9017bf8c9543e80adb56e06",
+      "working_before_sha256": "8210c010de0f96f4d16afbe9e0c19af9efa18dbfb9017bf8c9543e80adb56e06",
+      "selected_sha256": "a5b3b598b0531d92b17e62606fbc65558b14d243585578423d912752e54d7214",
+      "working_after_sha256": "a5b3b598b0531d92b17e62606fbc65558b14d243585578423d912752e54d7214",
+      "selected_file": "SELECTED/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt",
+      "working_before_file": "WORKING_BEFORE/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt",
+      "working_after_file": "WORKING_AFTER/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt",
+      "base_file": "BASE/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt",
+      "base_line_endings_preserved": true
+    }
+  ],
+  "new_test_methods": 2,
+  "production_changes": 0,
+  "dependency_changes": 0,
+  "schema_changes": 0
+}
