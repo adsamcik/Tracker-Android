@@ -23,6 +23,12 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayValue
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
+import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
+import com.adsamcik.tracker.tracker.source.summary.RoomStepsNumericSummaryRepository
 import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRead
 import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRequest
 import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
@@ -66,6 +72,111 @@ class AmbientStepsDayRepositoryTest {
 	@After
 	fun tearDown() = database.close()
 
+
+	@Test
+	fun `daily display preserves an earlier complete day beside recorded-so-far Steps`() = runTest {
+		val through = DAY_END + DAY_END / 2L
+		val fingerprint = seedPublicAuthority(cursor().copy(importedThroughTimeMs = through,
+			lastObservedAtMs = through, updatedAtMs = through))
+		database.ambientStepsFactRevisionDao().insert(fact(10L, authorizationFingerprint = fingerprint))
+		val ongoing = fact(20L, DAY_END, through, epochDay = 1L, authorizationFingerprint = fingerprint)
+		database.ambientStepsFactRevisionDao().insert(ongoing)
+		val numeric = displayRepository()
+		val range = StepsNumericSummaryRequest(0L, 1L, "Europe/Prague")
+		(numeric.readDisplay(range) as StepsDailyDisplay.Snapshot).days.map { it.value } shouldBe listOf(
+			StepsDailyDisplayValue.Complete(10L),
+			StepsDailyDisplayValue.Recorded(20L, setOf(AmbientStepsHistoryCause.PARTIAL_COVERAGE)),
+		)
+		// Presentation does not weaken the contract used by rewards and goals.
+		numeric.read(range) shouldBe StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE)
+		val corrected = signed(ongoing.copy(semanticRevision = 2L,
+			mutationId = AmbientStepsFactIntegrity.mutationId(ongoing.logicalFactId, 2L,
+				AmbientStepsFactRevisionEntity.OPERATION_UPSERT), stepCount = 25L, appliedAtMs = through + 1L))
+		database.ambientStepsFactRevisionDao().insert(corrected)
+		(numeric.readDisplay(range) as StepsDailyDisplay.Snapshot).days[1].value shouldBe
+			StepsDailyDisplayValue.Recorded(25L, setOf(AmbientStepsHistoryCause.PARTIAL_COVERAGE))
+		database.ambientStepsFactRevisionDao().insert(retract(corrected))
+		(numeric.readDisplay(range) as StepsDailyDisplay.Snapshot).days.map { it.value } shouldBe listOf(
+			StepsDailyDisplayValue.Complete(10L), StepsDailyDisplayValue.Materializing,
+		)
+	}
+
+	@Test
+	fun `daily display isolates overlapping provider windows from another covered day`() = runTest {
+		val through = 2L * DAY_END
+		val fingerprint = seedPublicAuthority(cursor().copy(importedThroughTimeMs = through,
+			lastObservedAtMs = through, updatedAtMs = through))
+		database.ambientStepsFactRevisionDao().insert(fact(3L, 0L, 2_000L, authorizationFingerprint = fingerprint))
+		database.ambientStepsFactRevisionDao().insert(fact(4L, 1_000L, 3_000L, authorizationFingerprint = fingerprint))
+		database.ambientStepsFactRevisionDao().insert(fact(5L, DAY_END, through, epochDay = 1L,
+			authorizationFingerprint = fingerprint))
+		val days = (displayRepository().readDisplay(StepsNumericSummaryRequest(0L, 1L, "UTC")) as
+			StepsDailyDisplay.Snapshot).days
+		(days[0].value as StepsDailyDisplayValue.Unavailable).causes shouldBe setOf(AmbientStepsHistoryCause.FACT_OVERLAP)
+		days[1].value shouldBe StepsDailyDisplayValue.Complete(5L)
+	}
+
+	@Test
+	fun `one stored calendar conflict does not remove a valid neighbour day`() = runTest {
+		val through = 2L * DAY_END
+		val fingerprint = seedPublicAuthority(cursor().copy(importedThroughTimeMs = through,
+			lastObservedAtMs = through, updatedAtMs = through))
+		database.ambientStepsFactRevisionDao().insert(fact(3L, authorizationFingerprint = fingerprint))
+		database.ambientStepsFactRevisionDao().insert(fact(8L, DAY_END, through, epochDay = 1L,
+			authorizationFingerprint = fingerprint))
+		// Both are real stored keys for day zero; a display must not choose the fallback over either.
+		val base = fact(1L, 36_000_000L, 36_001_000L, authorizationFingerprint = fingerprint)
+		val id = AmbientStepsFactIntegrity.logicalFactId(PROVIDER, 1L, 1L, SOURCE_INSTANCE,
+			base.windowStartTimeMs, 0L, "Pacific/Honolulu", 7L)
+		database.ambientStepsFactRevisionDao().insert(signed(base.copy(logicalFactId = id,
+			mutationId = AmbientStepsFactIntegrity.mutationId(id, 1L, AmbientStepsFactRevisionEntity.OPERATION_UPSERT),
+			storedZoneId = "Pacific/Honolulu", structuralDayStartTimeMs = 36_000_000L,
+			structuralDayEndTimeMs = 36_000_000L + DAY_END)))
+		val numeric = displayRepository()
+		val range = StepsNumericSummaryRequest(0L, 1L, "Europe/Prague")
+		val days = (numeric.readDisplay(range) as StepsDailyDisplay.Snapshot).days
+		(days[0].value as StepsDailyDisplayValue.Unavailable).reason shouldBe
+			StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE
+		days[1].value shouldBe StepsDailyDisplayValue.Complete(8L)
+		numeric.read(range) shouldBe StepsNumericSummary.Unverifiable(
+			StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE)
+	}
+
+	@Test
+	fun `a native day from a stale data epoch never becomes a display count`() = runTest {
+		val fingerprint = seedPublicAuthority()
+		database.ambientStepsFactRevisionDao().insert(signed(fact(9L, authorizationFingerprint = fingerprint)
+			.copy(collectedDataEpoch = 6L)))
+		val day = (displayRepository().readDisplay(StepsNumericSummaryRequest(0L, 0L, "UTC")) as
+			StepsDailyDisplay.Snapshot).days.single()
+		day.value shouldBe StepsDailyDisplayValue.Unavailable(
+			StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+			setOf(AmbientStepsHistoryCause.SOURCE_AUTHORITY_UNVERIFIABLE))
+	}
+
+	@Test
+	fun `display preserves a real gap without inventing a zero count`() = runTest {
+		seedPublicAuthority(cursorWithGap().copy(importedThroughTimeMs = GAP_END,
+			lastObservedAtMs = GAP_END, updatedAtMs = GAP_END))
+		database.ambientStepsImportStateDao().insertGap(gap(1L, GAP_START))
+		val day = (displayRepository().readDisplay(StepsNumericSummaryRequest(0L, 0L, "UTC")) as
+			StepsDailyDisplay.Snapshot).days.single()
+		day.value shouldBe StepsDailyDisplayValue.Unavailable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE,
+			setOf(AmbientStepsHistoryCause.NO_EVIDENCE, AmbientStepsHistoryCause.EXPLICIT_GAP))
+	}
+
+	@Test
+	fun `display retention preserves only the qualified saved suffix as recorded Steps`() = runTest {
+		seedAuthority(stateCursor = cursorWithGap().copy(segmentStartTimeMs = 1_000L),
+			evidenceState = SourceEvidenceState(collectedDataEpoch = 7L, retainedFromMs = GAP_START))
+		database.ambientStepsFactRevisionDao().insert(fact(10L, GAP_START, DAY_END, continuitySegmentGeneration = 2L))
+		database.ambientStepsImportStateDao().insertGap(gap(1L, 0L))
+		val value = (displayRepository().readDisplay(StepsNumericSummaryRequest(0L, 0L, "UTC")) as
+			StepsDailyDisplay.Snapshot).days.single().value
+		value shouldBe StepsDailyDisplayValue.Recorded(10L, setOf(AmbientStepsHistoryCause.PARTIAL_COVERAGE))
+	}
+
+	private fun displayRepository() = RoomStepsNumericSummaryRepository(database, Dispatchers.Unconfined, historyRepository())
 
 	@Test
 	fun `all-day status preserves actual provider windows without requiring a session or WAL event`() = runTest {

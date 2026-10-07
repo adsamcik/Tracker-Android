@@ -10,7 +10,8 @@ import androidx.paging.cachedIn
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.ExplorationRepository
-import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayValue
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
@@ -211,7 +212,7 @@ class HistoryPresenterViewModel @Inject constructor(
 				),
 			)
 		}
-		stepsNumericSummaryRepository.observe(stepsRequest(epochDay, epochDay)).collect { summary ->
+		stepsNumericSummaryRepository.observeDisplay(stepsRequest(epochDay, epochDay)).collect { summary ->
 			if (calendarRequest.value == request) {
 				_calendarState.update { state ->
 					state.copy(
@@ -424,11 +425,15 @@ private data class CalendarRequest(
 	val selectedDay: LocalDate?,
 )
 
-/** Never converts a nonnumeric retained Steps result into zero. */
-internal fun StepsNumericSummary.forDay(epochDay: Long): HistoryStepsValue = when (this) {
-	is StepsNumericSummary.Ready -> days.firstOrNull { it.epochDay == epochDay }
-		?.let { HistoryStepsValue.Ready(it.steps) }
-		?: HistoryStepsValue.Unavailable(StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
-	StepsNumericSummary.Materializing -> HistoryStepsValue.Materializing
-	is StepsNumericSummary.Unverifiable -> HistoryStepsValue.Unavailable(reason)
+/** Display subtotals remain visibly incomplete; this adapter never promotes one to a total. */
+internal fun StepsDailyDisplay.forDay(epochDay: Long): HistoryStepsValue = when (this) {
+	is StepsDailyDisplay.Snapshot -> when (val value = days.firstOrNull { it.epochDay == epochDay }?.value) {
+		is StepsDailyDisplayValue.Complete -> HistoryStepsValue.Ready(value.count)
+		is StepsDailyDisplayValue.Recorded -> HistoryStepsValue.Recorded(value.count, value.causes)
+		StepsDailyDisplayValue.Materializing -> HistoryStepsValue.Materializing
+		is StepsDailyDisplayValue.Unavailable -> HistoryStepsValue.Unavailable(value.reason)
+		null -> HistoryStepsValue.Unavailable(StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+	}
+	StepsDailyDisplay.Materializing -> HistoryStepsValue.Materializing
+	StepsDailyDisplay.StorageUnavailable -> HistoryStepsValue.Unavailable(StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE)
 }

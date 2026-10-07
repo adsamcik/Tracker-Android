@@ -16,6 +16,9 @@ import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.SessionStatsRepository
 import com.adsamcik.tracker.stats.api.repository.SessionStatsSnapshot
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayDay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayValue
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryBatch
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
@@ -44,6 +47,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -149,6 +153,51 @@ class StatsPresenterViewModelSessionStatsTest {
 	}
 
 	@Test
+	fun `weekly display preserves each saved day and never polls a strict total`() = runTest {
+		val today = LocalDate.of(2026, 9, 3)
+		val expected = StepsDailyDisplay.Snapshot(8L, (today.toEpochDay() - 6L..today.toEpochDay()).map { day ->
+			StepsDailyDisplayDay(day, when (day) {
+				today.toEpochDay() -> StepsDailyDisplayValue.Recorded(42L,
+					setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.PARTIAL_COVERAGE))
+				today.toEpochDay() - 1L -> StepsDailyDisplayValue.Complete(100L)
+				else -> StepsDailyDisplayValue.Unavailable(StepsNumericUnverifiableReason.NOT_CAPTURED)
+			})
+		})
+		stepsNumericSummaryRepository.displayResult = expected
+		val clock = FixedClock(today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli())
+		val viewModel = createViewModel(clock = clock, dispatchers = TestDispatchersProvider(testDispatcher))
+		val collector = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.weeklyStepsSummary.collect() }
+		runCurrent()
+		viewModel.weeklyStepsSummary.value shouldBe expected
+		stepsNumericSummaryRepository.displayRequests.size shouldBe 1
+		stepsNumericSummaryRepository.readRequests shouldBe emptyList()
+		collector.cancelAndJoin()
+		viewModel.cancelDayRolloverObservation()
+	}
+
+	@Test
+	fun `Location-only daily summaries keep saved distance and duration beside missing Steps`() = runTest {
+		val today = LocalDate.now().toEpochDay()
+		val expected = StepsDailyDisplay.Snapshot(3L, (today - 6L..today).map {
+			StepsDailyDisplayDay(it, StepsDailyDisplayValue.Unavailable(StepsNumericUnverifiableReason.NOT_CAPTURED))
+		})
+		stepsNumericSummaryRepository.displayResult = expected
+		dailySummariesFlow.value = listOf(DailySummary(today, DistanceM(304f), DurationMs(57_000L),
+			1, DurationMs(57_000L)))
+		val viewModel = createViewModel()
+		val collector = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.weeklyStepsSummary.collect() }
+		runCurrent()
+		val todayBar = viewModel.weeklyBars.value.single { it.epochDay == today }
+		todayBar.distanceM shouldBe 304f
+		todayBar.durationMs shouldBe 57_000L
+		todayBar.sessionCount shouldBe 1
+		viewModel.weeklyStepsSummary.value shouldBe expected
+		stepsNumericSummaryRepository.readRequests shouldBe emptyList()
+		collector.cancelAndJoin()
+		viewModel.cancelDayRolloverObservation()
+	}
+
+	@Test
 	fun `weekly bars react when daily summaries arrive after init`() = runTest {
 		val todayEpochDay = java.time.LocalDate.now().toEpochDay()
 		val viewModel = createViewModel()
@@ -171,7 +220,7 @@ class StatsPresenterViewModelSessionStatsTest {
 		viewModel.weeklyBars.value.last().distanceM shouldBe 394f
 		viewModel.weeklyStepsSummary.value shouldBe StepsNumericSummary.Unverifiable(
 			StepsNumericUnverifiableReason.NOT_CAPTURED,
-		)
+		).displayFor(stepsNumericSummaryRepository.requests.single())
 		viewModel.weeklyBars.value.last().sessionCount shouldBe 1
 		viewModel.weeklyBars.value.last().durationMs shouldBe 600_000L
 		viewModel.heatmapData.value[java.time.LocalDate.ofEpochDay(todayEpochDay)] shouldBe 1f
@@ -197,7 +246,7 @@ class StatsPresenterViewModelSessionStatsTest {
 		}
 		runCurrent()
 
-		viewModel.weeklyStepsSummary.value shouldBe expected
+		viewModel.weeklyStepsSummary.value shouldBe expected.displayFor(stepsNumericSummaryRepository.requests.single())
 		val expectedRequest = StepsNumericSummaryRequest(
 			firstEpochDay = today.toEpochDay() - 6L,
 			lastEpochDayInclusive = today.toEpochDay(),
@@ -209,7 +258,7 @@ class StatsPresenterViewModelSessionStatsTest {
 		summaryCollector.cancelAndJoin()
 		runCurrent()
 		stepsNumericSummaryRepository.cancelledRequests shouldBe listOf(expectedRequest)
-		viewModel.weeklyStepsSummary.value shouldBe StepsNumericSummary.Materializing
+		viewModel.weeklyStepsSummary.value shouldBe StepsDailyDisplay.Materializing
 		viewModel.cancelDayRolloverObservation()
 	}
 
@@ -226,7 +275,7 @@ class StatsPresenterViewModelSessionStatsTest {
 		}
 		runCurrent()
 
-		viewModel.weeklyStepsSummary.value shouldBe StepsNumericSummary.Materializing
+		viewModel.weeklyStepsSummary.value shouldBe StepsDailyDisplay.Materializing
 		dailySummariesFlow.value shouldBe emptyList()
 
 		val settled = StepsNumericSummary.Ready(
@@ -237,7 +286,7 @@ class StatsPresenterViewModelSessionStatsTest {
 		stepsNumericSummaryRepository.result = settled
 		runCurrent()
 
-		viewModel.weeklyStepsSummary.value shouldBe settled
+		viewModel.weeklyStepsSummary.value shouldBe settled.displayFor(stepsNumericSummaryRepository.requests.single())
 		dailySummariesFlow.value shouldBe emptyList()
 		stepsNumericSummaryRepository.requests.size shouldBe 1
 		stepsNumericSummaryRepository.readRequests shouldBe emptyList()
@@ -327,7 +376,7 @@ class StatsPresenterViewModelSessionStatsTest {
 		summaryCollector.cancelAndJoin()
 		runCurrent()
 		stepsNumericSummaryRepository.cancelledRequests shouldBe stepsNumericSummaryRepository.requests
-		viewModel.weeklyStepsSummary.value shouldBe StepsNumericSummary.Materializing
+		viewModel.weeklyStepsSummary.value shouldBe StepsDailyDisplay.Materializing
 		viewModel.cancelDayRolloverObservation()
 		runCurrent()
 	}
@@ -396,6 +445,15 @@ class StatsPresenterViewModelSessionStatsTest {
 	}
 
 	private class FakeStepsNumericSummaryRepository : StepsNumericSummaryRepository {
+		override suspend fun readDisplay(request: StepsNumericSummaryRequest): StepsDailyDisplay = read(request).displayFor(request)
+
+		var displayResult: StepsDailyDisplay? = null
+		val displayRequests = mutableListOf<StepsNumericSummaryRequest>()
+		override fun observeDisplay(request: StepsNumericSummaryRequest): Flow<StepsDailyDisplay> {
+			displayRequests += request
+			return observe(request).map { displayResult ?: it.displayFor(request) }
+		}
+
 		private val summaries = MutableStateFlow<StepsNumericSummary>(
 			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED),
 		)
@@ -434,4 +492,14 @@ class StatsPresenterViewModelSessionStatsTest {
 			emit(readBatch(requests))
 		}
 	}
+}
+
+private fun StepsNumericSummary.displayFor(request: StepsNumericSummaryRequest): StepsDailyDisplay = when (this) {
+	is StepsNumericSummary.Ready -> StepsDailyDisplay.Snapshot(1L,
+		days.map { StepsDailyDisplayDay(it.epochDay, StepsDailyDisplayValue.Complete(it.steps)) })
+	StepsNumericSummary.Materializing -> StepsDailyDisplay.Materializing
+	is StepsNumericSummary.Unverifiable -> StepsDailyDisplay.Snapshot(1L,
+		(request.firstEpochDay..request.lastEpochDayInclusive).map {
+			StepsDailyDisplayDay(it, StepsDailyDisplayValue.Unavailable(reason))
+		})
 }

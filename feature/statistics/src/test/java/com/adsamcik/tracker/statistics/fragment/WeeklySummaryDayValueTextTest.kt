@@ -3,7 +3,9 @@ package com.adsamcik.tracker.statistics.fragment
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
-import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayDay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayValue
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import com.adsamcik.tracker.statistics.viewmodel.DayBar
 import com.adsamcik.tracker.statistics.viewmodel.hasNonStepTrackedActivity
@@ -130,11 +132,11 @@ class WeeklySummaryDayValueTextTest {
 
 		sparseSummaryActiveDayCount(
 			emptyBars,
-			StepsNumericSummary.Materializing,
+			StepsDailyDisplay.Materializing,
 		) shouldBe 0
 		sparseSummaryActiveDayCount(
 			emptyBars,
-			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE),
+			testDisplayUnavailable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE),
 		) shouldBe 0
 	}
 
@@ -145,7 +147,7 @@ class WeeklySummaryDayValueTextTest {
 			day(epochDay = firstEpochDay),
 			day(distanceM = 1f, epochDay = firstEpochDay + 1L),
 		)
-		val qualified = StepsNumericSummary.Ready(
+		val qualified = testDisplayReady(
 			days = listOf(
 				StepsNumericDay(epochDay = firstEpochDay, steps = 3L),
 				StepsNumericDay(epochDay = firstEpochDay + 1L, steps = 0L),
@@ -170,3 +172,11 @@ class WeeklySummaryDayValueTextTest {
 		day().hasNonStepTrackedActivity shouldBe false
 	}
 }
+
+private fun testDisplayReady(days: List<com.adsamcik.tracker.stats.api.repository.StepsNumericDay>) =
+	StepsDailyDisplay.Snapshot(1L, days.map { StepsDailyDisplayDay(it.epochDay, StepsDailyDisplayValue.Complete(it.steps)) })
+
+private fun testDisplayUnavailable(reason: com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason) =
+	StepsDailyDisplay.Snapshot(1L, listOf(StepsDailyDisplayDay(
+		java.time.LocalDate.now().toEpochDay(), StepsDailyDisplayValue.Unavailable(reason),
+	)))

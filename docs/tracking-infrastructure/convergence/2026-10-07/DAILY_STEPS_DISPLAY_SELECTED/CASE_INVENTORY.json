@@ -1,0 +1,145 @@
+{
+  "revision": "V2",
+  "phase": "IMPLEMENTATION_ONLY",
+  "new_source_cases": [
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt",
+      "method": "selected day keeps a recorded subtotal distinct from a complete total",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/StatsPresenterViewModelSessionStatsTest.kt",
+      "method": "weekly display preserves each saved day and never polls a strict total",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/StatsPresenterViewModelSessionStatsTest.kt",
+      "method": "Location-only daily summaries keep saved distance and duration beside missing Steps",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/StatsScreenComposeTest.kt",
+      "method": "daily display shows complete and recorded counts together with three sessions",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/StatsScreenComposeTest.kt",
+      "method": "missing day keeps its state while another daily number remains visible",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/StatsScreenComposeTest.kt",
+      "method": "Location-only sparse days keep distance and duration when Steps is off",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/StatsScreenComposeTest.kt",
+      "method": "selected missing Steps keeps its day state instead of borrowing Location distance",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/StepsDailyDisplayContractTest.kt",
+      "method": "display cannot silently omit a requested middle day",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/StepsDailyDisplayContractTest.kt",
+      "method": "a recorded subtotal requires a real incomplete-coverage cause",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "method": "daily display preserves an earlier complete day beside recorded-so-far Steps",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "method": "daily display isolates overlapping provider windows from another covered day",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "method": "one stored calendar conflict does not remove a valid neighbour day",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "method": "a native day from a stale data epoch never becomes a display count",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "method": "display preserves a real gap without inventing a zero count",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "method": "display retention preserves only the qualified saved suffix as recorded Steps",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportPortableAmbientStepsNativeAuthorityTest.kt",
+      "method": "display snapshot composes native and imported source-only days without current fallback zones",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepositoryRoomTest.kt",
+      "method": "display keeps a complete session zero beside a day not captured",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepositoryRoomTest.kt",
+      "method": "display isolates an invalid neighbouring saved zone without guessing its replacement",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepositoryRoomTest.kt",
+      "method": "display does not invent a fallback for an invalid stored DST calendar",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepositoryRoomTest.kt",
+      "method": "display read reports storage closure and does not reuse a prior number",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepositoryRoomTest.kt",
+      "method": "caller cancellation is propagated from display reads",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepositoryRoomTest.kt",
+      "method": "display observation refreshes the same Room snapshot after source facts change",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepositoryRoomTest.kt",
+      "method": "display declares source registration retention and count-domain invalidations",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepositoryRoomTest.kt",
+      "method": "unfinished next-day native run leaves the closed previous day complete",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepositoryRoomTest.kt",
+      "method": "unfinished run at the following boundary respects a real 25-hour local day",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepositoryRoomTest.kt",
+      "method": "display retains an authenticated closed subset while a replacement run is unfinished",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepositoryTest.kt",
+      "method": "a display-only unsettled subset is never promoted by the strict adapter",
+      "execution": "NOT_RUN"
+    }
+  ],
+  "count": 27,
+  "executed": false,
+  "v1_preserved_source_method_count": 22,
+  "v2_added_source_method_count": 5
+}

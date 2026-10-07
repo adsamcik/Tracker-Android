@@ -9,7 +9,9 @@ import com.adsamcik.tracker.stats.api.repository.DailySummary
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.ExplorationRepository
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
-import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayDay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayValue
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
@@ -67,8 +69,8 @@ class HistoryPresenterViewModelTest {
 		// Default: empty flows and results
 		every { explorationRepository.observeCellCount(any()) } returns flowOf(0)
 		every { dailySummaryRepository.observeBetween(any(), any()) } returns flowOf(emptyList())
-		every { stepsNumericSummaryRepository.observe(any()) } returns flowOf(
-			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED),
+		every { stepsNumericSummaryRepository.observeDisplay(any()) } returns flowOf(
+			testDisplayUnavailable(StepsNumericUnverifiableReason.NOT_CAPTURED),
 		)
 		coEvery { tripPresentationRepository.getTripsBetween(any(), any()) } returns emptyList()
 		every { tripPresentationRepository.getPagedTrips() } returns mockk<PagingSource<Int, Trip>>()
@@ -146,7 +148,7 @@ class HistoryPresenterViewModelTest {
 
 			vm.selectedTab.value shouldBe HistoryTab.TIMELINE
 			vm.calendarState.value.selectedDay shouldBe selectedDay
-			verify(exactly = 0) { stepsNumericSummaryRepository.observe(any()) }
+			verify(exactly = 0) { stepsNumericSummaryRepository.observeDisplay(any()) }
 		}
 	}
 
@@ -285,10 +287,26 @@ class HistoryPresenterViewModelTest {
 		}
 
 		@Test
+		fun `selected day keeps a recorded subtotal distinct from a complete total`() = runTest {
+			val date = LocalDate.of(2024, 6, 15)
+			val cause = setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.EXPLICIT_GAP)
+			every { stepsNumericSummaryRepository.observeDisplay(match { it.firstEpochDay == date.toEpochDay() }) } returns flowOf(
+				StepsDailyDisplay.Snapshot(3L, listOf(StepsDailyDisplayDay(date.toEpochDay(), StepsDailyDisplayValue.Recorded(42L, cause)))),
+			)
+			val vm = createViewModel()
+			advanceUntilIdle()
+			vm.selectTab(HistoryTab.CALENDAR)
+			vm.selectDay(date)
+			advanceUntilIdle()
+			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Recorded(42L, cause)
+			verify(exactly = 0) { stepsNumericSummaryRepository.observe(any()) }
+		}
+
+		@Test
 		fun `selected day settles materializing Steps without reselection`() = runTest {
 			val date = LocalDate.of(2024, 6, 15)
 			val epochDay = date.toEpochDay()
-			val steps = MutableStateFlow<StepsNumericSummary>(StepsNumericSummary.Materializing)
+			val steps = MutableStateFlow<StepsDailyDisplay>(StepsDailyDisplay.Materializing)
 			every { dailySummaryRepository.observeBetween(epochDay, epochDay) } returns flowOf(
 				listOf(
 					DailySummary(
@@ -301,7 +319,7 @@ class HistoryPresenterViewModelTest {
 				),
 			)
 			every {
-				stepsNumericSummaryRepository.observe(
+				stepsNumericSummaryRepository.observeDisplay(
 					match { it.firstEpochDay == epochDay && it.lastEpochDayInclusive == epochDay },
 				)
 			} returns steps
@@ -314,7 +332,7 @@ class HistoryPresenterViewModelTest {
 
 			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Materializing
 
-			steps.value = StepsNumericSummary.Ready(listOf(StepsNumericDay(epochDay, 42L)))
+			steps.value = testDisplayReady(listOf(StepsNumericDay(epochDay, 42L)))
 			advanceUntilIdle()
 
 			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Ready(42L)
@@ -326,10 +344,10 @@ class HistoryPresenterViewModelTest {
 			val date = LocalDate.of(2024, 7, 3)
 			val epochDay = date.toEpochDay()
 			every {
-				stepsNumericSummaryRepository.observe(
+				stepsNumericSummaryRepository.observeDisplay(
 					match { it.firstEpochDay == epochDay && it.lastEpochDayInclusive == epochDay },
 				)
-			} returns flowOf(StepsNumericSummary.Ready(listOf(StepsNumericDay(epochDay, 0L))))
+			} returns flowOf(testDisplayReady(listOf(StepsNumericDay(epochDay, 0L))))
 
 			val vm = createViewModel()
 			advanceUntilIdle()
@@ -344,15 +362,15 @@ class HistoryPresenterViewModelTest {
 		fun `late selected day emission cannot overwrite replacement day`() = runTest {
 			val dayA = LocalDate.of(2024, 7, 3)
 			val dayB = LocalDate.of(2024, 7, 4)
-			val stepsA = MutableStateFlow<StepsNumericSummary>(StepsNumericSummary.Materializing)
-			val stepsB = MutableStateFlow<StepsNumericSummary>(
-				StepsNumericSummary.Ready(listOf(StepsNumericDay(dayB.toEpochDay(), 20L))),
+			val stepsA = MutableStateFlow<StepsDailyDisplay>(StepsDailyDisplay.Materializing)
+			val stepsB = MutableStateFlow<StepsDailyDisplay>(
+				testDisplayReady(listOf(StepsNumericDay(dayB.toEpochDay(), 20L))),
 			)
 			every {
-				stepsNumericSummaryRepository.observe(match { it.firstEpochDay == dayA.toEpochDay() })
+				stepsNumericSummaryRepository.observeDisplay(match { it.firstEpochDay == dayA.toEpochDay() })
 			} returns stepsA
 			every {
-				stepsNumericSummaryRepository.observe(match { it.firstEpochDay == dayB.toEpochDay() })
+				stepsNumericSummaryRepository.observeDisplay(match { it.firstEpochDay == dayB.toEpochDay() })
 			} returns stepsB
 			val vm = createViewModel()
 			advanceUntilIdle()
@@ -364,7 +382,7 @@ class HistoryPresenterViewModelTest {
 			advanceUntilIdle()
 			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Ready(20L)
 
-			stepsA.value = StepsNumericSummary.Ready(
+			stepsA.value = testDisplayReady(
 				listOf(StepsNumericDay(dayA.toEpochDay(), 99L)),
 			)
 			advanceUntilIdle()
@@ -376,10 +394,10 @@ class HistoryPresenterViewModelTest {
 		@Test
 		fun `month navigation cancels selected day settlement and clears selection`() = runTest {
 			val day = LocalDate.of(2024, 7, 3)
-			val backingSteps = MutableStateFlow<StepsNumericSummary>(StepsNumericSummary.Materializing)
+			val backingSteps = MutableStateFlow<StepsDailyDisplay>(StepsDailyDisplay.Materializing)
 			var cancelled = false
 			every {
-				stepsNumericSummaryRepository.observe(match { it.firstEpochDay == day.toEpochDay() })
+				stepsNumericSummaryRepository.observeDisplay(match { it.firstEpochDay == day.toEpochDay() })
 			} returns flow {
 				try {
 					emitAll(backingSteps)
@@ -408,11 +426,11 @@ class HistoryPresenterViewModelTest {
 		fun `leaving Calendar cancels selected day settlement and reentering resubscribes`() =
 			runTest {
 				val day = LocalDate.of(2024, 7, 3)
-				val backingSteps = MutableStateFlow<StepsNumericSummary>(StepsNumericSummary.Materializing)
+				val backingSteps = MutableStateFlow<StepsDailyDisplay>(StepsDailyDisplay.Materializing)
 				var subscriptions = 0
 				var cancellations = 0
 				every {
-					stepsNumericSummaryRepository.observe(
+					stepsNumericSummaryRepository.observeDisplay(
 						match { it.firstEpochDay == day.toEpochDay() },
 					)
 				} returns flow {
@@ -435,7 +453,7 @@ class HistoryPresenterViewModelTest {
 				advanceUntilIdle()
 				cancellations shouldBe 1
 
-				backingSteps.value = StepsNumericSummary.Ready(
+				backingSteps.value = testDisplayReady(
 					listOf(StepsNumericDay(day.toEpochDay(), 42L)),
 				)
 				advanceUntilIdle()
@@ -547,3 +565,11 @@ class HistoryPresenterViewModelTest {
 		)
 	}
 }
+
+private fun testDisplayReady(days: List<com.adsamcik.tracker.stats.api.repository.StepsNumericDay>) =
+	StepsDailyDisplay.Snapshot(1L, days.map { StepsDailyDisplayDay(it.epochDay, StepsDailyDisplayValue.Complete(it.steps)) })
+
+private fun testDisplayUnavailable(reason: com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason) =
+	StepsDailyDisplay.Snapshot(1L, listOf(StepsDailyDisplayDay(
+		java.time.LocalDate.now().toEpochDay(), StepsDailyDisplayValue.Unavailable(reason),
+	)))

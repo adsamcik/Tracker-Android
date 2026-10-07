@@ -23,6 +23,14 @@ class RoomStepsNumericSummaryRepositoryTest {
 	private val zones = mapOf(10L to zone, 11L to zone)
 
 	@Test
+	fun `a display-only unsettled subset is never promoted by the strict adapter`() {
+		StepsDayRepairPreflight.Ready(listOf(
+			plan(10L, StepsDayNumericComposition.Complete(1L)),
+			plan(11L, StepsDayNumericComposition.Complete(2L)),
+		), materializingEpochDays = setOf(11L)).toNumericSummary(request, zones) shouldBe StepsNumericSummary.Materializing
+	}
+
+	@Test
 	fun `two-day aggregate state truth table never fabricates a complete number`() {
 		val completeFirst = StepsDayNumericComposition.Complete(0L)
 		val completeSecond = StepsDayNumericComposition.Complete(17L)

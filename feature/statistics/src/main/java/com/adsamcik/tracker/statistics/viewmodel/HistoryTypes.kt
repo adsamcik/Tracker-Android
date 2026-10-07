@@ -14,6 +14,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.model.Trip
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import java.time.LocalDate
 import java.time.YearMonth
@@ -75,6 +76,14 @@ sealed interface HistoryStepsValue {
 	) : HistoryStepsValue {
 		init {
 			require(count >= 0L) { "Qualified history Steps cannot be negative" }
+		}
+	}
+
+	/** Saved qualified subtotal while the day has incomplete coverage. */
+	data class Recorded(val count: Long, val causes: Set<AmbientStepsHistoryCause>) : HistoryStepsValue {
+		init {
+			require(count >= 0L)
+			require(causes.isNotEmpty())
 		}
 	}
 

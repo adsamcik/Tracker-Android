@@ -1,0 +1,167 @@
+{
+  "revision": "V2",
+  "commit": "0cdd3575fa5893d96986caa680d24ab08f3b7ad8",
+  "inputs": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "694fe135558539f94821481708982dc3880f92f72476b54e418b2eeccb8c8971",
+      "bytes": 6474
+    },
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a",
+      "bytes": 2408
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidConventionPlugins.kt",
+      "sha256": "6530e14a5465d6023516b430b05e792a49b2cbc802c2b9455101272c17c36229",
+      "bytes": 3618
+    },
+    {
+      "path": "stats/api/build.gradle.kts",
+      "sha256": "aa99b3d4ada0f474600ef53d1c7b4b29b5bb034e5bf700d1cac7412d35ae39b4",
+      "bytes": 702
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "sha256": "a276144c34315be81b125df52eb7611f08e92a7629abb3d1f3587a3e92a93f24",
+      "bytes": 1690
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c",
+      "bytes": 3487
+    },
+    {
+      "path": "feature/statistics/build.gradle.kts",
+      "sha256": "1a05bc187d3a28727c8d0b85280b725ba33f6eeb3476b11495af63199c9d85d6",
+      "bytes": 2425
+    },
+    {
+      "path": "tracker/engine/src/main/AndroidManifest.xml",
+      "sha256": "03539ecdd919df33156ef5a6a2be5f605c17ba49868a2982fba11613f9b5cbef",
+      "bytes": 2928
+    },
+    {
+      "path": "feature/statistics/src/main/AndroidManifest.xml",
+      "sha256": "8dd2609480cd03d78e10c6787efffda560d5c4ed89e3f7a1343331ef35401cbf",
+      "bytes": 542
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/AmbientStepsDataModule.kt",
+      "sha256": "84b8b852bc2725ba41dc0a20bf50451a4c6d2f6acad1218b3a98a59c2d5ff94b",
+      "bytes": 3758
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/StepsNumericSummaryBindings.kt",
+      "sha256": "32975d6ac37197cf8612d659e43b14689bc6968c27c850bd99cca5d7abb4287d",
+      "bytes": 1403
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "sha256": "c6f44d42e063aaddf1b55aff3c850c4c14ab7cb26ae39bef6d25af4ee59d0d49",
+      "bytes": 65036
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/DailySummaryDao.kt",
+      "sha256": "5c43fd8d4963f6d561493ec8c05bff18e126905401b241d71a36f91f3747c351",
+      "bytes": 7662
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/DailySummaryEntity.kt",
+      "sha256": "a2ef6e4d4e4ece5c95f8f012cca38504848d08998378c7f5bb51660a9eb00cf5",
+      "bytes": 1270
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceEvidenceState.kt",
+      "sha256": "46c82a487f55cc82270e30e49d4e30e59e6b2c0e3599b69337a60343f97c9327",
+      "bytes": 1310
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientStepsFactRevisionDao.kt",
+      "sha256": "599d0d2349a65cf7299236d36798164ce4d117360e29d811387a8854924dbba2",
+      "bytes": 16355
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ImportedAmbientStepsDao.kt",
+      "sha256": "3db662af279776f5b27127973b45b02f899d3fac7f417c651755d48bd60d4e3d",
+      "bytes": 31383
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/TrackingHistoryReadDao.kt",
+      "sha256": "1b380ae3222d263601f793dcb811322999a9865ab728f7164d1fa64e884dbba1",
+      "bytes": 55684
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt",
+      "sha256": "623e820365325c02ed52950662ec52b0f7f05ee916040998b59567ad19ade447",
+      "bytes": 45473
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
+      "sha256": "7b7418ab7d0d82c0d23bb0bf8b60a58293c946be67b8b73bee1b7323a374e737",
+      "bytes": 8497
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceSessionEntities.kt",
+      "sha256": "9e30418fe4663e86e39adae3cabb763342c9959dc54a06d6c39dab0fa4685e21",
+      "bytes": 48479
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepFactRevisionIntegrity.kt",
+      "sha256": "00798d9471a983088acca6eeb71ce29846a31220a61973fce365cb8d6541c874",
+      "bytes": 15393
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientStepsFactIntegrity.kt",
+      "sha256": "4e5e2263023332f2aaf520489125932eaecbdcb260b54bf10661cfc32ad78c3d",
+      "bytes": 2925
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientStepsRetentionAuthority.kt",
+      "sha256": "4effc8c802442693200eade171ea1f80be0c915d884a52ae66a0bd3747a83f5a",
+      "bytes": 4760
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayComposer.kt",
+      "sha256": "034e081f106090dcc8d2aa949b2d436b08f144ac1c5a3e725b544a11b884459b",
+      "bytes": 16689
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepository.kt",
+      "sha256": "0bf2c0dab8faad4299eff89566818dffdcc10e86c590ef97c907d9813714d8ec",
+      "bytes": 44834
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelector.kt",
+      "sha256": "7fb30b9b160167119873e86c96ccbf3c2c9ff797d0d38386752c9599e6e6e281",
+      "bytes": 32822
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomStepsCountDomainCompatibilityQuery.kt",
+      "sha256": "42499cfa08e4cac85ec64f90bd4bd9cfd0eaf416ef1605a301b02bbb86b63026",
+      "bytes": 24398
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/summary/StepsNumericDayWindowAccumulator.kt",
+      "sha256": "01772dd9c2077acf2b059474d0f19cf8cca7f80795e5f58e7fc44b3559730a9c",
+      "bytes": 22796
+    },
+    {
+      "path": "feature/game/src/main/java/com/adsamcik/tracker/game/repository/SourceQualifiedStepsSummary.kt",
+      "sha256": "6bd710f32562d5a03508dc3552a04de35ad0dafd843caf6de92be7dc1f364d13",
+      "bytes": 6896
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/SessionStatsUiFormatter.kt",
+      "sha256": "ad157142af89778035b74d07334aa02725ef46de8c111ab7b0ad14540a50266b",
+      "bytes": 3836
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepsRecordingLifetime.kt",
+      "sha256": "af6cde1399b9603e60eab8f1b87feef19a81a98b3613919ee52c932855db39b6",
+      "bytes": 5271
+    }
+  ],
+  "retained_lifetime_composition_commit": "0cdd3575fa"
+}

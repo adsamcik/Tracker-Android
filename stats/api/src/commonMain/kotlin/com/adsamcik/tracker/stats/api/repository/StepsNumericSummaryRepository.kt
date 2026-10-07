@@ -3,7 +3,7 @@ package com.adsamcik.tracker.stats.api.repository
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Read-only, source-qualified Steps totals for decision-making product consumers.
+ * Read-only, source-qualified Steps totals and separately typed daily display values.
  *
  * Implementations must compose the requested days from durable source facts and exact historical
  * authority. A complete day is supplied either by one authoritative Ambient Steps day total or by
@@ -14,6 +14,16 @@ import kotlinx.coroutines.flow.Flow
  * widgets, or notifications.
  */
 interface StepsNumericSummaryRepository {
+	/**
+	 * Presentation-only per-day values from one bounded durable snapshot. A bad or unfinished day
+	 * must not remove independently qualified numbers from another day. Recorded subtotals are
+	 * never complete totals and must not be used by games, goals, awards, widgets or notifications.
+	 */
+	suspend fun readDisplay(request: StepsNumericSummaryRequest): StepsDailyDisplay
+
+	/** Observes the same complete dependency set as strict numeric reads; never starts tracking. */
+	fun observeDisplay(request: StepsNumericSummaryRequest): Flow<StepsDailyDisplay>
+
 	/** Reads one coherent durable snapshot for [request]. */
 	suspend fun read(request: StepsNumericSummaryRequest): StepsNumericSummary
 
@@ -139,4 +149,51 @@ enum class StepsNumericUnverifiableReason {
 	CALENDAR_AUTHORITY_UNAVAILABLE,
 	/** The coherent local database read failed. */
 	STORAGE_UNAVAILABLE,
+}
+
+/** A display snapshot does not authorize a numeric product decision. */
+sealed interface StepsDailyDisplay {
+	data class Snapshot(
+		val sourceEvidenceRevision: Long,
+		val days: List<StepsDailyDisplayDay>,
+	) : StepsDailyDisplay {
+		init {
+			require(sourceEvidenceRevision >= 0L)
+			require(days.size in 1..StepsNumericSummaryRequest.MAX_DAY_COUNT)
+			require(days.zipWithNext().all { (left, right) ->
+				left.epochDay != Long.MAX_VALUE && right.epochDay == left.epochDay + 1L
+			})
+		}
+	}
+
+	data object Materializing : StepsDailyDisplay
+	data object StorageUnavailable : StepsDailyDisplay
+}
+
+data class StepsDailyDisplayDay(
+	val epochDay: Long,
+	val value: StepsDailyDisplayValue,
+)
+
+sealed interface StepsDailyDisplayValue {
+	data class Complete(val count: Long) : StepsDailyDisplayValue {
+		init { require(count >= 0L) }
+	}
+
+	/** Qualified saved subtotal; gaps and unfinished coverage retain their actual causes. */
+	data class Recorded(
+		val count: Long,
+		val causes: Set<AmbientStepsHistoryCause>,
+	) : StepsDailyDisplayValue {
+		init {
+			require(count >= 0L)
+			require(causes.isNotEmpty())
+		}
+	}
+
+	data object Materializing : StepsDailyDisplayValue
+	data class Unavailable(
+		val reason: StepsNumericUnverifiableReason,
+		val causes: Set<AmbientStepsHistoryCause> = emptySet(),
+	) : StepsDailyDisplayValue
 }

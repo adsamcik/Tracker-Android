@@ -1,0 +1,19 @@
+{
+  "revision": "V2",
+  "base_commit": "3246f1093d0956644fab28723368f60657dae003",
+  "head_observed_at_packet_freeze": "0cdd3575fa5893d96986caa680d24ab08f3b7ad8",
+  "phase": "IMPLEMENTATION_ONLY",
+  "tests": "NOT_RUN",
+  "candidate_schema_version": 29,
+  "schema_changed": false,
+  "source_path_count": 61,
+  "current_head_source_drift": [],
+  "shared_live_sources_modified": false,
+  "git_mutations": false,
+  "review_repairs": [
+    "source-aware sparse non-Steps fallback",
+    "day-scoped native unfinished coverage",
+    "scoped duplicate text selectors"
+  ],
+  "v1_preserved": "REVIEW_V1/PRESERVATION.json"
+}

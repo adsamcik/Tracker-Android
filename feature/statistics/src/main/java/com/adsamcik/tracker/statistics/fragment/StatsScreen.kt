@@ -95,7 +95,9 @@ import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.shared.utils.style.compose.bottomNavSafeClearance
 import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLayout
-import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayDay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayValue
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.ui.compose.CalendarHeatmap
@@ -140,8 +142,9 @@ fun StatsScreen(
     onNavigateToHistory: () -> Unit = {},
     selectedHeaderAction: StatsHeaderAction? = null,
     weeklyBars: List<DayBar> = emptyList(),
-    weeklyStepsSummary: StepsNumericSummary = StepsNumericSummary.Unverifiable(
-        StepsNumericUnverifiableReason.NOT_CAPTURED,
+    weeklyStepsSummary: StepsDailyDisplay = StepsDailyDisplay.Snapshot(
+        0L, listOf(StepsDailyDisplayDay(LocalDate.now().toEpochDay(),
+            StepsDailyDisplayValue.Unavailable(StepsNumericUnverifiableReason.NOT_CAPTURED))),
     ),
     stepsSelected: Boolean = false,
     heatmapData: Map<LocalDate, Float> = emptyMap(),
@@ -291,7 +294,7 @@ private fun ContentState(
     onNavigateToHistory: () -> Unit,
     selectedHeaderAction: StatsHeaderAction? = null,
     weeklyBars: List<DayBar> = emptyList(),
-    weeklyStepsSummary: StepsNumericSummary,
+    weeklyStepsSummary: StepsDailyDisplay,
     stepsSelected: Boolean,
     heatmapData: Map<LocalDate, Float> = emptyMap(),
     onTripClick: (Long) -> Unit = {},
@@ -306,14 +309,18 @@ private fun ContentState(
     val sessionCount = if (sessionRefreshState == RefreshUiState.Content) pagingItems?.itemCount ?: 5 else 0
     val showEmptyCollectionPrompt = sessionRefreshState == RefreshUiState.Empty &&
         !stepsSelected &&
-        weeklyStepsSummary == StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED) &&
+        (weeklyStepsSummary as? StepsDailyDisplay.Snapshot)?.days?.all {
+            (it.value as? StepsDailyDisplayValue.Unavailable)?.reason == StepsNumericUnverifiableReason.NOT_CAPTURED
+        } == true &&
         weeklyBars.none { it.hasNonStepTrackedActivity } && heatmapData.isEmpty()
     val showSparseSummary = (sessionRefreshState != RefreshUiState.Content || pagingItems != null) &&
         sessionCount in 0..2 &&
         !showEmptyCollectionPrompt
     // Only these retained results establish saved Steps; a storage failure alone does not.
-    val hasSavedWeeklySteps = weeklyStepsSummary is StepsNumericSummary.Ready ||
-        weeklyStepsSummary == StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE)
+    val hasSavedWeeklySteps = (weeklyStepsSummary as? StepsDailyDisplay.Snapshot)?.days?.any {
+        it.value is StepsDailyDisplayValue.Complete || it.value is StepsDailyDisplayValue.Recorded ||
+            (it.value as? StepsDailyDisplayValue.Unavailable)?.reason == StepsNumericUnverifiableReason.PARTIAL_CAPTURE
+    } == true
     val showWeeklyStepsSummary = stepsSelected || hasSavedWeeklySteps
 
     LazyColumn(
@@ -343,6 +350,7 @@ private fun ContentState(
                     visibleSessionCount = if (showSparseSummary) sessionCount else 0,
                     weeklyBars = weeklyBars,
                     weeklyStepsSummary = weeklyStepsSummary,
+                    showStepsValues = true,
                 )
             }
         }
@@ -439,6 +447,7 @@ private fun ContentState(
                     visibleSessionCount = sessionCount,
                     weeklyBars = weeklyBars,
                     weeklyStepsSummary = weeklyStepsSummary,
+                    showStepsValues = false,
                     modifier = Modifier.padding(bottom = bottomClearance),
                 )
             }
@@ -625,16 +634,18 @@ private fun ActiveFilterCard(label: String) {
 private fun SparseStatsSummaryCard(
     visibleSessionCount: Int,
     weeklyBars: List<DayBar>,
-    weeklyStepsSummary: StepsNumericSummary,
+    weeklyStepsSummary: StepsDailyDisplay,
+    showStepsValues: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val resources = context.resources
     val settings = remember { TrackerSettingsQuick.snapshot(context) }
     val totalDistanceM = remember(weeklyBars) { weeklyBars.sumOf { it.distanceM.toDouble() }.toFloat() }
-    val summaryBars = remember(weeklyBars, weeklyStepsSummary) {
-        val ready = weeklyStepsSummary as? StepsNumericSummary.Ready
-        if (ready == null) weeklyBars else {
+    val summaryBars = remember(weeklyBars, weeklyStepsSummary, showStepsValues) {
+        val ready = weeklyStepsSummary as? StepsDailyDisplay.Snapshot
+        val hasSavedSteps = ready?.days?.any { it.value.savedCount() != null } == true
+        if (ready == null || !showStepsValues && !hasSavedSteps) weeklyBars else {
             val structuralBarsByDay = weeklyBars.associateBy { it.epochDay }
             val dayFormatter = DateTimeFormatter.ofPattern("EEE")
             ready.days.map { day ->
@@ -647,9 +658,9 @@ private fun SparseStatsSummaryCard(
         }
     }
     val qualifiedStepsByEpochDay = remember(weeklyStepsSummary) {
-        (weeklyStepsSummary as? StepsNumericSummary.Ready)
+        (weeklyStepsSummary as? StepsDailyDisplay.Snapshot)
             ?.days
-            ?.associate { it.epochDay to it.steps }
+            ?.associate { it.epochDay to it.value }
             .orEmpty()
     }
     val activeDays = remember(summaryBars, weeklyStepsSummary) {
@@ -707,19 +718,22 @@ private fun SparseStatsSummaryCard(
                 }
                 SummaryMetricCard(
                     label = stringResource(R.string.stats_steps),
-                    value = if (visibleSessionCount == 0) {
-                        weeklyStepsSummary.summaryValueText()
-                    } else {
-                        (weeklyStepsSummary as? StepsNumericSummary.Ready)
-                            ?.totalSteps
-                            ?.formatReadable()
-                            ?: stringResource(R.string.stats_metric_not_available_short)
-                    },
+                    value = if (visibleSessionCount == 0 || showStepsValues ||
+                        (weeklyStepsSummary as? StepsDailyDisplay.Snapshot)?.days?.any {
+                            it.value.savedCount() != null ||
+                                (it.value as? StepsDailyDisplayValue.Unavailable)?.reason == StepsNumericUnverifiableReason.PARTIAL_CAPTURE
+                        } == true
+                    ) weeklyStepsSummary.summaryValueText()
+                    else stringResource(R.string.stats_metric_not_available_short),
                     modifier = Modifier.weight(1f).testTag("stats_summary_steps"),
                 )
                 SummaryMetricCard(
                     label = stringResource(R.string.stats_sparse_summary_active_days),
-                    value = if (visibleSessionCount == 0 && weeklyStepsSummary !is StepsNumericSummary.Ready) {
+                    value = if (visibleSessionCount == 0 &&
+                        (weeklyStepsSummary as? StepsDailyDisplay.Snapshot)?.days?.all {
+                            it.value is StepsDailyDisplayValue.Complete
+                        } != true
+                    ) {
                         stringResource(R.string.stats_metric_not_available_short)
                     } else activeDays.formatReadable(),
                     modifier = Modifier.weight(1f).testTag("stats_summary_active_days"),
@@ -740,7 +754,8 @@ private fun SparseStatsSummaryCard(
                 summaryBars.forEach { dayBar ->
                     WeeklySummaryDayChip(
                         dayBar = dayBar,
-                        qualifiedSteps = qualifiedStepsByEpochDay[dayBar.epochDay],
+                        stepsDisplay = qualifiedStepsByEpochDay[dayBar.epochDay],
+                        showStepsValues = showStepsValues,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -750,10 +765,44 @@ private fun SparseStatsSummaryCard(
 }
 
 @Composable
-private fun StepsNumericSummary.summaryValueText(): String = when (this) {
-    is StepsNumericSummary.Ready -> totalSteps.formatReadable()
-    StepsNumericSummary.Materializing -> stringResource(R.string.history_value_materializing)
-    is StepsNumericSummary.Unverifiable -> when (reason) {
+private fun StepsDailyDisplay.summaryValueText(): String = when (this) {
+    is StepsDailyDisplay.Snapshot -> {
+        val counts = days.mapNotNull { it.value.savedCount() }
+        val total = counts.fold<Long, Long?>(0L) { sum, count ->
+            if (sum == null || count > Long.MAX_VALUE - sum) null else sum + count
+        }
+        when {
+            counts.isEmpty() || total == null -> {
+                if (days.any { it.value == StepsDailyDisplayValue.Materializing }) {
+                    stringResource(R.string.history_value_materializing)
+                } else if (days.all {
+                    (it.value as? StepsDailyDisplayValue.Unavailable)?.reason == StepsNumericUnverifiableReason.NOT_CAPTURED
+                }) stringResource(R.string.history_value_not_captured)
+                else if (days.any {
+                    (it.value as? StepsDailyDisplayValue.Unavailable)?.reason == StepsNumericUnverifiableReason.PARTIAL_CAPTURE
+                }) stringResource(R.string.history_value_partial)
+                else stringResource(R.string.history_value_unavailable)
+            }
+            days.all { it.value is StepsDailyDisplayValue.Complete } -> total.formatReadable()
+            else -> stringResource(R.string.steps_daily_recorded_count, total.formatReadable())
+        }
+    }
+    StepsDailyDisplay.Materializing -> stringResource(R.string.history_value_materializing)
+    StepsDailyDisplay.StorageUnavailable -> stringResource(R.string.history_value_unavailable)
+}
+
+private fun StepsDailyDisplayValue.savedCount(): Long? = when (this) {
+    is StepsDailyDisplayValue.Complete -> count
+    is StepsDailyDisplayValue.Recorded -> count
+    StepsDailyDisplayValue.Materializing, is StepsDailyDisplayValue.Unavailable -> null
+}
+
+@Composable
+private fun StepsDailyDisplayValue.dayValueText(): String = when (this) {
+    is StepsDailyDisplayValue.Complete -> count.formatReadable()
+    is StepsDailyDisplayValue.Recorded -> stringResource(R.string.steps_daily_recorded_count, count.formatReadable())
+    StepsDailyDisplayValue.Materializing -> stringResource(R.string.history_value_materializing)
+    is StepsDailyDisplayValue.Unavailable -> when (reason) {
         StepsNumericUnverifiableReason.NOT_CAPTURED -> stringResource(R.string.history_value_not_captured)
         StepsNumericUnverifiableReason.PARTIAL_CAPTURE -> stringResource(R.string.history_value_partial)
         else -> stringResource(R.string.history_value_unavailable)
@@ -790,15 +839,19 @@ private fun SummaryMetricCard(
 @Composable
 private fun WeeklySummaryDayChip(
     dayBar: DayBar,
-    qualifiedSteps: Long?,
+    stepsDisplay: StepsDailyDisplayValue?,
+    showStepsValues: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val settings = remember { TrackerSettingsQuick.snapshot(context) }
-    val valueText = remember(dayBar, qualifiedSteps, settings.lengthSystem) {
-        weeklySummaryDayValueText(dayBar, qualifiedSteps, context, settings.lengthSystem)
+    val useSteps = showStepsValues || stepsDisplay?.savedCount() != null
+    val valueText = if (useSteps) {
+        (stepsDisplay ?: StepsDailyDisplayValue.Materializing).dayValueText()
+    } else remember(dayBar, settings.lengthSystem) {
+        weeklySummaryDayValueText(dayBar, null, context, settings.lengthSystem)
     }
-    val hasActivity = dayBar.hasNonStepTrackedActivity || qualifiedSteps?.let { it > 0L } == true
+    val hasActivity = dayBar.hasNonStepTrackedActivity || stepsDisplay?.savedCount()?.let { it > 0L } == true
     val containerColor = if (hasActivity) {
         MaterialTheme.colorScheme.primaryContainer
     } else {
@@ -831,7 +884,7 @@ private fun WeeklySummaryDayChip(
             text = valueText,
             style = MaterialTheme.typography.bodySmall,
             color = contentColor,
-            maxLines = 1,
+            maxLines = 2,
         )
     }
 }
@@ -857,11 +910,11 @@ internal fun weeklySummaryDayValueText(
 
 internal fun sparseSummaryActiveDayCount(
     weeklyBars: List<DayBar>,
-    weeklyStepsSummary: StepsNumericSummary,
+    weeklyStepsSummary: StepsDailyDisplay,
 ): Int {
-    val qualifiedStepsByEpochDay = (weeklyStepsSummary as? StepsNumericSummary.Ready)
+    val qualifiedStepsByEpochDay = (weeklyStepsSummary as? StepsDailyDisplay.Snapshot)
         ?.days
-        ?.associate { it.epochDay to it.steps }
+        ?.associate { it.epochDay to it.value.savedCount() }
         .orEmpty()
     return weeklyBars.count { dayBar ->
         val qualifiedSteps = qualifiedStepsByEpochDay[dayBar.epochDay]

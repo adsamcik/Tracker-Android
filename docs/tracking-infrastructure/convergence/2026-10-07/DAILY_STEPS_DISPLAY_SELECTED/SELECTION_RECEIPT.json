@@ -1,0 +1,502 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "test_execution": "NOT_RUN",
+  "selected_at_commit": "0cdd3575fa5893d96986caa680d24ab08f3b7ad8",
+  "reviewed_files_sha256": "19e9e7115d8125c42c8460d462f52214f6326d308dd37ef542ef9344fc821a45",
+  "review": "ACCEPTED_STATIC_ONLY",
+  "source_realization": "Reviewed CRLF-to-LF only; raw source artifacts preserved",
+  "committed_mapping_sha256": "9d4c8cb189a74e6889bb80f04d2fce17eab3a5c984ad0b005684d17eb3ba0228",
+  "new_methods": 27,
+  "dependency_pins_reviewed": 32,
+  "files": [
+    {
+      "path": "feature/game/src/test/java/com/adsamcik/tracker/game/repository/SourceQualifiedStepsSummaryTest.kt",
+      "before_sha256": "aa8bc840e50cf67177a799f37accca601d0e0456234adaec81b906e999c765ee",
+      "after_sha256": "a5ed1ea3777c088cbceee4dd38e2f6811e10cdd2a60f1b84f4d418cdaed93230",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "f1518ed66576af9f53444a710a36fddb958e5d30d740577f16d448e4679fddb9",
+      "commit_sha256": "a5ed1ea3777c088cbceee4dd38e2f6811e10cdd2a60f1b84f4d418cdaed93230"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsRoute.kt",
+      "before_sha256": "f8011710b21c99c8513f7caf275ca873fad6b3968076a9785c9a1202a62a46b8",
+      "after_sha256": "641eef8e884bce07445fe3734cffa28b5f4b38a0efc1a047d213bc0e44fa2f23",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "7f09492e159792a6980edd855139f0e2f0ce8162059e595303cc9274772bd589",
+      "commit_sha256": "641eef8e884bce07445fe3734cffa28b5f4b38a0efc1a047d213bc0e44fa2f23"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsScreen.kt",
+      "before_sha256": "df50f5ff1f11fe4ccf46dad183c3d97dad2ded923c087dc8cccbbc6a0baeaf29",
+      "after_sha256": "bea9db79f7e5903f0b1bc25f8653af6300edac6e6ca96f4b76c6b7e1f47fa788",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "0c6deca7f8a19921736582e23281e3edee7aa5e4dcebc1a08f9d50a848d91181",
+      "commit_sha256": "bea9db79f7e5903f0b1bc25f8653af6300edac6e6ca96f4b76c6b7e1f47fa788"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModel.kt",
+      "before_sha256": "eee2e31ff4bd8e97fa12390ce170f3525d95c600de7346c783d4a1ef49626115",
+      "after_sha256": "d89cf7b2c9de84b2407f33705ac835e2d10ed664eb9bfd930b549064bf4f46a0",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "b8299bbaa22d28ded1c14cd7644a941f04d13725dd8aa809de5c1357c82a9cbe",
+      "commit_sha256": "d89cf7b2c9de84b2407f33705ac835e2d10ed664eb9bfd930b549064bf4f46a0"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/StatsPresenterViewModel.kt",
+      "before_sha256": "fc6c7438a96f20a3de7969e8c6f56da9011c716758bc5125187b412b15c5a7a9",
+      "after_sha256": "64c289c112cdda47f6d7411349636fdedcf04360d35041326ccf9818693a76e8",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "df984d3a9f679a52fe6df887cd2e4ecf81bd329e0239cc1008e2a9a0feced978",
+      "commit_sha256": "64c289c112cdda47f6d7411349636fdedcf04360d35041326ccf9818693a76e8"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CalendarContent.kt",
+      "before_sha256": "bc2adadb02b49e19238e5bb2efd9a12920b4c07f88f78cb7555c001e1f067984",
+      "after_sha256": "152679e87b539fccc82e1224778bc465093d1464f306a8f16dfdf499ed2720e3",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "1fc9a3edfd43bdd0475f43b9cdd2298f6e42e3a1e739cb2636a2f501b5f7f28f",
+      "commit_sha256": "152679e87b539fccc82e1224778bc465093d1464f306a8f16dfdf499ed2720e3"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypes.kt",
+      "before_sha256": "c8e804a4d8635a01926151d8c10b7e7ae8bf3d426aad04ca4cbbc3c03a358551",
+      "after_sha256": "746814b2fc8ba862b76153f213fc768a1f6074452d483bc755ac5fda0aeb8c4f",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "b46578ea424a2ab30fc66bfc5801396df480850316d5ea6c307c9c68e37caaba",
+      "commit_sha256": "746814b2fc8ba862b76153f213fc768a1f6074452d483bc755ac5fda0aeb8c4f"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "a929eba9ff5e49ce3493f54da9b5117e523e7256b4ebcbc03d5e216542dc4f0b",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "c554a498a0c818a497f5d09d24f912255449d8adecde4aacde57db4d73e374e6",
+      "commit_sha256": "a929eba9ff5e49ce3493f54da9b5117e523e7256b4ebcbc03d5e216542dc4f0b"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-af-rZA/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "d75a1260653c72b9112421e47775e92e0fcf942096fec3ea6b7df2dda51ea2ad",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "edd4f1330824449c5f3b114ace587c022d8d0ca3483c36154e674ac78cec68cd",
+      "commit_sha256": "d75a1260653c72b9112421e47775e92e0fcf942096fec3ea6b7df2dda51ea2ad"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ar-rSA/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "1f5328261bc86bb3f57b56f7298ff2d9ee054ffe1afff969657143172a1e2d31",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "8530ab7cfa55afea6c2dd1420fa7fcaa1d10e0f25d26805ebe63e2210a713ed2",
+      "commit_sha256": "1f5328261bc86bb3f57b56f7298ff2d9ee054ffe1afff969657143172a1e2d31"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-bg-rBG/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "e66f4e20250e3f115f3c342db3dbb687431f5d1abfeccf216e136fb8669c904e",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "3f3d1fc6699aad4a97dbdf76345d2bfbbcf7f07d7309096f1cdb9797bac3b86c",
+      "commit_sha256": "e66f4e20250e3f115f3c342db3dbb687431f5d1abfeccf216e136fb8669c904e"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ca-rES/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "467af0ac4ece65eb9f97fcf044ba59511609a8ef779c6c6cb16c63217c542e08",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "6f72e268527a4780a0b80fb1be3b5cbb416a14544dc1a21756015db4dfe44573",
+      "commit_sha256": "467af0ac4ece65eb9f97fcf044ba59511609a8ef779c6c6cb16c63217c542e08"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-cs-rCZ/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "b52cc1cdb79d49b6f95d500d542550bcb3bc54e2fd3f74d86f6f4177f54e4baa",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "cea821bc52a6a147ca9d2e1a92a40113927a53face5418d345cbeb25d531257a",
+      "commit_sha256": "b52cc1cdb79d49b6f95d500d542550bcb3bc54e2fd3f74d86f6f4177f54e4baa"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-da-rDK/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "2f23998937b503b695830041872e7a895d628f9371bb293b0c5c6ee56bd95121",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "2c81646955c2b189ab05aa44d7680add3733f46a37c76f05cf3120e7af87d8f9",
+      "commit_sha256": "2f23998937b503b695830041872e7a895d628f9371bb293b0c5c6ee56bd95121"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-de-rDE/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "6e5e7991e618a0a6a19b812e586cc641842ab2b0c7e1b09687d06798e53e500f",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "66e0017611ffde62e5c44ad352f027d3e97fe97ad4e016f6453bd9c6ab6ccee7",
+      "commit_sha256": "6e5e7991e618a0a6a19b812e586cc641842ab2b0c7e1b09687d06798e53e500f"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-el-rGR/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "e5dff2b9e9d8f361be384e58fb5ce48d81370840114a40afce3545e03f123266",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "d797e53be23fb38d4c510faaefd484ea5856f61d3470a241873734aee3e492d1",
+      "commit_sha256": "e5dff2b9e9d8f361be384e58fb5ce48d81370840114a40afce3545e03f123266"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-es-rES/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "5855f174be14b5968e01a365c84099d2d009c42249ba865433fcb39be7b36451",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "8d2ba8118a7049c5eef5fba1decadd6ca2b08f78986a7a7f93a2545dd7143c29",
+      "commit_sha256": "5855f174be14b5968e01a365c84099d2d009c42249ba865433fcb39be7b36451"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-et-rEE/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "aad07bb2fbaceac2dd0fb93b17d7042c416c0ff835c0776dd2167265ecb81600",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "03e3ab49864c78982fa3549bbcd12832c019f30864f1a4034a38ce1d85779c7c",
+      "commit_sha256": "aad07bb2fbaceac2dd0fb93b17d7042c416c0ff835c0776dd2167265ecb81600"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-fi-rFI/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "7c2c138b158cb7759111d1dbc7b2f6344cb7ea68d0738c8324e6da9823525ce3",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "3d561148ff3939e089abe62558d27c8003b56b515e6dbdc4d2c3d0285479881c",
+      "commit_sha256": "7c2c138b158cb7759111d1dbc7b2f6344cb7ea68d0738c8324e6da9823525ce3"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-fr-rFR/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "06d51e3ab00c44a396e9a0cf79a98692b332da808ebc61c01ab59e73f1baeb41",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "af939f7e9e540481a48bf6c47f2c756a170bfaebf64747b86ea32617c173e1a5",
+      "commit_sha256": "06d51e3ab00c44a396e9a0cf79a98692b332da808ebc61c01ab59e73f1baeb41"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ga-rIE/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "8bd76022953c0ee4a1de9c1133b26e737b7aed680aa0b07067fbcd1459882353",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "aa9229d6760efc1005ff3b35d0129b56f9b58a4b9cbfdc03ec30fdeee7ff9692",
+      "commit_sha256": "8bd76022953c0ee4a1de9c1133b26e737b7aed680aa0b07067fbcd1459882353"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hi-rIN/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "e6428629fcc98178cc00686587abbcff4b0703756a298d75f2dbd81bd23546b2",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "de0f68af00260fdc2d71a5b13fbf38e42b7ff37333fada4ce9bb6da96c0dae51",
+      "commit_sha256": "e6428629fcc98178cc00686587abbcff4b0703756a298d75f2dbd81bd23546b2"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hr-rHR/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "3ba4a464da09edfe1e2e387c904e1b9c97b2baf4fbf28a431dd94c9f2fc4f5a6",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "e20e909f370fc54969e68f8c847b6e85bbd29ca5c3b4c29c6fe844ea2f4d9908",
+      "commit_sha256": "3ba4a464da09edfe1e2e387c904e1b9c97b2baf4fbf28a431dd94c9f2fc4f5a6"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hu-rHU/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "15994ec37421cbbcc6f2b3241b33f97b59921dcb673ef317042ab1323d0aa5e6",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "75ec6b2087bf60521fce90fc984119eae1d182947e6d3a0e4b33777dc6b9938c",
+      "commit_sha256": "15994ec37421cbbcc6f2b3241b33f97b59921dcb673ef317042ab1323d0aa5e6"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-it-rIT/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "ee6bc053457fe4de12a0a80d6b98ac17965b76f96f9edcfeab7b1140f25505a8",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "585492f371c818e43d6ed28c5cf21d62977f435d1e629e7cd88261c48170419d",
+      "commit_sha256": "ee6bc053457fe4de12a0a80d6b98ac17965b76f96f9edcfeab7b1140f25505a8"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-iw-rIL/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "a2131fa3f76f9bd69592de846402ff5fd9ad0da9f6d5f4dfa33922ef13cddc79",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "7115eb426e07fb3f3f619eabd6c5225216398c5196ef081fe9af1b84b5488cac",
+      "commit_sha256": "a2131fa3f76f9bd69592de846402ff5fd9ad0da9f6d5f4dfa33922ef13cddc79"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ja-rJP/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "b2659eac0622655275b9e192c5392d17b7ffa25ee7512bb869b403ce6f393513",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "0b48157bf213ee6ec21244579394eb1ef737f785e3530947f98d20543fed382e",
+      "commit_sha256": "b2659eac0622655275b9e192c5392d17b7ffa25ee7512bb869b403ce6f393513"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ko-rKR/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "eb6c46e1097483e63ab3ddfbe5f0fad1ec8d85e8a90186ccf3ec8f59b2be05a1",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "260eae099c78197089b1b8b9ec9ee24543e7cf2812ecb8114b07c1e8fe9929a4",
+      "commit_sha256": "eb6c46e1097483e63ab3ddfbe5f0fad1ec8d85e8a90186ccf3ec8f59b2be05a1"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-lt-rLT/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "fdd5890cb3ad9e505fdedfbb4230360143be49e183a196bc2cfc464434b25b89",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "b5e0f6bbea2df43a84b31efd645789d9b720ee010b9d039a6faacf85361d0a2b",
+      "commit_sha256": "fdd5890cb3ad9e505fdedfbb4230360143be49e183a196bc2cfc464434b25b89"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-lv-rLV/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "a882975a3287f5ec74414fe49d50b223dfecdf46b9495114f60507281d5fb7e8",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "d74ba52a44de156ef596de9f2857ba58f5ae7017890699c6aaf88b8c6558cbea",
+      "commit_sha256": "a882975a3287f5ec74414fe49d50b223dfecdf46b9495114f60507281d5fb7e8"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-mt-rMT/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "66d6dec87bf59d349e4cdf3a5354731beff46852c5850a18cf85de5780e3ef1b",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "ab518eb12470dcd8647531f4bcf5afda4acc17e993d9f2360f6acf2c88d9baa3",
+      "commit_sha256": "66d6dec87bf59d349e4cdf3a5354731beff46852c5850a18cf85de5780e3ef1b"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-nl-rNL/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "58f7860287d0a5c2c5fad75dbb5eb934ac7fa2c1936ea6d6d48ed785a7c0001c",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "959374580b697ca9075a1b8b586ad3722a80844259bfb6347a732937e68529ae",
+      "commit_sha256": "58f7860287d0a5c2c5fad75dbb5eb934ac7fa2c1936ea6d6d48ed785a7c0001c"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-no-rNO/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "51962f949928829f6c6372347fda015ce9cc35000dbfa24f43c80234f352031a",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "b7caa6a71a74ca124bdcb97b05db9a94716f221d64894c02847b5bb585035459",
+      "commit_sha256": "51962f949928829f6c6372347fda015ce9cc35000dbfa24f43c80234f352031a"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pl-rPL/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "11177b6b1b94e390b2b633010f0cc117667953bb1195ef79288fbdec2a850352",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "f0ba8d3b1ad4614ca5e1a46a0d029d79dc849f1031af513564984e3471ab84cb",
+      "commit_sha256": "11177b6b1b94e390b2b633010f0cc117667953bb1195ef79288fbdec2a850352"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pt-rBR/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "5855f174be14b5968e01a365c84099d2d009c42249ba865433fcb39be7b36451",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "8d2ba8118a7049c5eef5fba1decadd6ca2b08f78986a7a7f93a2545dd7143c29",
+      "commit_sha256": "5855f174be14b5968e01a365c84099d2d009c42249ba865433fcb39be7b36451"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pt-rPT/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "4e456feeb4b4b437ca575c11b61b05401827d861c3dcc57907c0154959b9d4b3",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "da4c7ba7474d7c21080cca00192527f13ef588090f9fdeba454029c4fffe3cbd",
+      "commit_sha256": "4e456feeb4b4b437ca575c11b61b05401827d861c3dcc57907c0154959b9d4b3"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ro-rRO/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "61aad6fadffc017c23f20cde0f3cd3055bbd622a538950442367f74303cb274d",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "0da5a33f888d188a4e2ef973b00af1725cc5c66362cf770dcf814681297c6309",
+      "commit_sha256": "61aad6fadffc017c23f20cde0f3cd3055bbd622a538950442367f74303cb274d"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ru-rRU/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "5be50249c2f73ac6d1a3e6b7504d7b40989acbcb06333ec90cd021695343444c",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "09fb075190bfacc60c54532498766bf505fa8de2ba990fd39bb0f56e0f5da59e",
+      "commit_sha256": "5be50249c2f73ac6d1a3e6b7504d7b40989acbcb06333ec90cd021695343444c"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sk-rSK/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "c15f6960db7d0fc2f4aea0acdde416f983773498588f6505621aec0868f14417",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "3424c09cac818399f3be96fe29f96694d6f127c0f7858e92d55faf2f3f518b16",
+      "commit_sha256": "c15f6960db7d0fc2f4aea0acdde416f983773498588f6505621aec0868f14417"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sl-rSI/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "21b78c618895c7a07d9c30122d0a2d922d40ebaff2725a6b4f88274d1e6f8b33",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "2694c09032943ca9b740c2b7b238c33024d96191fb1154138e76a7abecb6caf7",
+      "commit_sha256": "21b78c618895c7a07d9c30122d0a2d922d40ebaff2725a6b4f88274d1e6f8b33"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sr-rSP/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "74e9dc9bcc925b062ebfddb7d0f5ac743678763e7dfc5ba50d40c5dcda2f1242",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "a7357f7d28e65b6c5dbf4b00eb9b90cb675949a74f7e903fe27e28d54dc0c97a",
+      "commit_sha256": "74e9dc9bcc925b062ebfddb7d0f5ac743678763e7dfc5ba50d40c5dcda2f1242"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sv-rSE/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "0b397fe6b1164ca0c5cbbaeeda353453e54129bdec38325005f98f2babdf4193",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "df3198a6b63a7b02aa115976c033ec00beba3bcc80132edbf3f58614ba86e6f4",
+      "commit_sha256": "0b397fe6b1164ca0c5cbbaeeda353453e54129bdec38325005f98f2babdf4193"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-tr-rTR/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "6ff55d960e98465d0bb2a2b4560ccf4310710567882530819a456ca8c3501542",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "35683f0adf7c0dd6265901a5e08bf851a8a99ec990f2d52a07af1a5fb3342c8a",
+      "commit_sha256": "6ff55d960e98465d0bb2a2b4560ccf4310710567882530819a456ca8c3501542"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-uk-rUA/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "5be50249c2f73ac6d1a3e6b7504d7b40989acbcb06333ec90cd021695343444c",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "09fb075190bfacc60c54532498766bf505fa8de2ba990fd39bb0f56e0f5da59e",
+      "commit_sha256": "5be50249c2f73ac6d1a3e6b7504d7b40989acbcb06333ec90cd021695343444c"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-vi-rVN/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "4bb55b9c30a78e7f625fe9a47da23a827f976bb2b73888ffed49156ad7df00eb",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "ee279cd946f0d2e8960d9e7f2882c8b01dc3b5e03a2095626aab8e02e825a662",
+      "commit_sha256": "4bb55b9c30a78e7f625fe9a47da23a827f976bb2b73888ffed49156ad7df00eb"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-zh-rCN/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "6c02e8c6a261972621c4918f7ea9493fa2b0fbd9bc61c8d41e7172b14a834791",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "4ffba4c815a79606a96cd82bf68dd5c41ea7bc59fae72518823784cf5638494d",
+      "commit_sha256": "6c02e8c6a261972621c4918f7ea9493fa2b0fbd9bc61c8d41e7172b14a834791"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-zh-rTW/steps_daily_display_strings.xml",
+      "before_sha256": null,
+      "after_sha256": "ebb61640b7431700a5ab883cb4a39922581114c58036f272ebb06ddaa1f91957",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "5eb8a81688a843ef0a00881b203c24455ff2fd0a9b68502f7f13442698f3ca50",
+      "commit_sha256": "ebb61640b7431700a5ab883cb4a39922581114c58036f272ebb06ddaa1f91957"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/fragment/WeeklySummaryDayValueTextTest.kt",
+      "before_sha256": "cf32ebf514601dd25b83f1e5e36bc0d8245f99493117018cf42986d8cb090ce0",
+      "after_sha256": "8f26353788949085c84cb34abd836b881bcac38ac57aa86d4489a3abf81a85db",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "49c2f349ad0c1920caad41211e02dd7c5e32423602cc2863b7b532cf0b80f3f5",
+      "commit_sha256": "8f26353788949085c84cb34abd836b881bcac38ac57aa86d4489a3abf81a85db"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt",
+      "before_sha256": "065caa5ee0f4d0585a565872e887e9600f2d27cee58d6fa497265fe71afdf04c",
+      "after_sha256": "3998b43292c4c38a067941c315cedfd84455a54eaf1e635256725cc5e3289c7f",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "b09a302cc404a293881f30061f655876d28211d14f376473f656d41f20250f51",
+      "commit_sha256": "3998b43292c4c38a067941c315cedfd84455a54eaf1e635256725cc5e3289c7f"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/StatsPresenterViewModelSessionStatsTest.kt",
+      "before_sha256": "4a61bec0d6cb97b21fc4708c8faf47787fd0240887c76f1732db635d9ded47ce",
+      "after_sha256": "ce3ee09f6de4b6caaf8be0c66789020d3cf8c291dbfda1316f9b6c9efc06f688",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "21cf426d565023aac9418a6b33a17b6694be6829623121b5f31d389a5d697375",
+      "commit_sha256": "ce3ee09f6de4b6caaf8be0c66789020d3cf8c291dbfda1316f9b6c9efc06f688"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/StatsScreenComposeTest.kt",
+      "before_sha256": "ea4b88b4f906336e586b02e93cb1858e2f2e9e0e293ba22256440db24979faa1",
+      "after_sha256": "e397e8b641321d68b06c144b979d108a48a4bd2b2faf1607e7d1df39a6e39acd",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "2eb3306e5fd4977d9e71b76d0402e8a5ff2262b420f1b90930981657ab774ef8",
+      "commit_sha256": "e397e8b641321d68b06c144b979d108a48a4bd2b2faf1607e7d1df39a6e39acd"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AmbientStepsHistoryRepository.kt",
+      "before_sha256": "544b13d8f4a6a6d5067ebbd39c2232a5b4886caf85f6e84cfb3fa1203d17ae61",
+      "after_sha256": "21a4eddcb1b861b167a0eb2d8b3beb512d4d4baac008b37aaf592f11219d8886",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "ff27e06d8ebac33fd1a47506dfe6481ea0997212339fce80ab48eeee15c26824",
+      "commit_sha256": "21a4eddcb1b861b167a0eb2d8b3beb512d4d4baac008b37aaf592f11219d8886"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/StepsNumericSummaryRepository.kt",
+      "before_sha256": "b1f85b12440dcfc36a3350c31658149e15f468ba31b0f5f05cc65a9e4aa049f2",
+      "after_sha256": "e7e97af1b76838c8e02746356f06d1abfa609de1cca3425d0a41c886ca380df1",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "85475577653754c59523ac760f461bc576865ac7eabacf6f308f9c7f88900a0d",
+      "commit_sha256": "e7e97af1b76838c8e02746356f06d1abfa609de1cca3425d0a41c886ca380df1"
+    },
+    {
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/StepsDailyDisplayContractTest.kt",
+      "before_sha256": null,
+      "after_sha256": "aad2bfc74639b5de1316dcd0e9d19dd6da68495d4161fd17fe4b3ce6ccf0fa6e",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "439821b4727f36372587a06288b074ae2e51bb84fa14e2a87587bc63461c84c1",
+      "commit_sha256": "aad2bfc74639b5de1316dcd0e9d19dd6da68495d4161fd17fe4b3ce6ccf0fa6e"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultAmbientStepsHistoryRepository.kt",
+      "before_sha256": "3b7d8e0d8f5a789b82e5d38d5ce5f7fc79219a910fcfe5f29872d6a668ac544d",
+      "after_sha256": "3b7d8e0d8f5a789b82e5d38d5ce5f7fc79219a910fcfe5f29872d6a668ac544d",
+      "disposition": "PRESERVED_MIXED_DRAFT",
+      "reviewed_sha256": "f4e2f5ea9075865636dc5a3476396284901e780577310a73045fc0cc121ae3bf",
+      "commit_sha256": "550ba0ed244079d816dafecc733095d18ae386df5938df4bd0e5d928d84fff32"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "before_sha256": "f859ce46c6e6afdcdd1648d773d45da786b8f8c1739721794667775b8de08750",
+      "after_sha256": "56b6ecd890ff201c669913d80b4e4f230f908cb72148a06fa180423eb6d30579",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "d0721f3971d02be47c0785bd8ba89b0322ecd9d29f60286af4628185724ee18c",
+      "commit_sha256": "56b6ecd890ff201c669913d80b4e4f230f908cb72148a06fa180423eb6d30579"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportPortableAmbientStepsNativeAuthorityTest.kt",
+      "before_sha256": "f917ecab29ce2e6ff09f0e7b7b2b9a9c8bf1416288975a31d55e00da464078d8",
+      "after_sha256": "90c2b5ef10a070b9f9003f8ca761d11b0de0f0f2d121e3fbdc9879f4ed4c5b1f",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "1559c774dcd78fcc90a144e51ab15e7b77199d1347b33bb1b96d709ea12ba516",
+      "commit_sha256": "90c2b5ef10a070b9f9003f8ca761d11b0de0f0f2d121e3fbdc9879f4ed4c5b1f"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/deletion/StepsDailySummaryRepairComposer.kt",
+      "before_sha256": "3c952c33605314bf95c5d1bbc5da33e7198bfc17f396b51a5e0ef58806fafbcf",
+      "after_sha256": "1c2b226d91c4a42ba3110816b4da1a5ef038ce93fb3449db612829dbd2642f4a",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "f5cebbfe9c4bad88a42515c8c6fcca4d51929664e3869a145edd9756bb799c63",
+      "commit_sha256": "1c2b226d91c4a42ba3110816b4da1a5ef038ce93fb3449db612829dbd2642f4a"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepository.kt",
+      "before_sha256": "58fb3f2f0566c1f38d4825ac1b99ab97f448d6c79093c64147c6c55c2735de84",
+      "after_sha256": "c3196e02a6ad19f1880f875aab6d06a2283f74d3e361d1bc7d2a2433af5899ff",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "924959407eeeceacfd4ef65debcef0e4f63432799eb715bf58a5063fada6b6ec",
+      "commit_sha256": "c3196e02a6ad19f1880f875aab6d06a2283f74d3e361d1bc7d2a2433af5899ff"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepositoryRoomTest.kt",
+      "before_sha256": "f556d233902b74fd844bcde78e64ce1d995646df1866df654b4bb78b85b81d8b",
+      "after_sha256": "93d4c7394477e9a2254b7a4653d441a8d69a0196aa1c224284ae2eea92715923",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "ec1c4296f23001c9a4392990b1cbe7f8ec1455b189778c04abe7642dfa004413",
+      "commit_sha256": "93d4c7394477e9a2254b7a4653d441a8d69a0196aa1c224284ae2eea92715923"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepositoryTest.kt",
+      "before_sha256": "74694d59a6ffd70676115271eecc95a0a8a3b0885df1480eeea12ed02ca88035",
+      "after_sha256": "9367e117a9c0fb9118de4af5a7e893773b4cf6af372d402eddffb0ee355d0ce0",
+      "disposition": "APPLIED_EXACT_SELECTION",
+      "reviewed_sha256": "4fa3f0c8226e146c98f777f38e087d61cc9ccfcfc0a0e7928325e850c0661c87",
+      "commit_sha256": "9367e117a9c0fb9118de4af5a7e893773b4cf6af372d402eddffb0ee355d0ce0"
+    }
+  ]
+}

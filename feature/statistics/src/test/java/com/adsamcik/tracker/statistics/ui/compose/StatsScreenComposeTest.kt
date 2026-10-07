@@ -34,7 +34,9 @@ import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
-import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayDay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayValue
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import com.adsamcik.tracker.statistics.fragment.AppendUiState
 import com.adsamcik.tracker.statistics.fragment.RefreshUiState
@@ -61,6 +63,50 @@ class StatsScreenComposeTest {
 
 	@get:Rule
 	val composeTestRule = createComposeRule()
+
+	@Test
+	fun `daily display shows complete and recorded counts together with three sessions`() {
+		val today = LocalDate.now().toEpochDay()
+		val summaries = MutableStateFlow<StepsDailyDisplay>(StepsDailyDisplay.Snapshot(4L, listOf(
+			StepsDailyDisplayDay(today - 1L, StepsDailyDisplayValue.Complete(5L)),
+			StepsDailyDisplayDay(today, StepsDailyDisplayValue.Recorded(11L,
+				setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.PARTIAL_COVERAGE))),
+		)))
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				DenseStepsStatistics(summaries, MutableStateFlow(true), weeklyBars = listOf(
+					DayBar("Yesterday", 0f, epochDay = today - 1L), DayBar("Today", 0f, epochDay = today),
+				))
+			}
+		}
+		scrollToWeeklyStepsSummary()
+		composeTestRule.onNode(hasText("16 recorded") and hasAncestor(hasTestTag("stats_summary_steps"))).assertIsDisplayed()
+		composeTestRule.onNodeWithContentDescription("Yesterday, 5").assertIsDisplayed()
+		composeTestRule.onNodeWithContentDescription("Today, 11 recorded").assertIsDisplayed()
+	}
+
+	@Test
+	fun `missing day keeps its state while another daily number remains visible`() {
+		val today = LocalDate.now().toEpochDay()
+		val summaries = MutableStateFlow<StepsDailyDisplay>(StepsDailyDisplay.Snapshot(4L, listOf(
+			StepsDailyDisplayDay(today - 1L, StepsDailyDisplayValue.Complete(8L)),
+			StepsDailyDisplayDay(today, StepsDailyDisplayValue.Unavailable(
+				StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+				setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.FACT_OVERLAP))),
+		)))
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				SessionlessStepsStatistics(summaries, weeklyBars = listOf(
+					DayBar("Yesterday", 0f, epochDay = today - 1L), DayBar("Today", 0f, epochDay = today),
+				))
+			}
+		}
+		scrollToWeeklyStepsSummary()
+		composeTestRule.onNodeWithContentDescription("Yesterday, 8").assertIsDisplayed()
+		composeTestRule.onNodeWithContentDescription("Today, Unavailable").assertIsDisplayed()
+		composeTestRule.onNode(hasText("8 recorded") and hasAncestor(hasTestTag("stats_summary_steps"))).assertIsDisplayed()
+		composeTestRule.onNode(hasText("N/A") and hasAncestor(hasTestTag("stats_summary_active_days"))).assertIsDisplayed()
+	}
 
 	// ─── Loading state ──────────────────────────────────────────────────
 
@@ -249,6 +295,42 @@ class StatsScreenComposeTest {
 	}
 
 	@Test
+	fun `Location-only sparse days keep distance and duration when Steps is off`() {
+		val today = LocalDate.now().toEpochDay()
+		val bars = listOf(
+			DayBar("Yesterday", 304f, epochDay = today - 1L, sessionCount = 1),
+			DayBar("Today", 0f, epochDay = today, sessionCount = 1, durationMs = 57_000L),
+		)
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				StatsScreenWithSingleSession(sparseSummaryTrip(), bars,
+					weeklyStepsSummary = testDisplayUnavailable(StepsNumericUnverifiableReason.NOT_CAPTURED),
+					stepsSelected = false)
+			}
+		}
+		composeTestRule.onNodeWithContentDescription("Yesterday, 304 m").performScrollTo().assertIsDisplayed()
+		composeTestRule.onNodeWithContentDescription("Today, 57 s").performScrollTo().assertIsDisplayed()
+		composeTestRule.onNodeWithContentDescription("Today, Not captured").assertDoesNotExist()
+		composeTestRule.onNode(hasText("N/A") and hasAncestor(hasTestTag("stats_summary_steps"))).assertIsDisplayed()
+	}
+
+	@Test
+	fun `selected missing Steps keeps its day state instead of borrowing Location distance`() {
+		val today = LocalDate.now().toEpochDay()
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				StatsScreenWithSingleSession(sparseSummaryTrip(), listOf(
+					DayBar("Today", 304f, epochDay = today, sessionCount = 1, durationMs = 57_000L)),
+					weeklyStepsSummary = testDisplayUnavailable(StepsNumericUnverifiableReason.NOT_CAPTURED),
+					stepsSelected = true)
+			}
+		}
+		composeTestRule.onNodeWithContentDescription("Today, Not captured").performScrollTo().assertIsDisplayed()
+		composeTestRule.onNodeWithContentDescription("Today, 304 m").assertDoesNotExist()
+		composeTestRule.onNode(hasText("Not captured") and hasAncestor(hasTestTag("stats_summary_steps"))).assertIsDisplayed()
+	}
+
+	@Test
 	fun `sparse summary daily activity shows distance when today session has no steps`() {
 		val today = LocalDate.now()
 		val todayEpochDay = today.toEpochDay()
@@ -309,7 +391,7 @@ class StatsScreenComposeTest {
 				StatsScreenWithSingleSession(
 					trip = trip,
 					weeklyBars = weeklyBars,
-					weeklyStepsSummary = StepsNumericSummary.Unverifiable(
+					weeklyStepsSummary = testDisplayUnavailable(
 						StepsNumericUnverifiableReason.PARTIAL_CAPTURE,
 					),
 				)
@@ -336,7 +418,7 @@ class StatsScreenComposeTest {
 							sessionCount = 1,
 						),
 					),
-					weeklyStepsSummary = StepsNumericSummary.Ready(
+					weeklyStepsSummary = testDisplayReady(
 						listOf(StepsNumericDay(epochDay = todayEpochDay, steps = 0L)),
 					),
 				)
@@ -364,7 +446,7 @@ class StatsScreenComposeTest {
 							epochDay = todayEpochDay,
 						),
 					),
-					weeklyStepsSummary = StepsNumericSummary.Materializing,
+					weeklyStepsSummary = StepsDailyDisplay.Materializing,
 				)
 			}
 		}
@@ -379,8 +461,8 @@ class StatsScreenComposeTest {
 	@Test
 	fun `saved all-day Steps render without sessions and keep Summary and History reachable`() {
 		val today = LocalDate.now().toEpochDay()
-		val summaries = MutableStateFlow<StepsNumericSummary>(
-			StepsNumericSummary.Ready(listOf(StepsNumericDay(today, 42L))),
+		val summaries = MutableStateFlow<StepsDailyDisplay>(
+			testDisplayReady(listOf(StepsNumericDay(today, 42L))),
 		)
 		var summaryOpened = false
 		var historyOpened = false
@@ -417,8 +499,8 @@ class StatsScreenComposeTest {
 			MaterialTheme(colorScheme = lightColorScheme()) {
 				SessionlessStepsStatistics(
 					summaries = remember {
-						MutableStateFlow<StepsNumericSummary>(
-							StepsNumericSummary.Ready(listOf(StepsNumericDay(today, 0L))),
+						MutableStateFlow<StepsDailyDisplay>(
+							testDisplayReady(listOf(StepsNumericDay(today, 0L))),
 						)
 					},
 					weeklyBars = listOf(DayBar("Today", distanceM = 0f, epochDay = today)),
@@ -438,7 +520,7 @@ class StatsScreenComposeTest {
 	@Test
 	fun `sessionless retained Steps updates keep waiting partial and unavailable states nonnumeric`() {
 		val today = LocalDate.now().toEpochDay()
-		val summaries = MutableStateFlow<StepsNumericSummary>(StepsNumericSummary.Materializing)
+		val summaries = MutableStateFlow<StepsDailyDisplay>(StepsDailyDisplay.Materializing)
 		composeTestRule.setContent {
 			MaterialTheme(colorScheme = lightColorScheme()) {
 				SessionlessStepsStatistics(
@@ -454,7 +536,7 @@ class StatsScreenComposeTest {
 			.assertIsDisplayed()
 
 		composeTestRule.runOnIdle {
-			summaries.value = StepsNumericSummary.Ready(listOf(StepsNumericDay(today, 53L)))
+			summaries.value = testDisplayReady(listOf(StepsNumericDay(today, 53L)))
 		}
 		composeTestRule.waitForIdle()
 		composeTestRule.onNode(hasText("53") and hasAncestor(hasTestTag("stats_summary_steps")))
@@ -466,22 +548,27 @@ class StatsScreenComposeTest {
 			StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE to "Unavailable",
 			StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE to "Unavailable",
 		).forEach { (reason, text) ->
-			composeTestRule.runOnIdle { summaries.value = StepsNumericSummary.Unverifiable(reason) }
+			composeTestRule.runOnIdle { summaries.value = testDisplayUnavailable(reason) }
 			composeTestRule.waitForIdle()
-			composeTestRule.onNodeWithText(text).assertIsDisplayed()
+			composeTestRule.onNode(hasText(text) and hasAncestor(hasTestTag("stats_summary_steps"))).assertIsDisplayed()
 			composeTestRule.onNode(hasText("53") and hasAncestor(hasTestTag("stats_summary_steps")))
 				.assertDoesNotExist()
 			composeTestRule.onNodeWithText("Start Tracking").assertDoesNotExist()
 			composeTestRule.onNode(hasText("N/A") and hasAncestor(hasTestTag("stats_summary_active_days")))
 				.assertIsDisplayed()
-			composeTestRule.onNodeWithContentDescription("Today, —").assertIsDisplayed()
+			if (reason == StepsNumericUnverifiableReason.PARTIAL_CAPTURE) {
+				composeTestRule.onNodeWithContentDescription("Today, $text").assertIsDisplayed()
+			} else {
+				// No saved count/coverage and Steps off: the generic sparse summary keeps its non-Step fallback.
+				composeTestRule.onNodeWithContentDescription("Today, —").assertIsDisplayed()
+			}
 		}
 	}
 
 	@Test
 	fun `sessionless not-captured data keeps existing Start action and History access`() {
-		val summaries = MutableStateFlow<StepsNumericSummary>(
-			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED),
+		val summaries = MutableStateFlow<StepsDailyDisplay>(
+			testDisplayUnavailable(StepsNumericUnverifiableReason.NOT_CAPTURED),
 		)
 		var started = false
 		var historyOpened = false
@@ -509,8 +596,8 @@ class StatsScreenComposeTest {
 			MaterialTheme(colorScheme = lightColorScheme()) {
 				SessionlessStepsStatistics(
 					summaries = remember {
-						MutableStateFlow<StepsNumericSummary>(
-							StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED),
+						MutableStateFlow<StepsDailyDisplay>(
+							testDisplayUnavailable(StepsNumericUnverifiableReason.NOT_CAPTURED),
 						)
 					},
 					weeklyBars = listOf(
@@ -539,7 +626,7 @@ class StatsScreenComposeTest {
 					onShowWeek = {},
 					onOpenWifi = {},
 					weeklyBars = listOf(DayBar("Today", distanceM = 0f, epochDay = today)),
-					weeklyStepsSummary = StepsNumericSummary.Ready(listOf(StepsNumericDay(today, 19L))),
+					weeklyStepsSummary = testDisplayReady(listOf(StepsNumericDay(today, 19L))),
 				)
 			}
 		}
@@ -570,8 +657,8 @@ class StatsScreenComposeTest {
 
 	@Test
 	fun `session paging loading does not hide saved all-day Steps`() {
-		val summaries = MutableStateFlow<StepsNumericSummary>(
-			StepsNumericSummary.Ready(listOf(StepsNumericDay(LocalDate.now().toEpochDay(), 32L))),
+		val summaries = MutableStateFlow<StepsDailyDisplay>(
+			testDisplayReady(listOf(StepsNumericDay(LocalDate.now().toEpochDay(), 32L))),
 		)
 		composeTestRule.setContent {
 			MaterialTheme(colorScheme = lightColorScheme()) {
@@ -592,8 +679,8 @@ class StatsScreenComposeTest {
 
 	@Test
 	fun `session paging failure preserves retained Steps and existing Retry action`() {
-		val summaries = MutableStateFlow<StepsNumericSummary>(
-			StepsNumericSummary.Ready(listOf(StepsNumericDay(LocalDate.now().toEpochDay(), 44L))),
+		val summaries = MutableStateFlow<StepsDailyDisplay>(
+			testDisplayReady(listOf(StepsNumericDay(LocalDate.now().toEpochDay(), 44L))),
 		)
 		var retried = false
 		composeTestRule.setContent {
@@ -622,8 +709,8 @@ class StatsScreenComposeTest {
 	fun `qualified Steps day rows and active days do not wait for session summary bars`() {
 		val today = LocalDate.of(2026, 10, 3).toEpochDay()
 		val bars = mutableStateOf(emptyList<DayBar>())
-		val summaries = MutableStateFlow<StepsNumericSummary>(
-			StepsNumericSummary.Ready(
+		val summaries = MutableStateFlow<StepsDailyDisplay>(
+			testDisplayReady(
 				listOf(StepsNumericDay(today - 1L, 6L), StepsNumericDay(today, 11L)),
 			),
 		)
@@ -651,10 +738,10 @@ class StatsScreenComposeTest {
 
 	@Test
 	fun `qualified Steps collector subscribes and cancels across visibility transitions`() {
-		val summaries = MutableStateFlow<StepsNumericSummary>(StepsNumericSummary.Materializing)
+		val summaries = MutableStateFlow<StepsDailyDisplay>(StepsDailyDisplay.Materializing)
 		val visible = mutableStateOf(false)
 		val lifecycleOwner = TestLifecycleOwner()
-		var rendered: StepsNumericSummary? = null
+		var rendered: StepsDailyDisplay? = null
 
 		composeTestRule.setContent {
 			CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
@@ -670,12 +757,12 @@ class StatsScreenComposeTest {
 		}
 		composeTestRule.waitForIdle()
 		summaries.subscriptionCount.value shouldBe 0
-		rendered shouldBe StepsNumericSummary.Materializing
+		rendered shouldBe StepsDailyDisplay.Materializing
 
 		composeTestRule.runOnIdle { visible.value = true }
 		composeTestRule.waitForIdle()
 		summaries.subscriptionCount.value shouldBe 1
-		val ready = StepsNumericSummary.Ready(
+		val ready = testDisplayReady(
 			listOf(StepsNumericDay(epochDay = LocalDate.now().toEpochDay(), steps = 12L)),
 		)
 		composeTestRule.runOnIdle { summaries.value = ready }
@@ -686,7 +773,7 @@ class StatsScreenComposeTest {
 		composeTestRule.waitForIdle()
 		summaries.subscriptionCount.value shouldBe 0
 		composeTestRule.runOnIdle {
-			rendered shouldBe StepsNumericSummary.Materializing
+			rendered shouldBe StepsDailyDisplay.Materializing
 			lifecycleOwner.moveTo(Lifecycle.Event.ON_STOP)
 			lifecycleOwner.moveTo(Lifecycle.Event.ON_DESTROY)
 		}
@@ -698,8 +785,8 @@ class StatsScreenComposeTest {
 	fun `three sessions preserve saved all-day Steps when Steps is off`() {
 		val today = LocalDate.now().toEpochDay()
 		val largeCount = Int.MAX_VALUE.toLong() + 8L
-		val summaries = MutableStateFlow<StepsNumericSummary>(
-			StepsNumericSummary.Ready(List(7) { index ->
+		val summaries = MutableStateFlow<StepsDailyDisplay>(
+			testDisplayReady(List(7) { index ->
 				StepsNumericDay(today - 6L + index, if (index == 6) largeCount else 0L)
 			}),
 		)
@@ -745,8 +832,8 @@ class StatsScreenComposeTest {
 	@Test
 	fun `saved Steps appears before a long session history without scrolling`() {
 		val today = LocalDate.now().toEpochDay()
-		val summaries = MutableStateFlow<StepsNumericSummary>(
-			StepsNumericSummary.Ready(listOf(StepsNumericDay(today, 123L))),
+		val summaries = MutableStateFlow<StepsDailyDisplay>(
+			testDisplayReady(listOf(StepsNumericDay(today, 123L))),
 		)
 		val trips = List(50) { index -> sparseSummaryTrip().copy(id = index.toLong() + 1L) }
 		var loadedSessionCount = 0
@@ -771,8 +858,8 @@ class StatsScreenComposeTest {
 
 	@Test
 	fun `selected Steps keeps waiting and incomplete states alongside three sessions`() {
-		val summaries = MutableStateFlow<StepsNumericSummary>(
-			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED),
+		val summaries = MutableStateFlow<StepsDailyDisplay>(
+			testDisplayUnavailable(StepsNumericUnverifiableReason.NOT_CAPTURED),
 		)
 		val selected = MutableStateFlow(true)
 		composeTestRule.setContent {
@@ -781,12 +868,12 @@ class StatsScreenComposeTest {
 			}
 		}
 		val states = listOf(
-			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED) to "Not captured",
-			StepsNumericSummary.Materializing to "Updating…",
-			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE) to "Incomplete",
-			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE) to "Unavailable",
-			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE) to "Unavailable",
-			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE) to "Unavailable",
+			testDisplayUnavailable(StepsNumericUnverifiableReason.NOT_CAPTURED) to "Not captured",
+			StepsDailyDisplay.Materializing to "Updating…",
+			testDisplayUnavailable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE) to "Incomplete",
+			testDisplayUnavailable(StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE) to "Unavailable",
+			testDisplayUnavailable(StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE) to "Unavailable",
+			testDisplayUnavailable(StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE) to "Unavailable",
 		)
 		states.forEach { (state, label) ->
 			composeTestRule.runOnIdle { summaries.value = state }
@@ -794,6 +881,11 @@ class StatsScreenComposeTest {
 			scrollToWeeklyStepsSummary()
 			composeTestRule.onNode(hasText(label) and hasAncestor(hasTestTag("stats_summary_steps")))
 				.assertIsDisplayed()
+			if (state is StepsDailyDisplay.Snapshot) {
+				val day = state.days.single().epochDay
+				val dayLabel = LocalDate.ofEpochDay(day).format(java.time.format.DateTimeFormatter.ofPattern("EEE"))
+				composeTestRule.onNodeWithContentDescription("$dayLabel, $label").assertIsDisplayed()
+			}
 			composeTestRule.onNode(hasText("0") and hasAncestor(hasTestTag("stats_summary_steps")))
 				.assertDoesNotExist()
 			composeTestRule.onNode(hasText("N/A") and hasAncestor(hasTestTag("stats_summary_active_days")))
@@ -807,8 +899,8 @@ class StatsScreenComposeTest {
 
 	@Test
 	fun `saved incomplete Steps stays visible after switching Steps off with three sessions`() {
-		val summaries = MutableStateFlow<StepsNumericSummary>(
-			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE),
+		val summaries = MutableStateFlow<StepsDailyDisplay>(
+			testDisplayUnavailable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE),
 		)
 		val selected = MutableStateFlow(true)
 		composeTestRule.setContent {
@@ -831,8 +923,8 @@ class StatsScreenComposeTest {
 
 	@Test
 	fun `off Steps without saved coverage does not add a weekly card to three sessions`() {
-		val summaries = MutableStateFlow<StepsNumericSummary>(
-			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED),
+		val summaries = MutableStateFlow<StepsDailyDisplay>(
+			testDisplayUnavailable(StepsNumericUnverifiableReason.NOT_CAPTURED),
 		)
 		val selected = MutableStateFlow(false)
 		var historyOpened = false
@@ -848,11 +940,11 @@ class StatsScreenComposeTest {
 			}
 		}
 		listOf(
-			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED),
-			StepsNumericSummary.Materializing,
-			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE),
-			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE),
-			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE),
+			testDisplayUnavailable(StepsNumericUnverifiableReason.NOT_CAPTURED),
+			StepsDailyDisplay.Materializing,
+			testDisplayUnavailable(StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE),
+			testDisplayUnavailable(StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE),
+			testDisplayUnavailable(StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE),
 		).forEach { state ->
 			composeTestRule.runOnIdle { summaries.value = state }
 			composeTestRule.waitForIdle()
@@ -868,8 +960,8 @@ class StatsScreenComposeTest {
 	@Test
 	fun `loading a third session cannot unsubscribe saved Steps or block later count updates`() {
 		val today = LocalDate.now().toEpochDay()
-		val summaries = MutableStateFlow<StepsNumericSummary>(
-			StepsNumericSummary.Ready(listOf(StepsNumericDay(today, 61L))),
+		val summaries = MutableStateFlow<StepsDailyDisplay>(
+			testDisplayReady(listOf(StepsNumericDay(today, 61L))),
 		)
 		val sessions = MutableStateFlow(PagingData.from(denseSummaryTrips().take(2)))
 		var loadedSessionCount = 0
@@ -893,7 +985,7 @@ class StatsScreenComposeTest {
 		loadedSessionCount shouldBe 3
 		summaries.subscriptionCount.value shouldBe 1
 		composeTestRule.runOnIdle {
-			summaries.value = StepsNumericSummary.Ready(listOf(StepsNumericDay(today, 77L)))
+			summaries.value = testDisplayReady(listOf(StepsNumericDay(today, 77L)))
 		}
 		composeTestRule.waitForIdle()
 		scrollToWeeklyStepsSummary()
@@ -945,7 +1037,7 @@ class StatsScreenComposeTest {
 
 	@Composable
 	private fun SessionlessStepsStatistics(
-		summaries: StateFlow<StepsNumericSummary>,
+		summaries: StateFlow<StepsDailyDisplay>,
 		weeklyBars: List<DayBar> = emptyList(),
 		refreshState: RefreshUiState = RefreshUiState.Empty,
 		onRetry: () -> Unit = {},
@@ -975,7 +1067,7 @@ class StatsScreenComposeTest {
 
 	@Composable
 	private fun DenseStepsStatistics(
-		summaries: StateFlow<StepsNumericSummary>,
+		summaries: StateFlow<StepsDailyDisplay>,
 		stepsSelection: StateFlow<Boolean>,
 		weeklyBars: List<DayBar> = emptyList(),
 		sessionPages: StateFlow<PagingData<Trip>> = remember {
@@ -1022,9 +1114,10 @@ class StatsScreenComposeTest {
 	private fun StatsScreenWithSingleSession(
 		trip: Trip,
 		weeklyBars: List<DayBar>,
-		weeklyStepsSummary: StepsNumericSummary = StepsNumericSummary.Unverifiable(
+		weeklyStepsSummary: StepsDailyDisplay = testDisplayUnavailable(
 			StepsNumericUnverifiableReason.NOT_CAPTURED,
 		),
+		stepsSelected: Boolean = false,
 	) {
 		val sessions = flowOf(PagingData.from(listOf(trip))).collectAsLazyPagingItems()
 		StatsScreen(
@@ -1037,6 +1130,7 @@ class StatsScreenComposeTest {
 			sessions = sessions,
 			weeklyBars = weeklyBars,
 			weeklyStepsSummary = weeklyStepsSummary,
+			stepsSelected = stepsSelected,
 		)
 	}
 
@@ -1063,3 +1157,11 @@ class StatsScreenComposeTest {
 	}
 
 }
+
+private fun testDisplayReady(days: List<com.adsamcik.tracker.stats.api.repository.StepsNumericDay>) =
+	StepsDailyDisplay.Snapshot(1L, days.map { StepsDailyDisplayDay(it.epochDay, StepsDailyDisplayValue.Complete(it.steps)) })
+
+private fun testDisplayUnavailable(reason: com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason) =
+	StepsDailyDisplay.Snapshot(1L, listOf(StepsDailyDisplayDay(
+		java.time.LocalDate.now().toEpochDay(), StepsDailyDisplayValue.Unavailable(reason),
+	)))

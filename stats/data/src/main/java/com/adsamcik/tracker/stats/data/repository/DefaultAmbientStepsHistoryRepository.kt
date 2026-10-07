@@ -24,6 +24,7 @@ import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsDisplayStructuralDayRead
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryDay
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryDayRequest
@@ -76,26 +77,49 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 	private val countDomainQuery: StepsCountDomainCompatibilityQuery,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : AmbientStepsHistoryRepository, AmbientStepsNumericRangeReader {
+	/** Strict consumers retain their whole-window calendar requirement. */
 	override suspend fun discoverNumericStructuralDaysInCurrentTransaction(
 		firstEpochDay: Long,
 		lastEpochDayInclusive: Long,
 		sessionCalendarDays: List<AmbientStepsStructuralDay>,
 		expectedSourceEvidenceRevision: Long,
-	): AmbientStepsNumericStructuralDayRead {
+	): AmbientStepsNumericStructuralDayRead = when (val display =
+		discoverDisplayStructuralDaysInCurrentTransaction(
+			firstEpochDay, lastEpochDayInclusive, sessionCalendarDays, expectedSourceEvidenceRevision,
+		)
+	) {
+		is AmbientStepsDisplayStructuralDayRead.Snapshot -> when {
+			display.calendarConflictEpochDays.isNotEmpty() -> AmbientStepsNumericStructuralDayRead.Unavailable(
+				AmbientStepsHistoryUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
+			)
+			display.days.isEmpty() -> AmbientStepsNumericStructuralDayRead.NoAmbientAuthority
+			else -> AmbientStepsNumericStructuralDayRead.Exact(display.sourceEvidenceRevision, display.days)
+		}
+		is AmbientStepsDisplayStructuralDayRead.Unavailable -> AmbientStepsNumericStructuralDayRead.Unavailable(display.reason)
+		AmbientStepsDisplayStructuralDayRead.StorageUnavailable -> AmbientStepsNumericStructuralDayRead.StorageUnavailable
+	}
+
+	override suspend fun discoverDisplayStructuralDaysInCurrentTransaction(
+		firstEpochDay: Long,
+		lastEpochDayInclusive: Long,
+		sessionCalendarDays: List<AmbientStepsStructuralDay>,
+		expectedSourceEvidenceRevision: Long,
+	): AmbientStepsDisplayStructuralDayRead {
 		require(firstEpochDay <= lastEpochDayInclusive)
 		require(
 			lastEpochDayInclusive.toULong() - firstEpochDay.toULong() <
 				AmbientStepsHistoryRangeRequest.MAX_DAY_COUNT.toULong(),
 		)
 		val evidence = database.sourceEvidenceStateDao().get()
-			?: return AmbientStepsNumericStructuralDayRead.Unavailable(
+			?: return AmbientStepsDisplayStructuralDayRead.Unavailable(
 				AmbientStepsHistoryUnavailableReason.SOURCE_EVIDENCE_STATE_MISSING,
 			)
 		if (evidence.revision != expectedSourceEvidenceRevision) {
-			return AmbientStepsNumericStructuralDayRead.Unavailable(
+			return AmbientStepsDisplayStructuralDayRead.Unavailable(
 				AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
 			)
 		}
+		val invalidCalendarDays = linkedSetOf<Long>()
 		val zonesByDay = linkedMapOf<Long, LinkedHashSet<String>>()
 		sessionCalendarDays.forEach { day ->
 			if (day.epochDay in firstEpochDay..lastEpochDayInclusive) {
@@ -112,18 +136,24 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 			limit = MAX_NUMERIC_STRUCTURAL_DAY_CANDIDATES + 1,
 		)
 		if (native.size > MAX_NUMERIC_STRUCTURAL_DAY_CANDIDATES) {
-			return AmbientStepsNumericStructuralDayRead.Unavailable(
+			return AmbientStepsDisplayStructuralDayRead.Unavailable(
 				AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
 			)
 		}
 		native.forEach { row ->
-			AmbientStepsDayIdentity(
-				row.structuralEpochDay,
-				row.storedZoneId,
-				row.structuralDayStartTimeMs,
-				row.structuralDayEndTimeMs,
-			)
-			zonesByDay.getOrPut(row.structuralEpochDay, ::linkedSetOf).add(row.storedZoneId)
+			val valid = try {
+				AmbientStepsDayIdentity(row.structuralEpochDay, row.storedZoneId,
+					row.structuralDayStartTimeMs, row.structuralDayEndTimeMs)
+				true
+			} catch (_: IllegalArgumentException) {
+				false
+			} catch (_: DateTimeException) {
+				false
+			} catch (_: ArithmeticException) {
+				false
+			}
+			if (valid) zonesByDay.getOrPut(row.structuralEpochDay, ::linkedSetOf).add(row.storedZoneId)
+			else invalidCalendarDays += row.structuralEpochDay
 		}
 		val imported = importedDao.latestDaysForEpochRange(
 			firstEpochDay,
@@ -138,7 +168,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		if (imported.size > MAX_NUMERIC_STRUCTURAL_DAY_CANDIDATES ||
 			fences.size > MAX_NUMERIC_STRUCTURAL_DAY_CANDIDATES
 		) {
-			return AmbientStepsNumericStructuralDayRead.Unavailable(
+			return AmbientStepsDisplayStructuralDayRead.Unavailable(
 				AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
 			)
 		}
@@ -148,19 +178,14 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		fences.forEach { row ->
 			zonesByDay.getOrPut(row.structuralEpochDay, ::linkedSetOf).add(row.storedZoneId)
 		}
-		if (zonesByDay.values.any { it.size != 1 }) {
-			return AmbientStepsNumericStructuralDayRead.Unavailable(
-				AmbientStepsHistoryUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
-			)
-		}
-		if (zonesByDay.isEmpty()) return AmbientStepsNumericStructuralDayRead.NoAmbientAuthority
-		val result = zonesByDay.map { (epochDay, zones) ->
+		val conflicts = zonesByDay.filterValues { it.size != 1 }.keys.toSet() + invalidCalendarDays
+		val result = zonesByDay.filterKeys { it !in conflicts }.map { (epochDay, zones) ->
 			AmbientStepsStructuralDay(epochDay, zones.single())
 		}.sortedWith(
 			compareBy(AmbientStepsStructuralDay::epochDay)
 				.thenBy(AmbientStepsStructuralDay::storedZoneId),
 		)
-		return AmbientStepsNumericStructuralDayRead.Exact(evidence.revision, result)
+		return AmbientStepsDisplayStructuralDayRead.Snapshot(evidence.revision, result, conflicts)
 	}
 
 	override suspend fun readDay(

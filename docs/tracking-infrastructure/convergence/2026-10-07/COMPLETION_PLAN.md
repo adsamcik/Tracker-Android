@@ -1,6 +1,6 @@
 # Tracking completion plan
 
-Updated: 2026-10-07. Initial inspected candidate: `5b19ca833596b602643e99d291c4ceae0d3b5cc6`.
+Updated: 2026-10-08. Initial inspected candidate: `5b19ca833596b602643e99d291c4ceae0d3b5cc6`.
 
 ## Outcome and current boundary
 
@@ -260,7 +260,7 @@ when the concrete proposal is ready; do not reask settled decisions.
 | --- | --- | --- |
 | Existing cancellation/lock-order repair for both Start failures | T02, T09 | Authorized by the October 7 instruction to execute the full presented plan. |
 | Smallest Steps recording continuity design and persistent meaning | T03, T18 | Narrowed presented proposal authorized. Operation-lease ancestry edge is under review; no blanket stale authority acceptance. |
-| Recorded-so-far daily Steps with honest missing coverage | T08, T15, T17 | Presented behavior authorized. Per-day display-reader contract explicitly approved; source authorship in progress; games remain strict. |
+| Recorded-so-far daily Steps with honest missing coverage | T08, T15, T17 | Presented behavior authorized. Per-day display-reader contract explicitly approved and V2 independently accepted; games remain strict. |
 | Shared saved Location summary for Tracker/notification/widget values | T17 | Presented reader reuse authorized; no new collection. |
 | Optional two-second first-enable provider-status wait | T08, T17 | Presented bounded wait authorized; existing repair button remains usable. |
 | Saved network/tower rows in existing radio detail screens | T11, T14, T17 | Presented scrolling-list direction authorized; complete lazy-row implementation accepted; simpler authority-copy removal explicitly approved and independently accepted. |
@@ -369,6 +369,11 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
   history, preserving legacy boundaries and preparing bounds once per run. Four
   paths and eight authored methods in `STEPS_RETAINED_LIFETIME_SELECTED/SOURCE_REVIEW.md`
   have independent V2 static acceptance; NOT_RUN. Runtime/portable composition open.
+- [x] Select approved per-day Steps display and one Statistics/History stream:
+  sixty-one paths, forty localized resource sets and twenty-seven authored methods
+  have fresh V2 acceptance in `DAILY_STEPS_DISPLAY_SELECTED/SOURCE_REVIEW.md`;
+  NOT_RUN. Incomplete days are isolated, useful source-aware fallbacks preserved,
+  strict game/reward APIs remain strict. Full source/device chains stay open.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

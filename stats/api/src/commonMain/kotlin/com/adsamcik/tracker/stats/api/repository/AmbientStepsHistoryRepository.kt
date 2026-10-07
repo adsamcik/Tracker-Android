@@ -23,6 +23,31 @@ interface AmbientStepsHistoryRepository {
 /** Narrow source total boundary for numeric consumers that already own the Room transaction. */
 interface AmbientStepsNumericRangeReader {
 	/**
+	 * Display-only discovery from the same bounded stored keys. Conflicting days are identified
+	 * individually; no conflicted day is rebound to the current zone or added into another day.
+	 */
+	suspend fun discoverDisplayStructuralDaysInCurrentTransaction(
+		firstEpochDay: Long,
+		lastEpochDayInclusive: Long,
+		sessionCalendarDays: List<AmbientStepsStructuralDay>,
+		expectedSourceEvidenceRevision: Long,
+	): AmbientStepsDisplayStructuralDayRead = when (val strict =
+		discoverNumericStructuralDaysInCurrentTransaction(
+			firstEpochDay, lastEpochDayInclusive, sessionCalendarDays, expectedSourceEvidenceRevision,
+		)
+	) {
+		is AmbientStepsNumericStructuralDayRead.Exact -> AmbientStepsDisplayStructuralDayRead.Snapshot(
+			strict.sourceEvidenceRevision, strict.days, emptySet(),
+		)
+		AmbientStepsNumericStructuralDayRead.NoAmbientAuthority ->
+			AmbientStepsDisplayStructuralDayRead.Snapshot(expectedSourceEvidenceRevision, emptyList(), emptySet())
+		is AmbientStepsNumericStructuralDayRead.Unavailable ->
+			AmbientStepsDisplayStructuralDayRead.Unavailable(strict.reason)
+		AmbientStepsNumericStructuralDayRead.StorageUnavailable ->
+			AmbientStepsDisplayStructuralDayRead.StorageUnavailable
+	}
+
+	/**
 	 * Discovers exact stored structural-day authority for the requested epoch range. Session
 	 * calendar candidates are constraints, not defaults; conflicting authorities fail closed.
 	 */
@@ -37,6 +62,27 @@ interface AmbientStepsNumericRangeReader {
 		request: AmbientStepsHistoryRangeRequest,
 		expectedSourceEvidenceRevision: Long,
 	): AmbientStepsNumericRangeRead
+}
+
+sealed interface AmbientStepsDisplayStructuralDayRead {
+	data class Snapshot(
+		val sourceEvidenceRevision: Long,
+		val days: List<AmbientStepsStructuralDay>,
+		val calendarConflictEpochDays: Set<Long>,
+	) : AmbientStepsDisplayStructuralDayRead {
+		init {
+			require(sourceEvidenceRevision >= 0L)
+			require(days.size + calendarConflictEpochDays.size <= AmbientStepsHistoryRangeRequest.MAX_DAY_COUNT)
+			require(days.map(AmbientStepsStructuralDay::epochDay).distinct().size == days.size)
+			require(days.none { it.epochDay in calendarConflictEpochDays })
+			require(days == days.sortedBy(AmbientStepsStructuralDay::epochDay))
+		}
+	}
+
+	data class Unavailable(
+		val reason: AmbientStepsHistoryUnavailableReason,
+	) : AmbientStepsDisplayStructuralDayRead
+	data object StorageUnavailable : AmbientStepsDisplayStructuralDayRead
 }
 
 sealed interface AmbientStepsNumericStructuralDayRead {

@@ -36,6 +36,8 @@ import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportBlock
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportMetadata
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportUnverifiableReason
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayValue
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
@@ -100,6 +102,29 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 		numeric.read(
 			StepsNumericSummaryRequest(0L, 0L, "Europe/Prague"),
 		) shouldBe StepsNumericSummary.Ready(listOf(StepsNumericDay(0L, 5L)))
+	}
+
+	@Test
+	fun `display snapshot composes native and imported source-only days without current fallback zones`() = runTest {
+		val fixture = seedNative(revoked = false)
+		database.ambientStepsFactRevisionDao().insert(fixture.fact)
+		val portable = portableArchive(1L, 7L, "display-imported")
+		importer().importArchive(request(portable, "display-import", 2L * DAY_END)) shouldBe
+			ImportPortableAmbientStepsResult.Applied(portable.identity, 1, 1, 1, 0)
+		val history = DefaultAmbientStepsHistoryRepository(
+			database, database.importedAmbientStepsDao(),
+			StepsSegmentHistorySelector(database, SourceProductLaneExecutionAuthority { false }),
+			RoomStepsCountDomainCompatibilityQuery(database), Dispatchers.Unconfined,
+		)
+		val display = RoomStepsNumericSummaryRepository(database, Dispatchers.Unconfined, history)
+			.readDisplay(StepsNumericSummaryRequest(0L, 1L, "Europe/Prague")) as StepsDailyDisplay.Snapshot
+
+		display.days.map { it.value } shouldBe listOf(
+			StepsDailyDisplayValue.Complete(5L), StepsDailyDisplayValue.Complete(7L),
+		)
+		database.openHelper.readableDatabase.query("SELECT COUNT(*) FROM logical_tracking_session").use {
+			it.moveToFirst(); it.getLong(0) shouldBe 0L
+		}
 	}
 
 	@Test

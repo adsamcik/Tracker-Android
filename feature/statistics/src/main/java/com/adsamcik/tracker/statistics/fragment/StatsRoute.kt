@@ -13,7 +13,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.LoadState
 import androidx.compose.ui.res.stringResource
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
-import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.presenter.StatsPresenterViewModel
 import dagger.hilt.EntryPoint
@@ -134,10 +134,10 @@ fun StatsRoute(
 /** Collects retained Steps while this screen is active, independently of session paging. */
 @Composable
 internal fun collectWeeklyStepsSummaryWhenVisible(
-    summaries: StateFlow<StepsNumericSummary>,
+    summaries: StateFlow<StepsDailyDisplay>,
     visible: Boolean,
-): StepsNumericSummary {
-    if (!visible) return StepsNumericSummary.Materializing
+): StepsDailyDisplay {
+    if (!visible) return StepsDailyDisplay.Materializing
     return summaries.collectAsStateWithLifecycle().value
 }
 

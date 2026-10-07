@@ -316,6 +316,7 @@ private fun DayDetailSection(
 @Composable
 private fun HistoryStepsValue.calendarText(): String = when (this) {
 	is HistoryStepsValue.Ready -> count.formatReadable()
+	is HistoryStepsValue.Recorded -> stringResource(R.string.steps_daily_recorded_count, count.formatReadable())
 	HistoryStepsValue.Materializing -> stringResource(R.string.history_value_materializing)
 	is HistoryStepsValue.Unavailable -> when (reason) {
 		com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason.NOT_CAPTURED ->

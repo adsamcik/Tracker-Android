@@ -1,0 +1,106 @@
+{
+  "revision": "V2",
+  "scope": "Only SELECTED source byte copies are proposed; shared working files and all protected paths remain untouched. V1 packet preserved in REVIEW_V1.",
+  "paths": [
+    {
+      "path": "feature/game/src/test/java/com/adsamcik/tracker/game/repository/SourceQualifiedStepsSummaryTest.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "aa8bc840e50cf67177a799f37accca601d0e0456234adaec81b906e999c765ee"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsRoute.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "f8011710b21c99c8513f7caf275ca873fad6b3968076a9785c9a1202a62a46b8"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsScreen.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "df50f5ff1f11fe4ccf46dad183c3d97dad2ded923c087dc8cccbbc6a0baeaf29"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModel.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "eee2e31ff4bd8e97fa12390ce170f3525d95c600de7346c783d4a1ef49626115"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/StatsPresenterViewModel.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "fc6c7438a96f20a3de7969e8c6f56da9011c716758bc5125187b412b15c5a7a9"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CalendarContent.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "bc2adadb02b49e19238e5bb2efd9a12920b4c07f88f78cb7555c001e1f067984"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypes.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "c8e804a4d8635a01926151d8c10b7e7ae8bf3d426aad04ca4cbbc3c03a358551"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/fragment/WeeklySummaryDayValueTextTest.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "cf32ebf514601dd25b83f1e5e36bc0d8245f99493117018cf42986d8cb090ce0"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "065caa5ee0f4d0585a565872e887e9600f2d27cee58d6fa497265fe71afdf04c"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/StatsPresenterViewModelSessionStatsTest.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "4a61bec0d6cb97b21fc4708c8faf47787fd0240887c76f1732db635d9ded47ce"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/StatsScreenComposeTest.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "ea4b88b4f906336e586b02e93cb1858e2f2e9e0e293ba22256440db24979faa1"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AmbientStepsHistoryRepository.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "544b13d8f4a6a6d5067ebbd39c2232a5b4886caf85f6e84cfb3fa1203d17ae61"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/StepsNumericSummaryRepository.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "b1f85b12440dcfc36a3350c31658149e15f468ba31b0f5f05cc65a9e4aa049f2"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultAmbientStepsHistoryRepository.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "3b7d8e0d8f5a789b82e5d38d5ce5f7fc79219a910fcfe5f29872d6a668ac544d"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "f859ce46c6e6afdcdd1648d773d45da786b8f8c1739721794667775b8de08750"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportPortableAmbientStepsNativeAuthorityTest.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "f917ecab29ce2e6ff09f0e7b7b2b9a9c8bf1416288975a31d55e00da464078d8"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/deletion/StepsDailySummaryRepairComposer.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "3c952c33605314bf95c5d1bbc5da33e7198bfc17f396b51a5e0ef58806fafbcf"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepository.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "58fb3f2f0566c1f38d4825ac1b99ab97f448d6c79093c64147c6c55c2735de84"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepositoryRoomTest.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "f556d233902b74fd844bcde78e64ce1d995646df1866df654b4bb78b85b81d8b"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/summary/RoomStepsNumericSummaryRepositoryTest.kt",
+      "disposition": "SELECT clean committed base plus approved daily display changes and three independent static review repairs; preserve raw working draft; exclude unrelated prior edits",
+      "working_sha256": "74694d59a6ffd70676115271eecc95a0a8a3b0885df1480eeea12ed02ca88035"
+    }
+  ]
+}

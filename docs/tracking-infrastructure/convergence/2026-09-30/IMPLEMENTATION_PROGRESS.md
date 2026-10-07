@@ -662,3 +662,10 @@ list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS
   `../2026-10-07/STEPS_RETAINED_LIFETIME_SELECTED/SOURCE_REVIEW.md` accepts V2
   after repairing per-fact timeline rebuilding to one prepared run lookup. Legacy
   null cutoffs and all retained checks preserved; runtime/portable T03 stays open.
+
+- [x] Select approved per-day Steps display and one Statistics/History stream:
+  sixty-one paths, forty localized resource sets and twenty-seven new methods
+  NOT_RUN. `../2026-10-07/DAILY_STEPS_DISPLAY_SELECTED/SOURCE_REVIEW.md` records
+  fresh V2 acceptance after fixing neighbouring-day settlement, Location-only
+  sparse values and ambiguous Compose selectors. Whole-source/provider/gates and
+  final integration remain open.

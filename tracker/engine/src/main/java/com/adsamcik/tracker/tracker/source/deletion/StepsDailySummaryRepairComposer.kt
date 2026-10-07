@@ -162,6 +162,33 @@ internal class StepsDailySummaryRepairComposer(
 	}
 
 	/**
+	 * The display reader has already rejected conflicted or overlapping calendar windows. Read all
+	 * remaining independent days once, including a sparse range, with the strict source qualifiers.
+	 * Missing/conflicted days are not reconstructed and this path never repairs a summary.
+	 */
+	suspend fun composeForDisplayRead(zoneByDay: Map<Long, ZoneId>): StepsDayRepairPreflight {
+		val orderedZones = zoneByDay.toSortedMap()
+		if (orderedZones.isEmpty() || orderedZones.size > StepsNumericSummaryRequest.MAX_DAY_COUNT) {
+			return unverifiable()
+		}
+		val bounds = orderedZones.map { (day, zone) ->
+			stepsNumericReadQueryBounds(mapOf(day to zone)) ?: return unverifiable()
+		}
+		val orderedBounds = bounds.sortedBy { it.fromMs }
+		if (orderedBounds.zipWithNext().any { (left, right) -> left.toMs > right.fromMs }) {
+			return unverifiable()
+		}
+		return composeQualifiedDays(
+			excludedSegmentIds = emptySet(),
+			zoneByDay = orderedZones,
+			queryBounds = QueryBounds(orderedBounds.first().fromMs, orderedBounds.last().toMs),
+			requireNonOverlappingLogicalSessions = true,
+			discoverSourceRuns = true,
+			retainDisplaySettlement = true,
+		)
+	}
+
+	/**
 	 * Retained-domain variant that accepts only an exactly fenced suffix after raw-data pruning.
 	 * Ordinary history, deletion, and bounded recent reads keep their stricter full-run contract.
 	 */
@@ -405,6 +432,7 @@ internal class StepsDailySummaryRepairComposer(
 		discoverSourceRuns: Boolean = false,
 		blockOnActiveUnboundNonSteps: Boolean = false,
 		retainedRead: Boolean = false,
+		retainDisplaySettlement: Boolean = false,
 	): StepsDayRepairPreflight {
 		val readDao = database.trackingHistoryReadDao()
 		val retainedFromMs = database.sourceEvidenceStateDao().get()?.retainedFromMs
@@ -495,6 +523,7 @@ internal class StepsDailySummaryRepairComposer(
 		val factDescriptors = linkedMapOf<String, RunFactDescriptor>()
 		val unboundNonStepsCaptures = mutableListOf<UnboundNonStepsCapture>()
 		val materializingAuthorities = mutableListOf<LogicalContributionAuthority>()
+		val materializingRuns = linkedMapOf<String, SourceServiceRunEntity>()
 		var hasMaterializingSegment = false
 		for (segment in segments) {
 			when (val qualified = qualify(segment, snapshot, retainedRead)) {
@@ -506,6 +535,8 @@ internal class StepsDailySummaryRepairComposer(
 				}
 				is SegmentQualification.Materializing -> {
 					hasMaterializingSegment = true
+					val run = snapshot.serviceRuns[segment.serviceRunId] ?: return unverifiable()
+					materializingRuns[run.serviceRunId] = run
 					materializingAuthorities += qualified.authority
 					if (!addFactDescriptor(factDescriptors, qualified.factDescriptor)) {
 						return unverifiable()
@@ -521,10 +552,12 @@ internal class StepsDailySummaryRepairComposer(
 					materializingAuthorities += qualified.authority
 					if (blockOnActiveUnboundNonSteps) {
 						hasMaterializingSegment = true
+						materializingRuns[run.serviceRunId] = run
 					}
 				}
 				is UnboundRunQualification.Materializing -> {
 					hasMaterializingSegment = true
+					materializingRuns[run.serviceRunId] = run
 					materializingAuthorities += qualified.authority
 				}
 				UnboundRunQualification.Unverifiable -> return unverifiable()
@@ -577,9 +610,13 @@ internal class StepsDailySummaryRepairComposer(
 		if (!streamFactStatePages(factDescriptors.values.toList(), accumulator)) {
 			return unverifiable()
 		}
-		if (hasMaterializingSegment) {
+		if (hasMaterializingSegment && !retainDisplaySettlement) {
 			return StepsDayRepairPreflight.Materializing
 		}
+		val materializingEpochDays = if (hasMaterializingSegment) {
+			discoverMaterializingDisplayDays(materializingRuns.values.toList(), zoneByDay, queryBounds)
+				?: return unverifiable()
+		} else emptySet()
 		val accumulatedDays = accumulator.results() ?: return unverifiable()
 		return StepsDayRepairPreflight.Ready(
 			accumulatedDays.map { day ->
@@ -608,7 +645,83 @@ internal class StepsDailySummaryRepairComposer(
 					},
 				)
 			},
+			materializingEpochDays = materializingEpochDays,
 		)
+	}
+
+	/**
+	 * Only actual unfinished run intervals and retained fact walls can make a display day pending.
+	 * The caller already authenticated these runs, carriers, source/lane/epoch and consent. Open
+	 * ends cover the remaining requested window; corrupt or unassignable clocks are conservative.
+	 * This is one bounded run traversal, never a query for each requested day.
+	 */
+	private suspend fun discoverMaterializingDisplayDays(
+		runs: List<SourceServiceRunEntity>,
+		zoneByDay: Map<Long, ZoneId>,
+		queryBounds: QueryBounds,
+	): Set<Long>? {
+		val windows = zoneByDay.mapValues { (day, zone) ->
+			stepsNumericReadQueryBounds(mapOf(day to zone)) ?: return null
+		}
+		val orderedWindows = windows.entries.sortedBy { it.value.fromMs }
+		val affected = linkedSetOf<Long>()
+		fun addWindow(startMs: Long, endMs: Long): Boolean {
+			if (endMs < startMs) return false
+			if (affected.size == windows.size) return true
+			var low = 0
+			var high = orderedWindows.size
+			while (low < high) {
+				val middle = (low + high) / 2
+				if (orderedWindows[middle].value.toMs <= startMs) low = middle + 1 else high = middle
+			}
+			for (index in low until orderedWindows.size) {
+				val (day, bounds) = orderedWindows[index]
+				if (if (endMs == startMs) bounds.fromMs > startMs else bounds.fromMs >= endMs) break
+				affected += day
+			}
+			return true
+		}
+		for (run in runs) {
+			val completedAtMs = run.completedAtMs
+			if (completedAtMs != null) {
+				if (!addWindow(run.startedAtMs, completedAtMs)) return null
+			} else if (run.startedAtMs < queryBounds.toMs) {
+				if (!addWindow(run.startedAtMs, queryBounds.toMs)) return null
+			}
+			// A known run outside this requested window can still own wall-regressed facts below.
+		}
+		var valid = true
+		val visited = database.trackingHistoryReadDao().visitStepsFactCandidateStatesByRun(runs) { runId, _, candidate ->
+			val scope = candidate.scopeCarrier
+			val state = candidate.state
+			if (!hasValidStepsFactCandidateState(candidate) || scope == null || state == null || scope.serviceRunId != runId) {
+				valid = false
+				false
+			} else if (state.operation != StepFactRevisionEntity.OPERATION_UPSERT) {
+				true
+			} else {
+				val start = scope.intervalStartTimeMs
+				val end = scope.intervalEndTimeMs
+				val uncertainty = scope.wallTimeUncertaintyMs
+				if (start == null || end == null || uncertainty == null) {
+					affected += windows.keys
+					true
+				} else if (uncertainty < 0L || end < start) {
+					valid = false
+					false
+				} else {
+					val envelope = try {
+						Math.subtractExact(start, uncertainty) to Math.addExact(end, uncertainty)
+					} catch (_: ArithmeticException) {
+						null
+					}
+					if (envelope == null) affected += windows.keys
+					else valid = addWindow(envelope.first, envelope.second)
+					valid
+				}
+			}
+		}
+		return affected.takeIf { visited && valid }
 	}
 
 	private suspend fun sourceRepairSegments(
@@ -2632,7 +2745,11 @@ internal fun StepsDayRepairPreflight.redactDeletedImportedCompatibilitySteps(): 
 	}
 
 internal sealed interface StepsDayRepairPreflight {
-	data class Ready(val plans: List<StepsDayRepairPlan>) : StepsDayRepairPreflight
+	data class Ready(
+		val plans: List<StepsDayRepairPlan>,
+		/** Display-only unfinished days; strict composition still returns Materializing instead. */
+		val materializingEpochDays: Set<Long> = emptySet(),
+	) : StepsDayRepairPreflight
 	data class Unsupported(
 		val reason: StepsSessionDeletionUnsupportedReason,
 	) : StepsDayRepairPreflight

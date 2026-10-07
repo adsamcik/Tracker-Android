@@ -32,6 +32,8 @@ import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericRangeRead
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericRangeReader
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericStructuralDayRead
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsStructuralDay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayValue
 import com.adsamcik.tracker.stats.api.repository.StepsNumericCalendarAuthority
 import com.adsamcik.tracker.stats.api.repository.StepsNumericCalendarDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDecisionBatch
@@ -80,6 +82,130 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		if (::database.isInitialized && database.isOpen) {
 			database.close()
 		}
+	}
+
+	@Test
+	fun `display keeps a complete session zero beside a day not captured`() = runBlocking<Unit> {
+		insertCoveredCandidate()
+		val range = request(lastEpochDay = DAY + 1L)
+		val display = repository.readDisplay(range) as StepsDailyDisplay.Snapshot
+		display.days.map { it.value } shouldBe listOf(
+			StepsDailyDisplayValue.Complete(0L),
+			StepsDailyDisplayValue.Unavailable(StepsNumericUnverifiableReason.NOT_CAPTURED),
+		)
+		repository.read(range) shouldBe StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE)
+	}
+
+	@Test
+	fun `display isolates an invalid neighbouring saved zone without guessing its replacement`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 5L)
+		database.dailySummaryDao().upsert(DAY + 1L, 0f, 999, 0L, 0, 0L, 1L, "not-a-zone")
+		val display = repository.readDisplay(request(lastEpochDay = DAY + 1L)) as StepsDailyDisplay.Snapshot
+		display.days.map { it.value } shouldBe listOf(
+			StepsDailyDisplayValue.Complete(5L),
+			StepsDailyDisplayValue.Unavailable(StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
+				setOf(AmbientStepsHistoryCause.STRUCTURAL_AUTHORITY_CONFLICT)),
+		)
+	}
+
+	@Test
+	fun `display does not invent a fallback for an invalid stored DST calendar`() = runBlocking<Unit> {
+		val dstDay = LocalDate.of(2026, 3, 29).toEpochDay()
+		database.dailySummaryDao().upsert(dstDay, 0f, 321, 0L, 0, 0L, 1L, "Europe/Prague")
+		val display = repository.readDisplay(StepsNumericSummaryRequest(dstDay, dstDay, "not-a-zone")) as
+			StepsDailyDisplay.Snapshot
+		// The real 23-hour saved day is accepted, but the legacy cache is not source evidence.
+		display.days.single().value shouldBe StepsDailyDisplayValue.Unavailable(StepsNumericUnverifiableReason.NOT_CAPTURED)
+	}
+
+	@Test
+	fun `display read reports storage closure and does not reuse a prior number`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 5L)
+		(repository.readDisplay(request()) as StepsDailyDisplay.Snapshot).days.single().value shouldBe
+			StepsDailyDisplayValue.Complete(5L)
+		database.close()
+		repository.readDisplay(request()) shouldBe StepsDailyDisplay.StorageUnavailable
+	}
+
+	@Test
+	fun `caller cancellation is propagated from display reads`() = runBlocking<Unit> {
+		val cancelling = RoomStepsNumericSummaryRepository(database, object : CoroutineDispatcher() {
+			override fun dispatch(context: CoroutineContext, block: Runnable) {
+				throw CancellationException("cancelled display read")
+			}
+		})
+		assertFailsWith<CancellationException> { cancelling.readDisplay(request()) }
+	}
+
+	@Test
+	fun `display observation refreshes the same Room snapshot after source facts change`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 5L)
+		val observed = RoomStepsNumericSummaryRepository(database, Dispatchers.IO,
+			FakeAmbientStepsTransactionReader { range, revision ->
+				val latest = database.ambientStepsFactRevisionDao().latestEffectiveOverlapping(
+					AmbientStepsFactRevisionEntity.WRITER_ID, AmbientStepsFactRevisionEntity.WRITER_VERSION,
+					DAY_START, DAY_START + 24L * HOUR_MS, 2).singleOrNull()
+				AmbientStepsNumericRangeRead.Snapshot(revision, range.days.map { day ->
+					AmbientStepsNumericHistoryDay(day, latest?.stepCount?.let(AmbientStepsHistoryValue::Exact)
+						?: AmbientStepsHistoryValue.Unavailable(setOf(AmbientStepsHistoryCause.NO_EVIDENCE)))
+				})
+			})
+		observed.observeDisplay(request()).test {
+			(awaitItem() as StepsDailyDisplay.Snapshot).days.single().value shouldBe StepsDailyDisplayValue.Complete(5L)
+			database.ambientStepsFactRevisionDao().insert(ambientFact(12L)) shouldBe 1L
+			(awaitItem() as StepsDailyDisplay.Snapshot).days.single().value shouldBe StepsDailyDisplayValue.Complete(12L)
+			cancelAndIgnoreRemainingEvents()
+		}
+	}
+
+	@Test
+	fun `display declares source registration retention and count-domain invalidations`() {
+		RoomStepsNumericSummaryRepository.NUMERIC_SUMMARY_DEPENDENCY_TABLES.toSet().containsAll(setOf(
+			"provider_registration_generation", "ambient_steps_retention_authority", "ambient_steps_native_replay_footprint",
+			"steps_count_domain_receipt", "steps_count_domain_owner_revision", "steps_count_domain_completeness_marker",
+			"steps_count_domain_schema_marker", "imported_steps_count_domain_graph", "imported_steps_count_domain_receipt",
+			"imported_steps_count_domain_owner_revision", "imported_steps_count_domain_completeness", "imported_steps_count_domain_root",
+			"imported_steps_count_domain_binding", "imported_steps_count_domain_owner_fence",
+		)) shouldBe true
+	}
+
+	@Test
+	fun `unfinished next-day native run leaves the closed previous day complete`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 5L)
+		val nextDayStart = LocalDate.ofEpochDay(DAY + 1L).atStartOfDay(ZONE).toInstant().toEpochMilli()
+		insertActiveUnboundReplacement(nextDayStart + 2L * HOUR_MS)
+		val range = request(lastEpochDay = DAY + 1L)
+		val display = repository.readDisplay(range) as StepsDailyDisplay.Snapshot
+		display.days.map { it.value } shouldBe listOf(
+			StepsDailyDisplayValue.Complete(5L), StepsDailyDisplayValue.Materializing,
+		)
+		// Strict decisions still require the complete requested window to settle.
+		repository.read(range) shouldBe StepsNumericSummary.Materializing
+	}
+
+	@Test
+	fun `unfinished run at the following boundary respects a real 25-hour local day`() = runBlocking<Unit> {
+		val longDay = LocalDate.of(2026, 10, 25)
+		val firstStart = longDay.atStartOfDay(ZONE).toInstant().toEpochMilli()
+		val nextStart = longDay.plusDays(1L).atStartOfDay(ZONE).toInstant().toEpochMilli()
+		(nextStart - firstStart) shouldBe 25L * HOUR_MS
+		insertCoveredCandidate(stepsPerFact = 6L, epochDay = longDay.toEpochDay())
+		insertActiveUnboundReplacement(nextStart)
+		val range = StepsNumericSummaryRequest(longDay.toEpochDay(), longDay.plusDays(1L).toEpochDay(), ZONE.id)
+		val display = repository.readDisplay(range) as StepsDailyDisplay.Snapshot
+		display.days.map { it.value } shouldBe listOf(
+			StepsDailyDisplayValue.Complete(6L), StepsDailyDisplayValue.Materializing,
+		)
+	}
+
+	@Test
+	fun `display retains an authenticated closed subset while a replacement run is unfinished`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 5L)
+		insertActiveUnboundReplacement()
+		val display = repository.readDisplay(request()) as StepsDailyDisplay.Snapshot
+		display.days.single().value shouldBe StepsDailyDisplayValue.Recorded(5L,
+			setOf(AmbientStepsHistoryCause.MATERIALIZING))
+		repository.read(request()) shouldBe StepsNumericSummary.Materializing
 	}
 
 	@Test
@@ -611,14 +737,16 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		factCount: Int = 1,
 		stepsPerFact: Long = 0L,
 		presentationAcknowledgement: String = SourceServiceRunEntity.PRESENTATION_QUIESCED,
+		epochDay: Long = DAY,
 	) {
+		val startMs = LocalDate.ofEpochDay(epochDay).atStartOfDay(ZONE).toInstant().toEpochMilli()
 		require(factCount > 0)
 		require(stepsPerFact >= 0L)
 		val finalAdmissionOrdinal = ADMISSION_ORDINAL + factCount - 1L
 		val totalSteps = Math.multiplyExact(factCount.toLong(), stepsPerFact)
 		require(totalSteps <= Int.MAX_VALUE)
 		database.dailySummaryDao().upsert(
-			dateEpochDay = DAY,
+			dateEpochDay = epochDay,
 			totalDistanceM = 0f,
 			totalSteps = totalSteps.toInt(),
 			totalDurationMs = 0L,
@@ -654,11 +782,11 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 				rolloutRevision = 1L,
 				startOrigin = MANUAL_START_ORIGIN,
 				clockDomainId = "boot",
-				startedAtMs = DAY_START,
-				startedElapsedNanos = elapsedAt(DAY_START),
-				cutoffAtMs = DAY_START + HOUR_MS,
-				cutoffElapsedNanos = elapsedAt(DAY_START + HOUR_MS),
-				completedAtMs = DAY_START + HOUR_MS,
+				startedAtMs = startMs,
+				startedElapsedNanos = elapsedAt(startMs),
+				cutoffAtMs = startMs + HOUR_MS,
+				cutoffElapsedNanos = elapsedAt(startMs + HOUR_MS),
+				completedAtMs = startMs + HOUR_MS,
 				finalAdmissionOrdinal = finalAdmissionOrdinal,
 				failureCode = null,
 				sessionMode = "MANUAL",
@@ -671,8 +799,8 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		)
 		val segmentId = database.sessionSegmentDao().insert(
 			SessionSegment(
-				startTimeMs = DAY_START,
-				endTimeMs = DAY_START + HOUR_MS,
+				startTimeMs = startMs,
+				endTimeMs = startMs + HOUR_MS,
 				distanceM = 0f,
 				steps = null,
 				primaryActivity = null,
@@ -680,7 +808,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 				sampleCount = 0,
 				source = SegmentSource.USER_CREATED,
 				inferenceVersion = null,
-				createdAt = DAY_START + HOUR_MS,
+				createdAt = startMs + HOUR_MS,
 				logicalTrackingId = LOGICAL_ID,
 				serviceRunId = RUN_ID,
 			),
@@ -693,9 +821,9 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 				desiredPlanRevision = 1L,
 				rolloutRevision = 1L,
 				foregroundCapabilityFlags = 0L,
-				startedAtMs = DAY_START,
-				startedElapsedNanos = elapsedAt(DAY_START),
-				completedAtMs = DAY_START + HOUR_MS,
+				startedAtMs = startMs,
+				startedElapsedNanos = elapsedAt(startMs),
+				completedAtMs = startMs + HOUR_MS,
 				completionReason = "USER_STOP",
 				bootId = "boot",
 				leaseGeneration = 1L,
@@ -710,7 +838,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 				preparedManifestRevision = 1L,
 				preparedIntentRevision = 1L,
 				androidDeliveryState = "FOREGROUND_ACCEPTED",
-				androidDeliveryUpdatedAtMs = DAY_START + HOUR_MS,
+				androidDeliveryUpdatedAtMs = startMs + HOUR_MS,
 				startIsUserInitiated = true,
 				startIsAmbient = false,
 				sessionSegmentId = segmentId,
@@ -718,7 +846,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 				presentationAcknowledgedAtMs = if (
 					presentationAcknowledgement == SourceServiceRunEntity.PRESENTATION_QUIESCED
 				) {
-					DAY_START + HOUR_MS
+					startMs + HOUR_MS
 				} else {
 					null
 				},
@@ -749,8 +877,8 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			rolloutRevision = 1L,
 			startOrigin = MANUAL_START_ORIGIN,
 			effectiveBootId = "boot",
-			effectiveElapsedRealtimeNanos = elapsedAt(DAY_START),
-			effectiveWallTimeMs = DAY_START,
+			effectiveElapsedRealtimeNanos = elapsedAt(startMs),
+			effectiveWallTimeMs = startMs,
 			zoneId = ZONE.id,
 			automationEpoch = null,
 			changeReason = "TEST",
@@ -774,14 +902,14 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 				stopStatus = "COMPLETE",
 				unresolvedSequenceStart = null,
 				unresolvedSequenceEnd = null,
-				updatedAtMs = DAY_START + HOUR_MS,
+				updatedAtMs = startMs + HOUR_MS,
 			),
 		)
 		insertCoveredFacts(
 			runId = RUN_ID,
 			manifestRevision = 1L,
 			firstAdmissionOrdinal = ADMISSION_ORDINAL,
-			intervalStartMs = DAY_START,
+			intervalStartMs = startMs,
 			factCount = factCount,
 			stepsPerFact = stepsPerFact,
 			wallTimeUncertaintyMs = wallTimeUncertaintyMs,
@@ -789,7 +917,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 	}
 
 	@Suppress("LongMethod")
-	private suspend fun insertActiveUnboundReplacement() = database.withTransaction {
+	private suspend fun insertActiveUnboundReplacement(replacementStartMs: Long = DAY_START + 2L * HOUR_MS) = database.withTransaction {
 		val current = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
 		database.sourceSessionDao().updateSession(
 			current.copy(
@@ -814,8 +942,8 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 				desiredPlanRevision = 1L,
 				rolloutRevision = 1L,
 				foregroundCapabilityFlags = 0L,
-				startedAtMs = DAY_START + 2L * HOUR_MS,
-				startedElapsedNanos = elapsedAt(DAY_START + 2L * HOUR_MS),
+				startedAtMs = replacementStartMs,
+				startedElapsedNanos = elapsedAt(replacementStartMs),
 				completedAtMs = null,
 				completionReason = null,
 				bootId = "boot",
@@ -831,7 +959,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 				preparedManifestRevision = 2L,
 				preparedIntentRevision = 2L,
 				androidDeliveryState = "FOREGROUND_ACCEPTED",
-				androidDeliveryUpdatedAtMs = DAY_START + 2L * HOUR_MS,
+				androidDeliveryUpdatedAtMs = replacementStartMs,
 				startIsUserInitiated = true,
 				startIsAmbient = false,
 				sessionSegmentId = null,
@@ -850,8 +978,8 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			rolloutRevision = 1L,
 			startOrigin = MANUAL_START_ORIGIN,
 			effectiveBootId = "boot",
-			effectiveElapsedRealtimeNanos = elapsedAt(DAY_START + 2L * HOUR_MS),
-			effectiveWallTimeMs = DAY_START + 2L * HOUR_MS,
+			effectiveElapsedRealtimeNanos = elapsedAt(replacementStartMs),
+			effectiveWallTimeMs = replacementStartMs,
 			zoneId = ZONE.id,
 			automationEpoch = null,
 			changeReason = "REPLACEMENT",

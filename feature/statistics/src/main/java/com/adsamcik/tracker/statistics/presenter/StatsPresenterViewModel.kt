@@ -13,7 +13,7 @@ import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.repository.CellSignalRepository
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.SessionStatsRepository
-import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
@@ -125,16 +125,16 @@ class StatsPresenterViewModel @Inject constructor(
 
 	private val todayEpochDay = MutableStateFlow(currentLocalDate().toEpochDay())
 	@OptIn(ExperimentalCoroutinesApi::class)
-	val weeklyStepsSummary: StateFlow<StepsNumericSummary> = todayEpochDay
+	val weeklyStepsSummary: StateFlow<StepsDailyDisplay> = todayEpochDay
 		.flatMapLatest { currentTodayEpochDay ->
-			stepsNumericSummaryRepository.observe(
+			stepsNumericSummaryRepository.observeDisplay(
 				StepsNumericSummaryRequest(
 					firstEpochDay = currentTodayEpochDay - WEEKLY_SUMMARY_DAY_COUNT + 1,
 					lastEpochDayInclusive = currentTodayEpochDay,
 					fallbackCalendarZoneId = ZoneId.systemDefault().id,
 				),
 			).onStart {
-				emit(StepsNumericSummary.Materializing)
+				emit(StepsDailyDisplay.Materializing)
 			}
 		}
 		.stateIn(
@@ -143,7 +143,7 @@ class StatsPresenterViewModel @Inject constructor(
 				stopTimeoutMillis = 0L,
 				replayExpirationMillis = 0L,
 			),
-			initialValue = StepsNumericSummary.Materializing,
+			initialValue = StepsDailyDisplay.Materializing,
 		)
 	private lateinit var dayRolloverJob: Job
 

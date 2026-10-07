@@ -501,6 +501,12 @@ private fun activePolicyState(
 private class ObservableStepsRepository(
 	private val beforeObserve: suspend (StepsNumericSummaryRequest) -> Unit = {},
 ) : StepsNumericSummaryRepository {
+	override suspend fun readDisplay(request: StepsNumericSummaryRequest):
+		com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay = error("Games must use strict totals")
+
+	override fun observeDisplay(request: StepsNumericSummaryRequest):
+		Flow<com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay> = error("Games must use strict totals")
+
 	val requests = mutableListOf<StepsNumericSummaryRequest>()
 	private val states = mutableMapOf<List<StepsNumericSummaryRequest>, MutableStateFlow<StepsNumericSummaryBatch>>()
 	var activeCount = 0
@@ -573,6 +579,12 @@ private fun materializing() = QualifiedStepCount.Unavailable(QualifiedStepCountU
 private class FakeStepsNumericSummaryRepository(
 	private val reader: suspend (StepsNumericSummaryRequest) -> StepsNumericSummary,
 ) : StepsNumericSummaryRepository {
+	override suspend fun readDisplay(request: StepsNumericSummaryRequest):
+		com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay = error("Games must use strict totals")
+
+	override fun observeDisplay(request: StepsNumericSummaryRequest):
+		Flow<com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay> = error("Games must use strict totals")
+
 	override fun observe(request: StepsNumericSummaryRequest): Flow<StepsNumericSummary> = flow {
 		emit(read(request))
 	}
