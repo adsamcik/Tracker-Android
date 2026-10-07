@@ -1,0 +1,307 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "execution": "NOT_RUN",
+  "base_head": "78eb255e5958b3490c44fa648b5bb6a67b2af7fe",
+  "files": [
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/TripDetailRadioOverviews.kt",
+      "base_sha256": "d24548e491fef35541ccef02ce0331e8020608606c089ed4187d32352c139a66",
+      "working_before_sha256": "8d786669bce045899f18131d8f654d5b4b25c11cf3366dd2b3e7f07b9288a5c5",
+      "selected_sha256": "454d9c1566e89e7e90ba6f15d15a864426d5813dfa46e6d5d5d7e05b0036dada",
+      "disposition": "Previous cap/stored-zone UI draft preserved and superseded by approved lazy current-local-date list; live file not overwritten yet"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/TripDetailSourceOverviewsComposeTest.kt",
+      "base_sha256": "4e6dd8516a69a1be3cf1828fd3612f4672dc181d07ba78f3b9f6a0ff622b83d7",
+      "working_before_sha256": "18c9b574e71090901e3afe3fe87cf0279eb83e273622612e8f3fbe62951184e1",
+      "selected_sha256": "37f1a59bbde393992656315ad2ecc6fd9fb16fd3a307116deb370ca4068dd71f",
+      "disposition": "HEAD plus four lazy-list/current-zone/missing-fields cases and adapted existing radio scrolling; mixed older test draft preserved"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "9efdc5f549bdc47db59982009dfdcc7779ebe35d518404c272e49895ff1551bf",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-af-rZA/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "48b2afd8c156df71454b9cf2b5a3c046eb1598e4fc1cd2b46f254c485e124ac7",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ar-rSA/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "c67e10a8ab3ce277de9c322169dbac960d062eeb88b45e5c446dc2b4a7d36a03",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-bg-rBG/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "d11120ad341e3fd101a88f3a24f1ee4a0cce5d9536b0cbf5a1c812d59bfa2a3c",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ca-rES/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "e6f5653c734c467154875bca01bc1624a86b2fa1d341bef1e18e9bce48b93beb",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-cs-rCZ/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "4cdb8cb46a900a7f4abd6d31b7cdc8143ab7477937ffba30c720e0af7e894636",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-da-rDK/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "98ca83f95601244cd5326382488eb59e904df87b763090585e66b790ce1b6ba8",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-de-rDE/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "9569054872c62104ace4d5913ccf0a768e8d6795549777247e6138a9d625ac9d",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-el-rGR/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "59d0581df55973f5ed79541aad009a2e5549ba4a2b036dc06ce8d1dbe652e74c",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-es-rES/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "1480646a8f1eb758aa2ab29f808b98e1969dea5247364aa275fff4ca231c66b6",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-et-rEE/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "9e1adc53152663baf9f44fd7899fa9b8d61fd087d9174fd264faea8fdd925420",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-fi-rFI/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "ba870fc7367237f29dad52a2b92979240df5024ea8f209a08602a23564fcd5bc",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-fr-rFR/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "e9edf9ed71d3baf13ec7d9fc03470045e6116465ed0ab17cfd5b44bbdcfd5cd9",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ga-rIE/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "65590a1aeb45382469d719cb89cbdc20bf68f72bef842e12fc4e6c2671e0b8a5",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hi-rIN/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "3291b9de41f3b097aa23455474628440ad67299d194994a9f73a377ccf962086",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hr-rHR/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "6b2ec20dadf04c250207a19c1b60124744c0220bff98153fafad5644166595c1",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hu-rHU/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "d6784a8be6d26eade7028bbc6f07f1bf34a19f8191e3b51cc7c1d97ef73f365e",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-it-rIT/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "9b0ed9d2f64536d8b8b89619356c8d7cf2cdaac6d0f071ae3f998eb03d61a7d0",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-iw-rIL/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "22b5b1648d8f3bfad5fffdfabdcfbcfdbcb33502f573c0dbf4589afd844da1b3",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ja-rJP/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "38905d8a77e0f53edf740f3042f856e66d139485b1634fad7cafdd06290a6d1d",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ko-rKR/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "8167614c4f52fbbc59af189f684a8d17a9a46b707c3c2c759c5142feee605398",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-lt-rLT/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "dbfcecd89a267bf1082128050364d81f8eda78b4c7f3e3cb3ab8a2216fef4e0f",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-lv-rLV/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "0c11a3526b78af75c4e9959c484090797e360d55e83fc7caf7215756a95b0dec",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-mt-rMT/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "04656fb43461604127ee0e78c94110b137fa207901925847dbc0044965a0256d",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-nl-rNL/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "e76edc32c64bec6deceb3b46cdaf1c94861fdadb276032847caa60a6f04c81d7",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-no-rNO/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "da16a80924146a21d8ae8f13465683750a3ba35291d4bc556ab89ddac2949faa",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pl-rPL/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "3bdd6295dd0237e9573da0bc4ccca5eb84c466bbe6d4bb8aa00923499369dd0e",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pt-rBR/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "1480646a8f1eb758aa2ab29f808b98e1969dea5247364aa275fff4ca231c66b6",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pt-rPT/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "1480646a8f1eb758aa2ab29f808b98e1969dea5247364aa275fff4ca231c66b6",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ro-rRO/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "9fe4afc38e7fd62286d490f4c6021d87346665ac1c01ab687e387a7c40085d96",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ru-rRU/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "a99b97bd189243ee7acc30928923d8c390c8913a5344e3712c9882ee503e26b6",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sk-rSK/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "7a1977b191fd37e8e66c652260bb308ddd1f088f779cfff2cdb42e079a5e6dac",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sl-rSI/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "433795d58c752ae2c0c1cc471597607d76e8759113a10fedc50a23ef90cb9c4e",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sr-rSP/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "4a113750f3a0df42a301bc374acb854c00532e305c868dc746e9b21613e866f1",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sv-rSE/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "d622fffee093ad373ca6dd9e607d6bd53bd72c2336d8b69dccfff0923507b260",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-tr-rTR/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "f4afda5d4a63fff26299d0f75167263ee755d49b3e623cbde351fed6c9b223e2",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-uk-rUA/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "8a48220cfbbc6842a1cc1e7caf600a669f0a2a6e27dde348f4189fa002b30750",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-vi-rVN/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "c109a408a7361b6105925df42be9b49039a247fe8988e57d76778774e5fdadbc",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-zh-rCN/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "c8414403f76681acc2fe449623148fc5430a438a264add6c6425be0bf5f8baf5",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-zh-rTW/radio_detail_strings.xml",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "d62b78cd8a91500cdbec511a8734e7291662479d5e7350efef00b3a22f4aabff",
+      "disposition": "Two short localized list headings; international units only in default resources"
+    }
+  ],
+  "new_test_methods": 4,
+  "independent_review": "PENDING",
+  "selection_patch_sha256": "1a590d6ea064ad6f1fda1f03d607ccadab546ad5250a0e70f99a0f1595956dbc",
+  "review_round": 2,
+  "previous_test_sha256": "ade385a639ca1730c78cba618cf5559d410b8292557306ef82547655ecf2c989"
+}

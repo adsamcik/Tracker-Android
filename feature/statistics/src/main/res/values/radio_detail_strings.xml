@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="radio_detail_networks">Networks</string>
+    <string name="radio_detail_towers">Towers</string>
+    <string name="radio_detail_signal_dbm" translatable="false">%1$d dBm</string>
+    <string name="radio_detail_frequency_mhz" translatable="false">%1$d MHz</string>
+</resources>

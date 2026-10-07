@@ -1,0 +1,926 @@
+--- a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/TripDetailRadioOverviews.kt
++++ b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/TripDetailRadioOverviews.kt
+@@ -4,13 +4,25 @@
+ 
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.WindowInsets
++import androidx.compose.foundation.layout.asPaddingValues
++import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.navigationBars
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.LazyListScope
++import androidx.compose.foundation.lazy.items
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.remember
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.platform.testTag
+ import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.unit.dp
+ import com.adsamcik.tracker.shared.base.extension.formatReadable
+ import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
+@@ -21,6 +33,7 @@
+ import com.adsamcik.tracker.stats.api.repository.CellHistoryOrigin
+ import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
+ import com.adsamcik.tracker.stats.api.repository.CellHistoryTechnology
++import com.adsamcik.tracker.stats.api.repository.CellObservedTower
+ import com.adsamcik.tracker.stats.api.repository.HistorySource
+ import com.adsamcik.tracker.stats.api.repository.SourceOnlyHistoryIntent
+ import com.adsamcik.tracker.stats.api.repository.WifiHistoryBand
+@@ -29,110 +42,143 @@
+ import com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin
+ import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
+ import com.adsamcik.tracker.stats.api.repository.WifiHistoryResultCompleteness
+-
+-/** Identity-free selected Wi-Fi detail. Counts are retained results, never unique networks. */
++import com.adsamcik.tracker.stats.api.repository.WifiObservedNetwork
++import java.time.Instant
++import java.time.ZoneId
++import java.time.format.DateTimeFormatter
++import java.time.format.FormatStyle
++
++/** Saved Wi-Fi readings; counts describe observations rather than unique networks. */
+ @Composable
+ internal fun TripDetailWifiOverview(
+ 	history: WifiHistoryEntry,
+ 	intent: SourceOnlyHistoryIntent,
+ ) {
+ 	val resources = LocalContext.current.resources
+-	SourceDetailColumn(tag = "trip_detail_wifi_only") {
+-		SourceDetailHeader(
+-			title = stringResource(R.string.trip_detail_wifi_session),
+-			startTime = history.startTime,
+-			endTime = history.endTime,
+-		)
+-		SourceHistoryAuthorityCard(
+-			source = HistorySource.WIFI,
+-			originLabel = stringResource(history.origin.labelResource),
+-			intent = intent,
+-		)
+-		RadioHistoryStateCard(
+-			status = stringResource(history.state.labelResource),
+-			coverage = stringResource(history.coverage.labelResource),
+-			empty = history.observations.isEmpty(),
+-			emptyExplanation = stringResource(history.state.emptyExplanationResource),
+-		)
++	val networkReadings = remember(history.observations) {
++		history.observations.flatMap { it.networks }.sortedByDescending { it.observedTimeMs }
++	}
++	val formatter = radioReadingTimeFormatter()
++	RadioDetailList(tag = "trip_detail_wifi_only") {
++		item {
++			SourceDetailHeader(
++				title = stringResource(R.string.trip_detail_wifi_session),
++				startTime = history.startTime,
++				endTime = history.endTime,
++			)
++		}
++		item {
++			SourceHistoryAuthorityCard(
++				source = HistorySource.WIFI,
++				originLabel = stringResource(history.origin.labelResource),
++				intent = intent,
++			)
++		}
++		item {
++			RadioHistoryStateCard(
++				status = stringResource(history.state.labelResource),
++				coverage = stringResource(history.coverage.labelResource),
++				empty = history.observations.isEmpty(),
++				emptyExplanation = stringResource(history.state.emptyExplanationResource),
++			)
++		}
+ 		if (history.observations.isNotEmpty()) {
+ 			val retainedResults = history.observations.sumOf { it.observationCount.toLong() }
+ 			val partialDeliveries = history.observations.count {
+ 				it.resultCompleteness == WifiHistoryResultCompleteness.PARTIAL
+ 			}
+-			GlassCard(modifier = Modifier.fillMaxWidth()) {
+-				Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+-					SourceDetailHeading(stringResource(R.string.trip_detail_wifi_evidence))
+-					FactRow(
+-						label = stringResource(R.string.trip_detail_radio_deliveries),
+-						value = history.observations.size.formatReadable(),
+-					)
+-					FactRow(
+-						label = stringResource(R.string.trip_detail_wifi_retained_results),
+-						value = retainedResults.formatReadable(),
+-					)
+-					FactRow(
+-						label = stringResource(R.string.trip_detail_radio_partial_deliveries),
+-						value = partialDeliveries.formatReadable(),
+-					)
+-					val bandMix = history.observations
+-						.flatMap { observation -> observation.bandMix.entries }
+-						.groupBy { it.key }
+-						.mapValues { (_, entries) -> entries.sumOf { it.value.toLong() } }
+-					if (bandMix.isNotEmpty()) {
+-						FactRow(
+-							label = stringResource(R.string.trip_detail_wifi_band_mix),
+-							value = bandMix.entries
+-								.sortedBy { it.key.ordinal }
+-								.joinToString { (band, count) ->
+-									"${resources.getString(band.labelResource)}: ${count.formatReadable()}"
+-								},
++			item {
++				GlassCard(modifier = Modifier.fillMaxWidth()) {
++					Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
++						SourceDetailHeading(stringResource(R.string.trip_detail_wifi_evidence))
++						FactRow(
++							label = stringResource(R.string.trip_detail_radio_deliveries),
++							value = history.observations.size.formatReadable(),
++						)
++						FactRow(
++							label = stringResource(R.string.trip_detail_wifi_retained_results),
++							value = retainedResults.formatReadable(),
++						)
++						FactRow(
++							label = stringResource(R.string.trip_detail_radio_partial_deliveries),
++							value = partialDeliveries.formatReadable(),
++						)
++						val bandMix = history.observations
++							.flatMap { observation -> observation.bandMix.entries }
++							.groupBy { it.key }
++							.mapValues { (_, entries) -> entries.sumOf { it.value.toLong() } }
++						if (bandMix.isNotEmpty()) {
++							FactRow(
++								label = stringResource(R.string.trip_detail_wifi_band_mix),
++								value = bandMix.entries
++									.sortedBy { it.key.ordinal }
++									.joinToString { (band, count) ->
++										"${resources.getString(band.labelResource)}: ${count.formatReadable()}"
++									},
++							)
++						}
++						val strongest = history.observations.maxOf {
++							it.signalQuality.strongestSignalDbm
++						}
++						val weakest = history.observations.minOf {
++							it.signalQuality.weakestSignalDbm
++						}
++						FactRow(
++							label = stringResource(R.string.trip_detail_wifi_signal_range),
++							value = stringResource(
++								R.string.trip_detail_wifi_signal_range_value,
++								weakest,
++								strongest,
++							),
+ 						)
+ 					}
+-					val strongest = history.observations.maxOf {
+-						it.signalQuality.strongestSignalDbm
+-					}
+-					val weakest = history.observations.minOf {
+-						it.signalQuality.weakestSignalDbm
+-					}
+-					FactRow(
+-						label = stringResource(R.string.trip_detail_wifi_signal_range),
+-						value = stringResource(
+-							R.string.trip_detail_wifi_signal_range_value,
+-							weakest,
+-							strongest,
+-						),
+-					)
+ 				}
+ 			}
+ 		}
+-		RadioLocationExclusionNotice()
+-	}
+-}
+-
+-/** Identity-free selected Cell detail. Counts never imply unique towers or subscriptions. */
++		if (networkReadings.isNotEmpty()) {
++			item { SourceDetailHeading(stringResource(R.string.radio_detail_networks)) }
++			items(networkReadings, contentType = { "network" }) { reading ->
++				RadioWifiReading(reading, formatter)
++			}
++		}
++		item { RadioLocationExclusionNotice() }
++	}
++}
++
++/** Saved Cell readings describe phone observations rather than tower positions. */
+ @Composable
+ internal fun TripDetailCellOverview(
+ 	history: CellHistoryEntry,
+ 	intent: SourceOnlyHistoryIntent,
+ ) {
+ 	val resources = LocalContext.current.resources
+-	SourceDetailColumn(tag = "trip_detail_cell_only") {
+-		SourceDetailHeader(
+-			title = stringResource(R.string.trip_detail_cell_session),
+-			startTime = history.startTime,
+-			endTime = history.endTime,
+-		)
+-		SourceHistoryAuthorityCard(
+-			source = HistorySource.CELL,
+-			originLabel = stringResource(history.origin.labelResource),
+-			intent = intent,
+-		)
+-		RadioHistoryStateCard(
+-			status = stringResource(history.state.labelResource),
+-			coverage = stringResource(history.coverage.labelResource),
+-			empty = history.observations.isEmpty(),
+-			emptyExplanation = stringResource(history.state.emptyExplanationResource),
+-		)
++	val towerReadings = remember(history.observations) {
++		history.observations.flatMap { it.towers }.sortedByDescending { it.observedTimeMs }
++	}
++	val formatter = radioReadingTimeFormatter()
++	RadioDetailList(tag = "trip_detail_cell_only") {
++		item {
++			SourceDetailHeader(
++				title = stringResource(R.string.trip_detail_cell_session),
++				startTime = history.startTime,
++				endTime = history.endTime,
++			)
++		}
++		item {
++			SourceHistoryAuthorityCard(
++				source = HistorySource.CELL,
++				originLabel = stringResource(history.origin.labelResource),
++				intent = intent,
++			)
++		}
++		item {
++			RadioHistoryStateCard(
++				status = stringResource(history.state.labelResource),
++				coverage = stringResource(history.coverage.labelResource),
++				empty = history.observations.isEmpty(),
++				emptyExplanation = stringResource(history.state.emptyExplanationResource),
++			)
++		}
+ 		if (history.observations.isNotEmpty()) {
+ 			val retainedRecords = history.observations.sumOf { it.acceptedChildCount.toLong() }
+ 			val registeredRecords = history.observations.sumOf {
+@@ -141,43 +187,102 @@
+ 			val partialDeliveries = history.observations.count {
+ 				it.childCompleteness == CellHistoryChildCompleteness.PARTIAL
+ 			}
+-			GlassCard(modifier = Modifier.fillMaxWidth()) {
+-				Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+-					SourceDetailHeading(stringResource(R.string.trip_detail_cell_evidence))
+-					FactRow(
+-						label = stringResource(R.string.trip_detail_radio_deliveries),
+-						value = history.observations.size.formatReadable(),
+-					)
+-					FactRow(
+-						label = stringResource(R.string.trip_detail_cell_retained_records),
+-						value = retainedRecords.formatReadable(),
+-					)
+-					FactRow(
+-						label = stringResource(R.string.trip_detail_cell_registered_records),
+-						value = registeredRecords.formatReadable(),
+-					)
+-					FactRow(
+-						label = stringResource(R.string.trip_detail_radio_partial_deliveries),
+-						value = partialDeliveries.formatReadable(),
+-					)
+-					val technologyMix = history.observations
+-						.flatMap { observation -> observation.technologyMix.entries }
+-						.groupBy { it.key }
+-						.mapValues { (_, entries) -> entries.sumOf { it.value.toLong() } }
+-					if (technologyMix.isNotEmpty()) {
+-						FactRow(
+-							label = stringResource(R.string.trip_detail_cell_technology_mix),
+-							value = technologyMix.entries
+-								.sortedBy { it.key.ordinal }
+-								.joinToString { (technology, count) ->
+-									"${resources.getString(technology.labelResource)}: ${count.formatReadable()}"
+-								},
+-						)
++			item {
++				GlassCard(modifier = Modifier.fillMaxWidth()) {
++					Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
++						SourceDetailHeading(stringResource(R.string.trip_detail_cell_evidence))
++						FactRow(
++							label = stringResource(R.string.trip_detail_radio_deliveries),
++							value = history.observations.size.formatReadable(),
++						)
++						FactRow(
++							label = stringResource(R.string.trip_detail_cell_retained_records),
++							value = retainedRecords.formatReadable(),
++						)
++						FactRow(
++							label = stringResource(R.string.trip_detail_cell_registered_records),
++							value = registeredRecords.formatReadable(),
++						)
++						FactRow(
++							label = stringResource(R.string.trip_detail_radio_partial_deliveries),
++							value = partialDeliveries.formatReadable(),
++						)
++						val technologyMix = history.observations
++							.flatMap { observation -> observation.technologyMix.entries }
++							.groupBy { it.key }
++							.mapValues { (_, entries) -> entries.sumOf { it.value.toLong() } }
++						if (technologyMix.isNotEmpty()) {
++							FactRow(
++								label = stringResource(R.string.trip_detail_cell_technology_mix),
++								value = technologyMix.entries
++									.sortedBy { it.key.ordinal }
++									.joinToString { (technology, count) ->
++										"${resources.getString(technology.labelResource)}: ${count.formatReadable()}"
++									},
++							)
++						}
+ 					}
+ 				}
+ 			}
+ 		}
+-		RadioLocationExclusionNotice()
++		if (towerReadings.isNotEmpty()) {
++			item { SourceDetailHeading(stringResource(R.string.radio_detail_towers)) }
++			items(towerReadings, contentType = { "tower" }) { reading ->
++				RadioCellReading(reading, formatter)
++			}
++		}
++		item { RadioLocationExclusionNotice() }
++	}
++}
++
++@Composable
++private fun RadioDetailList(tag: String, content: LazyListScope.() -> Unit) {
++	val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
++	LazyColumn(
++		modifier = Modifier.fillMaxSize().testTag(tag),
++		contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 32.dp + navBottom),
++		verticalArrangement = Arrangement.spacedBy(16.dp),
++		content = content,
++	)
++}
++
++@Composable
++private fun radioReadingTimeFormatter(): DateTimeFormatter {
++	val locale = LocalConfiguration.current.locales[0]
++	val zone = ZoneId.systemDefault()
++	return remember(locale, zone) {
++		DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale).withZone(zone)
++	}
++}
++
++@Composable
++private fun RadioWifiReading(network: WifiObservedNetwork, formatter: DateTimeFormatter) {
++	val details = listOf(
++		formatter.format(Instant.ofEpochMilli(network.observedTimeMs)),
++		stringResource(R.string.radio_detail_signal_dbm, network.signalDbm),
++		stringResource(R.string.radio_detail_frequency_mhz, network.frequencyMhz),
++	).joinToString(" · ")
++	GlassCard(modifier = Modifier.fillMaxWidth().testTag("radio_wifi_reading").semantics(mergeDescendants = true) {}) {
++		Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
++			listOfNotNull(network.ssid?.takeIf(String::isNotBlank), network.bssid)
++				.distinct().forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
++			Text(details, style = MaterialTheme.typography.bodyMedium)
++		}
++	}
++}
++
++@Composable
++private fun RadioCellReading(tower: CellObservedTower, formatter: DateTimeFormatter) {
++	val details = listOfNotNull(
++		formatter.format(Instant.ofEpochMilli(tower.observedTimeMs)),
++		stringResource(tower.technology.labelResource),
++		tower.signalDbm?.let { stringResource(R.string.radio_detail_signal_dbm, it) },
++	).joinToString(" · ")
++	GlassCard(modifier = Modifier.fillMaxWidth().testTag("radio_cell_reading").semantics(mergeDescendants = true) {}) {
++		Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
++			tower.identity?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
++			Text(details, style = MaterialTheme.typography.bodyMedium)
++		}
+ 	}
+ }
+ 
+--- a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/TripDetailSourceOverviewsComposeTest.kt
++++ b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/TripDetailSourceOverviewsComposeTest.kt
+@@ -1,13 +1,18 @@
+ package com.adsamcik.tracker.statistics.ui
+ 
+ import androidx.compose.material3.MaterialTheme
++import androidx.compose.ui.test.assert
+ import androidx.compose.ui.test.assertCountEquals
+ import androidx.compose.ui.test.assertIsDisplayed
+ import androidx.compose.ui.test.assertIsNotEnabled
++import androidx.compose.ui.test.hasText
++import androidx.compose.ui.test.hasTestTag
+ import androidx.compose.ui.test.junit4.createComposeRule
+ import androidx.compose.ui.test.onAllNodesWithText
++import androidx.compose.ui.test.onNodeWithTag
+ import androidx.compose.ui.test.onNodeWithText
+ import androidx.compose.ui.test.performScrollTo
++import androidx.compose.ui.test.performScrollToNode
+ import com.adsamcik.tracker.shared.base.extension.formatReadable
+ import com.adsamcik.tracker.statistics.R
+ import com.adsamcik.tracker.statistics.presenter.toTripDetailStepsState
+@@ -36,6 +41,7 @@
+ import com.adsamcik.tracker.stats.api.repository.CellHistorySignalQuality
+ import com.adsamcik.tracker.stats.api.repository.CellHistorySubscriptionGrouping
+ import com.adsamcik.tracker.stats.api.repository.CellHistoryTechnology
++import com.adsamcik.tracker.stats.api.repository.CellObservedTower
+ import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
+ import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
+ import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+@@ -59,9 +65,15 @@
+ import com.adsamcik.tracker.stats.api.repository.WifiHistoryResultCompleteness
+ import com.adsamcik.tracker.stats.api.repository.WifiHistorySignalQuality
+ import com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey
++import com.adsamcik.tracker.stats.api.repository.WifiObservedNetwork
+ import com.adsamcik.tracker.stats.api.value.DistanceM
+ import com.adsamcik.tracker.stats.api.value.DurationMs
+ import com.adsamcik.tracker.stats.api.value.EpochMs
++import java.time.Instant
++import java.time.ZoneId
++import java.time.format.DateTimeFormatter
++import java.time.format.FormatStyle
++import java.util.TimeZone
+ import org.junit.Rule
+ import org.junit.Test
+ import org.junit.runner.RunWith
+@@ -279,17 +291,11 @@
+ 			}
+ 		}
+ 
+-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_partial))
+-			.performScrollTo().assertIsDisplayed()
+-		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_exact))
+-			.performScrollTo().assertIsDisplayed()
+-		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_exact_explanation))
+-			.performScrollTo().assertIsDisplayed()
+-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_coverage_partial))
+-			.performScrollTo().assertIsDisplayed()
+-		composeRule.onNodeWithText(text(R.string.trip_detail_wifi_retained_results))
+-			.performScrollTo()
+-			.assertIsDisplayed()
++		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_radio_partial))
++		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_source_purpose_exact))
++		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_source_purpose_exact_explanation))
++		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_radio_coverage_partial))
++		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_wifi_retained_results))
+ 		composeRule.onAllNodesWithText("unique", substring = true, ignoreCase = true)
+ 			.assertCountEquals(0)
+ 		composeRule.onAllNodesWithText("SSID", substring = true).assertCountEquals(0)
+@@ -308,8 +314,7 @@
+ 			}
+ 		}
+ 
+-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_waiting))
+-			.performScrollTo().assertIsDisplayed()
++		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_radio_waiting))
+ 		composeRule.onNodeWithText("0").assertDoesNotExist()
+ 	}
+ 
+@@ -324,10 +329,8 @@
+ 			}
+ 		}
+ 
+-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_partial))
+-			.performScrollTo().assertIsDisplayed()
+-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_coverage_partial))
+-			.performScrollTo().assertIsDisplayed()
++		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_radio_partial))
++		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_radio_coverage_partial))
+ 		composeRule.onAllNodesWithText("unique tower", substring = true, ignoreCase = true)
+ 			.assertCountEquals(0)
+ 		composeRule.onAllNodesWithText("SIM", substring = true, ignoreCase = true)
+@@ -348,16 +351,11 @@
+ 			}
+ 		}
+ 
+-		composeRule.onNodeWithText(text(R.string.trip_detail_source_origin_imported))
+-			.performScrollTo().assertIsDisplayed()
+-		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_imported))
+-			.performScrollTo().assertIsDisplayed()
+-		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_imported_explanation))
+-			.performScrollTo().assertIsDisplayed()
+-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_deleted))
+-			.performScrollTo().assertIsDisplayed()
+-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_deleted_explanation))
+-			.performScrollTo().assertIsDisplayed()
++		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_source_origin_imported))
++		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_source_purpose_imported))
++		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_source_purpose_imported_explanation))
++		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_radio_deleted))
++		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_radio_deleted_explanation))
+ 		composeRule.onNodeWithText("0").assertDoesNotExist()
+ 	}
+ 
+@@ -401,6 +399,92 @@
+ 				)
+ 			}
+ 		}
++	}
++
++	@Test
++	fun `Wi-Fi details retain every saved network beyond the old twenty-row cap`() {
++		val original = partialWifi()
++		val observation = original.observations.single()
++		val entry = original.copy(observations = (0..24).map { index ->
++			observation.copy(networks = listOf(WifiObservedNetwork(
++				observedTimeMs = 2_000L - index,
++				wallTimeUncertaintyMs = 100L,
++				bssid = "aa:bb:cc:dd:ee:${index.toString(16).padStart(2, '0')}",
++				ssid = "Network $index", frequencyMhz = 5_180, signalDbm = -45,
++			)))
++		})
++		composeRule.setContent { MaterialTheme { TripDetailWifiOverview(entry, SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY) } }
++		assertRadioText("trip_detail_wifi_only", "Network 24")
++		composeRule.onNodeWithText("aa:bb:cc:dd:ee:18").assertIsDisplayed()
++		composeRule.onNodeWithText("Network 24").assert(hasText(text(R.string.radio_detail_signal_dbm, -45), substring = true))
++		composeRule.onNodeWithText("Network 24").assert(hasText(text(R.string.radio_detail_frequency_mhz, 5180), substring = true))
++		assertLocationProductsAbsent()
++	}
++
++	@Test
++	fun `Cell details retain every saved tower beyond the old twenty-row cap`() {
++		val original = partialCell()
++		val observation = original.observations.single()
++		val entry = original.copy(observations = (0..24).map { index ->
++			observation.copy(towers = listOf(CellObservedTower(
++				observedTimeMs = 2_000L - index, wallTimeUncertaintyMs = 100L,
++				identity = "310:260:123:$index", technology = CellHistoryTechnology.LTE,
++				registered = true, signalDbm = -92,
++			)))
++		})
++		composeRule.setContent { MaterialTheme { TripDetailCellOverview(entry, SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY) } }
++		assertRadioText("trip_detail_cell_only", "310:260:123:24")
++		composeRule.onNodeWithText("310:260:123:24").assert(hasText(text(R.string.radio_detail_signal_dbm, -92), substring = true))
++		assertLocationProductsAbsent()
++	}
++
++	@Test
++	fun `radio reading date follows current local time rather than saved recording zone`() {
++		val previous = TimeZone.getDefault()
++		TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
++		try {
++			val instant = Instant.parse("2026-10-07T01:00:00Z")
++			val original = partialWifi()
++			val entry = original.copy(
++				startTime = EpochMs(instant.toEpochMilli() - 1_000L),
++				endTime = EpochMs(instant.toEpochMilli() + 3_000L),
++				storedZoneIds = setOf("Pacific/Honolulu"),
++				observations = listOf(original.observations.single().copy(
++				intervalStartTime = EpochMs(instant.toEpochMilli() - 1_000L),
++				observedTime = EpochMs(instant.toEpochMilli()),
++				storedZoneId = "Pacific/Honolulu",
++				networks = listOf(WifiObservedNetwork(instant.toEpochMilli(), 100L,
++					"aa:bb:cc:dd:ee:ff", "Travel network", 5_180, -45)),
++			)))
++			val locale = RuntimeEnvironment.getApplication().resources.configuration.locales[0]
++			val formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale)
++			val displayedTime = formatter.withZone(ZoneId.of("UTC")).format(instant)
++			val oldZoneTime = formatter.withZone(ZoneId.of("Pacific/Honolulu")).format(instant)
++			composeRule.setContent { MaterialTheme { TripDetailWifiOverview(entry, SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY) } }
++			assertRadioText("trip_detail_wifi_only", "Travel network")
++			composeRule.onNodeWithText(displayedTime, substring = true).assertIsDisplayed()
++			composeRule.onAllNodesWithText(oldZoneTime, substring = true).assertCountEquals(0)
++		} finally {
++			TimeZone.setDefault(previous)
++		}
++	}
++
++	@Test
++	fun `Cell details omit missing tower identity and signal without inventing a value`() {
++		val original = partialCell()
++		val entry = original.copy(observations = listOf(original.observations.single().copy(
++			towers = listOf(CellObservedTower(2_000L, 100L, null, CellHistoryTechnology.LTE, true, null)),
++		)))
++		composeRule.setContent { MaterialTheme { TripDetailCellOverview(entry, SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY) } }
++		composeRule.onNodeWithTag("trip_detail_cell_only").performScrollToNode(hasTestTag("radio_cell_reading"))
++		composeRule.onNodeWithTag("radio_cell_reading").assertIsDisplayed()
++		composeRule.onAllNodesWithText("dBm", substring = true).assertCountEquals(0)
++		composeRule.onAllNodesWithText("Unknown tower").assertCountEquals(0)
++	}
++
++	private fun assertRadioText(tag: String, value: String) {
++		composeRule.onNodeWithTag(tag).performScrollToNode(hasText(value))
++		composeRule.onNodeWithText(value).assertIsDisplayed()
+ 	}
+ 
+ 	private fun assertLocationProductsAbsent() {
+--- a/feature/statistics/src/main/res/values/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values/radio_detail_strings.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Networks</string>
++    <string name="radio_detail_towers">Towers</string>
++    <string name="radio_detail_signal_dbm" translatable="false">%1$d dBm</string>
++    <string name="radio_detail_frequency_mhz" translatable="false">%1$d MHz</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-af-rZA/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-af-rZA/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Netwerke</string>
++    <string name="radio_detail_towers">Selfoontorings</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-ar-rSA/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-ar-rSA/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">الشبكات</string>
++    <string name="radio_detail_towers">الأبراج</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-bg-rBG/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-bg-rBG/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Мрежи</string>
++    <string name="radio_detail_towers">Клетъчни кули</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-ca-rES/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-ca-rES/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Xarxes</string>
++    <string name="radio_detail_towers">Torres</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-cs-rCZ/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-cs-rCZ/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Sítě</string>
++    <string name="radio_detail_towers">Vysílače</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-da-rDK/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-da-rDK/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Netværk</string>
++    <string name="radio_detail_towers">Master</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-de-rDE/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-de-rDE/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Netzwerke</string>
++    <string name="radio_detail_towers">Funkmasten</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-el-rGR/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-el-rGR/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Δίκτυα</string>
++    <string name="radio_detail_towers">Κεραίες</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-es-rES/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-es-rES/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Redes</string>
++    <string name="radio_detail_towers">Antenas</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-et-rEE/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-et-rEE/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Võrgud</string>
++    <string name="radio_detail_towers">Mastid</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-fi-rFI/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-fi-rFI/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Verkot</string>
++    <string name="radio_detail_towers">Tukiasemat</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-fr-rFR/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-fr-rFR/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Réseaux</string>
++    <string name="radio_detail_towers">Antennes</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-ga-rIE/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-ga-rIE/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Líonraí</string>
++    <string name="radio_detail_towers">Crainn</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-hi-rIN/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-hi-rIN/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">नेटवर्क</string>
++    <string name="radio_detail_towers">टावर</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-hr-rHR/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-hr-rHR/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Mreže</string>
++    <string name="radio_detail_towers">Tornjevi</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-hu-rHU/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-hu-rHU/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Hálózatok</string>
++    <string name="radio_detail_towers">Adótornyok</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-it-rIT/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-it-rIT/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Reti</string>
++    <string name="radio_detail_towers">Torri</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-iw-rIL/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-iw-rIL/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">רשתות</string>
++    <string name="radio_detail_towers">אנטנות</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-ja-rJP/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-ja-rJP/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">ネットワーク</string>
++    <string name="radio_detail_towers">基地局</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-ko-rKR/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-ko-rKR/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">네트워크</string>
++    <string name="radio_detail_towers">기지국</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-lt-rLT/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-lt-rLT/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Tinklai</string>
++    <string name="radio_detail_towers">Bokštai</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-lv-rLV/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-lv-rLV/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Tīkli</string>
++    <string name="radio_detail_towers">Torņi</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-mt-rMT/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-mt-rMT/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Netwerks</string>
++    <string name="radio_detail_towers">Torrijiet</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-nl-rNL/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-nl-rNL/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Netwerken</string>
++    <string name="radio_detail_towers">Zendmasten</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-no-rNO/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-no-rNO/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Nettverk</string>
++    <string name="radio_detail_towers">Master</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-pl-rPL/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-pl-rPL/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Sieci</string>
++    <string name="radio_detail_towers">Stacje bazowe</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-pt-rBR/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-pt-rBR/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Redes</string>
++    <string name="radio_detail_towers">Antenas</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-pt-rPT/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-pt-rPT/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Redes</string>
++    <string name="radio_detail_towers">Antenas</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-ro-rRO/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-ro-rRO/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Rețele</string>
++    <string name="radio_detail_towers">Antene</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-ru-rRU/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-ru-rRU/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Сети</string>
++    <string name="radio_detail_towers">Вышки</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-sk-rSK/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-sk-rSK/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Siete</string>
++    <string name="radio_detail_towers">Vysielače</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-sl-rSI/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-sl-rSI/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Omrežja</string>
++    <string name="radio_detail_towers">Oddajniki</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-sr-rSP/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-sr-rSP/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Мреже</string>
++    <string name="radio_detail_towers">Базне станице</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-sv-rSE/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-sv-rSE/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Nätverk</string>
++    <string name="radio_detail_towers">Master</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-tr-rTR/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-tr-rTR/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Ağlar</string>
++    <string name="radio_detail_towers">Baz istasyonları</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-uk-rUA/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-uk-rUA/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Мережі</string>
++    <string name="radio_detail_towers">Вежі</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-vi-rVN/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-vi-rVN/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">Mạng</string>
++    <string name="radio_detail_towers">Trạm phát sóng</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-zh-rCN/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-zh-rCN/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">网络</string>
++    <string name="radio_detail_towers">基站</string>
++</resources>
+--- a/feature/statistics/src/main/res/values-zh-rTW/radio_detail_strings.xml
++++ b/feature/statistics/src/main/res/values-zh-rTW/radio_detail_strings.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="radio_detail_networks">網路</string>
++    <string name="radio_detail_towers">基地台</string>
++</resources>

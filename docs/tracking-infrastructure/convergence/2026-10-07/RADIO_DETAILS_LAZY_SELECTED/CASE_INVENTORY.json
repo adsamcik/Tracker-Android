@@ -1,0 +1,12 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "execution": "NOT_RUN",
+  "new_methods": 4,
+  "cases": [
+    "Wi-Fi saved name/id/signal/frequency reachable beyond twenty rows",
+    "Cell saved id/signal reachable beyond twenty rows",
+    "current local measured date differs from original stored recording zone",
+    "missing Cell identity/signal omitted with actual reading row visible"
+  ],
+  "existing_radio_methods": "adapted to lazy container scrolling; all previous fixture/state assertions retained"
+}

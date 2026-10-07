@@ -1,13 +1,18 @@
 package com.adsamcik.tracker.statistics.ui
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.presenter.toTripDetailStepsState
@@ -36,6 +41,7 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistorySignalQuality
 import com.adsamcik.tracker.stats.api.repository.CellHistorySubscriptionGrouping
 import com.adsamcik.tracker.stats.api.repository.CellHistoryTechnology
+import com.adsamcik.tracker.stats.api.repository.CellObservedTower
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
@@ -59,9 +65,15 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryResultCompleteness
 import com.adsamcik.tracker.stats.api.repository.WifiHistorySignalQuality
 import com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey
+import com.adsamcik.tracker.stats.api.repository.WifiObservedNetwork
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.TimeZone
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -279,17 +291,11 @@ class TripDetailSourceOverviewsComposeTest {
 			}
 		}
 
-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_partial))
-			.performScrollTo().assertIsDisplayed()
-		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_exact))
-			.performScrollTo().assertIsDisplayed()
-		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_exact_explanation))
-			.performScrollTo().assertIsDisplayed()
-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_coverage_partial))
-			.performScrollTo().assertIsDisplayed()
-		composeRule.onNodeWithText(text(R.string.trip_detail_wifi_retained_results))
-			.performScrollTo()
-			.assertIsDisplayed()
+		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_radio_partial))
+		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_source_purpose_exact))
+		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_source_purpose_exact_explanation))
+		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_radio_coverage_partial))
+		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_wifi_retained_results))
 		composeRule.onAllNodesWithText("unique", substring = true, ignoreCase = true)
 			.assertCountEquals(0)
 		composeRule.onAllNodesWithText("SSID", substring = true).assertCountEquals(0)
@@ -308,8 +314,7 @@ class TripDetailSourceOverviewsComposeTest {
 			}
 		}
 
-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_waiting))
-			.performScrollTo().assertIsDisplayed()
+		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_radio_waiting))
 		composeRule.onNodeWithText("0").assertDoesNotExist()
 	}
 
@@ -324,10 +329,8 @@ class TripDetailSourceOverviewsComposeTest {
 			}
 		}
 
-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_partial))
-			.performScrollTo().assertIsDisplayed()
-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_coverage_partial))
-			.performScrollTo().assertIsDisplayed()
+		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_radio_partial))
+		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_radio_coverage_partial))
 		composeRule.onAllNodesWithText("unique tower", substring = true, ignoreCase = true)
 			.assertCountEquals(0)
 		composeRule.onAllNodesWithText("SIM", substring = true, ignoreCase = true)
@@ -348,16 +351,11 @@ class TripDetailSourceOverviewsComposeTest {
 			}
 		}
 
-		composeRule.onNodeWithText(text(R.string.trip_detail_source_origin_imported))
-			.performScrollTo().assertIsDisplayed()
-		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_imported))
-			.performScrollTo().assertIsDisplayed()
-		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_imported_explanation))
-			.performScrollTo().assertIsDisplayed()
-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_deleted))
-			.performScrollTo().assertIsDisplayed()
-		composeRule.onNodeWithText(text(R.string.trip_detail_radio_deleted_explanation))
-			.performScrollTo().assertIsDisplayed()
+		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_source_origin_imported))
+		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_source_purpose_imported))
+		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_source_purpose_imported_explanation))
+		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_radio_deleted))
+		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_radio_deleted_explanation))
 		composeRule.onNodeWithText("0").assertDoesNotExist()
 	}
 
@@ -401,6 +399,92 @@ class TripDetailSourceOverviewsComposeTest {
 				)
 			}
 		}
+	}
+
+	@Test
+	fun `Wi-Fi details retain every saved network beyond the old twenty-row cap`() {
+		val original = partialWifi()
+		val observation = original.observations.single()
+		val entry = original.copy(observations = (0..24).map { index ->
+			observation.copy(networks = listOf(WifiObservedNetwork(
+				observedTimeMs = 2_000L - index,
+				wallTimeUncertaintyMs = 100L,
+				bssid = "aa:bb:cc:dd:ee:${index.toString(16).padStart(2, '0')}",
+				ssid = "Network $index", frequencyMhz = 5_180, signalDbm = -45,
+			)))
+		})
+		composeRule.setContent { MaterialTheme { TripDetailWifiOverview(entry, SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY) } }
+		assertRadioText("trip_detail_wifi_only", "Network 24")
+		composeRule.onNodeWithText("aa:bb:cc:dd:ee:18").assertIsDisplayed()
+		composeRule.onNodeWithText("Network 24").assert(hasText(text(R.string.radio_detail_signal_dbm, -45), substring = true))
+		composeRule.onNodeWithText("Network 24").assert(hasText(text(R.string.radio_detail_frequency_mhz, 5180), substring = true))
+		assertLocationProductsAbsent()
+	}
+
+	@Test
+	fun `Cell details retain every saved tower beyond the old twenty-row cap`() {
+		val original = partialCell()
+		val observation = original.observations.single()
+		val entry = original.copy(observations = (0..24).map { index ->
+			observation.copy(towers = listOf(CellObservedTower(
+				observedTimeMs = 2_000L - index, wallTimeUncertaintyMs = 100L,
+				identity = "310:260:123:$index", technology = CellHistoryTechnology.LTE,
+				registered = true, signalDbm = -92,
+			)))
+		})
+		composeRule.setContent { MaterialTheme { TripDetailCellOverview(entry, SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY) } }
+		assertRadioText("trip_detail_cell_only", "310:260:123:24")
+		composeRule.onNodeWithText("310:260:123:24").assert(hasText(text(R.string.radio_detail_signal_dbm, -92), substring = true))
+		assertLocationProductsAbsent()
+	}
+
+	@Test
+	fun `radio reading date follows current local time rather than saved recording zone`() {
+		val previous = TimeZone.getDefault()
+		TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+		try {
+			val instant = Instant.parse("2026-10-07T01:00:00Z")
+			val original = partialWifi()
+			val entry = original.copy(
+				startTime = EpochMs(instant.toEpochMilli() - 1_000L),
+				endTime = EpochMs(instant.toEpochMilli() + 3_000L),
+				storedZoneIds = setOf("Pacific/Honolulu"),
+				observations = listOf(original.observations.single().copy(
+				intervalStartTime = EpochMs(instant.toEpochMilli() - 1_000L),
+				observedTime = EpochMs(instant.toEpochMilli()),
+				storedZoneId = "Pacific/Honolulu",
+				networks = listOf(WifiObservedNetwork(instant.toEpochMilli(), 100L,
+					"aa:bb:cc:dd:ee:ff", "Travel network", 5_180, -45)),
+			)))
+			val locale = RuntimeEnvironment.getApplication().resources.configuration.locales[0]
+			val formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale)
+			val displayedTime = formatter.withZone(ZoneId.of("UTC")).format(instant)
+			val oldZoneTime = formatter.withZone(ZoneId.of("Pacific/Honolulu")).format(instant)
+			composeRule.setContent { MaterialTheme { TripDetailWifiOverview(entry, SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY) } }
+			assertRadioText("trip_detail_wifi_only", "Travel network")
+			composeRule.onNodeWithText(displayedTime, substring = true).assertIsDisplayed()
+			composeRule.onAllNodesWithText(oldZoneTime, substring = true).assertCountEquals(0)
+		} finally {
+			TimeZone.setDefault(previous)
+		}
+	}
+
+	@Test
+	fun `Cell details omit missing tower identity and signal without inventing a value`() {
+		val original = partialCell()
+		val entry = original.copy(observations = listOf(original.observations.single().copy(
+			towers = listOf(CellObservedTower(2_000L, 100L, null, CellHistoryTechnology.LTE, true, null)),
+		)))
+		composeRule.setContent { MaterialTheme { TripDetailCellOverview(entry, SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY) } }
+		composeRule.onNodeWithTag("trip_detail_cell_only").performScrollToNode(hasTestTag("radio_cell_reading"))
+		composeRule.onNodeWithTag("radio_cell_reading").assertIsDisplayed()
+		composeRule.onAllNodesWithText("dBm", substring = true).assertCountEquals(0)
+		composeRule.onAllNodesWithText("Unknown tower").assertCountEquals(0)
+	}
+
+	private fun assertRadioText(tag: String, value: String) {
+		composeRule.onNodeWithTag(tag).performScrollToNode(hasText(value))
+		composeRule.onNodeWithText(value).assertIsDisplayed()
 	}
 
 	private fun assertLocationProductsAbsent() {

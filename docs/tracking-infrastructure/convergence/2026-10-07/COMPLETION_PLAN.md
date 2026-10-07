@@ -1,6 +1,6 @@
 # Tracking completion plan
 
-Updated: 2026-10-07. Inspected candidate: `5b19ca833596b602643e99d291c4ceae0d3b5cc6`.
+Updated: 2026-10-07. Initial inspected candidate: `5b19ca833596b602643e99d291c4ceae0d3b5cc6`.
 
 ## Outcome and current boundary
 
@@ -332,6 +332,9 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
 - [x] Select daily Steps saved-count composition repair and seven actual Room
   scenarios: `DAILY_STEPS_COMPOSITION_SELECTED/SOURCE_REVIEW.md`. Strict
   numeric rules preserved; NOT_RUN, display-reader integration still pending.
+- [x] Select reviewed saved Wi-Fi/Cell detail lists: lazy rows, no twenty-row cap,
+  current local measured dates, omitted missing fields and forty localized heading
+  resources. `RADIO_DETAILS_LAZY_SELECTED/SOURCE_REVIEW.md`; four new cases NOT_RUN.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

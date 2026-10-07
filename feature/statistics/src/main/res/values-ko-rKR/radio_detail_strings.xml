@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="radio_detail_networks">네트워크</string>
+    <string name="radio_detail_towers">기지국</string>
+</resources>

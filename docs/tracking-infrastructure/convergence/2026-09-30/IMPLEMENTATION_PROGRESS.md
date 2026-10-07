@@ -608,3 +608,10 @@ list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS
   Two selected paths and seven actual Room scenarios have independent static
   acceptance in `../2026-10-07/DAILY_STEPS_COMPOSITION_SELECTED/SOURCE_REVIEW.md`.
   All are NOT_RUN; strict games unchanged, consumer wiring and T08 remain open.
+
+- [x] Present available saved networks/towers in existing radio detail screens
+  with lazy scrolling, current local measurement dates and no twenty-row cap.
+  Two source/test paths plus forty localized heading files have revised independent
+  static acceptance in `../2026-10-07/RADIO_DETAILS_LAZY_SELECTED/SOURCE_REVIEW.md`.
+  Four new UI cases are NOT_RUN; prior UI drafts preserved/superseded, full radio
+  product composition and concise authority-copy polish remain open.
