@@ -1,0 +1,104 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+  "dependencies": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "f11f734b6932a81ee0916cf603b68cd2e36ecf48",
+      "sha256": "022f2a895caf714e46cbc80715345ad8976ea106285b82d8a15b849ed8c8b7f1",
+      "bytes": 355224
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourceProductDrainRouter.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "164e723b7f736a2a8a80a3bb80c7452ac1b6b86a",
+      "sha256": "f198ea2af1e94ec84403ceafa8aa73c7ed2590aa663fcb5f97628554b41aabb8",
+      "bytes": 54287
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "c1828084f8ce274ab413ec9987cb095750bd7fba",
+      "sha256": "caf7c610fe82ea8c302309acb5aa7d4335f3e2611b1cced521413948eafbad3f",
+      "bytes": 397741
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourceProductDrainContractTest.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "80abe1d27f4cbd9643328cfb21306fb5b3514281",
+      "sha256": "d7c42ccbed83e18298ad760580f53984aec6dccf70a77cffce1b744dcd127c05",
+      "bytes": 6041
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "048d317a2eea6f88e0bf1f72416b0f96f89e9d77",
+      "sha256": "c6f44d42e063aaddf1b55aff3c850c4c14ab7cb26ae39bef6d25af4ee59d0d49",
+      "bytes": 65036
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "bf5d06a43626962c31dc4c1632f0335c3c885c27",
+      "sha256": "1dab828427c810c0b53cdef005b255841055c67d37afa48f340e84a5d1b675f6",
+      "bytes": 45244
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/StepsCountDomainStore.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "00263b0d23900168d71abd0a896e1c213bfe76a1",
+      "sha256": "4f251e9c800f59d34d59337affeabef6e740052fac9136eb525c85835409b367",
+      "bytes": 169118
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepsSessionCompletenessIntegrity.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "ffc6853b4247b73ccf3b3b4c1104b4098960b991",
+      "sha256": "ab539c8a71ff7c01dd70f1165d0da7be4726a473518dbf84f227e45b32a4ecf4",
+      "bytes": 4274
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceRunRetirementEntity.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "93e3e182241a8e2f45a0ac7c5c7d19f875b09560",
+      "sha256": "06c8cf69a490a103756b73fc60704547411e9ce725c99449656c520edf1d6d22",
+      "bytes": 15986
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceSessionEntities.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "2b11f6ac5362989e55e3c621480aefad2eacfc9f",
+      "sha256": "e678a30f4da0008411c3c2bb592900e7a390040198fd0a3201476be40e8f31d0",
+      "bytes": 47535
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepFactRevisionEntity.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "9eb0e7b3291209097e047412ab9b503e33f10aa3",
+      "sha256": "224a27da72785913d3086470d9cb8020d691d1ced9971df78fc68c7121a07522",
+      "bytes": 9578
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "4fd0db7b20b8aa954f0733ef951e916c2e66288d",
+      "sha256": "e20e5b2be7c1164045d928a0a5b6d4c409952232b9047be31b4382d0fb6711de",
+      "bytes": 8231
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "9a3eb6a544cc9347d26f9f866948e6349c77c182",
+      "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c",
+      "bytes": 3487
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidFeatureConventionPlugins.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "blob": "871b0c3cb28b0d145ffd75f56d87c40e19bae4db",
+      "sha256": "e2df2278893f6fc1b47d6b51c15095e1e5638d2185ec35290fab465771772567",
+      "bytes": 4646
+    }
+  ]
+}

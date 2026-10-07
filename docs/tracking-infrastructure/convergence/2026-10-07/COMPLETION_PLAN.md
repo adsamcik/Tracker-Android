@@ -323,6 +323,9 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
 - [x] Select composed temporary Location flow source: two methods through the
   actual provider/controller/runtime, independent freshness and lifecycle release/rejoin.
   Static review: `TEMPORARY_LOCATION_FLOW_SELECTED/SOURCE_REVIEW.md`; NOT_RUN.
+- [x] Select existing legacy cleanup drain validation-order repair and four actual
+  Room planner cases: `LEGACY_CLEANUP_DRAIN_ORDER_SELECTED/SOURCE_REVIEW.md`.
+  Mixed drafts preserved; cases NOT_RUN, full End/ownership chains remain open.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

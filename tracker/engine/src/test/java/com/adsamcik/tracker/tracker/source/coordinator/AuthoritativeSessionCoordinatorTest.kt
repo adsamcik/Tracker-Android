@@ -3907,6 +3907,89 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `clean legacy cleanup-only drain keeps the existing empty plan without mutation`() = runTest {
+		val (started, receipt) = prepareCleanupOnlyReceiptAfterCoordinatorCrash("legacy-clean-drain-plan")
+		val dao = database.sourceSessionDao()
+		val sessionBefore = dao.session(started.logicalTrackingId)
+		val runBefore = dao.serviceRun(started.serviceRunId)
+		val retirementsBefore = dao.runRetirements(started.logicalTrackingId, started.serviceRunId,
+			SourceKind.STEPS.stableCode)
+
+		val plan = readLegacyCleanupDrainPlan(started, receipt).shouldBeInstanceOf<SourceProductDrainPlan.Ready>()
+
+		plan.requests shouldBe emptyList()
+		plan.settledResults shouldBe emptyList()
+		dao.session(started.logicalTrackingId) shouldBe sessionBefore
+		dao.serviceRun(started.serviceRunId) shouldBe runBefore
+		dao.runRetirements(started.logicalTrackingId, started.serviceRunId, SourceKind.STEPS.stableCode) shouldBe retirementsBefore
+		dao.completenessForServiceRun(started.logicalTrackingId, started.serviceRunId) shouldBe emptyList()
+		sourceProductDrainRouter.requests shouldBe emptyList()
+	}
+
+	@Test
+	fun `legacy cleanup-only drain rejects completeness belonging to the cleanup provider`() = runTest {
+		val (started, receipt) = prepareCleanupOnlyReceiptAfterCoordinatorCrash("legacy-cleanup-completeness-plan")
+		val dao = database.sourceSessionDao()
+		val completeness = cleanupCompletenessForDrainPlan(started, receipt)
+		dao.saveCompleteness(completeness)
+		val sessionBefore = dao.session(started.logicalTrackingId)
+		val runBefore = dao.serviceRun(started.serviceRunId)
+
+		val plan = readLegacyCleanupDrainPlan(started, receipt).shouldBeInstanceOf<SourceProductDrainPlan.Failed>()
+
+		plan.source shouldBe SourceKind.STEPS
+		plan.reason shouldBe "SOURCE_DRAIN_CLEANUP_PRODUCT_EVIDENCE"
+		dao.session(started.logicalTrackingId) shouldBe sessionBefore
+		dao.serviceRun(started.serviceRunId) shouldBe runBefore
+		dao.runRetirements(started.logicalTrackingId, started.serviceRunId, SourceKind.STEPS.stableCode).single() shouldBe receipt
+		dao.completenessForServiceRun(started.logicalTrackingId, started.serviceRunId) shouldBe listOf(completeness)
+		sourceProductDrainRouter.requests shouldBe emptyList()
+	}
+
+	@Test
+	fun `legacy drain preserves malformed completeness precedence before cleanup evidence checks`() = runTest {
+		val (started, receipt) = prepareCleanupOnlyReceiptAfterCoordinatorCrash("legacy-malformed-completeness-plan")
+		val dao = database.sourceSessionDao()
+		dao.saveCompleteness(cleanupCompletenessForDrainPlan(started, receipt))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_session_completeness SET last_admission_ordinal = 1.5 WHERE service_run_id = ?",
+			arrayOf(started.serviceRunId),
+		)
+		val malformedBefore = dao.rawCompletenessForServiceRun(started.serviceRunId, 2)
+		val sessionBefore = dao.session(started.logicalTrackingId)
+		val runBefore = dao.serviceRun(started.serviceRunId)
+
+		val plan = readLegacyCleanupDrainPlan(started, receipt).shouldBeInstanceOf<SourceProductDrainPlan.Failed>()
+
+		plan.source shouldBe null
+		plan.reason shouldBe "SOURCE_DRAIN_COMPLETENESS_UNVERIFIABLE"
+		dao.rawCompletenessForServiceRun(started.serviceRunId, 2) shouldBe malformedBefore
+		dao.session(started.logicalTrackingId) shouldBe sessionBefore
+		dao.serviceRun(started.serviceRunId) shouldBe runBefore
+		dao.runRetirements(started.logicalTrackingId, started.serviceRunId, SourceKind.STEPS.stableCode).single() shouldBe receipt
+		sourceProductDrainRouter.requests shouldBe emptyList()
+	}
+
+	@Test
+	fun `legacy cleanup-only drain rejects an orphan fact instead of returning an empty plan`() = runTest {
+		val (started, receipt) = prepareCleanupOnlyReceiptAfterCoordinatorCrash("legacy-orphan-fact-plan")
+		insertOrphanStepsFact(started.logicalTrackingId, started.serviceRunId)
+		val dao = database.sourceSessionDao()
+		val sessionBefore = dao.session(started.logicalTrackingId)
+		val runBefore = dao.serviceRun(started.serviceRunId)
+
+		val plan = readLegacyCleanupDrainPlan(started, receipt).shouldBeInstanceOf<SourceProductDrainPlan.Failed>()
+
+		plan.source shouldBe SourceKind.STEPS
+		plan.reason shouldBe "SOURCE_DRAIN_FACT_AUTHORITY_UNVERIFIABLE"
+		dao.session(started.logicalTrackingId) shouldBe sessionBefore
+		dao.serviceRun(started.serviceRunId) shouldBe runBefore
+		dao.runRetirements(started.logicalTrackingId, started.serviceRunId, SourceKind.STEPS.stableCode).single() shouldBe receipt
+		dao.completenessForServiceRun(started.logicalTrackingId, started.serviceRunId) shouldBe emptyList()
+		sourceProductDrainRouter.requests shouldBe emptyList()
+	}
+
+	@Test
 	fun `candidate plan reports an exact incomplete membership instead of Ready empty`() = runTest {
 		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
 		val started = subject.start(
@@ -8983,6 +9066,61 @@ class AuthoritativeSessionCoordinatorTest {
 		replaceEventCoordinator(completedEventCoordinator(admissionOrdinal))
 		return started to receipt
 	}
+
+	/** Actual Room drain planning, after the existing fake provider has persisted its cleanup receipt. */
+	private suspend fun readLegacyCleanupDrainPlan(
+		started: SessionStartResult.Failed,
+		receipt: SourceRunRetirementEntity,
+	): SourceProductDrainPlan {
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(started.logicalTrackingId))
+		val bindings = dao.manifestSources(started.logicalTrackingId, requireNotNull(session.currentManifestRevision))
+		bindings.single().also { binding ->
+			binding.writerOwner shouldBe SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
+			binding.writerProjectionId shouldBe null
+			binding.writerProjectionVersion shouldBe null
+			binding.writerBindingGeneration shouldBe null
+		}
+		return buildSourceProductDrainPlan(
+			database = database,
+			logicalTrackingId = started.logicalTrackingId,
+			serviceRunId = started.serviceRunId,
+			cutoffElapsedRealtimeNanos = requireNotNull(session.cutoffElapsedNanos),
+			cutoffWallTimeMs = requireNotNull(session.cutoffAtMs),
+			settlementHighWaterAdmissionOrdinal = requireNotNull(session.finalAdmissionOrdinal),
+			authenticatedAuthority = SourceProductDrainAuthority(
+				captureBindings = mapOf(SourceKind.STEPS.stableCode to bindings),
+				retirementClaims = listOf(SourceDrainRetirementClaim(
+					source = SourceKind.STEPS,
+					sourceInstanceId = receipt.sourceInstanceId,
+					registrationGeneration = receipt.registrationGeneration,
+					actionId = receipt.actionId,
+					attemptCount = receipt.attemptCount,
+					leaseGeneration = receipt.leaseGeneration,
+					cleanupOnly = true,
+				)),
+			),
+		)
+	}
+
+	private fun cleanupCompletenessForDrainPlan(
+		started: SessionStartResult.Failed,
+		receipt: SourceRunRetirementEntity,
+	) = SourceSessionCompletenessEntity(
+		logicalTrackingId = started.logicalTrackingId,
+		serviceRunId = started.serviceRunId,
+		sourceKind = SourceKind.STEPS.stableCode,
+		sourceInstanceId = receipt.sourceInstanceId,
+		registrationGeneration = receipt.registrationGeneration,
+		lastAdmissionOrdinal = null,
+		lastSourceSequence = null,
+		appDrainComplete = true,
+		providerCoverage = ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER.name,
+		stopStatus = SourceStopStatus.COMPLETE.name,
+		unresolvedSequenceStart = null,
+		unresolvedSequenceEnd = null,
+		updatedAtMs = 2_100L,
+	)
 
 	private suspend fun prepareCleanupOnlyReceiptAfterCoordinatorCrash(
 		identity: String,

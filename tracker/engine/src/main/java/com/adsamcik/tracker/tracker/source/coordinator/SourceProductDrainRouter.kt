@@ -502,17 +502,6 @@ internal suspend fun buildSourceProductDrainPlan(
 					claim.registrationGeneration,
 				)
 			}.toSet()
-		val target = when (source) {
-			SourceKind.LOCATION -> SourceProductDrainTarget.ProtectedLocationWriter
-			else -> when (val resolution = bindings.sourceLocalTarget()) {
-				SourceLocalTargetResolution.LegacyOrUnattributed -> continue
-				SourceLocalTargetResolution.Invalid -> return SourceProductDrainPlan.Failed(
-					source,
-					"SOURCE_DRAIN_WRITER_PROVENANCE_INCONSISTENT",
-				)
-				is SourceLocalTargetResolution.Ready -> resolution.target
-			}
-		}
 		val completenessRows = authority.completeness[source.stableCode].orEmpty()
 		val cleanupProviderIdentities = cleanupOnlyClaims.map { claim ->
 			SourceDrainProviderIdentity(claim.sourceInstanceId, claim.registrationGeneration)
@@ -558,6 +547,17 @@ internal suspend fun buildSourceProductDrainPlan(
 				retirementClaims = retirementClaims,
 			)?.let { reason ->
 				return SourceProductDrainPlan.Failed(source, reason)
+			}
+		}
+		val target = when (source) {
+			SourceKind.LOCATION -> SourceProductDrainTarget.ProtectedLocationWriter
+			else -> when (val resolution = bindings.sourceLocalTarget()) {
+				SourceLocalTargetResolution.LegacyOrUnattributed -> continue
+				SourceLocalTargetResolution.Invalid -> return SourceProductDrainPlan.Failed(
+					source,
+					"SOURCE_DRAIN_WRITER_PROVENANCE_INCONSISTENT",
+				)
+				is SourceLocalTargetResolution.Ready -> resolution.target
 			}
 		}
 		if (memberships.isEmpty()) {

@@ -1,0 +1,31 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourceProductDrainRouter.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "base_sha256": "f198ea2af1e94ec84403ceafa8aa73c7ed2590aa663fcb5f97628554b41aabb8",
+      "working_before_sha256": "1eb7fe4a5839e4881e08a9653ab04954f85596f3ebfe634bd92157186dbd368c",
+      "selected_sha256": "e133d00726483f36eeb8a584884d5be65fa6c9dce39bd8d89da384c5a3f54e1a",
+      "working_after_sha256": "1eb7fe4a5839e4881e08a9653ab04954f85596f3ebfe634bd92157186dbd368c",
+      "selected_bytes": 54287,
+      "selection": "HEAD plus existing 11-line ordering move"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+      "base_head": "eebb97b0a82894f6f378ec9c25fff08f335d3af4",
+      "base_sha256": "caf7c610fe82ea8c302309acb5aa7d4335f3e2611b1cced521413948eafbad3f",
+      "working_before_sha256": "fd458524b25e635e55df39b0cbf80e5d9dbba1f517837c569c1afc5cb3282ce2",
+      "selected_sha256": "4d8226b973afb673edb9fb89c748287e59e666cb21fd386a2ac81ff971531bf4",
+      "working_after_sha256": "49d595702d8e5df8365c9e041d3236e74708ce3967ac7ce21a59fba6f5a89c81",
+      "selected_bytes": 404673,
+      "selection": "Clean HEAD plus four focused actual Room planner cases; all unrelated draft deltas excluded"
+    }
+  ],
+  "new_authored_cases": 4,
+  "selection_patch_sha256": "bfbc0f7a58d88b2ff1c4408eb613538227b04e6d6c956676d0710c4f6689d431",
+  "independent_review": "PENDING",
+  "execution": "NOT_RUN"
+}

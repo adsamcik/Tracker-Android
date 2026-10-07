@@ -590,3 +590,9 @@ list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS
   rejoin and retired callback fencing. Independent static acceptance:
   `../2026-10-07/TEMPORARY_LOCATION_FLOW_SELECTED/SOURCE_REVIEW.md`. NOT_RUN;
   Android/storage edges remain fixtures and the full T10/T19 chains stay open.
+
+- [x] Enforce existing cleanup-only product-evidence checks before skipping legacy
+  writer bindings. Selected only the validation-order move and four actual Room
+  planner cases; independent static acceptance is recorded in
+  `../2026-10-07/LEGACY_CLEANUP_DRAIN_ORDER_SELECTED/SOURCE_REVIEW.md`. All
+  are NOT_RUN; mixed coordinator drafts and full End/ownership proof remain open.

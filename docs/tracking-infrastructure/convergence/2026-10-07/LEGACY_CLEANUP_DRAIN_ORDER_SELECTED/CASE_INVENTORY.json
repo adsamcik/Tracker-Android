@@ -1,0 +1,24 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "new_test_methods": 4,
+  "new_authored_cases": 4,
+  "execution": "NOT_RUN",
+  "cases": [
+    {
+      "method": "clean legacy cleanup-only drain keeps the existing empty plan without mutation",
+      "execution": "NOT_RUN"
+    },
+    {
+      "method": "legacy cleanup-only drain rejects completeness belonging to the cleanup provider",
+      "execution": "NOT_RUN"
+    },
+    {
+      "method": "legacy drain preserves malformed completeness precedence before cleanup evidence checks",
+      "execution": "NOT_RUN"
+    },
+    {
+      "method": "legacy cleanup-only drain rejects an orphan fact instead of returning an empty plan",
+      "execution": "NOT_RUN"
+    }
+  ]
+}
