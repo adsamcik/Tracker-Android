@@ -1,0 +1,42 @@
+{
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "execution": "NOT_RUN",
+  "new_methods": 7,
+  "cases": [
+    {
+      "name": "admitted sessionless Steps restore owner plans from stationary without changing Steps request",
+      "file": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AdmittedMotionAdaptiveReplanCompositionTest.kt",
+      "status": "NOT_RUN"
+    },
+    {
+      "name": "admitted Location speed restores live radio plans while unchosen Activity stays off",
+      "file": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AdmittedMotionAdaptiveReplanCompositionTest.kt",
+      "status": "NOT_RUN"
+    },
+    {
+      "name": "admitted Activity transition restores live plans without enabling Activity capture",
+      "file": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AdmittedMotionAdaptiveReplanCompositionTest.kt",
+      "status": "NOT_RUN"
+    },
+    {
+      "name": "rejected revoked source and stale replay cannot alter stationary plans",
+      "file": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AdmittedMotionAdaptiveReplanCompositionTest.kt",
+      "status": "NOT_RUN"
+    },
+    {
+      "name": "provenance-only motion change and repeated policy tick do not reconfigure owners",
+      "file": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AdmittedMotionAdaptiveReplanCompositionTest.kt",
+      "status": "NOT_RUN"
+    },
+    {
+      "name": "disabled Location and radio participation stay off while independent Steps hints remain useful",
+      "file": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AdmittedMotionAdaptiveReplanCompositionTest.kt",
+      "status": "NOT_RUN"
+    },
+    {
+      "name": "Location permission loss disables its request while admitted Steps restore radio siblings",
+      "file": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AdmittedMotionAdaptiveReplanCompositionTest.kt",
+      "status": "NOT_RUN"
+    }
+  ]
+}

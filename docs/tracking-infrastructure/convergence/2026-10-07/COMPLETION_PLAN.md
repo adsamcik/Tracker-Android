@@ -343,6 +343,10 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
   ten ViewModel methods and unchanged actual screen permission guards in
   `STEPS_ENABLE_WAIT_SELECTED/SOURCE_REVIEW.md`; NOT_RUN. Advanced Off and
   ViewModel cancellation fence the old opportunity; no save queue blocking.
+- [x] Trace existing admitted motion-to-replan wiring and select seven composition
+  methods through the real controller/planner/storage/registry. No new loop:
+  `MOTION_REPLAN_COMPOSITION_SELECTED/SOURCE_REVIEW.md`; NOT_RUN. Actual
+  service scheduling, admission, provider continuity and battery remain separate.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

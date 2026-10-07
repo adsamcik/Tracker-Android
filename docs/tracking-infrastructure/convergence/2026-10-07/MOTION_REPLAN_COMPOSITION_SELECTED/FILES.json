@@ -1,0 +1,16 @@
+{
+  "base_commit": "7f72b31259cf67080f75690d0980a7060ec8ce21",
+  "files": [
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AdmittedMotionAdaptiveReplanCompositionTest.kt",
+      "base_sha256": null,
+      "selected_sha256": "e722502e6f59721b1f6e583f58f013fda1669217f752b0d024c55fe274bfbd3d",
+      "selected_bytes": 20464,
+      "working_sha256": null
+    }
+  ],
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "tests": "NOT_RUN",
+  "independent_review": "ACCEPTED_STATIC_ONLY"
+}

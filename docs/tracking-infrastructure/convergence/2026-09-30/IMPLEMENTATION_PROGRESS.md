@@ -625,3 +625,8 @@ list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS
   actual ViewModel methods. The advanced-frequency Off race found in review is
   repaired. `../2026-10-07/STEPS_ENABLE_WAIT_SELECTED/SOURCE_REVIEW.md`; NOT_RUN.
   No provider probe, durable intent, new screen copy or settings-queue delay.
+
+- [x] Select seven admitted-motion/planning composition methods and forty pinned
+  dependencies. Existing production wiring is present; no additional loop or
+  optimizer. `../2026-10-07/MOTION_REPLAN_COMPOSITION_SELECTED/SOURCE_REVIEW.md`;
+  NOT_RUN. Admission/lifecycle owners are fixtures; physical power proof stays open.

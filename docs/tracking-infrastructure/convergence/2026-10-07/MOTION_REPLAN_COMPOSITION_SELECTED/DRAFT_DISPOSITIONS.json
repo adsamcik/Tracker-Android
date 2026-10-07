@@ -1,0 +1,16 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "selected": [
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AdmittedMotionAdaptiveReplanCompositionTest.kt"
+  ],
+  "dispositions": [
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AdmittedMotionAdaptiveReplanCompositionTest.kt",
+      "disposition": "NEW_TEST_SOURCE_ONLY",
+      "live_file_changed": false
+    }
+  ],
+  "shared_live_paths": "NO_CHANGES",
+  "protected_paths": "NO_CHANGES",
+  "existing_motion_production": "REUSED_COMMITTED_WIRING_NO_NEW_OPTIMIZER_OR_TIMER"
+}
