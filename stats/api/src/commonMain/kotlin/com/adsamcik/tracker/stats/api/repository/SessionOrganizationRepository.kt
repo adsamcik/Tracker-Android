@@ -91,8 +91,13 @@ interface SessionOrganizationRepository {
 	suspend fun activityLabels(): List<OrganizationActivityLabel>
 	suspend fun create(expectedEpoch: Long, interval: OrganizationInterval,
 		displayZoneId: String, name: String?, activityLabelId: Long?): OrganizationMutationResult
-	/** Null intervalChange preserves exact existing instants, including zone-only edits. */
+	/**
+	 * Null intervalChange preserves exact existing instants, including zone-only edits.
+	 * Descriptive imported labels survive ordinary edits; the existing No label action clears them
+	 * explicitly because a null local label ID alone also means the imported label is unchanged.
+	 */
 	suspend fun edit(selection: OrganizedSession, intervalChange: OrganizationInterval?,
-		displayZoneId: String, name: String?, activityLabelId: Long?): OrganizationMutationResult
+		displayZoneId: String, name: String?, activityLabelId: Long?,
+		clearImportedActivityLabel: Boolean = false): OrganizationMutationResult
 	suspend fun remove(selection: OrganizedSession): OrganizationMutationResult
 }

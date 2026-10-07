@@ -137,6 +137,12 @@ product or changing activation gates implicitly.
   retrospective membership and relation to unified History. Sessions group observations
   without moving their measured dates or owning daily Steps. Check edits/deletions
   and detail navigation; do not rebuild the existing editor.
+  Current cards open metadata editing and one original segment, not the existing
+  six-source contents reader. Retrospective radio membership still requires whole
+  batches to fit; imported background archive membership is unavailable. Connect
+  contents under the held History design and complete exact import membership under
+  T20/T21. See `IMPORTED_SESSION_LABEL_SELECTED/T13_AUDIT.md`.
+
 
 - [ ] **T14 — Finish unified History.** Connect the selected bounded reader foundation
   to paging, displayed local days, calendar, timeline and source details. Include
@@ -402,6 +408,10 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
   Room/import/TripDao cases and one corrected existing NULL expectation in
   `LEGACY_ACTIVITY_DOMAIN_SELECTED/SOURCE_REVIEW.md` have exact V2 static acceptance,
   NOT_RUN. Genuine detected Activity and original data remain intact; full T18 open.
+- [x] Repair imported session-label display/removal through the existing editor,
+  ViewModel and Room edit: seven paths and seven authored methods in
+  `IMPORTED_SESSION_LABEL_SELECTED/SOURCE_REVIEW.md` independently accepted, NOT_RUN.
+  Name-only edits preserve labels; No label clears them without changing source data.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

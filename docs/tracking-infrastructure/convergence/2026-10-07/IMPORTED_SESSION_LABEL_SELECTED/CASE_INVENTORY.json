@@ -1,0 +1,46 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "execution": "NOT_RUN",
+  "new_methods": [
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SessionOrganizationRoomTest.kt",
+      "method": "explicit No label removes descriptive import text without changing membership or measurements",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SessionOrganizationRoomTest.kt",
+      "method": "stale explicit label removal preserves the newer imported metadata",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/SessionOrganizationViewModelTest.kt",
+      "method": "name-only imported save passes the default preserve-label request",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/SessionOrganizationViewModelTest.kt",
+      "method": "explicit imported-label removal reaches the same edit and can retry without closing the draft",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/SessionOrganizationEditorComposeTest.kt",
+      "method": "descriptive imported label is shown and name-only save keeps it",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/SessionOrganizationEditorComposeTest.kt",
+      "method": "No label explicitly clears descriptive import text and stays selected after save failure",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/SessionOrganizationEditorComposeTest.kt",
+      "method": "choosing a local label after No label uses that label without a clear request",
+      "execution": "NOT_RUN"
+    }
+  ],
+  "existing_method_changes": [
+    "SessionOrganizationEditorComposeTest: four original callbacks gain one ignored argument; assertions unchanged.",
+    "SessionOrganizationViewModelTest: existing stale-save mock gains the sixth argument matcher; assertions unchanged.",
+    "SessionOrganizationRoomTest: existing local-label replacement fixture gains the required sha256: Steps identity prefix; assertions unchanged."
+  ]
+}

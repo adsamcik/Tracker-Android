@@ -13,6 +13,7 @@ import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import io.mockk.every
 import io.mockk.coEvery
+import io.mockk.coVerify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,7 +58,7 @@ class SessionOrganizationViewModelTest {
 		vm.read.value shouldBe null
 	}
 	@Test fun `stale save keeps draft until explicit reload`() = runTest(dispatcher) {
-		coEvery { repo.edit(any(), any(), any(), any(), any()) } returns OrganizationMutationResult.Rejected(OrganizationEditProblem.STALE)
+		coEvery { repo.edit(any(), any(), any(), any(), any(), any()) } returns OrganizationMutationResult.Rejected(OrganizationEditProblem.STALE)
 		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle)
 		advanceUntilIdle(); vm.edit(session()); advanceUntilIdle()
 		vm.save(null, "UTC", "Draft", null); advanceUntilIdle()
@@ -77,6 +78,32 @@ class SessionOrganizationViewModelTest {
 		vm.read.value?.let { (it as SessionOrganizationRead.Content).sessions.none { group -> group.id == outside.id } } shouldBe true
 		vm.reload(); advanceUntilIdle()
 		vm.editor.value?.session?.name shouldBe "Fresh"
+		vm.problem.value shouldBe null
+	}
+
+	@Test fun `name-only imported save passes the default preserve-label request`() = runTest(dispatcher) {
+		val imported = session().copy(activityLabelName = "Hike", importedSourceSelection = emptyList())
+		coEvery { repo.edit(imported, null, "UTC", "New name", null, false) } returns OrganizationMutationResult.Saved
+		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle)
+		advanceUntilIdle(); vm.edit(imported); advanceUntilIdle()
+		vm.save(null, "UTC", "New name", null); advanceUntilIdle()
+		coVerify(exactly = 1) { repo.edit(imported, null, "UTC", "New name", null, false) }
+		vm.editor.value shouldBe null
+		vm.problem.value shouldBe null
+	}
+	@Test fun `explicit imported-label removal reaches the same edit and can retry without closing the draft`() = runTest(dispatcher) {
+		val imported = session().copy(activityLabelName = "Hike", importedSourceSelection = emptyList())
+		coEvery { repo.edit(imported, null, "UTC", "Private", null, true) } returns
+			OrganizationMutationResult.Rejected(OrganizationEditProblem.STORAGE_UNAVAILABLE) andThen OrganizationMutationResult.Saved
+		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle)
+		advanceUntilIdle(); vm.edit(imported); advanceUntilIdle()
+		vm.save(null, "UTC", "Private", null, clearImportedActivityLabel = true); advanceUntilIdle()
+		vm.editor.value?.session shouldBe imported
+		vm.problem.value shouldBe OrganizationEditProblem.STORAGE_UNAVAILABLE
+		vm.busy.value shouldBe false
+		vm.save(null, "UTC", "Private", null, clearImportedActivityLabel = true); advanceUntilIdle()
+		coVerify(exactly = 2) { repo.edit(imported, null, "UTC", "Private", null, true) }
+		vm.editor.value shouldBe null
 		vm.problem.value shouldBe null
 	}
 

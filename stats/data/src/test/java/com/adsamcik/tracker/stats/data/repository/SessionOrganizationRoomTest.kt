@@ -261,7 +261,7 @@ class SessionOrganizationRoomTest {
 
 	@Test fun `choosing a local activity replaces descriptive import text and removal preserves source records`() = runTest {
 		guard()
-		imported(listOf(OrganizationSourceSelector.CapturedEntry(HistorySource.STEPS, "a".repeat(64))), "Walking")
+		imported(listOf(OrganizationSourceSelector.CapturedEntry(HistorySource.STEPS, "sha256:" + "a".repeat(64))), "Walking")
 		val segment = segment()
 		val localActivity = db.activityDao().insert(SessionActivity(name = "Dog walk"))
 		val selected = (repository.find(OrganizationSessionId.Annotation("imported")) as SessionOrganizationRead.Content).sessions.single()
@@ -271,6 +271,40 @@ class SessionOrganizationRoomTest {
 		db.organizationAnnotationDao().byId("imported")?.importedActivityLabel shouldBe null
 		repository.remove(changed) shouldBe OrganizationMutationResult.Saved
 		db.sessionSegmentDao().getById(segment)?.steps shouldBe 25
+	}
+
+	@Test fun `explicit No label removes descriptive import text without changing membership or measurements`() = runTest {
+		guard()
+		val selectors = listOf(OrganizationSourceSelector.LocationFile("a".repeat(64)),
+			OrganizationSourceSelector.CapturedEntry(HistorySource.WIFI, "b".repeat(64)))
+		imported(selectors, "Hike")
+		val unrelated = segment()
+		val selected = (repository.find(OrganizationSessionId.Annotation("imported")) as SessionOrganizationRead.Content).sessions.single()
+		repository.edit(selected, null, "UTC", selected.name, null, clearImportedActivityLabel = true) shouldBe OrganizationMutationResult.Saved
+		val changed = (repository.find(selected.id) as SessionOrganizationRead.Content).sessions.single()
+		changed.activityLabelId shouldBe null
+		changed.activityLabelName shouldBe null
+		changed.name shouldBe selected.name
+		changed.fromMs shouldBe selected.fromMs
+		changed.toMs shouldBe selected.toMs
+		changed.displayZoneId shouldBe selected.displayZoneId
+		changed.importedSourceSelection shouldBe selectors
+		changed.revision shouldBe selected.revision + 1L
+		db.organizationAnnotationDao().byId("imported")?.importedActivityLabel shouldBe null
+		db.sessionSegmentDao().getById(unrelated)?.steps shouldBe 25
+		db.activityDao().getAllUser() shouldBe emptyList()
+		count("source_event_wal") shouldBe 0L
+	}
+	@Test fun `stale explicit label removal preserves the newer imported metadata`() = runTest {
+		guard(); imported(emptyList(), "Hike")
+		val selected = (repository.find(OrganizationSessionId.Annotation("imported")) as SessionOrganizationRead.Content).sessions.single()
+		repository.edit(selected, null, "UTC", "New name", null) shouldBe OrganizationMutationResult.Saved
+		val stored = db.organizationAnnotationDao().byId("imported")!!
+		repository.edit(selected, null, "UTC", "Old name", null, clearImportedActivityLabel = true) shouldBe rejected(OrganizationEditProblem.STALE)
+		db.organizationAnnotationDao().byId("imported") shouldBe stored
+		val fresh = (repository.find(selected.id) as SessionOrganizationRead.Content).sessions.single()
+		fresh.name shouldBe "New name"
+		fresh.activityLabelName shouldBe "Hike"
 	}
 
 	private suspend fun imported(selectors: List<OrganizationSourceSelector>, label: String? = null) {

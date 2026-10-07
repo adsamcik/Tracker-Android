@@ -163,7 +163,8 @@ class RoomSessionOrganizationRepository @Inject constructor(
 	}
 
 	override suspend fun edit(selection: OrganizedSession, intervalChange: OrganizationInterval?,
-		displayZoneId: String, name: String?, activityLabelId: Long?): OrganizationMutationResult = mutate {
+		displayZoneId: String, name: String?, activityLabelId: Long?,
+		clearImportedActivityLabel: Boolean): OrganizationMutationResult = mutate {
 		if (!sameEpoch(selection.collectedDataEpoch)) return@mutate rejected(OrganizationEditProblem.STALE)
 		val existing = annotation(selection.id)
 		if (selection.id is OrganizationSessionId.Annotation && existing?.recordingAdapterKey != null)
@@ -185,7 +186,8 @@ class RoomSessionOrganizationRepository @Inject constructor(
 			intervalChange?.fromMs ?: existing?.startTimeMs,
 			intervalChange?.toMs ?: existing?.endTimeMs, displayZoneId, name.normalized(), activityLabelId, false,
 			importedSourceSelection = existing?.importedSourceSelection,
-			importedActivityLabel = existing?.importedActivityLabel.takeIf { activityLabelId == existing?.activityLabelId })
+			importedActivityLabel = existing?.importedActivityLabel.takeIf {
+				!clearImportedActivityLabel && activityLabelId == existing?.activityLabelId })
 		if (existing == null) dao.insert(row) else check(dao.update(row) == 1)
 		OrganizationMutationResult.Saved
 	}

@@ -165,9 +165,10 @@ class SessionOrganizationViewModel @Inject constructor(
 		}
 	}
 
-	fun save(intervalChange: OrganizationInterval?, zoneId: String, name: String?, label: Long?) = perform { target ->
+	fun save(intervalChange: OrganizationInterval?, zoneId: String, name: String?, label: Long?,
+		clearImportedActivityLabel: Boolean = false) = perform { target ->
 		if (target.session == null) repository.create(target.epoch, intervalChange ?: target.interval, zoneId, name, label)
-		else repository.edit(target.session, intervalChange, zoneId, name, label)
+		else repository.edit(target.session, intervalChange, zoneId, name, label, clearImportedActivityLabel)
 	}
 	fun remove() = perform { target ->
 		target.session?.let { repository.remove(it) }

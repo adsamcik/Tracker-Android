@@ -724,3 +724,14 @@ independent exact V2 acceptance; NOT_RUN. No schema/API/annotation additions.
 Original raw working copies preserved; clean source copies applied. Other old-data active recovery remains proposed
 and full T18 OPEN. `../2026-10-07/LEGACY_ACTIVITY_DOMAIN_SELECTED/SOURCE_REVIEW.md`.
 IMPLEMENTED_UNVALIDATED; no final assembly/gates/integration claim.
+
+### 2026-10-08 — Imported session labels remain editable
+
+Selected existing-editor label display and explicit No label removal while
+name-only edits preserve imported labels. One default-false flag follows the
+existing VM/Room edit; no stored field or new UI option. Seven authored methods
+have independent static acceptance; NOT_RUN. Existing assertion/metadata guards
+retained, one invalid Steps fixture prefix repaired. See
+`../2026-10-07/IMPORTED_SESSION_LABEL_SELECTED/SOURCE_REVIEW.md`. Session contents
+navigation, retrospective radio membership and imported archive membership remain
+open in its T13 audit. IMPLEMENTED_UNVALIDATED; full assembly/gates remain open.

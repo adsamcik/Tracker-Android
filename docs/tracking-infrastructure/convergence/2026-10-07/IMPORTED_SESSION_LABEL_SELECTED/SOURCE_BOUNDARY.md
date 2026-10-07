@@ -1,0 +1,13 @@
+# Imported session label repair
+
+IMPLEMENTATION_ONLY / IMPLEMENTED_UNVALIDATED. Seven selected source/test paths from clean committed `7da374b5f4c8a1706525991aafc2c884ebda5226`. Seven new focused methods are NOT_RUN. Private SELECTED files are UTF-8 LF; BASE and WORKING_BEFORE preserve exact original committed/mixed bytes. No shared working source, Git mutation, compile, tests, lint, schema, diff-check, UI evaluator, provider, device or integration action.
+
+This is routine execution of the approved editable session labels and the existing No label action. The current descriptive imported label is displayed in the existing label button. Selecting No label records one transient explicit clear request; choosing a local label resets that request. Name/interval/zone-only edits retain the imported text by default. The existing edit contract gains one optional Boolean defaulting false; no entity, column, migration, file format, dependency, label catalog, UX option or import-policy change. The existing original-label selection and validation remain unchanged.
+
+The clear request follows HistoryRoute's existing editor onSave function reference through SessionOrganizationViewModel.save to the existing Room metadata transaction. Original source membership, measured bounds, epoch/revision fencing, recording metadata and activity catalog remain in place. A rejected edit leaves the current editor draft and explicit clear selection available for another Save. Imported text is not converted into a local activity or recording authority.
+
+Test boundary: Compose invokes the real existing editor with saved metadata, and simulates a save error through its existing problem input; it does not assert actual persistence. ViewModel cases use the actual ViewModel and mocked repository/lifecycle to verify exact forwarding and retry. Room cases use actual AppDatabase/RoomSessionOrganizationRepository with existing imported-annotation fixtures and an unrelated legacy segment to verify metadata persistence/fences and preserved source data. They do not invoke a bundle importer or a running provider. No authored method is a passing result.
+
+Existing tests are preserved with required callback/mock arity changes. One preexisting Room fixture used a bare digest for CapturedEntry(STEPS), although the current contract requires sha256:. The root explicitly authorized adding that prefix while preserving its assertions. This source-only repair avoids the known constructor throw; no test execution informed it.
+
+Other T13 gaps remain held: session-content UI/navigation, per-reading retrospective radio membership and exact deduplicated imported-radio archive membership. This slice closes none of those or any complete prerequisite chain.

@@ -34,12 +34,13 @@ import java.time.ZoneId
 @Composable
 internal fun SessionOrganizationEditor(target: SessionEditorTarget, labels: List<OrganizationActivityLabel>,
 	busy: Boolean, problem: OrganizationEditProblem?, onDismiss: () -> Unit, onReload: () -> Unit,
-	onSave: (OrganizationInterval?, String, String?, Long?) -> Unit, onRemove: () -> Unit,
+	onSave: (OrganizationInterval?, String, String?, Long?, Boolean) -> Unit, onRemove: () -> Unit,
 	onRecording: ((Long) -> Unit)? = null) {
 	val initialStart = remember(target) { Instant.ofEpochMilli(target.interval.fromMs).atZone(ZoneId.of(target.zoneId)) }
 	val initialEnd = remember(target) { Instant.ofEpochMilli(target.interval.toMs).atZone(ZoneId.of(target.zoneId)) }
 	var name by remember(target) { mutableStateOf(target.session?.name.orEmpty()) }
 	var label by remember(target) { mutableStateOf(target.session?.activityLabelId) }
+	var clearImportedActivityLabel by remember(target) { mutableStateOf(false) }
 	var zone by remember(target) { mutableStateOf(target.zoneId) }
 	var pendingZone by remember(target) { mutableStateOf(target.zoneId) }
 	var startDate by remember(target) { mutableStateOf(if (target.session != null && target.session.fromMs == null) "" else initialStart.toLocalDate().toString()) }
@@ -67,7 +68,7 @@ internal fun SessionOrganizationEditor(target: SessionEditorTarget, labels: List
 					isError = nameTooLong, supportingText = { if (nameTooLong) Text(stringResource(R.string.organization_name_long)) })
 				TextButton(onClick = { chooseLabel = true }, enabled = !busy) {
 					Text(stringResource(R.string.organization_label) + ": " +
-						(labels.firstOrNull { it.id == label }?.name ?: target.session?.activityLabelName?.takeIf { label != null && label == target.session.activityLabelId }
+						(labels.firstOrNull { it.id == label }?.name ?: target.session?.activityLabelName?.takeIf { !clearImportedActivityLabel && label == target.session.activityLabelId }
 							?: stringResource(R.string.organization_no_label)))
 				}
 				HorizontalDivider()
@@ -113,16 +114,16 @@ internal fun SessionOrganizationEditor(target: SessionEditorTarget, labels: List
 				if (start !is SessionEditorTimeResult.Exact || end !is SessionEditorTimeResult.Exact) return@Button
 				OrganizationInterval(start.epochMs, end.epochMs)
 			} else null
-			onSave(change, zone, name, label)
+			onSave(change, zone, name, label, clearImportedActivityLabel)
 		}) { Text(stringResource(R.string.organization_save)) } },
 		dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.organization_cancel)) } },
 	)
 	if (chooseLabel) AlertDialog(onDismissRequest = { chooseLabel = false },
 		title = { Text(stringResource(R.string.organization_label)) },
 		text = { LazyColumn(Modifier.heightIn(max = 360.dp)) {
-			item { TextButton(onClick = { label = null; chooseLabel = false }) { Text(stringResource(R.string.organization_no_label)) } }
+			item { TextButton(onClick = { label = null; clearImportedActivityLabel = true; chooseLabel = false }) { Text(stringResource(R.string.organization_no_label)) } }
 			items(labels, key = { it.id }) { item ->
-				TextButton(onClick = { label = item.id; chooseLabel = false }) { Text(item.name) }
+				TextButton(onClick = { label = item.id; clearImportedActivityLabel = false; chooseLabel = false }) { Text(item.name) }
 			}
 		} },
 		confirmButton = {}, dismissButton = { TextButton(onClick = { chooseLabel = false }) { Text(stringResource(R.string.organization_cancel)) } },

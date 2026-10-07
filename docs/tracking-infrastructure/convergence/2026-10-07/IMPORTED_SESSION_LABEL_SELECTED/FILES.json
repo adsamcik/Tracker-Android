@@ -1,0 +1,66 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "review": "PENDING",
+  "test_execution": "NOT_RUN",
+  "base_commit": "7da374b5f4c8a1706525991aafc2c884ebda5226",
+  "paths": [
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SessionOrganizationRepository.kt",
+      "base_sha256": "ae236eb186cb2111950bfe7f88e2942c91453afd859f4ae26ebc411b3148bca0",
+      "selected_sha256": "ed0194ea24b6407a8f0c820f71e2e796ad7d044a95c5192afaeff7f7b7e73050",
+      "selected_bytes": 4730,
+      "working_before_sha256": "7e1e84b8388ff2c805d645b48de99bd9897b45fff822b080a3f868fc7a1a8d5d",
+      "disposition": "Clean committed base with the bounded imported-label repair; exact mixed working bytes preserved separately."
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomSessionOrganizationRepository.kt",
+      "base_sha256": "70d29b5e9bcd6eaa73e40a4832cf5d08e3714b1397aac50141ecb99e5831b629",
+      "selected_sha256": "3fbfeed73340a56641479c55f501f02a397220b09631f16be2d9c2617aaed425",
+      "selected_bytes": 16067,
+      "working_before_sha256": "2c14a5eb9e36df4d29be70087024025500bcd7ba9c0737eaafd9f17902efaa11",
+      "disposition": "Clean committed base with the bounded imported-label repair; exact mixed working bytes preserved separately."
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/SessionOrganizationViewModel.kt",
+      "base_sha256": "5d5e303fbf7bbb45f6d3335d3af6a8b38805c368486028c5eed7257f2383978d",
+      "selected_sha256": "47fc5b05fceeee76caa919df94fec97990426dd2c51e756c7f7f02169c756dd2",
+      "selected_bytes": 8480,
+      "working_before_sha256": "a2b208ef768bca2d79a7ecba47ce7c1c7a35b5fde70856cf49fb975f29e08c17",
+      "disposition": "Clean committed base with the bounded imported-label repair; exact mixed working bytes preserved separately."
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/SessionOrganizationEditor.kt",
+      "base_sha256": "3d28e2872f28e212273fadf9da6477b83b2bdbb6cba06171f76812f86e0797be",
+      "selected_sha256": "0970970b4f9e0902140bd280c972ca1a63ccdb4dac872d9f07e039b384681abf",
+      "selected_bytes": 11302,
+      "working_before_sha256": "2925c2b7dca9ea455a164d22ba3f2cb45ea89156b0f0001a7717d6a0e8bc531f",
+      "disposition": "Clean committed base with the bounded imported-label repair; exact mixed working bytes preserved separately."
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SessionOrganizationRoomTest.kt",
+      "base_sha256": "896eec4357a445efb3503bd785778e9ed4918221aeae62519137d49610908621",
+      "selected_sha256": "019534765675213c9483c1ec016519b0c82be57dbd5ee738827b043a70c51922",
+      "selected_bytes": 20581,
+      "working_before_sha256": "d5a0c060301634f646a445090429e3ac643bab8d2f324f56deadafa972bc4f81",
+      "disposition": "Clean committed base with the bounded imported-label repair; exact mixed working bytes preserved separately."
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/SessionOrganizationViewModelTest.kt",
+      "base_sha256": "bd5f83e69c841cd1caecee8e3662c7d81e5ec5cf6150b1b34a1fdf16a7f84c9e",
+      "selected_sha256": "e3747b84a6c090ee4ea85291eddbbaeb6cfbb1beca6aa8db28c3d3fd81420076",
+      "selected_bytes": 6348,
+      "working_before_sha256": "6127ddb942acf54c41cefd50051398f0a38a1dbdb464b69c5469dbd2d92dd937",
+      "disposition": "Clean committed base with the bounded imported-label repair; exact mixed working bytes preserved separately."
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/SessionOrganizationEditorComposeTest.kt",
+      "base_sha256": "3c51dcc4fb7ffcea612a836d647315c93d5077f9acdf94e9c0c7e1e5f161338c",
+      "selected_sha256": "c071670e5f89ba4d400a07a02c98b75a3fe46d914f0d8a79fa27321897218d97",
+      "selected_bytes": 7818,
+      "working_before_sha256": "79c319d7919e6e738b3b25844bb4538f49131d5ac667e492af8eece3022f0e2f",
+      "disposition": "Clean committed base with the bounded imported-label repair; exact mixed working bytes preserved separately."
+    }
+  ],
+  "selection_patch_sha256": "918adffac565db22819e836728f217b930827cbd3ee6cce1f9aca4fbcad89598"
+}
