@@ -1,0 +1,11 @@
+{
+  "dispositions": [
+    {
+      "path": "PRESERVED_V30_ALTERNATIVE",
+      "status": "PRESERVED_EXCLUDED",
+      "reason": "Root confirmed existing unshipped-v29 assembly convention; no candidate schema version was released."
+    }
+  ],
+  "other_working_drafts": "PRESERVED_UNCHANGED",
+  "schema_generation": "DEFERRED_FINAL_CONVERGENCE"
+}

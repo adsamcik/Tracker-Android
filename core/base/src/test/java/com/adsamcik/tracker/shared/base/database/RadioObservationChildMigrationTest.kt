@@ -38,6 +38,9 @@ class RadioObservationChildMigrationTest {
 					override fun onCreate(db: SupportSQLiteDatabase) {
 						createLegacyRadioTables(db)
 						createPurposeParentTables(db)
+						db.execSQL("CREATE TABLE session_manifest_source (logical_tracking_id TEXT NOT NULL, " +
+							"manifest_revision INTEGER NOT NULL, source_kind INTEGER NOT NULL, purpose TEXT NOT NULL)")
+						db.execSQL("INSERT INTO session_manifest_source VALUES ('session',1,3,'SESSION_CAPTURE')")
 						createNativePortableOwnerParents(db)
 						createEarlierRadioRetentionEventIndex(db)
 						db.execSQL("INSERT INTO wifi_captured_fact_revision VALUES ('older-writer',1,'older-fact',1)")
@@ -75,6 +78,10 @@ class RadioObservationChildMigrationTest {
 			readLong(db, "SELECT \"unique\" FROM pragma_index_list('captured_radio_fact_retention_proof') " +
 				"WHERE name='idx_captured_radio_retention_event'") shouldBe 1L
 			MIGRATION_28_29.migrate(db)
+			readLong(db, "SELECT count(*) FROM session_manifest_source WHERE logical_tracking_id='session' " +
+				"AND manifest_revision=1 AND steps_recording_manifest_revision IS NULL") shouldBe 1L
+			readLong(db, "SELECT count(*) FROM pragma_table_info('session_manifest_source') WHERE " +
+				"name='steps_recording_manifest_revision' AND type='INTEGER' AND [notnull]=0 AND dflt_value='NULL'") shouldBe 1L
 			readLong(db, "SELECT \"unique\" FROM pragma_index_list('captured_radio_fact_retention_proof') " +
 				"WHERE name='idx_captured_radio_retention_event'") shouldBe 0L
 			db.execSQL("INSERT INTO captured_radio_fact_retention_proof VALUES (6,'writer',1,'second-fact','shared-callback')")

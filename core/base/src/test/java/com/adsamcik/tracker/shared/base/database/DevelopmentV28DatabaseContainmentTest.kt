@@ -920,6 +920,18 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	@Test
+	fun `older unshipped v29 without Steps origin is preserved and blocked`() {
+		val database = AppDatabase.fileBuilder(context, DATABASE_NAME).allowMainThreadQueries().build()
+		try {
+			database.openHelper.writableDatabase.execSQL(
+				"ALTER TABLE session_manifest_source RENAME COLUMN steps_recording_manifest_revision TO missing_steps_origin")
+		} finally { database.close() }
+		val preserved = databaseFile().readBytes()
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA)
+		databaseFile().readBytes().contentEquals(preserved) shouldBe true
+	}
+
+	@Test
 	fun `v29 database missing a radio child table is blocked before Room opens`() {
 		val database = AppDatabase.fileBuilder(context, DATABASE_NAME)
 			.allowMainThreadQueries()

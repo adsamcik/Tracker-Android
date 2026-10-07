@@ -15,9 +15,10 @@ object SessionManifestIntegrity {
 			source.logicalTrackingId == manifest.logicalTrackingId &&
 				source.manifestRevision == manifest.manifestRevision
 		}) { "Manifest sources must belong to the exact manifest version" }
+		val hasStepsRecordingOrigins = sources.any { it.stepsRecordingManifestRevision != null }
 		val canonical = encode(
 			listOf(
-				FORMAT,
+				if (hasStepsRecordingOrigins) "session-manifest-v3" else FORMAT,
 				manifest.logicalTrackingId,
 				manifest.manifestRevision,
 				manifest.serviceRunId,
@@ -45,7 +46,9 @@ object SessionManifestIntegrity {
 						source.writerProjectionId,
 						source.writerProjectionVersion,
 						source.writerBindingGeneration,
-					)
+					).let { values ->
+						if (hasStepsRecordingOrigins) values + source.stepsRecordingManifestRevision else values
+					}
 				},
 			),
 		)

@@ -1,0 +1,109 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_commit": "78eb255e5958b3490c44fa648b5bb6a67b2af7fe",
+  "slice": "T03 storage/checksum/lifetime predicate and stable adaptive request foundation",
+  "full_T03": "PENDING_OPERATION_LEASE_AND_RUNTIME_COMPOSITION",
+  "tests": "NOT_RUN",
+  "independent_review": "ACCEPTED_STATIC_ONLY",
+  "files": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt",
+      "base_sha256": "1dab828427c810c0b53cdef005b255841055c67d37afa48f340e84a5d1b675f6",
+      "selected_sha256": "623e820365325c02ed52950662ec52b0f7f05ee916040998b59567ad19ade447",
+      "selected_bytes": 45473,
+      "working_sha256": "e557fda96b0ce3060f282d04769e5b065456b550726e56f23c38d7ac556f1208"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
+      "base_sha256": "e20e5b2be7c1164045d928a0a5b6d4c409952232b9047be31b4382d0fb6711de",
+      "selected_sha256": "7b7418ab7d0d82c0d23bb0bf8b60a58293c946be67b8b73bee1b7323a374e737",
+      "selected_bytes": 8497,
+      "working_sha256": "b8f904e77abf0906a1679eb9fdc55add67487d0289bfa1f57f97584352f21833"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceSessionEntities.kt",
+      "base_sha256": "e678a30f4da0008411c3c2bb592900e7a390040198fd0a3201476be40e8f31d0",
+      "selected_sha256": "9e30418fe4663e86e39adae3cabb763342c9959dc54a06d6c39dab0fa4685e21",
+      "selected_bytes": 48479,
+      "working_sha256": "e678a30f4da0008411c3c2bb592900e7a390040198fd0a3201476be40e8f31d0"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepsRecordingLifetime.kt",
+      "base_sha256": null,
+      "selected_sha256": "534388053a7e663ab0d41adee7d1ff4306566ea6360ddb2f84d77edf8d2b7015",
+      "selected_bytes": 4639,
+      "working_sha256": null
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt",
+      "base_sha256": "be0be61f760e3b8bbf1017b5810fa3616218770b85d09ee2ee2f4e4e8cfa1590",
+      "selected_sha256": "bd08350441d137487183777f448e949593eaaaa69c33f7f420ce9752d30185a9",
+      "selected_bytes": 54266,
+      "working_sha256": "7e5cf515685863675d97257acbb3dc55881ac402afe127fb9ea72492e51ebf37"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt",
+      "base_sha256": "4edc1d756190d8430681467189015d6a8bb0af91b713e266f5a0b06ebaaf51f9",
+      "selected_sha256": "05ed64e1be3fbcc9b274fa025be2e564fc9925f0e16007acd4a1e101342da2b2",
+      "selected_bytes": 17992,
+      "working_sha256": "4edc1d756190d8430681467189015d6a8bb0af91b713e266f5a0b06ebaaf51f9"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/StepsRecordingLifetimeTest.kt",
+      "base_sha256": null,
+      "selected_sha256": "967f3445b547f167fd9f891f1629cc4fd98691355240f14359eba3d7269d64c7",
+      "selected_bytes": 3997,
+      "working_sha256": null
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt",
+      "base_sha256": "c45751e7b6e1e4f4db89d267b3d7e945df9bf0ce829433b7f3dfaf8805a84122",
+      "selected_sha256": "0ca393dbb14bd15de235910c5f4753f301bb2e11b107d8dbfb89f6749df4989a",
+      "selected_bytes": 53998,
+      "working_sha256": "a8d25663e24457dca86bab3fb29b2ac4c95f58542aa797f823fa358f55134ce1"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/OwnerlessStepsManifestTimelinePaginationTest.kt",
+      "base_sha256": "efc0479fbf5ac75cd3d00e2c156b3e5488470c514655b2ba3f01f5aff52e0ea8",
+      "selected_sha256": "c2337a4cbeada7cc19aab4b17d9c1d882806b6b2d475feb877195cb156044283",
+      "selected_bytes": 13005,
+      "working_sha256": "4004e0be85c969bd113941b2690e5e9a27add3a71744ad380d05e2d7b5780204"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt",
+      "base_sha256": "ed3fb5dedc47e1e6e4f69f430efa016da9dcda29947c44b2d82cea6f929bff74",
+      "selected_sha256": "0e109a4f4919deae0b4cb42a3ef5d8897bf207ceee5fd811d6235d18d5266fe5",
+      "selected_bytes": 15863,
+      "working_sha256": "ed3fb5dedc47e1e6e4f69f430efa016da9dcda29947c44b2d82cea6f929bff74"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/StepsRecordingOriginRoomTest.kt",
+      "base_sha256": null,
+      "selected_sha256": "31b3be4d9f858a94688a58192072a7b2b5ca0f885a97127f1ee496142c27b9a3",
+      "selected_bytes": 4142,
+      "working_sha256": null
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SemanticAcquisitionPlanFactory.kt",
+      "base_sha256": "dc802085b93da362eb41d0121ec5069bd4e6d63db02cc045ae0b1c0065e880cb",
+      "selected_sha256": "8f6f4150da559fd768ea5ce57913c7dc9aaee795b6c4c365e27da6e3138c83c5",
+      "selected_bytes": 12960,
+      "working_sha256": "dc802085b93da362eb41d0121ec5069bd4e6d63db02cc045ae0b1c0065e880cb"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AdaptiveStepsPhysicalPlanContinuityTest.kt",
+      "base_sha256": null,
+      "selected_sha256": "79d06c1fcb427f399c9ab4a343f99e1d223519b41e5c5a639324fe5ccefdfc1a",
+      "selected_bytes": 3073,
+      "working_sha256": null
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/FiveLevelSourceConfigurationTest.kt",
+      "base_sha256": "65063379b19d3f3fe375200873d2ed659990e2014b80ff7029687651c591c3d6",
+      "selected_sha256": "3a3362e7931fb88b3ed1de0df435b8f68547a84f88d693a5ca7de5e0965616ad",
+      "selected_bytes": 9630,
+      "working_sha256": "359d4ad2bf49d937952ef504e5d3162a89e8f8f2e4d7bf48183afa30c2b76c4d"
+    }
+  ]
+}

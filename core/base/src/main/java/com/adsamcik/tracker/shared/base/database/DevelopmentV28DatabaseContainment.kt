@@ -1222,6 +1222,7 @@ private val FINAL_V29_NATIVE_PORTABLE_TRIGGERS = listOf(
 )
 
 private val FINAL_V29_ADDITIONAL_COLUMNS = listOf(
+	FinalV28ColumnSentinel("session_manifest_source", "steps_recording_manifest_revision", "INTEGER", false, defaultValue = "NULL"),
 	FinalV28ColumnSentinel("wifi_captured_fact_revision", "payload_version", "INTEGER", false, defaultValue = "NULL"),
 	FinalV28ColumnSentinel("ambient_wifi_fact_revision", "purpose_demand_id", "TEXT", false, defaultValue = "NULL"),
 	FinalV28ColumnSentinel("ambient_cell_fact_revision", "purpose_demand_id", "TEXT", false, defaultValue = "NULL"),

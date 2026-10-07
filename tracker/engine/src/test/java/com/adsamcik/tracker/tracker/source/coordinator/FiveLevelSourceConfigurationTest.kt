@@ -108,7 +108,7 @@ class FiveLevelSourceConfigurationTest {
     @Test fun `five cadence tables include distinct intermediate rates and finite radio spacing`() {
         fun plans(source: SourceKind) = (1..5).map { adaptiveSourcePlan(source, it, 1, environment) }
         plans(SourceKind.ACTIVITY).map { (it as ActivityPlan).desiredDetectionLatencyMs } shouldBe listOf(60_000L,45_000L,30_000L,15_000L,5_000L)
-        plans(SourceKind.STEPS).map { (it as StepsPlan).maximumReportLatencyMs } shouldBe listOf(300_000L,120_000L,60_000L,15_000L,5_000L)
+        plans(SourceKind.STEPS).map { (it as StepsPlan).maximumReportLatencyMs } shouldBe listOf(5_000L,5_000L,5_000L,5_000L,5_000L)
         plans(SourceKind.PRESSURE).map { (it as PressurePlan).hardwareSamplePeriodMicros } shouldBe listOf(1_000_000,500_000,200_000,100_000,50_000)
         plans(SourceKind.WIFI).map { (it as WifiPlan).mode } shouldBe listOf(WifiMode.BROADCAST_DRIVEN,WifiMode.BROADCAST_DRIVEN,WifiMode.BROADCAST_DRIVEN,WifiMode.ACTIVE_ATTEMPTS,WifiMode.ACTIVE_ATTEMPTS)
         (adaptiveSourcePlan(SourceKind.WIFI, 4, 1, environment) as WifiPlan).minimumAttemptIntervalMs shouldBe 120_000L

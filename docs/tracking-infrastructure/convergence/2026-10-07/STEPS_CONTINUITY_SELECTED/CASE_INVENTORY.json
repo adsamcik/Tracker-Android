@@ -1,0 +1,18 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "execution": "NOT_RUN",
+  "new_test_methods": 9,
+  "existing_tests_extended": [
+    "RadioObservationChildMigrationTest populated nullable origin preservation",
+    "DevelopmentV28DatabaseContainmentTest old incomplete v29 file preservation",
+    "OwnerlessStepsManifestTimelinePaginationTest exact raw signature fixture",
+    "FiveLevelSourceConfigurationTest fixed adaptive Steps physical request"
+  ],
+  "not_covered_here": [
+    "actual demand/receipt reuse",
+    "current generic caller/replay rejection under continuing demand",
+    "runtime listener/baseline continuity",
+    "ingress retention/deletion/current permission composition",
+    "retained count-domain/carrier/portable round trip"
+  ]
+}

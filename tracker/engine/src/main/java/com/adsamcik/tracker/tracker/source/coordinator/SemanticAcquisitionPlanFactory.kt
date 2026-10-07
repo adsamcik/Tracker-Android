@@ -201,8 +201,10 @@ internal fun adaptiveSourcePlan(source: SourceKind, level: Int, revision: Long, 
         SourceKind.LOCATION -> adaptiveLocationPlan(level, revision, environment.locationBackend, environment.preciseLocationAvailable)
         SourceKind.ACTIVITY -> ActivityPlan(revision, ActivityMode.CONTINUOUS_RECOGNITION,
             listOf(60_000L, 45_000L, 30_000L, 15_000L, 5_000L)[index], 65, setOf(0, 1), adaptiveProfileVersion = 1)
+        // A cumulative counter needs one physical request across adaptive quality changes.
+        // Requested batching is fixed; it does not force Android to wake at this cadence.
         SourceKind.STEPS -> StepsPlan(revision, true,
-            listOf(300_000L, 120_000L, 60_000L, 15_000L, 5_000L)[index],
+            5_000L,
             listOf(60_000L, 30_000L, 15_000L, 5_000L, 2_000L)[index], level >= 4)
         SourceKind.PRESSURE -> PressurePlan(revision, true,
             listOf(1_000_000, 500_000, 200_000, 100_000, 50_000)[index],

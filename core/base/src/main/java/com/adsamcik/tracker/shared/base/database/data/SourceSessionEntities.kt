@@ -220,8 +220,17 @@ data class SessionManifestSourceEntity(
 	@ColumnInfo(name = "writer_projection_id") val writerProjectionId: String? = null,
 	@ColumnInfo(name = "writer_projection_version") val writerProjectionVersion: Int? = null,
 	@ColumnInfo(name = "writer_binding_generation") val writerBindingGeneration: Long? = null,
+	/** Recording origin for new adaptive Steps; null preserves historical manifest boundaries. */
+	@ColumnInfo(name = "steps_recording_manifest_revision", defaultValue = "NULL")
+	val stepsRecordingManifestRevision: Long? = null,
 ) {
 	init {
+		require(stepsRecordingManifestRevision == null ||
+			(sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+				purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible &&
+				stepsRecordingManifestRevision in 1L..manifestRevision)) {
+			"Only an eligible Steps capture may reference a recording origin"
+		}
 		val writerProvenance = listOf(outputDestination, writerOwner, writerOwnerGeneration)
 		require(writerProvenance.all { it == null } || writerProvenance.all { it != null }) {
 			"Writer destination, owner, and generation must be supplied together"
@@ -289,6 +298,8 @@ data class SessionManifestSourceEntity(
 		@ColumnInfo(name = "writer_projection_id") val writerProjectionId: String?,
 		@ColumnInfo(name = "writer_projection_version") val writerProjectionVersion: Long?,
 		@ColumnInfo(name = "writer_binding_generation") val writerBindingGeneration: Long?,
+		@ColumnInfo(name = "steps_recording_manifest_revision")
+		val stepsRecordingManifestRevision: Long? = null,
 	) {
 		@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 		fun validatedOrNull(): SessionManifestSourceEntity? {
@@ -327,6 +338,11 @@ data class SessionManifestSourceEntity(
 				!storageClasses.hasNullableClass(
 					WRITER_BINDING_GENERATION_INDEX,
 					writerBindingGeneration,
+					SQLITE_INTEGER,
+				) ||
+				!storageClasses.hasNullableClass(
+					STEPS_RECORDING_MANIFEST_REVISION_INDEX,
+					stepsRecordingManifestRevision,
 					SQLITE_INTEGER,
 				)
 			) {
@@ -419,6 +435,7 @@ data class SessionManifestSourceEntity(
 					writerProjectionId = writerProjectionId,
 					writerProjectionVersion = validatedProjectionVersion,
 					writerBindingGeneration = writerBindingGeneration,
+					stepsRecordingManifestRevision = stepsRecordingManifestRevision,
 				)
 			}.getOrNull()
 		}
@@ -518,7 +535,7 @@ data class SessionManifestSourceEntity(
 
 		private companion object {
 			const val STORAGE_CLASS_SEPARATOR = '|'
-			const val STORAGE_CLASS_COUNT = 13
+			const val STORAGE_CLASS_COUNT = 14
 			const val LOGICAL_TRACKING_ID_INDEX = 0
 			const val MANIFEST_REVISION_INDEX = 1
 			const val SOURCE_KIND_INDEX = 2
@@ -532,6 +549,7 @@ data class SessionManifestSourceEntity(
 			const val WRITER_PROJECTION_ID_INDEX = 10
 			const val WRITER_PROJECTION_VERSION_INDEX = 11
 			const val WRITER_BINDING_GENERATION_INDEX = 12
+			const val STEPS_RECORDING_MANIFEST_REVISION_INDEX = 13
 			const val MIN_QOS_CODE = 0L
 			const val MAX_QOS_CODE = 3L
 			const val SQLITE_INTEGER = "integer"

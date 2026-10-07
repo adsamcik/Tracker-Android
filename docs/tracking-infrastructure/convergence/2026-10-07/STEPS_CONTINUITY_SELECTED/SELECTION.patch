@@ -1,0 +1,511 @@
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt
+@@ -703,7 +703,8 @@
+ 		"typeof(persistence_eligible) || '|' || typeof(qos_code) || '|' || " +
+ 		"typeof(output_destination) || '|' || typeof(writer_owner) || '|' || " +
+ 		"typeof(writer_owner_generation) || '|' || typeof(writer_projection_id) || '|' || " +
+-		"typeof(writer_projection_version) || '|' || typeof(writer_binding_generation) " +
++		"typeof(writer_projection_version) || '|' || typeof(writer_binding_generation) || '|' || " +
++		"typeof(steps_recording_manifest_revision) " +
+ 		"AS storage_class_signature, " +
+ 		"CASE WHEN typeof(logical_tracking_id) = 'text' THEN logical_tracking_id END " +
+ 		"AS logical_tracking_id, " +
+@@ -725,7 +726,9 @@
+ 		"CASE WHEN typeof(writer_projection_version) IN ('integer', 'null') " +
+ 		"THEN writer_projection_version END AS writer_projection_version, " +
+ 		"CASE WHEN typeof(writer_binding_generation) IN ('integer', 'null') " +
+-		"THEN writer_binding_generation END AS writer_binding_generation"
++		"THEN writer_binding_generation END AS writer_binding_generation, " +
++		"CASE WHEN typeof(steps_recording_manifest_revision) IN ('integer', 'null') " +
++		"THEN steps_recording_manifest_revision END AS steps_recording_manifest_revision"
+ 
+ private const val RAW_MANIFEST_VERSION_PROJECTION =
+ 	"typeof(logical_tracking_id) || '|' || typeof(manifest_revision) || '|' || " +
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt
+@@ -15,9 +15,10 @@
+ 			source.logicalTrackingId == manifest.logicalTrackingId &&
+ 				source.manifestRevision == manifest.manifestRevision
+ 		}) { "Manifest sources must belong to the exact manifest version" }
++		val hasStepsRecordingOrigins = sources.any { it.stepsRecordingManifestRevision != null }
+ 		val canonical = encode(
+ 			listOf(
+-				FORMAT,
++				if (hasStepsRecordingOrigins) "session-manifest-v3" else FORMAT,
+ 				manifest.logicalTrackingId,
+ 				manifest.manifestRevision,
+ 				manifest.serviceRunId,
+@@ -45,7 +46,9 @@
+ 						source.writerProjectionId,
+ 						source.writerProjectionVersion,
+ 						source.writerBindingGeneration,
+-					)
++					).let { values ->
++						if (hasStepsRecordingOrigins) values + source.stepsRecordingManifestRevision else values
++					}
+ 				},
+ 			),
+ 		)
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceSessionEntities.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceSessionEntities.kt
+@@ -220,8 +220,17 @@
+ 	@ColumnInfo(name = "writer_projection_id") val writerProjectionId: String? = null,
+ 	@ColumnInfo(name = "writer_projection_version") val writerProjectionVersion: Int? = null,
+ 	@ColumnInfo(name = "writer_binding_generation") val writerBindingGeneration: Long? = null,
++	/** Recording origin for new adaptive Steps; null preserves historical manifest boundaries. */
++	@ColumnInfo(name = "steps_recording_manifest_revision", defaultValue = "NULL")
++	val stepsRecordingManifestRevision: Long? = null,
+ ) {
+ 	init {
++		require(stepsRecordingManifestRevision == null ||
++			(sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
++				purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible &&
++				stepsRecordingManifestRevision in 1L..manifestRevision)) {
++			"Only an eligible Steps capture may reference a recording origin"
++		}
+ 		val writerProvenance = listOf(outputDestination, writerOwner, writerOwnerGeneration)
+ 		require(writerProvenance.all { it == null } || writerProvenance.all { it != null }) {
+ 			"Writer destination, owner, and generation must be supplied together"
+@@ -289,6 +298,8 @@
+ 		@ColumnInfo(name = "writer_projection_id") val writerProjectionId: String?,
+ 		@ColumnInfo(name = "writer_projection_version") val writerProjectionVersion: Long?,
+ 		@ColumnInfo(name = "writer_binding_generation") val writerBindingGeneration: Long?,
++		@ColumnInfo(name = "steps_recording_manifest_revision")
++		val stepsRecordingManifestRevision: Long? = null,
+ 	) {
+ 		@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+ 		fun validatedOrNull(): SessionManifestSourceEntity? {
+@@ -328,6 +339,11 @@
+ 					WRITER_BINDING_GENERATION_INDEX,
+ 					writerBindingGeneration,
+ 					SQLITE_INTEGER,
++				) ||
++				!storageClasses.hasNullableClass(
++					STEPS_RECORDING_MANIFEST_REVISION_INDEX,
++					stepsRecordingManifestRevision,
++					SQLITE_INTEGER,
+ 				)
+ 			) {
+ 				return null
+@@ -419,6 +435,7 @@
+ 					writerProjectionId = writerProjectionId,
+ 					writerProjectionVersion = validatedProjectionVersion,
+ 					writerBindingGeneration = writerBindingGeneration,
++					stepsRecordingManifestRevision = stepsRecordingManifestRevision,
+ 				)
+ 			}.getOrNull()
+ 		}
+@@ -518,7 +535,7 @@
+ 
+ 		private companion object {
+ 			const val STORAGE_CLASS_SEPARATOR = '|'
+-			const val STORAGE_CLASS_COUNT = 13
++			const val STORAGE_CLASS_COUNT = 14
+ 			const val LOGICAL_TRACKING_ID_INDEX = 0
+ 			const val MANIFEST_REVISION_INDEX = 1
+ 			const val SOURCE_KIND_INDEX = 2
+@@ -532,6 +549,7 @@
+ 			const val WRITER_PROJECTION_ID_INDEX = 10
+ 			const val WRITER_PROJECTION_VERSION_INDEX = 11
+ 			const val WRITER_BINDING_GENERATION_INDEX = 12
++			const val STEPS_RECORDING_MANIFEST_REVISION_INDEX = 13
+ 			const val MIN_QOS_CODE = 0L
+ 			const val MAX_QOS_CODE = 3L
+ 			const val SQLITE_INTEGER = "integer"
+--- /dev/null
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepsRecordingLifetime.kt
+@@ -0,0 +1,86 @@
++package com.adsamcik.tracker.shared.base.database.data
++
++/** Source-local recording boundaries over an already authenticated complete native run timeline. */
++object StepsRecordingLifetime {
++	/** Quality may change, but the recording's source, permission, writer, run and clock may not. */
++	@Suppress("ComplexCondition")
++	fun isContinuation(
++		origin: SessionManifestVersionEntity,
++		originBinding: SessionManifestSourceEntity,
++		current: SessionManifestVersionEntity,
++		currentBinding: SessionManifestSourceEntity,
++	): Boolean = originBinding.stepsRecordingManifestRevision == origin.manifestRevision &&
++		currentBinding.stepsRecordingManifestRevision == origin.manifestRevision &&
++		eligible(origin, originBinding) && eligible(current, currentBinding) &&
++		origin.logicalTrackingId == current.logicalTrackingId &&
++		origin.serviceRunId == current.serviceRunId && origin.sessionMode == current.sessionMode &&
++		origin.effectiveBootId == current.effectiveBootId && origin.zoneId == current.zoneId &&
++		origin.rolloutRevision == current.rolloutRevision &&
++		origin.effectiveElapsedRealtimeNanos <= current.effectiveElapsedRealtimeNanos &&
++		originBinding.consentEpoch == currentBinding.consentEpoch &&
++		originBinding.outputDestination == currentBinding.outputDestination &&
++		originBinding.writerOwner == currentBinding.writerOwner &&
++		originBinding.writerOwnerGeneration == currentBinding.writerOwnerGeneration &&
++		originBinding.writerProjectionId == currentBinding.writerProjectionId &&
++		originBinding.writerProjectionVersion == currentBinding.writerProjectionVersion &&
++		originBinding.writerBindingGeneration == currentBinding.writerBindingGeneration
++
++	/** Rejects an origin revived after a missing binding or any actual recording boundary. */
++	fun hasValidReferences(
++		manifests: List<SessionManifestVersionEntity>,
++		bindings: Map<Long, SessionManifestSourceEntity>,
++	): Boolean {
++		val ordered = manifests.sortedBy(SessionManifestVersionEntity::manifestRevision)
++		if (ordered.isEmpty() || ordered.map { it.manifestRevision }.distinct().size != ordered.size ||
++			!ordered.zipWithNext().all { (left, right) ->
++				left.manifestRevision != Long.MAX_VALUE && right.manifestRevision == left.manifestRevision + 1L
++			}
++		) return false
++		val byRevision = ordered.associateBy(SessionManifestVersionEntity::manifestRevision)
++		for ((index, manifest) in ordered.withIndex()) {
++			val binding = bindings[manifest.manifestRevision] ?: continue
++			if (!eligible(manifest, binding)) return false
++			val originRevision = binding.stepsRecordingManifestRevision ?: continue
++			if (originRevision == manifest.manifestRevision) continue
++			val previous = ordered.getOrNull(index - 1) ?: return false
++			if (bindings[previous.manifestRevision]?.stepsRecordingManifestRevision != originRevision) return false
++			val origin = byRevision[originRevision] ?: return false
++			val originBinding = bindings[originRevision] ?: return false
++			if (!isContinuation(origin, originBinding, manifest, binding)) return false
++		}
++		return true
++	}
++
++	/** Null-origin legacy facts end at the next global manifest, exactly as before. */
++	fun containsInterval(
++		originRevision: Long,
++		startElapsedNanos: Long,
++		endElapsedNanos: Long,
++		manifests: List<SessionManifestVersionEntity>,
++		bindings: Map<Long, SessionManifestSourceEntity>,
++	): Boolean {
++		if (startElapsedNanos < 0L || endElapsedNanos < startElapsedNanos ||
++			!hasValidReferences(manifests, bindings)
++		) return false
++		val ordered = manifests.sortedBy(SessionManifestVersionEntity::manifestRevision)
++		val index = ordered.indexOfFirst { it.manifestRevision == originRevision }
++		if (index < 0) return false
++		val origin = ordered[index]
++		val binding = bindings[originRevision] ?: return false
++		if (binding.stepsRecordingManifestRevision != null &&
++			binding.stepsRecordingManifestRevision != originRevision
++		) return false
++		if (startElapsedNanos < origin.effectiveElapsedRealtimeNanos) return false
++		val boundary = ordered.drop(index + 1).firstOrNull { manifest ->
++			binding.stepsRecordingManifestRevision == null ||
++				bindings[manifest.manifestRevision]?.stepsRecordingManifestRevision != originRevision
++		}
++		return boundary == null || endElapsedNanos < boundary.effectiveElapsedRealtimeNanos
++	}
++
++	private fun eligible(manifest: SessionManifestVersionEntity, binding: SessionManifestSourceEntity): Boolean =
++		binding.logicalTrackingId == manifest.logicalTrackingId &&
++			binding.manifestRevision == manifest.manifestRevision &&
++			binding.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
++			binding.purpose == SourceBrokerPurpose.SESSION_CAPTURE && binding.persistenceEligible
++}
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt
+@@ -1222,6 +1222,7 @@
+ )
+ 
+ private val FINAL_V29_ADDITIONAL_COLUMNS = listOf(
++	FinalV28ColumnSentinel("session_manifest_source", "steps_recording_manifest_revision", "INTEGER", false, defaultValue = "NULL"),
+ 	FinalV28ColumnSentinel("wifi_captured_fact_revision", "payload_version", "INTEGER", false, defaultValue = "NULL"),
+ 	FinalV28ColumnSentinel("ambient_wifi_fact_revision", "purpose_demand_id", "TEXT", false, defaultValue = "NULL"),
+ 	FinalV28ColumnSentinel("ambient_cell_fact_revision", "purpose_demand_id", "TEXT", false, defaultValue = "NULL"),
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt
+@@ -19,6 +19,8 @@
+ /** Complete the unshipped v29 data model while preserving existing observation meaning. */
+ val MIGRATION_28_29: Migration = object : Migration(28, 29) {
+ 	override fun migrate(db: SupportSQLiteDatabase) {
++		// Existing Steps memberships remain legacy-null; continuity is never inferred.
++		db.execSQL("ALTER TABLE session_manifest_source ADD COLUMN steps_recording_manifest_revision INTEGER DEFAULT NULL")
+ 		// Earlier facts have no durable carrier version; do not guess it from child presence.
+ 		db.execSQL("ALTER TABLE wifi_captured_fact_revision ADD COLUMN payload_version INTEGER DEFAULT NULL")
+ 		db.execSQL("ALTER TABLE ambient_wifi_fact_revision ADD COLUMN purpose_demand_id TEXT DEFAULT NULL")
+--- /dev/null
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/StepsRecordingLifetimeTest.kt
+@@ -0,0 +1,72 @@
++package com.adsamcik.tracker.shared.base.database.data
++
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++class StepsRecordingLifetimeTest {
++	@Test fun `marked recording crosses two quality revisions but ends at real boundary`() {
++		val manifests = listOf(manifest(1, 100), manifest(2, 105), manifest(3, 108), manifest(4, 120))
++		val bindings = mapOf(1L to binding(1, 1), 2L to binding(2, 1, qos = 2),
++			3L to binding(3, 1, qos = 3), 4L to binding(4, 4))
++		assertTrue(StepsRecordingLifetime.containsInterval(1, 100, 112, manifests, bindings))
++		assertFalse(StepsRecordingLifetime.containsInterval(1, 100, 120, manifests, bindings))
++		assertFalse(StepsRecordingLifetime.containsInterval(2, 105, 112, manifests, bindings))
++		assertTrue(StepsRecordingLifetime.containsInterval(4, 120, 125, manifests, bindings))
++	}
++
++	@Test fun `legacy null retains the next global manifest cutoff`() {
++		val manifests = listOf(manifest(1, 100), manifest(2, 105))
++		val bindings = mapOf(1L to binding(1, null), 2L to binding(2, null))
++		assertTrue(StepsRecordingLifetime.containsInterval(1, 100, 104, manifests, bindings))
++		assertFalse(StepsRecordingLifetime.containsInterval(1, 100, 105, manifests, bindings))
++	}
++
++	@Test fun `missing middle binding or manifest never revives an old origin`() {
++		val manifests = listOf(manifest(1, 100), manifest(2, 105), manifest(3, 108))
++		assertFalse(StepsRecordingLifetime.containsInterval(1, 100, 112, manifests,
++			mapOf(1L to binding(1, 1), 3L to binding(3, 1))))
++		assertFalse(StepsRecordingLifetime.containsInterval(1, 100, 112, manifests.filter { it.manifestRevision != 2L },
++			mapOf(1L to binding(1, 1), 3L to binding(3, 1))))
++	}
++
++	@Test fun `permission writer run boot and zone changes cannot claim continuity`() {
++		val origin = manifest(1, 100)
++		val next = manifest(2, 105)
++		val originalBinding = binding(1, 1)
++		val nextBinding = binding(2, 1)
++		val changedManifests = listOf(next.copy(serviceRunId = "other-run"),
++			next.copy(effectiveBootId = "other-boot"), next.copy(zoneId = "Europe/Prague"),
++			next.copy(rolloutRevision = 2))
++		changedManifests.forEach { changed ->
++			assertFalse(StepsRecordingLifetime.isContinuation(origin, originalBinding, changed, nextBinding))
++		}
++		assertFalse(StepsRecordingLifetime.isContinuation(origin, originalBinding, next,
++			nextBinding.copy(consentEpoch = 2)))
++		assertFalse(StepsRecordingLifetime.isContinuation(origin, originalBinding, next,
++			nextBinding.copy(
++				writerOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
++				writerOwnerGeneration = SourceWriterGenerationContract.canonicalOwnerGeneration(1),
++				writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
++				writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
++				writerBindingGeneration = 1,
++			)))
++	}
++
++	private fun manifest(revision: Long, elapsed: Long) = SessionManifestVersionEntity(
++		logicalTrackingId = "session", manifestRevision = revision, serviceRunId = "run",
++		sessionMode = "MANUAL", sourcePolicyRevision = revision, acquisitionPlanRevision = revision,
++		rolloutRevision = 1, startOrigin = if (revision == 1L) "MANUAL_FOREGROUND_START" else "POLICY_RECONCILIATION",
++		effectiveBootId = "boot", effectiveElapsedRealtimeNanos = elapsed, effectiveWallTimeMs = elapsed,
++		zoneId = "UTC", automationEpoch = null, changeReason = "POLICY_RECONCILIATION", manifestChecksum = "",
++	)
++
++	private fun binding(revision: Long, origin: Long?, qos: Int = 1) = SessionManifestSourceEntity(
++		logicalTrackingId = "session", manifestRevision = revision,
++		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS, purpose = SourceBrokerPurpose.SESSION_CAPTURE,
++		consentEpoch = 1, persistenceEligible = true, qosCode = qos,
++		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
++		writerOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
++		writerOwnerGeneration = 1, stepsRecordingManifestRevision = origin,
++	)
++}
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt
+@@ -917,6 +917,18 @@
+ 			database.close()
+ 		}
+ 		preflight() shouldBe ActiveDatabasePreflightResult.FinalV29
++	}
++
++	@Test
++	fun `older unshipped v29 without Steps origin is preserved and blocked`() {
++		val database = AppDatabase.fileBuilder(context, DATABASE_NAME).allowMainThreadQueries().build()
++		try {
++			database.openHelper.writableDatabase.execSQL(
++				"ALTER TABLE session_manifest_source RENAME COLUMN steps_recording_manifest_revision TO missing_steps_origin")
++		} finally { database.close() }
++		val preserved = databaseFile().readBytes()
++		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA)
++		databaseFile().readBytes().contentEquals(preserved) shouldBe true
+ 	}
+ 
+ 	@Test
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/OwnerlessStepsManifestTimelinePaginationTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/OwnerlessStepsManifestTimelinePaginationTest.kt
+@@ -405,7 +405,7 @@
+ 		SessionManifestSourceEntity.RawSessionManifestSource(
+ 			storageClassSignature =
+ 				"text|integer|integer|text|integer|integer|integer|" +
+-					"text|text|integer|null|null|null",
++					"text|text|integer|null|null|null|null",
+ 			logicalTrackingId = logicalTrackingId,
+ 			manifestRevision = manifestRevision,
+ 			sourceKind = sourceKind.toLong(),
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt
+@@ -38,6 +38,9 @@
+ 					override fun onCreate(db: SupportSQLiteDatabase) {
+ 						createLegacyRadioTables(db)
+ 						createPurposeParentTables(db)
++						db.execSQL("CREATE TABLE session_manifest_source (logical_tracking_id TEXT NOT NULL, " +
++							"manifest_revision INTEGER NOT NULL, source_kind INTEGER NOT NULL, purpose TEXT NOT NULL)")
++						db.execSQL("INSERT INTO session_manifest_source VALUES ('session',1,3,'SESSION_CAPTURE')")
+ 						createNativePortableOwnerParents(db)
+ 						createEarlierRadioRetentionEventIndex(db)
+ 						db.execSQL("INSERT INTO wifi_captured_fact_revision VALUES ('older-writer',1,'older-fact',1)")
+@@ -75,6 +78,10 @@
+ 			readLong(db, "SELECT \"unique\" FROM pragma_index_list('captured_radio_fact_retention_proof') " +
+ 				"WHERE name='idx_captured_radio_retention_event'") shouldBe 1L
+ 			MIGRATION_28_29.migrate(db)
++			readLong(db, "SELECT count(*) FROM session_manifest_source WHERE logical_tracking_id='session' " +
++				"AND manifest_revision=1 AND steps_recording_manifest_revision IS NULL") shouldBe 1L
++			readLong(db, "SELECT count(*) FROM pragma_table_info('session_manifest_source') WHERE " +
++				"name='steps_recording_manifest_revision' AND type='INTEGER' AND [notnull]=0 AND dflt_value='NULL'") shouldBe 1L
+ 			readLong(db, "SELECT \"unique\" FROM pragma_index_list('captured_radio_fact_retention_proof') " +
+ 				"WHERE name='idx_captured_radio_retention_event'") shouldBe 0L
+ 			db.execSQL("INSERT INTO captured_radio_fact_retention_proof VALUES (6,'writer',1,'second-fact','shared-callback')")
+--- /dev/null
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/StepsRecordingOriginRoomTest.kt
+@@ -0,0 +1,73 @@
++package com.adsamcik.tracker.shared.base.database
++
++import android.app.Application
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
++import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
++import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
++import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
++import io.kotest.matchers.shouldBe
++import kotlinx.coroutines.test.runTest
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class StepsRecordingOriginRoomTest {
++
++	@Test fun `Room raw readers authenticate nullable recording origin and reject wrong storage type`() = runTest {
++		val context: Application = ApplicationProvider.getApplicationContext()
++		val db = AppDatabase.testDatabase(context)
++		try {
++			val legacy = binding(1, null)
++			val origin = binding(2, 2)
++			val continuation = binding(3, 2)
++			db.sourceSessionDao().insertManifestSources(listOf(legacy, origin, continuation))
++			listOf(legacy, origin, continuation).forEach { expected ->
++				db.sourceSessionDao().rawManifestSources("session", expected.manifestRevision, 2)
++					.single().validatedOrNull() shouldBe expected
++			}
++			db.sourceSessionDao().rawManifestSourcesForRevisions("session", listOf(1, 2, 3), 4)
++				.map { it.validatedOrNull() } shouldBe listOf(legacy, origin, continuation)
++			db.openHelper.writableDatabase.execSQL("UPDATE session_manifest_source SET " +
++				"steps_recording_manifest_revision='invalid' WHERE manifest_revision=3")
++			db.sourceSessionDao().rawManifestSources("session", 3, 2).single().validatedOrNull() shouldBe null
++		} finally { db.close() }
++	}
++
++	@Test fun `checksum retains legacy encoding and covers marked origin on every membership`() {
++		val manifest = manifest()
++		val legacy = binding(3, null)
++		val marked = binding(3, 2)
++		val legacyChecksum = SessionManifestIntegrity.compute(manifest, listOf(legacy))
++		val markedChecksum = SessionManifestIntegrity.compute(manifest, listOf(marked))
++		// Pinned fixture for the pre-origin v2 encoding, independent of the new compute branch.
++		legacyChecksum shouldBe "be2673a6913992ede3e2e6f731a23d17575c32dfa66969605904ec06170a2440"
++		assertFalse(legacyChecksum == markedChecksum)
++		assertTrue(SessionManifestIntegrity.verify(manifest.copy(manifestChecksum = legacyChecksum), listOf(legacy)))
++		assertTrue(SessionManifestIntegrity.verify(manifest.copy(manifestChecksum = markedChecksum), listOf(marked)))
++		assertFalse(SessionManifestIntegrity.verify(manifest.copy(manifestChecksum = markedChecksum), listOf(marked.copy(stepsRecordingManifestRevision = 1))))
++		assertFalse(SessionManifestIntegrity.verify(manifest.copy(manifestChecksum = markedChecksum), listOf(legacy)))
++	}
++
++	private fun binding(revision: Long, origin: Long?) = SessionManifestSourceEntity(
++		logicalTrackingId = "session", manifestRevision = revision, sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
++		purpose = SourceBrokerPurpose.SESSION_CAPTURE, consentEpoch = 1, persistenceEligible = true, qosCode = 2,
++		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
++		writerOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
++		writerOwnerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
++		stepsRecordingManifestRevision = origin,
++	)
++
++	private fun manifest() = SessionManifestVersionEntity(
++		logicalTrackingId = "session", manifestRevision = 3, serviceRunId = "run", sessionMode = "MANUAL",
++		sourcePolicyRevision = 3, acquisitionPlanRevision = 3, rolloutRevision = 1, startOrigin = "POLICY_RECONCILIATION",
++		effectiveBootId = "boot", effectiveElapsedRealtimeNanos = 100, effectiveWallTimeMs = 100,
++		zoneId = "UTC", automationEpoch = null, changeReason = "POLICY_RECONCILIATION", manifestChecksum = "",
++	)
++}
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SemanticAcquisitionPlanFactory.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SemanticAcquisitionPlanFactory.kt
+@@ -201,8 +201,10 @@
+         SourceKind.LOCATION -> adaptiveLocationPlan(level, revision, environment.locationBackend, environment.preciseLocationAvailable)
+         SourceKind.ACTIVITY -> ActivityPlan(revision, ActivityMode.CONTINUOUS_RECOGNITION,
+             listOf(60_000L, 45_000L, 30_000L, 15_000L, 5_000L)[index], 65, setOf(0, 1), adaptiveProfileVersion = 1)
++        // A cumulative counter needs one physical request across adaptive quality changes.
++        // Requested batching is fixed; it does not force Android to wake at this cadence.
+         SourceKind.STEPS -> StepsPlan(revision, true,
+-            listOf(300_000L, 120_000L, 60_000L, 15_000L, 5_000L)[index],
++            5_000L,
+             listOf(60_000L, 30_000L, 15_000L, 5_000L, 2_000L)[index], level >= 4)
+         SourceKind.PRESSURE -> PressurePlan(revision, true,
+             listOf(1_000_000, 500_000, 200_000, 100_000, 50_000)[index],
+--- /dev/null
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AdaptiveStepsPhysicalPlanContinuityTest.kt
+@@ -0,0 +1,53 @@
++package com.adsamcik.tracker.tracker.source.coordinator
++
++import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
++import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionSettings
++import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
++import com.adsamcik.tracker.tracker.source.model.LocationBackend
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.tracker.source.model.StepsPlan
++import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Test
++
++class AdaptiveStepsPhysicalPlanContinuityTest {
++	private val factory = SemanticAcquisitionPlanFactory()
++	private val environment = SourcePlanEnvironment(LocationBackend.FRAMEWORK, true, emptySet())
++
++	@Test fun `all adaptive levels and live preferences keep one direct Steps physical request`() {
++		val plans = (1..5).flatMap { level ->
++			listOf(emptySet(), setOf(SourceKind.STEPS), setOf(SourceKind.LOCATION)).map { live ->
++				val settings = adaptiveSettings(level)
++				val desired = factory.create(settings, level.toLong(), 0, environment.copy(liveSources = live))
++				val resolved = SourcePlanResolver().resolve(desired, emptyList(),
++					PlanResolutionContext(emptyMap(), powerSaver = true, doze = true, severeThermalPressure = true))
++				resolved.applicablePlans.getValue(SourceKind.STEPS) as StepsPlan
++			}
++		}
++		plans.forEach { plan -> assertEquals(5_000L, plan.maximumReportLatencyMs) }
++		assertEquals(1, plans.map { it.physicalConfigurationFingerprint() }.distinct().size)
++	}
++
++	@Test fun `legacy custom and unselected Steps retain their original behavior`() {
++		val legacyLatencies = listOf(SourceCollectionFrequency.BATTERY_SAVER,
++			SourceCollectionFrequency.BALANCED, SourceCollectionFrequency.RESPONSIVE).map { frequency ->
++			val settings = TrackingParamsState(sourceCollectionSettings = SourceCollectionSettings(steps = frequency))
++			(factory.create(settings, 1, 0, environment).plans.getValue(SourceKind.STEPS) as StepsPlan).maximumReportLatencyMs
++		}
++		assertEquals(listOf(300_000L, 60_000L, 5_000L), legacyLatencies)
++		val disabled = factory.create(adaptiveSettings(5).copy(stepsEnabled = false, ambientStepsEnabled = false),
++			1, 0, environment.copy(liveSources = setOf(SourceKind.STEPS)))
++		assertFalse(disabled.plans.getValue(SourceKind.STEPS).enabled)
++		val selected = factory.create(adaptiveSettings(3), 1, 0, environment)
++		val permissionLost = SourcePlanResolver().resolve(selected, emptyList(),
++			PlanResolutionContext(mapOf(SourceKind.STEPS to SourceConstraint(permissionGranted = false)), false, false, false))
++		assertFalse(permissionLost.applicablePlans.getValue(SourceKind.STEPS).enabled)
++	}
++
++	private fun adaptiveSettings(level: Int) = TrackingParamsState(
++		balanceProfileVersion = 1, overallBalanceLevel = level,
++		locationProfileVersion = 1, locationBalanceLevel = level,
++		locationEnabled = false, activityEnabled = false, stepsEnabled = true, barometerEnabled = false,
++	)
++}
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/FiveLevelSourceConfigurationTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/FiveLevelSourceConfigurationTest.kt
+@@ -108,7 +108,7 @@
+     @Test fun `five cadence tables include distinct intermediate rates and finite radio spacing`() {
+         fun plans(source: SourceKind) = (1..5).map { adaptiveSourcePlan(source, it, 1, environment) }
+         plans(SourceKind.ACTIVITY).map { (it as ActivityPlan).desiredDetectionLatencyMs } shouldBe listOf(60_000L,45_000L,30_000L,15_000L,5_000L)
+-        plans(SourceKind.STEPS).map { (it as StepsPlan).maximumReportLatencyMs } shouldBe listOf(300_000L,120_000L,60_000L,15_000L,5_000L)
++        plans(SourceKind.STEPS).map { (it as StepsPlan).maximumReportLatencyMs } shouldBe listOf(5_000L,5_000L,5_000L,5_000L,5_000L)
+         plans(SourceKind.PRESSURE).map { (it as PressurePlan).hardwareSamplePeriodMicros } shouldBe listOf(1_000_000,500_000,200_000,100_000,50_000)
+         plans(SourceKind.WIFI).map { (it as WifiPlan).mode } shouldBe listOf(WifiMode.BROADCAST_DRIVEN,WifiMode.BROADCAST_DRIVEN,WifiMode.BROADCAST_DRIVEN,WifiMode.ACTIVE_ATTEMPTS,WifiMode.ACTIVE_ATTEMPTS)
+         (adaptiveSourcePlan(SourceKind.WIFI, 4, 1, environment) as WifiPlan).minimumAttemptIntervalMs shouldBe 120_000L

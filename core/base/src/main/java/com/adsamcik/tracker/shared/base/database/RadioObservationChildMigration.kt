@@ -19,6 +19,8 @@ private val legacyStampColumnDefinitions = legacyStampFields.joinToString(",\n")
 /** Complete the unshipped v29 data model while preserving existing observation meaning. */
 val MIGRATION_28_29: Migration = object : Migration(28, 29) {
 	override fun migrate(db: SupportSQLiteDatabase) {
+		// Existing Steps memberships remain legacy-null; continuity is never inferred.
+		db.execSQL("ALTER TABLE session_manifest_source ADD COLUMN steps_recording_manifest_revision INTEGER DEFAULT NULL")
 		// Earlier facts have no durable carrier version; do not guess it from child presence.
 		db.execSQL("ALTER TABLE wifi_captured_fact_revision ADD COLUMN payload_version INTEGER DEFAULT NULL")
 		db.execSQL("ALTER TABLE ambient_wifi_fact_revision ADD COLUMN purpose_demand_id TEXT DEFAULT NULL")

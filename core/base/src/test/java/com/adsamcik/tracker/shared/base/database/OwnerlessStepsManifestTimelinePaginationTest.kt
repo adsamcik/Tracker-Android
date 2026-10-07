@@ -405,7 +405,7 @@ class OwnerlessStepsManifestTimelinePaginationTest {
 		SessionManifestSourceEntity.RawSessionManifestSource(
 			storageClassSignature =
 				"text|integer|integer|text|integer|integer|integer|" +
-					"text|text|integer|null|null|null",
+					"text|text|integer|null|null|null|null",
 			logicalTrackingId = logicalTrackingId,
 			manifestRevision = manifestRevision,
 			sourceKind = sourceKind.toLong(),

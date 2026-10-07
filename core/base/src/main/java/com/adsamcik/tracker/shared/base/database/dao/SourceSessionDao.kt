@@ -703,7 +703,8 @@ private const val RAW_MANIFEST_SOURCE_PROJECTION =
 		"typeof(persistence_eligible) || '|' || typeof(qos_code) || '|' || " +
 		"typeof(output_destination) || '|' || typeof(writer_owner) || '|' || " +
 		"typeof(writer_owner_generation) || '|' || typeof(writer_projection_id) || '|' || " +
-		"typeof(writer_projection_version) || '|' || typeof(writer_binding_generation) " +
+		"typeof(writer_projection_version) || '|' || typeof(writer_binding_generation) || '|' || " +
+		"typeof(steps_recording_manifest_revision) " +
 		"AS storage_class_signature, " +
 		"CASE WHEN typeof(logical_tracking_id) = 'text' THEN logical_tracking_id END " +
 		"AS logical_tracking_id, " +
@@ -725,7 +726,9 @@ private const val RAW_MANIFEST_SOURCE_PROJECTION =
 		"CASE WHEN typeof(writer_projection_version) IN ('integer', 'null') " +
 		"THEN writer_projection_version END AS writer_projection_version, " +
 		"CASE WHEN typeof(writer_binding_generation) IN ('integer', 'null') " +
-		"THEN writer_binding_generation END AS writer_binding_generation"
+		"THEN writer_binding_generation END AS writer_binding_generation, " +
+		"CASE WHEN typeof(steps_recording_manifest_revision) IN ('integer', 'null') " +
+		"THEN steps_recording_manifest_revision END AS steps_recording_manifest_revision"
 
 private const val RAW_MANIFEST_VERSION_PROJECTION =
 	"typeof(logical_tracking_id) || '|' || typeof(manifest_revision) || '|' || " +

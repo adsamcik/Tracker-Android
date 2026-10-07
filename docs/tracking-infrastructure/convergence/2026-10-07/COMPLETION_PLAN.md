@@ -335,6 +335,10 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
 - [x] Select reviewed saved Wi-Fi/Cell detail lists: lazy rows, no twenty-row cap,
   current local measured dates, omitted missing fields and forty localized heading
   resources. `RADIO_DETAILS_LAZY_SELECTED/SOURCE_REVIEW.md`; four new cases NOT_RUN.
+- [x] Select reviewed Steps recording-origin, raw integrity, unshipped migration,
+  lifetime predicates and stable adaptive-request foundation: fourteen paths and
+  nine new methods in `STEPS_CONTINUITY_SELECTED/SOURCE_REVIEW.md`; NOT_RUN.
+  Physical continuity, current authority and retained-reader integration remain open.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

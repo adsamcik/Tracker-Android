@@ -615,3 +615,8 @@ list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS
   static acceptance in `../2026-10-07/RADIO_DETAILS_LAZY_SELECTED/SOURCE_REVIEW.md`.
   Four new UI cases are NOT_RUN; prior UI drafts preserved/superseded, full radio
   product composition and concise authority-copy polish remain open.
+
+- [x] Select the reviewed fourteen-path Steps recording-origin/storage/lifetime
+  and stable adaptive batching foundation. Nine new methods and fixture updates
+  are NOT_RUN; `../2026-10-07/STEPS_CONTINUITY_SELECTED/SOURCE_REVIEW.md` accepts
+  static source only. Runtime, operation authority and readers still need composition.
