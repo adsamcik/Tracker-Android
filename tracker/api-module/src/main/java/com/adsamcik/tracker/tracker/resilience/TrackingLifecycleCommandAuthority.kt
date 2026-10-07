@@ -54,9 +54,17 @@ data class TrackingLifecycleCommandState(
 	val collectionResumeRequired: Boolean = false,
 	val collectionResumeBoundary: TrackingCollectionResumeBoundary? = null,
 	val pendingManualStart: ManualTrackingStartContinuation? = null,
+	/** Exact fresh manual attempt may prepare while Off remains durable; never restored on process restart. */
+	val pendingCollectionStartGeneration: Long? = null,
 ) {
 	init {
 		require(lastGeneration >= 0L)
+		require(
+			pendingCollectionStartGeneration == null ||
+				(collectionResumeRequired && pendingCollectionStartGeneration > 0L &&
+					pendingCollectionStartGeneration == latestStartGeneration &&
+					pendingCollectionStartGeneration == lastGeneration),
+		)
 		require(latestStartGeneration in 0L..lastGeneration)
 		require(latestAcceptedStartGeneration in 0L..latestStartGeneration)
 		require(latestStopGeneration in 0L..lastGeneration)
@@ -79,6 +87,7 @@ data class TrackingLifecycleCommandState(
 			lastGeneration = next,
 			latestStartGeneration = next,
 			pendingManualStart = null,
+			pendingCollectionStartGeneration = null,
 		) to TrackingStartCommand(next)
 	}
 
@@ -104,24 +113,28 @@ data class TrackingLifecycleCommandState(
 		)) return this
 		return if (handledUserExitId == exitId) this else copy(
 			lastGeneration = nextGeneration(),
-			handledUserExitId = exitId, collectionResumeRequired = true, pendingManualStart = null)
+			handledUserExitId = exitId, collectionResumeRequired = true, pendingManualStart = null,
+			pendingCollectionStartGeneration = null,
+		)
 	}
 
 	fun resumeCollection(expectedExitId: String, boundary: TrackingCollectionResumeBoundary): TrackingLifecycleCommandState =
 		if (handledUserExitId == expectedExitId && collectionResumeRequired) {
-			copy(collectionResumeRequired = false, collectionResumeBoundary = boundary)
+			copy(collectionResumeRequired = false, collectionResumeBoundary = boundary, pendingCollectionStartGeneration = null)
 		} else this
 
-    /** Only a fresh current Start issued after the observed exit may acknowledge tracker resume. */
-    fun resumeCollectionForStart(
-        expectedExitId: String,
-        command: TrackingStartCommand,
-        boundary: TrackingCollectionResumeBoundary,
-    ): TrackingLifecycleCommandState =
-        if (command.generation == lastGeneration &&
-            command.generation == latestStartGeneration &&
-            resolveStart(command) == TrackingStartCommandDisposition.Allowed
-        ) resumeCollection(expectedExitId, boundary) else this
+	/** Reservation preserves Off, its exit receipt and the last accepted resume boundary. */
+	fun prepareCollectionResumeForStart(
+		expectedExitId: String,
+		command: TrackingStartCommand,
+	): TrackingLifecycleCommandState = if (handledUserExitId == expectedExitId && collectionResumeRequired &&
+		command.generation == lastGeneration && command.generation == latestStartGeneration &&
+		resolveStart(command) == TrackingStartCommandDisposition.Allowed
+	) copy(pendingCollectionStartGeneration = command.generation) else this
+
+	fun isPendingCollectionStart(command: TrackingStartCommand): Boolean = collectionResumeRequired &&
+		pendingCollectionStartGeneration == command.generation && command.generation == lastGeneration &&
+		command.generation == latestStartGeneration && resolveStart(command) == TrackingStartCommandDisposition.Allowed
 
 	fun issueStop(
 		reason: TrackingStopCandidateReason,
@@ -140,6 +153,7 @@ data class TrackingLifecycleCommandState(
 			latestStopRequestedBootId = requestedBootId,
 			latestStopRequestedElapsedRealtimeNanos = requestedElapsedRealtimeNanos,
 			pendingManualStart = null,
+			pendingCollectionStartGeneration = null,
 		) to TrackingStopCommand(
 			next,
 			reason,
@@ -161,15 +175,27 @@ data class TrackingLifecycleCommandState(
 		else -> TrackingStartCommandDisposition.Allowed
 	}
 
-	fun acceptStart(command: TrackingStartCommand): TrackingLifecycleCommandState {
+	fun acceptStart(
+		command: TrackingStartCommand,
+		resumeBoundary: TrackingCollectionResumeBoundary? = null,
+	): TrackingLifecycleCommandState {
 		check(resolveStart(command) == TrackingStartCommandDisposition.Allowed) {
 			"Only an allowed START can become accepted"
 		}
+		if (collectionResumeRequired) {
+			check(isPendingCollectionStart(command) && resumeBoundary != null) {
+				"Only the exact pending manual START can resume stopped collection"
+			}
+			return copy(
+				latestAcceptedStartGeneration = command.generation,
+				collectionResumeRequired = false,
+				collectionResumeBoundary = resumeBoundary,
+				pendingCollectionStartGeneration = null,
+			)
+		}
 		return if (command.generation > latestAcceptedStartGeneration) {
 			copy(latestAcceptedStartGeneration = command.generation)
-		} else {
-			this
-		}
+		} else this
 	}
 
 	fun isCurrent(command: TrackingStopCommand): Boolean =
@@ -260,6 +286,9 @@ interface TrackingLifecycleCommandAuthority {
 	val pendingCollectionResumeExitId: String? get() = null
 	val collectionResumeBoundary: TrackingCollectionResumeBoundary? get() = null
 	val pendingManualStart: ManualTrackingStartContinuation? get() = null
+	fun isPendingCollectionStart(command: TrackingStartCommand): Boolean = false
+	/** Exact revocation never alters Off or a newer manual request. */
+	suspend fun cancelPendingCollectionStart(generation: Long): Boolean = false
 
 	/** Persist the original tap only if End/Off/another Start did not arrive during preflight. */
 	suspend fun reserveManualStartIfGeneration(
@@ -284,18 +313,18 @@ interface TrackingLifecycleCommandAuthority {
 		fenceSources: suspend () -> Unit,
 	): TrackingTurnOffReservation? = null
 
-	/** A newer explicit Start supersedes Off; otherwise owner shutdown is serialized with it. */
+	/** A pending/accepted manual Start fences old owner shutdown; otherwise shutdown is serialized. */
 	suspend fun withPendingTurnOff(
 		exitId: String,
 		closeOwners: suspend () -> Boolean,
 	): Boolean? = null
 	suspend fun resumeCollectionAfterUserExit(expectedExitId: String): Boolean = false
 
-    /** Atomic exact-Start resume; call before acquiring the startup operation's lifecycle lock. */
-    suspend fun resumeCollectionForManualStart(
-        expectedExitId: String,
-        command: TrackingStartCommand,
-    ): Boolean = false
+	/** Reserve the exact manual attempt before entering the non-reentrant startup/lifecycle lock. */
+	suspend fun prepareCollectionResumeForManualStart(
+		expectedExitId: String,
+		command: TrackingStartCommand,
+	): Boolean = false
 
 	suspend fun reserveStart(): TrackingStartCommand?
 
@@ -309,6 +338,12 @@ interface TrackingLifecycleCommandAuthority {
 	 */
 	suspend fun reserveStartIfGeneration(
 		@Suppress("UNUSED_PARAMETER") expectedGeneration: Long,
+	): TrackingStartCommand? = null
+
+	/** Automatic-only original callback and observed-time fence; unavailable authorities fail closed. */
+	suspend fun reserveStartIfGeneration(
+		expectedGeneration: Long,
+		automaticTrigger: AutomaticTrackingStartTrigger,
 	): TrackingStartCommand? = null
 
 	/**

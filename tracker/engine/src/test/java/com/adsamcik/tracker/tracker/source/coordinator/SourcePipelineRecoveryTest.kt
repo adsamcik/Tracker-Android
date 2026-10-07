@@ -263,8 +263,11 @@ class SourcePipelineRecoveryTest {
 		val releaseProjection = CompletableDeferred<Unit>()
 		coEvery { activityLane.drainAvailable() } coAnswers {
 			projectionEntered.complete(Unit)
-			releaseProjection.await()
-			CoordinatorDrainResult.Complete(9L, 1)
+			try {
+				awaitCancellation()
+			} finally {
+				withContext(NonCancellable) { releaseProjection.await() }
+			}
 		}
 		val scheduled = SourcePipelineRecovery(
 			legacy,
@@ -289,7 +292,7 @@ class SourcePipelineRecoveryTest {
 		deletionQuiescence.await()
 
 		// Closing the generation while projection was in flight withholds every external effect.
-		// The projection completed before deletion quiescence, so its rows can be scrubbed once and
+		// The projection cancellation cleanup completed before deletion quiescence, so its rows can be scrubbed once and
 		// cannot be recreated by the old app-scope job after deletion returns.
 		coVerify(exactly = 1) { activityLane.drainAvailable() }
 		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
@@ -299,6 +302,58 @@ class SourcePipelineRecoveryTest {
 		scheduled.requestCommittedWorkDrain()
 		runCurrent()
 		coVerify(exactly = 1) { activityLane.drainAvailable() }
+	}
+
+	@Test
+	fun `actual Activity drain can reserve Start without entering the serialized command lease`() = runTest {
+		val commandGate = Mutex()
+		var starts = 0
+		val gate = object : TrackingStartupGate {
+			override val isReady = true
+			override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
+			override suspend fun <T> withReadyGenerationOperation(expectedGeneration: Long, operation: suspend () -> T): T? =
+				commandGate.withLock { error("Live effect drain must not hold the command gate") }
+		}
+		coEvery { activityLane.drainAvailable() } returns CoordinatorDrainResult.Complete(7L, 1)
+		coEvery { activityEffects.drain(any(), any(), any()) } coAnswers {
+			commandGate.withLock { starts++; 1 }
+		}
+		val recovery = SourcePipelineRecovery(legacy, coordinator, activityLane, activityEffects,
+			applicationScope = backgroundScope, startupGateProvider = javax.inject.Provider { gate })
+		withTimeout(2_000L) { recovery.drainCommittedWork() }.activityEffectsDelivered shouldBe 1
+		starts shouldBe 1
+		coVerify(exactly = 1) { activityLane.drainAvailable() }
+	}
+
+	@Test
+	fun `fresh callback pins command generation before projection and never refreshes after a cold wait`() = runTest {
+		var commandGeneration = 7L
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		val gate = object : TrackingStartupGate {
+			override val isReady = true
+			override val currentCommandGeneration get() = commandGeneration
+			override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
+		}
+		coEvery { activityLane.drainThrough(9L) } coAnswers {
+			entered.complete(Unit); release.await(); CoordinatorDrainResult.Complete(9L, 1)
+		}
+		val seen = mutableListOf<Long?>()
+		coEvery { activityEffects.drainToQuiescence(any(), any(), any(), any()) } answers {
+			seen += arg<ActivityAutomationStartPermit.FreshTransitionCallback>(2).expectedCommandGeneration
+			if (seen.size == 1) ActivityAutomationDrainResult.Retryable(0, 0)
+			else ActivityAutomationDrainResult.Complete(0, 0)
+		}
+		val recovery = SourcePipelineRecovery(legacy, coordinator, activityLane, activityEffects,
+			applicationScope = backgroundScope, startupGateProvider = javax.inject.Provider { gate })
+		val work = async {
+			recovery.drainCommittedActivityCallbackWork(setOf(9L), 9L, expectedCommandGeneration = 7L) { commandGeneration = 12L }
+		}
+		entered.await()
+		commandGeneration = 10L // End/new command arrived while projection was suspended.
+		release.complete(Unit)
+		work.await()
+		seen shouldBe listOf(7L, 7L)
 	}
 
 	@Test
@@ -504,7 +559,7 @@ class SourcePipelineRecoveryTest {
 		var authorityReady = false
 		var serviceStarts = 0
 		val contexts = mutableListOf<ActivityAutomationStartContext>()
-		coEvery { consumer.deliver(any(), any(), any(), any(), any()) } answers {
+		coEvery { consumer.deliver(any(), any(), any(), any(), any(), any()) } answers {
 			contexts += arg<ActivityAutomationStartContext>(4)
 			if (!authorityReady) ActivityAutomationDeliveryResult.RETRY
 			else ActivityAutomationDeliveryResult.ACCEPTED.also { serviceStarts++ }
@@ -547,7 +602,7 @@ class SourcePipelineRecoveryTest {
 		coEvery { dao.markOutboxTerminal(any(), any(), any()) } returns 1
 		coEvery { activityLane.drainThrough(9L) } returns CoordinatorDrainResult.Complete(9L, 1)
 		val contexts = mutableListOf<ActivityAutomationStartContext>()
-		coEvery { consumer.deliver(any(), any(), any(), any(), capture(contexts)) } answers {
+		coEvery { consumer.deliver(any(), any(), any(), any(), capture(contexts), any()) } answers {
 			if (arg<ActivityAutomationStartContext>(4) ==
 				ActivityAutomationStartContext.FRESH_TRANSITION_CALLBACK
 			) {
@@ -595,7 +650,7 @@ class SourcePipelineRecoveryTest {
 		coEvery { dao.pendingOutbox(any(), any(), any(), any()) } returns listOf(effect)
 		coEvery { dao.deleteFailure(any(), any(), any()) } returns 0
 		coEvery { activityLane.drainThrough(9L) } returns CoordinatorDrainResult.Complete(9L, 1)
-		coEvery { consumer.deliver(any(), any(), any(), any(), any()) } returns
+		coEvery { consumer.deliver(any(), any(), any(), any(), any(), any()) } returns
 			ActivityAutomationDeliveryResult.RETRY
 
 		shouldThrow<TimeoutCancellationException> {
@@ -619,6 +674,7 @@ class SourcePipelineRecoveryTest {
 				any(),
 				any(),
 				ActivityAutomationStartContext.DURABLE_REPLAY,
+				any(),
 			)
 		} returns ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
 		coEvery { dao.markOutboxTerminal(any(), any(), any()) } returns 1
@@ -735,6 +791,11 @@ class SourcePipelineRecoveryTest {
 		): T? = operationMutex.withLock {
 			if (isReadyGeneration(expectedGeneration)) operation() else null
 		}
+
+		override suspend fun <T> withReadyGenerationWork(
+			expectedGeneration: Long,
+			operation: suspend () -> T,
+		): T? = withReadyGenerationTransfer(expectedGeneration, operation)
 
 		override suspend fun <T> withReadyGenerationTransfer(
 			expectedGeneration: Long,

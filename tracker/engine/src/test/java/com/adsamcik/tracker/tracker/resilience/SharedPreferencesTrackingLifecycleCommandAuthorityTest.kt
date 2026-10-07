@@ -62,7 +62,7 @@ class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
 		authority.recordUserRequestedExit("user-requested:later-process-exit") shouldBe true
 		authority.pendingCollectionResumeExitId shouldBe exitId
 		val start = requireNotNull(delayedStart.await())
-		authority.resumeCollectionForManualStart(exitId, start) shouldBe false
+		authority.prepareCollectionResumeForManualStart(exitId, start) shouldBe false
 		authority.markStopHandled(reservation.stop) shouldBe true
 		val enteredOwnerClose = CompletableDeferred<Unit>()
 		val finishOwnerClose = CompletableDeferred<Unit>()
@@ -74,11 +74,17 @@ class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
 			}
 		}
 		enteredOwnerClose.await()
-		val resumed = async { authority.resumeCollectionForManualStart(exitId, start) }
+		val resumed = async { authority.prepareCollectionResumeForManualStart(exitId, start) }
 		withTimeoutOrNull(100L) { resumed.await() } shouldBe null
 		finishOwnerClose.complete(Unit)
 		closing.await() shouldBe true
 		resumed.await() shouldBe true
+		authority.pendingCollectionResumeExitId shouldBe exitId
+		authority.isPendingCollectionStart(start) shouldBe true
+		val recreated = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		recreated.pendingCollectionResumeExitId shouldBe exitId
+		recreated.isPendingCollectionStart(start) shouldBe false
+		authority.withCurrentStart(start, acceptWhen = { it }) { true } shouldBe LockedTrackingStartResult.Executed(true)
 		SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
 			.pendingCollectionResumeExitId shouldBe null
 	}
@@ -129,33 +135,22 @@ class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
 	}
 
 	@Test
-	fun `failed manual Start can restore Off only before another user command`(): Unit = runBlocking {
+	fun `pending cancellation cannot revoke a successor Start or change its durable Off`(): Unit = runBlocking {
 		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
 		val originalExit = TRACKING_TURN_OFF_EXIT_PREFIX + "original"
-		val originalOff = requireNotNull(authority.reserveTurnOff(originalExit, 1_000L, 500L) {
-			Unit
-		})
-		authority.markStopHandled(originalOff.stop) shouldBe true
-		val failedStart = requireNotNull(authority.reserveStart())
-		authority.resumeCollectionForManualStart(originalExit, failedStart) shouldBe true
-		val newerStart = requireNotNull(authority.reserveStart())
-		var fenced = false
-		authority.reserveTurnOff(
-			exitId = TRACKING_TURN_OFF_EXIT_PREFIX + "stale-compensation",
-			requestedAtEpochMs = 2_000L,
-			requestedElapsedRealtimeNanos = 1_000L,
-			expectedStartGeneration = failedStart.generation,
-		) { fenced = true; Unit } shouldBe null
-		fenced shouldBe false
+		val off = requireNotNull(authority.reserveTurnOff(originalExit, 1_000L, 500L) { Unit })
+		authority.markStopHandled(off.stop) shouldBe true
+		val first = requireNotNull(authority.reserveStart())
+		authority.prepareCollectionResumeForManualStart(originalExit, first) shouldBe true
+		val successor = requireNotNull(authority.reserveStart())
+		authority.prepareCollectionResumeForManualStart(originalExit, successor) shouldBe true
+		authority.cancelPendingCollectionStart(first.generation) shouldBe false
+		authority.isPendingCollectionStart(successor) shouldBe true
+		authority.pendingCollectionResumeExitId shouldBe originalExit
+		authority.withCurrentStart(successor, acceptWhen = { it }) { true } shouldBe
+			LockedTrackingStartResult.Executed(true)
+		authority.cancelPendingCollectionStart(first.generation) shouldBe false
 		authority.pendingCollectionResumeExitId shouldBe null
-		val compensated = requireNotNull(authority.reserveTurnOff(
-			exitId = TRACKING_TURN_OFF_EXIT_PREFIX + "current-compensation",
-			requestedAtEpochMs = 3_000L,
-			requestedElapsedRealtimeNanos = 1_500L,
-			expectedStartGeneration = newerStart.generation,
-		) { Unit })
-		compensated.stop shouldBe authority.latestUnhandledStop()
-		authority.pendingCollectionResumeExitId shouldBe compensated.exitId
 	}
 
 	@Test
@@ -183,23 +178,28 @@ class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
 	}
 
     @Test
-    fun `current manual Start acknowledges exit before entering startup lifecycle fence`(): Unit = runBlocking {
+    fun `pending manual Start keeps exit and old boundary through the startup fence`(): Unit = runBlocking {
         val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
-        val oldStart = requireNotNull(authority.reserveStart())
         authority.recordUserRequestedExit("exit-1") shouldBe true
-        authority.resumeCollectionForManualStart("exit-1", oldStart) shouldBe false
-        val freshStart = requireNotNull(authority.reserveStart())
+        authority.resumeCollectionAfterUserExit("exit-1") shouldBe true
+        val priorBoundary = authority.collectionResumeBoundary
+        authority.recordUserRequestedExit("exit-2") shouldBe true
+        val fresh = requireNotNull(authority.reserveStart())
         withTimeout(2_000L) {
-            authority.resumeCollectionForManualStart("exit-1", freshStart) shouldBe true
+            authority.prepareCollectionResumeForManualStart("exit-2", fresh) shouldBe true
             authority.runWithHandledStopGeneration(0L) {
-                authority.pendingCollectionResumeExitId shouldBe null
+                authority.pendingCollectionResumeExitId shouldBe "exit-2"
+                authority.collectionResumeBoundary shouldBe priorBoundary
+                authority.isPendingCollectionStart(fresh) shouldBe true
             } shouldBe true
         }
+        authority.withCurrentStart(fresh, acceptWhen = { it }) { false } shouldBe LockedTrackingStartResult.Executed(false)
+        authority.pendingCollectionResumeExitId shouldBe "exit-2"
+        authority.cancelPendingCollectionStart(fresh.generation) shouldBe true
+        authority.withCurrentStart(fresh) { error("Cancelled delivery must never execute") } shouldBe LockedTrackingStartResult.Stale
         val reopened = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
-        reopened.pendingCollectionResumeExitId shouldBe null
-        reopened.collectionResumeBoundary shouldBe authority.collectionResumeBoundary
-        reopened.recordUserRequestedExit("exit-1") shouldBe true
-        reopened.pendingCollectionResumeExitId shouldBe null
+        reopened.pendingCollectionResumeExitId shouldBe "exit-2"
+        reopened.collectionResumeBoundary shouldBe priorBoundary
     }
 
     @Test
@@ -208,11 +208,11 @@ class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
         authority.recordUserRequestedExit("exit-1") shouldBe true
         val first = requireNotNull(authority.reserveStart())
         requireNotNull(authority.reserveStart())
-        authority.resumeCollectionForManualStart("exit-1", first) shouldBe false
+        authority.prepareCollectionResumeForManualStart("exit-1", first) shouldBe false
         val current = requireNotNull(authority.reserveStart())
         authority.recordUserRequestedExit("exit-2") shouldBe true
-        authority.resumeCollectionForManualStart("exit-1", current) shouldBe false
-        authority.resumeCollectionForManualStart("exit-2", current) shouldBe false
+        authority.prepareCollectionResumeForManualStart("exit-1", current) shouldBe false
+        authority.prepareCollectionResumeForManualStart("exit-2", current) shouldBe false
         authority.pendingCollectionResumeExitId shouldBe "exit-2"
     }
 
@@ -579,6 +579,244 @@ class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
 		} shouldBe LockedTrackingStartResult.BlockedByStop(stop)
 		foregroundInvoked shouldBe false
 		roomInvoked shouldBe false
+	}
+
+	@Test
+	fun `old Off cleanup cannot fence a pending successor preparation and resumes after exact cancel`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		val exit = TRACKING_TURN_OFF_EXIT_PREFIX + "old-cleanup"
+		val off = requireNotNull(authority.reserveTurnOff(exit, 1_000L, 500L) { Unit })
+		authority.markStopHandled(off.stop) shouldBe true
+		val start = requireNotNull(authority.reserveStart())
+		authority.prepareCollectionResumeForManualStart(exit, start) shouldBe true
+		var closureEntered = false
+		authority.withPendingTurnOff(exit) { closureEntered = true; true } shouldBe null
+		closureEntered shouldBe false
+		authority.cancelPendingCollectionStart(start.generation) shouldBe true
+		authority.withPendingTurnOff(exit) { closureEntered = true; true } shouldBe true
+		closureEntered shouldBe true
+		authority.pendingCollectionResumeExitId shouldBe exit
+	}
+
+	@Test
+	fun `failed acceptance preference publication restores stopped cache and revokes exact delivery`(): Unit = runBlocking {
+		for (throwing in listOf(false, true)) {
+			clearStore()
+			val actual = context.getSharedPreferences("tracking_lifecycle_commands", Context.MODE_PRIVATE)
+			var failAcceptance = false
+			val proxy = object : SharedPreferences by actual {
+				override fun edit(): SharedPreferences.Editor {
+					val editor = actual.edit()
+					return object : SharedPreferences.Editor by editor {
+						override fun putLong(key: String?, value: Long) = apply { editor.putLong(key, value) }
+						override fun putString(key: String?, value: String?) = apply { editor.putString(key, value) }
+						override fun putBoolean(key: String?, value: Boolean) = apply { editor.putBoolean(key, value) }
+						override fun remove(key: String?) = apply { editor.remove(key) }
+						override fun commit(): Boolean {
+							val committed = editor.commit()
+							if (failAcceptance) {
+								failAcceptance = false
+								if (throwing) throw IllegalStateException("publication failed after cache update")
+								return false
+							}
+							return committed
+						}
+					}
+				}
+			}
+			val fakeContext = mockk<Context>()
+			every { fakeContext.getSharedPreferences(any(), any()) } returns proxy
+			val authority = SharedPreferencesTrackingLifecycleCommandAuthority(fakeContext, Dispatchers.IO,
+				BootClockDomainProvider { "boot" })
+			authority.recordUserRequestedExit("exit-1") shouldBe true
+			val start = requireNotNull(authority.reserveStart())
+			authority.prepareCollectionResumeForManualStart("exit-1", start) shouldBe true
+			failAcceptance = true
+			shouldThrow<IllegalStateException> { authority.withCurrentStart(start, acceptWhen = { it }) { true } }
+			authority.pendingCollectionResumeExitId shouldBe "exit-1"
+			authority.isPendingCollectionStart(start) shouldBe false
+			val reopened = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+			reopened.pendingCollectionResumeExitId shouldBe "exit-1"
+			reopened.collectionResumeBoundary shouldBe null
+			reopened.isPendingCollectionStart(start) shouldBe false
+		}
+	}
+
+	@Test
+	fun `failed pending Start reservation keeps Off and grants no delivery after recreation`(): Unit = runBlocking {
+		for (throwing in listOf(false, true)) {
+			clearStore()
+			val actual = context.getSharedPreferences("tracking_lifecycle_commands", Context.MODE_PRIVATE)
+			var failReservation = false
+			val proxy = object : SharedPreferences by actual {
+				override fun edit(): SharedPreferences.Editor {
+					val editor = actual.edit()
+					return object : SharedPreferences.Editor by editor {
+						override fun putLong(key: String?, value: Long) = apply { editor.putLong(key, value) }
+						override fun putString(key: String?, value: String?) = apply { editor.putString(key, value) }
+						override fun putBoolean(key: String?, value: Boolean) = apply { editor.putBoolean(key, value) }
+						override fun remove(key: String?) = apply { editor.remove(key) }
+						override fun commit(): Boolean {
+							val committed = editor.commit()
+							if (failReservation) {
+								failReservation = false
+								if (throwing) throw IllegalStateException("pending reservation failed after cache update")
+								return false
+							}
+							return committed
+						}
+					}
+				}
+			}
+			val fakeContext = mockk<Context>()
+			every { fakeContext.getSharedPreferences(any(), any()) } returns proxy
+			val authority = SharedPreferencesTrackingLifecycleCommandAuthority(fakeContext, Dispatchers.IO,
+				BootClockDomainProvider { "boot" })
+			authority.recordUserRequestedExit("exit-1") shouldBe true
+			val start = requireNotNull(authority.reserveStart())
+			failReservation = true
+			if (throwing) {
+				shouldThrow<IllegalStateException> { authority.prepareCollectionResumeForManualStart("exit-1", start) }
+			} else {
+				authority.prepareCollectionResumeForManualStart("exit-1", start) shouldBe false
+			}
+			authority.pendingCollectionResumeExitId shouldBe "exit-1"
+			authority.isPendingCollectionStart(start) shouldBe false
+			authority.withCurrentStart(start) { error("Failed reservation must not deliver") } shouldBe LockedTrackingStartResult.Stale
+			val reopened = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+			reopened.pendingCollectionResumeExitId shouldBe "exit-1"
+			reopened.collectionResumeBoundary shouldBe null
+			reopened.isPendingCollectionStart(start) shouldBe false
+			reopened.reserveRedeliveryRecoveryStart(start) shouldBe TrackingRedeliveryRecoveryReservation.Stale
+		}
+	}
+
+	@Test
+	fun `cancelled acceptance and handled newer End leave Off and reject late delivery`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		authority.recordUserRequestedExit("exit-1") shouldBe true
+		val start = requireNotNull(authority.reserveStart())
+		authority.prepareCollectionResumeForManualStart("exit-1", start) shouldBe true
+		shouldThrow<CancellationException> {
+			authority.withCurrentStart(start, acceptWhen = { true }) { throw CancellationException("cancelled before Room accepts") }
+		}
+		authority.pendingCollectionResumeExitId shouldBe "exit-1"
+		val stop = requireNotNull(authority.reserveStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 2_000L))
+		authority.markStopHandled(stop) shouldBe true
+		authority.cancelPendingCollectionStart(start.generation) shouldBe false
+		authority.withCurrentStart(start) { error("Late foreground must never run") } shouldBe LockedTrackingStartResult.Stale
+		authority.pendingCollectionResumeExitId shouldBe "exit-1"
+		val recreated = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		recreated.reserveRedeliveryRecoveryStart(start) shouldBe TrackingRedeliveryRecoveryReservation.Stale
+	}
+
+	@Test
+	fun `manual permission handoff survives another screen only in its original process`(): Unit = runBlocking {
+		val process = com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider()
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO,
+			BootClockDomainProvider { "boot" }, process)
+		val selection = com.adsamcik.tracker.tracker.api.ManualTrackingStartSelection(mapOf(
+			com.adsamcik.tracker.tracker.api.TrackingCaptureSource.STEPS to 7L))
+		val pending = requireNotNull(authority.reserveManualStartIfGeneration(0L, selection))
+		val sameProcess = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO,
+			BootClockDomainProvider { "boot" }, process)
+		sameProcess.pendingManualStart shouldBe pending
+		sameProcess.consumeManualStart(pending.command.generation, selection) shouldBe pending.command
+		sameProcess.consumeManualStart(pending.command.generation, selection) shouldBe null
+	}
+
+	@Test
+	fun `a new process rejects an old manual permission intent and keeps collection Off`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO,
+			BootClockDomainProvider { "boot" }, com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider())
+		authority.recordUserRequestedExit("off") shouldBe true
+		val selection = com.adsamcik.tracker.tracker.api.ManualTrackingStartSelection(mapOf(
+			com.adsamcik.tracker.tracker.api.TrackingCaptureSource.WIFI to 9L))
+		val pending = requireNotNull(authority.reserveManualStartIfGeneration(authority.latestCommandGeneration(), selection))
+		val recreated = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO,
+			BootClockDomainProvider { "boot" }, com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider())
+		recreated.pendingManualStart shouldBe null
+		recreated.consumeManualStart(pending.command.generation, selection) shouldBe null
+		recreated.pendingCollectionResumeExitId shouldBe "off"
+		recreated.isPendingCollectionStart(pending.command) shouldBe false
+	}
+
+	@Test
+	fun `automatic observation delivered after handled End cannot reuse its earlier time`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO, BootClockDomainProvider { "boot" })
+		val end = requireNotNull(authority.reserveStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 1_000L, 100L))
+		authority.markStopHandled(end) shouldBe true
+		authority.reserveStartIfGeneration(authority.latestCommandGeneration(), automaticTrigger("boot", 99L)) shouldBe null
+		authority.latestCommandGeneration() shouldBe end.generation
+	}
+
+	@Test
+	fun `End during callback wait rejects even a newer observed point with the old generation`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO, BootClockDomainProvider { "boot" })
+		val captured = authority.latestCommandGeneration()
+		val end = requireNotNull(authority.reserveStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 1_000L, 100L))
+		authority.markStopHandled(end) shouldBe true
+		authority.reserveStartIfGeneration(captured, automaticTrigger("boot", 101L)) shouldBe null
+		authority.latestCommandGeneration() shouldBe end.generation
+	}
+
+	@Test
+	fun `exact End cutoff stays in frozen prefix and only later automatic evidence may reserve`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO, BootClockDomainProvider { "boot" })
+		val end = requireNotNull(authority.reserveStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 1_000L, 100L))
+		authority.markStopHandled(end) shouldBe true
+		authority.reserveStartIfGeneration(end.generation, automaticTrigger("boot", 100L)) shouldBe null
+		val fresh = requireNotNull(authority.reserveStartIfGeneration(end.generation, automaticTrigger("boot", 101L)))
+		fresh.generation shouldBe end.generation + 1L
+	}
+
+	@Test
+	fun `automatic evidence must use current boot and cannot compare counters across reboot`(): Unit = runBlocking {
+		var boot = "boot-old"
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO, BootClockDomainProvider { boot })
+		val end = requireNotNull(authority.reserveStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 1_000L, 100L))
+		authority.markStopHandled(end) shouldBe true
+		boot = "boot-new"
+		authority.reserveStartIfGeneration(end.generation, automaticTrigger("boot-old", 101L)) shouldBe null
+		// New-boot eligibility still needs current CONTROL/registration proof in the source reader.
+		requireNotNull(authority.reserveStartIfGeneration(end.generation, automaticTrigger("boot-new", 1L)))
+			.generation shouldBe end.generation + 1L
+	}
+
+	@Test
+	fun `handled Off still blocks newer automatic evidence without changing choices or exit`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO, BootClockDomainProvider { "boot" })
+		val exit = TRACKING_TURN_OFF_EXIT_PREFIX + "automatic"
+		val off = requireNotNull(authority.reserveTurnOff(exit, 1_000L, 100L) { Unit })
+		authority.markStopHandled(off.stop) shouldBe true
+		val generation = authority.latestCommandGeneration()
+		authority.reserveStartIfGeneration(generation, automaticTrigger("boot", 101L)) shouldBe null
+		authority.pendingCollectionResumeExitId shouldBe exit
+		authority.latestCommandGeneration() shouldBe generation
+	}
+
+	@Test
+	fun `unknown Stop clock cannot grant automatic Start and manual Start remains independent`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO, BootClockDomainProvider { "boot" })
+		val end = requireNotNull(authority.reserveStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 1_000L))
+		authority.markStopHandled(end) shouldBe true
+		authority.reserveStartIfGeneration(end.generation, automaticTrigger("boot", 101L)) shouldBe null
+		requireNotNull(authority.reserveStart()).generation shouldBe end.generation + 1L
+	}
+
+	@Test
+	fun `duplicate automatic reservation cannot spend one original callback generation twice`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO, BootClockDomainProvider { "boot" })
+		val captured = authority.latestCommandGeneration()
+		val trigger = automaticTrigger("boot", 101L)
+		val first = requireNotNull(authority.reserveStartIfGeneration(captured, trigger))
+		authority.reserveStartIfGeneration(captured, trigger) shouldBe null
+		authority.latestCommandGeneration() shouldBe first.generation
+	}
+
+	private fun automaticTrigger(boot: String, observed: Long): AutomaticTrackingStartTrigger = mockk {
+		every { bootId } returns boot
+		every { observedElapsedRealtimeNanos } returns observed
 	}
 
 	private fun clearStore() {

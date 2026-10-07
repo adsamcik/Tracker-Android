@@ -94,6 +94,7 @@ class ActivityReceiverTest {
 		mockBackend = mockk(relaxed = true)
 		mockIngress = mockk()
 		mockStartupGate = mockk()
+		every { mockStartupGate.currentCommandGeneration } returns 0L
 		callbackAdmissionBarrier = ActivityCallbackAdmissionBarrier()
 		callbackRetryOwner = mockk(relaxed = true)
 		coEvery { callbackRetryOwner.retain(any()) } returns "retained-callback"
@@ -121,6 +122,26 @@ class ActivityReceiverTest {
 		every {
 			EntryPointAccessors.fromApplication(any(), ActivityReceiverEntryPoint::class.java)
 		} returns mockEntryPoint
+	}
+
+	@OptIn(ExperimentalCoroutinesApi::class)
+	@Test
+	fun `actual receiver pins original command before startup suspension`() = runTest {
+		var generation = 7L
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		applicationScope = backgroundScope
+		every { mockStartupGate.currentCommandGeneration } answers { generation }
+		coEvery { mockStartupGate.reconcileAdmission(any()) } coAnswers {
+			entered.complete(Unit); release.await(); TrackingAdmissionStartupResult.Ready
+		}
+		receiver.onReceive(context, intentWithActivityResult(
+			com.google.android.gms.location.DetectedActivity.WALKING, 85))
+		entered.await()
+		generation = 9L // End/new Start while the admitted callback is waiting for storage.
+		release.complete(Unit)
+		testScheduler.runCurrent()
+		coVerify(exactly = 1) { mockIngress.admit(match { it.liveStartCommandGeneration == 7L }) }
 	}
 
 	@After

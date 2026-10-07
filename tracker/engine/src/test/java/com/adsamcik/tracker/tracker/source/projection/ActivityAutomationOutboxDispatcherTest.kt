@@ -91,7 +91,7 @@ class ActivityAutomationOutboxDispatcherTest {
 				),
 			),
 		)
-		coEvery { consumer.deliver(any(), any(), any(), any(), any()) } returns
+		coEvery { consumer.deliver(any(), any(), any(), any(), any(), any()) } returns
 			ActivityAutomationDeliveryResult.RETRY
 
 		subject.drain() shouldBe 0
@@ -107,7 +107,7 @@ class ActivityAutomationOutboxDispatcherTest {
 			listOf(effect("first", 1), effect("second", 2)),
 			listOf(effect("third", 3)),
 		)
-		coEvery { consumer.deliver(any(), any(), any(), any(), any()) } returns
+		coEvery { consumer.deliver(any(), any(), any(), any(), any(), any()) } returns
 			ActivityAutomationDeliveryResult.ACCEPTED
 		coEvery { dao.markOutboxDelivered(any(), any()) } returns 1
 
@@ -115,14 +115,14 @@ class ActivityAutomationOutboxDispatcherTest {
 			ActivityAutomationDrainResult.Complete(deliveredCount = 3, terminalCount = 0)
 		subject.drainRequired.value shouldBe false
 
-		coVerify(exactly = 3) { consumer.deliver(any(), any(), any(), any(), any()) }
+		coVerify(exactly = 3) { consumer.deliver(any(), any(), any(), any(), any(), any()) }
 	}
 
 	@Test
 	fun `bounded drain reports remaining backlog instead of monopolizing caller`() = runTest {
 		coEvery { dao.pendingOutbox(any(), any(), any(), any()) } returns
 			listOf(effect("first", 1), effect("second", 2))
-		coEvery { consumer.deliver(any(), any(), any(), any(), any()) } returns
+		coEvery { consumer.deliver(any(), any(), any(), any(), any(), any()) } returns
 			ActivityAutomationDeliveryResult.ACCEPTED
 		coEvery { dao.markOutboxDelivered(any(), any()) } returns 1
 
@@ -138,7 +138,7 @@ class ActivityAutomationOutboxDispatcherTest {
 			effect("valid", 2),
 		)
 		coEvery { dao.markOutboxTerminal(any(), any(), any()) } returns 1
-		coEvery { consumer.deliver(any(), any(), any(), any(), any()) } returns
+		coEvery { consumer.deliver(any(), any(), any(), any(), any(), any()) } returns
 			ActivityAutomationDeliveryResult.ACCEPTED
 		coEvery { dao.markOutboxDelivered(any(), any()) } returns 1
 
@@ -156,6 +156,7 @@ class ActivityAutomationOutboxDispatcherTest {
 				8,
 				3,
 				ActivityAutomationStartContext.DURABLE_REPLAY,
+				any(),
 			)
 		}
 		deliveredEvidence.captured.activityType shouldBe DetectedActivityType.WALKING
@@ -166,12 +167,12 @@ class ActivityAutomationOutboxDispatcherTest {
 	fun `retry stops the ordered drain before evaluating newer effects`() = runTest {
 		coEvery { dao.pendingOutbox(any(), any(), any(), any()) } returns
 			listOf(effect("first", 1), effect("second", 2))
-		coEvery { consumer.deliver(any(), any(), any(), any(), any()) } returns
+		coEvery { consumer.deliver(any(), any(), any(), any(), any(), any()) } returns
 			ActivityAutomationDeliveryResult.RETRY
 
 		subject.drain() shouldBe 0
 
-		coVerify(exactly = 1) { consumer.deliver(any(), any(), any(), any(), any()) }
+		coVerify(exactly = 1) { consumer.deliver(any(), any(), any(), any(), any(), any()) }
 	}
 
 	@Test
@@ -193,7 +194,7 @@ class ActivityAutomationOutboxDispatcherTest {
 	fun `transient consumer exception then success clears durable failure state`() = runTest {
 		coEvery { dao.pendingOutbox(any(), any(), any(), any()) } returns listOf(effect())
 		var attempts = 0
-		coEvery { consumer.deliver(any(), any(), any(), any(), any()) } answers {
+		coEvery { consumer.deliver(any(), any(), any(), any(), any(), any()) } answers {
 			if (attempts++ == 0) throw IllegalStateException("transient consumer")
 			ActivityAutomationDeliveryResult.ACCEPTED
 		}
@@ -225,7 +226,7 @@ class ActivityAutomationOutboxDispatcherTest {
 	@Test
 	fun `current policy suppression is durable and is never marked delivered`() = runTest {
 		coEvery { dao.pendingOutbox(any(), any(), any(), any()) } returns listOf(effect())
-		coEvery { consumer.deliver(any(), any(), any(), any(), any()) } returns
+		coEvery { consumer.deliver(any(), any(), any(), any(), any(), any()) } returns
 			ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
 		coEvery { dao.markOutboxTerminal(any(), any(), any()) } returns 1
 
@@ -252,7 +253,7 @@ class ActivityAutomationOutboxDispatcherTest {
 				),
 			),
 		)
-		coEvery { consumer.deliver(any(), any(), any(), any(), any()) } returns
+		coEvery { consumer.deliver(any(), any(), any(), any(), any(), any()) } returns
 			ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
 		coEvery { dao.markOutboxTerminal(any(), any(), any()) } returns 1
 
@@ -262,7 +263,7 @@ class ActivityAutomationOutboxDispatcherTest {
 			dao.markOutboxTerminal("expired", "START_CONTEXT_EXPIRED", any())
 		}
 		coVerify(exactly = 1) {
-			consumer.deliver(any(), any(), 8, 3, ActivityAutomationStartContext.DURABLE_REPLAY)
+			consumer.deliver(any(), any(), 8, 3, ActivityAutomationStartContext.DURABLE_REPLAY, any())
 		}
 	}
 
@@ -288,7 +289,7 @@ class ActivityAutomationOutboxDispatcherTest {
 			effect(stableId = "current-recognition", ordinal = 3),
 		)
 		val contexts = mutableListOf<ActivityAutomationStartContext>()
-		coEvery { consumer.deliver(any(), any(), any(), any(), capture(contexts)) } returns
+		coEvery { consumer.deliver(any(), any(), any(), any(), capture(contexts), any()) } returns
 			ActivityAutomationDeliveryResult.ACCEPTED
 		coEvery { dao.markOutboxDelivered(any(), any()) } returns 1
 
@@ -325,7 +326,7 @@ class ActivityAutomationOutboxDispatcherTest {
 	fun `accepted effect is marked and cannot be delivered twice`() = runTest {
 		coEvery { dao.pendingOutbox(any(), any(), any(), any()) } returnsMany
 			listOf(listOf(effect()), emptyList())
-		coEvery { consumer.deliver(any(), any(), any(), any(), any()) } returns
+		coEvery { consumer.deliver(any(), any(), any(), any(), any(), any()) } returns
 			ActivityAutomationDeliveryResult.ACCEPTED
 		coEvery { dao.markOutboxDelivered(any(), any()) } returns 1
 
@@ -333,7 +334,7 @@ class ActivityAutomationOutboxDispatcherTest {
 		subject.drain() shouldBe 0
 
 		coVerify(exactly = 1) {
-			consumer.deliver(any(), any(), 8, 3, ActivityAutomationStartContext.DURABLE_REPLAY)
+			consumer.deliver(any(), any(), 8, 3, ActivityAutomationStartContext.DURABLE_REPLAY, any())
 		}
 		coVerify(exactly = 1) { dao.markOutboxDelivered("effect", any()) }
 	}
@@ -355,7 +356,7 @@ class ActivityAutomationOutboxDispatcherTest {
 		subject.drain() shouldBe 1
 
 		coVerify(exactly = 1) { dao.markOutboxDelivered("effect", any()) }
-		coVerify(exactly = 0) { consumer.deliver(any(), any(), any(), any(), any()) }
+		coVerify(exactly = 0) { consumer.deliver(any(), any(), any(), any(), any(), any()) }
 	}
 
 	@Test
@@ -469,7 +470,7 @@ class ActivityAutomationOutboxDispatcherTest {
 			ActivityAutomationEffectValidation.Eligible(8, 3)
 		}
 		var consumerFailures = 0
-		coEvery { consumer.deliver(any(), any(), any(), any(), any()) } answers {
+		coEvery { consumer.deliver(any(), any(), any(), any(), any(), any()) } answers {
 			if (stage == PoisonStage.CONSUMER && arg<String>(0) == "poison" &&
 				consumerFailures++ < 3
 			) {
@@ -493,7 +494,7 @@ class ActivityAutomationOutboxDispatcherTest {
 				failure.attemptCount shouldBe attempt + 1
 				failure.terminal shouldBe false
 			}
-			coVerify(exactly = 0) { consumer.deliver("later", any(), any(), any(), any()) }
+			coVerify(exactly = 0) { consumer.deliver("later", any(), any(), any(), any(), any()) }
 		}
 
 		subject.drain(limit = 10) shouldBe 2

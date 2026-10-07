@@ -322,8 +322,15 @@ class DefaultTrackingStartupGate @Inject constructor(
 	private var mismatchRecoveryStopGeneration = 0L
 	private var readySignalVersion = 0L
 
+	override val currentCommandGeneration: Long
+		get() = lifecycleCommandAuthority.latestCommandGeneration()
+
 	override val permitsNewCollection: Boolean
 		get() = isReady && lifecycleCommandAuthority.pendingCollectionResumeExitId == null
+
+	override fun permitsPendingManualStart(commandGeneration: Long): Boolean =
+		commandGeneration > 0L && isReady && lifecycleCommandAuthority.isPendingCollectionStart(
+			com.adsamcik.tracker.tracker.resilience.TrackingStartCommand(commandGeneration))
 
 	override val collectionResumeBoundary: com.adsamcik.tracker.shared.base.startup.TrackingCollectionResumeBoundary?
 		get() = lifecycleCommandAuthority.collectionResumeBoundary
@@ -387,6 +394,18 @@ class DefaultTrackingStartupGate @Inject constructor(
 		}
 		if (stopFenceAccepted && completed) value else null
 		}
+	}
+
+	override suspend fun <T> withReadyGenerationWork(
+		expectedGeneration: Long,
+		operation: suspend () -> T,
+	): T? = deletionBarrier.withTransfer(
+		expectedGeneration,
+		{ isReadyGeneration(expectedGeneration) },
+	) {
+		val value = operation()
+		currentCoroutineContext().ensureActive()
+		value.takeIf { isReadyGeneration(expectedGeneration) }
 	}
 
 	override suspend fun <T> withReadyGenerationTransfer(

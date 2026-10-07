@@ -29,6 +29,7 @@ import kotlinx.coroutines.CancellationException
 internal class SourceCallerAuthoritySnapshot(
 	currentDemandIdentities: Set<SourceCallerDemandIdentity>,
 	val purposeAvailability: TrackingPurposeAvailabilitySnapshot,
+	val pendingManualStartGeneration: Long? = null,
 ) {
 	val currentDemandIdentities = currentDemandIdentities.toSet()
 
@@ -161,7 +162,8 @@ internal class ExactSourceCallerGuard @Inject constructor(
 		if (canonicalRequest is SourceCallerRequest.PurposeOwnerRetirement) {
 			return acceptPurposeOwnerRetirement(canonicalRequest)
 		}
-		if (startupGateProvider?.get()?.permitsNewCollection == false) {
+		if (startupGateProvider?.get()?.permitsNewCollection == false &&
+			!canonicalRequest.isPendingManualDeliveryCandidate()) {
 			return rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
 		}
 		if (canonicalRequest is SourceCallerRequest.Replay &&
@@ -200,7 +202,7 @@ internal class ExactSourceCallerGuard @Inject constructor(
 		currentAuthority: SourceCallerAuthoritySnapshot,
 		createdAtMs: Long,
 	): SourceCallerFreshAcceptanceResult {
-		if (startupGateProvider?.get()?.permitsNewCollection == false) {
+		if (!permitsCollectionRequest(request, currentAuthority)) {
 			return SourceCallerFreshAcceptanceResult.Rejected(
 				rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE).rejection)
 		}
@@ -243,13 +245,33 @@ internal class ExactSourceCallerGuard @Inject constructor(
 		currentAuthority: SourceCallerAuthoritySnapshot,
 	): SourceCallerGuardResult {
 		val canonicalRequest = request.withCanonicalReplayKind()
-		if (startupGateProvider?.get()?.permitsNewCollection == false) {
+		if (!permitsCollectionRequest(canonicalRequest, currentAuthority)) {
 			return rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
 		}
 		if (canonicalRequest.replayKind == SourceCallerReplayKind.POLICY_RECONCILIATION) {
 			return rejected(SourceCallerRejectionReason.REPLAY_KIND_REQUIRES_FRESH_ACCEPTANCE)
 		}
 		return replay(canonicalRequest, currentAuthority)
+	}
+
+	private fun SourceCallerRequest.isPendingManualDeliveryCandidate(): Boolean =
+		this is SourceCallerRequest.ManualSessionStart ||
+			(this is SourceCallerRequest.Replay &&
+				replayKind.canonicalKind == SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY)
+
+	private fun permitsCollectionRequest(
+		request: SourceCallerRequest,
+		currentAuthority: SourceCallerAuthoritySnapshot,
+	): Boolean {
+		val gate = startupGateProvider?.get() ?: return true
+		if (gate.permitsNewCollection) return true
+		val generation = currentAuthority.pendingManualStartGeneration ?: return false
+		return request.isPendingManualDeliveryCandidate() &&
+			gate.permitsPendingManualStart(generation) &&
+			currentAuthority.currentDemandIdentities.isNotEmpty() &&
+			currentAuthority.currentDemandIdentities.all {
+				it.sourcePurpose.purpose == TrackingPurpose.SESSION_CAPTURE && it.manifestIdentity != null
+			}
 	}
 
 	private suspend fun acceptPurposeOwnerRetirement(

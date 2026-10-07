@@ -1,0 +1,263 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_commit": "78eb255e59",
+  "independent_review": "ACCEPTED_STATIC_ONLY",
+  "selection": "SELECTED_IMPLEMENTED_UNVALIDATED",
+  "files": [
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGate.kt",
+      "base_sha256": "fb92e49582db536ea83ac7d0718fd252d08645664c8f005d84e35737e0dcb583",
+      "selected_sha256": "be808ad10901ca1a99f9fe925786d18cf7df41279aca946cb6efb9fa0b0e09c2",
+      "working_before_sha256": "a32756244d4ae8218d8d77f5a4e8aa7068bda91ce87afdcd282eba5bfc56f676",
+      "kind": "production"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt",
+      "base_sha256": "6e563496cdc97adcea392c4a236ab5d2f1433d2282c616aad70df1d49a7e24e7",
+      "selected_sha256": "d5a0472490b6f7d3492bfce7643a5fbdf21b509df0b666fd1138ae990ce65aae",
+      "working_before_sha256": "d5a0472490b6f7d3492bfce7643a5fbdf21b509df0b666fd1138ae990ce65aae",
+      "kind": "test"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/startup/TrackingStartupLiveWorkTest.kt",
+      "base_sha256": null,
+      "selected_sha256": "c00e2f9e5696209811c1a87be611b73411a82e4177ba5114f7672f62abcae327",
+      "working_before_sha256": null,
+      "kind": "test"
+    },
+    {
+      "path": "core/common/src/main/java/com/adsamcik/tracker/shared/base/startup/TrackingStartupGate.kt",
+      "base_sha256": "43ce44c33ec912f4cded5d9d373e5fbe852d2eff039f77dfb7fd6d3cc991bcb6",
+      "selected_sha256": "7452f50687b94c465a8da00d20ad4776ddfdadc7dcd1a78c9fdbf948e2433576",
+      "working_before_sha256": "53b656c5c523b8940878e74451df745e9568388f80231782ba238dcbedf5b8f5",
+      "kind": "production"
+    },
+    {
+      "path": "sensor/activity-api/src/main/java/com/adsamcik/tracker/activity/api/ingress/ActivityRecognitionEventIngress.kt",
+      "base_sha256": "d4d81687c176f5a69ddf553f9a6cbefffc6b0f6ad4c5ac7eae1833e1eeafd788",
+      "selected_sha256": "6dabfb1ec083f2b9310db811912e9a5e4c8e2b996817669ca87845c542f1e649",
+      "working_before_sha256": "1fccb6d6e4ebb5e125470f7be5eb0e3f128f3d892c37f0ab07070f74cddd99b3",
+      "kind": "production"
+    },
+    {
+      "path": "sensor/activity/src/main/java/com/adsamcik/tracker/activity/receiver/ActivityReceiver.kt",
+      "base_sha256": "d9aa55010eb4fc871f195ea20a7e46a9ef2c3cff7be31df8e159d6538aeb4bfb",
+      "selected_sha256": "e114104c5a925d9634d12512e29f8ae3ad39524d64b2e9ac6a3e811d75e1b3d8",
+      "working_before_sha256": "728df8d8fbf2d220c9242312df350b244ceb400a4935466d8b4e9ade5eb6e718",
+      "kind": "production"
+    },
+    {
+      "path": "sensor/activity/src/test/java/com/adsamcik/tracker/activity/receiver/ActivityCallbackRetryStoreTest.kt",
+      "base_sha256": "20b6a548dbe731fbceda698238ff145b119bdf2f4169ef190cebd376a367da9c",
+      "selected_sha256": "aba29c6da32ec9cd79b214728bccf189bb692741ba275ea97c8989be63592a63",
+      "working_before_sha256": "2fe6e0a471f0fb018babb5435f45c5c241eaa6ca0ba6c02487901904bb7b2e2c",
+      "kind": "test"
+    },
+    {
+      "path": "sensor/activity/src/test/java/com/adsamcik/tracker/activity/receiver/ActivityReceiverTest.kt",
+      "base_sha256": "711642132d6ee68e58dc14980a8d926aff6347b2034ba9c748a527ddcee9cc34",
+      "selected_sha256": "f0e152764d52da7b6d6a9f006ea8695e06578f8069356620480582abc213a46e",
+      "working_before_sha256": "92662341a8c24844fb7b3586505adc19084eb1e12e698b863bf8ccdd20fac0fa",
+      "kind": "test"
+    },
+    {
+      "path": "sensor/activity/src/test/java/com/adsamcik/tracker/activity/receiver/ActivityReceiverThreadSafetyTest.kt",
+      "base_sha256": "ea6a346d94ca4eec79bc8fea84a54495aa9a7c80eb39f8bfa909cccf942e0802",
+      "selected_sha256": "1ece84aa35f9c9c70620274005bdbecd80e3b49fa677008557abb18b76d32671",
+      "working_before_sha256": "d0d0911f6aa7a5f14cd9adba925216ef110b89afc9a5952c2d7ca8878e7e7b41",
+      "kind": "test"
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackerServiceApi.kt",
+      "base_sha256": "7ccd36412e7ca85632959189942b4acb9a3cdd508b9d06c443af3a0bbd2ccb6a",
+      "selected_sha256": "390ca3df4a26e49bd8d523e9f2530783119b22cb5f7b399c81ae10cb76c6fc43",
+      "working_before_sha256": "7ccd36412e7ca85632959189942b4acb9a3cdd508b9d06c443af3a0bbd2ccb6a",
+      "kind": "production"
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/resilience/TrackingLifecycleCommandAuthority.kt",
+      "base_sha256": "33b035f62d14efeabdfd683b8cce4ca8d032e9ab0a2b0494c06f818b76059e3e",
+      "selected_sha256": "a19f59e5cb1c4e861a4d2227a0bcf38fcf918b192b706006bb872ebac457e454",
+      "working_before_sha256": "69bdd2c1cd8ce08772c09d80aa3f60f07cc5083e0ff6c516dd7011de315ca2ce",
+      "kind": "production"
+    },
+    {
+      "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/resilience/TrackingLifecycleCommandAuthorityTest.kt",
+      "base_sha256": "d1f69b709d734194df17521fcdf4df367ba1576d7d39cb6bd30b27c5398be78a",
+      "selected_sha256": "1b2bf0dfee293ee2fa5ec8c747af909060c671528fc374329936627d17e2103f",
+      "working_before_sha256": "1b2bf0dfee293ee2fa5ec8c747af909060c671528fc374329936627d17e2103f",
+      "kind": "test"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/SharedPreferencesTrackingLifecycleCommandAuthority.kt",
+      "base_sha256": "90680f0ee3e8a5bbcc63491fd49c500b57fbf71b20c8008141590f5a4a231d05",
+      "selected_sha256": "b319ac2a790c9ccbb4e7f838020def2e0053d11bdd737736e3fd7bb5fb07471b",
+      "working_before_sha256": "4c3e75f5b91ae090725619fb217578ec7a0d2f1bea6432d57ecd441a5d7b9fc8",
+      "kind": "production"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinator.kt",
+      "base_sha256": "eb6a19265967fe21de625b0d69f3694681579b401a02182b570f5c51612e1852",
+      "selected_sha256": "cd41f9eda6cdcce1300a8805e97b276f94c9fa45a8fc93b35da7cc1507cf9952",
+      "working_before_sha256": "46380fc5460dad28492c0862ca94cff76d1bab960ab61e063fcb18b52d12257a",
+      "kind": "production"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt",
+      "base_sha256": "c6bd386fea877a9ec42c5e574e5a8771ccd84b0ae4c785023084f0731485be00",
+      "selected_sha256": "ff10f5cc8479f5d8cc7eae07fdab3fc9d94eb8b39db6621dfb62ff9e6556f0b2",
+      "working_before_sha256": "4b5914828d2d605aef9e92d68ae79a8e8169c9425ef2c040eeec8d96b22bdd3e",
+      "kind": "production"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecovery.kt",
+      "base_sha256": "de56db1940eea02490b5d57b9b3c6dbe48268eebbc194a7b0fee0c184486ecd4",
+      "selected_sha256": "b761819481fba89517e09daccd9b98b8033a000e1a6531658bca5cb931d7a267",
+      "working_before_sha256": "2f1560588b28e4cab5bf009e010a1d3d4dbc6fdabf7aecbf1d02bbb9d92191c0",
+      "kind": "production"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSession.kt",
+      "base_sha256": "ea52af08ed2ae7c2155244d95ccf455ef2a938eed58b908f7b5165629f5a8ba8",
+      "selected_sha256": "b3e0f97f79acbcc7b28b8c982e5ec4dc6aa867c3b1764a83af098eaecf279eff",
+      "working_before_sha256": "b3e0f97f79acbcc7b28b8c982e5ec4dc6aa867c3b1764a83af098eaecf279eff",
+      "kind": "production"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/RoomActivityRecognitionEventIngress.kt",
+      "base_sha256": "fa669623e5adebebb5437a85227c0810e00e070fff086490b01c6b9f4325eaf3",
+      "selected_sha256": "9607455a3042d24d5e12bc10cd5a618b700ae4d48afbd43892134243449b21d4",
+      "working_before_sha256": "f297244300dcb6cee915e2d1f38f6124b4f4624655de13f1080dd8549744bb9e",
+      "kind": "production"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomationOutboxDispatcher.kt",
+      "base_sha256": "1b46a127d0bc3f7c836e9b8408bb0ecab91fa516bf4cb18acc4c3d32290c8c0f",
+      "selected_sha256": "9f7b920b6ef80a7ddf8620e4240e841954c40511bf037ab5d989fbfe25260412",
+      "working_before_sha256": "f1b273d2f288edfe38fcd3058d0b4346388203e5028fa5e6b0a00fce2c2a713c",
+      "kind": "production"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/ExactSourceCallerGuard.kt",
+      "base_sha256": "0274b284e71129286b9f4d2fdcc8e8e74536832a36198af0c2922e84c4f46b57",
+      "selected_sha256": "8753d4cbf132406856f7ba2fd18f3d9c7810c4f93a2d557467847e4e7cb6d79c",
+      "working_before_sha256": "8753d4cbf132406856f7ba2fd18f3d9c7810c4f93a2d557467847e4e7cb6d79c",
+      "kind": "production"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceCallerDemandDispatcher.kt",
+      "base_sha256": "583574b849e4b79f69fb627ee7b3aaec30917ff234487efcbfb3765bb0d75bd0",
+      "selected_sha256": "e39b099932fe80c2b08ec4581a6cd31cb86cf020adebf4ec7bf5f4ed56569f9d",
+      "working_before_sha256": "e39b099932fe80c2b08ec4581a6cd31cb86cf020adebf4ec7bf5f4ed56569f9d",
+      "kind": "production"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/resilience/SharedPreferencesTrackingLifecycleCommandAuthorityTest.kt",
+      "base_sha256": "832c00236b867d555c990a4e9df9106d10b86ede6576c35644bac4d14a832a84",
+      "selected_sha256": "74f24310dc6037280315719ec5f526d6a75a0d1a9e91ab4e9f9c652a4d0d6a0b",
+      "working_before_sha256": "13018a29c62b233e9b6c8e032fd7c03e0cedcaac70c7920beb90d711f70721e5",
+      "kind": "test"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/AutomaticStartCommandFenceTest.kt",
+      "base_sha256": null,
+      "selected_sha256": "73607a2a594ae8af3878f0299a9c6e1609faef220dfe338a29256064c2542217",
+      "working_before_sha256": null,
+      "kind": "test"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinatorResumeTest.kt",
+      "base_sha256": "c304c26b749bee682d32500fb9f39929288612397cf2872f2013436e763b79a9",
+      "selected_sha256": "2ef88ccbd689b8a0e63bcc2d4d11aecc13b1aa99e4b09e636a9e2bbf54e4fcb9",
+      "working_before_sha256": "2ef88ccbd689b8a0e63bcc2d4d11aecc13b1aa99e4b09e636a9e2bbf54e4fcb9",
+      "kind": "test"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/PreparedManualStartPurposeRepairTest.kt",
+      "base_sha256": "a6e8ca4f4e3bb7969ee996c10dcef907b6265c9006f72b187631f0758519c7f1",
+      "selected_sha256": "b6f1be949b09fd5897d4e3fad413e0a6498f7fa21e3d60bc377406e1a7bba3fd",
+      "working_before_sha256": "b6f1be949b09fd5897d4e3fad413e0a6498f7fa21e3d60bc377406e1a7bba3fd",
+      "kind": "test"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/PreparedStartCancellationReleaseTest.kt",
+      "base_sha256": null,
+      "selected_sha256": "d813c2ded1459aadd601e17c2ddd1e7ac9c822494ffc70879f1d248a6723b956",
+      "working_before_sha256": null,
+      "kind": "test"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/PreparedStartForegroundAcceptanceTest.kt",
+      "base_sha256": null,
+      "selected_sha256": "057b26f58ad0b91fb06b79671372ae67dc81ebd277eadc2b7063d4265cb89a66",
+      "working_before_sha256": null,
+      "kind": "test"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+      "base_sha256": "4d8226b973afb673edb9fb89c748287e59e666cb21fd386a2ac81ff971531bf4",
+      "selected_sha256": "0812fecef4e758ddb32e2a92093a063cb944d8450e6afa63aa8f3c268606afe1",
+      "working_before_sha256": "49d595702d8e5df8365c9e041d3236e74708ce3967ac7ce21a59fba6f5a89c81",
+      "kind": "test"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecoveryTest.kt",
+      "base_sha256": "a66589ced5ac5107bdf8caf564af46070082541dbd1c7464b92ced2546fd9395",
+      "selected_sha256": "b9653d45a1f3b9b687bfa3cf1f7f44c4974144d83572be468764440c880669f8",
+      "working_before_sha256": "fbcd9e01603d31c1429295283458c778bc8bbb9ff6da66fc6a35374126d0d825",
+      "kind": "test"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSessionTest.kt",
+      "base_sha256": "8dc919ac66903d1bc6c97df7102284cf8729da54389b8def8eb88d60731bfaca",
+      "selected_sha256": "72ee1f0ab5b9c78b1ce44d3a7473ee1c44132c96e6fb28acb6539785a82b1c9c",
+      "working_before_sha256": "72ee1f0ab5b9c78b1ce44d3a7473ee1c44132c96e6fb28acb6539785a82b1c9c",
+      "kind": "test"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/RoomActivityRecognitionEventIngressTest.kt",
+      "base_sha256": "85e1410d1a6fdc9db7d53bd39b21d4d5ae11eb96ccd2fab6f7cc7b583778c701",
+      "selected_sha256": "1b88c6c9d6a168b70e40528bf75e92b5a463676552c1b7a83f01d1f9c356132e",
+      "working_before_sha256": "d0f1b60beb8efc9fecae1702500ab4e8830e52cb7223cb2a10367d46e6c5bab2",
+      "kind": "test"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomationOutboxDispatcherTest.kt",
+      "base_sha256": "89d522e6581c86d5e9399b0dd59233e1f74d5c5a24885a3b6bd07b2b0590e679",
+      "selected_sha256": "b129e0edffd6dea3888842d9be520415eefb1c0d6a8721a14889788a1caa6ee7",
+      "working_before_sha256": "14bf03a6ab9faaa7bb3c4c07b10f7fac5e14beca380f468ce95854855efe7044",
+      "kind": "test"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/ColdActivityAutomationOutboxTest.kt",
+      "base_sha256": "4b15eb3402a83d515e20feaab66d454e41380c9952ee7e3bf1c6a2c4fc3b07bc",
+      "selected_sha256": "637f100042a509b6f2ce7b37a8110a8a2932e1ebb42803d28120391da1d02f50",
+      "working_before_sha256": "4b15eb3402a83d515e20feaab66d454e41380c9952ee7e3bf1c6a2c4fc3b07bc",
+      "kind": "test"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CurrentSourceCallerAuthorityReaderTest.kt",
+      "base_sha256": "63f766774bc90c26784bd45a063a84e87a2337b48c0bf639f2de85def2f9a3ea",
+      "selected_sha256": "c9b5ea8a66b4568b46992cfc57036e16e27d175b56cfc26af702a13c8a29f49d",
+      "working_before_sha256": "c9b5ea8a66b4568b46992cfc57036e16e27d175b56cfc26af702a13c8a29f49d",
+      "kind": "test"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/ExactSourceCallerGuardTest.kt",
+      "base_sha256": "c12652483396f2fd692b64341c2e1185f9c1673bd45fcdc100753553f50e8ad9",
+      "selected_sha256": "9220ddf4abd7d83d5cb00a101636886c422c395f8ae12c3829323952f6e78149",
+      "working_before_sha256": "9220ddf4abd7d83d5cb00a101636886c422c395f8ae12c3829323952f6e78149",
+      "kind": "test"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/GuardedSourceCallerDemandDispatcherTest.kt",
+      "base_sha256": "baafcd3f59eaf96b27ab378c85adca80453c32d7db36f390b4c4c17e2db7b4ef",
+      "selected_sha256": "e369d22c3e439e57b94d802ae22f19816e588dfd0f28b9de2c01b6ed78c44e3b",
+      "working_before_sha256": "e369d22c3e439e57b94d802ae22f19816e588dfd0f28b9de2c01b6ed78c44e3b",
+      "kind": "test"
+    }
+  ],
+  "patch_sha256": "52d711329cc3bdfad0f84a8a309515d512d54f7c72c640ee8da8c009afd93fd9",
+  "revision": "OWNERSHIP_MONITOR_SCOPE_FIX_AUTHOR_COMPLETE_REVIEW_PENDING",
+  "tests": "NOT_RUN"
+}

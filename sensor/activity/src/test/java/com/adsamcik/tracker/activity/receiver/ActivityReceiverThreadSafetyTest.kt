@@ -60,6 +60,7 @@ class ActivityReceiverThreadSafetyTest {
 		mockBackend = mockk(relaxed = true)
 		mockIngress = mockk()
 		mockStartupGate = mockk()
+		every { mockStartupGate.currentCommandGeneration } returns 0L
 		callbackAdmissionBarrier = ActivityCallbackAdmissionBarrier()
 		val callbackRetryOwner = mockk<ActivityCallbackRetryOwner>(relaxed = true)
 		coEvery { callbackRetryOwner.retain(any()) } returns "retained-callback"

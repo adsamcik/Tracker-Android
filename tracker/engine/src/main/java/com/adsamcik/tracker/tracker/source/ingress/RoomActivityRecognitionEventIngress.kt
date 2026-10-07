@@ -167,6 +167,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 				delivery,
 				admission.units,
 				batch.startContext,
+				batch.liveStartCommandGeneration,
 				admittedCount = admission.units.size,
 				duplicateCount = 0,
 				providerDiscardedCount = selection.discardedCount,
@@ -175,6 +176,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 				delivery,
 				admission.units,
 				batch.startContext,
+				batch.liveStartCommandGeneration,
 				admittedCount = 0,
 				duplicateCount = admission.units.size,
 				providerDiscardedCount = selection.discardedCount,
@@ -205,6 +207,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		delivery: ActivitySourceDelivery,
 		units: List<DeliveryAdmissionResult.AdmittedUnit>,
 		startContext: ActivityIngressStartContext,
+		expectedCommandGeneration: Long?,
 		admittedCount: Int,
 		duplicateCount: Int,
 		providerDiscardedCount: Int,
@@ -247,6 +250,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 				sourcePipelineRecovery.drainCommittedActivityCallbackWork(
 					callbackTransitionOrdinals,
 					targetOrdinal,
+					expectedCommandGeneration = expectedCommandGeneration,
 				) {
 					BackgroundTrackingApi.initializeAndAwaitActivityAutomationAuthority(context)
 				}

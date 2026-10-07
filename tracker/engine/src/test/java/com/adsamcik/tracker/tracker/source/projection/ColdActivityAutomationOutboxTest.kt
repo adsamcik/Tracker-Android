@@ -105,7 +105,8 @@ class ColdActivityAutomationOutboxTest {
 		mockkObject(Assist, TrackerServiceApi)
 		every { Assist.isPlayServicesAvailable(any()) } returns true
 		every { TrackerServiceApi.hasLiveCapture(any()) } returns false
-		coEvery { TrackerServiceApi.startServiceAndAwaitEnqueueResult(any(), any(), any(), any(), any()) } coAnswers {
+		coEvery { TrackerServiceApi.startServiceAndAwaitEnqueueResult(any(), any(), any(), any(), any(), any()) } coAnswers {
+			arg<Long?>(5) shouldBe 0L
 			requests += requireNotNull(arg<AutomaticTrackingStartTrigger?>(3))
 			TrackingStartDispatchResult.Enqueued
 		}
@@ -298,8 +299,29 @@ class ColdActivityAutomationOutboxTest {
 		assertNoEnqueueOrAcknowledgement()
 	}
 
+	@Test
+	fun `fresh callback without original command fence cannot reserve automatic Start`() = runTest {
+		publishCoherentSettings()
+		publishReady()
+		dispatcher.drain(startPermit = ActivityAutomationStartPermit.FreshTransitionCallback(setOf(1L)),
+			elapsedRealtimeNanos = { callbackTime }) shouldBe 0
+		requests shouldBe emptyList()
+		coVerify(exactly = 0) { actions.reserve(any()) }
+		coVerify(exactly = 1) { dao.markOutboxTerminal("effect", "START_CONTEXT_EXPIRED", any()) }
+	}
+
+	@Test
+	fun `historical accepted lifecycle action acknowledges outbox without requesting another Start`() = runTest {
+		coEvery { actions.reconcileLifecycleIntentAcceptance(any(), any(), any()) } returns
+			ActivityAutomaticStartAcceptance.Accepted(mockk())
+		dispatcher.drain(startPermit = ActivityAutomationStartPermit.None) shouldBe 1
+		requests shouldBe emptyList()
+		coVerify(exactly = 0) { actions.reserve(any()) }
+		coVerify(exactly = 1) { dao.markOutboxDelivered("effect", any()) }
+	}
+
 	private suspend fun drain(): Int = dispatcher.drain(
-		startPermit = ActivityAutomationStartPermit.FreshTransitionCallback(setOf(1L)),
+		startPermit = ActivityAutomationStartPermit.FreshTransitionCallback(setOf(1L), expectedCommandGeneration = 0L),
 		elapsedRealtimeNanos = { callbackTime },
 	)
 

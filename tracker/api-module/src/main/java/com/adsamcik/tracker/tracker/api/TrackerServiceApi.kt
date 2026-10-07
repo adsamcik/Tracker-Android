@@ -132,13 +132,18 @@ object TrackerServiceApi {
 		isAmbient: Boolean,
 		automaticTrigger: AutomaticTrackingStartTrigger? = null,
 		recoveryDescriptor: ActiveTrackingSessionDescriptor? = null,
+		expectedCommandGeneration: Long? = null,
 	): Boolean {
 		if (!isUserInitiated && automaticTrigger == null && recoveryDescriptor == null) return false
+		if (automaticTrigger != null && (expectedCommandGeneration == null || expectedCommandGeneration < 0L)) return false
 		val appContext = context.applicationContext
 		val entryPoint = getEntryPoint(appContext)
 		entryPoint.applicationScope().launch {
-			val command = entryPoint.trackingLifecycleCommandAuthority().reserveStart()
-				?: return@launch
+			val commands = entryPoint.trackingLifecycleCommandAuthority()
+			val command = if (automaticTrigger != null) {
+				commands.reserveStartIfGeneration(requireNotNull(expectedCommandGeneration), automaticTrigger)
+			} else commands.reserveStart()
+			if (command == null) return@launch
 			dispatchPreparedStart(
 				request = TrackingStartRequest(
 					command = command,
@@ -169,12 +174,14 @@ object TrackerServiceApi {
 		isAmbient: Boolean = false,
 		automaticTrigger: AutomaticTrackingStartTrigger? = null,
 		recoveryDescriptor: ActiveTrackingSessionDescriptor? = null,
+		expectedCommandGeneration: Long? = null,
 	): Boolean = startServiceAndAwaitEnqueueResult(
 		context,
 		isUserInitiated,
 		isAmbient,
 		automaticTrigger,
 		recoveryDescriptor,
+		expectedCommandGeneration,
 	) is TrackingStartDispatchResult.Enqueued
 
 	suspend fun startServiceAndAwaitEnqueueResult(
@@ -183,14 +190,27 @@ object TrackerServiceApi {
 		isAmbient: Boolean = false,
 		automaticTrigger: AutomaticTrackingStartTrigger? = null,
 		recoveryDescriptor: ActiveTrackingSessionDescriptor? = null,
+		expectedCommandGeneration: Long? = null,
 	): TrackingStartDispatchResult {
 		if (!isUserInitiated && automaticTrigger == null && recoveryDescriptor == null) {
 			return TrackingStartDispatchResult.Terminal("TRACKING_START_AUTHORITY_MISSING")
 		}
+		if (automaticTrigger != null && (expectedCommandGeneration == null || expectedCommandGeneration < 0L)) {
+			return TrackingStartDispatchResult.Terminal("AUTOMATIC_START_CONTEXT_MISSING")
+		}
 		val appContext = context.applicationContext
 		val entryPoint = getEntryPoint(appContext)
-		val command = entryPoint.trackingLifecycleCommandAuthority().reserveStart()
-			?: return TrackingStartDispatchResult.Retryable("START_COMMAND_UNAVAILABLE")
+		val commands = entryPoint.trackingLifecycleCommandAuthority()
+		val command = if (automaticTrigger != null) {
+			commands.reserveStartIfGeneration(requireNotNull(expectedCommandGeneration), automaticTrigger)
+				?: return TrackingStartDispatchResult.Terminal("START_COMMAND_SUPERSEDED")
+		} else if (expectedCommandGeneration != null) {
+			commands.reserveStartIfGeneration(expectedCommandGeneration)
+				?: return TrackingStartDispatchResult.Terminal("START_COMMAND_SUPERSEDED")
+		} else {
+			commands.reserveStart()
+				?: return TrackingStartDispatchResult.Retryable("START_COMMAND_UNAVAILABLE")
+		}
 		return dispatchPreparedStartResult(
 			request = TrackingStartRequest(
 				command = command,
@@ -559,11 +579,13 @@ object TrackerServiceApi {
 		context: Context,
 		isUserInitiated: Boolean,
 		automaticTrigger: AutomaticTrackingStartTrigger? = null,
+		expectedCommandGeneration: Long? = null,
 	): Boolean = startServiceInternal(
 		context,
 		isUserInitiated,
 		isAmbient = false,
 		automaticTrigger = automaticTrigger,
+		expectedCommandGeneration = expectedCommandGeneration,
 	)
 
 	/** Reads the current source-local rollout authority used by manual session preparation. */

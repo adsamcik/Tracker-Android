@@ -31,8 +31,11 @@ data class ActivityRecognitionEvidenceBatch(
 	val automaticTransitions: Set<ActivityTransitionData> = emptySet(),
 	val recognitions: List<ActivityRecognitionEvidence> = emptyList(),
 	val transitions: List<ActivityTransitionEvidence> = emptyList(),
+	/** Ephemeral original callback fence. Retry files never serialize or refresh this value. */
+	val liveStartCommandGeneration: Long? = null,
 ) {
 	init {
+		require(liveStartCommandGeneration == null || liveStartCommandGeneration >= 0L)
 		require(receivedElapsedRealtimeNanos >= 0L)
 		require(receivedWallTimeMs >= 0L)
 	}

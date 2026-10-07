@@ -94,6 +94,9 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			context.applicationContext,
 			ActivityReceiverEntryPoint::class.java,
 		)
+		// Capture before launching or waiting for startup. A later End/Off/Start must invalidate
+		// this callback rather than becoming the authority of an older transition.
+		val commandGeneration = entryPoint.trackingStartupGate().currentCommandGeneration.takeIf { it >= 0L }
 		val registrationIdentity = intent.registrationIdentity()
 		val callbackPermit = registrationIdentity?.let {
 			entryPoint.callbackAdmissionBarrier().tryEnter(it)
@@ -120,6 +123,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 				receivedElapsedRealtimeMillis = receivedElapsedRealtimeMillis,
 				receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
 				receivedWallTimeMs = System.currentTimeMillis(),
+				liveStartCommandGeneration = commandGeneration,
 			)
 		}.getOrElse {
 			// An invalid provider payload is a permanent callback-boundary rejection.
@@ -214,6 +218,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		receivedElapsedRealtimeMillis: Long,
 		receivedElapsedRealtimeNanos: Long,
 		receivedWallTimeMs: Long,
+		liveStartCommandGeneration: Long?,
 	): ParsedActivityDelivery {
 		val recognitionElapsedNanos = activityResult?.elapsedRealtimeMillis
 			?.takeIf { it in 0L..MAX_PROVIDER_ELAPSED_REALTIME_MILLIS }
@@ -242,6 +247,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			batch = ActivityRecognitionEvidenceBatch(
 				receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
 				receivedWallTimeMs = receivedWallTimeMs,
+				liveStartCommandGeneration = liveStartCommandGeneration,
 				registrationIdentity = registrationIdentity,
 				automaticRecognitionEligible = automaticRecognitionEligible,
 				automaticTransitions = automaticTransitions,

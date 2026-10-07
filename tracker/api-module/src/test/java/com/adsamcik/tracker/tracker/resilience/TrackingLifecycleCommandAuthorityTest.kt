@@ -10,9 +10,17 @@ class TrackingLifecycleCommandAuthorityTest {
         val (beforeExit, oldStart) = TrackingLifecycleCommandState().issueStart()
         val stopped = beforeExit.observeUserExit("exit-1")
         val boundary = TrackingCollectionResumeBoundary(1_000L, "boot", 100L)
-        stopped.resumeCollectionForStart("exit-1", oldStart, boundary) shouldBe stopped
+        stopped.prepareCollectionResumeForStart("exit-1", oldStart) shouldBe stopped
         val (fresh, newStart) = stopped.issueStart()
-        fresh.resumeCollectionForStart("exit-1", newStart, boundary).collectionResumeRequired shouldBe false
+        val pending = fresh.prepareCollectionResumeForStart("exit-1", newStart)
+        pending.collectionResumeRequired shouldBe true
+        pending.handledUserExitId shouldBe "exit-1"
+        pending.collectionResumeBoundary shouldBe null
+        pending.isPendingCollectionStart(newStart) shouldBe true
+        val accepted = pending.acceptStart(newStart, boundary)
+        accepted.collectionResumeRequired shouldBe false
+        accepted.collectionResumeBoundary shouldBe boundary
+        accepted.pendingCollectionStartGeneration shouldBe null
     }
 
     @Test
@@ -20,11 +28,10 @@ class TrackingLifecycleCommandAuthorityTest {
         val stopped = TrackingLifecycleCommandState().observeUserExit("exit-1")
         val (first, firstStart) = stopped.issueStart()
         val (second, _) = first.issueStart()
-        val boundary = TrackingCollectionResumeBoundary(1_000L, "boot", 100L)
-        second.resumeCollectionForStart("exit-1", firstStart, boundary) shouldBe second
+        second.prepareCollectionResumeForStart("exit-1", firstStart) shouldBe second
         val (withStop, _) = first.issueStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 1_000L)
         val (blocked, blockedStart) = withStop.issueStart()
-        blocked.resumeCollectionForStart("exit-1", blockedStart, boundary) shouldBe blocked
+        blocked.prepareCollectionResumeForStart("exit-1", blockedStart) shouldBe blocked
     }
 
 	@Test

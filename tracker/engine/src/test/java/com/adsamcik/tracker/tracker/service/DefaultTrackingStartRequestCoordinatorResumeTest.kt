@@ -43,7 +43,7 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
     }
 
     @Test
-    fun `actual prepare resumes before entering the nonreentrant startup lifecycle fence`() = runBlocking {
+    fun `actual failed PREPARE retains Off and revokes only the pending delivery`() = runBlocking {
         authority.recordUserRequestedExit("exit-1") shouldBe true
         val request = TrackingStartRequest(requireNotNull(authority.reserveStart()), true, false)
         withTimeout(2_000L) {
@@ -52,7 +52,10 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
             )
         }
         enteredLease shouldBe true
-        authority.pendingCollectionResumeExitId shouldBe null
+        authority.pendingCollectionResumeExitId shouldBe "exit-1"
+        authority.isPendingCollectionStart(request.command) shouldBe false
+        SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+            .pendingCollectionResumeExitId shouldBe "exit-1"
         coVerify(exactly = 1) { store.read() }
     }
 
@@ -84,9 +87,25 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
         coVerify(exactly = 0) { store.read() }
     }
 
+    @Test
+    fun `cancelled descriptor PREPARE keeps original cancellation and durable Off`() = runBlocking {
+        authority.recordUserRequestedExit("exit-1") shouldBe true
+        val request = TrackingStartRequest(requireNotNull(authority.reserveStart()), true, false)
+        val cancelled = kotlinx.coroutines.CancellationException("descriptor read cancelled")
+        coEvery { store.read() } throws cancelled
+        val failure = try { coordinator().prepare(request); error("Cancellation must escape") }
+            catch (caught: kotlinx.coroutines.CancellationException) { caught }
+        (failure === cancelled) shouldBe true
+        authority.isPendingCollectionStart(request.command) shouldBe false
+        authority.pendingCollectionResumeExitId shouldBe "exit-1"
+    }
+
     private fun coordinator(): DefaultTrackingStartRequestCoordinator {
         val gate = object : TrackingStartupGate {
             override val isReady = true
+            override val permitsNewCollection get() = authority.pendingCollectionResumeExitId == null
+            override fun permitsPendingManualStart(commandGeneration: Long) = authority.isPendingCollectionStart(
+                com.adsamcik.tracker.tracker.resilience.TrackingStartCommand(commandGeneration))
             override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
             override suspend fun <T> withReadyGenerationOperation(expectedGeneration: Long, operation: suspend () -> T): T? {
                 beforeLease()

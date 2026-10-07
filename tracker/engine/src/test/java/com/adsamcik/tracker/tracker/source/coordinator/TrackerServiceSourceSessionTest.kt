@@ -1122,6 +1122,45 @@ class TrackerServiceSourceSessionTest {
 	}
 
 	@Test
+	fun `exact pending manual preparation does not open provider APPLY while Off`() = runTest {
+		startupGate.collectionAllowed = false
+		startupGate.pendingManualGeneration = 23L
+		val rollout = allEventCanonical(revision = 5)
+		val chosen = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
+		val request = SourceSessionStartRequest(rollout = rollout,
+			ownership = TrackingSessionOwnership.resolve(rollout, chosen), logicalTrackingId = "logical-off",
+			serviceRunId = "run-off", origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+			foregroundCapabilityFlags = 1L, planInputs = inputs(chosen), ownerToken = "owner")
+		coEvery { lifecycle.prepareAndroidStart(any(), any()) } returns SessionStartPreparationResult.Rejected("FIXTURE_END")
+		subject.prepareAndroidStartUnderReadyGeneration(request,
+			AndroidStartDeliveryMetadata(PreparedTrackingStartToken("pending-off"), 23L, true, false), 0L) shouldBe
+			SessionStartPreparationResult.Rejected("FIXTURE_END")
+		coVerify(exactly = 1) { lifecycle.prepareAndroidStart(any(), any()) }
+		coVerify(exactly = 0) { lifecycle.applyPreparedAndroidStart(any(), any(), any(), any(), any()) }
+		startupGate.permitsNewCollection shouldBe false
+	}
+
+	@Test
+	fun `pending manual preparation rejects wrong command ambient and recovery deliveries`() = runTest {
+		startupGate.collectionAllowed = false
+		startupGate.pendingManualGeneration = 23L
+		val rollout = allEventCanonical(revision = 5)
+		val chosen = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
+		val request = SourceSessionStartRequest(rollout = rollout,
+			ownership = TrackingSessionOwnership.resolve(rollout, chosen), logicalTrackingId = "logical-off",
+			serviceRunId = "run-off", origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+			foregroundCapabilityFlags = 1L, planInputs = inputs(chosen), ownerToken = "owner")
+		for ((origin, generation, ambient) in listOf(Triple(SessionStartOrigin.MANUAL_FOREGROUND_START, 24L, false),
+			Triple(SessionStartOrigin.MANUAL_FOREGROUND_START, 23L, true),
+			Triple(SessionStartOrigin.RECOVERY, 23L, false))) {
+			subject.prepareAndroidStartUnderReadyGeneration(request.copy(origin = origin),
+				AndroidStartDeliveryMetadata(PreparedTrackingStartToken("denied-$generation-$ambient-$origin"), generation, true, ambient), 0L)
+				.shouldBeInstanceOf<SessionStartPreparationResult.Rejected>()
+		}
+		coVerify(exactly = 0) { lifecycle.prepareAndroidStart(any(), any()) }
+	}
+
+	@Test
 	fun `prepared original Start cannot adopt newer pending source choices`() = runTest {
 		val rollout = allEventCanonical(revision = 5)
 		val checked = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
@@ -2725,6 +2764,10 @@ private class FakeTrackingStartupGate(
 	var result: TrackingStartupResult = TrackingStartupResult.Ready(false, 0L),
 ) : TrackingStartupGate {
 	var reconcileCalls = 0
+	var collectionAllowed = true
+	var pendingManualGeneration: Long? = null
+	override val permitsNewCollection get() = isReady && collectionAllowed
+	override fun permitsPendingManualStart(commandGeneration: Long) = isReady && pendingManualGeneration == commandGeneration
 
 	override val isReady: Boolean
 		get() = result is TrackingStartupResult.Ready

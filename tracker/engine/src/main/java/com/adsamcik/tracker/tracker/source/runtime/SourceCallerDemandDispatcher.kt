@@ -1081,6 +1081,7 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 		identity = identity,
 		requireLiveLease = true,
 		allowSuspendedSession = false,
+		allowPendingManualStart = true,
 	)
 
 	override suspend fun readReplayManifest(
@@ -1095,6 +1096,7 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 			allowSuspendedSession =
 				canonicalReplayKind == SourceCallerReplayKind.ACTIVE_REDELIVERY ||
 					canonicalReplayKind == SourceCallerReplayKind.PROCESS_RECOVERY,
+			allowPendingManualStart = canonicalReplayKind == SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY,
 		)
 	}
 
@@ -1102,8 +1104,9 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 		identity: SourceCallerManifestIdentity,
 		requireLiveLease: Boolean,
 		allowSuspendedSession: Boolean,
+		allowPendingManualStart: Boolean,
 	): SourceCallerAuthoritySnapshot? {
-		if (startupGateProvider?.get()?.permitsNewCollection == false) return null
+		if (startupGateProvider?.get()?.permitsNewCollection == false && !allowPendingManualStart) return null
 		val currentBootId = clockDomainProvider.current()
 		repeat(AUTHORITY_READ_ATTEMPTS) {
 			val availabilityBefore = purposeAvailabilityReader.availability.value
@@ -1114,6 +1117,7 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 					requireLiveLease,
 					allowSuspendedSession,
 					currentBootId,
+					allowPendingManualStart,
 				)
 			} ?: return null
 			if (availabilityBefore == purposeAvailabilityReader.availability.value) return current
@@ -1131,6 +1135,7 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 		requireLiveLease: Boolean,
 		allowSuspendedSession: Boolean,
 		currentBootId: String,
+		allowPendingManualStart: Boolean,
 	): SourceCallerAuthoritySnapshot? {
 		val sessionDao = database.sourceSessionDao()
 		val session = sessionDao.session(identity.logicalTrackingId)
@@ -1157,6 +1162,21 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 						)
 			}
 			?: return null
+		val gate = startupGateProvider?.get()
+		val pendingGeneration = if (gate?.permitsNewCollection == false) {
+			if (!allowPendingManualStart || session.state != SessionLifecycleState.STARTING.name ||
+				manifest.startOrigin != SessionStartOrigin.MANUAL_FOREGROUND_START.name) return null
+			val runId = session.currentServiceRunId ?: return null
+			val run = sessionDao.serviceRun(runId) ?: return null
+			val generation = run.startCommandGeneration.takeIf { it > 0L } ?: return null
+			if (run.logicalTrackingId != session.logicalTrackingId || run.serviceRunId != manifest.serviceRunId ||
+				run.state != SessionLifecycleState.STARTING.name || run.completedAtMs != null ||
+				run.bootId != currentBootId || run.leaseGeneration != session.lifecycleLeaseGeneration ||
+				run.startOrigin != SessionStartOrigin.MANUAL_FOREGROUND_START.name || !run.startIsUserInitiated || run.startIsAmbient ||
+				run.preparedManifestRevision != identity.manifestRevision ||
+				!gate.permitsPendingManualStart(generation)) return null
+			generation
+		} else null
 		val policyAuthority = database.sourcePolicyDao().authority()
 			?.takeIf {
 				it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE &&
@@ -1231,6 +1251,7 @@ internal class CurrentSourceCallerAuthorityReader @Inject constructor(
 		return SourceCallerAuthoritySnapshot(
 			currentDemandIdentities = demandIdentities,
 			purposeAvailability = availability.toSnapshot(),
+			pendingManualStartGeneration = pendingGeneration,
 		)
 	}
 

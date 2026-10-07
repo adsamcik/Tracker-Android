@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import javax.inject.Provider
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -27,6 +29,34 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class GuardedSourceCallerDemandDispatcherTest {
+	@Test
+	fun `pending manual dispatch stages exact demands while Off blocks activation and late delivery`() = runTest {
+		val snapshot = SourceCallerAuthoritySnapshot(setOf(capture(TrackingSource.LOCATION)),
+			TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT, pendingManualStartGeneration = 31L)
+		var pending = true
+		val gate = mockk<TrackingStartupGate> {
+			every { permitsNewCollection } returns false
+			every { permitsPendingManualStart(any()) } answers { pending && firstArg<Long>() == 31L }
+		}
+		val provider = object : CurrentSourceCallerAuthorityProvider {
+			override suspend fun readCurrentManifest(identity: SourceCallerManifestIdentity) = snapshot
+		}
+		val repository = InMemorySourceCallerAuthorityRepository()
+		val broker = brokerReturning(listOf(demand(TrackingSource.LOCATION)))
+		val dispatcher = GuardedSourceCallerDemandDispatcher(provider,
+			ExactSourceCallerGuard(SourceCallerAuthoritySnapshotReader { snapshot }, repository, Provider { gate }),
+			broker, repository)
+		val accepted = dispatcher.dispatchSession(sessionRequest(bindings = listOf(binding(TrackingSource.LOCATION))))
+			.shouldBeInstanceOf<SessionSourceDemandDispatchResult.Permitted>()
+		coVerify(exactly = 1) { broker.stageSessionDemandsInTransaction(any(), any(), any(), any(), any()) }
+		dispatcher.replayPreparedSession(MANIFEST, accepted.receipt.reference,
+			SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY).shouldBeInstanceOf<SourceCallerGuardResult.Permitted>()
+		pending = false
+		dispatcher.replayPreparedSession(MANIFEST, accepted.receipt.reference,
+			SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY).shouldBeInstanceOf<SourceCallerGuardResult.Rejected>()
+		coVerify(exactly = 1) { broker.stageSessionDemandsInTransaction(any(), any(), any(), any(), any()) }
+	}
+
 	@Test
 	fun `fresh dispatch reads strict current manifest authority`() = runTest {
 		val snapshot = SourceCallerAuthoritySnapshot(

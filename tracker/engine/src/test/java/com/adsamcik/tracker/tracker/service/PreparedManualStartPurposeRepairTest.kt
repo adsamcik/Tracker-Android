@@ -18,8 +18,6 @@ import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFai
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.api.TrackingStartPreparationResult
 import com.adsamcik.tracker.tracker.api.TrackingStartRequest
-import com.adsamcik.tracker.tracker.api.TrackerServiceApi
-import com.adsamcik.tracker.tracker.api.TrackingTurnOffResult
 import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.resilience.TrackingStartCommand
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStore
@@ -30,11 +28,8 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkObject
-import io.mockk.unmockkObject
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -67,7 +62,7 @@ class PreparedManualStartPurposeRepairTest {
         coordinator.prepare(originalStart) shouldBe prepared
         coVerify(exactly = 1) { reconciler.reconcileCurrentSettings() }
         coVerify(exactly = 0) { retry.schedule(any()) }
-        coVerify(exactly = 0) { authority.resumeCollectionForManualStart(any(), any()) }
+        coVerify(exactly = 0) { authority.prepareCollectionResumeForManualStart(any(), any()) }
     }
 
     @Test
@@ -88,7 +83,7 @@ class PreparedManualStartPurposeRepairTest {
         coordinator.prepare(originalStart) shouldBe prepared
         ownerSawStop shouldBe true
         authority.pendingCollectionResumeExitId shouldBe "later-off"
-        coVerify(exactly = 0) { authority.resumeCollectionForManualStart(any(), any()) }
+        coVerify(exactly = 0) { authority.prepareCollectionResumeForManualStart(any(), any()) }
     }
 
     @Test
@@ -168,18 +163,36 @@ class PreparedManualStartPurposeRepairTest {
     }
 
     @Test
-    fun `cancelled Start restores its earlier Off after exact prepared compensation`() = runBlocking {
-        cancelledResumedStart(compensationFails = false)
+    fun `prepared Start while Off leaves all-day owners closed until accepted`() = runBlocking {
+        val coordinator = coordinator()
+        every { authority.pendingCollectionResumeExitId } returns "prior-off"
+        coEvery { authority.prepareCollectionResumeForManualStart("prior-off", originalStart.command) } returns true
+        coordinator.prepare(originalStart) shouldBe prepared
+        coVerify(exactly = 0) { reconciler.reconcileCurrentSettings() }
+        coVerify(exactly = 0) { authority.cancelPendingCollectionStart(any()) }
+        authority.pendingCollectionResumeExitId shouldBe "prior-off"
     }
 
     @Test
-    fun `failed compensation still attempts guarded restoration of the earlier Off`() = runBlocking {
-        cancelledResumedStart(compensationFails = true)
+    fun `accepted exact Start refreshes all-day owners after the command mutex is released`() = runBlocking {
+        val coordinator = coordinator()
+        every { gate.permitsNewCollection } returns true
+        every { authority.latestCommandGeneration() } returns originalStart.command.generation
+        every { authority.resolveStart(originalStart.command) } returns
+            com.adsamcik.tracker.tracker.resilience.TrackingStartCommandDisposition.Allowed
+        coordinator.reconcileAcceptedManualStart(originalStart.command)
+        coVerify(exactly = 1) { reconciler.reconcileCurrentSettings() }
     }
 
     @Test
-    fun `cancelled resumed Start awaits the guarded Off reservation beyond prepared cleanup timeout`() = runBlocking {
-        cancelledResumedStart(compensationFails = false, reservationDelayMs = 300L)
+    fun `later Off or successor command suppresses post-acceptance owner refresh`() = runBlocking {
+        val coordinator = coordinator()
+        every { gate.permitsNewCollection } returns false
+        coordinator.reconcileAcceptedManualStart(originalStart.command)
+        every { gate.permitsNewCollection } returns true
+        every { authority.latestCommandGeneration() } returns 2L
+        coordinator.reconcileAcceptedManualStart(originalStart.command)
+        coVerify(exactly = 0) { reconciler.reconcileCurrentSettings() }
     }
 
     @Test
@@ -193,43 +206,6 @@ class PreparedManualStartPurposeRepairTest {
         coordinator.prepare(originalStart) shouldBe rejected
         coVerify(exactly = 0) { reconciler.reconcileCurrentSettings() }
         coVerify(exactly = 0) { retry.schedule(any()) }
-    }
-
-    private suspend fun cancelledResumedStart(compensationFails: Boolean, reservationDelayMs: Long = 0L) {
-        val coordinator = coordinator()
-        invokeCancellationCleanupLease()
-        val cancelled = CancellationException("resumed Start cancelled")
-        every { authority.pendingCollectionResumeExitId } returns "prior-off"
-        coEvery { authority.resumeCollectionForManualStart("prior-off", originalStart.command) } returns true
-        coEvery { reconciler.reconcileCurrentSettings() } throws cancelled
-        if (compensationFails) {
-            coEvery { sessionCoordinator.compensatePreparedAndroidStart(any(), any(), any(), any(), any(), any()) } throws
-                IOException("cleanup unavailable")
-        }
-        mockkObject(TrackerServiceApi)
-        try {
-            var restorationSettled = false
-            coEvery { TrackerServiceApi.turnOffTrackingAndAwait(any(), originalStart.command.generation) } coAnswers {
-                delay(reservationDelayMs)
-                restorationSettled = true
-                TrackingTurnOffResult.SUPERSEDED_BY_NEW_START
-            }
-            val failure = try {
-                coordinator.prepare(originalStart)
-                error("Cancellation must escape")
-            } catch (caught: CancellationException) {
-                caught
-            }
-            (failure === cancelled) shouldBe true
-            restorationSettled shouldBe true
-            coVerify(exactly = 1) { sessionCoordinator.compensatePreparedAndroidStart(
-                prepared.token, originalStart.command.generation, "START_PREPARATION_CANCELLED", "boot", any(), any()) }
-            // The existing control's generation guard, exercised separately by the real
-            // lifecycle-authority tests, refuses to undo a newer Start/End/Off command.
-            coVerify(exactly = 1) { TrackerServiceApi.turnOffTrackingAndAwait(any(), originalStart.command.generation) }
-        } finally {
-            unmockkObject(TrackerServiceApi)
-        }
     }
 
     private fun coordinator(): DefaultTrackingStartRequestCoordinator {

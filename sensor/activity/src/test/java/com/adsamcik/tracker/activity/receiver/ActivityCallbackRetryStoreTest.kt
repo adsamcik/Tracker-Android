@@ -56,6 +56,17 @@ class ActivityCallbackRetryStoreTest {
 	}
 
 	@Test
+	fun `durable retry never serializes or restores a live Start command fence`() {
+		val batch = callbackBatch().copy(liveStartCommandGeneration = 7L)
+		val id = store.retain(batch)
+		val stored = requireNotNull(store.load(id))
+		stored shouldBe batch.copy(liveStartCommandGeneration = null)
+		stored.liveStartCommandGeneration shouldBe null
+		stored.copy(startContext = ActivityIngressStartContext.DURABLE_REPLAY)
+			.liveStartCommandGeneration shouldBe null
+	}
+
+	@Test
 	fun `independent callback files let poison be removed without touching good retry`() {
 		val poisonId = store.retain(callbackBatch(receivedWallTimeMs = 1_000L))
 		val good = callbackBatch(receivedWallTimeMs = 2_000L)

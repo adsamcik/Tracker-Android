@@ -1,6 +1,11 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import io.kotest.matchers.nulls.shouldNotBeNull
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import io.mockk.every
+import io.mockk.mockk
+import javax.inject.Provider
 
 import android.app.Application
 import android.os.SystemClock
@@ -106,6 +111,57 @@ class CurrentSourceCallerAuthorityReaderTest {
 			SourceCallerReplayKind.PROCESS_RECOVERY,
 		) shouldBe null
 	}
+
+	@Test
+	fun `stopped Room manifest admits only exact fresh manual preparation and foreground delivery`() = runTest {
+		seedSession(true, false, BOOT_ID, SessionLifecycleState.STARTING)
+		database.sourceSessionDao().insertServiceRun(pendingRun())
+		var pending = true
+		val gate = mockk<TrackingStartupGate> {
+			every { permitsNewCollection } returns false
+			every { permitsPendingManualStart(any()) } answers { pending && firstArg<Long>() == 23L }
+		}
+		val reader = reader(BOOT_ID, gate)
+		reader.readCurrentManifest(MANIFEST).shouldNotBeNull().pendingManualStartGeneration shouldBe 23L
+		reader.readReplayManifest(MANIFEST, SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY)
+			.shouldNotBeNull().pendingManualStartGeneration shouldBe 23L
+		reader.readReplayManifest(MANIFEST, SourceCallerReplayKind.ACTIVE_REDELIVERY) shouldBe null
+		reader.readReplayManifest(MANIFEST, SourceCallerReplayKind.PROCESS_RECOVERY) shouldBe null
+		pending = false // cancellation, successor command, or recreated process has no fresh exception.
+		reader.readCurrentManifest(MANIFEST) shouldBe null
+		reader.readReplayManifest(MANIFEST, SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY) shouldBe null
+	}
+
+	@Test
+	fun `pending generation cannot lend Off exemption to a mismatched or already active Room run`() = runTest {
+		seedSession(true, false, BOOT_ID, SessionLifecycleState.STARTING)
+		val original = pendingRun()
+		database.sourceSessionDao().insertServiceRun(original)
+		val gate = mockk<TrackingStartupGate> {
+			every { permitsNewCollection } returns false
+			every { permitsPendingManualStart(any()) } answers { firstArg<Long>() == 23L }
+		}
+		val reader = reader(BOOT_ID, gate)
+		for (invalid in listOf(original.copy(startCommandGeneration = 24L),
+			original.copy(preparedManifestRevision = MANIFEST.manifestRevision + 1L),
+			original.copy(startOrigin = SessionStartOrigin.RECOVERY.name),
+			original.copy(startIsUserInitiated = false), original.copy(startIsAmbient = true),
+			original.copy(state = SessionLifecycleState.ACTIVE.name), original.copy(completedAtMs = 2L))) {
+			database.sourceSessionDao().updateServiceRun(invalid)
+			reader.readCurrentManifest(MANIFEST) shouldBe null
+		}
+	}
+
+	private fun pendingRun() = SourceServiceRunEntity(
+		serviceRunId = SERVICE_RUN_ID, logicalTrackingId = MANIFEST.logicalTrackingId,
+		state = SessionLifecycleState.STARTING.name, desiredPlanRevision = 1L,
+		rolloutRevision = ROLLOUT_REVISION, foregroundCapabilityFlags = 1L,
+		startedAtMs = 1L, startedElapsedNanos = 1L, completedAtMs = null, completionReason = null,
+		bootId = BOOT_ID, leaseGeneration = EXECUTION_REVISION,
+		startOrigin = SessionStartOrigin.MANUAL_FOREGROUND_START.name,
+		startCommandGeneration = 23L, preparedManifestRevision = MANIFEST.manifestRevision,
+		startIsUserInitiated = true, startIsAmbient = false,
+	)
 
 	private suspend fun seedSession(
 		liveLease: Boolean,
@@ -230,7 +286,7 @@ class CurrentSourceCallerAuthorityReaderTest {
 		)
 	}
 
-	private fun reader(currentBootId: String) = CurrentSourceCallerAuthorityReader(
+	private fun reader(currentBootId: String, gate: TrackingStartupGate? = null) = CurrentSourceCallerAuthorityReader(
 		database = database,
 		rolloutStateStore = object : TrackingRolloutStateStore {
 			override suspend fun load(): TrackingRolloutState = rollout()
@@ -245,6 +301,7 @@ class CurrentSourceCallerAuthorityReaderTest {
 		exactPurposeAuthorityReader = TrackingPurposeAuthorityReader { _, _ -> null },
 		executionRevisionRegistry = TrackingPurposeExecutionRevisionRegistry(),
 		clockDomainProvider = BootClockDomainProvider { currentBootId },
+		startupGateProvider = gate?.let { Provider { it } },
 	)
 
 	private fun rollout() = TrackingRolloutState(

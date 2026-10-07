@@ -34,6 +34,50 @@ import org.junit.jupiter.api.Test
 
 class ExactSourceCallerGuardTest {
 	@Test
+	fun `pending Off allows exact manual authority and foreground replay but no other purpose`() = runTest {
+		var pending = true
+		val gate = mockk<TrackingStartupGate> {
+			every { permitsNewCollection } returns false
+			every { permitsPendingManualStart(any()) } answers { pending && firstArg<Long>() == 17L }
+		}
+		val steps = capture(TrackingSource.STEPS)
+		val fixture = TrustedSourceCallerGuardFixture(setOf(steps), unavailableAutomatic(), gate)
+		fixture.pendingManualStartGeneration = 17L
+		val receipt = fixture.permit(SourceCallerRequest.ManualSessionStart(setOf(TrackingSource.STEPS), MANIFEST, setOf(steps)))
+		fixture.permit(replay(receipt, SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY, setOf(steps)))
+		fixture.guard.accept(replay(receipt, SourceCallerReplayKind.PROCESS_RECOVERY, setOf(steps))) shouldBe
+			rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
+		fixture.guard.accept(replay(receipt, SourceCallerReplayKind.ACTIVE_REDELIVERY, setOf(steps))) shouldBe
+			rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
+		fixture.guard.accept(SourceCallerRequest.RecoverySessionStart(setOf(TrackingSource.STEPS), MANIFEST, setOf(steps))) shouldBe
+			rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
+		pending = false
+		fixture.guard.accept(replay(receipt, SourceCallerReplayKind.FOREGROUND_SERVICE_DELIVERY, setOf(steps))) shouldBe
+			rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
+	}
+
+	@Test
+	fun `pending manual snapshot cannot lend capture exemption to ambient or automatic CONTROL`() = runTest {
+		val gate = mockk<TrackingStartupGate> {
+			every { permitsNewCollection } returns false
+			every { permitsPendingManualStart(17L) } returns true
+		}
+		val background = ambient(TrackingSource.WIFI)
+		val fixture = TrustedSourceCallerGuardFixture(setOf(background), unavailableAutomatic(), gate)
+		fixture.pendingManualStartGeneration = 17L
+		fixture.guard.accept(SourceCallerRequest.Ambient(TrackingSource.WIFI, requestedDemandIdentities = setOf(background))) shouldBe
+			rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
+		val steps = capture(TrackingSource.STEPS)
+		val control = control()
+		fixture.current = setOf(steps, control)
+		fixture.guard.accept(SourceCallerRequest.AutomaticSessionStart(setOf(TrackingSource.STEPS),
+			setOf(TrackingSource.ACTIVITY), MANIFEST, setOf(steps, control))) shouldBe
+			rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
+		fixture.guard.accept(SourceCallerRequest.ManualSessionStart(setOf(TrackingSource.STEPS), MANIFEST,
+			setOf(steps))) shouldBe rejected(SourceCallerRejectionReason.DEMAND_AUTHORITY_UNAVAILABLE)
+	}
+
+	@Test
 	fun `user stop still permits exact accepted purpose retirement`() = runTest {
 		var allowed = true
 		val gate = mockk<TrackingStartupGate> { every { permitsNewCollection } answers { allowed } }
@@ -1175,12 +1219,13 @@ internal class TrustedSourceCallerGuardFixture(
 ) {
 	var current = current
 	var availability = availability
+	var pendingManualStartGeneration: Long? = null
 	private val persisted =
 		mutableMapOf<SourceCallerReplayReference, StoredSourceCallerAuthority>()
 	val guard = ExactSourceCallerGuard(
 		startupGateProvider = startupGate?.let { gate -> Provider { gate } },
 		authorityReader = SourceCallerAuthoritySnapshotReader {
-			SourceCallerAuthoritySnapshot(current, availability)
+			SourceCallerAuthoritySnapshot(current, availability, pendingManualStartGeneration)
 		},
 		authorityRepository = object : SourceCallerAcceptedAuthorityRepository {
 			override suspend fun insertIfAbsent(

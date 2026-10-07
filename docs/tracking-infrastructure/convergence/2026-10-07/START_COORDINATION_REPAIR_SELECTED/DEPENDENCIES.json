@@ -1,0 +1,73 @@
+{
+  "base_commit": "78eb255e59",
+  "inputs": [
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "app/build.gradle.kts",
+      "sha256": "2d13275df63ee2010c45805a69dbbea6eb2ad7680cdddb0b7dbdc85969b1ef9c"
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c"
+    },
+    {
+      "path": "tracker/api-module/build.gradle.kts",
+      "sha256": "67bb5c2b70196d20be7f1bef18484e92dbbea72cd83f3264e47bded86e6d4d30"
+    },
+    {
+      "path": "core/common/build.gradle.kts",
+      "sha256": "18d132f96e6d490cffd477e203ac9cab610c2adde59019e49f24db416991f441"
+    },
+    {
+      "path": "sensor/activity/build.gradle.kts",
+      "sha256": "483e1ec0e96689b812afe1c4476b40abd15c21ed99d7ace7068914d7501342c0"
+    },
+    {
+      "path": "sensor/activity-api/build.gradle.kts",
+      "sha256": "4989daf01be1bff3e6e3e1835d7ed81695d222d9abc594ec8b86911a7d13e791"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidFeatureConventionPlugins.kt",
+      "sha256": "e2df2278893f6fc1b47d6b51c15095e1e5638d2185ec35290fab465771772567"
+    },
+    {
+      "path": "app/src/main/AndroidManifest.xml",
+      "sha256": "e02a3ae5a48392479eb3a3ffce207319669cad0687ed707b3df78192068d71c9"
+    },
+    {
+      "path": "tracker/engine/src/main/AndroidManifest.xml",
+      "sha256": "03539ecdd919df33156ef5a6a2be5f605c17ba49868a2982fba11613f9b5cbef"
+    },
+    {
+      "path": "sensor/activity/src/main/AndroidManifest.xml",
+      "sha256": "0521981028fe5b23d65fdc67c6220465252cebca027d4b4d0f02634d8061ee6c"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/process/ProcessIncarnationIdProvider.kt",
+      "sha256": "1ed014de78cab26073e6aa6e1e043fd140483f8c62431f3110fe186f8f5d7823"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+      "sha256": "022f2a895caf714e46cbc80715345ad8976ea106285b82d8a15b849ed8c8b7f1"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomaticStartActionRepository.kt",
+      "sha256": "985777fa3de6fdd952286d61c7435aebde47f25ab739315fc5c21dbd5aae4f77"
+    },
+    {
+      "path": "sensor/activity/src/main/java/com/adsamcik/tracker/activity/receiver/ActivityCallbackRetryStore.kt",
+      "sha256": "12477ecb547dafc47cbe5cc201fbe1875b3bf4faa1c67f313dbe35f107650c50"
+    },
+    {
+      "path": "sensor/activity/src/main/java/com/adsamcik/tracker/activity/receiver/ActivityCallbackRetryWorker.kt",
+      "sha256": "b492edfa5f0eedec184557cb7a0ce04e24a5cff9100f61abf40d1fe874e2ab7f"
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/resilience/ActiveTrackingSessionStore.kt",
+      "sha256": "00aa4e0aebedba401d0b8f8eff3480c1d3735a9b8f3b39a98a0c17470b1ca2ec"
+    }
+  ]
+}

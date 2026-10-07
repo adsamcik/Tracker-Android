@@ -941,6 +941,24 @@ class DefaultTrackingStartupGateTest {
 		deletionBarrier.openGenerations.value shouldBe 1L
 	}
 
+	@Test
+	fun `pending manual Start never opens general collection or a closed storage generation`() = runTest {
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+		coEvery { resolver.apply(any(), any()) } just Runs
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+		every { lifecycleAuthority.pendingCollectionResumeExitId } returns "user-off"
+		every { lifecycleAuthority.isPendingCollectionStart(any()) } answers { firstArg<com.adsamcik.tracker.tracker.resilience.TrackingStartCommand>().generation == 41L }
+		gate.permitsPendingManualStart(41L) shouldBe false
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		gate.permitsPendingManualStart(41L) shouldBe true
+		gate.permitsPendingManualStart(42L) shouldBe false
+		gate.permitsNewCollection shouldBe false
+		deletionBarrier.closeAdmission()
+		gate.permitsPendingManualStart(41L) shouldBe false
+		gate.permitsNewCollection shouldBe false
+	}
+
 	private fun completed(): LegacyV27ProjectionRecoveryResult =
 		LegacyV27ProjectionRecoveryResult.NotRequired
 

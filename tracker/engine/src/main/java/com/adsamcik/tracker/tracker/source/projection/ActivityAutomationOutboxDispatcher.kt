@@ -190,6 +190,8 @@ class ActivityAutomationOutboxDispatcher @Inject internal constructor(
 				controlConsentEpoch = validation.controlConsentEpoch,
 				automationEpoch = validation.automationEpoch,
 				startContext = startPermit.contextFor(decoded, elapsedRealtimeNanos),
+				expectedCommandGeneration = (startPermit as? ActivityAutomationStartPermit.FreshTransitionCallback)
+					?.expectedCommandGeneration,
 			)) {
 				ActivityAutomationDeliveryResult.ACCEPTED,
 				ActivityAutomationDeliveryResult.LIFECYCLE_INTENT_ACCEPTED,
@@ -407,8 +409,10 @@ sealed interface ActivityAutomationStartPermit {
 	/** Only these exact admitted ordinals still own the currently executing transition callback. */
 	data class FreshTransitionCallback(
 		val admissionOrdinals: Set<Long>,
+		val expectedCommandGeneration: Long? = null,
 	) : ActivityAutomationStartPermit {
 		init {
+			require(expectedCommandGeneration == null || expectedCommandGeneration >= 0L)
 			require(admissionOrdinals.isNotEmpty())
 			require(admissionOrdinals.all { it > 0L })
 		}
@@ -439,6 +443,7 @@ internal interface ActivityAutomationEffectConsumer {
 		controlConsentEpoch: Long,
 		automationEpoch: Long,
 		startContext: ActivityAutomationStartContext,
+		expectedCommandGeneration: Long? = null,
 	): ActivityAutomationDeliveryResult
 }
 
@@ -453,6 +458,7 @@ internal class BackgroundTrackingActivityAutomationEffectConsumer @Inject constr
 		controlConsentEpoch: Long,
 		automationEpoch: Long,
 		startContext: ActivityAutomationStartContext,
+		expectedCommandGeneration: Long?,
 	): ActivityAutomationDeliveryResult {
 		if (evidence.transitionType != null) {
 			val triggerId = "activity-transition:${evidence.clockDomainId}:${evidence.admissionOrdinal}"
@@ -495,7 +501,7 @@ internal class BackgroundTrackingActivityAutomationEffectConsumer @Inject constr
 			currentAutomationEpoch = automationEpoch,
 			startContext = startContext,
 			requestAutomaticStart = { trigger ->
-				requestAutomaticStart(trigger, effectStableId, evidence, controlConsentEpoch)
+				requestAutomaticStart(trigger, effectStableId, evidence, controlConsentEpoch, expectedCommandGeneration)
 			},
 		)
 	}
@@ -505,6 +511,7 @@ internal class BackgroundTrackingActivityAutomationEffectConsumer @Inject constr
 		effectStableId: String,
 		evidence: ActivityAutomationDeliveryEnvelope,
 		controlConsentEpoch: Long,
+		expectedCommandGeneration: Long?,
 	): ActivityAutomationDeliveryResult {
 		val nowElapsed = SystemClock.elapsedRealtimeNanos()
 		val nowWall = System.currentTimeMillis()
@@ -539,6 +546,12 @@ internal class BackgroundTrackingActivityAutomationEffectConsumer @Inject constr
 				effectStableId,
 				evidence.collectedDataEpoch,
 				nowWall,
+			)
+			return ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
+		}
+		if (expectedCommandGeneration == null || expectedCommandGeneration < 0L) {
+			automaticStartActions.markReservedReplayExpired(
+				trigger.triggerId, effectStableId, evidence.collectedDataEpoch, nowWall,
 			)
 			return ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
 		}
@@ -591,6 +604,7 @@ internal class BackgroundTrackingActivityAutomationEffectConsumer @Inject constr
 						context,
 						isUserInitiated = false,
 						automaticTrigger = trigger,
+						expectedCommandGeneration = expectedCommandGeneration,
 					)
 				} catch (cancelled: CancellationException) {
 					throw cancelled

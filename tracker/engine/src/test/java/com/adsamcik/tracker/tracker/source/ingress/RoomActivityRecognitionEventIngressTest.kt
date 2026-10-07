@@ -61,7 +61,7 @@ class RoomActivityRecognitionEventIngressTest {
 		deliveryIngress = mockk()
 		committedIngress = mockk()
 		recovery = mockk(relaxed = true)
-		coEvery { recovery.drainCommittedActivityCallbackWork(any(), any(), any()) } returns
+		coEvery { recovery.drainCommittedActivityCallbackWork(any(), any(), any(), any()) } returns
 			completedRecovery()
 		coEvery { recovery.drainCommittedWork() } returns completedRecovery()
 		motionController = mockk(relaxed = true)
@@ -197,7 +197,7 @@ class RoomActivityRecognitionEventIngressTest {
 		coVerify { committedIngress.committedBatch(9L, 1) }
 		coVerify { committedIngress.committedBatch(11L, 1) }
 		coVerify(exactly = 0) {
-			recovery.drainCommittedActivityCallbackWork(any(), any(), any())
+			recovery.drainCommittedActivityCallbackWork(any(), any(), any(), any())
 		}
 		coVerify(exactly = 1) { recovery.drainCommittedWork() }
 		verify(exactly = 1) { recovery.requestActivityCapturedFactDrain() }
@@ -239,7 +239,7 @@ class RoomActivityRecognitionEventIngressTest {
 		capturedDelivery.captured.units.map { it.evidence.activityAutomationEpoch } shouldBe
 			listOf(null, 17L)
 		coVerify(exactly = 1) {
-			recovery.drainCommittedActivityCallbackWork(setOf(11L), 11L, any())
+			recovery.drainCommittedActivityCallbackWork(setOf(11L), 11L, 0L, any())
 		}
 		verify(exactly = 2) { motionController.onDurableEvidence(any()) }
 	}
@@ -269,7 +269,7 @@ class RoomActivityRecognitionEventIngressTest {
 		result.isDurable shouldBe true
 		coVerify(exactly = 1) { recovery.drainCommittedWork() }
 		coVerify(exactly = 0) {
-			recovery.drainCommittedActivityCallbackWork(any(), any(), any())
+			recovery.drainCommittedActivityCallbackWork(any(), any(), any(), any())
 		}
 		verify(exactly = 1) { recovery.requestActivityCapturedFactDrain() }
 	}
@@ -318,9 +318,44 @@ class RoomActivityRecognitionEventIngressTest {
 		result.durableSelection.isEmpty shouldBe true
 		coVerify(exactly = 1) { deliveryIngress.admit(any()) }
 		coVerify(exactly = 1) {
-			recovery.drainCommittedActivityCallbackWork(setOf(8L), 8L, any())
+			recovery.drainCommittedActivityCallbackWork(setOf(8L), 8L, 0L, any())
 		}
 		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
+	}
+
+	@Test
+	fun `mixed capture and CONTROL callback stays durable when automatic Start is rejected and on duplicate`() = runTest {
+		val units = listOf(
+			DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("event-0"), 10L),
+			DeliveryAdmissionResult.AdmittedUnit(1, SourceEventId("event-1"), 11L),
+		)
+		coEvery { deliveryIngress.admit(capture(capturedDelivery)) } returnsMany listOf(
+			DeliveryAdmissionResult.Admitted(units), DeliveryAdmissionResult.Duplicate(units))
+		coEvery { committedIngress.committedBatch(any(), 1) } answers {
+			val ordinal = firstArg<Long>() + 1L
+			val index = (ordinal - 10L).toInt()
+			listOf(AdmittedSourceEvent(units[index].eventId, ordinal, capturedDelivery.captured.units[index].evidence))
+		}
+		// Exact authority failure is terminal for automatic Start, so the durable projection
+		// completes with no delivered start. Independently admitted measurements stay usable.
+		coEvery { recovery.drainCommittedActivityCallbackWork(setOf(11L), 11L, 7L, any()) } returns completedRecovery()
+		val original = batch(recognitions = listOf(recognition(30L)),
+			transitions = listOf(transition(40L)), automaticRecognitionEligible = false)
+			.copy(liveStartCommandGeneration = 7L)
+		val first = subject.admit(original)
+		val originalEvidence = capturedDelivery.captured.units.map { it.evidence }
+		val duplicate = subject.admit(original)
+		first.isDurable shouldBe true
+		first.admittedCount shouldBe 2
+		first.durableSelection.recognitionIndexes shouldBe setOf(0)
+		first.durableSelection.transitionIndexes shouldBe setOf(0)
+		duplicate.isDurable shouldBe true
+		duplicate.admittedCount shouldBe 0
+		duplicate.duplicateCount shouldBe 2
+		duplicate.durableSelection.isEmpty shouldBe true
+		capturedDelivery.captured.units.map { it.evidence } shouldBe originalEvidence
+		coVerify(exactly = 2) { recovery.drainCommittedActivityCallbackWork(setOf(11L), 11L, 7L, any()) }
+		verify(exactly = 2) { motionController.onDurableEvidence(any()) }
 	}
 
 	@Test
@@ -390,7 +425,7 @@ class RoomActivityRecognitionEventIngressTest {
 		val mismatch = subject.admit(batch(recognitions = listOf(recognition(30L))))
 		mismatch.isDurable shouldBe false
 		mismatch.durableSelection.isEmpty shouldBe true
-		coVerify(exactly = 0) { recovery.drainCommittedActivityCallbackWork(any(), any(), any()) }
+		coVerify(exactly = 0) { recovery.drainCommittedActivityCallbackWork(any(), any(), any(), any()) }
 		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
 	}
 
@@ -464,7 +499,7 @@ class RoomActivityRecognitionEventIngressTest {
 			listOf(10L, 20L)
 		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
 		coVerify(exactly = 0) { recovery.drainCommittedWork() }
-		coVerify(exactly = 0) { recovery.drainCommittedActivityCallbackWork(any(), any(), any()) }
+		coVerify(exactly = 0) { recovery.drainCommittedActivityCallbackWork(any(), any(), any(), any()) }
 		verify(exactly = 0) { recovery.requestActivityCapturedFactDrain() }
 	}
 
@@ -492,6 +527,7 @@ class RoomActivityRecognitionEventIngressTest {
 		receivedWallTimeMs = 1_000L,
 		registrationIdentity = identity(),
 		startContext = startContext,
+		liveStartCommandGeneration = if (startContext == ActivityIngressStartContext.LIVE_PROVIDER_CALLBACK) 0L else null,
 		automaticRecognitionEligible = automaticRecognitionEligible,
 		automaticTransitions = automaticTransitions ?: transitions.map { evidence ->
 			ActivityTransitionData(evidence.activityType, evidence.transitionType)

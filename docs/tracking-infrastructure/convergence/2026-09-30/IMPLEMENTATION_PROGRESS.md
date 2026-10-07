@@ -636,3 +636,10 @@ list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS
   `../2026-10-07/RETAINED_LOCATION_LIFECYCLE_SELECTED/SOURCE_REVIEW.md`; NOT_RUN.
   Historical purpose fixtures do not execute End/Off commands or real providers;
   no new proof store, behavior, API or authority was introduced. Broad T12 stays open.
+
+- [x] Select thirty-six-path Start/Stop coordination repair after independent
+  whole-source and revision review. Both lock cycles, durable Off acceptance,
+  original automatic generation/Stop cutoff, one-use process continuation and
+  atomic successor-safe shell cleanup are authored. Fifty-seven methods NOT_RUN;
+  `../2026-10-07/START_COORDINATION_REPAIR_SELECTED/SOURCE_REVIEW.md`. Full chains,
+  real foreground/provider delivery, convergence and integration remain open.

@@ -190,7 +190,9 @@ class TrackerServiceSourceSession @Inject constructor(
 			request.captureMode,
 		)
 		if (ownership.eventCoordinatorRequired &&
-			(!trackingStartupGateProvider.get().permitsNewCollection ||
+			((!trackingStartupGateProvider.get().permitsNewCollection &&
+				!(request.origin == SessionStartOrigin.MANUAL_FOREGROUND_START && delivery.isUserInitiated && !delivery.isAmbient &&
+					trackingStartupGateProvider.get().permitsPendingManualStart(delivery.commandGeneration))) ||
 				!trackingStartupGateProvider.get().isReadyGeneration(startupGeneration))
 		) {
 			return@withLock SessionStartPreparationResult.Rejected(STARTUP_RECOVERY_NOT_READY)

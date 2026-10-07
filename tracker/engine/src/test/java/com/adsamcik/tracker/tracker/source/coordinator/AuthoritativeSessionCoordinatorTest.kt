@@ -8102,7 +8102,7 @@ class AuthoritativeSessionCoordinatorTest {
 		)
 		(outbox.deliveredAtMs != null) shouldBe true
 		outbox.terminalDisposition shouldBe null
-		coVerify(exactly = 0) { consumer.deliver(any(), any(), any(), any(), any()) }
+		coVerify(exactly = 0) { consumer.deliver(any(), any(), any(), any(), any(), any()) }
 	}
 
 	@Test

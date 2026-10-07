@@ -352,6 +352,11 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
 - [x] Reconcile original Location diagnostics with existing retained saved readers
   and select nine actual Room lifecycle methods: `RETAINED_LOCATION_LIFECYCLE_SELECTED/SOURCE_REVIEW.md`;
   NOT_RUN. No new proof storage; End/Off commands and hardware remain unexecuted.
+- [x] Select repaired Start coordination: both lock cycles, Off-until-acceptance,
+  original callback/Stop fencing, process-scoped continuation and atomic exact
+  shell cleanup. Thirty-six paths and fifty-seven authored/replaced methods have
+  final static acceptance in `START_COORDINATION_REPAIR_SELECTED/SOURCE_REVIEW.md`;
+  NOT_RUN. Separate APPLY physical cleanup stays with existing durable Stop.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

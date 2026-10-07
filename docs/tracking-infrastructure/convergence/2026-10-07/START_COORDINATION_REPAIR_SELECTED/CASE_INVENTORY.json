@@ -1,0 +1,207 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "execution": "NOT_RUN",
+  "new_or_replaced_method_count": 57,
+  "sources": [
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt",
+      "selected_test_methods": 42,
+      "new_or_replaced_methods": [
+        "pending manual Start never opens general collection or a closed storage generation"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/startup/TrackingStartupLiveWorkTest.kt",
+      "selected_test_methods": 4,
+      "new_or_replaced_methods": [
+        "live work reserves a real Start and can enter ordinary preparation without deadlock",
+        "live work does not block a newer End and withholds stale completion",
+        "clear cancels live startup and joins its physical cleanup before closing generation",
+        "closed or stale live work never runs and never opens Off collection"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "sensor/activity/src/test/java/com/adsamcik/tracker/activity/receiver/ActivityCallbackRetryStoreTest.kt",
+      "selected_test_methods": 16,
+      "new_or_replaced_methods": [
+        "durable retry never serializes or restores a live Start command fence"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "sensor/activity/src/test/java/com/adsamcik/tracker/activity/receiver/ActivityReceiverTest.kt",
+      "selected_test_methods": 31,
+      "new_or_replaced_methods": [
+        "actual receiver pins original command before startup suspension"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "sensor/activity/src/test/java/com/adsamcik/tracker/activity/receiver/ActivityReceiverThreadSafetyTest.kt",
+      "selected_test_methods": 1,
+      "new_or_replaced_methods": [],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/resilience/TrackingLifecycleCommandAuthorityTest.kt",
+      "selected_test_methods": 10,
+      "new_or_replaced_methods": [],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/resilience/SharedPreferencesTrackingLifecycleCommandAuthorityTest.kt",
+      "selected_test_methods": 36,
+      "new_or_replaced_methods": [
+        "pending cancellation cannot revoke a successor Start or change its durable Off",
+        "pending manual Start keeps exit and old boundary through the startup fence",
+        "old Off cleanup cannot fence a pending successor preparation and resumes after exact cancel",
+        "failed acceptance preference publication restores stopped cache and revokes exact delivery",
+        "failed pending Start reservation keeps Off and grants no delivery after recreation",
+        "cancelled acceptance and handled newer End leave Off and reject late delivery",
+        "manual permission handoff survives another screen only in its original process",
+        "a new process rejects an old manual permission intent and keeps collection Off",
+        "automatic observation delivered after handled End cannot reuse its earlier time",
+        "End during callback wait rejects even a newer observed point with the old generation",
+        "exact End cutoff stays in frozen prefix and only later automatic evidence may reserve",
+        "automatic evidence must use current boot and cannot compare counters across reboot",
+        "handled Off still blocks newer automatic evidence without changing choices or exit",
+        "unknown Stop clock cannot grant automatic Start and manual Start remains independent",
+        "duplicate automatic reservation cannot spend one original callback generation twice"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/AutomaticStartCommandFenceTest.kt",
+      "selected_test_methods": 4,
+      "new_or_replaced_methods": [
+        "callback captured before End cannot reserve Start after that End is handled",
+        "callback captured before Off cannot reserve Start after collection is stopped",
+        "callback captured before another Start cannot replace the newer Start",
+        "automatic compatibility API cannot invent a missing original callback generation"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinatorResumeTest.kt",
+      "selected_test_methods": 4,
+      "new_or_replaced_methods": [
+        "actual failed PREPARE retains Off and revokes only the pending delivery",
+        "cancelled descriptor PREPARE keeps original cancellation and durable Off"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/PreparedManualStartPurposeRepairTest.kt",
+      "selected_test_methods": 11,
+      "new_or_replaced_methods": [
+        "prepared Start while Off leaves all-day owners closed until accepted",
+        "accepted exact Start refreshes all-day owners after the command mutex is released",
+        "later Off or successor command suppresses post-acceptance owner refresh"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/PreparedStartCancellationReleaseTest.kt",
+      "selected_test_methods": 7,
+      "new_or_replaced_methods": [
+        "cancelled real shell finishes bounded compensation before releasing its exact runtime",
+        "stuck compensation reaches existing 250ms bound then releases the real shell",
+        "real cancellation cannot release an Android owned or applied successor",
+        "successor delivered while compensation waits retains its real runtime and shell",
+        "actual final match and shell release cannot interleave with successor adoption",
+        "real matched shell rollback retains independently hosted foreground collection",
+        "old acceptance or APPLY publication cannot mutate a successor through actual ownership helper"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/PreparedStartForegroundAcceptanceTest.kt",
+      "selected_test_methods": 7,
+      "new_or_replaced_methods": [
+        "current manual foreground and Room acceptance resumes Off only after both succeed",
+        "automatic accepted Start uses the same flow without reacquiring the command mutex",
+        "failed foreground or Room acceptance leaves Off and does not accept the Start",
+        "new Start before final acceptance blocks the old foreground and Room operation",
+        "previously accepted command cannot regain foreground after a newer Start was reserved",
+        "new End before final acceptance blocks the old foreground and Room operation",
+        "Room cancellation escapes and cannot release the durable Off latch"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+      "selected_test_methods": 188,
+      "new_or_replaced_methods": [],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecoveryTest.kt",
+      "selected_test_methods": 24,
+      "new_or_replaced_methods": [
+        "actual Activity drain can reserve Start without entering the serialized command lease",
+        "fresh callback pins command generation before projection and never refreshes after a cold wait"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSessionTest.kt",
+      "selected_test_methods": 47,
+      "new_or_replaced_methods": [
+        "exact pending manual preparation does not open provider APPLY while Off",
+        "pending manual preparation rejects wrong command ambient and recovery deliveries"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/RoomActivityRecognitionEventIngressTest.kt",
+      "selected_test_methods": 15,
+      "new_or_replaced_methods": [
+        "mixed capture and CONTROL callback stays durable when automatic Start is rejected and on duplicate"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomationOutboxDispatcherTest.kt",
+      "selected_test_methods": 24,
+      "new_or_replaced_methods": [],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/ColdActivityAutomationOutboxTest.kt",
+      "selected_test_methods": 13,
+      "new_or_replaced_methods": [
+        "fresh callback without original command fence cannot reserve automatic Start",
+        "historical accepted lifecycle action acknowledges outbox without requesting another Start"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CurrentSourceCallerAuthorityReaderTest.kt",
+      "selected_test_methods": 6,
+      "new_or_replaced_methods": [
+        "stopped Room manifest admits only exact fresh manual preparation and foreground delivery",
+        "pending generation cannot lend Off exemption to a mismatched or already active Room run"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/ExactSourceCallerGuardTest.kt",
+      "selected_test_methods": 29,
+      "new_or_replaced_methods": [
+        "pending Off allows exact manual authority and foreground replay but no other purpose",
+        "pending manual snapshot cannot lend capture exemption to ambient or automatic CONTROL"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/GuardedSourceCallerDemandDispatcherTest.kt",
+      "selected_test_methods": 15,
+      "new_or_replaced_methods": [
+        "pending manual dispatch stages exact demands while Off blocks activation and late delivery"
+      ],
+      "execution": "NOT_RUN"
+    }
+  ]
+}

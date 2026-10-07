@@ -381,11 +381,13 @@ class SourcePipelineRecovery private constructor(
 	suspend fun drainCommittedActivityCallbackWork(
 		callbackAdmissionOrdinals: Set<Long>,
 		throughAdmissionOrdinal: Long,
+		expectedCommandGeneration: Long? = null,
 		awaitAuthorityReady: suspend () -> Unit,
 	): SourceRecoveryResult = drainCommittedActivityCallbackWork(
 		callbackAdmissionOrdinals,
 		throughAdmissionOrdinal,
 		SystemClock::elapsedRealtimeNanos,
+		expectedCommandGeneration,
 		awaitAuthorityReady,
 	)
 
@@ -393,6 +395,7 @@ class SourcePipelineRecovery private constructor(
 		callbackAdmissionOrdinals: Set<Long>,
 		throughAdmissionOrdinal: Long,
 		elapsedRealtimeNanos: () -> Long,
+		expectedCommandGeneration: Long? = null,
 		awaitAuthorityReady: suspend () -> Unit,
 	): SourceRecoveryResult = withReadyGenerationDrain { guard ->
 		activityEffectMutex.withLock {
@@ -401,6 +404,7 @@ class SourcePipelineRecovery private constructor(
 				throughAdmissionOrdinal,
 				elapsedRealtimeNanos,
 				awaitAuthorityReady,
+				expectedCommandGeneration,
 				guard,
 			)
 		}
@@ -411,6 +415,7 @@ class SourcePipelineRecovery private constructor(
 		throughAdmissionOrdinal: Long,
 		elapsedRealtimeNanos: () -> Long,
 		awaitAuthorityReady: suspend () -> Unit,
+		expectedCommandGeneration: Long?,
 		generationGuard: ReadyGenerationGuard,
 	): SourceRecoveryResult {
 		require(callbackAdmissionOrdinals.isNotEmpty())
@@ -424,6 +429,7 @@ class SourcePipelineRecovery private constructor(
 		if (durable.drain !is CoordinatorDrainResult.Complete) return durable
 		val permit = ActivityAutomationStartPermit.FreshTransitionCallback(
 			callbackAdmissionOrdinals,
+			expectedCommandGeneration = expectedCommandGeneration,
 		)
 		var delivered = 0
 		suspend fun drainBoundedPages(): ActivityAutomationDrainResult {
@@ -507,7 +513,8 @@ class SourcePipelineRecovery private constructor(
 
 	/**
 	 * Enrolls every live projection/effect drain in the process startup generation. Deletion closes
-	 * that generation first, then waits for this protected operation before scrubbing Room. The
+	 * that generation first, then cancels and joins this child before scrubbing Room. No lifecycle
+	 * command lock is held: the effect consumer must be able to reserve its exact START. The
 	 * explicit effect-boundary checks keep a projection that observed closure from creating a new
 	 * automatic action while shutdown is being reconciled.
 	 */
@@ -517,7 +524,7 @@ class SourcePipelineRecovery private constructor(
 		val gate = startupGateProvider?.get()
 		if (gate == null) return operation(ReadyGenerationGuard(null, 0L))
 		val expectedGeneration = gate.currentGeneration
-		return gate.withReadyGenerationOperation(expectedGeneration) {
+		return gate.withReadyGenerationWork(expectedGeneration) {
 			operation(ReadyGenerationGuard(gate, expectedGeneration))
 		} ?: throw SourcePipelineGenerationUnavailableException(expectedGeneration)
 	}

@@ -1,0 +1,66 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_commit": "78eb255e5958b3490c44fa648b5bb6a67b2af7fe",
+  "files": [
+    {
+      "path": "core/common/src/main/java/com/adsamcik/tracker/shared/base/startup/TrackingStartupGate.kt",
+      "base_sha256": "43ce44c33ec912f4cded5d9d373e5fbe852d2eff039f77dfb7fd6d3cc991bcb6",
+      "working_before_sha256": "53b656c5c523b8940878e74451df745e9568388f80231782ba238dcbedf5b8f5"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGate.kt",
+      "base_sha256": "fb92e49582db536ea83ac7d0718fd252d08645664c8f005d84e35737e0dcb583",
+      "working_before_sha256": "a32756244d4ae8218d8d77f5a4e8aa7068bda91ce87afdcd282eba5bfc56f676"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt",
+      "base_sha256": "6e563496cdc97adcea392c4a236ab5d2f1433d2282c616aad70df1d49a7e24e7",
+      "working_before_sha256": "d5a0472490b6f7d3492bfce7643a5fbdf21b509df0b666fd1138ae990ce65aae"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecovery.kt",
+      "base_sha256": "de56db1940eea02490b5d57b9b3c6dbe48268eebbc194a7b0fee0c184486ecd4",
+      "working_before_sha256": "2f1560588b28e4cab5bf009e010a1d3d4dbc6fdabf7aecbf1d02bbb9d92191c0"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecoveryTest.kt",
+      "base_sha256": "a66589ced5ac5107bdf8caf564af46070082541dbd1c7464b92ced2546fd9395",
+      "working_before_sha256": "fbcd9e01603d31c1429295283458c778bc8bbb9ff6da66fc6a35374126d0d825"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt",
+      "base_sha256": "c6bd386fea877a9ec42c5e574e5a8771ccd84b0ae4c785023084f0731485be00",
+      "working_before_sha256": "4b5914828d2d605aef9e92d68ae79a8e8169c9425ef2c040eeec8d96b22bdd3e"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinator.kt",
+      "base_sha256": "eb6a19265967fe21de625b0d69f3694681579b401a02182b570f5c51612e1852",
+      "working_before_sha256": "46380fc5460dad28492c0862ca94cff76d1bab960ab61e063fcb18b52d12257a"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/SharedPreferencesTrackingLifecycleCommandAuthority.kt",
+      "base_sha256": "90680f0ee3e8a5bbcc63491fd49c500b57fbf71b20c8008141590f5a4a231d05",
+      "working_before_sha256": "4c3e75f5b91ae090725619fb217578ec7a0d2f1bea6432d57ecd441a5d7b9fc8"
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/resilience/TrackingLifecycleCommandAuthority.kt",
+      "base_sha256": "33b035f62d14efeabdfd683b8cce4ca8d032e9ab0a2b0494c06f818b76059e3e",
+      "working_before_sha256": "69bdd2c1cd8ce08772c09d80aa3f60f07cc5083e0ff6c516dd7011de315ca2ce"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/resilience/SharedPreferencesTrackingLifecycleCommandAuthorityTest.kt",
+      "base_sha256": "832c00236b867d555c990a4e9df9106d10b86ede6576c35644bac4d14a832a84",
+      "working_before_sha256": "13018a29c62b233e9b6c8e032fd7c03e0cedcaac70c7920beb90d711f70721e5"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinatorResumeTest.kt",
+      "base_sha256": "c304c26b749bee682d32500fb9f39929288612397cf2872f2013436e763b79a9",
+      "working_before_sha256": "2ef88ccbd689b8a0e63bcc2d4d11aecc13b1aa99e4b09e636a9e2bbf54e4fcb9"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/PreparedManualStartPurposeRepairTest.kt",
+      "base_sha256": "a6e8ca4f4e3bb7969ee996c10dcef907b6265c9006f72b187631f0758519c7f1",
+      "working_before_sha256": "b6f1be949b09fd5897d4e3fad413e0a6498f7fa21e3d60bc377406e1a7bba3fd"
+    }
+  ]
+}

@@ -21,8 +21,14 @@ interface TrackingStartupGate {
 	/** Full released-history recovery is complete, so providers and canonical writers may run. */
 	val isReady: Boolean
 
+	/** Captured once for a fresh Start callback; negative means no command authority is available. */
+	val currentCommandGeneration: Long get() = -1L
+
 	/** User-requested system stopping suppresses acquisition while allowing cleanup and history. */
 	val permitsNewCollection: Boolean get() = isReady
+
+	/** Exact fresh manual preparation/delivery only; never authorizes providers or background work. */
+	fun permitsPendingManualStart(commandGeneration: Long): Boolean = false
 
 	/** Last explicit resume fences delayed observations and provider windows from the stopped span. */
 	val collectionResumeBoundary: TrackingCollectionResumeBoundary? get() = null
@@ -50,6 +56,17 @@ interface TrackingStartupGate {
 	 * ingress should use transactional epoch/generation checks instead of this serialized path.
 	 */
 	suspend fun <T> withReadyGenerationOperation(
+		expectedGeneration: Long,
+		operation: suspend () -> T,
+	): T? = if (isReadyGeneration(expectedGeneration)) operation() else null
+
+	/**
+	 * Cancellable live work that may itself reserve a START. It holds neither startup nor command
+	 * locks; callers still validate exact command/purpose authority at each effect boundary.
+	 * Deletion cancels and physically joins its child before erasing data. This is not acquisition
+	 * permission and does not replace serialized control-plane handoffs.
+	 */
+	suspend fun <T> withReadyGenerationWork(
 		expectedGeneration: Long,
 		operation: suspend () -> T,
 	): T? = if (isReadyGeneration(expectedGeneration)) operation() else null
