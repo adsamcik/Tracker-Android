@@ -1,0 +1,296 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_commit": "348cf577da1d2bfa7dfc98d07b2d91bbe158bd17",
+  "scope": "Only exact reviewed task source selections; LF per existing .gitattributes",
+  "files": [
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGate.kt",
+      "base_sha256": "be808ad10901ca1a99f9fe925786d18cf7df41279aca946cb6efb9fa0b0e09c2",
+      "selected_sha256": "8b00aa8978647e4e8fd20fa50582da123bd6d4efa23c0e12664cd008283031ad",
+      "base_crlf_count": 904,
+      "selected_bytes": 34569,
+      "working_sha256": "a32756244d4ae8218d8d77f5a4e8aa7068bda91ce87afdcd282eba5bfc56f676"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt",
+      "base_sha256": "d5a0472490b6f7d3492bfce7643a5fbdf21b509df0b666fd1138ae990ce65aae",
+      "selected_sha256": "bca995828bb0d8fc2f2a1fe10590fc98f73c08851aa2ebba4cae85291e59957b",
+      "base_crlf_count": 1172,
+      "selected_bytes": 49005,
+      "working_sha256": "d5a0472490b6f7d3492bfce7643a5fbdf21b509df0b666fd1138ae990ce65aae"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/startup/TrackingStartupLiveWorkTest.kt",
+      "base_sha256": "c00e2f9e5696209811c1a87be611b73411a82e4177ba5114f7672f62abcae327",
+      "selected_sha256": "c5e63de95deb98a16369b1d45677fef42085fd6c63639112bb818fd5fe531307",
+      "base_crlf_count": 140,
+      "selected_bytes": 6401,
+      "working_sha256": "c00e2f9e5696209811c1a87be611b73411a82e4177ba5114f7672f62abcae327"
+    },
+    {
+      "path": "core/common/src/main/java/com/adsamcik/tracker/shared/base/startup/TrackingStartupGate.kt",
+      "base_sha256": "7452f50687b94c465a8da00d20ad4776ddfdadc7dcd1a78c9fdbf948e2433576",
+      "selected_sha256": "01fea727a9896f5db6d5ebc0d939c6d420cfa59f05cc76e3161e87b7a6929e4e",
+      "base_crlf_count": 226,
+      "selected_bytes": 8116,
+      "working_sha256": "53b656c5c523b8940878e74451df745e9568388f80231782ba238dcbedf5b8f5"
+    },
+    {
+      "path": "sensor/activity-api/src/main/java/com/adsamcik/tracker/activity/api/ingress/ActivityRecognitionEventIngress.kt",
+      "base_sha256": "6dabfb1ec083f2b9310db811912e9a5e4c8e2b996817669ca87845c542f1e649",
+      "selected_sha256": "4f17ccc8c74885c2323f8a0e47a789858d3c4e03be62575a8f8a5af634ddb459",
+      "base_crlf_count": 181,
+      "selected_bytes": 5773,
+      "working_sha256": "1fccb6d6e4ebb5e125470f7be5eb0e3f128f3d892c37f0ab07070f74cddd99b3"
+    },
+    {
+      "path": "sensor/activity/src/main/java/com/adsamcik/tracker/activity/receiver/ActivityReceiver.kt",
+      "base_sha256": "e114104c5a925d9634d12512e29f8ae3ad39524d64b2e9ac6a3e811d75e1b3d8",
+      "selected_sha256": "898bde0497d239b9167a835ba98ac2b90d50fb0d6ed95fcf86716ba0bc8c7650",
+      "base_crlf_count": 631,
+      "selected_bytes": 25606,
+      "working_sha256": "728df8d8fbf2d220c9242312df350b244ceb400a4935466d8b4e9ade5eb6e718"
+    },
+    {
+      "path": "sensor/activity/src/test/java/com/adsamcik/tracker/activity/receiver/ActivityCallbackRetryStoreTest.kt",
+      "base_sha256": "aba29c6da32ec9cd79b214728bccf189bb692741ba275ea97c8989be63592a63",
+      "selected_sha256": "cd0dea6cf64c064cbfa2a4811c4183e9be56189bfd3d9124a2fb7165ebbf7ba9",
+      "base_crlf_count": 335,
+      "selected_bytes": 12061,
+      "working_sha256": "2fe6e0a471f0fb018babb5435f45c5c241eaa6ca0ba6c02487901904bb7b2e2c"
+    },
+    {
+      "path": "sensor/activity/src/test/java/com/adsamcik/tracker/activity/receiver/ActivityReceiverTest.kt",
+      "base_sha256": "f0e152764d52da7b6d6a9f006ea8695e06578f8069356620480582abc213a46e",
+      "selected_sha256": "96b687df3dc6b46f384c865a249dd988106fae9388820a1089edfeb3bd95b55f",
+      "base_crlf_count": 1043,
+      "selected_bytes": 36584,
+      "working_sha256": "92662341a8c24844fb7b3586505adc19084eb1e12e698b863bf8ccdd20fac0fa"
+    },
+    {
+      "path": "sensor/activity/src/test/java/com/adsamcik/tracker/activity/receiver/ActivityReceiverThreadSafetyTest.kt",
+      "base_sha256": "1ece84aa35f9c9c70620274005bdbecd80e3b49fa677008557abb18b76d32671",
+      "selected_sha256": "89f1dcc042bac2d6c6578782630b24d5aed0bb5e477665281b3ffef15ff0fc04",
+      "base_crlf_count": 146,
+      "selected_bytes": 5571,
+      "working_sha256": "d0d0911f6aa7a5f14cd9adba925216ef110b89afc9a5952c2d7ca8878e7e7b41"
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackerServiceApi.kt",
+      "base_sha256": "390ca3df4a26e49bd8d523e9f2530783119b22cb5f7b399c81ae10cb76c6fc43",
+      "selected_sha256": "c1dffaa3a602ce35fd245850fe3aaf7ca2f2dcb2ab47e79c220d077440ba07af",
+      "base_crlf_count": 949,
+      "selected_bytes": 35911,
+      "working_sha256": "390ca3df4a26e49bd8d523e9f2530783119b22cb5f7b399c81ae10cb76c6fc43"
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/resilience/TrackingLifecycleCommandAuthority.kt",
+      "base_sha256": "a19f59e5cb1c4e861a4d2227a0bcf38fcf918b192b706006bb872ebac457e454",
+      "selected_sha256": "f672081a5ef34dbc1e5b195fee2565244c4748975aaea60eb5aa47e651c363f5",
+      "base_crlf_count": 461,
+      "selected_bytes": 19541,
+      "working_sha256": "69bdd2c1cd8ce08772c09d80aa3f60f07cc5083e0ff6c516dd7011de315ca2ce"
+    },
+    {
+      "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/resilience/TrackingLifecycleCommandAuthorityTest.kt",
+      "base_sha256": "1b2bf0dfee293ee2fa5ec8c747af909060c671528fc374329936627d17e2103f",
+      "selected_sha256": "1cc29982cd6294d012117f920711e6920d5f2774fb1e6aa464d1733be83df791",
+      "base_crlf_count": 159,
+      "selected_bytes": 7271,
+      "working_sha256": "1b2bf0dfee293ee2fa5ec8c747af909060c671528fc374329936627d17e2103f"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/SharedPreferencesTrackingLifecycleCommandAuthority.kt",
+      "base_sha256": "b319ac2a790c9ccbb4e7f838020def2e0053d11bdd737736e3fd7bb5fb07471b",
+      "selected_sha256": "a35baa61ae3ca177d0233d75f0b466756b1ea322a7f53d410feb9677a1a4be9b",
+      "base_crlf_count": 444,
+      "selected_bytes": 20011,
+      "working_sha256": "4c3e75f5b91ae090725619fb217578ec7a0d2f1bea6432d57ecd441a5d7b9fc8"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinator.kt",
+      "base_sha256": "cd41f9eda6cdcce1300a8805e97b276f94c9fa45a8fc93b35da7cc1507cf9952",
+      "selected_sha256": "d0a28afa454d12689c7ac3f6d564434797db74bba5852080923c0b822139e331",
+      "base_crlf_count": 1298,
+      "selected_bytes": 55098,
+      "working_sha256": "46380fc5460dad28492c0862ca94cff76d1bab960ab61e063fcb18b52d12257a"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerService.kt",
+      "base_sha256": "ff10f5cc8479f5d8cc7eae07fdab3fc9d94eb8b39db6621dfb62ff9e6556f0b2",
+      "selected_sha256": "3c80676b14236a9e8a36b04fcfe7f757f5525a72f7dd1a35f996b2dd5a36e133",
+      "base_crlf_count": 3091,
+      "selected_bytes": 122588,
+      "working_sha256": "4b5914828d2d605aef9e92d68ae79a8e8169c9425ef2c040eeec8d96b22bdd3e"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecovery.kt",
+      "base_sha256": "b761819481fba89517e09daccd9b98b8033a000e1a6531658bca5cb931d7a267",
+      "selected_sha256": "a6753b0e2e32ddb39e187fe098c0b4dbe452195ec62512c5bfe24a74bc2e75a1",
+      "base_crlf_count": 595,
+      "selected_bytes": 22122,
+      "working_sha256": "2f1560588b28e4cab5bf009e010a1d3d4dbc6fdabf7aecbf1d02bbb9d92191c0"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSession.kt",
+      "base_sha256": "b3e0f97f79acbcc7b28b8c982e5ec4dc6aa867c3b1764a83af098eaecf279eff",
+      "selected_sha256": "b22802abbfcb39dbaaef4a8673c8b4cd226fc849b045f19816225a24b3ab3502",
+      "base_crlf_count": 1846,
+      "selected_bytes": 72115,
+      "working_sha256": "b3e0f97f79acbcc7b28b8c982e5ec4dc6aa867c3b1764a83af098eaecf279eff"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/RoomActivityRecognitionEventIngress.kt",
+      "base_sha256": "9607455a3042d24d5e12bc10cd5a618b700ae4d48afbd43892134243449b21d4",
+      "selected_sha256": "667e3b164163b065a91ef286e58ec1ff8e7eb7dd09da038a5ddf10895ccf6e09",
+      "base_crlf_count": 356,
+      "selected_bytes": 14812,
+      "working_sha256": "f297244300dcb6cee915e2d1f38f6124b4f4624655de13f1080dd8549744bb9e"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomationOutboxDispatcher.kt",
+      "base_sha256": "9f7b920b6ef80a7ddf8620e4240e841954c40511bf037ab5d989fbfe25260412",
+      "selected_sha256": "97295af0b34dbf7cde2c415c05f9cd51219d83f96121a2c1fdb1468f025192d4",
+      "base_crlf_count": 787,
+      "selected_bytes": 30840,
+      "working_sha256": "f1b273d2f288edfe38fcd3058d0b4346388203e5028fa5e6b0a00fce2c2a713c"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/ExactSourceCallerGuard.kt",
+      "base_sha256": "8753d4cbf132406856f7ba2fd18f3d9c7810c4f93a2d557467847e4e7cb6d79c",
+      "selected_sha256": "55ebb4170a334fa4a4d884a495401b66de26fc7ec279ab79c212489afa8bfe02",
+      "base_crlf_count": 1067,
+      "selected_bytes": 40009,
+      "working_sha256": "8753d4cbf132406856f7ba2fd18f3d9c7810c4f93a2d557467847e4e7cb6d79c"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceCallerDemandDispatcher.kt",
+      "base_sha256": "e39b099932fe80c2b08ec4581a6cd31cb86cf020adebf4ec7bf5f4ed56569f9d",
+      "selected_sha256": "28a668f1b9a2ee493181497710a77ea2d2fbf2a0ee03310a0fe19aaeda120f09",
+      "base_crlf_count": 1593,
+      "selected_bytes": 60941,
+      "working_sha256": "e39b099932fe80c2b08ec4581a6cd31cb86cf020adebf4ec7bf5f4ed56569f9d"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/resilience/SharedPreferencesTrackingLifecycleCommandAuthorityTest.kt",
+      "base_sha256": "74f24310dc6037280315719ec5f526d6a75a0d1a9e91ab4e9f9c652a4d0d6a0b",
+      "selected_sha256": "918b5a5dfe5cc03855b128219d6081c21d8f4788573cc042627a4a62b66eceb2",
+      "base_crlf_count": 828,
+      "selected_bytes": 39514,
+      "working_sha256": "13018a29c62b233e9b6c8e032fd7c03e0cedcaac70c7920beb90d711f70721e5"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/AutomaticStartCommandFenceTest.kt",
+      "base_sha256": "73607a2a594ae8af3878f0299a9c6e1609faef220dfe338a29256064c2542217",
+      "selected_sha256": "98d2bd806f007622852a69dca4a123281e1100288b96b6045a8ff590488a29ca",
+      "base_crlf_count": 96,
+      "selected_bytes": 4723,
+      "working_sha256": "73607a2a594ae8af3878f0299a9c6e1609faef220dfe338a29256064c2542217"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinatorResumeTest.kt",
+      "base_sha256": "2ef88ccbd689b8a0e63bcc2d4d11aecc13b1aa99e4b09e636a9e2bbf54e4fcb9",
+      "selected_sha256": "d829182edd65d84b3b7a307c16698ce7a70b0d7aafbc7e4362a67a151b88e13c",
+      "base_crlf_count": 139,
+      "selected_bytes": 7306,
+      "working_sha256": "2ef88ccbd689b8a0e63bcc2d4d11aecc13b1aa99e4b09e636a9e2bbf54e4fcb9"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/PreparedManualStartPurposeRepairTest.kt",
+      "base_sha256": "b6f1be949b09fd5897d4e3fad413e0a6498f7fa21e3d60bc377406e1a7bba3fd",
+      "selected_sha256": "fe93a73bbbafadca72192328161dbe90289fe1d352358ff79b16a02980842aae",
+      "base_crlf_count": 241,
+      "selected_bytes": 13277,
+      "working_sha256": "b6f1be949b09fd5897d4e3fad413e0a6498f7fa21e3d60bc377406e1a7bba3fd"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/PreparedStartCancellationReleaseTest.kt",
+      "base_sha256": "d813c2ded1459aadd601e17c2ddd1e7ac9c822494ffc70879f1d248a6723b956",
+      "selected_sha256": "23d5de1d1163f943a91ecf5a28ace1ac110cf61f1685c6f4eac779c8f0d2278a",
+      "base_crlf_count": 279,
+      "selected_bytes": 12510,
+      "working_sha256": "d813c2ded1459aadd601e17c2ddd1e7ac9c822494ffc70879f1d248a6723b956"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/PreparedStartForegroundAcceptanceTest.kt",
+      "base_sha256": "057b26f58ad0b91fb06b79671372ae67dc81ebd277eadc2b7063d4265cb89a66",
+      "selected_sha256": "d6d53907da9195f60b7acf7e0b6946c5d9ebd52f2c57dd87df6037f9418523a9",
+      "base_crlf_count": 187,
+      "selected_bytes": 9858,
+      "working_sha256": "057b26f58ad0b91fb06b79671372ae67dc81ebd277eadc2b7063d4265cb89a66"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+      "base_sha256": "0812fecef4e758ddb32e2a92093a063cb944d8450e6afa63aa8f3c268606afe1",
+      "selected_sha256": "f1d93bf2ef3f060054ea39309b76cf098797d799260ec767f93e450d5f18cd20",
+      "base_crlf_count": 10754,
+      "selected_bytes": 404680,
+      "working_sha256": "49d595702d8e5df8365c9e041d3236e74708ce3967ac7ce21a59fba6f5a89c81"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecoveryTest.kt",
+      "base_sha256": "b9653d45a1f3b9b687bfa3cf1f7f44c4974144d83572be468764440c880669f8",
+      "selected_sha256": "0e915bb7a94a5565a321cbefc5147293ea8d3fde2db6508685a93701b1a50a3a",
+      "base_crlf_count": 831,
+      "selected_bytes": 33469,
+      "working_sha256": "fbcd9e01603d31c1429295283458c778bc8bbb9ff6da66fc6a35374126d0d825"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSessionTest.kt",
+      "base_sha256": "72ee1f0ab5b9c78b1ce44d3a7473ee1c44132c96e6fb28acb6539785a82b1c9c",
+      "selected_sha256": "ad9b178357cc8578dc3e7f4368b15794adfac7944269d993ff7b08d7aed6fd0a",
+      "base_crlf_count": 2779,
+      "selected_bytes": 107745,
+      "working_sha256": "72ee1f0ab5b9c78b1ce44d3a7473ee1c44132c96e6fb28acb6539785a82b1c9c"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/RoomActivityRecognitionEventIngressTest.kt",
+      "base_sha256": "1b88c6c9d6a168b70e40528bf75e92b5a463676552c1b7a83f01d1f9c356132e",
+      "selected_sha256": "f5fb914680541e907fa85b541a9d35c17dc0fdbfc2d468503507492e1b2a7f8a",
+      "base_crlf_count": 597,
+      "selected_bytes": 24583,
+      "working_sha256": "d0f1b60beb8efc9fecae1702500ab4e8830e52cb7223cb2a10367d46e6c5bab2"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomationOutboxDispatcherTest.kt",
+      "base_sha256": "b129e0edffd6dea3888842d9be520415eefb1c0d6a8721a14889788a1caa6ee7",
+      "selected_sha256": "311cd115a31880f8cfcca41607180b318997431863e6967fec49c51b4ec42b49",
+      "base_crlf_count": 599,
+      "selected_bytes": 21769,
+      "working_sha256": "14bf03a6ab9faaa7bb3c4c07b10f7fac5e14beca380f468ce95854855efe7044"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/ColdActivityAutomationOutboxTest.kt",
+      "base_sha256": "637f100042a509b6f2ce7b37a8110a8a2932e1ebb42803d28120391da1d02f50",
+      "selected_sha256": "73bbfd7f390cbe9b257efeca73ab907ceb491cb930c4aef5216750f75df70f15",
+      "base_crlf_count": 407,
+      "selected_bytes": 17405,
+      "working_sha256": "637f100042a509b6f2ce7b37a8110a8a2932e1ebb42803d28120391da1d02f50"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CurrentSourceCallerAuthorityReaderTest.kt",
+      "base_sha256": "c9b5ea8a66b4568b46992cfc57036e16e27d175b56cfc26af702a13c8a29f49d",
+      "selected_sha256": "d1587785fa85927a39ea07ad487c48fd656d5ef890cca704616df4f15442dfb8",
+      "base_crlf_count": 332,
+      "selected_bytes": 13527,
+      "working_sha256": "c9b5ea8a66b4568b46992cfc57036e16e27d175b56cfc26af702a13c8a29f49d"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/ExactSourceCallerGuardTest.kt",
+      "base_sha256": "9220ddf4abd7d83d5cb00a101636886c422c395f8ae12c3829323952f6e78149",
+      "selected_sha256": "6784a91e0996e6f161ead8d5a4c393f42c5b1ab07e5d4167befe5872efb9a41b",
+      "base_crlf_count": 1280,
+      "selected_bytes": 46443,
+      "working_sha256": "9220ddf4abd7d83d5cb00a101636886c422c395f8ae12c3829323952f6e78149"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/GuardedSourceCallerDemandDispatcherTest.kt",
+      "base_sha256": "e369d22c3e439e57b94d802ae22f19816e588dfd0f28b9de2c01b6ed78c44e3b",
+      "selected_sha256": "18ff5a53ef536b506f331ed9e9c42ff616589b62ed236024f71629beb35d7774",
+      "base_crlf_count": 801,
+      "selected_bytes": 28206,
+      "working_sha256": "e369d22c3e439e57b94d802ae22f19816e588dfd0f28b9de2c01b6ed78c44e3b"
+    }
+  ]
+}
