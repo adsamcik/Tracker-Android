@@ -5,6 +5,11 @@ production and test source, not passing tests or closed full-chain prerequisites
 The [independent audit](ADVERSARIAL_AND_COMPLETION_REVIEW.md) remains the frozen
 description of its earlier input; this file records subsequent repair progress.
 
+[Current completion plan](../2026-10-07/COMPLETION_PLAN.md) (2026-10-07) consolidates all outstanding work and is the
+current execution order. Complete tracking/everyday surfaces first; defer file
+and backup completion. Preserve this ledger and its historical source receipts.
+All 25 full-chain prerequisites remain open; validation and integration are deferred.
+
 ## Approved decisions
 
 - [x] Hourly background copies of supported native Steps, plus enable/open;

@@ -1,6 +1,11 @@
 # Tracking Infrastructure Completion TODO
 
-Last updated: 2026-10-04
+Last updated: 2026-10-07
+
+[Current completion plan](convergence/2026-10-07/COMPLETION_PLAN.md) (2026-10-07) consolidates all outstanding work and is the
+current execution order. Complete tracking/everyday surfaces first; defer file
+and backup completion. Preserve this ledger and its historical source receipts.
+All 25 full-chain prerequisites remain open; validation and integration are deferred.
 
 ## Current continuation
 
