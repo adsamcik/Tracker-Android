@@ -1,0 +1,118 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "base_head": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+  "dependencies": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAllDaySourceStatusQuery.kt",
+      "base_commit": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "blob": "8b0dc2893bfca9b442f6a92e430ce3c35d209bfa",
+      "sha256": "ee928670b4789939d46348003c39b8720b190e98087f1a7d8b0250efbe800984",
+      "bytes": 10311
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/NativeAmbientStepsRangeReader.kt",
+      "base_commit": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "blob": "d65192283ffce5716878d0dbea1c67e736bedd30",
+      "sha256": "93e9784b6b0783fede77b82e131a689049ecf53f5b1f998c1b21f37cfe3870ff",
+      "bytes": 37249
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "base_commit": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "blob": "0129d29dccd84c42fe3e56c51a500193142d83a5",
+      "sha256": "7b26cecd95d2ca3ee9de099f7cc6b6904d5527f49d0c38cc797ffc8b7278d3a0",
+      "bytes": 13657
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultAmbientStepsHistoryRepository.kt",
+      "base_commit": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "blob": "4c124e8e8c14a7e7970b96093931e7d3fd90fe51",
+      "sha256": "1fa25cc97722547746372e56822b70e8824ae8fbf8e50b0f703949c7419a2bff",
+      "bytes": 54232
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt",
+      "base_commit": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "blob": "8545929fe7e8548a2e2887996181933a1840804e",
+      "sha256": "495f31cdcce065e7dd360b70eb657d4a3b0e88e8011a205c6ec6c3980c87f049",
+      "bytes": 18050
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt",
+      "base_commit": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "blob": "85b7999a3e0ff854f70504d8f30d3a440fe72164",
+      "sha256": "3e8af12b657c0481458018472e958132e5126c817436b65279a78226afc3e270",
+      "bytes": 19127
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AllDaySourceStatusQuery.kt",
+      "base_commit": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "blob": "ae080243aa46db4e604cfae6440db0c0068d76db",
+      "sha256": "685cd195f7403fd9d58e5fe6c1ad339debbd173e524080358c68cc290cdf02a5",
+      "bytes": 4183
+    },
+    {
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/AllDaySourceStatusQueryTest.kt",
+      "base_commit": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "blob": "ccbcef02e52c65c621144261ff53946ed32a2edd",
+      "sha256": "630f5e2fe6dd35e9a268f7048924ecac697e936182c612ff3da1bf0560bef8d1",
+      "bytes": 1697
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt",
+      "base_commit": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "blob": "b668c63900722aa3295ab62cc88f45c68dc74384",
+      "sha256": "7e84d8cc24badede1e45ae51a68f281e5e02c8114353d6af169a2ceb0f34c6a1",
+      "bytes": 12731
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "base_commit": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "blob": "400e10c8448b766aebac4b66dd409f344a80a401",
+      "sha256": "83b2a25aabdebaf20fa70613a0b9d764e14f997ffec86d93c6d124466ff22823",
+      "bytes": 56322
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "base_commit": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "blob": "e040d4c2c629dad9382cd9c543abce570f775221",
+      "sha256": "a276144c34315be81b125df52eb7611f08e92a7629abb3d1f3587a3e92a93f24",
+      "bytes": 1690
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidFeatureConventionPlugins.kt",
+      "base_commit": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "blob": "871b0c3cb28b0d145ffd75f56d87c40e19bae4db",
+      "sha256": "e2df2278893f6fc1b47d6b51c15095e1e5638d2185ec35290fab465771772567",
+      "bytes": 4646
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidConventionPlugins.kt",
+      "base_commit": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "blob": "f541fe24f174c6e7b7bd9d74751358de3027003d",
+      "sha256": "6530e14a5465d6023516b430b05e792a49b2cbc802c2b9455101272c17c36229",
+      "bytes": 3618
+    },
+    {
+      "path": "settings.gradle.kts",
+      "base_commit": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "blob": "16fb6f1ecf24118f1669d34999affe9b2f4250cb",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a",
+      "bytes": 2408
+    },
+    {
+      "path": "app/src/main/AndroidManifest.xml",
+      "base_commit": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "blob": "3ff88753afadd4e64431977f1e2f2ed45ab10a4e",
+      "sha256": "e02a3ae5a48392479eb3a3ffce207319669cad0687ed707b3df78192068d71c9",
+      "bytes": 8299
+    },
+    {
+      "path": "tracker/engine/src/main/AndroidManifest.xml",
+      "base_commit": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "blob": "4a668a4114442f9ada395af6027b2a75069d8e46",
+      "sha256": "03539ecdd919df33156ef5a6a2be5f605c17ba49868a2982fba11613f9b5cbef",
+      "bytes": 2928
+    }
+  ]
+}

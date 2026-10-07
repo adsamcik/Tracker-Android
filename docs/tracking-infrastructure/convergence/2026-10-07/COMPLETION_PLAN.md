@@ -317,9 +317,10 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
 - [x] Reconcile, independently review and commit this plan: `2f03d3ebe7`.
 - [x] Capture the refreshed T01 preservation inventory at that commit; see
   `CURRENT_INPUT_STATUS.md`. Final draft dispositions and assembly remain open.
-- [ ] Complete T19 integration coverage. The first actual all-day facade
-  capability/cancellation test slice is authored and statically reviewed, NOT_RUN;
-  its exact local selection is being completed.
+- [x] Select the first actual all-day facade capability/cancellation test slice:
+  three methods, four scenarios and independent source acceptance in
+  `ALL_DAY_UNSUPPORTED_FACADE_SELECTED/SOURCE_REVIEW.md`. All remain NOT_RUN.
+- [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production
 Summary consumer. Period propagation/rows and precise distance display need a

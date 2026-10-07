@@ -1,0 +1,28 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "test_methods": 3,
+  "authored_scenarios": 4,
+  "execution": "NOT_RUN",
+  "cases": [
+    {
+      "method": "unsupported all-day Activity does not touch storage or other source readers",
+      "source": "ACTIVITY",
+      "execution": "NOT_RUN"
+    },
+    {
+      "method": "unsupported all-day Pressure does not touch storage or other source readers",
+      "source": "PRESSURE",
+      "execution": "NOT_RUN"
+    },
+    {
+      "method": "cancelling an actual unsupported read preserves cancellation without dependency access",
+      "source": "ACTIVITY",
+      "execution": "NOT_RUN"
+    },
+    {
+      "method": "cancelling an actual unsupported read preserves cancellation without dependency access",
+      "source": "PRESSURE",
+      "execution": "NOT_RUN"
+    }
+  ]
+}

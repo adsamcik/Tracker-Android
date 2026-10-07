@@ -1,0 +1,22 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_head": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+  "files": [
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAllDaySourceStatusQueryTest.kt",
+      "base_head": "2f03d3ebe7486790328afd2e889ad6b5918cd8af",
+      "base_sha256": null,
+      "working_before_sha256": null,
+      "selected_sha256": "7b535f990f71589ad6b5e784dd7c6e37c2e172715ec31ba21d6489b60988597a",
+      "working_after_sha256": "7b535f990f71589ad6b5e784dd7c6e37c2e172715ec31ba21d6489b60988597a",
+      "selected_bytes": 3152,
+      "selection": "New isolated test path only; strict dependencies and actual production facade, no runtime/build/schema/API changes"
+    }
+  ],
+  "new_test_methods": 3,
+  "authored_scenarios": 4,
+  "selection_patch_sha256": "54edbe8ce80422fda255bf0f78a10c732c23c43971cf239db4e1ed4e1e89c369",
+  "independent_review": "PENDING",
+  "execution": "NOT_RUN"
+}

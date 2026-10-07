@@ -1,0 +1,82 @@
+--- /dev/null
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAllDaySourceStatusQueryTest.kt
+@@ -0,0 +1,79 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.model.tracking.TrackingSource
++import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRead
++import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRequest
++import io.mockk.Called
++import io.mockk.mockk
++import io.mockk.verify
++import kotlin.test.assertEquals
++import kotlin.test.assertFalse
++import kotlin.test.assertIs
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.CoroutineDispatcher
++import kotlinx.coroutines.CoroutineStart
++import kotlinx.coroutines.ExperimentalCoroutinesApi
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.test.StandardTestDispatcher
++import kotlinx.coroutines.test.runTest
++import org.junit.jupiter.api.Test
++
++@OptIn(ExperimentalCoroutinesApi::class)
++class RoomAllDaySourceStatusQueryTest {
++
++	@Test
++	fun `unsupported all-day Activity does not touch storage or other source readers`() = runTest {
++		val fixture = Fixture(StandardTestDispatcher(testScheduler))
++
++		assertEquals(AllDaySourceStatusRead.Unsupported,
++			fixture.query.read(AllDaySourceStatusRequest.Unsupported(TrackingSource.ACTIVITY)))
++
++		fixture.assertNoDependencyAccess()
++	}
++
++	@Test
++	fun `unsupported all-day Pressure does not touch storage or other source readers`() = runTest {
++		val fixture = Fixture(StandardTestDispatcher(testScheduler))
++
++		assertEquals(AllDaySourceStatusRead.Unsupported,
++			fixture.query.read(AllDaySourceStatusRequest.Unsupported(TrackingSource.PRESSURE)))
++
++		fixture.assertNoDependencyAccess()
++	}
++
++	@Test
++	fun `cancelling an actual unsupported read preserves cancellation without dependency access`() = runTest {
++		for (source in listOf(TrackingSource.ACTIVITY, TrackingSource.PRESSURE)) {
++			val fixture = Fixture(StandardTestDispatcher(testScheduler))
++			// Capture read's own outcome, rather than only asserting that its outer job was cancelled.
++			val outcome = CompletableDeferred<Result<AllDaySourceStatusRead>>()
++			val pending = launch(start = CoroutineStart.UNDISPATCHED) {
++				outcome.complete(runCatching {
++					fixture.query.read(AllDaySourceStatusRequest.Unsupported(source))
++				})
++			}
++			// The real facade has entered read and suspended while handing off to its IO dispatcher.
++			assertFalse(outcome.isCompleted)
++			pending.cancel(CancellationException("All-day status request cancelled"))
++			pending.join()
++
++			assertIs<CancellationException>(outcome.await().exceptionOrNull())
++			fixture.assertNoDependencyAccess()
++		}
++	}
++
++	private class Fixture(io: CoroutineDispatcher) {
++		// Strict mocks make even a database-open check or a swallowed reader failure observable.
++		private val database: AppDatabase = mockk()
++		private val steps: DefaultAmbientStepsHistoryRepository = mockk()
++		private val wifi: RoomAmbientWifiRepository = mockk()
++		private val cell: RoomAmbientCellRepository = mockk()
++		val query = RoomAllDaySourceStatusQuery(database, steps, wifi, cell, io)
++
++		fun assertNoDependencyAccess() {
++			verify { listOf(database, steps, wifi, cell) wasNot Called }
++		}
++	}
++}

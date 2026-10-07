@@ -578,3 +578,9 @@ push is claimed by this continuation.
 released baseline. Candidate schema versions are not released versions. Current
 answers and the reduced unanswered
 list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS.md).
+
+- [x] Author actual all-day facade Unsupported/cancellation coverage for Activity
+  and Pressure: three methods and four scenarios, no storage or sibling-source
+  access. Independent static acceptance is recorded in
+  `../2026-10-07/ALL_DAY_UNSUPPORTED_FACADE_SELECTED/SOURCE_REVIEW.md`. All are
+  NOT_RUN; T19 and the full source/assembly prerequisites remain open.
