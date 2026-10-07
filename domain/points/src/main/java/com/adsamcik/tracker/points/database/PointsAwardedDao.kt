@@ -47,7 +47,7 @@ interface PointsAwardedDao : BaseDao<PointsAwarded> {
 			effect_value_micros = :effectValueMicros
 		WHERE source = :source
 			AND effect_key = :effectKey
-			AND effect_revision <= :effectRevision
+			AND effect_revision < :effectRevision
 		""",
 	)
 	suspend fun updateRevisionedEffect(
@@ -83,6 +83,12 @@ interface PointsAwardedDao : BaseDao<PointsAwarded> {
 				"Revisioned goal effect is missing its revision"
 			}
 			if (currentRevision > effectRevision) return false
+			if (currentRevision == effectRevision) {
+				// One revision has one exact payload. Replay acknowledges without rewriting;
+				// different values need a newer correction, including a zero-value retraction.
+				return current.time == time && current.effectValueMicros == valueMicros &&
+					current.value.value == valueMicros.toDouble() / POINT_MICROS
+			}
 
 			return updateRevisionedEffect(
 				source = source,

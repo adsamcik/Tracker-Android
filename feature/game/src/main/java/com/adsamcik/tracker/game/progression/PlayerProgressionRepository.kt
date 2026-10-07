@@ -173,13 +173,22 @@ class PlayerProgressionRepository @Inject constructor(
 					return@withTransaction StepsGoalXpApplyResult.ALREADY_SETTLED
 				}
 
-				val earnedAt = effect.firstCompletedAtMs ?: effect.updatedAtMs
 				val currentReceipt = database.xpLedgerDao().getRevisionedEffect(
 					source = XpSource.GOAL.name,
 					sourceKey = effectIdentity,
 				)
+				val zeroReceipt = currentReceipt?.takeIf { receipt ->
+					effect.firstCompletedAtMs == null && effect.desiredXp == 0 &&
+						receipt.source == XpSource.GOAL.name && receipt.sourceKey == effectIdentity &&
+						receipt.sourceRevision == effectRevision && receipt.amount == 0 &&
+						receipt.sourceId == null && receipt.earnedAt >= 0L
+				}
+				// A diagnostic observation-time refresh is not a new reward revision. Keep the
+				// existing zero receipt's time when completing an interrupted acknowledgement.
+				val earnedAt = effect.firstCompletedAtMs ?: zeroReceipt?.earnedAt ?: effect.updatedAtMs
 				val receiptAlreadyExact = currentReceipt != null &&
 					currentReceipt.sourceRevision == effectRevision &&
+					currentReceipt.sourceId == null &&
 					currentReceipt.amount == effect.desiredXp &&
 					currentReceipt.earnedAt == earnedAt
 				if (!receiptAlreadyExact) {
@@ -189,7 +198,7 @@ class PlayerProgressionRepository @Inject constructor(
 						amount = effect.desiredXp,
 						earnedAt = earnedAt,
 					)
-					if (!accepted) return@withTransaction StepsGoalXpApplyResult.SUPERSEDED
+					check(accepted) { "Current Steps goal XP conflicts with its saved receipt" }
 					recomputePlayerProfile()
 					ledgerChanged = true
 				}

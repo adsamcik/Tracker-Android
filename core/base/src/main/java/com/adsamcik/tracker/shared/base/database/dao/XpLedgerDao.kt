@@ -53,7 +53,8 @@ interface XpLedgerDao : BaseDao<XpLedgerEntity> {
 			source_revision = :sourceRevision
 		WHERE source = :source
 			AND source_key = :sourceKey
-			AND source_revision <= :sourceRevision
+			AND source_id IS NULL
+			AND source_revision < :sourceRevision
 		""",
 	)
 	suspend fun updateRevisionedEffect(
@@ -84,10 +85,19 @@ interface XpLedgerDao : BaseDao<XpLedgerEntity> {
 
 		val current = getRevisionedEffect(STEPS_GOAL_SOURCE, effectKey)
 		if (current != null) {
+			// A legacy recording ID belongs to a different award path. Neither a replay nor
+			// a newer goal revision may replace that row under a coincidentally shared key.
+			if (current.sourceId != null) return false
 			val currentRevision = checkNotNull(current.sourceRevision) {
 				"Revisioned Steps goal effect is missing its revision"
 			}
 			if (currentRevision > effectRevision) return false
+			if (currentRevision == effectRevision) {
+				// Replaying this exact receipt is a no-op; changing its payload requires a
+				// higher revision so a same-revision callback cannot revive retracted XP.
+				return current.amount == amount &&
+					current.earnedAt == earnedAt
+			}
 			return updateRevisionedEffect(
 				source = STEPS_GOAL_SOURCE,
 				sourceKey = effectKey,

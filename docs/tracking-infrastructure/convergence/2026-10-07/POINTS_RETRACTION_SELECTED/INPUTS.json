@@ -1,0 +1,62 @@
+{
+  "base_commit": "037eb7e9b2c4f902aec46d5a85f3c43a59172b72",
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "test_execution": "NOT_RUN",
+  "files": [
+    {
+      "path": "domain/points/src/main/java/com/adsamcik/tracker/points/database/PointsAwardedDao.kt",
+      "base_sha256": "167761b440facec7f483e2a2534663e3110924db965b0a98a599292c5c943817",
+      "working_before_sha256": "c789aebb897443b13363e39ecfe8d1edcafe9e06a1cf2057a03353c3f3dad678",
+      "working_before_matches_base": false
+    },
+    {
+      "path": "domain/points/src/test/java/com/adsamcik/tracker/points/database/PointsAwardedDaoTest.kt",
+      "base_sha256": "9e2748346ff0c4de956039833ac4dd5a317bac4408a5a9517e403bcbd388510b",
+      "working_before_sha256": "2b75246e010cdf4af092914727516160eb0b018eb5f5f8748bb27edb4ffc8513",
+      "working_before_matches_base": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/XpLedgerDao.kt",
+      "base_sha256": "c6658a0b971db64e3d4aa662b1c42d3d8c413c1ccb96b4f7f13927929b0c99d7",
+      "working_before_sha256": "fbc2f21ce2c848b00093e3f71df59eec2c4809536afbd5583fa57edd7e63d4e9",
+      "working_before_matches_base": false
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/XpLedgerDaoTest.kt",
+      "base_sha256": "702fb52f21d36293f2869432d50d76e2633f8be756a82d3fda1a27943440ef0a",
+      "working_before_sha256": "9246244f705c0719814bcca34ee5ca71d85de9fe2867a28352a330ada97f4a00",
+      "working_before_matches_base": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AmbientStepsMaintenance.kt",
+      "base_sha256": "39fcc0a8a9d64df5818da79f277b8adf20d72185cde58693995dabd304a497c9",
+      "working_before_sha256": "1846af69008eb86259c36e0d939479e84ca553f4ff071f7fcce6ef946f3ad883",
+      "working_before_matches_base": false
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/AmbientStepsMaintenanceTest.kt",
+      "base_sha256": "8a9c9eda2bd5c70a71abf5a0c81c6fe8eee22fbb5445128223765828d1489330",
+      "working_before_sha256": "622b6b1dfabf781663d1869a35536975625a86b57d791a834c24e712bc341f7a",
+      "working_before_matches_base": false
+    },
+    {
+      "path": "feature/game/src/main/java/com/adsamcik/tracker/game/goals/StepsGoalRewardProjector.kt",
+      "base_sha256": "95a05896960c3e91e9c471559e43e824bd71b3814246de016baefe0c359058d6",
+      "working_before_sha256": "a6f763826c22cb097e1ea5a72b3546a1c60983059dbb23d690f989fe4c20927c",
+      "working_before_matches_base": false
+    },
+    {
+      "path": "feature/game/src/main/java/com/adsamcik/tracker/game/progression/PlayerProgressionRepository.kt",
+      "base_sha256": "bf8d823a26b039f8dabaa2abae656fc703ac37df9c5f23499955d9671104c021",
+      "working_before_sha256": "412c0f0351a26103d1da722e447fee6e263e99ebee2a205ed0b2df811c92f97d",
+      "working_before_matches_base": false
+    },
+    {
+      "path": "feature/game/src/test/java/com/adsamcik/tracker/game/goals/StepsGoalRewardProjectorTest.kt",
+      "base_sha256": "ccbd3843e2491b38ad065049f787d5e3bcb33f6186fbfe5c56ddb23c51efe998",
+      "working_before_sha256": "b32c6224ceb1cfd7b508f740509422d33e493e8b72af61ff55a8e973ea1171c0",
+      "working_before_matches_base": false
+    }
+  ]
+}

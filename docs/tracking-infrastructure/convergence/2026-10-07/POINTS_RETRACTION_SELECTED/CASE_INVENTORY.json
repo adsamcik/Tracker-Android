@@ -1,0 +1,120 @@
+{
+  "new_test_methods": 19,
+  "execution": "NOT_RUN",
+  "cases": [
+    {
+      "path": "domain/points/src/test/java/com/adsamcik/tracker/points/database/PointsAwardedDaoTest.kt",
+      "method": "exactSameRevisionReplayKeepsTheExistingReceipt",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "domain/points/src/test/java/com/adsamcik/tracker/points/database/PointsAwardedDaoTest.kt",
+      "method": "sameRevisionCannotRewriteValueOrEarnedTime",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "domain/points/src/test/java/com/adsamcik/tracker/points/database/PointsAwardedDaoTest.kt",
+      "method": "zeroReceiptOnlyAllowsRewardThroughANewerRevision",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "domain/points/src/test/java/com/adsamcik/tracker/points/database/PointsAwardedDaoTest.kt",
+      "method": "sameRevisionRejectsInconsistentStoredPointValue",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/XpLedgerDaoTest.kt",
+      "method": "exact same revision XP replay leaves its saved receipt unchanged",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/XpLedgerDaoTest.kt",
+      "method": "same revision XP cannot change value or earned time",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/XpLedgerDaoTest.kt",
+      "method": "zero XP receipt requires a newer revision before reward can return",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/XpLedgerDaoTest.kt",
+      "method": "same revision XP rejects a receipt with foreign legacy ownership",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/XpLedgerDaoTest.kt",
+      "method": "higher goal revision cannot replace XP with legacy recording ownership",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/XpLedgerDaoTest.kt",
+      "method": "direct higher revision SQL cannot replace legacy owned XP",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/AmbientStepsMaintenanceTest.kt",
+      "method": "all-day source deletion queues existing exact-calendar day and week repairs atomically",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/AmbientStepsMaintenanceTest.kt",
+      "method": "blocked all-day source deletion leaves existing reward authority and queue unchanged",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/AmbientStepsMaintenanceTest.kt",
+      "method": "cancellation after repair queue publication rolls back source deletion and reward invalidation",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "feature/game/src/test/java/com/adsamcik/tracker/game/goals/StepsGoalRewardProjectorTest.kt",
+      "method": "zero receipt crash gap survives a diagnostic time refresh without rewriting either ledger",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "feature/game/src/test/java/com/adsamcik/tracker/game/goals/StepsGoalRewardProjectorTest.kt",
+      "method": "same revision conflicting zero receipts cannot be rewritten as positive rewards",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "feature/game/src/test/java/com/adsamcik/tracker/game/goals/StepsGoalRewardProjectorTest.kt",
+      "method": "completed goal cannot borrow a conflicting positive receipt time",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "feature/game/src/test/java/com/adsamcik/tracker/game/goals/StepsGoalRewardProjectorTest.kt",
+      "method": "newer zero revision completion and retraction preserve exact revision and first completion time",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "feature/game/src/test/java/com/adsamcik/tracker/game/goals/StepsGoalRewardProjectorTest.kt",
+      "method": "zero crash gap cannot borrow inconsistent points or legacy XP ownership",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    },
+    {
+      "path": "feature/game/src/test/java/com/adsamcik/tracker/game/goals/StepsGoalRewardProjectorTest.kt",
+      "method": "newer goal effect cannot retract foreign legacy XP or acknowledge its revision",
+      "execution": "NOT_RUN",
+      "kind": "actual Room production DAO/deletion or two-ledger projector fixture"
+    }
+  ]
+}

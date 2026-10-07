@@ -1,0 +1,9 @@
+# Remaining session reward decision
+
+**Not implemented by this packet.** Original request: "Complete metrics, actions and effects ... correction/deletion retraction." The user also requires sessions to organize the same data, retrospective sessions, source freedom, and no unnecessary architecture.
+
+Existing behavior gives SESSION points and XP from cached physical distance/duration. GOAL effects have exact revisioned identities and zero-value retraction receipts; SESSION effects do not. Old Points rows cannot always be associated with one original recording because they contain only an award timestamp and source. Existing XP rows identify a physical segment but still lack current source-qualified desired state. Guessing those associations or using retrospective labels as new capture would risk duplicate rewards or retracting unrelated history.
+
+The smallest direction to review is to reuse the current revisioned Points/XP columns for prospective session rewards and one shared read-only eligible-recording summary, rather than add a general effect engine or another ledger. That summary would need an explicitly approved stable recording identity, actual current source-evidence revision and eligibility/distance/duration rules. Its invalidation and crash catchup must be traced through actual source correction/deletion and finalized recording lifecycle; ordinary annotation edits and repeated imports must have no new reward. Existing confirmed legacy receipts should stay separate because their full ownership cannot be reconstructed safely.
+
+These are concrete missing contracts, not permission to implement them. Root must present the storage/behavior choice for approval under AGENTS before a new summary API or SESSION effect key/revision contract is authored. No new session scoring rule, ledger, key guess, broad frozen awards draft or activation is selected here.

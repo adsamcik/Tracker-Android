@@ -3,6 +3,7 @@ package com.adsamcik.tracker.game.goals
 import androidx.room.withTransaction
 import com.adsamcik.tracker.game.progression.PlayerProgressionRepository
 import com.adsamcik.tracker.game.progression.StepsGoalXpApplyResult
+import com.adsamcik.tracker.points.data.AwardSource
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -78,10 +79,22 @@ internal class StepsGoalRewardProjector @Inject constructor(
 		if (effect.pointsAppliedRevision >= effectRevision) {
 			return@withContext StepsGoalRewardComponentResult.ALREADY_SETTLED
 		}
-		val accepted = pointsDatabase.pointsAwardedDao().applyGoalEffect(
+		val pointsDao = pointsDatabase.pointsAwardedDao()
+		val zeroReceipt = if (effect.firstCompletedAtMs == null && effect.desiredPointsMicros == 0L) {
+			pointsDao.getRevisionedEffect(AwardSource.GOAL.value, effectIdentity)
+				?.takeIf { receipt ->
+					receipt.source == AwardSource.GOAL && receipt.effectKey == effectIdentity &&
+						receipt.effectRevision == effectRevision && receipt.effectValueMicros == 0L &&
+						receipt.value.value == 0.0 && receipt.time >= 0L
+				}
+		} else null
+		// Diagnostic refreshes do not change the revision of a never-completed goal. Preserve
+		// its existing exact zero receipt time when retrying the cross-database acknowledgement.
+		val earnedAt = effect.firstCompletedAtMs ?: zeroReceipt?.time ?: effect.updatedAtMs
+		val accepted = pointsDao.applyGoalEffect(
 			effectKey = effectIdentity,
 			effectRevision = effectRevision,
-			time = effect.firstCompletedAtMs ?: effect.updatedAtMs,
+			time = earnedAt,
 			valueMicros = effect.desiredPointsMicros,
 		)
 		if (!accepted) return@withContext StepsGoalRewardComponentResult.RETRYABLE_FAILURE

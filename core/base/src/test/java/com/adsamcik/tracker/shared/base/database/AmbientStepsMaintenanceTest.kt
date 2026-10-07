@@ -4,6 +4,7 @@ import android.app.Application
 import android.database.sqlite.SQLiteConstraintException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
+import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
@@ -18,6 +19,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
+import com.adsamcik.tracker.shared.base.database.data.StepsGoalEffectEntity
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.assertions.throwables.shouldThrow
@@ -498,6 +500,152 @@ class AmbientStepsMaintenanceTest {
 		) shouldContainExactly listOf(fact)
 		database.ambientStepsImportStateDao().cursor(REGISTRATION) shouldBe fixture.cursor
 		database.ambientStepsFactRevisionDao().nativeReplayFootprintCount() shouldBe 0L
+	}
+
+	@Test
+	fun `all-day source deletion queues existing exact-calendar day and week repairs atomically`() = runTest {
+		val fixture = seed(revoked = true)
+		val fact = fixture.fact(0L, DAY_END, 10L)
+		database.ambientStepsFactRevisionDao().insert(fact)
+		val beforeRevision = checkNotNull(database.sourceEvidenceStateDao().get()).revision
+		val dayEffect = completedGoal(StepsGoalEffectEntity.PERIOD_DAY, 0L, beforeRevision)
+		val weekEffect = completedGoal(StepsGoalEffectEntity.PERIOD_WEEK, -6L, beforeRevision)
+		database.stepsGoalEffectDao().insert(listOf(dayEffect, weekEffect))
+		seedGoalAchievement(beforeRevision)
+
+		database.deleteAmbientStepsAfterConsentReset(EPOCH, REVOKED_CONSENT, MAINTENANCE_TIME) shouldBe
+			AmbientStepsSourceDeletionResult.Deleted(1, 1)
+
+		val revision = checkNotNull(database.sourceEvidenceStateDao().get()).revision
+		revision shouldBe beforeRevision + 1L
+		database.stepsGoalRepairDayDao().get(0L)?.sourceEvidenceRevision shouldBe revision
+		database.stepsGoalRepairDayDao().get(-6L)?.sourceEvidenceRevision shouldBe revision
+		// Deletion requests qualified recomposition; it cannot assume independently retained
+		// session/imported counts vanished or rewrite the currently applied reward by itself.
+		database.stepsGoalEffectDao().get(dayEffect.effectIdentity) shouldBe dayEffect
+		database.stepsGoalEffectDao().get(weekEffect.effectIdentity) shouldBe weekEffect
+		val achievement = checkNotNull(database.achievementProgressDao().getByMetric(
+			AchievementProgressEntity.METRIC_GOAL_STREAK_DAYS,
+		))
+		achievement.authorityState shouldBe AchievementProgressEntity.AUTHORITY_STATE_MATERIALIZING
+		achievement.authorityRevision shouldBe revision
+		achievement.qualifiedNotificationClaimedTierIndex shouldBe 1
+	}
+
+	@Test
+	fun `blocked all-day source deletion leaves existing reward authority and queue unchanged`() = runTest {
+		val fixture = seed(revoked = false)
+		val fact = fixture.fact(0L, DAY_END, 10L)
+		database.ambientStepsFactRevisionDao().insert(fact)
+		val evidence = checkNotNull(database.sourceEvidenceStateDao().get())
+		val goal = completedGoal(StepsGoalEffectEntity.PERIOD_DAY, 0L, evidence.revision)
+		database.stepsGoalEffectDao().insert(goal)
+		seedGoalAchievement(evidence.revision)
+		val achievement = database.achievementProgressDao().getByMetric(
+			AchievementProgressEntity.METRIC_GOAL_STREAK_DAYS,
+		)
+
+		database.deleteAmbientStepsAfterConsentReset(EPOCH, ACTIVE_CONSENT, MAINTENANCE_TIME) shouldBe
+			AmbientStepsSourceDeletionResult.Blocked(
+				AmbientStepsSourceDeletionBlockedReason.AMBIENT_CONSENT_STILL_ELIGIBLE,
+			)
+
+		database.sourceEvidenceStateDao().get() shouldBe evidence
+		database.stepsGoalEffectDao().get(goal.effectIdentity) shouldBe goal
+		database.stepsGoalRepairDayDao().next() shouldBe null
+		database.achievementProgressDao().getByMetric(
+			AchievementProgressEntity.METRIC_GOAL_STREAK_DAYS,
+		) shouldBe achievement
+		database.ambientStepsFactRevisionDao().latest(
+			AmbientStepsFactRevisionEntity.WRITER_ID,
+			AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			fact.logicalFactId,
+		) shouldBe fact
+	}
+
+	@Test
+	fun `cancellation after repair queue publication rolls back source deletion and reward invalidation`() = runTest {
+		val fixture = seed(revoked = true)
+		val fact = fixture.fact(0L, DAY_END, 10L)
+		database.ambientStepsFactRevisionDao().insert(fact)
+		val evidence = checkNotNull(database.sourceEvidenceStateDao().get())
+		val goal = completedGoal(StepsGoalEffectEntity.PERIOD_DAY, 0L, evidence.revision)
+		database.stepsGoalEffectDao().insert(goal)
+		seedGoalAchievement(evidence.revision)
+		val achievement = database.achievementProgressDao().getByMetric(
+			AchievementProgressEntity.METRIC_GOAL_STREAK_DAYS,
+		)
+
+		shouldThrow<CancellationException> {
+			database.deleteAmbientStepsAfterConsentReset(
+				EPOCH, REVOKED_CONSENT, MAINTENANCE_TIME, AmbientStepsMaintenanceLimits(),
+				checkpoint = { checkpoint ->
+					if (checkpoint == AmbientStepsMaintenanceCheckpoint.PAYLOAD_REMOVED) {
+						checkNotNull(database.stepsGoalRepairDayDao().get(0L))
+						throw CancellationException("cancel after repair queue publication")
+					}
+				},
+			)
+		}
+
+		database.sourceEvidenceStateDao().get() shouldBe evidence
+		database.stepsGoalEffectDao().get(goal.effectIdentity) shouldBe goal
+		database.stepsGoalRepairDayDao().next() shouldBe null
+		database.achievementProgressDao().getByMetric(
+			AchievementProgressEntity.METRIC_GOAL_STREAK_DAYS,
+		) shouldBe achievement
+		database.ambientStepsFactRevisionDao().revisions(
+			AmbientStepsFactRevisionEntity.WRITER_ID,
+			AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			fact.logicalFactId,
+		) shouldContainExactly listOf(fact)
+		database.ambientStepsImportStateDao().cursor(REGISTRATION) shouldBe fixture.cursor
+		database.ambientStepsFactRevisionDao().nativeReplayFootprintCount() shouldBe 0L
+	}
+
+	private fun completedGoal(period: String, start: Long, revision: Long): StepsGoalEffectEntity {
+		val end = if (period == StepsGoalEffectEntity.PERIOD_WEEK) start + 6L else start
+		return StepsGoalEffectEntity(
+			effectIdentity = StepsGoalEffectEntity.identity(period, start),
+			periodKind = period,
+			periodStartEpochDay = start,
+			periodEndEpochDay = end,
+			qualifiedThroughEpochDay = end,
+			calendarAuthority = (start..end).joinToString("\n") { "$it=UTC" },
+			targetSteps = 4_000L,
+			weeklyDailyLimitBits = 0.5f.toRawBits().takeIf { period == StepsGoalEffectEntity.PERIOD_WEEK },
+			decisionState = StepsGoalEffectEntity.STATE_READY_COMPLETE,
+			unavailableReason = null,
+			qualifiedSteps = 4_500L,
+			sourceAuthorityDigest = "a".repeat(64),
+			sourceEvidenceRevision = revision,
+			effectRevision = 1L,
+			completionPointsMicros = 40_000_000L,
+			completionXp = 50,
+			desiredPointsMicros = 40_000_000L,
+			desiredXp = 50,
+			firstCompletedAtMs = 1_000L,
+			pointsAppliedRevision = 1L,
+			xpAppliedRevision = 1L,
+			notificationClaimedRevision = 1L,
+			notificationClaimedAtMs = 1_000L,
+			updatedAtMs = 1_000L,
+		)
+	}
+
+	private suspend fun seedGoalAchievement(revision: Long) {
+		database.achievementProgressDao().replaceQualified(
+			metricKey = AchievementProgressEntity.METRIC_GOAL_STREAK_DAYS,
+			lastTierIndex = 1,
+			lastValue = 3.0,
+			updatedAt = 1_000L,
+			lastUnlockedAt = 1_000L,
+			authorityKind = AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1,
+			authorityRevision = revision,
+			authorityDigest = "a".repeat(64),
+			authorityState = AchievementProgressEntity.AUTHORITY_STATE_READY,
+			qualifiedNotificationClaimedTierIndex = 1,
+		)
 	}
 
 	private suspend fun seed(

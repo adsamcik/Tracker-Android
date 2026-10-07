@@ -1,0 +1,65 @@
+[
+  {
+    "path": "domain/points/src/main/java/com/adsamcik/tracker/points/database/PointsAwardedDao.kt",
+    "working_before_sha256": "c789aebb897443b13363e39ecfe8d1edcafe9e06a1cf2057a03353c3f3dad678",
+    "disposition": "PRESERVED_ORIGINAL_LINE_ENDINGS; selected change is clean committed-HEAD derivation",
+    "selected_from": "BASE",
+    "live_source_written": false
+  },
+  {
+    "path": "domain/points/src/test/java/com/adsamcik/tracker/points/database/PointsAwardedDaoTest.kt",
+    "working_before_sha256": "2b75246e010cdf4af092914727516160eb0b018eb5f5f8748bb27edb4ffc8513",
+    "disposition": "PRESERVED_ORIGINAL_LINE_ENDINGS; selected change is clean committed-HEAD derivation",
+    "selected_from": "BASE",
+    "live_source_written": false
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/XpLedgerDao.kt",
+    "working_before_sha256": "fbc2f21ce2c848b00093e3f71df59eec2c4809536afbd5583fa57edd7e63d4e9",
+    "disposition": "PRESERVED_ORIGINAL_LINE_ENDINGS; selected change is clean committed-HEAD derivation",
+    "selected_from": "BASE",
+    "live_source_written": false
+  },
+  {
+    "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/XpLedgerDaoTest.kt",
+    "working_before_sha256": "9246244f705c0719814bcca34ee5ca71d85de9fe2867a28352a330ada97f4a00",
+    "disposition": "PRESERVED_ORIGINAL_LINE_ENDINGS; selected change is clean committed-HEAD derivation",
+    "selected_from": "BASE",
+    "live_source_written": false
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AmbientStepsMaintenance.kt",
+    "working_before_sha256": "1846af69008eb86259c36e0d939479e84ca553f4ff071f7fcce6ef946f3ad883",
+    "disposition": "PRESERVED_ORIGINAL_LINE_ENDINGS; selected change is clean committed-HEAD derivation",
+    "selected_from": "BASE",
+    "live_source_written": false
+  },
+  {
+    "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/AmbientStepsMaintenanceTest.kt",
+    "working_before_sha256": "622b6b1dfabf781663d1869a35536975625a86b57d791a834c24e712bc341f7a",
+    "disposition": "PRESERVED_ORIGINAL_LINE_ENDINGS; selected change is clean committed-HEAD derivation",
+    "selected_from": "BASE",
+    "live_source_written": false
+  },
+  {
+    "path": "feature/game/src/main/java/com/adsamcik/tracker/game/goals/StepsGoalRewardProjector.kt",
+    "working_before_sha256": "a6f763826c22cb097e1ea5a72b3546a1c60983059dbb23d690f989fe4c20927c",
+    "disposition": "PRESERVED_ORIGINAL_LINE_ENDINGS; selected change is clean committed-HEAD derivation",
+    "selected_from": "BASE",
+    "live_source_written": false
+  },
+  {
+    "path": "feature/game/src/main/java/com/adsamcik/tracker/game/progression/PlayerProgressionRepository.kt",
+    "working_before_sha256": "412c0f0351a26103d1da722e447fee6e263e99ebee2a205ed0b2df811c92f97d",
+    "disposition": "PRESERVED_ORIGINAL_LINE_ENDINGS; selected change is clean committed-HEAD derivation",
+    "selected_from": "BASE",
+    "live_source_written": false
+  },
+  {
+    "path": "feature/game/src/test/java/com/adsamcik/tracker/game/goals/StepsGoalRewardProjectorTest.kt",
+    "working_before_sha256": "b32c6224ceb1cfd7b508f740509422d33e493e8b72af61ff55a8e973ea1171c0",
+    "disposition": "PRESERVED_ORIGINAL_LINE_ENDINGS; selected change is clean committed-HEAD derivation",
+    "selected_from": "BASE",
+    "live_source_written": false
+  }
+]

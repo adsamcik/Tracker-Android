@@ -20,9 +20,15 @@ Authorized presented recommendations:
 - Use the previously presented optional two-second first-enable provider-status
   wait and preserve current-choice/permission checks.
 
+Additional explicit answers:
+- The simpler Wi-Fi/Cell details screen is approved: remove technical authority
+  and generic Location copy; retain saved readings, useful coverage and a concise
+  Imported label when relevant.
+
 Newly discovered choices remain separate:
-- Daily display needs a per-day extension of the existing numeric reader; its exact
-  public contract proposal was asked with the questions tool and remains pending.
+- Daily display per-day extension of the existing numeric reader is explicitly
+  approved: each day keeps its verified total, recorded-so-far count or missing
+  state; games and achievements retain their strict existing rules.
 - Steps continuity discovered operation leases advance during normal reconfiguration.
   Existing ancestry/fencing must be reviewed before changing authority acceptance.
 - Other unready decisions in the plan remain pending until concretely proposed.

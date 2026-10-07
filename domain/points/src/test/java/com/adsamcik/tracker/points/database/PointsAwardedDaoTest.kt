@@ -112,6 +112,61 @@ class PointsAwardedDaoTest {
     }
 
     @Test
+    fun exactSameRevisionReplayKeepsTheExistingReceipt(): Unit = runBlocking {
+        val effectKey = "steps-goal-v1:DAY:20000"
+        dao.applyGoalEffect(effectKey, 7L, 12_345L, 25_000_000L) shouldBe true
+        val before = checkNotNull(dao.getRevisionedEffect(AwardSource.GOAL.value, effectKey))
+
+        dao.applyGoalEffect(effectKey, 7L, 12_345L, 25_000_000L) shouldBe true
+        dao.getRevisionedEffect(AwardSource.GOAL.value, effectKey) shouldBe before
+        dao.updateRevisionedEffect(AwardSource.GOAL.value, effectKey, 7L, 99L, 99.0, 99_000_000L) shouldBe 0
+        dao.getRevisionedEffect(AwardSource.GOAL.value, effectKey) shouldBe before
+        dao.countBetween(Long.MIN_VALUE, Long.MAX_VALUE) shouldBe 25.0
+    }
+
+    @Test
+    fun sameRevisionCannotRewriteValueOrEarnedTime(): Unit = runBlocking {
+        val effectKey = "steps-goal-v1:DAY:20000"
+        dao.applyGoalEffect(effectKey, 7L, 12_345L, 25_000_000L)
+        val before = checkNotNull(dao.getRevisionedEffect(AwardSource.GOAL.value, effectKey))
+
+        dao.applyGoalEffect(effectKey, 7L, 12_345L, 0L) shouldBe false
+        dao.applyGoalEffect(effectKey, 7L, 12_346L, 25_000_000L) shouldBe false
+        dao.getRevisionedEffect(AwardSource.GOAL.value, effectKey) shouldBe before
+    }
+
+    @Test
+    fun zeroReceiptOnlyAllowsRewardThroughANewerRevision(): Unit = runBlocking {
+        val effectKey = "steps-goal-v1:DAY:20000"
+        dao.applyGoalEffect(effectKey, 8L, 12_345L, 0L)
+        val zero = checkNotNull(dao.getRevisionedEffect(AwardSource.GOAL.value, effectKey))
+
+        dao.applyGoalEffect(effectKey, 8L, 12_345L, 25_000_000L) shouldBe false
+        dao.applyGoalEffect(effectKey, 8L, 12_346L, 0L) shouldBe false
+        dao.getRevisionedEffect(AwardSource.GOAL.value, effectKey) shouldBe zero
+        dao.countBetween(Long.MIN_VALUE, Long.MAX_VALUE) shouldBe 0.0
+
+        dao.applyGoalEffect(effectKey, 9L, 12_345L, 25_000_000L) shouldBe true
+        val corrected = checkNotNull(dao.getRevisionedEffect(AwardSource.GOAL.value, effectKey))
+        corrected.id shouldBe zero.id
+        corrected.effectRevision shouldBe 9L
+        corrected.effectValueMicros shouldBe 25_000_000L
+        dao.countBetween(Long.MIN_VALUE, Long.MAX_VALUE) shouldBe 25.0
+    }
+
+    @Test
+    fun sameRevisionRejectsInconsistentStoredPointValue(): Unit = runBlocking {
+        val effectKey = "steps-goal-v1:DAY:20000"
+        dao.applyGoalEffect(effectKey, 7L, 12_345L, 25_000_000L)
+        val corrupted = checkNotNull(dao.getRevisionedEffect(AwardSource.GOAL.value, effectKey))
+            .copy(value = Points(99.0))
+        dao.update(corrupted)
+
+        dao.applyGoalEffect(effectKey, 7L, 12_345L, 25_000_000L) shouldBe false
+        dao.getRevisionedEffect(AwardSource.GOAL.value, effectKey) shouldBe corrupted
+    }
+
+    @Test
     fun legacyGoalAwardsRemainIndependentWithoutEffectKeys(): Unit = runBlocking {
         repeat(2) {
             dao.insert(

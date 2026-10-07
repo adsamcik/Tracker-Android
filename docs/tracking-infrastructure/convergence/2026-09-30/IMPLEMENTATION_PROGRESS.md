@@ -643,3 +643,10 @@ list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS
   atomic successor-safe shell cleanup are authored. Fifty-seven methods NOT_RUN;
   `../2026-10-07/START_COORDINATION_REPAIR_SELECTED/SOURCE_REVIEW.md`. Full chains,
   real foreground/provider delivery, convergence and integration remain open.
+
+- [x] Select nine-path existing goal receipt/retraction consistency repair after
+  independent V2 source review and current Start-gate dependency recheck. Nineteen
+  actual Room/projector methods are NOT_RUN;
+  `../2026-10-07/POINTS_RETRACTION_SELECTED/SOURCE_REVIEW.md`. Zero-reward receipts,
+  legacy XP ownership and transactional all-day deletion repair are preserved.
+  Legacy SESSION rewards and dormant goal activation remain open.

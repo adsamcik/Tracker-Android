@@ -1,0 +1,133 @@
+{
+  "commit": "037eb7e9b2c4f902aec46d5a85f3c43a59172b72",
+  "inputs": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "694fe135558539f94821481708982dc3880f92f72476b54e418b2eeccb8c8971"
+    },
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidConventionPlugins.kt",
+      "sha256": "6530e14a5465d6023516b430b05e792a49b2cbc802c2b9455101272c17c36229"
+    },
+    {
+      "path": "domain/points/build.gradle.kts",
+      "sha256": "cebd51f47525e234ef9f05d2dc881a40e4e429da64dfed282a92b6d619aaf2cc"
+    },
+    {
+      "path": "domain/points/src/main/AndroidManifest.xml",
+      "sha256": "6dbf673c9f38bb6f1d4a798a226ac4c73c6fb7154754fa891016ba57ee272a01"
+    },
+    {
+      "path": "feature/game/build.gradle.kts",
+      "sha256": "92ffa73d3c38aa50ecccd463770b620d9c82fc47238b978622a3a09a46270eee"
+    },
+    {
+      "path": "feature/game/src/main/AndroidManifest.xml",
+      "sha256": "e13df4dac9a5acabfaa28ff4fd96e08274e52efd2590a47ecd23e21f59759e5e"
+    },
+    {
+      "path": "core/base/build.gradle.kts",
+      "sha256": "e7d9147951041300b0b6d4613ed6b7cfd2b2edfadcc6f98fb513a2038dd46ac3"
+    },
+    {
+      "path": "domain/points/src/main/java/com/adsamcik/tracker/points/data/PointsAwarded.kt",
+      "sha256": "d9d832c1810a4cac6eda5b97db517f10e31b9b57cacf9462788d0840cb44d8a7"
+    },
+    {
+      "path": "domain/points/src/main/java/com/adsamcik/tracker/points/data/Points.kt",
+      "sha256": "73a972b664f8a02c73f3456292af414bbab1f4135cc9edbd5368a602f27f188c"
+    },
+    {
+      "path": "domain/points/src/main/java/com/adsamcik/tracker/points/database/PointsDatabase.kt",
+      "sha256": "a1c6e910b7114b78d8e4bf95ec37a7befd041f4b715505dad76a40fb22162b25"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/BaseDao.kt",
+      "sha256": "21b0ce5e830d77465dacda2103448816410b1a989a75b060716c0bfc766072bc"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/XpLedgerEntity.kt",
+      "sha256": "e2b5ba3178ee0f62790fdaac3d4230bbb73c04fbbc0cbb9630ef41c1b75e2f94"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepsGoalEffectEntity.kt",
+      "sha256": "19c8a1de70a6b97e26dc06f67d339bacad47763fe8124afebb9fa09418930020"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/StepsGoalEffectDao.kt",
+      "sha256": "c137a23e68969a9fccb2fc70a4ea6ad1c886dad6dcf2c08d5567cb62ad1fb750"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/StepsGoalRepairQueue.kt",
+      "sha256": "3056bef5739dad4b8dece57ba7a172308f7fe3793a6796807e15cc2f24ac0ee8"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/StepsGoalRepairDayDao.kt",
+      "sha256": "8f7190a66ec6e3082a044a40dcfdc8696537a3bbe445b259e5e6871995261222"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceEvidenceStateDao.kt",
+      "sha256": "481e14a20745a0e8a2f68de3fa0d9d5d407b14e74288e799fe629541d65acc76"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceEvidenceState.kt",
+      "sha256": "46c82a487f55cc82270e30e49d4e30e59e6b2c0e3599b69337a60343f97c9327"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AchievementProgressDao.kt",
+      "sha256": "ab2d840cf11889836c310408ed8cae71fc2becf2bf6a2b1e89b14924a09f78d4"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AchievementProgressEntity.kt",
+      "sha256": "69961322cacd1b1c39fd2937fbfafabbcad0a0adc74d3c864be65b1c0b9f7d15"
+    },
+    {
+      "path": "core/common/src/main/java/com/adsamcik/tracker/shared/base/startup/TrackingStartupGate.kt",
+      "sha256": "43ce44c33ec912f4cded5d9d373e5fbe852d2eff039f77dfb7fd6d3cc991bcb6"
+    },
+    {
+      "path": "feature/game/src/main/java/com/adsamcik/tracker/game/goals/StepsGoalDecisionReconciler.kt",
+      "sha256": "0f1517e3b8ba0304668a2b2f9083bb8858740fac6fbe7ecd0abefb9aa86b73fe"
+    },
+    {
+      "path": "feature/game/src/main/java/com/adsamcik/tracker/game/goals/StepsGoalHistoricalReconciler.kt",
+      "sha256": "ca1e5c6ddb020d0404d3fe6d2b688c0fae1826ee21db477073365eb0c5c60d5c"
+    },
+    {
+      "path": "feature/game/src/main/java/com/adsamcik/tracker/game/goals/StepsGoalCoordinator.kt",
+      "sha256": "a00b38e2f7ef1792812f3b9e7d76ce07f948c7668efe7e74e2a04fae50775185"
+    },
+    {
+      "path": "feature/game/src/main/java/com/adsamcik/tracker/game/goals/StepsGoalNotificationDispatcher.kt",
+      "sha256": "32a9a7bca1b42940412d6d2ef53326892f847f464b082b688dfcc6249868ce8a"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/StepsRetentionTruncation.kt",
+      "sha256": "d7e9cb2a97bd439cea0aaf01ce1a0c041aed35884dcf089be09a6bcba503a868"
+    },
+    {
+      "path": "domain/points/src/main/java/com/adsamcik/tracker/points/work/PointsWorker.kt",
+      "sha256": "2ddd959c7bb79db277fc6cde05a529a552dda56e4004da7939044f252034b3d6"
+    },
+    {
+      "path": "domain/points/src/main/java/com/adsamcik/tracker/points/event/PointsDomainEventConsumer.kt",
+      "sha256": "aed1a8d68eae6c8e49546c7ec1ceb01d8a8e480c54b8982602bb4a20e13ae42e"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTripRepository.kt",
+      "sha256": "8ff48e41ad5887865000602d2157178ed0bbd3831b4cf5069fbe250dc94150cc"
+    },
+    {
+      "path": "feature/game/src/main/java/com/adsamcik/tracker/game/event/GameDomainEventConsumer.kt",
+      "sha256": "657f475041c1619f923efc7ceabbab163451e28199c1e26cbaa0f7549b94479d"
+    },
+    {
+      "path": "feature/game/src/main/java/com/adsamcik/tracker/game/progression/XpSource.kt",
+      "sha256": "90bc81b89610ed63e851b177a9ed38fd34fb6e89d2c961031d666f6d4ecd3ee6"
+    }
+  ]
+}

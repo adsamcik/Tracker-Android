@@ -444,6 +444,9 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 	check(sourceEvidenceStateDao().incrementRevision(deletedAtMs) == 1) {
 		"Unable to publish Ambient Steps source deletion"
 	}
+	// Re-evaluate existing goal periods under their stored calendar authority. The queue and
+	// deletion commit together; independently retained session/imported evidence may still qualify.
+	enqueueAllStepsGoalRepairs()
 	checkpoint(AmbientStepsMaintenanceCheckpoint.PAYLOAD_REMOVED)
 	AmbientStepsSourceDeletionResult.Deleted(latestUpserts.size, removedPayloads)
 }

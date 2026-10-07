@@ -1,0 +1,97 @@
+{
+  "base_commit": "037eb7e9b2c4f902aec46d5a85f3c43a59172b72",
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "test_execution": "NOT_RUN",
+  "review": "ACCEPTED_STATIC_ONLY",
+  "selection_patch_sha256": "77a8a3c6b5192947720d7aa43d6f6887df361b3ed752cefd754e586e76585b52",
+  "files": [
+    {
+      "path": "domain/points/src/main/java/com/adsamcik/tracker/points/database/PointsAwardedDao.kt",
+      "base_sha256": "167761b440facec7f483e2a2534663e3110924db965b0a98a599292c5c943817",
+      "selected_sha256": "bd98b1dbec1f3d513b676509d73627ef5a6da794b69d25e0c151ec8418366ea3",
+      "selected_bytes": 3648,
+      "working_before_sha256": "c789aebb897443b13363e39ecfe8d1edcafe9e06a1cf2057a03353c3f3dad678",
+      "working_before_matches_base_after_eol_normalization": true,
+      "working_after_sha256": "c789aebb897443b13363e39ecfe8d1edcafe9e06a1cf2057a03353c3f3dad678"
+    },
+    {
+      "path": "domain/points/src/test/java/com/adsamcik/tracker/points/database/PointsAwardedDaoTest.kt",
+      "base_sha256": "9e2748346ff0c4de956039833ac4dd5a317bac4408a5a9517e403bcbd388510b",
+      "selected_sha256": "1dbc7ec6b3195d96ce8b350a469315806e8ea18c283710c5c6291981a41e674d",
+      "selected_bytes": 6743,
+      "working_before_sha256": "2b75246e010cdf4af092914727516160eb0b018eb5f5f8748bb27edb4ffc8513",
+      "working_before_matches_base_after_eol_normalization": true,
+      "working_after_sha256": "2b75246e010cdf4af092914727516160eb0b018eb5f5f8748bb27edb4ffc8513"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/XpLedgerDao.kt",
+      "base_sha256": "c6658a0b971db64e3d4aa662b1c42d3d8c413c1ccb96b4f7f13927929b0c99d7",
+      "selected_sha256": "f600da6a7e28001ea582772b020a1178d3c4125d3fcd9cbb0e65eedd29af67c6",
+      "selected_bytes": 4675,
+      "working_before_sha256": "fbc2f21ce2c848b00093e3f71df59eec2c4809536afbd5583fa57edd7e63d4e9",
+      "working_before_matches_base_after_eol_normalization": true,
+      "working_after_sha256": "fbc2f21ce2c848b00093e3f71df59eec2c4809536afbd5583fa57edd7e63d4e9"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/XpLedgerDaoTest.kt",
+      "base_sha256": "702fb52f21d36293f2869432d50d76e2633f8be756a82d3fda1a27943440ef0a",
+      "selected_sha256": "b3597137c0b6d70e466fef54113df4d472f448913c4cd7d4d94b833605436b6e",
+      "selected_bytes": 4643,
+      "working_before_sha256": "9246244f705c0719814bcca34ee5ca71d85de9fe2867a28352a330ada97f4a00",
+      "working_before_matches_base_after_eol_normalization": true,
+      "working_after_sha256": "9246244f705c0719814bcca34ee5ca71d85de9fe2867a28352a330ada97f4a00"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AmbientStepsMaintenance.kt",
+      "base_sha256": "39fcc0a8a9d64df5818da79f277b8adf20d72185cde58693995dabd304a497c9",
+      "selected_sha256": "382b8e4577bab11d06aadc2b2fb96159e14536b6d35612c11d396d7135ffdf0e",
+      "selected_bytes": 43070,
+      "working_before_sha256": "1846af69008eb86259c36e0d939479e84ca553f4ff071f7fcce6ef946f3ad883",
+      "working_before_matches_base_after_eol_normalization": true,
+      "working_after_sha256": "1846af69008eb86259c36e0d939479e84ca553f4ff071f7fcce6ef946f3ad883"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/AmbientStepsMaintenanceTest.kt",
+      "base_sha256": "8a9c9eda2bd5c70a71abf5a0c81c6fe8eee22fbb5445128223765828d1489330",
+      "selected_sha256": "86ed7f6c95e392b543f1997e81a96b399d9cdc24891f9e4df7557c33fcad9584",
+      "selected_bytes": 37304,
+      "working_before_sha256": "622b6b1dfabf781663d1869a35536975625a86b57d791a834c24e712bc341f7a",
+      "working_before_matches_base_after_eol_normalization": true,
+      "working_after_sha256": "622b6b1dfabf781663d1869a35536975625a86b57d791a834c24e712bc341f7a"
+    },
+    {
+      "path": "feature/game/src/main/java/com/adsamcik/tracker/game/goals/StepsGoalRewardProjector.kt",
+      "base_sha256": "95a05896960c3e91e9c471559e43e824bd71b3814246de016baefe0c359058d6",
+      "selected_sha256": "94c3003c40dfac62148d6f6c3c041f2d1ad3f94da9046495c3a8b65f7f7e06de",
+      "selected_bytes": 5795,
+      "working_before_sha256": "a6f763826c22cb097e1ea5a72b3546a1c60983059dbb23d690f989fe4c20927c",
+      "working_before_matches_base_after_eol_normalization": true,
+      "working_after_sha256": "a6f763826c22cb097e1ea5a72b3546a1c60983059dbb23d690f989fe4c20927c"
+    },
+    {
+      "path": "feature/game/src/main/java/com/adsamcik/tracker/game/progression/PlayerProgressionRepository.kt",
+      "base_sha256": "bf8d823a26b039f8dabaa2abae656fc703ac37df9c5f23499955d9671104c021",
+      "selected_sha256": "9d9cd9797a8982b5636eb0d2532b9390e41a1dea053fae90c5ec344c0d3c60bd",
+      "selected_bytes": 9644,
+      "working_before_sha256": "412c0f0351a26103d1da722e447fee6e263e99ebee2a205ed0b2df811c92f97d",
+      "working_before_matches_base_after_eol_normalization": true,
+      "working_after_sha256": "412c0f0351a26103d1da722e447fee6e263e99ebee2a205ed0b2df811c92f97d"
+    },
+    {
+      "path": "feature/game/src/test/java/com/adsamcik/tracker/game/goals/StepsGoalRewardProjectorTest.kt",
+      "base_sha256": "ccbd3843e2491b38ad065049f787d5e3bcb33f6186fbfe5c56ddb23c51efe998",
+      "selected_sha256": "57c6b8f1ed8a2e92ffcfd2f6d1b25d2ea721a62048012abe497717ad0f243594",
+      "selected_bytes": 17935,
+      "working_before_sha256": "b32c6224ceb1cfd7b508f740509422d33e493e8b72af61ff55a8e973ea1171c0",
+      "working_before_matches_base_after_eol_normalization": true,
+      "working_after_sha256": "b32c6224ceb1cfd7b508f740509422d33e493e8b72af61ff55a8e973ea1171c0"
+    }
+  ],
+  "revision": 2,
+  "supersedes": {
+    "selection_patch_sha256": "f8a798468092def03169cb831aca8606aa0bf4ff770543d57665405be78565a6",
+    "files_sha256": "b4fd539966dfaced028101c45217428b4a8d7c0562f27596b04e5226c52766e8",
+    "preserved_at": "REVIEW_V1"
+  }
+}
