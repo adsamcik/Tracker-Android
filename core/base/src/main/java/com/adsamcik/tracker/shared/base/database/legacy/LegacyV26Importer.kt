@@ -409,10 +409,6 @@ class LegacyV26Importer(
 				"id", "start_time_ms", "end_time_ms", "distance_m", "steps", "primary_activity",
 				"activity_confidence", "sample_count", "source", "inference_version", "created_at",
 				"has_distance_anomaly",
-			), sourceExpressions = mapOf(
-				"primary_activity" to { columns ->
-					canonicalOrLegacy(columns, "primary_activity", "legacy_activity_id")
-				},
 			)),
 			TableCopySpec("daily_summary", listOf(
 				"date_epoch_day", "total_distance_m", "total_steps", "total_duration_ms",

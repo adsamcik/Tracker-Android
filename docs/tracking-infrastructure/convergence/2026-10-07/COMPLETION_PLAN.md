@@ -180,6 +180,12 @@ product or changing activation gates implicitly.
   released `main` schema-12 data, recoverable older details and unknown development
   databases. Candidate 27/28/29 were never released. Author populated migration/reopen
   and full-clear sources now; generate/check the final schema only in T26.
+  Released-data review found active recovery still omits original session-label
+  relationships, distance breakdowns, first-seen radio/coordinate metadata,
+  rejected sessions, count-only Wi-Fi rows and operator names. They survive in
+  the preserved original database. Concrete storage reuse remains proposed in
+  `RELEASED_DATA_RECOVERY_AUDIT/PRESERVATION_PROPOSAL.md`; no extra fields approved.
+
 
 - [ ] **T19 — Complete integration-scenario source.** Author missing provider-to-admission-
   fact-to-query-to-product/file-to-retirement cases for solo sources, supported purposes
@@ -392,6 +398,10 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
   ordered save queue. Two paths and three new ViewModel methods have independent
   source acceptance in `NOTIFICATION_DRAG_EXIT_SELECTED/SOURCE_REVIEW.md`; NOT_RUN.
   Existing recovery/accessibility cases preserved; full T17/device coverage open.
+- [x] Remove the legacy user-label fallback from detected Activity import; two
+  Room/import/TripDao cases and one corrected existing NULL expectation in
+  `LEGACY_ACTIVITY_DOMAIN_SELECTED/SOURCE_REVIEW.md` have exact V2 static acceptance,
+  NOT_RUN. Genuine detected Activity and original data remain intact; full T18 open.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

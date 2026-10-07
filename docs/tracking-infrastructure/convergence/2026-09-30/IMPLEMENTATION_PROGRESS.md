@@ -714,3 +714,13 @@ two Compose methods preserved. Independent static acceptance; NOT_RUN. No new
 UX/API/store/resources. `../2026-10-07/NOTIFICATION_DRAG_EXIT_SELECTED/SOURCE_REVIEW.md`.
 Full T17, pointer/Room/device evidence and all 25 complete chains remain OPEN.
 IMPLEMENTED_UNVALIDATED.
+
+### 2026-10-08 — Preserve legacy activity semantics
+
+Selected one importer mapping repair: original user label IDs no longer become
+detected Activity types. Canonical detected values remain unchanged. Two actual
+Room/import/TripDao source cases and a corrected existing NULL expectation have
+independent exact V2 acceptance; NOT_RUN. No schema/API/annotation additions.
+Original raw working copies preserved; clean source copies applied. Other old-data active recovery remains proposed
+and full T18 OPEN. `../2026-10-07/LEGACY_ACTIVITY_DOMAIN_SELECTED/SOURCE_REVIEW.md`.
+IMPLEMENTED_UNVALIDATED; no final assembly/gates/integration claim.

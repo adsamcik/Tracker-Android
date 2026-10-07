@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.base.database.legacy.LegacyV26DatabaseNormali
 import com.adsamcik.tracker.shared.base.database.legacy.hasCompletedLegacyImport
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayOutputStream
 import java.io.File
 import org.json.JSONObject
@@ -167,6 +168,57 @@ class LegacyV26ImportTest {
 	}
 
 	@Test
+	fun `released v12 custom label id is not a detected Activity type`(): Unit = runBlocking {
+		createReleasedV12Database()
+		editLegacy { original ->
+			original.execSQL("UPDATE activity SET name = 'My cycling label' WHERE id = 7")
+		}
+
+		val database = buildActive()
+		val active = database.openHelper.writableDatabase
+		hasCompletedLegacyImport(active) shouldBe true
+		val trip = requireNotNull(database.tripDao().getById(201))
+		trip.primaryActivity shouldBe null
+		trip.source shouldBe com.adsamcik.tracker.shared.model.SegmentSource.LEGACY_MIGRATION
+		trip.steps shouldBe 20
+		stringValue(active, "SELECT name FROM activity WHERE id = 7") shouldBe "My cycling label"
+		count(active, "logical_tracking_session") shouldBe 0L
+
+		SQLiteDatabase.openDatabase(context.getDatabasePath(LEGACY_DATABASE_NAME).path,
+			null, SQLiteDatabase.OPEN_READONLY).use { original ->
+			original.version shouldBe 12
+			original.rawQuery("SELECT session_activity_id FROM tracker_session WHERE id = 201", null).use { row ->
+				row.moveToFirst() shouldBe true
+				row.getLong(0) shouldBe 7L
+			}
+			androidStringValue(original, "SELECT name FROM activity WHERE id = 7") shouldBe "My cycling label"
+		}
+	}
+
+	@Test
+	fun `compatible v26 detected Activity survives a different session label id`(): Unit = runBlocking {
+		prepareReleasedV26 { source ->
+			seedV26EdgeRows(source)
+			source.execSQL("UPDATE session_segment SET primary_activity = 7, legacy_activity_id = 123 WHERE id = 9007")
+		}
+
+		val database = buildActive()
+		val active = database.openHelper.writableDatabase
+		hasCompletedLegacyImport(active) shouldBe true
+		val trip = requireNotNull(database.tripDao().getById(9007))
+		trip.primaryActivity shouldBe 7
+		trip.activityConfidence shouldBe 88
+		SQLiteDatabase.openDatabase(context.getDatabasePath(LEGACY_DATABASE_NAME).path,
+			null, SQLiteDatabase.OPEN_READONLY).use { original ->
+			original.rawQuery("SELECT primary_activity, legacy_activity_id FROM session_segment WHERE id = 9007", null).use { row ->
+				row.moveToFirst() shouldBe true
+				row.getInt(0) shouldBe 7
+				row.getLong(1) shouldBe 123L
+			}
+		}
+	}
+
+	@Test
 	fun `released v26 data imports into a fresh schema with canonical evidence identities`() {
 		prepareReleasedV26(::seedV26EdgeRows)
 
@@ -183,7 +235,8 @@ class LegacyV26ImportTest {
 		count(raw, "pressure_fact_retention_revision_authority") shouldBe 0L
 		count(raw, "pending_signal") shouldBe 0L
 		assertPendingPressureColumns(raw)
-		longValue(raw, "SELECT primary_activity FROM session_segment WHERE id = 9007") shouldBe 7L
+		longValue(raw, "SELECT COUNT(*) FROM session_segment WHERE id = 9007 " +
+			"AND primary_activity IS NULL") shouldBe 1L
 
 		raw.query(
 			"""

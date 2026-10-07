@@ -1,0 +1,29 @@
+{
+  "base_commit": "7da374b5f4c8a1706525991aafc2c884ebda5226",
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "test_execution": "NOT_RUN",
+  "review": "PENDING",
+  "selection_patch_sha256": "621d8fa9a47d348e4cb0aa379fdb807c80b3e053cde48ba1c2c45e96ab22e223",
+  "files": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/legacy/LegacyV26Importer.kt",
+      "base_sha256": "30b842fae000d30dd7007fcb2ac9ac0f928ce0465c12c2542ecdfd0150cf3fdb",
+      "selected_sha256": "a6baad56bf752924374ac38648cc064aa9ce464c40df686a554f3640d370201e",
+      "working_before_sha256": "986f9a510f3496df00a7b757e180b6e9584a03865607ab469e5fd8eb182c48ba",
+      "working_after_sha256": "986f9a510f3496df00a7b757e180b6e9584a03865607ab469e5fd8eb182c48ba",
+      "base_eol": "LF",
+      "selected_eol": "LF"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/LegacyV26ImportTest.kt",
+      "base_sha256": "2314619b651a3848ea45aab037b32cad835947fa0c1e0a2ac4a2ef092e48ac2b",
+      "selected_sha256": "128d28b0c145b2c6aa1580cefeebda2dd0f5f5292ce846af5b2e9d76aa81877d",
+      "working_before_sha256": "2314619b651a3848ea45aab037b32cad835947fa0c1e0a2ac4a2ef092e48ac2b",
+      "working_after_sha256": "2314619b651a3848ea45aab037b32cad835947fa0c1e0a2ac4a2ef092e48ac2b",
+      "base_eol": "LF",
+      "selected_eol": "LF"
+    }
+  ],
+  "revision": "V2 explicit Unit on new runBlocking JUnit4 methods; original authorship bytes preserved AUTHOR_V1"
+}
