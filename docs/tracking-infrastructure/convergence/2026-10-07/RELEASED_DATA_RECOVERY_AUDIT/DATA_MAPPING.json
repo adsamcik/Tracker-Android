@@ -1,0 +1,127 @@
+{
+  "phase": "REVIEW_ONLY",
+  "execution": "NOT_RUN",
+  "mapping": [
+    {
+      "main_table": "location_data",
+      "current_active": "location_sample plus activity_snapshot and location_observation",
+      "preserved": [
+        "id/time",
+        "E7 coordinates",
+        "altitude/accuracy/speed",
+        "Activity type/confidence in separate snapshot"
+      ],
+      "staging_only": [
+        "location_sample.legacy_lat",
+        "location_sample.legacy_lon",
+        "location_sample.legacy_alt_m"
+      ],
+      "effect": "Original double coordinates/altitude are not retained as separate raw values in the active model; canonical E7/Float presentation remains available."
+    },
+    {
+      "main_table": "tracker_session (valid bounds and collections > 1)",
+      "current_active": "session_segment",
+      "preserved": [
+        "id/start/end",
+        "total distance",
+        "Steps",
+        "collections as sample_count"
+      ],
+      "staging_only": [
+        "legacy_user_initiated",
+        "legacy_distance_on_foot_m",
+        "legacy_distance_in_vehicle_m",
+        "legacy_activity_id"
+      ],
+      "effect": "Activity label is currently substituted for detected Activity; correct-domain patch is separate. Original label relation and distance breakdown are absent from active representation."
+    },
+    {
+      "main_table": "tracker_session (start >= end or collections <= 1)",
+      "current_active": null,
+      "staging_only_table": "legacy_rejected_tracker_session",
+      "columns": [
+        "id",
+        "start",
+        "end",
+        "user_initiated",
+        "collections",
+        "distance",
+        "distance_on_foot",
+        "distance_in_vehicle",
+        "steps",
+        "session_activity_id"
+      ],
+      "effect": "No active row; original vault retains all data. No valid duration should be invented."
+    },
+    {
+      "main_table": "wifi_data",
+      "current_active": "wifi_observation plus legacy_wifi_child",
+      "preserved": [
+        "BSSID/SSID/capabilities/frequency/level",
+        "last_seen as time_ms",
+        "E7 coordinates"
+      ],
+      "staging_only": [
+        "legacy_first_seen_ms",
+        "legacy_alt_m",
+        "legacy_lat",
+        "legacy_lon"
+      ],
+      "effect": "Known first-seen time and original altitude/coordinate values stay only in source/staging; scan-duration/session purpose is not inferred."
+    },
+    {
+      "main_table": "cell_location",
+      "current_active": "cell_sample plus legacy_cell_child",
+      "preserved": [
+        "time/cell_id/type/ASU",
+        "numeric MCC/MNC",
+        "E7 coordinates"
+      ],
+      "staging_only": [
+        "legacy_source_id",
+        "legacy_mcc",
+        "legacy_mnc",
+        "legacy_alt_m",
+        "legacy_lat",
+        "legacy_lon"
+      ],
+      "effect": "Original Cell row ID, string code formatting (such as MNC 01), altitude and original coordinates are absent from active representation. ASU must remain ASU; unavailable LAC is not measured zero."
+    },
+    {
+      "main_table": "location_wifi_count",
+      "current_active": null,
+      "staging_only_table": "legacy_location_wifi_count",
+      "columns": [
+        "id",
+        "time",
+        "count",
+        "lat",
+        "lon",
+        "alt"
+      ],
+      "effect": "A real count observation exists independently of an AP list; target currently omits it."
+    },
+    {
+      "main_table": "network_operator",
+      "current_active": null,
+      "staging_only_table": "network_operator",
+      "columns": [
+        "mcc",
+        "mnc",
+        "name"
+      ],
+      "effect": "Explicitly skipped at the audit baseline. The existing NetworkOperator Parcelable class lacks its released Room Entity annotation and is not registered in AppDatabase. Operator names and original string keys stay in the vault; the proposal restores the annotation/import and registers the same class, with no duplicate DTO."
+    },
+    {
+      "main_table": "activity",
+      "current_active": "activity / SessionActivity",
+      "preserved": [
+        "id",
+        "name",
+        "iconName"
+      ],
+      "effect": "Definitions are copied; original session-to-label link is not copied into organization_annotation."
+    }
+  ],
+  "baseline_note": "Mapping describes historical candidate 7da374b5f4c8a1706525991aafc2c884ebda5226. The label-to-detected-Activity fallback was separately removed at 6c7dd22d737063ccf107f2c320312e59d8c361a8; missing active old metadata remains proposed, not implemented."
+}

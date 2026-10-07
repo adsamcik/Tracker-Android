@@ -277,6 +277,7 @@ when the concrete proposal is ready; do not reask settled decisions.
 | Optional two-second first-enable provider-status wait | T08, T17 | Presented bounded wait authorized; existing repair button remains usable. |
 | Saved network/tower rows in existing radio detail screens | T11, T14, T17 | Presented scrolling-list direction authorized; complete lazy-row implementation accepted; simpler authority-copy removal explicitly approved and independently accepted. |
 | Shared measured-observation list for Timeline and Calendar day | T14, T17 | Concrete screen and existing-reader extension proposed through the questions tool; pending. See `UNIFIED_HISTORY_PRESENTATION_PROPOSAL/SOURCE_TRACE_AND_PROPOSAL.md`. |
+| Recover original released data in current rows and older-record tables | T13, T18 | Exact V2 storage reuse proposal independently reviewed; new fields/tables/annotation backfill asked through the questions tool, pending. See `RELEASED_DATA_RECOVERY_AUDIT`. |
 | Durable background Location gap records | T07, T12 | Unanswered storage choice. |
 | New Activity/Pressure divergent-import conflict display | T14, T20 | Keep existing outcome until a concrete UI proposal is approved. |
 | Exact repeated Steps file membership for bundles | T21 | Review existing receipt semantics before proposing changes. |
@@ -412,6 +413,10 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
   ViewModel and Room edit: seven paths and seven authored methods in
   `IMPORTED_SESSION_LABEL_SELECTED/SOURCE_REVIEW.md` independently accepted, NOT_RUN.
   Name-only edits preserve labels; No label clears them without changing source data.
+- [x] Trace released schema-12 recovery and independently review the lean V2
+  preservation proposal in `RELEASED_DATA_RECOVERY_AUDIT/SOURCE_REVIEW.md`.
+  Eight released and forty-three historical candidate pins retained; known later
+  fixes recorded. New storage/backfill NOT_APPROVED and NOT_IMPLEMENTED.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

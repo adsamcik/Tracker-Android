@@ -1,0 +1,14 @@
+{
+  "phase": "REVIEW_ONLY",
+  "execution": "NOT_RUN",
+  "revision": "V2_PROPOSED_NOT_APPROVED",
+  "historical_candidate_commit": "7da374b5f4c8a1706525991aafc2c884ebda5226",
+  "separately_selected_routine_fix": "6c7dd22d737063ccf107f2c320312e59d8c361a8",
+  "files": {
+    "CUSTOM_LABEL_COLLISION_SOURCE.sql": "d59895f9480154992e09d6865350e32c5bc2217fdab2eea98a973661316bd7e8",
+    "DATA_MAPPING.json": "e53d62478149766526a49afdab4cfdcd5301a755a78eac9350bbfe91c804fc52",
+    "PINS.json": "3e1c471d918af29a001cf10b715d13f09741b5ecbd6da88f8320e4795d8c101b",
+    "PRESERVATION_PROPOSAL.md": "f4a25a1fec81397bdf24f9d699d06d5b29e375852bdf15394d5687bf5290b81f",
+    "README.md": "232a20b08f060bad2aa0b18664ba9142e305608e0d196b8310646a1667ab7e48"
+  }
+}

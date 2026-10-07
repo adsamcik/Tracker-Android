@@ -1,0 +1,26 @@
+{
+  "historical_candidate": "7da374b5f4c8a1706525991aafc2c884ebda5226",
+  "current_candidate": "068dbb44f9929ed93ea4a34b4aef75b4221e2202",
+  "phase": "IMPLEMENTATION_ONLY",
+  "source_changed_by_reviewed_commits": [
+    "6c7dd22d737063ccf107f2c320312e59d8c361a8",
+    "068dbb44f9929ed93ea4a34b4aef75b4221e2202"
+  ],
+  "paths": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/legacy/LegacyV26Importer.kt",
+      "historical_sha256": "30b842fae000d30dd7007fcb2ac9ac0f928ce0465c12c2542ecdfd0150cf3fdb",
+      "current_sha256": "a6baad56bf752924374ac38648cc064aa9ce464c40df686a554f3640d370201e"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/LegacyV26ImportTest.kt",
+      "historical_sha256": "2314619b651a3848ea45aab037b32cad835947fa0c1e0a2ac4a2ef092e48ac2b",
+      "current_sha256": "128d28b0c145b2c6aa1580cefeebda2dd0f5f5292ce846af5b2e9d76aa81877d"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomSessionOrganizationRepository.kt",
+      "historical_sha256": "70d29b5e9bcd6eaa73e40a4832cf5d08e3714b1397aac50141ecb99e5831b629",
+      "current_sha256": "3fbfeed73340a56641479c55f501f02a397220b09631f16be2d9c2617aaed425"
+    }
+  ]
+}

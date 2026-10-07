@@ -735,3 +735,14 @@ retained, one invalid Steps fixture prefix repaired. See
 `../2026-10-07/IMPORTED_SESSION_LABEL_SELECTED/SOURCE_REVIEW.md`. Session contents
 navigation, retrospective radio membership and imported archive membership remain
 open in its T13 audit. IMPLEMENTED_UNVALIDATED; full assembly/gates remain open.
+
+### 2026-10-08 — Released-data preservation proposal
+
+Recorded exact main12/historical candidate audit and V2 independent design review
+for original values and old-record storage, reusing current annotations/import
+transactions. Three wording/design findings repaired; no extra pruning engine.
+Question tool now asks the new storage choice. NOT_APPROVED/NOT_IMPLEMENTED;
+no schema/backfill/provider or backup change selected. Historical source and
+subsequent reviewed code fixes have explicit pins. See
+`../2026-10-07/RELEASED_DATA_RECOVERY_AUDIT/SOURCE_REVIEW.md`. Full T18/assembly
+stay OPEN; tests NOT_RUN, no gates/integration.
