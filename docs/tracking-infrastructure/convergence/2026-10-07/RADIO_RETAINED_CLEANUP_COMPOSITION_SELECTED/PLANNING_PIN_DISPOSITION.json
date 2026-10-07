@@ -1,0 +1,11 @@
+{
+  "base_planning_pins": [
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-07/COMPLETION_PLAN.md",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "4011f279edd6a97df83280cbccf0ca8e9b94fc8ebd6f960ac7ada9a8262db762"
+    }
+  ],
+  "reason": "Historical plan was read at authoring base; later automatic-step progress is documentation only. It is preserved in DEPENDENCY_BASE and is not a current production-source dependency. All 38 source pins remain the same.",
+  "review_revision": "V2"
+}

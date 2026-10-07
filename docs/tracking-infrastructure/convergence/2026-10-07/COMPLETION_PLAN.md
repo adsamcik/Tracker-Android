@@ -383,6 +383,11 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
   ingress/native fact projection and End/Off in
   `AUTOMATIC_CAPTURE_CHAIN_SELECTED/SOURCE_REVIEW.md`; V2 bounded-await repair
   independently accepted, NOT_RUN. Platform/Ready boundaries remain fixtures.
+- [x] Repair background radio child-before-parent cleanup using existing exact
+  DAO methods and select eight actual retained Room cleanup/history methods:
+  `RADIO_CHILD_MAINTENANCE_SELECTED/SOURCE_REVIEW.md` and
+  `RADIO_RETAINED_CLEANUP_COMPOSITION_SELECTED/SOURCE_REVIEW.md`. V2 source accepted,
+  NOT_RUN. Source-only helper UX wiring, captured/imported siblings and full T11 open.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

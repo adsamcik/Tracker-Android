@@ -1,0 +1,195 @@
+{
+  "base_commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+  "paths": [
+    {
+      "path": "settings.gradle.kts",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "a276144c34315be81b125df52eb7611f08e92a7629abb3d1f3587a3e92a93f24"
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c"
+    },
+    {
+      "path": "core/base/build.gradle.kts",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "e7d9147951041300b0b6d4613ed6b7cfd2b2edfadcc6f98fb513a2038dd46ac3"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidConventionPlugins.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "6530e14a5465d6023516b430b05e792a49b2cbc802c2b9455101272c17c36229"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidFeatureConventionPlugins.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "e2df2278893f6fc1b47d6b51c15095e1e5638d2185ec35290fab465771772567"
+    },
+    {
+      "path": "tracker/engine/src/main/AndroidManifest.xml",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "03539ecdd919df33156ef5a6a2be5f605c17ba49868a2982fba11613f9b5cbef"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "c6f44d42e063aaddf1b55aff3c850c4c14ab7cb26ae39bef6d25af4ee59d0d49"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AmbientWifiMaintenance.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "87fa86b46a3325e0eaf37d5e99e05fc14448d8bb1266cb317598e5e7f4da4939"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AmbientCellMaintenance.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "0690055a941687b9e877b5a80690154679b45f5e7e0db0f3cf4f3aba668562a3"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SourceBrokerAuthorizationTransactions.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "1419612c58b8edd36014f7083bb4d6cb536f6a8a377b7acdac51667e09a79020"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "05ed64e1be3fbcc9b274fa025be2e564fc9925f0e16007acd4a1e101342da2b2"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientWifiFactDao.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "241e698b3788457663bd66940a218b48409b0aa8c44735d8674c8eb4d8ec6c05"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientCellFactDao.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "73be717deba220c66e16cf5771b2dbf31bb564ffa553459a4c5af73a08b07d2c"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/RadioObservationChildDao.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "d8ee527389d7f5b6011c6a617c51a213b7f64f6cd580613f621b7a35b6dca779"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceBrokerDao.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "b3c20c97cc577d2206fbb4027489e4e0a1817b5a69af654cc7ff71ab92365935"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RadioObservationChildren.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "7e06faf1bc9c38b636fd8021433284912780b7bdd9259422b02d88898a9cde40"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RadioObservationChildIntegrity.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "1b2fe2d97c2635a251215807516417801c9ea5df85b73b9676ef7baad2e3cd15"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientWifiFacts.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "b13f0707196c670db1400e44e803b28987231be54de33febb54cf5569c01dede"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientCellFacts.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "b2ef9c5ed1a20dcaeb641e2e9a0a675da4e79c9c69f2b73cd11eded843f5d304"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientWifiAuthority.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "135c46cb4651b43a9e92c123ee8dae39460ebea8ee1f2e1500b17035bdd11788"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientCellAuthority.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "90a96e2ee6258920ddad40aa466f8846892f4ec84ed02e097f651065bf46a8de"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceBrokerEntities.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "752d4b90d523ef1543d3032b31da63e0aa2943a13462b6b79fa40f28930b7fe0"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "495f31cdcce065e7dd360b70eb657d4a3b0e88e8011a205c6ec6c3980c87f049"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "3e8af12b657c0481458018472e958132e5126c817436b65279a78226afc3e270"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioReader.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "74cfe88966e3675753bdee73373ce7f6265e4f891a389d318914e66eb4cb1107"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioAuthority.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "f57ce97d9ce31017edce9eca2a5538e7142aab447f939bf527e58dd8a4f38e72"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomRadioLocationContextRepository.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "e10babf06994ccbdae5e78583ac5d1548fc540a39107bc356c7f726e58c7f017"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "8dce5b699e98701f166267a3ae00b095a3b169aaaad0ecbf72f65ad415149a71"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/RadioLocationContextRepository.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "d53f44bd4b3eb1249ddea713c1de62022170da8b6d71079935b8df8932bc36de"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AmbientWifiRepository.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "57ea51d644a14bb8580124486a21e2d1a1d08a83e901ba61c955f14cc5a64157"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AmbientCellRepository.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "329d595032de24183865fdbce6b23c263603eeb7a6ddd56a75456e59ce7853e4"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/wifi/AmbientWifiFactProjector.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "765e7ed930764dce7114d5603535d0d41aacaad1125ac866948f2e5af34d9a7b"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/cell/AmbientCellFactProjector.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "a7a740e40fb743fd036f647722cf9240628320238fc11aa945c88434c57b9953"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceIngress.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "2d4c86ec144d7cf5ea9b0b05ed3cb9ddb6f530ca2001e9fd98fc161964618775"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/WifiDurableSourceIngressTest.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "ea851684a6ec6112558c624ffa042c6031c894d42c3e16e2c4423301e67c94d5"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/CellDurableSourceIngressTest.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "215ec1b0f4c2b15db1dbad20f0f7bf183bd5eb1d0eedc2e21f3738accbe037d0"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/AmbientRadioAuthorityRoomTest.kt",
+      "commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+      "sha256": "4ca33c7a3fec90a4106466737a658ef0dedbea9f08c830e0be6e24acff3bec4c"
+    }
+  ]
+}

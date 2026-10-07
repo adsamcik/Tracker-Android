@@ -1,0 +1,43 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "test_execution": "NOT_RUN",
+  "selection_parent": "bf52dc1145168a9de3bb3a68a03df611ac832d48",
+  "source_files": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AmbientWifiMaintenance.kt",
+      "base_sha256": "87fa86b46a3325e0eaf37d5e99e05fc14448d8bb1266cb317598e5e7f4da4939",
+      "selected_sha256": "d9cb856e7c51dff3283b5cc87b98a8c13c106a9b9fa6b671a3415750c611f05a",
+      "selected_bytes": 32694,
+      "working_before_sha256": "eb086d6dc61fe03b210d26ab106071c20b40f5d7e8506c72f8907ebad8740981",
+      "disposition": "Select existing child-before-parent deletion using existing DAO methods; preserve full mixed working draft."
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AmbientCellMaintenance.kt",
+      "base_sha256": "0690055a941687b9e877b5a80690154679b45f5e7e0db0f3cf4f3aba668562a3",
+      "selected_sha256": "431c0e2a842f78983f6e88eac4f11ad1291814ec7860a72b2ccb0ab3a516685e",
+      "selected_bytes": 32707,
+      "working_before_sha256": "44e1de1e0d7c6068811921caccdb06568189d972b4ad9c12f754e383f5f0c994",
+      "disposition": "Select existing child-before-parent deletion using existing DAO methods; preserve full mixed working draft."
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "base_sha256": "efab1c68ac3f4570d66abea5bf30f47f594ef00c580450d7c5f35827b55ee775",
+      "selected_sha256": "7c95095be60bb7ba211673f9f314b8791e227736eae1b3ad14150a3c8f14a64b",
+      "working_before_sha256": "314e6688c17322220b9f6faf16dc6fc642157e0ab13be7d347663ae08e054557",
+      "disposition": "clean committed base plus eight authored Room methods and focused shared fixtures; unrelated live test additions preserved"
+    }
+  ],
+  "review": "Combined V2 source acceptance by independent reviewer",
+  "production_pins": 9,
+  "test_source_pins": 38,
+  "dependency_drift": [],
+  "working_applied": [],
+  "working_preserved": [
+    "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AmbientWifiMaintenance.kt",
+    "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AmbientCellMaintenance.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt"
+  ],
+  "authored_test_methods": 8,
+  "preservation": "Mixed maintenance and test drafts unchanged; exact selected bytes staged separately. Historical plan-only pin disposition retained."
+}

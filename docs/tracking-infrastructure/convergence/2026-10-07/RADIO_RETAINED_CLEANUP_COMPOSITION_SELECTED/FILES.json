@@ -1,0 +1,15 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "base_commit": "06dbc3a3aa66d7a10782ad24a7198cdf368a10f0",
+  "paths": [
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "base_sha256": "efab1c68ac3f4570d66abea5bf30f47f594ef00c580450d7c5f35827b55ee775",
+      "selected_sha256": "7c95095be60bb7ba211673f9f314b8791e227736eae1b3ad14150a3c8f14a64b",
+      "working_before_sha256": "314e6688c17322220b9f6faf16dc6fc642157e0ab13be7d347663ae08e054557",
+      "disposition": "clean committed base plus eight authored Room methods and focused shared fixtures; unrelated live test additions preserved"
+    }
+  ],
+  "review_revision": "V2: fixture observation/child shifts are +700 ms; original V1 preserved"
+}

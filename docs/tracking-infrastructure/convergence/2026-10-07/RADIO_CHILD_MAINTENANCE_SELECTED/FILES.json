@@ -1,0 +1,26 @@
+{
+  "base_commit": "2d979ea9850158529614bf8fd03f505a7ae91e9c",
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "review": "PENDING",
+  "test_execution": "NOT_RUN",
+  "paths": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AmbientWifiMaintenance.kt",
+      "base_sha256": "87fa86b46a3325e0eaf37d5e99e05fc14448d8bb1266cb317598e5e7f4da4939",
+      "selected_sha256": "d9cb856e7c51dff3283b5cc87b98a8c13c106a9b9fa6b671a3415750c611f05a",
+      "selected_bytes": 32694,
+      "working_before_sha256": "eb086d6dc61fe03b210d26ab106071c20b40f5d7e8506c72f8907ebad8740981",
+      "disposition": "Select existing child-before-parent deletion using existing DAO methods; preserve full mixed working draft."
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AmbientCellMaintenance.kt",
+      "base_sha256": "0690055a941687b9e877b5a80690154679b45f5e7e0db0f3cf4f3aba668562a3",
+      "selected_sha256": "431c0e2a842f78983f6e88eac4f11ad1291814ec7860a72b2ccb0ab3a516685e",
+      "selected_bytes": 32707,
+      "working_before_sha256": "44e1de1e0d7c6068811921caccdb06568189d972b4ad9c12f754e383f5f0c994",
+      "disposition": "Select existing child-before-parent deletion using existing DAO methods; preserve full mixed working draft."
+    }
+  ],
+  "selection_patch_sha256": "e48be9408efa134e94a78bf24427223b1ff92835b540bbe667919fdffbe4f3d4"
+}

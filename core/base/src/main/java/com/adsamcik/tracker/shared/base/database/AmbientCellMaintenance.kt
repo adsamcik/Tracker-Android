@@ -213,6 +213,10 @@ suspend fun AppDatabase.pruneAmbientCell(
 		)
 	}
 	localIds.chunked(SQLITE_ID_CHUNK_SIZE).forEach { ids ->
+		ids.forEach { id -> radioObservationChildDao().deleteCellBackgroundFact(
+			AmbientCellFactRevisionEntity.WRITER_ID,
+			AmbientCellFactRevisionEntity.WRITER_VERSION, id,
+		) }
 		dao.deleteLocalCursors(ids)
 		dao.deleteLocalFacts(ids)
 	}
@@ -409,6 +413,7 @@ suspend fun AppDatabase.deleteAmbientCellAfterConsentReset(
 		deletedAtMs,
 	))
 	dao.installCellArchiveTombstones(scope.archiveIds, expectedCollectedDataEpoch, generation, deletedAtMs)
+	radioObservationChildDao().deleteAllCellBackground()
 	dao.deleteWholeCellPayload(scope.archiveIds)
 	check(sourceEvidenceStateDao().incrementRevision(deletedAtMs) == 1)
 	AmbientCellDeletionResult.Deleted(
@@ -478,6 +483,7 @@ suspend fun AppDatabase.clearAmbientCellProductPreservingReplayFootprints(
 		clearedAtMs,
 	))
 	dao.installCellArchiveTombstones(scope.archiveIds, expectedCollectedDataEpoch, generation, clearedAtMs)
+	radioObservationChildDao().deleteAllCellBackground()
 	dao.deleteWholeCellPayload(scope.archiveIds)
 	dao.deleteAllAuthorities()
 	dao.deleteAllRetentionAuthorities()

@@ -213,6 +213,10 @@ suspend fun AppDatabase.pruneAmbientWifi(
 		)
 	}
 	localIds.chunked(SQLITE_ID_CHUNK_SIZE).forEach { ids ->
+		ids.forEach { id -> radioObservationChildDao().deleteWifiBackgroundFact(
+			AmbientWifiFactRevisionEntity.WRITER_ID,
+			AmbientWifiFactRevisionEntity.WRITER_VERSION, id,
+		) }
 		dao.deleteLocalCursors(ids)
 		dao.deleteLocalFacts(ids)
 	}
@@ -409,6 +413,7 @@ suspend fun AppDatabase.deleteAmbientWifiAfterConsentReset(
 		deletedAtMs,
 	))
 	dao.installWifiArchiveTombstones(scope.archiveIds, expectedCollectedDataEpoch, generation, deletedAtMs)
+	radioObservationChildDao().deleteAllWifiBackground()
 	dao.deleteWholeWifiPayload(scope.archiveIds)
 	check(sourceEvidenceStateDao().incrementRevision(deletedAtMs) == 1)
 	AmbientWifiDeletionResult.Deleted(
@@ -478,6 +483,7 @@ suspend fun AppDatabase.clearAmbientWifiProductPreservingReplayFootprints(
 		clearedAtMs,
 	))
 	dao.installWifiArchiveTombstones(scope.archiveIds, expectedCollectedDataEpoch, generation, clearedAtMs)
+	radioObservationChildDao().deleteAllWifiBackground()
 	dao.deleteWholeWifiPayload(scope.archiveIds)
 	dao.deleteAllAuthorities()
 	dao.deleteAllRetentionAuthorities()

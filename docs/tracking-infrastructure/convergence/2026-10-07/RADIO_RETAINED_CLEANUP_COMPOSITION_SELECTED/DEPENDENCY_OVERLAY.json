@@ -1,0 +1,16 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "not_committed_or_executed": true,
+  "paths": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AmbientWifiMaintenance.kt",
+      "packet": "RADIO_CHILD_MAINTENANCE_SELECTED",
+      "sha256": "d9cb856e7c51dff3283b5cc87b98a8c13c106a9b9fa6b671a3415750c611f05a"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AmbientCellMaintenance.kt",
+      "packet": "RADIO_CHILD_MAINTENANCE_SELECTED",
+      "sha256": "431c0e2a842f78983f6e88eac4f11ad1291814ec7860a72b2ccb0ab3a516685e"
+    }
+  ]
+}

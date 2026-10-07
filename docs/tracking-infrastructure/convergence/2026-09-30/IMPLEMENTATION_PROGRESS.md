@@ -691,3 +691,15 @@ foreground promotion, Activity registration/Ready publication, startup readiness
 and hardware callbacks remain fixtures. No full Off owner closure or device proof.
 `../2026-10-07/AUTOMATIC_CAPTURE_CHAIN_SELECTED/SOURCE_REVIEW.md`; NOT_RUN,
 IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites remain OPEN.
+
+### 2026-10-08 — Background radio detail cleanup
+
+Selected existing child-before-parent deletes in source-specific Wi-Fi/Cell
+consent-reset/ordinary clear and retention transactions; no new API/schema/store.
+Eight actual retained Room methods cover exact newer/sibling survival, refusal
+and outer clear. Fresh V2 review repaired only a survivor fixture at the retention
+boundary. All methods NOT_RUN. Prune has a production caller; consent-reset and
+ordinary source-clear helper UX wiring, captured/imported siblings, complete
+ingress-to-reader and Android lifecycle remain OPEN. Mixed source/test drafts
+preserved. See `../2026-10-07/RADIO_CHILD_MAINTENANCE_SELECTED/SOURCE_REVIEW.md`.
+IMPLEMENTED_UNVALIDATED; all 25 full-chain prerequisites remain OPEN.
