@@ -365,6 +365,10 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
   Imported labels in forty existing locales, updated production callers and six
   new/updated Compose methods in `RADIO_DETAILS_POLISH_SELECTED/SOURCE_REVIEW.md`;
   NOT_RUN. Saved readings and coverage remain intact; full T17 stays open.
+- [x] Connect the approved Steps recording lifetime to native retained session
+  history, preserving legacy boundaries and preparing bounds once per run. Four
+  paths and eight authored methods in `STEPS_RETAINED_LIFETIME_SELECTED/SOURCE_REVIEW.md`
+  have independent V2 static acceptance; NOT_RUN. Runtime/portable composition open.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

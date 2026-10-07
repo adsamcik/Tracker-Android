@@ -2469,6 +2469,96 @@ class StepsSegmentHistorySelectorTest {
 	}
 
 	@Test
+	fun markedStepsKeepTheirExactCountAcrossQualityAndOtherSourceChanges() = runTest {
+		insertRecordingLifetimeFixture(marked = true)
+		val result = selector.select(segment(RUN_ONE, steps = null, sampleCount = 0, endTimeMs = 4_000L))
+		result.count shouldBe 9L
+		result.materialization shouldBe StepsHistoryMaterialization.READY
+		result.coverage shouldBe StepsHistoryCoverage.COMPLETE
+		val id = database.sessionSegmentDao().insert(
+			segment(RUN_ONE, steps = null, sampleCount = 0, endTimeMs = 4_000L),
+		)
+		val history = historyRepository().observeSession(id).first() as SessionHistoryQuery.Found
+		history.history.steps.count shouldBe 9L
+		history.history.steps.productState shouldBe HistoryProductState.READY
+	}
+
+	@Test
+	fun legacyStepsStillCannotCrossTheNextGlobalManifest() = runTest {
+		insertRecordingLifetimeFixture(marked = false)
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0, endTimeMs = 4_000L)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	@Test
+	fun markedStepsCannotCrossAnActualRecordingBoundary() = runTest {
+		insertRecordingLifetimeFixture(marked = true, lastOrigin = 3L)
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0, endTimeMs = 4_000L)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	@Test
+	fun missingMiddleStepsBindingCannotReviveMarkedRecording() = runTest {
+		insertRecordingLifetimeFixture(marked = true, missingMiddleSteps = true)
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0, endTimeMs = 4_000L)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	@Test
+	fun newRecordingBoundaryAcceptsOnlyItsOwnAttributedSteps() = runTest {
+		insertRecordingLifetimeFixture(marked = true, lastOrigin = 3L, factOrigin = 3L)
+		val result = selector.select(segment(RUN_ONE, steps = null, sampleCount = 0, endTimeMs = 4_000L))
+		result.count shouldBe 9L
+		result.materialization shouldBe StepsHistoryMaterialization.READY
+	}
+
+	@Test
+	fun changedStepsConsentCannotCarryAnOldRecordingOrigin() = runTest {
+		insertRecordingLifetimeFixture(marked = true, lastConsent = 2L)
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0, endTimeMs = 4_000L)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	private suspend fun insertRecordingLifetimeFixture(
+		marked: Boolean,
+		lastOrigin: Long = 1L,
+		factOrigin: Long = 1L,
+		missingMiddleSteps: Boolean = false,
+		lastConsent: Long = 1L,
+	) {
+		insertRun(RUN_ONE)
+		insertManifest(RUN_ONE, revision = 1L, owner = CANDIDATE_OWNER,
+			stepsRecordingManifestRevision = 1L.takeIf { marked })
+		if (missingMiddleSteps) {
+			insertManifestWithoutSteps(RUN_ONE, revision = 2L)
+		} else {
+			insertManifest(RUN_ONE, revision = 2L, owner = CANDIDATE_OWNER,
+				stepsRecordingManifestRevision = 1L.takeIf { marked }, stepsQos = 2)
+		}
+		insertManifest(RUN_ONE, revision = 3L, owner = CANDIDATE_OWNER,
+			stepsRecordingManifestRevision = lastOrigin.takeIf { marked }, stepsQos = 3,
+			stepsConsent = lastConsent, additionalSources = listOf(
+				sourceMembership(3L, TrackingSourceComponent.ACTIVITY, SessionManifestPurposeCode.CONTROL),
+			))
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 1L))
+		database.sourceSessionDao().saveCompleteness(completeness(RUN_ONE, lastOrdinal = 1L))
+		val startElapsed = factOrigin * TEST_MANIFEST_ELAPSED_STRIDE + 1L
+		val endElapsed = 35_000_000L
+		val endMs = 3_500L
+		val value = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 9L).copy(
+			manifestRevision = factOrigin,
+			sourcePolicyRevision = factOrigin,
+			captureConsentEpoch = if (factOrigin == 3L) lastConsent else 1L,
+			intervalStartElapsedRealtimeNanos = startElapsed,
+			intervalEndElapsedRealtimeNanos = endElapsed,
+			intervalStartTimeMs = endMs - (endElapsed - startElapsed) / 1_000_000L,
+			intervalEndTimeMs = endMs,
+			appliedAtMs = endMs,
+		).withValidLiveWalEffectChecksum()
+		insertAuthenticatedFact(value)
+	}
+
+	@Test
 	fun revisionedCaptureKeepsWholeRunStepsAndExcludesControlFromCapture() = runTest {
 		insertCandidateRun(
 			runId = RUN_ONE,
@@ -4039,6 +4129,9 @@ class StepsSegmentHistorySelectorTest {
 		effectiveElapsedRealtimeNanos: Long? = null,
 		effectiveWallTimeMs: Long? = null,
 		synchronizeRunTimeline: Boolean = true,
+		stepsRecordingManifestRevision: Long? = null,
+		stepsQos: Int = 1,
+		stepsConsent: Long = 1L,
 	) {
 		val candidate = owner == CANDIDATE_OWNER
 		val source = SessionManifestSourceEntity(
@@ -4046,15 +4139,16 @@ class StepsSegmentHistorySelectorTest {
 			manifestRevision = revision,
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 			purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
-			consentEpoch = 1L,
+			consentEpoch = stepsConsent,
 			persistenceEligible = true,
-			qosCode = 1,
+			qosCode = stepsQos,
 			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
 			writerOwner = owner,
 			writerOwnerGeneration = if (candidate) 2L else 1L,
 			writerProjectionId = WRITER_ID.takeIf { candidate },
 			writerProjectionVersion = WRITER_VERSION.takeIf { candidate },
 			writerBindingGeneration = writerBindingGeneration.takeIf { candidate },
+			stepsRecordingManifestRevision = stepsRecordingManifestRevision,
 		)
 		val sources = listOf(source) + additionalSources
 		insertExactManifest(

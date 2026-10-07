@@ -1,0 +1,14 @@
+{
+  "execution": "NOT_RUN",
+  "new_test_methods": 8,
+  "cases": [
+    "markedStepsKeepTheirExactCountAcrossQualityAndOtherSourceChanges",
+    "legacyStepsStillCannotCrossTheNextGlobalManifest",
+    "markedStepsCannotCrossAnActualRecordingBoundary",
+    "missingMiddleStepsBindingCannotReviveMarkedRecording",
+    "newRecordingBoundaryAcceptsOnlyItsOwnAttributedSteps",
+    "changedStepsConsentCannotCarryAnOldRecordingOrigin",
+    "prepared bounds preserve legacy cutoff continued origin and real restart",
+    "invalid origin and equal-time replacement never expose prior interval"
+  ]
+}

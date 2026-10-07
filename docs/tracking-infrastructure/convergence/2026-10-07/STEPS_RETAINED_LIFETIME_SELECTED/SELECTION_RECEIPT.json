@@ -1,0 +1,36 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "test_execution": "NOT_RUN",
+  "selected_at_commit": "5b1e5fce52902b08192af4ff18b20fe147744a3e",
+  "reviewed_files_sha256": "d6b8381d92de82674e44d3603cf4809e6d0f55fc0b9009f9c934659484f6da5d",
+  "review": "ACCEPTED_STATIC_ONLY",
+  "new_methods": 8,
+  "dependency_pins_current": 15,
+  "files": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelector.kt",
+      "before_sha256": "1e885569d9b73dc0332c7067e8f26469452ce351c2a695d1d620828fe5442816",
+      "after_sha256": "7fb30b9b160167119873e86c96ccbf3c2c9ff797d0d38386752c9599e6e6e281",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt",
+      "before_sha256": "8fe03f3d3a2163d24a5c714071b821559f57b380fbd64e15f8e0e1239633bf9b",
+      "after_sha256": "7c7ce19afbb06686ff7920eb39193b954bedee1281b536ed798f7cf1a94b3208",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepsRecordingLifetime.kt",
+      "before_sha256": "534388053a7e663ab0d41adee7d1ff4306566ea6360ddb2f84d77edf8d2b7015",
+      "after_sha256": "af6cde1399b9603e60eab8f1b87feef19a81a98b3613919ee52c932855db39b6",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/StepsRecordingLifetimeTest.kt",
+      "before_sha256": "967f3445b547f167fd9f891f1629cc4fd98691355240f14359eba3d7269d64c7",
+      "after_sha256": "cda84522b37e4d63b0d5e80250b6f0814b5eec0b533108324f050a7c3e636fe5",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    }
+  ]
+}

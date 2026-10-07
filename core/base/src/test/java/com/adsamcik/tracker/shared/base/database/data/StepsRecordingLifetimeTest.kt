@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.shared.base.database.data
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -51,6 +53,34 @@ class StepsRecordingLifetimeTest {
 				writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
 				writerBindingGeneration = 1,
 			)))
+	}
+
+	@Test fun `prepared bounds preserve legacy cutoff continued origin and real restart`() {
+		val manifests = listOf(manifest(1, 100), manifest(2, 105), manifest(3, 108),
+			manifest(4, 120), manifest(5, 125), manifest(6, 140))
+		val bindings = mapOf(1L to binding(1, null), 2L to binding(2, 2),
+			3L to binding(3, 2, qos = 2), 5L to binding(5, 5), 6L to binding(6, 5, qos = 3))
+		val intervals = requireNotNull(StepsRecordingLifetime.validatedIntervals(manifests, bindings))
+		assertEquals(mapOf(1L to 100L..104L, 2L to 105L..119L, 5L to 125L..Long.MAX_VALUE), intervals)
+		assertFalse(intervals.containsKey(3L))
+		assertFalse(intervals.containsKey(4L))
+		assertTrue(StepsRecordingLifetime.containsInterval(2, 105, 119, manifests, bindings))
+		assertFalse(StepsRecordingLifetime.containsInterval(2, 105, 120, manifests, bindings))
+		assertFalse(StepsRecordingLifetime.containsInterval(3, 108, 119, manifests, bindings))
+		assertTrue(StepsRecordingLifetime.containsInterval(5, 125, Long.MAX_VALUE, manifests, bindings))
+	}
+
+	@Test fun `invalid origin and equal-time replacement never expose prior interval`() {
+		val manifests = listOf(manifest(1, 100), manifest(2, 100))
+		val restarted = mapOf(1L to binding(1, 1), 2L to binding(2, 2))
+		val intervals = requireNotNull(StepsRecordingLifetime.validatedIntervals(manifests, restarted))
+		assertTrue(requireNotNull(intervals[1L]).isEmpty())
+		assertFalse(StepsRecordingLifetime.containsInterval(1, 100, 100, manifests, restarted))
+		assertTrue(StepsRecordingLifetime.containsInterval(2, 100, 100, manifests, restarted))
+		assertNull(StepsRecordingLifetime.validatedIntervals(manifests,
+			mapOf(1L to binding(1, 1), 2L to binding(2, 1).copy(consentEpoch = 2))))
+		assertFalse(StepsRecordingLifetime.containsInterval(2, -1, 100, manifests, restarted))
+		assertFalse(StepsRecordingLifetime.containsInterval(2, 101, 100, manifests, restarted))
 	}
 
 	private fun manifest(revision: Long, elapsed: Long) = SessionManifestVersionEntity(

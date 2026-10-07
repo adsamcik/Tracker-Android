@@ -1,0 +1,65 @@
+{
+  "commit": "0aa938a4eb03725ca40817d934feccf6e41d44df",
+  "inputs": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "694fe135558539f94821481708982dc3880f92f72476b54e418b2eeccb8c8971"
+    },
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "sha256": "a276144c34315be81b125df52eb7611f08e92a7629abb3d1f3587a3e92a93f24"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidConventionPlugins.kt",
+      "sha256": "6530e14a5465d6023516b430b05e792a49b2cbc802c2b9455101272c17c36229"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepsRecordingLifetime.kt",
+      "sha256": "534388053a7e663ab0d41adee7d1ff4306566ea6360ddb2f84d77edf8d2b7015"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
+      "sha256": "7b7418ab7d0d82c0d23bb0bf8b60a58293c946be67b8b73bee1b7323a374e737"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceSessionEntities.kt",
+      "sha256": "9e30418fe4663e86e39adae3cabb763342c9959dc54a06d6c39dab0fa4685e21"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepFactRevisionIntegrity.kt",
+      "sha256": "00798d9471a983088acca6eeb71ce29846a31220a61973fce365cb8d6541c874"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepsSessionCompletenessIntegrity.kt",
+      "sha256": "ab539c8a71ff7c01dd70f1165d0da7be4726a473518dbf84f227e45b32a4ecf4"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt",
+      "sha256": "623e820365325c02ed52950662ec52b0f7f05ee916040998b59567ad19ade447"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/StepsCountDomainStore.kt",
+      "sha256": "4f251e9c800f59d34d59337affeabef6e740052fac9136eb525c85835409b367"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/StepsHistoryBatchReader.kt",
+      "sha256": "3b6bf7f3582985cd53a3d8a35f0359ca8380abc83f28afd7d4e61f898ed949ad"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/LogicalTrackingHistoryReader.kt",
+      "sha256": "43eeeb941b2d7356a825c9fb181877aa35447e771ae06ac7d09f875e0310cd0a"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt",
+      "sha256": "754eb9dd90efa49e47de5e4af84223a9bf4636ed3a8ce434cbd6a99b17a85093"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt",
+      "sha256": "7e84d8cc24badede1e45ae51a68f281e5e02c8114353d6af169a2ceb0f34c6a1"
+    }
+  ]
+}

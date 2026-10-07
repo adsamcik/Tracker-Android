@@ -51,6 +51,36 @@ object StepsRecordingLifetime {
 		return true
 	}
 
+	/** Prepares source-local bounds once for a retained run; invalid references have no authority. */
+	fun validatedIntervals(
+		manifests: List<SessionManifestVersionEntity>,
+		bindings: Map<Long, SessionManifestSourceEntity>,
+	): Map<Long, LongRange>? {
+		if (!hasValidReferences(manifests, bindings)) return null
+		val intervals = linkedMapOf<Long, LongRange>()
+		var nextManifest: SessionManifestVersionEntity? = null
+		var nextOrigin: Long? = null
+		var nextRecordingBoundary: Long? = null
+		for (manifest in manifests.sortedByDescending(SessionManifestVersionEntity::manifestRevision)) {
+			val binding = bindings[manifest.manifestRevision]
+			val origin = binding?.stepsRecordingManifestRevision
+			if (origin != nextOrigin) {
+				nextRecordingBoundary = nextManifest?.effectiveElapsedRealtimeNanos
+			}
+			// Facts keep their original attribution; a continuation is not another origin.
+			if (binding != null && (origin == null || origin == manifest.manifestRevision)) {
+				val boundary = if (origin == null) {
+					nextManifest?.effectiveElapsedRealtimeNanos
+				} else nextRecordingBoundary
+				intervals[manifest.manifestRevision] = manifest.effectiveElapsedRealtimeNanos..
+					(boundary?.minus(1L) ?: Long.MAX_VALUE)
+			}
+			nextManifest = manifest
+			nextOrigin = origin
+		}
+		return intervals
+	}
+
 	/** Null-origin legacy facts end at the next global manifest, exactly as before. */
 	fun containsInterval(
 		originRevision: Long,
@@ -59,23 +89,9 @@ object StepsRecordingLifetime {
 		manifests: List<SessionManifestVersionEntity>,
 		bindings: Map<Long, SessionManifestSourceEntity>,
 	): Boolean {
-		if (startElapsedNanos < 0L || endElapsedNanos < startElapsedNanos ||
-			!hasValidReferences(manifests, bindings)
-		) return false
-		val ordered = manifests.sortedBy(SessionManifestVersionEntity::manifestRevision)
-		val index = ordered.indexOfFirst { it.manifestRevision == originRevision }
-		if (index < 0) return false
-		val origin = ordered[index]
-		val binding = bindings[originRevision] ?: return false
-		if (binding.stepsRecordingManifestRevision != null &&
-			binding.stepsRecordingManifestRevision != originRevision
-		) return false
-		if (startElapsedNanos < origin.effectiveElapsedRealtimeNanos) return false
-		val boundary = ordered.drop(index + 1).firstOrNull { manifest ->
-			binding.stepsRecordingManifestRevision == null ||
-				bindings[manifest.manifestRevision]?.stepsRecordingManifestRevision != originRevision
-		}
-		return boundary == null || endElapsedNanos < boundary.effectiveElapsedRealtimeNanos
+		if (startElapsedNanos < 0L || endElapsedNanos < startElapsedNanos) return false
+		val bounds = validatedIntervals(manifests, bindings)?.get(originRevision) ?: return false
+		return startElapsedNanos in bounds && endElapsedNanos in bounds
 	}
 
 	private fun eligible(manifest: SessionManifestVersionEntity, binding: SessionManifestSourceEntity): Boolean =

@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsRecordingLifetime
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
 import com.adsamcik.tracker.shared.base.database.data.StepsWalCarrierAuthenticator
@@ -294,9 +295,6 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		val writer = writers.single()
 		val captureCoveredWholeRun = stepsBindings.size == manifests.size
 		val orderedManifests = manifests.sortedBy(SessionManifestVersionEntity::manifestRevision)
-		val nextManifestByRevision = orderedManifests.mapIndexed { index, manifest ->
-			manifest.manifestRevision to orderedManifests.getOrNull(index + 1)
-		}.toMap()
 		val steps = when (writer.owner) {
 			SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL -> legacy(
 				steps = segment.steps,
@@ -307,7 +305,7 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 				serviceRun = serviceRun,
 				writer = writer,
 				manifestsByRevision = manifestsByRevision,
-				nextManifestByRevision = nextManifestByRevision,
+				orderedManifests = orderedManifests,
 				stepsBindings = stepsBindings,
 				captureCoveredWholeRun = captureCoveredWholeRun,
 				snapshot = snapshot,
@@ -323,13 +321,15 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		serviceRun: SourceServiceRunEntity,
 		writer: HistoricalStepsWriterBinding,
 		manifestsByRevision: Map<Long, SessionManifestVersionEntity>,
-		nextManifestByRevision: Map<Long, SessionManifestVersionEntity?>,
+		orderedManifests: List<SessionManifestVersionEntity>,
 		stepsBindings: Map<Long, SessionManifestSourceEntity>,
 		captureCoveredWholeRun: Boolean,
 		snapshot: StepsHistoryBatchSnapshot,
 	): StepsSegmentHistoryResult {
 		val logicalTrackingId = serviceRun.logicalTrackingId
 		val serviceRunId = serviceRun.serviceRunId
+		val recordingIntervals = StepsRecordingLifetime.validatedIntervals(orderedManifests, stepsBindings)
+			?: return failed(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED)
 		val serviceRunCompleted = serviceRun.completedAtMs != null &&
 			serviceRun.state in TERMINAL_SERVICE_RUN_STATES
 		val projectionId = writer.projectionId
@@ -404,7 +404,7 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			val binding = manifestRevision?.let(stepsBindings::get)
 			val startElapsed = scope.intervalStartElapsedRealtimeNanos
 			val endElapsed = scope.intervalEndElapsedRealtimeNanos
-			val nextManifest = manifestRevision?.let(nextManifestByRevision::get)
+			val recordingInterval = manifestRevision?.let(recordingIntervals::get)
 			scope.logicalTrackingId != logicalTrackingId ||
 				scope.serviceRunId != serviceRunId ||
 				manifest == null || binding == null ||
@@ -420,11 +420,8 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 				manifest.effectiveBootId != serviceRun.bootId ||
 				startElapsed == null || endElapsed == null ||
 				startElapsed < serviceRun.startedElapsedNanos ||
-				startElapsed < manifest.effectiveElapsedRealtimeNanos ||
-				endElapsed < manifest.effectiveElapsedRealtimeNanos ||
-				nextManifest?.effectiveElapsedRealtimeNanos?.let { nextEffective ->
-					startElapsed >= nextEffective || endElapsed >= nextEffective
-				} == true ||
+				recordingInterval == null || startElapsed !in recordingInterval ||
+				endElapsed !in recordingInterval ||
 				lane.activatedRolloutRevision > manifest.rolloutRevision ||
 				!snapshot.authenticatesExactCarrier(scope)
 		}) return failed(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED)

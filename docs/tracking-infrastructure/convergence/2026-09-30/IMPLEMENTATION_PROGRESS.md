@@ -656,3 +656,9 @@ list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS
   `../2026-10-07/RADIO_DETAILS_POLISH_SELECTED/SOURCE_REVIEW.md` has independent
   static acceptance; NOT_RUN. Real rows/coverage retained, technical card/footer
   removed, concise Imported label. Activity shared helper unchanged; T17 stays open.
+
+- [x] Select retained native Steps recording lifetime composition: four paths,
+  six actual Room selector methods and two helper contract methods NOT_RUN.
+  `../2026-10-07/STEPS_RETAINED_LIFETIME_SELECTED/SOURCE_REVIEW.md` accepts V2
+  after repairing per-fact timeline rebuilding to one prepared run lookup. Legacy
+  null cutoffs and all retained checks preserved; runtime/portable T03 stays open.
