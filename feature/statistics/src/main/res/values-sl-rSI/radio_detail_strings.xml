@@ -2,4 +2,5 @@
 <resources>
     <string name="radio_detail_networks">Omrežja</string>
     <string name="radio_detail_towers">Oddajniki</string>
+    <string name="radio_detail_imported">Uvoženo</string>
 </resources>

@@ -1,0 +1,36 @@
+{
+  "commit": "0aa938a4eb03725ca40817d934feccf6e41d44df",
+  "phase": "IMPLEMENTATION_ONLY",
+  "proposal_status": "AWAITING_HUMAN_APPROVAL",
+  "source_execution": "NOT_RUN",
+  "inputs": [
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistory.kt",
+      "sha256": "482e2732b4bb223a7952e8e6a14fc48ad8785c14c620e88ce1874ab74440435a"
+    },
+    {
+      "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/PagedTrackingHistoryRepository.kt",
+      "sha256": "08e94992992aee24a0bae1a8e9300c515f6e430c6dcdba6701e95005f8fd9203"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryPagingSource.kt",
+      "sha256": "889f1f0d63d9b74f01a57839dc50f99b836c5674b66d0f6ae00af20e20fc0ca0"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "sha256": "83b2a25aabdebaf20fa70613a0b9d764e14f997ffec86d93c6d124466ff22823"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt",
+      "sha256": "fc634c3f5534cebd9203f2e3c0a8027eeeb9a8d70690cdb01b335a070945fb73"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CalendarContent.kt",
+      "sha256": "127e1d3271a7acd5c18dc0224908134d33121fda03f3e09737b12ddc5be5edd1"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModel.kt",
+      "sha256": "214f5f638a75e0b2652828230382e89204942866f11be05cac5dd5ab2e2ee868"
+    }
+  ]
+}

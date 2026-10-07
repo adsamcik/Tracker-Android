@@ -2,4 +2,5 @@
 <resources>
     <string name="radio_detail_networks">네트워크</string>
     <string name="radio_detail_towers">기지국</string>
+    <string name="radio_detail_imported">가져옴</string>
 </resources>

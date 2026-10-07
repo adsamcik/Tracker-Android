@@ -1,0 +1,275 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "test_execution": "NOT_RUN",
+  "selected_at_commit": "0aa938a4eb03725ca40817d934feccf6e41d44df",
+  "reviewed_files_sha256": "b504f9e6a40cd90c802d2d9fb89d0ce71285dc00f5dd0da1f00d07e87fe3cf6c",
+  "review": "ACCEPTED_STATIC_ONLY",
+  "dependency_disposition": "Only EXECUTION_DECISIONS changed: settled human approvals added; no source drift",
+  "files": [
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/TripDetailRadioOverviews.kt",
+      "before_sha256": "454d9c1566e89e7e90ba6f15d15a864426d5813dfa46e6d5d5d7e05b0036dada",
+      "after_sha256": "bf6a4ba77a50004f3f6041af9448640d015716138104d7b4ca453b71edebdd59",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/TripDetailRoute.kt",
+      "before_sha256": "79e6d36126ea4604d9a2f1feb69a72fa4370ce076d5b932d6fe3dfae0f932245",
+      "after_sha256": "1a89adc8bafef5628c3b024b381f86ea982a2a64e33cbb15aa269cb219726981",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/SourceHistoryDetailRoute.kt",
+      "before_sha256": "63ce263c2c104cefa706b225459e28c1f3c050dc2db638d2a6fea567faf44858",
+      "after_sha256": "cd24f2eef88b4be5a4558063ac829be47df65950ddd3025af8c089a3faad9168",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/TripDetailSourceOverviewsComposeTest.kt",
+      "before_sha256": "37f1a59bbde393992656315ad2ecc6fd9fb16fd3a307116deb370ca4068dd71f",
+      "after_sha256": "fa3dfc81d27c2201fd3f2ce8712368cd033d19a08bbc33b194f687fb9c8a951c",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-af-rZA/radio_detail_strings.xml",
+      "before_sha256": "48b2afd8c156df71454b9cf2b5a3c046eb1598e4fc1cd2b46f254c485e124ac7",
+      "after_sha256": "db66f35592566106aeb394fa38ac4b80bca24938745a77e4cef078b58e91b297",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ar-rSA/radio_detail_strings.xml",
+      "before_sha256": "c67e10a8ab3ce277de9c322169dbac960d062eeb88b45e5c446dc2b4a7d36a03",
+      "after_sha256": "19989b7e38232057b7ed79e653419f0f47681fb0d9acb2f79713292fa095cb17",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-bg-rBG/radio_detail_strings.xml",
+      "before_sha256": "d11120ad341e3fd101a88f3a24f1ee4a0cce5d9536b0cbf5a1c812d59bfa2a3c",
+      "after_sha256": "a6e04dc1e2c1d44c8c34d15149b8b478cd6ddcba28a09e80d50d1c41a982b976",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ca-rES/radio_detail_strings.xml",
+      "before_sha256": "e6f5653c734c467154875bca01bc1624a86b2fa1d341bef1e18e9bce48b93beb",
+      "after_sha256": "a80368c3e6030499b2079b84f8a9cacbcfa93d026742f1aa25333e6563fec939",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-cs-rCZ/radio_detail_strings.xml",
+      "before_sha256": "4cdb8cb46a900a7f4abd6d31b7cdc8143ab7477937ffba30c720e0af7e894636",
+      "after_sha256": "eae903e68798e01287ed993e9be3b38f7b506a704a8c4a8436fa8bad1964a9fe",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-da-rDK/radio_detail_strings.xml",
+      "before_sha256": "98ca83f95601244cd5326382488eb59e904df87b763090585e66b790ce1b6ba8",
+      "after_sha256": "b05a61bec8a8de597e555d3acf78bd7027e32fc8f4e9600861a55ba640f651a0",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-de-rDE/radio_detail_strings.xml",
+      "before_sha256": "9569054872c62104ace4d5913ccf0a768e8d6795549777247e6138a9d625ac9d",
+      "after_sha256": "2827762f82cb3b98aedccac4674cd6f17250f4fa8a57c1ea980b651373df11f4",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-el-rGR/radio_detail_strings.xml",
+      "before_sha256": "59d0581df55973f5ed79541aad009a2e5549ba4a2b036dc06ce8d1dbe652e74c",
+      "after_sha256": "5082161eb44d2b6e29fd1c5fd2b5769241fa2be00a80a77a3c3f60dbd256a917",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-es-rES/radio_detail_strings.xml",
+      "before_sha256": "1480646a8f1eb758aa2ab29f808b98e1969dea5247364aa275fff4ca231c66b6",
+      "after_sha256": "5565c9f350dab419cbdc86640af3c671171c958fd7e95ca62d5e97bfad287f86",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-et-rEE/radio_detail_strings.xml",
+      "before_sha256": "9e1adc53152663baf9f44fd7899fa9b8d61fd087d9174fd264faea8fdd925420",
+      "after_sha256": "2b1bb09eeb639b4329692af06f5e59c2179f7fd3093703d7d0e613ddd2a031d0",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-fi-rFI/radio_detail_strings.xml",
+      "before_sha256": "ba870fc7367237f29dad52a2b92979240df5024ea8f209a08602a23564fcd5bc",
+      "after_sha256": "5da2b2c27edf70dd59096300e4734cb55a9fe41764d0ccfceb4019fe4ccb1d37",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-fr-rFR/radio_detail_strings.xml",
+      "before_sha256": "e9edf9ed71d3baf13ec7d9fc03470045e6116465ed0ab17cfd5b44bbdcfd5cd9",
+      "after_sha256": "5afb5879c7713d1aef0ef4d3259fbdfbee663d1cc953a534479d76cffe4efc40",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ga-rIE/radio_detail_strings.xml",
+      "before_sha256": "65590a1aeb45382469d719cb89cbdc20bf68f72bef842e12fc4e6c2671e0b8a5",
+      "after_sha256": "a01f150ee003f781063b6552990032c602b37792bdd66fab036da57acd341593",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hi-rIN/radio_detail_strings.xml",
+      "before_sha256": "3291b9de41f3b097aa23455474628440ad67299d194994a9f73a377ccf962086",
+      "after_sha256": "f03ab4ef0719bd81d165bb08babb89b32583491fa3c530f59d7b9e1d76926c4e",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hr-rHR/radio_detail_strings.xml",
+      "before_sha256": "6b2ec20dadf04c250207a19c1b60124744c0220bff98153fafad5644166595c1",
+      "after_sha256": "75925db0a5b88031cda31c78b50ea6564e7cc5fa24137450e0cff5733a8bbab6",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hu-rHU/radio_detail_strings.xml",
+      "before_sha256": "d6784a8be6d26eade7028bbc6f07f1bf34a19f8191e3b51cc7c1d97ef73f365e",
+      "after_sha256": "e78b7735d8085148ef991b375c2a041eee4cf990a9c93dd13a44cbf992690cad",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-it-rIT/radio_detail_strings.xml",
+      "before_sha256": "9b0ed9d2f64536d8b8b89619356c8d7cf2cdaac6d0f071ae3f998eb03d61a7d0",
+      "after_sha256": "c1b22aeaeecd681f6cad6ae1a01e19bb4dc057858540f3abfe40dbfc2b0925ce",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-iw-rIL/radio_detail_strings.xml",
+      "before_sha256": "22b5b1648d8f3bfad5fffdfabdcfbcfdbcb33502f573c0dbf4589afd844da1b3",
+      "after_sha256": "83631bffaf32727218b805b5aa56658d4bc0060948c1527a68edc30e5a7b10d6",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ja-rJP/radio_detail_strings.xml",
+      "before_sha256": "38905d8a77e0f53edf740f3042f856e66d139485b1634fad7cafdd06290a6d1d",
+      "after_sha256": "8ade8adf379a2a40e86aea50fca002958ed05d154b39f5c1b750e0c0a50e2314",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ko-rKR/radio_detail_strings.xml",
+      "before_sha256": "8167614c4f52fbbc59af189f684a8d17a9a46b707c3c2c759c5142feee605398",
+      "after_sha256": "3effc25daf3d2382a38ada567a9d32e7d41f0555895b994c325d5e5795364ec8",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-lt-rLT/radio_detail_strings.xml",
+      "before_sha256": "dbfcecd89a267bf1082128050364d81f8eda78b4c7f3e3cb3ab8a2216fef4e0f",
+      "after_sha256": "d3e40b68ee05e4b6b5c7b6984913adc9a62da1012507535307a1cd1d30409d7e",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-lv-rLV/radio_detail_strings.xml",
+      "before_sha256": "0c11a3526b78af75c4e9959c484090797e360d55e83fc7caf7215756a95b0dec",
+      "after_sha256": "55c90b0dea06ab72c8207824ccbf8479052193a1851b6194b35ec36c0abbd4c3",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-mt-rMT/radio_detail_strings.xml",
+      "before_sha256": "04656fb43461604127ee0e78c94110b137fa207901925847dbc0044965a0256d",
+      "after_sha256": "3ebfdc9aa0c0c33112db2f68f90c6417c9af8f72ad39f522d29a9e14faa4ec15",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-nl-rNL/radio_detail_strings.xml",
+      "before_sha256": "e76edc32c64bec6deceb3b46cdaf1c94861fdadb276032847caa60a6f04c81d7",
+      "after_sha256": "4a79fe8a3832db4462ded948faf2ff858c69c53029464dd14a9cbbb65d71e1bf",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-no-rNO/radio_detail_strings.xml",
+      "before_sha256": "da16a80924146a21d8ae8f13465683750a3ba35291d4bc556ab89ddac2949faa",
+      "after_sha256": "995a20c53f71fdc7783faf4a41692120b8f9e4bd6418a299c0458d89a536df89",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pl-rPL/radio_detail_strings.xml",
+      "before_sha256": "3bdd6295dd0237e9573da0bc4ccca5eb84c466bbe6d4bb8aa00923499369dd0e",
+      "after_sha256": "86c408763e85aaa0a8c94b4a43dfa8f8592c44e14fef69c969aa49f2d2c68932",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pt-rBR/radio_detail_strings.xml",
+      "before_sha256": "1480646a8f1eb758aa2ab29f808b98e1969dea5247364aa275fff4ca231c66b6",
+      "after_sha256": "5565c9f350dab419cbdc86640af3c671171c958fd7e95ca62d5e97bfad287f86",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pt-rPT/radio_detail_strings.xml",
+      "before_sha256": "1480646a8f1eb758aa2ab29f808b98e1969dea5247364aa275fff4ca231c66b6",
+      "after_sha256": "5565c9f350dab419cbdc86640af3c671171c958fd7e95ca62d5e97bfad287f86",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ro-rRO/radio_detail_strings.xml",
+      "before_sha256": "9fe4afc38e7fd62286d490f4c6021d87346665ac1c01ab687e387a7c40085d96",
+      "after_sha256": "9037580da488d4ec4f87d118528fe4bbfed8d89779f245509a3be6961b524542",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ru-rRU/radio_detail_strings.xml",
+      "before_sha256": "a99b97bd189243ee7acc30928923d8c390c8913a5344e3712c9882ee503e26b6",
+      "after_sha256": "8ad944cd80e4380644caccd023780c5bf531aa1fc8c39e41f46f9cecfde9d222",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sk-rSK/radio_detail_strings.xml",
+      "before_sha256": "7a1977b191fd37e8e66c652260bb308ddd1f088f779cfff2cdb42e079a5e6dac",
+      "after_sha256": "47e50f6428dfae70eaf81ccb7a8c79293304de85327258541bb8c8f10f63a38c",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sl-rSI/radio_detail_strings.xml",
+      "before_sha256": "433795d58c752ae2c0c1cc471597607d76e8759113a10fedc50a23ef90cb9c4e",
+      "after_sha256": "13b6e8a61f725283edc2677dc544afd03eabdc720fa295e28c2d4597e06b100e",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sr-rSP/radio_detail_strings.xml",
+      "before_sha256": "4a113750f3a0df42a301bc374acb854c00532e305c868dc746e9b21613e866f1",
+      "after_sha256": "8cadf31413fa68df7ac69e06c90140e2d3475367c1945310dc3e658d3531ba80",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sv-rSE/radio_detail_strings.xml",
+      "before_sha256": "d622fffee093ad373ca6dd9e607d6bd53bd72c2336d8b69dccfff0923507b260",
+      "after_sha256": "36457cae8da7d8b064f4030d33109cdf2243fd0c3f154f66b1aaf1ec28fd23a4",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-tr-rTR/radio_detail_strings.xml",
+      "before_sha256": "f4afda5d4a63fff26299d0f75167263ee755d49b3e623cbde351fed6c9b223e2",
+      "after_sha256": "0110ab7719279ac84439e5e0b56478e52f81b8cc4b5a5cea157749cdde19f4e4",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-uk-rUA/radio_detail_strings.xml",
+      "before_sha256": "8a48220cfbbc6842a1cc1e7caf600a669f0a2a6e27dde348f4189fa002b30750",
+      "after_sha256": "c35447901d466a7bed238bb9e9521a4b9d4406ac6879802c139fdab4f956b29c",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-vi-rVN/radio_detail_strings.xml",
+      "before_sha256": "c109a408a7361b6105925df42be9b49039a247fe8988e57d76778774e5fdadbc",
+      "after_sha256": "48042fb982ef3f2e3020d359a6a856ee6e7736f1e74e251b0916cbdde73ad38f",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-zh-rCN/radio_detail_strings.xml",
+      "before_sha256": "c8414403f76681acc2fe449623148fc5430a438a264add6c6425be0bf5f8baf5",
+      "after_sha256": "56ef6948eb1159af5833ea94f391ca8be47c5194d42653f78003bc9f05fd387e",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-zh-rTW/radio_detail_strings.xml",
+      "before_sha256": "d62b78cd8a91500cdbec511a8734e7291662479d5e7350efef00b3a22f4aabff",
+      "after_sha256": "8d240a8bfcb0d8086e2bbc08e5c9fbf7ab53a536dcd386b65cab20ce6c40c6b9",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values/radio_detail_strings.xml",
+      "before_sha256": "9efdc5f549bdc47db59982009dfdcc7779ebe35d518404c272e49895ff1551bf",
+      "after_sha256": "65083e167a644140ae8f5cbc501ac53871400f2c97fa341854fb56b1ababa6a9",
+      "disposition": "APPLIED_EXACT_SELECTION"
+    }
+  ]
+}

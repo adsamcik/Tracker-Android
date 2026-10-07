@@ -2,4 +2,5 @@
 <resources>
     <string name="radio_detail_networks">Hálózatok</string>
     <string name="radio_detail_towers">Adótornyok</string>
+    <string name="radio_detail_imported">Importálva</string>
 </resources>

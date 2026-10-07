@@ -2,4 +2,5 @@
 <resources>
     <string name="radio_detail_networks">Mạng</string>
     <string name="radio_detail_towers">Trạm phát sóng</string>
+    <string name="radio_detail_imported">Đã nhập</string>
 </resources>

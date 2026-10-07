@@ -111,11 +111,9 @@ fun SourceHistoryDetailRoute(
 					)
 					is SourceAwareHistoryPageEntry.WifiOnly -> TripDetailWifiOverview(
 						history = entry.history,
-						intent = requireNotNull(entry.intent),
 					)
 					is SourceAwareHistoryPageEntry.CellOnly -> TripDetailCellOverview(
 						history = entry.history,
-						intent = requireNotNull(entry.intent),
 					)
 					is SourceAwareHistoryPageEntry.Physical,
 					is SourceAwareHistoryPageEntry.StepsOnly,

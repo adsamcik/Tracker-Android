@@ -2,4 +2,5 @@
 <resources>
     <string name="radio_detail_networks">Siete</string>
     <string name="radio_detail_towers">Vysielače</string>
+    <string name="radio_detail_imported">Importované</string>
 </resources>

@@ -650,3 +650,9 @@ list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS
   `../2026-10-07/POINTS_RETRACTION_SELECTED/SOURCE_REVIEW.md`. Zero-reward receipts,
   legacy XP ownership and transactional all-day deletion repair are preserved.
   Legacy SESSION rewards and dormant goal activation remain open.
+
+- [x] Select approved radio details copy polish: four Kotlin paths and forty
+  existing isolated locale files, three new and three updated Compose methods.
+  `../2026-10-07/RADIO_DETAILS_POLISH_SELECTED/SOURCE_REVIEW.md` has independent
+  static acceptance; NOT_RUN. Real rows/coverage retained, technical card/footer
+  removed, concise Imported label. Activity shared helper unchanged; T17 stays open.

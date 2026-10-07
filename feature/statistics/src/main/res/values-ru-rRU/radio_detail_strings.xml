@@ -2,4 +2,5 @@
 <resources>
     <string name="radio_detail_networks">Сети</string>
     <string name="radio_detail_towers">Вышки</string>
+    <string name="radio_detail_imported">Импортировано</string>
 </resources>

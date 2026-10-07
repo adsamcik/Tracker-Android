@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.statistics.R
@@ -61,6 +62,9 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryObservation
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelection
+import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryResultCompleteness
 import com.adsamcik.tracker.stats.api.repository.WifiHistorySignalQuality
@@ -74,6 +78,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.TimeZone
+import kotlin.test.assertFailsWith
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -286,16 +291,15 @@ class TripDetailSourceOverviewsComposeTest {
 			MaterialTheme {
 				TripDetailWifiOverview(
 					history = partialWifi(),
-					intent = SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY,
 				)
 			}
 		}
 
 		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_radio_partial))
-		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_source_purpose_exact))
-		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_source_purpose_exact_explanation))
 		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_radio_coverage_partial))
 		assertRadioText("trip_detail_wifi_only", text(R.string.trip_detail_wifi_retained_results))
+		composeRule.onAllNodesWithText(text(R.string.radio_detail_imported)).assertCountEquals(0)
+		assertSimpleRadioCopy("trip_detail_wifi_only")
 		composeRule.onAllNodesWithText("unique", substring = true, ignoreCase = true)
 			.assertCountEquals(0)
 		composeRule.onAllNodesWithText("SSID", substring = true).assertCountEquals(0)
@@ -309,7 +313,6 @@ class TripDetailSourceOverviewsComposeTest {
 			MaterialTheme {
 				TripDetailWifiOverview(
 					history = materializingWifi(),
-					intent = SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY,
 				)
 			}
 		}
@@ -324,13 +327,14 @@ class TripDetailSourceOverviewsComposeTest {
 			MaterialTheme {
 				TripDetailCellOverview(
 					history = partialCell(),
-					intent = SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY,
 				)
 			}
 		}
 
 		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_radio_partial))
 		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_radio_coverage_partial))
+		composeRule.onAllNodesWithText(text(R.string.radio_detail_imported)).assertCountEquals(0)
+		assertSimpleRadioCopy("trip_detail_cell_only")
 		composeRule.onAllNodesWithText("unique tower", substring = true, ignoreCase = true)
 			.assertCountEquals(0)
 		composeRule.onAllNodesWithText("SIM", substring = true, ignoreCase = true)
@@ -346,14 +350,12 @@ class TripDetailSourceOverviewsComposeTest {
 			MaterialTheme {
 				TripDetailCellOverview(
 					history = deletedImportedCell(),
-					intent = SourceOnlyHistoryIntent.PORTABLE_SOURCE_MEMBERSHIP,
 				)
 			}
 		}
 
-		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_source_origin_imported))
-		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_source_purpose_imported))
-		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_source_purpose_imported_explanation))
+		assertRadioText("trip_detail_cell_only", text(R.string.radio_detail_imported))
+		assertSimpleRadioCopy("trip_detail_cell_only")
 		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_radio_deleted))
 		assertRadioText("trip_detail_cell_only", text(R.string.trip_detail_radio_deleted_explanation))
 		composeRule.onNodeWithText("0").assertDoesNotExist()
@@ -413,7 +415,7 @@ class TripDetailSourceOverviewsComposeTest {
 				ssid = "Network $index", frequencyMhz = 5_180, signalDbm = -45,
 			)))
 		})
-		composeRule.setContent { MaterialTheme { TripDetailWifiOverview(entry, SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY) } }
+		composeRule.setContent { MaterialTheme { TripDetailWifiOverview(entry) } }
 		assertRadioText("trip_detail_wifi_only", "Network 24")
 		composeRule.onNodeWithText("aa:bb:cc:dd:ee:18").assertIsDisplayed()
 		composeRule.onNodeWithText("Network 24").assert(hasText(text(R.string.radio_detail_signal_dbm, -45), substring = true))
@@ -432,7 +434,7 @@ class TripDetailSourceOverviewsComposeTest {
 				registered = true, signalDbm = -92,
 			)))
 		})
-		composeRule.setContent { MaterialTheme { TripDetailCellOverview(entry, SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY) } }
+		composeRule.setContent { MaterialTheme { TripDetailCellOverview(entry) } }
 		assertRadioText("trip_detail_cell_only", "310:260:123:24")
 		composeRule.onNodeWithText("310:260:123:24").assert(hasText(text(R.string.radio_detail_signal_dbm, -92), substring = true))
 		assertLocationProductsAbsent()
@@ -460,7 +462,7 @@ class TripDetailSourceOverviewsComposeTest {
 			val formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale)
 			val displayedTime = formatter.withZone(ZoneId.of("UTC")).format(instant)
 			val oldZoneTime = formatter.withZone(ZoneId.of("Pacific/Honolulu")).format(instant)
-			composeRule.setContent { MaterialTheme { TripDetailWifiOverview(entry, SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY) } }
+			composeRule.setContent { MaterialTheme { TripDetailWifiOverview(entry) } }
 			assertRadioText("trip_detail_wifi_only", "Travel network")
 			composeRule.onNodeWithText(displayedTime, substring = true).assertIsDisplayed()
 			composeRule.onAllNodesWithText(oldZoneTime, substring = true).assertCountEquals(0)
@@ -475,11 +477,83 @@ class TripDetailSourceOverviewsComposeTest {
 		val entry = original.copy(observations = listOf(original.observations.single().copy(
 			towers = listOf(CellObservedTower(2_000L, 100L, null, CellHistoryTechnology.LTE, true, null)),
 		)))
-		composeRule.setContent { MaterialTheme { TripDetailCellOverview(entry, SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY) } }
+		composeRule.setContent { MaterialTheme { TripDetailCellOverview(entry) } }
 		composeRule.onNodeWithTag("trip_detail_cell_only").performScrollToNode(hasTestTag("radio_cell_reading"))
 		composeRule.onNodeWithTag("radio_cell_reading").assertIsDisplayed()
 		composeRule.onAllNodesWithText("dBm", substring = true).assertCountEquals(0)
 		composeRule.onAllNodesWithText("Unknown tower").assertCountEquals(0)
+	}
+
+	@Test
+	fun `imported Wi-Fi detail keeps its concise label and saved network readings`() {
+		val original = partialWifi()
+		val entry = original.copy(
+			origin = WifiHistoryOrigin.IMPORTED,
+			localSelection = null,
+			importedSelection = WifiImportedHistorySelection(
+				key = WifiImportedHistorySelectionKey("d".repeat(64)),
+				importRevision = 1L,
+				contentChecksum = "e".repeat(64),
+			),
+			capturesOnlyWifi = false,
+			observations = listOf(original.observations.single().copy(networks = listOf(
+				WifiObservedNetwork(2_000L, 100L, "aa:bb:cc:dd:ee:ff", "Cafe Wi-Fi", 5_180, -45),
+			))),
+		)
+		composeRule.setContent { MaterialTheme { TripDetailWifiOverview(entry) } }
+
+		assertRadioText("trip_detail_wifi_only", text(R.string.radio_detail_imported))
+		assertRadioText("trip_detail_wifi_only", "Cafe Wi-Fi")
+		composeRule.onNodeWithText("Cafe Wi-Fi").assert(hasText(text(R.string.radio_detail_signal_dbm, -45), substring = true))
+		assertSimpleRadioCopy("trip_detail_wifi_only")
+	}
+
+	@Test
+	fun `imported Cell detail keeps its concise label and saved tower readings`() {
+		val original = partialCell()
+		val imported = deletedImportedCell()
+		val entry = original.copy(
+			origin = imported.origin,
+			selection = imported.selection,
+			observations = listOf(original.observations.single().copy(towers = listOf(
+				CellObservedTower(2_000L, 100L, "310:260:123:4", CellHistoryTechnology.LTE, true, -92),
+			))),
+		)
+		composeRule.setContent { MaterialTheme { TripDetailCellOverview(entry) } }
+
+		assertRadioText("trip_detail_cell_only", text(R.string.radio_detail_imported))
+		assertRadioText("trip_detail_cell_only", "310:260:123:4")
+		composeRule.onNodeWithText("310:260:123:4").assert(hasText(text(R.string.radio_detail_signal_dbm, -92), substring = true))
+		assertSimpleRadioCopy("trip_detail_cell_only")
+	}
+
+	@Test
+	fun `Activity keeps its existing source selection card when explicitly requested`() {
+		composeRule.setContent {
+			MaterialTheme {
+				TripDetailActivityOverview(readyActivity(), SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY)
+			}
+		}
+
+		composeRule.onNodeWithText(text(R.string.trip_detail_source_authority))
+			.performScrollTo().assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_exact))
+			.performScrollTo().assertIsDisplayed()
+	}
+
+	/** Scan the lazy list so off-screen technical copy cannot make the absence assertion pass. */
+	private fun assertSimpleRadioCopy(tag: String) {
+		listOf(
+			R.string.trip_detail_source_authority,
+			R.string.trip_detail_source_purpose_exact,
+			R.string.trip_detail_source_purpose_imported,
+			R.string.trip_detail_radio_location_excluded,
+		).forEach { resource ->
+			composeRule.onNodeWithTag(tag).performScrollToIndex(0)
+			assertFailsWith<AssertionError> {
+				composeRule.onNodeWithTag(tag).performScrollToNode(hasText(text(resource)))
+			}
+		}
 	}
 
 	private fun assertRadioText(tag: String, value: String) {

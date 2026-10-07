@@ -2,4 +2,5 @@
 <resources>
     <string name="radio_detail_networks">Nettverk</string>
     <string name="radio_detail_towers">Master</string>
+    <string name="radio_detail_imported">Importert</string>
 </resources>

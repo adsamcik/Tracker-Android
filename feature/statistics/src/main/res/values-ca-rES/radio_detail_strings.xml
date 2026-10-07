@@ -2,4 +2,5 @@
 <resources>
     <string name="radio_detail_networks">Xarxes</string>
     <string name="radio_detail_towers">Torres</string>
+    <string name="radio_detail_imported">Importat</string>
 </resources>

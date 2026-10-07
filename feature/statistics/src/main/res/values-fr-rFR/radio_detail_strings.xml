@@ -2,4 +2,5 @@
 <resources>
     <string name="radio_detail_networks">Réseaux</string>
     <string name="radio_detail_towers">Antennes</string>
+    <string name="radio_detail_imported">Importé</string>
 </resources>

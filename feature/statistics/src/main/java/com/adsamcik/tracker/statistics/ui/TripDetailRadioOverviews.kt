@@ -52,7 +52,6 @@ import java.time.format.FormatStyle
 @Composable
 internal fun TripDetailWifiOverview(
 	history: WifiHistoryEntry,
-	intent: SourceOnlyHistoryIntent,
 ) {
 	val resources = LocalContext.current.resources
 	val networkReadings = remember(history.observations) {
@@ -67,12 +66,14 @@ internal fun TripDetailWifiOverview(
 				endTime = history.endTime,
 			)
 		}
-		item {
-			SourceHistoryAuthorityCard(
-				source = HistorySource.WIFI,
-				originLabel = stringResource(history.origin.labelResource),
-				intent = intent,
-			)
+		if (history.origin == WifiHistoryOrigin.IMPORTED) {
+			item {
+				Text(
+					text = stringResource(R.string.radio_detail_imported),
+					style = MaterialTheme.typography.bodySmall,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+				)
+			}
 		}
 		item {
 			RadioHistoryStateCard(
@@ -141,7 +142,6 @@ internal fun TripDetailWifiOverview(
 				RadioWifiReading(reading, formatter)
 			}
 		}
-		item { RadioLocationExclusionNotice() }
 	}
 }
 
@@ -149,7 +149,6 @@ internal fun TripDetailWifiOverview(
 @Composable
 internal fun TripDetailCellOverview(
 	history: CellHistoryEntry,
-	intent: SourceOnlyHistoryIntent,
 ) {
 	val resources = LocalContext.current.resources
 	val towerReadings = remember(history.observations) {
@@ -164,12 +163,14 @@ internal fun TripDetailCellOverview(
 				endTime = history.endTime,
 			)
 		}
-		item {
-			SourceHistoryAuthorityCard(
-				source = HistorySource.CELL,
-				originLabel = stringResource(history.origin.labelResource),
-				intent = intent,
-			)
+		if (history.origin is CellHistoryOrigin.Imported) {
+			item {
+				Text(
+					text = stringResource(R.string.radio_detail_imported),
+					style = MaterialTheme.typography.bodySmall,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+				)
+			}
 		}
 		item {
 			RadioHistoryStateCard(
@@ -231,7 +232,6 @@ internal fun TripDetailCellOverview(
 				RadioCellReading(reading, formatter)
 			}
 		}
-		item { RadioLocationExclusionNotice() }
 	}
 }
 
@@ -338,27 +338,6 @@ private fun RadioHistoryStateCard(
 		}
 	}
 }
-
-@Composable
-private fun RadioLocationExclusionNotice() {
-	Text(
-		text = stringResource(R.string.trip_detail_radio_location_excluded),
-		style = MaterialTheme.typography.bodySmall,
-		color = MaterialTheme.colorScheme.onSurfaceVariant,
-	)
-}
-
-private val WifiHistoryOrigin.labelResource: Int
-	get() = when (this) {
-		WifiHistoryOrigin.LOCAL -> R.string.trip_detail_source_origin_local
-		WifiHistoryOrigin.IMPORTED -> R.string.trip_detail_source_origin_imported
-	}
-
-private val CellHistoryOrigin.labelResource: Int
-	get() = when (this) {
-		CellHistoryOrigin.Local -> R.string.trip_detail_source_origin_local
-		is CellHistoryOrigin.Imported -> R.string.trip_detail_source_origin_imported
-	}
 
 private val SourceOnlyHistoryIntent.purposeLabelResource: Int
 	get() = when (this) {

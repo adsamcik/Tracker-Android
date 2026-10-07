@@ -2,4 +2,5 @@
 <resources>
     <string name="radio_detail_networks">Netwerks</string>
     <string name="radio_detail_towers">Torrijiet</string>
+    <string name="radio_detail_imported">Importat</string>
 </resources>

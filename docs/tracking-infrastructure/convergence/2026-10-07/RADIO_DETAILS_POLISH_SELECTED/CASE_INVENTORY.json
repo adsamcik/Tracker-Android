@@ -1,0 +1,46 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "execution": "NOT_RUN",
+  "new_test_methods": 3,
+  "changed_assertion_methods": 3,
+  "cases": [
+    {
+      "method": "partial Wi-Fi detail reports retained results without unique network claims",
+      "disposition": "UPDATED: Native details retain counts/coverage, no Imported label or technical card/footer",
+      "execution": "NOT_RUN"
+    },
+    {
+      "method": "partial Cell detail reports record coverage without tower or subscriber identity",
+      "disposition": "UPDATED: Older summary retains coverage, no Imported label or technical card/footer",
+      "execution": "NOT_RUN"
+    },
+    {
+      "method": "deleted imported Cell detail keeps imported origin and no fabricated values",
+      "disposition": "UPDATED: Concise Imported label, existing deletion coverage/message, no technical card/footer or numeric zero",
+      "execution": "NOT_RUN"
+    },
+    {
+      "method": "imported Wi-Fi detail keeps its concise label and saved network readings",
+      "disposition": "NEW: Imported label with actual network/signal and no technical card/footer",
+      "execution": "NOT_RUN"
+    },
+    {
+      "method": "imported Cell detail keeps its concise label and saved tower readings",
+      "disposition": "NEW: Imported label with actual tower/signal and no technical card/footer",
+      "execution": "NOT_RUN"
+    },
+    {
+      "method": "Activity keeps its existing source selection card when explicitly requested",
+      "disposition": "NEW: Shared helper remains available to its untouched Activity caller",
+      "execution": "NOT_RUN"
+    }
+  ],
+  "preserved_cases": [
+    "Wi-Fi details retain every saved network beyond the old twenty-row cap",
+    "Cell details retain every saved tower beyond the old twenty-row cap",
+    "radio reading date follows current local time rather than saved recording zone",
+    "Cell details omit missing tower identity and signal without inventing a value",
+    "factless Wi-Fi intent stays waiting and never becomes zero"
+  ]
+}

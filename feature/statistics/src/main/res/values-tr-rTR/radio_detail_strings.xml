@@ -2,4 +2,5 @@
 <resources>
     <string name="radio_detail_networks">Ağlar</string>
     <string name="radio_detail_towers">Baz istasyonları</string>
+    <string name="radio_detail_imported">İçe aktarıldı</string>
 </resources>

@@ -372,14 +372,12 @@ private fun TripOverview(
 		is TripDetailSourcePresentation.WifiOnly -> {
 			TripDetailWifiOverview(
 				history = sourcePresentation.history,
-				intent = SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY,
 			)
 			return
 		}
 		is TripDetailSourcePresentation.CellOnly -> {
 			TripDetailCellOverview(
 				history = sourcePresentation.history,
-				intent = SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY,
 			)
 			return
 		}

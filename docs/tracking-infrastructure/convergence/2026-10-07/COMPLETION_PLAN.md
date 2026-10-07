@@ -263,7 +263,8 @@ when the concrete proposal is ready; do not reask settled decisions.
 | Recorded-so-far daily Steps with honest missing coverage | T08, T15, T17 | Presented behavior authorized. Per-day display-reader contract explicitly approved; source authorship in progress; games remain strict. |
 | Shared saved Location summary for Tracker/notification/widget values | T17 | Presented reader reuse authorized; no new collection. |
 | Optional two-second first-enable provider-status wait | T08, T17 | Presented bounded wait authorized; existing repair button remains usable. |
-| Saved network/tower rows in existing radio detail screens | T11, T14, T17 | Presented scrolling-list direction authorized; complete lazy-row implementation accepted; simpler authority-copy removal explicitly approved and in progress. |
+| Saved network/tower rows in existing radio detail screens | T11, T14, T17 | Presented scrolling-list direction authorized; complete lazy-row implementation accepted; simpler authority-copy removal explicitly approved and independently accepted. |
+| Shared measured-observation list for Timeline and Calendar day | T14, T17 | Concrete screen and existing-reader extension proposed through the questions tool; pending. See `UNIFIED_HISTORY_PRESENTATION_PROPOSAL/SOURCE_TRACE_AND_PROPOSAL.md`. |
 | Durable background Location gap records | T07, T12 | Unanswered storage choice. |
 | New Activity/Pressure divergent-import conflict display | T14, T20 | Keep existing outcome until a concrete UI proposal is approved. |
 | Exact repeated Steps file membership for bundles | T21 | Review existing receipt semantics before proposing changes. |
@@ -360,6 +361,10 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
 - [x] Select the existing goal receipt/retraction consistency repair: nine paths and
   nineteen actual Room/projector methods in `POINTS_RETRACTION_SELECTED/SOURCE_REVIEW.md`;
   NOT_RUN. Legacy SESSION rewards and dormant goal activation remain open.
+- [x] Select approved simpler radio details: remove technical cards/footer, concise
+  Imported labels in forty existing locales, updated production callers and six
+  new/updated Compose methods in `RADIO_DETAILS_POLISH_SELECTED/SOURCE_REVIEW.md`;
+  NOT_RUN. Saved readings and coverage remain intact; full T17 stays open.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production
