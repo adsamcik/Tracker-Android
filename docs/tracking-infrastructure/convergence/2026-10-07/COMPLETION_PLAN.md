@@ -388,6 +388,10 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
   `RADIO_CHILD_MAINTENANCE_SELECTED/SOURCE_REVIEW.md` and
   `RADIO_RETAINED_CLEANUP_COMPOSITION_SELECTED/SOURCE_REVIEW.md`. V2 source accepted,
   NOT_RUN. Source-only helper UX wiring, captured/imported siblings and full T11 open.
+- [x] Repair notification Back during an unfinished drag through the existing
+  ordered save queue. Two paths and three new ViewModel methods have independent
+  source acceptance in `NOTIFICATION_DRAG_EXIT_SELECTED/SOURCE_REVIEW.md`; NOT_RUN.
+  Existing recovery/accessibility cases preserved; full T17/device coverage open.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

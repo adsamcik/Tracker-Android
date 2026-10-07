@@ -1,0 +1,30 @@
+{
+  "base_commit": "2d979ea9850158529614bf8fd03f505a7ae91e9c",
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "test_execution": "NOT_RUN",
+  "review": "PENDING",
+  "selection_patch_sha256": "439f52d68681f5404055cf86a08eb5f220dd7d189d2a551a98611ebb3445a88d",
+  "files": [
+    {
+      "path": "feature/tracker/src/main/java/com/adsamcik/tracker/feature/tracker/notification/NotificationManagementScreen.kt",
+      "base_sha256": "3af218f62f7eb3eef4a33fb1d65bdd8ba5751d5b52227244a37b176dadf6e0d4",
+      "selected_sha256": "061b0f1bf015bed6e03aa3f0429930760602732edd849ea97c119e4dfe4a37ea",
+      "working_before_sha256": "1d44bf9e32f094bca3d42f07f25178d5e42b9dfd55fa0e91425dd9711e21af9a",
+      "working_after_sha256": "1d44bf9e32f094bca3d42f07f25178d5e42b9dfd55fa0e91425dd9711e21af9a",
+      "selected_eol": "LF",
+      "base_eol": "LF",
+      "selected_bytes": 16281
+    },
+    {
+      "path": "feature/tracker/src/test/java/com/adsamcik/tracker/feature/tracker/notification/NotificationManagementViewModelTest.kt",
+      "base_sha256": "4d2e3e16ec2a8bdc77de6bc9e19c764b0d03a85390ef4866c5594b9312b0e8e9",
+      "selected_sha256": "de97972807b867196c119bcbab846b46ef0c00c74dbcab75810abd6c71e769c8",
+      "working_before_sha256": "518656f22ae6c61957a9e0b28a024a287dcc91f8d5c9d3652b2723cad7697d8b",
+      "working_after_sha256": "518656f22ae6c61957a9e0b28a024a287dcc91f8d5c9d3652b2723cad7697d8b",
+      "selected_eol": "LF",
+      "base_eol": "LF",
+      "selected_bytes": 12742
+    }
+  ]
+}

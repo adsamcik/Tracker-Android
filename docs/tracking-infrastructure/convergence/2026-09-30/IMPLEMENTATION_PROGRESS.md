@@ -703,3 +703,14 @@ ordinary source-clear helper UX wiring, captured/imported siblings, complete
 ingress-to-reader and Android lifecycle remain OPEN. Mixed source/test drafts
 preserved. See `../2026-10-07/RADIO_CHILD_MAINTENANCE_SELECTED/SOURCE_REVIEW.md`.
 IMPLEMENTED_UNVALIDATED; all 25 full-chain prerequisites remain OPEN.
+
+### 2026-10-08 — Notification order survives Back during drag
+
+Selected a narrow existing-save-queue flush for unfinished order changes before
+Back exits and after an older save completes. Failure keeps edits and uses the
+approved Retry/Leave behavior; duplicate drag cancellation does not queue twice.
+Three real-ViewModel gated/failing repository cases authored; 13 existing VM and
+two Compose methods preserved. Independent static acceptance; NOT_RUN. No new
+UX/API/store/resources. `../2026-10-07/NOTIFICATION_DRAG_EXIT_SELECTED/SOURCE_REVIEW.md`.
+Full T17, pointer/Room/device evidence and all 25 complete chains remain OPEN.
+IMPLEMENTED_UNVALIDATED.

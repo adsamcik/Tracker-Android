@@ -86,6 +86,7 @@ class NotificationManagementViewModel @Inject constructor(
 	internal var unsavedExitRequested by mutableStateOf(false)
 		private set
 	private var revision = 0L
+	private var orderChanged = false
 	private val saves = Channel<Pair<Long, List<TrackerNotificationSetting>>>(Channel.CONFLATED)
 	private val saveCompletion = MutableStateFlow(SaveCompletion(0L, succeeded = true))
 	private var exitJob: Job? = null
@@ -145,10 +146,13 @@ class NotificationManagementViewModel @Inject constructor(
 		val item = mutable.removeAt(from)
 		mutable.add(to, item)
 		items = mutable
+		orderChanged = true
 		draggingIndex = to
 	}
 
 	fun persistOrder() {
+		if (!orderChanged) return
+		draggingIndex = null
 		persist(items)
 	}
 
@@ -165,14 +169,22 @@ class NotificationManagementViewModel @Inject constructor(
 
 	/** The route stays alive until its latest queued edit is saved or a visible failure occurs. */
 	fun exitWhenSaved(onBack: () -> Unit) {
+		persistOrder()
 		if (exitJob?.isActive == true) return
 		if (saveFailed) {
 			unsavedExitRequested = true
 			return
 		}
 		exitJob = viewModelScope.launch {
-			val completion = saveCompletion.first { it.revision >= revision }
-			if (completion.succeeded) onBack() else unsavedExitRequested = true
+			while (true) {
+				val completion = saveCompletion.first { it.revision >= revision }
+				if (orderChanged) {
+					persistOrder()
+					continue
+				}
+				if (completion.succeeded) onBack() else unsavedExitRequested = true
+				return@launch
+			}
 		}
 	}
 
@@ -204,6 +216,7 @@ class NotificationManagementViewModel @Inject constructor(
 	}
 
 	private fun persist(settings: List<TrackerNotificationSetting>) {
+		orderChanged = false
 		revision += 1
 		saveFailed = false
 		unsavedExitRequested = false

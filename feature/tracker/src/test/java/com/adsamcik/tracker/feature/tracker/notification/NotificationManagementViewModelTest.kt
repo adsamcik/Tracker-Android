@@ -240,6 +240,71 @@ class NotificationManagementViewModelTest {
 		exits shouldBe 0
 	}
 
+	@Test
+	fun `Back saves an unreleased drag and ignores its later cancellation save`() = runTest(dispatcher) {
+		val firstSave = CompletableDeferred<Unit>()
+		val repository = FakeTrackerNotificationSettingsRepository(settings()).apply { firstSaveGate = firstSave }
+		val viewModel = viewModel(repository)
+		var exits = 0
+		viewModel.load()
+		viewModel.setDragging(0)
+		viewModel.moveItem(0, 1)
+		viewModel.moveItem(1, 2)
+		viewModel.exitWhenSaved { exits += 1 }
+		exits shouldBe 0
+		viewModel.draggingIndex shouldBe null
+		repository.saved shouldBe emptyList()
+		// The route's drag-cancel callback can follow Back. It must not queue an identical edit.
+		viewModel.setDragging(null)
+		viewModel.persistOrder()
+		firstSave.complete(Unit)
+		exits shouldBe 1
+		repository.saved.single().map(TrackerNotificationSetting::id)
+			.shouldContainExactly("altitude", "battery", "activity")
+	}
+
+	@Test
+	fun `an unreleased drag that fails on Back keeps its final order for Retry`() = runTest(dispatcher) {
+		val repository = FakeTrackerNotificationSettingsRepository(settings()).apply { failNextSave = true }
+		val viewModel = viewModel(repository)
+		var exits = 0
+		viewModel.load()
+		viewModel.setDragging(0)
+		viewModel.moveItem(0, 2)
+		viewModel.exitWhenSaved { exits += 1 }
+		exits shouldBe 0
+		viewModel.saveFailed shouldBe true
+		viewModel.unsavedExitRequested shouldBe true
+		viewModel.items.map(TrackerNotificationSetting::id)
+			.shouldContainExactly("altitude", "battery", "activity")
+		viewModel.retrySaveAndExit { exits += 1 }
+		exits shouldBe 1
+		viewModel.unsavedExitRequested shouldBe false
+		repository.saved.single().shouldContainExactly(viewModel.items)
+	}
+
+	@Test
+	fun `a new drag while Back waits must save before the screen exits`() = runTest(dispatcher) {
+		val firstSave = CompletableDeferred<Unit>()
+		val repository = FakeTrackerNotificationSettingsRepository(settings()).apply { firstSaveGate = firstSave }
+		val viewModel = viewModel(repository)
+		var exits = 0
+		viewModel.load()
+		viewModel.moveItemAndPersist(0, 1)
+		viewModel.exitWhenSaved { exits += 1 }
+		// The screen is still editable while its first save is suspended.
+		viewModel.setDragging(1)
+		viewModel.moveItem(1, 2)
+		firstSave.complete(Unit)
+		exits shouldBe 1
+		viewModel.draggingIndex shouldBe null
+		repository.saved.size shouldBe 2
+		repository.saved.first().map(TrackerNotificationSetting::id)
+			.shouldContainExactly("altitude", "activity", "battery")
+		repository.saved.last().map(TrackerNotificationSetting::id)
+			.shouldContainExactly("altitude", "battery", "activity")
+	}
+
 	private fun viewModel(
 		repository: TrackerNotificationSettingsRepository,
 	) = NotificationManagementViewModel(
