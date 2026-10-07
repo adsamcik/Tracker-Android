@@ -10,6 +10,11 @@ current execution order. Complete tracking/everyday surfaces first; defer file
 and backup completion. Preserve this ledger and its historical source receipts.
 All 25 full-chain prerequisites remain open; validation and integration are deferred.
 
+October 7 execution: the independently reviewed completion plan is committed
+at `2f03d3ebe7`. A new point-in-time preservation inventory records all current
+refs/candidate commits/working entries; see `../2026-10-07/CURRENT_INPUT_STATUS.md`.
+Final draft dispositions, all 25 full-chain prerequisites and convergence stay open.
+
 ## Approved decisions
 
 - [x] Hourly background copies of supported native Steps, plus enable/open;

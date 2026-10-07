@@ -311,3 +311,17 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
    are approved. Use independent review and exact local commits for each coherent step.
 5. Update these checkboxes with actual completion evidence; do not mark broad chains done
    from an isolated implementation or unexecuted fixture.
+
+## Execution progress
+
+- [x] Reconcile, independently review and commit this plan: `2f03d3ebe7`.
+- [x] Capture the refreshed T01 preservation inventory at that commit; see
+  `CURRENT_INPUT_STATUS.md`. Final draft dispositions and assembly remain open.
+- [ ] Complete T19 integration coverage. The first actual all-day facade
+  capability/cancellation test slice is authored and statically reviewed, NOT_RUN;
+  its exact local selection is being completed.
+
+T15 follow-up inspection found the period metric backends have no production
+Summary consumer. Period propagation/rows and precise distance display need a
+concrete product proposal before implementation; do not change achievements to
+create a caller. This is recorded work, not a new implicit UI approval.
