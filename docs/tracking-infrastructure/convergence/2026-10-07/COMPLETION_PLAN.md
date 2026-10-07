@@ -52,7 +52,7 @@ product or changing activation gates implicitly.
 
 - [ ] **T02 — Finish Start, End and Turn off tracking.** Repair both confirmed
   Start lock-order failures: automatic callback reservation and service/database
-  acceptance. These coordination choices await approval. Finish exact one-use
+  acceptance. The presented coordination repair is authorized by the October 7 execution instruction. Finish exact one-use
   permission continuation for app/widget/shortcut starts, preserving the original
   source choices and rejecting superseding Start/End/Off or stale process requests.
   Keep Off saved until that exact Start is accepted. Check every external action
@@ -63,8 +63,8 @@ product or changing activation gates implicitly.
   caller authority, physical ownership, storage and retained readers. A fixed
   latency alone and an unchecked carried counter baseline are incomplete repairs.
   Cover other-source changes, End/Off, real consent boundaries, reset/reboot,
-  retries, exact counts and existing file compatibility. The current Astra
-  recording-reference proposal is unapproved, including its schema semantics.
+  retries, exact counts and existing file compatibility. The independently narrowed recording-reference proposal is authorized; any
+  newly discovered authority-rule change still requires explicit review/approval.
 
 - [ ] **T04 — Close source identity and purpose publication.** Trace current policy
   through demand, caller authority, registration, sequence, durable admission,
@@ -95,10 +95,10 @@ product or changing activation gates implicitly.
 - [ ] **T08 — Complete all-day Steps data and daily presentation.** Preserve the
   selected hourly/enable/open provider copies, 30-second attempts, real provider
   windows and bounded cursor/revision recovery. Daily totals must not add session
-  counters to overlapping provider counts. After display approval, stop a future
+  counters to overlapping provider counts. Following the approved display direction, stop a future
   midnight cursor from hiding trustworthy saved subtotals; keep independently valid
   days visible and preserve strict game/achievement completeness. Optional first-enable
-  permission-prompt synchronization awaits approval; the clicked repair already works.
+  permission-prompt synchronization is authorized; the clicked repair already works.
 
 - [ ] **T09 — Finish automatic tracking composition.** Connect real trigger receipt
   to accepted Start, chosen capture owners, saved products and End/Off. Preserve
@@ -164,8 +164,8 @@ product or changing activation gates implicitly.
 
 - [ ] **T17 — Finish settings and visible tracking states.** Complete source-aware
   setup, Dashboard, Tracker, Statistics, notifications and widgets. Reuse chosen-source
-  trustworthy saved products; the shared saved Location-summary interface awaits
-  approval. Finish recovery, current-choice permission repair, concise localized copy,
+  trustworthy saved products; the presented shared saved Location-summary interface
+  is authorized. Finish recovery, current-choice permission repair, concise localized copy,
   accessibility and external actions. Preserve ordered notification saves and approved
   Retry/Leave without saving behavior. Distinguish waiting, gaps and unsupported
   capability from measured zero; never show unqualified old distance.
@@ -256,12 +256,12 @@ when the concrete proposal is ready; do not reask settled decisions.
 
 | Decision | Affected tasks | Current state |
 | --- | --- | --- |
-| Existing cancellation/lock-order repair for both Start failures | T02, T09 | Previously asked, unanswered. |
-| Smallest Steps recording continuity design and persistent meaning | T03, T18 | Independent review narrowed Astra's proposal; see `STEPS_CONTINUITY_REVIEWED_PROPOSAL.md`. Approval question is pending. |
-| Recorded-so-far daily Steps with honest missing coverage | T08, T15, T17 | Previously asked, unanswered; strict numeric/game API stays strict. |
-| Shared saved Location summary for Tracker/notification/widget values | T17 | Previously asked, unanswered; reuse existing readers, no new collection. |
-| Optional two-second first-enable provider-status wait | T08, T17 | Previously asked, unanswered; existing repair button remains usable. |
-| Saved network/tower rows in existing radio detail screens | T11, T14, T17 | Approval question is pending for the scrolling-list presentation; preserve summaries, current local measurement dates and no arbitrary visible cap. |
+| Existing cancellation/lock-order repair for both Start failures | T02, T09 | Authorized by the October 7 instruction to execute the full presented plan. |
+| Smallest Steps recording continuity design and persistent meaning | T03, T18 | Narrowed presented proposal authorized. Operation-lease ancestry edge is under review; no blanket stale authority acceptance. |
+| Recorded-so-far daily Steps with honest missing coverage | T08, T15, T17 | Presented behavior authorized. New per-day display-reader contract was proposed separately and awaits an answer; games remain strict. |
+| Shared saved Location summary for Tracker/notification/widget values | T17 | Presented reader reuse authorized; no new collection. |
+| Optional two-second first-enable provider-status wait | T08, T17 | Presented bounded wait authorized; existing repair button remains usable. |
+| Saved network/tower rows in existing radio detail screens | T11, T14, T17 | Presented scrolling-list direction authorized; exact implementation packet awaits independent review. |
 | Durable background Location gap records | T07, T12 | Unanswered storage choice. |
 | New Activity/Pressure divergent-import conflict display | T14, T20 | Keep existing outcome until a concrete UI proposal is approved. |
 | Exact repeated Steps file membership for bundles | T21 | Review existing receipt semantics before proposing changes. |
@@ -329,6 +329,9 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
 - [x] Select History detail cancellation repair and one suspended repository-read
   case: `TRIP_DETAIL_CANCELLATION_SELECTED/SOURCE_REVIEW.md`. Existing
   result mappings preserved; cases NOT_RUN, full History composition remains open.
+- [x] Select daily Steps saved-count composition repair and seven actual Room
+  scenarios: `DAILY_STEPS_COMPOSITION_SELECTED/SOURCE_REVIEW.md`. Strict
+  numeric rules preserved; NOT_RUN, display-reader integration still pending.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

@@ -706,7 +706,9 @@ private fun composePublicDay(
 			)
 			base.copy(total = unavailable, betweenSession = unavailable)
 		}
-		key in native.materializingDays -> {
+		key in native.materializingDays && base.total == AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.NO_AMBIENT_FACT),
+		) -> {
 			val unavailable = AmbientStepsNumericValue.Unavailable(
 				setOf(AmbientStepsDayCause.AMBIENT_MATERIALIZING),
 			)

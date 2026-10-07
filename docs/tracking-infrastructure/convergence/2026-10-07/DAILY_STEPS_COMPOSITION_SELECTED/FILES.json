@@ -1,0 +1,26 @@
+{
+  "base_commit": "78eb255e5958b3490c44fa648b5bb6a67b2af7fe",
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "test_execution": "NOT_RUN",
+  "review": "PENDING",
+  "selection_patch_sha256": "438b4bdf327762ebbe32c80ac1634077e72ebc5e11673fdd3bb8a965f6bc4ecc",
+  "files": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultAmbientStepsHistoryRepository.kt",
+      "base_sha256": "1fa25cc97722547746372e56822b70e8824ae8fbf8e50b0f703949c7419a2bff",
+      "working_before_sha256": "b1242d5e3423a7e426600d6734adb28f2239e117c4a5b04d1edf20946f93c955",
+      "selected_sha256": "b170974bf3f314540a80f4dc24190ae1908654eaf03835194bcd32b048e99c4a",
+      "working_after_sha256": "3b7d8e0d8f5a789b82e5d38d5ce5f7fc79219a910fcfe5f29872d6a668ac544d",
+      "working_before_semantically_matches_base": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "base_sha256": "cf42de714c769d3bb38168032057571946d9e582ceb34b1f94f6a3cb66c91bf5",
+      "working_before_sha256": "cf42de714c769d3bb38168032057571946d9e582ceb34b1f94f6a3cb66c91bf5",
+      "selected_sha256": "f859ce46c6e6afdcdd1648d773d45da786b8f8c1739721794667775b8de08750",
+      "working_after_sha256": "f859ce46c6e6afdcdd1648d773d45da786b8f8c1739721794667775b8de08750",
+      "working_before_semantically_matches_base": true
+    }
+  ]
+}

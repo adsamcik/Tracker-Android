@@ -602,3 +602,9 @@ list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS
   four preserved tests have independent static acceptance in
   `../2026-10-07/TRIP_DETAIL_CANCELLATION_SELECTED/SOURCE_REVIEW.md`. All
   are NOT_RUN; result mappings unchanged and full History proof remains open.
+
+- [x] Preserve saved daily Steps counts and real error/gap causes while provider
+  copies are still pending. Only genuinely empty pending days show Materializing.
+  Two selected paths and seven actual Room scenarios have independent static
+  acceptance in `../2026-10-07/DAILY_STEPS_COMPOSITION_SELECTED/SOURCE_REVIEW.md`.
+  All are NOT_RUN; strict games unchanged, consumer wiring and T08 remain open.

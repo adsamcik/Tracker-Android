@@ -1,0 +1,184 @@
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultAmbientStepsHistoryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultAmbientStepsHistoryRepository.kt
+@@ -706,7 +706,9 @@
+ 			)
+ 			base.copy(total = unavailable, betweenSession = unavailable)
+ 		}
+-		key in native.materializingDays -> {
++		key in native.materializingDays && base.total == AmbientStepsNumericValue.Unavailable(
++			setOf(AmbientStepsDayCause.NO_AMBIENT_FACT),
++		) -> {
+ 			val unavailable = AmbientStepsNumericValue.Unavailable(
+ 				setOf(AmbientStepsDayCause.AMBIENT_MATERIALIZING),
+ 			)
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt
+@@ -27,6 +27,8 @@
+ import com.adsamcik.tracker.stats.api.repository.AllDaySourceStatusRequest
+ import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+ import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRead
++import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause
++import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericRangeRead
+ import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRead
+ import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRequest
+ import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRangeRequest
+@@ -488,6 +490,159 @@
+ 			AmbientStepsHistoryRecentRequest(1, requireNotNull(first.next)),
+ 		) as AmbientStepsHistoryRecentRead.Page
+ 		second.days.single().day.epochDay shouldBe 0L
++	}
++
++	@Test
++	fun `saved ongoing provider count stays partial and follows corrections and retraction`() = runTest {
++		val throughTimeMs = DAY_END / 2L
++		val fingerprint = seedPublicAuthority(cursor().copy(
++			importedThroughTimeMs = throughTimeMs,
++			lastObservedAtMs = throughTimeMs,
++			updatedAtMs = throughTimeMs,
++		))
++		val initial = fact(10L, endTimeMs = throughTimeMs, authorizationFingerprint = fingerprint)
++		database.ambientStepsFactRevisionDao().insert(initial)
++		val expected = AmbientStepsHistoryValue.Partial(
++			10L, setOf(AmbientStepsHistoryCause.PARTIAL_COVERAGE),
++		)
++		val reader = historyRepository()
++		val first = reader.readRange(stepsRange()) as AmbientStepsHistoryRead.Snapshot
++		first.days.single().total shouldBe expected
++		first.days.single().inSession shouldBe emptyList()
++		first.days.single().betweenSession.count shouldBe null
++		// Cursor progress is still reported; it no longer discards already saved counts.
++		(statusQuery().read(AllDaySourceStatusRequest.Steps(stepsRange())) as AllDaySourceStatusRead.Steps)
++			.materializingDays shouldBe setOf(AmbientStepsStructuralDay(0L, "UTC"))
++		val numeric = database.withTransaction {
++			reader.readNumericRangeInCurrentTransaction(
++				stepsRange(), requireNotNull(database.sourceEvidenceStateDao().get()).revision,
++			)
++		} as AmbientStepsNumericRangeRead.Snapshot
++		numeric.days.single().total shouldBe expected
++
++		val corrected = signed(initial.copy(
++			semanticRevision = 2L,
++			mutationId = AmbientStepsFactIntegrity.mutationId(
++				initial.logicalFactId, 2L, AmbientStepsFactRevisionEntity.OPERATION_UPSERT,
++			),
++			stepCount = 12L,
++			appliedAtMs = throughTimeMs + 1L,
++		))
++		database.ambientStepsFactRevisionDao().insert(corrected)
++		val afterCorrection = reader.readRange(stepsRange()) as AmbientStepsHistoryRead.Snapshot
++		afterCorrection.days.single().total shouldBe expected.copy(count = 12L)
++		afterCorrection.days.single().factOrigins.single().correctionRevision shouldBe 2L
++
++		database.ambientStepsFactRevisionDao().insert(retract(corrected))
++		val afterRetraction = reader.readRange(stepsRange()) as AmbientStepsHistoryRead.Snapshot
++		afterRetraction.days.single().total shouldBe AmbientStepsHistoryValue.Unavailable(
++			setOf(AmbientStepsHistoryCause.MATERIALIZING),
++		)
++		afterRetraction.days.single().factOrigins shouldBe emptyList()
++	}
++
++	@Test
++	fun `ongoing provider day does not hide an exact previous day in the same snapshot`() = runTest {
++		val throughTimeMs = DAY_END + DAY_END / 2L
++		val fingerprint = seedPublicAuthority(cursor().copy(
++			importedThroughTimeMs = throughTimeMs,
++			lastObservedAtMs = throughTimeMs,
++			updatedAtMs = throughTimeMs,
++		))
++		database.ambientStepsFactRevisionDao().insert(fact(10L, authorizationFingerprint = fingerprint))
++		database.ambientStepsFactRevisionDao().insert(fact(
++			20L, DAY_END, throughTimeMs, epochDay = 1L, authorizationFingerprint = fingerprint,
++		))
++		val read = historyRepository().readRange(AmbientStepsHistoryRangeRequest(listOf(
++			AmbientStepsStructuralDay(0L, "UTC"), AmbientStepsStructuralDay(1L, "UTC"),
++		))) as AmbientStepsHistoryRead.Snapshot
++		read.days.map { it.total } shouldBe listOf(
++			AmbientStepsHistoryValue.Exact(10L),
++			AmbientStepsHistoryValue.Partial(20L, setOf(AmbientStepsHistoryCause.PARTIAL_COVERAGE)),
++		)
++	}
++
++	@Test
++	fun `saved ongoing counts preserve real gap coverage instead of pending materialization`() = runTest {
++		val throughTimeMs = GAP_END + 1_000L
++		val fingerprint = seedPublicAuthority(cursorWithGap().copy(
++			importedThroughTimeMs = throughTimeMs,
++			lastObservedAtMs = throughTimeMs,
++			updatedAtMs = throughTimeMs,
++		))
++		database.ambientStepsFactRevisionDao().insert(fact(4L, 0L, GAP_START,
++			authorizationFingerprint = fingerprint))
++		database.ambientStepsFactRevisionDao().insert(fact(6L, GAP_END, throughTimeMs,
++			continuitySegmentGeneration = 2L, authorizationFingerprint = fingerprint))
++		database.ambientStepsImportStateDao().insertGap(gap(1L, GAP_START))
++
++		val read = historyRepository().readRange(stepsRange()) as AmbientStepsHistoryRead.Snapshot
++		read.days.single().total shouldBe AmbientStepsHistoryValue.Partial(10L, setOf(
++			AmbientStepsHistoryCause.PARTIAL_COVERAGE, AmbientStepsHistoryCause.EXPLICIT_GAP,
++		))
++	}
++
++	@Test
++	fun `ongoing gap without counts stays a gap and does not become covered zero`() = runTest {
++		seedPublicAuthority(cursorWithGap().copy(
++			importedThroughTimeMs = GAP_END,
++			lastObservedAtMs = GAP_END,
++			updatedAtMs = GAP_END,
++		))
++		database.ambientStepsImportStateDao().insertGap(gap(1L, GAP_START))
++
++		val read = historyRepository().readRange(stepsRange()) as AmbientStepsHistoryRead.Snapshot
++		read.days.single().total shouldBe AmbientStepsHistoryValue.Unavailable(setOf(
++			AmbientStepsHistoryCause.NO_EVIDENCE, AmbientStepsHistoryCause.EXPLICIT_GAP,
++		))
++	}
++
++	@Test
++	fun `ongoing overlapping provider windows remain nonnumeric with their actual cause`() = runTest {
++		val fingerprint = seedPublicAuthority(cursor().copy(
++			importedThroughTimeMs = 2_000L, lastObservedAtMs = 2_000L, updatedAtMs = 2_000L,
++		))
++		database.ambientStepsFactRevisionDao().insert(fact(4L, 0L, 1_000L,
++			authorizationFingerprint = fingerprint))
++		database.ambientStepsFactRevisionDao().insert(fact(6L, 500L, 2_000L,
++			authorizationFingerprint = fingerprint))
++
++		val read = historyRepository().readRange(stepsRange()) as AmbientStepsHistoryRead.Snapshot
++		read.days.single().total shouldBe AmbientStepsHistoryValue.Unavailable(
++			setOf(AmbientStepsHistoryCause.FACT_OVERLAP),
++		)
++	}
++
++	@Test
++	fun `ongoing count overflow remains nonnumeric with its actual cause`() = runTest {
++		val fingerprint = seedPublicAuthority(cursor().copy(
++			importedThroughTimeMs = 2_000L, lastObservedAtMs = 2_000L, updatedAtMs = 2_000L,
++		))
++		database.ambientStepsFactRevisionDao().insert(fact(Long.MAX_VALUE, 0L, 1_000L,
++			authorizationFingerprint = fingerprint))
++		database.ambientStepsFactRevisionDao().insert(fact(1L, 1_000L, 2_000L,
++			authorizationFingerprint = fingerprint))
++
++		val read = historyRepository().readRange(stepsRange()) as AmbientStepsHistoryRead.Snapshot
++		read.days.single().total shouldBe AmbientStepsHistoryValue.Unavailable(
++			setOf(AmbientStepsHistoryCause.COUNT_OVERFLOW),
++		)
++	}
++
++	@Test
++	fun `saved count cannot override an unverifiable sibling provider fact`() = runTest {
++		val fingerprint = seedPublicAuthority(cursor().copy(
++			importedThroughTimeMs = 2_000L, lastObservedAtMs = 2_000L, updatedAtMs = 2_000L,
++		))
++		database.ambientStepsFactRevisionDao().insert(fact(4L, 0L, 1_000L,
++			authorizationFingerprint = fingerprint))
++		database.ambientStepsFactRevisionDao().insert(signed(fact(6L, 1_000L, 2_000L,
++			authorizationFingerprint = fingerprint).copy(writerOwnerGeneration = 2L)))
++
++		val read = historyRepository().readRange(stepsRange()) as AmbientStepsHistoryRead.Snapshot
++		read.days.single().total shouldBe AmbientStepsHistoryValue.Unavailable(
++			setOf(AmbientStepsHistoryCause.SOURCE_AUTHORITY_UNVERIFIABLE),
++		)
+ 	}
+ 
+ 	@Test
