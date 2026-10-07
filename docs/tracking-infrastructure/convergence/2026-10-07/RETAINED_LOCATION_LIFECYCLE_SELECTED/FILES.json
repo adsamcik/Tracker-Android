@@ -1,0 +1,26 @@
+[
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinator.kt",
+    "base_sha256": "b7887bbdfa69ca95362afebe18bed0d9b3cbe60fcb413fc60abf875c83f1672b",
+    "selected_sha256": "c37e1c7969abc9229e221b0a95b2a8493fd283ef39ae11dd9127c5161c6f6261",
+    "selected_bytes": 11553,
+    "working_sha256": "b7887bbdfa69ca95362afebe18bed0d9b3cbe60fcb413fc60abf875c83f1672b",
+    "change": "documentation_only"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+    "base_sha256": "7b26cecd95d2ca3ee9de099f7cc6b6904d5527f49d0c38cc797ffc8b7278d3a0",
+    "selected_sha256": "8dce5b699e98701f166267a3ae00b095a3b169aaaad0ecbf72f65ad415149a71",
+    "selected_bytes": 14111,
+    "working_sha256": "7b26cecd95d2ca3ee9de099f7cc6b6904d5527f49d0c38cc797ffc8b7278d3a0",
+    "change": "documentation_only"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt",
+    "base_sha256": null,
+    "selected_sha256": "c95c134d249e7b8a17b008b1dd320dcdc050c8bd2ef29351267206bd744de65f",
+    "selected_bytes": 17401,
+    "working_sha256": null,
+    "change": "new_room_test_source"
+  }
+]

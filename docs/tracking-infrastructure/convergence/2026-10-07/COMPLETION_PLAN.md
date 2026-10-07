@@ -125,8 +125,10 @@ product or changing activation gates implicitly.
   Finish invalidation and count-domain/derived-product retraction, pruning dependencies
   and CONTROL expiry. Preserve unknown older origin honestly. Core privacy remains
   here even while backup/transfer-specific cleanup is deferred.
-  The remaining lifecycle Location proof still relies on run-only WAL lookup;
-  reconcile it with retained authority rather than adding another proof store.
+  The run-only Location proof is an internal acquisition diagnostic. Saved products
+  already use retained qualification independently; the specific concern is reconciled
+  in `RETAINED_LOCATION_LIFECYCLE_SELECTED/CALLER_TRACE.md`. Preserve both scopes
+  without reconstructing expired acquisition authority or adding a proof store.
 
 ## B. Complete everyday organization and product surfaces
 
@@ -347,6 +349,9 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
   methods through the real controller/planner/storage/registry. No new loop:
   `MOTION_REPLAN_COMPOSITION_SELECTED/SOURCE_REVIEW.md`; NOT_RUN. Actual
   service scheduling, admission, provider continuity and battery remain separate.
+- [x] Reconcile original Location diagnostics with existing retained saved readers
+  and select nine actual Room lifecycle methods: `RETAINED_LOCATION_LIFECYCLE_SELECTED/SOURCE_REVIEW.md`;
+  NOT_RUN. No new proof storage; End/Off commands and hardware remain unexecuted.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production

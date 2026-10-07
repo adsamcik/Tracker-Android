@@ -49,6 +49,12 @@ data class AllDaySourceStatusSnapshot(val sources: Map<TrackingSource, AllDaySou
  * completion while at most the latest pending invalidation remains queued. Every emission is
  * reconstructed from durable state; there is no polling, timer, provider demand, repair, cursor
  * advance, or write.
+ *
+ * [observe] diagnoses an exact original acquisition/materialization chain. Its transient WAL and
+ * registration dependencies may no longer exist even when the saved product remains valid. A
+ * missing stage must not be used to hide that product or recreate its acquisition authority.
+ * Retained history and optional map context use their source-owned saved-data readers; sessionless
+ * status uses [observeAllDay]. Neither result claims that a provider is currently running.
  */
 @Singleton
 class SourceLifecycleProofCoordinator internal constructor(

@@ -7,7 +7,15 @@ import com.adsamcik.tracker.stats.api.repository.RadioLocationContextGap
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 
-/** Caller owns the Room transaction. This reader has no collection or repair dependency. */
+/**
+ * Caller owns the Room transaction. This reader has no collection or repair dependency.
+ *
+ * Saved canonical samples and their independently sealed historical purpose grants are the retained
+ * product authority. Original WAL payloads and live provider registrations are not required here.
+ * End or a later Off policy never grants or revokes an older purpose; its exact erase and retention
+ * boundaries still apply. Older unsealed rows remain ordinary saved data without being upgraded to
+ * native map-context authority by this read.
+ */
 internal class RetainedLocationContextReader @Inject constructor(private val database: AppDatabase) {
     suspend fun readInTransaction(radios: List<RadioContextInput>): RetainedLocationContextSnapshot {
         if (radios.isEmpty()) return RetainedLocationContextSnapshot(emptyList())

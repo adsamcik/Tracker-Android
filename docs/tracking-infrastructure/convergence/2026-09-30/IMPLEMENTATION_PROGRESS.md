@@ -630,3 +630,9 @@ list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS
   dependencies. Existing production wiring is present; no additional loop or
   optimizer. `../2026-10-07/MOTION_REPLAN_COMPOSITION_SELECTED/SOURCE_REVIEW.md`;
   NOT_RUN. Admission/lifecycle owners are fixtures; physical power proof stays open.
+
+- [x] Reconcile original WAL acquisition diagnostics with already independent
+  retained Location products and select nine actual Room lifecycle methods.
+  `../2026-10-07/RETAINED_LOCATION_LIFECYCLE_SELECTED/SOURCE_REVIEW.md`; NOT_RUN.
+  Historical purpose fixtures do not execute End/Off commands or real providers;
+  no new proof store, behavior, API or authority was introduced. Broad T12 stays open.

@@ -1,0 +1,16 @@
+{
+  "selected": [
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceLifecycleProofCoordinator.kt",
+    "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt"
+  ],
+  "excluded_preserved": [
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "sha256": "99518a3263ae08905681750f29571eb04f4cdc7c8ef806e46cb51a78125f5761",
+      "reason": "Existing mixed retained-history test draft is preserved intact; this packet adds a separate purpose-lifecycle test class from clean HEAD."
+    }
+  ],
+  "shared_live_edits": false,
+  "git_mutations": false
+}

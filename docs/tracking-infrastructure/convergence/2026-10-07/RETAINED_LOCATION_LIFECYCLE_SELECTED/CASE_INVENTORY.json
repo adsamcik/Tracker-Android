@@ -1,0 +1,17 @@
+{
+  "test_source": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt",
+  "phase": "IMPLEMENTATION_ONLY",
+  "execution": "NOT_RUN",
+  "new_methods": [
+    "closed run retains both qualified purposes without original WAL or live registration",
+    "a later Off policy leaves closed capture and ambient history unchanged",
+    "exact capture erase leaves independently retained ambient context usable",
+    "removing ambient purpose keeps the same native sample under its capture grant",
+    "a damaged capture grant cannot invalidate or borrow the valid ambient sibling",
+    "unknown older purpose proof is preserved but never upgraded during a read",
+    "dataset erase fences both native purposes while a retained read never deletes or repairs rows",
+    "retention uses the original uncertain observation time for both retained purposes",
+    "a newer dataset epoch rejects both original grants without borrowing a current scope"
+  ],
+  "method_count": 9
+}
