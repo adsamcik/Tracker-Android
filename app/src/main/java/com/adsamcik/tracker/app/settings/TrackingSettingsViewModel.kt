@@ -57,6 +57,10 @@ import com.adsamcik.tracker.tracker.api.TrackingTurnOffResult
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.withTimeoutOrNull
+import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalState
+import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -193,6 +197,7 @@ class TrackingSettingsViewModel internal constructor(
 	private var locationIntentGeneration = 0L
 	private var automaticIntentGeneration = 0L
 	private val sourceIntentGenerations = mutableMapOf<TrackingSourceComponent, Long>()
+	private var stepsPermissionOpportunity: Job? = null
 	private val pendingSettingsEdits = linkedMapOf<String, PendingSettingsEdit>()
 	private val settingsSaves = Channel<Unit>(Channel.CONFLATED)
 	private val locationPermissionRequests = Channel<LocationSettingsPermissionRequest>(Channel.BUFFERED)
@@ -316,8 +321,45 @@ class TrackingSettingsViewModel internal constructor(
     }
 
     fun setStepsEnabled(enabled: Boolean, onSaved: () -> Unit = {}) {
-        mutateSourceSelection(TrackingSourceComponent.STEPS, { it.copy(stepsEnabled = enabled, ambientStepsEnabled = enabled) }, onSaved) {
+        stepsPermissionOpportunity?.cancel()
+        mutateSourceSelection(
+            TrackingSourceComponent.STEPS,
+            { it.copy(stepsEnabled = enabled, ambientStepsEnabled = enabled) },
+            { offerStepsPermissionAfterPublication(enabled, onSaved) },
+        ) {
             trackingParamsRepository.setStepsEnabled(enabled)
+        }
+    }
+
+    /** Give asynchronous provider-only availability a bounded opportunity to reach the UI. */
+    private fun offerStepsPermissionAfterPublication(enabled: Boolean, onSaved: () -> Unit) {
+        if (!enabled || _uiState.value.stepCounterAvailable || activityPermissionProbe()) {
+            onSaved()
+            return
+        }
+        val generation = sourceIntentGenerations[TrackingSourceComponent.STEPS]
+        stepsPermissionOpportunity = viewModelScope.launch {
+            withTimeoutOrNull(2_000L) {
+                uiState.first { state ->
+                    val availability = state.ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS)
+                    !state.stepsEnabled || state.stepCounterAvailable ||
+                        (availability.state != AmbientSourceOperationalState.WAITING &&
+                            availability.reason != AmbientSourceUnavailableReason.USER_TURNED_OFF)
+                }
+            }
+            if (sourceIntentGenerations[TrackingSourceComponent.STEPS] == generation &&
+                _uiState.value.stepsEnabled &&
+                _uiState.value.sourcePolicyReconciliationDebt == null) {
+                refreshPermissionState()
+                try {
+                    onSaved()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // Keep the saved choice and existing repair when the UI cannot launch.
+                    refreshPermissionState()
+                }
+            }
         }
     }
 
@@ -489,6 +531,10 @@ class TrackingSettingsViewModel internal constructor(
     }
 
     fun setSourceFrequency(component: TrackingSourceComponent, frequency: SourceCollectionFrequency) {
+        if (component == TrackingSourceComponent.STEPS) {
+            stepsPermissionOpportunity?.cancel()
+            sourceIntentGenerations[component] = (sourceIntentGenerations[component] ?: 0L) + 1L
+        }
 		launchSourcePolicyMutation("frequency-$component", { state ->
             val settings = state.sourceCollectionSettings
             state.copy(sourceCollectionSettings = when (component) {

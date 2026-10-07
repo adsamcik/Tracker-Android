@@ -1,0 +1,18 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "tests": "NOT_RUN",
+  "items": [
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt",
+      "working_before_sha256": "f2c6b86cf0109a665f2191c150364a13d0a8978e789dddca83b0888edf90ad10",
+      "working_after_sha256": "4ac220a3600517e4bdf86ca7ddd39a9c306b1fcffdd25e89f4e701f792769529",
+      "disposition": "APPLIED_SELECTED_TO_CLEAN_PATH"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModelTest.kt",
+      "working_before_sha256": "6790cc82e08e8569734c80688693e38388312b7ddd5656de53d9738a81308882",
+      "working_after_sha256": "13242d55199006434fb7ec3f9e49c6b0a1c31e9a40206bd06d9c922b9f0a1b28",
+      "disposition": "APPLIED_SELECTED_TO_CLEAN_PATH"
+    }
+  ]
+}

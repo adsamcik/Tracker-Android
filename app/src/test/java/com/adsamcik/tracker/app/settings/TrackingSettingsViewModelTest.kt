@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilities
 import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -69,6 +70,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -886,6 +889,217 @@ class TrackingSettingsViewModelTest {
         vm.setStepsEnabled(true) { prompts++ }
         advanceUntilIdle()
         prompts shouldBe 0
+    }
+
+    private fun publishStepsAvailability(availability: AmbientSourceOperationalAvailability) {
+        purposeAvailabilityFlow.value = purposeAvailabilityFlow.value.copy(
+            published = purposeAvailabilityFlow.value.published.copy(
+                ambientSources = purposeAvailabilityFlow.value.published.ambientSources +
+                    (AmbientTrackingSource.STEPS to availability),
+            ),
+        )
+    }
+
+    private fun providerOnlyStepsPermission() = AmbientSourceOperationalAvailability(
+        source = AmbientTrackingSource.STEPS,
+        state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
+        mechanism = AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+        reason = AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED,
+    )
+
+    @Test
+    fun `provider-only enable waits for permission publication before its one opportunity`() = runTest(testDispatcher) {
+        every { context.hasStepCounterSensor } returns false
+        val vm = createViewModel()
+        permissionsGranted = false
+        vm.refreshPermissionState()
+        var opportunities = 0
+        vm.setStepsEnabled(true) {
+            vm.uiState.value.ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).reason shouldBe
+                AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED
+            opportunities++
+        }
+        runCurrent()
+        opportunities shouldBe 0
+        advanceTimeBy(500L)
+        publishStepsAvailability(providerOnlyStepsPermission())
+        runCurrent()
+        opportunities shouldBe 1
+        publishStepsAvailability(AmbientSourceOperationalAvailability.reconciliationPending(AmbientTrackingSource.STEPS))
+        publishStepsAvailability(providerOnlyStepsPermission())
+        runCurrent()
+        opportunities shouldBe 1
+    }
+
+    @Test
+    fun `provider-only enable stops waiting after two seconds without retrying the save`() = runTest(testDispatcher) {
+        every { context.hasStepCounterSensor } returns false
+        val vm = createViewModel()
+        permissionsGranted = false
+        vm.refreshPermissionState()
+        var opportunities = 0
+        vm.setStepsEnabled(true) { opportunities++ }
+        runCurrent()
+        advanceTimeBy(1_999L)
+        runCurrent()
+        opportunities shouldBe 0
+        advanceTimeBy(1L)
+        runCurrent()
+        opportunities shouldBe 1
+        paramsFlow.value.stepsEnabled shouldBe true
+        coVerify(exactly = 1) { trackingParamsRepository.setStepsEnabled(true) }
+    }
+
+    @Test
+    fun `disabling Steps cancels an earlier waiting permission opportunity`() = runTest(testDispatcher) {
+        every { context.hasStepCounterSensor } returns false
+        val vm = createViewModel()
+        permissionsGranted = false
+        vm.refreshPermissionState()
+        var staleOpportunities = 0
+        vm.setStepsEnabled(true) { staleOpportunities++ }
+        runCurrent()
+        vm.setStepsEnabled(false)
+        publishStepsAvailability(providerOnlyStepsPermission())
+        advanceUntilIdle()
+        staleOpportunities shouldBe 0
+        paramsFlow.value.stepsEnabled shouldBe false
+    }
+
+    @Test
+    fun `a newer enable owns the sole permission opportunity`() = runTest(testDispatcher) {
+        every { context.hasStepCounterSensor } returns false
+        val vm = createViewModel()
+        permissionsGranted = false
+        vm.refreshPermissionState()
+        var staleOpportunities = 0
+        var currentOpportunities = 0
+        vm.setStepsEnabled(true) { staleOpportunities++ }
+        runCurrent()
+        vm.setStepsEnabled(true) { currentOpportunities++ }
+        runCurrent()
+        publishStepsAvailability(providerOnlyStepsPermission())
+        runCurrent()
+        staleOpportunities shouldBe 0
+        currentOpportunities shouldBe 1
+    }
+
+    @Test
+    fun `waiting for Steps does not hold up another settings save`() = runTest(testDispatcher) {
+        every { context.hasStepCounterSensor } returns false
+        val vm = createViewModel()
+        permissionsGranted = false
+        vm.refreshPermissionState()
+        var opportunities = 0
+        vm.setStepsEnabled(true) { opportunities++ }
+        runCurrent()
+        vm.setWifiEnabled(true)
+        runCurrent()
+        paramsFlow.value.wifiEnabled shouldBe true
+        opportunities shouldBe 0
+        coVerify(exactly = 1) { trackingParamsRepository.setWifiEnabled(true) }
+    }
+
+    @Test
+    fun `direct Steps sensor keeps the immediate saved permission opportunity`() = runTest(testDispatcher) {
+        val vm = createViewModel()
+        permissionsGranted = false
+        vm.refreshPermissionState()
+        var opportunities = 0
+        vm.setStepsEnabled(true) { opportunities++ }
+        runCurrent()
+        opportunities shouldBe 1
+    }
+
+    @Test
+    fun `late permission launch failure preserves saved Steps and its repair`() = runTest(testDispatcher) {
+        every { context.hasStepCounterSensor } returns false
+        val vm = createViewModel()
+        permissionsGranted = false
+        vm.refreshPermissionState()
+        var attempts = 0
+        vm.setStepsEnabled(true) {
+            attempts++
+            throw IllegalStateException("Screen no longer accepts a permission launch")
+        }
+        runCurrent()
+        publishStepsAvailability(providerOnlyStepsPermission())
+        runCurrent()
+        attempts shouldBe 1
+        paramsFlow.value.stepsEnabled shouldBe true
+        vm.uiState.value.ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).reason shouldBe
+            AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED
+        advanceUntilIdle()
+        attempts shouldBe 1
+    }
+
+    @Test
+    fun `closing the ViewModel cancels the waiting Steps permission opportunity`() = runTest(testDispatcher) {
+        every { context.hasStepCounterSensor } returns false
+        val vm = createViewModel()
+        val store = androidx.lifecycle.ViewModelStore()
+        store.put("tracking", vm)
+        permissionsGranted = false
+        vm.refreshPermissionState()
+        var opportunities = 0
+        vm.setStepsEnabled(true) { opportunities++ }
+        runCurrent()
+        store.clear()
+        publishStepsAvailability(providerOnlyStepsPermission())
+        advanceUntilIdle()
+        opportunities shouldBe 0
+        paramsFlow.value.stepsEnabled shouldBe true
+    }
+
+    @Test
+    fun `frequency Off cancels an old Steps opportunity before its suspended save finishes`() = runTest(testDispatcher) {
+        every { context.hasStepCounterSensor } returns false
+        val vm = createViewModel()
+        permissionsGranted = false
+        vm.refreshPermissionState()
+        var opportunities = 0
+        vm.setStepsEnabled(true) { opportunities++ }
+        runCurrent()
+        val saveEntered = CompletableDeferred<Unit>()
+        val releaseSave = CompletableDeferred<Unit>()
+        coEvery {
+            trackingParamsRepository.setSourceFrequency(TrackingSourceComponent.STEPS, SourceCollectionFrequency.OFF)
+        } coAnswers {
+            saveEntered.complete(Unit)
+            releaseSave.await()
+            paramsFlow.value = paramsFlow.value.copy(stepsEnabled = false, ambientStepsEnabled = false)
+        }
+        vm.setSourceFrequency(TrackingSourceComponent.STEPS, SourceCollectionFrequency.OFF)
+        saveEntered.await()
+        publishStepsAvailability(providerOnlyStepsPermission())
+        advanceTimeBy(2_000L)
+        runCurrent()
+        opportunities shouldBe 0
+        releaseSave.complete(Unit)
+        advanceUntilIdle()
+        opportunities shouldBe 0
+        paramsFlow.value.stepsEnabled shouldBe false
+    }
+
+    @Test
+    fun `failed frequency Off never revives an old Steps permission opportunity`() = runTest(testDispatcher) {
+        every { context.hasStepCounterSensor } returns false
+        val vm = createViewModel()
+        permissionsGranted = false
+        vm.refreshPermissionState()
+        var opportunities = 0
+        vm.setStepsEnabled(true) { opportunities++ }
+        runCurrent()
+        coEvery {
+            trackingParamsRepository.setSourceFrequency(TrackingSourceComponent.STEPS, SourceCollectionFrequency.OFF)
+        } throws java.io.IOException("Storage unavailable")
+        vm.setSourceFrequency(TrackingSourceComponent.STEPS, SourceCollectionFrequency.OFF)
+        runCurrent()
+        publishStepsAvailability(providerOnlyStepsPermission())
+        advanceUntilIdle()
+        opportunities shouldBe 0
+        vm.uiState.value.settingsSaveFailed shouldBe true
+        paramsFlow.value.stepsEnabled shouldBe true
     }
 
     // =========================================================================

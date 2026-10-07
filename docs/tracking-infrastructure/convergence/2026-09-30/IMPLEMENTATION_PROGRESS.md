@@ -620,3 +620,8 @@ list are maintained in [October 3 decision status](../2026-10-03/DECISION_STATUS
   and stable adaptive batching foundation. Nine new methods and fixture updates
   are NOT_RUN; `../2026-10-07/STEPS_CONTINUITY_SELECTED/SOURCE_REVIEW.md` accepts
   static source only. Runtime, operation authority and readers still need composition.
+
+- [x] Select the reviewed bounded first-enable Steps availability wait and ten
+  actual ViewModel methods. The advanced-frequency Off race found in review is
+  repaired. `../2026-10-07/STEPS_ENABLE_WAIT_SELECTED/SOURCE_REVIEW.md`; NOT_RUN.
+  No provider probe, durable intent, new screen copy or settings-queue delay.

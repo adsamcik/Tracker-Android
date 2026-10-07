@@ -1,0 +1,92 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "source_commit": "7f72b31259cf67080f75690d0980a7060ec8ce21",
+  "tests": "NOT_RUN",
+  "items": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt",
+      "working_before_sha256": "e557fda96b0ce3060f282d04769e5b065456b550726e56f23c38d7ac556f1208",
+      "working_after_sha256": "e557fda96b0ce3060f282d04769e5b065456b550726e56f23c38d7ac556f1208",
+      "disposition": "PRESERVED_MIXED_WORKING_SELECTED_IN_GIT"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
+      "working_before_sha256": "b8f904e77abf0906a1679eb9fdc55add67487d0289bfa1f57f97584352f21833",
+      "working_after_sha256": "b8f904e77abf0906a1679eb9fdc55add67487d0289bfa1f57f97584352f21833",
+      "disposition": "PRESERVED_MIXED_WORKING_SELECTED_IN_GIT"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceSessionEntities.kt",
+      "working_before_sha256": "e678a30f4da0008411c3c2bb592900e7a390040198fd0a3201476be40e8f31d0",
+      "working_after_sha256": "9e30418fe4663e86e39adae3cabb763342c9959dc54a06d6c39dab0fa4685e21",
+      "disposition": "APPLIED_SELECTED_TO_CLEAN_PATH"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepsRecordingLifetime.kt",
+      "working_before_sha256": null,
+      "working_after_sha256": "534388053a7e663ab0d41adee7d1ff4306566ea6360ddb2f84d77edf8d2b7015",
+      "disposition": "APPLIED_SELECTED_TO_CLEAN_PATH"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt",
+      "working_before_sha256": "7e5cf515685863675d97257acbb3dc55881ac402afe127fb9ea72492e51ebf37",
+      "working_after_sha256": "7e5cf515685863675d97257acbb3dc55881ac402afe127fb9ea72492e51ebf37",
+      "disposition": "PRESERVED_MIXED_WORKING_SELECTED_IN_GIT"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt",
+      "working_before_sha256": "4edc1d756190d8430681467189015d6a8bb0af91b713e266f5a0b06ebaaf51f9",
+      "working_after_sha256": "05ed64e1be3fbcc9b274fa025be2e564fc9925f0e16007acd4a1e101342da2b2",
+      "disposition": "APPLIED_SELECTED_TO_CLEAN_PATH"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/StepsRecordingLifetimeTest.kt",
+      "working_before_sha256": null,
+      "working_after_sha256": "967f3445b547f167fd9f891f1629cc4fd98691355240f14359eba3d7269d64c7",
+      "disposition": "APPLIED_SELECTED_TO_CLEAN_PATH"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt",
+      "working_before_sha256": "a8d25663e24457dca86bab3fb29b2ac4c95f58542aa797f823fa358f55134ce1",
+      "working_after_sha256": "a8d25663e24457dca86bab3fb29b2ac4c95f58542aa797f823fa358f55134ce1",
+      "disposition": "PRESERVED_MIXED_WORKING_SELECTED_IN_GIT"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/OwnerlessStepsManifestTimelinePaginationTest.kt",
+      "working_before_sha256": "4004e0be85c969bd113941b2690e5e9a27add3a71744ad380d05e2d7b5780204",
+      "working_after_sha256": "4004e0be85c969bd113941b2690e5e9a27add3a71744ad380d05e2d7b5780204",
+      "disposition": "PRESERVED_MIXED_WORKING_SELECTED_IN_GIT"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigrationTest.kt",
+      "working_before_sha256": "ed3fb5dedc47e1e6e4f69f430efa016da9dcda29947c44b2d82cea6f929bff74",
+      "working_after_sha256": "0e109a4f4919deae0b4cb42a3ef5d8897bf207ceee5fd811d6235d18d5266fe5",
+      "disposition": "APPLIED_SELECTED_TO_CLEAN_PATH"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/StepsRecordingOriginRoomTest.kt",
+      "working_before_sha256": null,
+      "working_after_sha256": "31b3be4d9f858a94688a58192072a7b2b5ca0f885a97127f1ee496142c27b9a3",
+      "disposition": "APPLIED_SELECTED_TO_CLEAN_PATH"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SemanticAcquisitionPlanFactory.kt",
+      "working_before_sha256": "dc802085b93da362eb41d0121ec5069bd4e6d63db02cc045ae0b1c0065e880cb",
+      "working_after_sha256": "8f6f4150da559fd768ea5ce57913c7dc9aaee795b6c4c365e27da6e3138c83c5",
+      "disposition": "APPLIED_SELECTED_TO_CLEAN_PATH"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AdaptiveStepsPhysicalPlanContinuityTest.kt",
+      "working_before_sha256": null,
+      "working_after_sha256": "79d06c1fcb427f399c9ab4a343f99e1d223519b41e5c5a639324fe5ccefdfc1a",
+      "disposition": "APPLIED_SELECTED_TO_CLEAN_PATH"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/FiveLevelSourceConfigurationTest.kt",
+      "working_before_sha256": "359d4ad2bf49d937952ef504e5d3162a89e8f8f2e4d7bf48183afa30c2b76c4d",
+      "working_after_sha256": "359d4ad2bf49d937952ef504e5d3162a89e8f8f2e4d7bf48183afa30c2b76c4d",
+      "disposition": "PRESERVED_MIXED_WORKING_SELECTED_IN_GIT"
+    }
+  ]
+}

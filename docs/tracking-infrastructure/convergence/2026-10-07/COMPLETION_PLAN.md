@@ -339,6 +339,10 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
   lifetime predicates and stable adaptive-request foundation: fourteen paths and
   nine new methods in `STEPS_CONTINUITY_SELECTED/SOURCE_REVIEW.md`; NOT_RUN.
   Physical continuity, current authority and retained-reader integration remain open.
+- [x] Select reviewed two-second first-enable Steps availability synchronization:
+  ten ViewModel methods and unchanged actual screen permission guards in
+  `STEPS_ENABLE_WAIT_SELECTED/SOURCE_REVIEW.md`; NOT_RUN. Advanced Off and
+  ViewModel cancellation fence the old opportunity; no save queue blocking.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production
