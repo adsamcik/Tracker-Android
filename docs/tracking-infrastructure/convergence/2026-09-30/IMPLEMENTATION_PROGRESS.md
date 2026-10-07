@@ -680,3 +680,14 @@ registration acknowledgements and sink submissions do not prove WAL, hosting,
 active-session teardown or device behavior. See
 `../2026-10-07/LOCATION_OFF_UI_COMPOSITION_SELECTED/SOURCE_REVIEW.md`. All 25 full-chain
 prerequisites remain OPEN; IMPLEMENTED_UNVALIDATED.
+
+### 2026-10-08 — Automatic transition to chosen Steps capture
+
+Selected three independently accepted composition methods through actual command
+reservation, session preparation/claim/acceptance, Steps runtime/registration,
+atomic ingress and native fact projection, plus delayed End and Off fencing.
+A fresh reviewer found and repaired an unbounded apply await in V2. Android
+foreground promotion, Activity registration/Ready publication, startup readiness
+and hardware callbacks remain fixtures. No full Off owner closure or device proof.
+`../2026-10-07/AUTOMATIC_CAPTURE_CHAIN_SELECTED/SOURCE_REVIEW.md`; NOT_RUN,
+IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites remain OPEN.

@@ -1,0 +1,27 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "test_execution": "NOT_RUN",
+  "selection_parent": "2d979ea9850158529614bf8fd03f505a7ae91e9c",
+  "files": [
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/AutomaticCaptureChainRoomTest.kt",
+      "base_sha256": null,
+      "selected_sha256": "6d3b62fbb474b2f4c53f681b26206b982e675774257b003f5acd76ce3a1c6906",
+      "selected_bytes": 32547,
+      "working_before_sha256": null,
+      "working_after_sha256": null,
+      "working_before_missing": true,
+      "working_after_missing": true,
+      "selected_eol": "LF"
+    }
+  ],
+  "dependency_count": 62,
+  "dependency_drift": [],
+  "authored_methods": 3,
+  "working_applied": [
+    "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/AutomaticCaptureChainRoomTest.kt"
+  ],
+  "working_preserved": [],
+  "review": "V2 independent static source acceptance; exact boundaries in SOURCE_BOUNDARY.md"
+}

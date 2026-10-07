@@ -1,0 +1,22 @@
+{
+  "base_commit": "0cdd3575fa5893d96986caa680d24ab08f3b7ad8",
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "test_execution": "NOT_RUN",
+  "review": "PENDING",
+  "selection_patch_sha256": "64e2fb594ffd36d1300010bc8b6aae34fe33fc8d40e4709dc7f17fc96aaf7a68",
+  "files": [
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/AutomaticCaptureChainRoomTest.kt",
+      "base_sha256": null,
+      "selected_sha256": "6d3b62fbb474b2f4c53f681b26206b982e675774257b003f5acd76ce3a1c6906",
+      "selected_bytes": 32547,
+      "working_before_sha256": null,
+      "working_after_sha256": null,
+      "working_before_missing": true,
+      "working_after_missing": true,
+      "selected_eol": "LF"
+    }
+  ],
+  "revision": "V2 bounded real apply; reviewed V1 preserved under REVIEW_V1"
+}

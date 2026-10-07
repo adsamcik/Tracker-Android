@@ -378,6 +378,11 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
   real command persistence, Room authorization/caller retirement and shared owners:
   one new method in `LOCATION_OFF_UI_COMPOSITION_SELECTED/SOURCE_REVIEW.md`,
   NOT_RUN. Backend/sink fixtures do not prove WAL, hosting or Android behavior.
+- [x] Select real automatic transition-to-Steps capture composition: three authored
+  Room/runtime methods through current Stop fencing, preparation/claim/acceptance,
+  ingress/native fact projection and End/Off in
+  `AUTOMATIC_CAPTURE_CHAIN_SELECTED/SOURCE_REVIEW.md`; V2 bounded-await repair
+  independently accepted, NOT_RUN. Platform/Ready boundaries remain fixtures.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production
