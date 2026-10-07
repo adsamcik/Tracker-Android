@@ -257,11 +257,11 @@ when the concrete proposal is ready; do not reask settled decisions.
 | Decision | Affected tasks | Current state |
 | --- | --- | --- |
 | Existing cancellation/lock-order repair for both Start failures | T02, T09 | Previously asked, unanswered. |
-| Smallest Steps recording continuity design and persistent meaning | T03, T18 | Astra proposal; independent design review/approval still required. |
+| Smallest Steps recording continuity design and persistent meaning | T03, T18 | Independent review narrowed Astra's proposal; see `STEPS_CONTINUITY_REVIEWED_PROPOSAL.md`. Approval question is pending. |
 | Recorded-so-far daily Steps with honest missing coverage | T08, T15, T17 | Previously asked, unanswered; strict numeric/game API stays strict. |
 | Shared saved Location summary for Tracker/notification/widget values | T17 | Previously asked, unanswered; reuse existing readers, no new collection. |
 | Optional two-second first-enable provider-status wait | T08, T17 | Previously asked, unanswered; existing repair button remains usable. |
-| Saved network/tower rows in existing radio detail screens | T11, T14, T17 | Concrete scrolling-list presentation needs approval; preserve summaries, current local measurement dates and no arbitrary visible cap. |
+| Saved network/tower rows in existing radio detail screens | T11, T14, T17 | Approval question is pending for the scrolling-list presentation; preserve summaries, current local measurement dates and no arbitrary visible cap. |
 | Durable background Location gap records | T07, T12 | Unanswered storage choice. |
 | New Activity/Pressure divergent-import conflict display | T14, T20 | Keep existing outcome until a concrete UI proposal is approved. |
 | Exact repeated Steps file membership for bundles | T21 | Review existing receipt semantics before proposing changes. |
