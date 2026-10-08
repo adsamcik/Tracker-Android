@@ -798,3 +798,16 @@ No broad source or T25 gate is closed.
 - [ ] Complete the full source/provider/UI/export chains and final convergence.
 
 IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites remain OPEN.
+
+## October 8 approved older-data preservation
+
+- [x] Implement and independently review exact original 17 nullable fields, two raw
+  compatibility tables and restored same NetworkOperator entity/registration.
+- [x] Backfill old labels and available original scalars through the existing
+  atomic legacy import, file lock and shared import-job receipt contract. No
+  temporary export or separate migration engine. Missing originals stay unknown.
+- [x] Author 13 focused host/migration source methods; all NOT_RUN.
+- [ ] Generate/converge schema, execute migration gates, connect actual History
+  and typed-file consumers, and complete explicit remaining cleanup callers.
+
+IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites and T25 remain OPEN.

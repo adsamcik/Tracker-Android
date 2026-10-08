@@ -31,6 +31,7 @@ val MIGRATION_28_29: Migration = object : Migration(28, 29) {
 		db.execSQL("ALTER TABLE location_sample_purpose_authority ADD COLUMN retained_proof_checksum TEXT NOT NULL DEFAULT ''")
 		db.execSQL("ALTER TABLE organization_annotation ADD COLUMN imported_source_selection TEXT")
 		db.execSQL("ALTER TABLE organization_annotation ADD COLUMN imported_activity_label TEXT")
+		createLegacyPreservedDataSchema(db)
 		createLocationFileArchiveTables(db)
 		createRadioObservationChildTables(db)
 		copyKnownLegacyRadioRows(db)
@@ -289,4 +290,43 @@ internal fun installLegacyRadioChildMirrors(db: SupportSQLiteDatabase) {
 			DELETE FROM legacy_cell_child WHERE legacy_row_id = OLD.id;
 		END
 	""".trimIndent())
+}
+
+/** Nullable originals do not infer new capture authority or alter the canonical values. */
+private fun createLegacyPreservedDataSchema(db: SupportSQLiteDatabase) {
+	db.execSQL("ALTER TABLE location_sample ADD COLUMN legacy_lat REAL")
+	db.execSQL("ALTER TABLE location_sample ADD COLUMN legacy_lon REAL")
+	db.execSQL("ALTER TABLE location_sample ADD COLUMN legacy_alt_m REAL")
+	db.execSQL("ALTER TABLE wifi_observation ADD COLUMN legacy_first_seen_ms INTEGER")
+	db.execSQL("ALTER TABLE wifi_observation ADD COLUMN legacy_alt_m REAL")
+	db.execSQL("ALTER TABLE wifi_observation ADD COLUMN legacy_lat REAL")
+	db.execSQL("ALTER TABLE wifi_observation ADD COLUMN legacy_lon REAL")
+	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_source_id INTEGER")
+	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_mcc TEXT")
+	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_mnc TEXT")
+	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_alt_m REAL")
+	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_lat REAL")
+	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_lon REAL")
+	db.execSQL("ALTER TABLE session_segment ADD COLUMN legacy_user_initiated INTEGER")
+	db.execSQL("ALTER TABLE session_segment ADD COLUMN legacy_distance_on_foot_m REAL")
+	db.execSQL("ALTER TABLE session_segment ADD COLUMN legacy_distance_in_vehicle_m REAL")
+	db.execSQL("ALTER TABLE session_segment ADD COLUMN legacy_activity_id INTEGER")
+	db.execSQL("""
+		CREATE TABLE IF NOT EXISTS legacy_rejected_tracker_session (
+			id INTEGER NOT NULL, start INTEGER NOT NULL, `end` INTEGER NOT NULL,
+			user_initiated INTEGER NOT NULL, collections INTEGER NOT NULL,
+			distance REAL NOT NULL, distance_on_foot REAL NOT NULL,
+			distance_in_vehicle REAL NOT NULL, steps INTEGER NOT NULL,
+			session_activity_id INTEGER, PRIMARY KEY(id)
+		)
+	""".trimIndent())
+	db.execSQL("""
+		CREATE TABLE IF NOT EXISTS legacy_location_wifi_count (
+			id INTEGER NOT NULL, time INTEGER NOT NULL, count INTEGER NOT NULL,
+			lat REAL NOT NULL, lon REAL NOT NULL, alt REAL, PRIMARY KEY(id)
+		)
+	""".trimIndent())
+	db.execSQL("CREATE INDEX IF NOT EXISTS idx_legacy_location_wifi_count_time ON legacy_location_wifi_count(time)")
+	db.execSQL("CREATE INDEX IF NOT EXISTS idx_legacy_location_wifi_count_coords ON legacy_location_wifi_count(lat, lon)")
+	db.execSQL("CREATE TABLE IF NOT EXISTS network_operator(mcc TEXT NOT NULL, mnc TEXT NOT NULL, name TEXT, PRIMARY KEY(mcc, mnc))")
 }

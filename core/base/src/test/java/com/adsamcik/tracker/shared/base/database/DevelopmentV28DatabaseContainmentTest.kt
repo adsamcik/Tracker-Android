@@ -903,6 +903,26 @@ class DevelopmentV28DatabaseContainmentTest {
 		helper.close()
 	}
 
+	@Test
+	fun `v29 missing an original released column stays preserved and blocked`() {
+		val database = AppDatabase.fileBuilder(context, DATABASE_NAME).allowMainThreadQueries().build()
+		try {
+			database.openHelper.writableDatabase.execSQL("ALTER TABLE cell_sample RENAME COLUMN legacy_mnc TO missing_legacy_mnc")
+		} finally { database.close() }
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA)
+		databaseFile().exists() shouldBe true
+	}
+
+	@Test
+	fun `v29 missing an original compatibility table stays preserved and blocked`() {
+		val database = AppDatabase.fileBuilder(context, DATABASE_NAME).allowMainThreadQueries().build()
+		try {
+			database.openHelper.writableDatabase.execSQL("DROP TABLE legacy_location_wifi_count")
+		} finally { database.close() }
+		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA)
+		databaseFile().exists() shouldBe true
+	}
+
 	private fun preflight(): ActiveDatabasePreflightResult =
 		ActiveDatabasePreflight(databaseFile()).inspect()
 

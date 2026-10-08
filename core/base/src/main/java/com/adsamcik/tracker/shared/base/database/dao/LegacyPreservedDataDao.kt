@@ -1,0 +1,40 @@
+package com.adsamcik.tracker.shared.base.database.dao
+
+import androidx.room.Dao
+import androidx.room.Query
+import com.adsamcik.tracker.shared.base.data.NetworkOperator
+import com.adsamcik.tracker.shared.base.database.data.LegacyLocationWifiCount
+import com.adsamcik.tracker.shared.base.database.data.LegacyRejectedTrackerSession
+
+/** Typed access to the finite released compatibility records. They carry no inferred purpose. */
+@Dao
+interface LegacyPreservedDataDao {
+	@Query("SELECT * FROM legacy_rejected_tracker_session WHERE id = :id")
+	suspend fun rejectedSession(id: Long): LegacyRejectedTrackerSession?
+
+	/** The limit is a page size; measured time and ID resume the same selected date range. */
+	@Query("""SELECT * FROM legacy_location_wifi_count WHERE time >= :fromMs AND time < :toMs
+		AND (:afterTimeMs IS NULL OR time > :afterTimeMs OR
+		(time = :afterTimeMs AND id > COALESCE(:afterId, 0))) ORDER BY time, id LIMIT :limit""")
+	suspend fun wifiCounts(fromMs: Long, toMs: Long, limit: Int,
+		afterTimeMs: Long? = null, afterId: Long? = null): List<LegacyLocationWifiCount>
+
+	@Query("SELECT * FROM network_operator WHERE mcc = :mcc AND mnc = :mnc")
+	suspend fun networkOperator(mcc: String, mnc: String): NetworkOperator?
+
+	/** Invoked inside the existing trip-retention authority transaction. */
+	@Query("DELETE FROM legacy_rejected_tracker_session WHERE start >= 0 AND `end` >= 0 AND start < :cutoff AND `end` < :cutoff")
+	suspend fun deleteRejectedSessionsOlderThan(cutoff: Long)
+
+	/** Invoked inside the existing radio-retention authority transaction. */
+	@Query("DELETE FROM legacy_location_wifi_count WHERE time < :cutoff")
+	suspend fun deleteWifiCountsOlderThan(cutoff: Long)
+
+	/** The existing full-clear transaction owns these deletes; no purpose is guessed. */
+	@Query("DELETE FROM legacy_rejected_tracker_session")
+	fun deleteAllRejectedSessions()
+	@Query("DELETE FROM legacy_location_wifi_count")
+	fun deleteAllWifiCounts()
+	@Query("DELETE FROM network_operator")
+	fun deleteAllNetworkOperators()
+}

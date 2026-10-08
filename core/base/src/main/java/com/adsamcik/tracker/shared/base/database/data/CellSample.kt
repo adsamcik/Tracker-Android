@@ -99,6 +99,14 @@ data class CellSample(
 
 	@Embedded
 	val observationStamp: ObservationStampColumns = ObservationStampColumns(),
+
+	/** Original released values; new recordings leave these fields unknown. */
+	@ColumnInfo(name = "legacy_source_id") val legacySourceId: Long? = null,
+	@ColumnInfo(name = "legacy_mcc") val legacyMcc: String? = null,
+	@ColumnInfo(name = "legacy_mnc") val legacyMnc: String? = null,
+	@ColumnInfo(name = "legacy_alt_m") val legacyAltM: Double? = null,
+	@ColumnInfo(name = "legacy_lat") val legacyLat: Double? = null,
+	@ColumnInfo(name = "legacy_lon") val legacyLon: Double? = null,
 )
 
 /**

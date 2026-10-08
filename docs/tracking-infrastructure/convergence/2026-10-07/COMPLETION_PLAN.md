@@ -416,7 +416,8 @@ All rows remain **OPEN**. Mapping does not claim the corresponding code is absen
 - [x] Trace released schema-12 recovery and independently review the lean V2
   preservation proposal in `RELEASED_DATA_RECOVERY_AUDIT/SOURCE_REVIEW.md`.
   Eight released and forty-three historical candidate pins retained; known later
-  fixes recorded. New storage/backfill NOT_APPROVED and NOT_IMPLEMENTED.
+  fixes recorded. The October 8 answer approved the concrete V2 preservation;
+  its selected implementation is recorded below, with validation still deferred.
 - [ ] Complete the remaining T19 integration coverage and all full-chain prerequisites.
 
 T15 follow-up inspection found the period metric backends have no production
@@ -465,3 +466,11 @@ prerequisites and T25 remain OPEN. No gates or dev/v10 integration started.
   unchanged Snapshot/detail/identity checks and no repeated raw-window query.
   Two new Room methods and one extended sibling case are NOT_RUN. See
   ../2026-10-08/RADIO_QUALIFIED_ROW_REUSE_SELECTED/SOURCE_REVIEW.md.
+
+- [x] Select independently reviewed released-data preservation: 17 nullable original
+  fields, two original raw tables, the same NetworkOperator registration and
+  segment-label backfill through the existing atomic import/receipt workflow.
+  Thirteen new host/migration methods are NOT_RUN. See
+  ../2026-10-08/RELEASED_DATA_PRESERVATION_SELECTED/SOURCE_REVIEW.md.
+  Generated schema, actual History/portable use, legacy universal erase and direct
+  trip-delete annotation cleanup remain open; full T18/T25 are not closed.

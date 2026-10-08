@@ -8,6 +8,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.SupportSQLiteStatement
 import com.adsamcik.tracker.shared.base.database.openDatabasePreservingFiles
+import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 
 internal const val LEGACY_IMPORT_JOB_ID = "legacy-database-v26"
@@ -24,7 +25,7 @@ private fun canonicalOrLegacy(
 }
 
 /**
- * Copies the small, frozen set of relevant v26 tables into a newly created v27 schema.
+ * Copies the frozen normalized tables and optional released originals into a fresh active schema.
  * This is called from Room's onCreate transaction, so target writes commit atomically.
  */
 class LegacyV26Importer(
@@ -61,6 +62,7 @@ class LegacyV26Importer(
 							imported["location_observation"] =
 								deriveLegacyLocationObservations(target)
 							backfillCanonicalSourceIdentities(target)
+							imported["organization_annotation"] = backfillLegacySessionLabels(target)
 							val skipped = skippedTables.associateWith { table ->
 								countRows(source, table)
 							}
@@ -192,6 +194,20 @@ class LegacyV26Importer(
 		)
 	}
 
+	/** Reuses the existing segment adapter and label catalog, without inventing a detected activity. */
+	private fun backfillLegacySessionLabels(target: SupportSQLiteDatabase): Long {
+		target.execSQL("""
+			INSERT INTO organization_annotation (
+				local_id, revision, created_at_ms, updated_at_ms, recording_adapter_key,
+				start_time_ms, end_time_ms, display_zone_id, name, activity_label_id, hidden
+			)
+			SELECT 'legacy-segment:' || id, 1, created_at, created_at, 'segment:' || id,
+				NULL, NULL, NULL, NULL, legacy_activity_id, 0
+			FROM session_segment WHERE legacy_activity_id IS NOT NULL ORDER BY id
+		""".trimIndent())
+		return countRows(target, "organization_annotation")
+	}
+
 	private fun validateReleasedSchema(source: SQLiteDatabase) {
 		if (source.version !in RELEASED_DATABASE_VERSION..LATEST_DIRECT_IMPORT_VERSION) {
 			throw LegacyDatabaseException(
@@ -212,7 +228,8 @@ class LegacyV26Importer(
 		}
 		for (spec in importedTables) {
 			val actualColumns = sourceColumns(source, spec.name)
-			val missingColumns = spec.columns.toSet() - actualColumns
+			if (spec.optional && actualColumns.isEmpty()) continue
+			val missingColumns = (spec.columns.toSet() - spec.optionalColumns) - actualColumns
 			if (missingColumns.isNotEmpty()) {
 				throw LegacyDatabaseException(
 					"Legacy table ${spec.name} is missing columns: ${missingColumns.sorted()}",
@@ -227,12 +244,13 @@ class LegacyV26Importer(
 		spec: TableCopySpec,
 	): Long {
 		val sourceColumns = sourceColumns(source, spec.name)
+		if (spec.optional && sourceColumns.isEmpty()) return 0L
 		val quotedColumns = spec.columns.joinToString(",") { "`$it`" }
 		val selectedColumns = spec.columns.joinToString(",") { column ->
 			spec.sourceExpressions[column]?.let { expression ->
 				"${expression(sourceColumns)} AS `$column`"
 			}
-				?: "`$column`"
+				?: if (column in sourceColumns) "`$column`" else "NULL AS `$column`"
 		}
 		val placeholders = List(spec.columns.size) { "?" }.joinToString(",")
 		val statement = target.compileStatement(
@@ -310,7 +328,7 @@ class LegacyV26Importer(
 				LEGACY_IMPORT_JOB_ID,
 				"$LEGACY_DATABASE_NAME:v$sourceVersion",
 				sourceSizeBytes,
-				"COMPLETE",
+				ImportJobReceiptEntity.STATUS_COMPLETE,
 				now,
 				now,
 				now,
@@ -323,6 +341,8 @@ class LegacyV26Importer(
 		val columns: List<String>,
 		val orderColumn: String = "id",
 		val sourceExpressions: Map<String, (Set<String>) -> String> = emptyMap(),
+		val optionalColumns: Set<String> = emptySet(),
+		val optional: Boolean = false,
 	)
 
 	private companion object {
@@ -330,11 +350,20 @@ class LegacyV26Importer(
 		const val LATEST_DIRECT_IMPORT_VERSION = 34
 
 		val importedTables = listOf(
+			TableCopySpec("network_operator", listOf("mcc", "mnc", "name"), orderColumn = "mcc"),
+			TableCopySpec("legacy_rejected_tracker_session", listOf(
+				"id", "start", "end", "user_initiated", "collections", "distance",
+				"distance_on_foot", "distance_in_vehicle", "steps", "session_activity_id",
+			), optional = true),
+			TableCopySpec("legacy_location_wifi_count", listOf(
+				"id", "time", "count", "lat", "lon", "alt",
+			), optional = true),
 			TableCopySpec("activity", listOf("id", "name", "iconName")),
 			TableCopySpec("location_sample", listOf(
 				"id", "time_ms", "elapsed_realtime_nanos", "lat_e7", "lon_e7", "alt_m",
 				"raw_gps_alt_m", "h_acc_m", "v_acc_m", "speed_mps", "speed_accuracy_mps",
 				"provider", "quality", "motion_state", "policy", "bucket_id", "created_at",
+				"legacy_lat", "legacy_lon", "legacy_alt_m",
 			), sourceExpressions = mapOf(
 				"lat_e7" to { columns ->
 					canonicalOrLegacy(
@@ -355,7 +384,7 @@ class LegacyV26Importer(
 				"alt_m" to { columns ->
 					canonicalOrLegacy(columns, "alt_m", "legacy_alt_m")
 				},
-			)),
+			), optionalColumns = setOf("legacy_lat", "legacy_lon", "legacy_alt_m")),
 			TableCopySpec("step_interval", listOf(
 				"id", "start_time_ms", "end_time_ms", "step_count", "sensor_value_start",
 				"sensor_value_end", "sensor_reset", "created_at",
@@ -366,6 +395,7 @@ class LegacyV26Importer(
 			TableCopySpec("cell_sample", listOf(
 				"id", "time_ms", "cell_id", "lac", "mcc", "mnc", "network_type",
 				"signal_strength", "lat_e7", "lon_e7", "provenance", "created_at",
+				"legacy_source_id", "legacy_mcc", "legacy_mnc", "legacy_alt_m", "legacy_lat", "legacy_lon",
 			), sourceExpressions = mapOf(
 				"lat_e7" to { columns ->
 					canonicalOrLegacy(
@@ -383,10 +413,11 @@ class LegacyV26Importer(
 						"CAST(ROUND(`legacy_lon` * 10000000) AS INTEGER)",
 					)
 				},
-			)),
+			), optionalColumns = setOf("legacy_source_id", "legacy_mcc", "legacy_mnc", "legacy_alt_m", "legacy_lat", "legacy_lon")),
 			TableCopySpec("wifi_observation", listOf(
 				"id", "time_ms", "bssid", "ssid", "capabilities", "frequency", "level",
 				"lat_e7", "lon_e7", "provenance", "created_at",
+				"legacy_first_seen_ms", "legacy_alt_m", "legacy_lat", "legacy_lon",
 			), sourceExpressions = mapOf(
 				"lat_e7" to { columns ->
 					canonicalOrLegacy(
@@ -404,12 +435,13 @@ class LegacyV26Importer(
 						"CAST(ROUND(`legacy_lon` * 10000000) AS INTEGER)",
 					)
 				},
-			)),
+			), optionalColumns = setOf("legacy_first_seen_ms", "legacy_alt_m", "legacy_lat", "legacy_lon")),
 			TableCopySpec("session_segment", listOf(
 				"id", "start_time_ms", "end_time_ms", "distance_m", "steps", "primary_activity",
 				"activity_confidence", "sample_count", "source", "inference_version", "created_at",
 				"has_distance_anomaly",
-			)),
+				"legacy_user_initiated", "legacy_distance_on_foot_m", "legacy_distance_in_vehicle_m", "legacy_activity_id",
+			), optionalColumns = setOf("legacy_user_initiated", "legacy_distance_on_foot_m", "legacy_distance_in_vehicle_m", "legacy_activity_id")),
 			TableCopySpec("daily_summary", listOf(
 				"date_epoch_day", "total_distance_m", "total_steps", "total_duration_ms",
 				"trip_count", "active_tracking_ms", "last_updated_ms", "created_at",
@@ -432,7 +464,6 @@ class LegacyV26Importer(
 		)
 
 		val skippedTables = listOf(
-			"network_operator",
 			"tracker_run",
 			"live_stats",
 			"frequent_place",
@@ -448,11 +479,11 @@ class LegacyV26Importer(
 			"pending_signal",
 		)
 
-		val releasedTables = (importedTables.map(TableCopySpec::name) + skippedTables).toSet()
+		val releasedTables = (importedTables.filterNot(TableCopySpec::optional).map(TableCopySpec::name) + skippedTables).toSet()
 	}
 }
 
 fun hasCompletedLegacyImport(database: SupportSQLiteDatabase): Boolean = database.query(
-	"SELECT 1 FROM import_job_receipt WHERE job_id = ? AND status = 'COMPLETE' LIMIT 1",
-	arrayOf(LEGACY_IMPORT_JOB_ID),
+	"SELECT 1 FROM import_job_receipt WHERE job_id = ? AND status = ? LIMIT 1",
+	arrayOf(LEGACY_IMPORT_JOB_ID, ImportJobReceiptEntity.STATUS_COMPLETE),
 ).use(Cursor::moveToFirst)

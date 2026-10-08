@@ -212,6 +212,11 @@ data class LocationSample(
 
 	@ColumnInfo(name = "boot_clock_domain_id")
 	val bootClockDomainId: String? = null,
+
+	/** Original released values; new recordings leave these fields unknown. */
+	@ColumnInfo(name = "legacy_lat") val legacyLat: Double? = null,
+	@ColumnInfo(name = "legacy_lon") val legacyLon: Double? = null,
+	@ColumnInfo(name = "legacy_alt_m") val legacyAltM: Double? = null,
 )
 
 /**

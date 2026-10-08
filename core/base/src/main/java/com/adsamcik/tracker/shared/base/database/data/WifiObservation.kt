@@ -91,4 +91,10 @@ data class WifiObservation(
 
 	@Embedded
 	val observationStamp: ObservationStampColumns = ObservationStampColumns(),
+
+	/** Original released values; new recordings leave these fields unknown. */
+	@ColumnInfo(name = "legacy_first_seen_ms") val legacyFirstSeenMs: Long? = null,
+	@ColumnInfo(name = "legacy_alt_m") val legacyAltM: Double? = null,
+	@ColumnInfo(name = "legacy_lat") val legacyLat: Double? = null,
+	@ColumnInfo(name = "legacy_lon") val legacyLon: Double? = null,
 )

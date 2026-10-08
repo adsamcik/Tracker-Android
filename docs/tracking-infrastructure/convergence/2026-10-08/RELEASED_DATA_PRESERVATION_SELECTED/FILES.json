@@ -1,0 +1,143 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "input_commit": "18141c7ea01807ad63807915085b19bda05ef8ba",
+  "files": [
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/maintenance/RetentionPipelineWorker.kt",
+      "base_sha256": "9fa6186fd827520fed30dc5fa75fd25464bcc93cb662af30b6f3bc82fa0d2fe2",
+      "selected_sha256": "c453e3a31adabc6afa5bf244b8b46fb89e3c900f56f9701f359a339bc61e6381",
+      "working_before_sha256": "9fa6186fd827520fed30dc5fa75fd25464bcc93cb662af30b6f3bc82fa0d2fe2",
+      "disposition": "SELECT_CLEAN_COMMITTED_BASE_PLUS_APPROVED_SLICE",
+      "working_draft_disposition": "CLEAN_OR_ABSENT",
+      "source_line_endings": "LF"
+    },
+    {
+      "path": "core/base/src/androidTest/java/com/adsamcik/tracker/shared/base/database/LegacyPreservedMigration28To29Test.kt",
+      "base_sha256": null,
+      "selected_sha256": "e694f6c7980fb789af6653d09f244524af48c7d61023421ff66423531bca2979",
+      "working_before_sha256": null,
+      "disposition": "NEW_APPROVED_SOURCE",
+      "working_draft_disposition": "CLEAN_OR_ABSENT",
+      "source_line_endings": "LF"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/data/NetworkOperator.kt",
+      "base_sha256": "ccb8b39ee1cedbef68e22b31348561c86aab1c17cfcc0abaded7a0e764c351af",
+      "selected_sha256": "90ea1b21885bfc3eb42d47b9203b8ebebbf473d238b9eebded5fb3a55d62184d",
+      "working_before_sha256": "a9906f2f05763dea444f135118a88d92e307bcef8398b78e22d1eed4389aa7f2",
+      "disposition": "SELECT_CLEAN_COMMITTED_BASE_PLUS_APPROVED_SLICE",
+      "working_draft_disposition": "PRESERVED_RAW_NOT_SELECTED",
+      "source_line_endings": "LF"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "base_sha256": "c6f44d42e063aaddf1b55aff3c850c4c14ab7cb26ae39bef6d25af4ee59d0d49",
+      "selected_sha256": "46271afa72131dfd0ba86bf593abb00cb0f1a39a7f01ede89b43a56789f46217",
+      "working_before_sha256": "c6f44d42e063aaddf1b55aff3c850c4c14ab7cb26ae39bef6d25af4ee59d0d49",
+      "disposition": "SELECT_CLEAN_COMMITTED_BASE_PLUS_APPROVED_SLICE",
+      "working_draft_disposition": "CLEAN_OR_ABSENT",
+      "source_line_endings": "LF"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LegacyPreservedDataDao.kt",
+      "base_sha256": null,
+      "selected_sha256": "2687177be93ffae91a6147c1acc138db5c5d0535df6d43afd9883302ff861989",
+      "working_before_sha256": null,
+      "disposition": "NEW_APPROVED_SOURCE",
+      "working_draft_disposition": "CLEAN_OR_ABSENT",
+      "source_line_endings": "LF"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellSample.kt",
+      "base_sha256": "1095532ec32be3259abe6058981c5a255d4cc3e21eb453752e6231cd52704e89",
+      "selected_sha256": "ca01843f574cae506fd3282a9d5f3d6f13b34319f2df113224fd971d412a7347",
+      "working_before_sha256": "b8cd303b74625187aa80694948f2ff5ce54f0c7944ee7ad0a0abcbc29231ac17",
+      "disposition": "SELECT_CLEAN_COMMITTED_BASE_PLUS_APPROVED_SLICE",
+      "working_draft_disposition": "PRESERVED_RAW_NOT_SELECTED",
+      "source_line_endings": "LF"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LegacyPreservedRecords.kt",
+      "base_sha256": null,
+      "selected_sha256": "39bb029f7c9ac31810d2e975e97f691cf1548d4209e45e73b1f663723f9e95ab",
+      "working_before_sha256": null,
+      "disposition": "NEW_APPROVED_SOURCE",
+      "working_draft_disposition": "CLEAN_OR_ABSENT",
+      "source_line_endings": "LF"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationSample.kt",
+      "base_sha256": "22d1ac227973e6205263b4c5782c6f96c5b3fd5f2cb3d065cb4c72ac7998bfd5",
+      "selected_sha256": "74a9112e842cf33993d99696e01b5d681f88f0e049ea7f6c2fceafab317f4b1a",
+      "working_before_sha256": "7cd75d0fb24e91bc990bcd578a7c2935befcb6cca0312d4fbff40a70a3b46069",
+      "disposition": "SELECT_CLEAN_COMMITTED_BASE_PLUS_APPROVED_SLICE",
+      "working_draft_disposition": "PRESERVED_RAW_NOT_SELECTED",
+      "source_line_endings": "LF"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionSegment.kt",
+      "base_sha256": "d743a5ac8c5bef5569d9ae3554394e2728096a17b72116d3098e44564b07c33c",
+      "selected_sha256": "df0d5acc0b8b772228739f1c8c5b412121cbf5b036c04ab3fb07406d8d40baf4",
+      "working_before_sha256": "230d512dc186e792822063b786215bd2e999b5b23fde5c61784290103e9bac09",
+      "disposition": "SELECT_CLEAN_COMMITTED_BASE_PLUS_APPROVED_SLICE",
+      "working_draft_disposition": "PRESERVED_RAW_NOT_SELECTED",
+      "source_line_endings": "LF"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiObservation.kt",
+      "base_sha256": "72ee56af607f8f2b2b59e776b98b7a527182a4257a45e5f487a048b5469f710e",
+      "selected_sha256": "4460001dc9d2486ea11874bcd3dc4803ba553b7df5919463ab9d5448d23dd04c",
+      "working_before_sha256": "47f7d44003c4ecf842f1eb57c0eaff663003d6c463ea29d511d323fb8c27bb98",
+      "disposition": "SELECT_CLEAN_COMMITTED_BASE_PLUS_APPROVED_SLICE",
+      "working_draft_disposition": "PRESERVED_RAW_NOT_SELECTED",
+      "source_line_endings": "LF"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt",
+      "base_sha256": "bd08350441d137487183777f448e949593eaaaa69c33f7f420ce9752d30185a9",
+      "selected_sha256": "a1bde02a8b43e9dc810371554d7cd2d77550d9c27c60b5ff6c5c69d1e56dd79d",
+      "working_before_sha256": "7e5cf515685863675d97257acbb3dc55881ac402afe127fb9ea72492e51ebf37",
+      "disposition": "SELECT_CLEAN_COMMITTED_BASE_PLUS_APPROVED_SLICE",
+      "working_draft_disposition": "PRESERVED_RAW_NOT_SELECTED",
+      "source_line_endings": "LF"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/legacy/LegacyV26Importer.kt",
+      "base_sha256": "a6baad56bf752924374ac38648cc064aa9ce464c40df686a554f3640d370201e",
+      "selected_sha256": "3c63657ae1afd7a22e41e3840e82316ade91678710d4e17277330b545bfdb253",
+      "working_before_sha256": "a6baad56bf752924374ac38648cc064aa9ce464c40df686a554f3640d370201e",
+      "disposition": "SELECT_CLEAN_COMMITTED_BASE_PLUS_APPROVED_SLICE",
+      "working_draft_disposition": "CLEAN_OR_ABSENT",
+      "source_line_endings": "LF"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt",
+      "base_sha256": "05ed64e1be3fbcc9b274fa025be2e564fc9925f0e16007acd4a1e101342da2b2",
+      "selected_sha256": "cb9fc5805b8a7eccded73fe9501ae4209e2bbc45f65d36491daede3a7f5af1a5",
+      "working_before_sha256": "05ed64e1be3fbcc9b274fa025be2e564fc9925f0e16007acd4a1e101342da2b2",
+      "disposition": "SELECT_CLEAN_COMMITTED_BASE_PLUS_APPROVED_SLICE",
+      "working_draft_disposition": "CLEAN_OR_ABSENT",
+      "source_line_endings": "LF"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt",
+      "base_sha256": "0ca393dbb14bd15de235910c5f4753f301bb2e11b107d8dbfb89f6749df4989a",
+      "selected_sha256": "f7dcff9521c18c08dee3e89a38dbea25ec462e18461244a58fdfb62285d5bcb2",
+      "working_before_sha256": "a8d25663e24457dca86bab3fb29b2ac4c95f58542aa797f823fa358f55134ce1",
+      "disposition": "SELECT_CLEAN_COMMITTED_BASE_PLUS_APPROVED_SLICE",
+      "working_draft_disposition": "PRESERVED_RAW_NOT_SELECTED",
+      "source_line_endings": "LF"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/LegacyV26ImportTest.kt",
+      "base_sha256": "128d28b0c145b2c6aa1580cefeebda2dd0f5f5292ce846af5b2e9d76aa81877d",
+      "selected_sha256": "a2ed87b5260507b036e2eb898d8774a971242de3a1959d445183e5702de267a4",
+      "working_before_sha256": "128d28b0c145b2c6aa1580cefeebda2dd0f5f5292ce846af5b2e9d76aa81877d",
+      "disposition": "SELECT_CLEAN_COMMITTED_BASE_PLUS_APPROVED_SLICE",
+      "working_draft_disposition": "CLEAN_OR_ABSENT",
+      "source_line_endings": "LF"
+    }
+  ],
+  "patch_sha256": "4d20189c0f288c4c3e18046ce5cb7640c12719995ee3f2f9723b1d7d5800c240"
+}

@@ -111,4 +111,10 @@ data class SessionSegment(
 	 */
 	@ColumnInfo(name = "service_run_id")
 	val serviceRunId: String? = null,
+
+	/** Original released values; new recordings leave these fields unknown. */
+	@ColumnInfo(name = "legacy_user_initiated") val legacyUserInitiated: Boolean? = null,
+	@ColumnInfo(name = "legacy_distance_on_foot_m") val legacyDistanceOnFootM: Double? = null,
+	@ColumnInfo(name = "legacy_distance_in_vehicle_m") val legacyDistanceInVehicleM: Double? = null,
+	@ColumnInfo(name = "legacy_activity_id") val legacyActivityId: Long? = null,
 )

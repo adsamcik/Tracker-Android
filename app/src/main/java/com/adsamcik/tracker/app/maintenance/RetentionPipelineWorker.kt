@@ -683,6 +683,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
 				if (db.pendingSignalDao().hasAny()) return@withTransaction false
 				db.cellSampleDao().deleteOlderThan(cutoff)
 				db.wifiObservationDao().deleteOlderThan(cutoff)
+				db.legacyPreservedDataDao().deleteWifiCountsOlderThan(cutoff)
 				true
 			} finally {
 				requireDestructiveAuthority(db, execution, startupGeneration, authority)
@@ -710,6 +711,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
 				db.organizationAnnotationDao().purgeFreeBefore(cutoff)
 				db.organizationAnnotationDao().suppressExpiredOverrides(cutoff, now)
 				db.sessionSegmentDao().deleteOlderThan(cutoff)
+				db.legacyPreservedDataDao().deleteRejectedSessionsOlderThan(cutoff)
 				db.organizationAnnotationDao().pruneUnusedSuppression()
 				db.pruneImportedStepsSegmentsBefore(cutoff, now)
 			} finally {

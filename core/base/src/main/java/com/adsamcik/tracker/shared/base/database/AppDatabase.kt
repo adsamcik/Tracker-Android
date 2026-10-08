@@ -10,6 +10,10 @@ import androidx.room.withTransaction
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import com.adsamcik.tracker.shared.base.database.steps.imported.preserveStepsFullClearFences
 import com.adsamcik.tracker.shared.base.data.SessionActivity
+import com.adsamcik.tracker.shared.base.data.NetworkOperator
+import com.adsamcik.tracker.shared.base.database.data.LegacyRejectedTrackerSession
+import com.adsamcik.tracker.shared.base.database.data.LegacyLocationWifiCount
+import com.adsamcik.tracker.shared.base.database.dao.LegacyPreservedDataDao
 import com.adsamcik.tracker.shared.base.database.converter.CellTypeConverter
 import com.adsamcik.tracker.shared.base.database.converter.DetectedActivityTypeConverter
 import com.adsamcik.tracker.shared.base.database.converter.GeoFeaturePropertiesConverter
@@ -328,6 +332,9 @@ internal const val CURRENT_DATABASE_VERSION = 29
 			com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity::class,
 			// Core reference entities
 			SessionActivity::class,
+			NetworkOperator::class,
+			LegacyRejectedTrackerSession::class,
+			LegacyLocationWifiCount::class,
 			// Sessionless architecture entities
 			LocationSample::class,
 			com.adsamcik.tracker.shared.base.database.data.LocationFileIdentityEntity::class,
@@ -558,6 +565,8 @@ abstract class AppDatabase : RoomDatabase() {
 	 * Provides access to activity data.
 	 */
 	abstract fun activityDao(): ActivityDao
+
+	abstract fun legacyPreservedDataDao(): LegacyPreservedDataDao
 
 	abstract fun organizationAnnotationDao(): com.adsamcik.tracker.shared.base.database.dao.OrganizationAnnotationDao
 
@@ -1216,6 +1225,9 @@ abstract class AppDatabase : RoomDatabase() {
 		private fun deleteCollectedRows(database: AppDatabase) {
 			// Organization metadata is collected data; a stale editor is fenced by the epoch.
 			database.openHelper.writableDatabase.execSQL("DELETE FROM organization_annotation")
+			database.legacyPreservedDataDao().deleteAllRejectedSessions()
+			database.legacyPreservedDataDao().deleteAllWifiCounts()
+			database.legacyPreservedDataDao().deleteAllNetworkOperators()
 			// Source-event pipeline. Delete dependent state before immutable evidence.
 			database.locationProjectionDao().deleteAllObservations()
 			database.openHelper.writableDatabase.execSQL("DELETE FROM source_capture_admission_barrier")

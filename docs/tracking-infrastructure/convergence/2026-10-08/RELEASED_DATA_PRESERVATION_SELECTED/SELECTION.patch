@@ -1,0 +1,914 @@
+--- a/app/src/main/java/com/adsamcik/tracker/app/maintenance/RetentionPipelineWorker.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/maintenance/RetentionPipelineWorker.kt
+@@ -683,6 +683,7 @@
+ 				if (db.pendingSignalDao().hasAny()) return@withTransaction false
+ 				db.cellSampleDao().deleteOlderThan(cutoff)
+ 				db.wifiObservationDao().deleteOlderThan(cutoff)
++				db.legacyPreservedDataDao().deleteWifiCountsOlderThan(cutoff)
+ 				true
+ 			} finally {
+ 				requireDestructiveAuthority(db, execution, startupGeneration, authority)
+@@ -710,6 +711,7 @@
+ 				db.organizationAnnotationDao().purgeFreeBefore(cutoff)
+ 				db.organizationAnnotationDao().suppressExpiredOverrides(cutoff, now)
+ 				db.sessionSegmentDao().deleteOlderThan(cutoff)
++				db.legacyPreservedDataDao().deleteRejectedSessionsOlderThan(cutoff)
+ 				db.organizationAnnotationDao().pruneUnusedSuppression()
+ 				db.pruneImportedStepsSegmentsBefore(cutoff, now)
+ 			} finally {
+--- a/core/base/src/androidTest/java/com/adsamcik/tracker/shared/base/database/LegacyPreservedMigration28To29Test.kt
++++ b/core/base/src/androidTest/java/com/adsamcik/tracker/shared/base/database/LegacyPreservedMigration28To29Test.kt
+@@ -0,0 +1,56 @@
++package com.adsamcik.tracker.shared.base.database
++
++import androidx.room.testing.MigrationTestHelper
++import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import androidx.test.platform.app.InstrumentationRegistry
++import org.junit.After
++import org.junit.Before
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertTrue
++import org.junit.Rule
++import org.junit.Test
++import org.junit.runner.RunWith
++
++@RunWith(AndroidJUnit4::class)
++class LegacyPreservedMigration28To29Test {
++	@get:Rule val helper = MigrationTestHelper(InstrumentationRegistry.getInstrumentation(),
++		AppDatabase::class.java, emptyList(), FrameworkSQLiteOpenHelperFactory())
++
++	@After fun clearFixture() {
++		InstrumentationRegistry.getInstrumentation().targetContext.deleteDatabase(DATABASE)
++	}
++	@Before fun prepareFixture() { clearFixture() }
++
++	@Test fun migrationKeepsCanonicalValuesAndLeavesUnavailableOriginalsNullAcrossRoomReopen() {
++		helper.createDatabase(DATABASE, 28).use { database ->
++			database.execSQL("INSERT INTO location_sample(id, time_ms, elapsed_realtime_nanos, lat_e7, lon_e7, provider, quality, created_at) VALUES (101, 1000, 0, 501234567, 142345678, 'gps', 'HIGH', 1000)")
++		}
++		helper.runMigrationsAndValidate(DATABASE, 29, true, MIGRATION_28_29).use { database ->
++			database.query("SELECT id, lat_e7, lon_e7, legacy_lat, legacy_lon, legacy_alt_m FROM location_sample").use { row ->
++				assertTrue(row.moveToFirst())
++				assertEquals(101L, row.getLong(0))
++				assertEquals(501234567, row.getInt(1))
++				assertEquals(142345678, row.getInt(2))
++				for (column in 3..5) assertTrue(row.isNull(column))
++			}
++			listOf("legacy_rejected_tracker_session", "legacy_location_wifi_count", "network_operator").forEach { table ->
++				database.query("SELECT COUNT(*) FROM `$table`").use { row ->
++					assertTrue(row.moveToFirst())
++					assertEquals(0L, row.getLong(0))
++				}
++			}
++		}
++		val context = InstrumentationRegistry.getInstrumentation().targetContext
++		val database = AppDatabase.fileBuilder(context, DATABASE).allowMainThreadQueries().build()
++		try {
++			database.openHelper.writableDatabase.query("SELECT lat_e7, legacy_lat FROM location_sample WHERE id = 101").use { row ->
++				assertTrue(row.moveToFirst())
++				assertEquals(501234567, row.getInt(0))
++				assertTrue(row.isNull(1))
++			}
++		} finally { database.close() }
++	}
++
++	private companion object { const val DATABASE = "legacy-preserved-28-29-test.db" }
++}
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/data/NetworkOperator.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/data/NetworkOperator.kt
+@@ -8,12 +8,14 @@
+ import android.telephony.CellInfoNr
+ import android.telephony.CellInfoWcdma
+ import androidx.annotation.RequiresApi
++import androidx.room.Entity
+ import kotlinx.parcelize.Parcelize
+ 
+ /**
+  * Information about cell network operator.
+  */
+ @Parcelize
++@Entity(tableName = "network_operator", primaryKeys = ["mcc", "mnc"])
+ data class NetworkOperator(
+ 		val mcc: String,
+ 		/**
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt
+@@ -10,6 +10,10 @@
+ import androidx.sqlite.db.SupportSQLiteOpenHelper
+ import com.adsamcik.tracker.shared.base.database.steps.imported.preserveStepsFullClearFences
+ import com.adsamcik.tracker.shared.base.data.SessionActivity
++import com.adsamcik.tracker.shared.base.data.NetworkOperator
++import com.adsamcik.tracker.shared.base.database.data.LegacyRejectedTrackerSession
++import com.adsamcik.tracker.shared.base.database.data.LegacyLocationWifiCount
++import com.adsamcik.tracker.shared.base.database.dao.LegacyPreservedDataDao
+ import com.adsamcik.tracker.shared.base.database.converter.CellTypeConverter
+ import com.adsamcik.tracker.shared.base.database.converter.DetectedActivityTypeConverter
+ import com.adsamcik.tracker.shared.base.database.converter.GeoFeaturePropertiesConverter
+@@ -328,6 +332,9 @@
+ 			com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity::class,
+ 			// Core reference entities
+ 			SessionActivity::class,
++			NetworkOperator::class,
++			LegacyRejectedTrackerSession::class,
++			LegacyLocationWifiCount::class,
+ 			// Sessionless architecture entities
+ 			LocationSample::class,
+ 			com.adsamcik.tracker.shared.base.database.data.LocationFileIdentityEntity::class,
+@@ -559,6 +566,8 @@
+ 	 */
+ 	abstract fun activityDao(): ActivityDao
+ 
++	abstract fun legacyPreservedDataDao(): LegacyPreservedDataDao
++
+ 	abstract fun organizationAnnotationDao(): com.adsamcik.tracker.shared.base.database.dao.OrganizationAnnotationDao
+ 
+ 	/**
+@@ -1216,6 +1225,9 @@
+ 		private fun deleteCollectedRows(database: AppDatabase) {
+ 			// Organization metadata is collected data; a stale editor is fenced by the epoch.
+ 			database.openHelper.writableDatabase.execSQL("DELETE FROM organization_annotation")
++			database.legacyPreservedDataDao().deleteAllRejectedSessions()
++			database.legacyPreservedDataDao().deleteAllWifiCounts()
++			database.legacyPreservedDataDao().deleteAllNetworkOperators()
+ 			// Source-event pipeline. Delete dependent state before immutable evidence.
+ 			database.locationProjectionDao().deleteAllObservations()
+ 			database.openHelper.writableDatabase.execSQL("DELETE FROM source_capture_admission_barrier")
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LegacyPreservedDataDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LegacyPreservedDataDao.kt
+@@ -0,0 +1,40 @@
++package com.adsamcik.tracker.shared.base.database.dao
++
++import androidx.room.Dao
++import androidx.room.Query
++import com.adsamcik.tracker.shared.base.data.NetworkOperator
++import com.adsamcik.tracker.shared.base.database.data.LegacyLocationWifiCount
++import com.adsamcik.tracker.shared.base.database.data.LegacyRejectedTrackerSession
++
++/** Typed access to the finite released compatibility records. They carry no inferred purpose. */
++@Dao
++interface LegacyPreservedDataDao {
++	@Query("SELECT * FROM legacy_rejected_tracker_session WHERE id = :id")
++	suspend fun rejectedSession(id: Long): LegacyRejectedTrackerSession?
++
++	/** The limit is a page size; measured time and ID resume the same selected date range. */
++	@Query("""SELECT * FROM legacy_location_wifi_count WHERE time >= :fromMs AND time < :toMs
++		AND (:afterTimeMs IS NULL OR time > :afterTimeMs OR
++		(time = :afterTimeMs AND id > COALESCE(:afterId, 0))) ORDER BY time, id LIMIT :limit""")
++	suspend fun wifiCounts(fromMs: Long, toMs: Long, limit: Int,
++		afterTimeMs: Long? = null, afterId: Long? = null): List<LegacyLocationWifiCount>
++
++	@Query("SELECT * FROM network_operator WHERE mcc = :mcc AND mnc = :mnc")
++	suspend fun networkOperator(mcc: String, mnc: String): NetworkOperator?
++
++	/** Invoked inside the existing trip-retention authority transaction. */
++	@Query("DELETE FROM legacy_rejected_tracker_session WHERE start >= 0 AND `end` >= 0 AND start < :cutoff AND `end` < :cutoff")
++	suspend fun deleteRejectedSessionsOlderThan(cutoff: Long)
++
++	/** Invoked inside the existing radio-retention authority transaction. */
++	@Query("DELETE FROM legacy_location_wifi_count WHERE time < :cutoff")
++	suspend fun deleteWifiCountsOlderThan(cutoff: Long)
++
++	/** The existing full-clear transaction owns these deletes; no purpose is guessed. */
++	@Query("DELETE FROM legacy_rejected_tracker_session")
++	fun deleteAllRejectedSessions()
++	@Query("DELETE FROM legacy_location_wifi_count")
++	fun deleteAllWifiCounts()
++	@Query("DELETE FROM network_operator")
++	fun deleteAllNetworkOperators()
++}
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellSample.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellSample.kt
+@@ -99,6 +99,14 @@
+ 
+ 	@Embedded
+ 	val observationStamp: ObservationStampColumns = ObservationStampColumns(),
++
++	/** Original released values; new recordings leave these fields unknown. */
++	@ColumnInfo(name = "legacy_source_id") val legacySourceId: Long? = null,
++	@ColumnInfo(name = "legacy_mcc") val legacyMcc: String? = null,
++	@ColumnInfo(name = "legacy_mnc") val legacyMnc: String? = null,
++	@ColumnInfo(name = "legacy_alt_m") val legacyAltM: Double? = null,
++	@ColumnInfo(name = "legacy_lat") val legacyLat: Double? = null,
++	@ColumnInfo(name = "legacy_lon") val legacyLon: Double? = null,
+ )
+ 
+ /**
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LegacyPreservedRecords.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LegacyPreservedRecords.kt
+@@ -0,0 +1,35 @@
++package com.adsamcik.tracker.shared.base.database.data
++
++import androidx.room.ColumnInfo
++import androidx.room.Entity
++import androidx.room.Index
++import androidx.room.PrimaryKey
++
++/** Original sessions that could not become a complete session segment. No bounds are invented. */
++@Entity(tableName = "legacy_rejected_tracker_session")
++data class LegacyRejectedTrackerSession(
++	@PrimaryKey val id: Long,
++	val start: Long,
++	val end: Long,
++	@ColumnInfo(name = "user_initiated") val userInitiated: Boolean,
++	val collections: Int,
++	val distance: Double,
++	@ColumnInfo(name = "distance_on_foot") val distanceOnFoot: Double,
++	@ColumnInfo(name = "distance_in_vehicle") val distanceInVehicle: Double,
++	val steps: Int,
++	@ColumnInfo(name = "session_activity_id") val sessionActivityId: Long?,
++)
++
++/** An original count at a measured time and position, without invented access-point records. */
++@Entity(tableName = "legacy_location_wifi_count", indices = [
++	Index(value = ["time"], name = "idx_legacy_location_wifi_count_time"),
++	Index(value = ["lat", "lon"], name = "idx_legacy_location_wifi_count_coords"),
++])
++data class LegacyLocationWifiCount(
++	@PrimaryKey val id: Long,
++	val time: Long,
++	val count: Int,
++	val lat: Double,
++	val lon: Double,
++	val alt: Double?,
++)
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationSample.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationSample.kt
+@@ -212,6 +212,11 @@
+ 
+ 	@ColumnInfo(name = "boot_clock_domain_id")
+ 	val bootClockDomainId: String? = null,
++
++	/** Original released values; new recordings leave these fields unknown. */
++	@ColumnInfo(name = "legacy_lat") val legacyLat: Double? = null,
++	@ColumnInfo(name = "legacy_lon") val legacyLon: Double? = null,
++	@ColumnInfo(name = "legacy_alt_m") val legacyAltM: Double? = null,
+ )
+ 
+ /**
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionSegment.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionSegment.kt
+@@ -111,4 +111,10 @@
+ 	 */
+ 	@ColumnInfo(name = "service_run_id")
+ 	val serviceRunId: String? = null,
++
++	/** Original released values; new recordings leave these fields unknown. */
++	@ColumnInfo(name = "legacy_user_initiated") val legacyUserInitiated: Boolean? = null,
++	@ColumnInfo(name = "legacy_distance_on_foot_m") val legacyDistanceOnFootM: Double? = null,
++	@ColumnInfo(name = "legacy_distance_in_vehicle_m") val legacyDistanceInVehicleM: Double? = null,
++	@ColumnInfo(name = "legacy_activity_id") val legacyActivityId: Long? = null,
+ )
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiObservation.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiObservation.kt
+@@ -91,4 +91,10 @@
+ 
+ 	@Embedded
+ 	val observationStamp: ObservationStampColumns = ObservationStampColumns(),
++
++	/** Original released values; new recordings leave these fields unknown. */
++	@ColumnInfo(name = "legacy_first_seen_ms") val legacyFirstSeenMs: Long? = null,
++	@ColumnInfo(name = "legacy_alt_m") val legacyAltM: Double? = null,
++	@ColumnInfo(name = "legacy_lat") val legacyLat: Double? = null,
++	@ColumnInfo(name = "legacy_lon") val legacyLon: Double? = null,
+ )
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainment.kt
+@@ -213,6 +213,9 @@
+ 		}
+ 		if (version == 28) return ActiveDatabasePreflightResult.FinalV28
+ 		if (!FINAL_V29_ADDITIONAL_COLUMNS.all(database::hasExactColumn) ||
++			!FINAL_V29_LEGACY_PRESERVED_COLUMNS.all(database::hasExactColumn) ||
++			!FINAL_V29_LEGACY_PRESERVED_TABLE_COLUMNS.all { (table, names) -> database.hasExactColumns(table, names) } ||
++			!FINAL_V29_LEGACY_PRESERVED_INDEXES.all(database::hasExactIndex) ||
+ 			!database.hasExactIndex(FINAL_V29_CAPTURED_RADIO_RETENTION_EVENT_INDEX) ||
+ 			!FINAL_V29_NATIVE_PORTABLE_COLUMNS.all(database::hasExactColumn) ||
+ 			!database.hasExactColumns("native_portable_ownership", listOf("source_kind", "identity_kind", "opaque_identity", "raw_identity", "logical_tracking_id", "service_run_id")) ||
+@@ -1376,3 +1379,51 @@
+ 	"database corrupt",
+ 	"database corruption",
+ )
++
++private val FINAL_V29_LEGACY_PRESERVED_COLUMNS = listOf(
++	FinalV28ColumnSentinel("location_sample", "legacy_lat", "REAL", false),
++	FinalV28ColumnSentinel("location_sample", "legacy_lon", "REAL", false),
++	FinalV28ColumnSentinel("location_sample", "legacy_alt_m", "REAL", false),
++	FinalV28ColumnSentinel("wifi_observation", "legacy_first_seen_ms", "INTEGER", false),
++	FinalV28ColumnSentinel("wifi_observation", "legacy_alt_m", "REAL", false),
++	FinalV28ColumnSentinel("wifi_observation", "legacy_lat", "REAL", false),
++	FinalV28ColumnSentinel("wifi_observation", "legacy_lon", "REAL", false),
++	FinalV28ColumnSentinel("cell_sample", "legacy_source_id", "INTEGER", false),
++	FinalV28ColumnSentinel("cell_sample", "legacy_mcc", "TEXT", false),
++	FinalV28ColumnSentinel("cell_sample", "legacy_mnc", "TEXT", false),
++	FinalV28ColumnSentinel("cell_sample", "legacy_alt_m", "REAL", false),
++	FinalV28ColumnSentinel("cell_sample", "legacy_lat", "REAL", false),
++	FinalV28ColumnSentinel("cell_sample", "legacy_lon", "REAL", false),
++	FinalV28ColumnSentinel("session_segment", "legacy_user_initiated", "INTEGER", false),
++	FinalV28ColumnSentinel("session_segment", "legacy_distance_on_foot_m", "REAL", false),
++	FinalV28ColumnSentinel("session_segment", "legacy_distance_in_vehicle_m", "REAL", false),
++	FinalV28ColumnSentinel("session_segment", "legacy_activity_id", "INTEGER", false),
++	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "id", "INTEGER", true, 1),
++	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "start", "INTEGER", true),
++	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "end", "INTEGER", true),
++	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "user_initiated", "INTEGER", true),
++	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "collections", "INTEGER", true),
++	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "distance", "REAL", true),
++	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "distance_on_foot", "REAL", true),
++	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "distance_in_vehicle", "REAL", true),
++	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "steps", "INTEGER", true),
++	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "session_activity_id", "INTEGER", false),
++	FinalV28ColumnSentinel("legacy_location_wifi_count", "id", "INTEGER", true, 1),
++	FinalV28ColumnSentinel("legacy_location_wifi_count", "time", "INTEGER", true),
++	FinalV28ColumnSentinel("legacy_location_wifi_count", "count", "INTEGER", true),
++	FinalV28ColumnSentinel("legacy_location_wifi_count", "lat", "REAL", true),
++	FinalV28ColumnSentinel("legacy_location_wifi_count", "lon", "REAL", true),
++	FinalV28ColumnSentinel("legacy_location_wifi_count", "alt", "REAL", false),
++	FinalV28ColumnSentinel("network_operator", "mcc", "TEXT", true, 1),
++	FinalV28ColumnSentinel("network_operator", "mnc", "TEXT", true, 2),
++	FinalV28ColumnSentinel("network_operator", "name", "TEXT", false),
++)
++private val FINAL_V29_LEGACY_PRESERVED_TABLE_COLUMNS = mapOf(
++	"legacy_rejected_tracker_session" to listOf("id", "start", "end", "user_initiated", "collections", "distance", "distance_on_foot", "distance_in_vehicle", "steps", "session_activity_id"),
++	"legacy_location_wifi_count" to listOf("id", "time", "count", "lat", "lon", "alt"),
++	"network_operator" to listOf("mcc", "mnc", "name"),
++)
++private val FINAL_V29_LEGACY_PRESERVED_INDEXES = listOf(
++	FinalV28IndexSentinel("legacy_location_wifi_count", "idx_legacy_location_wifi_count_time", listOf("time"), false),
++	FinalV28IndexSentinel("legacy_location_wifi_count", "idx_legacy_location_wifi_count_coords", listOf("lat", "lon"), false),
++)
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/legacy/LegacyV26Importer.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/legacy/LegacyV26Importer.kt
+@@ -8,6 +8,7 @@
+ import androidx.sqlite.db.SupportSQLiteOpenHelper
+ import androidx.sqlite.db.SupportSQLiteStatement
+ import com.adsamcik.tracker.shared.base.database.openDatabasePreservingFiles
++import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
+ import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
+ 
+ internal const val LEGACY_IMPORT_JOB_ID = "legacy-database-v26"
+@@ -24,7 +25,7 @@
+ }
+ 
+ /**
+- * Copies the small, frozen set of relevant v26 tables into a newly created v27 schema.
++ * Copies the frozen normalized tables and optional released originals into a fresh active schema.
+  * This is called from Room's onCreate transaction, so target writes commit atomically.
+  */
+ class LegacyV26Importer(
+@@ -61,6 +62,7 @@
+ 							imported["location_observation"] =
+ 								deriveLegacyLocationObservations(target)
+ 							backfillCanonicalSourceIdentities(target)
++							imported["organization_annotation"] = backfillLegacySessionLabels(target)
+ 							val skipped = skippedTables.associateWith { table ->
+ 								countRows(source, table)
+ 							}
+@@ -192,6 +194,20 @@
+ 		)
+ 	}
+ 
++	/** Reuses the existing segment adapter and label catalog, without inventing a detected activity. */
++	private fun backfillLegacySessionLabels(target: SupportSQLiteDatabase): Long {
++		target.execSQL("""
++			INSERT INTO organization_annotation (
++				local_id, revision, created_at_ms, updated_at_ms, recording_adapter_key,
++				start_time_ms, end_time_ms, display_zone_id, name, activity_label_id, hidden
++			)
++			SELECT 'legacy-segment:' || id, 1, created_at, created_at, 'segment:' || id,
++				NULL, NULL, NULL, NULL, legacy_activity_id, 0
++			FROM session_segment WHERE legacy_activity_id IS NOT NULL ORDER BY id
++		""".trimIndent())
++		return countRows(target, "organization_annotation")
++	}
++
+ 	private fun validateReleasedSchema(source: SQLiteDatabase) {
+ 		if (source.version !in RELEASED_DATABASE_VERSION..LATEST_DIRECT_IMPORT_VERSION) {
+ 			throw LegacyDatabaseException(
+@@ -212,7 +228,8 @@
+ 		}
+ 		for (spec in importedTables) {
+ 			val actualColumns = sourceColumns(source, spec.name)
+-			val missingColumns = spec.columns.toSet() - actualColumns
++			if (spec.optional && actualColumns.isEmpty()) continue
++			val missingColumns = (spec.columns.toSet() - spec.optionalColumns) - actualColumns
+ 			if (missingColumns.isNotEmpty()) {
+ 				throw LegacyDatabaseException(
+ 					"Legacy table ${spec.name} is missing columns: ${missingColumns.sorted()}",
+@@ -227,12 +244,13 @@
+ 		spec: TableCopySpec,
+ 	): Long {
+ 		val sourceColumns = sourceColumns(source, spec.name)
++		if (spec.optional && sourceColumns.isEmpty()) return 0L
+ 		val quotedColumns = spec.columns.joinToString(",") { "`$it`" }
+ 		val selectedColumns = spec.columns.joinToString(",") { column ->
+ 			spec.sourceExpressions[column]?.let { expression ->
+ 				"${expression(sourceColumns)} AS `$column`"
+ 			}
+-				?: "`$column`"
++				?: if (column in sourceColumns) "`$column`" else "NULL AS `$column`"
+ 		}
+ 		val placeholders = List(spec.columns.size) { "?" }.joinToString(",")
+ 		val statement = target.compileStatement(
+@@ -310,7 +328,7 @@
+ 				LEGACY_IMPORT_JOB_ID,
+ 				"$LEGACY_DATABASE_NAME:v$sourceVersion",
+ 				sourceSizeBytes,
+-				"COMPLETE",
++				ImportJobReceiptEntity.STATUS_COMPLETE,
+ 				now,
+ 				now,
+ 				now,
+@@ -323,6 +341,8 @@
+ 		val columns: List<String>,
+ 		val orderColumn: String = "id",
+ 		val sourceExpressions: Map<String, (Set<String>) -> String> = emptyMap(),
++		val optionalColumns: Set<String> = emptySet(),
++		val optional: Boolean = false,
+ 	)
+ 
+ 	private companion object {
+@@ -330,11 +350,20 @@
+ 		const val LATEST_DIRECT_IMPORT_VERSION = 34
+ 
+ 		val importedTables = listOf(
++			TableCopySpec("network_operator", listOf("mcc", "mnc", "name"), orderColumn = "mcc"),
++			TableCopySpec("legacy_rejected_tracker_session", listOf(
++				"id", "start", "end", "user_initiated", "collections", "distance",
++				"distance_on_foot", "distance_in_vehicle", "steps", "session_activity_id",
++			), optional = true),
++			TableCopySpec("legacy_location_wifi_count", listOf(
++				"id", "time", "count", "lat", "lon", "alt",
++			), optional = true),
+ 			TableCopySpec("activity", listOf("id", "name", "iconName")),
+ 			TableCopySpec("location_sample", listOf(
+ 				"id", "time_ms", "elapsed_realtime_nanos", "lat_e7", "lon_e7", "alt_m",
+ 				"raw_gps_alt_m", "h_acc_m", "v_acc_m", "speed_mps", "speed_accuracy_mps",
+ 				"provider", "quality", "motion_state", "policy", "bucket_id", "created_at",
++				"legacy_lat", "legacy_lon", "legacy_alt_m",
+ 			), sourceExpressions = mapOf(
+ 				"lat_e7" to { columns ->
+ 					canonicalOrLegacy(
+@@ -355,7 +384,7 @@
+ 				"alt_m" to { columns ->
+ 					canonicalOrLegacy(columns, "alt_m", "legacy_alt_m")
+ 				},
+-			)),
++			), optionalColumns = setOf("legacy_lat", "legacy_lon", "legacy_alt_m")),
+ 			TableCopySpec("step_interval", listOf(
+ 				"id", "start_time_ms", "end_time_ms", "step_count", "sensor_value_start",
+ 				"sensor_value_end", "sensor_reset", "created_at",
+@@ -366,6 +395,7 @@
+ 			TableCopySpec("cell_sample", listOf(
+ 				"id", "time_ms", "cell_id", "lac", "mcc", "mnc", "network_type",
+ 				"signal_strength", "lat_e7", "lon_e7", "provenance", "created_at",
++				"legacy_source_id", "legacy_mcc", "legacy_mnc", "legacy_alt_m", "legacy_lat", "legacy_lon",
+ 			), sourceExpressions = mapOf(
+ 				"lat_e7" to { columns ->
+ 					canonicalOrLegacy(
+@@ -383,10 +413,11 @@
+ 						"CAST(ROUND(`legacy_lon` * 10000000) AS INTEGER)",
+ 					)
+ 				},
+-			)),
++			), optionalColumns = setOf("legacy_source_id", "legacy_mcc", "legacy_mnc", "legacy_alt_m", "legacy_lat", "legacy_lon")),
+ 			TableCopySpec("wifi_observation", listOf(
+ 				"id", "time_ms", "bssid", "ssid", "capabilities", "frequency", "level",
+ 				"lat_e7", "lon_e7", "provenance", "created_at",
++				"legacy_first_seen_ms", "legacy_alt_m", "legacy_lat", "legacy_lon",
+ 			), sourceExpressions = mapOf(
+ 				"lat_e7" to { columns ->
+ 					canonicalOrLegacy(
+@@ -404,12 +435,13 @@
+ 						"CAST(ROUND(`legacy_lon` * 10000000) AS INTEGER)",
+ 					)
+ 				},
+-			)),
++			), optionalColumns = setOf("legacy_first_seen_ms", "legacy_alt_m", "legacy_lat", "legacy_lon")),
+ 			TableCopySpec("session_segment", listOf(
+ 				"id", "start_time_ms", "end_time_ms", "distance_m", "steps", "primary_activity",
+ 				"activity_confidence", "sample_count", "source", "inference_version", "created_at",
+ 				"has_distance_anomaly",
+-			)),
++				"legacy_user_initiated", "legacy_distance_on_foot_m", "legacy_distance_in_vehicle_m", "legacy_activity_id",
++			), optionalColumns = setOf("legacy_user_initiated", "legacy_distance_on_foot_m", "legacy_distance_in_vehicle_m", "legacy_activity_id")),
+ 			TableCopySpec("daily_summary", listOf(
+ 				"date_epoch_day", "total_distance_m", "total_steps", "total_duration_ms",
+ 				"trip_count", "active_tracking_ms", "last_updated_ms", "created_at",
+@@ -432,7 +464,6 @@
+ 		)
+ 
+ 		val skippedTables = listOf(
+-			"network_operator",
+ 			"tracker_run",
+ 			"live_stats",
+ 			"frequent_place",
+@@ -448,11 +479,11 @@
+ 			"pending_signal",
+ 		)
+ 
+-		val releasedTables = (importedTables.map(TableCopySpec::name) + skippedTables).toSet()
++		val releasedTables = (importedTables.filterNot(TableCopySpec::optional).map(TableCopySpec::name) + skippedTables).toSet()
+ 	}
+ }
+ 
+ fun hasCompletedLegacyImport(database: SupportSQLiteDatabase): Boolean = database.query(
+-	"SELECT 1 FROM import_job_receipt WHERE job_id = ? AND status = 'COMPLETE' LIMIT 1",
+-	arrayOf(LEGACY_IMPORT_JOB_ID),
++	"SELECT 1 FROM import_job_receipt WHERE job_id = ? AND status = ? LIMIT 1",
++	arrayOf(LEGACY_IMPORT_JOB_ID, ImportJobReceiptEntity.STATUS_COMPLETE),
+ ).use(Cursor::moveToFirst)
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioObservationChildMigration.kt
+@@ -31,6 +31,7 @@
+ 		db.execSQL("ALTER TABLE location_sample_purpose_authority ADD COLUMN retained_proof_checksum TEXT NOT NULL DEFAULT ''")
+ 		db.execSQL("ALTER TABLE organization_annotation ADD COLUMN imported_source_selection TEXT")
+ 		db.execSQL("ALTER TABLE organization_annotation ADD COLUMN imported_activity_label TEXT")
++		createLegacyPreservedDataSchema(db)
+ 		createLocationFileArchiveTables(db)
+ 		createRadioObservationChildTables(db)
+ 		copyKnownLegacyRadioRows(db)
+@@ -290,3 +291,42 @@
+ 		END
+ 	""".trimIndent())
+ }
++
++/** Nullable originals do not infer new capture authority or alter the canonical values. */
++private fun createLegacyPreservedDataSchema(db: SupportSQLiteDatabase) {
++	db.execSQL("ALTER TABLE location_sample ADD COLUMN legacy_lat REAL")
++	db.execSQL("ALTER TABLE location_sample ADD COLUMN legacy_lon REAL")
++	db.execSQL("ALTER TABLE location_sample ADD COLUMN legacy_alt_m REAL")
++	db.execSQL("ALTER TABLE wifi_observation ADD COLUMN legacy_first_seen_ms INTEGER")
++	db.execSQL("ALTER TABLE wifi_observation ADD COLUMN legacy_alt_m REAL")
++	db.execSQL("ALTER TABLE wifi_observation ADD COLUMN legacy_lat REAL")
++	db.execSQL("ALTER TABLE wifi_observation ADD COLUMN legacy_lon REAL")
++	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_source_id INTEGER")
++	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_mcc TEXT")
++	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_mnc TEXT")
++	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_alt_m REAL")
++	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_lat REAL")
++	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_lon REAL")
++	db.execSQL("ALTER TABLE session_segment ADD COLUMN legacy_user_initiated INTEGER")
++	db.execSQL("ALTER TABLE session_segment ADD COLUMN legacy_distance_on_foot_m REAL")
++	db.execSQL("ALTER TABLE session_segment ADD COLUMN legacy_distance_in_vehicle_m REAL")
++	db.execSQL("ALTER TABLE session_segment ADD COLUMN legacy_activity_id INTEGER")
++	db.execSQL("""
++		CREATE TABLE IF NOT EXISTS legacy_rejected_tracker_session (
++			id INTEGER NOT NULL, start INTEGER NOT NULL, `end` INTEGER NOT NULL,
++			user_initiated INTEGER NOT NULL, collections INTEGER NOT NULL,
++			distance REAL NOT NULL, distance_on_foot REAL NOT NULL,
++			distance_in_vehicle REAL NOT NULL, steps INTEGER NOT NULL,
++			session_activity_id INTEGER, PRIMARY KEY(id)
++		)
++	""".trimIndent())
++	db.execSQL("""
++		CREATE TABLE IF NOT EXISTS legacy_location_wifi_count (
++			id INTEGER NOT NULL, time INTEGER NOT NULL, count INTEGER NOT NULL,
++			lat REAL NOT NULL, lon REAL NOT NULL, alt REAL, PRIMARY KEY(id)
++		)
++	""".trimIndent())
++	db.execSQL("CREATE INDEX IF NOT EXISTS idx_legacy_location_wifi_count_time ON legacy_location_wifi_count(time)")
++	db.execSQL("CREATE INDEX IF NOT EXISTS idx_legacy_location_wifi_count_coords ON legacy_location_wifi_count(lat, lon)")
++	db.execSQL("CREATE TABLE IF NOT EXISTS network_operator(mcc TEXT NOT NULL, mnc TEXT NOT NULL, name TEXT, PRIMARY KEY(mcc, mnc))")
++}
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/DevelopmentV28DatabaseContainmentTest.kt
+@@ -901,6 +901,26 @@
+ 
+ 		failure.reason shouldBe ActiveDatabaseRetryableReason.CONTENDED
+ 		helper.close()
++	}
++
++	@Test
++	fun `v29 missing an original released column stays preserved and blocked`() {
++		val database = AppDatabase.fileBuilder(context, DATABASE_NAME).allowMainThreadQueries().build()
++		try {
++			database.openHelper.writableDatabase.execSQL("ALTER TABLE cell_sample RENAME COLUMN legacy_mnc TO missing_legacy_mnc")
++		} finally { database.close() }
++		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA)
++		databaseFile().exists() shouldBe true
++	}
++
++	@Test
++	fun `v29 missing an original compatibility table stays preserved and blocked`() {
++		val database = AppDatabase.fileBuilder(context, DATABASE_NAME).allowMainThreadQueries().build()
++		try {
++			database.openHelper.writableDatabase.execSQL("DROP TABLE legacy_location_wifi_count")
++		} finally { database.close() }
++		preflight() shouldBe ActiveDatabasePreflightResult.Blocked(ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA)
++		databaseFile().exists() shouldBe true
+ 	}
+ 
+ 	private fun preflight(): ActiveDatabasePreflightResult =
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/LegacyV26ImportTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/LegacyV26ImportTest.kt
+@@ -4,6 +4,7 @@
+ import android.content.Context
+ import android.database.sqlite.SQLiteDatabase
+ import androidx.room.RoomDatabase
++import androidx.room.withTransaction
+ import androidx.room.migration.Migration
+ import androidx.sqlite.db.SupportSQLiteDatabase
+ import androidx.sqlite.db.SupportSQLiteOpenHelper
+@@ -563,6 +564,302 @@
+ 		count(reopened, "location_sample") shouldBe 2L
+ 		sourceIdentity(reopened, "location_sample", currentLocationId) shouldBe
+ 			"current:manual-flow"
++	}
++
++	@Test
++	fun `released originals retain all seventeen fields and the session label adapter`(): Unit = runBlocking {
++		createReleasedV12Database()
++		editLegacy { original ->
++			original.execSQL("UPDATE location_data SET lat = 50.123456789, lon = 14.234567891, alt = 221.125 WHERE id = 101")
++			original.execSQL("UPDATE wifi_data SET latitude = 50.345678912, longitude = 14.456789123, altitude = 222.25, first_seen = 1700099999000")
++			original.execSQL("UPDATE cell_location SET mnc = '001', lat = 50.567891234, lon = 14.678912345, alt = 223.375 WHERE id = 301")
++			original.execSQL("UPDATE tracker_session SET user_initiated = 0, distance_on_foot = 24.25, distance_in_vehicle = 100.75 WHERE id = 201")
++			original.execSQL("UPDATE activity SET name = 'My cycling label' WHERE id = 7")
++		}
++		val database = buildActive()
++		val raw = database.openHelper.writableDatabase
++		val point = database.locationSampleDao().byIds(listOf(101)).single()
++		point.legacyLat shouldBe 50.123456789
++		point.legacyLon shouldBe 14.234567891
++		point.legacyAltM shouldBe 221.125
++		val wifi = database.wifiObservationDao().getChunkBetweenOrdered(0, Long.MAX_VALUE, null, null, 10).single()
++		wifi.legacyFirstSeenMs shouldBe 1_700_099_999_000L
++		wifi.legacyLat shouldBe 50.345678912
++		wifi.legacyLon shouldBe 14.456789123
++		wifi.legacyAltM shouldBe 222.25
++		val cell = database.cellSampleDao().getChunkBetweenOrdered(0, Long.MAX_VALUE, null, null, 10).single()
++		cell.legacySourceId shouldBe 301L
++		cell.legacyMcc shouldBe "230"
++		cell.legacyMnc shouldBe "001"
++		cell.legacyLat shouldBe 50.567891234
++		cell.legacyLon shouldBe 14.678912345
++		cell.legacyAltM shouldBe 223.375
++		val segment = requireNotNull(database.sessionSegmentDao().getById(201))
++		segment.legacyUserInitiated shouldBe false
++		segment.legacyDistanceOnFootM shouldBe 24.25
++		segment.legacyDistanceInVehicleM shouldBe 100.75
++		segment.legacyActivityId shouldBe 7L
++		segment.primaryActivity shouldBe null
++		segment.logicalTrackingId shouldBe null
++		segment.serviceRunId shouldBe null
++		val annotation = requireNotNull(database.organizationAnnotationDao().byAdapter("segment:201"))
++		annotation.activityLabelId shouldBe 7L
++		annotation.startTimeMs shouldBe null
++		annotation.endTimeMs shouldBe null
++		annotation.displayZoneId shouldBe null
++		annotation.name shouldBe null
++		annotation.hidden shouldBe false
++		count(raw, "logical_tracking_session") shouldBe 0L
++		stringValue(raw, "SELECT name FROM activity WHERE id = 7") shouldBe "My cycling label"
++		SQLiteDatabase.openDatabase(context.getDatabasePath(LEGACY_DATABASE_NAME).path, null,
++			SQLiteDatabase.OPEN_READONLY).use { original ->
++			original.version shouldBe 12
++			original.rawQuery("SELECT lat, lon, alt FROM location_data WHERE id = 101", null).use { cursor ->
++				cursor.moveToFirst() shouldBe true
++				cursor.getDouble(0) shouldBe 50.123456789
++				cursor.getDouble(1) shouldBe 14.234567891
++				cursor.getDouble(2) shouldBe 221.125
++			}
++		}
++	}
++
++	@Test
++	fun `unfinished and short released sessions counts and operator names survive as typed records`(): Unit = runBlocking {
++		createReleasedV12Database()
++		editLegacy { original ->
++			original.execSQL("""
++				INSERT INTO tracker_session(id, start, `end`, user_initiated, collections,
++					distance, distance_on_foot, distance_in_vehicle, steps, session_activity_id)
++				VALUES (202, 500, 700, 1, 1, 8.5, 3.25, 5.25, 2, 7),
++					(203, 800, -1, 0, 3, 9.5, 4.25, 5.25, 3, 987)
++			""".trimIndent())
++			original.execSQL("INSERT INTO network_operator(mcc, mnc, name) VALUES ('230', '001', NULL)")
++		}
++		val database = buildActive()
++		val raw = database.openHelper.writableDatabase
++		val short = requireNotNull(database.legacyPreservedDataDao().rejectedSession(202))
++		short.start shouldBe 500L
++		short.end shouldBe 700L
++		short.userInitiated shouldBe true
++		short.collections shouldBe 1
++		short.distance shouldBe 8.5
++		short.distanceOnFoot shouldBe 3.25
++		short.distanceInVehicle shouldBe 5.25
++		short.steps shouldBe 2
++		short.sessionActivityId shouldBe 7L
++		val unfinished = requireNotNull(database.legacyPreservedDataDao().rejectedSession(203))
++		unfinished.end shouldBe -1L
++		unfinished.sessionActivityId shouldBe 987L
++		database.sessionSegmentDao().getById(202) shouldBe null
++		database.sessionSegmentDao().getById(203) shouldBe null
++		database.organizationAnnotationDao().byAdapter("segment:203") shouldBe null
++		val wifiCount = database.legacyPreservedDataDao().wifiCounts(1_700_100_003_000L, 1_700_100_003_001L, 10).single()
++		wifiCount.id shouldBe 401L
++		wifiCount.time shouldBe 1_700_100_003_000L
++		wifiCount.count shouldBe 3
++		wifiCount.lat shouldBe 50.1
++		wifiCount.lon shouldBe 14.2
++		wifiCount.alt shouldBe 220.0
++		database.legacyPreservedDataDao().wifiCounts(wifiCount.time + 1, wifiCount.time + 2, 10) shouldBe emptyList()
++		requireNotNull(database.legacyPreservedDataDao().networkOperator("230", "01")).name shouldBe "Carrier"
++		requireNotNull(database.legacyPreservedDataDao().networkOperator("230", "001")).name shouldBe null
++		count(raw, "wifi_observation") shouldBe 1L
++		count(raw, "legacy_wifi_child") shouldBe 1L
++		LegacyDatabaseRepository(context).currentState().report?.importedRows?.get("legacy_rejected_tracker_session") shouldBe 2L
++		LegacyDatabaseRepository(context).currentState().report?.importedRows?.get("legacy_location_wifi_count") shouldBe 1L
++		LegacyDatabaseRepository(context).currentState().report?.importedRows?.get("network_operator") shouldBe 2L
++	}
++
++	@Test
++	fun `normalized input without optional originals or compatibility tables still imports`(): Unit = runBlocking {
++		prepareReleasedV26 { source ->
++			seedV26EdgeRows(source)
++			source.execSQL("UPDATE location_sample SET lat_e7 = 501000000, lon_e7 = 142000000, alt_m = 321.25")
++			source.execSQL("UPDATE cell_sample SET lat_e7 = 500000000, lon_e7 = 140000000")
++			source.execSQL("UPDATE wifi_observation SET lat_e7 = 499000000, lon_e7 = 139000000")
++			rebuildAsReleasedV26(source)
++			source.execSQL("DROP TABLE legacy_rejected_tracker_session")
++			source.execSQL("DROP TABLE legacy_location_wifi_count")
++		}
++		val database = buildActive()
++		val raw = database.openHelper.writableDatabase
++		hasCompletedLegacyImport(raw) shouldBe true
++		listOf("location_sample", "wifi_observation", "cell_sample", "session_segment").forEach { table ->
++			raw.query("PRAGMA table_info(`$table`)").use { cursor ->
++				val names = buildList { while (cursor.moveToNext()) {
++					val name = cursor.getString(cursor.getColumnIndexOrThrow("name"))
++					if (name.startsWith("legacy_")) add(name)
++				} }
++				names.isNotEmpty() shouldBe true
++				raw.query("SELECT ${names.joinToString { "`$it`" }} FROM `$table`").use { row ->
++					row.moveToFirst() shouldBe true
++					for (index in names.indices) row.isNull(index) shouldBe true
++				}
++			}
++		}
++		count(raw, "legacy_rejected_tracker_session") shouldBe 0L
++		count(raw, "legacy_location_wifi_count") shouldBe 0L
++		count(raw, "organization_annotation") shouldBe 0L
++		coordinates(raw, "location_sample", 9001) shouldBe (501_000_000 to 142_000_000)
++		LegacyDatabaseRepository(context).currentState().report?.importedRows?.get("legacy_location_wifi_count") shouldBe 0L
++	}
++
++	@Test
++	fun `missing label remains a raw reference while real detected activity stays separate`(): Unit = runBlocking {
++		prepareReleasedV26 { source ->
++			seedV26EdgeRows(source)
++			source.execSQL("UPDATE session_segment SET primary_activity = 7, legacy_activity_id = 123 WHERE id = 9007")
++		}
++		val database = buildActive()
++		database.openHelper.writableDatabase
++		val segment = requireNotNull(database.sessionSegmentDao().getById(9007))
++		segment.primaryActivity shouldBe 7
++		segment.legacyActivityId shouldBe 123L
++		database.activityDao().get(123) shouldBe null
++		requireNotNull(database.organizationAnnotationDao().byAdapter("segment:9007")).activityLabelId shouldBe 123L
++	}
++
++	@Test
++	fun `reopening repeats no import and preserves a user session label edit`(): Unit = runBlocking {
++		createReleasedV12Database()
++		val database = buildActive()
++		database.openHelper.writableDatabase
++		val annotation = requireNotNull(database.organizationAnnotationDao().byAdapter("segment:201"))
++		database.organizationAnnotationDao().update(annotation.copy(revision = 2, name = "Home ride", activityLabelId = null)) shouldBe 1
++		database.close()
++		roomDatabases.remove(database)
++		val reopened = buildActive()
++		val reopenedRaw = reopened.openHelper.writableDatabase
++		count(reopenedRaw, "organization_annotation") shouldBe 1L
++		count(reopenedRaw, "legacy_location_wifi_count") shouldBe 1L
++		count(reopenedRaw, "network_operator") shouldBe 1L
++		val edited = requireNotNull(reopened.organizationAnnotationDao().byAdapter("segment:201"))
++		edited.name shouldBe "Home ride"
++		edited.activityLabelId shouldBe null
++		edited.revision shouldBe 2L
++		hasCompletedLegacyImport(reopenedRaw) shouldBe true
++	}
++
++	@Test
++	fun `actual full clear removes preserved data without replaying the retained original`(): Unit = runBlocking {
++		createReleasedV12Database()
++		editLegacy { source ->
++			source.execSQL("""INSERT INTO tracker_session VALUES (202, 500, 700, 1, 1, 8.5, 3.25, 5.25, 2, 7)""")
++		}
++		val database = buildActive()
++		val raw = database.openHelper.writableDatabase
++		hasCompletedLegacyImport(raw) shouldBe true
++		database.sourceEvidenceStateDao().ensure()
++		val epoch = requireNotNull(database.sourceEvidenceStateDao().get()).collectedDataEpoch
++		AppDatabase.deleteAllCollectedDataForTesting(database, "released-preservation-clear", epoch + 1, null, 1_700_100_100_000L)
++		listOf("location_sample", "wifi_observation", "cell_sample", "session_segment", "organization_annotation",
++			"legacy_rejected_tracker_session", "legacy_location_wifi_count", "network_operator").forEach { table ->
++			count(raw, table) shouldBe 0L
++		}
++		hasCompletedLegacyImport(raw) shouldBe true
++		database.close()
++		roomDatabases.remove(database)
++		val reopened = openActive()
++		count(reopened, "legacy_location_wifi_count") shouldBe 0L
++		count(reopened, "network_operator") shouldBe 0L
++		count(reopened, "session_segment") shouldBe 0L
++		hasCompletedLegacyImport(reopened) shouldBe true
++		SQLiteDatabase.openDatabase(context.getDatabasePath(LEGACY_DATABASE_NAME).path, null,
++			SQLiteDatabase.OPEN_READONLY).use { original ->
++			original.version shouldBe 12
++			androidCount(original, "tracker_session") shouldBe 2L
++			androidCount(original, "location_wifi_count") shouldBe 1L
++		}
++	}
++
++	@Test
++	fun `existing parent retention removes originals and mirrors while raw unknown bounds stay honest`(): Unit = runBlocking {
++		createReleasedV12Database()
++		editLegacy { source ->
++			source.execSQL("""INSERT INTO tracker_session VALUES
++				(202, 500, 700, 1, 1, 8.5, 3.25, 5.25, 2, 7),
++				(203, 800, -1, 0, 3, 9.5, 4.25, 5.25, 3, 7),
++				(204, 1700100200000, 1700100300000, 1, 1, 1.0, 1.0, 0.0, 1, 7)""")
++			source.execSQL("INSERT INTO location_wifi_count VALUES (402, 1700100200000, 2, 50.2, 14.3, NULL)")
++		}
++		val database = buildActive()
++		val raw = database.openHelper.writableDatabase
++		val cutoff = 1_700_100_100_000L
++		database.withTransaction {
++			database.organizationAnnotationDao().suppressExpiredOverrides(cutoff, cutoff)
++			database.sessionSegmentDao().deleteOlderThan(cutoff)
++			database.legacyPreservedDataDao().deleteRejectedSessionsOlderThan(cutoff)
++			database.organizationAnnotationDao().pruneUnusedSuppression()
++			database.locationSampleDao().deleteOlderThan(cutoff)
++			database.wifiObservationDao().deleteOlderThan(cutoff)
++			database.cellSampleDao().deleteOlderThan(cutoff)
++			database.legacyPreservedDataDao().deleteWifiCountsOlderThan(cutoff)
++		}
++		listOf("location_sample", "wifi_observation", "cell_sample", "session_segment", "organization_annotation",
++			"legacy_wifi_child", "legacy_cell_child").forEach { table -> count(raw, table) shouldBe 0L }
++		database.legacyPreservedDataDao().rejectedSession(202) shouldBe null
++		requireNotNull(database.legacyPreservedDataDao().rejectedSession(203)).end shouldBe -1L
++		requireNotNull(database.legacyPreservedDataDao().rejectedSession(204)).end shouldBe 1_700_100_300_000L
++		database.legacyPreservedDataDao().wifiCounts(0, Long.MAX_VALUE, 10).map { it.id } shouldBe listOf(402L)
++		requireNotNull(database.legacyPreservedDataDao().networkOperator("230", "01")).name shouldBe "Carrier"
++	}
++
++	@Test
++	fun `count-only Wi-Fi pages by measured time and id without creating network rows`(): Unit = runBlocking {
++		createReleasedV12Database()
++		editLegacy { source ->
++			source.execSQL("INSERT INTO location_wifi_count VALUES (402, 1700100003000, 8, 50.2, 14.3, NULL)")
++		}
++		val database = buildActive()
++		val raw = database.openHelper.writableDatabase
++		val first = database.legacyPreservedDataDao().wifiCounts(1_700_100_003_000L, 1_700_100_003_001L, 1).single()
++		first.id shouldBe 401L
++		val second = database.legacyPreservedDataDao().wifiCounts(first.time, first.time + 1, 1, first.time, first.id).single()
++		second.id shouldBe 402L
++		second.count shouldBe 8
++		second.alt shouldBe null
++		database.legacyPreservedDataDao().wifiCounts(second.time, second.time + 1, 1, second.time, second.id) shouldBe emptyList()
++		count(raw, "wifi_observation") shouldBe 1L
++		count(raw, "legacy_wifi_child") shouldBe 1L
++	}
++
++	@Test
++	fun `new current rows leave original released values unknown`() {
++		val raw = openActive()
++		raw.execSQL("INSERT INTO location_sample(time_ms, elapsed_realtime_nanos, provider, quality, created_at) VALUES (1000, 0, 'gps', 'HIGH', 1000)")
++		raw.execSQL("INSERT INTO wifi_observation(time_ms, bssid, ssid, capabilities, frequency, level, provenance, created_at) VALUES (1000, '02:00:00:00:00:01', 'Current', '', 2412, -50, 'UNKNOWN', 1000)")
++		raw.execSQL("INSERT INTO cell_sample(time_ms, cell_id, lac, mcc, mnc, network_type, signal_strength, provenance, created_at) VALUES (1000, 5, 2, 230, 1, 13, -90, 'UNKNOWN', 1000)")
++		raw.execSQL("INSERT INTO session_segment(start_time_ms, end_time_ms, distance_m, sample_count, source, created_at) VALUES (1000, 2000, 0.0, 0, 'USER_CREATED', 2000)")
++		listOf("location_sample", "wifi_observation", "cell_sample", "session_segment").forEach { table ->
++			raw.query("PRAGMA table_info(`$table`)").use { cursor ->
++				val names = buildList { while (cursor.moveToNext()) {
++					val name = cursor.getString(cursor.getColumnIndexOrThrow("name"))
++					if (name.startsWith("legacy_")) add(name)
++				} }
++				raw.query("SELECT ${names.joinToString { "`$it`" }} FROM `$table`").use { row ->
++					row.moveToFirst() shouldBe true
++					for (index in names.indices) row.isNull(index) shouldBe true
++				}
++			}
++		}
++		count(raw, "organization_annotation") shouldBe 0L
++	}
++
++	@Test
++	fun `malformed optional compatibility table fails atomically and repairs on the same helper`() {
++		prepareReleasedV26 { source ->
++			seedV26EdgeRows(source)
++			source.execSQL("ALTER TABLE legacy_location_wifi_count RENAME COLUMN count TO missing_count")
++		}
++		val database = buildActive()
++		runCatching { database.openHelper.writableDatabase }.isFailure shouldBe true
++		LegacyDatabaseRepository(context).currentState().importStatus shouldBe LegacyImportStatus.FAILED
++		editLegacy { source -> source.execSQL("ALTER TABLE legacy_location_wifi_count RENAME COLUMN missing_count TO count") }
++		val raw = database.openHelper.writableDatabase
++		hasCompletedLegacyImport(raw) shouldBe true
++		count(raw, "location_sample") shouldBe 1L
++		count(raw, "organization_annotation") shouldBe 1L
++		count(raw, "legacy_location_wifi_count") shouldBe 0L
+ 	}
+ 
+ 	private fun seedV26EdgeRows(db: SupportSQLiteDatabase) {

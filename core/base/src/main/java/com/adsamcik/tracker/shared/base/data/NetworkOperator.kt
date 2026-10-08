@@ -8,12 +8,14 @@ import android.telephony.CellInfoLte
 import android.telephony.CellInfoNr
 import android.telephony.CellInfoWcdma
 import androidx.annotation.RequiresApi
+import androidx.room.Entity
 import kotlinx.parcelize.Parcelize
 
 /**
  * Information about cell network operator.
  */
 @Parcelize
+@Entity(tableName = "network_operator", primaryKeys = ["mcc", "mnc"])
 data class NetworkOperator(
 		val mcc: String,
 		/**

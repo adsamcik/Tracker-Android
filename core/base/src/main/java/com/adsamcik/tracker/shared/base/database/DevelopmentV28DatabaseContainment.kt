@@ -213,6 +213,9 @@ class ActiveDatabasePreflight internal constructor(
 		}
 		if (version == 28) return ActiveDatabasePreflightResult.FinalV28
 		if (!FINAL_V29_ADDITIONAL_COLUMNS.all(database::hasExactColumn) ||
+			!FINAL_V29_LEGACY_PRESERVED_COLUMNS.all(database::hasExactColumn) ||
+			!FINAL_V29_LEGACY_PRESERVED_TABLE_COLUMNS.all { (table, names) -> database.hasExactColumns(table, names) } ||
+			!FINAL_V29_LEGACY_PRESERVED_INDEXES.all(database::hasExactIndex) ||
 			!database.hasExactIndex(FINAL_V29_CAPTURED_RADIO_RETENTION_EVENT_INDEX) ||
 			!FINAL_V29_NATIVE_PORTABLE_COLUMNS.all(database::hasExactColumn) ||
 			!database.hasExactColumns("native_portable_ownership", listOf("source_kind", "identity_kind", "opaque_identity", "raw_identity", "logical_tracking_id", "service_run_id")) ||
@@ -1375,4 +1378,52 @@ private val CORRUPTION_MESSAGE_MARKERS = listOf(
 	"malformed database schema",
 	"database corrupt",
 	"database corruption",
+)
+
+private val FINAL_V29_LEGACY_PRESERVED_COLUMNS = listOf(
+	FinalV28ColumnSentinel("location_sample", "legacy_lat", "REAL", false),
+	FinalV28ColumnSentinel("location_sample", "legacy_lon", "REAL", false),
+	FinalV28ColumnSentinel("location_sample", "legacy_alt_m", "REAL", false),
+	FinalV28ColumnSentinel("wifi_observation", "legacy_first_seen_ms", "INTEGER", false),
+	FinalV28ColumnSentinel("wifi_observation", "legacy_alt_m", "REAL", false),
+	FinalV28ColumnSentinel("wifi_observation", "legacy_lat", "REAL", false),
+	FinalV28ColumnSentinel("wifi_observation", "legacy_lon", "REAL", false),
+	FinalV28ColumnSentinel("cell_sample", "legacy_source_id", "INTEGER", false),
+	FinalV28ColumnSentinel("cell_sample", "legacy_mcc", "TEXT", false),
+	FinalV28ColumnSentinel("cell_sample", "legacy_mnc", "TEXT", false),
+	FinalV28ColumnSentinel("cell_sample", "legacy_alt_m", "REAL", false),
+	FinalV28ColumnSentinel("cell_sample", "legacy_lat", "REAL", false),
+	FinalV28ColumnSentinel("cell_sample", "legacy_lon", "REAL", false),
+	FinalV28ColumnSentinel("session_segment", "legacy_user_initiated", "INTEGER", false),
+	FinalV28ColumnSentinel("session_segment", "legacy_distance_on_foot_m", "REAL", false),
+	FinalV28ColumnSentinel("session_segment", "legacy_distance_in_vehicle_m", "REAL", false),
+	FinalV28ColumnSentinel("session_segment", "legacy_activity_id", "INTEGER", false),
+	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "id", "INTEGER", true, 1),
+	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "start", "INTEGER", true),
+	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "end", "INTEGER", true),
+	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "user_initiated", "INTEGER", true),
+	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "collections", "INTEGER", true),
+	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "distance", "REAL", true),
+	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "distance_on_foot", "REAL", true),
+	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "distance_in_vehicle", "REAL", true),
+	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "steps", "INTEGER", true),
+	FinalV28ColumnSentinel("legacy_rejected_tracker_session", "session_activity_id", "INTEGER", false),
+	FinalV28ColumnSentinel("legacy_location_wifi_count", "id", "INTEGER", true, 1),
+	FinalV28ColumnSentinel("legacy_location_wifi_count", "time", "INTEGER", true),
+	FinalV28ColumnSentinel("legacy_location_wifi_count", "count", "INTEGER", true),
+	FinalV28ColumnSentinel("legacy_location_wifi_count", "lat", "REAL", true),
+	FinalV28ColumnSentinel("legacy_location_wifi_count", "lon", "REAL", true),
+	FinalV28ColumnSentinel("legacy_location_wifi_count", "alt", "REAL", false),
+	FinalV28ColumnSentinel("network_operator", "mcc", "TEXT", true, 1),
+	FinalV28ColumnSentinel("network_operator", "mnc", "TEXT", true, 2),
+	FinalV28ColumnSentinel("network_operator", "name", "TEXT", false),
+)
+private val FINAL_V29_LEGACY_PRESERVED_TABLE_COLUMNS = mapOf(
+	"legacy_rejected_tracker_session" to listOf("id", "start", "end", "user_initiated", "collections", "distance", "distance_on_foot", "distance_in_vehicle", "steps", "session_activity_id"),
+	"legacy_location_wifi_count" to listOf("id", "time", "count", "lat", "lon", "alt"),
+	"network_operator" to listOf("mcc", "mnc", "name"),
+)
+private val FINAL_V29_LEGACY_PRESERVED_INDEXES = listOf(
+	FinalV28IndexSentinel("legacy_location_wifi_count", "idx_legacy_location_wifi_count_time", listOf("time"), false),
+	FinalV28IndexSentinel("legacy_location_wifi_count", "idx_legacy_location_wifi_count_coords", listOf("lat", "lon"), false),
 )
