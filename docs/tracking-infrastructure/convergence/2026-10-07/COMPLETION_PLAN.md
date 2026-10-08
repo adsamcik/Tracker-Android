@@ -658,3 +658,9 @@ Exact V4 selected source and independent review: `../2026-10-08/LIVE_LOCATION_OP
 - [x] Use original Pressure sensor-clock order for saved WAL and correction lineage when UTC values repeat or change. Keep exact original source identity, permissions, manifest/actions/demands, provider retirement and saved Stop, retention, erase, epoch and finite bounds; preserve every saved timestamp. Four pure/Room methods NOT_RUN. No new clock reconstruction or storage.
 
 Exact selected source and independent review: `../2026-10-08/PRESSURE_ORIGINAL_CLOCK_SELECTED/` and `PRESSURE_ORIGINAL_CLOCK_REVIEW/ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN. No gates, activation, integration or push.
+
+### October 8 - retained Wi-Fi and Cell backlog
+
+- [x] Drain already admitted Wi-Fi/Cell WAL under its original manifest, registration, permission and operation generation after quality/End changes. Use authenticated original Stop clocks while preserving per-reading grants, current relationships, live replacement guards, epoch, erase, retention and finite bounds. Four real-ingress/Room writer/lane methods NOT_RUN; later operations and Stop intents are explicit fixtures. Activity and final shared-writer compatibility remain separate open work.
+
+Exact V2 selected source and independent review: `../2026-10-08/RETAINED_RADIO_BACKLOG_SELECTED_V2/` and `RETAINED_RADIO_BACKLOG_REVIEW/V2_ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN. No gates, activation, integration or push.

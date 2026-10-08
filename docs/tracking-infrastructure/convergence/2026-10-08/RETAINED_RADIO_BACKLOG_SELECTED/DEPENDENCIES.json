@@ -1,0 +1,49 @@
+{
+  "base_commit": "3b4600dd530fb7f4161d7e628d00f0d8c96c1dc4",
+  "pins": [
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SavedSessionCutoff.kt",
+      "sha256": "b93bd784de5b69c4b8c79a178f52ee0407d2f67223b23efc35dd03163e94073a"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
+      "sha256": "49e23c9e8afa1d4c5909423f24f2cc3e05eabbc9ad4fa2792821e40b867b3dad"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionLifecycleIntegrity.kt",
+      "sha256": "f6c6f0803f62808b2b1944c1384e60a3f783e874d4759e1b41c81cc60939ba22"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/HistoricalSavedAuthorityTestFixtures.kt",
+      "sha256": "e10e73b13eace3ca2b01ec25dd196d7fd541a94853516c44293fd380ea56fff0"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceIngress.kt",
+      "sha256": "0b019175630f6961e0fe09f2530c94b185679f837ff8395cfe5e382925b42453"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+      "sha256": "57a2afac28c2d68538f551ba1ac473ecee8dd6985dbce0af5132aedb59de7a20"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactWriter.kt",
+      "sha256": "35900a883e36a7037df82a1d49b73721c1b7f9bcd4cc2350e8805a48337e02da"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiSessionFactProjectionLane.kt",
+      "sha256": "6b7163b981bc490b63f645b949f378cde724eea64e5bb220d42a924a8aaedf60"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellSessionFactProjectionLane.kt",
+      "sha256": "f395349ab14a2c264940ce45ad6c6a5f2e796520651178d30b67dadcdd60e2b8"
+    }
+  ]
+}

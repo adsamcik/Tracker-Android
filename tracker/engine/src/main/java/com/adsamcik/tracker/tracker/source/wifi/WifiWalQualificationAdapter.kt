@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.wifi
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalFailure
 import com.adsamcik.tracker.shared.base.database.authenticateHistoricalProviderRegistration
@@ -284,9 +285,14 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 		) {
 			return rejected(WifiWalAdapterRejection.SESSION_MISMATCH)
 		}
-		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
+		val savedCutoff = database.savedSessionCutoff(session)
+		val sessionEnd = if (savedCutoff.bootId != null) {
+			savedCutoff.endForBoot(wal.clockDomainId)
+		} else {
+			session.cutoffElapsedNanos.takeIf { session.lifecycleBootId == wal.clockDomainId } ?: Long.MAX_VALUE
+		}
 		if (run.desiredPlanRevision <= 0L || run.logicalTrackingId != logicalTrackingId ||
-			run.bootId != wal.clockDomainId || run.leaseGeneration != leaseGeneration ||
+			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, leaseGeneration) ||
 			session.logicalTrackingId != logicalTrackingId ||
 			session.lifecycleLeaseGeneration < leaseGeneration ||
 			run.startedElapsedNanos > wal.observedElapsedNanos || observedStart >= sessionEnd
@@ -297,7 +303,7 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 		if (manifests.size > MAX_MANIFESTS_PER_RUN) {
 			return rejected(WifiWalAdapterRejection.MANIFEST_TIMELINE_OVERFLOW)
 		}
-		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)) {
+		if (!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests)) {
 			return rejected(WifiWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
 		}
 		val manifestIndex = manifests.indexOfFirst { it.manifestRevision == manifestRevision }

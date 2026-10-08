@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.cell
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.CellPurposeItems
 import com.adsamcik.tracker.shared.base.database.RadioPurposeItems
 import com.adsamcik.tracker.shared.base.database.cellPurposeWindow
@@ -393,16 +394,22 @@ internal class CellWalQualificationAdapter @Inject constructor(
 		if (run == null || session == null) {
 			return rejected(CellWalAdapterRejection.MISSING_SESSION)
 		}
-		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
-		if (run.logicalTrackingId != logicalTrackingId || run.bootId != wal.clockDomainId ||
-			run.leaseGeneration != leaseGeneration || session.logicalTrackingId != logicalTrackingId ||
+		val savedCutoff = database.savedSessionCutoff(session)
+		val sessionEnd = if (savedCutoff.bootId != null) {
+			savedCutoff.endForBoot(wal.clockDomainId)
+		} else {
+			session.cutoffElapsedNanos.takeIf { session.lifecycleBootId == wal.clockDomainId } ?: Long.MAX_VALUE
+		}
+		if (run.logicalTrackingId != logicalTrackingId ||
+			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, leaseGeneration) ||
+			session.logicalTrackingId != logicalTrackingId ||
 			session.lifecycleLeaseGeneration < leaseGeneration
 		) {
 			return rejected(CellWalAdapterRejection.SESSION_MISMATCH)
 		}
 		val manifests = sessionDao.manifestsForServiceRun(serviceRunId, MAX_MANIFESTS_PER_RUN + 1)
 		if (manifests.size > MAX_MANIFESTS_PER_RUN ||
-			!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)
+			!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests)
 		) {
 			return rejected(CellWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
 		}

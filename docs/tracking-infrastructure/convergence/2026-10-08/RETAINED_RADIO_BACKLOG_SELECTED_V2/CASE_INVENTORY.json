@@ -1,0 +1,23 @@
+[
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "new_methods": [
+      "Wi-Fi backlog cannot borrow a later generation for its original accepted source action",
+      "already admitted Wi-Fi backlog drains after later quality and End operation state"
+    ],
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+    "new_methods": [
+      "Cell backlog cannot borrow a later generation for its original authorized demand",
+      "already admitted Cell backlog drains after later quality and End operation state"
+    ],
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/HistoricalSavedSourceTestFixtures.kt",
+    "new_methods": [],
+    "status": "NOT_RUN"
+  }
+]

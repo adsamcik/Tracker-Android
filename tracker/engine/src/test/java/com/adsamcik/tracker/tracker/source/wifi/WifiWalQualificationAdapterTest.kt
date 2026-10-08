@@ -35,6 +35,7 @@ import android.database.sqlite.SQLiteConstraintException
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.tracker.source.advanceRetainedSourceOperations
 import com.adsamcik.tracker.shared.base.database.persistCapturedRadioFactRetentionProofs
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
@@ -710,6 +711,39 @@ class WifiWalQualificationAdapterTest {
 			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.BEFORE_RETENTION_FLOOR),
 			subject.qualify(EVENT_ID),
 		)
+	}
+
+	@Test
+	fun `already admitted Wi-Fi backlog drains after later quality and End operation state`() = runTest {
+		val event = installHistoricalWifiGroups()
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(event.value))
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		database.advanceRetainedSourceOperations(listOf(LOGICAL_ID to RUN_ID,
+			"historical-wifi-second" to "historical-wifi-second-run"))
+		val result = assertIs<WifiSessionFactDrainResult.Complete>(
+			WifiSessionFactProjectionLane(database, subject, writer).drainAvailable())
+		assertEquals(2, result.factsInserted)
+		val facts = historicalWifiFacts()
+		assertEquals(listOf("first-network", "second-network"), facts.sortedBy { it.coverageIntervalStartNanos }
+			.flatMap { historicalWifiChildren(it) }.map { it.ssid })
+		facts.forEach { fact -> assertTrue(WifiWalCarrierAuthenticator.authenticates(fact, wal, historicalWifiChildren(fact))) }
+		val retainedWal = requireNotNull(database.sourceEventWalDao().getByEventId(event.value))
+		assertEquals(wal, retainedWal.copy(payload = wal.payload))
+		assertTrue(wal.payload.contentEquals(retainedWal.payload))
+	}
+
+	@Test
+	fun `Wi-Fi backlog cannot borrow a later generation for its original accepted source action`() = runTest {
+		val event = installHistoricalWifiGroups()
+		database.advanceRetainedSourceOperations(listOf(LOGICAL_ID to RUN_ID,
+			"historical-wifi-second" to "historical-wifi-second-run"))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE lifecycle_desired_action SET lease_generation = ? WHERE source_kind = ? AND desired_state = 'STARTED'",
+			arrayOf<Any>(LEASE_GENERATION + 2L, WIFI_SOURCE))
+		val result = assertIs<WifiWalAdapterResult.Groups>(subject.qualify(event))
+		assertEquals(2, result.results.size)
+		assertTrue(result.results.all { it is WifiWalAdapterResult.Rejected })
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
 	}
 
 	@Test

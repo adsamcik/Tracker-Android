@@ -1,0 +1,27 @@
+[
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapter.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "412e5ff84a7422925c51214798e37e4222451731db87fd0e8b297fe35d6b9ca7"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapter.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "12dea869255f9369ad00e09bb518e4417c0a19eca31e6c1e774788bf5b432b7e"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "f699409b2b84f611b189becad4f61be5cc733dbef2653bddef3d4009e1fe1a72"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "fe30088e03685fd88c0b593428b37127a18963762f7ac30d71832f0bb4cbd797"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/HistoricalSavedSourceTestFixtures.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

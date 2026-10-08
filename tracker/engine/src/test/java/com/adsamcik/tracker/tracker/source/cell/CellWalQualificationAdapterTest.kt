@@ -6,6 +6,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.tracker.source.advanceRetainedSourceOperations
 import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
 import com.adsamcik.tracker.shared.base.database.CellCapturedSourceDeletionResult
 import com.adsamcik.tracker.shared.base.database.deleteCapturedCellFactsAfterConsentReset
@@ -1524,6 +1525,39 @@ class CellWalQualificationAdapterTest {
 			authentication,
 			authentication.toString(),
 		)
+	}
+
+	@Test
+	fun `already admitted Cell backlog drains after later quality and End operation state`() = runTest {
+		val event = installHistoricalCellGroups()
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(event.value))
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+		database.advanceRetainedSourceOperations(listOf(LOGICAL_ID to RUN_ID,
+			HISTORICAL_SECOND_LOGICAL to HISTORICAL_SECOND_RUN))
+		val result = assertIs<CellSessionFactDrainResult.Complete>(
+			CellSessionFactProjectionLane(database, subject, writer).drainAvailable())
+		assertEquals(2, result.factsInserted)
+		val facts = historicalCellFacts()
+		assertEquals(listOf("first-tower", "second-tower"),
+			facts.flatMap { historicalCellChildren(it) }.map { it.towerIdentity })
+		facts.forEach { fact -> assertIs<CellWalCarrierAuthentication.Authenticated>(
+			CellWalCarrierAuthenticator.authenticate(fact, wal, historicalCellChildren(fact))) }
+		val retainedWal = requireNotNull(database.sourceEventWalDao().getByEventId(event.value))
+		assertEquals(wal, retainedWal.copy(payload = wal.payload))
+		assertTrue(wal.payload.contentEquals(retainedWal.payload))
+	}
+
+	@Test
+	fun `Cell backlog cannot borrow a later generation for its original authorized demand`() = runTest {
+		val event = installHistoricalCellGroups()
+		database.advanceRetainedSourceOperations(listOf(LOGICAL_ID to RUN_ID,
+			HISTORICAL_SECOND_LOGICAL to HISTORICAL_SECOND_RUN))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET lifecycle_lease_generation = ? WHERE source_kind = ? AND purpose = ?",
+			arrayOf<Any>(LEASE_GENERATION + 2L, CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE))
+		assertEquals(CellWalAdapterResult.Rejected(CellWalAdapterRejection.AUTHORIZATION_MISMATCH),
+			subject.qualify(event))
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
 	}
 
 	@Test

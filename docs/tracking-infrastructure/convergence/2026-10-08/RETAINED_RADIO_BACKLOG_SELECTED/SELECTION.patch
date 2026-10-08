@@ -1,0 +1,228 @@
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapter.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapter.kt
+@@ -2,6 +2,7 @@
+ 
+ import androidx.room.withTransaction
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
+ import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
+ import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalFailure
+ import com.adsamcik.tracker.shared.base.database.authenticateHistoricalProviderRegistration
+@@ -284,9 +285,14 @@
+ 		) {
+ 			return rejected(WifiWalAdapterRejection.SESSION_MISMATCH)
+ 		}
+-		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
++		val savedCutoff = database.savedSessionCutoff(session)
++		val sessionEnd = if (savedCutoff.bootId != null) {
++			savedCutoff.endForBoot(wal.clockDomainId)
++		} else {
++			session.cutoffElapsedNanos.takeIf { session.lifecycleBootId == wal.clockDomainId } ?: Long.MAX_VALUE
++		}
+ 		if (run.desiredPlanRevision <= 0L || run.logicalTrackingId != logicalTrackingId ||
+-			run.bootId != wal.clockDomainId || run.leaseGeneration != leaseGeneration ||
++			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, leaseGeneration) ||
+ 			session.logicalTrackingId != logicalTrackingId ||
+ 			session.lifecycleLeaseGeneration < leaseGeneration ||
+ 			run.startedElapsedNanos > wal.observedElapsedNanos || observedStart >= sessionEnd
+@@ -297,7 +303,7 @@
+ 		if (manifests.size > MAX_MANIFESTS_PER_RUN) {
+ 			return rejected(WifiWalAdapterRejection.MANIFEST_TIMELINE_OVERFLOW)
+ 		}
+-		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)) {
++		if (!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests)) {
+ 			return rejected(WifiWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
+ 		}
+ 		val manifestIndex = manifests.indexOfFirst { it.manifestRevision == manifestRevision }
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapter.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapter.kt
+@@ -2,6 +2,7 @@
+ 
+ import androidx.room.withTransaction
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
+ import com.adsamcik.tracker.shared.base.database.CellPurposeItems
+ import com.adsamcik.tracker.shared.base.database.RadioPurposeItems
+ import com.adsamcik.tracker.shared.base.database.cellPurposeWindow
+@@ -393,16 +394,22 @@
+ 		if (run == null || session == null) {
+ 			return rejected(CellWalAdapterRejection.MISSING_SESSION)
+ 		}
+-		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
+-		if (run.logicalTrackingId != logicalTrackingId || run.bootId != wal.clockDomainId ||
+-			run.leaseGeneration != leaseGeneration || session.logicalTrackingId != logicalTrackingId ||
++		val savedCutoff = database.savedSessionCutoff(session)
++		val sessionEnd = if (savedCutoff.bootId != null) {
++			savedCutoff.endForBoot(wal.clockDomainId)
++		} else {
++			session.cutoffElapsedNanos.takeIf { session.lifecycleBootId == wal.clockDomainId } ?: Long.MAX_VALUE
++		}
++		if (run.logicalTrackingId != logicalTrackingId ||
++			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, leaseGeneration) ||
++			session.logicalTrackingId != logicalTrackingId ||
+ 			session.lifecycleLeaseGeneration < leaseGeneration
+ 		) {
+ 			return rejected(CellWalAdapterRejection.SESSION_MISMATCH)
+ 		}
+ 		val manifests = sessionDao.manifestsForServiceRun(serviceRunId, MAX_MANIFESTS_PER_RUN + 1)
+ 		if (manifests.size > MAX_MANIFESTS_PER_RUN ||
+-			!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)
++			!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests)
+ 		) {
+ 			return rejected(CellWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE)
+ 		}
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt
+@@ -35,6 +35,7 @@
+ import androidx.room.withTransaction
+ import androidx.test.core.app.ApplicationProvider
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.tracker.source.advanceRetainedRadioOperations
+ import com.adsamcik.tracker.shared.base.database.persistCapturedRadioFactRetentionProofs
+ import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
+ import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+@@ -710,6 +711,38 @@
+ 			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.BEFORE_RETENTION_FLOOR),
+ 			subject.qualify(EVENT_ID),
+ 		)
++	}
++
++	@Test
++	fun `already admitted Wi-Fi backlog drains after later quality and End operation state`() = runTest {
++		val event = installHistoricalWifiGroups()
++		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(event.value))
++		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
++		database.advanceRetainedRadioOperations(listOf(LOGICAL_ID to RUN_ID,
++			"historical-wifi-second" to "historical-wifi-second-run"))
++		val result = assertIs<WifiSessionFactDrainResult.Complete>(
++			WifiSessionFactProjectionLane(database, subject, writer).drainAvailable())
++		assertEquals(2, result.factsInserted)
++		val facts = historicalWifiFacts()
++		assertEquals(listOf("first-network", "second-network"), facts.sortedBy { it.coverageIntervalStartNanos }
++			.flatMap { historicalWifiChildren(it) }.map { it.ssid })
++		facts.forEach { fact -> assertTrue(WifiWalCarrierAuthenticator.authenticates(fact, wal, historicalWifiChildren(fact))) }
++		val retainedWal = requireNotNull(database.sourceEventWalDao().getByEventId(event.value))
++		assertEquals(wal, retainedWal.copy(payload = wal.payload))
++		assertTrue(wal.payload.contentEquals(retainedWal.payload))
++	}
++
++	@Test
++	fun `Wi-Fi backlog cannot borrow a later generation for its original accepted source action`() = runTest {
++		val event = installHistoricalWifiGroups()
++		database.advanceRetainedRadioOperations(listOf(LOGICAL_ID to RUN_ID,
++			"historical-wifi-second" to "historical-wifi-second-run"))
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE lifecycle_desired_action SET lease_generation = ? WHERE source_kind = ? AND desired_state = 'STARTED'",
++			arrayOf<Any>(LEASE_GENERATION + 2L, WIFI_SOURCE))
++		val result = assertIs<WifiWalAdapterResult.Groups>(subject.qualify(event))
++		assertTrue(result.results.all { it is WifiWalAdapterResult.Rejected })
++		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+ 	}
+ 
+ 	@Test
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt
+@@ -6,6 +6,7 @@
+ import androidx.test.core.app.ApplicationProvider
+ import androidx.room.withTransaction
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.tracker.source.advanceRetainedRadioOperations
+ import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
+ import com.adsamcik.tracker.shared.base.database.CellCapturedSourceDeletionResult
+ import com.adsamcik.tracker.shared.base.database.deleteCapturedCellFactsAfterConsentReset
+@@ -1527,6 +1528,39 @@
+ 	}
+ 
+ 	@Test
++	fun `already admitted Cell backlog drains after later quality and End operation state`() = runTest {
++		val event = installHistoricalCellGroups()
++		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(event.value))
++		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
++		database.advanceRetainedRadioOperations(listOf(LOGICAL_ID to RUN_ID,
++			HISTORICAL_SECOND_LOGICAL to HISTORICAL_SECOND_RUN))
++		val result = assertIs<CellSessionFactDrainResult.Complete>(
++			CellSessionFactProjectionLane(database, subject, writer).drainAvailable())
++		assertEquals(2, result.factsInserted)
++		val facts = historicalCellFacts()
++		assertEquals(listOf("first-tower", "second-tower"),
++			facts.flatMap { historicalCellChildren(it) }.map { it.towerIdentity })
++		facts.forEach { fact -> assertIs<CellWalCarrierAuthentication.Authenticated>(
++			CellWalCarrierAuthenticator.authenticate(fact, wal, historicalCellChildren(fact))) }
++		val retainedWal = requireNotNull(database.sourceEventWalDao().getByEventId(event.value))
++		assertEquals(wal, retainedWal.copy(payload = wal.payload))
++		assertTrue(wal.payload.contentEquals(retainedWal.payload))
++	}
++
++	@Test
++	fun `Cell backlog cannot borrow a later generation for its original accepted source action`() = runTest {
++		val event = installHistoricalCellGroups()
++		database.advanceRetainedRadioOperations(listOf(LOGICAL_ID to RUN_ID,
++			HISTORICAL_SECOND_LOGICAL to HISTORICAL_SECOND_RUN))
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE lifecycle_desired_action SET lease_generation = ? WHERE source_kind = ? AND desired_state = 'STARTED'",
++			arrayOf<Any>(LEASE_GENERATION + 2L, CELL_SOURCE))
++		val result = assertIs<CellWalAdapterResult.Groups>(subject.qualify(event))
++		assertTrue(result.results.all { it is CellWalAdapterResult.Rejected })
++		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
++	}
++
++	@Test
+ 	fun `actual v6 ingress with denied callback saves two historical sessions and original tower indexes`() = runTest {
+ 		val event = installHistoricalCellGroups()
+ 		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(event.value))
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/RetainedRadioBacklogTestFixtures.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/RetainedRadioBacklogTestFixtures.kt
+@@ -0,0 +1,53 @@
++package com.adsamcik.tracker.tracker.source
++
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
++import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntegrity
++import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
++import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
++
++/** Explicit immutable lifecycle fixture; it makes no Android/coordinator acceptance claim. */
++internal suspend fun AppDatabase.installOriginalRadioStopFixture(
++    session: LogicalTrackingSessionEntity,
++    manifest: SessionManifestVersionEntity,
++) {
++    if (session.cutoffElapsedNanos == null || session.cutoffAtMs == null) return
++    val dao = sourceSessionDao()
++    if (dao.firstStopIntent(session.logicalTrackingId) != null) return
++    val active = SessionLifecycleIntentVersionEntity(session.logicalTrackingId, manifest.manifestRevision,
++        manifest.manifestRevision, "ACTIVE", manifest.startOrigin, manifest.effectiveBootId,
++        manifest.effectiveElapsedRealtimeNanos, manifest.effectiveWallTimeMs, session.automationEpoch,
++        null, null, null, null, null, null, null, null, null, "")
++    val activeSealed = active.copy(intentChecksum = SessionLifecycleIntegrity.checksum(active.logicalTrackingId,
++        active.intentRevision, active.manifestRevision, active.desiredState, active.startOrigin,
++        active.requestBootId, active.requestedElapsedRealtimeNanos, active.requestedWallTimeMs,
++        active.triggerId, active.automationEpoch, active.triggerCollectedDataEpoch, active.sourceCallerAuthorityReference))
++    val stop = activeSealed.copy(intentRevision = active.intentRevision + 1L, desiredState = "FINALIZED",
++        startOrigin = "POLICY_RECONCILIATION", requestedElapsedRealtimeNanos = session.cutoffElapsedNanos,
++        requestedWallTimeMs = session.cutoffAtMs, stopReason = "USER_STOP", stopDeadlineBootId = active.requestBootId,
++        stopDeadlineElapsedRealtimeNanos = session.cutoffElapsedNanos)
++    val stopSealed = stop.copy(intentChecksum = SessionLifecycleIntegrity.checksum(stop.logicalTrackingId,
++        stop.intentRevision, stop.manifestRevision, stop.desiredState, stop.stopReason, stop.requestBootId,
++        stop.requestedElapsedRealtimeNanos, stop.stopDeadlineElapsedRealtimeNanos))
++    dao.insertLifecycleIntent(activeSealed)
++    dao.insertLifecycleIntent(stopSealed)
++}
++
++/** Later operation state is constructed; the already admitted WAL and original Stop remain unchanged. */
++internal suspend fun com.adsamcik.tracker.shared.base.database.AppDatabase.advanceRetainedRadioOperations(
++    scopes: List<Pair<String, String>>,
++) {
++    val dao = sourceSessionDao()
++    for ((logical, runId) in scopes) {
++        val session = requireNotNull(dao.session(logical))
++        val run = requireNotNull(dao.serviceRun(runId))
++        val manifest = requireNotNull(dao.manifest(logical, run.preparedManifestRevision))
++        installOriginalRadioStopFixture(session, manifest)
++        val generation = run.leaseGeneration + 2L
++        val boot = "later-radio-operation-boot"
++        dao.updateServiceRun(run.copy(leaseGeneration = generation, bootId = boot,
++            runRevision = run.runRevision + 1L))
++        dao.updateSession(session.copy(lifecycleLeaseGeneration = generation, lifecycleBootId = boot,
++            lifecycleRevision = session.lifecycleRevision + 1L))
++    }
++}

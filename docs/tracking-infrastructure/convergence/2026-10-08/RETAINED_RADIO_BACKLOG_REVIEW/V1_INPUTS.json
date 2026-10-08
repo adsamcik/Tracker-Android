@@ -1,0 +1,122 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "V1_NOT_ACCEPTED_TEST_SOURCE_BLOCKER",
+  "head": "3b4600dd530fb7f4161d7e628d00f0d8c96c1dc4",
+  "packet": "RETAINED_RADIO_BACKLOG_SELECTED",
+  "packet_evidence": {
+    "FILES.json": "fc3e919d314c17e5186176e203ae00da27d68916b2efc33d1a5b93f60cdf39cf",
+    "DEPENDENCIES.json": "d3e4440cd5be639c70590dfdbeb59bfc3250e5e9c58f78b0b1ca280edbc52b59",
+    "SELECTION.patch": "493bc6155503593f31667cd234bd3fe214dd04a5bd187c120c123dc325ed74ca",
+    "SOURCE_BOUNDARY.md": "9e7195e3e3712cc2d00efec4844b538bd09a8a033a4ee2ab1bab19aa83f37a87",
+    "CASE_INVENTORY.json": "cfae2e31501413cc4b72c60a4c8c1903e0788daec3d9e5345dca660e808b5a3b"
+  },
+  "files": {
+    "base_commit": "3b4600dd530fb7f4161d7e628d00f0d8c96c1dc4",
+    "phase": "IMPLEMENTATION_ONLY",
+    "files": [
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapter.kt",
+        "operation": "UPDATE",
+        "base_sha256": "412e5ff84a7422925c51214798e37e4222451731db87fd0e8b297fe35d6b9ca7",
+        "selected_sha256": "51c9af0b59ac10fb7b6f5ef52510851542d4000f88d3226906376435e980dc23",
+        "working_before_sha256": "412e5ff84a7422925c51214798e37e4222451731db87fd0e8b297fe35d6b9ca7"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapter.kt",
+        "operation": "UPDATE",
+        "base_sha256": "12dea869255f9369ad00e09bb518e4417c0a19eca31e6c1e774788bf5b432b7e",
+        "selected_sha256": "fb9c3f9cca3d50b2ac476a0413e692cb5c7e59778501312a1f563684f0ef8b02",
+        "working_before_sha256": "12dea869255f9369ad00e09bb518e4417c0a19eca31e6c1e774788bf5b432b7e"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+        "operation": "UPDATE",
+        "base_sha256": "f699409b2b84f611b189becad4f61be5cc733dbef2653bddef3d4009e1fe1a72",
+        "selected_sha256": "fbd398ff322a9e3f7330d237e3fdb02b24dbd3364cd10b0792c4b15130000fa6",
+        "working_before_sha256": "f699409b2b84f611b189becad4f61be5cc733dbef2653bddef3d4009e1fe1a72"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+        "operation": "UPDATE",
+        "base_sha256": "419a6241eea2ca3a1f0b52737d7090c4cefc0626b8504cd2f12617ae91255fbe",
+        "selected_sha256": "0b2de85913c34a727c3726965c2df02813ce6192b5aab41b047022d0edc47eba",
+        "working_before_sha256": "fe30088e03685fd88c0b593428b37127a18963762f7ac30d71832f0bb4cbd797"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/RetainedRadioBacklogTestFixtures.kt",
+        "operation": "CREATE",
+        "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "selected_sha256": "936c4d48e50d32631ab7ea6da11ffa062cdc1fb2f71802766cb5f1d6a6906975",
+        "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ]
+  },
+  "dependencies": {
+    "base_commit": "3b4600dd530fb7f4161d7e628d00f0d8c96c1dc4",
+    "pins": [
+      {
+        "path": "settings.gradle.kts",
+        "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+      },
+      {
+        "path": "tracker/engine/build.gradle.kts",
+        "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SavedSessionCutoff.kt",
+        "sha256": "b93bd784de5b69c4b8c79a178f52ee0407d2f67223b23efc35dd03163e94073a"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
+        "sha256": "49e23c9e8afa1d4c5909423f24f2cc3e05eabbc9ad4fa2792821e40b867b3dad"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionLifecycleIntegrity.kt",
+        "sha256": "f6c6f0803f62808b2b1944c1384e60a3f783e874d4759e1b41c81cc60939ba22"
+      },
+      {
+        "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/HistoricalSavedAuthorityTestFixtures.kt",
+        "sha256": "e10e73b13eace3ca2b01ec25dd196d7fd541a94853516c44293fd380ea56fff0"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceIngress.kt",
+        "sha256": "0b019175630f6961e0fe09f2530c94b185679f837ff8395cfe5e382925b42453"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+        "sha256": "57a2afac28c2d68538f551ba1ac473ecee8dd6985dbce0af5132aedb59de7a20"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactWriter.kt",
+        "sha256": "35900a883e36a7037df82a1d49b73721c1b7f9bcd4cc2350e8805a48337e02da"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiSessionFactProjectionLane.kt",
+        "sha256": "6b7163b981bc490b63f645b949f378cde724eea64e5bb220d42a924a8aaedf60"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellSessionFactProjectionLane.kt",
+        "sha256": "f395349ab14a2c264940ce45ad6c6a5f2e796520651178d30b67dadcdd60e2b8"
+      }
+    ]
+  },
+  "additional_current_source_pins": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioPurposeItemAuthorityReader.kt",
+      "sha256": "a3ce13ce020af787619552367832f047284c7d7fb15a6d66583159573ee1cb30"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellPurposeItemQualification.kt",
+      "sha256": "23c719444f6988f8566616d414d603b0c9972e853f23f3c975f3659144036afa"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RadioPurposeItemQualifier.kt",
+      "sha256": "50f52cfd58e71d1613302c753a4d131375a984afc80bb7e1f8fc695ed71eecfd"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceBrokerEntities.kt",
+      "sha256": "752d4b90d523ef1543d3032b31da63e0aa2943a13462b6b79fa40f28930b7fe0"
+    }
+  ],
+  "tests": "NOT_RUN"
+}

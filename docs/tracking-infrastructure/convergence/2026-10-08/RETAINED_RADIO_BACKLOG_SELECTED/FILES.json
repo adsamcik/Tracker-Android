@@ -1,0 +1,41 @@
+{
+  "base_commit": "3b4600dd530fb7f4161d7e628d00f0d8c96c1dc4",
+  "phase": "IMPLEMENTATION_ONLY",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapter.kt",
+      "operation": "UPDATE",
+      "base_sha256": "412e5ff84a7422925c51214798e37e4222451731db87fd0e8b297fe35d6b9ca7",
+      "selected_sha256": "51c9af0b59ac10fb7b6f5ef52510851542d4000f88d3226906376435e980dc23",
+      "working_before_sha256": "412e5ff84a7422925c51214798e37e4222451731db87fd0e8b297fe35d6b9ca7"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapter.kt",
+      "operation": "UPDATE",
+      "base_sha256": "12dea869255f9369ad00e09bb518e4417c0a19eca31e6c1e774788bf5b432b7e",
+      "selected_sha256": "fb9c3f9cca3d50b2ac476a0413e692cb5c7e59778501312a1f563684f0ef8b02",
+      "working_before_sha256": "12dea869255f9369ad00e09bb518e4417c0a19eca31e6c1e774788bf5b432b7e"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+      "operation": "UPDATE",
+      "base_sha256": "f699409b2b84f611b189becad4f61be5cc733dbef2653bddef3d4009e1fe1a72",
+      "selected_sha256": "fbd398ff322a9e3f7330d237e3fdb02b24dbd3364cd10b0792c4b15130000fa6",
+      "working_before_sha256": "f699409b2b84f611b189becad4f61be5cc733dbef2653bddef3d4009e1fe1a72"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+      "operation": "UPDATE",
+      "base_sha256": "419a6241eea2ca3a1f0b52737d7090c4cefc0626b8504cd2f12617ae91255fbe",
+      "selected_sha256": "0b2de85913c34a727c3726965c2df02813ce6192b5aab41b047022d0edc47eba",
+      "working_before_sha256": "fe30088e03685fd88c0b593428b37127a18963762f7ac30d71832f0bb4cbd797"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/RetainedRadioBacklogTestFixtures.kt",
+      "operation": "CREATE",
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "936c4d48e50d32631ab7ea6da11ffa062cdc1fb2f71802766cb5f1d6a6906975",
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

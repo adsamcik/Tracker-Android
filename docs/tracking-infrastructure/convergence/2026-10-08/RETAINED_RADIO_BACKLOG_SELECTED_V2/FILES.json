@@ -1,0 +1,42 @@
+{
+  "base_commit": "3b4600dd530fb7f4161d7e628d00f0d8c96c1dc4",
+  "phase": "IMPLEMENTATION_ONLY",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapter.kt",
+      "operation": "UPDATE",
+      "base_sha256": "412e5ff84a7422925c51214798e37e4222451731db87fd0e8b297fe35d6b9ca7",
+      "selected_sha256": "51c9af0b59ac10fb7b6f5ef52510851542d4000f88d3226906376435e980dc23",
+      "working_before_sha256": "412e5ff84a7422925c51214798e37e4222451731db87fd0e8b297fe35d6b9ca7"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapter.kt",
+      "operation": "UPDATE",
+      "base_sha256": "12dea869255f9369ad00e09bb518e4417c0a19eca31e6c1e774788bf5b432b7e",
+      "selected_sha256": "fb9c3f9cca3d50b2ac476a0413e692cb5c7e59778501312a1f563684f0ef8b02",
+      "working_before_sha256": "12dea869255f9369ad00e09bb518e4417c0a19eca31e6c1e774788bf5b432b7e"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+      "operation": "UPDATE",
+      "base_sha256": "f699409b2b84f611b189becad4f61be5cc733dbef2653bddef3d4009e1fe1a72",
+      "selected_sha256": "10eea85a5bbeeafc12952e9e8129323cfd5d27be279c9ebf88568a317c14898b",
+      "working_before_sha256": "f699409b2b84f611b189becad4f61be5cc733dbef2653bddef3d4009e1fe1a72"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+      "operation": "UPDATE",
+      "base_sha256": "419a6241eea2ca3a1f0b52737d7090c4cefc0626b8504cd2f12617ae91255fbe",
+      "selected_sha256": "41a35ae2a661417a7f630709d0b9452408a449bb9d3dca2472941644d1aacf49",
+      "working_before_sha256": "fe30088e03685fd88c0b593428b37127a18963762f7ac30d71832f0bb4cbd797"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/HistoricalSavedSourceTestFixtures.kt",
+      "operation": "CREATE",
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "96e5cfaf475c489b4f3eddede99620fd06cac72ee60a29688c7b83d8cfaae8bd",
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "supersedes": "RETAINED_RADIO_BACKLOG_SELECTED"
+}
