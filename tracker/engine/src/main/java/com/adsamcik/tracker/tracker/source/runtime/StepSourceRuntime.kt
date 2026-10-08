@@ -81,6 +81,8 @@ class StepSourceRuntime @Inject constructor(
 	private var callbackAttributionTimeline: StepObservedAuthorizationTimeline? = null
 	private var pendingAuthorizationRefresh: PendingStepAuthorizationRefresh? = null
 	private var actor: Job? = null
+	private var activeAccumulator: StepWindowAccumulator? = null
+	private var recordingCounterEpochGeneration: Long? = null
 	@Volatile private var overflowRecoveryJob: Job? = null
 	private var acceptingCallbacks = false
 	private var callbackEntrySequence = 0L
@@ -278,6 +280,73 @@ class StepSourceRuntime @Inject constructor(
 		}
 	}
 
+	/** Inspects the existing listener; this cannot register or revive a provider. */
+	internal suspend fun continuingRecording(
+		expectedClaim: SourceRuntimeClaim,
+		plan: StepsPlan,
+	): StepsRecordingContinuation? = lifecycleMutex.withLock {
+		if (!plan.enabled || currentPlan?.physicalConfigurationFingerprint() !=
+			plan.physicalConfigurationFingerprint() || runtimeClaim != expectedClaim ||
+			providerRetirement != null || terminalSettlement != null || cleanupOnlyReleasePending ||
+			cutoffElapsedNanos != null || admissionDeadlineElapsedNanos != null ||
+			!context.hasActivityPermission
+		) return@withLock null
+		synchronized(callbackLock) {
+			val currentRegistration = registration ?: return@synchronized null
+			val currentListener = listener ?: return@synchronized null
+			val token = callbackToken ?: return@synchronized null
+			val lane = queue ?: return@synchronized null
+			val currentActor = actor?.takeIf { it.isActive } ?: return@synchronized null
+			val accumulator = activeAccumulator ?: return@synchronized null
+			if (!acceptingCallbacks || overflowPaused || !overflowPauseRemovalComplete ||
+				!callbackGate.accepts(token) || pendingAuthorizationRefresh != null ||
+				accumulator.counterEpochGeneration() != recordingCounterEpochGeneration ||
+				accumulator.snapshot()?.let { it.authorizationBoundary != currentRegistration.stepAuthorizationBoundary() } == true
+			) return@synchronized null
+			StepsRecordingContinuation(currentRegistration, expectedClaim,
+				registrations.currentProcessIncarnationId(), currentListener, token, lane,
+				currentActor, accumulator, accumulator.counterEpochGeneration())
+		}
+	}
+
+	/** Rechecks the real preflight at apply; a lost recording never starts with an older origin. */
+	internal suspend fun reuseContinuingRecording(
+		continuation: StepsRecordingContinuation,
+		claim: SourceRuntimeClaim,
+		plan: StepsPlan,
+		stillAuthorized: suspend () -> Boolean,
+	): SourceApplyResult = lifecycleMutex.withLock {
+		fun unchanged(): Boolean = synchronized(callbackLock) {
+			continuation.registration === registration && runtimeClaim == continuation.claim &&
+				listener === continuation.listener && callbackToken === continuation.callbackToken &&
+				queue === continuation.lane && actor === continuation.actor && continuation.actor.isActive &&
+				activeAccumulator === continuation.accumulator &&
+				continuation.accumulator.counterEpochGeneration() == continuation.counterEpochGeneration &&
+				continuation.counterEpochGeneration == recordingCounterEpochGeneration &&
+				acceptingCallbacks && !overflowPaused && overflowPauseRemovalComplete &&
+				callbackGate.accepts(continuation.callbackToken) && pendingAuthorizationRefresh == null
+		}
+		val compatible = plan.enabled && claim.source == source &&
+			claim.logicalTrackingId == continuation.claim.logicalTrackingId &&
+			claim.serviceRunId == continuation.claim.serviceRunId &&
+			claim.leaseGeneration > continuation.claim.leaseGeneration &&
+			currentPlan?.physicalConfigurationFingerprint() == plan.physicalConfigurationFingerprint() &&
+			providerRetirement == null && terminalSettlement == null && !cleanupOnlyReleasePending &&
+			cutoffElapsedNanos == null && admissionDeadlineElapsedNanos == null &&
+			context.hasActivityPermission && unchanged()
+		if (!compatible || !stillAuthorized() || !context.hasActivityPermission || !unchanged()) {
+			// Only the exact old claim may be cleaned up; a successor owner is untouched.
+			val stopAck = if (runtimeClaim == continuation.claim) shutdownLocked(null) else null
+			return@withLock SourceApplyResult.Failed(
+				appliedState(source, plan.revision, null, SourceApplyStatus.FAILED,
+					SystemClock.elapsedRealtimeNanos()), retryable = true, stopAck = stopAck)
+		}
+		runtimeClaim = claim
+		currentPlan = plan
+		SourceApplyResult.Applied(appliedState(source, plan.revision, continuation.registration,
+			SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()))
+	}
+
 	/**
 	 * Refreshes broker authorization without changing the compatible physical registration. A null
 	 * result means the caller must perform a normal stop/restart for a different physical plan.
@@ -356,6 +425,9 @@ class StepSourceRuntime @Inject constructor(
 				if (compatible) {
 					// The latch closes the authorization-refresh/timeline race at this boundary.
 					callbackAttributionTimeline?.refresh(refreshed, sink)
+					if (refreshed.authorization != activeRegistration.authorization) {
+						recordingCounterEpochGeneration = activeAccumulator?.counterEpochGeneration()
+					}
 					registration = refreshed
 					currentSink = sink
 					pendingRefresh.complete(StepCallbackAttribution(refreshed, sink))
@@ -1144,7 +1216,11 @@ class StepSourceRuntime @Inject constructor(
 	/** Publishes identity and completion fencing before a callback actor is allowed to execute. */
 	private fun launchStepActor(lane: StepCallbackLane, accumulator: StepWindowAccumulator) {
 		val nextActor = applicationScope.launch(start = CoroutineStart.LAZY) { consume(lane, accumulator) }
-		actor = nextActor
+		synchronized(callbackLock) {
+			actor = nextActor
+			activeAccumulator = accumulator
+			recordingCounterEpochGeneration = accumulator.counterEpochGeneration()
+		}
 		nextActor.invokeOnCompletion { failure ->
 			if (failure == null) return@invokeOnCompletion
 			val ownsFailedLane = synchronized(callbackLock) {
@@ -1544,12 +1620,12 @@ class StepSourceRuntime @Inject constructor(
 		}
 		return when (handoff) {
 			is SourceAdmissionHandoff.Durable -> {
-				check(commitDurableStepPreview(accumulator, preview, handoff))
+				check(synchronized(callbackLock) { commitDurableStepPreview(accumulator, preview, handoff) })
 				metrics.recordDurable(event.providerSequence, handoff.admissionOrdinal)
 				true
 			}
 			is SourceAdmissionHandoff.Duplicate -> {
-				check(commitDurableStepPreview(accumulator, preview, handoff))
+				check(synchronized(callbackLock) { commitDurableStepPreview(accumulator, preview, handoff) })
 				metrics.recordDurable(event.providerSequence, handoff.existingAdmissionOrdinal)
 				true
 			}
@@ -1777,6 +1853,8 @@ class StepSourceRuntime @Inject constructor(
 			callbackToken?.let(callbackGate::retire)
 			callbackToken = null
 			registration = null
+			activeAccumulator = null
+			recordingCounterEpochGeneration = null
 			currentSink = null
 			queue = null
 			callbackAttributionTimeline = null
@@ -1879,6 +1957,19 @@ class StepSourceRuntime @Inject constructor(
 		const val DEFAULT_DRAIN_TIMEOUT_MS = 2_000L
 	}
 }
+
+/** Source-local transient evidence of the actual listener/actor; never a persisted authority. */
+internal class StepsRecordingContinuation(
+	val registration: SourceRegistration,
+	val claim: SourceRuntimeClaim,
+	val processIncarnationId: String,
+	internal val listener: Any,
+	internal val callbackToken: StepCallbackToken,
+	internal val lane: StepCallbackLane,
+	internal val actor: Job,
+	internal val accumulator: StepWindowAccumulator,
+	internal val counterEpochGeneration: Long,
+)
 
 private enum class StepProviderRetirement { NOT_DURABLE, PENDING, TIMED_OUT, COMPLETE }
 

@@ -25,6 +25,7 @@ import com.adsamcik.tracker.shared.base.database.data.WifiWalPayloadDecodeResult
 import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemAuthority
 import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemQualification
 import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemQualifier
+import com.adsamcik.tracker.shared.base.database.data.StepsRecordingLifetime
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
@@ -405,6 +406,10 @@ class RoomDurableSourceIngress @Inject constructor(
 						)
 					}
 					return@transaction duplicate
+				}
+				if (candidate.source == SourceKind.STEPS && captureAuthorization != null &&
+					!hasVerifiedStepsRecordingInterval(candidate, captureAuthorization)) {
+					return@transaction AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_SESSION_MANIFEST)
 				}
 				if (authorization.hasCapturePurpose() &&
 					!isCaptureAdmissionExecutable(candidate.source.stableCode)
@@ -1166,12 +1171,16 @@ class RoomDurableSourceIngress @Inject constructor(
 			?.takeIf { cutoff -> cutoff == retirementCutoff }
 			?: return null
 		val policyAuthority = database.sourcePolicyDao().authority()
-		val currentPolicy = database.sourcePolicyDao().policyAtRevision(
-			key.sourcePolicyRevision,
-			evidence.source.stableCode,
-		)
+		// Only this exact retiring Steps registration may finish a marked recording after a
+		// quality-only policy change. A new consent, Off or another recording remains ineligible.
+		val continuingSteps = evidence.source == SourceKind.STEPS &&
+			hasVerifiedStepsRecordingInterval(evidence, captureAuthorization, requireMarked = true)
+		val policyRevision = if (continuingSteps) policyAuthority?.currentPolicyRevision else key.sourcePolicyRevision
+		val currentPolicy = policyRevision?.let { revision ->
+			database.sourcePolicyDao().policyAtRevision(revision, evidence.source.stableCode)
+		}
 		val unchangedCapturePolicy = policyAuthority?.bootstrapState == SOURCE_POLICY_STATE_ACTIVE &&
-			policyAuthority.currentPolicyRevision == key.sourcePolicyRevision &&
+			(continuingSteps || policyAuthority.currentPolicyRevision == key.sourcePolicyRevision) &&
 			currentPolicy?.enabled == true &&
 			currentPolicy.capturePersistenceEligible &&
 			currentPolicy.captureConsentEpoch == key.consentEpoch &&
@@ -1188,6 +1197,36 @@ class RoomDurableSourceIngress @Inject constructor(
 				unchangedCapturePolicy && exactRetirementOnly
 			},
 		)
+	}
+
+	/** New marked Steps facts retain their source-local window instead of a global quality boundary. */
+	private suspend fun hasVerifiedStepsRecordingInterval(
+		candidate: SourceEvidenceCandidate<*>,
+		member: SourceAuthorizationEntity,
+		requireMarked: Boolean = false,
+	): Boolean {
+		val key = member.captureSessionKey(candidate.source, candidate.clockDomainId) ?: return false
+		val dao = database.sourceSessionDao()
+		val sources = dao.manifestSources(key.logicalTrackingId, key.manifestRevision)
+		val originBinding = sources.singleOrNull { it.sourceKind == SourceKind.STEPS.stableCode &&
+			it.purpose == MANIFEST_PURPOSE_CAPTURE } ?: return false
+		// Old null-origin data keeps its existing admission contract.
+		if (originBinding.stepsRecordingManifestRevision == null) return !requireMarked
+		if (originBinding.stepsRecordingManifestRevision != key.manifestRevision) return false
+		val run = dao.serviceRun(key.serviceRunId) ?: return false
+		val manifests = dao.manifestsForServiceRun(key.serviceRunId)
+		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)) return false
+		val bindings = linkedMapOf<Long, SessionManifestSourceEntity>()
+		for (manifest in manifests) {
+			val membership = dao.manifestSources(key.logicalTrackingId, manifest.manifestRevision)
+			if (!SessionManifestIntegrity.verify(manifest, membership)) return false
+			membership.singleOrNull { it.sourceKind == SourceKind.STEPS.stableCode &&
+				it.purpose == MANIFEST_PURPOSE_CAPTURE }?.let { bindings[manifest.manifestRevision] = it }
+		}
+		val bounds = StepsRecordingLifetime.validatedIntervals(manifests, bindings)?.get(key.manifestRevision)
+			?: return false
+		return candidate.observedIntervalStartElapsedRealtimeNanos() in bounds &&
+			candidate.observedElapsedRealtimeNanos in bounds
 	}
 
 	/**

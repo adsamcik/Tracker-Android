@@ -311,6 +311,8 @@ class SourceRegistrationRepository @Inject constructor(
 
 	internal fun currentBootId(): String = clockDomainProvider.current()
 
+	internal fun currentProcessIncarnationId(): String = processIncarnationIdProvider.current()
+
 	internal suspend fun canReuseSystemLocation(
 		row: ProviderRegistrationGenerationEntity,
 		fingerprint: String,

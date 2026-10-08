@@ -272,6 +272,21 @@ interface SourceBrokerDao {
 		wallTimeMs: Long,
 	): Int
 
+	/** Keeps only the already authenticated live Steps demand; it does not revive any row. */
+	@Query(
+		"UPDATE source_demand SET status = 'RETIRED', retire_boot_id = :bootId, " +
+			"retire_elapsed_realtime_nanos = :elapsedRealtimeNanos, retired_at_ms = :wallTimeMs " +
+			"WHERE consumer_id = :consumerId AND demand_id != :retainedDemandId " +
+			"AND status IN ('ACTIVE', 'RETIRING', 'BLOCKED')",
+	)
+	suspend fun retireConsumerExceptDemand(
+		consumerId: String,
+		retainedDemandId: String,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): Int
+
 	@Query("SELECT COALESCE(MAX(registration_generation), 0) FROM provider_registration_generation WHERE source_kind = :sourceKind")
 	suspend fun maximumRegistrationGeneration(sourceKind: Int): Long
 

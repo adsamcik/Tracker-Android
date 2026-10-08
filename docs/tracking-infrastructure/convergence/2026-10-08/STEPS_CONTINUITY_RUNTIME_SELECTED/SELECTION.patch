@@ -1,0 +1,1514 @@
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceBrokerDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceBrokerDao.kt
+@@ -272,6 +272,21 @@
+ 		wallTimeMs: Long,
+ 	): Int
+ 
++	/** Keeps only the already authenticated live Steps demand; it does not revive any row. */
++	@Query(
++		"UPDATE source_demand SET status = 'RETIRED', retire_boot_id = :bootId, " +
++			"retire_elapsed_realtime_nanos = :elapsedRealtimeNanos, retired_at_ms = :wallTimeMs " +
++			"WHERE consumer_id = :consumerId AND demand_id != :retainedDemandId " +
++			"AND status IN ('ACTIVE', 'RETIRING', 'BLOCKED')",
++	)
++	suspend fun retireConsumerExceptDemand(
++		consumerId: String,
++		retainedDemandId: String,
++		bootId: String,
++		elapsedRealtimeNanos: Long,
++		wallTimeMs: Long,
++	): Int
++
+ 	@Query("SELECT COALESCE(MAX(registration_generation), 0) FROM provider_registration_generation WHERE source_kind = :sourceKind")
+ 	suspend fun maximumRegistrationGeneration(sourceKind: Int): Long
+ 
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/ActiveTrackingSessionCallerAuthorityReconciler.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/ActiveTrackingSessionCallerAuthorityReconciler.kt
+@@ -126,7 +126,8 @@
+ 					supersededReference = predecessor,
+ 					wallTimeMs = System.currentTimeMillis(),
+ 				)) {
+-				SourceCallerAuthorityRetirementOutcome.Completed -> Unit
++				SourceCallerAuthorityRetirementOutcome.Completed,
++				SourceCallerAuthorityRetirementOutcome.RetainedForSteps -> Unit
+ 				is SourceCallerAuthorityRetirementOutcome.Retryable ->
+ 					return ActiveTrackingCallerAuthorityReconciliation.Blocked(
+ 						failureCode = retirement.failureCode(),
+@@ -191,8 +192,9 @@
+ }
+ 
+ private fun SourceCallerAuthorityRetirementOutcome.failureCode(): String = when (this) {
+-	SourceCallerAuthorityRetirementOutcome.Completed ->
+-		error("Completed retirement has no failure code")
++	SourceCallerAuthorityRetirementOutcome.Completed,
++	SourceCallerAuthorityRetirementOutcome.RetainedForSteps ->
++		error("Successful caller-authority settlement has no failure code")
+ 	is SourceCallerAuthorityRetirementOutcome.Retryable -> when (reason) {
+ 		SourceCallerAuthorityRetirementRetryReason.STORAGE_UNAVAILABLE ->
+ 			"RECOVERY_SOURCE_CALLER_RETIREMENT_STORAGE_UNAVAILABLE"
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt
+@@ -88,6 +88,8 @@
+ import com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey
+ import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeClaim
+ import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeRegistry
++import com.adsamcik.tracker.tracker.source.runtime.SharedStepSourceController
++import com.adsamcik.tracker.tracker.source.runtime.StepsRecordingContinuation
+ import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+ import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementOutcome
+ import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementRetryReason
+@@ -2252,6 +2254,12 @@
+ 			}
+ 			val plan = catalogTransition.plan
+ 			val effectiveCatalogDecisions = catalogTransition.decisions
++			val continuingStepsPlan = runtimePlan.plans[SourceKind.STEPS] as? StepsPlan
++			val stepsContinuation = if (continuingStepsPlan?.enabled == true &&
++				SourceKind.STEPS in effectiveCatalogDecisions.acceptedSources) {
++				(runtimes.runtime(SourceKind.STEPS) as? SharedStepSourceController)?.continuingRecording(
++					session.logicalTrackingId, currentServiceRunId, continuingStepsPlan)
++			} else null
+ 			validateSourcePolicy(plan)?.let { return SessionReconfigureResult.InvalidPolicy(it) }
+ 			var intentPolicyFailure: String? = null
+ 			var intentValidationFailure: String? = null
+@@ -2310,6 +2318,7 @@
+ 					lease = lease,
+ 					serviceRunId = serviceRun.serviceRunId,
+ 					acceptedCaptureSources = effectiveCatalogDecisions.acceptedSources,
++					stepsContinuation = stepsContinuation,
+ 				)
+ 				val priorManifestEnvelopes = database.sourceSessionDao()
+ 					.manifestsForServiceRun(serviceRun.serviceRunId)
+@@ -2376,6 +2385,7 @@
+ 					sessionMode = SessionMode.valueOf(current.sessionMode),
+ 					startOrigin = SessionStartOrigin.POLICY_RECONCILIATION,
+ 					mutation = SessionDemandMutation.REPLACE_ACTIVE,
++					stepsContinuation = stepsContinuation,
+ 					lease = lease,
+ 					bootId = request.clockDomainId,
+ 					elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+@@ -2415,6 +2425,7 @@
+ 				wallTimeMs = request.wallTimeMs,
+ 				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
+ 				catalogDecisions = runtimeCatalogDecisions,
++				stepsContinuation = stepsContinuation,
+ 			)
+ 			var applied = executions.map(SourceActionExecution::applied)
+ 			if (executions.any { execution -> execution.status == LifecycleActionStatus.CLEANUP_REQUIRED }) {
+@@ -3000,6 +3011,7 @@
+ 		bootId: String,
+ 		elapsedRealtimeNanos: Long,
+ 		wallTimeMs: Long,
++		stepsContinuation: StepsRecordingContinuation? = null,
+ 	): PersistedLifecycleIntent {
+ 		return when (val result = sourceCallerDemandDispatcher.dispatchSession(
+ 			SessionSourceDemandDispatchRequest(
+@@ -3014,6 +3026,7 @@
+ 				bootId = bootId,
+ 				elapsedRealtimeNanos = elapsedRealtimeNanos,
+ 				wallTimeMs = wallTimeMs,
++				stepsContinuation = stepsContinuation,
+ 			),
+ 		)) {
+ 			is SessionSourceDemandDispatchResult.Permitted ->
+@@ -3043,6 +3056,7 @@
+ 		lease: LifecycleLeaseToken,
+ 		serviceRunId: String,
+ 		acceptedCaptureSources: Set<SourceKind>,
++		stepsContinuation: StepsRecordingContinuation? = null,
+ 	): PersistedLifecycleIntent {
+ 		require(acceptedCaptureSources.all { source -> plan.plans[source]?.enabled == true }) {
+ 			"Accepted capture sources must be enabled in the desired plan"
+@@ -3193,6 +3207,9 @@
+ 				writerProjectionId = candidateWriter?.projectionId,
+ 				writerProjectionVersion = candidateWriter?.projectionVersion,
+ 				writerBindingGeneration = candidateWriter?.bindingGeneration,
++				stepsRecordingManifestRevision = manifestRevision.takeIf {
++					sourcePlan.source == SourceKind.STEPS && policy.balanceProfileVersion == 1 && candidateWriter != null
++				},
+ 			)
+ 		}
+ 		val controlBindings = controlDependencies.map { source ->
+@@ -3215,7 +3232,7 @@
+ 				qosCode = policy.qosCode,
+ 			)
+ 		}
+-		val bindings = (captureBindings + controlBindings).sortedWith(
++		val initialBindings = (captureBindings + controlBindings).sortedWith(
+ 			compareBy(SessionManifestSourceEntity::purpose, SessionManifestSourceEntity::sourceKind),
+ 		)
+ 		val unsignedManifest = SessionManifestVersionEntity(
+@@ -3235,6 +3252,13 @@
+ 			changeReason = changeReason,
+ 			manifestChecksum = "",
+ 		)
++		val bindings = initialBindings.map { binding ->
++			if (binding.stepsRecordingManifestRevision == null || stepsContinuation == null) binding else {
++				val origin = sourceBroker.continuingStepsOriginInTransaction(stepsContinuation,
++					unsignedManifest, binding, lease.ownerToken)
++				binding.copy(stepsRecordingManifestRevision = origin ?: manifestRevision)
++			}
++		}
+ 		val manifest = unsignedManifest.copy(
+ 			manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, bindings),
+ 		)
+@@ -3551,6 +3575,7 @@
+ 		wallTimeMs: Long,
+ 		elapsedRealtimeNanos: Long,
+ 		catalogDecisions: CatalogPlanDecisions,
++		stepsContinuation: StepsRecordingContinuation? = null,
+ 	): List<SourceActionExecution> {
+ 		val actionBySource = intent.actions.associateBy { it.sourceKind }
+ 		val bindingBySource = intent.bindings
+@@ -3595,6 +3620,7 @@
+ 							runtimeClaim,
+ 							nowElapsed,
+ 							wallTimeMs,
++							stepsContinuation = stepsContinuation,
+ 						)
+ 					}
+ 				}
+@@ -3611,6 +3637,7 @@
+ 							runtimeClaim,
+ 							nowElapsed,
+ 							wallTimeMs,
++							stepsContinuation = stepsContinuation,
+ 						)
+ 					}
+ 					applied.withCatalogDecision(catalogDecision)
+@@ -3629,6 +3656,7 @@
+ 							runtimeClaim,
+ 							nowElapsed,
+ 							wallTimeMs,
++							stepsContinuation = stepsContinuation,
+ 						)
+ 						if (stopped.status == LifecycleActionStatus.STOP_ACCEPTED) {
+ 							stopped.copy(
+@@ -4759,6 +4787,7 @@
+ 		runtimeClaim: SourceRuntimeClaim,
+ 		elapsedNanos: Long,
+ 		wallTimeMs: Long,
++		stepsContinuation: StepsRecordingContinuation? = null,
+ 	): SourceActionExecution {
+ 		if (!plan.enabled && plan.source !in runtimes.registeredSources()) {
+ 			return SourceActionExecution(
+@@ -4774,11 +4803,12 @@
+ 			)
+ 		}
+ 		val execution = try {
+-			runtimes.reconfigure(
+-				runtimeClaim,
+-				plan,
+-				registrationFencedSink(sink, plan.source),
+-			).toExecution(plan.enabled)
++			val sharedSteps = if (plan is StepsPlan) runtimes.runtime(SourceKind.STEPS) as? SharedStepSourceController else null
++			val result = if (sharedSteps != null && plan is StepsPlan) {
++				sharedSteps.reconfigureWithContinuity(runtimeClaim, plan,
++					registrationFencedSink(sink, plan.source), stepsContinuation)
++			} else runtimes.reconfigure(runtimeClaim, plan, registrationFencedSink(sink, plan.source))
++			result.toExecution(plan.enabled)
+ 				.copy(runtimeClaim = runtimeClaim, captureAuthorization = authorization)
+ 		} catch (error: CancellationException) {
+ 			throw error
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSession.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSession.kt
+@@ -1098,7 +1098,8 @@
+ 					replacementReference,
+ 					predecessor,
+ 					replacement,
+-				) == SourceCallerAuthorityRetirementOutcome.Completed
++				) in setOf(SourceCallerAuthorityRetirementOutcome.Completed,
++					SourceCallerAuthorityRetirementOutcome.RetainedForSteps)
+ 		} catch (cancelled: CancellationException) {
+ 			if (markCleanupOnFailure) session.runtimeCleanupRequired = true
+ 			throw cancelled
+@@ -1121,7 +1122,8 @@
+ 			supersededReference,
+ 			Time.nowMillis,
+ 		)
+-		if (retirement != SourceCallerAuthorityRetirementOutcome.Completed) return retirement
++		if (retirement !in setOf(SourceCallerAuthorityRetirementOutcome.Completed,
++			SourceCallerAuthorityRetirementOutcome.RetainedForSteps)) return retirement
+ 		val stored = recordedDescriptor ?: when (val result = activeTrackingSessionStore.read()) {
+ 			is ActiveTrackingSessionStoreResult.Failure -> return result.kind.toRetirementOutcome()
+ 			is ActiveTrackingSessionStoreResult.Success -> result.descriptor
+@@ -1135,7 +1137,7 @@
+ 		)
+ 		if (stored.pendingRetirementSourceCallerAuthorityReference == null) {
+ 			session.pendingRetirementSourceCallerAuthorityReference = null
+-			return SourceCallerAuthorityRetirementOutcome.Completed
++			return retirement
+ 		}
+ 		if (stored.pendingRetirementSourceCallerAuthorityReference != supersededReference) {
+ 			return SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous
+@@ -1153,7 +1155,7 @@
+ 			)
+ 		}
+ 		session.pendingRetirementSourceCallerAuthorityReference = null
+-		return SourceCallerAuthorityRetirementOutcome.Completed
++		return retirement
+ 	}
+ 
+ 	internal suspend fun persistedDescriptorForActiveSession(
+@@ -1198,7 +1200,8 @@
+ 					SourceSessionStopRetryCode.CLEANUP_PENDING,
+ 				)
+ 			when (retireRecordedSupersededAuthority(session, current, predecessor)) {
+-				SourceCallerAuthorityRetirementOutcome.Completed -> Unit
++				SourceCallerAuthorityRetirementOutcome.Completed,
++				SourceCallerAuthorityRetirementOutcome.RetainedForSteps -> Unit
+ 				is SourceCallerAuthorityRetirementOutcome.Retryable ->
+ 					return@withLock SourceSessionStopOutcome.Retryable(
+ 						SourceSessionStopRetryCode.CLEANUP_PENDING,
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceIngress.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceIngress.kt
+@@ -25,6 +25,7 @@
+ import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemAuthority
+ import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemQualification
+ import com.adsamcik.tracker.shared.base.database.data.RadioPurposeItemQualifier
++import com.adsamcik.tracker.shared.base.database.data.StepsRecordingLifetime
+ import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+ import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+@@ -405,6 +406,10 @@
+ 						)
+ 					}
+ 					return@transaction duplicate
++				}
++				if (candidate.source == SourceKind.STEPS && captureAuthorization != null &&
++					!hasVerifiedStepsRecordingInterval(candidate, captureAuthorization)) {
++					return@transaction AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_SESSION_MANIFEST)
+ 				}
+ 				if (authorization.hasCapturePurpose() &&
+ 					!isCaptureAdmissionExecutable(candidate.source.stableCode)
+@@ -1166,12 +1171,16 @@
+ 			?.takeIf { cutoff -> cutoff == retirementCutoff }
+ 			?: return null
+ 		val policyAuthority = database.sourcePolicyDao().authority()
+-		val currentPolicy = database.sourcePolicyDao().policyAtRevision(
+-			key.sourcePolicyRevision,
+-			evidence.source.stableCode,
+-		)
++		// Only this exact retiring Steps registration may finish a marked recording after a
++		// quality-only policy change. A new consent, Off or another recording remains ineligible.
++		val continuingSteps = evidence.source == SourceKind.STEPS &&
++			hasVerifiedStepsRecordingInterval(evidence, captureAuthorization, requireMarked = true)
++		val policyRevision = if (continuingSteps) policyAuthority?.currentPolicyRevision else key.sourcePolicyRevision
++		val currentPolicy = policyRevision?.let { revision ->
++			database.sourcePolicyDao().policyAtRevision(revision, evidence.source.stableCode)
++		}
+ 		val unchangedCapturePolicy = policyAuthority?.bootstrapState == SOURCE_POLICY_STATE_ACTIVE &&
+-			policyAuthority.currentPolicyRevision == key.sourcePolicyRevision &&
++			(continuingSteps || policyAuthority.currentPolicyRevision == key.sourcePolicyRevision) &&
+ 			currentPolicy?.enabled == true &&
+ 			currentPolicy.capturePersistenceEligible &&
+ 			currentPolicy.captureConsentEpoch == key.consentEpoch &&
+@@ -1188,6 +1197,36 @@
+ 				unchangedCapturePolicy && exactRetirementOnly
+ 			},
+ 		)
++	}
++
++	/** New marked Steps facts retain their source-local window instead of a global quality boundary. */
++	private suspend fun hasVerifiedStepsRecordingInterval(
++		candidate: SourceEvidenceCandidate<*>,
++		member: SourceAuthorizationEntity,
++		requireMarked: Boolean = false,
++	): Boolean {
++		val key = member.captureSessionKey(candidate.source, candidate.clockDomainId) ?: return false
++		val dao = database.sourceSessionDao()
++		val sources = dao.manifestSources(key.logicalTrackingId, key.manifestRevision)
++		val originBinding = sources.singleOrNull { it.sourceKind == SourceKind.STEPS.stableCode &&
++			it.purpose == MANIFEST_PURPOSE_CAPTURE } ?: return false
++		// Old null-origin data keeps its existing admission contract.
++		if (originBinding.stepsRecordingManifestRevision == null) return !requireMarked
++		if (originBinding.stepsRecordingManifestRevision != key.manifestRevision) return false
++		val run = dao.serviceRun(key.serviceRunId) ?: return false
++		val manifests = dao.manifestsForServiceRun(key.serviceRunId)
++		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)) return false
++		val bindings = linkedMapOf<Long, SessionManifestSourceEntity>()
++		for (manifest in manifests) {
++			val membership = dao.manifestSources(key.logicalTrackingId, manifest.manifestRevision)
++			if (!SessionManifestIntegrity.verify(manifest, membership)) return false
++			membership.singleOrNull { it.sourceKind == SourceKind.STEPS.stableCode &&
++				it.purpose == MANIFEST_PURPOSE_CAPTURE }?.let { bindings[manifest.manifestRevision] = it }
++		}
++		val bounds = StepsRecordingLifetime.validatedIntervals(manifests, bindings)?.get(key.manifestRevision)
++			?: return false
++		return candidate.observedIntervalStartElapsedRealtimeNanos() in bounds &&
++			candidate.observedElapsedRealtimeNanos in bounds
+ 	}
+ 
+ 	/**
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedStepSourceController.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedStepSourceController.kt
+@@ -49,6 +49,40 @@
+ 		startForClaimLocked(claim, plan, sink)
+ 	}
+ 
++	internal suspend fun continuingRecording(
++		logicalTrackingId: String,
++		serviceRunId: String,
++		plan: StepsPlan,
++	): StepsRecordingContinuation? = mutex.withLock {
++		val claim = sessionClaim ?: return@withLock null
++		if (sessionPlan?.enabled != true || claim.logicalTrackingId != logicalTrackingId ||
++			claim.serviceRunId != serviceRunId) return@withLock null
++		physicalRuntime.continuingRecording(claim, plan)
++	}
++
++	internal suspend fun reconfigureWithContinuity(
++		claim: SourceRuntimeClaim,
++		plan: StepsPlan,
++		sink: SourceEventSink,
++		continuation: StepsRecordingContinuation?,
++	): SourceApplyResult = mutex.withLock {
++		if (!sourceBroker.requiresContinuingStepsRecording(claim)) {
++			return@withLock reconfigureForClaimLocked(claim, plan, sink)
++		}
++		if (continuation == null || sessionClaim != continuation.claim) {
++			return@withLock SourceApplyResult.Failed(blockedState(plan), retryable = true)
++		}
++		val result = physicalRuntime.reuseContinuingRecording(continuation, claim, plan) {
++			sourceBroker.continuingStepsDemand(claim.logicalTrackingId, claim.serviceRunId,
++				claim.leaseGeneration, continuation) != null
++		}
++		if (result is SourceApplyResult.Applied) {
++			sessionPlan = plan
++			sessionClaim = claim
++		}
++		result
++	}
++
+ 	private suspend fun startForClaimLocked(
+ 		claim: SourceRuntimeClaim?,
+ 		plan: StepsPlan,
+@@ -56,6 +90,10 @@
+ 	): SourceStartResult {
+ 		@Suppress("UNUSED_VARIABLE") val sessionBoundSinkMustNotRelabelSharedEvidence = sink
+ 		if (!plan.enabled) return SourceStartResult.Started(disabledState(plan))
++		if ((claim != null && sourceBroker.requiresContinuingStepsRecording(claim)) ||
++			(sessionClaim?.let { sourceBroker.requiresContinuingStepsRecording(it) } == true)) {
++			return SourceStartResult.Blocked(blockedState(plan))
++		}
+ 		val predecessorPlan = sessionPlan
+ 		val predecessorClaim = sessionClaim
+ 		sessionPlan = plan
+@@ -107,6 +145,11 @@
+ 		sink: SourceEventSink,
+ 	): SourceApplyResult {
+ 		@Suppress("UNUSED_VARIABLE") val sessionBoundSinkMustNotRelabelSharedEvidence = sink
++		if (plan.enabled && ((claim != null && sourceBroker.requiresContinuingStepsRecording(claim)) ||
++			(sessionClaim?.let { sourceBroker.requiresContinuingStepsRecording(it) } == true))) {
++			// Only the coordinator's fresh physical preflight can adopt a continuing recording.
++			return SourceApplyResult.Failed(blockedState(plan), retryable = false)
++		}
+ 		val predecessorPlan = sessionPlan
+ 		val predecessorClaim = sessionClaim
+ 		if (!plan.enabled && claim != null && sessionClaim != null && claim != sessionClaim) {
+@@ -265,11 +308,22 @@
+ 	private suspend fun applyEffective(
+ 		plan: StepsPlan,
+ 		claim: SourceRuntimeClaim? = null,
+-	): SourceApplyResult = if (claim == null) {
+-		physicalRuntime.refreshCompatible(plan, unboundSink)
+-			?: physicalRuntime.reconfigure(plan, unboundSink)
+-	} else {
+-		physicalRuntime.reconfigure(claim, plan, unboundSink)
++	): SourceApplyResult {
++		val attachedClaim = sessionClaim
++		if (claim == null && plan.enabled && attachedClaim != null &&
++			sourceBroker.requiresContinuingStepsRecording(attachedClaim)) {
++			// Legacy CONTROL cleanup may inspect a live session, but cannot replace or revive it.
++			val live = physicalRuntime.continuingRecording(attachedClaim, plan)
++			return if (live != null && sourceBroker.continuingStepsDemand(attachedClaim.logicalTrackingId,
++				attachedClaim.serviceRunId, attachedClaim.leaseGeneration, live) != null) {
++				SourceApplyResult.Applied(appliedState(source, plan.revision, live.registration,
++					SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()))
++			} else SourceApplyResult.Failed(blockedState(plan), retryable = true)
++		}
++		return if (claim == null) {
++			physicalRuntime.refreshCompatible(plan, unboundSink)
++				?: physicalRuntime.reconfigure(plan, unboundSink)
++		} else physicalRuntime.reconfigure(claim, plan, unboundSink)
+ 	}
+ 
+ 	private suspend fun reconcileRemainingControl(): SourceApplyResult? {
+@@ -282,13 +336,18 @@
+ 		}
+ 	}
+ 
+-	private suspend fun selectedDemands(): List<SourceDemandEntity> =
+-		sourceBroker.authorizationDemands(source).filter { demand ->
+-			sessionPlan != null && demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+-				(sessionClaim == null || (demand.logicalTrackingId == sessionClaim?.logicalTrackingId &&
+-					demand.serviceRunId == sessionClaim?.serviceRunId &&
+-					demand.lifecycleLeaseGeneration == sessionClaim?.leaseGeneration))
+-		}
++	private suspend fun selectedDemands(): List<SourceDemandEntity> {
++		if (sessionPlan == null) return emptyList()
++		val claim = sessionClaim
++		val direct = sourceBroker.authorizationDemands(source).filter { demand ->
++			demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
++				(claim == null || (demand.logicalTrackingId == claim.logicalTrackingId &&
++					demand.serviceRunId == claim.serviceRunId && demand.lifecycleLeaseGeneration == claim.leaseGeneration))
++		}
++		if (direct.isNotEmpty() || claim == null) return direct
++		return listOfNotNull(sourceBroker.continuingStepsDemand(claim.logicalTrackingId,
++			claim.serviceRunId, claim.leaseGeneration))
++	}
+ 
+ 	private fun effectivePlan(demands: List<SourceDemandEntity>): StepsPlan? {
+ 		if (demands.isEmpty()) return null
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceBroker.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceBroker.kt
+@@ -26,6 +26,9 @@
+ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
++import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
++import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
++import com.adsamcik.tracker.shared.base.database.data.StepsRecordingLifetime
+ import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
+ import com.adsamcik.tracker.shared.base.database.data.hasReachedRetentionPhase
+ import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+@@ -68,6 +71,8 @@
+ 
+ internal sealed interface SourceCallerAuthorityRetirementOutcome {
+ 	data object Completed : SourceCallerAuthorityRetirementOutcome
++	/** The old receipt remains active solely for its continuing physical Steps recording. */
++	data object RetainedForSteps : SourceCallerAuthorityRetirementOutcome
+ 
+ 	data class Retryable(
+ 		val reason: SourceCallerAuthorityRetirementRetryReason,
+@@ -155,6 +160,174 @@
+ 		retentionAuthorityReader,
+ 	)
+ 	fun sessionConsumerId(logicalTrackingId: String): String = "session:$logicalTrackingId"
++
++	private data class LiveStepsRecording(
++		val demand: SourceDemandEntity,
++		val origin: SessionManifestVersionEntity,
++		val originBinding: SessionManifestSourceEntity,
++		val current: SessionManifestVersionEntity,
++		val ownerToken: String,
++	)
++
++	/** The caller owns Room. This reads one explicitly marked lifetime, never searches for an old one. */
++	private suspend fun liveStepsRecordingInTransaction(
++		logicalTrackingId: String,
++		serviceRunId: String,
++		latestReference: SourceCallerReplayReference? = null,
++	): LiveStepsRecording? {
++		val sessionDao = database.sourceSessionDao()
++		val session = sessionDao.session(logicalTrackingId) ?: return null
++		val run = sessionDao.serviceRun(serviceRunId) ?: return null
++		val revision = session.currentManifestRevision ?: return null
++		if (session.currentServiceRunId != serviceRunId || session.completedAtMs != null ||
++			session.cutoffAtMs != null || session.cutoffElapsedNanos != null ||
++			session.state !in setOf("ACTIVE", "RECONFIGURING") || run.state != "ACTIVE" ||
++			run.completedAtMs != null || run.logicalTrackingId != logicalTrackingId ||
++			session.lifecycleLeaseGeneration != run.leaseGeneration ||
++			session.lifecycleBootId != run.bootId || session.clockDomainId != run.bootId ||
++			database.collectedDataDeletionOperationDao().activeRetentionFloorSettlement() != null
++		) return null
++		val manifests = sessionDao.manifestsForServiceRun(serviceRunId)
++		if (manifests.lastOrNull()?.manifestRevision != revision ||
++			!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)
++		) return null
++		val bindings = linkedMapOf<Long, SessionManifestSourceEntity>()
++		for (manifest in manifests) {
++			val sources = sessionDao.manifestSources(logicalTrackingId, manifest.manifestRevision)
++			if (!SessionManifestIntegrity.verify(manifest, sources)) return null
++			val steps = sources.singleOrNull { it.sourceKind == SourceKind.STEPS.stableCode &&
++				it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
++			if (steps != null) bindings[manifest.manifestRevision] = steps
++		}
++		if (!StepsRecordingLifetime.hasValidReferences(manifests, bindings)) return null
++		val current = manifests.singleOrNull { it.manifestRevision == revision } ?: return null
++		val currentBinding = bindings[revision] ?: return null
++		val originRevision = currentBinding.stepsRecordingManifestRevision ?: return null
++		val origin = manifests.singleOrNull { it.manifestRevision == originRevision } ?: return null
++		val originBinding = bindings[originRevision] ?: return null
++		if (!StepsRecordingLifetime.isContinuation(origin, originBinding, current, currentBinding)) return null
++		val demand = database.sourceBrokerDao().currentDemands(sessionConsumerId(logicalTrackingId))
++			.singleOrNull { it.sourceKind == SourceKind.STEPS.stableCode &&
++				it.purpose == SourceBrokerPurpose.SESSION_CAPTURE } ?: return null
++		if (demand.status != SourceDemandEntity.STATUS_ACTIVE || !demand.persistenceEligible ||
++			demand.manifestRevision != originRevision || demand.serviceRunId != serviceRunId ||
++			demand.logicalTrackingId != logicalTrackingId || demand.requestedBootId != run.bootId ||
++			demand.sourcePolicyRevision != origin.sourcePolicyRevision ||
++			demand.consentEpoch != originBinding.consentEpoch
++		) return null
++		val originalReference = demand.sourceCallerAuthorityReference?.let(::SourceCallerReplayReference) ?: return null
++		val currentReference = latestReference ?: session.currentIntentRevision?.let { intentRevision ->
++			sessionDao.lifecycleIntent(logicalTrackingId, intentRevision)?.sourceCallerAuthorityReference
++		}?.let(::SourceCallerReplayReference) ?: return null
++		val originalAuthority = (sourceCallerAuthorityRepository.load(originalReference) as?
++			StoredSourceCallerAuthorityLoadResult.Available)?.authority ?: return null
++		val currentAuthority = (sourceCallerAuthorityRepository.load(currentReference) as?
++			StoredSourceCallerAuthorityLoadResult.Available)?.authority ?: return null
++		if (originalAuthority.purpose != TrackingPurpose.SESSION_CAPTURE ||
++			currentAuthority.purpose != TrackingPurpose.SESSION_CAPTURE) return null
++		fun stepsIdentity(authority: StoredSourceCallerAuthority) = authority.permittedDemandIdentities
++			.singleOrNull { it.purposeLeaseIdentity.source.stableCode == SourceKind.STEPS.stableCode &&
++				it.purposeLeaseIdentity.purpose == TrackingPurpose.SESSION_CAPTURE }
++		val original = stepsIdentity(originalAuthority) ?: return null
++		val latest = stepsIdentity(currentAuthority) ?: return null
++		val first = original.purposeLeaseIdentity
++		val last = latest.purposeLeaseIdentity
++		if (original.manifestIdentity != SourceCallerManifestIdentity(logicalTrackingId, originRevision) ||
++			latest.manifestIdentity != SourceCallerManifestIdentity(logicalTrackingId, revision) ||
++			first.policyRevision != origin.sourcePolicyRevision || first.executionRevision != demand.lifecycleLeaseGeneration ||
++			last.policyRevision != current.sourcePolicyRevision || last.executionRevision != run.leaseGeneration ||
++			first.ownerCasToken != last.ownerCasToken || first.consentEpoch != demand.consentEpoch ||
++			last.consentEpoch != currentBinding.consentEpoch || first.consentEpoch != last.consentEpoch ||
++			first.rolloutRevision != last.rolloutRevision || last.rolloutRevision != current.rolloutRevision ||
++			first.collectedDataEpoch != last.collectedDataEpoch ||
++			last.collectedDataEpoch != database.sourceEvidenceStateDao().get()?.collectedDataEpoch
++		) return null
++		val policyAuthority = database.sourcePolicyDao().authority() ?: return null
++		val policy = database.sourcePolicyDao().policyAtRevision(policyAuthority.currentPolicyRevision,
++			SourceKind.STEPS.stableCode) ?: return null
++		if (policyAuthority.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE || !policy.enabled ||
++			!policy.capturePersistenceEligible || policy.captureConsentEpoch != first.consentEpoch ||
++			policy.balanceProfileVersion != 1) return null
++		return LiveStepsRecording(demand, origin, originBinding, current, last.ownerCasToken)
++	}
++
++	private suspend fun hasExactLiveStepsRegistration(
++		recording: LiveStepsRecording,
++		continuation: StepsRecordingContinuation,
++	): Boolean {
++		val expected = continuation.registration
++		val state = expected.state
++		val dao = database.sourceBrokerDao()
++		val physical = dao.currentPhysicalRegistrationsBounded(SourceKind.STEPS.stableCode, 2)
++			.singleOrNull() ?: return false
++		val pointer = database.sourceRegistrationStateDao().get(SourceKind.STEPS.stableCode, expected.ownerScope)
++		val authorization = dao.latestAuthorization(SourceKind.STEPS.stableCode, state.registrationGeneration)
++			.toAuthorizationSnapshotOrNull() ?: return false
++		return physical.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE &&
++			physical.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
++			physical.providerProcessIncarnationId == continuation.processIncarnationId &&
++			physical.acceptedAtMs != null && physical.acceptedElapsedRealtimeNanos != null &&
++			physical.retiredAtMs == null && physical.retiredElapsedRealtimeNanos == null && physical.failureCode == null &&
++			physical.ownerScope == expected.ownerScope && physical.sourceInstanceId == state.sourceInstanceId &&
++			physical.registrationGeneration == state.registrationGeneration && physical.clockDomainId == state.clockDomainId &&
++			physical.collectedDataEpoch == state.collectedDataEpoch &&
++			physical.collectedDataEpoch == database.sourceEvidenceStateDao().get()?.collectedDataEpoch &&
++			physical.physicalConfigurationFingerprint == expected.physicalConfigurationFingerprint &&
++			pointer != null && pointer.sourceInstanceId == state.sourceInstanceId && pointer.registrationGeneration == state.registrationGeneration &&
++			pointer.clockDomainId == state.clockDomainId && pointer.collectedDataEpoch == state.collectedDataEpoch &&
++			authorization == expected.authorization && authorization.authorizedMembers.size == 1 &&
++			authorization.authorizedMembers.single().demandId == recording.demand.demandId &&
++			authorization.authorizationFingerprint == SourceBrokerAuthorization.fingerprint(listOf(recording.demand))
++	}
++
++	/** Before publication: only the immediate predecessor's still-active physical lifetime can continue. */
++	internal suspend fun continuingStepsOriginInTransaction(
++		continuation: StepsRecordingContinuation,
++		proposedManifest: SessionManifestVersionEntity,
++		proposedBinding: SessionManifestSourceEntity,
++		ownerToken: String,
++	): Long? {
++		val recording = liveStepsRecordingInTransaction(proposedManifest.logicalTrackingId,
++			proposedManifest.serviceRunId) ?: return null
++		val previous = recording.current
++		val session = database.sourceSessionDao().session(previous.logicalTrackingId) ?: return null
++		if (previous.manifestRevision == Long.MAX_VALUE || proposedManifest.manifestRevision != previous.manifestRevision + 1L ||
++			continuation.claim.logicalTrackingId != previous.logicalTrackingId ||
++			continuation.claim.serviceRunId != previous.serviceRunId ||
++			continuation.claim.leaseGeneration != session.lifecycleLeaseGeneration ||
++			recording.ownerToken != ownerToken ||
++			database.sourceProjectionStateDao().lease("tracking-session-coordinator")?.ownerToken != ownerToken ||
++			!hasExactLiveStepsRegistration(recording, continuation)) return null
++		val binding = proposedBinding.copy(stepsRecordingManifestRevision = recording.origin.manifestRevision)
++		return recording.origin.manifestRevision.takeIf {
++			StepsRecordingLifetime.isContinuation(recording.origin, recording.originBinding, proposedManifest, binding)
++		}
++	}
++
++	/** Only for an already published current command; old authority cannot reserve a new provider. */
++	internal suspend fun continuingStepsDemand(
++		logicalTrackingId: String,
++		serviceRunId: String,
++		leaseGeneration: Long,
++		continuation: StepsRecordingContinuation? = null,
++	): SourceDemandEntity? = database.withTransaction {
++		val recording = liveStepsRecordingInTransaction(logicalTrackingId, serviceRunId) ?: return@withTransaction null
++		val session = database.sourceSessionDao().session(logicalTrackingId) ?: return@withTransaction null
++		if (session.lifecycleLeaseGeneration != leaseGeneration ||
++			(continuation != null && !hasExactLiveStepsRegistration(recording, continuation))) return@withTransaction null
++		recording.demand
++	}
++
++	internal suspend fun requiresContinuingStepsRecording(claim: SourceRuntimeClaim): Boolean = database.withTransaction {
++		val session = database.sourceSessionDao().session(claim.logicalTrackingId) ?: return@withTransaction false
++		if (session.currentServiceRunId != claim.serviceRunId || session.lifecycleLeaseGeneration != claim.leaseGeneration) {
++			return@withTransaction false
++		}
++		val revision = session.currentManifestRevision ?: return@withTransaction false
++		database.sourceSessionDao().manifestSources(claim.logicalTrackingId, revision).singleOrNull {
++			it.sourceKind == SourceKind.STEPS.stableCode && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
++		}?.stepsRecordingManifestRevision?.let { it < revision } == true
++	}
+ 
+ 	/** Reserves sessionless Location only under the exact current purpose and retention lease. */
+ 	internal suspend fun replaceAmbientLocationDemand(
+@@ -508,6 +681,7 @@
+ 		elapsedRealtimeNanos: Long,
+ 		wallTimeMs: Long,
+ 		retireSupersededAuthority: Boolean = true,
++		stepsContinuation: StepsRecordingContinuation? = null,
+ 	) {
+ 		val consumerId = sessionConsumerId(logicalTrackingId)
+ 		val dao = database.sourceBrokerDao()
+@@ -519,11 +693,48 @@
+ 					.mapNotNull { intent -> intent.sourceCallerAuthorityReference }
+ 					.mapNotNull(String::toCallerReferenceOrNull)
+ 		).toSet()
+-		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
++		val requestedSteps = demands.singleOrNull { it.sourceKind == SourceKind.STEPS.stableCode &&
++			it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
++		val priorSteps = dao.currentDemands(consumerId).singleOrNull { demand ->
++			demand.sourceKind == SourceKind.STEPS.stableCode && demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE
++		}
++		val priorStepsOrigin = priorSteps?.manifestRevision?.let { revision ->
++			database.sourceSessionDao().manifestSources(logicalTrackingId, revision).singleOrNull { binding ->
++				binding.sourceKind == SourceKind.STEPS.stableCode && binding.purpose == SourceBrokerPurpose.SESSION_CAPTURE
++			}?.stepsRecordingManifestRevision
++		}
++		val currentStepsBinding = requestedSteps?.manifestRevision?.let { revision ->
++			database.sourceSessionDao().manifestSources(logicalTrackingId, revision).singleOrNull {
++				it.sourceKind == SourceKind.STEPS.stableCode && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
++		}
++		val continuing = currentStepsBinding?.stepsRecordingManifestRevision?.let { origin ->
++			origin < currentStepsBinding.manifestRevision
++		} == true
++		val retainedSteps = if (continuing && stepsContinuation != null && requestedSteps != null) {
++			val freshReference = requestedSteps.sourceCallerAuthorityReference?.let(::SourceCallerReplayReference)
++			val recording = freshReference?.let { liveStepsRecordingInTransaction(logicalTrackingId,
++				requireNotNull(requestedSteps.serviceRunId), it) }
++			recording?.takeIf { hasExactLiveStepsRegistration(it, stepsContinuation) }?.demand
++		} else null
++		check(!continuing || retainedSteps != null) { "Continuing Steps recording changed before publication" }
++		if (retainedSteps == null) {
++			dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
++		} else {
++			dao.retireConsumerExceptDemand(consumerId, retainedSteps.demandId, bootId, elapsedRealtimeNanos, wallTimeMs)
++		}
+ 		if (retireSupersededAuthority) {
+-			retireAuthorityReferences(retiredReferences, "SESSION_DEMAND_REPLACED", wallTimeMs)
+-		}
+-		if (demands.isNotEmpty()) dao.insertDemands(demands)
++			retireAuthorityReferences(retiredReferences.filterNot {
++				it.value == retainedSteps?.sourceCallerAuthorityReference }.toSet(), "SESSION_DEMAND_REPLACED", wallTimeMs)
++		}
++		// A real recording boundary also releases its older origin receipt. The descriptor's
++		// ordinary retirement still handles the immediate predecessor's fresh command receipt.
++		if (retainedSteps == null && priorSteps != null && priorStepsOrigin == priorSteps.manifestRevision) {
++			priorSteps.sourceCallerAuthorityReference?.toCallerReferenceOrNull()?.takeIf { old ->
++				demands.none { it.sourceCallerAuthorityReference == old.value }
++			}?.let { old -> retireAuthorityReferences(setOf(old), "STEPS_RECORDING_REPLACED", wallTimeMs) }
++		}
++		val replacements = if (retainedSteps == null) demands else demands.filterNot { it === requestedSteps }
++		if (replacements.isNotEmpty()) dao.insertDemands(replacements)
+ 		affectedSources.forEach { sourceKind ->
+ 			rotateCurrentAuthorizationInTransaction(
+ 				sourceKind,
+@@ -1083,6 +1294,9 @@
+ 		}
+ 		val superseded = references
+ 			.filterTo(linkedSetOf()) { reference -> reference != currentReference }
++		val retainedStepsReference = database.sourceSessionDao().session(logicalTrackingId)?.currentServiceRunId
++			?.let { runId -> liveStepsRecordingInTransaction(logicalTrackingId, runId, currentReference) }
++			?.demand?.sourceCallerAuthorityReference?.let(::SourceCallerReplayReference)
+ 		if (expectedSupersededReference !in superseded) {
+ 			return when (val expected = loadCallerAuthorityForRetirement(
+ 				expectedSupersededReference,
+@@ -1100,6 +1314,7 @@
+ 		}
+ 		for (reference in superseded) {
+ 			if (reference == expectedSupersededReference) continue
++			if (reference == retainedStepsReference) continue
+ 			when (val historical = loadCallerAuthorityForRetirement(reference)) {
+ 				CallerAuthorityRetirementLoad.Available ->
+ 					return SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous
+@@ -1110,6 +1325,9 @@
+ 				-> Unit
+ 				is CallerAuthorityRetirementLoad.Failed -> return historical.outcome
+ 			}
++		}
++		if (expectedSupersededReference == retainedStepsReference) {
++			return SourceCallerAuthorityRetirementOutcome.RetainedForSteps
+ 		}
+ 		return retireExactCallerAuthority(
+ 			expectedSupersededReference,
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceCallerDemandDispatcher.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceCallerDemandDispatcher.kt
+@@ -63,6 +63,7 @@
+ 	val elapsedRealtimeNanos: Long,
+ 	val wallTimeMs: Long,
+ 	val policies: Map<Int, com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity>? = null,
++	val stepsContinuation: StepsRecordingContinuation? = null,
+ )
+ 
+ internal sealed interface SessionSourceDemandDispatchResult {
+@@ -358,6 +359,7 @@
+ 					request.wallTimeMs,
+ 					retireSupersededAuthority =
+ 						request.startOrigin != SessionStartOrigin.POLICY_RECONCILIATION,
++					stepsContinuation = request.stepsContinuation,
+ 				)
+ 			SessionDemandMutation.AUTHORITY_ONLY -> Unit
+ 		}
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt
+@@ -310,6 +310,8 @@
+ 		database.sourceBrokerDao().nonterminalSystemLocationRegistrations(2)
+ 
+ 	internal fun currentBootId(): String = clockDomainProvider.current()
++
++	internal fun currentProcessIncarnationId(): String = processIncarnationIdProvider.current()
+ 
+ 	internal suspend fun canReuseSystemLocation(
+ 		row: ProviderRegistrationGenerationEntity,
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/StepSourceRuntime.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/StepSourceRuntime.kt
+@@ -81,6 +81,8 @@
+ 	private var callbackAttributionTimeline: StepObservedAuthorizationTimeline? = null
+ 	private var pendingAuthorizationRefresh: PendingStepAuthorizationRefresh? = null
+ 	private var actor: Job? = null
++	private var activeAccumulator: StepWindowAccumulator? = null
++	private var recordingCounterEpochGeneration: Long? = null
+ 	@Volatile private var overflowRecoveryJob: Job? = null
+ 	private var acceptingCallbacks = false
+ 	private var callbackEntrySequence = 0L
+@@ -276,6 +278,73 @@
+ 				if (shutdown is OwnedSourceShutdown.Released) runtimeClaim = null
+ 			}
+ 		}
++	}
++
++	/** Inspects the existing listener; this cannot register or revive a provider. */
++	internal suspend fun continuingRecording(
++		expectedClaim: SourceRuntimeClaim,
++		plan: StepsPlan,
++	): StepsRecordingContinuation? = lifecycleMutex.withLock {
++		if (!plan.enabled || currentPlan?.physicalConfigurationFingerprint() !=
++			plan.physicalConfigurationFingerprint() || runtimeClaim != expectedClaim ||
++			providerRetirement != null || terminalSettlement != null || cleanupOnlyReleasePending ||
++			cutoffElapsedNanos != null || admissionDeadlineElapsedNanos != null ||
++			!context.hasActivityPermission
++		) return@withLock null
++		synchronized(callbackLock) {
++			val currentRegistration = registration ?: return@synchronized null
++			val currentListener = listener ?: return@synchronized null
++			val token = callbackToken ?: return@synchronized null
++			val lane = queue ?: return@synchronized null
++			val currentActor = actor?.takeIf { it.isActive } ?: return@synchronized null
++			val accumulator = activeAccumulator ?: return@synchronized null
++			if (!acceptingCallbacks || overflowPaused || !overflowPauseRemovalComplete ||
++				!callbackGate.accepts(token) || pendingAuthorizationRefresh != null ||
++				accumulator.counterEpochGeneration() != recordingCounterEpochGeneration ||
++				accumulator.snapshot()?.let { it.authorizationBoundary != currentRegistration.stepAuthorizationBoundary() } == true
++			) return@synchronized null
++			StepsRecordingContinuation(currentRegistration, expectedClaim,
++				registrations.currentProcessIncarnationId(), currentListener, token, lane,
++				currentActor, accumulator, accumulator.counterEpochGeneration())
++		}
++	}
++
++	/** Rechecks the real preflight at apply; a lost recording never starts with an older origin. */
++	internal suspend fun reuseContinuingRecording(
++		continuation: StepsRecordingContinuation,
++		claim: SourceRuntimeClaim,
++		plan: StepsPlan,
++		stillAuthorized: suspend () -> Boolean,
++	): SourceApplyResult = lifecycleMutex.withLock {
++		fun unchanged(): Boolean = synchronized(callbackLock) {
++			continuation.registration === registration && runtimeClaim == continuation.claim &&
++				listener === continuation.listener && callbackToken === continuation.callbackToken &&
++				queue === continuation.lane && actor === continuation.actor && continuation.actor.isActive &&
++				activeAccumulator === continuation.accumulator &&
++				continuation.accumulator.counterEpochGeneration() == continuation.counterEpochGeneration &&
++				continuation.counterEpochGeneration == recordingCounterEpochGeneration &&
++				acceptingCallbacks && !overflowPaused && overflowPauseRemovalComplete &&
++				callbackGate.accepts(continuation.callbackToken) && pendingAuthorizationRefresh == null
++		}
++		val compatible = plan.enabled && claim.source == source &&
++			claim.logicalTrackingId == continuation.claim.logicalTrackingId &&
++			claim.serviceRunId == continuation.claim.serviceRunId &&
++			claim.leaseGeneration > continuation.claim.leaseGeneration &&
++			currentPlan?.physicalConfigurationFingerprint() == plan.physicalConfigurationFingerprint() &&
++			providerRetirement == null && terminalSettlement == null && !cleanupOnlyReleasePending &&
++			cutoffElapsedNanos == null && admissionDeadlineElapsedNanos == null &&
++			context.hasActivityPermission && unchanged()
++		if (!compatible || !stillAuthorized() || !context.hasActivityPermission || !unchanged()) {
++			// Only the exact old claim may be cleaned up; a successor owner is untouched.
++			val stopAck = if (runtimeClaim == continuation.claim) shutdownLocked(null) else null
++			return@withLock SourceApplyResult.Failed(
++				appliedState(source, plan.revision, null, SourceApplyStatus.FAILED,
++					SystemClock.elapsedRealtimeNanos()), retryable = true, stopAck = stopAck)
++		}
++		runtimeClaim = claim
++		currentPlan = plan
++		SourceApplyResult.Applied(appliedState(source, plan.revision, continuation.registration,
++			SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()))
+ 	}
+ 
+ 	/**
+@@ -356,6 +425,9 @@
+ 				if (compatible) {
+ 					// The latch closes the authorization-refresh/timeline race at this boundary.
+ 					callbackAttributionTimeline?.refresh(refreshed, sink)
++					if (refreshed.authorization != activeRegistration.authorization) {
++						recordingCounterEpochGeneration = activeAccumulator?.counterEpochGeneration()
++					}
+ 					registration = refreshed
+ 					currentSink = sink
+ 					pendingRefresh.complete(StepCallbackAttribution(refreshed, sink))
+@@ -1144,7 +1216,11 @@
+ 	/** Publishes identity and completion fencing before a callback actor is allowed to execute. */
+ 	private fun launchStepActor(lane: StepCallbackLane, accumulator: StepWindowAccumulator) {
+ 		val nextActor = applicationScope.launch(start = CoroutineStart.LAZY) { consume(lane, accumulator) }
+-		actor = nextActor
++		synchronized(callbackLock) {
++			actor = nextActor
++			activeAccumulator = accumulator
++			recordingCounterEpochGeneration = accumulator.counterEpochGeneration()
++		}
+ 		nextActor.invokeOnCompletion { failure ->
+ 			if (failure == null) return@invokeOnCompletion
+ 			val ownsFailedLane = synchronized(callbackLock) {
+@@ -1544,12 +1620,12 @@
+ 		}
+ 		return when (handoff) {
+ 			is SourceAdmissionHandoff.Durable -> {
+-				check(commitDurableStepPreview(accumulator, preview, handoff))
++				check(synchronized(callbackLock) { commitDurableStepPreview(accumulator, preview, handoff) })
+ 				metrics.recordDurable(event.providerSequence, handoff.admissionOrdinal)
+ 				true
+ 			}
+ 			is SourceAdmissionHandoff.Duplicate -> {
+-				check(commitDurableStepPreview(accumulator, preview, handoff))
++				check(synchronized(callbackLock) { commitDurableStepPreview(accumulator, preview, handoff) })
+ 				metrics.recordDurable(event.providerSequence, handoff.existingAdmissionOrdinal)
+ 				true
+ 			}
+@@ -1777,6 +1853,8 @@
+ 			callbackToken?.let(callbackGate::retire)
+ 			callbackToken = null
+ 			registration = null
++			activeAccumulator = null
++			recordingCounterEpochGeneration = null
+ 			currentSink = null
+ 			queue = null
+ 			callbackAttributionTimeline = null
+@@ -1879,6 +1957,19 @@
+ 		const val DEFAULT_DRAIN_TIMEOUT_MS = 2_000L
+ 	}
+ }
++
++/** Source-local transient evidence of the actual listener/actor; never a persisted authority. */
++internal class StepsRecordingContinuation(
++	val registration: SourceRegistration,
++	val claim: SourceRuntimeClaim,
++	val processIncarnationId: String,
++	internal val listener: Any,
++	internal val callbackToken: StepCallbackToken,
++	internal val lane: StepCallbackLane,
++	internal val actor: Job,
++	internal val accumulator: StepWindowAccumulator,
++	internal val counterEpochGeneration: Long,
++)
+ 
+ private enum class StepProviderRetirement { NOT_DURABLE, PENDING, TIMED_OUT, COMPLETE }
+ 
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/resilience/ActiveTrackingSessionCallerAuthorityReconcilerTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/resilience/ActiveTrackingSessionCallerAuthorityReconcilerTest.kt
+@@ -135,6 +135,52 @@
+ 		coVerify(exactly = 0) {
+ 			dispatcher.replayPreparedSession(any(), predecessor, any())
+ 		}
++	}
++
++	@Test
++	fun `retained Steps origin clears exact descriptor debt only after fresh successor replay`() = runTest {
++		val origin = reference("steps-recording-origin")
++		val successor = reference("fresh-caller-successor")
++		val recorded = descriptor(successor, origin)
++		val events = mutableListOf<String>()
++		val store = RecordingStore(recorded, onReplace = { expected, replacement ->
++			expected shouldBe recorded
++			replacement shouldBe recorded.copy(pendingRetirementSourceCallerAuthorityReference = null)
++			events += "exact-debt-cleared"
++		})
++		val authority = authority(successor)
++		coEvery { coordinator.currentRecoverySourceCallerAuthority(LOGICAL_ID, SERVICE_RUN_ID) } returns
++			CurrentRecoverySourceCallerAuthorityResult.Available(authority)
++		coEvery {
++			dispatcher.replayPreparedSession(authority.manifestIdentity, successor, SourceCallerReplayKind.PROCESS_RECOVERY)
++		} coAnswers {
++			events += "successor-replayed"
++			permitted(successor)
++		}
++		coEvery {
++			coordinator.retireSupersededSourceCallerAuthority(LOGICAL_ID, successor, origin, any())
++		} coAnswers {
++			events += "recording-origin-retained"
++			SourceCallerAuthorityRetirementOutcome.RetainedForSteps
++		}
++
++		val result = reconciler(store).reconcile(recorded)
++			.shouldBeInstanceOf<ActiveTrackingCallerAuthorityReconciliation.Ready>()
++		result.descriptor shouldBe recorded.copy(pendingRetirementSourceCallerAuthorityReference = null)
++		store.current shouldBe result.descriptor
++		events.shouldContainExactly("successor-replayed", "recording-origin-retained", "exact-debt-cleared")
++		store.replacements.single() shouldBe (recorded to result.descriptor)
++		// An idempotent replay of the current descriptor cannot clear the same debt again.
++		reconciler(store).reconcile(result.descriptor)
++			.shouldBeInstanceOf<ActiveTrackingCallerAuthorityReconciliation.Ready>().descriptor shouldBe result.descriptor
++		store.replacements.size shouldBe 1
++		coVerify(exactly = 1) {
++			coordinator.retireSupersededSourceCallerAuthority(LOGICAL_ID, successor, origin, any())
++		}
++		coVerify(exactly = 2) {
++			dispatcher.replayPreparedSession(authority.manifestIdentity, successor, SourceCallerReplayKind.PROCESS_RECOVERY)
++		}
++		coVerify(exactly = 0) { dispatcher.replayPreparedSession(any(), origin, any()) }
+ 	}
+ 
+ 	@Test
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/AutomaticCaptureChainRoomTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/AutomaticCaptureChainRoomTest.kt
+@@ -46,6 +46,7 @@
+ import com.adsamcik.tracker.tracker.source.coordinator.*
+ import com.adsamcik.tracker.tracker.source.ingress.*
+ import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.tracker.source.model.StepsPlan
+ import com.adsamcik.tracker.tracker.source.projection.*
+ import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecovery
+ import com.adsamcik.tracker.tracker.source.runtime.*
+@@ -58,6 +59,7 @@
+ import io.mockk.unmockkObject
+ import java.io.File
+ import java.lang.reflect.Proxy
++import java.time.ZoneId
+ import java.time.Duration
+ import java.util.UUID
+ import javax.inject.Provider
+@@ -101,6 +103,14 @@
+     private lateinit var scopeJob: kotlinx.coroutines.Job
+     private lateinit var actorScope: CoroutineScope
+     private lateinit var sensor: Sensor
++    private lateinit var policies: RoomSourcePolicyRepository
++    private lateinit var paramsState: MutableStateFlow<TrackingParamsState>
++    private lateinit var purposeRegistry: TrackingPurposeExecutionRevisionRegistry
++    private lateinit var availabilityState: MutableStateFlow<CurrentTrackingPurposeAvailability>
++    private lateinit var authorityRevisionState: MutableStateFlow<TrackingPurposeAuthorityRevision>
++    private lateinit var controlIdentity: TrackingPurposeLeaseIdentity
++    private lateinit var sharedSteps: SharedStepSourceController
++    private var flushObservation: Pair<Float, Long>? = null
+     private val listeners = mutableListOf<SensorEventListener>()
+     private val removedListeners = mutableListOf<SensorEventListener>()
+     private val enqueued = mutableListOf<Intent>()
+@@ -139,7 +149,12 @@
+             removedListeners += firstArg<SensorEventListener>()
+         }
+         every { sensors.flush(any()) } answers {
+-            (firstArg<SensorEventListener>() as SensorEventListener2).onFlushCompleted(sensor)
++            val listener = firstArg<SensorEventListener>() as SensorEventListener2
++            flushObservation?.also { (count, observedAt) ->
++                flushObservation = null
++                listener.onSensorChanged(stepEventAt(count, observedAt))
++            }
++            listener.onFlushCompleted(sensor)
+             true
+         }
+         every { packageManager.hasSystemFeature(any()) } answers {
+@@ -182,19 +197,22 @@
+         rollout.save(TrackingRolloutState.eventCanonical(setOf(SourceKind.STEPS), 2L,
+             controlSources = setOf(SourceKind.ACTIVITY),
+             captureModes = mapOf(SourceKind.STEPS to binding.captureModes)), System.currentTimeMillis())
+-        val policies = RoomSourcePolicyRepository(database) {
++        policies = RoomSourcePolicyRepository(database) {
+             SourcePolicyEffectiveTime(BOOT, SystemClock.elapsedRealtimeNanos(), System.currentTimeMillis())
+         }
+         val selected = TrackingParamsState(legacySettingsMigrationCompleted = true,
+             locationEnabled = false, activityEnabled = false, stepsEnabled = true, barometerEnabled = false,
+             autoTrackingMode = GroupedActivity.ON_FOOT.ordinal, transitionDetectionEnabled = true,
++            balanceProfileVersion = 1, overallBalanceLevel = 3,
++            locationProfileVersion = 1, locationBalanceLevel = 3,
+             sourceCollectionSettings = SourceCollectionSettings(location = SourceCollectionFrequency.OFF,
+                 activity = SourceCollectionFrequency.OFF, steps = SourceCollectionFrequency.BALANCED,
+                 pressure = SourceCollectionFrequency.OFF, wifi = SourceCollectionFrequency.OFF,
+                 cell = SourceCollectionFrequency.OFF))
+         val policy = policies.bootstrapFromLegacy(selected)
+         val settings = selected.copy(sourcePolicyRevision = policy.revision)
+-        val params = mockk<TrackingParamsRepository> { every { data } returns MutableStateFlow(settings) }
++        paramsState = MutableStateFlow(settings)
++        val params = mockk<TrackingParamsRepository> { every { data } returns paramsState }
+         val lifecycleSnapshot = CollectedDataLifecycleSnapshot(0L, null)
+         val lifecycle = mockk<CollectedDataLifecycleStore> {
+             coEvery { snapshot() } returns lifecycleSnapshot
+@@ -203,37 +221,38 @@
+         val boot = BootClockDomainProvider { BOOT }
+         val exactAuthority = CurrentTrackingPurposeAuthorityReader(policies, lifecycle, rollout,
+             mockk<RetentionAuthorityProducer>(), Provider { gate })
+-        val identity = TrackingPurposeLeaseIdentity(source = TrackingSource.ACTIVITY, purpose = TrackingPurpose.CONTROL,
++        controlIdentity = TrackingPurposeLeaseIdentity(source = TrackingSource.ACTIVITY, purpose = TrackingPurpose.CONTROL,
+             policyRevision = policy.revision, consentEpoch = requireNotNull(policy[TrackingSource.ACTIVITY].controlConsentEpoch),
+             collectedDataEpoch = 0L, rolloutRevision = 2L, executionRevision = 1L, ownerCasToken = "fixture-control")
+-        val registry = TrackingPurposeExecutionRevisionRegistry().also {
+-            it.update(identity.sourcePurpose, 1L)
+-            it.bind(identity)
+-        }
++        purposeRegistry = TrackingPurposeExecutionRevisionRegistry()
++        purposeRegistry.update(controlIdentity.sourcePurpose, controlIdentity.executionRevision)
++        purposeRegistry.bind(controlIdentity)
+         val publication = CurrentTrackingPurposeAvailability(
+             TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.copy(
+-                automaticControl = AutomaticTrackingOperationalAvailability.Ready(identity)),
+-            mapOf(identity.sourcePurpose to TrackingPurposeAuthorityVector(identity.sourcePurpose, policy.revision,
+-                identity.consentEpoch, 0L, 2L, 1L)))
++                automaticControl = AutomaticTrackingOperationalAvailability.Ready(controlIdentity)),
++            mapOf(controlIdentity.sourcePurpose to TrackingPurposeAuthorityVector(controlIdentity.sourcePurpose, policy.revision,
++                controlIdentity.consentEpoch, 0L, 2L, 1L)))
++        availabilityState = MutableStateFlow(publication)
++        authorityRevisionState = MutableStateFlow(TrackingPurposeAuthorityRevision(policy.revision, 0L, 2L))
+         val reader = mockk<CurrentTrackingPurposeAvailabilityReader> {
+-            every { availability } returns MutableStateFlow(publication)
+-            every { authorityRevision } returns MutableStateFlow(TrackingPurposeAuthorityRevision(policy.revision, 0L, 2L))
++            every { availability } returns availabilityState
++            every { authorityRevision } returns authorityRevisionState
+             coEvery { isCurrent(any()) } coAnswers {
+-                val current = exactAuthority.read(identity.sourcePurpose, 1L)
+-                firstArg<TrackingPurposeLeaseIdentity>() == identity && current != null &&
+-                    identity.matchesAuthority(TrackingPurposeAuthorityVector(current.sourcePurpose,
++                val current = exactAuthority.read(controlIdentity.sourcePurpose, controlIdentity.executionRevision)
++                firstArg<TrackingPurposeLeaseIdentity>() == controlIdentity && current != null &&
++                    controlIdentity.matchesAuthority(TrackingPurposeAuthorityVector(current.sourcePurpose,
+                         current.policyRevision, current.consentEpoch, current.collectedDataEpoch,
+                         current.rolloutRevision, current.executionRevision, current.retainedFromMs))
+             }
+         }
+-        val authority = CurrentSourceCallerAuthorityReader(database, rollout, reader, exactAuthority, registry,
++        val authority = CurrentSourceCallerAuthorityReader(database, rollout, reader, exactAuthority, purposeRegistry,
+             boot, Provider { gate })
+         val receipts = RoomSourceCallerAcceptedAuthorityRepository(database)
+         val broker = SourceBroker(database, rollout)
+         val callers = GuardedSourceCallerDemandDispatcher(authority,
+             ExactSourceCallerGuard(authority, receipts, Provider { gate }), broker, receipts)
+         val controlDemand = callers.dispatchAutomaticControl(AutomaticControlDemandDispatchRequest(
+-            identity, "fixture-control", BOOT, SystemClock.elapsedRealtimeNanos(), System.currentTimeMillis(),
++            controlIdentity, "fixture-control", BOOT, SystemClock.elapsedRealtimeNanos(), System.currentTimeMillis(),
+             60_000L, 0L)).shouldBeInstanceOf<GuardedPurposeDemandResult.Applied<SourceDemandEntity>>().value
+         // The Activity arbiter is in sensor:activity; tracker:engine consumes only its API.
+         // Simulate its accepted physical registration, using the real guarded demand above.
+@@ -263,6 +282,7 @@
+         stepsLane = StepsSessionFactProjectionLane(database, ingress)
+         val registrations = SourceRegistrationRepository(database, lifecycle, boot, ProcessIncarnationIdProvider(), rollout, broker)
+         val steps = StepSourceRuntime(context, actorScope, registrations, stepsLane)
++        sharedSteps = SharedStepSourceController(steps, broker, callers, DurableSourceEventSinkFactory(ingress), boot)
+         val actions = ActivityAutomaticStartActionRepository(database, gate)
+         effects = ActivityAutomationOutboxDispatcher(database, ActivityAutomationEffectValidator(database, boot, actions, epoch),
+             BackgroundTrackingActivityAutomationEffectConsumer(context, actions), ActivityControlRetentionMaintenance(database, boot, gate))
+@@ -271,7 +291,7 @@
+         activityLane.ensureRegisteredAtLiveTail()
+         val coordinator = TrackingCoordinator(database, ingress, projections)
+         val sessionCoordinator = AuthoritativeSessionCoordinator(database, RoomSourcePlanStore(database, SourcePlanCodec()),
+-            SourceRuntimeRegistry(setOf(steps)), DurableSourceEventSinkFactory(ingress), coordinator,
++            SourceRuntimeRegistry(setOf(sharedSteps)), DurableSourceEventSinkFactory(ingress), coordinator,
+             actions, effects, epoch, boot, com.adsamcik.tracker.shared.base.time.SystemClock, callers,
+             rolloutStore = rollout, sourceBroker = broker,
+             sourceProductDrainRouter = RoomSourceProductDrainRouter(database, stepsLane, mockk(), mockk(), mockk(), mockk(), mockk()))
+@@ -315,7 +335,7 @@
+         setBackgroundField("cachedParams", settings)
+         setBackgroundField("paramsInitialized", true)
+         setBackgroundField("activeSourcePolicyRevision", policy.revision)
+-        setBackgroundField("activityControlConsentEpoch", identity.consentEpoch)
++        setBackgroundField("activityControlConsentEpoch", controlIdentity.consentEpoch)
+         BackgroundTrackingApi::class.java.getDeclaredMethod("publishActivityAutomationAuthority")
+             .apply { isAccessible = true }.invoke(BackgroundTrackingApi)
+         val recovery = SourcePipelineRecovery(mockk<LegacyV27ProjectionRecovery>(), coordinator, activityLane, effects)
+@@ -405,6 +425,208 @@
+         database.sourceEventWalDao().maximumAdmissionOrdinal() shouldBe before
+         savedSteps(capture) shouldBe 5L
+         assertNoActivityCapture()
++    }
++
++    @Test
++    fun `quality changes preserve one real counter and original demand through fresh operation leases`() = runBlocking {
++        val ended = endCommand()
++        commands.markStopHandled(ended) shouldBe true
++        val capture = startChosenStepsAfterEnd(ended.generation)
++        val listener = listeners.single()
++        val origin = currentStepsDemand(capture)
++        val originalAuthorization = database.sourceBrokerDao().latestAuthorization(SourceKind.STEPS.stableCode,
++            requireNotNull(database.sourceRegistrationStateDao().get(SourceKind.STEPS.stableCode,
++                SourceProviderPurposeScope.exactOwnerScope(SourceKind.STEPS.stableCode,
++                    SourceBrokerPurpose.MASK_SESSION_CAPTURE))).registrationGeneration)
++        recordCounter(capture, 100f, 0L)
++        reconfigureQuality(4)
++        val firstRevision = currentStepsBinding(capture).manifestRevision
++        firstRevision shouldBe requireNotNull(origin.manifestRevision) + 1L
++        recordCounter(capture, 103f, 3L)
++        reconfigureQuality(2)
++        currentStepsBinding(capture).manifestRevision shouldBe firstRevision + 1L
++        recordCounter(capture, 109f, 9L)
++        listeners shouldBe listOf(listener)
++        removedListeners shouldBe emptyList()
++        currentStepsDemand(capture) shouldBe origin
++        val run = requireNotNull(database.sourceSessionDao().serviceRun(capture.serviceRunId))
++        (run.leaseGeneration > requireNotNull(origin.lifecycleLeaseGeneration)) shouldBe true
++        val manifests = database.sourceSessionDao().manifestsForServiceRun(capture.serviceRunId)
++        manifests.size shouldBe 3
++        manifests.forEach { manifest ->
++            val sources = database.sourceSessionDao().manifestSources(capture.logicalTrackingId, manifest.manifestRevision)
++            SessionManifestIntegrity.verify(manifest, sources) shouldBe true
++            sources.single { it.sourceKind == SourceKind.STEPS.stableCode &&
++                it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }.stepsRecordingManifestRevision shouldBe origin.manifestRevision
++        }
++        database.sourceBrokerDao().latestAuthorization(SourceKind.STEPS.stableCode,
++            originalAuthorization.first().registrationGeneration) shouldBe originalAuthorization
++        val originalReference = SourceCallerReplayReference(requireNotNull(origin.sourceCallerAuthorityReference))
++        RoomSourceCallerAcceptedAuthorityRepository(database).load(originalReference)
++            .shouldBeInstanceOf<StoredSourceCallerAuthorityLoadResult.Available>()
++        val latestIntent = requireNotNull(database.sourceSessionDao().lifecycleIntent(capture.logicalTrackingId,
++            requireNotNull(database.sourceSessionDao().session(capture.logicalTrackingId)?.currentIntentRevision)))
++        (latestIntent.sourceCallerAuthorityReference != origin.sourceCallerAuthorityReference) shouldBe true
++        val latest = RoomSourceCallerAcceptedAuthorityRepository(database).load(
++            SourceCallerReplayReference(requireNotNull(latestIntent.sourceCallerAuthorityReference)))
++            .shouldBeInstanceOf<StoredSourceCallerAuthorityLoadResult.Available>()
++        latest.authority.permittedDemandIdentities.single { it.purposeLeaseIdentity.source == TrackingSource.STEPS }
++            .purposeLeaseIdentity.executionRevision shouldBe run.leaseGeneration
++        val stop = endCommand()
++        withTimeout(5_000L) {
++            sourceSession.stop("EXPLICIT_REQUEST", false, SourceSessionStopCutoff(stop.requestedAtEpochMs,
++                requireNotNull(stop.requestedElapsedRealtimeNanos), BOOT))
++        } shouldBe SourceSessionStopOutcome.Stopped
++        removedListeners shouldBe listOf(listener)
++        RoomSourceCallerAcceptedAuthorityRepository(database).load(originalReference) shouldBe
++            StoredSourceCallerAuthorityLoadResult.Retired
++        savedSteps(capture) shouldBe 9L
++        assertNoActivityCapture()
++    }
++
++    @Test
++    fun `generic reconfigure cannot adopt the old recording without the fresh coordinator path`() = runBlocking {
++        val ended = endCommand()
++        commands.markStopHandled(ended) shouldBe true
++        val capture = startChosenStepsAfterEnd(ended.generation)
++        recordCounter(capture, 100f, 0L)
++        reconfigureQuality(4)
++        val plan = StepsPlan(9_000L, true, 5_000L, 5_000L, true)
++        val live = requireNotNull(sharedSteps.continuingRecording(capture.logicalTrackingId, capture.serviceRunId, plan))
++        val before = currentStepsDemand(capture)
++        sharedSteps.reconfigure(live.claim, plan, SourceEventSink { error("Generic reconfigure must not admit data") })
++            .shouldBeInstanceOf<SourceApplyResult.Failed>()
++        listeners.size shouldBe 1
++        removedListeners shouldBe emptyList()
++        currentStepsDemand(capture) shouldBe before
++        recordCounter(capture, 104f, 4L)
++        reconfigureQuality(2)
++        currentStepsDemand(capture) shouldBe before
++        assertNoActivityCapture()
++    }
++
++    @Test
++    fun `counter reset starts a new Steps origin and never converts the new absolute count to steps`() = runBlocking {
++        val ended = endCommand()
++        commands.markStopHandled(ended) shouldBe true
++        val capture = startChosenStepsAfterEnd(ended.generation)
++        recordCounter(capture, 100f, 0L)
++        recordCounter(capture, 105f, 5L)
++        val old = currentStepsDemand(capture)
++        reconfigureQuality(4)
++        reconfigureQuality(2)
++        currentStepsDemand(capture) shouldBe old
++        recordCounter(capture, 3f, 5L)
++        reconfigureQuality(4)
++        val replacement = currentStepsDemand(capture)
++        (replacement.demandId != old.demandId) shouldBe true
++        replacement.manifestRevision shouldBe currentStepsBinding(capture).manifestRevision
++        currentStepsBinding(capture).stepsRecordingManifestRevision shouldBe replacement.manifestRevision
++        RoomSourceCallerAcceptedAuthorityRepository(database).load(
++            SourceCallerReplayReference(requireNotNull(old.sourceCallerAuthorityReference))) shouldBe
++            StoredSourceCallerAuthorityLoadResult.Retired
++        // A fresh authorization establishes a baseline; it cannot bridge the old counter domain.
++        recordCounter(capture, 7f, 5L)
++        recordCounter(capture, 11f, 9L)
++        savedSteps(capture) shouldBe 9L
++        assertNoActivityCapture()
++    }
++
++    @Test
++    fun `quality change final flush keeps exact End increment once and rejects a later counter`() = runBlocking {
++        val ended = endCommand()
++        commands.markStopHandled(ended) shouldBe true
++        val capture = startChosenStepsAfterEnd(ended.generation)
++        recordCounter(capture, 100f, 0L)
++        reconfigureQuality(4)
++        val listener = listeners.single()
++        val stop = endCommand()
++        flushObservation = 104f to requireNotNull(stop.requestedElapsedRealtimeNanos)
++        withTimeout(5_000L) {
++            sourceSession.stop("EXPLICIT_REQUEST", false, SourceSessionStopCutoff(stop.requestedAtEpochMs,
++                requireNotNull(stop.requestedElapsedRealtimeNanos), BOOT))
++        } shouldBe SourceSessionStopOutcome.Stopped
++        savedSteps(capture) shouldBe 4L
++        val before = database.sourceEventWalDao().maximumAdmissionOrdinal()
++        listener.onSensorChanged(stepEventAt(104f, requireNotNull(stop.requestedElapsedRealtimeNanos)))
++        listener.onSensorChanged(stepEvent(108f))
++        database.sourceEventWalDao().maximumAdmissionOrdinal() shouldBe before
++        savedSteps(capture) shouldBe 4L
++        removedListeners shouldBe listOf(listener)
++        assertNoActivityCapture()
++    }
++
++    @Test
++    fun `Off after quality change retires the original recording without erasing saved steps`() = runBlocking {
++        val ended = endCommand()
++        commands.markStopHandled(ended) shouldBe true
++        val capture = startChosenStepsAfterEnd(ended.generation)
++        recordCounter(capture, 100f, 0L)
++        reconfigureQuality(4)
++        recordCounter(capture, 106f, 6L)
++        val origin = currentStepsDemand(capture)
++        val listener = listeners.single()
++        val off = requireNotNull(turnOff.reserveAndFence(null))
++        withTimeout(5_000L) {
++            sourceSession.stop("USER_OFF", false, SourceSessionStopCutoff(off.stop.requestedAtEpochMs,
++                requireNotNull(off.stop.requestedElapsedRealtimeNanos), BOOT))
++        } shouldBe SourceSessionStopOutcome.Stopped
++        commands.markStopHandled(off.stop) shouldBe true
++        database.sourceBrokerDao().activeDemands(SourceKind.STEPS.stableCode) shouldBe emptyList()
++        RoomSourceCallerAcceptedAuthorityRepository(database).load(
++            SourceCallerReplayReference(requireNotNull(origin.sourceCallerAuthorityReference))) shouldBe
++            StoredSourceCallerAuthorityLoadResult.Retired
++        val before = database.sourceEventWalDao().maximumAdmissionOrdinal()
++        listener.onSensorChanged(stepEvent(111f))
++        database.sourceEventWalDao().maximumAdmissionOrdinal() shouldBe before
++        savedSteps(capture) shouldBe 6L
++        removedListeners shouldBe listOf(listener)
++        assertNoActivityCapture()
++    }
++
++    private suspend fun reconfigureQuality(level: Int): SourceSessionReconfigureOutcome.Applied {
++        advanceClock(1L)
++        val selected = paramsState.value.copy(overallBalanceLevel = level, locationBalanceLevel = level)
++        val policy = policies.replaceCaptureSettings(requireNotNull(selected.sourcePolicyRevision), selected, "QUALITY_TEST")
++        val settings = selected.copy(sourcePolicyRevision = policy.revision)
++        paramsState.value = settings
++        // CONTROL Ready is a fixture edge. Rebind it to the new real policy, without recording Activity.
++        controlIdentity = controlIdentity.copy(policyRevision = policy.revision,
++            executionRevision = controlIdentity.executionRevision + 1L)
++        purposeRegistry.update(controlIdentity.sourcePurpose, controlIdentity.executionRevision)
++        purposeRegistry.bind(controlIdentity)
++        availabilityState.value = CurrentTrackingPurposeAvailability(
++            TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.copy(
++                automaticControl = AutomaticTrackingOperationalAvailability.Ready(controlIdentity)),
++            mapOf(controlIdentity.sourcePurpose to TrackingPurposeAuthorityVector(controlIdentity.sourcePurpose,
++                policy.revision, controlIdentity.consentEpoch, 0L, 2L, controlIdentity.executionRevision)))
++        authorityRevisionState.value = TrackingPurposeAuthorityRevision(policy.revision, 0L, 2L)
++        return withTimeout(5_000L) {
++            sourceSession.reconfigure(SourceSessionPlanInputs(settings,
++                SourcePlanEnvironment(LocationBackend.FRAMEWORK, true, emptySet()),
++                PlanResolutionContext(SourceKind.entries.associateWith { SourceConstraint() }, false, false, false),
++                emptyList(), BOOT, ZoneId.systemDefault().id))
++        }.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
++    }
++
++    private suspend fun currentStepsDemand(capture: SessionStartResult.Started) =
++        database.sourceBrokerDao().currentDemands("session:${capture.logicalTrackingId}")
++            .single { it.sourceKind == SourceKind.STEPS.stableCode && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
++
++    private suspend fun currentStepsBinding(capture: SessionStartResult.Started) =
++        database.sourceSessionDao().manifestSources(capture.logicalTrackingId,
++            requireNotNull(database.sourceSessionDao().session(capture.logicalTrackingId)?.currentManifestRevision))
++            .single { it.sourceKind == SourceKind.STEPS.stableCode && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
++
++    private suspend fun recordCounter(capture: SessionStartResult.Started, count: Float, expectedSteps: Long) {
++        val before = requireNotNull(database.sourceEventWalDao().maximumAdmissionOrdinal())
++        listeners.last().onSensorChanged(stepEvent(count))
++        withTimeout(5_000L) {
++            while ((database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L) <= before) delay(5L)
++        }
++        val highWater = requireNotNull(database.sourceEventWalDao().maximumAdmissionOrdinal())
++        stepsLane.drainThrough(highWater).shouldBeInstanceOf<StepsSessionFactDrainResult.Complete>()
++        savedSteps(capture) shouldBe expectedSteps
+     }
+ 
+     private suspend fun startChosenStepsAfterEnd(endGeneration: Long): SessionStartResult.Started {
+@@ -500,11 +722,15 @@
+ 
+     private fun stepEvent(count: Float): SensorEvent {
+         advanceClock(1L)
++        return stepEventAt(count, SystemClock.elapsedRealtimeNanos())
++    }
++
++    private fun stepEventAt(count: Float, observedAt: Long): SensorEvent {
+         val constructor = SensorEvent::class.java.getDeclaredConstructor(Int::class.javaPrimitiveType!!)
+             .apply { isAccessible = true }
+         return constructor.newInstance(1).also {
+             it.sensor = sensor
+-            it.timestamp = SystemClock.elapsedRealtimeNanos()
++            it.timestamp = observedAt
+             it.values[0] = count
+         }
+     }
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/StepSourceRuntimeRefreshTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/StepSourceRuntimeRefreshTest.kt
+@@ -1,10 +1,12 @@
+ package com.adsamcik.tracker.tracker.source.runtime
+ 
++import android.Manifest
+ import android.content.Context
+ import android.content.pm.PackageManager
+ import android.hardware.Sensor
+ import android.hardware.SensorEventListener
+ import android.hardware.SensorManager
++import android.os.SystemClock
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+@@ -23,7 +25,11 @@
+ import io.mockk.just
+ import io.mockk.mockk
+ import io.mockk.verify
++import kotlin.test.assertEquals
+ import kotlin.test.assertIs
++import kotlin.test.assertNotNull
++import kotlin.test.assertFalse
++import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.ExperimentalCoroutinesApi
+ import kotlinx.coroutines.test.runTest
+ import org.junit.Test
+@@ -161,6 +167,126 @@
+ 		runtime.close()
+ 	}
+ 
++	@Test
++	fun `verified live recording transfers only its operation claim without refreshing authorization`() = runTest {
++		val fixture = continuityFixture(backgroundScope)
++		val initialClaim = claim(1L)
++		val initialPlan = plan(1L)
++		assertIs<SourceStartResult.Started>(fixture.runtime.start(initialClaim, initialPlan, fixture.sink))
++		val continuation = assertNotNull(fixture.runtime.continuingRecording(initialClaim, plan(2L)))
++		val next = claim(2L)
++		val result = assertIs<SourceApplyResult.Applied>(
++			fixture.runtime.reuseContinuingRecording(continuation, next, plan(2L)) { true },
++		)
++		assertEquals(2L, result.state.desiredRevision)
++		assertEquals(continuation.registration.state.registrationGeneration, result.state.registrationGeneration)
++		coVerify(exactly = 0) {
++			fixture.registrations.refreshPurposeScopedAuthorization(any(), any(), any(), any(), any(), any(), any())
++		}
++		verify(exactly = 1) { fixture.sensors.registerListener(any<SensorEventListener>(), any<Sensor>(), any<Int>(), any<Int>()) }
++		verify(exactly = 0) { fixture.sensors.unregisterListener(any<SensorEventListener>()) }
++		val cutoff = cutoff()
++		assertIs<OwnedSourceShutdown.NotOwned>(fixture.runtime.shutdownIfOwned(initialClaim, cutoff))
++		assertIs<OwnedSourceShutdown.Released>(fixture.runtime.shutdownIfOwned(next, cutoff))
++	}
++
++	@Test
++	fun `permission loss after preflight cleans the old recording and allows only a normal fresh start`() = runTest {
++		val fixture = continuityFixture(backgroundScope)
++		val initialClaim = claim(1L)
++		assertIs<SourceStartResult.Started>(fixture.runtime.start(initialClaim, plan(1L), fixture.sink))
++		val continuation = assertNotNull(fixture.runtime.continuingRecording(initialClaim, plan(2L)))
++		val result = fixture.runtime.reuseContinuingRecording(continuation, claim(2L), plan(2L)) {
++			// The Room recheck is a storage fixture; permission changes during that suspension boundary.
++			fixture.permission = false
++			true
++		}
++		assertIs<SourceApplyResult.Failed>(result)
++		verify(exactly = 1) { fixture.sensors.unregisterListener(any<SensorEventListener>()) }
++		verify(exactly = 1) { fixture.sensors.registerListener(any<SensorEventListener>(), any<Sensor>(), any<Int>(), any<Int>()) }
++		fixture.permission = true
++		assertIs<SourceApplyResult.Applied>(fixture.runtime.reconfigure(claim(3L), plan(3L), fixture.sink))
++		coVerify(exactly = 2) { fixture.registrations.beginPurposeScoped(any(), any(), any(), any(), any(), any()) }
++		verify(exactly = 2) { fixture.sensors.registerListener(any<SensorEventListener>(), any<Sensor>(), any<Int>(), any<Int>()) }
++		fixture.runtime.close()
++	}
++
++	@Test
++	fun `stale preflight cannot stop a replacement owner or reuse its new listener`() = runTest {
++		val fixture = continuityFixture(backgroundScope)
++		val old = claim(1L)
++		assertIs<SourceStartResult.Started>(fixture.runtime.start(old, plan(1L), fixture.sink))
++		val stale = assertNotNull(fixture.runtime.continuingRecording(old, plan(2L)))
++		val successor = claim(2L)
++		assertIs<SourceApplyResult.Applied>(fixture.runtime.reconfigure(successor, plan(2L), fixture.sink))
++		var rechecked = false
++		assertIs<SourceApplyResult.Failed>(fixture.runtime.reuseContinuingRecording(stale, claim(3L), plan(3L)) {
++			rechecked = true
++			true
++		})
++		assertFalse(rechecked)
++		verify(exactly = 1) { fixture.sensors.unregisterListener(any<SensorEventListener>()) }
++		assertIs<OwnedSourceShutdown.Released>(fixture.runtime.shutdownIfOwned(successor,
++			cutoff()))
++		verify(exactly = 2) { fixture.sensors.unregisterListener(any<SensorEventListener>()) }
++	}
++
++	private fun cutoff(): SessionCutoff {
++		val now = SystemClock.elapsedRealtimeNanos()
++		return SessionCutoff("steps-test", now, System.currentTimeMillis(), now + 3_000_000_000L)
++	}
++
++	private fun claim(generation: Long) = SourceRuntimeClaim(SourceKind.STEPS, "action-$generation", 1,
++		generation, "steps-test", "run-1")
++
++	/** Real runtime/actor/listener lifecycle; Android hardware and registration storage are fixtures. */
++	private fun continuityFixture(scope: CoroutineScope): ContinuityFixture {
++		val context = mockk<Context>()
++		val packageManager = mockk<PackageManager>()
++		val sensors = mockk<SensorManager>()
++		val sensor = mockk<Sensor>()
++		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
++		val fixture = ContinuityFixture(sensors, registrations)
++		every { context.getSystemService(Context.SENSOR_SERVICE) } returns sensors
++		every { context.packageManager } returns packageManager
++		every { context.checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) } answers {
++			if (fixture.permission) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
++		}
++		every { context.checkPermission(Manifest.permission.ACTIVITY_RECOGNITION, any(), any()) } answers {
++			if (fixture.permission) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
++		}
++		every { packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER) } returns true
++		every { sensors.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns sensor
++		stubCounterIdentity(sensor)
++		every { sensor.fifoMaxEventCount } returns 0
++		every { sensor.minDelay } returns 0
++		every { sensors.registerListener(any<SensorEventListener>(), sensor, any<Int>(), any<Int>()) } returns true
++		every { sensors.unregisterListener(any<SensorEventListener>()) } just Runs
++		var acquisitions = 0L
++		coEvery { registrations.beginPurposeScoped(any(), any(), any(), any(), any(), any()) } coAnswers {
++			acquisitions++
++			val revision = secondArg<Long>()
++			registration(plan(revision), revision, 8L + acquisitions)
++		}
++		coEvery { registrations.refreshPurposeScopedAuthorization(any(), any(), any(), any(), any(), any(), any()) } returns null
++		coEvery { registrations.loadRuntimeState(any()) } returns null
++		every { registrations.currentProcessIncarnationId() } returns "process-1"
++		coEvery { registrations.beginRetirement(any(), any(), any(), any()) } answers { retirementToken(firstArg()) }
++		coEvery { registrations.completeRetirement(any()) } returns true
++		fixture.runtime = StepSourceRuntime(context, scope, registrations,
++			mockk<StepsSessionFactProjectionLane>(relaxed = true))
++		return fixture
++	}
++
++	private class ContinuityFixture(
++		val sensors: SensorManager,
++		val registrations: SourceRegistrationRepository,
++	) {
++		var permission = true
++		lateinit var runtime: StepSourceRuntime
++		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
++	}
++
+ 	private fun plan(revision: Long) = StepsPlan(
+ 		revision = revision,
+ 		enabled = true,

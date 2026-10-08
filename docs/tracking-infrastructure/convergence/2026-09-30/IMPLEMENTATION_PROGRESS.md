@@ -811,3 +811,16 @@ IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites remain OPEN.
   and typed-file consumers, and complete explicit remaining cleanup callers.
 
 IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites and T25 remain OPEN.
+
+## October 8 live Steps continuity
+
+- [x] Author and independently review connected V2 live-counter preservation,
+  fresh caller/manifest acceptance, one real Steps listener, original receipt
+  lifetime, exact native admission and final End cutoff. No new storage/framework.
+- [x] Repair the actual recovery caller exhaustive mappings and author successor-
+  only replay/debt-clearance coverage. Original receipt cannot start a new provider.
+- [x] Author nine new runtime/Room/recovery methods; all NOT_RUN.
+- [ ] Execute convergence/hardware evidence and complete historical products/
+  all-day provider and source-independent full-chain coverage.
+
+IMPLEMENTED_UNVALIDATED. All 25 prerequisites and T25 remain OPEN.

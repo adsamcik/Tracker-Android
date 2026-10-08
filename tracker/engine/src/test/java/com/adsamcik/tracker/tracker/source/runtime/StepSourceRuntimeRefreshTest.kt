@@ -1,10 +1,12 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
@@ -23,7 +25,11 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
+import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
+import kotlin.test.assertFalse
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -159,6 +165,126 @@ class StepSourceRuntimeRefreshTest {
 		}
 		verify(exactly = 1) { sensorManager.unregisterListener(any<SensorEventListener>()) }
 		runtime.close()
+	}
+
+	@Test
+	fun `verified live recording transfers only its operation claim without refreshing authorization`() = runTest {
+		val fixture = continuityFixture(backgroundScope)
+		val initialClaim = claim(1L)
+		val initialPlan = plan(1L)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(initialClaim, initialPlan, fixture.sink))
+		val continuation = assertNotNull(fixture.runtime.continuingRecording(initialClaim, plan(2L)))
+		val next = claim(2L)
+		val result = assertIs<SourceApplyResult.Applied>(
+			fixture.runtime.reuseContinuingRecording(continuation, next, plan(2L)) { true },
+		)
+		assertEquals(2L, result.state.desiredRevision)
+		assertEquals(continuation.registration.state.registrationGeneration, result.state.registrationGeneration)
+		coVerify(exactly = 0) {
+			fixture.registrations.refreshPurposeScopedAuthorization(any(), any(), any(), any(), any(), any(), any())
+		}
+		verify(exactly = 1) { fixture.sensors.registerListener(any<SensorEventListener>(), any<Sensor>(), any<Int>(), any<Int>()) }
+		verify(exactly = 0) { fixture.sensors.unregisterListener(any<SensorEventListener>()) }
+		val cutoff = cutoff()
+		assertIs<OwnedSourceShutdown.NotOwned>(fixture.runtime.shutdownIfOwned(initialClaim, cutoff))
+		assertIs<OwnedSourceShutdown.Released>(fixture.runtime.shutdownIfOwned(next, cutoff))
+	}
+
+	@Test
+	fun `permission loss after preflight cleans the old recording and allows only a normal fresh start`() = runTest {
+		val fixture = continuityFixture(backgroundScope)
+		val initialClaim = claim(1L)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(initialClaim, plan(1L), fixture.sink))
+		val continuation = assertNotNull(fixture.runtime.continuingRecording(initialClaim, plan(2L)))
+		val result = fixture.runtime.reuseContinuingRecording(continuation, claim(2L), plan(2L)) {
+			// The Room recheck is a storage fixture; permission changes during that suspension boundary.
+			fixture.permission = false
+			true
+		}
+		assertIs<SourceApplyResult.Failed>(result)
+		verify(exactly = 1) { fixture.sensors.unregisterListener(any<SensorEventListener>()) }
+		verify(exactly = 1) { fixture.sensors.registerListener(any<SensorEventListener>(), any<Sensor>(), any<Int>(), any<Int>()) }
+		fixture.permission = true
+		assertIs<SourceApplyResult.Applied>(fixture.runtime.reconfigure(claim(3L), plan(3L), fixture.sink))
+		coVerify(exactly = 2) { fixture.registrations.beginPurposeScoped(any(), any(), any(), any(), any(), any()) }
+		verify(exactly = 2) { fixture.sensors.registerListener(any<SensorEventListener>(), any<Sensor>(), any<Int>(), any<Int>()) }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `stale preflight cannot stop a replacement owner or reuse its new listener`() = runTest {
+		val fixture = continuityFixture(backgroundScope)
+		val old = claim(1L)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(old, plan(1L), fixture.sink))
+		val stale = assertNotNull(fixture.runtime.continuingRecording(old, plan(2L)))
+		val successor = claim(2L)
+		assertIs<SourceApplyResult.Applied>(fixture.runtime.reconfigure(successor, plan(2L), fixture.sink))
+		var rechecked = false
+		assertIs<SourceApplyResult.Failed>(fixture.runtime.reuseContinuingRecording(stale, claim(3L), plan(3L)) {
+			rechecked = true
+			true
+		})
+		assertFalse(rechecked)
+		verify(exactly = 1) { fixture.sensors.unregisterListener(any<SensorEventListener>()) }
+		assertIs<OwnedSourceShutdown.Released>(fixture.runtime.shutdownIfOwned(successor,
+			cutoff()))
+		verify(exactly = 2) { fixture.sensors.unregisterListener(any<SensorEventListener>()) }
+	}
+
+	private fun cutoff(): SessionCutoff {
+		val now = SystemClock.elapsedRealtimeNanos()
+		return SessionCutoff("steps-test", now, System.currentTimeMillis(), now + 3_000_000_000L)
+	}
+
+	private fun claim(generation: Long) = SourceRuntimeClaim(SourceKind.STEPS, "action-$generation", 1,
+		generation, "steps-test", "run-1")
+
+	/** Real runtime/actor/listener lifecycle; Android hardware and registration storage are fixtures. */
+	private fun continuityFixture(scope: CoroutineScope): ContinuityFixture {
+		val context = mockk<Context>()
+		val packageManager = mockk<PackageManager>()
+		val sensors = mockk<SensorManager>()
+		val sensor = mockk<Sensor>()
+		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
+		val fixture = ContinuityFixture(sensors, registrations)
+		every { context.getSystemService(Context.SENSOR_SERVICE) } returns sensors
+		every { context.packageManager } returns packageManager
+		every { context.checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) } answers {
+			if (fixture.permission) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
+		}
+		every { context.checkPermission(Manifest.permission.ACTIVITY_RECOGNITION, any(), any()) } answers {
+			if (fixture.permission) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
+		}
+		every { packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER) } returns true
+		every { sensors.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns sensor
+		stubCounterIdentity(sensor)
+		every { sensor.fifoMaxEventCount } returns 0
+		every { sensor.minDelay } returns 0
+		every { sensors.registerListener(any<SensorEventListener>(), sensor, any<Int>(), any<Int>()) } returns true
+		every { sensors.unregisterListener(any<SensorEventListener>()) } just Runs
+		var acquisitions = 0L
+		coEvery { registrations.beginPurposeScoped(any(), any(), any(), any(), any(), any()) } coAnswers {
+			acquisitions++
+			val revision = secondArg<Long>()
+			registration(plan(revision), revision, 8L + acquisitions)
+		}
+		coEvery { registrations.refreshPurposeScopedAuthorization(any(), any(), any(), any(), any(), any(), any()) } returns null
+		coEvery { registrations.loadRuntimeState(any()) } returns null
+		every { registrations.currentProcessIncarnationId() } returns "process-1"
+		coEvery { registrations.beginRetirement(any(), any(), any(), any()) } answers { retirementToken(firstArg()) }
+		coEvery { registrations.completeRetirement(any()) } returns true
+		fixture.runtime = StepSourceRuntime(context, scope, registrations,
+			mockk<StepsSessionFactProjectionLane>(relaxed = true))
+		return fixture
+	}
+
+	private class ContinuityFixture(
+		val sensors: SensorManager,
+		val registrations: SourceRegistrationRepository,
+	) {
+		var permission = true
+		lateinit var runtime: StepSourceRuntime
+		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
 	}
 
 	private fun plan(revision: Long) = StepsPlan(

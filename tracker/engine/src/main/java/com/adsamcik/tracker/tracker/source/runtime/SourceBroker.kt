@@ -26,6 +26,9 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsRecordingLifetime
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.hasReachedRetentionPhase
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
@@ -68,6 +71,8 @@ internal enum class SourceCallerAuthorityRetirementRetryReason {
 
 internal sealed interface SourceCallerAuthorityRetirementOutcome {
 	data object Completed : SourceCallerAuthorityRetirementOutcome
+	/** The old receipt remains active solely for its continuing physical Steps recording. */
+	data object RetainedForSteps : SourceCallerAuthorityRetirementOutcome
 
 	data class Retryable(
 		val reason: SourceCallerAuthorityRetirementRetryReason,
@@ -155,6 +160,174 @@ class SourceBroker @Inject internal constructor(
 		retentionAuthorityReader,
 	)
 	fun sessionConsumerId(logicalTrackingId: String): String = "session:$logicalTrackingId"
+
+	private data class LiveStepsRecording(
+		val demand: SourceDemandEntity,
+		val origin: SessionManifestVersionEntity,
+		val originBinding: SessionManifestSourceEntity,
+		val current: SessionManifestVersionEntity,
+		val ownerToken: String,
+	)
+
+	/** The caller owns Room. This reads one explicitly marked lifetime, never searches for an old one. */
+	private suspend fun liveStepsRecordingInTransaction(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		latestReference: SourceCallerReplayReference? = null,
+	): LiveStepsRecording? {
+		val sessionDao = database.sourceSessionDao()
+		val session = sessionDao.session(logicalTrackingId) ?: return null
+		val run = sessionDao.serviceRun(serviceRunId) ?: return null
+		val revision = session.currentManifestRevision ?: return null
+		if (session.currentServiceRunId != serviceRunId || session.completedAtMs != null ||
+			session.cutoffAtMs != null || session.cutoffElapsedNanos != null ||
+			session.state !in setOf("ACTIVE", "RECONFIGURING") || run.state != "ACTIVE" ||
+			run.completedAtMs != null || run.logicalTrackingId != logicalTrackingId ||
+			session.lifecycleLeaseGeneration != run.leaseGeneration ||
+			session.lifecycleBootId != run.bootId || session.clockDomainId != run.bootId ||
+			database.collectedDataDeletionOperationDao().activeRetentionFloorSettlement() != null
+		) return null
+		val manifests = sessionDao.manifestsForServiceRun(serviceRunId)
+		if (manifests.lastOrNull()?.manifestRevision != revision ||
+			!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)
+		) return null
+		val bindings = linkedMapOf<Long, SessionManifestSourceEntity>()
+		for (manifest in manifests) {
+			val sources = sessionDao.manifestSources(logicalTrackingId, manifest.manifestRevision)
+			if (!SessionManifestIntegrity.verify(manifest, sources)) return null
+			val steps = sources.singleOrNull { it.sourceKind == SourceKind.STEPS.stableCode &&
+				it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+			if (steps != null) bindings[manifest.manifestRevision] = steps
+		}
+		if (!StepsRecordingLifetime.hasValidReferences(manifests, bindings)) return null
+		val current = manifests.singleOrNull { it.manifestRevision == revision } ?: return null
+		val currentBinding = bindings[revision] ?: return null
+		val originRevision = currentBinding.stepsRecordingManifestRevision ?: return null
+		val origin = manifests.singleOrNull { it.manifestRevision == originRevision } ?: return null
+		val originBinding = bindings[originRevision] ?: return null
+		if (!StepsRecordingLifetime.isContinuation(origin, originBinding, current, currentBinding)) return null
+		val demand = database.sourceBrokerDao().currentDemands(sessionConsumerId(logicalTrackingId))
+			.singleOrNull { it.sourceKind == SourceKind.STEPS.stableCode &&
+				it.purpose == SourceBrokerPurpose.SESSION_CAPTURE } ?: return null
+		if (demand.status != SourceDemandEntity.STATUS_ACTIVE || !demand.persistenceEligible ||
+			demand.manifestRevision != originRevision || demand.serviceRunId != serviceRunId ||
+			demand.logicalTrackingId != logicalTrackingId || demand.requestedBootId != run.bootId ||
+			demand.sourcePolicyRevision != origin.sourcePolicyRevision ||
+			demand.consentEpoch != originBinding.consentEpoch
+		) return null
+		val originalReference = demand.sourceCallerAuthorityReference?.let(::SourceCallerReplayReference) ?: return null
+		val currentReference = latestReference ?: session.currentIntentRevision?.let { intentRevision ->
+			sessionDao.lifecycleIntent(logicalTrackingId, intentRevision)?.sourceCallerAuthorityReference
+		}?.let(::SourceCallerReplayReference) ?: return null
+		val originalAuthority = (sourceCallerAuthorityRepository.load(originalReference) as?
+			StoredSourceCallerAuthorityLoadResult.Available)?.authority ?: return null
+		val currentAuthority = (sourceCallerAuthorityRepository.load(currentReference) as?
+			StoredSourceCallerAuthorityLoadResult.Available)?.authority ?: return null
+		if (originalAuthority.purpose != TrackingPurpose.SESSION_CAPTURE ||
+			currentAuthority.purpose != TrackingPurpose.SESSION_CAPTURE) return null
+		fun stepsIdentity(authority: StoredSourceCallerAuthority) = authority.permittedDemandIdentities
+			.singleOrNull { it.purposeLeaseIdentity.source.stableCode == SourceKind.STEPS.stableCode &&
+				it.purposeLeaseIdentity.purpose == TrackingPurpose.SESSION_CAPTURE }
+		val original = stepsIdentity(originalAuthority) ?: return null
+		val latest = stepsIdentity(currentAuthority) ?: return null
+		val first = original.purposeLeaseIdentity
+		val last = latest.purposeLeaseIdentity
+		if (original.manifestIdentity != SourceCallerManifestIdentity(logicalTrackingId, originRevision) ||
+			latest.manifestIdentity != SourceCallerManifestIdentity(logicalTrackingId, revision) ||
+			first.policyRevision != origin.sourcePolicyRevision || first.executionRevision != demand.lifecycleLeaseGeneration ||
+			last.policyRevision != current.sourcePolicyRevision || last.executionRevision != run.leaseGeneration ||
+			first.ownerCasToken != last.ownerCasToken || first.consentEpoch != demand.consentEpoch ||
+			last.consentEpoch != currentBinding.consentEpoch || first.consentEpoch != last.consentEpoch ||
+			first.rolloutRevision != last.rolloutRevision || last.rolloutRevision != current.rolloutRevision ||
+			first.collectedDataEpoch != last.collectedDataEpoch ||
+			last.collectedDataEpoch != database.sourceEvidenceStateDao().get()?.collectedDataEpoch
+		) return null
+		val policyAuthority = database.sourcePolicyDao().authority() ?: return null
+		val policy = database.sourcePolicyDao().policyAtRevision(policyAuthority.currentPolicyRevision,
+			SourceKind.STEPS.stableCode) ?: return null
+		if (policyAuthority.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE || !policy.enabled ||
+			!policy.capturePersistenceEligible || policy.captureConsentEpoch != first.consentEpoch ||
+			policy.balanceProfileVersion != 1) return null
+		return LiveStepsRecording(demand, origin, originBinding, current, last.ownerCasToken)
+	}
+
+	private suspend fun hasExactLiveStepsRegistration(
+		recording: LiveStepsRecording,
+		continuation: StepsRecordingContinuation,
+	): Boolean {
+		val expected = continuation.registration
+		val state = expected.state
+		val dao = database.sourceBrokerDao()
+		val physical = dao.currentPhysicalRegistrationsBounded(SourceKind.STEPS.stableCode, 2)
+			.singleOrNull() ?: return false
+		val pointer = database.sourceRegistrationStateDao().get(SourceKind.STEPS.stableCode, expected.ownerScope)
+		val authorization = dao.latestAuthorization(SourceKind.STEPS.stableCode, state.registrationGeneration)
+			.toAuthorizationSnapshotOrNull() ?: return false
+		return physical.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE &&
+			physical.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
+			physical.providerProcessIncarnationId == continuation.processIncarnationId &&
+			physical.acceptedAtMs != null && physical.acceptedElapsedRealtimeNanos != null &&
+			physical.retiredAtMs == null && physical.retiredElapsedRealtimeNanos == null && physical.failureCode == null &&
+			physical.ownerScope == expected.ownerScope && physical.sourceInstanceId == state.sourceInstanceId &&
+			physical.registrationGeneration == state.registrationGeneration && physical.clockDomainId == state.clockDomainId &&
+			physical.collectedDataEpoch == state.collectedDataEpoch &&
+			physical.collectedDataEpoch == database.sourceEvidenceStateDao().get()?.collectedDataEpoch &&
+			physical.physicalConfigurationFingerprint == expected.physicalConfigurationFingerprint &&
+			pointer != null && pointer.sourceInstanceId == state.sourceInstanceId && pointer.registrationGeneration == state.registrationGeneration &&
+			pointer.clockDomainId == state.clockDomainId && pointer.collectedDataEpoch == state.collectedDataEpoch &&
+			authorization == expected.authorization && authorization.authorizedMembers.size == 1 &&
+			authorization.authorizedMembers.single().demandId == recording.demand.demandId &&
+			authorization.authorizationFingerprint == SourceBrokerAuthorization.fingerprint(listOf(recording.demand))
+	}
+
+	/** Before publication: only the immediate predecessor's still-active physical lifetime can continue. */
+	internal suspend fun continuingStepsOriginInTransaction(
+		continuation: StepsRecordingContinuation,
+		proposedManifest: SessionManifestVersionEntity,
+		proposedBinding: SessionManifestSourceEntity,
+		ownerToken: String,
+	): Long? {
+		val recording = liveStepsRecordingInTransaction(proposedManifest.logicalTrackingId,
+			proposedManifest.serviceRunId) ?: return null
+		val previous = recording.current
+		val session = database.sourceSessionDao().session(previous.logicalTrackingId) ?: return null
+		if (previous.manifestRevision == Long.MAX_VALUE || proposedManifest.manifestRevision != previous.manifestRevision + 1L ||
+			continuation.claim.logicalTrackingId != previous.logicalTrackingId ||
+			continuation.claim.serviceRunId != previous.serviceRunId ||
+			continuation.claim.leaseGeneration != session.lifecycleLeaseGeneration ||
+			recording.ownerToken != ownerToken ||
+			database.sourceProjectionStateDao().lease("tracking-session-coordinator")?.ownerToken != ownerToken ||
+			!hasExactLiveStepsRegistration(recording, continuation)) return null
+		val binding = proposedBinding.copy(stepsRecordingManifestRevision = recording.origin.manifestRevision)
+		return recording.origin.manifestRevision.takeIf {
+			StepsRecordingLifetime.isContinuation(recording.origin, recording.originBinding, proposedManifest, binding)
+		}
+	}
+
+	/** Only for an already published current command; old authority cannot reserve a new provider. */
+	internal suspend fun continuingStepsDemand(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		leaseGeneration: Long,
+		continuation: StepsRecordingContinuation? = null,
+	): SourceDemandEntity? = database.withTransaction {
+		val recording = liveStepsRecordingInTransaction(logicalTrackingId, serviceRunId) ?: return@withTransaction null
+		val session = database.sourceSessionDao().session(logicalTrackingId) ?: return@withTransaction null
+		if (session.lifecycleLeaseGeneration != leaseGeneration ||
+			(continuation != null && !hasExactLiveStepsRegistration(recording, continuation))) return@withTransaction null
+		recording.demand
+	}
+
+	internal suspend fun requiresContinuingStepsRecording(claim: SourceRuntimeClaim): Boolean = database.withTransaction {
+		val session = database.sourceSessionDao().session(claim.logicalTrackingId) ?: return@withTransaction false
+		if (session.currentServiceRunId != claim.serviceRunId || session.lifecycleLeaseGeneration != claim.leaseGeneration) {
+			return@withTransaction false
+		}
+		val revision = session.currentManifestRevision ?: return@withTransaction false
+		database.sourceSessionDao().manifestSources(claim.logicalTrackingId, revision).singleOrNull {
+			it.sourceKind == SourceKind.STEPS.stableCode && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+		}?.stepsRecordingManifestRevision?.let { it < revision } == true
+	}
 
 	/** Reserves sessionless Location only under the exact current purpose and retention lease. */
 	internal suspend fun replaceAmbientLocationDemand(
@@ -508,6 +681,7 @@ class SourceBroker @Inject internal constructor(
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
 		retireSupersededAuthority: Boolean = true,
+		stepsContinuation: StepsRecordingContinuation? = null,
 	) {
 		val consumerId = sessionConsumerId(logicalTrackingId)
 		val dao = database.sourceBrokerDao()
@@ -519,11 +693,48 @@ class SourceBroker @Inject internal constructor(
 					.mapNotNull { intent -> intent.sourceCallerAuthorityReference }
 					.mapNotNull(String::toCallerReferenceOrNull)
 		).toSet()
-		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
-		if (retireSupersededAuthority) {
-			retireAuthorityReferences(retiredReferences, "SESSION_DEMAND_REPLACED", wallTimeMs)
+		val requestedSteps = demands.singleOrNull { it.sourceKind == SourceKind.STEPS.stableCode &&
+			it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+		val priorSteps = dao.currentDemands(consumerId).singleOrNull { demand ->
+			demand.sourceKind == SourceKind.STEPS.stableCode && demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE
 		}
-		if (demands.isNotEmpty()) dao.insertDemands(demands)
+		val priorStepsOrigin = priorSteps?.manifestRevision?.let { revision ->
+			database.sourceSessionDao().manifestSources(logicalTrackingId, revision).singleOrNull { binding ->
+				binding.sourceKind == SourceKind.STEPS.stableCode && binding.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+			}?.stepsRecordingManifestRevision
+		}
+		val currentStepsBinding = requestedSteps?.manifestRevision?.let { revision ->
+			database.sourceSessionDao().manifestSources(logicalTrackingId, revision).singleOrNull {
+				it.sourceKind == SourceKind.STEPS.stableCode && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+		}
+		val continuing = currentStepsBinding?.stepsRecordingManifestRevision?.let { origin ->
+			origin < currentStepsBinding.manifestRevision
+		} == true
+		val retainedSteps = if (continuing && stepsContinuation != null && requestedSteps != null) {
+			val freshReference = requestedSteps.sourceCallerAuthorityReference?.let(::SourceCallerReplayReference)
+			val recording = freshReference?.let { liveStepsRecordingInTransaction(logicalTrackingId,
+				requireNotNull(requestedSteps.serviceRunId), it) }
+			recording?.takeIf { hasExactLiveStepsRegistration(it, stepsContinuation) }?.demand
+		} else null
+		check(!continuing || retainedSteps != null) { "Continuing Steps recording changed before publication" }
+		if (retainedSteps == null) {
+			dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
+		} else {
+			dao.retireConsumerExceptDemand(consumerId, retainedSteps.demandId, bootId, elapsedRealtimeNanos, wallTimeMs)
+		}
+		if (retireSupersededAuthority) {
+			retireAuthorityReferences(retiredReferences.filterNot {
+				it.value == retainedSteps?.sourceCallerAuthorityReference }.toSet(), "SESSION_DEMAND_REPLACED", wallTimeMs)
+		}
+		// A real recording boundary also releases its older origin receipt. The descriptor's
+		// ordinary retirement still handles the immediate predecessor's fresh command receipt.
+		if (retainedSteps == null && priorSteps != null && priorStepsOrigin == priorSteps.manifestRevision) {
+			priorSteps.sourceCallerAuthorityReference?.toCallerReferenceOrNull()?.takeIf { old ->
+				demands.none { it.sourceCallerAuthorityReference == old.value }
+			}?.let { old -> retireAuthorityReferences(setOf(old), "STEPS_RECORDING_REPLACED", wallTimeMs) }
+		}
+		val replacements = if (retainedSteps == null) demands else demands.filterNot { it === requestedSteps }
+		if (replacements.isNotEmpty()) dao.insertDemands(replacements)
 		affectedSources.forEach { sourceKind ->
 			rotateCurrentAuthorizationInTransaction(
 				sourceKind,
@@ -1083,6 +1294,9 @@ class SourceBroker @Inject internal constructor(
 		}
 		val superseded = references
 			.filterTo(linkedSetOf()) { reference -> reference != currentReference }
+		val retainedStepsReference = database.sourceSessionDao().session(logicalTrackingId)?.currentServiceRunId
+			?.let { runId -> liveStepsRecordingInTransaction(logicalTrackingId, runId, currentReference) }
+			?.demand?.sourceCallerAuthorityReference?.let(::SourceCallerReplayReference)
 		if (expectedSupersededReference !in superseded) {
 			return when (val expected = loadCallerAuthorityForRetirement(
 				expectedSupersededReference,
@@ -1100,6 +1314,7 @@ class SourceBroker @Inject internal constructor(
 		}
 		for (reference in superseded) {
 			if (reference == expectedSupersededReference) continue
+			if (reference == retainedStepsReference) continue
 			when (val historical = loadCallerAuthorityForRetirement(reference)) {
 				CallerAuthorityRetirementLoad.Available ->
 					return SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous
@@ -1110,6 +1325,9 @@ class SourceBroker @Inject internal constructor(
 				-> Unit
 				is CallerAuthorityRetirementLoad.Failed -> return historical.outcome
 			}
+		}
+		if (expectedSupersededReference == retainedStepsReference) {
+			return SourceCallerAuthorityRetirementOutcome.RetainedForSteps
 		}
 		return retireExactCallerAuthority(
 			expectedSupersededReference,

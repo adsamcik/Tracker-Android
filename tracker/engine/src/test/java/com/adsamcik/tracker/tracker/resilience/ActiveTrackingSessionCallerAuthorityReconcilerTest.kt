@@ -138,6 +138,52 @@ class ActiveTrackingSessionCallerAuthorityReconcilerTest {
 	}
 
 	@Test
+	fun `retained Steps origin clears exact descriptor debt only after fresh successor replay`() = runTest {
+		val origin = reference("steps-recording-origin")
+		val successor = reference("fresh-caller-successor")
+		val recorded = descriptor(successor, origin)
+		val events = mutableListOf<String>()
+		val store = RecordingStore(recorded, onReplace = { expected, replacement ->
+			expected shouldBe recorded
+			replacement shouldBe recorded.copy(pendingRetirementSourceCallerAuthorityReference = null)
+			events += "exact-debt-cleared"
+		})
+		val authority = authority(successor)
+		coEvery { coordinator.currentRecoverySourceCallerAuthority(LOGICAL_ID, SERVICE_RUN_ID) } returns
+			CurrentRecoverySourceCallerAuthorityResult.Available(authority)
+		coEvery {
+			dispatcher.replayPreparedSession(authority.manifestIdentity, successor, SourceCallerReplayKind.PROCESS_RECOVERY)
+		} coAnswers {
+			events += "successor-replayed"
+			permitted(successor)
+		}
+		coEvery {
+			coordinator.retireSupersededSourceCallerAuthority(LOGICAL_ID, successor, origin, any())
+		} coAnswers {
+			events += "recording-origin-retained"
+			SourceCallerAuthorityRetirementOutcome.RetainedForSteps
+		}
+
+		val result = reconciler(store).reconcile(recorded)
+			.shouldBeInstanceOf<ActiveTrackingCallerAuthorityReconciliation.Ready>()
+		result.descriptor shouldBe recorded.copy(pendingRetirementSourceCallerAuthorityReference = null)
+		store.current shouldBe result.descriptor
+		events.shouldContainExactly("successor-replayed", "recording-origin-retained", "exact-debt-cleared")
+		store.replacements.single() shouldBe (recorded to result.descriptor)
+		// An idempotent replay of the current descriptor cannot clear the same debt again.
+		reconciler(store).reconcile(result.descriptor)
+			.shouldBeInstanceOf<ActiveTrackingCallerAuthorityReconciliation.Ready>().descriptor shouldBe result.descriptor
+		store.replacements.size shouldBe 1
+		coVerify(exactly = 1) {
+			coordinator.retireSupersededSourceCallerAuthority(LOGICAL_ID, successor, origin, any())
+		}
+		coVerify(exactly = 2) {
+			dispatcher.replayPreparedSession(authority.manifestIdentity, successor, SourceCallerReplayKind.PROCESS_RECOVERY)
+		}
+		coVerify(exactly = 0) { dispatcher.replayPreparedSession(any(), origin, any()) }
+	}
+
+	@Test
 	fun `failed retirement preserves exact debt for an idempotent retry`() = runTest {
 		val predecessor = reference("caller-predecessor")
 		val successor = reference("caller-successor")

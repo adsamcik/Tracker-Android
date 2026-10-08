@@ -63,6 +63,7 @@ internal data class SessionSourceDemandDispatchRequest(
 	val elapsedRealtimeNanos: Long,
 	val wallTimeMs: Long,
 	val policies: Map<Int, com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity>? = null,
+	val stepsContinuation: StepsRecordingContinuation? = null,
 )
 
 internal sealed interface SessionSourceDemandDispatchResult {
@@ -358,6 +359,7 @@ internal class GuardedSourceCallerDemandDispatcher @Inject constructor(
 					request.wallTimeMs,
 					retireSupersededAuthority =
 						request.startOrigin != SessionStartOrigin.POLICY_RECONCILIATION,
+					stepsContinuation = request.stepsContinuation,
 				)
 			SessionDemandMutation.AUTHORITY_ONLY -> Unit
 		}

@@ -1098,7 +1098,8 @@ class TrackerServiceSourceSession @Inject constructor(
 					replacementReference,
 					predecessor,
 					replacement,
-				) == SourceCallerAuthorityRetirementOutcome.Completed
+				) in setOf(SourceCallerAuthorityRetirementOutcome.Completed,
+					SourceCallerAuthorityRetirementOutcome.RetainedForSteps)
 		} catch (cancelled: CancellationException) {
 			if (markCleanupOnFailure) session.runtimeCleanupRequired = true
 			throw cancelled
@@ -1121,7 +1122,8 @@ class TrackerServiceSourceSession @Inject constructor(
 			supersededReference,
 			Time.nowMillis,
 		)
-		if (retirement != SourceCallerAuthorityRetirementOutcome.Completed) return retirement
+		if (retirement !in setOf(SourceCallerAuthorityRetirementOutcome.Completed,
+			SourceCallerAuthorityRetirementOutcome.RetainedForSteps)) return retirement
 		val stored = recordedDescriptor ?: when (val result = activeTrackingSessionStore.read()) {
 			is ActiveTrackingSessionStoreResult.Failure -> return result.kind.toRetirementOutcome()
 			is ActiveTrackingSessionStoreResult.Success -> result.descriptor
@@ -1135,7 +1137,7 @@ class TrackerServiceSourceSession @Inject constructor(
 		)
 		if (stored.pendingRetirementSourceCallerAuthorityReference == null) {
 			session.pendingRetirementSourceCallerAuthorityReference = null
-			return SourceCallerAuthorityRetirementOutcome.Completed
+			return retirement
 		}
 		if (stored.pendingRetirementSourceCallerAuthorityReference != supersededReference) {
 			return SourceCallerAuthorityRetirementOutcome.TerminalAmbiguous
@@ -1153,7 +1155,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			)
 		}
 		session.pendingRetirementSourceCallerAuthorityReference = null
-		return SourceCallerAuthorityRetirementOutcome.Completed
+		return retirement
 	}
 
 	internal suspend fun persistedDescriptorForActiveSession(
@@ -1198,7 +1200,8 @@ class TrackerServiceSourceSession @Inject constructor(
 					SourceSessionStopRetryCode.CLEANUP_PENDING,
 				)
 			when (retireRecordedSupersededAuthority(session, current, predecessor)) {
-				SourceCallerAuthorityRetirementOutcome.Completed -> Unit
+				SourceCallerAuthorityRetirementOutcome.Completed,
+				SourceCallerAuthorityRetirementOutcome.RetainedForSteps -> Unit
 				is SourceCallerAuthorityRetirementOutcome.Retryable ->
 					return@withLock SourceSessionStopOutcome.Retryable(
 						SourceSessionStopRetryCode.CLEANUP_PENDING,

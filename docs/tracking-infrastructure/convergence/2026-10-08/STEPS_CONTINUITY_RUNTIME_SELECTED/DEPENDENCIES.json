@@ -1,0 +1,342 @@
+{
+  "base": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+  "observed_head": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+  "pins": [
+    {
+      "path": "AGENTS.md",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "694fe135558539f94821481708982dc3880f92f72476b54e418b2eeccb8c8971",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "694fe135558539f94821481708982dc3880f92f72476b54e418b2eeccb8c8971",
+      "drift": false
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidFeatureConventionPlugins.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "e2df2278893f6fc1b47d6b51c15095e1e5638d2185ec35290fab465771772567",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "e2df2278893f6fc1b47d6b51c15095e1e5638d2185ec35290fab465771772567",
+      "drift": false
+    },
+    {
+      "path": "core/base/build.gradle.kts",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "e7d9147951041300b0b6d4613ed6b7cfd2b2edfadcc6f98fb513a2038dd46ac3",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "e7d9147951041300b0b6d4613ed6b7cfd2b2edfadcc6f98fb513a2038dd46ac3",
+      "drift": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceCallerAuthorityDao.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "9a93f2bbebcb585e28bfa48f873195ed8f74de6ec9479d413438e3d23960ee34",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "9a93f2bbebcb585e28bfa48f873195ed8f74de6ec9479d413438e3d23960ee34",
+      "drift": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceProjectionStateDao.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "50ea77d5ce9a445fdfd33d28c622ca9c9f4107db257979d4183a60ed9ee44e0a",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "50ea77d5ce9a445fdfd33d28c622ca9c9f4107db257979d4183a60ed9ee44e0a",
+      "drift": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "623e820365325c02ed52950662ec52b0f7f05ee916040998b59567ad19ade447",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "623e820365325c02ed52950662ec52b0f7f05ee916040998b59567ad19ade447",
+      "drift": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "7b7418ab7d0d82c0d23bb0bf8b60a58293c946be67b8b73bee1b7323a374e737",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "7b7418ab7d0d82c0d23bb0bf8b60a58293c946be67b8b73bee1b7323a374e737",
+      "drift": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceBrokerEntities.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "752d4b90d523ef1543d3032b31da63e0aa2943a13462b6b79fa40f28930b7fe0",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "752d4b90d523ef1543d3032b31da63e0aa2943a13462b6b79fa40f28930b7fe0",
+      "drift": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceCallerAuthorityEntity.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "ec4ec7f44e1c6db0a6e5aa441cfa03889e8948a1018744e9936aed0d9a412581",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "ec4ec7f44e1c6db0a6e5aa441cfa03889e8948a1018744e9936aed0d9a412581",
+      "drift": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceSessionEntities.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "9e30418fe4663e86e39adae3cabb763342c9959dc54a06d6c39dab0fa4685e21",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "9e30418fe4663e86e39adae3cabb763342c9959dc54a06d6c39dab0fa4685e21",
+      "drift": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepsRecordingLifetime.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "af6cde1399b9603e60eab8f1b87feef19a81a98b3613919ee52c932855db39b6",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "af6cde1399b9603e60eab8f1b87feef19a81a98b3613919ee52c932855db39b6",
+      "drift": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepsWalCarrierAuthenticator.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "6ed55bdf1cbd4f57e686087a5464435908702d0abad16fc24e9cf16b9425e54b",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "6ed55bdf1cbd4f57e686087a5464435908702d0abad16fc24e9cf16b9425e54b",
+      "drift": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SourceBrokerAuthorizationTransactions.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "1419612c58b8edd36014f7083bb4d6cb536f6a8a377b7acdac51667e09a79020",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "1419612c58b8edd36014f7083bb4d6cb536f6a8a377b7acdac51667e09a79020",
+      "drift": false
+    },
+    {
+      "path": "data/preferences/src/main/java/com/adsamcik/tracker/shared/preferences/tracking/RoomSourcePolicyRepository.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "2e3c99e103356eb4d1eaa7da4134749f25815415abe6f7ca046a3b1f203359ba",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "2e3c99e103356eb4d1eaa7da4134749f25815415abe6f7ca046a3b1f203359ba",
+      "drift": false
+    },
+    {
+      "path": "data/preferences/src/main/java/com/adsamcik/tracker/shared/preferences/tracking/TrackingParamsState.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "d5845d5e82c2142b57b2be8950358ce1872f809d2169a93b9c74561e0c4f6151",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "d5845d5e82c2142b57b2be8950358ce1872f809d2169a93b9c74561e0c4f6151",
+      "drift": false
+    },
+    {
+      "path": "settings.gradle.kts",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a",
+      "drift": false
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelector.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "7fb30b9b160167119873e86c96ccbf3c2c9ff797d0d38386752c9599e6e6e281",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "7fb30b9b160167119873e86c96ccbf3c2c9ff797d0d38386752c9599e6e6e281",
+      "drift": false
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/SourceCallerGuard.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "ecae23e932f85d020c53c6de70d5dbb4e463e524da1ff2587949a82f3ed07351",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "ecae23e932f85d020c53c6de70d5dbb4e463e524da1ff2587949a82f3ed07351",
+      "drift": false
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackerServiceApi.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "c1dffaa3a602ce35fd245850fe3aaf7ca2f2dcb2ab47e79c220d077440ba07af",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "c1dffaa3a602ce35fd245850fe3aaf7ca2f2dcb2ab47e79c220d077440ba07af",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/main/AndroidManifest.xml",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "03539ecdd919df33156ef5a6a2be5f605c17ba49868a2982fba11613f9b5cbef",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "03539ecdd919df33156ef5a6a2be5f605c17ba49868a2982fba11613f9b5cbef",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "1b500c2c83dc65b767594382f923532c323230a25a83844d88989c5c87c9c8ba",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "1b500c2c83dc65b767594382f923532c323230a25a83844d88989c5c87c9c8ba",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "bce262d403e0f971594876e18794d8d1380d4510d095c36d1bc731d8d566ad95",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "bce262d403e0f971594876e18794d8d1380d4510d095c36d1bc731d8d566ad95",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/TrackerEngineBindings.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "4dbcabbaa6b7f7a7b00fe4f3cb1587e8ae8cdffe9437a935514e5d6f4b493457",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "4dbcabbaa6b7f7a7b00fe4f3cb1587e8ae8cdffe9437a935514e5d6f4b493457",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinator.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "d0a28afa454d12689c7ac3f6d564434797db74bba5852080923c0b822139e331",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "d0a28afa454d12689c7ac3f6d564434797db74bba5852080923c0b822139e331",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SemanticAcquisitionPlanFactory.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "8f6f4150da559fd768ea5ce57913c7dc9aaee795b6c4c365e27da6e3138c83c5",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "8f6f4150da559fd768ea5ce57913c7dc9aaee795b6c4c365e27da6e3138c83c5",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePlanResolver.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "c3147e8c598fc1add5cbd348105622faa1286292b02a443e07fd609f73da4f47",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "c3147e8c598fc1add5cbd348105622faa1286292b02a443e07fd609f73da4f47",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutState.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "d7a5acb4fa6468fca6a43f96992e130a63100bf6e2564b51c1056b0a3ce555bc",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "d7a5acb4fa6468fca6a43f96992e130a63100bf6e2564b51c1056b0a3ce555bc",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStore.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "cbd732f0fedc2969c5dc7726cee0f9469888c077a9119684ae931ed3f39a684a",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "cbd732f0fedc2969c5dc7726cee0f9469888c077a9119684ae931ed3f39a684a",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourceDemand.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "715427ff46d50b21998528ab64a6a2b92e18c5f52004bec0879e4ab418c70cdf",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "715427ff46d50b21998528ab64a6a2b92e18c5f52004bec0879e4ab418c70cdf",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourcePlan.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "eada66d1bc344e3a807a6ee091e8948e7d75c34e555e553b0d5c96c7eaeeeba6",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "eada66d1bc344e3a807a6ee091e8948e7d75c34e555e553b0d5c96c7eaeeeba6",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/ExactSourceCallerGuard.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "55ebb4170a334fa4a4d884a495401b66de26fc7ec279ab79c212489afa8bfe02",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "55ebb4170a334fa4a4d884a495401b66de26fc7ec279ab79c212489afa8bfe02",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SensorRuntimeSupport.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "5ebff7ad037fb26acc6e67aa9845e397eaae556e0fe96ce9c43e6df97bfa6dae",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "5ebff7ad037fb26acc6e67aa9845e397eaae556e0fe96ce9c43e6df97bfa6dae",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRuntime.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "8fdc68f11d30b2e8b23f61f3d3774f51162a9f962ee8f9de6c0f1b77d29baa09",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "8fdc68f11d30b2e8b23f61f3d3774f51162a9f962ee8f9de6c0f1b77d29baa09",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRuntimeRegistry.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "7be323695365fb97ca04854de9acec18246747a5280b99ce50e20a33ce5a89f3",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "7be323695365fb97ca04854de9acec18246747a5280b99ce50e20a33ce5a89f3",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/TrackingPurposePublicationRuntime.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "6365d2708528ae7fe67931e9fc290498b48cf3215543792ee65fe6e1d800e43d",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "6365d2708528ae7fe67931e9fc290498b48cf3215543792ee65fe6e1d800e43d",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/FakeSourceCallerDemandDispatcher.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "6df073aeda789371b6ada931747a362734c5df774d899b6111bfd4d87094e527",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "6df073aeda789371b6ada931747a362734c5df774d899b6111bfd4d87094e527",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/ReadyTrackingStartupGate.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "7de59898923d8c1aa0483b065ebf009f9502b5b41b00e1360335f7d970e69737",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "7de59898923d8c1aa0483b065ebf009f9502b5b41b00e1360335f7d970e69737",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/RoomDurableSourceIngressTest.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "989acf3f912138bb63db7f24dea0cc97bf23234f5a46840693efaef55c549260",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "989acf3f912138bb63db7f24dea0cc97bf23234f5a46840693efaef55c549260",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/GuardedSourceCallerDemandDispatcherTest.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "18ff5a53ef536b506f331ed9e9c42ff616589b62ed236024f71629beb35d7774",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "18ff5a53ef536b506f331ed9e9c42ff616589b62ed236024f71629beb35d7774",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/StepSourceRuntimeDurabilityTest.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "7c4641d6f4f50b5de4e9d0b3ae5a7e7e0cda463aed0bbf307e67a1e3b771df5d",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "7c4641d6f4f50b5de4e9d0b3ae5a7e7e0cda463aed0bbf307e67a1e3b771df5d",
+      "drift": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/TestPurposeSourceCallerDemandDispatcher.kt",
+      "base_commit": "facbb650fd68cab3ca07d400f74c93e96f8f0124",
+      "sha256": "93f27713caf8dac916628c2bbdb383381597fe0c18ca11623a8a7912ee94a5c0",
+      "current_commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a",
+      "current_sha256": "93f27713caf8dac916628c2bbdb383381597fe0c18ca11623a8a7912ee94a5c0",
+      "drift": false
+    }
+  ]
+}

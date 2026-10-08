@@ -49,6 +49,40 @@ class SharedStepSourceController @Inject internal constructor(
 		startForClaimLocked(claim, plan, sink)
 	}
 
+	internal suspend fun continuingRecording(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		plan: StepsPlan,
+	): StepsRecordingContinuation? = mutex.withLock {
+		val claim = sessionClaim ?: return@withLock null
+		if (sessionPlan?.enabled != true || claim.logicalTrackingId != logicalTrackingId ||
+			claim.serviceRunId != serviceRunId) return@withLock null
+		physicalRuntime.continuingRecording(claim, plan)
+	}
+
+	internal suspend fun reconfigureWithContinuity(
+		claim: SourceRuntimeClaim,
+		plan: StepsPlan,
+		sink: SourceEventSink,
+		continuation: StepsRecordingContinuation?,
+	): SourceApplyResult = mutex.withLock {
+		if (!sourceBroker.requiresContinuingStepsRecording(claim)) {
+			return@withLock reconfigureForClaimLocked(claim, plan, sink)
+		}
+		if (continuation == null || sessionClaim != continuation.claim) {
+			return@withLock SourceApplyResult.Failed(blockedState(plan), retryable = true)
+		}
+		val result = physicalRuntime.reuseContinuingRecording(continuation, claim, plan) {
+			sourceBroker.continuingStepsDemand(claim.logicalTrackingId, claim.serviceRunId,
+				claim.leaseGeneration, continuation) != null
+		}
+		if (result is SourceApplyResult.Applied) {
+			sessionPlan = plan
+			sessionClaim = claim
+		}
+		result
+	}
+
 	private suspend fun startForClaimLocked(
 		claim: SourceRuntimeClaim?,
 		plan: StepsPlan,
@@ -56,6 +90,10 @@ class SharedStepSourceController @Inject internal constructor(
 	): SourceStartResult {
 		@Suppress("UNUSED_VARIABLE") val sessionBoundSinkMustNotRelabelSharedEvidence = sink
 		if (!plan.enabled) return SourceStartResult.Started(disabledState(plan))
+		if ((claim != null && sourceBroker.requiresContinuingStepsRecording(claim)) ||
+			(sessionClaim?.let { sourceBroker.requiresContinuingStepsRecording(it) } == true)) {
+			return SourceStartResult.Blocked(blockedState(plan))
+		}
 		val predecessorPlan = sessionPlan
 		val predecessorClaim = sessionClaim
 		sessionPlan = plan
@@ -107,6 +145,11 @@ class SharedStepSourceController @Inject internal constructor(
 		sink: SourceEventSink,
 	): SourceApplyResult {
 		@Suppress("UNUSED_VARIABLE") val sessionBoundSinkMustNotRelabelSharedEvidence = sink
+		if (plan.enabled && ((claim != null && sourceBroker.requiresContinuingStepsRecording(claim)) ||
+			(sessionClaim?.let { sourceBroker.requiresContinuingStepsRecording(it) } == true))) {
+			// Only the coordinator's fresh physical preflight can adopt a continuing recording.
+			return SourceApplyResult.Failed(blockedState(plan), retryable = false)
+		}
 		val predecessorPlan = sessionPlan
 		val predecessorClaim = sessionClaim
 		if (!plan.enabled && claim != null && sessionClaim != null && claim != sessionClaim) {
@@ -265,11 +308,22 @@ class SharedStepSourceController @Inject internal constructor(
 	private suspend fun applyEffective(
 		plan: StepsPlan,
 		claim: SourceRuntimeClaim? = null,
-	): SourceApplyResult = if (claim == null) {
-		physicalRuntime.refreshCompatible(plan, unboundSink)
-			?: physicalRuntime.reconfigure(plan, unboundSink)
-	} else {
-		physicalRuntime.reconfigure(claim, plan, unboundSink)
+	): SourceApplyResult {
+		val attachedClaim = sessionClaim
+		if (claim == null && plan.enabled && attachedClaim != null &&
+			sourceBroker.requiresContinuingStepsRecording(attachedClaim)) {
+			// Legacy CONTROL cleanup may inspect a live session, but cannot replace or revive it.
+			val live = physicalRuntime.continuingRecording(attachedClaim, plan)
+			return if (live != null && sourceBroker.continuingStepsDemand(attachedClaim.logicalTrackingId,
+				attachedClaim.serviceRunId, attachedClaim.leaseGeneration, live) != null) {
+				SourceApplyResult.Applied(appliedState(source, plan.revision, live.registration,
+					SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()))
+			} else SourceApplyResult.Failed(blockedState(plan), retryable = true)
+		}
+		return if (claim == null) {
+			physicalRuntime.refreshCompatible(plan, unboundSink)
+				?: physicalRuntime.reconfigure(plan, unboundSink)
+		} else physicalRuntime.reconfigure(claim, plan, unboundSink)
 	}
 
 	private suspend fun reconcileRemainingControl(): SourceApplyResult? {
@@ -282,13 +336,18 @@ class SharedStepSourceController @Inject internal constructor(
 		}
 	}
 
-	private suspend fun selectedDemands(): List<SourceDemandEntity> =
-		sourceBroker.authorizationDemands(source).filter { demand ->
-			sessionPlan != null && demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
-				(sessionClaim == null || (demand.logicalTrackingId == sessionClaim?.logicalTrackingId &&
-					demand.serviceRunId == sessionClaim?.serviceRunId &&
-					demand.lifecycleLeaseGeneration == sessionClaim?.leaseGeneration))
+	private suspend fun selectedDemands(): List<SourceDemandEntity> {
+		if (sessionPlan == null) return emptyList()
+		val claim = sessionClaim
+		val direct = sourceBroker.authorizationDemands(source).filter { demand ->
+			demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+				(claim == null || (demand.logicalTrackingId == claim.logicalTrackingId &&
+					demand.serviceRunId == claim.serviceRunId && demand.lifecycleLeaseGeneration == claim.leaseGeneration))
 		}
+		if (direct.isNotEmpty() || claim == null) return direct
+		return listOfNotNull(sourceBroker.continuingStepsDemand(claim.logicalTrackingId,
+			claim.serviceRunId, claim.leaseGeneration))
+	}
 
 	private fun effectivePlan(demands: List<SourceDemandEntity>): StepsPlan? {
 		if (demands.isEmpty()) return null

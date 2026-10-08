@@ -88,6 +88,8 @@ import com.adsamcik.tracker.tracker.source.runtime.OwnedSourceShutdown
 import com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey
 import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeClaim
 import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeRegistry
+import com.adsamcik.tracker.tracker.source.runtime.SharedStepSourceController
+import com.adsamcik.tracker.tracker.source.runtime.StepsRecordingContinuation
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementOutcome
 import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetirementRetryReason
@@ -2252,6 +2254,12 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			}
 			val plan = catalogTransition.plan
 			val effectiveCatalogDecisions = catalogTransition.decisions
+			val continuingStepsPlan = runtimePlan.plans[SourceKind.STEPS] as? StepsPlan
+			val stepsContinuation = if (continuingStepsPlan?.enabled == true &&
+				SourceKind.STEPS in effectiveCatalogDecisions.acceptedSources) {
+				(runtimes.runtime(SourceKind.STEPS) as? SharedStepSourceController)?.continuingRecording(
+					session.logicalTrackingId, currentServiceRunId, continuingStepsPlan)
+			} else null
 			validateSourcePolicy(plan)?.let { return SessionReconfigureResult.InvalidPolicy(it) }
 			var intentPolicyFailure: String? = null
 			var intentValidationFailure: String? = null
@@ -2310,6 +2318,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					lease = lease,
 					serviceRunId = serviceRun.serviceRunId,
 					acceptedCaptureSources = effectiveCatalogDecisions.acceptedSources,
+					stepsContinuation = stepsContinuation,
 				)
 				val priorManifestEnvelopes = database.sourceSessionDao()
 					.manifestsForServiceRun(serviceRun.serviceRunId)
@@ -2376,6 +2385,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					sessionMode = SessionMode.valueOf(current.sessionMode),
 					startOrigin = SessionStartOrigin.POLICY_RECONCILIATION,
 					mutation = SessionDemandMutation.REPLACE_ACTIVE,
+					stepsContinuation = stepsContinuation,
 					lease = lease,
 					bootId = request.clockDomainId,
 					elapsedRealtimeNanos = request.elapsedRealtimeNanos,
@@ -2415,6 +2425,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				wallTimeMs = request.wallTimeMs,
 				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
 				catalogDecisions = runtimeCatalogDecisions,
+				stepsContinuation = stepsContinuation,
 			)
 			var applied = executions.map(SourceActionExecution::applied)
 			if (executions.any { execution -> execution.status == LifecycleActionStatus.CLEANUP_REQUIRED }) {
@@ -3000,6 +3011,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
+		stepsContinuation: StepsRecordingContinuation? = null,
 	): PersistedLifecycleIntent {
 		return when (val result = sourceCallerDemandDispatcher.dispatchSession(
 			SessionSourceDemandDispatchRequest(
@@ -3014,6 +3026,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				bootId = bootId,
 				elapsedRealtimeNanos = elapsedRealtimeNanos,
 				wallTimeMs = wallTimeMs,
+				stepsContinuation = stepsContinuation,
 			),
 		)) {
 			is SessionSourceDemandDispatchResult.Permitted ->
@@ -3043,6 +3056,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		lease: LifecycleLeaseToken,
 		serviceRunId: String,
 		acceptedCaptureSources: Set<SourceKind>,
+		stepsContinuation: StepsRecordingContinuation? = null,
 	): PersistedLifecycleIntent {
 		require(acceptedCaptureSources.all { source -> plan.plans[source]?.enabled == true }) {
 			"Accepted capture sources must be enabled in the desired plan"
@@ -3193,6 +3207,9 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				writerProjectionId = candidateWriter?.projectionId,
 				writerProjectionVersion = candidateWriter?.projectionVersion,
 				writerBindingGeneration = candidateWriter?.bindingGeneration,
+				stepsRecordingManifestRevision = manifestRevision.takeIf {
+					sourcePlan.source == SourceKind.STEPS && policy.balanceProfileVersion == 1 && candidateWriter != null
+				},
 			)
 		}
 		val controlBindings = controlDependencies.map { source ->
@@ -3215,7 +3232,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				qosCode = policy.qosCode,
 			)
 		}
-		val bindings = (captureBindings + controlBindings).sortedWith(
+		val initialBindings = (captureBindings + controlBindings).sortedWith(
 			compareBy(SessionManifestSourceEntity::purpose, SessionManifestSourceEntity::sourceKind),
 		)
 		val unsignedManifest = SessionManifestVersionEntity(
@@ -3235,6 +3252,13 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			changeReason = changeReason,
 			manifestChecksum = "",
 		)
+		val bindings = initialBindings.map { binding ->
+			if (binding.stepsRecordingManifestRevision == null || stepsContinuation == null) binding else {
+				val origin = sourceBroker.continuingStepsOriginInTransaction(stepsContinuation,
+					unsignedManifest, binding, lease.ownerToken)
+				binding.copy(stepsRecordingManifestRevision = origin ?: manifestRevision)
+			}
+		}
 		val manifest = unsignedManifest.copy(
 			manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, bindings),
 		)
@@ -3551,6 +3575,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		wallTimeMs: Long,
 		elapsedRealtimeNanos: Long,
 		catalogDecisions: CatalogPlanDecisions,
+		stepsContinuation: StepsRecordingContinuation? = null,
 	): List<SourceActionExecution> {
 		val actionBySource = intent.actions.associateBy { it.sourceKind }
 		val bindingBySource = intent.bindings
@@ -3595,6 +3620,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 							runtimeClaim,
 							nowElapsed,
 							wallTimeMs,
+							stepsContinuation = stepsContinuation,
 						)
 					}
 				}
@@ -3611,6 +3637,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 							runtimeClaim,
 							nowElapsed,
 							wallTimeMs,
+							stepsContinuation = stepsContinuation,
 						)
 					}
 					applied.withCatalogDecision(catalogDecision)
@@ -3629,6 +3656,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 							runtimeClaim,
 							nowElapsed,
 							wallTimeMs,
+							stepsContinuation = stepsContinuation,
 						)
 						if (stopped.status == LifecycleActionStatus.STOP_ACCEPTED) {
 							stopped.copy(
@@ -4759,6 +4787,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		runtimeClaim: SourceRuntimeClaim,
 		elapsedNanos: Long,
 		wallTimeMs: Long,
+		stepsContinuation: StepsRecordingContinuation? = null,
 	): SourceActionExecution {
 		if (!plan.enabled && plan.source !in runtimes.registeredSources()) {
 			return SourceActionExecution(
@@ -4774,11 +4803,12 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			)
 		}
 		val execution = try {
-			runtimes.reconfigure(
-				runtimeClaim,
-				plan,
-				registrationFencedSink(sink, plan.source),
-			).toExecution(plan.enabled)
+			val sharedSteps = if (plan is StepsPlan) runtimes.runtime(SourceKind.STEPS) as? SharedStepSourceController else null
+			val result = if (sharedSteps != null && plan is StepsPlan) {
+				sharedSteps.reconfigureWithContinuity(runtimeClaim, plan,
+					registrationFencedSink(sink, plan.source), stepsContinuation)
+			} else runtimes.reconfigure(runtimeClaim, plan, registrationFencedSink(sink, plan.source))
+			result.toExecution(plan.enabled)
 				.copy(runtimeClaim = runtimeClaim, captureAuthorization = authorization)
 		} catch (error: CancellationException) {
 			throw error

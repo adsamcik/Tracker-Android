@@ -126,7 +126,8 @@ internal class ActiveTrackingSessionCallerAuthorityReconciler @Inject internal c
 					supersededReference = predecessor,
 					wallTimeMs = System.currentTimeMillis(),
 				)) {
-				SourceCallerAuthorityRetirementOutcome.Completed -> Unit
+				SourceCallerAuthorityRetirementOutcome.Completed,
+				SourceCallerAuthorityRetirementOutcome.RetainedForSteps -> Unit
 				is SourceCallerAuthorityRetirementOutcome.Retryable ->
 					return ActiveTrackingCallerAuthorityReconciliation.Blocked(
 						failureCode = retirement.failureCode(),
@@ -191,8 +192,9 @@ internal class ActiveTrackingSessionCallerAuthorityReconciler @Inject internal c
 }
 
 private fun SourceCallerAuthorityRetirementOutcome.failureCode(): String = when (this) {
-	SourceCallerAuthorityRetirementOutcome.Completed ->
-		error("Completed retirement has no failure code")
+	SourceCallerAuthorityRetirementOutcome.Completed,
+	SourceCallerAuthorityRetirementOutcome.RetainedForSteps ->
+		error("Successful caller-authority settlement has no failure code")
 	is SourceCallerAuthorityRetirementOutcome.Retryable -> when (reason) {
 		SourceCallerAuthorityRetirementRetryReason.STORAGE_UNAVAILABLE ->
 			"RECOVERY_SOURCE_CALLER_RETIREMENT_STORAGE_UNAVAILABLE"

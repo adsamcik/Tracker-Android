@@ -1,0 +1,16 @@
+{
+  "phase": "REVIEW_ONLY",
+  "test_execution": "NOT_RUN",
+  "pins": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/resilience/ActiveTrackingSessionCallerAuthorityReconciler.kt",
+      "sha256": "46105924208f79c349ddf99af77161b309eabf55048b36b7b5bf566ca07abc1e",
+      "commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/resilience/ActiveTrackingSessionCallerAuthorityReconcilerTest.kt",
+      "sha256": "4bb6b281ccabfbc14990a18827bfb3474672d0d3aff7a5d8247912b3fd88a9f7",
+      "commit": "f1bef520eed3cb8d26afebd6d6ab74a18bc4020a"
+    }
+  ]
+}

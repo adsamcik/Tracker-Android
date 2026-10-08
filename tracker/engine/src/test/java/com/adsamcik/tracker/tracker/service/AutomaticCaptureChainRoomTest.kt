@@ -46,6 +46,7 @@ import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
 import com.adsamcik.tracker.tracker.source.coordinator.*
 import com.adsamcik.tracker.tracker.source.ingress.*
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.projection.*
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecovery
 import com.adsamcik.tracker.tracker.source.runtime.*
@@ -58,6 +59,7 @@ import io.mockk.mockkObject
 import io.mockk.unmockkObject
 import java.io.File
 import java.lang.reflect.Proxy
+import java.time.ZoneId
 import java.time.Duration
 import java.util.UUID
 import javax.inject.Provider
@@ -101,6 +103,14 @@ class AutomaticCaptureChainRoomTest {
     private lateinit var scopeJob: kotlinx.coroutines.Job
     private lateinit var actorScope: CoroutineScope
     private lateinit var sensor: Sensor
+    private lateinit var policies: RoomSourcePolicyRepository
+    private lateinit var paramsState: MutableStateFlow<TrackingParamsState>
+    private lateinit var purposeRegistry: TrackingPurposeExecutionRevisionRegistry
+    private lateinit var availabilityState: MutableStateFlow<CurrentTrackingPurposeAvailability>
+    private lateinit var authorityRevisionState: MutableStateFlow<TrackingPurposeAuthorityRevision>
+    private lateinit var controlIdentity: TrackingPurposeLeaseIdentity
+    private lateinit var sharedSteps: SharedStepSourceController
+    private var flushObservation: Pair<Float, Long>? = null
     private val listeners = mutableListOf<SensorEventListener>()
     private val removedListeners = mutableListOf<SensorEventListener>()
     private val enqueued = mutableListOf<Intent>()
@@ -139,7 +149,12 @@ class AutomaticCaptureChainRoomTest {
             removedListeners += firstArg<SensorEventListener>()
         }
         every { sensors.flush(any()) } answers {
-            (firstArg<SensorEventListener>() as SensorEventListener2).onFlushCompleted(sensor)
+            val listener = firstArg<SensorEventListener>() as SensorEventListener2
+            flushObservation?.also { (count, observedAt) ->
+                flushObservation = null
+                listener.onSensorChanged(stepEventAt(count, observedAt))
+            }
+            listener.onFlushCompleted(sensor)
             true
         }
         every { packageManager.hasSystemFeature(any()) } answers {
@@ -182,19 +197,22 @@ class AutomaticCaptureChainRoomTest {
         rollout.save(TrackingRolloutState.eventCanonical(setOf(SourceKind.STEPS), 2L,
             controlSources = setOf(SourceKind.ACTIVITY),
             captureModes = mapOf(SourceKind.STEPS to binding.captureModes)), System.currentTimeMillis())
-        val policies = RoomSourcePolicyRepository(database) {
+        policies = RoomSourcePolicyRepository(database) {
             SourcePolicyEffectiveTime(BOOT, SystemClock.elapsedRealtimeNanos(), System.currentTimeMillis())
         }
         val selected = TrackingParamsState(legacySettingsMigrationCompleted = true,
             locationEnabled = false, activityEnabled = false, stepsEnabled = true, barometerEnabled = false,
             autoTrackingMode = GroupedActivity.ON_FOOT.ordinal, transitionDetectionEnabled = true,
+            balanceProfileVersion = 1, overallBalanceLevel = 3,
+            locationProfileVersion = 1, locationBalanceLevel = 3,
             sourceCollectionSettings = SourceCollectionSettings(location = SourceCollectionFrequency.OFF,
                 activity = SourceCollectionFrequency.OFF, steps = SourceCollectionFrequency.BALANCED,
                 pressure = SourceCollectionFrequency.OFF, wifi = SourceCollectionFrequency.OFF,
                 cell = SourceCollectionFrequency.OFF))
         val policy = policies.bootstrapFromLegacy(selected)
         val settings = selected.copy(sourcePolicyRevision = policy.revision)
-        val params = mockk<TrackingParamsRepository> { every { data } returns MutableStateFlow(settings) }
+        paramsState = MutableStateFlow(settings)
+        val params = mockk<TrackingParamsRepository> { every { data } returns paramsState }
         val lifecycleSnapshot = CollectedDataLifecycleSnapshot(0L, null)
         val lifecycle = mockk<CollectedDataLifecycleStore> {
             coEvery { snapshot() } returns lifecycleSnapshot
@@ -203,37 +221,38 @@ class AutomaticCaptureChainRoomTest {
         val boot = BootClockDomainProvider { BOOT }
         val exactAuthority = CurrentTrackingPurposeAuthorityReader(policies, lifecycle, rollout,
             mockk<RetentionAuthorityProducer>(), Provider { gate })
-        val identity = TrackingPurposeLeaseIdentity(source = TrackingSource.ACTIVITY, purpose = TrackingPurpose.CONTROL,
+        controlIdentity = TrackingPurposeLeaseIdentity(source = TrackingSource.ACTIVITY, purpose = TrackingPurpose.CONTROL,
             policyRevision = policy.revision, consentEpoch = requireNotNull(policy[TrackingSource.ACTIVITY].controlConsentEpoch),
             collectedDataEpoch = 0L, rolloutRevision = 2L, executionRevision = 1L, ownerCasToken = "fixture-control")
-        val registry = TrackingPurposeExecutionRevisionRegistry().also {
-            it.update(identity.sourcePurpose, 1L)
-            it.bind(identity)
-        }
+        purposeRegistry = TrackingPurposeExecutionRevisionRegistry()
+        purposeRegistry.update(controlIdentity.sourcePurpose, controlIdentity.executionRevision)
+        purposeRegistry.bind(controlIdentity)
         val publication = CurrentTrackingPurposeAvailability(
             TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.copy(
-                automaticControl = AutomaticTrackingOperationalAvailability.Ready(identity)),
-            mapOf(identity.sourcePurpose to TrackingPurposeAuthorityVector(identity.sourcePurpose, policy.revision,
-                identity.consentEpoch, 0L, 2L, 1L)))
+                automaticControl = AutomaticTrackingOperationalAvailability.Ready(controlIdentity)),
+            mapOf(controlIdentity.sourcePurpose to TrackingPurposeAuthorityVector(controlIdentity.sourcePurpose, policy.revision,
+                controlIdentity.consentEpoch, 0L, 2L, 1L)))
+        availabilityState = MutableStateFlow(publication)
+        authorityRevisionState = MutableStateFlow(TrackingPurposeAuthorityRevision(policy.revision, 0L, 2L))
         val reader = mockk<CurrentTrackingPurposeAvailabilityReader> {
-            every { availability } returns MutableStateFlow(publication)
-            every { authorityRevision } returns MutableStateFlow(TrackingPurposeAuthorityRevision(policy.revision, 0L, 2L))
+            every { availability } returns availabilityState
+            every { authorityRevision } returns authorityRevisionState
             coEvery { isCurrent(any()) } coAnswers {
-                val current = exactAuthority.read(identity.sourcePurpose, 1L)
-                firstArg<TrackingPurposeLeaseIdentity>() == identity && current != null &&
-                    identity.matchesAuthority(TrackingPurposeAuthorityVector(current.sourcePurpose,
+                val current = exactAuthority.read(controlIdentity.sourcePurpose, controlIdentity.executionRevision)
+                firstArg<TrackingPurposeLeaseIdentity>() == controlIdentity && current != null &&
+                    controlIdentity.matchesAuthority(TrackingPurposeAuthorityVector(current.sourcePurpose,
                         current.policyRevision, current.consentEpoch, current.collectedDataEpoch,
                         current.rolloutRevision, current.executionRevision, current.retainedFromMs))
             }
         }
-        val authority = CurrentSourceCallerAuthorityReader(database, rollout, reader, exactAuthority, registry,
+        val authority = CurrentSourceCallerAuthorityReader(database, rollout, reader, exactAuthority, purposeRegistry,
             boot, Provider { gate })
         val receipts = RoomSourceCallerAcceptedAuthorityRepository(database)
         val broker = SourceBroker(database, rollout)
         val callers = GuardedSourceCallerDemandDispatcher(authority,
             ExactSourceCallerGuard(authority, receipts, Provider { gate }), broker, receipts)
         val controlDemand = callers.dispatchAutomaticControl(AutomaticControlDemandDispatchRequest(
-            identity, "fixture-control", BOOT, SystemClock.elapsedRealtimeNanos(), System.currentTimeMillis(),
+            controlIdentity, "fixture-control", BOOT, SystemClock.elapsedRealtimeNanos(), System.currentTimeMillis(),
             60_000L, 0L)).shouldBeInstanceOf<GuardedPurposeDemandResult.Applied<SourceDemandEntity>>().value
         // The Activity arbiter is in sensor:activity; tracker:engine consumes only its API.
         // Simulate its accepted physical registration, using the real guarded demand above.
@@ -263,6 +282,7 @@ class AutomaticCaptureChainRoomTest {
         stepsLane = StepsSessionFactProjectionLane(database, ingress)
         val registrations = SourceRegistrationRepository(database, lifecycle, boot, ProcessIncarnationIdProvider(), rollout, broker)
         val steps = StepSourceRuntime(context, actorScope, registrations, stepsLane)
+        sharedSteps = SharedStepSourceController(steps, broker, callers, DurableSourceEventSinkFactory(ingress), boot)
         val actions = ActivityAutomaticStartActionRepository(database, gate)
         effects = ActivityAutomationOutboxDispatcher(database, ActivityAutomationEffectValidator(database, boot, actions, epoch),
             BackgroundTrackingActivityAutomationEffectConsumer(context, actions), ActivityControlRetentionMaintenance(database, boot, gate))
@@ -271,7 +291,7 @@ class AutomaticCaptureChainRoomTest {
         activityLane.ensureRegisteredAtLiveTail()
         val coordinator = TrackingCoordinator(database, ingress, projections)
         val sessionCoordinator = AuthoritativeSessionCoordinator(database, RoomSourcePlanStore(database, SourcePlanCodec()),
-            SourceRuntimeRegistry(setOf(steps)), DurableSourceEventSinkFactory(ingress), coordinator,
+            SourceRuntimeRegistry(setOf(sharedSteps)), DurableSourceEventSinkFactory(ingress), coordinator,
             actions, effects, epoch, boot, com.adsamcik.tracker.shared.base.time.SystemClock, callers,
             rolloutStore = rollout, sourceBroker = broker,
             sourceProductDrainRouter = RoomSourceProductDrainRouter(database, stepsLane, mockk(), mockk(), mockk(), mockk(), mockk()))
@@ -315,7 +335,7 @@ class AutomaticCaptureChainRoomTest {
         setBackgroundField("cachedParams", settings)
         setBackgroundField("paramsInitialized", true)
         setBackgroundField("activeSourcePolicyRevision", policy.revision)
-        setBackgroundField("activityControlConsentEpoch", identity.consentEpoch)
+        setBackgroundField("activityControlConsentEpoch", controlIdentity.consentEpoch)
         BackgroundTrackingApi::class.java.getDeclaredMethod("publishActivityAutomationAuthority")
             .apply { isAccessible = true }.invoke(BackgroundTrackingApi)
         val recovery = SourcePipelineRecovery(mockk<LegacyV27ProjectionRecovery>(), coordinator, activityLane, effects)
@@ -405,6 +425,208 @@ class AutomaticCaptureChainRoomTest {
         database.sourceEventWalDao().maximumAdmissionOrdinal() shouldBe before
         savedSteps(capture) shouldBe 5L
         assertNoActivityCapture()
+    }
+
+    @Test
+    fun `quality changes preserve one real counter and original demand through fresh operation leases`() = runBlocking {
+        val ended = endCommand()
+        commands.markStopHandled(ended) shouldBe true
+        val capture = startChosenStepsAfterEnd(ended.generation)
+        val listener = listeners.single()
+        val origin = currentStepsDemand(capture)
+        val originalAuthorization = database.sourceBrokerDao().latestAuthorization(SourceKind.STEPS.stableCode,
+            requireNotNull(database.sourceRegistrationStateDao().get(SourceKind.STEPS.stableCode,
+                SourceProviderPurposeScope.exactOwnerScope(SourceKind.STEPS.stableCode,
+                    SourceBrokerPurpose.MASK_SESSION_CAPTURE))).registrationGeneration)
+        recordCounter(capture, 100f, 0L)
+        reconfigureQuality(4)
+        val firstRevision = currentStepsBinding(capture).manifestRevision
+        firstRevision shouldBe requireNotNull(origin.manifestRevision) + 1L
+        recordCounter(capture, 103f, 3L)
+        reconfigureQuality(2)
+        currentStepsBinding(capture).manifestRevision shouldBe firstRevision + 1L
+        recordCounter(capture, 109f, 9L)
+        listeners shouldBe listOf(listener)
+        removedListeners shouldBe emptyList()
+        currentStepsDemand(capture) shouldBe origin
+        val run = requireNotNull(database.sourceSessionDao().serviceRun(capture.serviceRunId))
+        (run.leaseGeneration > requireNotNull(origin.lifecycleLeaseGeneration)) shouldBe true
+        val manifests = database.sourceSessionDao().manifestsForServiceRun(capture.serviceRunId)
+        manifests.size shouldBe 3
+        manifests.forEach { manifest ->
+            val sources = database.sourceSessionDao().manifestSources(capture.logicalTrackingId, manifest.manifestRevision)
+            SessionManifestIntegrity.verify(manifest, sources) shouldBe true
+            sources.single { it.sourceKind == SourceKind.STEPS.stableCode &&
+                it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }.stepsRecordingManifestRevision shouldBe origin.manifestRevision
+        }
+        database.sourceBrokerDao().latestAuthorization(SourceKind.STEPS.stableCode,
+            originalAuthorization.first().registrationGeneration) shouldBe originalAuthorization
+        val originalReference = SourceCallerReplayReference(requireNotNull(origin.sourceCallerAuthorityReference))
+        RoomSourceCallerAcceptedAuthorityRepository(database).load(originalReference)
+            .shouldBeInstanceOf<StoredSourceCallerAuthorityLoadResult.Available>()
+        val latestIntent = requireNotNull(database.sourceSessionDao().lifecycleIntent(capture.logicalTrackingId,
+            requireNotNull(database.sourceSessionDao().session(capture.logicalTrackingId)?.currentIntentRevision)))
+        (latestIntent.sourceCallerAuthorityReference != origin.sourceCallerAuthorityReference) shouldBe true
+        val latest = RoomSourceCallerAcceptedAuthorityRepository(database).load(
+            SourceCallerReplayReference(requireNotNull(latestIntent.sourceCallerAuthorityReference)))
+            .shouldBeInstanceOf<StoredSourceCallerAuthorityLoadResult.Available>()
+        latest.authority.permittedDemandIdentities.single { it.purposeLeaseIdentity.source == TrackingSource.STEPS }
+            .purposeLeaseIdentity.executionRevision shouldBe run.leaseGeneration
+        val stop = endCommand()
+        withTimeout(5_000L) {
+            sourceSession.stop("EXPLICIT_REQUEST", false, SourceSessionStopCutoff(stop.requestedAtEpochMs,
+                requireNotNull(stop.requestedElapsedRealtimeNanos), BOOT))
+        } shouldBe SourceSessionStopOutcome.Stopped
+        removedListeners shouldBe listOf(listener)
+        RoomSourceCallerAcceptedAuthorityRepository(database).load(originalReference) shouldBe
+            StoredSourceCallerAuthorityLoadResult.Retired
+        savedSteps(capture) shouldBe 9L
+        assertNoActivityCapture()
+    }
+
+    @Test
+    fun `generic reconfigure cannot adopt the old recording without the fresh coordinator path`() = runBlocking {
+        val ended = endCommand()
+        commands.markStopHandled(ended) shouldBe true
+        val capture = startChosenStepsAfterEnd(ended.generation)
+        recordCounter(capture, 100f, 0L)
+        reconfigureQuality(4)
+        val plan = StepsPlan(9_000L, true, 5_000L, 5_000L, true)
+        val live = requireNotNull(sharedSteps.continuingRecording(capture.logicalTrackingId, capture.serviceRunId, plan))
+        val before = currentStepsDemand(capture)
+        sharedSteps.reconfigure(live.claim, plan, SourceEventSink { error("Generic reconfigure must not admit data") })
+            .shouldBeInstanceOf<SourceApplyResult.Failed>()
+        listeners.size shouldBe 1
+        removedListeners shouldBe emptyList()
+        currentStepsDemand(capture) shouldBe before
+        recordCounter(capture, 104f, 4L)
+        reconfigureQuality(2)
+        currentStepsDemand(capture) shouldBe before
+        assertNoActivityCapture()
+    }
+
+    @Test
+    fun `counter reset starts a new Steps origin and never converts the new absolute count to steps`() = runBlocking {
+        val ended = endCommand()
+        commands.markStopHandled(ended) shouldBe true
+        val capture = startChosenStepsAfterEnd(ended.generation)
+        recordCounter(capture, 100f, 0L)
+        recordCounter(capture, 105f, 5L)
+        val old = currentStepsDemand(capture)
+        reconfigureQuality(4)
+        reconfigureQuality(2)
+        currentStepsDemand(capture) shouldBe old
+        recordCounter(capture, 3f, 5L)
+        reconfigureQuality(4)
+        val replacement = currentStepsDemand(capture)
+        (replacement.demandId != old.demandId) shouldBe true
+        replacement.manifestRevision shouldBe currentStepsBinding(capture).manifestRevision
+        currentStepsBinding(capture).stepsRecordingManifestRevision shouldBe replacement.manifestRevision
+        RoomSourceCallerAcceptedAuthorityRepository(database).load(
+            SourceCallerReplayReference(requireNotNull(old.sourceCallerAuthorityReference))) shouldBe
+            StoredSourceCallerAuthorityLoadResult.Retired
+        // A fresh authorization establishes a baseline; it cannot bridge the old counter domain.
+        recordCounter(capture, 7f, 5L)
+        recordCounter(capture, 11f, 9L)
+        savedSteps(capture) shouldBe 9L
+        assertNoActivityCapture()
+    }
+
+    @Test
+    fun `quality change final flush keeps exact End increment once and rejects a later counter`() = runBlocking {
+        val ended = endCommand()
+        commands.markStopHandled(ended) shouldBe true
+        val capture = startChosenStepsAfterEnd(ended.generation)
+        recordCounter(capture, 100f, 0L)
+        reconfigureQuality(4)
+        val listener = listeners.single()
+        val stop = endCommand()
+        flushObservation = 104f to requireNotNull(stop.requestedElapsedRealtimeNanos)
+        withTimeout(5_000L) {
+            sourceSession.stop("EXPLICIT_REQUEST", false, SourceSessionStopCutoff(stop.requestedAtEpochMs,
+                requireNotNull(stop.requestedElapsedRealtimeNanos), BOOT))
+        } shouldBe SourceSessionStopOutcome.Stopped
+        savedSteps(capture) shouldBe 4L
+        val before = database.sourceEventWalDao().maximumAdmissionOrdinal()
+        listener.onSensorChanged(stepEventAt(104f, requireNotNull(stop.requestedElapsedRealtimeNanos)))
+        listener.onSensorChanged(stepEvent(108f))
+        database.sourceEventWalDao().maximumAdmissionOrdinal() shouldBe before
+        savedSteps(capture) shouldBe 4L
+        removedListeners shouldBe listOf(listener)
+        assertNoActivityCapture()
+    }
+
+    @Test
+    fun `Off after quality change retires the original recording without erasing saved steps`() = runBlocking {
+        val ended = endCommand()
+        commands.markStopHandled(ended) shouldBe true
+        val capture = startChosenStepsAfterEnd(ended.generation)
+        recordCounter(capture, 100f, 0L)
+        reconfigureQuality(4)
+        recordCounter(capture, 106f, 6L)
+        val origin = currentStepsDemand(capture)
+        val listener = listeners.single()
+        val off = requireNotNull(turnOff.reserveAndFence(null))
+        withTimeout(5_000L) {
+            sourceSession.stop("USER_OFF", false, SourceSessionStopCutoff(off.stop.requestedAtEpochMs,
+                requireNotNull(off.stop.requestedElapsedRealtimeNanos), BOOT))
+        } shouldBe SourceSessionStopOutcome.Stopped
+        commands.markStopHandled(off.stop) shouldBe true
+        database.sourceBrokerDao().activeDemands(SourceKind.STEPS.stableCode) shouldBe emptyList()
+        RoomSourceCallerAcceptedAuthorityRepository(database).load(
+            SourceCallerReplayReference(requireNotNull(origin.sourceCallerAuthorityReference))) shouldBe
+            StoredSourceCallerAuthorityLoadResult.Retired
+        val before = database.sourceEventWalDao().maximumAdmissionOrdinal()
+        listener.onSensorChanged(stepEvent(111f))
+        database.sourceEventWalDao().maximumAdmissionOrdinal() shouldBe before
+        savedSteps(capture) shouldBe 6L
+        removedListeners shouldBe listOf(listener)
+        assertNoActivityCapture()
+    }
+
+    private suspend fun reconfigureQuality(level: Int): SourceSessionReconfigureOutcome.Applied {
+        advanceClock(1L)
+        val selected = paramsState.value.copy(overallBalanceLevel = level, locationBalanceLevel = level)
+        val policy = policies.replaceCaptureSettings(requireNotNull(selected.sourcePolicyRevision), selected, "QUALITY_TEST")
+        val settings = selected.copy(sourcePolicyRevision = policy.revision)
+        paramsState.value = settings
+        // CONTROL Ready is a fixture edge. Rebind it to the new real policy, without recording Activity.
+        controlIdentity = controlIdentity.copy(policyRevision = policy.revision,
+            executionRevision = controlIdentity.executionRevision + 1L)
+        purposeRegistry.update(controlIdentity.sourcePurpose, controlIdentity.executionRevision)
+        purposeRegistry.bind(controlIdentity)
+        availabilityState.value = CurrentTrackingPurposeAvailability(
+            TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.copy(
+                automaticControl = AutomaticTrackingOperationalAvailability.Ready(controlIdentity)),
+            mapOf(controlIdentity.sourcePurpose to TrackingPurposeAuthorityVector(controlIdentity.sourcePurpose,
+                policy.revision, controlIdentity.consentEpoch, 0L, 2L, controlIdentity.executionRevision)))
+        authorityRevisionState.value = TrackingPurposeAuthorityRevision(policy.revision, 0L, 2L)
+        return withTimeout(5_000L) {
+            sourceSession.reconfigure(SourceSessionPlanInputs(settings,
+                SourcePlanEnvironment(LocationBackend.FRAMEWORK, true, emptySet()),
+                PlanResolutionContext(SourceKind.entries.associateWith { SourceConstraint() }, false, false, false),
+                emptyList(), BOOT, ZoneId.systemDefault().id))
+        }.shouldBeInstanceOf<SourceSessionReconfigureOutcome.Applied>()
+    }
+
+    private suspend fun currentStepsDemand(capture: SessionStartResult.Started) =
+        database.sourceBrokerDao().currentDemands("session:${capture.logicalTrackingId}")
+            .single { it.sourceKind == SourceKind.STEPS.stableCode && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+
+    private suspend fun currentStepsBinding(capture: SessionStartResult.Started) =
+        database.sourceSessionDao().manifestSources(capture.logicalTrackingId,
+            requireNotNull(database.sourceSessionDao().session(capture.logicalTrackingId)?.currentManifestRevision))
+            .single { it.sourceKind == SourceKind.STEPS.stableCode && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+
+    private suspend fun recordCounter(capture: SessionStartResult.Started, count: Float, expectedSteps: Long) {
+        val before = requireNotNull(database.sourceEventWalDao().maximumAdmissionOrdinal())
+        listeners.last().onSensorChanged(stepEvent(count))
+        withTimeout(5_000L) {
+            while ((database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L) <= before) delay(5L)
+        }
+        val highWater = requireNotNull(database.sourceEventWalDao().maximumAdmissionOrdinal())
+        stepsLane.drainThrough(highWater).shouldBeInstanceOf<StepsSessionFactDrainResult.Complete>()
+        savedSteps(capture) shouldBe expectedSteps
     }
 
     private suspend fun startChosenStepsAfterEnd(endGeneration: Long): SessionStartResult.Started {
@@ -500,11 +722,15 @@ class AutomaticCaptureChainRoomTest {
 
     private fun stepEvent(count: Float): SensorEvent {
         advanceClock(1L)
+        return stepEventAt(count, SystemClock.elapsedRealtimeNanos())
+    }
+
+    private fun stepEventAt(count: Float, observedAt: Long): SensorEvent {
         val constructor = SensorEvent::class.java.getDeclaredConstructor(Int::class.javaPrimitiveType!!)
             .apply { isAccessible = true }
         return constructor.newInstance(1).also {
             it.sensor = sensor
-            it.timestamp = SystemClock.elapsedRealtimeNanos()
+            it.timestamp = observedAt
             it.values[0] = count
         }
     }

@@ -474,3 +474,11 @@ prerequisites and T25 remain OPEN. No gates or dev/v10 integration started.
   ../2026-10-08/RELEASED_DATA_PRESERVATION_SELECTED/SOURCE_REVIEW.md.
   Generated schema, actual History/portable use, legacy universal erase and direct
   trip-delete annotation cleanup remain open; full T18/T25 are not closed.
+
+- [x] Select independently reviewed Steps live-counter continuity V2: fresh
+  accepted settings keep only the exact running Steps recording; actual owner/
+  listener/baseline rechecks and native ingress stay connected. Genuine boundaries
+  retire the original reference; End has its exact final callback cutoff.
+  Nine new Room/runtime/recovery methods are NOT_RUN. See
+  ../2026-10-08/STEPS_CONTINUITY_RUNTIME_SELECTED/SOURCE_REVIEW.md.
+  Actual hardware, historical saved-read repair and full T03/T25 remain open.
