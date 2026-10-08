@@ -190,7 +190,7 @@ product or changing activation gates implicitly.
   relationships, distance breakdowns, first-seen radio/coordinate metadata,
   rejected sessions, count-only Wi-Fi rows and operator names. They survive in
   the preserved original database. Concrete storage reuse remains proposed in
-  `RELEASED_DATA_RECOVERY_AUDIT/PRESERVATION_PROPOSAL.md`; no extra fields approved.
+  `RELEASED_DATA_RECOVERY_AUDIT/PRESERVATION_PROPOSAL.md`; extra preservation fields/older-record tables approved on October 8. Migration should reuse the existing import/export workflow; its smallest implementation seam is under review.
 
 
 - [ ] **T19 — Complete integration-scenario source.** Author missing provider-to-admission-
@@ -271,13 +271,13 @@ when the concrete proposal is ready; do not reask settled decisions.
 | Decision | Affected tasks | Current state |
 | --- | --- | --- |
 | Existing cancellation/lock-order repair for both Start failures | T02, T09 | Authorized by the October 7 instruction to execute the full presented plan. |
-| Smallest Steps recording continuity design and persistent meaning | T03, T18 | Narrowed presented proposal authorized. Operation-lease ancestry edge is under review; no blanket stale authority acceptance. |
+| Smallest Steps recording continuity design and persistent meaning | T03, T18 | Narrowed presented proposal authorized. Bounded same-live-counter continuation explicitly authorized on October 8; fresh caller authority remains strict. |
 | Recorded-so-far daily Steps with honest missing coverage | T08, T15, T17 | Presented behavior authorized. Per-day display-reader contract explicitly approved and V2 independently accepted; games remain strict. |
-| Shared saved Location summary for Tracker/notification/widget values | T17 | Presented reader reuse authorized; no new collection. |
+| Shared saved Location summary for Tracker/notification/widget values | T17 | Presented reader reuse authorized; October 8 also approves valid coordinates without accuracy for ordinary summaries, while radio joins still require accuracy. No new collection. |
 | Optional two-second first-enable provider-status wait | T08, T17 | Presented bounded wait authorized; existing repair button remains usable. |
 | Saved network/tower rows in existing radio detail screens | T11, T14, T17 | Presented scrolling-list direction authorized; complete lazy-row implementation accepted; simpler authority-copy removal explicitly approved and independently accepted. |
-| Shared measured-observation list for Timeline and Calendar day | T14, T17 | Concrete screen and existing-reader extension proposed through the questions tool; pending. See `UNIFIED_HISTORY_PRESENTATION_PROPOSAL/SOURCE_TRACE_AND_PROPOSAL.md`. |
-| Recover original released data in current rows and older-record tables | T13, T18 | Exact V2 storage reuse proposal independently reviewed; new fields/tables/annotation backfill asked through the questions tool, pending. See `RELEASED_DATA_RECOVERY_AUDIT`. |
+| Shared measured-observation list for Timeline and Calendar day | T14, T17 | Concrete screen and existing-reader extension explicitly approved on October 8; implementation in progress. See `UNIFIED_HISTORY_PRESENTATION_PROPOSAL/SOURCE_TRACE_AND_PROPOSAL.md`. |
+| Recover original released data in current rows and older-record tables | T13, T18 | Exact V2 storage reuse proposal explicitly approved on October 8, with migration reuse of the existing import/export workflow required; implementation seam under review. See `RELEASED_DATA_RECOVERY_AUDIT`. |
 | Durable background Location gap records | T07, T12 | Unanswered storage choice. |
 | New Activity/Pressure divergent-import conflict display | T14, T20 | Keep existing outcome until a concrete UI proposal is approved. |
 | Exact repeated Steps file membership for bundles | T21 | Review existing receipt semantics before proposing changes. |
@@ -423,3 +423,22 @@ T15 follow-up inspection found the period metric backends have no production
 Summary consumer. Period propagation/rows and precise distance display need a
 concrete product proposal before implementation; do not change achievements to
 create a caller. This is recorded work, not a new implicit UI approval.
+
+## October 8 practical design continuation
+
+- [x] Record all four explicit answers and the general whole-application design
+  preference in EXECUTION_DECISIONS.md. Preserve approved behavior with source-local
+  implementation; do not add arbitrary data restrictions.
+- [ ] Complete Steps live-counter continuity and reuse its lifetime in the existing
+  portable reader so quality-only revisions do not hide valid recorded steps.
+- [ ] Complete ordinary saved Location summaries with nullable accuracy and shared
+  retained qualification; wire the existing product callers.
+- [ ] Implement the approved shared observation list/read mode for Timeline and
+  Calendar's selected day, with measured dates, paging and independent failures.
+- [ ] Preserve the approved older fields/records through the existing import receipt
+  workflow, following the source-reviewed smallest migration seam.
+- [ ] Apply independent practical-use findings to real callers; review concrete
+  restrictions before removing them and keep necessary Stop/delete/permission rules.
+
+IMPLEMENTATION_ONLY / IMPLEMENTED_UNVALIDATED. All tests NOT_RUN. All 25 full-chain
+prerequisites and T25 remain OPEN. No gates or dev/v10 integration started.

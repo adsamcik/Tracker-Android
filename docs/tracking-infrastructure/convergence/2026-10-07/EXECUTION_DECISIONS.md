@@ -36,3 +36,35 @@ Newly discovered choices remain separate:
 IMPLEMENTATION_ONLY / IMPLEMENTED_UNVALIDATED. Source authorship and independent
 static review only; no execution gates or device/provider activation. Full assembly,
 validation, final review and local dev/v10 integration remain outstanding.
+
+## October 8 explicit answers
+
+The human answered the four pending questions in one direct message:
+- Steps: "I would make things as simple and unified as we can." Implement the
+  bounded same-live-counter continuation across accepted quality changes, with
+  current selection/permission/owner/listener checks and real stop/restart boundaries.
+  Keep fresh Start/caller acceptance strict. No new generic continuity framework.
+- Location: "Yes" to valid saved coordinates without accuracy for ordinary
+  summaries. Accuracy stays nullable; Wi-Fi/Cell map contexts retain their
+  approved accuracy requirement. Preserve useful available measurements.
+- History: "yes" to the shared six-source measured-observation list in Timeline
+  and Calendar selected day, optional session labels, inline expansion, older-data
+  paging, real aggregate windows and source-local Retry preserving valid siblings.
+- Older data: "Yes" to preserving the concrete reviewed original fields and
+  older records in the current database, reusing existing readings and labels.
+  Additional direction: "migrations should leverage import export workflow so
+  that we can do it more cleanly and reliably." Trace/reuse the existing import
+  receipt and conversion workflow; do not lose data by forcing it into an incomplete
+  portable format or construct redundant temporary files on startup. Any genuinely
+  new migration seam must be concretely reviewed before authoring it.
+
+General design instruction: use practical whole-application behavior as a review
+criterion. Identify concrete reasons for restrictions; do not hide useful valid
+data due to an absent optional measurement, unrelated source, session or processing
+path. Preserve independent partial results with honest labels. Simplify by reusing
+existing owners, source-local predicates, transactions and readers. An independent
+review of unnecessary or impractical limitations is required. Real platform
+permissions, Stop/delete boundaries and factual measurement limits still apply.
+
+This general preference was saved in a user-requested Codex memory update note.
+No validation/activation/integration boundary is changed by these answers.

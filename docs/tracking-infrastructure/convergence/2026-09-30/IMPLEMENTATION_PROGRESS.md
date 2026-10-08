@@ -746,3 +746,17 @@ no schema/backfill/provider or backup change selected. Historical source and
 subsequent reviewed code fixes have explicit pins. See
 `../2026-10-07/RELEASED_DATA_RECOVERY_AUDIT/SOURCE_REVIEW.md`. Full T18/assembly
 stay OPEN; tests NOT_RUN, no gates/integration.
+
+## 2026-10-08 — Explicit core decisions and practical whole-app review
+
+The human approved practical nullable-accuracy Location summaries, the shared
+six-source measured-date History list, and preservation of older details using
+current data/label storage. Steps continuity should be as simple/unified as possible,
+retaining only the verified same live counter over accepted quality changes.
+Migrations must reuse the import/export workflow; its narrow existing receipt/conversion
+seam is under review. See convergence/2026-10-07/EXECUTION_DECISIONS.md.
+
+A separate independent observer is auditing unnecessary user-facing restrictions
+across the whole application. The broader design preference has been saved in
+user-requested memory. Production/test-source slices are in progress; none is
+claimed validated. IMPLEMENTATION_ONLY, all tests NOT_RUN; T25 and all 25 chains OPEN.
