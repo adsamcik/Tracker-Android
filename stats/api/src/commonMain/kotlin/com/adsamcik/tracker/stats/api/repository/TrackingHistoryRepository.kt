@@ -10,6 +10,17 @@ import kotlinx.coroutines.flow.Flow
  * writer, repairs a projection, or writes a derived summary.
  */
 interface TrackingHistoryRepository {
+    /** Finite read of saved Location; no provider, writer or live total is started. */
+    suspend fun readSavedLocationSummary(selection: SavedLocationSummarySelection): SavedLocationSummaryRead =
+        SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
+
+    /**
+     * One engine-owned live observation. The controller shares its StateFlow with every live surface.
+     * Initial/recovery reads are complete; normal updates qualify only new saved receipt IDs.
+     */
+    fun observeLiveSavedLocationSummary(segmentId: Long): Flow<SavedLocationSummaryRead> =
+        kotlinx.coroutines.flow.flow { emit(readSavedLocationSummary(SavedLocationSummarySelection.Session(segmentId))) }
+
     /** Bounded source-qualified history for arbitrary days and ranges. */
     suspend fun readRange(request: HistoryRangeRequest): HistoryRangeRead =
         HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)

@@ -66,6 +66,48 @@ class ProtectedLocationCanonicalHandoffTest {
 		database.close()
 	}
 
+    @Test
+    fun `saved presentation hint follows the actual Room purpose and cursor commit`() = runTest {
+        val command = command()
+        insertWal(command)
+        val emitted = mutableListOf<Long>()
+        val writer = ReceiptWriter(database, accepted = true)
+        val handoff = handoff(command, writer) { sampleId ->
+            assertFalse(database.inTransaction())
+            database.openHelper.readableDatabase.query(
+                "SELECT COUNT(*) FROM location_sample_purpose_authority WHERE sample_id = ? AND purpose = 'SESSION_CAPTURE'",
+                arrayOf(sampleId),
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(1L, cursor.getLong(0))
+            }
+            database.openHelper.readableDatabase.query(
+                "SELECT contiguous_admission_ordinal FROM source_product_projection_lane WHERE source_kind = 1 AND status = 'ACTIVE'",
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(ADMISSION_ORDINAL, cursor.getLong(0))
+            }
+            emitted += sampleId
+        }
+        assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainThrough(LOGICAL_ID, RUN_ID, ADMISSION_ORDINAL))
+        val receipt = requireNotNull(database.locationPurposeDao().receiptByEvent(EVENT_ID))
+        assertEquals(listOf(receipt.sampleId), emitted)
+        assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainThrough(LOGICAL_ID, RUN_ID, ADMISSION_ORDINAL))
+        assertEquals(listOf(receipt.sampleId), emitted)
+        assertEquals(1, writer.writeCount)
+    }
+
+    @Test
+    fun `a rejected canonical observation does not advertise a saved point`() = runTest {
+        val command = command()
+        insertWal(command)
+        val emitted = mutableListOf<Long>()
+        val handoff = handoff(command, ReceiptWriter(database, accepted = false), emitted::add)
+        assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainThrough(LOGICAL_ID, RUN_ID, ADMISSION_ORDINAL))
+        assertTrue(emitted.isEmpty())
+        assertNull(database.locationPurposeDao().receiptByEvent(EVENT_ID))
+    }
+
 	@Test
 	fun `source WAL drains through canonical writer and exact production receipt`() = runTest {
 		val command = command()
@@ -989,6 +1031,7 @@ class ProtectedLocationCanonicalHandoffTest {
 	private fun handoff(
 		command: LocationCapturedFactCommand,
 		writer: ProtectedLocationCanonicalWriter,
+        onSavedPointCommitted: (Long) -> Unit = {},
 	): ProtectedLocationCanonicalHandoff = ProtectedLocationCanonicalHandoff(
 		database = database,
 		qualifier = ProtectedLocationWalQualifier {
@@ -998,6 +1041,7 @@ class ProtectedLocationCanonicalHandoffTest {
 			)
 		},
 		canonicalWriter = writer,
+        onSavedPointCommitted = onSavedPointCommitted,
 	)
 
 	private suspend fun installCanonicalLane() {

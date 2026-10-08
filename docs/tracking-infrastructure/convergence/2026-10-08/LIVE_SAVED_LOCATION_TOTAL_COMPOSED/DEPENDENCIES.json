@@ -1,0 +1,362 @@
+{
+  "base_commit": "fa091d6068e42632af2adb79deb1958772b300e7",
+  "committed_pins": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "694fe135558539f94821481708982dc3880f92f72476b54e418b2eeccb8c8971",
+      "reviewed_v4_sha256": "694fe135558539f94821481708982dc3880f92f72476b54e418b2eeccb8c8971",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a",
+      "reviewed_v4_sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c",
+      "reviewed_v4_sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "feature/tracker/build.gradle.kts",
+      "sha256": "8b64ab538f3de43aa7809b059ce4e78565306dedbd894d0fea4329b5de93c802",
+      "reviewed_v4_sha256": "8b64ab538f3de43aa7809b059ce4e78565306dedbd894d0fea4329b5de93c802",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "stats/api/build.gradle.kts",
+      "sha256": "aa99b3d4ada0f474600ef53d1c7b4b29b5bb034e5bf700d1cac7412d35ae39b4",
+      "reviewed_v4_sha256": "aa99b3d4ada0f474600ef53d1c7b4b29b5bb034e5bf700d1cac7412d35ae39b4",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "sha256": "a276144c34315be81b125df52eb7611f08e92a7629abb3d1f3587a3e92a93f24",
+      "reviewed_v4_sha256": "a276144c34315be81b125df52eb7611f08e92a7629abb3d1f3587a3e92a93f24",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/TrackingHistoryRepository.kt",
+      "sha256": "44163549c3859b917e76ef60bce3a5f683c373781b529b20ab995d2b54810558",
+      "reviewed_v4_sha256": "44163549c3859b917e76ef60bce3a5f683c373781b529b20ab995d2b54810558",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt",
+      "sha256": "754eb9dd90efa49e47de5e4af84223a9bf4636ed3a8ce434cbd6a99b17a85093",
+      "reviewed_v4_sha256": "754eb9dd90efa49e47de5e4af84223a9bf4636ed3a8ce434cbd6a99b17a85093",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/TrackingHistorySourceUnionReader.kt",
+      "sha256": "7e0a0a84ad04a349b93f8bb85e602450b37803c0ab0e7cafe979bf4813049038",
+      "reviewed_v4_sha256": "7e0a0a84ad04a349b93f8bb85e602450b37803c0ab0e7cafe979bf4813049038",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "sha256": "f51a6a98870cd82674cd0406ef3b3a9a79b4aa6ea898b5144a662e6218660476",
+      "reviewed_v4_sha256": "83b2a25aabdebaf20fa70613a0b9d764e14f997ffec86d93c6d124466ff22823",
+      "changed_since_reviewed_v4": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt",
+      "sha256": "19b50f45b0536f3716a00f64862d302c4caf8df81ec723d891fa619877aed9d2",
+      "reviewed_v4_sha256": "38b7466823ffdd187b851569b76fbef386144a009ef68afa4b5bb4470126677d",
+      "changed_since_reviewed_v4": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt",
+      "sha256": "7e84d8cc24badede1e45ae51a68f281e5e02c8114353d6af169a2ceb0f34c6a1",
+      "reviewed_v4_sha256": "7e84d8cc24badede1e45ae51a68f281e5e02c8114353d6af169a2ceb0f34c6a1",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+      "sha256": "41e8f383798fc73d3c3c57cc7ff3689caa7da9306ed10073c5d0929bfa68188f",
+      "reviewed_v4_sha256": "651f891f264ff091399c60891685811f6867033a8a06ee2337bfd7bec0eb6c98",
+      "changed_since_reviewed_v4": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceEvidenceState.kt",
+      "sha256": "46c82a487f55cc82270e30e49d4e30e59e6b2c0e3599b69337a60343f97c9327",
+      "reviewed_v4_sha256": "46c82a487f55cc82270e30e49d4e30e59e6b2c0e3599b69337a60343f97c9327",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceEvidenceStateDao.kt",
+      "sha256": "481e14a20745a0e8a2f68de3fa0d9d5d407b14e74288e799fe629541d65acc76",
+      "reviewed_v4_sha256": "481e14a20745a0e8a2f68de3fa0d9d5d407b14e74288e799fe629541d65acc76",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "core/common/src/main/java/com/adsamcik/tracker/shared/base/di/ProviderContracts.kt",
+      "sha256": "d8d444b6a3fb21fb39e4d9af2b593ca0ef6eb5baee596b90e70c171e86255425",
+      "reviewed_v4_sha256": "d8d444b6a3fb21fb39e4d9af2b593ca0ef6eb5baee596b90e70c171e86255425",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt",
+      "sha256": "28fb6fb43e929ed60207167f4141d9ea0c2b02bf477a343e506e491febfb9eb9",
+      "reviewed_v4_sha256": "28fb6fb43e929ed60207167f4141d9ea0c2b02bf477a343e506e491febfb9eb9",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardStatsCards.kt",
+      "sha256": "abc033e16d7624f76efebb1071114309938fd299c2e7458e8c820c451b511486",
+      "reviewed_v4_sha256": "abc033e16d7624f76efebb1071114309938fd299c2e7458e8c820c451b511486",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardTrackingComponents.kt",
+      "sha256": "53aeaa0484c4220c4fbcd00f011d541a1d2fa842572a0570221beb72174bdbfe",
+      "reviewed_v4_sha256": "53aeaa0484c4220c4fbcd00f011d541a1d2fa842572a0570221beb72174bdbfe",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/DashboardViewModel.kt",
+      "sha256": "f094b1f529ecf59ea9aa25902c29edfc1510e7f164dc7a243dd1e98b6cb22344",
+      "reviewed_v4_sha256": "f094b1f529ecf59ea9aa25902c29edfc1510e7f164dc7a243dd1e98b6cb22344",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/TrackerWidgetEntryPoint.kt",
+      "sha256": "932fbc2e464ba40b6b565cdaf059b515e8b01e1356f3fcde1f667df7841b5cac",
+      "reviewed_v4_sha256": "932fbc2e464ba40b6b565cdaf059b515e8b01e1356f3fcde1f667df7841b5cac",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionWidget.kt",
+      "sha256": "b6618adaadea51d9cf9a53e208e6ef5214724460406a183baec3d7fa9f9550ec",
+      "reviewed_v4_sha256": "b6618adaadea51d9cf9a53e208e6ef5214724460406a183baec3d7fa9f9550ec",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/TodaySummaryWidget.kt",
+      "sha256": "e9a867c4e05eb4f66ad935015797e6261c146ce3094ebee9f76dea7d059b144d",
+      "reviewed_v4_sha256": "e9a867c4e05eb4f66ad935015797e6261c146ce3094ebee9f76dea7d059b144d",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/di/AppGraphModule.kt",
+      "sha256": "b17c2f5214a5e09e8d8c8506525ad83d41f4b213366052f87e68d118f41ed9cb",
+      "reviewed_v4_sha256": "b17c2f5214a5e09e8d8c8506525ad83d41f4b213366052f87e68d118f41ed9cb",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/LocationDomainProjection.kt",
+      "sha256": "ff0c213c4a4de97fb2c13fb4bd25dbd36fed7c62dbfca67bb571e0f602d412fe",
+      "reviewed_v4_sha256": "ff0c213c4a4de97fb2c13fb4bd25dbd36fed7c62dbfca67bb571e0f602d412fe",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ProjectionDispatcher.kt",
+      "sha256": "f6b27c62741598ae53dfacfbd4aea9950736d7c2fd89d792e3cf14374badc004",
+      "reviewed_v4_sha256": "f6b27c62741598ae53dfacfbd4aea9950736d7c2fd89d792e3cf14374badc004",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingCoordinator.kt",
+      "sha256": "d0e732e8379ae29d20418c4e20343a8b091fb0b9260627a148aa33705055b7fe",
+      "reviewed_v4_sha256": "d0e732e8379ae29d20418c4e20343a8b091fb0b9260627a148aa33705055b7fe",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "stats/engine/src/commonMain/kotlin/com/adsamcik/tracker/stats/engine/processor/AggregatorProcessor.kt",
+      "sha256": "baec4f47c40501f7769faec2816f59e02e0841f493eacf788aa928d7e1108998",
+      "reviewed_v4_sha256": "baec4f47c40501f7769faec2816f59e02e0841f493eacf788aa928d7e1108998",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/consumer/SessionTrackerComponent.kt",
+      "sha256": "0506162acc7a55dacdf65661d316e12ea91bd85da42cb4612acadd9ca8a73f25",
+      "reviewed_v4_sha256": "0506162acc7a55dacdf65661d316e12ea91bd85da42cb4612acadd9ca8a73f25",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/consumer/post/NotificationComponent.kt",
+      "sha256": "f34f74f96dc6e35dd0c4908b409bed3987cfee4250bf6bd30106be8b957a81d2",
+      "reviewed_v4_sha256": "f34f74f96dc6e35dd0c4908b409bed3987cfee4250bf6bd30106be8b957a81d2",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/consumer/post/NotificationUpdateGate.kt",
+      "sha256": "6e380ef1dbd25b3315d02641ebdec794b36a66cdf8fbfa88ffaa1ce8dfcb8182",
+      "reviewed_v4_sha256": "6e380ef1dbd25b3315d02641ebdec794b36a66cdf8fbfa88ffaa1ce8dfcb8182",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/DistanceNotificationComponent.kt",
+      "sha256": "a385020f8fed01aa0b55d665c6268004a54fa7002e5f5f32e9f67d6a329d44df",
+      "reviewed_v4_sha256": "a385020f8fed01aa0b55d665c6268004a54fa7002e5f5f32e9f67d6a329d44df",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/LastUpdateNotificationComponent.kt",
+      "sha256": "e82a87511fd02137c785220ae8f9b5f963fdba7d78b85a57f6d47716893fa2aa",
+      "reviewed_v4_sha256": "e82a87511fd02137c785220ae8f9b5f963fdba7d78b85a57f6d47716893fa2aa",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/controller/DefaultTrackerServiceController.kt",
+      "sha256": "2884362035237c9fd00f08e397f4083756ba75a4aa9f4b3b79ab59cc6f1465bf",
+      "reviewed_v4_sha256": "2884362035237c9fd00f08e397f4083756ba75a4aa9f4b3b79ab59cc6f1465bf",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/DefaultDailySummaryProvider.kt",
+      "sha256": "07acd0668af5730387e234f70fa6b7ba0ede12399d0c07988f1ba1c372711391",
+      "reviewed_v4_sha256": "07acd0668af5730387e234f70fa6b7ba0ede12399d0c07988f1ba1c372711391",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt",
+      "sha256": "bce262d403e0f971594876e18794d8d1380d4510d095c36d1bc731d8d566ad95",
+      "reviewed_v4_sha256": "bce262d403e0f971594876e18794d8d1380d4510d095c36d1bc731d8d566ad95",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/data/collection/TrackingCycle.kt",
+      "sha256": "470405f133127b947867c4ff8399844735d0706dbdfd52cca595830aa0ff9a28",
+      "reviewed_v4_sha256": "470405f133127b947867c4ff8399844735d0706dbdfd52cca595830aa0ff9a28",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackingOrchestrator.kt",
+      "sha256": "4f612a8d2bf7360219864d03855e55867e29d68edf366b14a6121cb9588c6cfc",
+      "reviewed_v4_sha256": "4f612a8d2bf7360219864d03855e55867e29d68edf366b14a6121cb9588c6cfc",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+      "sha256": "3f5ae24ef39b53418a8910df966ba367cfadacfe8df5f5d89a4b73174d78d130",
+      "reviewed_v4_sha256": "3f5ae24ef39b53418a8910df966ba367cfadacfe8df5f5d89a4b73174d78d130",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/feed/DefaultTrackerLiveLocationFeed.kt",
+      "sha256": "e9213c5491936a2063b2b2aa97fc5f67ac055833a98144f2d1b5e86e777c4df4",
+      "reviewed_v4_sha256": "e9213c5491936a2063b2b2aa97fc5f67ac055833a98144f2d1b5e86e777c4df4",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/api-module/build.gradle.kts",
+      "sha256": "67bb5c2b70196d20be7f1bef18484e92dbbea72cd83f3264e47bded86e6d4d30",
+      "reviewed_v4_sha256": "67bb5c2b70196d20be7f1bef18484e92dbbea72cd83f3264e47bded86e6d4d30",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/controller/TrackerServiceController.kt",
+      "sha256": "579804ec7af8599b41468345227cbb5cba14eacb1915933d1884bd5d6379afe7",
+      "reviewed_v4_sha256": "579804ec7af8599b41468345227cbb5cba14eacb1915933d1884bd5d6379afe7",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceDeletionFenceDao.kt",
+      "sha256": "d51b49b25582fb3b966d3a1d4a2026c77665c860e4393c846ef0c8afdfdfa856",
+      "reviewed_v4_sha256": "d51b49b25582fb3b966d3a1d4a2026c77665c860e4393c846ef0c8afdfdfa856",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/LocationAmbientCleanup.kt",
+      "sha256": "34102bbacf5ede31c9283aa2a5cfff41a0de24a570b81f2874ee6fb05777d341",
+      "reviewed_v4_sha256": "34102bbacf5ede31c9283aa2a5cfff41a0de24a570b81f2874ee6fb05777d341",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/controller/DefaultTrackerServiceControllerTest.kt",
+      "sha256": "b9707b380fec085cab7a03a30c0037a599e34a09cac657bb3ecb893a8143c0a2",
+      "reviewed_v4_sha256": "b9707b380fec085cab7a03a30c0037a599e34a09cac657bb3ecb893a8143c0a2",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt",
+      "sha256": "e29591c17990d704afb99f49d8b537ba6b8cd47b4ee1b1f2f1c70cccd07c5fd3",
+      "reviewed_v4_sha256": "e29591c17990d704afb99f49d8b537ba6b8cd47b4ee1b1f2f1c70cccd07c5fd3",
+      "changed_since_reviewed_v4": false
+    },
+    {
+      "path": "core/testing/build.gradle.kts",
+      "sha256": "32c6cfb9ca983248010b10d67343fd0530135e89698b70d85d6cfadb5ddf27e9",
+      "reviewed_v4_sha256": "32c6cfb9ca983248010b10d67343fd0530135e89698b70d85d6cfadb5ddf27e9",
+      "changed_since_reviewed_v4": false
+    }
+  ],
+  "source_conflicts": [],
+  "changed_since_reviewed_v4_paths": [
+    "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+    "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt",
+    "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt"
+  ],
+  "private_companion_resolution": "All earlier Saved Location V2 source inputs are now in independently reviewed historical commit fa091d60. Three overlay-base source paths exactly match that commit. V4 source bytes remain identical; historical original-authority qualifier source changes are separately reviewed in HISTORICAL_SAVED_LOCATION_AUTHORITY_SELECTED, not silently ignored.",
+  "resolved_private_companion_pins": [
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SavedLocationSummary.kt",
+      "reviewed_private_input": {
+        "packet": "SAVED_LOCATION_SUMMARY_SELECTED V2",
+        "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SavedLocationSummary.kt",
+        "sha256": "64391aab0f012a53e470fb73840a2b7bca294518a62067ff53543f527043d0f2",
+        "disposition": "root must compose approved historical qualifier repair before selection; shared qualifier not edited here"
+      },
+      "committed_sha256": "64391aab0f012a53e470fb73840a2b7bca294518a62067ff53543f527043d0f2",
+      "now_committed_in": "fa091d6068e42632af2adb79deb1958772b300e7"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt",
+      "reviewed_private_input": {
+        "packet": "SAVED_LOCATION_SUMMARY_SELECTED V2",
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt",
+        "sha256": "537e3cf146ccc410abfc773f8d4d05c67821bc9ae1f0fd9cbb0916bde355393b",
+        "disposition": "root must compose approved historical qualifier repair before selection; shared qualifier not edited here"
+      },
+      "committed_sha256": "537e3cf146ccc410abfc773f8d4d05c67821bc9ae1f0fd9cbb0916bde355393b",
+      "now_committed_in": "fa091d6068e42632af2adb79deb1958772b300e7"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt",
+      "reviewed_private_input": {
+        "packet": "SAVED_LOCATION_SUMMARY_SELECTED V2",
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt",
+        "sha256": "19b50f45b0536f3716a00f64862d302c4caf8df81ec723d891fa619877aed9d2",
+        "disposition": "root must compose approved historical qualifier repair before selection; shared qualifier not edited here"
+      },
+      "committed_sha256": "19b50f45b0536f3716a00f64862d302c4caf8df81ec723d891fa619877aed9d2",
+      "now_committed_in": "fa091d6068e42632af2adb79deb1958772b300e7"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "reviewed_private_input": {
+        "packet": "SAVED_LOCATION_SUMMARY_SELECTED V2",
+        "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+        "sha256": "e8a1f3e0b1534af0a3bc32cbcada669e3a2718aee763b6edbd9bd4d906cf6422",
+        "disposition": "root must compose approved historical qualifier repair before selection; shared qualifier not edited here"
+      },
+      "committed_sha256": "a88d0e60bb6c292c3f15a4dd3fae169a18bb865c7f6007d3e9cbda31e21c26e0",
+      "now_committed_in": "fa091d6068e42632af2adb79deb1958772b300e7"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReaderRoomTest.kt",
+      "reviewed_private_input": {
+        "packet": "SAVED_LOCATION_SUMMARY_SELECTED V2",
+        "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReaderRoomTest.kt",
+        "sha256": "d2beda3cebaea22edb6ba0d6559a953a9b491be0a0ece14787be768679ddf274",
+        "disposition": "root must compose approved historical qualifier repair before selection; shared qualifier not edited here"
+      },
+      "committed_sha256": "5743c8da9f9d36f50dae0a760f2a9035d34e0013df8848e9dc2c10faf5900ec5",
+      "now_committed_in": "fa091d6068e42632af2adb79deb1958772b300e7"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+      "reviewed_private_input": {
+        "packet": "SAVED_LOCATION_SUMMARY_SELECTED V2",
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+        "sha256": "41e8f383798fc73d3c3c57cc7ff3689caa7da9306ed10073c5d0929bfa68188f",
+        "disposition": "root must compose approved historical qualifier repair before selection; shared qualifier not edited here"
+      },
+      "committed_sha256": "41e8f383798fc73d3c3c57cc7ff3689caa7da9306ed10073c5d0929bfa68188f",
+      "now_committed_in": "fa091d6068e42632af2adb79deb1958772b300e7"
+    }
+  ]
+}

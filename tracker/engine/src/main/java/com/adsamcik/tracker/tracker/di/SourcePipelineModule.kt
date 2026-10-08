@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.di
 
+import com.adsamcik.tracker.stats.api.repository.SavedLocationLiveUpdates
+
 import android.content.Context
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
@@ -130,9 +132,11 @@ object SourcePipelineModule {
 		live: ProtectedLocationLiveWriterRegistry,
 		offline: ProtectedLocationOfflineCanonicalWriter,
 		ambient: ProtectedLocationAmbientCanonicalWriter,
+        savedLocationUpdates: SavedLocationLiveUpdates,
 		@ApplicationScope scope: CoroutineScope,
 	): ProtectedLocationCanonicalHandoff = ProtectedLocationCanonicalHandoff(
 		database, qualifier, ProtectedLocationCanonicalWriterChain(live::current, offline, ambient), scope,
+        savedLocationUpdates::pointCommitted,
 	)
 
 	@Provides

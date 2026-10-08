@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.app.di
 
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+
 import android.content.Context
 import com.adsamcik.tracker.app.Application
 import com.adsamcik.tracker.game.di.DefaultDailyPointsProvider
@@ -52,8 +54,11 @@ object AppGraphModule {
 
     @Provides
     @Singleton
-    fun provideTrackerServiceController(): TrackerServiceController {
-        return DefaultTrackerServiceController()
+    fun provideTrackerServiceController(
+        history: TrackingHistoryRepository,
+        @ApplicationScope applicationScope: CoroutineScope,
+    ): TrackerServiceController = DefaultTrackerServiceController().also {
+        it.bindSavedLocationSummaries(history, applicationScope)
     }
 
     @Provides

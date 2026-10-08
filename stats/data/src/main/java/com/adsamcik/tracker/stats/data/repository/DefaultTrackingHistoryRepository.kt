@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection
+
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.TRACKING_HISTORY_INVALIDATION_TABLES
@@ -81,8 +83,22 @@ internal class DefaultTrackingHistoryRepository private constructor(
 	private val sourceFactLookupReader: RoomSourceFactLookupReader =
 		RoomSourceFactLookupReader(database, ioDispatcher),
 	private val rangeReader: UnifiedHistoryRangeReader? = null,
+    private val savedLocationUpdates: SavedLocationLiveUpdateSignal = SavedLocationLiveUpdateSignal(),
 ) : PagedTrackingHistoryRepository {
 	private val importedReader = ImportedStepsProductReader(database)
+    private val savedLocationSummaries by lazy { SavedLocationSummaryReader(database, ioDispatcher) }
+    private val liveLocationSummaries by lazy { SavedLocationLiveSummaryReader(database, ioDispatcher, savedLocationUpdates,
+        savedLocationSummaries) }
+
+    override suspend fun readSavedLocationSummary(selection: SavedLocationSummarySelection) =
+        when (selection) {
+            is SavedLocationSummarySelection.Session ->
+                savedLocationSummaries.readSession(selection.segmentId)
+            is SavedLocationSummarySelection.Window ->
+                savedLocationSummaries.readWindow(selection.window)
+        }
+
+    override fun observeLiveSavedLocationSummary(segmentId: Long) = liveLocationSummaries.observeSession(segmentId)
 
 	@Inject
 	internal constructor(
@@ -97,6 +113,7 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		rangeReader: UnifiedHistoryRangeReader,
 		integrationObserver: TrackingHistoryIntegrationObserver =
 			TrackingHistoryIntegrationObserver(),
+        savedLocationUpdates: SavedLocationLiveUpdateSignal = SavedLocationLiveUpdateSignal(),
 	) : this(
 		database = database,
 		stepsSelector = stepsSelector,
@@ -107,6 +124,7 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		ioDispatcher = ioDispatcher,
 		integrationObserver = integrationObserver,
 		rangeReader = rangeReader,
+        savedLocationUpdates = savedLocationUpdates,
 		sourceFactLookupReader = RoomSourceFactLookupReader(
 			database,
 			ioDispatcher,

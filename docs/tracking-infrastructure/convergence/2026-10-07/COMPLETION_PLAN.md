@@ -503,3 +503,11 @@ All 25 prerequisites and T25 remain OPEN. No validation, provider activation, in
 - [ ] Complete the shared live total and its actual consumers, measured six-source History dispatcher, native portable export checks, effective Location corrections and remaining full-chain integration.
 
 IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites and T25 remain OPEN. No execution gates, activation or dev/v10 integration.
+
+### October 8 — shared saved Location live total
+
+- [x] Select the independently accepted V4 shared live-total core, composed exactly with committed historical authority. One shared controller observation seeds saved data, catches up new receipts in finite pages and preserves dependency wakeups through conflation. Relevant lifecycle/data changes clear or rebuild the temporary total.
+- [x] Author 26 Room/controller/handoff/fake-contract methods, all NOT_RUN. Exact composition: `../2026-10-08/LIVE_SAVED_LOCATION_TOTAL_COMPOSED/`; independent source acceptance: `LIVE_SAVED_LOCATION_REVIEW/V4_ACCEPTANCE.md`.
+- [ ] Finish the Tracker/notification/widget numerical consumers and installed-widget refresh decision. Effective imported corrections, logical multi-run/day/imported numerical readers and full source chains remain open.
+
+IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites and T25 remain OPEN; no gates, activation or dev/v10 integration.

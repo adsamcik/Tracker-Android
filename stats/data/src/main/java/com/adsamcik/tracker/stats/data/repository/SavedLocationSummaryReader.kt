@@ -35,7 +35,8 @@ internal class SavedLocationSummaryReader @Inject constructor(
 
     /** The caller must own the same transaction and source-evidence snapshot as its other products. */
     internal suspend fun readSessionInTransaction(segmentId: Long,
-        snapshot: TrackingHistoryReadSnapshot): SavedLocationSummaryRead {
+        snapshot: TrackingHistoryReadSnapshot,
+        onState: ((SavedTripDistanceState, SavedLocationPosition?) -> Unit)? = null): SavedLocationSummaryRead {
         val segment = database.trackingHistoryReadDao().segments(listOf(segmentId)).singleOrNull()
             ?: return SavedLocationSummaryRead.NotFound
         val logicalId = segment.logicalTrackingId
@@ -44,7 +45,12 @@ internal class SavedLocationSummaryReader @Inject constructor(
             // Older/imported ordinary history remains readable through its existing compatibility reader.
             return SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
         }
-        return readPages(SavedLocationSummarySelection.Session(segmentId), snapshot,
+        val candidates = database.locationPurposeDao().savedSessionCandidateCount(logicalId, runId, segmentId)
+        if (candidates < 0L) return SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+        val missingPrefix = database.sourceEvidenceStateDao().get()?.retainedFromMs?.let {
+            segment.startTimeMs < it
+        } == true
+        val read = readPages(SavedLocationSummarySelection.Session(segmentId), snapshot, onState = onState,
             scopeMatches = { scope -> (scope as? RadioContextScope.Session)?.owner?.let {
                 it.sessionSegmentId == segmentId && it.logicalTrackingId == logicalId && it.serviceRunId == runId
             } == true }, nextPage = { after ->
@@ -58,6 +64,9 @@ internal class SavedLocationSummaryReader @Inject constructor(
                 val byId = receipts.associateBy { it.sampleId }
                 rows.map { row -> SavedLocationCandidate(requireNotNull(byId[row.sample.id]), row.sample.timeMs) }
             })
+        return if (read is SavedLocationSummaryRead.Snapshot && (missingPrefix || candidates > read.summary.pointCount)) {
+            read.copy(summary = read.summary.copy(partial = true))
+        } else read
     }
 
     /** Any independently retained native purpose can contribute to the same measured-date window. */
@@ -90,16 +99,19 @@ internal class SavedLocationSummaryReader @Inject constructor(
 
     private suspend fun readPages(selection: SavedLocationSummarySelection, snapshot: TrackingHistoryReadSnapshot,
         scopeMatches: (RadioContextScope) -> Boolean,
-        nextPage: suspend (SavedLocationPosition?) -> List<SavedLocationCandidate>): SavedLocationSummaryRead {
+        nextPage: suspend (SavedLocationPosition?) -> List<SavedLocationCandidate>,
+        onState: ((SavedTripDistanceState, SavedLocationPosition?) -> Unit)? = null): SavedLocationSummaryRead {
         val accumulator = SavedTripDistanceAccumulator()
         var count = 0L
         var latest: SavedLocationFix? = null
         var after: SavedLocationPosition? = null
         var partial = false
+        var processed: SavedLocationPosition? = null
         val gaps = linkedSetOf<RadioLocationContextGap>()
         fun result(problem: HistoryProblemReason? = null) = SavedLocationSummaryRead.Snapshot(selection, snapshot,
             SavedLocationSummary(count, latest, accumulator.measuredMeters?.takeIf { it.isFinite() },
                 partial || accumulator.hasDisconnectedSections || gaps.isNotEmpty() || problem != null, gaps.toSet()), problem)
+                .also { onState?.invoke(accumulator.snapshotState(), processed) }
         try {
             val state = database.sourceEvidenceStateDao().get()
             if (state == null || !state.hasValidRangeShape() ||
@@ -114,29 +126,13 @@ internal class SavedLocationSummaryReader @Inject constructor(
                     throw InvalidSavedLocationPage()
                 }
                 if (page.isEmpty()) return result()
-                val accepted = mutableMapOf<Long, QualifiedRetainedLocationSample>()
-                var pageProblem: HistoryProblemReason? = null
-                suspend fun qualify(receipts: List<LocationAcceptedReceiptEntity>) {
-                    currentCoroutineContext().ensureActive()
-                    val read = retained.qualifySavedInTransaction(receipts)
-                    // A busy window can contain many independent runs. Split only the bounded batch,
-                    // never discard the whole selection because optional dependencies exceed one call.
-                    if (RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in read.gaps && receipts.size > 1) {
-                        val middle = receipts.size / 2
-                        qualify(receipts.subList(0, middle))
-                        qualify(receipts.subList(middle, receipts.size))
-                    } else {
-                        gaps += read.gaps
-                        read.samples.filter { scopeMatches(it.scope) }.forEach { accepted.putIfAbsent(it.sample.id, it) }
-                        if (read.historyProblem != null) pageProblem = read.historyProblem
-                        if (RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in read.gaps) {
-                            pageProblem = HistoryProblemReason.DEPENDENCY_OVERFLOW
-                        }
-                    }
-                }
-                qualify(page.map { it.receipt })
+                val qualified = qualifyCandidatesInTransaction(page.map { it.receipt }, scopeMatches)
+                val accepted = qualified.samples
+                val pageProblem = qualified.problem
+                gaps += qualified.gaps
                 for (candidate in page) {
                     currentCoroutineContext().ensureActive()
+                    processed = candidate.position
                     val row = accepted[candidate.receipt.sampleId]
                     if (row == null) {
                         accumulator.breakContinuity()
@@ -171,15 +167,30 @@ internal class SavedLocationSummaryReader @Inject constructor(
         }
     }
 
-    private fun QualifiedRetainedLocationSample.toSavedFix(): SavedLocationFix? {
-        val latitude = sample.latE7?.takeIf { it in -900_000_000..900_000_000 } ?: return null
-        val longitude = sample.lonE7?.takeIf { it in -1_800_000_000..1_800_000_000 } ?: return null
-        return SavedLocationFix(sample.id, sample.timeMs, receipt.wallTimeUncertaintyMs, latitude, longitude,
-            sample.speedMps.validNonNegative(), sample.speedAccuracyMps.validNonNegative(), sample.hAccM.validNonNegative(),
-            sample.altitudeM?.takeIf { it.isFinite() }, sample.altitudeDatum, sample.altitudeSource, sample.vAccM.validNonNegative())
+    /** Shared finite qualification for full reads and the temporary live continuation. */
+    internal suspend fun qualifyCandidatesInTransaction(receipts: List<LocationAcceptedReceiptEntity>,
+        scopeMatches: (RadioContextScope) -> Boolean): SavedLocationQualifiedPage {
+        val accepted = linkedMapOf<Long, QualifiedRetainedLocationSample>()
+        val gaps = linkedSetOf<RadioLocationContextGap>()
+        var problem: HistoryProblemReason? = null
+        suspend fun qualify(batch: List<LocationAcceptedReceiptEntity>) {
+            currentCoroutineContext().ensureActive()
+            val read = retained.qualifySavedInTransaction(batch)
+            if (RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in read.gaps && batch.size > 1) {
+                val middle = batch.size / 2
+                qualify(batch.subList(0, middle))
+                qualify(batch.subList(middle, batch.size))
+            } else {
+                gaps += read.gaps
+                read.samples.filter { scopeMatches(it.scope) }.forEach { accepted.putIfAbsent(it.sample.id, it) }
+                if (read.historyProblem != null) problem = read.historyProblem
+                if (RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in read.gaps) problem = HistoryProblemReason.DEPENDENCY_OVERFLOW
+            }
+        }
+        qualify(receipts)
+        return SavedLocationQualifiedPage(accepted, gaps, problem)
     }
 
-    private fun Float?.validNonNegative(): Float? = this?.takeIf { it.isFinite() && it >= 0f }
     private class InvalidSavedLocationPage : IllegalStateException("Invalid saved Location page")
     private companion object { const val POINT_PAGE_SIZE = 256 }
 }
@@ -187,7 +198,20 @@ internal class SavedLocationSummaryReader @Inject constructor(
 private data class SavedLocationCandidate(val receipt: LocationAcceptedReceiptEntity, val timeMs: Long) {
     val position: SavedLocationPosition get() = SavedLocationPosition(timeMs, receipt.sampleId)
 }
-private data class SavedLocationPosition(val timeMs: Long, val sampleId: Long) : Comparable<SavedLocationPosition> {
+internal data class SavedLocationPosition(val timeMs: Long, val sampleId: Long) : Comparable<SavedLocationPosition> {
     override fun compareTo(other: SavedLocationPosition): Int = timeMs.compareTo(other.timeMs).takeIf { it != 0 }
         ?: sampleId.compareTo(other.sampleId)
 }
+
+internal fun QualifiedRetainedLocationSample.toSavedFix(): SavedLocationFix? {
+        val latitude = sample.latE7?.takeIf { it in -900_000_000..900_000_000 } ?: return null
+        val longitude = sample.lonE7?.takeIf { it in -1_800_000_000..1_800_000_000 } ?: return null
+        return SavedLocationFix(sample.id, sample.timeMs, receipt.wallTimeUncertaintyMs, latitude, longitude,
+            sample.speedMps.validNonNegative(), sample.speedAccuracyMps.validNonNegative(), sample.hAccM.validNonNegative(),
+            sample.altitudeM?.takeIf { it.isFinite() }, sample.altitudeDatum, sample.altitudeSource, sample.vAccM.validNonNegative())
+    }
+
+private fun Float?.validNonNegative(): Float? = this?.takeIf { it.isFinite() && it >= 0f }
+
+internal data class SavedLocationQualifiedPage(val samples: Map<Long, QualifiedRetainedLocationSample>,
+    val gaps: Set<RadioLocationContextGap>, val problem: HistoryProblemReason?)

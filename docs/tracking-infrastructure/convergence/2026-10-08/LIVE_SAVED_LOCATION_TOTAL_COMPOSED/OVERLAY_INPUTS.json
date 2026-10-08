@@ -1,0 +1,9 @@
+{
+  "base": "8ef34ae3f5f3212ecc0a2d73aa8982d0c4894daa",
+  "private_v2_overlay_paths": [
+    "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+    "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt",
+    "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt"
+  ],
+  "companion": "SAVED_LOCATION_SUMMARY_SELECTED V2; historical qualifier remains separately owned"
+}

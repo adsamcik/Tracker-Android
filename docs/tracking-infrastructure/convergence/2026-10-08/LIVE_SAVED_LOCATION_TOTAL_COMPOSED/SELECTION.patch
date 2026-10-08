@@ -1,0 +1,1591 @@
+--- a/app/src/main/java/com/adsamcik/tracker/app/di/AppGraphModule.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/di/AppGraphModule.kt
+@@ -1,4 +1,6 @@
+ package com.adsamcik.tracker.app.di
++
++import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+ 
+ import android.content.Context
+ import com.adsamcik.tracker.app.Application
+@@ -52,8 +54,11 @@
+ 
+     @Provides
+     @Singleton
+-    fun provideTrackerServiceController(): TrackerServiceController {
+-        return DefaultTrackerServiceController()
++    fun provideTrackerServiceController(
++        history: TrackingHistoryRepository,
++        @ApplicationScope applicationScope: CoroutineScope,
++    ): TrackerServiceController = DefaultTrackerServiceController().also {
++        it.bindSavedLocationSummaries(history, applicationScope)
+     }
+ 
+     @Provides
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt
+@@ -34,6 +34,28 @@
+ /** Location authority only; this DAO never creates a canonical sample. */
+ @Dao
+ interface LocationPurposeDao {
++    /** Native receipt PK cursor: a wakeup is a hint, not a list of everything committed. */
++    @Query("SELECT COALESCE(MAX(sample_id), 0) FROM location_accepted_receipt")
++    suspend fun latestSavedReceiptSampleId(): Long
++
++    /** Discovery only. The source-owned reader requalifies every returned receipt and purpose. */
++    @Query("""SELECT r.* FROM location_accepted_receipt r
++        JOIN location_sample_purpose_authority p ON p.sample_id = r.sample_id
++        WHERE p.purpose = 'SESSION_CAPTURE' AND p.authority_id = :runId
++        AND p.logical_tracking_id = :logicalId AND p.service_run_id = :runId
++        AND p.session_segment_id = :segmentId
++        AND r.sample_id > :afterId AND r.sample_id <= :throughId
++        ORDER BY r.sample_id LIMIT :limit""")
++    suspend fun savedSessionReceiptPageAfterId(logicalId: String, runId: String, segmentId: Long,
++        afterId: Long, throughId: Long, limit: Int): List<LocationAcceptedReceiptEntity>
++
++    /** Indexed membership-count sentinel only; it never qualifies data or becomes a user total. */
++    @Query("""SELECT COUNT(*) FROM location_sample_purpose_authority
++        WHERE purpose = 'SESSION_CAPTURE' AND authority_id = :runId
++        AND logical_tracking_id = :logicalId AND service_run_id = :runId
++        AND session_segment_id = :segmentId""")
++    suspend fun savedSessionCandidateCount(logicalId: String, runId: String, segmentId: Long): Long
++
+ 	/** Exact saved capture membership. Coordinates are current user data, not reauthenticated provider payload. */
+ 	@Query("""SELECT DISTINCT location_sample.*, lr.source_instance_id || ':' || lr.registration_generation AS continuity_id,
+ 		lr.source_sequence AS continuity_sequence, 0 AS ambient_only,
+--- a/core/testing/src/main/kotlin/com/adsamcik/tracker/testing/fake/FakeTrackerServiceController.kt
++++ b/core/testing/src/main/kotlin/com/adsamcik/tracker/testing/fake/FakeTrackerServiceController.kt
+@@ -1,5 +1,7 @@
+ package com.adsamcik.tracker.testing.fake
+ 
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection
+ import com.adsamcik.tracker.shared.model.Location
+ import com.adsamcik.tracker.stats.api.PolicyState
+ import com.adsamcik.tracker.stats.api.PolicyTier
+@@ -38,6 +40,24 @@
+  * ```
+  */
+ class FakeTrackerServiceController : TrackerServiceController {
++    private val _savedLocationSummaryFlow =
++        MutableStateFlow<SavedLocationSummaryRead>(SavedLocationSummaryRead.NotFound)
++    override val savedLocationSummaryFlow: StateFlow<SavedLocationSummaryRead>
++        get() = _savedLocationSummaryFlow
++
++    /** Test-controlled saved result; this fixture keeps the real live-segment publication boundary. */
++    fun setSavedLocationSummary(read: SavedLocationSummaryRead) {
++        val id = _sessionFlow.value?.id
++        _savedLocationSummaryFlow.value = when {
++            !isServiceRunning || _sessionInfoFlow.value == null || id == null || id <= 0L ->
++                SavedLocationSummaryRead.NotFound
++            read is SavedLocationSummaryRead.Snapshot &&
++                read.selection != SavedLocationSummarySelection.Session(id) ->
++                SavedLocationSummaryRead.NotFound
++            else -> read
++        }
++    }
++
+     private val _isServiceRunning = MutableStateFlow(false)
+     override val isServiceRunningFlow: StateFlow<Boolean> get() = _isServiceRunning
+     override val isServiceRunning: Boolean get() = _isServiceRunning.value
+@@ -76,16 +96,21 @@
+     override val planeStateFlow: StateFlow<LivePlaneState?> get() = _planeStateFlow
+ 
+     override fun updateServiceRunning(isRunning: Boolean) {
++        if (!isRunning) _savedLocationSummaryFlow.value = SavedLocationSummaryRead.NotFound
+         _isServiceRunning.value = isRunning
+     }
+ 
+     override fun updateSessionInfo(info: TrackerSessionInfo?) {
++        if (info == null) _savedLocationSummaryFlow.value = SavedLocationSummaryRead.NotFound
+         _sessionInfoFlow.value = info
+     }
+ 
+     override fun updateSession(session: TrackerSessionSnapshot?) {
+         if (session == null && _sessionFlow.value != null) {
+             _lastSessionFlow.value = _sessionFlow.value
++        }
++        if (session == null || session.id != _sessionFlow.value?.id) {
++            _savedLocationSummaryFlow.value = SavedLocationSummaryRead.NotFound
+         }
+         _sessionFlow.value = session
+     }
+--- a/core/testing/src/test/java/com/adsamcik/tracker/testing/TestingCommonContractsTest.kt
++++ b/core/testing/src/test/java/com/adsamcik/tracker/testing/TestingCommonContractsTest.kt
+@@ -2,6 +2,13 @@
+ 
+ import com.adsamcik.tracker.shared.preferences.type.LengthSystem
+ import com.adsamcik.tracker.shared.preferences.type.SpeedFormat
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummary
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection
++import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
++import com.adsamcik.tracker.testing.fake.FakeTrackerServiceController
++import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
++import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
+ import com.adsamcik.tracker.testing.data.TestDataFactory
+ import com.adsamcik.tracker.testing.fake.FakeLocationSource
+ import com.adsamcik.tracker.testing.fake.FakeLockManager
+@@ -173,4 +180,53 @@
+ 		assertEquals(49.02, path.last().latitude, 0.0)
+ 		assertEquals(15.04, path.last().longitude, 0.0)
+ 	}
++    @Test
++    fun `fake controller publishes saved Location only for its active exact segment`() {
++        val fake = activeSavedLocationFake()
++        val read = emptySavedLocation(7)
++        fake.setSavedLocationSummary(read)
++        assertSame(read, fake.savedLocationSummaryFlow.value)
++        fake.setSavedLocationSummary(emptySavedLocation(8))
++        assertEquals(SavedLocationSummaryRead.NotFound, fake.savedLocationSummaryFlow.value)
++    }
++
++    @Test
++    fun `fake End clears saved Location despite a surviving background host and late result`() {
++        val fake = activeSavedLocationFake()
++        fake.setSavedLocationSummary(emptySavedLocation(7))
++        fake.updateSessionInfo(null)
++        assertTrue(fake.isServiceRunning)
++        assertEquals(SavedLocationSummaryRead.NotFound, fake.savedLocationSummaryFlow.value)
++        fake.setSavedLocationSummary(emptySavedLocation(7))
++        assertEquals(SavedLocationSummaryRead.NotFound, fake.savedLocationSummaryFlow.value)
++    }
++
++    @Test
++    fun `fake host loss and segment replacement clear saved Location`() {
++        val fake = activeSavedLocationFake()
++        fake.setSavedLocationSummary(emptySavedLocation(7))
++        fake.updateServiceRunning(false)
++        assertEquals(SavedLocationSummaryRead.NotFound, fake.savedLocationSummaryFlow.value)
++        fake.updateServiceRunning(true)
++        fake.setSavedLocationSummary(emptySavedLocation(7))
++        fake.updateSession(TrackerSessionSnapshot(id = 8))
++        assertEquals(SavedLocationSummaryRead.NotFound, fake.savedLocationSummaryFlow.value)
++        fake.setSavedLocationSummary(emptySavedLocation(7))
++        assertEquals(SavedLocationSummaryRead.NotFound, fake.savedLocationSummaryFlow.value)
++        fake.updateSession(null)
++        fake.setSavedLocationSummary(emptySavedLocation(8))
++        assertEquals(SavedLocationSummaryRead.NotFound, fake.savedLocationSummaryFlow.value)
++    }
++
++    private fun activeSavedLocationFake() = FakeTrackerServiceController().also {
++        it.updateServiceRunning(true)
++        it.updateSessionInfo(TrackerSessionInfo(true))
++        it.updateSession(TrackerSessionSnapshot(id = 7))
++    }
++
++    private fun emptySavedLocation(segmentId: Long) = SavedLocationSummaryRead.Snapshot(
++        SavedLocationSummarySelection.Session(segmentId), TrackingHistoryReadSnapshot(0, 1),
++        SavedLocationSummary(0, null, null, false),
++    )
++
+ }
+--- /dev/null
++++ b/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SavedLocationLiveUpdates.kt
+@@ -0,0 +1,6 @@
++package com.adsamcik.tracker.stats.api.repository
++
++/** Process hint after an existing saved point and its purpose commit. Never recording authority. */
++interface SavedLocationLiveUpdates {
++    fun pointCommitted(sampleId: Long)
++}
+--- a/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/TrackingHistoryRepository.kt
++++ b/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/TrackingHistoryRepository.kt
+@@ -10,6 +10,17 @@
+  * writer, repairs a projection, or writes a derived summary.
+  */
+ interface TrackingHistoryRepository {
++    /** Finite read of saved Location; no provider, writer or live total is started. */
++    suspend fun readSavedLocationSummary(selection: SavedLocationSummarySelection): SavedLocationSummaryRead =
++        SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
++
++    /**
++     * One engine-owned live observation. The controller shares its StateFlow with every live surface.
++     * Initial/recovery reads are complete; normal updates qualify only new saved receipt IDs.
++     */
++    fun observeLiveSavedLocationSummary(segmentId: Long): Flow<SavedLocationSummaryRead> =
++        kotlinx.coroutines.flow.flow { emit(readSavedLocationSummary(SavedLocationSummarySelection.Session(segmentId))) }
++
+     /** Bounded source-qualified history for arbitrary days and ranges. */
+     suspend fun readRange(request: HistoryRangeRequest): HistoryRangeRead =
+         HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/StatsDataModule.kt
+@@ -71,6 +71,12 @@
+ @Module
+ @InstallIn(SingletonComponent::class)
+ abstract class StatsDataModule {
++    @Binds
++    @Singleton
++    internal abstract fun bindSavedLocationLiveUpdates(
++        impl: com.adsamcik.tracker.stats.data.repository.SavedLocationLiveUpdateSignal,
++    ): com.adsamcik.tracker.stats.api.repository.SavedLocationLiveUpdates
++
+ 	@Binds
+ 	@Singleton
+ 	abstract fun bindLocationFileArchiveRepository(
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt
+@@ -1,4 +1,6 @@
+ package com.adsamcik.tracker.stats.data.repository
++
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection
+ 
+ import androidx.room.withTransaction
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+@@ -81,8 +83,22 @@
+ 	private val sourceFactLookupReader: RoomSourceFactLookupReader =
+ 		RoomSourceFactLookupReader(database, ioDispatcher),
+ 	private val rangeReader: UnifiedHistoryRangeReader? = null,
++    private val savedLocationUpdates: SavedLocationLiveUpdateSignal = SavedLocationLiveUpdateSignal(),
+ ) : PagedTrackingHistoryRepository {
+ 	private val importedReader = ImportedStepsProductReader(database)
++    private val savedLocationSummaries by lazy { SavedLocationSummaryReader(database, ioDispatcher) }
++    private val liveLocationSummaries by lazy { SavedLocationLiveSummaryReader(database, ioDispatcher, savedLocationUpdates,
++        savedLocationSummaries) }
++
++    override suspend fun readSavedLocationSummary(selection: SavedLocationSummarySelection) =
++        when (selection) {
++            is SavedLocationSummarySelection.Session ->
++                savedLocationSummaries.readSession(selection.segmentId)
++            is SavedLocationSummarySelection.Window ->
++                savedLocationSummaries.readWindow(selection.window)
++        }
++
++    override fun observeLiveSavedLocationSummary(segmentId: Long) = liveLocationSummaries.observeSession(segmentId)
+ 
+ 	@Inject
+ 	internal constructor(
+@@ -97,6 +113,7 @@
+ 		rangeReader: UnifiedHistoryRangeReader,
+ 		integrationObserver: TrackingHistoryIntegrationObserver =
+ 			TrackingHistoryIntegrationObserver(),
++        savedLocationUpdates: SavedLocationLiveUpdateSignal = SavedLocationLiveUpdateSignal(),
+ 	) : this(
+ 		database = database,
+ 		stepsSelector = stepsSelector,
+@@ -107,6 +124,7 @@
+ 		ioDispatcher = ioDispatcher,
+ 		integrationObserver = integrationObserver,
+ 		rangeReader = rangeReader,
++        savedLocationUpdates = savedLocationUpdates,
+ 		sourceFactLookupReader = RoomSourceFactLookupReader(
+ 			database,
+ 			ioDispatcher,
+--- /dev/null
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReader.kt
+@@ -0,0 +1,199 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import androidx.room.withTransaction
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
++import com.adsamcik.tracker.shared.base.database.dao.LocationPurposeDao
++import com.adsamcik.tracker.stats.api.repository.*
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.CoroutineDispatcher
++import kotlinx.coroutines.ExperimentalCoroutinesApi
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.collect
++import kotlinx.coroutines.flow.conflate
++import kotlinx.coroutines.flow.distinctUntilChanged
++import kotlinx.coroutines.flow.flow
++import kotlinx.coroutines.flow.flowOn
++import kotlinx.coroutines.flow.map
++import kotlinx.coroutines.flow.merge
++
++/**
++ * Temporary source-local total, seeded once and extended with newly saved native points.
++ * The controller owns the sole active observation and shares its value with product consumers.
++ * A conflated hint cannot lose a point: the receipt PK cursor owns continuation. No data is written.
++ */
++internal class SavedLocationLiveSummaryReader(
++    private val database: AppDatabase,
++    private val io: CoroutineDispatcher,
++    private val updates: SavedLocationLiveUpdateSignal,
++    private val summaries: SavedLocationSummaryReader = SavedLocationSummaryReader(database, io),
++    private val purpose: LocationPurposeDao = database.locationPurposeDao(),
++    private val invalidations: Flow<Set<String>>? = null,
++) {
++    @OptIn(ExperimentalCoroutinesApi::class)
++    fun observeSession(segmentId: Long): Flow<SavedLocationSummaryRead> {
++        require(segmentId > 0L)
++        return flow {
++            var progress: Progress? = null
++            var pointVersion = 0L
++            var rebuildVersion = 0L
++            var handledPointVersion = 0L
++            var handledRebuildVersion = 0L
++            val room = (invalidations ?: database.invalidationTracker.createFlow(*TABLES, emitInitialState = true))
++                .map { Notice(it) }
++            val hints = updates.hints.map { Notice(emptySet()) }
++            // Finish each finite snapshot; cancelling it on every fix could starve a long recovery read.
++            merge(room, hints).map { notice ->
++                // Fold before the lossy buffer: a later hint cannot discard a dependency/purpose notice.
++                if (notice.tables.any { it in POINT_TABLES }) pointVersion = Math.addExact(pointVersion, 1L)
++                if (notice.tables.any { it in REBUILD_TABLES }) rebuildVersion = Math.addExact(rebuildVersion, 1L)
++                Wakeup(pointVersion, rebuildVersion)
++            }.conflate().collect { wakeup ->
++                currentCoroutineContext().ensureActive()
++                val next = try {
++                    database.withTransaction { refresh(segmentId, progress,
++                        wakeup.pointVersion != handledPointVersion, wakeup.rebuildVersion != handledRebuildVersion) }
++                } catch (cancelled: CancellationException) {
++                    throw cancelled
++                } catch (_: android.database.sqlite.SQLiteException) {
++                    Next(SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE), null)
++                } catch (_: RuntimeException) {
++                    Next(SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE), null)
++                }
++                progress = next.progress
++                handledPointVersion = wakeup.pointVersion
++                handledRebuildVersion = wakeup.rebuildVersion
++                emit(next.read)
++            }
++        }.distinctUntilChanged().flowOn(io)
++    }
++
++    private suspend fun refresh(segmentId: Long, old: Progress?, pointTablesChanged: Boolean, rebuild: Boolean): Next {
++        val evidence = database.sourceEvidenceStateDao().get()
++            ?.takeIf { it.revision >= 0L && it.collectedDataEpoch >= 0L &&
++                it.deletedSourceEventHighWaterOrdinal >= 0L && (it.retainedFromMs == null || it.retainedFromMs >= 0L) }
++            ?: return Next(SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE), null)
++        val snapshot = TrackingHistoryReadSnapshot(evidence.collectedDataEpoch, evidence.revision)
++        val segment = database.trackingHistoryReadDao().segments(listOf(segmentId)).singleOrNull()
++            ?: return Next(SavedLocationSummaryRead.NotFound, null)
++        val logicalId = segment.logicalTrackingId?.takeIf { it.isNotBlank() }
++            ?: return Next(SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE), null)
++        val runId = segment.serviceRunId?.takeIf { it.isNotBlank() }
++            ?: return Next(SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE), null)
++        val scope = Scope(segmentId, logicalId, runId)
++        val guard = Guard(evidence.collectedDataEpoch, evidence.retainedFromMs,
++            evidence.deletedSourceEventHighWaterOrdinal, purpose.savedFileExportAuthorityStamp())
++        val throughId = purpose.latestSavedReceiptSampleId()
++        if (throughId < 0L) throw InvalidContinuation()
++        if (old == null || old.scope != scope || old.guard != guard ||
++            throughId < old.throughId || rebuild) {
++            return seed(scope, guard, throughId, snapshot)
++        }
++        if (throughId == old.throughId && !pointTablesChanged) {
++            return Next(old.read.copy(readSnapshot = snapshot), old.copy(read = old.read.copy(readSnapshot = snapshot)))
++        }
++        val candidateCount = purpose.savedSessionCandidateCount(logicalId, runId, segmentId)
++        if (candidateCount < old.candidateCount) return seed(scope, guard, throughId, snapshot)
++        if (throughId == old.throughId && pointTablesChanged && candidateCount == old.candidateCount &&
++            snapshot.sourceEvidenceRevision == old.read.readSnapshot.sourceEvidenceRevision) {
++            // The Room notice and post-commit hint can report the same committed snapshot twice.
++            return Next(old.read, old)
++        }
++        var afterId = old.throughId
++        var addedCandidates = 0L
++        var latestPosition = old.latestPosition
++        var count = old.read.summary.pointCount
++        var latestFix = old.read.summary.latestFix
++        val distance = SavedTripDistanceAccumulator(old.distance)
++        val gaps = old.read.summary.qualificationGaps.toMutableSet()
++        var partial = old.read.summary.partial
++        var problem: HistoryProblemReason? = null
++        while (afterId < throughId) {
++            currentCoroutineContext().ensureActive()
++            val page = purpose.savedSessionReceiptPageAfterId(logicalId, runId, segmentId, afterId, throughId, PAGE_SIZE)
++            if (page.size > PAGE_SIZE || page.any { it.sampleId <= afterId || it.sampleId > throughId } ||
++                page.zipWithNext().any { (a, b) -> a.sampleId >= b.sampleId }) throw InvalidContinuation()
++            if (page.isEmpty()) break
++            addedCandidates = Math.addExact(addedCandidates, page.size.toLong())
++            val ordered = page.sortedWith(compareBy({ it.observedWallTimeMs }, { it.sampleId }))
++            if (latestPosition?.let { previous -> ordered.first().let {
++                    SavedLocationPosition(it.observedWallTimeMs, it.sampleId) <= previous } } == true) {
++                return seed(scope, guard, throughId, snapshot)
++            }
++            val qualified = summaries.qualifyCandidatesInTransaction(ordered, scope::matches)
++            gaps += qualified.gaps
++            for (receipt in ordered) {
++                currentCoroutineContext().ensureActive()
++                latestPosition = SavedLocationPosition(receipt.observedWallTimeMs, receipt.sampleId)
++                val row = qualified.samples[receipt.sampleId]
++                if (row == null) {
++                    distance.breakContinuity()
++                    partial = true
++                    continue
++                }
++                distance.add(LocationPathSampleRow(row.sample,
++                    row.receipt.sourceInstanceId + ":" + row.receipt.registrationGeneration,
++                    row.receipt.sourceSequence, false))
++                val fix = row.toSavedFix()
++                if (fix == null) partial = true else {
++                    count = Math.addExact(count, 1L)
++                    latestFix = fix
++                }
++            }
++            if (qualified.problem != null) problem = qualified.problem
++            afterId = page.last().sampleId
++            if (problem != null || page.size < PAGE_SIZE) break
++        }
++        // Native originals are immutable in the actual writers. Counts detect erased membership or
++        // an older receipt gaining this scope; explicit edits use the separate correction companion.
++        if (Math.addExact(old.candidateCount, addedCandidates) != candidateCount ||
++            (throughId == old.throughId && pointTablesChanged)) return seed(scope, guard, throughId, snapshot)
++        val meters = distance.measuredMeters
++        if (meters?.isFinite() == false) throw InvalidContinuation()
++        val read = SavedLocationSummaryRead.Snapshot(SavedLocationSummarySelection.Session(segmentId), snapshot,
++            SavedLocationSummary(count, latestFix, meters,
++                partial || distance.hasDisconnectedSections || gaps.isNotEmpty() || problem != null, gaps), problem)
++        // An incomplete qualification must not advance an incremental prefix as if it were complete.
++        if (problem != null) return Next(read, null)
++        return Next(read, Progress(scope, guard, throughId, candidateCount, latestPosition, distance.snapshotState(), read))
++    }
++
++    private suspend fun seed(scope: Scope, guard: Guard, throughId: Long,
++        snapshot: TrackingHistoryReadSnapshot): Next {
++        var distance: SavedTripDistanceState? = null
++        var position: SavedLocationPosition? = null
++        val read = summaries.readSessionInTransaction(scope.segmentId, snapshot) { state, last ->
++            distance = state
++            position = last
++        }
++        if (read !is SavedLocationSummaryRead.Snapshot || read.problem != null || distance == null) return Next(read, null)
++        val count = purpose.savedSessionCandidateCount(scope.logicalId, scope.runId, scope.segmentId)
++        if (count < 0L) throw InvalidContinuation()
++        return Next(read, Progress(scope, guard, throughId, count, position, requireNotNull(distance), read))
++    }
++
++    private data class Notice(val tables: Set<String>)
++    private data class Wakeup(val pointVersion: Long, val rebuildVersion: Long)
++    private data class Scope(val segmentId: Long, val logicalId: String, val runId: String) {
++        fun matches(scope: RadioContextScope): Boolean = (scope as? RadioContextScope.Session)?.owner?.let {
++            it.sessionSegmentId == segmentId && it.logicalTrackingId == logicalId && it.serviceRunId == runId
++        } == true
++    }
++    private data class Guard(val epoch: Long, val retainedFromMs: Long?, val deletedHighWater: Long, val exportStamp: String)
++    private data class Progress(val scope: Scope, val guard: Guard, val throughId: Long,
++        val candidateCount: Long, val latestPosition: SavedLocationPosition?, val distance: SavedTripDistanceState,
++        val read: SavedLocationSummaryRead.Snapshot)
++    private data class Next(val read: SavedLocationSummaryRead, val progress: Progress?)
++    private class InvalidContinuation : IllegalStateException("Invalid saved Location continuation")
++    private companion object {
++        const val PAGE_SIZE = 256
++        val POINT_TABLES = setOf("location_sample", "location_accepted_receipt", "location_sample_purpose_authority")
++        val REBUILD_TABLES = setOf("source_deletion_fence", "collected_data_deletion_operation",
++            "source_policy", "source_consent_epoch", "source_service_run", "session_manifest_version",
++            "session_manifest_source", "ambient_location_retention_authority", "location_file_identity",
++            "location_file_archive", "location_file_archive_point")
++        val TABLES = (POINT_TABLES + REBUILD_TABLES + setOf("session_segment", "source_evidence_state")).toTypedArray()
++    }
++}
+--- /dev/null
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveUpdateSignal.kt
+@@ -0,0 +1,20 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import com.adsamcik.tracker.stats.api.repository.SavedLocationLiveUpdates
++import javax.inject.Inject
++import javax.inject.Singleton
++import kotlinx.coroutines.channels.BufferOverflow
++import kotlinx.coroutines.flow.MutableSharedFlow
++import kotlinx.coroutines.flow.asSharedFlow
++
++/** One bounded wakeup; readers catch up through saved receipt IDs instead of trusting this payload. */
++@Singleton
++internal class SavedLocationLiveUpdateSignal @Inject constructor() : SavedLocationLiveUpdates {
++    private val pending = MutableSharedFlow<Long>(extraBufferCapacity = 1,
++        onBufferOverflow = BufferOverflow.DROP_OLDEST)
++    val hints = pending.asSharedFlow()
++    override fun pointCommitted(sampleId: Long) {
++        require(sampleId > 0L)
++        pending.tryEmit(sampleId)
++    }
++}
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt
+@@ -35,7 +35,8 @@
+ 
+     /** The caller must own the same transaction and source-evidence snapshot as its other products. */
+     internal suspend fun readSessionInTransaction(segmentId: Long,
+-        snapshot: TrackingHistoryReadSnapshot): SavedLocationSummaryRead {
++        snapshot: TrackingHistoryReadSnapshot,
++        onState: ((SavedTripDistanceState, SavedLocationPosition?) -> Unit)? = null): SavedLocationSummaryRead {
+         val segment = database.trackingHistoryReadDao().segments(listOf(segmentId)).singleOrNull()
+             ?: return SavedLocationSummaryRead.NotFound
+         val logicalId = segment.logicalTrackingId
+@@ -44,7 +45,12 @@
+             // Older/imported ordinary history remains readable through its existing compatibility reader.
+             return SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+         }
+-        return readPages(SavedLocationSummarySelection.Session(segmentId), snapshot,
++        val candidates = database.locationPurposeDao().savedSessionCandidateCount(logicalId, runId, segmentId)
++        if (candidates < 0L) return SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++        val missingPrefix = database.sourceEvidenceStateDao().get()?.retainedFromMs?.let {
++            segment.startTimeMs < it
++        } == true
++        val read = readPages(SavedLocationSummarySelection.Session(segmentId), snapshot, onState = onState,
+             scopeMatches = { scope -> (scope as? RadioContextScope.Session)?.owner?.let {
+                 it.sessionSegmentId == segmentId && it.logicalTrackingId == logicalId && it.serviceRunId == runId
+             } == true }, nextPage = { after ->
+@@ -58,6 +64,9 @@
+                 val byId = receipts.associateBy { it.sampleId }
+                 rows.map { row -> SavedLocationCandidate(requireNotNull(byId[row.sample.id]), row.sample.timeMs) }
+             })
++        return if (read is SavedLocationSummaryRead.Snapshot && (missingPrefix || candidates > read.summary.pointCount)) {
++            read.copy(summary = read.summary.copy(partial = true))
++        } else read
+     }
+ 
+     /** Any independently retained native purpose can contribute to the same measured-date window. */
+@@ -90,16 +99,19 @@
+ 
+     private suspend fun readPages(selection: SavedLocationSummarySelection, snapshot: TrackingHistoryReadSnapshot,
+         scopeMatches: (RadioContextScope) -> Boolean,
+-        nextPage: suspend (SavedLocationPosition?) -> List<SavedLocationCandidate>): SavedLocationSummaryRead {
++        nextPage: suspend (SavedLocationPosition?) -> List<SavedLocationCandidate>,
++        onState: ((SavedTripDistanceState, SavedLocationPosition?) -> Unit)? = null): SavedLocationSummaryRead {
+         val accumulator = SavedTripDistanceAccumulator()
+         var count = 0L
+         var latest: SavedLocationFix? = null
+         var after: SavedLocationPosition? = null
+         var partial = false
++        var processed: SavedLocationPosition? = null
+         val gaps = linkedSetOf<RadioLocationContextGap>()
+         fun result(problem: HistoryProblemReason? = null) = SavedLocationSummaryRead.Snapshot(selection, snapshot,
+             SavedLocationSummary(count, latest, accumulator.measuredMeters?.takeIf { it.isFinite() },
+                 partial || accumulator.hasDisconnectedSections || gaps.isNotEmpty() || problem != null, gaps.toSet()), problem)
++                .also { onState?.invoke(accumulator.snapshotState(), processed) }
+         try {
+             val state = database.sourceEvidenceStateDao().get()
+             if (state == null || !state.hasValidRangeShape() ||
+@@ -114,29 +126,13 @@
+                     throw InvalidSavedLocationPage()
+                 }
+                 if (page.isEmpty()) return result()
+-                val accepted = mutableMapOf<Long, QualifiedRetainedLocationSample>()
+-                var pageProblem: HistoryProblemReason? = null
+-                suspend fun qualify(receipts: List<LocationAcceptedReceiptEntity>) {
+-                    currentCoroutineContext().ensureActive()
+-                    val read = retained.qualifySavedInTransaction(receipts)
+-                    // A busy window can contain many independent runs. Split only the bounded batch,
+-                    // never discard the whole selection because optional dependencies exceed one call.
+-                    if (RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in read.gaps && receipts.size > 1) {
+-                        val middle = receipts.size / 2
+-                        qualify(receipts.subList(0, middle))
+-                        qualify(receipts.subList(middle, receipts.size))
+-                    } else {
+-                        gaps += read.gaps
+-                        read.samples.filter { scopeMatches(it.scope) }.forEach { accepted.putIfAbsent(it.sample.id, it) }
+-                        if (read.historyProblem != null) pageProblem = read.historyProblem
+-                        if (RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in read.gaps) {
+-                            pageProblem = HistoryProblemReason.DEPENDENCY_OVERFLOW
+-                        }
+-                    }
+-                }
+-                qualify(page.map { it.receipt })
++                val qualified = qualifyCandidatesInTransaction(page.map { it.receipt }, scopeMatches)
++                val accepted = qualified.samples
++                val pageProblem = qualified.problem
++                gaps += qualified.gaps
+                 for (candidate in page) {
+                     currentCoroutineContext().ensureActive()
++                    processed = candidate.position
+                     val row = accepted[candidate.receipt.sampleId]
+                     if (row == null) {
+                         accumulator.breakContinuity()
+@@ -171,7 +167,43 @@
+         }
+     }
+ 
+-    private fun QualifiedRetainedLocationSample.toSavedFix(): SavedLocationFix? {
++    /** Shared finite qualification for full reads and the temporary live continuation. */
++    internal suspend fun qualifyCandidatesInTransaction(receipts: List<LocationAcceptedReceiptEntity>,
++        scopeMatches: (RadioContextScope) -> Boolean): SavedLocationQualifiedPage {
++        val accepted = linkedMapOf<Long, QualifiedRetainedLocationSample>()
++        val gaps = linkedSetOf<RadioLocationContextGap>()
++        var problem: HistoryProblemReason? = null
++        suspend fun qualify(batch: List<LocationAcceptedReceiptEntity>) {
++            currentCoroutineContext().ensureActive()
++            val read = retained.qualifySavedInTransaction(batch)
++            if (RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in read.gaps && batch.size > 1) {
++                val middle = batch.size / 2
++                qualify(batch.subList(0, middle))
++                qualify(batch.subList(middle, batch.size))
++            } else {
++                gaps += read.gaps
++                read.samples.filter { scopeMatches(it.scope) }.forEach { accepted.putIfAbsent(it.sample.id, it) }
++                if (read.historyProblem != null) problem = read.historyProblem
++                if (RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in read.gaps) problem = HistoryProblemReason.DEPENDENCY_OVERFLOW
++            }
++        }
++        qualify(receipts)
++        return SavedLocationQualifiedPage(accepted, gaps, problem)
++    }
++
++    private class InvalidSavedLocationPage : IllegalStateException("Invalid saved Location page")
++    private companion object { const val POINT_PAGE_SIZE = 256 }
++}
++
++private data class SavedLocationCandidate(val receipt: LocationAcceptedReceiptEntity, val timeMs: Long) {
++    val position: SavedLocationPosition get() = SavedLocationPosition(timeMs, receipt.sampleId)
++}
++internal data class SavedLocationPosition(val timeMs: Long, val sampleId: Long) : Comparable<SavedLocationPosition> {
++    override fun compareTo(other: SavedLocationPosition): Int = timeMs.compareTo(other.timeMs).takeIf { it != 0 }
++        ?: sampleId.compareTo(other.sampleId)
++}
++
++internal fun QualifiedRetainedLocationSample.toSavedFix(): SavedLocationFix? {
+         val latitude = sample.latE7?.takeIf { it in -900_000_000..900_000_000 } ?: return null
+         val longitude = sample.lonE7?.takeIf { it in -1_800_000_000..1_800_000_000 } ?: return null
+         return SavedLocationFix(sample.id, sample.timeMs, receipt.wallTimeUncertaintyMs, latitude, longitude,
+@@ -179,15 +211,7 @@
+             sample.altitudeM?.takeIf { it.isFinite() }, sample.altitudeDatum, sample.altitudeSource, sample.vAccM.validNonNegative())
+     }
+ 
+-    private fun Float?.validNonNegative(): Float? = this?.takeIf { it.isFinite() && it >= 0f }
+-    private class InvalidSavedLocationPage : IllegalStateException("Invalid saved Location page")
+-    private companion object { const val POINT_PAGE_SIZE = 256 }
+-}
+-
+-private data class SavedLocationCandidate(val receipt: LocationAcceptedReceiptEntity, val timeMs: Long) {
+-    val position: SavedLocationPosition get() = SavedLocationPosition(timeMs, receipt.sampleId)
+-}
+-private data class SavedLocationPosition(val timeMs: Long, val sampleId: Long) : Comparable<SavedLocationPosition> {
+-    override fun compareTo(other: SavedLocationPosition): Int = timeMs.compareTo(other.timeMs).takeIf { it != 0 }
+-        ?: sampleId.compareTo(other.sampleId)
+-}
++private fun Float?.validNonNegative(): Float? = this?.takeIf { it.isFinite() && it >= 0f }
++
++internal data class SavedLocationQualifiedPage(val samples: Map<Long, QualifiedRetainedLocationSample>,
++    val gaps: Set<RadioLocationContextGap>, val problem: HistoryProblemReason?)
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt
+@@ -178,11 +178,21 @@
+ }
+ 
+ /** Constant-memory route measurement; the same continuity boundaries used by geographic exports. */
+-internal class SavedTripDistanceAccumulator {
+-	private var previous: LocationPathSampleRow? = null
+-	private var totalMeters = 0.0
+-	private var hasMeasuredPair = false
+-	var hasDisconnectedSections: Boolean = false
++internal data class SavedTripDistanceState(
++    val previous: LocationPathSampleRow? = null,
++    val totalMeters: Double = 0.0,
++    val hasMeasuredPair: Boolean = false,
++    val disconnected: Boolean = false,
++) {
++    init { require(totalMeters.isFinite() && totalMeters >= 0.0) }
++}
++
++internal class SavedTripDistanceAccumulator(state: SavedTripDistanceState = SavedTripDistanceState()) {
++    private var previous: LocationPathSampleRow? = state.previous
++    private var totalMeters = state.totalMeters
++    private var hasMeasuredPair = state.hasMeasuredPair
++    fun snapshotState() = SavedTripDistanceState(previous, totalMeters, hasMeasuredPair, hasDisconnectedSections)
++    var hasDisconnectedSections: Boolean = state.disconnected
+ 		private set
+ 	val measuredMeters: Double? get() = totalMeters.takeIf { hasMeasuredPair }
+ 
+--- /dev/null
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt
+@@ -0,0 +1,505 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import android.app.Application
++import androidx.room.withTransaction
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.shared.base.data.LengthUnit
++import com.adsamcik.tracker.shared.base.data.Location
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.dao.LocationPurposeDao
++import com.adsamcik.tracker.shared.base.database.data.*
++import com.adsamcik.tracker.shared.model.AltitudeDatum
++import com.adsamcik.tracker.shared.model.AltitudeSource
++import com.adsamcik.tracker.shared.model.SegmentSource
++import com.adsamcik.tracker.stats.api.repository.*
++import io.mockk.every
++import io.mockk.mockk
++import kotlin.test.*
++import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.channels.Channel
++import kotlinx.coroutines.cancelAndJoin
++import kotlinx.coroutines.flow.MutableSharedFlow
++import kotlinx.coroutines.flow.collect
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.yield
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.runBlocking
++import kotlinx.coroutines.withTimeout
++import app.cash.turbine.ReceiveTurbine
++import app.cash.turbine.test
++import org.junit.After
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++/** Real Room readers with explicitly seeded saved writer grants; no provider/service acceptance claim. */
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class SavedLocationLiveSummaryReaderRoomTest {
++    private lateinit var database: AppDatabase
++    private lateinit var reader: SavedLocationSummaryReader
++    private var ordinal = 0L
++
++    @Before fun setup() = runBlocking {
++        database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>())
++        database.sourceEvidenceStateDao().ensure()
++        database.sourcePolicyDao().insertPolicies(listOf(policy()))
++        database.sourcePolicyDao().insertConsentEpochs(listOf(
++            SourceConsentEpochEntity(1, SourceBrokerPurpose.AMBIENT_PRODUCT, 0, true, true, 1, "boot", 0, 0, "USER"),
++            SourceConsentEpochEntity(1, SourceBrokerPurpose.SESSION_CAPTURE, 0, true, true, 1, "boot", 0, 0, "USER")))
++        database.locationPurposeDao().insertRetentionAuthority(AmbientLocationRetentionAuthorityIntegrity.create(
++            "LIVE_AMBIENT", 1, "ACTIVE", "retention", 1, 0, 0, "boot", 0, 0))
++        reader = SavedLocationSummaryReader(database, Dispatchers.Unconfined)
++    }
++    @After fun close() = database.close()
++
++    @Test fun `one seed is extended without reading the growing session again`() = runBlocking {
++        val selected = session("live")
++        database.withTransaction { point(2_000, 0, 1, capture = selected) }
++        val actual = database.locationPurposeDao()
++        var fullPages = 0
++        var continuationPages = 0
++        val counted = object : LocationPurposeDao by actual {
++            override suspend fun savedLogicalTripPointPage(logicalId: String, serviceRunIds: List<String>,
++                afterTimeMs: Long?, afterId: Long?, limit: Int): List<com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow> {
++                fullPages++
++                return actual.savedLogicalTripPointPage(logicalId, serviceRunIds, afterTimeMs, afterId, limit)
++            }
++            override suspend fun savedSessionReceiptPageAfterId(logicalId: String, runId: String, segmentId: Long,
++                afterId: Long, throughId: Long, limit: Int): List<LocationAcceptedReceiptEntity> {
++                continuationPages++
++                return actual.savedSessionReceiptPageAfterId(logicalId, runId, segmentId, afterId, throughId, limit)
++            }
++        }
++        val hints = SavedLocationLiveUpdateSignal()
++        val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, hints,
++            readerWithPageFault(counted), counted)
++        live.observeSession(selected.id).test {
++            awaitCount(1)
++            val seedPages = fullPages
++            repeat(5) { index ->
++                val next = database.withTransaction {
++                    point(3_000L + index * 1_000L, (index + 1) * 100_000, index + 2L, capture = selected)
++                }
++                hints.pointCommitted(next.id)
++                val read = awaitCount(index + 2L)
++                assertEquals(distance(0, 100_000) * (index + 1), requireNotNull(read.summary.distanceMeters), 0.01)
++                assertEquals(next.timeMs, read.summary.latestFix?.measuredTimeMs)
++            }
++            assertEquals(seedPages, fullPages)
++            assertTrue(continuationPages >= 5)
++            cancelAndIgnoreRemainingEvents()
++        }
++    }
++
++    @Test fun `a missed hint still discovers every committed point through Room and receipt cursor`() = runBlocking {
++        val selected = session("missed")
++        database.withTransaction { point(2_000, 0, 1, capture = selected) }
++        val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, SavedLocationLiveUpdateSignal())
++        live.observeSession(selected.id).test {
++            awaitCount(1)
++            database.withTransaction {
++                repeat(300) { index -> point(3_000L + index * 1_000L, (index + 1) * 1_000, index + 2L, capture = selected) }
++            }
++            val read = awaitCount(301)
++            assertEquals(distance(0, 1_000) * 300, requireNotNull(read.summary.distanceMeters), 0.01)
++            assertFalse(read.summary.partial)
++            cancelAndIgnoreRemainingEvents()
++        }
++    }
++
++    @Test fun `conflated and duplicate hints do not double count saved points`() = runBlocking {
++        val selected = session("conflated")
++        val first = database.withTransaction { point(2_000, 0, 1, capture = selected) }
++        val hints = SavedLocationLiveUpdateSignal()
++        val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, hints)
++        live.observeSession(selected.id).test {
++            awaitCount(1)
++            val last = database.withTransaction {
++                var lastPoint = first
++                repeat(20) { index -> lastPoint = point(3_000L + index * 1_000L,
++                    (index + 1) * 1_000, index + 2L, capture = selected) }
++                lastPoint
++            }
++            repeat(20) { hints.pointCommitted(last.id) }
++            val read = awaitCount(21)
++            assertEquals(distance(0, 1_000) * 20, requireNotNull(read.summary.distanceMeters), 0.01)
++            hints.pointCommitted(first.id)
++            cancelAndIgnoreRemainingEvents()
++        }
++        assertEquals(21L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `delayed older point rebuilds measured ordering instead of extending the wrong end`() = runBlocking {
++        val selected = session("late")
++        database.withTransaction {
++            point(2_000, 0, 1, capture = selected)
++            point(4_000, 200_000, 3, capture = selected)
++        }
++        val hints = SavedLocationLiveUpdateSignal()
++        val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, hints)
++        live.observeSession(selected.id).test {
++            assertTrue(awaitCount(2).summary.partial)
++            val late = database.withTransaction { point(3_000, 100_000, 2, capture = selected) }
++            hints.pointCommitted(late.id)
++            val read = awaitCount(3)
++            assertEquals(distance(0, 100_000) * 2, requireNotNull(read.summary.distanceMeters), 0.01)
++            assertFalse(read.summary.partial)
++            assertEquals(4_000L, read.summary.latestFix?.measuredTimeMs)
++            cancelAndIgnoreRemainingEvents()
++        }
++    }
++
++    @Test fun `point deletion retracts a saved section rather than keeping the cached total`() = runBlocking {
++        val selected = session("delete")
++        lateinit var middle: LocationSample
++        database.withTransaction {
++            point(2_000, 0, 1, capture = selected)
++            middle = point(3_000, 100_000, 2, capture = selected)
++            point(4_000, 200_000, 3, capture = selected)
++        }
++        val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, SavedLocationLiveUpdateSignal())
++        live.observeSession(selected.id).test {
++            assertNotNull(awaitCount(3).summary.distanceMeters)
++            database.withTransaction { database.locationSampleDao().deleteExactIds(listOf(middle.id)) }
++            val read = awaitCount(2)
++            assertNull(read.summary.distanceMeters)
++            assertTrue(read.summary.partial)
++            cancelAndIgnoreRemainingEvents()
++        }
++    }
++
++    @Test fun `changed original row with the writer revision is requalified instead of reused`() = runBlocking {
++        val selected = session("changed")
++        lateinit var last: LocationSample
++        database.withTransaction {
++            point(2_000, 0, 1, capture = selected)
++            last = point(3_000, 100_000, 2, capture = selected)
++        }
++        val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, SavedLocationLiveUpdateSignal())
++        live.observeSession(selected.id).test {
++            awaitCount(2)
++            database.withTransaction {
++                database.locationSampleDao().update(last.copy(lonE7 = 300_000))
++                database.sourceEvidenceStateDao().incrementRevision(5_000)
++            }
++            val read = awaitCount(1)
++            assertNull(read.summary.distanceMeters)
++            assertTrue(read.summary.partial)
++            assertEquals(2_000L, read.summary.latestFix?.measuredTimeMs)
++            cancelAndIgnoreRemainingEvents()
++        }
++    }
++
++    @Test fun `epoch clear cannot publish the prior dataset total after another hint`() = runBlocking {
++        val selected = session("clear")
++        val last = database.withTransaction {
++            point(2_000, 0, 1, capture = selected)
++            point(3_000, 100_000, 2, capture = selected)
++        }
++        val hints = SavedLocationLiveUpdateSignal()
++        val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, hints)
++        live.observeSession(selected.id).test {
++            awaitCount(2)
++            database.withTransaction { database.sourceEvidenceStateDao().updateLifecycle(1, null, 5_000) }
++            hints.pointCommitted(last.id)
++            val read = awaitCount(0)
++            assertNull(read.summary.distanceMeters)
++            assertNull(read.summary.latestFix)
++            assertEquals(1L, read.readSnapshot.collectedDataEpoch)
++            cancelAndIgnoreRemainingEvents()
++        }
++    }
++
++    @Test fun `ambient and another session do not lend their saved points to the active segment`() = runBlocking {
++        val selected = session("selected")
++        val sibling = session("sibling")
++        database.withTransaction { point(2_000, 0, 1, capture = selected) }
++        val hints = SavedLocationLiveUpdateSignal()
++        val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, hints)
++        live.observeSession(selected.id).test {
++            awaitCount(1)
++            database.withTransaction {
++                point(3_000, 100_000, 2)
++                point(4_000, 200_000, 1, capture = sibling, instance = "sibling-instance")
++                point(5_000, 300_000, 3, capture = selected)
++            }
++            val read = awaitCount(2)
++            assertNull(read.summary.distanceMeters)
++            assertTrue(read.summary.partial)
++            assertEquals(4L, database.locationSampleDao().countAll())
++            cancelAndIgnoreRemainingEvents()
++        }
++    }
++
++    @Test fun `an older receipt gaining exact session membership forces a complete catch-up`() = runBlocking {
++        val selected = session("older-membership")
++        val prior = database.withTransaction { point(2_000, 0, 1) }
++        database.withTransaction { point(3_000, 100_000, 2, capture = selected) }
++        val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, SavedLocationLiveUpdateSignal())
++        live.observeSession(selected.id).test {
++            awaitCount(1)
++            database.withTransaction {
++                val receipt = requireNotNull(database.locationPurposeDao().receipt(prior.id))
++                val purpose = LocationSamplePurposeAuthorityEntity(prior.id, SourceBrokerPurpose.SESSION_CAPTURE,
++                    requireNotNull(selected.serviceRunId), 1, 0, 1, Long.MAX_VALUE, selected.logicalTrackingId,
++                    selected.serviceRunId, selected.id, 1, 1, null, null, null, 0, "UTC")
++                database.locationPurposeDao().insertPurposeIfAbsent(LocationAcceptedReceiptIntegrity.seal(purpose, receipt))
++            }
++            val read = awaitCount(2)
++            assertEquals(distance(0, 100_000), requireNotNull(read.summary.distanceMeters), 0.01)
++            cancelAndIgnoreRemainingEvents()
++        }
++    }
++
++    @Test fun `a rejected last candidate remains a continuity gap after seeding`() = runBlocking {
++        val selected = session("rejected-anchor")
++        database.withTransaction {
++            point(2_000, 0, 1, capture = selected)
++            point(3_000, 100_000, 2, capture = selected, captureManifestRevision = 2)
++        }
++        val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, SavedLocationLiveUpdateSignal())
++        live.observeSession(selected.id).test {
++            awaitCount(1)
++            database.withTransaction { point(4_000, 200_000, 3, capture = selected) }
++            val read = awaitCount(2)
++            assertNull(read.summary.distanceMeters)
++            assertTrue(read.summary.partial)
++            cancelAndIgnoreRemainingEvents()
++        }
++    }
++
++    @Test fun `real zero optional accuracy and measured timestamp survive the shared live read`() = runBlocking {
++        val selected = session("zero")
++        database.withTransaction { point(2_000, 0, 1, capture = selected) }
++        val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, SavedLocationLiveUpdateSignal())
++        live.observeSession(selected.id).test {
++            awaitCount(1)
++            database.withTransaction { point(3_000, 0, 2, capture = selected, speed = 0f, altitude = -12f) }
++            val read = awaitCount(2)
++            assertEquals(0.0, read.summary.distanceMeters)
++            assertEquals(3_000L, read.summary.latestFix?.measuredTimeMs)
++            assertEquals(0f, read.summary.latestFix?.speedMetersPerSecond)
++            assertNull(read.summary.latestFix?.horizontalAccuracyMeters)
++            assertEquals(-12f, read.summary.latestFix?.altitudeMeters)
++            cancelAndIgnoreRemainingEvents()
++        }
++    }
++
++    @Test fun `a retained suffix stays useful and partial in finite and live summaries`() = runBlocking {
++        val selected = session("retained-suffix")
++        database.withTransaction {
++            point(2_000, 0, 1, capture = selected)
++            point(3_000, 100_000, 2, capture = selected)
++            point(4_000, 200_000, 3, capture = selected)
++        }
++        val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, SavedLocationLiveUpdateSignal())
++        live.observeSession(selected.id).test {
++            assertFalse(awaitCount(3).summary.partial)
++            database.withTransaction { database.sourceEvidenceStateDao().updateLifecycle(0, 2_500, 5_000) }
++            val read = awaitCount(2)
++            assertTrue(read.summary.partial)
++            assertEquals(distance(0, 100_000), requireNotNull(read.summary.distanceMeters), 0.01)
++            val finite = snapshot(reader.readSession(selected.id))
++            assertEquals(read.summary, finite.summary)
++            cancelAndIgnoreRemainingEvents()
++        }
++    }
++
++    @Test fun `a long saved session seeds completely then appends without a total point limit`() = runBlocking {
++        withTimeout(90_000L) {
++            val selected = session("long-live")
++            database.withTransaction {
++                repeat(4_097) { index -> point(2_000L + index * 1_000L, 0, index + 1L, capture = selected) }
++            }
++            val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, SavedLocationLiveUpdateSignal())
++            live.observeSession(selected.id).test {
++                val initial = awaitCount(4_097)
++                assertEquals(0.0, initial.summary.distanceMeters)
++                assertFalse(initial.summary.partial)
++                database.withTransaction { point(4_099_000, 0, 4_098, capture = selected) }
++                val appended = awaitCount(4_098)
++                assertEquals(0.0, appended.summary.distanceMeters)
++                assertFalse(appended.summary.partial)
++                assertEquals(4_099_000L, appended.summary.latestFix?.measuredTimeMs)
++                cancelAndIgnoreRemainingEvents()
++            }
++        }
++    }
++
++    private suspend fun ReceiveTurbine<SavedLocationSummaryRead>.awaitCount(count: Long): SavedLocationSummaryRead.Snapshot =
++        withTimeout(5_000L) {
++            while (true) {
++                val read = awaitItem()
++                if (read is SavedLocationSummaryRead.Snapshot && read.summary.pointCount == count) return@withTimeout read
++            }
++            error("Unreachable")
++        }
++
++    /** Only the page-fault boundary is artificial; all qualification DAOs and the outer transaction are real Room. */
++    @Test fun `a coalesced post-purpose hint cannot lose same maximum receipt membership`() = runBlocking(Dispatchers.Unconfined) {
++        val selected = session("coalesced-membership")
++        val prior = database.withTransaction { point(2_000, 0, 1) }
++        database.withTransaction { point(3_000, 100_000, 2, capture = selected) }
++        val notices = MutableSharedFlow<Set<String>>(replay = 1, extraBufferCapacity = 4)
++        notices.emit(setOf("location_sample"))
++        val hints = SavedLocationLiveUpdateSignal()
++        val release = CompletableDeferred<Unit>()
++        val entered = CompletableDeferred<Unit>()
++        val observed = Channel<SavedLocationSummaryRead>(Channel.UNLIMITED)
++        val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, hints,
++            invalidations = notices)
++        val job = launch {
++            var first = true
++            live.observeSession(selected.id).collect { read ->
++                observed.send(read)
++                if (first) { first = false; entered.complete(Unit); release.await() }
++            }
++        }
++        try {
++            withTimeout(5_000L) { entered.await() }
++            assertEquals(1L, snapshot(withTimeout(5_000L) { observed.receive() }).summary.pointCount)
++            val maximum = database.locationPurposeDao().latestSavedReceiptSampleId()
++            database.withTransaction {
++                val receipt = requireNotNull(database.locationPurposeDao().receipt(prior.id))
++                val grant = LocationSamplePurposeAuthorityEntity(prior.id, SourceBrokerPurpose.SESSION_CAPTURE,
++                    requireNotNull(selected.serviceRunId), 1, 0, 1, Long.MAX_VALUE, selected.logicalTrackingId,
++                    selected.serviceRunId, selected.id, 1, 1, null, null, null, 0, "UTC")
++                database.locationPurposeDao().insertPurposeIfAbsent(LocationAcceptedReceiptIntegrity.seal(grant, receipt))
++            }
++            assertEquals(maximum, database.locationPurposeDao().latestSavedReceiptSampleId())
++            // Synthetic notice delivery controls the exact coalescing race over actual Room membership.
++            notices.emit(setOf("location_sample_purpose_authority"))
++            yield()
++            hints.pointCommitted(prior.id)
++            yield()
++            release.complete(Unit)
++            val read = snapshot(withTimeout(5_000L) { observed.receive() })
++            assertEquals(2L, read.summary.pointCount)
++            assertEquals(distance(0, 100_000), requireNotNull(read.summary.distanceMeters), 0.01)
++        } finally { release.complete(Unit); job.cancelAndJoin(); observed.close() }
++    }
++
++    @Test fun `a coalesced hint cannot lose an authority dependency rebuild`() = runBlocking(Dispatchers.Unconfined) {
++        val selected = session("coalesced-dependency")
++        database.withTransaction {
++            point(2_000, 0, 1, capture = selected)
++            point(3_000, 100_000, 2, capture = selected)
++        }
++        val notices = MutableSharedFlow<Set<String>>(replay = 1, extraBufferCapacity = 4)
++        notices.emit(setOf("location_sample"))
++        val hints = SavedLocationLiveUpdateSignal()
++        val release = CompletableDeferred<Unit>()
++        val entered = CompletableDeferred<Unit>()
++        val observed = Channel<SavedLocationSummaryRead>(Channel.UNLIMITED)
++        var fullPages = 0
++        val actual = database.locationPurposeDao()
++        val counted = object : LocationPurposeDao by actual {
++            override suspend fun savedLogicalTripPointPage(logicalId: String, serviceRunIds: List<String>,
++                afterTimeMs: Long?, afterId: Long?, limit: Int): List<com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow> {
++                fullPages++
++                return actual.savedLogicalTripPointPage(logicalId, serviceRunIds, afterTimeMs, afterId, limit)
++            }
++        }
++        val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, hints,
++            readerWithPageFault(counted), counted, notices)
++        val job = launch {
++            var first = true
++            live.observeSession(selected.id).collect { read ->
++                observed.send(read)
++                if (first) { first = false; entered.complete(Unit); release.await() }
++            }
++        }
++        try {
++            withTimeout(5_000L) { entered.await() }
++            snapshot(withTimeout(5_000L) { observed.receive() })
++            val seedPages = fullPages
++            // A source-table notice must trigger requalification even when its current values remain equal.
++            notices.emit(setOf("session_manifest_source"))
++            yield()
++            hints.pointCommitted(actual.latestSavedReceiptSampleId())
++            yield()
++            release.complete(Unit)
++            withTimeout(5_000L) { while (fullPages <= seedPages) yield() }
++            assertTrue(fullPages > seedPages)
++        } finally { release.complete(Unit); job.cancelAndJoin(); observed.close() }
++    }
++
++    private fun readerWithPageFault(purpose: LocationPurposeDao): SavedLocationSummaryReader {
++        val handle = mockk<AppDatabase>()
++        every { handle.locationPurposeDao() } returns purpose
++        every { handle.sourceEvidenceStateDao() } returns database.sourceEvidenceStateDao()
++        every { handle.locationSampleDao() } returns database.locationSampleDao()
++        every { handle.sourcePolicyDao() } returns database.sourcePolicyDao()
++        every { handle.trackingHistoryReadDao() } returns database.trackingHistoryReadDao()
++        every { handle.sourceDeletionFenceDao() } returns database.sourceDeletionFenceDao()
++        return SavedLocationSummaryReader(handle, Dispatchers.Unconfined)
++    }
++    private fun snapshot(read: SavedLocationSummaryRead) = assertIs<SavedLocationSummaryRead.Snapshot>(read)
++
++    private suspend fun session(identity: String): SessionSegment {
++        val runId = "run:$identity"
++        database.sourceSessionDao().insertSession(LogicalTrackingSessionEntity(identity, "ACTIVE", 1, 1, 1,
++            "MANUAL_FOREGROUND_START", "boot", 1_000, 1, null, null, null, null, null,
++            sessionMode = "MANUAL", currentManifestRevision = 1, currentIntentRevision = 1,
++            currentServiceRunId = runId, lifecycleLeaseGeneration = 1, lifecycleBootId = "boot"))
++        val template = SessionSegment(startTimeMs = 1_000, endTimeMs = 5_000, distanceM = 9_000_000f,
++            steps = null, primaryActivity = null, activityConfidence = null, sampleCount = 2,
++            source = SegmentSource.USER_CREATED, inferenceVersion = null, createdAt = 1_000,
++            logicalTrackingId = identity, serviceRunId = runId)
++        val segment = template.copy(id = database.sessionSegmentDao().insert(template))
++        database.sourceSessionDao().insertServiceRun(SourceServiceRunEntity(runId, identity, "ACTIVE", 1, 1, 0,
++            1_000, 1, null, null, bootId = "boot", leaseGeneration = 1,
++            startOrigin = "MANUAL_FOREGROUND_START", runRevision = 1, startDeliveryToken = "start:$identity",
++            startCommandGeneration = 1, preparedManifestRevision = 1, preparedIntentRevision = 1, sessionSegmentId = segment.id))
++        val member = SessionManifestSourceEntity(identity, 1, 1, SourceBrokerPurpose.SESSION_CAPTURE, 0, true, 1)
++        val manifest = SessionManifestVersionEntity(identity, 1, runId, "MANUAL", 1, 1, 1,
++            "MANUAL_FOREGROUND_START", "boot", 1, 1_000, "UTC", null, "START", "")
++        database.sourceSessionDao().insertManifest(manifest.copy(manifestChecksum = SessionManifestIntegrity.compute(manifest, listOf(member))))
++        database.sourceSessionDao().insertManifestSources(listOf(member))
++        return segment
++    }
++
++    private suspend fun point(time: Long, longitude: Int, sequence: Long, capture: SessionSegment? = null,
++        instance: String = "instance", clock: String = "boot", alsoBackground: Boolean = false,
++        accuracy: Float? = null, speed: Float? = null, altitude: Float? = null,
++        captureManifestRevision: Long = 1): LocationSample {
++        ordinal++
++        val event = "event:$ordinal"
++        val elapsed = time * 1_000_000L
++        val template = LocationSample(timeMs = time, elapsedRealtimeNanos = elapsed, latE7 = 0, lonE7 = longitude,
++            altitudeM = altitude, rawGpsAltitudeM = null, hAccM = accuracy, vAccM = null, speedMps = speed,
++            speedAccuracyMps = null, provider = "fused", quality = SampleQuality.COARSE,
++            motionState = null, policy = null, bucketId = null, createdAt = time + 1,
++            receivedElapsedRealtimeNanos = elapsed + 1, sourceEventId = event,
++            sourceSignalId = protectedLocationCanonicalProductIdentity(event), clockDomainId = clock,
++            bootClockDomainId = clock, altitudeDatum = AltitudeDatum.RELATIVE_BAROMETRIC,
++            altitudeSource = AltitudeSource.BAROMETER_PREDICTION)
++        val sample = template.copy(id = database.locationSampleDao().insert(template))
++        val receipt = LocationAcceptedReceiptIntegrity.seal(LocationAcceptedReceiptEntity(sample.id, event,
++            requireNotNull(sample.sourceSignalId), ordinal, "a".repeat(64), LocationAcceptedReceiptIntegrity.canonicalChecksum(sample),
++            instance, 1, sequence, "delivery:$ordinal", 0, 1,
++            SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID,
++            SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION, 1, "physical", 1, "authorization",
++            clock, clock, elapsed, elapsed + 1, time, time + 1, 2, 0))
++        database.locationPurposeDao().insertReceiptIfAbsent(receipt)
++        if (capture != null) {
++            val purpose = LocationSamplePurposeAuthorityEntity(sample.id, SourceBrokerPurpose.SESSION_CAPTURE,
++                requireNotNull(capture.serviceRunId), 1, 0, 1, Long.MAX_VALUE, capture.logicalTrackingId,
++                capture.serviceRunId, capture.id, captureManifestRevision, 1, null, null, null, 0, "UTC")
++            database.locationPurposeDao().insertPurposeIfAbsent(LocationAcceptedReceiptIntegrity.seal(purpose, receipt))
++        }
++        if (capture == null || alsoBackground) {
++            val purpose = LocationSamplePurposeAuthorityEntity(sample.id, SourceBrokerPurpose.AMBIENT_PRODUCT,
++                "ambient", 1, 0, 1, Long.MAX_VALUE, null, null, null, null, null,
++                "ambient", "retention", 1, 0, "UTC")
++            database.locationPurposeDao().insertPurposeIfAbsent(LocationAcceptedReceiptIntegrity.seal(purpose, receipt))
++        }
++        return sample
++    }
++    private fun policy() = SourcePolicyEntity(1, 1, true, 1, null, null, null,
++        true, false, true, 0, null, 0, "boot", 0, 0, "USER")
++    private fun distance(first: Int, second: Int) = Location.distance(0.0, first / 1e7, 0.0, second / 1e7, LengthUnit.Meter)
++}
+--- a/tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/controller/TrackerServiceController.kt
++++ b/tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/controller/TrackerServiceController.kt
+@@ -1,4 +1,6 @@
+ package com.adsamcik.tracker.tracker.controller
++
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ 
+ import com.adsamcik.tracker.shared.model.Location
+ import com.adsamcik.tracker.stats.api.PolicyState
+@@ -20,6 +22,9 @@
+  * - Maintains clean module boundaries
+  */
+ interface TrackerStateReader {
++    /** Shared saved native Location measurements for the exact currently published live segment. */
++    val savedLocationSummaryFlow: StateFlow<SavedLocationSummaryRead>
++
+     /**
+      * Observable tracking service running state.
+      * True while TrackerService hosts accepted collection work, including background-only work.
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/controller/DefaultTrackerServiceController.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/controller/DefaultTrackerServiceController.kt
+@@ -1,4 +1,13 @@
+ package com.adsamcik.tracker.tracker.controller
++
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection
++import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
++import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.ExperimentalCoroutinesApi
++import kotlinx.coroutines.CancellationException
+ 
+ import com.adsamcik.tracker.shared.model.Location
+ import com.adsamcik.tracker.stats.api.PolicyState
+@@ -12,6 +21,13 @@
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
+ import kotlinx.coroutines.flow.update
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.flow.catch
++import kotlinx.coroutines.flow.collect
++import kotlinx.coroutines.flow.distinctUntilChanged
++import kotlinx.coroutines.flow.flatMapLatest
++import kotlinx.coroutines.flow.map
++import kotlinx.coroutines.flow.onStart
+ 
+ /**
+  * Default implementation of TrackerServiceController.
+@@ -25,6 +41,45 @@
+  * Replaces TrackerService companion object static state.
+  */
+ class DefaultTrackerServiceController : TrackerServiceController {
++    private val _savedLocationSummary = MutableStateFlow<SavedLocationSummaryRead>(
++        SavedLocationSummaryRead.NotFound)
++    override val savedLocationSummaryFlow: StateFlow<SavedLocationSummaryRead>
++        get() = _savedLocationSummary
++    private var savedLocationObservation: Job? = null
++
++    /** AppGraph calls once. Every live product consumes the same published StateFlow. */
++    @OptIn(ExperimentalCoroutinesApi::class)
++    @Synchronized
++    fun bindSavedLocationSummaries(history: TrackingHistoryRepository,
++        applicationScope: CoroutineScope): Job {
++        check(savedLocationObservation == null) { "Saved Location presentation is already bound" }
++        return applicationScope.launch {
++            kotlinx.coroutines.flow.combine(isServiceRunningFlow, sessionInfoFlow, sessionFlow) { hosted, info, session ->
++                session?.id?.takeIf { hosted && info != null && it > 0L }
++            }.distinctUntilChanged().flatMapLatest { segmentId ->
++                if (segmentId == null) kotlinx.coroutines.flow.flowOf(null to
++                    SavedLocationSummaryRead.NotFound)
++                else history.observeLiveSavedLocationSummary(segmentId)
++                    .onStart { emit(SavedLocationSummaryRead.NotFound) }
++                    .catch { failure ->
++                        if (failure is CancellationException) throw failure
++                        emit(SavedLocationSummaryRead.Unavailable(
++                            HistoryProblemReason.STORAGE_UNAVAILABLE))
++                    }.map { segmentId to it }
++            }.collect { (segmentId, read) -> publishSavedLocation(segmentId, read) }
++        }.also { savedLocationObservation = it }
++    }
++
++    @Synchronized
++    private fun publishSavedLocation(segmentId: Long?, read: SavedLocationSummaryRead) {
++        val current = _sessionFlow.value?.id
++        _savedLocationSummary.value = if (segmentId != null && current == segmentId &&
++            _isServiceRunning.value && _sessionInfoFlow.value != null &&
++            (read !is SavedLocationSummaryRead.Snapshot ||
++                read.selection == SavedLocationSummarySelection.Session(segmentId))) read
++            else SavedLocationSummaryRead.NotFound
++    }
++
+     private val _isServiceRunning = MutableStateFlow(false)
+     override val isServiceRunningFlow: StateFlow<Boolean> get() = _isServiceRunning
+     override val isServiceRunning: Boolean get() = _isServiceRunning.value
+@@ -62,15 +117,22 @@
+     private val _planeStateFlow = MutableStateFlow<LivePlaneState?>(null)
+     override val planeStateFlow: StateFlow<LivePlaneState?> get() = _planeStateFlow
+ 
++    @Synchronized
+     override fun updateServiceRunning(isRunning: Boolean) {
++        if (!isRunning) _savedLocationSummary.value = SavedLocationSummaryRead.NotFound
+         _isServiceRunning.value = isRunning
+     }
+     
++    @Synchronized
+     override fun updateSessionInfo(info: TrackerSessionInfo?) {
++        if (info == null) _savedLocationSummary.value = SavedLocationSummaryRead.NotFound
+         _sessionInfoFlow.value = info
+     }
+     
++    @Synchronized
+     override fun updateSession(session: TrackerSessionSnapshot?) {
++        if (_sessionFlow.value?.id != session?.id) _savedLocationSummary.value =
++            SavedLocationSummaryRead.NotFound
+         if (session == null) {
+             // Service stopping, retain last session data
+             val currentSession = _sessionFlow.value
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt
+@@ -1,4 +1,6 @@
+ package com.adsamcik.tracker.tracker.di
++
++import com.adsamcik.tracker.stats.api.repository.SavedLocationLiveUpdates
+ 
+ import android.content.Context
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+@@ -130,9 +132,11 @@
+ 		live: ProtectedLocationLiveWriterRegistry,
+ 		offline: ProtectedLocationOfflineCanonicalWriter,
+ 		ambient: ProtectedLocationAmbientCanonicalWriter,
++        savedLocationUpdates: SavedLocationLiveUpdates,
+ 		@ApplicationScope scope: CoroutineScope,
+ 	): ProtectedLocationCanonicalHandoff = ProtectedLocationCanonicalHandoff(
+ 		database, qualifier, ProtectedLocationCanonicalWriterChain(live::current, offline, ambient), scope,
++        savedLocationUpdates::pointCommitted,
+ 	)
+ 
+ 	@Provides
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt
+@@ -189,6 +189,7 @@
+ 	private val qualifier: ProtectedLocationWalQualifier,
+ 	private val canonicalWriter: ProtectedLocationCanonicalWriter,
+ 	applicationScope: CoroutineScope? = null,
++    private val onSavedPointCommitted: (Long) -> Unit = {},
+ ) {
+ 	private val mutex = Mutex()
+ 	private val drainSignals = Channel<Unit>(Channel.CONFLATED)
+@@ -973,19 +974,22 @@
+ 			is ProtectedLocationCanonicalWriteResult.AuthorityChanged -> return ProtectedLocationCandidateEffect.AuthorityChanged(result.reason)
+ 			is ProtectedLocationCanonicalWriteResult.Failed -> return ProtectedLocationCandidateEffect.Failed(result.failureCode, result.terminal)
+ 		}
+-		return database.withTransaction {
++		val applied = database.withTransaction {
+ 			requireExactLane(lane, cursor)
+ 			val current = qualifier.qualifyAmbient(SourceEventId(candidate.eventId))
+ 			if (current !is LocationAmbientQualification.Qualified || !command.hasSameAuthorityAndEvidence(current.command)) {
+-				return@withTransaction ProtectedLocationCandidateEffect.AuthorityChanged("LOCATION_AMBIENT_AUTHORITY_CHANGED")
++				return@withTransaction ProtectedLocationCandidateEffect.AuthorityChanged("LOCATION_AMBIENT_AUTHORITY_CHANGED") to null
+ 			}
+ 			val accepted = requireNotNull(database.readLocationAmbientReceipt(command))
+ 			database.saveLocationContinuityAnchor(command.wal)
+ 			database.sourceProjectionStateDao().deleteFailure(WRITER_ID, WRITER_VERSION, candidate.admissionOrdinal)
+ 			advanceCursor(lane, cursor, candidate.admissionOrdinal)
+-			ProtectedLocationCandidateEffect.Applied(candidate.admissionOrdinal, accepted)
+-		}
+-	}
++            ProtectedLocationCandidateEffect.Applied(candidate.admissionOrdinal, accepted) to
++                (if (accepted) database.locationPurposeDao().receiptByEvent(candidate.eventId)?.sampleId else null)
++        }
++        applied.second?.let(onSavedPointCommitted)
++        return applied.first
++    }
+ 
+ 	private suspend fun advanceAfterReceipt(
+ 		initialLane: SourceProductProjectionLaneEntity,
+@@ -1031,8 +1035,9 @@
+ 					updatedAtMs = nowMs(),
+ 				),
+ 			)
+-		}
+-	}
++            canonicalReceipt.acceptedSample?.id
++        }.let { sampleId -> sampleId?.let(onSavedPointCommitted) }
++    }
+ 
+ 	private suspend fun settleLifecycleRejection(
+ 		initialLane: SourceProductProjectionLaneEntity,
+--- /dev/null
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/controller/TrackerSavedLocationPresentationTest.kt
+@@ -0,0 +1,140 @@
++package com.adsamcik.tracker.tracker.controller
++
++import com.adsamcik.tracker.shared.model.AltitudeDatum
++import com.adsamcik.tracker.shared.model.AltitudeSource
++import com.adsamcik.tracker.stats.api.repository.*
++import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
++import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
++import io.mockk.every
++import io.mockk.mockk
++import io.mockk.verify
++import kotlin.test.*
++import kotlinx.coroutines.cancelAndJoin
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.emitAll
++import kotlinx.coroutines.flow.flow
++import kotlinx.coroutines.test.runCurrent
++import kotlinx.coroutines.test.runTest
++import org.junit.jupiter.api.Test
++
++/** Real controller binding with explicit saved-reader fixtures; no Android/provider acceptance claim. */
++class TrackerSavedLocationPresentationTest {
++    @Test fun `every live surface shares one saved observation without using raw session counters`() = runTest {
++        val history = mockk<TrackingHistoryRepository>()
++        val upstream = MutableStateFlow<SavedLocationSummaryRead>(SavedLocationSummaryRead.NotFound)
++        var subscriptions = 0
++        every { history.observeLiveSavedLocationSummary(1) } returns flow {
++            subscriptions++
++            emitAll(upstream)
++        }
++        val controller = activeController(1)
++        val job = controller.bindSavedLocationSummaries(history, backgroundScope)
++        try {
++            runCurrent()
++            upstream.value = saved(1)
++            runCurrent()
++            val tracker = controller.savedLocationSummaryFlow
++            val notification = controller.savedLocationSummaryFlow
++            val widget = controller.savedLocationSummaryFlow
++            assertSame(tracker, notification)
++            assertSame(tracker, widget)
++            assertEquals(123.0, assertIs<SavedLocationSummaryRead.Snapshot>(widget.value).summary.distanceMeters)
++            assertEquals(9_000_000f, controller.sessionFlow.value?.distanceInM)
++            assertEquals(1, subscriptions)
++            verify(exactly = 1) { history.observeLiveSavedLocationSummary(1) }
++        } finally { job.cancelAndJoin() }
++    }
++
++    @Test fun `background hosting alone does not start a live Location history observation`() = runTest {
++        val history = mockk<TrackingHistoryRepository>()
++        val controller = DefaultTrackerServiceController()
++        controller.updateServiceRunning(true)
++        controller.updateSession(TrackerSessionSnapshot(id = 1))
++        val job = controller.bindSavedLocationSummaries(history, backgroundScope)
++        try {
++            runCurrent()
++            assertEquals(SavedLocationSummaryRead.NotFound, controller.savedLocationSummaryFlow.value)
++            verify(exactly = 0) { history.observeLiveSavedLocationSummary(any()) }
++        } finally { job.cancelAndJoin() }
++    }
++
++    @Test fun `End clears immediately while its independent background host survives`() = runTest {
++        val history = mockk<TrackingHistoryRepository>()
++        val upstream = MutableStateFlow<SavedLocationSummaryRead>(saved(1))
++        every { history.observeLiveSavedLocationSummary(1) } returns upstream
++        val controller = activeController(1)
++        val job = controller.bindSavedLocationSummaries(history, backgroundScope)
++        try {
++            runCurrent()
++            assertIs<SavedLocationSummaryRead.Snapshot>(controller.savedLocationSummaryFlow.value)
++            controller.updateSessionInfo(null)
++            assertEquals(SavedLocationSummaryRead.NotFound, controller.savedLocationSummaryFlow.value)
++            assertTrue(controller.isServiceRunning)
++            upstream.value = saved(1, distance = 999.0)
++            runCurrent()
++            assertEquals(SavedLocationSummaryRead.NotFound, controller.savedLocationSummaryFlow.value)
++        } finally { job.cancelAndJoin() }
++    }
++
++    @Test fun `physical host loss clears immediately and late saved results stay absent`() = runTest {
++        val history = mockk<TrackingHistoryRepository>()
++        val upstream = MutableStateFlow<SavedLocationSummaryRead>(saved(1))
++        every { history.observeLiveSavedLocationSummary(1) } returns upstream
++        val controller = activeController(1)
++        val job = controller.bindSavedLocationSummaries(history, backgroundScope)
++        try {
++            runCurrent()
++            controller.updateServiceRunning(false)
++            assertEquals(SavedLocationSummaryRead.NotFound, controller.savedLocationSummaryFlow.value)
++            upstream.value = saved(1, distance = 999.0)
++            runCurrent()
++            assertEquals(SavedLocationSummaryRead.NotFound, controller.savedLocationSummaryFlow.value)
++        } finally { job.cancelAndJoin() }
++    }
++
++    @Test fun `replacement segment cannot display an old segment or mismatched result`() = runTest {
++        val history = mockk<TrackingHistoryRepository>()
++        val first = MutableStateFlow<SavedLocationSummaryRead>(saved(1))
++        val second = MutableStateFlow<SavedLocationSummaryRead>(saved(1))
++        every { history.observeLiveSavedLocationSummary(1) } returns first
++        every { history.observeLiveSavedLocationSummary(2) } returns second
++        val controller = activeController(1)
++        val job = controller.bindSavedLocationSummaries(history, backgroundScope)
++        try {
++            runCurrent()
++            controller.updateSession(TrackerSessionSnapshot(id = 2))
++            assertEquals(SavedLocationSummaryRead.NotFound, controller.savedLocationSummaryFlow.value)
++            first.value = saved(1, distance = 999.0)
++            runCurrent()
++            assertEquals(SavedLocationSummaryRead.NotFound, controller.savedLocationSummaryFlow.value)
++            second.value = saved(2)
++            runCurrent()
++            assertEquals(SavedLocationSummarySelection.Session(2),
++                assertIs<SavedLocationSummaryRead.Snapshot>(controller.savedLocationSummaryFlow.value).selection)
++        } finally { job.cancelAndJoin() }
++    }
++
++    @Test fun `saved-reader failure is typed and End cannot retain the error or prior data`() = runTest {
++        val history = mockk<TrackingHistoryRepository>()
++        every { history.observeLiveSavedLocationSummary(1) } returns flow { throw IllegalStateException("Fixture storage failure") }
++        val controller = activeController(1)
++        val job = controller.bindSavedLocationSummaries(history, backgroundScope)
++        try {
++            runCurrent()
++            assertEquals(HistoryProblemReason.STORAGE_UNAVAILABLE,
++                assertIs<SavedLocationSummaryRead.Unavailable>(controller.savedLocationSummaryFlow.value).reason)
++            controller.updateSession(null)
++            assertEquals(SavedLocationSummaryRead.NotFound, controller.savedLocationSummaryFlow.value)
++        } finally { job.cancelAndJoin() }
++    }
++
++    private fun activeController(id: Long) = DefaultTrackerServiceController().also {
++        it.updateServiceRunning(true)
++        it.updateSessionInfo(TrackerSessionInfo(true))
++        it.updateSession(TrackerSessionSnapshot(id = id, distanceInM = 9_000_000f))
++    }
++    private fun saved(id: Long, distance: Double = 123.0) = SavedLocationSummaryRead.Snapshot(
++        SavedLocationSummarySelection.Session(id), TrackingHistoryReadSnapshot(0, 1),
++        SavedLocationSummary(2, SavedLocationFix(id, 3_000, 2, 0, 1_000, 0f, null, null, -12f,
++            AltitudeDatum.RELATIVE_BAROMETRIC, AltitudeSource.BAROMETER_PREDICTION, null), distance, false))
++}
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt
+@@ -66,6 +66,48 @@
+ 		database.close()
+ 	}
+ 
++    @Test
++    fun `saved presentation hint follows the actual Room purpose and cursor commit`() = runTest {
++        val command = command()
++        insertWal(command)
++        val emitted = mutableListOf<Long>()
++        val writer = ReceiptWriter(database, accepted = true)
++        val handoff = handoff(command, writer) { sampleId ->
++            assertFalse(database.inTransaction())
++            database.openHelper.readableDatabase.query(
++                "SELECT COUNT(*) FROM location_sample_purpose_authority WHERE sample_id = ? AND purpose = 'SESSION_CAPTURE'",
++                arrayOf(sampleId),
++            ).use { cursor ->
++                assertTrue(cursor.moveToFirst())
++                assertEquals(1L, cursor.getLong(0))
++            }
++            database.openHelper.readableDatabase.query(
++                "SELECT contiguous_admission_ordinal FROM source_product_projection_lane WHERE source_kind = 1 AND status = 'ACTIVE'",
++            ).use { cursor ->
++                assertTrue(cursor.moveToFirst())
++                assertEquals(ADMISSION_ORDINAL, cursor.getLong(0))
++            }
++            emitted += sampleId
++        }
++        assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainThrough(LOGICAL_ID, RUN_ID, ADMISSION_ORDINAL))
++        val receipt = requireNotNull(database.locationPurposeDao().receiptByEvent(EVENT_ID))
++        assertEquals(listOf(receipt.sampleId), emitted)
++        assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainThrough(LOGICAL_ID, RUN_ID, ADMISSION_ORDINAL))
++        assertEquals(listOf(receipt.sampleId), emitted)
++        assertEquals(1, writer.writeCount)
++    }
++
++    @Test
++    fun `a rejected canonical observation does not advertise a saved point`() = runTest {
++        val command = command()
++        insertWal(command)
++        val emitted = mutableListOf<Long>()
++        val handoff = handoff(command, ReceiptWriter(database, accepted = false), emitted::add)
++        assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainThrough(LOGICAL_ID, RUN_ID, ADMISSION_ORDINAL))
++        assertTrue(emitted.isEmpty())
++        assertNull(database.locationPurposeDao().receiptByEvent(EVENT_ID))
++    }
++
+ 	@Test
+ 	fun `source WAL drains through canonical writer and exact production receipt`() = runTest {
+ 		val command = command()
+@@ -989,6 +1031,7 @@
+ 	private fun handoff(
+ 		command: LocationCapturedFactCommand,
+ 		writer: ProtectedLocationCanonicalWriter,
++        onSavedPointCommitted: (Long) -> Unit = {},
+ 	): ProtectedLocationCanonicalHandoff = ProtectedLocationCanonicalHandoff(
+ 		database = database,
+ 		qualifier = ProtectedLocationWalQualifier {
+@@ -998,6 +1041,7 @@
+ 			)
+ 		},
+ 		canonicalWriter = writer,
++        onSavedPointCommitted = onSavedPointCommitted,
+ 	)
+ 
+ 	private suspend fun installCanonicalLane() {

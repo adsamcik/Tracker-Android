@@ -1,5 +1,14 @@
 package com.adsamcik.tracker.tracker.controller
 
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CancellationException
+
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -12,6 +21,13 @@ import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 
 /**
  * Default implementation of TrackerServiceController.
@@ -25,6 +41,45 @@ import kotlinx.coroutines.flow.update
  * Replaces TrackerService companion object static state.
  */
 class DefaultTrackerServiceController : TrackerServiceController {
+    private val _savedLocationSummary = MutableStateFlow<SavedLocationSummaryRead>(
+        SavedLocationSummaryRead.NotFound)
+    override val savedLocationSummaryFlow: StateFlow<SavedLocationSummaryRead>
+        get() = _savedLocationSummary
+    private var savedLocationObservation: Job? = null
+
+    /** AppGraph calls once. Every live product consumes the same published StateFlow. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Synchronized
+    fun bindSavedLocationSummaries(history: TrackingHistoryRepository,
+        applicationScope: CoroutineScope): Job {
+        check(savedLocationObservation == null) { "Saved Location presentation is already bound" }
+        return applicationScope.launch {
+            kotlinx.coroutines.flow.combine(isServiceRunningFlow, sessionInfoFlow, sessionFlow) { hosted, info, session ->
+                session?.id?.takeIf { hosted && info != null && it > 0L }
+            }.distinctUntilChanged().flatMapLatest { segmentId ->
+                if (segmentId == null) kotlinx.coroutines.flow.flowOf(null to
+                    SavedLocationSummaryRead.NotFound)
+                else history.observeLiveSavedLocationSummary(segmentId)
+                    .onStart { emit(SavedLocationSummaryRead.NotFound) }
+                    .catch { failure ->
+                        if (failure is CancellationException) throw failure
+                        emit(SavedLocationSummaryRead.Unavailable(
+                            HistoryProblemReason.STORAGE_UNAVAILABLE))
+                    }.map { segmentId to it }
+            }.collect { (segmentId, read) -> publishSavedLocation(segmentId, read) }
+        }.also { savedLocationObservation = it }
+    }
+
+    @Synchronized
+    private fun publishSavedLocation(segmentId: Long?, read: SavedLocationSummaryRead) {
+        val current = _sessionFlow.value?.id
+        _savedLocationSummary.value = if (segmentId != null && current == segmentId &&
+            _isServiceRunning.value && _sessionInfoFlow.value != null &&
+            (read !is SavedLocationSummaryRead.Snapshot ||
+                read.selection == SavedLocationSummarySelection.Session(segmentId))) read
+            else SavedLocationSummaryRead.NotFound
+    }
+
     private val _isServiceRunning = MutableStateFlow(false)
     override val isServiceRunningFlow: StateFlow<Boolean> get() = _isServiceRunning
     override val isServiceRunning: Boolean get() = _isServiceRunning.value
@@ -62,15 +117,22 @@ class DefaultTrackerServiceController : TrackerServiceController {
     private val _planeStateFlow = MutableStateFlow<LivePlaneState?>(null)
     override val planeStateFlow: StateFlow<LivePlaneState?> get() = _planeStateFlow
 
+    @Synchronized
     override fun updateServiceRunning(isRunning: Boolean) {
+        if (!isRunning) _savedLocationSummary.value = SavedLocationSummaryRead.NotFound
         _isServiceRunning.value = isRunning
     }
     
+    @Synchronized
     override fun updateSessionInfo(info: TrackerSessionInfo?) {
+        if (info == null) _savedLocationSummary.value = SavedLocationSummaryRead.NotFound
         _sessionInfoFlow.value = info
     }
     
+    @Synchronized
     override fun updateSession(session: TrackerSessionSnapshot?) {
+        if (_sessionFlow.value?.id != session?.id) _savedLocationSummary.value =
+            SavedLocationSummaryRead.NotFound
         if (session == null) {
             // Service stopping, retain last session data
             val currentSession = _sessionFlow.value

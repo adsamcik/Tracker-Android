@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.testing.fake
 
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -38,6 +40,24 @@ import kotlinx.coroutines.flow.StateFlow
  * ```
  */
 class FakeTrackerServiceController : TrackerServiceController {
+    private val _savedLocationSummaryFlow =
+        MutableStateFlow<SavedLocationSummaryRead>(SavedLocationSummaryRead.NotFound)
+    override val savedLocationSummaryFlow: StateFlow<SavedLocationSummaryRead>
+        get() = _savedLocationSummaryFlow
+
+    /** Test-controlled saved result; this fixture keeps the real live-segment publication boundary. */
+    fun setSavedLocationSummary(read: SavedLocationSummaryRead) {
+        val id = _sessionFlow.value?.id
+        _savedLocationSummaryFlow.value = when {
+            !isServiceRunning || _sessionInfoFlow.value == null || id == null || id <= 0L ->
+                SavedLocationSummaryRead.NotFound
+            read is SavedLocationSummaryRead.Snapshot &&
+                read.selection != SavedLocationSummarySelection.Session(id) ->
+                SavedLocationSummaryRead.NotFound
+            else -> read
+        }
+    }
+
     private val _isServiceRunning = MutableStateFlow(false)
     override val isServiceRunningFlow: StateFlow<Boolean> get() = _isServiceRunning
     override val isServiceRunning: Boolean get() = _isServiceRunning.value
@@ -76,16 +96,21 @@ class FakeTrackerServiceController : TrackerServiceController {
     override val planeStateFlow: StateFlow<LivePlaneState?> get() = _planeStateFlow
 
     override fun updateServiceRunning(isRunning: Boolean) {
+        if (!isRunning) _savedLocationSummaryFlow.value = SavedLocationSummaryRead.NotFound
         _isServiceRunning.value = isRunning
     }
 
     override fun updateSessionInfo(info: TrackerSessionInfo?) {
+        if (info == null) _savedLocationSummaryFlow.value = SavedLocationSummaryRead.NotFound
         _sessionInfoFlow.value = info
     }
 
     override fun updateSession(session: TrackerSessionSnapshot?) {
         if (session == null && _sessionFlow.value != null) {
             _lastSessionFlow.value = _sessionFlow.value
+        }
+        if (session == null || session.id != _sessionFlow.value?.id) {
+            _savedLocationSummaryFlow.value = SavedLocationSummaryRead.NotFound
         }
         _sessionFlow.value = session
     }

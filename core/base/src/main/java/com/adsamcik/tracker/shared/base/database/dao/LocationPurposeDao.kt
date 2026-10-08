@@ -34,6 +34,28 @@ data class LocationHistoryDayRow(
 /** Location authority only; this DAO never creates a canonical sample. */
 @Dao
 interface LocationPurposeDao {
+    /** Native receipt PK cursor: a wakeup is a hint, not a list of everything committed. */
+    @Query("SELECT COALESCE(MAX(sample_id), 0) FROM location_accepted_receipt")
+    suspend fun latestSavedReceiptSampleId(): Long
+
+    /** Discovery only. The source-owned reader requalifies every returned receipt and purpose. */
+    @Query("""SELECT r.* FROM location_accepted_receipt r
+        JOIN location_sample_purpose_authority p ON p.sample_id = r.sample_id
+        WHERE p.purpose = 'SESSION_CAPTURE' AND p.authority_id = :runId
+        AND p.logical_tracking_id = :logicalId AND p.service_run_id = :runId
+        AND p.session_segment_id = :segmentId
+        AND r.sample_id > :afterId AND r.sample_id <= :throughId
+        ORDER BY r.sample_id LIMIT :limit""")
+    suspend fun savedSessionReceiptPageAfterId(logicalId: String, runId: String, segmentId: Long,
+        afterId: Long, throughId: Long, limit: Int): List<LocationAcceptedReceiptEntity>
+
+    /** Indexed membership-count sentinel only; it never qualifies data or becomes a user total. */
+    @Query("""SELECT COUNT(*) FROM location_sample_purpose_authority
+        WHERE purpose = 'SESSION_CAPTURE' AND authority_id = :runId
+        AND logical_tracking_id = :logicalId AND service_run_id = :runId
+        AND session_segment_id = :segmentId""")
+    suspend fun savedSessionCandidateCount(logicalId: String, runId: String, segmentId: Long): Long
+
 	/** Exact saved capture membership. Coordinates are current user data, not reauthenticated provider payload. */
 	@Query("""SELECT DISTINCT location_sample.*, lr.source_instance_id || ':' || lr.registration_generation AS continuity_id,
 		lr.source_sequence AS continuity_sequence, 0 AS ambient_only,

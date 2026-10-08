@@ -2,6 +2,13 @@ package com.adsamcik.tracker.testing
 
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 import com.adsamcik.tracker.shared.preferences.type.SpeedFormat
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummary
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
+import com.adsamcik.tracker.testing.fake.FakeTrackerServiceController
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import com.adsamcik.tracker.testing.data.TestDataFactory
 import com.adsamcik.tracker.testing.fake.FakeLocationSource
 import com.adsamcik.tracker.testing.fake.FakeLockManager
@@ -173,4 +180,53 @@ class TestingCommonContractsTest {
 		assertEquals(49.02, path.last().latitude, 0.0)
 		assertEquals(15.04, path.last().longitude, 0.0)
 	}
+    @Test
+    fun `fake controller publishes saved Location only for its active exact segment`() {
+        val fake = activeSavedLocationFake()
+        val read = emptySavedLocation(7)
+        fake.setSavedLocationSummary(read)
+        assertSame(read, fake.savedLocationSummaryFlow.value)
+        fake.setSavedLocationSummary(emptySavedLocation(8))
+        assertEquals(SavedLocationSummaryRead.NotFound, fake.savedLocationSummaryFlow.value)
+    }
+
+    @Test
+    fun `fake End clears saved Location despite a surviving background host and late result`() {
+        val fake = activeSavedLocationFake()
+        fake.setSavedLocationSummary(emptySavedLocation(7))
+        fake.updateSessionInfo(null)
+        assertTrue(fake.isServiceRunning)
+        assertEquals(SavedLocationSummaryRead.NotFound, fake.savedLocationSummaryFlow.value)
+        fake.setSavedLocationSummary(emptySavedLocation(7))
+        assertEquals(SavedLocationSummaryRead.NotFound, fake.savedLocationSummaryFlow.value)
+    }
+
+    @Test
+    fun `fake host loss and segment replacement clear saved Location`() {
+        val fake = activeSavedLocationFake()
+        fake.setSavedLocationSummary(emptySavedLocation(7))
+        fake.updateServiceRunning(false)
+        assertEquals(SavedLocationSummaryRead.NotFound, fake.savedLocationSummaryFlow.value)
+        fake.updateServiceRunning(true)
+        fake.setSavedLocationSummary(emptySavedLocation(7))
+        fake.updateSession(TrackerSessionSnapshot(id = 8))
+        assertEquals(SavedLocationSummaryRead.NotFound, fake.savedLocationSummaryFlow.value)
+        fake.setSavedLocationSummary(emptySavedLocation(7))
+        assertEquals(SavedLocationSummaryRead.NotFound, fake.savedLocationSummaryFlow.value)
+        fake.updateSession(null)
+        fake.setSavedLocationSummary(emptySavedLocation(8))
+        assertEquals(SavedLocationSummaryRead.NotFound, fake.savedLocationSummaryFlow.value)
+    }
+
+    private fun activeSavedLocationFake() = FakeTrackerServiceController().also {
+        it.updateServiceRunning(true)
+        it.updateSessionInfo(TrackerSessionInfo(true))
+        it.updateSession(TrackerSessionSnapshot(id = 7))
+    }
+
+    private fun emptySavedLocation(segmentId: Long) = SavedLocationSummaryRead.Snapshot(
+        SavedLocationSummarySelection.Session(segmentId), TrackingHistoryReadSnapshot(0, 1),
+        SavedLocationSummary(0, null, null, false),
+    )
+
 }

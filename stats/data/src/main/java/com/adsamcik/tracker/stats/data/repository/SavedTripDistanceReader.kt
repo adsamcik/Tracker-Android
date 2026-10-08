@@ -178,11 +178,21 @@ class SavedTripDistanceReader @Inject constructor(
 }
 
 /** Constant-memory route measurement; the same continuity boundaries used by geographic exports. */
-internal class SavedTripDistanceAccumulator {
-	private var previous: LocationPathSampleRow? = null
-	private var totalMeters = 0.0
-	private var hasMeasuredPair = false
-	var hasDisconnectedSections: Boolean = false
+internal data class SavedTripDistanceState(
+    val previous: LocationPathSampleRow? = null,
+    val totalMeters: Double = 0.0,
+    val hasMeasuredPair: Boolean = false,
+    val disconnected: Boolean = false,
+) {
+    init { require(totalMeters.isFinite() && totalMeters >= 0.0) }
+}
+
+internal class SavedTripDistanceAccumulator(state: SavedTripDistanceState = SavedTripDistanceState()) {
+    private var previous: LocationPathSampleRow? = state.previous
+    private var totalMeters = state.totalMeters
+    private var hasMeasuredPair = state.hasMeasuredPair
+    fun snapshotState() = SavedTripDistanceState(previous, totalMeters, hasMeasuredPair, hasDisconnectedSections)
+    var hasDisconnectedSections: Boolean = state.disconnected
 		private set
 	val measuredMeters: Double? get() = totalMeters.takeIf { hasMeasuredPair }
 

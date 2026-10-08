@@ -1,0 +1,138 @@
+{
+  "new_method_count": 26,
+  "status": "NOT_RUN",
+  "methods": [
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "method": "a long saved session seeds completely then appends without a total point limit",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "method": "a missed hint still discovers every committed point through Room and receipt cursor",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "method": "a rejected last candidate remains a continuity gap after seeding",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "method": "a retained suffix stays useful and partial in finite and live summaries",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "method": "ambient and another session do not lend their saved points to the active segment",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "method": "an older receipt gaining exact session membership forces a complete catch-up",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "method": "changed original row with the writer revision is requalified instead of reused",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "method": "conflated and duplicate hints do not double count saved points",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "method": "delayed older point rebuilds measured ordering instead of extending the wrong end",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "method": "epoch clear cannot publish the prior dataset total after another hint",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "method": "one seed is extended without reading the growing session again",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "method": "point deletion retracts a saved section rather than keeping the cached total",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "method": "real zero optional accuracy and measured timestamp survive the shared live read",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/controller/TrackerSavedLocationPresentationTest.kt",
+      "method": "End clears immediately while its independent background host survives",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/controller/TrackerSavedLocationPresentationTest.kt",
+      "method": "background hosting alone does not start a live Location history observation",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/controller/TrackerSavedLocationPresentationTest.kt",
+      "method": "every live surface shares one saved observation without using raw session counters",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/controller/TrackerSavedLocationPresentationTest.kt",
+      "method": "physical host loss clears immediately and late saved results stay absent",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/controller/TrackerSavedLocationPresentationTest.kt",
+      "method": "replacement segment cannot display an old segment or mismatched result",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/controller/TrackerSavedLocationPresentationTest.kt",
+      "method": "saved-reader failure is typed and End cannot retain the error or prior data",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt",
+      "method": "a rejected canonical observation does not advertise a saved point",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoffTest.kt",
+      "method": "saved presentation hint follows the actual Room purpose and cursor commit",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "core/testing/src/test/java/com/adsamcik/tracker/testing/TestingCommonContractsTest.kt",
+      "method": "fake controller publishes saved Location only for its active exact segment",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "core/testing/src/test/java/com/adsamcik/tracker/testing/TestingCommonContractsTest.kt",
+      "method": "fake End clears saved Location despite a surviving background host and late result",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "core/testing/src/test/java/com/adsamcik/tracker/testing/TestingCommonContractsTest.kt",
+      "method": "fake host loss and segment replacement clear saved Location",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "method": "a coalesced post-purpose hint cannot lose same maximum receipt membership",
+      "status": "NOT_RUN",
+      "boundary": "Actual Room stored records and production live reader; injected synthetic table notices control conflation while a fixture collector is blocked. No actual Android/Room notification timing claim."
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "method": "a coalesced hint cannot lose an authority dependency rebuild",
+      "status": "NOT_RUN",
+      "boundary": "Actual Room stored records and production live reader; injected synthetic table notices control conflation while a fixture collector is blocked. No actual Android/Room notification timing claim."
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.controller
 
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -20,6 +22,9 @@ import kotlinx.coroutines.flow.StateFlow
  * - Maintains clean module boundaries
  */
 interface TrackerStateReader {
+    /** Shared saved native Location measurements for the exact currently published live segment. */
+    val savedLocationSummaryFlow: StateFlow<SavedLocationSummaryRead>
+
     /**
      * Observable tracking service running state.
      * True while TrackerService hosts accepted collection work, including background-only work.

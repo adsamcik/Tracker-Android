@@ -189,6 +189,7 @@ internal class ProtectedLocationCanonicalHandoff(
 	private val qualifier: ProtectedLocationWalQualifier,
 	private val canonicalWriter: ProtectedLocationCanonicalWriter,
 	applicationScope: CoroutineScope? = null,
+    private val onSavedPointCommitted: (Long) -> Unit = {},
 ) {
 	private val mutex = Mutex()
 	private val drainSignals = Channel<Unit>(Channel.CONFLATED)
@@ -973,19 +974,22 @@ internal class ProtectedLocationCanonicalHandoff(
 			is ProtectedLocationCanonicalWriteResult.AuthorityChanged -> return ProtectedLocationCandidateEffect.AuthorityChanged(result.reason)
 			is ProtectedLocationCanonicalWriteResult.Failed -> return ProtectedLocationCandidateEffect.Failed(result.failureCode, result.terminal)
 		}
-		return database.withTransaction {
+		val applied = database.withTransaction {
 			requireExactLane(lane, cursor)
 			val current = qualifier.qualifyAmbient(SourceEventId(candidate.eventId))
 			if (current !is LocationAmbientQualification.Qualified || !command.hasSameAuthorityAndEvidence(current.command)) {
-				return@withTransaction ProtectedLocationCandidateEffect.AuthorityChanged("LOCATION_AMBIENT_AUTHORITY_CHANGED")
+				return@withTransaction ProtectedLocationCandidateEffect.AuthorityChanged("LOCATION_AMBIENT_AUTHORITY_CHANGED") to null
 			}
 			val accepted = requireNotNull(database.readLocationAmbientReceipt(command))
 			database.saveLocationContinuityAnchor(command.wal)
 			database.sourceProjectionStateDao().deleteFailure(WRITER_ID, WRITER_VERSION, candidate.admissionOrdinal)
 			advanceCursor(lane, cursor, candidate.admissionOrdinal)
-			ProtectedLocationCandidateEffect.Applied(candidate.admissionOrdinal, accepted)
-		}
-	}
+            ProtectedLocationCandidateEffect.Applied(candidate.admissionOrdinal, accepted) to
+                (if (accepted) database.locationPurposeDao().receiptByEvent(candidate.eventId)?.sampleId else null)
+        }
+        applied.second?.let(onSavedPointCommitted)
+        return applied.first
+    }
 
 	private suspend fun advanceAfterReceipt(
 		initialLane: SourceProductProjectionLaneEntity,
@@ -1031,8 +1035,9 @@ internal class ProtectedLocationCanonicalHandoff(
 					updatedAtMs = nowMs(),
 				),
 			)
-		}
-	}
+            canonicalReceipt.acceptedSample?.id
+        }.let { sampleId -> sampleId?.let(onSavedPointCommitted) }
+    }
 
 	private suspend fun settleLifecycleRejection(
 		initialLane: SourceProductProjectionLaneEntity,
