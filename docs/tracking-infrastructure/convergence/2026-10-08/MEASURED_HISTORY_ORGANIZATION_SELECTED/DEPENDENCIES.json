@@ -1,0 +1,136 @@
+{
+  "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "pins": [
+    {
+      "path": "settings.gradle.kts",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "gradle/libs.versions.toml",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "3a4ccf984418e20f5e943456ab7e096823744ad74249699979a8cb4d22d19bde"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidConventionPlugins.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "6530e14a5465d6023516b430b05e792a49b2cbc802c2b9455101272c17c36229"
+    },
+    {
+      "path": "feature/statistics/build.gradle.kts",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "1a05bc187d3a28727c8d0b85280b725ba33f6eeb3476b11495af63199c9d85d6"
+    },
+    {
+      "path": "feature/statistics/src/main/AndroidManifest.xml",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "8dd2609480cd03d78e10c6787efffda560d5c4ed89e3f7a1343331ef35401cbf"
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "a276144c34315be81b125df52eb7611f08e92a7629abb3d1f3587a3e92a93f24"
+    },
+    {
+      "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/PagedTrackingHistoryRepository.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "8961831d537b99884b54abec88a0369ce13da9322365b023d99ec4c491497e51"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/TrackingHistoryRepository.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "809a1d3187d41e832659136556999ba82bb2c82c1ac47a8a4f5252c6e2db61cd"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SessionOrganizationRepository.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "ed0194ea24b6407a8f0c820f71e2e796ad7d044a95c5192afaeff7f7b7e73050"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "46271afa72131dfd0ba86bf593abb00cb0f1a39a7f01ede89b43a56789f46217"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/TrackingHistoryInvalidationTables.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "0d5d105525c5775443b8be098b012b9973747edc6bf5d4c097ad0a3188bc0fc6"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRoomFixtures.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "18c3de6a686ea2c713b56aa0cb7f5d1aa3251a409798d6d3b9eff52ecc709f16"
+    },
+    {
+      "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/OrganizationSourceSelectionCodec.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "cb49e68df8b8c902524912084f6a33d2fad25b2a33bc15206391a5853c9f2ac1"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/WifiHistoryRepository.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "7c3e7e6dc506e09191bf18a2dfbb897c1a5c515505cbee16bee7bdd91894c837"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/CellHistoryRepository.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "a900a17884df6b4d2cab02d2ae4863b8d24b90bd214aae1de96e9d6d52a9486f"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/MeasuredHistoryCandidate.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "f4cc165b7e5a70a492ad643ffee95f9bf64c54c14d5fdbf39352fbcc794fd482"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/OrganizationAnnotationEntity.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "21f1ba1a7b06b6f93c82d51523d1e455ab54e47848957b1add85d4056711b2c7"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationFileArchiveEntity.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "14f1f53740a9df74bdeb4b5d909b8482bdf82919aa158a9ccafef07039605e69"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationFileIdentityEntity.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "d33149df25edc6184d6e866080a99829f0003f465290960f78d8f6ef71efd174"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredHistoryPosition.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "31657df04ebed5a4d013555cccbd668b6a83154e554144a74eaf90269774acd7"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativeSessionNames.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "9f6e3e7032ebb343e15fe517a6c3d34354cb2289a08536ce33bd19be72c154fd"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredLocationHistoryReader.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "1b985d37a1dda7faee13064184b3679aab23eb844ed16f54f99622b2c8483b31"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredImportedSensorHistoryReader.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "9d443777f21d6f53a3668b382308cea939e292c64d01b377068d8e58f36a8f7f"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredBackgroundStepsHistoryReader.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "ba97e646d8007d88cbb4d0d86925d106ab2050d44c2d0ee1bcf8a8cbdcafc80a"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredCapturedRadioHistoryReader.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "34d92953f65ade5fefd9fdc36e2a7569448c44497dd752b090893aa0df31a999"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredRadioHistoryReader.kt",
+      "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+      "sha256": "844aad8cbbff493c7ff86150986b1f4de89cbb49275794f9e50510feff92e920"
+    }
+  ]
+}

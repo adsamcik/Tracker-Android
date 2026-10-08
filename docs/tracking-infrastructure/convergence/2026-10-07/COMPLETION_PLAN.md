@@ -628,3 +628,9 @@ Exact selected source/review: `../2026-10-08/PROVIDER_ELAPSED_INTERVAL_SELECTED_
 - [x] Add approved Avg from the existing shared constant-memory saved-route distance and moving duration. Tracker uses existing localized speed and Partial/Waiting states; the finite fault path preserves saved points without an invalid average or resumable prefix. Retire the superseded unused feature-local calculator. Eight authored methods NOT_RUN; no new provider, observer, storage or full-session rescan.
 
 Exact V2 selected source and independent review: `../2026-10-08/SAVED_LOCATION_AVERAGE_SELECTED_V2/` and `SAVED_LOCATION_AVERAGE_REVIEW/V2_ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN. No gates, activation, integration or push.
+
+### October 8 - measured history organization
+
+- [x] Decorate already-qualified six-source observations with overlapping session names in expanded details; each observation remains one row. Imported labels use exact saved parent/Location archive membership, without capture-purpose restrictions on ordinary retrospective annotations. Eleven methods NOT_RUN; native radio imported-alias names remain a held companion.
+
+Exact accepted source/review: `../2026-10-08/MEASURED_HISTORY_ORGANIZATION_SELECTED/` and `MEASURED_HISTORY_ORGANIZATION_REVIEW/ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN; no gates, activation or integration.

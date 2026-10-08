@@ -1,0 +1,58 @@
+{
+  "packet": "docs/tracking-infrastructure/convergence/2026-10-08/MEASURED_HISTORY_ORGANIZATION_SELECTED",
+  "phase": "IMPLEMENTATION_ONLY",
+  "execution": "NOT_RUN",
+  "inspected_current": "c99d76e97223be34ce15c7f04b923bc47299ee8e",
+  "inputs": {
+    "FILES.json": "ca58c58b66d3215cada2a59cf64776d5d7ca9b0426310547b8c9d805cc5b7c9c",
+    "SELECTION.patch": "fa3ccfa6c7fb0cde897386bae257050e5456ff4baaa22769b1a0be99efccdc4c",
+    "DEPENDENCIES.json": "92052babf7b91731d45949fdea3e652e51b8ce7a16f37ddb7c0ad1d812bb9ba3",
+    "SOURCE_BOUNDARY.md": "8fb7418998114dce22f9e0f07a35722cab4f9df6f7e04dd048db96484ff9f9e2",
+    "CURRENT_COMPOSITION.json": "39ae2d14ce85bd1d5ad1f6dae89626bd320ee55694cc46b3cc5d6af741a166fe",
+    "CASE_INVENTORY.json": "f9c34dfade73a32def4cf977f2eb0f262a89156c39a8961f49d6e103f951cc36"
+  },
+  "selected_paths": [
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistory.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "5ace726bfa0549efddf35af46fb00c0d0da762f3dcbb78fcc1e07a88a7add32d"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/OrganizationAnnotationDao.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "e47a986dd7be1242a84f8b22979eec0b8d0294618270b7bb2ad463a4bc0d7c68"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationFileIdentityDao.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "8e420f043396577c1ae4f3bbb6671f73d4e191bc8b2cd5237f3f2faa678d05ed"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesReader.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "62755a9bee10f17b3f5eaaa2de73abb6a76d53de45c5d3d34ea8bfc570597982"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "18323b320f631ab87d1aa5a8b949dcdaa0a5667ac68ed2b7788145ad759c363f"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/MeasuredHistoryContent.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "6c546d0d8013e280dd9f42bffc9a8bddb61dab287e7b079257a03d24a4b66ebc"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesRoomTest.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "18433cf1f87736a3e17483cc312e725f6bc00bd62d01e2cdea0f2f7c81d7a11b"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "7f4b943e41e9c3f2c67676b35a47706402737e2580a1f6273d2ffe9f652adfc3"
+    }
+  ],
+  "dependency_count": 26,
+  "current_declared_dependency_drift": []
+}

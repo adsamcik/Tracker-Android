@@ -70,10 +70,11 @@ interface OrganizationAnnotationDao {
 				AND NOT EXISTS (SELECT 1 FROM organization_annotation a
 					WHERE a.recording_adapter_key = 'segment:' || s.id)
 		) WHERE (:fromMs IS NULL OR (fromMs < :toMs AND (toMs IS NULL OR toMs > :fromMs)))
+		AND (:namedOnly = 0 OR length(trim(name)) > 0)
 		AND ((:selectedLocalId IS NULL AND :selectedAdapterKey IS NULL) OR (adapterKey IS NULL AND localId = :selectedLocalId) OR adapterKey = :selectedAdapterKey)
 		ORDER BY fromMs DESC, adapterKey, localId LIMIT :limit OFFSET :offset
 	""")
-	suspend fun visible(fromMs: Long?, toMs: Long?, limit: Int, offset: Int = 0, selectedLocalId: String? = null, selectedAdapterKey: String? = null): List<OrganizationSessionRow>
+	suspend fun visible(fromMs: Long?, toMs: Long?, limit: Int, offset: Int = 0, selectedLocalId: String? = null, selectedAdapterKey: String? = null, namedOnly: Boolean = false): List<OrganizationSessionRow>
 
 	@Query("SELECT zone_id FROM session_manifest_version WHERE 'logical:' || logical_tracking_id = :key ORDER BY manifest_revision LIMIT 1")
 	suspend fun recordingZone(key: String): String?

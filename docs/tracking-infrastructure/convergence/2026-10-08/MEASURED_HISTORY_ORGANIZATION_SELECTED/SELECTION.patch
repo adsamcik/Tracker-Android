@@ -1,0 +1,399 @@
+diff --git a/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistory.kt b/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistory.kt
+--- a/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistory.kt
++++ b/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistory.kt
+@@ -45,6 +45,8 @@
+     val sections: List<HistorySection>,
+     val problems: Set<HistoryProblem> = emptySet(),
+     val measurement: HistoryMeasurement? = null,
++    /** Optional organization only; names never qualify or duplicate a saved observation. */
++    val sessionNames: List<String> = emptyList(),
+ ) {
+     init {
+         require(toExclusiveMs == null || toExclusiveMs >= position.startTimeMs ||
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/OrganizationAnnotationDao.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/OrganizationAnnotationDao.kt
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/OrganizationAnnotationDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/OrganizationAnnotationDao.kt
+@@ -70,10 +70,11 @@
+ 				AND NOT EXISTS (SELECT 1 FROM organization_annotation a
+ 					WHERE a.recording_adapter_key = 'segment:' || s.id)
+ 		) WHERE (:fromMs IS NULL OR (fromMs < :toMs AND (toMs IS NULL OR toMs > :fromMs)))
++		AND (:namedOnly = 0 OR length(trim(name)) > 0)
+ 		AND ((:selectedLocalId IS NULL AND :selectedAdapterKey IS NULL) OR (adapterKey IS NULL AND localId = :selectedLocalId) OR adapterKey = :selectedAdapterKey)
+ 		ORDER BY fromMs DESC, adapterKey, localId LIMIT :limit OFFSET :offset
+ 	""")
+-	suspend fun visible(fromMs: Long?, toMs: Long?, limit: Int, offset: Int = 0, selectedLocalId: String? = null, selectedAdapterKey: String? = null): List<OrganizationSessionRow>
++	suspend fun visible(fromMs: Long?, toMs: Long?, limit: Int, offset: Int = 0, selectedLocalId: String? = null, selectedAdapterKey: String? = null, namedOnly: Boolean = false): List<OrganizationSessionRow>
+ 
+ 	@Query("SELECT zone_id FROM session_manifest_version WHERE 'logical:' || logical_tracking_id = :key ORDER BY manifest_revision LIMIT 1")
+ 	suspend fun recordingZone(key: String): String?
+diff --git a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationFileIdentityDao.kt b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationFileIdentityDao.kt
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationFileIdentityDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationFileIdentityDao.kt
+@@ -35,6 +35,12 @@
+ 	@Query("SELECT * FROM location_file_archive_point WHERE archive_identity = :identity " +
+ 		"AND ordinal IN (:ordinals)")
+ 	suspend fun archivePointsByOrdinal(identity: String, ordinals: List<Int>): List<LocationFileArchivePointEntity>
++
++	/** Exact membership for already-qualified displayed points; never matches a timestamp. */
++	@Query("SELECT DISTINCT p.sample_id FROM location_file_archive_point p " +
++		"JOIN location_file_identity i ON i.portable_id = p.portable_id AND i.sample_id = p.sample_id " +
++		"WHERE p.archive_identity = :identity AND p.sample_id IN (:sampleIds)")
++	suspend fun sampleIdsInArchive(identity: String, sampleIds: List<Long>): List<Long>
+ 
+ 	@Insert(onConflict = OnConflictStrategy.IGNORE)
+ 	suspend fun insertArchivePointsIfAbsent(values: List<LocationFileArchivePointEntity>): List<Long>
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesReader.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesReader.kt
+--- /dev/null
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesReader.kt
+@@ -0,0 +1,106 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.dao.MeasuredHistoryCandidate
++import com.adsamcik.tracker.shared.base.database.dao.OrganizationSessionRow
++import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
++import com.adsamcik.tracker.stats.api.repository.HistoryProblem
++import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
++import com.adsamcik.tracker.stats.api.repository.HistorySource
++import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelectionCodec
++import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelector
++import com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++
++internal data class MeasuredSessionNamesRead(val rows: List<UnifiedHistoryRow>, val problems: Set<HistoryProblem>)
++
++/** Metadata only, in the caller's qualified Room snapshot. It never clips, admits or duplicates data. */
++internal class MeasuredSessionNamesReader(private val database: AppDatabase) {
++    suspend fun decorate(rows: List<UnifiedHistoryRow>, candidates: List<MeasuredHistoryCandidate>): MeasuredSessionNamesRead {
++        require(rows.size <= 100 && candidates.size <= 100)
++        if (rows.isEmpty()) return MeasuredSessionNamesRead(rows, emptySet())
++        val keys = candidates.associateBy(::measuredHistoryPosition)
++        val names = rows.associate { it.position to linkedSetOf<String>() }
++        val problems = linkedSetOf<HistoryProblem>()
++        val from = rows.minOf { minOf(it.position.startTimeMs, it.toExclusiveMs ?: it.position.startTimeMs) }
++        val last = rows.maxOf { maxOf(it.position.startTimeMs, it.toExclusiveMs ?: it.position.startTimeMs) }
++        val to = if (last == Long.MAX_VALUE) last else last + 1L
++        var offset = 0
++        try {
++            while (true) {
++                currentCoroutineContext().ensureActive()
++                val annotations = database.organizationAnnotationDao().visible(from, to, PAGE_SIZE, offset, namedOnly = true)
++                for (annotation in annotations) {
++                    val name = annotation.name?.takeIf(String::isNotBlank) ?: continue
++                    val selected = try { annotation.importedSourceSelection?.let(OrganizationSourceSelectionCodec::decode) }
++                    catch (cancelled: CancellationException) { throw cancelled }
++                    catch (_: Exception) {
++                        problems += HistoryProblem(null, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++                        continue
++                    }
++                    if (selected != null && annotation.adapterKey != null) {
++                        problems += HistoryProblem(null, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++                        continue
++                    }
++                    val eligible = rows.filter { contains(annotation, it) }
++                    if (eligible.isEmpty()) continue
++                    val locationIds = eligible.mapNotNull { (it.measurement as? HistoryMeasurement.Location)?.point?.sampleId }
++                    val locationMembers = linkedSetOf<Long>()
++                    if (locationIds.isNotEmpty()) for (selector in selected.orEmpty().filterIsInstance<OrganizationSourceSelector.LocationFile>()) {
++                        currentCoroutineContext().ensureActive()
++                        locationMembers += database.locationFileIdentityDao().sampleIdsInArchive(selector.archiveIdentity, locationIds)
++                    }
++                    for (row in eligible) {
++                        val key = keys[row.position] ?: continue
++                        if (selected == null || selected.any { member(it, row, key, locationMembers) })
++                            names.getValue(row.position) += name
++                    }
++                }
++                if (annotations.size < PAGE_SIZE) break
++                offset = Math.addExact(offset, annotations.size)
++            }
++        } catch (cancelled: CancellationException) { throw cancelled }
++        catch (_: Exception) {
++            problems += HistoryProblem(null, HistoryProblemReason.STORAGE_UNAVAILABLE)
++            rows.forEach { row -> row.name?.takeIf(String::isNotBlank)?.let { names.getValue(row.position) += it } }
++        }
++        return MeasuredSessionNamesRead(rows.map { it.copy(name = null, sessionNames = names.getValue(it.position).toList()) }, problems)
++    }
++
++    private fun contains(annotation: OrganizationSessionRow, row: UnifiedHistoryRow): Boolean {
++        val from = annotation.fromMs?.takeIf { it >= 0L } ?: return false
++        val to = annotation.toMs
++        if (to == null && !annotation.isActive || to != null && to <= from) return false
++        val start = row.position.startTimeMs
++        val end = row.toExclusiveMs
++        if (start < from || to != null && start >= to) return false
++        if (end == null) {
++            val uncertainty = when (val value = row.measurement) {
++                is HistoryMeasurement.Wifi -> value.network.wallTimeUncertaintyMs
++                is HistoryMeasurement.Cell -> value.tower.wallTimeUncertaintyMs
++                else -> 0L
++            }
++            return uncertainty <= start - from && (to == null || uncertainty < to - start)
++        }
++        if (end < start) return false
++        val strictEnd = row.measurement is HistoryMeasurement.Pressure ||
++            row.measurement is HistoryMeasurement.WifiSummary || row.measurement is HistoryMeasurement.CellSummary ||
++            row.measurement is HistoryMeasurement.BackgroundWifiSummary || row.measurement is HistoryMeasurement.BackgroundCellSummary
++        return to == null || if (strictEnd) end < to else end <= to
++    }
++
++    private fun member(selector: OrganizationSourceSelector, row: UnifiedHistoryRow, key: MeasuredHistoryCandidate,
++        locationMembers: Set<Long>): Boolean = when (selector) {
++        is OrganizationSourceSelector.LocationFile -> (row.measurement as? HistoryMeasurement.Location)?.point?.sampleId in locationMembers
++        is OrganizationSourceSelector.CapturedEntry -> key.origin == "IMPORTED" && key.purpose == "CAPTURE" &&
++            selector.source == row.measurement?.source && selector.entryIdentity == key.writerId
++        is OrganizationSourceSelector.BackgroundStepsDay -> key.origin == "IMPORTED" && key.purpose == "BACKGROUND" &&
++            row.measurement?.source == HistorySource.STEPS && selector.dayIdentity == key.writerId
++        is OrganizationSourceSelector.BackgroundRadioArchive -> key.origin == "IMPORTED" && key.purpose == "BACKGROUND" &&
++            selector.source == row.measurement?.source && selector.archiveIdentity == key.writerId
++    }
++
++    private companion object { const val PAGE_SIZE = 100 }
++}
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt
+@@ -807,13 +807,16 @@
+                 problems += HistoryProblem(selected.first().source, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+             }
+         }
++        val ordered = planned.rows.mapNotNull { representatives ->
++            rows[measuredHistoryPosition(representatives.first().seed)] }
++        val named = MeasuredSessionNamesReader(database).decorate(ordered,
++            planned.rows.map { it.first().seed })
++        problems += named.problems
+         if (database.sourceEvidenceStateDao().get() != state) {
+             return HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+         }
+-        val ordered = planned.rows.mapNotNull { representatives ->
+-            rows[measuredHistoryPosition(representatives.first().seed)] }
+         val next = if (planned.hasMore && planned.consumed != null) HistoryContinuation(range, planned.consumed) else null
+-        return HistoryRangeRead.Page(ordered, snapshot, next, problems)
++        return HistoryRangeRead.Page(named.rows, snapshot, next, problems)
+     }
+ 
+     private suspend fun sourceRead(candidates: List<RangeHistoryCandidate>,
+diff --git a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/MeasuredHistoryContent.kt b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/MeasuredHistoryContent.kt
+--- a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/MeasuredHistoryContent.kt
++++ b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/MeasuredHistoryContent.kt
+@@ -159,11 +159,11 @@
+ 					style = MaterialTheme.typography.titleSmall)
+ 				Text(measuredTimeLabel(row, zone, locale), style = MaterialTheme.typography.bodySmall)
+ 			}
+-			row.name?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+ 			MeasurementValue(measurement, locale, expanded)
+ 			if (HistoryOrigin.IMPORTED in row.origins) Text(stringResource(R.string.radio_detail_imported),
+ 				style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+ 			if (expanded) {
++                row.sessionNames.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+ 				val format = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(locale)
+ 				Text(Instant.ofEpochMilli(row.position.startTimeMs).atZone(zone).format(format) +
+ 					(row.toExclusiveMs?.let { " \u2192 " + Instant.ofEpochMilli(it).atZone(zone).format(format) } ?: ""),
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesRoomTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesRoomTest.kt
+--- /dev/null
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesRoomTest.kt
+@@ -0,0 +1,172 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import android.app.Application
++import androidx.room.withTransaction
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.dao.MeasuredHistoryCandidate
++import com.adsamcik.tracker.shared.base.database.data.LocationFileArchiveEntity
++import com.adsamcik.tracker.shared.base.database.data.LocationFileArchivePointEntity
++import com.adsamcik.tracker.shared.base.database.data.LocationFileIdentityEntity
++import com.adsamcik.tracker.shared.base.database.data.LocationSample
++import com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity
++import com.adsamcik.tracker.shared.base.database.data.SampleQuality
++import com.adsamcik.tracker.stats.api.repository.*
++import io.kotest.matchers.shouldBe
++import io.kotest.matchers.types.shouldBeInstanceOf
++import kotlinx.coroutines.test.runTest
++import org.junit.After
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++/** Actual Room metadata/membership; sensor payload rows are qualified-leaf fixtures. All NOT_RUN. */
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class MeasuredSessionNamesRoomTest {
++    private lateinit var database: AppDatabase
++    private lateinit var context: Application
++    @Before fun setup() = runTest {
++        context = ApplicationProvider.getApplicationContext()
++        database = AppDatabase.testDatabase(context)
++        database.sourceEvidenceStateDao().ensure()
++    }
++    @After fun close() = database.close()
++
++    @Test fun `overlapping retrospective sessions add both names to one background reading`() = runTest {
++        annotation("morning", 900, 1_400)
++        annotation("commute", 1_100, 1_600)
++        val key = key("ambient_wifi", "LOCAL", "BACKGROUND", "reading", 1_200)
++        val original = wifi(key)
++        val result = decorate(listOf(original), listOf(key))
++        result.rows.size shouldBe 1
++        result.rows.single().sessionNames shouldBe listOf("commute", "morning")
++        result.rows.single().measurement shouldBe original.measurement
++        result.rows.single().purpose shouldBe HistoryPurpose.BACKGROUND
++        result.problems shouldBe emptySet()
++    }
++
++    @Test fun `metadata paging does not drop the hundred and first overlapping name`() = runTest {
++        repeat(105) { annotation("session-$it", 900, 1_600) }
++        val key = key("ambient_wifi", "LOCAL", "BACKGROUND", "reading", 1_200)
++        val names = decorate(listOf(wifi(key)), listOf(key)).rows.single().sessionNames
++        names.size shouldBe 105
++        names.toSet() shouldBe (0..104).map { "session-$it" }.toSet()
++    }
++
++    @Test fun `edited bounds rename only contained points and never delete the observations`() = runTest {
++        annotation("walk", 900, 1_600)
++        val keys = listOf(key("ambient_wifi", "LOCAL", "BACKGROUND", "outside", 1_050),
++            key("ambient_wifi", "LOCAL", "BACKGROUND", "inside", 1_300))
++        val rows = keys.map(::wifi)
++        decorate(rows, keys).rows.map { it.sessionNames } shouldBe listOf(listOf("walk"), listOf("walk"))
++        val saved = requireNotNull(database.organizationAnnotationDao().byId("walk"))
++        database.organizationAnnotationDao().update(saved.copy(revision = 2, startTimeMs = 1_200, name = "Lunch")) shouldBe 1
++        val updated = decorate(rows, keys)
++        updated.rows.map { it.sessionNames } shouldBe listOf(emptyList(), listOf("Lunch"))
++        updated.rows.map { it.measurement } shouldBe rows.map { it.measurement }
++        database.organizationAnnotationDao().delete("walk") shouldBe 1
++        decorate(rows, keys).rows.map { it.sessionNames } shouldBe listOf(emptyList(), emptyList())
++    }
++
++    @Test fun `a real crossing Steps window keeps its whole count and requires complete containment`() = runTest {
++        annotation("complete", 900, 1_800)
++        annotation("part", 1_200, 1_800)
++        val key = key("ambient_steps", "LOCAL", "BACKGROUND", "steps", 1_000, 1_500)
++        val count = StepsHistory(42L, HistoryAvailability.AVAILABLE, HistoryEvidence.RECORDED,
++            HistoryProductState.READY, StepsHistoryCoverage.COMPLETE)
++        val row = UnifiedHistoryRow(measuredHistoryPosition(key), 1_500, setOf(HistoryOrigin.LOCAL),
++            HistoryPurpose.BACKGROUND, sections = emptyList(), measurement = HistoryMeasurement.Steps(count))
++        val displayed = decorate(listOf(row), listOf(key)).rows.single()
++        displayed.sessionNames shouldBe listOf("complete")
++        displayed.toExclusiveMs shouldBe 1_500L
++        displayed.measurement shouldBe HistoryMeasurement.Steps(count)
++    }
++
++    @Test fun `radio uncertainty outside a session does not invent contained membership`() = runTest {
++        annotation("bounded", 1_000, 1_500)
++        val key = key("ambient_wifi", "LOCAL", "BACKGROUND", "reading", 1_010)
++        val row = wifi(key).copy(measurement = HistoryMeasurement.Wifi(WifiObservedNetwork(1_010, 20,
++            "ap", "Cafe", 2412, -45)))
++        decorate(listOf(row), listOf(key)).rows.single().sessionNames shouldBe emptyList()
++        decorate(listOf(wifi(key)), listOf(key)).rows.single().sessionNames shouldBe listOf("bounded")
++    }
++
++    @Test fun `hidden and malformed imported annotations do not borrow ordinary interval membership`() = runTest {
++        annotation("kept", 900, 1_600)
++        annotation("hidden", 900, 1_600, hidden = true)
++        annotation("invalid", 900, 1_600, encoded = "not-json")
++        val key = key("ambient_wifi", "LOCAL", "BACKGROUND", "reading", 1_200)
++        val result = decorate(listOf(wifi(key)), listOf(key))
++        result.rows.single().sessionNames shouldBe listOf("kept")
++        result.problems shouldBe setOf(HistoryProblem(null, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
++    }
++
++    @Test fun `Location bundle membership uses exact saved IDs rather than equal timestamps`() = runTest {
++        val first = point("first", 1_200)
++        val unrelated = point("other", 1_200)
++        val identity = "a".repeat(64)
++        database.locationFileIdentityDao().recordArchive(LocationFileArchiveEntity(identity,
++            LocationFileArchiveEntity.FORMAT, LocationFileArchiveEntity.VERSION, 0, 1))
++        database.locationFileIdentityDao().recordArchivePoints(listOf(LocationFileArchivePointEntity(identity, 0, "first", first)))
++        annotation("bundle", 900, 1_600, encoded = OrganizationSourceSelectionCodec.encode(
++            listOf(OrganizationSourceSelector.LocationFile(identity))))
++        val keys = listOf(first, unrelated).map { key("location", "IMPORTED", "UNKNOWN", "location:$it", 1_200, sample = it) }
++        val rows = keys.map { UnifiedHistoryRow(measuredHistoryPosition(it), null, setOf(HistoryOrigin.IMPORTED),
++            HistoryPurpose.UNKNOWN, sections = emptyList(), measurement = HistoryMeasurement.Location(
++                HistoryLocationPoint(1_200, 500_000_000, 140_000_000, null, null, it.rowId), HistoryLocationCoverage.LEGACY_UNVERIFIABLE)) }
++        decorate(rows, keys).rows.map { it.sessionNames } shouldBe listOf(listOf("bundle"), emptyList())
++    }
++
++    @Test fun `typed imported memberships select only their original source parent`() = runTest {
++        val entry = "b".repeat(64)
++        val archive = "c".repeat(64)
++        annotation("capture", 900, 1_600, encoded = OrganizationSourceSelectionCodec.encode(
++            listOf(OrganizationSourceSelector.CapturedEntry(HistorySource.WIFI, entry))))
++        annotation("background", 900, 1_600, encoded = OrganizationSourceSelectionCodec.encode(
++            listOf(OrganizationSourceSelector.BackgroundRadioArchive(HistorySource.WIFI, archive))))
++        val keys = listOf(key("imported_wifi", "IMPORTED", "CAPTURE", "capture", 1_200, parent = entry),
++            key("imported_ambient_wifi", "IMPORTED", "BACKGROUND", "background", 1_200, parent = archive),
++            key("imported_wifi", "IMPORTED", "CAPTURE", "unrelated", 1_200, parent = "d".repeat(64)))
++        decorate(keys.map(::wifi), keys).rows.map { it.sessionNames } shouldBe
++            listOf(listOf("capture"), listOf("background"), emptyList())
++    }
++
++    @Test fun `real measured facade decorates one saved point without adding organized rows`() = runTest {
++        point("saved", 1_200)
++        annotation("morning", 900, 1_600)
++        annotation("commute", 1_100, 1_500)
++        val reader = rangeReaderForRoomTest(database, context)
++        val range = HistoryRange(900, 1_600, "UTC", sources = setOf(HistorySource.LOCATION),
++            origins = setOf(HistoryOrigin.IMPORTED), purposes = setOf(HistoryPurpose.UNKNOWN), mode = HistoryBrowseMode.OBSERVATIONS)
++        val page = reader.read(HistoryRangeRequest(range)).shouldBeInstanceOf<HistoryRangeRead.Page>()
++        page.rows.size shouldBe 1
++        page.rows.single().sessionNames shouldBe listOf("commute", "morning")
++        page.rows.single().sections shouldBe emptyList()
++        page.next shouldBe null
++        page.problems shouldBe emptySet()
++    }
++
++    private suspend fun decorate(rows: List<UnifiedHistoryRow>, keys: List<MeasuredHistoryCandidate>) =
++        database.withTransaction { MeasuredSessionNamesReader(database).decorate(rows, keys) }
++    private fun key(kind: String, origin: String, purpose: String, id: String, start: Long,
++        end: Long? = null, parent: String? = null, sample: Long? = null) =
++        MeasuredHistoryCandidate(kind, origin, purpose, id, start, end, sample, parent, null, null, null, null)
++    private fun wifi(key: MeasuredHistoryCandidate) = UnifiedHistoryRow(measuredHistoryPosition(key), key.endTimeMs,
++        setOf(HistoryOrigin.valueOf(key.origin)), HistoryPurpose.valueOf(key.purpose), sections = emptyList(),
++        measurement = HistoryMeasurement.Wifi(WifiObservedNetwork(key.startTimeMs, 0, "ap", "Cafe", 2412, -45)))
++    private suspend fun annotation(id: String, from: Long, to: Long, hidden: Boolean = false, encoded: String? = null) {
++        database.organizationAnnotationDao().insert(OrganizationAnnotationEntity(id, 1, 0, 0, null,
++            from, to, "UTC", id, null, hidden, encoded))
++    }
++    private suspend fun point(id: String, time: Long): Long {
++        val sample = database.locationSampleDao().insert(LocationSample(timeMs = time, elapsedRealtimeNanos = 0,
++            latE7 = 500_000_000, lonE7 = 140_000_000, altitudeM = null, rawGpsAltitudeM = null, hAccM = null,
++            vAccM = null, speedMps = null, speedAccuracyMps = null, provider = "import", quality = SampleQuality.HIGH,
++            motionState = null, policy = null, bucketId = null, createdAt = time))
++        database.locationFileIdentityDao().insertIfAbsent(LocationFileIdentityEntity(id, sample, true, "unknown"))
++        return sample
++    }
++}
+diff --git a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt
+--- a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt
++++ b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt
+@@ -320,6 +320,26 @@
+         rule.onNodeWithText("0").assertDoesNotExist()
+     }
+ 
++    @Test fun `overlapping sessions appear as two compact names only in one expanded observation`() {
++        val row = wifi("same", 1_700_000_000_000L, "Cafe", null).copy(sessionNames = listOf("Morning walk", "Commute"))
++        show(listOf(HistoryPagingItem.Row(row, snapshot)))
++        rule.onNodeWithText("Morning walk").assertDoesNotExist()
++        rule.onNodeWithText("Commute").assertDoesNotExist()
++        val card = rule.onNodeWithTag("history_measurement_same")
++        card.performClick().assert(hasText("Morning walk")).assert(hasText("Commute"))
++        rule.onAllNodesWithText("Cafe").assertCountEquals(1)
++        card.performClick()
++        rule.onNodeWithText("Morning walk").assertDoesNotExist()
++        rule.onNodeWithText("Commute").assertDoesNotExist()
++    }
++
++    @Test fun `an unorganized reading expands without an empty session label`() {
++        show(listOf(HistoryPagingItem.Row(wifi("free", 1_700_000_000_000L, "Free reading", null), snapshot)))
++        rule.onNodeWithTag("history_measurement_free").performClick()
++            .assert(hasText("Free reading"))
++        rule.onNodeWithText("null").assertDoesNotExist()
++    }
++
+ 	private fun wifi(id: String, time: Long, name: String?, bssid: String?) = UnifiedHistoryRow(
+ 		HistoryPosition(time, "local:ambient_wifi", id), null, setOf(HistoryOrigin.LOCAL),
+ 		HistoryPurpose.BACKGROUND, sections = emptyList(), measurement = HistoryMeasurement.Wifi(

@@ -1,0 +1,62 @@
+{
+  "base_commit": "3a3476e63e5c3bc40e2697f5e503a94cb18592ed",
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "files": [
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistory.kt",
+      "base_sha256": "1336a0d0bc9fc4c51cd6e3d426f7a2015a5a1b269b050b34f1fb46baae43ed29",
+      "selected_sha256": "5ace726bfa0549efddf35af46fb00c0d0da762f3dcbb78fcc1e07a88a7add32d",
+      "working_before_sha256": "1336a0d0bc9fc4c51cd6e3d426f7a2015a5a1b269b050b34f1fb46baae43ed29",
+      "new": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/OrganizationAnnotationDao.kt",
+      "base_sha256": "b6c7a32ddcbcf5622756b0b4213865874e4d3ae17741fbdf3b4efc0126e71078",
+      "selected_sha256": "e47a986dd7be1242a84f8b22979eec0b8d0294618270b7bb2ad463a4bc0d7c68",
+      "working_before_sha256": "3301eacc43ed21f0a1aa16e28ea07cb0c72b18e31c1bec9a160ed295ab06d288",
+      "new": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationFileIdentityDao.kt",
+      "base_sha256": "eb6b0eee50e2edbf22217233e0b45148bcdbd84fa4e5b49edfde62adb0686e8d",
+      "selected_sha256": "8e420f043396577c1ae4f3bbb6671f73d4e191bc8b2cd5237f3f2faa678d05ed",
+      "working_before_sha256": "eb6b0eee50e2edbf22217233e0b45148bcdbd84fa4e5b49edfde62adb0686e8d",
+      "new": false
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesReader.kt",
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "62755a9bee10f17b3f5eaaa2de73abb6a76d53de45c5d3d34ea8bfc570597982",
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "new": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "base_sha256": "06be7ba131ecd930d10448d497f838692e7cc1ccf14f3681eb1adae0b98e642f",
+      "selected_sha256": "18323b320f631ab87d1aa5a8b949dcdaa0a5667ac68ed2b7788145ad759c363f",
+      "working_before_sha256": "06be7ba131ecd930d10448d497f838692e7cc1ccf14f3681eb1adae0b98e642f",
+      "new": false
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/MeasuredHistoryContent.kt",
+      "base_sha256": "d0fad8bbecb124a8aa8fa4c7e48089614c60827880d83dac9accd1c11000cb5d",
+      "selected_sha256": "6c546d0d8013e280dd9f42bffc9a8bddb61dab287e7b079257a03d24a4b66ebc",
+      "working_before_sha256": "d0fad8bbecb124a8aa8fa4c7e48089614c60827880d83dac9accd1c11000cb5d",
+      "new": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesRoomTest.kt",
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "18433cf1f87736a3e17483cc312e725f6bc00bd62d01e2cdea0f2f7c81d7a11b",
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "new": true
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "base_sha256": "aa173f64b71bb08d3bdc8d62bdeeea759ce03f243c59c0cd04e73cd4c2865c26",
+      "selected_sha256": "7f4b943e41e9c3f2c67676b35a47706402737e2580a1f6273d2ffe9f652adfc3",
+      "working_before_sha256": "aa173f64b71bb08d3bdc8d62bdeeea759ce03f243c59c0cd04e73cd4c2865c26",
+      "new": false
+    }
+  ]
+}

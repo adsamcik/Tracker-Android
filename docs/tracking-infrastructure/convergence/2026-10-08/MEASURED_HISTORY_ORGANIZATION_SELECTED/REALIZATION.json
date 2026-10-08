@@ -1,0 +1,42 @@
+[
+  {
+    "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistory.kt",
+    "working_before_sha256": "1336a0d0bc9fc4c51cd6e3d426f7a2015a5a1b269b050b34f1fb46baae43ed29",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/OrganizationAnnotationDao.kt",
+    "working_before_sha256": "3301eacc43ed21f0a1aa16e28ea07cb0c72b18e31c1bec9a160ed295ab06d288",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationFileIdentityDao.kt",
+    "working_before_sha256": "eb6b0eee50e2edbf22217233e0b45148bcdbd84fa4e5b49edfde62adb0686e8d",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesReader.kt",
+    "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+    "working_before_sha256": "06be7ba131ecd930d10448d497f838692e7cc1ccf14f3681eb1adae0b98e642f",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/MeasuredHistoryContent.kt",
+    "working_before_sha256": "d0fad8bbecb124a8aa8fa4c7e48089614c60827880d83dac9accd1c11000cb5d",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesRoomTest.kt",
+    "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+    "working_before_sha256": "aa173f64b71bb08d3bdc8d62bdeeea759ce03f243c59c0cd04e73cd4c2865c26",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  }
+]

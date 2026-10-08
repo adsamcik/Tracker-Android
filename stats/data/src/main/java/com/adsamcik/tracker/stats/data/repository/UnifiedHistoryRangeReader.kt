@@ -807,13 +807,16 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
                 problems += HistoryProblem(selected.first().source, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
             }
         }
+        val ordered = planned.rows.mapNotNull { representatives ->
+            rows[measuredHistoryPosition(representatives.first().seed)] }
+        val named = MeasuredSessionNamesReader(database).decorate(ordered,
+            planned.rows.map { it.first().seed })
+        problems += named.problems
         if (database.sourceEvidenceStateDao().get() != state) {
             return HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
         }
-        val ordered = planned.rows.mapNotNull { representatives ->
-            rows[measuredHistoryPosition(representatives.first().seed)] }
         val next = if (planned.hasMore && planned.consumed != null) HistoryContinuation(range, planned.consumed) else null
-        return HistoryRangeRead.Page(ordered, snapshot, next, problems)
+        return HistoryRangeRead.Page(named.rows, snapshot, next, problems)
     }
 
     private suspend fun sourceRead(candidates: List<RangeHistoryCandidate>,

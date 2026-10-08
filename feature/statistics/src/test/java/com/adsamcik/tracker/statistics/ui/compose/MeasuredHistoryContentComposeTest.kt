@@ -320,6 +320,26 @@ class MeasuredHistoryContentComposeTest {
         rule.onNodeWithText("0").assertDoesNotExist()
     }
 
+    @Test fun `overlapping sessions appear as two compact names only in one expanded observation`() {
+        val row = wifi("same", 1_700_000_000_000L, "Cafe", null).copy(sessionNames = listOf("Morning walk", "Commute"))
+        show(listOf(HistoryPagingItem.Row(row, snapshot)))
+        rule.onNodeWithText("Morning walk").assertDoesNotExist()
+        rule.onNodeWithText("Commute").assertDoesNotExist()
+        val card = rule.onNodeWithTag("history_measurement_same")
+        card.performClick().assert(hasText("Morning walk")).assert(hasText("Commute"))
+        rule.onAllNodesWithText("Cafe").assertCountEquals(1)
+        card.performClick()
+        rule.onNodeWithText("Morning walk").assertDoesNotExist()
+        rule.onNodeWithText("Commute").assertDoesNotExist()
+    }
+
+    @Test fun `an unorganized reading expands without an empty session label`() {
+        show(listOf(HistoryPagingItem.Row(wifi("free", 1_700_000_000_000L, "Free reading", null), snapshot)))
+        rule.onNodeWithTag("history_measurement_free").performClick()
+            .assert(hasText("Free reading"))
+        rule.onNodeWithText("null").assertDoesNotExist()
+    }
+
 	private fun wifi(id: String, time: Long, name: String?, bssid: String?) = UnifiedHistoryRow(
 		HistoryPosition(time, "local:ambient_wifi", id), null, setOf(HistoryOrigin.LOCAL),
 		HistoryPurpose.BACKGROUND, sections = emptyList(), measurement = HistoryMeasurement.Wifi(

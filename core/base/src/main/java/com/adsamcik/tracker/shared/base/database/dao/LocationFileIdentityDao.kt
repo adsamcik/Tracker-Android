@@ -36,6 +36,12 @@ interface LocationFileIdentityDao {
 		"AND ordinal IN (:ordinals)")
 	suspend fun archivePointsByOrdinal(identity: String, ordinals: List<Int>): List<LocationFileArchivePointEntity>
 
+	/** Exact membership for already-qualified displayed points; never matches a timestamp. */
+	@Query("SELECT DISTINCT p.sample_id FROM location_file_archive_point p " +
+		"JOIN location_file_identity i ON i.portable_id = p.portable_id AND i.sample_id = p.sample_id " +
+		"WHERE p.archive_identity = :identity AND p.sample_id IN (:sampleIds)")
+	suspend fun sampleIdsInArchive(identity: String, sampleIds: List<Long>): List<Long>
+
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertArchivePointsIfAbsent(values: List<LocationFileArchivePointEntity>): List<Long>
 

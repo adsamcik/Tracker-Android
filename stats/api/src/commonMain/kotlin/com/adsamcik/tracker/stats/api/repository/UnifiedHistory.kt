@@ -45,6 +45,8 @@ data class UnifiedHistoryRow(
     val sections: List<HistorySection>,
     val problems: Set<HistoryProblem> = emptySet(),
     val measurement: HistoryMeasurement? = null,
+    /** Optional organization only; names never qualify or duplicate a saved observation. */
+    val sessionNames: List<String> = emptyList(),
 ) {
     init {
         require(toExclusiveMs == null || toExclusiveMs >= position.startTimeMs ||

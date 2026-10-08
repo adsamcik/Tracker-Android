@@ -159,11 +159,11 @@ private fun MeasuredHistoryCard(row: UnifiedHistoryRow, zone: ZoneId, locale: Lo
 					style = MaterialTheme.typography.titleSmall)
 				Text(measuredTimeLabel(row, zone, locale), style = MaterialTheme.typography.bodySmall)
 			}
-			row.name?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
 			MeasurementValue(measurement, locale, expanded)
 			if (HistoryOrigin.IMPORTED in row.origins) Text(stringResource(R.string.radio_detail_imported),
 				style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 			if (expanded) {
+                row.sessionNames.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
 				val format = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(locale)
 				Text(Instant.ofEpochMilli(row.position.startTimeMs).atZone(zone).format(format) +
 					(row.toExclusiveMs?.let { " \u2192 " + Instant.ofEpochMilli(it).atZone(zone).format(format) } ?: ""),

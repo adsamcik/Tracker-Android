@@ -1,0 +1,64 @@
+{
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "execution": "NOT_RUN",
+  "files": [
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesRoomTest.kt",
+      "method_names": [
+        "`overlapping retrospective sessions add both names to one background reading`",
+        "`metadata paging does not drop the hundred and first overlapping name`",
+        "`edited bounds rename only contained points and never delete the observations`",
+        "`a real crossing Steps window keeps its whole count and requires complete containment`",
+        "`radio uncertainty outside a session does not invent contained membership`",
+        "`hidden and malformed imported annotations do not borrow ordinary interval membership`",
+        "`Location bundle membership uses exact saved IDs rather than equal timestamps`",
+        "`typed imported memberships select only their original source parent`",
+        "`real measured facade decorates one saved point without adding organized rows`"
+      ],
+      "new_method_names": [
+        "`overlapping retrospective sessions add both names to one background reading`",
+        "`metadata paging does not drop the hundred and first overlapping name`",
+        "`edited bounds rename only contained points and never delete the observations`",
+        "`a real crossing Steps window keeps its whole count and requires complete containment`",
+        "`radio uncertainty outside a session does not invent contained membership`",
+        "`hidden and malformed imported annotations do not borrow ordinary interval membership`",
+        "`Location bundle membership uses exact saved IDs rather than equal timestamps`",
+        "`typed imported memberships select only their original source parent`",
+        "`real measured facade decorates one saved point without adding organized rows`"
+      ],
+      "removed_or_renamed_method_names": [],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method_names": [
+        "`sessionless Wi-Fi shows saved values and expansion without invented optional fields`",
+        "`older observations remain reachable beyond the old recent-trip list`",
+        "`equal UTC times use the displayed local day without hiding distinct readings`",
+        "`a genuine crossing Steps window expands to its original dates`",
+        "`source Retry preserves the sibling measurement and refreshes the actual Pager`",
+        "`ordinary saved Location needs no optional accuracy to remain visible`",
+        "`legacy Activity renders its saved observation without a duration`",
+        "`legacy Pressure expansion keeps its mean and range without an invented duration`",
+        "`Activity clock discontinuity renders both original wall times without normalization`",
+        "`repeated source problems share one current notice while valid sibling readings remain`",
+        "`different source problems each retain their own recovery action`",
+        "`different reasons for the same source still use one visible recovery action`",
+        "`an empty incomplete frontier stays pending instead of claiming no saved readings`",
+        "`a clean exhausted empty history shows its genuine empty state`",
+        "`an empty append error retains Retry without an empty claim`",
+        "`empty nonterminal pages advance to an older valid reading without a scroll target`",
+        "`an original count-only scan displays its saved number without invented network details`",
+        "`an invalid original count is unavailable rather than an invented zero`",
+        "`overlapping sessions appear as two compact names only in one expanded observation`",
+        "`an unorganized reading expands without an empty session label`"
+      ],
+      "new_method_names": [
+        "`overlapping sessions appear as two compact names only in one expanded observation`",
+        "`an unorganized reading expands without an empty session label`"
+      ],
+      "removed_or_renamed_method_names": [],
+      "execution": "NOT_RUN"
+    }
+  ]
+}
