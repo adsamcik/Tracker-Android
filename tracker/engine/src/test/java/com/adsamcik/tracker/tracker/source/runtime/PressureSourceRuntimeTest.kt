@@ -381,6 +381,82 @@ class PressureSourceRuntimeTest {
 		coVerify(exactly = 0) { fixture.registrations.allocateSequence(any(), any()) }
 	}
 
+	@Test
+	fun `delayed Pressure callback keeps its original reception wall time through later close`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+		val activePlan = plan(revision = 1L)
+		val fixture = fixture(
+			scope = this,
+			registrationsToReturn = listOf(registration(activePlan, 1L, requiresAcceptance = true)),
+		)
+		val sink = RecordingPressureSink()
+		try {
+			assertTrue(fixture.runtime.start(activePlan, sink) is SourceStartResult.Started)
+			val callbackElapsed = android.os.SystemClock.elapsedRealtimeNanos()
+			val observedElapsed = callbackElapsed - 6_000_000_000L
+			val beforeCallbackWall = System.currentTimeMillis()
+			fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, observedElapsed, 1_000f))
+			val afterCallbackWall = System.currentTimeMillis()
+			ShadowSystemClock.advanceBy(Duration.ofSeconds(3))
+
+			fixture.runtime.close()
+
+			val evidence = sink.candidates.single()
+			val receivedWall = requireNotNull(evidence.receivedWallTimeMs)
+			assertTrue(receivedWall in beforeCallbackWall..afterCallbackWall)
+			assertEquals(observedElapsed, evidence.observedElapsedRealtimeNanos)
+			assertTrue(evidence.receivedElapsedRealtimeNanos >= callbackElapsed + 3_000_000_000L)
+			assertEquals(receivedWall - 6_000L, evidence.wallTimeMs)
+			assertEquals(evidence.wallTimeMs, evidence.acquiredAtMs)
+			assertPressureDeliveryIdentity(
+				sink.deliveries.single(), evidence.clockDomainId, evidence.payload as PressureWindowPayload,
+			)
+		} finally {
+			fixture.runtime.close()
+		}
+	}
+
+	@Test
+	fun `target closure retains the completed windows last reception rather than the triggering callback`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(10))
+		val activePlan = plan(revision = 1L, aggregationWindowMs = 100L)
+		val fixture = fixture(
+			scope = this,
+			registrationsToReturn = listOf(registration(activePlan, 1L, requiresAcceptance = true)),
+		)
+		val sink = RecordingPressureSink()
+		try {
+			assertTrue(fixture.runtime.start(activePlan, sink) is SourceStartResult.Started)
+			val callbackElapsed = android.os.SystemClock.elapsedRealtimeNanos()
+			val completedEnd = callbackElapsed - 200_000_000L
+			fixture.listener().onSensorChanged(
+				pressureEvent(fixture.sensor, completedEnd - 50_000_000L, 1_000f),
+			)
+			val beforeCompletedReceptionWall = System.currentTimeMillis()
+			fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, completedEnd, 1_001f))
+			val afterCompletedReceptionWall = System.currentTimeMillis()
+			ShadowSystemClock.advanceBy(Duration.ofSeconds(1))
+			fixture.listener().onSensorChanged(
+				pressureEvent(fixture.sensor, completedEnd + 100_000_000L, 1_002f),
+			)
+
+			fixture.runtime.close()
+
+			val evidence = sink.candidates.single { candidate ->
+				(candidate.payload as PressureWindowPayload).closureKind == PressureWindowClosureKind.TARGET_ELAPSED
+			}
+			val receivedWall = requireNotNull(evidence.receivedWallTimeMs)
+			assertTrue(receivedWall in beforeCompletedReceptionWall..afterCompletedReceptionWall)
+			assertEquals(completedEnd, evidence.observedElapsedRealtimeNanos)
+			assertTrue(evidence.receivedElapsedRealtimeNanos >= callbackElapsed + 1_000_000_000L)
+			assertEquals(receivedWall - 200L, evidence.wallTimeMs)
+			assertEquals(evidence.wallTimeMs, evidence.acquiredAtMs)
+			assertEquals(2, (evidence.payload as PressureWindowPayload).sampleCount)
+		} finally {
+			fixture.runtime.close()
+		}
+	}
+
 	private fun assertQualifiedPressureWindow(payload: PressureWindowPayload) {
 		assertEquals(2, payload.sampleCount)
 		assertEquals(1_000f, payload.firstHectopascals)

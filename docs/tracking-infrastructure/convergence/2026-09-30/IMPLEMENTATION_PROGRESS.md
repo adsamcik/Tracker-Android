@@ -910,3 +910,9 @@ Exact source and independent acceptance: `../2026-10-08/PASSIVE_LOCATION_DELIVER
 - [x] Remove the requested Active Session launcher widget, receiver, provider XMLs, preview, exclusive localized strings/helpers/tests, scheduler call and unused History entry-point dependency. One packaged-manifest/resource case authored NOT_RUN; two other existing widgets retain their registrations and updater.
 
 Exact source/review: `../2026-10-08/ACTIVE_SESSION_WIDGET_REMOVAL_SELECTED/` and `ACTIVE_SESSION_WIDGET_REMOVAL_REVIEW/`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN; no gates, activation or integration.
+
+### October 8 - pressure reception timestamp
+
+- [x] Copy the already captured Pressure reception timestamp into the existing WAL candidate field. Two reached runtime/recording-sink methods authored NOT_RUN. Shared and source-local clock companions and actual Room/provider proof remain open.
+
+Exact source/review: `../2026-10-08/PRESSURE_RECEPTION_TIMESTAMP_SELECTED/` and `PRESSURE_RECEPTION_TIMESTAMP_REVIEW/`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN; no gates, activation or integration.

@@ -1395,6 +1395,7 @@ class PressureSourceRuntime @Inject constructor(
 			clockDomainId = activeRegistration.state.clockDomainId,
 			observedElapsedRealtimeNanos = payload.windowEndElapsedRealtimeNanos,
 			receivedElapsedRealtimeNanos = window.checkpointOrderElapsedRealtimeNanos,
+			receivedWallTimeMs = reception.receivedWallTimeMs,
 			wallTimeMs = acquiredAtMs,
 			wallTimeUncertaintyMs = 1L,
 			capturedCollectedDataEpoch = activeRegistration.state.collectedDataEpoch,

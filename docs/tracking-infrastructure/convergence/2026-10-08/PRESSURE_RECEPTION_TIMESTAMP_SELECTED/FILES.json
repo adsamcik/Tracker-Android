@@ -1,0 +1,19 @@
+{
+  "baseCommit": "3a3476e63e5c3bc40e2697f5e503a94cb18592ed",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/PressureSourceRuntime.kt",
+      "baseSha256": "8bce83ef51018466a3336dc365880b91dca31c113512c74274334861fd4369fb",
+      "workingBeforeSha256": "8bce83ef51018466a3336dc365880b91dca31c113512c74274334861fd4369fb",
+      "selectedSha256": "fbb8bf3c498757eba6873622947fe50a6f72f3aa58b62dc5b9ce18b6a7931b24",
+      "selectedLineEndings": "LF"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PressureSourceRuntimeTest.kt",
+      "baseSha256": "8d73af6ae1891fb1ec775213b99bc0bcc1beb62577b85aa80f92d16d7d383e65",
+      "workingBeforeSha256": "15c2d332d567bef5bdfe8ebb7f119ab8b493738541c6cbe0963214cc322c38af",
+      "selectedSha256": "5e76f298b11fcbdda490efee0c961e45e631b0a206c1db9e87e835c495f054b5",
+      "selectedLineEndings": "LF"
+    }
+  ]
+}
