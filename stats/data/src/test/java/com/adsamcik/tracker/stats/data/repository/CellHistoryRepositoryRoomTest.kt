@@ -12,6 +12,10 @@ import kotlinx.coroutines.Dispatchers
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.PortableCapturedCellEntryV1
+import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedCellResult
+import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedCellRequest
+import com.adsamcik.tracker.shared.base.database.RoomExportPortableCapturedCell
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedCellRequest
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedCellResult
 import com.adsamcik.tracker.shared.base.database.PortableCapturedCellRunV1
@@ -363,6 +367,93 @@ class CellHistoryRepositoryRoomTest {
 	@After
 	fun tearDown() = database.close()
 
+
+	@Test
+	fun `native Cell export retains original authority after constructed quality and End operations`() = runTest {
+		val group = buildGroup(940, 1, setOf(0))
+		persist(listOf(group))
+		val run = group.runs.single()
+		val originalDemands = database.sourceBrokerDao().demandsByIds(run.demands.map { it.demandId })
+		val originalWal = run.facts.map { it.sourceEventId }.distinct().associateWith {
+			requireNotNull(database.sourceEventWalDao().getByEventId(it))
+		}
+		val authority = SourceProductLaneExecutionAuthority { database.inTransaction() }
+		val before = (database.withTransaction {
+			RoomReadLocalPortableCapturedCell(database, authority).readInTransaction(group.session.logicalTrackingId)
+		} as ReadLocalPortableCapturedCellResult.Ready).entry
+		val exporter = RoomExportPortableCapturedCell(
+			database, authority, UnconfinedTestDispatcher(testScheduler))
+		// Only the later quality/End operation metadata is constructed. Original provider,
+		// carrier, authorization, demand and complete native entry are existing Room fixtures.
+		for ((generation, boot) in listOf(run.run.leaseGeneration + 1L to run.run.bootId,
+			run.run.leaseGeneration + 2L to "later-operation-boot")) {
+			database.withTransaction {
+				database.sourceSessionDao().updateServiceRun(run.run.copy(leaseGeneration = generation,
+					bootId = boot, runRevision = run.run.runRevision + generation))
+				database.sourceSessionDao().updateSession(group.session.copy(lifecycleLeaseGeneration = generation,
+					lifecycleBootId = boot, lifecycleRevision = group.session.lifecycleRevision + generation))
+			}
+			val exported = mutableListOf<PortableCapturedCellEntryV1>()
+			val result = exporter.export(ExportPortableCapturedCellRequest(
+				group.session.logicalTrackingId)) {
+				database.inTransaction() shouldBe false
+				exported += it
+			}
+			(result is ExportPortableCapturedCellResult.Exported) shouldBe true
+			exported shouldBe listOf(before)
+		}
+		database.sourceBrokerDao().demandsByIds(run.demands.map { it.demandId }) shouldBe originalDemands
+		originalWal.forEach { (id, beforeWal) ->
+			val afterWal = requireNotNull(database.sourceEventWalDao().getByEventId(id))
+			afterWal.copy(payload = beforeWal.payload) shouldBe beforeWal
+			afterWal.payload.contentEquals(beforeWal.payload) shouldBe true
+		}
+	}
+
+	@Test
+	fun `native Cell export cannot lend newer demand generation to original authorization`() = runTest {
+		val group = buildGroup(941, 1, setOf(0))
+		persist(listOf(group))
+		val run = group.runs.single()
+		database.sourceSessionDao().updateServiceRun(run.run.copy(leaseGeneration = run.run.leaseGeneration + 2L,
+			runRevision = run.run.runRevision + 1L))
+		database.sourceSessionDao().updateSession(group.session.copy(lifecycleLeaseGeneration = run.run.leaseGeneration + 2L))
+		val captureDemand = run.demands.single { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET lifecycle_lease_generation = ? WHERE demand_id = ?",
+			arrayOf<Any>(run.run.leaseGeneration + 1L, captureDemand.demandId))
+		var sinkCalls = 0
+		val result = RoomExportPortableCapturedCell(database,
+			SourceProductLaneExecutionAuthority { database.inTransaction() }, UnconfinedTestDispatcher(testScheduler))
+			.export(ExportPortableCapturedCellRequest(group.session.logicalTrackingId)) {
+				sinkCalls++
+			}
+		(result is ExportPortableCapturedCellResult.Unverifiable) shouldBe true
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `native Cell export does not ignore exact scope fence after operation changes`() = runTest {
+		val group = buildGroup(942, 1, setOf(0))
+		persist(listOf(group))
+		val run = group.runs.single()
+		database.sourceSessionDao().updateServiceRun(run.run.copy(leaseGeneration = run.run.leaseGeneration + 2L,
+			runRevision = run.run.runRevision + 1L))
+		database.sourceSessionDao().updateSession(group.session.copy(lifecycleLeaseGeneration = run.run.leaseGeneration + 2L))
+		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+			CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, group.session.logicalTrackingId, run.run.serviceRunId,
+			1L, 0L, run.segment.endTimeMs + 1L))
+		var sinkCalls = 0
+		val result = RoomExportPortableCapturedCell(database,
+			SourceProductLaneExecutionAuthority { database.inTransaction() }, UnconfinedTestDispatcher(testScheduler))
+			.export(ExportPortableCapturedCellRequest(group.session.logicalTrackingId)) {
+				sinkCalls++
+			}
+		// A fence with still-present products is an unfinished cleanup, not a fabricated Deleted result.
+		(result is ExportPortableCapturedCellResult.Unverifiable) shouldBe true
+		sinkCalls shouldBe 0
+	}
+
 	@Test
 	fun `measured Cell preserves current revision and good parent beside corrupt sibling in one run`() = runTest {
 		val group = perReadingGroup(buildGroup(940, 1, setOf(0)))
@@ -525,6 +616,10 @@ class CellHistoryRepositoryRoomTest {
 		val group = buildGroup(930, 1, setOf(0))
 		persist(listOf(group))
 		val run = group.runs.single()
+		val originalDemands = database.sourceBrokerDao().demandsByIds(run.demands.map { it.demandId })
+		val originalWal = run.facts.map { it.sourceEventId }.distinct().associateWith {
+			requireNotNull(database.sourceEventWalDao().getByEventId(it))
+		}
 		val original = (repository { true }.session(run.segment.id) as CellHistoryQuery.Found).entry
 		original.observations.isNotEmpty() shouldBe true
 		for (generation in listOf(run.run.leaseGeneration + 1L, run.run.leaseGeneration + 2L)) {
@@ -538,26 +633,33 @@ class CellHistoryRepositoryRoomTest {
 			after.observations shouldBe original.observations
 			after.causes shouldBe original.causes
 		}
-		database.sourceSessionDao().lifecycleActions(group.session.logicalTrackingId) shouldBe run.actions
-		run.facts.forEach { fact -> database.sourceEventWalDao().getByEventId(fact.sourceEventId) shouldBe
-			run.admissions.single { it.eventId == fact.sourceEventId } }
+		database.sourceBrokerDao().demandsByIds(run.demands.map { it.demandId }) shouldBe originalDemands
+		originalWal.forEach { (id, beforeWal) ->
+			val afterWal = requireNotNull(database.sourceEventWalDao().getByEventId(id))
+			afterWal.copy(payload = beforeWal.payload) shouldBe beforeWal
+			afterWal.payload.contentEquals(beforeWal.payload) shouldBe true
+		}
 	}
 
 	@Test
-	fun `saved Cell cannot borrow newer action authority and deletion still retracts history`() = runTest {
+	fun `saved Cell cannot borrow newer demand authority and deletion still retracts history`() = runTest {
 		val group = buildGroup(931, 1, setOf(0))
 		persist(listOf(group))
 		val run = group.runs.single()
 		database.sourceSessionDao().updateServiceRun(run.run.copy(leaseGeneration = run.run.leaseGeneration + 2L,
 			runRevision = run.run.runRevision + 1L))
 		database.sourceSessionDao().updateSession(group.session.copy(lifecycleLeaseGeneration = run.run.leaseGeneration + 2L))
+		val captureDemand = run.demands.single { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
 		database.openHelper.writableDatabase.execSQL(
-			"UPDATE lifecycle_desired_action SET lease_generation = ? WHERE service_run_id = ?",
-			arrayOf<Any>(run.run.leaseGeneration + 1L, run.run.serviceRunId))
+			"UPDATE source_demand SET lifecycle_lease_generation = ? WHERE demand_id = ?",
+			arrayOf<Any>(run.run.leaseGeneration + 1L, captureDemand.demandId))
 		val invalid = (repository { true }.session(run.segment.id) as CellHistoryQuery.Found).entry
 		invalid.state shouldBe CellHistoryProductState.FAILED
 		invalid.observations shouldBe emptyList()
-		run.actions.forEach { database.sourceSessionDao().updateLifecycleAction(it) }
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET lifecycle_lease_generation = ? WHERE demand_id = ?",
+			arrayOf<Any>(requireNotNull(captureDemand.lifecycleLeaseGeneration), captureDemand.demandId))
+		(repository { true }.session(run.segment.id) as CellHistoryQuery.Found).entry.observations.isNotEmpty() shouldBe true
 		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
 			CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, group.session.logicalTrackingId,
 			run.run.serviceRunId, 1, 0, run.segment.endTimeMs + 1L))

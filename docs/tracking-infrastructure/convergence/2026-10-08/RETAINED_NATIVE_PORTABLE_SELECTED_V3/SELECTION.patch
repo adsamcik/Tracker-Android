@@ -1,0 +1,723 @@
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedPortableTransfer.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedPortableTransfer.kt
+@@ -1541,7 +1541,7 @@
+ 		runs.forEach { run ->
+ 			val manifests = manifestsByRun[run.serviceRunId].orEmpty()
+ 			val sources = sourcesByRun[run.serviceRunId].orEmpty()
+-			if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) ||
++			if (!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) ||
+ 				manifests.any { manifest ->
+ 					!SessionManifestIntegrity.verify(
+ 						manifest,
+@@ -1765,11 +1765,11 @@
+ 				row.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
+ 				row.configRevision != manifest.acquisitionPlanRevision ||
+ 				row.planAttribution != CAPTURED_REGISTRATION_PLAN_ATTRIBUTION ||
+-				row.clockDomainId != run.bootId || row.clockDomainId != manifest.effectiveBootId ||
++				row.clockDomainId != manifest.effectiveBootId ||
+ 				row.observedElapsedNanos < manifest.effectiveElapsedRealtimeNanos ||
+ 				row.sourcePolicyRevision != manifest.sourcePolicyRevision ||
+ 				row.captureConsentEpoch != source.consentEpoch ||
+-				row.lifecycleLeaseGeneration != run.leaseGeneration
++				!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, row.lifecycleLeaseGeneration)
+ 			) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+ 		}
+ 		validatePortableWalDeliveryGroups(rows)
+@@ -1882,7 +1882,7 @@
+ 				provider.sourceInstanceId != row.sourceInstanceId ||
+ 				provider.registrationGeneration != row.registrationGeneration ||
+ 				provider.ownerScope != PORTABLE_ACTIVITY_PROVIDER_OWNER_SCOPE ||
+-				provider.clockDomainId != run.bootId ||
++				matchingManifests.any { it.effectiveBootId != provider.clockDomainId } ||
+ 				provider.physicalConfigurationFingerprint != plan.physicalConfigurationFingerprint ||
+ 				provider.collectedDataEpoch != collectedDataEpoch || provider.acceptedAtMs == null ||
+ 				provider.acceptedElapsedRealtimeNanos == null ||
+@@ -2241,8 +2241,9 @@
+ 			action.desiredPlanRevision != plan.configurationRevision ||
+ 			action.sourcePolicyRevision != manifest.sourcePolicyRevision ||
+ 			action.consentEpoch != source.consentEpoch || action.startOrigin != manifest.startOrigin ||
+-			action.bootId != run.bootId || action.bootId != manifest.effectiveBootId ||
+-			action.leaseGeneration != run.leaseGeneration || action.attemptCount <= 0 ||
++			action.bootId != manifest.effectiveBootId || action.bootId != provider.clockDomainId ||
++			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, action.leaseGeneration) ||
++			action.attemptCount <= 0 ||
+ 			action.status != PORTABLE_START_ACCEPTED || action.failureCode != null ||
+ 			action.retryTrigger != null || action.sourceInstanceId != provider.sourceInstanceId ||
+ 			action.registrationGeneration != provider.registrationGeneration ||
+@@ -2288,10 +2289,10 @@
+ 			authorization.purposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
+ 			authorization.logicalTrackingId != run.logicalTrackingId ||
+ 			authorization.serviceRunId != run.serviceRunId ||
+-			authorization.lifecycleLeaseGeneration != run.leaseGeneration ||
++			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, authorization.lifecycleLeaseGeneration) ||
+ 			authorization.sourcePolicyRevision != manifest.sourcePolicyRevision ||
+ 			authorization.consentEpoch != source.consentEpoch || !authorization.persistenceEligible ||
+-			authorization.effectiveBootId != run.bootId ||
++			authorization.effectiveBootId != provider.clockDomainId ||
+ 			authorization.effectiveBootId != manifest.effectiveBootId ||
+ 			authorization.effectiveElapsedRealtimeNanos < run.startedElapsedNanos ||
+ 			authorization.effectiveElapsedRealtimeNanos < manifest.effectiveElapsedRealtimeNanos ||
+@@ -2305,7 +2306,9 @@
+ 			} == true || provider.retiredAtMs?.let { retired ->
+ 				authorization.effectiveWallTimeMs > retired
+ 			} == true || acceptedActions.none { action ->
+-				action.manifestRevision == manifest.manifestRevision
++				action.manifestRevision == manifest.manifestRevision &&
++					action.leaseGeneration == authorization.lifecycleLeaseGeneration &&
++					action.bootId == authorization.effectiveBootId
+ 			}
+ 		) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+ 	}
+@@ -2496,7 +2499,7 @@
+ 		) abort(PortableActivityExportUnverifiableReason.ENTRY_MATERIALIZING)
+ 		if (manifests.size > limits.maximumManifestsPerRun) overflow()
+ 		if (sources.size > limits.maximumSourcesPerRun ||
+-			!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) ||
++			!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) ||
+ 			manifests.any { manifest ->
+ 				!SessionManifestIntegrity.verify(
+ 					manifest,
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt
+@@ -823,7 +823,7 @@
+ 		manifestsByRun.values.map { revisions -> revisions.map(SessionManifestVersionEntity::manifestRevision) },
+ 	) || runs.any { run ->
+ 		val runManifests = manifestsByRun[run.serviceRunId].orEmpty()
+-		!SessionManifestIntegrity.hasValidServiceRunTimeline(run, runManifests) || runManifests.any { manifest ->
++		!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, runManifests) || runManifests.any { manifest ->
+ 			manifest.logicalTrackingId != request.logicalTrackingId ||
+ 				!SessionManifestIntegrity.verify(
+ 					manifest,
+@@ -1504,7 +1504,7 @@
+ 	val terminal = state in TERMINAL_SESSION_STATES
+ 	if ((completedAtMs != null) != terminal || logicalTrackingId.isBlank() || lifecycleRevision <= 0L ||
+ 		desiredPlanRevision <= 0L || rolloutRevision <= 0L || startOrigin.isBlank() ||
+-		clockDomainId.isBlank() || lifecycleBootId != clockDomainId || lifecycleLeaseGeneration <= 0L ||
++		clockDomainId.isBlank() || lifecycleBootId.isBlank() || lifecycleLeaseGeneration <= 0L ||
+ 		startedAtMs < 0L || startedElapsedNanos < 0L
+ 	) return false
+ 	if ((cutoffAtMs == null) != (cutoffElapsedNanos == null)) return false
+@@ -1513,7 +1513,7 @@
+ 		requireNotNull(completedAtMs) < requireNotNull(cutoffAtMs))
+ 	) return false
+ 	if (runs.any { run ->
+-		run.logicalTrackingId != logicalTrackingId || run.bootId != clockDomainId ||
++		run.logicalTrackingId != logicalTrackingId || run.bootId.isBlank() ||
+ 			run.leaseGeneration <= 0L || run.leaseGeneration > lifecycleLeaseGeneration ||
+ 			run.desiredPlanRevision <= 0L || run.rolloutRevision <= 0L ||
+ 			run.startedAtMs < 0L || run.startedElapsedNanos < 0L || run.startOrigin.isBlank() ||
+@@ -1670,7 +1670,10 @@
+ 		).singleOrNull()?.validatedOrNull()?.takeIf { it.matchesPortableCellSharedSettlement(row, run) }
+ 			?: return false
+ 	} else null
+-	if (!registration.hasExactPortableCellSettlementShape(row, run, evidenceState, sharedRetirement)) return false
++	val recordedBootId = manifests.singleOrNull {
++		it.manifestRevision == run.preparedManifestRevision
++	}?.effectiveBootId ?: return false
++	if (!registration.hasExactPortableCellSettlementShape(row, recordedBootId, evidenceState, sharedRetirement)) return false
+ 	val settledElapsedNanos = registration.retiredElapsedRealtimeNanos
+ 		?: requireNotNull(sharedRetirement).cutoffElapsedRealtimeNanos
+ 	if (brokerDao.hasConflictingAcceptedRegistrationBefore(
+@@ -1818,7 +1821,7 @@
+ @Suppress("ComplexCondition")
+ private fun ProviderRegistrationGenerationEntity.hasExactPortableCellSettlementShape(
+ 	row: SourceSessionCompletenessEntity,
+-	run: SourceServiceRunEntity,
++	recordedBootId: String,
+ 	evidenceState: SourceEvidenceState,
+ 	sharedRetirement: SourceRunRetirementEntity?,
+ ): Boolean {
+@@ -1826,7 +1829,7 @@
+ 	val acceptedElapsedNanos = acceptedElapsedRealtimeNanos ?: return false
+ 	val exactAcceptedIdentity = sourceKind == CELL_SOURCE_KIND && registrationGeneration == row.registrationGeneration &&
+ 		sourceInstanceId == row.sourceInstanceId && ownerScope == "source-broker:$CELL_SOURCE_KIND" &&
+-		clockDomainId == run.bootId && collectedDataEpoch == evidenceState.collectedDataEpoch &&
++		clockDomainId == recordedBootId && collectedDataEpoch == evidenceState.collectedDataEpoch &&
+ 		providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
+ 		!providerProcessIncarnationId.isNullOrBlank() && reservedAtMs <= acceptedWallTimeMs &&
+ 		reservedElapsedRealtimeNanos <= acceptedElapsedNanos
+@@ -1880,14 +1883,15 @@
+ 		sourceKind == CELL_SOURCE_KIND && purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+ 		logicalTrackingId == row.logicalTrackingId && serviceRunId == row.serviceRunId &&
+ 		manifestRevision == manifest.manifestRevision &&
+-		lifecycleLeaseGeneration == run.leaseGeneration && sourcePolicyRevision == manifest.sourcePolicyRevision &&
++		SessionManifestIntegrity.hasRetainedLeaseGeneration(run, lifecycleLeaseGeneration) &&
++		sourcePolicyRevision == manifest.sourcePolicyRevision &&
+ 		consentEpoch == binding.consentEpoch && persistenceEligible && qosCode == binding.qosCode &&
+ 		minimumAcquisitionSpec == CELL_CAPTURE_ACQUISITION_FLOOR && adaptiveReductionAllowed &&
+ 		maximumAgeMs == expectedMaximumAgeMs && desiredLatencyMs == Long.MAX_VALUE &&
+-		requestedDeliveryLatencyMs == null && requestedBootId == run.bootId &&
++		requestedDeliveryLatencyMs == null && requestedBootId == manifest.effectiveBootId &&
+ 		requestedElapsedRealtimeNanos == manifest.effectiveElapsedRealtimeNanos &&
+ 		requestedAtMs == manifest.effectiveWallTimeMs && status == SourceDemandEntity.STATUS_RETIRED &&
+-		retiredBootId == run.bootId && retiredElapsedNanos >= requestedElapsedRealtimeNanos &&
++		retiredBootId == requestedBootId && retiredElapsedNanos >= requestedElapsedRealtimeNanos &&
+ 		retiredWallTimeMs >= requestedAtMs
+ }
+ 
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt
+@@ -221,7 +221,7 @@
+ 				},
+ 			) || runs.any { run ->
+ 				val runManifests = manifestsByRun[run.serviceRunId].orEmpty()
+-				!SessionManifestIntegrity.hasValidServiceRunTimeline(run, runManifests) ||
++				!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, runManifests) ||
+ 					runManifests.any { manifest ->
+ 						manifest.logicalTrackingId != request.logicalTrackingId ||
+ 							!SessionManifestIntegrity.verify(
+@@ -687,7 +687,7 @@
+ 	val terminal = state in TERMINAL_STATES
+ 	if ((completedAtMs != null) != terminal || logicalTrackingId.isBlank() || lifecycleRevision <= 0L ||
+ 		desiredPlanRevision <= 0L || rolloutRevision <= 0L || startOrigin.isBlank() ||
+-		clockDomainId.isBlank() || lifecycleBootId != clockDomainId || lifecycleLeaseGeneration <= 0L ||
++		clockDomainId.isBlank() || lifecycleBootId.isBlank() || lifecycleLeaseGeneration <= 0L ||
+ 		startedAtMs < 0L || startedElapsedNanos < 0L ||
+ 		(cutoffAtMs == null) != (cutoffElapsedNanos == null)
+ 	) return false
+@@ -699,7 +699,7 @@
+ 	if (!runs.all { run ->
+ 		if (run.state !in ALL_RUN_STATES) return@all false
+ 		val runTerminal = run.state in TERMINAL_STATES
+-		run.logicalTrackingId == logicalTrackingId && run.bootId == clockDomainId &&
++		run.logicalTrackingId == logicalTrackingId && run.bootId.isNotBlank() &&
+ 			run.leaseGeneration > 0L && run.leaseGeneration <= lifecycleLeaseGeneration &&
+ 			run.desiredPlanRevision > 0L && run.rolloutRevision > 0L && run.startedAtMs >= 0L &&
+ 			run.startedElapsedNanos >= 0L && run.startOrigin.isNotBlank() &&
+@@ -750,6 +750,8 @@
+ ): Boolean {
+ 	val acceptedWall = acceptedAtMs ?: return false
+ 	val acceptedElapsed = acceptedElapsedRealtimeNanos ?: return false
++	val recordedBootId = authority.manifestsByRun[run.serviceRunId].orEmpty()
++		.singleOrNull { it.manifestRevision == run.preparedManifestRevision }?.effectiveBootId ?: return false
+ 	val acceptedActions = authority.exactPortableActions(this, run) ?: return false
+ 	val plans = acceptedActions.mapNotNull { authority.plansByRevision[it.desiredPlanRevision] }
+ 	if (plans.size != acceptedActions.size || plans.any {
+@@ -767,7 +769,7 @@
+ 	}
+ 	return sourceKind == WIFI_SOURCE && registrationGeneration == row.registrationGeneration &&
+ 		sourceInstanceId == row.sourceInstanceId && ownerScope == "source-broker:$WIFI_SOURCE" &&
+-		clockDomainId == run.bootId &&
++		clockDomainId == recordedBootId &&
+ 		providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
+ 		!providerProcessIncarnationId.isNullOrBlank() &&
+ 		captureCallbackBarrierAuthorizationRevision > 0L &&
+@@ -785,18 +787,23 @@
+ 		sourcesByManifest[manifest.logicalTrackingId to manifest.manifestRevision]
+ 			.orEmpty().filter(::isPortableWifiCaptureMembership)
+ 	}
+-	val captureManifestRevisions = authorizationsByGeneration[registration.registrationGeneration].orEmpty()
++	val captureMembers = authorizationsByGeneration[registration.registrationGeneration].orEmpty()
+ 		.flatMap(SourceAuthorizationSnapshot::authorizedMembers)
+ 		.filter { member ->
+ 			member.purpose == CAPTURE_PURPOSE && member.logicalTrackingId == run.logicalTrackingId &&
+ 				member.serviceRunId == run.serviceRunId
+-		}.mapNotNull(SourceAuthorizationEntity::manifestRevision).toSet()
++		}
++	val captureManifestRevisions = captureMembers.mapNotNull(SourceAuthorizationEntity::manifestRevision).toSet()
+ 	if (captureManifestRevisions.isEmpty()) return null
+ 	val actions = actionsByRun[run.serviceRunId].orEmpty().filter { action ->
+ 		action.authenticatesPortableCompleteness(run, manifests, bindings, registration)
+ 	}
+ 	if (actions.map(LifecycleDesiredActionEntity::manifestRevision).toSet() != captureManifestRevisions ||
+-		captureManifestRevisions.any { revision -> actions.count { it.manifestRevision == revision } != 1 }
++		captureManifestRevisions.any { revision -> actions.count { it.manifestRevision == revision } != 1 } ||
++		captureMembers.any { member ->
++			actions.none { action -> action.manifestRevision == member.manifestRevision &&
++				action.leaseGeneration == member.lifecycleLeaseGeneration && action.bootId == member.effectiveBootId }
++		}
+ 	) return null
+ 	return actions
+ }
+@@ -980,8 +987,9 @@
+ 	val plan = authority.plansByRevision[manifest.acquisitionPlanRevision] ?: return false
+ 	return sourceKind == WIFI_SOURCE && purpose == CAPTURE_PURPOSE && persistenceEligible &&
+ 		consumerId == "session:$logicalId" && logicalId == authority.session.logicalTrackingId &&
+-		run.logicalTrackingId == logicalId && run.leaseGeneration == lease &&
++		run.logicalTrackingId == logicalId && SessionManifestIntegrity.hasRetainedLeaseGeneration(run, lease) &&
+ 		manifest.logicalTrackingId == logicalId && manifest.serviceRunId == runId &&
++		requestedBootId == manifest.effectiveBootId &&
+ 		binding.manifestRevision == manifestRevision && binding.consentEpoch == consentEpoch &&
+ 		binding.qosCode == qosCode && manifest.sourcePolicyRevision == sourcePolicyRevision &&
+ 		plan.physicalConfigurationFingerprint() == registration.physicalConfigurationFingerprint &&
+@@ -1019,8 +1027,10 @@
+ 		serviceRunId == run.serviceRunId && desiredPlanRevision == manifest.acquisitionPlanRevision &&
+ 		sourcePolicyRevision == manifest.sourcePolicyRevision && consentEpoch == binding.consentEpoch &&
+ 		startOrigin == manifest.startOrigin &&
+-		(manifest.manifestRevision != run.preparedManifestRevision || startOrigin == run.startOrigin) && bootId == run.bootId &&
+-		leaseGeneration == run.leaseGeneration && sourceInstanceId == registration.sourceInstanceId &&
++		(manifest.manifestRevision != run.preparedManifestRevision || startOrigin == run.startOrigin) &&
++		bootId == manifest.effectiveBootId && bootId == registration.clockDomainId &&
++		SessionManifestIntegrity.hasRetainedLeaseGeneration(run, leaseGeneration) &&
++		sourceInstanceId == registration.sourceInstanceId &&
+ 		registrationGeneration == registration.registrationGeneration &&
+ 		requestedAtMs == manifest.effectiveWallTimeMs &&
+ 		requestedElapsedRealtimeNanos == manifest.effectiveElapsedRealtimeNanos &&
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt
+@@ -3,6 +3,8 @@
+ import androidx.room.withTransaction
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+ import com.adsamcik.tracker.shared.base.database.RadioPurposeItems
++import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
++import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
+ import com.adsamcik.tracker.shared.base.database.qualifyWifiPurposeItems
+ import com.adsamcik.tracker.shared.base.database.persistCapturedRadioFactRetentionProofs
+ import com.adsamcik.tracker.shared.base.database.dao.WifiPortableWalIdentityRow
+@@ -1142,6 +1144,7 @@
+ 		counter.requireWithinLimit()
+ 		return WifiPortableAuthoritySnapshot(
+ 			session = session,
++			savedSessionCutoff = counter.read { database.savedSessionCutoff(session) },
+ 			runsById = runs.associateBy(SourceServiceRunEntity::serviceRunId),
+ 			manifestsByRun = manifests.groupBy(SessionManifestVersionEntity::serviceRunId),
+ 			sourcesByManifest = sources.groupBy { it.logicalTrackingId to it.manifestRevision },
+@@ -1911,7 +1914,8 @@
+ 		val currentRun = session.currentServiceRunId?.let { currentRunId ->
+ 			if (portable != null) portable.runsById[currentRunId] else sessionDao.serviceRun(currentRunId)
+ 		}
+-		if (!session.hasValidLifecycleShape(wal.admissionOrdinal, perReading) || !run.hasValidLifecycleShape() ||
++		val cutoff = portable?.savedSessionCutoff ?: database.savedSessionCutoff(session)
++		if (!session.hasValidLifecycleShape(wal.admissionOrdinal, perReading, cutoff.bootId) || !run.hasValidLifecycleShape() ||
+ 			!run.hasValidRelationshipTo(session, currentRun)
+ 		) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 		if (run.state in TERMINAL_SESSION_STATES && session.state !in TERMINAL_SESSION_STATES &&
+@@ -1923,10 +1927,9 @@
+ 				limits,
+ 			))
+ 		) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+-		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
++		val sessionEnd = cutoff.endForBoot(wal.clockDomainId)
+ 		if (run.desiredPlanRevision <= 0L || run.logicalTrackingId != logicalTrackingId ||
+-			run.bootId != wal.clockDomainId || run.leaseGeneration != leaseGeneration ||
+-			session.clockDomainId != wal.clockDomainId ||
++			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, leaseGeneration) ||
+ 			session.lifecycleLeaseGeneration < leaseGeneration || !perReading &&
+ 				(run.startedElapsedNanos > observedStart || wal.observedElapsedNanos >= sessionEnd)
+ 		) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+@@ -1936,7 +1939,7 @@
+ 		if (manifests.size > limits.maximumManifestsPerRun) {
+ 			throw WifiCapturedMaintenanceLimitExceeded()
+ 		}
+-		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)) {
++		if (!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests)) {
+ 			block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 		}
+ 		val manifestIndex = manifests.indexOfFirst { manifest ->
+@@ -3260,10 +3263,14 @@
+ 
+ private fun Set<SourceKind>.toStableCodes(): String = map(SourceKind::stableCode).sorted().joinToString(",")
+ 
+-private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(admissionOrdinal: Long, perReading: Boolean = false): Boolean {
++private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(
++	admissionOrdinal: Long,
++	perReading: Boolean,
++	cutoffClockDomainId: String?,
++): Boolean {
+ 	if (state !in ALL_SESSION_STATES || lifecycleRevision <= 0L || desiredPlanRevision <= 0L ||
+ 		startedAtMs < 0L || startedElapsedNanos < 0L || lifecycleLeaseGeneration <= 0L ||
+-		lifecycleBootId.isNullOrBlank() || currentManifestRevision?.let { it <= 0L } != false
++		clockDomainId.isBlank() || lifecycleBootId.isNullOrBlank() || currentManifestRevision?.let { it <= 0L } != false
+ 	) return false
+ 	val terminal = state in TERMINAL_SESSION_STATES
+ 	if ((completedAtMs != null) != terminal || completedAtMs?.let { it < startedAtMs } == true ||
+@@ -3272,7 +3279,8 @@
+ 	if (terminal || state == "STOPPING") {
+ 		if (cutoffAtMs == null || cutoffElapsedNanos == null ||
+ 			cutoffAtMs?.let { it < startedAtMs } != false ||
+-			cutoffElapsedNanos?.let { it < startedElapsedNanos } != false
++			cutoffElapsedNanos?.let { it < 0L ||
++				(cutoffClockDomainId == clockDomainId && it < startedElapsedNanos) } != false
+ 		) return false
+ 	} else if (cutoffAtMs != null || cutoffElapsedNanos != null) {
+ 		return false
+@@ -3454,6 +3462,7 @@
+ 
+ internal data class WifiPortableAuthoritySnapshot(
+ 	val session: LogicalTrackingSessionEntity,
++	val savedSessionCutoff: SavedSessionCutoff,
+ 	val runsById: Map<String, SourceServiceRunEntity>,
+ 	val manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
+ 	val sourcesByManifest: Map<Pair<String, Long>, List<SessionManifestSourceEntity>>,
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt
+@@ -5,6 +5,10 @@
+ import androidx.test.core.app.ApplicationProvider
+ import com.adsamcik.tracker.shared.base.database.ActivityCapturedPortableIntegrity
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.PortableActivityEnvelopeV1
++import com.adsamcik.tracker.shared.base.database.PortableActivityExportUnverifiableReason
++import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivityResult
++import com.adsamcik.tracker.shared.base.database.RoomExportPortableCapturedActivity
+ import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivityRequest
+ import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivityRequest
+ import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivityResult
+@@ -126,6 +130,78 @@
+ 	@After
+ 	fun tearDown() = database.close()
+ 
++
++	@Test
++	fun `native Activity export retains original authority after constructed quality and End operations`() = runTest {
++		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
++		persistPortableFixture(original)
++		val before = readLocalPortableEntry(original)
++		val run = original.runs.getValue("run-a")
++		val session = original.sessions.getValue(LOGICAL_ID)
++		val exporter = RoomExportPortableCapturedActivity(
++			database, EXECUTION_AUTHORITY, UnconfinedTestDispatcher(testScheduler))
++		// Original providers/actions/manifests are real Room fixture rows. Only later operation
++		// transitions are constructed here; this is not a physical provider or coordinator test.
++		for ((generation, boot) in listOf(2L to run.bootId, 3L to "later-operation-boot")) {
++			database.withTransaction {
++				database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = generation,
++					bootId = boot, runRevision = run.runRevision + generation))
++				database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = generation,
++					lifecycleBootId = boot, lifecycleRevision = session.lifecycleRevision + generation))
++			}
++			val exported = mutableListOf<PortableActivityEnvelopeV1>()
++			exporter.export(ExportPortableCapturedActivityRequest(before.startTimeMs, before.endTimeMs)) {
++				database.inTransaction() shouldBe false
++				exported += it
++			} shouldBe ExportPortableCapturedActivityResult.Exported(1)
++			exported.single().entries shouldBe listOf(before)
++		}
++		original.walByEventId.forEach { (id, wal) ->
++			val saved = requireNotNull(database.sourceEventWalDao().getByEventId(id))
++			saved.copy(payload = wal.payload) shouldBe wal
++			saved.payload.contentEquals(wal.payload) shouldBe true
++		}
++	}
++
++	@Test
++	fun `native Activity export cannot lend a newer accepted action to original authorization`() = runTest {
++		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
++		persistPortableFixture(original)
++		val before = readLocalPortableEntry(original)
++		val run = original.runs.getValue("run-a")
++		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = 3L, runRevision = 2L))
++		database.sourceSessionDao().updateSession(original.sessions.getValue(LOGICAL_ID).copy(lifecycleLeaseGeneration = 3L))
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE lifecycle_desired_action SET lease_generation = 2 WHERE service_run_id = ? AND desired_state = 'STARTED'",
++			arrayOf<Any>(run.serviceRunId))
++		var sinkCalls = 0
++		val result = RoomExportPortableCapturedActivity(
++			database, EXECUTION_AUTHORITY, UnconfinedTestDispatcher(testScheduler)).export(
++			ExportPortableCapturedActivityRequest(before.startTimeMs, before.endTimeMs)) { sinkCalls++ }
++		(result is ExportPortableCapturedActivityResult.Unverifiable) shouldBe true
++		sinkCalls shouldBe 0
++	}
++
++	@Test
++	fun `native Activity export keeps exact erase after later operation generations`() = runTest {
++		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
++		persistPortableFixture(original)
++		val before = readLocalPortableEntry(original)
++		val run = original.runs.getValue("run-a")
++		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = 3L, runRevision = 2L))
++		database.sourceSessionDao().updateSession(original.sessions.getValue(LOGICAL_ID).copy(lifecycleLeaseGeneration = 3L))
++		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
++			ACTIVITY_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, run.logicalTrackingId, run.serviceRunId,
++			1L, 0L, before.endTimeMs + 1L))
++		var sinkCalls = 0
++		RoomExportPortableCapturedActivity(
++			database, EXECUTION_AUTHORITY, UnconfinedTestDispatcher(testScheduler)).export(
++			ExportPortableCapturedActivityRequest(before.startTimeMs, before.endTimeMs)) { sinkCalls++ } shouldBe
++			ExportPortableCapturedActivityResult.Unverifiable(
++				PortableActivityExportUnverifiableReason.DELETED_SCOPE)
++		sinkCalls shouldBe 0
++	}
++
+ 	@Test
+ 	fun `saved Activity survives later lifecycle generations and retains its original elapsed clock`() = runTest {
+ 		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+@@ -148,7 +224,11 @@
+ 			after.activeTime shouldBe before.activeTime
+ 			after.causes shouldBe before.causes
+ 		}
+-		original.walByEventId.forEach { (id, wal) -> database.sourceEventWalDao().getByEventId(id) shouldBe wal }
++		original.walByEventId.forEach { (id, wal) ->
++			val saved = requireNotNull(database.sourceEventWalDao().getByEventId(id))
++			saved.copy(payload = wal.payload) shouldBe wal
++			saved.payload.contentEquals(wal.payload) shouldBe true
++		}
+ 	}
+ 
+ 	@Test
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt
+@@ -12,6 +12,10 @@
+ import androidx.room.withTransaction
+ import androidx.test.core.app.ApplicationProvider
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.PortableCapturedCellEntryV1
++import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedCellResult
++import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedCellRequest
++import com.adsamcik.tracker.shared.base.database.RoomExportPortableCapturedCell
+ import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedCellRequest
+ import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedCellResult
+ import com.adsamcik.tracker.shared.base.database.PortableCapturedCellRunV1
+@@ -363,6 +367,93 @@
+ 	@After
+ 	fun tearDown() = database.close()
+ 
++
++	@Test
++	fun `native Cell export retains original authority after constructed quality and End operations`() = runTest {
++		val group = buildGroup(940, 1, setOf(0))
++		persist(listOf(group))
++		val run = group.runs.single()
++		val originalDemands = database.sourceBrokerDao().demandsByIds(run.demands.map { it.demandId })
++		val originalWal = run.facts.map { it.sourceEventId }.distinct().associateWith {
++			requireNotNull(database.sourceEventWalDao().getByEventId(it))
++		}
++		val authority = SourceProductLaneExecutionAuthority { database.inTransaction() }
++		val before = (database.withTransaction {
++			RoomReadLocalPortableCapturedCell(database, authority).readInTransaction(group.session.logicalTrackingId)
++		} as ReadLocalPortableCapturedCellResult.Ready).entry
++		val exporter = RoomExportPortableCapturedCell(
++			database, authority, UnconfinedTestDispatcher(testScheduler))
++		// Only the later quality/End operation metadata is constructed. Original provider,
++		// carrier, authorization, demand and complete native entry are existing Room fixtures.
++		for ((generation, boot) in listOf(run.run.leaseGeneration + 1L to run.run.bootId,
++			run.run.leaseGeneration + 2L to "later-operation-boot")) {
++			database.withTransaction {
++				database.sourceSessionDao().updateServiceRun(run.run.copy(leaseGeneration = generation,
++					bootId = boot, runRevision = run.run.runRevision + generation))
++				database.sourceSessionDao().updateSession(group.session.copy(lifecycleLeaseGeneration = generation,
++					lifecycleBootId = boot, lifecycleRevision = group.session.lifecycleRevision + generation))
++			}
++			val exported = mutableListOf<PortableCapturedCellEntryV1>()
++			val result = exporter.export(ExportPortableCapturedCellRequest(
++				group.session.logicalTrackingId)) {
++				database.inTransaction() shouldBe false
++				exported += it
++			}
++			(result is ExportPortableCapturedCellResult.Exported) shouldBe true
++			exported shouldBe listOf(before)
++		}
++		database.sourceBrokerDao().demandsByIds(run.demands.map { it.demandId }) shouldBe originalDemands
++		originalWal.forEach { (id, beforeWal) ->
++			val afterWal = requireNotNull(database.sourceEventWalDao().getByEventId(id))
++			afterWal.copy(payload = beforeWal.payload) shouldBe beforeWal
++			afterWal.payload.contentEquals(beforeWal.payload) shouldBe true
++		}
++	}
++
++	@Test
++	fun `native Cell export cannot lend newer demand generation to original authorization`() = runTest {
++		val group = buildGroup(941, 1, setOf(0))
++		persist(listOf(group))
++		val run = group.runs.single()
++		database.sourceSessionDao().updateServiceRun(run.run.copy(leaseGeneration = run.run.leaseGeneration + 2L,
++			runRevision = run.run.runRevision + 1L))
++		database.sourceSessionDao().updateSession(group.session.copy(lifecycleLeaseGeneration = run.run.leaseGeneration + 2L))
++		val captureDemand = run.demands.single { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE source_demand SET lifecycle_lease_generation = ? WHERE demand_id = ?",
++			arrayOf<Any>(run.run.leaseGeneration + 1L, captureDemand.demandId))
++		var sinkCalls = 0
++		val result = RoomExportPortableCapturedCell(database,
++			SourceProductLaneExecutionAuthority { database.inTransaction() }, UnconfinedTestDispatcher(testScheduler))
++			.export(ExportPortableCapturedCellRequest(group.session.logicalTrackingId)) {
++				sinkCalls++
++			}
++		(result is ExportPortableCapturedCellResult.Unverifiable) shouldBe true
++		sinkCalls shouldBe 0
++	}
++
++	@Test
++	fun `native Cell export does not ignore exact scope fence after operation changes`() = runTest {
++		val group = buildGroup(942, 1, setOf(0))
++		persist(listOf(group))
++		val run = group.runs.single()
++		database.sourceSessionDao().updateServiceRun(run.run.copy(leaseGeneration = run.run.leaseGeneration + 2L,
++			runRevision = run.run.runRevision + 1L))
++		database.sourceSessionDao().updateSession(group.session.copy(lifecycleLeaseGeneration = run.run.leaseGeneration + 2L))
++		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
++			CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, group.session.logicalTrackingId, run.run.serviceRunId,
++			1L, 0L, run.segment.endTimeMs + 1L))
++		var sinkCalls = 0
++		val result = RoomExportPortableCapturedCell(database,
++			SourceProductLaneExecutionAuthority { database.inTransaction() }, UnconfinedTestDispatcher(testScheduler))
++			.export(ExportPortableCapturedCellRequest(group.session.logicalTrackingId)) {
++				sinkCalls++
++			}
++		// A fence with still-present products is an unfinished cleanup, not a fabricated Deleted result.
++		(result is ExportPortableCapturedCellResult.Unverifiable) shouldBe true
++		sinkCalls shouldBe 0
++	}
++
+ 	@Test
+ 	fun `measured Cell preserves current revision and good parent beside corrupt sibling in one run`() = runTest {
+ 		val group = perReadingGroup(buildGroup(940, 1, setOf(0)))
+@@ -525,6 +616,10 @@
+ 		val group = buildGroup(930, 1, setOf(0))
+ 		persist(listOf(group))
+ 		val run = group.runs.single()
++		val originalDemands = database.sourceBrokerDao().demandsByIds(run.demands.map { it.demandId })
++		val originalWal = run.facts.map { it.sourceEventId }.distinct().associateWith {
++			requireNotNull(database.sourceEventWalDao().getByEventId(it))
++		}
+ 		val original = (repository { true }.session(run.segment.id) as CellHistoryQuery.Found).entry
+ 		original.observations.isNotEmpty() shouldBe true
+ 		for (generation in listOf(run.run.leaseGeneration + 1L, run.run.leaseGeneration + 2L)) {
+@@ -538,26 +633,33 @@
+ 			after.observations shouldBe original.observations
+ 			after.causes shouldBe original.causes
+ 		}
+-		database.sourceSessionDao().lifecycleActions(group.session.logicalTrackingId) shouldBe run.actions
+-		run.facts.forEach { fact -> database.sourceEventWalDao().getByEventId(fact.sourceEventId) shouldBe
+-			run.admissions.single { it.eventId == fact.sourceEventId } }
+-	}
+-
+-	@Test
+-	fun `saved Cell cannot borrow newer action authority and deletion still retracts history`() = runTest {
++		database.sourceBrokerDao().demandsByIds(run.demands.map { it.demandId }) shouldBe originalDemands
++		originalWal.forEach { (id, beforeWal) ->
++			val afterWal = requireNotNull(database.sourceEventWalDao().getByEventId(id))
++			afterWal.copy(payload = beforeWal.payload) shouldBe beforeWal
++			afterWal.payload.contentEquals(beforeWal.payload) shouldBe true
++		}
++	}
++
++	@Test
++	fun `saved Cell cannot borrow newer demand authority and deletion still retracts history`() = runTest {
+ 		val group = buildGroup(931, 1, setOf(0))
+ 		persist(listOf(group))
+ 		val run = group.runs.single()
+ 		database.sourceSessionDao().updateServiceRun(run.run.copy(leaseGeneration = run.run.leaseGeneration + 2L,
+ 			runRevision = run.run.runRevision + 1L))
+ 		database.sourceSessionDao().updateSession(group.session.copy(lifecycleLeaseGeneration = run.run.leaseGeneration + 2L))
++		val captureDemand = run.demands.single { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+ 		database.openHelper.writableDatabase.execSQL(
+-			"UPDATE lifecycle_desired_action SET lease_generation = ? WHERE service_run_id = ?",
+-			arrayOf<Any>(run.run.leaseGeneration + 1L, run.run.serviceRunId))
++			"UPDATE source_demand SET lifecycle_lease_generation = ? WHERE demand_id = ?",
++			arrayOf<Any>(run.run.leaseGeneration + 1L, captureDemand.demandId))
+ 		val invalid = (repository { true }.session(run.segment.id) as CellHistoryQuery.Found).entry
+ 		invalid.state shouldBe CellHistoryProductState.FAILED
+ 		invalid.observations shouldBe emptyList()
+-		run.actions.forEach { database.sourceSessionDao().updateLifecycleAction(it) }
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE source_demand SET lifecycle_lease_generation = ? WHERE demand_id = ?",
++			arrayOf<Any>(requireNotNull(captureDemand.lifecycleLeaseGeneration), captureDemand.demandId))
++		(repository { true }.session(run.segment.id) as CellHistoryQuery.Found).entry.observations.isNotEmpty() shouldBe true
+ 		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+ 			CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, group.session.logicalTrackingId,
+ 			run.run.serviceRunId, 1, 0, run.segment.endTimeMs + 1L))
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt
+@@ -155,6 +155,93 @@
+ 		database.close()
+ 	}
+ 
++
++	@Test
++	fun `native Wi-Fi export retains original authority after constructed quality and End operations`() = runTest {
++		installPortableExportFixture()
++		val before = mutableListOf<PortableCapturedWifiEntryV1>()
++		assertIs<ExportPortableCapturedWifiResult.Exported>(portableExporter().export(
++			ExportPortableCapturedWifiRequest(LOGICAL_ID)) { before += it })
++		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
++		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
++		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
++		// Existing real qualifier/writer/Room fixture provides the recording; only later
++		// operation-generation and operation-boot transitions are constructed here.
++		for ((generation, boot) in listOf(run.leaseGeneration + 1L to run.bootId,
++			run.leaseGeneration + 2L to "later-operation-boot")) {
++			database.withTransaction {
++				database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = generation,
++					bootId = boot, runRevision = run.runRevision + generation))
++				database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = generation,
++					lifecycleBootId = boot, lifecycleRevision = session.lifecycleRevision + generation))
++			}
++			val exported = mutableListOf<PortableCapturedWifiEntryV1>()
++			assertIs<ExportPortableCapturedWifiResult.Exported>(portableExporter().export(
++				ExportPortableCapturedWifiRequest(LOGICAL_ID)) {
++				assertEquals(false, database.inTransaction())
++				exported += it
++			})
++			assertEquals(before, exported)
++		}
++		val savedWal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
++		assertEquals(wal, savedWal.copy(payload = wal.payload))
++		assertTrue(wal.payload.contentEquals(savedWal.payload))
++	}
++
++	@Test
++	fun `native Wi-Fi export cannot lend newer action generation to original authorization`() = runTest {
++		installPortableExportFixture()
++		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
++		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
++		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = run.leaseGeneration + 2L,
++			runRevision = run.runRevision + 1L))
++		database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = run.leaseGeneration + 2L))
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE lifecycle_desired_action SET lease_generation = ? WHERE service_run_id = ? AND desired_state = 'STARTED'",
++			arrayOf<Any>(run.leaseGeneration + 1L, RUN_ID))
++		var sinkCalls = 0
++		assertIs<ExportPortableCapturedWifiResult.Unverifiable>(portableExporter().export(
++			ExportPortableCapturedWifiRequest(LOGICAL_ID)) { sinkCalls++ })
++		assertEquals(0, sinkCalls)
++	}
++
++	@Test
++	fun `native Wi-Fi export preserves exact erased scope after later operations`() = runTest {
++		installPortableExportFixture()
++		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
++		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
++		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = run.leaseGeneration + 2L,
++			runRevision = run.runRevision + 1L))
++		database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = run.leaseGeneration + 2L))
++		installPortableDeletion()
++		var sinkCalls = 0
++		assertIs<ExportPortableCapturedWifiResult.Deleted>(portableExporter().export(
++			ExportPortableCapturedWifiRequest(LOGICAL_ID)) { sinkCalls++ })
++		assertEquals(0, sinkCalls)
++	}
++
++	@Test
++	fun `native Wi-Fi export still rejects observations at the original capture closing boundary`() = runTest {
++		installPortableExportFixture()
++		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
++		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
++		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = run.leaseGeneration + 2L,
++			runRevision = run.runRevision + 1L, bootId = "later-operation-boot"))
++		database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = run.leaseGeneration + 2L,
++			lifecycleBootId = "later-operation-boot"))
++		// Replace only the existing deny-all closing snapshot with a correctly encoded earlier
++		// closing boundary. The saved scan includes an actual observation exactly at this cutoff.
++		database.openHelper.writableDatabase.execSQL(
++			"DELETE FROM source_authorization WHERE source_kind = ? AND registration_generation = ? AND authorization_revision = ?",
++			arrayOf<Any>(WIFI_SOURCE, REGISTRATION_GENERATION, AUTHORIZATION_REVISION + 1L))
++		installPortableClosingAuthorization(effectiveElapsedRealtimeNanos = OBSERVED_END_NANOS,
++			effectiveWallTimeMs = OBSERVED_WALL_MS)
++		var sinkCalls = 0
++		assertIs<ExportPortableCapturedWifiResult.Unverifiable>(portableExporter().export(
++			ExportPortableCapturedWifiRequest(LOGICAL_ID)) { sinkCalls++ })
++		assertEquals(0, sinkCalls)
++	}
++
+ 	@Test
+ 	fun `exact Wi-Fi-only WAL derives passive plan from manifest and produces identity-free fact`() = runTest {
+ 		installValidFixture(configurationRevision = null)
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiHistoricalBalanceContractTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiHistoricalBalanceContractTest.kt
+@@ -1,5 +1,6 @@
+ package com.adsamcik.tracker.tracker.source.wifi
+ 
++import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+ import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+@@ -58,7 +59,8 @@
+             changeReason = "CAPTURE")
+         val authorization = requireNotNull(SourceBrokerAuthorization.rows(SourceKind.WIFI.stableCode, 1, 1,
+             listOf(demand), "boot", 20, 20).toAuthorizationSnapshotOrNull())
+-        val snapshot = WifiPortableAuthoritySnapshot(session = mockk(), runsById = emptyMap(),
++        val snapshot = WifiPortableAuthoritySnapshot(session = mockk(), savedSessionCutoff = SavedSessionCutoff(null, null),
++            runsById = emptyMap(),
+             manifestsByRun = emptyMap(), sourcesByManifest = emptyMap(), segmentsById = emptyMap(),
+             planHeadersByRevision = emptyMap(), desiredPlansByRevision = emptyMap(), plansByRevision = emptyMap(),
+             registrationsByGeneration = emptyMap(), authorizationsByKey = emptyMap(), authorizationsByGeneration = emptyMap(),

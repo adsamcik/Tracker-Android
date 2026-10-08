@@ -1541,7 +1541,7 @@ internal class PortableCapturedActivityRoomReader(
 		runs.forEach { run ->
 			val manifests = manifestsByRun[run.serviceRunId].orEmpty()
 			val sources = sourcesByRun[run.serviceRunId].orEmpty()
-			if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) ||
+			if (!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) ||
 				manifests.any { manifest ->
 					!SessionManifestIntegrity.verify(
 						manifest,
@@ -1765,11 +1765,11 @@ internal class PortableCapturedActivityRoomReader(
 				row.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
 				row.configRevision != manifest.acquisitionPlanRevision ||
 				row.planAttribution != CAPTURED_REGISTRATION_PLAN_ATTRIBUTION ||
-				row.clockDomainId != run.bootId || row.clockDomainId != manifest.effectiveBootId ||
+				row.clockDomainId != manifest.effectiveBootId ||
 				row.observedElapsedNanos < manifest.effectiveElapsedRealtimeNanos ||
 				row.sourcePolicyRevision != manifest.sourcePolicyRevision ||
 				row.captureConsentEpoch != source.consentEpoch ||
-				row.lifecycleLeaseGeneration != run.leaseGeneration
+				!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, row.lifecycleLeaseGeneration)
 			) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
 		validatePortableWalDeliveryGroups(rows)
@@ -1882,7 +1882,7 @@ internal class PortableCapturedActivityRoomReader(
 				provider.sourceInstanceId != row.sourceInstanceId ||
 				provider.registrationGeneration != row.registrationGeneration ||
 				provider.ownerScope != PORTABLE_ACTIVITY_PROVIDER_OWNER_SCOPE ||
-				provider.clockDomainId != run.bootId ||
+				matchingManifests.any { it.effectiveBootId != provider.clockDomainId } ||
 				provider.physicalConfigurationFingerprint != plan.physicalConfigurationFingerprint ||
 				provider.collectedDataEpoch != collectedDataEpoch || provider.acceptedAtMs == null ||
 				provider.acceptedElapsedRealtimeNanos == null ||
@@ -2241,8 +2241,9 @@ internal class PortableCapturedActivityRoomReader(
 			action.desiredPlanRevision != plan.configurationRevision ||
 			action.sourcePolicyRevision != manifest.sourcePolicyRevision ||
 			action.consentEpoch != source.consentEpoch || action.startOrigin != manifest.startOrigin ||
-			action.bootId != run.bootId || action.bootId != manifest.effectiveBootId ||
-			action.leaseGeneration != run.leaseGeneration || action.attemptCount <= 0 ||
+			action.bootId != manifest.effectiveBootId || action.bootId != provider.clockDomainId ||
+			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, action.leaseGeneration) ||
+			action.attemptCount <= 0 ||
 			action.status != PORTABLE_START_ACCEPTED || action.failureCode != null ||
 			action.retryTrigger != null || action.sourceInstanceId != provider.sourceInstanceId ||
 			action.registrationGeneration != provider.registrationGeneration ||
@@ -2288,10 +2289,10 @@ internal class PortableCapturedActivityRoomReader(
 			authorization.purposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
 			authorization.logicalTrackingId != run.logicalTrackingId ||
 			authorization.serviceRunId != run.serviceRunId ||
-			authorization.lifecycleLeaseGeneration != run.leaseGeneration ||
+			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, authorization.lifecycleLeaseGeneration) ||
 			authorization.sourcePolicyRevision != manifest.sourcePolicyRevision ||
 			authorization.consentEpoch != source.consentEpoch || !authorization.persistenceEligible ||
-			authorization.effectiveBootId != run.bootId ||
+			authorization.effectiveBootId != provider.clockDomainId ||
 			authorization.effectiveBootId != manifest.effectiveBootId ||
 			authorization.effectiveElapsedRealtimeNanos < run.startedElapsedNanos ||
 			authorization.effectiveElapsedRealtimeNanos < manifest.effectiveElapsedRealtimeNanos ||
@@ -2305,7 +2306,9 @@ internal class PortableCapturedActivityRoomReader(
 			} == true || provider.retiredAtMs?.let { retired ->
 				authorization.effectiveWallTimeMs > retired
 			} == true || acceptedActions.none { action ->
-				action.manifestRevision == manifest.manifestRevision
+				action.manifestRevision == manifest.manifestRevision &&
+					action.leaseGeneration == authorization.lifecycleLeaseGeneration &&
+					action.bootId == authorization.effectiveBootId
 			}
 		) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 	}
@@ -2496,7 +2499,7 @@ internal class PortableCapturedActivityRoomReader(
 		) abort(PortableActivityExportUnverifiableReason.ENTRY_MATERIALIZING)
 		if (manifests.size > limits.maximumManifestsPerRun) overflow()
 		if (sources.size > limits.maximumSourcesPerRun ||
-			!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) ||
+			!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) ||
 			manifests.any { manifest ->
 				!SessionManifestIntegrity.verify(
 					manifest,

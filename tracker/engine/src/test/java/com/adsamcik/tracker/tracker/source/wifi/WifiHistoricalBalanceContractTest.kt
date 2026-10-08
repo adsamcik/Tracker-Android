@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.source.wifi
 
+import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
@@ -58,7 +59,8 @@ class WifiHistoricalBalanceContractTest {
             changeReason = "CAPTURE")
         val authorization = requireNotNull(SourceBrokerAuthorization.rows(SourceKind.WIFI.stableCode, 1, 1,
             listOf(demand), "boot", 20, 20).toAuthorizationSnapshotOrNull())
-        val snapshot = WifiPortableAuthoritySnapshot(session = mockk(), runsById = emptyMap(),
+        val snapshot = WifiPortableAuthoritySnapshot(session = mockk(), savedSessionCutoff = SavedSessionCutoff(null, null),
+            runsById = emptyMap(),
             manifestsByRun = emptyMap(), sourcesByManifest = emptyMap(), segmentsById = emptyMap(),
             planHeadersByRevision = emptyMap(), desiredPlansByRevision = emptyMap(), plansByRevision = emptyMap(),
             registrationsByGeneration = emptyMap(), authorizationsByKey = emptyMap(), authorizationsByGeneration = emptyMap(),

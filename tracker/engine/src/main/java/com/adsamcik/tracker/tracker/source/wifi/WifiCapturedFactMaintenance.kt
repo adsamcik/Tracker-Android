@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.source.wifi
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.RadioPurposeItems
+import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
+import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.qualifyWifiPurposeItems
 import com.adsamcik.tracker.shared.base.database.persistCapturedRadioFactRetentionProofs
 import com.adsamcik.tracker.shared.base.database.dao.WifiPortableWalIdentityRow
@@ -1142,6 +1144,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 		counter.requireWithinLimit()
 		return WifiPortableAuthoritySnapshot(
 			session = session,
+			savedSessionCutoff = counter.read { database.savedSessionCutoff(session) },
 			runsById = runs.associateBy(SourceServiceRunEntity::serviceRunId),
 			manifestsByRun = manifests.groupBy(SessionManifestVersionEntity::serviceRunId),
 			sourcesByManifest = sources.groupBy { it.logicalTrackingId to it.manifestRevision },
@@ -1911,7 +1914,8 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 		val currentRun = session.currentServiceRunId?.let { currentRunId ->
 			if (portable != null) portable.runsById[currentRunId] else sessionDao.serviceRun(currentRunId)
 		}
-		if (!session.hasValidLifecycleShape(wal.admissionOrdinal, perReading) || !run.hasValidLifecycleShape() ||
+		val cutoff = portable?.savedSessionCutoff ?: database.savedSessionCutoff(session)
+		if (!session.hasValidLifecycleShape(wal.admissionOrdinal, perReading, cutoff.bootId) || !run.hasValidLifecycleShape() ||
 			!run.hasValidRelationshipTo(session, currentRun)
 		) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 		if (run.state in TERMINAL_SESSION_STATES && session.state !in TERMINAL_SESSION_STATES &&
@@ -1923,10 +1927,9 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				limits,
 			))
 		) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
+		val sessionEnd = cutoff.endForBoot(wal.clockDomainId)
 		if (run.desiredPlanRevision <= 0L || run.logicalTrackingId != logicalTrackingId ||
-			run.bootId != wal.clockDomainId || run.leaseGeneration != leaseGeneration ||
-			session.clockDomainId != wal.clockDomainId ||
+			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, leaseGeneration) ||
 			session.lifecycleLeaseGeneration < leaseGeneration || !perReading &&
 				(run.startedElapsedNanos > observedStart || wal.observedElapsedNanos >= sessionEnd)
 		) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
@@ -1936,7 +1939,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 		if (manifests.size > limits.maximumManifestsPerRun) {
 			throw WifiCapturedMaintenanceLimitExceeded()
 		}
-		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)) {
+		if (!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests)) {
 			block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 		}
 		val manifestIndex = manifests.indexOfFirst { manifest ->
@@ -3260,10 +3263,14 @@ private fun SessionManifestSourceEntity.isExactWifiWriter(consentEpoch: Long): B
 
 private fun Set<SourceKind>.toStableCodes(): String = map(SourceKind::stableCode).sorted().joinToString(",")
 
-private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(admissionOrdinal: Long, perReading: Boolean = false): Boolean {
+private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(
+	admissionOrdinal: Long,
+	perReading: Boolean,
+	cutoffClockDomainId: String?,
+): Boolean {
 	if (state !in ALL_SESSION_STATES || lifecycleRevision <= 0L || desiredPlanRevision <= 0L ||
 		startedAtMs < 0L || startedElapsedNanos < 0L || lifecycleLeaseGeneration <= 0L ||
-		lifecycleBootId.isNullOrBlank() || currentManifestRevision?.let { it <= 0L } != false
+		clockDomainId.isBlank() || lifecycleBootId.isNullOrBlank() || currentManifestRevision?.let { it <= 0L } != false
 	) return false
 	val terminal = state in TERMINAL_SESSION_STATES
 	if ((completedAtMs != null) != terminal || completedAtMs?.let { it < startedAtMs } == true ||
@@ -3272,7 +3279,8 @@ private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(admissionOrdinal
 	if (terminal || state == "STOPPING") {
 		if (cutoffAtMs == null || cutoffElapsedNanos == null ||
 			cutoffAtMs?.let { it < startedAtMs } != false ||
-			cutoffElapsedNanos?.let { it < startedElapsedNanos } != false
+			cutoffElapsedNanos?.let { it < 0L ||
+				(cutoffClockDomainId == clockDomainId && it < startedElapsedNanos) } != false
 		) return false
 	} else if (cutoffAtMs != null || cutoffElapsedNanos != null) {
 		return false
@@ -3454,6 +3462,7 @@ internal data class WifiPortableWalSettlement(
 
 internal data class WifiPortableAuthoritySnapshot(
 	val session: LogicalTrackingSessionEntity,
+	val savedSessionCutoff: SavedSessionCutoff,
 	val runsById: Map<String, SourceServiceRunEntity>,
 	val manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 	val sourcesByManifest: Map<Pair<String, Long>, List<SessionManifestSourceEntity>>,

@@ -1,0 +1,263 @@
+{
+  "reviewed_head": "e542649404514112aa0cf505fbae3d2a42984ebc",
+  "packet_base": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+  "phase": "IMPLEMENTATION_ONLY",
+  "execution": "NOT_RUN",
+  "status": "V3_BOUNDED_SOURCE_ACCEPTANCE",
+  "hashes": {
+    "FILES.json": "acbc7f1a27459dcaf3921f735af5afd4a300c4dffdac9111064c699aab63bdf1",
+    "SELECTION.patch": "4edf1946188f862571ccd66755c677e6751c0ba8c937fc6e1ef3a498040b8d5d",
+    "DEPENDENCIES.json": "fc882ce19ad800c8ce6421329226cdeb550de9ae8cc3f06525128e02b2d48911",
+    "CASE_INVENTORY.json": "aab1bd14cacb7d8d4ddb6d0bec9c6cbcb1273126acda508c276ee03681c65440",
+    "SOURCE_BOUNDARY.md": "fdaa14abd91ad2900f5ab03889e17682c938a744fbfef47c0147b333a4cc2e7a",
+    "ADAPTER_BACKLOG_TRACE.md": "139126e718e1091c785e249fe31ab2dd2f9748a005354fd7db49669f55e9bb3d",
+    "ADAPTER_REPAIR_SCOPE.md": "435a456df7b919717199ec2714e81720f182fb44cd8acdcec1eddbf930fe784e"
+  },
+  "files": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedPortableTransfer.kt",
+      "base_sha256": "786e3ed52c469e993c12bb91ec9b4e21a011d9742595c58cc0e005b91f8aa433",
+      "selected_sha256": "d6d41e1b60100a1261ef2efa13af8daaca864d69893d347d66acb83f61183aaf",
+      "working_before_sha256": "786e3ed52c469e993c12bb91ec9b4e21a011d9742595c58cc0e005b91f8aa433",
+      "selected_lf_only": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt",
+      "base_sha256": "6c9d7711324876956bd2ddc963313d068a313a25a78b0240a7040479a970f35b",
+      "selected_sha256": "1ef304f5d70d3e2beb3dfee114a131da1ca7b1cb4b8b0c1139367f3483644ae1",
+      "working_before_sha256": "466f426a9fe9c685660b3a48bd922d17db30a491a0957ddefe829572c0a342ed",
+      "selected_lf_only": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt",
+      "base_sha256": "7c2181c329e822f91bd0e67beb8a66e06dcbcc49b0ef52f7811735fe4efb6d01",
+      "selected_sha256": "6583b15441c5f54b21f5dc3ade6f7c8d21f1415b86af08f197c6a0290ddce038",
+      "working_before_sha256": "1a45b70545cec27b8e26a43f44ad41e4f1387cdd0b396fdf4eae01fdf0ba7009",
+      "selected_lf_only": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+      "base_sha256": "3d24ab860f43c4e61c945da41af5a30d9e2fa524d1d168be98b1086d472aeb7f",
+      "selected_sha256": "68502a24d1b7e9882a070026ce6434232cf9a32713c039faba30a99b8ed7eeb2",
+      "working_before_sha256": "3d24ab860f43c4e61c945da41af5a30d9e2fa524d1d168be98b1086d472aeb7f",
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "base_sha256": "acf7218e09cc0eaa403fc1b2b8bdc32781e23abd5f946b7948385ea86ec60dba",
+      "selected_sha256": "251e73a81f303f36b5203823eaa2c6c81eb07a90809757210c3be73fed2777a1",
+      "working_before_sha256": "acf7218e09cc0eaa403fc1b2b8bdc32781e23abd5f946b7948385ea86ec60dba",
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "base_sha256": "04a9409c47c33c53bb59ee644500764e297da008c9ea17ec3a4f189690595ae4",
+      "selected_sha256": "8f725622ed70a1d29f5733f54229d93ab9d1183e4a8b8567a252ae33b6de054f",
+      "working_before_sha256": "04a9409c47c33c53bb59ee644500764e297da008c9ea17ec3a4f189690595ae4",
+      "selected_lf_only": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+      "base_sha256": "4ee687d0556618d6452c0ef61a0e8e52931b3f12a2091b8567065678d9b55900",
+      "selected_sha256": "f699409b2b84f611b189becad4f61be5cc733dbef2653bddef3d4009e1fe1a72",
+      "working_before_sha256": "2783e86960e349466ec80442d7e1736c212cb22b1bb4ee45aa665573e95dd862",
+      "selected_lf_only": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiHistoricalBalanceContractTest.kt",
+      "base_sha256": "fb2d0acf16b624b01fad51f0cf36d9cf30f7c637dcf35877acdb18b5e71ab33b",
+      "selected_sha256": "90e44258ef8d597a7ee9c53ac217641079d87e46ed60d00c38005c3882fba32a",
+      "working_before_sha256": "64216a493f84a58bd80705631edae082954a444d4e70615da611d440b45663e8",
+      "selected_lf_only": true
+    }
+  ],
+  "dependencies": [
+    {
+      "path": "settings.gradle.kts",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "core/base/build.gradle.kts",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "e7d9147951041300b0b6d4613ed6b7cfd2b2edfadcc6f98fb513a2038dd46ac3"
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "a276144c34315be81b125df52eb7611f08e92a7629abb3d1f3587a3e92a93f24"
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "46271afa72131dfd0ba86bf593abb00cb0f1a39a7f01ede89b43a56789f46217"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "49e23c9e8afa1d4c5909423f24f2cc3e05eabbc9ad4fa2792821e40b867b3dad"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionLifecycleIntegrity.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "f6c6f0803f62808b2b1944c1384e60a3f783e874d4759e1b41c81cc60939ba22"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SavedSessionCutoff.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "b93bd784de5b69c4b8c79a178f52ee0407d2f67223b23efc35dd03163e94073a"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceSessionEntities.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "9e30418fe4663e86e39adae3cabb763342c9959dc54a06d6c39dab0fa4685e21"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceSessionRawEvidence.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "47a3c0d58d5349040f3f841462f6b94e04c25c943fd2d956b15c56a45b28015b"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceBrokerEntities.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "752d4b90d523ef1543d3032b31da63e0aa2943a13462b6b79fa40f28930b7fe0"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceEventWalEntity.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "a3b1c889ebaed3b6a1ef2ec8855d62a7d49b732a2af2d46d7b68fd3481d600fc"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDeletionFenceEntity.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "6009e2e8c59abfd1025a53e3a36d26462e8f1974333ad116989e3e6c86cf7c41"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/ActivityCapturedFactIntegrity.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "25263e77718ec31cb3a0a87f2610c324e10a3852a5a50a9b117df234df0b9c5c"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/ActivityCapturedFactEntities.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "d5a893fb5edc8dd5c9c64c08fd2ace29e6b75135ab1fa5e1f1c09142b629f089"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellCapturedFactEntities.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "f0c0706d6f191981b55d397184efe398130dc37d4702ae86fbf1cacbb7bcdc14"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ActivityCapturedFactDao.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "8240a748d66be83ef006eac8811181bebc7b59244b042b7a9c1a17518968953e"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/CellCapturedFactDao.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "9203d85a833409b0b87a1a7845ff4e252fa31ab2e439f7ae9e664f48cc785c22"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "c97672d6bded0be734639a6a5500f1faf7d92bee6d02cbed27b367c174f17c98"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceBrokerDao.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "ea0b46eff0a6db27a5a691aeb4131b62d632b943cc8ffc59cf7ffe1427ddca9a"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/TrackingHistoryReadDao.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "5ed5a7b827af1399b2893c85d259f6450b13a5fd86f503f7e727fd2674619438"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedFactMaintenance.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "c2b971c1f3afa3d56a55f3e960b5f95016354cd73b8c3393e31ecacec1f9627b"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "3b2776506e1dced2eaa5b7b180fdeb584a06120c4481c3be96d436a94fadaa3d"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ProviderRegistrationIntervalAuthenticator.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "115c14157ccaeac657244116dfc97fc3ddf79c31c681800241265c3ee465ca36"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "d703147c6a0c3f31ca31a32a7f8a88c1c948895a7abd544a487d0d8ccfc1c19d"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposer.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "744b740c9dc674baf83690bda884cd45f2323948cd6cc8cf8ee83f7a293e5fd1"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "a825ddd9e8ef37563763b4abfbe0a2dc83b2f6d80229adad676c780fdca8b735"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "a9cc723090082450138a26efc017d567a269154853cb111aa8926d8dd8a4b2c2"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/di/PortableActivityTransferDataModule.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "8d2904f6f9247fc84fd67322e395302bc24c29a65d27eab180fa3c4e07278d20"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedPortableExportModule.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "c2a889083b0ee0324867004b5f0d83ec283a0bba1f9c44fb3780c46f6b41fbc9"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransferModule.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "5dcdbf12c5a30ecf1472bc7016af201e1fddc51096569e7e3034b999fce66c93"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapter.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "412e5ff84a7422925c51214798e37e4222451731db87fd0e8b297fe35d6b9ca7"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiSessionFactProjectionLane.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "6b7163b981bc490b63f645b949f378cde724eea64e5bb220d42a924a8aaedf60"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "3d24ab860f43c4e61c945da41af5a30d9e2fa524d1d168be98b1086d472aeb7f"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+      "commit": "f3b265d943af7973ee9aa781a8cac33ebb53460c",
+      "sha256": "13e9919eebc06e8fbdee15540b04540bb0c00bc62cdf670e3c94273ac4af2f2c"
+    }
+  ],
+  "source_recheck": {
+    "all_eight_lf_manifest_base_raw_bytes": "match",
+    "all_35_saved_committed_current_dependency_pins": "match",
+    "all_eight_current_path_bases": "match",
+    "all_four_production_sources_vs_V1": "byte-identical",
+    "only_selected_change_vs_V2": "new Wi-Fi positive WAL nonpayload+payload content assertion"
+  },
+  "prior_findings": [
+    "V1 missing constructor argument:resolved",
+    "V1 Cell undefined fields/zero-row action mutation:resolved using actual demand/WAL",
+    "V2 Wi-Fi ByteArray reference equality:resolved"
+  ]
+}

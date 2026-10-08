@@ -1,0 +1,42 @@
+[
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedPortableTransfer.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "786e3ed52c469e993c12bb91ec9b4e21a011d9742595c58cc0e005b91f8aa433"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "466f426a9fe9c685660b3a48bd922d17db30a491a0957ddefe829572c0a342ed"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "1a45b70545cec27b8e26a43f44ad41e4f1387cdd0b396fdf4eae01fdf0ba7009"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "3d24ab860f43c4e61c945da41af5a30d9e2fa524d1d168be98b1086d472aeb7f"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "acf7218e09cc0eaa403fc1b2b8bdc32781e23abd5f946b7948385ea86ec60dba"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "04a9409c47c33c53bb59ee644500764e297da008c9ea17ec3a4f189690595ae4"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "2783e86960e349466ec80442d7e1736c212cb22b1bb4ee45aa665573e95dd862"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiHistoricalBalanceContractTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "64216a493f84a58bd80705631edae082954a444d4e70615da611d440b45663e8"
+  }
+]

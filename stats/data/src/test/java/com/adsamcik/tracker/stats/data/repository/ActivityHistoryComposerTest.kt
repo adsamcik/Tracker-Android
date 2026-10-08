@@ -5,6 +5,10 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedPortableIntegrity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.PortableActivityEnvelopeV1
+import com.adsamcik.tracker.shared.base.database.PortableActivityExportUnverifiableReason
+import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivityResult
+import com.adsamcik.tracker.shared.base.database.RoomExportPortableCapturedActivity
 import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivityRequest
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivityRequest
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivityResult
@@ -126,6 +130,78 @@ class ActivityHistoryComposerTest {
 	@After
 	fun tearDown() = database.close()
 
+
+	@Test
+	fun `native Activity export retains original authority after constructed quality and End operations`() = runTest {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		persistPortableFixture(original)
+		val before = readLocalPortableEntry(original)
+		val run = original.runs.getValue("run-a")
+		val session = original.sessions.getValue(LOGICAL_ID)
+		val exporter = RoomExportPortableCapturedActivity(
+			database, EXECUTION_AUTHORITY, UnconfinedTestDispatcher(testScheduler))
+		// Original providers/actions/manifests are real Room fixture rows. Only later operation
+		// transitions are constructed here; this is not a physical provider or coordinator test.
+		for ((generation, boot) in listOf(2L to run.bootId, 3L to "later-operation-boot")) {
+			database.withTransaction {
+				database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = generation,
+					bootId = boot, runRevision = run.runRevision + generation))
+				database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = generation,
+					lifecycleBootId = boot, lifecycleRevision = session.lifecycleRevision + generation))
+			}
+			val exported = mutableListOf<PortableActivityEnvelopeV1>()
+			exporter.export(ExportPortableCapturedActivityRequest(before.startTimeMs, before.endTimeMs)) {
+				database.inTransaction() shouldBe false
+				exported += it
+			} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+			exported.single().entries shouldBe listOf(before)
+		}
+		original.walByEventId.forEach { (id, wal) ->
+			val saved = requireNotNull(database.sourceEventWalDao().getByEventId(id))
+			saved.copy(payload = wal.payload) shouldBe wal
+			saved.payload.contentEquals(wal.payload) shouldBe true
+		}
+	}
+
+	@Test
+	fun `native Activity export cannot lend a newer accepted action to original authorization`() = runTest {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		persistPortableFixture(original)
+		val before = readLocalPortableEntry(original)
+		val run = original.runs.getValue("run-a")
+		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = 3L, runRevision = 2L))
+		database.sourceSessionDao().updateSession(original.sessions.getValue(LOGICAL_ID).copy(lifecycleLeaseGeneration = 3L))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE lifecycle_desired_action SET lease_generation = 2 WHERE service_run_id = ? AND desired_state = 'STARTED'",
+			arrayOf<Any>(run.serviceRunId))
+		var sinkCalls = 0
+		val result = RoomExportPortableCapturedActivity(
+			database, EXECUTION_AUTHORITY, UnconfinedTestDispatcher(testScheduler)).export(
+			ExportPortableCapturedActivityRequest(before.startTimeMs, before.endTimeMs)) { sinkCalls++ }
+		(result is ExportPortableCapturedActivityResult.Unverifiable) shouldBe true
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `native Activity export keeps exact erase after later operation generations`() = runTest {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		persistPortableFixture(original)
+		val before = readLocalPortableEntry(original)
+		val run = original.runs.getValue("run-a")
+		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = 3L, runRevision = 2L))
+		database.sourceSessionDao().updateSession(original.sessions.getValue(LOGICAL_ID).copy(lifecycleLeaseGeneration = 3L))
+		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+			ACTIVITY_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, run.logicalTrackingId, run.serviceRunId,
+			1L, 0L, before.endTimeMs + 1L))
+		var sinkCalls = 0
+		RoomExportPortableCapturedActivity(
+			database, EXECUTION_AUTHORITY, UnconfinedTestDispatcher(testScheduler)).export(
+			ExportPortableCapturedActivityRequest(before.startTimeMs, before.endTimeMs)) { sinkCalls++ } shouldBe
+			ExportPortableCapturedActivityResult.Unverifiable(
+				PortableActivityExportUnverifiableReason.DELETED_SCOPE)
+		sinkCalls shouldBe 0
+	}
+
 	@Test
 	fun `saved Activity survives later lifecycle generations and retains its original elapsed clock`() = runTest {
 		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
@@ -148,7 +224,11 @@ class ActivityHistoryComposerTest {
 			after.activeTime shouldBe before.activeTime
 			after.causes shouldBe before.causes
 		}
-		original.walByEventId.forEach { (id, wal) -> database.sourceEventWalDao().getByEventId(id) shouldBe wal }
+		original.walByEventId.forEach { (id, wal) ->
+			val saved = requireNotNull(database.sourceEventWalDao().getByEventId(id))
+			saved.copy(payload = wal.payload) shouldBe wal
+			saved.payload.contentEquals(wal.payload) shouldBe true
+		}
 	}
 
 	@Test

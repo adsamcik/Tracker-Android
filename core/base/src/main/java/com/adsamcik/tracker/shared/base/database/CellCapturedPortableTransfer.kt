@@ -823,7 +823,7 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 		manifestsByRun.values.map { revisions -> revisions.map(SessionManifestVersionEntity::manifestRevision) },
 	) || runs.any { run ->
 		val runManifests = manifestsByRun[run.serviceRunId].orEmpty()
-		!SessionManifestIntegrity.hasValidServiceRunTimeline(run, runManifests) || runManifests.any { manifest ->
+		!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, runManifests) || runManifests.any { manifest ->
 			manifest.logicalTrackingId != request.logicalTrackingId ||
 				!SessionManifestIntegrity.verify(
 					manifest,
@@ -1504,7 +1504,7 @@ private fun LogicalTrackingSessionEntity.hasPortableCellShape(runs: List<SourceS
 	val terminal = state in TERMINAL_SESSION_STATES
 	if ((completedAtMs != null) != terminal || logicalTrackingId.isBlank() || lifecycleRevision <= 0L ||
 		desiredPlanRevision <= 0L || rolloutRevision <= 0L || startOrigin.isBlank() ||
-		clockDomainId.isBlank() || lifecycleBootId != clockDomainId || lifecycleLeaseGeneration <= 0L ||
+		clockDomainId.isBlank() || lifecycleBootId.isBlank() || lifecycleLeaseGeneration <= 0L ||
 		startedAtMs < 0L || startedElapsedNanos < 0L
 	) return false
 	if ((cutoffAtMs == null) != (cutoffElapsedNanos == null)) return false
@@ -1513,7 +1513,7 @@ private fun LogicalTrackingSessionEntity.hasPortableCellShape(runs: List<SourceS
 		requireNotNull(completedAtMs) < requireNotNull(cutoffAtMs))
 	) return false
 	if (runs.any { run ->
-		run.logicalTrackingId != logicalTrackingId || run.bootId != clockDomainId ||
+		run.logicalTrackingId != logicalTrackingId || run.bootId.isBlank() ||
 			run.leaseGeneration <= 0L || run.leaseGeneration > lifecycleLeaseGeneration ||
 			run.desiredPlanRevision <= 0L || run.rolloutRevision <= 0L ||
 			run.startedAtMs < 0L || run.startedElapsedNanos < 0L || run.startOrigin.isBlank() ||
@@ -1670,7 +1670,10 @@ private suspend fun AppDatabase.authenticatePortableCellSettlement(
 		).singleOrNull()?.validatedOrNull()?.takeIf { it.matchesPortableCellSharedSettlement(row, run) }
 			?: return false
 	} else null
-	if (!registration.hasExactPortableCellSettlementShape(row, run, evidenceState, sharedRetirement)) return false
+	val recordedBootId = manifests.singleOrNull {
+		it.manifestRevision == run.preparedManifestRevision
+	}?.effectiveBootId ?: return false
+	if (!registration.hasExactPortableCellSettlementShape(row, recordedBootId, evidenceState, sharedRetirement)) return false
 	val settledElapsedNanos = registration.retiredElapsedRealtimeNanos
 		?: requireNotNull(sharedRetirement).cutoffElapsedRealtimeNanos
 	if (brokerDao.hasConflictingAcceptedRegistrationBefore(
@@ -1818,7 +1821,7 @@ private fun SourceRunRetirementEntity.matchesPortableCellSharedSettlement(
 @Suppress("ComplexCondition")
 private fun ProviderRegistrationGenerationEntity.hasExactPortableCellSettlementShape(
 	row: SourceSessionCompletenessEntity,
-	run: SourceServiceRunEntity,
+	recordedBootId: String,
 	evidenceState: SourceEvidenceState,
 	sharedRetirement: SourceRunRetirementEntity?,
 ): Boolean {
@@ -1826,7 +1829,7 @@ private fun ProviderRegistrationGenerationEntity.hasExactPortableCellSettlementS
 	val acceptedElapsedNanos = acceptedElapsedRealtimeNanos ?: return false
 	val exactAcceptedIdentity = sourceKind == CELL_SOURCE_KIND && registrationGeneration == row.registrationGeneration &&
 		sourceInstanceId == row.sourceInstanceId && ownerScope == "source-broker:$CELL_SOURCE_KIND" &&
-		clockDomainId == run.bootId && collectedDataEpoch == evidenceState.collectedDataEpoch &&
+		clockDomainId == recordedBootId && collectedDataEpoch == evidenceState.collectedDataEpoch &&
 		providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
 		!providerProcessIncarnationId.isNullOrBlank() && reservedAtMs <= acceptedWallTimeMs &&
 		reservedElapsedRealtimeNanos <= acceptedElapsedNanos
@@ -1880,14 +1883,15 @@ private fun SourceDemandEntity.hasExactPortableCellSettlementShape(
 		sourceKind == CELL_SOURCE_KIND && purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
 		logicalTrackingId == row.logicalTrackingId && serviceRunId == row.serviceRunId &&
 		manifestRevision == manifest.manifestRevision &&
-		lifecycleLeaseGeneration == run.leaseGeneration && sourcePolicyRevision == manifest.sourcePolicyRevision &&
+		SessionManifestIntegrity.hasRetainedLeaseGeneration(run, lifecycleLeaseGeneration) &&
+		sourcePolicyRevision == manifest.sourcePolicyRevision &&
 		consentEpoch == binding.consentEpoch && persistenceEligible && qosCode == binding.qosCode &&
 		minimumAcquisitionSpec == CELL_CAPTURE_ACQUISITION_FLOOR && adaptiveReductionAllowed &&
 		maximumAgeMs == expectedMaximumAgeMs && desiredLatencyMs == Long.MAX_VALUE &&
-		requestedDeliveryLatencyMs == null && requestedBootId == run.bootId &&
+		requestedDeliveryLatencyMs == null && requestedBootId == manifest.effectiveBootId &&
 		requestedElapsedRealtimeNanos == manifest.effectiveElapsedRealtimeNanos &&
 		requestedAtMs == manifest.effectiveWallTimeMs && status == SourceDemandEntity.STATUS_RETIRED &&
-		retiredBootId == run.bootId && retiredElapsedNanos >= requestedElapsedRealtimeNanos &&
+		retiredBootId == requestedBootId && retiredElapsedNanos >= requestedElapsedRealtimeNanos &&
 		retiredWallTimeMs >= requestedAtMs
 }
 

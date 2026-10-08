@@ -221,7 +221,7 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 				},
 			) || runs.any { run ->
 				val runManifests = manifestsByRun[run.serviceRunId].orEmpty()
-				!SessionManifestIntegrity.hasValidServiceRunTimeline(run, runManifests) ||
+				!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, runManifests) ||
 					runManifests.any { manifest ->
 						manifest.logicalTrackingId != request.logicalTrackingId ||
 							!SessionManifestIntegrity.verify(
@@ -687,7 +687,7 @@ private fun LogicalTrackingSessionEntity.hasPortableShape(runs: List<SourceServi
 	val terminal = state in TERMINAL_STATES
 	if ((completedAtMs != null) != terminal || logicalTrackingId.isBlank() || lifecycleRevision <= 0L ||
 		desiredPlanRevision <= 0L || rolloutRevision <= 0L || startOrigin.isBlank() ||
-		clockDomainId.isBlank() || lifecycleBootId != clockDomainId || lifecycleLeaseGeneration <= 0L ||
+		clockDomainId.isBlank() || lifecycleBootId.isBlank() || lifecycleLeaseGeneration <= 0L ||
 		startedAtMs < 0L || startedElapsedNanos < 0L ||
 		(cutoffAtMs == null) != (cutoffElapsedNanos == null)
 	) return false
@@ -699,7 +699,7 @@ private fun LogicalTrackingSessionEntity.hasPortableShape(runs: List<SourceServi
 	if (!runs.all { run ->
 		if (run.state !in ALL_RUN_STATES) return@all false
 		val runTerminal = run.state in TERMINAL_STATES
-		run.logicalTrackingId == logicalTrackingId && run.bootId == clockDomainId &&
+		run.logicalTrackingId == logicalTrackingId && run.bootId.isNotBlank() &&
 			run.leaseGeneration > 0L && run.leaseGeneration <= lifecycleLeaseGeneration &&
 			run.desiredPlanRevision > 0L && run.rolloutRevision > 0L && run.startedAtMs >= 0L &&
 			run.startedElapsedNanos >= 0L && run.startOrigin.isNotBlank() &&
@@ -750,6 +750,8 @@ private fun ProviderRegistrationGenerationEntity.hasPortableRegistrationShape(
 ): Boolean {
 	val acceptedWall = acceptedAtMs ?: return false
 	val acceptedElapsed = acceptedElapsedRealtimeNanos ?: return false
+	val recordedBootId = authority.manifestsByRun[run.serviceRunId].orEmpty()
+		.singleOrNull { it.manifestRevision == run.preparedManifestRevision }?.effectiveBootId ?: return false
 	val acceptedActions = authority.exactPortableActions(this, run) ?: return false
 	val plans = acceptedActions.mapNotNull { authority.plansByRevision[it.desiredPlanRevision] }
 	if (plans.size != acceptedActions.size || plans.any {
@@ -767,7 +769,7 @@ private fun ProviderRegistrationGenerationEntity.hasPortableRegistrationShape(
 	}
 	return sourceKind == WIFI_SOURCE && registrationGeneration == row.registrationGeneration &&
 		sourceInstanceId == row.sourceInstanceId && ownerScope == "source-broker:$WIFI_SOURCE" &&
-		clockDomainId == run.bootId &&
+		clockDomainId == recordedBootId &&
 		providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
 		!providerProcessIncarnationId.isNullOrBlank() &&
 		captureCallbackBarrierAuthorizationRevision > 0L &&
@@ -785,18 +787,23 @@ private fun WifiPortableAuthoritySnapshot.exactPortableActions(
 		sourcesByManifest[manifest.logicalTrackingId to manifest.manifestRevision]
 			.orEmpty().filter(::isPortableWifiCaptureMembership)
 	}
-	val captureManifestRevisions = authorizationsByGeneration[registration.registrationGeneration].orEmpty()
+	val captureMembers = authorizationsByGeneration[registration.registrationGeneration].orEmpty()
 		.flatMap(SourceAuthorizationSnapshot::authorizedMembers)
 		.filter { member ->
 			member.purpose == CAPTURE_PURPOSE && member.logicalTrackingId == run.logicalTrackingId &&
 				member.serviceRunId == run.serviceRunId
-		}.mapNotNull(SourceAuthorizationEntity::manifestRevision).toSet()
+		}
+	val captureManifestRevisions = captureMembers.mapNotNull(SourceAuthorizationEntity::manifestRevision).toSet()
 	if (captureManifestRevisions.isEmpty()) return null
 	val actions = actionsByRun[run.serviceRunId].orEmpty().filter { action ->
 		action.authenticatesPortableCompleteness(run, manifests, bindings, registration)
 	}
 	if (actions.map(LifecycleDesiredActionEntity::manifestRevision).toSet() != captureManifestRevisions ||
-		captureManifestRevisions.any { revision -> actions.count { it.manifestRevision == revision } != 1 }
+		captureManifestRevisions.any { revision -> actions.count { it.manifestRevision == revision } != 1 } ||
+		captureMembers.any { member ->
+			actions.none { action -> action.manifestRevision == member.manifestRevision &&
+				action.leaseGeneration == member.lifecycleLeaseGeneration && action.bootId == member.effectiveBootId }
+		}
 	) return null
 	return actions
 }
@@ -980,8 +987,9 @@ private fun SourceDemandEntity.hasExactPortableCaptureBinding(
 	val plan = authority.plansByRevision[manifest.acquisitionPlanRevision] ?: return false
 	return sourceKind == WIFI_SOURCE && purpose == CAPTURE_PURPOSE && persistenceEligible &&
 		consumerId == "session:$logicalId" && logicalId == authority.session.logicalTrackingId &&
-		run.logicalTrackingId == logicalId && run.leaseGeneration == lease &&
+		run.logicalTrackingId == logicalId && SessionManifestIntegrity.hasRetainedLeaseGeneration(run, lease) &&
 		manifest.logicalTrackingId == logicalId && manifest.serviceRunId == runId &&
+		requestedBootId == manifest.effectiveBootId &&
 		binding.manifestRevision == manifestRevision && binding.consentEpoch == consentEpoch &&
 		binding.qosCode == qosCode && manifest.sourcePolicyRevision == sourcePolicyRevision &&
 		plan.physicalConfigurationFingerprint() == registration.physicalConfigurationFingerprint &&
@@ -1019,8 +1027,10 @@ private fun LifecycleDesiredActionEntity.authenticatesPortableCompleteness(
 		serviceRunId == run.serviceRunId && desiredPlanRevision == manifest.acquisitionPlanRevision &&
 		sourcePolicyRevision == manifest.sourcePolicyRevision && consentEpoch == binding.consentEpoch &&
 		startOrigin == manifest.startOrigin &&
-		(manifest.manifestRevision != run.preparedManifestRevision || startOrigin == run.startOrigin) && bootId == run.bootId &&
-		leaseGeneration == run.leaseGeneration && sourceInstanceId == registration.sourceInstanceId &&
+		(manifest.manifestRevision != run.preparedManifestRevision || startOrigin == run.startOrigin) &&
+		bootId == manifest.effectiveBootId && bootId == registration.clockDomainId &&
+		SessionManifestIntegrity.hasRetainedLeaseGeneration(run, leaseGeneration) &&
+		sourceInstanceId == registration.sourceInstanceId &&
 		registrationGeneration == registration.registrationGeneration &&
 		requestedAtMs == manifest.effectiveWallTimeMs &&
 		requestedElapsedRealtimeNanos == manifest.effectiveElapsedRealtimeNanos &&

@@ -155,6 +155,93 @@ class WifiWalQualificationAdapterTest {
 		database.close()
 	}
 
+
+	@Test
+	fun `native Wi-Fi export retains original authority after constructed quality and End operations`() = runTest {
+		installPortableExportFixture()
+		val before = mutableListOf<PortableCapturedWifiEntryV1>()
+		assertIs<ExportPortableCapturedWifiResult.Exported>(portableExporter().export(
+			ExportPortableCapturedWifiRequest(LOGICAL_ID)) { before += it })
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		// Existing real qualifier/writer/Room fixture provides the recording; only later
+		// operation-generation and operation-boot transitions are constructed here.
+		for ((generation, boot) in listOf(run.leaseGeneration + 1L to run.bootId,
+			run.leaseGeneration + 2L to "later-operation-boot")) {
+			database.withTransaction {
+				database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = generation,
+					bootId = boot, runRevision = run.runRevision + generation))
+				database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = generation,
+					lifecycleBootId = boot, lifecycleRevision = session.lifecycleRevision + generation))
+			}
+			val exported = mutableListOf<PortableCapturedWifiEntryV1>()
+			assertIs<ExportPortableCapturedWifiResult.Exported>(portableExporter().export(
+				ExportPortableCapturedWifiRequest(LOGICAL_ID)) {
+				assertEquals(false, database.inTransaction())
+				exported += it
+			})
+			assertEquals(before, exported)
+		}
+		val savedWal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		assertEquals(wal, savedWal.copy(payload = wal.payload))
+		assertTrue(wal.payload.contentEquals(savedWal.payload))
+	}
+
+	@Test
+	fun `native Wi-Fi export cannot lend newer action generation to original authorization`() = runTest {
+		installPortableExportFixture()
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
+		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = run.leaseGeneration + 2L,
+			runRevision = run.runRevision + 1L))
+		database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = run.leaseGeneration + 2L))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE lifecycle_desired_action SET lease_generation = ? WHERE service_run_id = ? AND desired_state = 'STARTED'",
+			arrayOf<Any>(run.leaseGeneration + 1L, RUN_ID))
+		var sinkCalls = 0
+		assertIs<ExportPortableCapturedWifiResult.Unverifiable>(portableExporter().export(
+			ExportPortableCapturedWifiRequest(LOGICAL_ID)) { sinkCalls++ })
+		assertEquals(0, sinkCalls)
+	}
+
+	@Test
+	fun `native Wi-Fi export preserves exact erased scope after later operations`() = runTest {
+		installPortableExportFixture()
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
+		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = run.leaseGeneration + 2L,
+			runRevision = run.runRevision + 1L))
+		database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = run.leaseGeneration + 2L))
+		installPortableDeletion()
+		var sinkCalls = 0
+		assertIs<ExportPortableCapturedWifiResult.Deleted>(portableExporter().export(
+			ExportPortableCapturedWifiRequest(LOGICAL_ID)) { sinkCalls++ })
+		assertEquals(0, sinkCalls)
+	}
+
+	@Test
+	fun `native Wi-Fi export still rejects observations at the original capture closing boundary`() = runTest {
+		installPortableExportFixture()
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
+		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = run.leaseGeneration + 2L,
+			runRevision = run.runRevision + 1L, bootId = "later-operation-boot"))
+		database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = run.leaseGeneration + 2L,
+			lifecycleBootId = "later-operation-boot"))
+		// Replace only the existing deny-all closing snapshot with a correctly encoded earlier
+		// closing boundary. The saved scan includes an actual observation exactly at this cutoff.
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_authorization WHERE source_kind = ? AND registration_generation = ? AND authorization_revision = ?",
+			arrayOf<Any>(WIFI_SOURCE, REGISTRATION_GENERATION, AUTHORIZATION_REVISION + 1L))
+		installPortableClosingAuthorization(effectiveElapsedRealtimeNanos = OBSERVED_END_NANOS,
+			effectiveWallTimeMs = OBSERVED_WALL_MS)
+		var sinkCalls = 0
+		assertIs<ExportPortableCapturedWifiResult.Unverifiable>(portableExporter().export(
+			ExportPortableCapturedWifiRequest(LOGICAL_ID)) { sinkCalls++ })
+		assertEquals(0, sinkCalls)
+	}
+
 	@Test
 	fun `exact Wi-Fi-only WAL derives passive plan from manifest and produces identity-free fact`() = runTest {
 		installValidFixture(configurationRevision = null)

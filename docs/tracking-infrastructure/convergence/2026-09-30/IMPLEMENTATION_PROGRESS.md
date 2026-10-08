@@ -916,3 +916,9 @@ Exact source/review: `../2026-10-08/ACTIVE_SESSION_WIDGET_REMOVAL_SELECTED/` and
 - [x] Copy the already captured Pressure reception timestamp into the existing WAL candidate field. Two reached runtime/recording-sink methods authored NOT_RUN. Shared and source-local clock companions and actual Room/provider proof remain open.
 
 Exact source/review: `../2026-10-08/PRESSURE_RECEPTION_TIMESTAMP_SELECTED/` and `PRESSURE_RECEPTION_TIMESTAMP_REVIEW/`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN; no gates, activation or integration.
+
+### October 8 - retained native portable v3
+
+- [x] Select eight-path native Activity/Wi-Fi/Cell retained readers and reached Wi-Fi maintenance with original manifest/generation/cutoff authority. Ten new Room methods and repaired existing fixtures are NOT_RUN; exact original demand/action/WAL, erase and current-owner checks remain. Saved-WAL adapter backlog and full file composition remain open.
+
+Exact selected source/review: `../2026-10-08/RETAINED_NATIVE_PORTABLE_SELECTED_V3/` and `RETAINED_NATIVE_PORTABLE_REVIEW/`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN; no gates, activation or integration.

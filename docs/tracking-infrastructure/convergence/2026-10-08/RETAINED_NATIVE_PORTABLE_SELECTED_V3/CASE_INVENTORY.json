@@ -1,0 +1,55 @@
+{
+  "all_execution": "NOT_RUN",
+  "cases": [
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "method": "native Activity export retains original authority after constructed quality and End operations",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "method": "native Activity export cannot lend a newer accepted action to original authorization",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "method": "native Activity export keeps exact erase after later operation generations",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "native Cell export retains original authority after constructed quality and End operations",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "native Cell export cannot lend newer demand generation to original authorization",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "native Cell export does not ignore exact scope fence after operation changes",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+      "method": "native Wi-Fi export retains original authority after constructed quality and End operations",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+      "method": "native Wi-Fi export cannot lend newer action generation to original authorization",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+      "method": "native Wi-Fi export preserves exact erased scope after later operations",
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+      "method": "native Wi-Fi export still rejects observations at the original capture closing boundary",
+      "execution": "NOT_RUN"
+    }
+  ]
+}
