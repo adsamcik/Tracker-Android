@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthenticator
 import com.adsamcik.tracker.shared.base.database.RadioPurposeItems
@@ -374,6 +375,9 @@ internal object WifiHistoryComposer {
 		)).map { (fact, aggregate) -> toObservation(fact, aggregate, snapshot) } }
 			.getOrElse { return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED) }
 		val causes = linkedSetOf<WifiHistoryCause>()
+		if (snapshot.savedSessionCutoffs[logicalId]?.clockUnknown == true) {
+			causes += WifiHistoryCause.ACQUISITION_INCOMPLETE
+		}
 		if (isActive(session, runs)) causes += WifiHistoryCause.SESSION_ACTIVE
 		if (lane.contiguousAdmissionOrdinal < (targetOrdinal ?: lane.activationOrdinal)) {
 			causes += WifiHistoryCause.MATERIALIZATION_BEHIND
@@ -423,7 +427,7 @@ internal object WifiHistoryComposer {
 		manifestsByRun.values.map { it.map(SessionManifestVersionEntity::manifestRevision) },
 	) && runs.all { run ->
 		val manifests = manifestsByRun[run.serviceRunId].orEmpty()
-		SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) && manifests.all { manifest ->
+		SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) && manifests.all { manifest ->
 			manifest.logicalTrackingId == logicalId && manifest.serviceRunId == run.serviceRunId &&
 				SessionManifestIntegrity.verify(manifest,
 					snapshot.sourcesByManifest[WifiManifestKey(logicalId, manifest.manifestRevision)].orEmpty())
@@ -576,7 +580,8 @@ internal object WifiHistoryComposer {
 			(purposeItems != null || authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L) &&
 			LOWERCASE_SHA_256.matches(authorizationFingerprint.orEmpty()) && (payloadVersion == WIFI_WAL_PAYLOAD_VERSION || planAttribution == CAPTURED_PLAN_ORDINAL) &&
 			clockDomainId == manifest.effectiveBootId && policyRevision == manifest.sourcePolicyRevision &&
-			consentEpoch == binding.consentEpoch && lease == snapshot.runs[ownedRun]?.leaseGeneration &&
+			consentEpoch == binding.consentEpoch && snapshot.runs[ownedRun]?.let {
+				SessionManifestIntegrity.hasRetainedLeaseGeneration(it, lease) } == true &&
 			capturedCollectedDataEpoch == evidence.collectedDataEpoch &&
 			admissionOrdinal > evidence.deletedSourceEventHighWaterOrdinal && deliveryUnitIndex == 0 &&
 			deliveryUnitCount == 1 && LOWERCASE_SHA_256.matches(deliveryIdentity.orEmpty()) &&
@@ -778,8 +783,9 @@ internal object WifiHistoryComposer {
 			snapshot.childrenByRevision[fact.logicalFactId to fact.semanticRevision].orEmpty()
 				.any { it.itemIndex !in requireNotNull(qualifiedIndexes) })) return false
 		val session = snapshot.sessions[fact.logicalTrackingId] ?: return false
-		val sessionEnd = session.cutoffElapsedNanos.takeIf { session.lifecycleBootId == fact.clockDomainId }
-			?: Long.MAX_VALUE
+		val cutoff = snapshot.savedSessionCutoffs[fact.logicalTrackingId]
+			?: SavedSessionCutoff(session.lifecycleBootId, session.cutoffElapsedNanos)
+		val sessionEnd = cutoff.retainedEnd(fact.clockDomainId, fact.sessionRunEffectEndNanos)
 		val consent = snapshot.consents[fact.captureConsentEpoch] ?: return false
 		val expectedManifestEnd = nextManifest?.effectiveElapsedRealtimeNanos
 			?: minOf(sessionEnd, providerEnd, fact.authorizationEffectEndNanos)
@@ -804,13 +810,15 @@ internal object WifiHistoryComposer {
 			fact.sessionSegmentId == run.sessionSegmentId && fact.logicalTrackingId == run.logicalTrackingId &&
 			fact.manifestRevision == manifest.manifestRevision &&
 			fact.sourcePolicyRevision == manifest.sourcePolicyRevision &&
-			fact.captureConsentEpoch == binding.consentEpoch && fact.lifecycleLeaseGeneration == run.leaseGeneration &&
-			fact.clockDomainId == run.bootId && fact.storedZoneId == manifest.zoneId &&
+			fact.captureConsentEpoch == binding.consentEpoch && SessionManifestIntegrity.hasRetainedLeaseGeneration(run, fact.lifecycleLeaseGeneration) &&
+			fact.clockDomainId == manifest.effectiveBootId && fact.storedZoneId == manifest.zoneId &&
 			fact.capturedSourceCodes == canonicalSourceCodes(sources.first) &&
 			fact.controlSourceCodes == canonicalSourceCodes(sources.second) && WIFI_SOURCE in sources.first &&
 			WIFI_SOURCE !in sources.second &&
 			fact.sessionRunEffectStartNanos == manifest.effectiveElapsedRealtimeNanos &&
-			fact.sessionRunEffectEndNanos == expectedManifestEnd &&
+			(fact.sessionRunEffectEndNanos == expectedManifestEnd ||
+				fact.sessionRunEffectEndNanos == Long.MAX_VALUE) &&
+			fact.coverageIntervalEndNanos < expectedManifestEnd &&
 			fact.consentEffectIsExact(consent, qualifiedStart) &&
 			qualifiedStart >= manifest.effectiveElapsedRealtimeNanos &&
 			(nextManifest == null || (if (perReading) fact.coverageIntervalEndNanos else
@@ -1359,6 +1367,7 @@ internal data class WifiHistorySnapshot(
 	val terminalFailures: List<SourceProjectionFailureEntity>,
 	val evidenceState: SourceEvidenceState?,
 	val overflow: Boolean,
+	val savedSessionCutoffs: Map<String, SavedSessionCutoff> = emptyMap(),
 ) {
 	companion object {
 		fun empty(expansion: WifiMembershipExpansion) = WifiHistorySnapshot(

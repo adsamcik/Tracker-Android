@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthenticator
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationActualObservation
@@ -130,12 +131,14 @@ internal object ActivityHistoryComposer {
 		}
 		val hasActiveRun = runs.any(::isNonTerminalRun)
 		val session = snapshot.sessions[logicalId]
+		val savedCutoff = snapshot.savedSessionCutoffs[logicalId]
 		if (session == null || session.logicalTrackingId != logicalId ||
 			!hasConsistentCompletion(session.state, session.completedAtMs) ||
 			(session.state !in TERMINAL_RUN_STATES) != hasActiveRun ||
 			session.lifecycleRevision <= 0L || session.desiredPlanRevision <= 0L ||
 			session.rolloutRevision <= 0L || session.startedElapsedNanos < 0L ||
-			session.cutoffElapsedNanos?.let { it < session.startedElapsedNanos } == true
+			((if (savedCutoff == null) session.lifecycleBootId else savedCutoff.bootId) == session.clockDomainId &&
+			session.cutoffElapsedNanos?.let { it < session.startedElapsedNanos } == true)
 		) return failed(logicalId, segments, ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 		val manifestsByRun = runs.associate { run ->
 			run.serviceRunId to snapshot.manifestsByRun[run.serviceRunId].orEmpty()
@@ -211,7 +214,7 @@ internal object ActivityHistoryComposer {
 		val targetByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId)
 			.mapValues { (_, rows) -> rows.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull() }
 		val laneTarget = targetByRun.values.filterNotNull().maxOrNull()
-		if (!hasValidLogicalSessionSettlement(session, runs, manifestsByRun, laneTarget) ||
+		if (!hasValidLogicalSessionSettlement(session, runs, manifestsByRun, laneTarget, savedCutoff) ||
 			laneTarget?.let { it < lane.activationOrdinal ||
 			lane.captureAdmissionCutoffOrdinal?.let { cutoff -> it > cutoff } == true } == true ||
 			snapshot.terminalFailures.isNotEmpty()
@@ -249,8 +252,9 @@ internal object ActivityHistoryComposer {
 				candidate.serviceRunId == latest.serviceRunId &&
 					candidate.manifestRevision == latest.manifestRevision + 1L
 			}
-			val expectedSessionRunEnd = session.cutoffElapsedNanos
-				.takeIf { session.lifecycleBootId == latest.clockDomainId } ?: Long.MAX_VALUE
+			val cutoff = snapshot.savedSessionCutoffs[logicalId]
+				?: SavedSessionCutoff(session.lifecycleBootId, session.cutoffElapsedNanos)
+			val expectedSessionRunEnd = cutoff.retainedEnd(latest.clockDomainId, latest.sessionRunEffectEndNanos)
 			if (manifest == null || binding == null || run == null || plan == null || desiredPlan == null ||
 				provider == null ||
 				!factHasExactAuthority(
@@ -321,6 +325,9 @@ internal object ActivityHistoryComposer {
 			return failedWithIntent(ActivityHistoryCause.VALUE_OVERFLOW)
 		}
 		val causes = linkedSetOf<ActivityHistoryCause>()
+		if (snapshot.savedSessionCutoffs[logicalId]?.clockUnknown == true) {
+			causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
+		}
 		if (bindings.size != manifests.size) causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
 		if (completeness.isEmpty() || completeness.any { !it.appDrainComplete || it.stopStatus != COMPLETE_STOP }) {
 			causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
@@ -371,6 +378,7 @@ internal object ActivityHistoryComposer {
 		runs: List<SourceServiceRunEntity>,
 		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 		targetOrdinal: Long?,
+		cutoff: SavedSessionCutoff?,
 	): Boolean {
 		val nonTerminalRuns = runs.filter(::isNonTerminalRun)
 		if (nonTerminalRuns.isNotEmpty()) {
@@ -381,7 +389,8 @@ internal object ActivityHistoryComposer {
 			val hasAnyCutoff = session.cutoffAtMs != null || session.cutoffElapsedNanos != null
 			val hasExactCutoff = session.cutoffAtMs != null && session.cutoffElapsedNanos != null &&
 				requireNotNull(session.cutoffAtMs) >= session.startedAtMs &&
-				requireNotNull(session.cutoffElapsedNanos) >= session.startedElapsedNanos
+				((if (cutoff == null) session.lifecycleBootId else cutoff.bootId) != session.clockDomainId ||
+					requireNotNull(session.cutoffElapsedNanos) >= session.startedElapsedNanos)
 			val validCutoff = if (stopping) hasExactCutoff else !hasAnyCutoff
 			return hasValidLiveLifecyclePair(session.state, currentRun.state) && validCutoff &&
 				session.completedAtMs == null && session.finalAdmissionOrdinal == null &&
@@ -407,7 +416,7 @@ internal object ActivityHistoryComposer {
 		manifestsByRun.values.map { it.map(SessionManifestVersionEntity::manifestRevision) },
 	) && runs.all { run ->
 		val manifests = manifestsByRun[run.serviceRunId].orEmpty()
-		SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) && manifests.all { manifest ->
+		SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) && manifests.all { manifest ->
 			manifest.logicalTrackingId == logicalId && manifest.serviceRunId == run.serviceRunId &&
 				SessionManifestIntegrity.verify(
 					manifest,
@@ -545,11 +554,13 @@ internal object ActivityHistoryComposer {
 		return fact.sessionSegmentId == run.sessionSegmentId && fact.logicalTrackingId == run.logicalTrackingId &&
 		fact.serviceRunId == run.serviceRunId && fact.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
 		fact.manifestRevision == manifest.manifestRevision && fact.sourcePolicyRevision == manifest.sourcePolicyRevision &&
-		fact.captureConsentEpoch == binding.consentEpoch && fact.lifecycleLeaseGeneration == run.leaseGeneration &&
-		fact.clockDomainId == run.bootId && manifest.effectiveBootId == run.bootId &&
+		fact.captureConsentEpoch == binding.consentEpoch && SessionManifestIntegrity.hasRetainedLeaseGeneration(run, fact.lifecycleLeaseGeneration) &&
+		fact.clockDomainId == manifest.effectiveBootId &&
 		fact.storedZoneId == manifest.zoneId && fact.windowStartElapsedRealtimeNanos >= run.startedElapsedNanos &&
 		fact.sessionRunEffectStartNanos == run.startedElapsedNanos &&
-		fact.sessionRunEffectEndNanos == expectedSessionRunEndNanos &&
+		(fact.sessionRunEffectEndNanos == expectedSessionRunEndNanos ||
+			fact.sessionRunEffectEndNanos == Long.MAX_VALUE) &&
+		fact.windowEndElapsedRealtimeNanos <= expectedSessionRunEndNanos &&
 		fact.windowStartElapsedRealtimeNanos >= manifest.effectiveElapsedRealtimeNanos &&
 		(nextManifest == null || fact.windowEndElapsedRealtimeNanos <=
 			nextManifest.effectiveElapsedRealtimeNanos) &&

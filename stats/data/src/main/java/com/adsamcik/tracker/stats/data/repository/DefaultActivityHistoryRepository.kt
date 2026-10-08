@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
+import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
@@ -1337,6 +1339,7 @@ internal class DefaultActivityHistoryRepository private constructor(
 		return ActivityHistorySnapshot(
 			expansion = expansion,
 			sessions = sessions.associateBy(LogicalTrackingSessionEntity::logicalTrackingId),
+			savedSessionCutoffs = sessions.associate { it.logicalTrackingId to database.savedSessionCutoff(it) },
 			runs = runs.associateBy(SourceServiceRunEntity::serviceRunId),
 			manifestsByRun = manifests.take(MAX_ACTIVITY_MANIFESTS)
 				.groupBy(SessionManifestVersionEntity::serviceRunId),
@@ -1481,6 +1484,7 @@ internal data class ActivityHistorySnapshot(
 	val overflow: Boolean,
 	val currentProviderRegistrations: List<ProviderRegistrationGenerationEntity> = emptyList(),
 	val currentClockDomainId: String? = null,
+	val savedSessionCutoffs: Map<String, SavedSessionCutoff> = emptyMap(),
 ) {
 	companion object {
 		fun empty(expansion: ActivityMembershipExpansion) = ActivityHistorySnapshot(

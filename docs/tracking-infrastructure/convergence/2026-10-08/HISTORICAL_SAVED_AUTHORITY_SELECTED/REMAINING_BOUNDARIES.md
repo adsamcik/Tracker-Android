@@ -1,0 +1,8 @@
+# Remaining effort boundaries
+
+- T25 and the 25 full-chain prerequisites remain open. Nothing here authorizes final validation/integration/provider activation.
+- Captured Activity/Cell portable transfer performs additional live native snapshot checks against latest run/session boot: ActivityCapturedPortableTransfer 1768/1885/2244/2294; CellCapturedPortableTransfer 1507/1516/1829/1887. Their live native projection should next preserve original recording metadata while immutable archived proof snapshots keep exact original rules. This packet deliberately does not blanket relax archive/import proof acceptance or infer consent. Root has the exact trace and owns that next scoped repair.
+- LIVE_SAVED_LOCATION_TOTAL_SELECTED is a subsequent companion (observer/accumulator/retained suffix/UI), with original qualifier repaired by this packet. Current held History measured-mode/radio leaf consumers will compose against this input and shared intent invalidation table.
+- The existing original Stop checksum does not cover wall time. We preserve its bytes and additionally match the original Stop row to the persisted logical cutoff wall/elapsed values. We do not create a signature or restrict user-edited backups.
+- Build-logic source is not present as an ordinary directory in this candidate workspace; existing authoritative module plugins/settings/catalog are pinned. No new module/plugin/dependency is introduced.
+- No schema/store/annotation/acquisition/lease/policy is added. The new map/primitive cutoff are transient read snapshot values, not durable tracking records or a new authority engine.

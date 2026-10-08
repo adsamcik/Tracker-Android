@@ -129,6 +129,22 @@ object SessionManifestIntegrity {
 		}
 	}
 
+	/** Saved records keep the physical run's immutable prepared measurement clock. */
+	fun hasValidRetainedServiceRunTimeline(
+		run: SourceServiceRunEntity,
+		manifests: Collection<SessionManifestVersionEntity>,
+	): Boolean {
+		if (run.bootId.isBlank()) return false
+		val prepared = manifests.singleOrNull { it.manifestRevision == run.preparedManifestRevision }
+			?: return false
+		if (prepared.effectiveBootId.isBlank()) return false
+		return hasValidServiceRunTimeline(run.copy(bootId = prepared.effectiveBootId), manifests)
+	}
+
+	/** Original authority is checked separately against the exact saved receipt and members. */
+	fun hasRetainedLeaseGeneration(run: SourceServiceRunEntity, originalGeneration: Long?): Boolean =
+		originalGeneration != null && originalGeneration > 0L && originalGeneration <= run.leaseGeneration
+
 	/**
 	 * Verifies the exact logical manifest revision union across physical replacement runs.
 	 *

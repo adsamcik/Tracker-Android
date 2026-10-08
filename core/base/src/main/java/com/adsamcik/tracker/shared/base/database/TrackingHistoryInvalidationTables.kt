@@ -11,6 +11,7 @@ val TRACKING_HISTORY_INVALIDATION_TABLES: List<String> = listOf(
 	"session_segment",
 	"source_service_run",
 	"session_manifest_version",
+	"session_lifecycle_intent_version",
 	"session_manifest_source",
 	"source_policy_authority",
 	"source_policy",

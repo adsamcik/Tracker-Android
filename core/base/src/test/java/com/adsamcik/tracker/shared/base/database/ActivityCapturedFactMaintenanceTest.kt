@@ -80,6 +80,20 @@ class ActivityCapturedFactMaintenanceTest {
 		)
 
 	@Test
+	fun `Activity retention accepts original saved generation after a later End retry operation`() = runTest {
+		seedCapturedActivity(retainedFromMs = 1_990L)
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID))
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID))
+		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = 3L,
+			bootId = "later-operation", runRevision = run.runRevision + 1L))
+		database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = 3L,
+			lifecycleBootId = "later-operation"))
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(1_990L, 0L, 5_000L) shouldBe
+			ActivityCapturedRetentionResult.Pruned(1, 1)
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
 	fun `retention removes the complete correction lineage at an uncertain floor`() = runTest {
 		seedCapturedActivity(retainedFromMs = 1_990L, semanticRevisions = 2)
 		database.sourceEvidenceStateDao().incrementRevision(6_000L) shouldBe 1
@@ -1942,6 +1956,7 @@ class ActivityCapturedFactMaintenanceTest {
 			),
 		)
 		database.sourceSessionDao().insertManifestSources(listOf(source))
+		database.installOriginalStopFixture(logicalSession(), unsignedManifest)
 		database.sourceSessionDao().insertLifecycleActions(listOf(captureStartAction()))
 		val policies = mutableListOf(historicalPolicy())
 		if (revokedCapture) policies += revokedPolicy()

@@ -88,6 +88,18 @@ class StepsSegmentHistorySelectorTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun savedStepsUseOriginalManifestClockAfterNewerOperationBoot() = runTest {
+		insertCandidateRun(RUN_ONE, listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 9L)),
+			targetOrdinal = 1L, laneCursor = 1L)
+		val before = selector.select(segment(RUN_ONE, steps = 999))
+		before.count shouldBe 9L
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ONE))
+		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = 3L,
+			bootId = "later-operation-boot", runRevision = run.runRevision + 1L))
+		selector.select(segment(RUN_ONE, steps = 999)) shouldBe before
+	}
+
+	@Test
 	fun legacyRunUsesImmutableManifestInsteadOfCurrentOwnerAndNeverFabricatesZero() = runTest {
 		insertRun(RUN_ONE)
 		insertManifest(RUN_ONE, revision = 1L, owner = LEGACY_OWNER)

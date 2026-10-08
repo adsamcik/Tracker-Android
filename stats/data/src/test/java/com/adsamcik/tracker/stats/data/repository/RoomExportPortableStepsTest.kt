@@ -101,6 +101,20 @@ class RoomExportPortableStepsTest {
 	}
 
 	@Test
+	fun `saved Steps export keeps original source metadata after later operation boot`() = runTest {
+		insertReadyFixture(facts = listOf(FactSeed("saved", 1L, count = 9L)))
+		val before = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(request()) { before += it } shouldBe ExportPortableStepsResult.Exported(1)
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ONE))
+		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = 3L,
+			bootId = "later-operation-boot", runRevision = run.runRevision + 1L))
+		val after = mutableListOf<PortableStepsEntryV1>()
+		exporter.export(request()) { after += it } shouldBe ExportPortableStepsResult.Exported(1)
+		after shouldBe before
+		after.single().runs.single().facts.single().stepCount shouldBe 9L
+	}
+
+	@Test
 	fun `zero-sample Steps-only entry exports positive and covered-zero without fabricated siblings`() =
 		runTest {
 			insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 2_000L)

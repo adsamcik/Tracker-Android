@@ -1,0 +1,42 @@
+{
+  "committed_input": "fe03d75a74014adc1453c2c449d5770df3c1dd08",
+  "selected_base_ref": "a8aea53bdf996100d8c388f9ddb499f8444814ac",
+  "selected_source_unchanged_from_v1": true,
+  "selected_path_count": 43,
+  "v1_files_sha256": "c1b6807bb2b01414b51aafc6f75edb87afe375b352ba1ce03c92060c8a358b6c",
+  "v1_dependencies_sha256": "89f7fb9d283d81b8db12b008b97f47f6f014877fff1cbaaa41d5455421bd6d6e",
+  "source_delta_paths": [
+    "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceBrokerDao.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceIngress.kt"
+  ],
+  "line_ending_base_dispositions": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAllDaySourceStatusQuery.kt",
+      "committed_base_ref": "a8aea53bdf996100d8c388f9ddb499f8444814ac",
+      "committed_base_raw_sha256": "ee928670b4789939d46348003c39b8720b190e98087f1a7d8b0250efbe800984",
+      "packet_base_lf_sha256": "8a516d33725fc4746bdec115525dfe191fdf156ab8c7601c4aea21d325cff746",
+      "line_ending_equivalent": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "committed_base_ref": "a8aea53bdf996100d8c388f9ddb499f8444814ac",
+      "committed_base_raw_sha256": "83b2a25aabdebaf20fa70613a0b9d764e14f997ffec86d93c6d124466ff22823",
+      "packet_base_lf_sha256": "a4e2502b000482d7318fcf12eb1cfd7e177672fd23950b2bdea645517fd32804",
+      "line_ending_equivalent": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt",
+      "committed_base_ref": "a8aea53bdf996100d8c388f9ddb499f8444814ac",
+      "committed_base_raw_sha256": "09976a7b6b61a702afe787c6527b4ca2d5cf64b550194ba2937332c8943384d2",
+      "packet_base_lf_sha256": "5a2276dfa80132a811f6f97c7badaace212f5c0840e7186820096bc403d09928",
+      "line_ending_equivalent": true
+    }
+  ],
+  "known_external_change": {
+    "commit": "fe03d75a74014adc1453c2c449d5770df3c1dd08",
+    "scope": "four background radio bounded selected-parent hooks and two existing Room detail test cases; none of these paths is selected or pinned by this packet"
+  },
+  "test_status": "NOT_RUN",
+  "review": "Independent static review source-compatible; final refreshed metadata acceptance pending."
+}

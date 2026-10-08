@@ -1,0 +1,1 @@
+Dependency-only V2 metadata refresh preserves exact frozen V1 under REVIEW_V1. Two interrupted Python authoring attempts (unmatched parenthesis before writes; list-vs-object FILES metadata shape after preserving V1 and refreshing dependencies) were corrected by inspecting actual packet shapes. No production/test selected source or live source changed and no validation gate ran.

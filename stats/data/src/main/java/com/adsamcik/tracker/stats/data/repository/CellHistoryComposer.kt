@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthenticator
 import com.adsamcik.tracker.shared.base.database.CellPurposeItems
@@ -395,6 +396,9 @@ internal object CellHistoryComposer {
 			}
 		}.getOrElse { return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED) }
 		val causes = linkedSetOf<CellHistoryCause>()
+		if (snapshot.savedSessionCutoffs[logicalId]?.clockUnknown == true) {
+			causes += CellHistoryCause.ACQUISITION_INCOMPLETE
+		}
 		if (isActive(session, runs)) causes += CellHistoryCause.SESSION_ACTIVE
 		if (lane.contiguousAdmissionOrdinal < (targetOrdinal ?: lane.activationOrdinal)) {
 			causes += CellHistoryCause.MATERIALIZATION_BEHIND
@@ -432,7 +436,7 @@ internal object CellHistoryComposer {
 		manifestsByRun.values.map { it.map(SessionManifestVersionEntity::manifestRevision) },
 	) && runs.all { run ->
 		val manifests = manifestsByRun[run.serviceRunId].orEmpty()
-		SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) && manifests.all { manifest ->
+		SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) && manifests.all { manifest ->
 			manifest.logicalTrackingId == logicalId && manifest.serviceRunId == run.serviceRunId &&
 				SessionManifestIntegrity.verify(
 					manifest,
@@ -530,8 +534,9 @@ internal object CellHistoryComposer {
 		val provider = snapshot.providerRegistrations[fact.registrationGeneration] ?: return false
 		val authorizations = snapshot.authorizationsByRegistration[fact.registrationGeneration].orEmpty()
 		val session = snapshot.sessions[fact.logicalTrackingId] ?: return false
-		val sessionEnd = session.cutoffElapsedNanos
-			.takeIf { session.lifecycleBootId == fact.clockDomainId } ?: Long.MAX_VALUE
+		val cutoff = snapshot.savedSessionCutoffs[fact.logicalTrackingId]
+			?: SavedSessionCutoff(session.lifecycleBootId, session.cutoffElapsedNanos)
+		val sessionEnd = cutoff.retainedEnd(fact.clockDomainId, fact.deletionEffectEndNanos)
 		val providerAuthentication = ProviderRegistrationIntervalAuthenticator.authenticate(
 			registration = provider,
 			expectedSourceKind = CELL_SOURCE,
@@ -573,15 +578,18 @@ internal object CellHistoryComposer {
 			fact.sessionSegmentId == run.sessionSegmentId && fact.logicalTrackingId == run.logicalTrackingId &&
 			fact.manifestRevision == manifest.manifestRevision &&
 			fact.sourcePolicyRevision == manifest.sourcePolicyRevision &&
-			fact.captureConsentEpoch == binding.consentEpoch && fact.lifecycleLeaseGeneration == run.leaseGeneration &&
-			fact.clockDomainId == run.bootId && fact.storedZoneId == manifest.zoneId &&
+			fact.captureConsentEpoch == binding.consentEpoch && SessionManifestIntegrity.hasRetainedLeaseGeneration(run, fact.lifecycleLeaseGeneration) &&
+			fact.clockDomainId == manifest.effectiveBootId && fact.storedZoneId == manifest.zoneId &&
 			fact.hasExactStoredDay(retentionLowerBoundMs) &&
 			fact.consentEffectStartNanos == consent.effectiveElapsedRealtimeNanos &&
 			fact.consentEffectEndNanos == fact.authorizationEffectEndNanos &&
 			fact.sessionRunEffectStartNanos == manifest.effectiveElapsedRealtimeNanos &&
-			fact.sessionRunEffectEndNanos == expectedManifestEnd &&
+			(fact.sessionRunEffectEndNanos == expectedManifestEnd ||
+				fact.sessionRunEffectEndNanos == Long.MAX_VALUE) &&
+			fact.coverageIntervalEndNanos < expectedManifestEnd &&
 			fact.deletionEffectStartNanos == run.startedElapsedNanos &&
-			fact.deletionEffectEndNanos == sessionEnd &&
+			(fact.deletionEffectEndNanos == sessionEnd || fact.deletionEffectEndNanos == Long.MAX_VALUE) &&
+			fact.coverageIntervalEndNanos < sessionEnd &&
 			fact.coverageIntervalStartNanos >= manifest.effectiveElapsedRealtimeNanos &&
 			(nextManifest == null || fact.coverageIntervalEndNanos < nextManifest.effectiveElapsedRealtimeNanos) &&
 			plan.revision == fact.configurationRevision &&
@@ -1122,6 +1130,7 @@ internal data class CellHistorySnapshot(
 	val overflow: Boolean,
 	val currentProviderRegistrations: List<ProviderRegistrationGenerationEntity> = emptyList(),
 	val currentClockDomainId: String? = null,
+	val savedSessionCutoffs: Map<String, SavedSessionCutoff> = emptyMap(),
 ) {
 	companion object {
 		fun empty(expansion: CellMembershipExpansion) = CellHistorySnapshot(

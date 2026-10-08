@@ -113,6 +113,15 @@ interface LocationPurposeDao {
 	@Query("SELECT * FROM location_accepted_receipt WHERE observed_wall_time_ms >= :fromMs " +
 		"AND observed_wall_time_ms < :toMs ORDER BY observed_wall_time_ms, sample_id LIMIT :limit")
 	suspend fun contextReceiptsOverWindow(fromMs: Long, toMs: Long, limit: Int): List<LocationAcceptedReceiptEntity>
+	/** Keyset paging for a saved measured-time summary; no total point cap or acquisition effect. */
+	@Query("""SELECT * FROM location_accepted_receipt
+		WHERE observed_wall_time_ms >= :fromMs AND observed_wall_time_ms < :toMs
+		AND (:afterTimeMs IS NULL OR observed_wall_time_ms > :afterTimeMs OR
+		(observed_wall_time_ms = :afterTimeMs AND sample_id > COALESCE(:afterSampleId, 0)))
+		ORDER BY observed_wall_time_ms, sample_id LIMIT :limit""")
+	suspend fun savedReceiptPageOverWindow(fromMs: Long, toMs: Long, afterTimeMs: Long?,
+		afterSampleId: Long?, limit: Int): List<LocationAcceptedReceiptEntity>
+
 	/** Bounded elapsed-clock candidates for optional radio context; wall clock jumps do not join. */
 	@Query("SELECT * FROM location_accepted_receipt WHERE boot_id = :bootId AND clock_domain_id = :clockDomainId " +
 		"AND observed_elapsed_realtime_nanos >= :fromNanos AND observed_elapsed_realtime_nanos <= :toNanos " +

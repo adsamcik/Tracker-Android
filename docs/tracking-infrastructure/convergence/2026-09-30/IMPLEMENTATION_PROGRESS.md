@@ -831,12 +831,11 @@ IMPLEMENTED_UNVALIDATED. All 25 prerequisites and T25 remain OPEN.
   conditions after quality/End, with current admission and erase fences unchanged.
 - [x] Obtain human approval for one shared temporary saved-Location live total,
   incremental saved-ID catch-up and destructive/out-of-order rebuilds.
-- [ ] Repair and freshly review historical Location/Activity/Pressure/radio checks.
+- [x] Repair and freshly review historical Location/Activity/Pressure/radio saved reads; exact source selection recorded below. Native portable transfer follow-ups remain open.
 - [ ] Connect shared Location values to Tracker, notifications and widgets.
 - [ ] Finish actual Timeline/Calendar measured-observation paging and source Retry.
 
-Held Location V2 is not accepted; its new End-state fixture omits the actual
-operation-generation mutation. All tests remain NOT_RUN and all 25 prerequisites
+Held Location V2 was not accepted in that earlier review; the combined repair now includes the actual End operation-generation mutation and original Stop producer trace. All tests remain NOT_RUN and all 25 prerequisites
 remain OPEN. No convergence gate or dev/v10 integration has begun.
 
 ## 2026-10-08 — source-owned selected background radio parents
@@ -844,3 +843,11 @@ remain OPEN. No convergence gate or dev/v10 integration has begun.
 IMPLEMENTED_UNVALIDATED: existing Ambient Wi-Fi/Cell repositories can read at most100 exact current native/imported parent or saved-gap identities in the caller's Room snapshot. Unrelated observations elsewhere in a day do not consume that selection budget. No acceptance predicates, database schema, physical provider, public contract or export format changed. Complete child sets remain qualified before a future measured History selector chooses leaves.
 
 Independent source-only reviewer `/root/daily_steps_display_fresh_review_1007` accepted the exact five-path slice at29e49; packet pins and scope are recorded in `convergence/2026-10-08/BACKGROUND_RADIO_SELECTED_PARENT_READ/SOURCE_REVIEW.md`. Two actual Room test methods were authored, NOT_RUN. Imports/gaps have static trace only. Full measured History, captured-radio exact readers, independent failing-parent isolation and all six-source caller integration still remain. All25 full-chain prerequisites/T25 OPEN; no gates or dev/v10 integration.
+
+### October 8 — original saved authority and Location summaries
+
+- [x] Select the freshly reviewed 43-path historical repair and carried Location summary V2. Original immutable recording manifests and the existing first Stop receipt determine saved authority; later quality/End operation generations do not hide valid readings. New-callback and erase/retention checks remain. Ordinary coordinate summaries preserve unknown accuracy; optional radio matching keeps its own accuracy requirement.
+- [x] Author 26 new historical and preserve 23 carried Location test methods, all NOT_RUN. Exact inputs and V1/V2 static acceptance: `../2026-10-08/HISTORICAL_SAVED_AUTHORITY_SELECTED/` and `HISTORICAL_SAVED_AUTHORITY_REVIEW/`.
+- [ ] Complete the shared live total and its actual consumers, measured six-source History dispatcher, native portable export checks, effective Location corrections and remaining full-chain integration.
+
+IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites and T25 remain OPEN. No execution gates, activation or dev/v10 integration.

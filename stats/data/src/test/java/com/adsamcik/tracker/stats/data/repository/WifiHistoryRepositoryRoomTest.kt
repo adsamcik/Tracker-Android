@@ -111,6 +111,72 @@ class WifiHistoryRepositoryRoomTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `saved Wifi survives later quality End and operation boot generations without rewriting observations`() = runTest {
+		val group = buildGroup(930, 1, setOf(0))
+		persist(listOf(group))
+		val run = group.runs.single()
+		val original = (repository { true }.session(run.segment.id) as WifiHistoryQuery.Found).entry
+		original.observations.isNotEmpty() shouldBe true
+		for (generation in listOf(run.run.leaseGeneration + 1L, run.run.leaseGeneration + 2L)) {
+			database.withTransaction {
+				database.sourceSessionDao().updateServiceRun(run.run.copy(leaseGeneration = generation,
+					runRevision = run.run.runRevision + generation, bootId = "later-operation-boot"))
+				database.sourceSessionDao().updateSession(group.session.copy(lifecycleLeaseGeneration = generation,
+					lifecycleBootId = "later-operation-boot", lifecycleRevision = group.session.lifecycleRevision + generation))
+			}
+			val after = (repository { true }.session(run.segment.id) as WifiHistoryQuery.Found).entry
+			after.observations shouldBe original.observations
+			after.causes shouldBe original.causes
+		}
+		database.sourceSessionDao().lifecycleActions(group.session.logicalTrackingId) shouldBe run.actions
+		run.facts.forEach { fact -> database.sourceEventWalDao().getByEventId(fact.sourceEventId) shouldBe
+			run.admissions.single { it.eventId == fact.sourceEventId } }
+	}
+
+	@Test
+	fun `saved Wifi cannot borrow newer action authority and deletion still retracts history`() = runTest {
+		val group = buildGroup(931, 1, setOf(0))
+		persist(listOf(group))
+		val run = group.runs.single()
+		database.sourceSessionDao().updateServiceRun(run.run.copy(leaseGeneration = run.run.leaseGeneration + 2L,
+			runRevision = run.run.runRevision + 1L))
+		database.sourceSessionDao().updateSession(group.session.copy(lifecycleLeaseGeneration = run.run.leaseGeneration + 2L))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE lifecycle_desired_action SET lease_generation = ? WHERE service_run_id = ?",
+			arrayOf<Any>(run.run.leaseGeneration + 1L, run.run.serviceRunId))
+		val invalid = (repository { true }.session(run.segment.id) as WifiHistoryQuery.Found).entry
+		invalid.state shouldBe WifiHistoryProductState.FAILED
+		invalid.observations shouldBe emptyList()
+		run.actions.forEach { database.sourceSessionDao().updateLifecycleAction(it) }
+		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+			WIFI_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, group.session.logicalTrackingId,
+			run.run.serviceRunId, 1, 0, run.segment.endTimeMs + 1L))
+		(repository { true }.session(run.segment.id) as WifiHistoryQuery.Found).entry.observations shouldBe emptyList()
+	}
+
+	@Test
+	fun `missing original Wifi Stop never lends a retry clock and preserves partial measured data`() = runTest {
+		val group = buildGroup(932, 1, setOf(0))
+		persist(listOf(group))
+		val run = group.runs.single()
+		val original = (repository { true }.session(run.segment.id) as WifiHistoryQuery.Found).entry
+		val stop = requireNotNull(database.sourceSessionDao().firstStopIntent(group.session.logicalTrackingId))
+		val retry = stop.copy(intentRevision = stop.intentRevision + 1L, requestBootId = "retry-boot",
+			stopDeadlineBootId = "retry-boot")
+		database.sourceSessionDao().insertLifecycleIntent(retry.copy(intentChecksum =
+			com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntegrity.checksum(retry.logicalTrackingId,
+				retry.intentRevision, retry.manifestRevision, retry.desiredState, retry.stopReason,
+				retry.requestBootId, retry.requestedElapsedRealtimeNanos, retry.stopDeadlineElapsedRealtimeNanos)))
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM session_lifecycle_intent_version WHERE logical_tracking_id = ? AND intent_revision = ?",
+			arrayOf<Any>(stop.logicalTrackingId, stop.intentRevision))
+		val after = (repository { true }.session(run.segment.id) as WifiHistoryQuery.Found).entry
+		after.observations shouldBe original.observations
+		(after.causes.contains(WifiHistoryCause.ACQUISITION_INCOMPLETE)) shouldBe true
+		after.state shouldBe WifiHistoryProductState.PARTIAL
+	}
+
+	@Test
 	fun `Wi-Fi export discovery excludes an unrelated unreadable old source cohort`() = runTest {
 		val old = buildGroup(910, 1, setOf(0))
 		val current = buildGroup(911, 1, setOf(0))
@@ -1260,6 +1326,7 @@ class WifiHistoryRepositoryRoomTest {
 		runs.sortedBy { it.run.startedAtMs }.forEach { sessionDao.insertServiceRun(it.run) }
 		runs.sortedBy { it.manifest.manifestRevision }.forEach { sessionDao.insertManifest(it.manifest) }
 		sessionDao.insertManifestSources(runs.map(BuiltRun::source))
+		groups.forEach { group -> database.installOriginalStopFixture(group.session, group.runs.last().manifest) }
 		policyDao.insertPolicies(runs.map(BuiltRun::policy).sortedBy(SourcePolicyEntity::policyRevision))
 		policyDao.insertConsentEpochs(runs.map(BuiltRun::consent).sortedBy(SourceConsentEpochEntity::epoch))
 		runs.map(BuiltRun::planHeader).sortedBy(AcquisitionPlanRevisionEntity::revision)

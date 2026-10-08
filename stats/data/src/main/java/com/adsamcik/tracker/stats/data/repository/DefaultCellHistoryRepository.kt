@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
+import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.DeletedCapturedCellSelectionAuthentication
@@ -1274,6 +1276,7 @@ internal class DefaultCellHistoryRepository internal constructor(
 		return CellHistorySnapshot(
 			expansion = expansion,
 			sessions = sessions.associateBy(LogicalTrackingSessionEntity::logicalTrackingId),
+			savedSessionCutoffs = sessions.associate { it.logicalTrackingId to database.savedSessionCutoff(it) },
 			runs = runs.associateBy(SourceServiceRunEntity::serviceRunId),
 			manifestsByRun = manifests.take(MAX_MANIFESTS).groupBy(SessionManifestVersionEntity::serviceRunId),
 			sourcesByManifest = sources.take(MAX_MANIFEST_SOURCES).groupBy {

@@ -118,6 +118,47 @@ class PressureHistorySelectorTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `saved Pressure survives a later lifecycle generation without changing original measurements`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		val before = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		before.windows.isNotEmpty() shouldBe true
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
+		database.withTransaction {
+			database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = 3L, runRevision = 2L))
+			database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = 3L))
+		}
+		val after = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		after.windows shouldBe before.windows
+		after.reasons shouldBe before.reasons
+		after.coverage shouldBe before.coverage
+	}
+
+	@Test
+	fun `saved Pressure original action generation still matches the WAL after later End`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
+		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = 3L, runRevision = 2L))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE lifecycle_desired_action SET lease_generation = 2 WHERE service_run_id = ?",
+			arrayOf<Any>(RUN_ID))
+		requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows shouldBe emptyList()
+	}
+
+	@Test
+	fun `saved Pressure remains useful with partial coverage when the original Stop clock is missing`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		val before = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM session_lifecycle_intent_version WHERE logical_tracking_id = ? AND desired_state = 'FINALIZED'",
+			arrayOf<Any>(LOGICAL_ID))
+		val after = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		after.windows shouldBe before.windows
+		after.coverage shouldBe PressureHistoryCoverage.PARTIAL
+		after.reasons.contains(PressureHistoryReason.STOP_INCOMPLETE) shouldBe true
+	}
+
+	@Test
 	@OptIn(ExperimentalCoroutinesApi::class)
 	fun productionFacadeExposesBatchedLogicalListAndExactPhysicalDetail() = runTest {
 		val first = insertFixture(
@@ -2449,6 +2490,7 @@ class PressureHistorySelectorTest {
 		)
 		database.sourceSessionDao().insertManifest(manifest)
 		database.sourceSessionDao().insertManifestSources(listOf(binding))
+		database.installOriginalStopFixture(requireNotNull(database.sourceSessionDao().session(unsignedManifest.logicalTrackingId)), unsignedManifest)
 		database.sourcePolicyDao().insertPolicies(listOf(pressurePolicy()))
 		database.sourcePolicyDao().insertConsentEpochs(listOf(pressureConsent()))
 		database.sourceProjectionStateDao().installProductLane(
@@ -2560,6 +2602,7 @@ class PressureHistorySelectorTest {
 			),
 		)
 		database.sourceSessionDao().insertManifestSources(listOf(binding))
+		database.installOriginalStopFixture(requireNotNull(database.sourceSessionDao().session(unsignedManifest.logicalTrackingId)), unsignedManifest)
 		database.sourceSessionDao().saveCompleteness(
 			SourceSessionCompletenessEntity(
 				logicalTrackingId = LOGICAL_ID,
@@ -2684,6 +2727,7 @@ class PressureHistorySelectorTest {
 		)
 		database.sourceSessionDao().insertManifest(manifest)
 		database.sourceSessionDao().insertManifestSources(listOf(binding))
+		database.installOriginalStopFixture(requireNotNull(database.sourceSessionDao().session(unsignedManifest.logicalTrackingId)), unsignedManifest)
 		val admissionOrdinal = 10L + index
 		database.sourceSessionDao().saveCompleteness(
 			SourceSessionCompletenessEntity(

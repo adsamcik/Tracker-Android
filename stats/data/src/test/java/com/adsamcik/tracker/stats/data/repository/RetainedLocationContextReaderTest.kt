@@ -127,6 +127,46 @@ class RetainedLocationContextReaderTest {
         assertEquals(evidence, database.sourceEvidenceStateDao().get())
     }
 
+    @Test fun `ordinary saved qualification keeps coordinates without optional accuracy but radio still requires it`() = runBlocking {
+        val receipt = installPoint(savedSample = sample().copy(hAccM = null, speedMps = 3f))
+        val saved = database.withTransaction { reader.qualifySavedInTransaction(listOf(receipt)) }
+        assertEquals(1, saved.samples.size)
+        assertNull(saved.samples.single().sample.hAccM)
+        assertEquals(3f, saved.samples.single().sample.speedMps)
+        assertIs<RadioContextScope.Ambient>(saved.samples.single().scope)
+        assertTrue(saved.gaps.isEmpty())
+        assertTrue(database.withTransaction { reader.qualifyInTransaction(listOf(receipt)) }.points.isEmpty())
+        assertEquals(1L, database.locationSampleDao().countAll())
+    }
+
+    @Test fun `all-day status uses ordinary saved qualification without an accuracy requirement`() = runBlocking {
+        installPoint(savedSample = sample().copy(hAccM = null))
+        val read = assertIs<AllDaySourceStatusRead.Location>(statusQuery().read(
+            AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))))
+        assertEquals("event", read.points.single().sourceEventId)
+        assertTrue(read.qualificationGaps.isEmpty())
+        assertNull(read.problem)
+    }
+
+    @Test fun `invalid optional accuracy does not erase other original saved measurements`() = runBlocking {
+        val receipt = installPoint(savedSample = sample().copy(hAccM = -1f, altitudeM = -12f))
+        val saved = database.withTransaction { reader.qualifySavedInTransaction(listOf(receipt)) }
+        assertEquals(-12f, saved.samples.single().sample.altitudeM)
+        assertEquals(-1f, saved.samples.single().sample.hAccM)
+        assertTrue(database.withTransaction { reader.qualifyInTransaction(listOf(receipt)) }.points.isEmpty())
+    }
+
+    @Test fun `shared saved qualification does not relax original content or epoch authority`() = runBlocking {
+        val receipt = installPoint(savedSample = sample().copy(hAccM = null))
+        assertEquals(1, database.withTransaction { reader.qualifySavedInTransaction(listOf(receipt)) }.samples.size)
+        database.openHelper.writableDatabase.execSQL("UPDATE location_sample SET lon_e7 = 1 WHERE id = ?", arrayOf(receipt.sampleId))
+        val changed = database.withTransaction { reader.qualifySavedInTransaction(listOf(receipt)) }
+        assertTrue(changed.samples.isEmpty())
+        assertTrue(RadioLocationContextGap.LOCATION_PROVENANCE_UNVERIFIABLE in changed.gaps)
+        assertTrue(changed.erasedNativeSampleIds.isEmpty())
+        assertEquals(1L, database.locationSampleDao().countAll())
+    }
+
     private fun statusQuery() = RoomAllDaySourceStatusQuery(database, mockk(), mockk(), mockk(),
         kotlinx.coroutines.Dispatchers.Unconfined)
 
@@ -292,14 +332,14 @@ class RetainedLocationContextReaderTest {
         }
     }
 
-    private suspend fun installPoint(sealed: Boolean = true): LocationAcceptedReceiptEntity {
+    private suspend fun installPoint(sealed: Boolean = true, savedSample: LocationSample = sample()): LocationAcceptedReceiptEntity {
         database.sourcePolicyDao().insertPolicies(listOf(policy()))
         database.sourcePolicyDao().insertConsentEpochs(listOf(SourceConsentEpochEntity(1, SourceBrokerPurpose.AMBIENT_PRODUCT,
             0, true, true, 1, "boot", 0, 0, "USER")))
         database.locationPurposeDao().insertRetentionAuthority(AmbientLocationRetentionAuthorityIntegrity.create(
             "LIVE_AMBIENT", 1, "ACTIVE", "retention", 1, 0, 0, "boot", 0, 0))
-        val id = database.locationSampleDao().insert(sample())
-        val sample = sample().copy(id = id)
+        val id = database.locationSampleDao().insert(savedSample)
+        val sample = savedSample.copy(id = id)
         val initial = LocationAcceptedReceiptEntity(id, "event", requireNotNull(sample.sourceSignalId), 1, "a".repeat(64),
             LocationAcceptedReceiptIntegrity.canonicalChecksum(sample), "instance", 1, 0, "delivery", 0, 1,
             SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID,

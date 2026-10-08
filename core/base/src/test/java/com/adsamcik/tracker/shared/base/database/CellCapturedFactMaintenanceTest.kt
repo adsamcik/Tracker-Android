@@ -80,6 +80,20 @@ class CellCapturedFactMaintenanceTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `Cell retention accepts original saved generation after a later End retry operation`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID))
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID))
+		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = LEASE_GENERATION + 2L,
+			bootId = "later-operation", runRevision = run.runRevision + 1L))
+		database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = LEASE_GENERATION + 2L,
+			lifecycleBootId = "later-operation"))
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(FLOOR_MS, 0L, 0L, MAINTENANCE_TIME_MS) shouldBe
+			CellCapturedRetentionResult.Pruned(1, 1)
+		database.cellCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
 	fun `retention removes owner correction lineage and every dependent`() = runTest {
 		val owner = seedCapturedCell(retainedFromMs = FLOOR_MS, semanticRevisions = 2)
 		insertCapturedFact(
@@ -4310,6 +4324,7 @@ class CellCapturedFactMaintenanceTest {
 			unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source))),
 		)
 		database.sourceSessionDao().insertManifestSources(listOf(source))
+		database.installOriginalStopFixture(requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID)), unsigned)
 	}
 
 	private fun manifestSource() = SessionManifestSourceEntity(

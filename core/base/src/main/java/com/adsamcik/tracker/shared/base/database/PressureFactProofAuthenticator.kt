@@ -307,7 +307,7 @@ object PressureFactProofAuthenticator {
 		val manifests = snapshot.manifestsByRun[serviceRunId].orEmpty()
 			.sortedBy(SessionManifestVersionEntity::manifestRevision)
 		if (manifests.isEmpty() ||
-			!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) ||
+			!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) ||
 			manifests.any { manifest ->
 				!SessionManifestIntegrity.verify(
 					manifest,
@@ -432,7 +432,8 @@ object PressureFactProofAuthenticator {
 
 		val observedStart = payload.windowStartElapsedRealtimeNanos
 		val observedEnd = payload.windowEndElapsedRealtimeNanos
-		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
+		val sessionEnd = snapshot.savedSessionCutoffs[logicalTrackingId]?.endForBoot(wal.clockDomainId)
+			?: session.cutoffElapsedNanos.takeIf { session.lifecycleBootId == wal.clockDomainId } ?: Long.MAX_VALUE
 		val manifestEnd = manifests.getOrNull(manifestIndex + 1)?.effectiveElapsedRealtimeNanos
 			?: minOf(sessionEnd, providerEnd, authorizationEnd)
 		val actualFingerprint = StoredPressurePlanIntegrity.physicalFingerprint(
@@ -445,14 +446,14 @@ object PressureFactProofAuthenticator {
 		if (policyAuthority.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
 			policyAuthority.currentPolicyRevision < sourcePolicyRevision ||
 			run.logicalTrackingId != logicalTrackingId ||
-			run.bootId != wal.clockDomainId || run.leaseGeneration != leaseGeneration ||
+			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, leaseGeneration) ||
 			session.logicalTrackingId != logicalTrackingId ||
-			session.clockDomainId != wal.clockDomainId ||
-			session.lifecycleBootId != wal.clockDomainId ||
+			(session.currentServiceRunId == run.serviceRunId &&
+				(run.leaseGeneration != session.lifecycleLeaseGeneration || run.bootId != session.lifecycleBootId)) ||
 			session.lifecycleLeaseGeneration < leaseGeneration ||
 			run.startedElapsedNanos > observedStart ||
 			run.startedAtMs > wallTimeMs ||
-			session.startedElapsedNanos > observedStart ||
+			(session.clockDomainId == wal.clockDomainId && session.startedElapsedNanos > observedStart) ||
 			session.startedAtMs > wallTimeMs ||
 			observedEnd >= sessionEnd ||
 			session.cutoffAtMs?.let { wallTimeMs > it } == true ||
@@ -650,6 +651,7 @@ suspend fun AppDatabase.loadPressureFactProofSnapshot(
 	return PressureFactProofSnapshot(
 		walByEventId = walByEventId,
 		sessions = sessions.associateBy(LogicalTrackingSessionEntity::logicalTrackingId),
+		savedSessionCutoffs = sessions.associate { it.logicalTrackingId to savedSessionCutoff(it) },
 		runs = runs.associateBy(SourceServiceRunEntity::serviceRunId),
 		manifestsByRun = manifests.take(limits.maximumManifests)
 			.groupBy(SessionManifestVersionEntity::serviceRunId),
@@ -696,6 +698,7 @@ data class PressureFactProofSnapshot(
 	val segments: Map<Long, SessionSegment>,
 	val currentClockDomainId: String?,
 	val overflow: Boolean,
+	val savedSessionCutoffs: Map<String, SavedSessionCutoff> = emptyMap(),
 )
 
 data class PressureFactManifestKey(

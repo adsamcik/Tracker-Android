@@ -1073,7 +1073,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 		dependencies: PortableRoomDependencies,
 	): PortableWriterBinding {
 		val manifests = dependencies.manifestsByRun[run.serviceRunId].orEmpty()
-		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)) {
+		if (!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests)) {
 			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
 		val bindings = manifests.mapNotNull { manifest ->
@@ -1331,7 +1331,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 		run: SourceServiceRunEntity,
 		sessionMode: PortableStepsSessionMode,
 		ordered: List<SessionManifestVersionEntity>,
-	): Boolean = SessionManifestIntegrity.hasValidServiceRunTimeline(run, ordered) &&
+	): Boolean = SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, ordered) &&
 		ordered.all { manifest -> manifest.sessionMode == sessionMode.name }
 
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
@@ -1458,8 +1458,8 @@ internal class PortableStepsRoomReader @Inject constructor(
 		val startElapsed = fact.intervalStartElapsedRealtimeNanos ?: return false
 		val endElapsed = fact.intervalEndElapsedRealtimeNanos ?: return false
 		if (!StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(fact) ||
-			fact.clockDomainId != run.bootId ||
-			fact.bootClockDomainId != run.bootId || manifest.effectiveBootId != run.bootId ||
+			fact.clockDomainId != manifest.effectiveBootId ||
+			fact.bootClockDomainId != manifest.effectiveBootId ||
 			startElapsed < run.startedElapsedNanos || recordingInterval == null ||
 			startElapsed !in recordingInterval || endElapsed !in recordingInterval
 		) {

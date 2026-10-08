@@ -52,6 +52,35 @@ class RetainedLocationPurposeLifecycleRoomTest {
 
     @After fun cleanup() = database.close()
 
+    @Test fun `saved capture and ambient retain their original clock after later End and retry generations`() = runBlocking {
+        val receipt = installJoinedPoint()
+        val originalRun = requireNotNull(database.sourceSessionDao().serviceRun(RUN))
+        for (generation in listOf(2L, 3L)) {
+            database.sourceSessionDao().updateServiceRun(originalRun.copy(leaseGeneration = generation,
+                bootId = "new-operation-boot", runRevision = originalRun.runRevision + generation))
+            val saved = read(receipt)
+            assertEquals(setOf(captureScope, ambientScope), saved.points.map { it.scope }.toSet())
+            assertTrue(saved.gaps.isEmpty())
+            assertEquals(receipt, database.locationPurposeDao().receipt(receipt.sampleId))
+        }
+        Unit
+    }
+
+    @Test fun `future capture generation cannot borrow the valid saved ambient sibling`() = runBlocking {
+        val receipt = installJoinedPoint()
+        val purpose = database.locationPurposeDao().purposes(receipt.sampleId, 3)
+            .single { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+        val future = LocationAcceptedReceiptIntegrity.seal(purpose.copy(lifecycleLeaseGeneration = 2L), receipt)
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE location_sample_purpose_authority SET lifecycle_lease_generation = ?, retained_proof_checksum = ? " +
+                "WHERE sample_id = ? AND purpose = ?",
+            arrayOf<Any>(2L, future.retainedProofChecksum, receipt.sampleId, purpose.purpose))
+        val saved = read(receipt)
+        assertEquals(listOf(ambientScope), saved.points.map { it.scope })
+        assertTrue(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE in saved.gaps)
+        Unit
+    }
+
     @Test fun `closed run retains both qualified purposes without original WAL or live registration`() = runBlocking {
         val receipt = installJoinedPoint()
         val before = requireNotNull(database.sourceEvidenceStateDao().get())

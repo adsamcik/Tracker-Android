@@ -17,6 +17,7 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainMaintenanceResult
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
@@ -253,6 +254,32 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `actual End advances operation authority while retaining original recording generation and Stop clock`() = runTest {
+		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		val active = requireNotNull(database.sourceSessionDao().session(started.logicalTrackingId))
+		val runId = requireNotNull(active.currentServiceRunId)
+		val originalRun = requireNotNull(database.sourceSessionDao().serviceRun(runId))
+		val originalActions = database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
+			.filter { it.desiredState == "STARTED" }
+		originalActions.isNotEmpty() shouldBe true
+		stopOnIo(SessionStopRequest("test-owner", "manual", 2_000L, 2_000_000L,
+			"boot-1", perSourceTimeoutMs = 5_000L)).shouldBeInstanceOf<SessionStopResult.Stopped>()
+		val closed = requireNotNull(database.sourceSessionDao().session(started.logicalTrackingId))
+		val stoppedRun = requireNotNull(database.sourceSessionDao().serviceRun(runId))
+		stoppedRun.leaseGeneration shouldBeGreaterThan originalRun.leaseGeneration
+		SessionManifestIntegrity.hasRetainedLeaseGeneration(stoppedRun, originalRun.leaseGeneration) shouldBe true
+		SessionManifestIntegrity.hasRetainedLeaseGeneration(stoppedRun, stoppedRun.leaseGeneration + 1L) shouldBe false
+		database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
+			.filter { it.desiredState == "STARTED" } shouldBe originalActions
+		val cutoff = database.withTransaction { database.savedSessionCutoff(closed) }
+		cutoff.clockUnknown shouldBe false
+		cutoff.bootId shouldBe "boot-1"
+		cutoff.endForBoot("boot-1") shouldBe 2_000_000L
+		SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(stoppedRun,
+			database.sourceSessionDao().manifestsForServiceRun(runId)) shouldBe true
+	}
 
 	@Test
 	fun `Steps-only End completes with pending Wi-Fi and Cell background consumers`() = runTest {

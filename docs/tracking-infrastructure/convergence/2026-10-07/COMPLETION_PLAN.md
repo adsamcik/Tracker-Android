@@ -495,3 +495,11 @@ prerequisites and T25 remain OPEN. No gates or dev/v10 integration started.
 - [ ] Finish exact measured radio leaf qualification across captured, background, imported and released records, source-level failure recovery, and actual shared History routing. The selected read hook does not close T13 or any full-chain prerequisite.
 
 All 25 prerequisites and T25 remain OPEN. No validation, provider activation, integration or push.
+
+### October 8 — original saved authority and Location summaries
+
+- [x] Select the freshly reviewed 43-path historical repair and carried Location summary V2. Original immutable recording manifests and the existing first Stop receipt determine saved authority; later quality/End operation generations do not hide valid readings. New-callback and erase/retention checks remain. Ordinary coordinate summaries preserve unknown accuracy; optional radio matching keeps its own accuracy requirement.
+- [x] Author 26 new historical and preserve 23 carried Location test methods, all NOT_RUN. Exact inputs and V1/V2 static acceptance: `../2026-10-08/HISTORICAL_SAVED_AUTHORITY_SELECTED/` and `HISTORICAL_SAVED_AUTHORITY_REVIEW/`.
+- [ ] Complete the shared live total and its actual consumers, measured six-source History dispatcher, native portable export checks, effective Location corrections and remaining full-chain integration.
+
+IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites and T25 remain OPEN. No execution gates, activation or dev/v10 integration.

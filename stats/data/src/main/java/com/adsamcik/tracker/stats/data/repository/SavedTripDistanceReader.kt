@@ -182,17 +182,26 @@ internal class SavedTripDistanceAccumulator {
 	private var previous: LocationPathSampleRow? = null
 	private var totalMeters = 0.0
 	private var hasMeasuredPair = false
+	var hasDisconnectedSections: Boolean = false
+		private set
 	val measuredMeters: Double? get() = totalMeters.takeIf { hasMeasuredPair }
+
+	/** A rejected or erased candidate cannot become a bridge between its valid neighbours. */
+	fun breakContinuity() {
+		if (previous != null) hasDisconnectedSections = true
+		previous = null
+	}
 
 	fun add(row: LocationPathSampleRow) {
 		val point = row.sample
 		val lat = point.latE7
 		val lon = point.lonE7
 		if (lat == null || lon == null || lat !in -900_000_000..900_000_000 || lon !in -1_800_000_000..1_800_000_000 || point.timeMs < 0L) {
-			previous = null
+			breakContinuity()
 			return
 		}
 		val old = previous
+		if (old != null && !continuous(old, row)) hasDisconnectedSections = true
 		if (old != null && continuous(old, row)) {
 			totalMeters += Location.distance(requireNotNull(old.sample.latE7) / 1e7,
 				requireNotNull(old.sample.lonE7) / 1e7, lat / 1e7, lon / 1e7, LengthUnit.Meter)

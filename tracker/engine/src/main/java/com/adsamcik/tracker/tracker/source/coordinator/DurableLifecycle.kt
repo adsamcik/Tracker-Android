@@ -10,7 +10,6 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceApplyResult
 import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeClaim
 import com.adsamcik.tracker.tracker.source.runtime.SourceStartResult
 import com.adsamcik.tracker.tracker.source.runtime.hasCompleteTerminalRetirement
-import java.security.MessageDigest
 
 enum class SessionMode { MANUAL, AUTOMATIC, LEGACY_UNKNOWN }
 
@@ -134,14 +133,5 @@ internal fun SourceApplyResult.toExecution(desiredStarted: Boolean): SourceActio
 	)
 }
 
-internal fun stableLifecycleChecksum(vararg parts: Any?): String {
-	val canonical = parts.joinToString(separator = "\u001f") { part ->
-		when (part) {
-			is Iterable<*> -> part.joinToString(separator = "\u001e") { it.toString() }
-			else -> part?.toString().orEmpty()
-		}
-	}
-	return MessageDigest.getInstance("SHA-256")
-		.digest(canonical.toByteArray(Charsets.UTF_8))
-		.joinToString(separator = "") { byte -> "%02x".format(byte) }
-}
+internal fun stableLifecycleChecksum(vararg parts: Any?): String =
+	com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntegrity.checksum(*parts)

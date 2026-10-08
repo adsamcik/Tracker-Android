@@ -390,7 +390,7 @@ internal class PressureHistorySelector private constructor(
 			}
 			sourcesByRevision[manifest.manifestRevision] = sources
 		}
-		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(serviceRun, manifests)) {
+		if (!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(serviceRun, manifests)) {
 			return unavailable(
 				segment,
 				HistoricalCaptureFailure.MANIFEST_INTEGRITY_FAILED,
@@ -638,7 +638,7 @@ internal class PressureHistorySelector private constructor(
 				fact.writerProjectionId != lane.projectionId ||
 				fact.writerProjectionVersion != lane.projectionVersion ||
 				fact.writerBindingGeneration != lane.bindingGeneration ||
-				fact.clockDomainId != serviceRun.bootId || manifest.effectiveBootId != serviceRun.bootId ||
+				fact.clockDomainId != manifest.effectiveBootId ||
 				fact.windowStartElapsedRealtimeNanos < serviceRun.startedElapsedNanos ||
 				fact.windowStartElapsedRealtimeNanos < manifest.effectiveElapsedRealtimeNanos ||
 				nextManifest?.effectiveElapsedRealtimeNanos?.let { nextEffective ->
@@ -684,6 +684,9 @@ internal class PressureHistorySelector private constructor(
 		val serviceRunCompleted = serviceRun.completedAtMs != null &&
 			serviceRun.state in TERMINAL_SERVICE_RUN_STATES
 		val reasons = linkedSetOf<PressureHistoryReason>()
+		if (snapshot.factProof.savedSessionCutoffs[logicalTrackingId]?.clockUnknown == true) {
+			reasons += PressureHistoryReason.STOP_INCOMPLETE
+		}
 		if (!captureCoveredWholeRun) reasons += PressureHistoryReason.CAPTURE_NOT_ENABLED_FOR_WHOLE_RUN
 		if (!serviceRunCompleted) reasons += PressureHistoryReason.SERVICE_RUN_ACTIVE
 		if (retentionCrossesSegment) reasons += PressureHistoryReason.RETENTION_CROSSES_SEGMENT
@@ -756,6 +759,7 @@ internal class PressureHistorySelector private constructor(
 			windows.isEmpty() -> PressureHistoryCoverage.NONE
 			materialization == PressureHistoryMaterialization.READY && acquisitionComplete &&
 				captureCoveredWholeRun && !retentionCrossesSegment &&
+				PressureHistoryReason.STOP_INCOMPLETE !in reasons &&
 				PressureHistoryReason.PARTIAL_FACT !in reasons -> PressureHistoryCoverage.COMPLETE
 			else -> PressureHistoryCoverage.PARTIAL
 		}
@@ -1125,7 +1129,7 @@ internal class PressureHistorySelector private constructor(
 						!SessionManifestIntegrity.verify(manifest, sources) ||
 							!hasValidZone(manifest.zoneId)
 					} -> PressureHistoryReason.MANIFEST_INTEGRITY_FAILED
-					!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) ->
+					!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) ->
 						PressureHistoryReason.MANIFEST_INTEGRITY_FAILED
 					else -> null
 				}

@@ -455,34 +455,32 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
                     HistoryOrigin.LOCAL in range.origins, HistoryOrigin.IMPORTED in range.origins, HistoryOrigin.LEGACY in range.origins)
                 if (points.size > MAX_DAY_FACTS) throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
                 var qualificationProblem: HistoryProblemReason? = null
-                var sourceSamples = emptyMap<String, Long>()
                 val qualified = try {
                     val receipts = points.map { it.point.sample.id }.chunked(64).flatMap { ids ->
                         currentCoroutineContext().ensureActive()
                         database.locationPurposeDao().contextReceiptsForSamples(ids, ids.size + 1).also {
                             if (it.size > ids.size) throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW) }
                     }
-                    sourceSamples = receipts.associate { it.sourceEventId to it.sampleId }
                     allDaySources.qualifyLocationInTransaction(receipts)
                 }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (failure: RangeHistoryUnavailable) {
                     qualificationProblem = failure.reason
-                    RetainedLocationContextSnapshot(emptyList())
+                    RetainedLocationSavedSnapshot(emptyList())
                 }
                 catch (_: android.database.sqlite.SQLiteException) {
                     qualificationProblem = HistoryProblemReason.STORAGE_UNAVAILABLE
-                    RetainedLocationContextSnapshot(emptyList())
+                    RetainedLocationSavedSnapshot(emptyList())
                 } catch (_: RuntimeException) {
                     qualificationProblem = HistoryProblemReason.INTEGRITY_UNAVAILABLE
-                    RetainedLocationContextSnapshot(emptyList())
+                    RetainedLocationSavedSnapshot(emptyList())
                 }
-                val qualifiedBySample = qualified.points.filter { it.scope is com.adsamcik.tracker.stats.api.repository.RadioContextScope.Ambient }
-                    .groupBy { sourceSamples[it.sourceEventId] }
+                val qualifiedBySample = qualified.samples.filter { it.scope is com.adsamcik.tracker.stats.api.repository.RadioContextScope.Ambient }
+                    .groupBy { it.sample.id }
                 fun hasQualifiedAmbient(row: LocationHistoryDayRow): Boolean {
                     val sample = row.point.sample
-                    return qualifiedBySample[sample.id].orEmpty().any { it.observedWallTimeMs == sample.timeMs &&
-                        it.latitudeE7 == sample.latE7 && it.longitudeE7 == sample.lonE7 }
+                    return qualifiedBySample[sample.id].orEmpty().any { it.sample.timeMs == sample.timeMs &&
+                        it.sample.latE7 == sample.latE7 && it.sample.lonE7 == sample.lonE7 }
                 }
                 candidates.forEach { candidate ->
                     val display = window(candidate)

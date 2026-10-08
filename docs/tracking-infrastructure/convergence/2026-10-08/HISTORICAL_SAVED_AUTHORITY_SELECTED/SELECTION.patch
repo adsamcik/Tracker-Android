@@ -1,0 +1,2684 @@
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedFactMaintenance.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedFactMaintenance.kt
+@@ -798,18 +798,21 @@
+ 	val session = sessionDao.session(revision.logicalTrackingId)
+ 	val segment = sessionSegmentDao().getById(revision.sessionSegmentId)
+ 	val sameClockSessionEnd = session?.let { current ->
+-		current.cutoffElapsedNanos.takeIf { current.lifecycleBootId == revision.clockDomainId }
++		savedSessionCutoff(current).retainedEnd(revision.clockDomainId, revision.sessionRunEffectEndNanos)
+ 	} ?: Long.MAX_VALUE
+ 	if (run == null || session == null || segment == null ||
+ 		run.logicalTrackingId != revision.logicalTrackingId ||
+ 		run.sessionSegmentId != revision.sessionSegmentId ||
+-		run.bootId != revision.clockDomainId || run.leaseGeneration != revision.lifecycleLeaseGeneration ||
++		!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, revision.lifecycleLeaseGeneration) ||
+ 		run.startedElapsedNanos != revision.sessionRunEffectStartNanos ||
+ 		segment.logicalTrackingId != revision.logicalTrackingId ||
+ 		segment.serviceRunId != revision.serviceRunId ||
+-		session.lifecycleBootId != revision.clockDomainId ||
++		(session.currentServiceRunId == run.serviceRunId &&
++			(run.leaseGeneration != session.lifecycleLeaseGeneration || run.bootId != session.lifecycleBootId)) ||
+ 		session.lifecycleLeaseGeneration < revision.lifecycleLeaseGeneration ||
+-		sameClockSessionEnd != revision.sessionRunEffectEndNanos
++		(sameClockSessionEnd != revision.sessionRunEffectEndNanos &&
++			revision.sessionRunEffectEndNanos != Long.MAX_VALUE) ||
++		revision.windowEndElapsedRealtimeNanos > sameClockSessionEnd
+ 	) block(ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 
+ 	val manifests = sessionDao.manifestsForServiceRun(
+@@ -817,7 +820,7 @@
+ 		limits.maximumManifestsPerRun + 1,
+ 	)
+ 	if (manifests.size > limits.maximumManifestsPerRun ||
+-		!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)
++		!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests)
+ 	) block(ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 	val sources = trackingHistoryReadDao().manifestSources(
+ 		listOf(revision.serviceRunId),
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt
+@@ -509,7 +509,7 @@
+ 			},
+ 		) || serviceRuns.any { run ->
+ 			val owned = manifestsByRun[run.serviceRunId].orEmpty()
+-			owned.isEmpty() || !SessionManifestIntegrity.hasValidServiceRunTimeline(run, owned) ||
++			owned.isEmpty() || !SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, owned) ||
+ 				owned.any { manifest ->
+ 					val membership = sourcesByManifest[
+ 						logicalTrackingId to manifest.manifestRevision
+@@ -1400,22 +1400,22 @@
+ 	val session = sessionDao.session(revision.logicalTrackingId)
+ 	val segment = sessionSegmentDao().getById(revision.sessionSegmentId)
+ 	if (run == null || session == null || segment == null ||
+-		!session.hasValidHistoricalCellShape(revision.clockDomainId) ||
++		!session.hasValidHistoricalCellShape() ||
+ 		!run.hasValidHistoricalCellShape(session) ||
+ 		run.logicalTrackingId != revision.logicalTrackingId ||
+ 		run.sessionSegmentId != revision.sessionSegmentId ||
+-		run.bootId != revision.clockDomainId || run.leaseGeneration != revision.lifecycleLeaseGeneration ||
++		!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, revision.lifecycleLeaseGeneration) ||
+ 		run.startedElapsedNanos != revision.deletionEffectStartNanos ||
+ 		segment.logicalTrackingId != revision.logicalTrackingId ||
+ 		segment.serviceRunId != revision.serviceRunId ||
+ 		(revision.payloadVersion != CELL_WAL_PAYLOAD_VERSION && session.finalAdmissionOrdinal != null &&
+ 			revision.sourceAdmissionOrdinal > session.finalAdmissionOrdinal) ||
+-		session.clockDomainId != revision.clockDomainId ||
++
+ 		session.lifecycleLeaseGeneration < revision.lifecycleLeaseGeneration ||
+ 		(session.cutoffAtMs == null) != (session.cutoffElapsedNanos == null) ||
+ 		(session.completedAtMs != null && session.cutoffElapsedNanos == null)
+ 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+-	val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
++	val sessionEnd = savedSessionCutoff(session).retainedEnd(revision.clockDomainId, revision.deletionEffectEndNanos)
+ 	if (!sessionEnd.isExactSettlementOf(revision.deletionEffectEndNanos)) {
+ 		block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 	}
+@@ -1430,7 +1430,7 @@
+ 	)
+ 	if (manifests.size > limits.maximumManifestsPerRun ||
+ 		sources.size > limits.maximumSourcesPerRun ||
+-		!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) ||
++		!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) ||
+ 		manifests.any { manifest ->
+ 			!SessionManifestIntegrity.verify(
+ 				manifest,
+@@ -2626,15 +2626,16 @@
+ 	val sessionDao = sourceSessionDao()
+ 	val run = sessionDao.serviceRun(serviceRunId)
+ 	val session = sessionDao.session(logicalTrackingId)
++	val cutoff = session?.let { savedSessionCutoff(it) }
+ 	if (run == null || session == null || run.logicalTrackingId != logicalTrackingId ||
+-		!session.hasValidHistoricalCellShape(wal.clockDomainId) ||
++		!session.hasValidHistoricalCellShape() ||
+ 		!run.hasValidHistoricalCellShape(session) ||
+-		run.bootId != wal.clockDomainId || run.leaseGeneration != leaseGeneration ||
+-		session.clockDomainId != wal.clockDomainId || session.lifecycleLeaseGeneration < leaseGeneration ||
++		!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, leaseGeneration) ||
++		session.lifecycleLeaseGeneration < leaseGeneration ||
+ 		run.startedElapsedNanos > capturePoint ||
+ 		(purposeItems == null && session.finalAdmissionOrdinal != null && wal.admissionOrdinal > session.finalAdmissionOrdinal) ||
+ 		(session.cutoffAtMs == null) != (session.cutoffElapsedNanos == null) ||
+-		selectedEndNanos >= (session.cutoffElapsedNanos ?: Long.MAX_VALUE)
++		selectedEndNanos >= requireNotNull(cutoff).endForBoot(wal.clockDomainId)
+ 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 	val manifests = sessionDao.manifestsForServiceRun(serviceRunId, limits.maximumManifestsPerRun + 1)
+ 	val sources = trackingHistoryReadDao().manifestSources(
+@@ -2642,7 +2643,7 @@
+ 		limits.maximumSourcesPerRun + 1,
+ 	)
+ 	if (manifests.size > limits.maximumManifestsPerRun || sources.size > limits.maximumSourcesPerRun ||
+-		!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) ||
++		!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) ||
+ 		manifests.any { manifest ->
+ 			!SessionManifestIntegrity.verify(
+ 				manifest,
+@@ -2667,7 +2668,7 @@
+ 		source.sourceKind == CELL_SOURCE && source.purpose == CAPTURE_PURPOSE
+ 	}
+ 	val manifestEnd = manifests.getOrNull(manifestIndex + 1)?.effectiveElapsedRealtimeNanos
+-		?: minOf(session.cutoffElapsedNanos ?: Long.MAX_VALUE, registrationEnd, authorizationEnd)
++		?: minOf(requireNotNull(cutoff).endForBoot(wal.clockDomainId), registrationEnd, authorizationEnd)
+ 	val segmentId = run.sessionSegmentId
+ 	val segment = segmentId?.let { sessionSegmentDao().getById(it) }
+ 	val wallInterval = capturePointWallInterval(wal, selectedStartNanos, selectedEndNanos)
+@@ -2895,15 +2896,13 @@
+ 		allKnownQualityIsWeak = allKnownQualityIsWeak,
+ 	)
+ 
+-private fun LogicalTrackingSessionEntity.hasValidHistoricalCellShape(
+-	expectedBootId: String,
+-): Boolean {
++private fun LogicalTrackingSessionEntity.hasValidHistoricalCellShape(): Boolean {
+ 	val terminal = state in TERMINAL_SESSION_STATES
+ 	val nonterminal = state in NONTERMINAL_SESSION_STATES
+ 	if (!terminal && !nonterminal) return false
+ 	if (logicalTrackingId.isBlank() || lifecycleRevision <= 0L || desiredPlanRevision <= 0L ||
+-		rolloutRevision <= 0L || startOrigin.isBlank() || clockDomainId != expectedBootId ||
+-		lifecycleBootId != expectedBootId || lifecycleLeaseGeneration <= 0L ||
++		rolloutRevision <= 0L || startOrigin.isBlank() || clockDomainId.isBlank() ||
++		lifecycleBootId.isNullOrBlank() || lifecycleLeaseGeneration <= 0L ||
+ 		startedAtMs < 0L || startedElapsedNanos < 0L ||
+ 		(cutoffAtMs == null) != (cutoffElapsedNanos == null)
+ 	) return false
+@@ -2925,7 +2924,9 @@
+ 	val nonterminal = state in NONTERMINAL_RUN_STATES
+ 	if (!terminal && !nonterminal) return false
+ 	if (serviceRunId.isBlank() || logicalTrackingId != session.logicalTrackingId ||
+-		bootId != session.clockDomainId ||
++		bootId.isBlank() ||
++		(session.currentServiceRunId == serviceRunId &&
++			(leaseGeneration != session.lifecycleLeaseGeneration || bootId != session.lifecycleBootId)) ||
+ 		leaseGeneration <= 0L || leaseGeneration > session.lifecycleLeaseGeneration ||
+ 		desiredPlanRevision <= 0L || rolloutRevision <= 0L || startedAtMs < 0L ||
+ 		startedElapsedNanos < 0L || startOrigin.isBlank() || sessionSegmentId == null ||
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticator.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticator.kt
+@@ -307,7 +307,7 @@
+ 		val manifests = snapshot.manifestsByRun[serviceRunId].orEmpty()
+ 			.sortedBy(SessionManifestVersionEntity::manifestRevision)
+ 		if (manifests.isEmpty() ||
+-			!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) ||
++			!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) ||
+ 			manifests.any { manifest ->
+ 				!SessionManifestIntegrity.verify(
+ 					manifest,
+@@ -432,7 +432,8 @@
+ 
+ 		val observedStart = payload.windowStartElapsedRealtimeNanos
+ 		val observedEnd = payload.windowEndElapsedRealtimeNanos
+-		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
++		val sessionEnd = snapshot.savedSessionCutoffs[logicalTrackingId]?.endForBoot(wal.clockDomainId)
++			?: session.cutoffElapsedNanos.takeIf { session.lifecycleBootId == wal.clockDomainId } ?: Long.MAX_VALUE
+ 		val manifestEnd = manifests.getOrNull(manifestIndex + 1)?.effectiveElapsedRealtimeNanos
+ 			?: minOf(sessionEnd, providerEnd, authorizationEnd)
+ 		val actualFingerprint = StoredPressurePlanIntegrity.physicalFingerprint(
+@@ -445,14 +446,14 @@
+ 		if (policyAuthority.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
+ 			policyAuthority.currentPolicyRevision < sourcePolicyRevision ||
+ 			run.logicalTrackingId != logicalTrackingId ||
+-			run.bootId != wal.clockDomainId || run.leaseGeneration != leaseGeneration ||
++			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, leaseGeneration) ||
+ 			session.logicalTrackingId != logicalTrackingId ||
+-			session.clockDomainId != wal.clockDomainId ||
+-			session.lifecycleBootId != wal.clockDomainId ||
++			(session.currentServiceRunId == run.serviceRunId &&
++				(run.leaseGeneration != session.lifecycleLeaseGeneration || run.bootId != session.lifecycleBootId)) ||
+ 			session.lifecycleLeaseGeneration < leaseGeneration ||
+ 			run.startedElapsedNanos > observedStart ||
+ 			run.startedAtMs > wallTimeMs ||
+-			session.startedElapsedNanos > observedStart ||
++			(session.clockDomainId == wal.clockDomainId && session.startedElapsedNanos > observedStart) ||
+ 			session.startedAtMs > wallTimeMs ||
+ 			observedEnd >= sessionEnd ||
+ 			session.cutoffAtMs?.let { wallTimeMs > it } == true ||
+@@ -650,6 +651,7 @@
+ 	return PressureFactProofSnapshot(
+ 		walByEventId = walByEventId,
+ 		sessions = sessions.associateBy(LogicalTrackingSessionEntity::logicalTrackingId),
++		savedSessionCutoffs = sessions.associate { it.logicalTrackingId to savedSessionCutoff(it) },
+ 		runs = runs.associateBy(SourceServiceRunEntity::serviceRunId),
+ 		manifestsByRun = manifests.take(limits.maximumManifests)
+ 			.groupBy(SessionManifestVersionEntity::serviceRunId),
+@@ -696,6 +698,7 @@
+ 	val segments: Map<Long, SessionSegment>,
+ 	val currentClockDomainId: String?,
+ 	val overflow: Boolean,
++	val savedSessionCutoffs: Map<String, SavedSessionCutoff> = emptyMap(),
+ )
+ 
+ data class PressureFactManifestKey(
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SavedSessionCutoff.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SavedSessionCutoff.kt
+@@ -0,0 +1,29 @@
++package com.adsamcik.tracker.shared.base.database
++
++import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
++import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntegrity
++
++/** Read-only original cutoff; a missing clock never borrows a later operation's boot. */
++data class SavedSessionCutoff(val bootId: String?, val elapsedNanos: Long?) {
++    val clockUnknown: Boolean get() = elapsedNanos != null && bootId == null
++    fun retainedEnd(measurementBootId: String, originalFactEnd: Long): Long =
++        if (elapsedNanos != null && bootId != measurementBootId) originalFactEnd else endForBoot(measurementBootId)
++    fun endForBoot(measurementBootId: String): Long =
++        if (bootId == measurementBootId) elapsedNanos ?: Long.MAX_VALUE else Long.MAX_VALUE
++}
++
++/** Called inside the reader/maintenance's existing Room snapshot; at most three indexed reads. */
++suspend fun AppDatabase.savedSessionCutoff(session: LogicalTrackingSessionEntity): SavedSessionCutoff {
++    if (session.cutoffElapsedNanos == null) return SavedSessionCutoff(null, null)
++    val dao = sourceSessionDao()
++    val stop = dao.firstStopIntent(session.logicalTrackingId)
++        ?: return SavedSessionCutoff(null, session.cutoffElapsedNanos)
++    val predecessor = dao.lifecycleIntent(session.logicalTrackingId, stop.intentRevision - 1L)
++        ?: return SavedSessionCutoff(null, session.cutoffElapsedNanos)
++    val manifest = dao.manifest(session.logicalTrackingId, stop.manifestRevision)
++    if (manifest == null || manifest.serviceRunId.isBlank() ||
++        !SessionLifecycleIntegrity.authenticatesOriginalStop(stop, predecessor, session)) {
++        return SavedSessionCutoff(null, session.cutoffElapsedNanos)
++    }
++    return SavedSessionCutoff(stop.requestBootId, session.cutoffElapsedNanos)
++}
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/TrackingHistoryInvalidationTables.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/TrackingHistoryInvalidationTables.kt
+@@ -11,6 +11,7 @@
+ 	"session_segment",
+ 	"source_service_run",
+ 	"session_manifest_version",
++	"session_lifecycle_intent_version",
+ 	"session_manifest_source",
+ 	"source_policy_authority",
+ 	"source_policy",
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt
+@@ -113,6 +113,15 @@
+ 	@Query("SELECT * FROM location_accepted_receipt WHERE observed_wall_time_ms >= :fromMs " +
+ 		"AND observed_wall_time_ms < :toMs ORDER BY observed_wall_time_ms, sample_id LIMIT :limit")
+ 	suspend fun contextReceiptsOverWindow(fromMs: Long, toMs: Long, limit: Int): List<LocationAcceptedReceiptEntity>
++	/** Keyset paging for a saved measured-time summary; no total point cap or acquisition effect. */
++	@Query("""SELECT * FROM location_accepted_receipt
++		WHERE observed_wall_time_ms >= :fromMs AND observed_wall_time_ms < :toMs
++		AND (:afterTimeMs IS NULL OR observed_wall_time_ms > :afterTimeMs OR
++		(observed_wall_time_ms = :afterTimeMs AND sample_id > COALESCE(:afterSampleId, 0)))
++		ORDER BY observed_wall_time_ms, sample_id LIMIT :limit""")
++	suspend fun savedReceiptPageOverWindow(fromMs: Long, toMs: Long, afterTimeMs: Long?,
++		afterSampleId: Long?, limit: Int): List<LocationAcceptedReceiptEntity>
++
+ 	/** Bounded elapsed-clock candidates for optional radio context; wall clock jumps do not join. */
+ 	@Query("SELECT * FROM location_accepted_receipt WHERE boot_id = :bootId AND clock_domain_id = :clockDomainId " +
+ 		"AND observed_elapsed_realtime_nanos >= :fromNanos AND observed_elapsed_realtime_nanos <= :toNanos " +
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt
+@@ -334,6 +334,13 @@
+ 			"ORDER BY intent_revision ASC",
+ 	)
+ 	suspend fun lifecycleIntents(logicalTrackingId: String): List<SessionLifecycleIntentVersionEntity>
++
++	/** Earliest saved Stop only: later retries must never become an observation clock. */
++	@Query(
++		"SELECT * FROM session_lifecycle_intent_version WHERE logical_tracking_id = :logicalTrackingId " +
++			"AND desired_state = 'FINALIZED' ORDER BY intent_revision ASC LIMIT 1",
++	)
++	suspend fun firstStopIntent(logicalTrackingId: String): SessionLifecycleIntentVersionEntity?
+ 
+ 	@Query(
+ 		"SELECT * FROM session_lifecycle_intent_version WHERE logical_tracking_id = :logicalTrackingId " +
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/TrackingHistoryReadDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/TrackingHistoryReadDao.kt
+@@ -557,6 +557,13 @@
+ 		afterStartedAtMs: Long?,
+ 		afterServiceRunId: String?,
+ 	): List<SourceServiceRunEntity>
++
++	/** Exact retained Location grant keys supplied with bound arguments by the source-owned reader. */
++	@androidx.room.RawQuery
++	suspend fun retainedLocationManifests(query: androidx.sqlite.db.SupportSQLiteQuery): List<SessionManifestVersionEntity>
++
++	@androidx.room.RawQuery
++	suspend fun retainedLocationManifestSources(query: androidx.sqlite.db.SupportSQLiteQuery): List<SessionManifestSourceEntity>
+ 
+ 	/** Reads all immutable manifest revisions for the requested service runs. */
+ 	@Query(
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionLifecycleIntegrity.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionLifecycleIntegrity.kt
+@@ -0,0 +1,61 @@
++package com.adsamcik.tracker.shared.base.database.data
++
++import java.security.MessageDigest
++
++/** The existing lifecycle byte contract, shared without changing command authority. */
++object SessionLifecycleIntegrity {
++    fun checksum(vararg parts: Any?): String {
++        val canonical = parts.joinToString(separator = "\u001f") { part ->
++            when (part) {
++                is Iterable<*> -> part.joinToString(separator = "\u001e") { it.toString() }
++                else -> part?.toString().orEmpty()
++            }
++        }
++        return MessageDigest.getInstance("SHA-256")
++            .digest(canonical.toByteArray(Charsets.UTF_8))
++            .joinToString(separator = "") { byte -> "%02x".format(byte) }
++    }
++
++    /** A retry has a FINALIZED predecessor and cannot supply the original cutoff clock. */
++    @Suppress("ComplexCondition")
++    fun authenticatesOriginalStop(
++        stop: SessionLifecycleIntentVersionEntity,
++        predecessor: SessionLifecycleIntentVersionEntity,
++        session: LogicalTrackingSessionEntity,
++    ): Boolean = stop.logicalTrackingId == session.logicalTrackingId &&
++        stop.intentRevision > 1L && predecessor.logicalTrackingId == stop.logicalTrackingId &&
++        predecessor.intentRevision == stop.intentRevision - 1L &&
++        predecessor.manifestRevision == stop.manifestRevision && predecessor.desiredState == "ACTIVE" &&
++        authenticatesActive(predecessor) && stop.desiredState == "FINALIZED" &&
++        stop.startOrigin == "POLICY_RECONCILIATION" && stop.manifestRevision > 0L &&
++        stop.requestBootId.isNotBlank() && !stop.stopReason.isNullOrBlank() &&
++        stop.requestedElapsedRealtimeNanos == session.cutoffElapsedNanos &&
++        stop.requestedWallTimeMs == session.cutoffAtMs && stop.requestedElapsedRealtimeNanos >= 0L &&
++        stop.requestedWallTimeMs >= 0L && stop.stopDeadlineBootId == stop.requestBootId &&
++        stop.stopDeadlineElapsedRealtimeNanos?.let { it >= stop.requestedElapsedRealtimeNanos } == true &&
++        stop.triggerId == null && stop.triggerKind == null && stop.triggerBootId == null &&
++        stop.triggerObservedElapsedRealtimeNanos == null && stop.triggerReceivedElapsedRealtimeNanos == null &&
++        stop.triggerExpiresElapsedRealtimeNanos == null && stop.triggerCollectedDataEpoch == null &&
++        stop.sourceCallerAuthorityReference == null && stop.automationEpoch == session.automationEpoch &&
++        stop.intentChecksum == checksum(stop.logicalTrackingId, stop.intentRevision, stop.manifestRevision,
++            stop.desiredState, stop.stopReason, stop.requestBootId, stop.requestedElapsedRealtimeNanos,
++            stop.stopDeadlineElapsedRealtimeNanos)
++
++    private fun authenticatesActive(intent: SessionLifecycleIntentVersionEntity): Boolean {
++        if (intent.requestBootId.isBlank() || intent.intentRevision <= 0L || intent.manifestRevision <= 0L ||
++            intent.requestedElapsedRealtimeNanos < 0L || intent.requestedWallTimeMs < 0L ||
++            intent.stopDeadlineBootId != null || intent.stopDeadlineElapsedRealtimeNanos != null) return false
++        return if (intent.stopReason == null) {
++            intent.intentChecksum == checksum(intent.logicalTrackingId, intent.intentRevision,
++                intent.manifestRevision, intent.desiredState, intent.startOrigin, intent.requestBootId,
++                intent.requestedElapsedRealtimeNanos, intent.requestedWallTimeMs, intent.triggerId,
++                intent.automationEpoch, intent.triggerCollectedDataEpoch, intent.sourceCallerAuthorityReference)
++        } else {
++            intent.startOrigin == "RECOVERY" && !intent.stopReason.isBlank() &&
++                !intent.sourceCallerAuthorityReference.isNullOrBlank() &&
++                intent.intentChecksum == checksum(intent.logicalTrackingId, intent.intentRevision,
++                    intent.manifestRevision, intent.desiredState, intent.stopReason, intent.requestBootId,
++                    intent.requestedElapsedRealtimeNanos, intent.sourceCallerAuthorityReference)
++        }
++    }
++}
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt
+@@ -129,6 +129,22 @@
+ 		}
+ 	}
+ 
++	/** Saved records keep the physical run's immutable prepared measurement clock. */
++	fun hasValidRetainedServiceRunTimeline(
++		run: SourceServiceRunEntity,
++		manifests: Collection<SessionManifestVersionEntity>,
++	): Boolean {
++		if (run.bootId.isBlank()) return false
++		val prepared = manifests.singleOrNull { it.manifestRevision == run.preparedManifestRevision }
++			?: return false
++		if (prepared.effectiveBootId.isBlank()) return false
++		return hasValidServiceRunTimeline(run.copy(bootId = prepared.effectiveBootId), manifests)
++	}
++
++	/** Original authority is checked separately against the exact saved receipt and members. */
++	fun hasRetainedLeaseGeneration(run: SourceServiceRunEntity, originalGeneration: Long?): Boolean =
++		originalGeneration != null && originalGeneration > 0L && originalGeneration <= run.leaseGeneration
++
+ 	/**
+ 	 * Verifies the exact logical manifest revision union across physical replacement runs.
+ 	 *
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedFactMaintenanceTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedFactMaintenanceTest.kt
+@@ -78,6 +78,20 @@
+ 			laneExecutionAuthority = ACTIVITY_LANE_AUTHORITY,
+ 			ioDispatcher = Dispatchers.Unconfined,
+ 		)
++
++	@Test
++	fun `Activity retention accepts original saved generation after a later End retry operation`() = runTest {
++		seedCapturedActivity(retainedFromMs = 1_990L)
++		val run = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID))
++		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID))
++		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = 3L,
++			bootId = "later-operation", runRevision = run.runRevision + 1L))
++		database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = 3L,
++			lifecycleBootId = "later-operation"))
++		database.pruneCapturedActivityFactsAffectedByRetentionFloor(1_990L, 0L, 5_000L) shouldBe
++			ActivityCapturedRetentionResult.Pruned(1, 1)
++		database.activityCapturedFactDao().revisionCount() shouldBe 0L
++	}
+ 
+ 	@Test
+ 	fun `retention removes the complete correction lineage at an uncertain floor`() = runTest {
+@@ -1942,6 +1956,7 @@
+ 			),
+ 		)
+ 		database.sourceSessionDao().insertManifestSources(listOf(source))
++		database.installOriginalStopFixture(logicalSession(), unsignedManifest)
+ 		database.sourceSessionDao().insertLifecycleActions(listOf(captureStartAction()))
+ 		val policies = mutableListOf(historicalPolicy())
+ 		if (revokedCapture) policies += revokedPolicy()
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt
+@@ -78,6 +78,20 @@
+ 
+ 	@After
+ 	fun tearDown() = database.close()
++
++	@Test
++	fun `Cell retention accepts original saved generation after a later End retry operation`() = runTest {
++		seedCapturedCell(retainedFromMs = FLOOR_MS)
++		val run = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID))
++		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID))
++		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = LEASE_GENERATION + 2L,
++			bootId = "later-operation", runRevision = run.runRevision + 1L))
++		database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = LEASE_GENERATION + 2L,
++			lifecycleBootId = "later-operation"))
++		database.pruneCapturedCellFactsAffectedByRetentionFloor(FLOOR_MS, 0L, 0L, MAINTENANCE_TIME_MS) shouldBe
++			CellCapturedRetentionResult.Pruned(1, 1)
++		database.cellCapturedFactDao().revisionCount() shouldBe 0L
++	}
+ 
+ 	@Test
+ 	fun `retention removes owner correction lineage and every dependent`() = runTest {
+@@ -4310,6 +4324,7 @@
+ 			unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source))),
+ 		)
+ 		database.sourceSessionDao().insertManifestSources(listOf(source))
++		database.installOriginalStopFixture(requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID)), unsigned)
+ 	}
+ 
+ 	private fun manifestSource() = SessionManifestSourceEntity(
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/HistoricalSavedAuthorityTestFixtures.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/HistoricalSavedAuthorityTestFixtures.kt
+@@ -0,0 +1,34 @@
++package com.adsamcik.tracker.shared.base.database
++
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
++import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntegrity
++import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
++import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
++
++/** Explicit immutable lifecycle fixture; it makes no Android/coordinator acceptance claim. */
++internal suspend fun AppDatabase.installOriginalStopFixture(
++    session: LogicalTrackingSessionEntity,
++    manifest: SessionManifestVersionEntity,
++) {
++    if (session.cutoffElapsedNanos == null || session.cutoffAtMs == null) return
++    val dao = sourceSessionDao()
++    if (dao.firstStopIntent(session.logicalTrackingId) != null) return
++    val active = SessionLifecycleIntentVersionEntity(session.logicalTrackingId, manifest.manifestRevision,
++        manifest.manifestRevision, "ACTIVE", manifest.startOrigin, manifest.effectiveBootId,
++        manifest.effectiveElapsedRealtimeNanos, manifest.effectiveWallTimeMs, session.automationEpoch,
++        null, null, null, null, null, null, null, null, null, "")
++    val activeSealed = active.copy(intentChecksum = SessionLifecycleIntegrity.checksum(active.logicalTrackingId,
++        active.intentRevision, active.manifestRevision, active.desiredState, active.startOrigin,
++        active.requestBootId, active.requestedElapsedRealtimeNanos, active.requestedWallTimeMs,
++        active.triggerId, active.automationEpoch, active.triggerCollectedDataEpoch, active.sourceCallerAuthorityReference))
++    val stop = activeSealed.copy(intentRevision = active.intentRevision + 1L, desiredState = "FINALIZED",
++        startOrigin = "POLICY_RECONCILIATION", requestedElapsedRealtimeNanos = session.cutoffElapsedNanos,
++        requestedWallTimeMs = session.cutoffAtMs, stopReason = "USER_STOP", stopDeadlineBootId = active.requestBootId,
++        stopDeadlineElapsedRealtimeNanos = session.cutoffElapsedNanos)
++    val stopSealed = stop.copy(intentChecksum = SessionLifecycleIntegrity.checksum(stop.logicalTrackingId,
++        stop.intentRevision, stop.manifestRevision, stop.desiredState, stop.stopReason, stop.requestBootId,
++        stop.requestedElapsedRealtimeNanos, stop.stopDeadlineElapsedRealtimeNanos))
++    dao.insertLifecycleIntent(activeSealed)
++    dao.insertLifecycleIntent(stopSealed)
++}
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/SavedSessionCutoffRoomTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/SavedSessionCutoffRoomTest.kt
+@@ -0,0 +1,151 @@
++package com.adsamcik.tracker.shared.base.database
++
++import android.app.Application
++import androidx.room.withTransaction
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.shared.base.database.data.*
++import kotlin.test.assertEquals
++import kotlin.test.assertFalse
++import kotlin.test.assertNull
++import kotlin.test.assertTrue
++import kotlinx.coroutines.runBlocking
++import kotlinx.coroutines.async
++import kotlinx.coroutines.flow.map
++import kotlinx.coroutines.flow.take
++import kotlinx.coroutines.flow.toList
++import org.junit.After
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++/** Real Room original/retry lookup; lifecycle rows are fixture-authored, no provider is activated. */
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class SavedSessionCutoffRoomTest {
++    private lateinit var database: AppDatabase
++    @Before fun setup() { database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>()) }
++    @After fun close() = database.close()
++
++    @Test fun `original Stop retains its clock after a retry copied its times into a new boot`() = runBlocking {
++        val session = session()
++        install(session)
++        insertRetry()
++        val cutoff = database.withTransaction { database.savedSessionCutoff(session) }
++        assertEquals(SavedSessionCutoff("measurement-boot", 500), cutoff)
++        assertEquals(500L, cutoff.endForBoot("measurement-boot"))
++        assertEquals(Long.MAX_VALUE, cutoff.endForBoot("retry-boot"))
++        assertFalse(cutoff.clockUnknown)
++        Unit
++    }
++
++    @Test fun `missing original Stop cannot promote the retry to original clock`() = runBlocking {
++        val session = session()
++        install(session)
++        insertRetry()
++        database.openHelper.writableDatabase.execSQL(
++            "DELETE FROM session_lifecycle_intent_version WHERE logical_tracking_id = ? AND intent_revision = 2",
++            arrayOf<Any>(session.logicalTrackingId))
++        val cutoff = database.withTransaction { database.savedSessionCutoff(session) }
++        assertNull(cutoff.bootId)
++        assertTrue(cutoff.clockUnknown)
++        assertEquals(Long.MAX_VALUE, cutoff.endForBoot("retry-boot"))
++        assertEquals(450L, cutoff.retainedEnd("measurement-boot", 450))
++        Unit
++    }
++
++    @Test fun `missing predecessor and corrupt original checksum keep cutoff clock unknown`() = runBlocking {
++        val session = session()
++        install(session)
++        database.openHelper.writableDatabase.execSQL(
++            "UPDATE session_lifecycle_intent_version SET intent_checksum = ? WHERE logical_tracking_id = ? AND intent_revision = 2",
++            arrayOf<Any>("0".repeat(64), session.logicalTrackingId))
++        assertTrue(database.withTransaction { database.savedSessionCutoff(session) }.clockUnknown)
++        database.openHelper.writableDatabase.execSQL(
++            "DELETE FROM session_lifecycle_intent_version WHERE logical_tracking_id = ? AND intent_revision = 1",
++            arrayOf<Any>(session.logicalTrackingId))
++        assertTrue(database.withTransaction { database.savedSessionCutoff(session) }.clockUnknown)
++        Unit
++    }
++
++    @Test fun `retained timeline follows immutable prepared clock while physical admission remains exact`() = runBlocking {
++        val session = session()
++        install(session)
++        val run = SourceServiceRunEntity("run", session.logicalTrackingId, "FINALIZED", 1, 1, 0,
++            1_000, 100, 2_000, "USER_STOP", bootId = "retry-boot", leaseGeneration = 3,
++            startOrigin = "MANUAL_FOREGROUND_START", runRevision = 3, startDeliveryToken = "delivery",
++            startCommandGeneration = 1, preparedManifestRevision = 1, preparedIntentRevision = 1)
++        database.sourceSessionDao().insertServiceRun(run)
++        val saved = requireNotNull(database.sourceSessionDao().serviceRun("run"))
++        val manifests = database.sourceSessionDao().manifestsForServiceRun("run")
++        assertTrue(SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(saved, manifests))
++        assertFalse(SessionManifestIntegrity.hasValidServiceRunTimeline(saved, manifests))
++        assertTrue(SessionManifestIntegrity.hasRetainedLeaseGeneration(saved, 1))
++        assertTrue(SessionManifestIntegrity.hasRetainedLeaseGeneration(saved, 3))
++        assertFalse(SessionManifestIntegrity.hasRetainedLeaseGeneration(saved, 4))
++        assertFalse(SessionManifestIntegrity.hasRetainedLeaseGeneration(saved, 0))
++        assertFalse(SessionManifestIntegrity.hasRetainedLeaseGeneration(saved, null))
++        assertFalse(SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(saved,
++            manifests.map { it.copy(serviceRunId = "foreign") }))
++        Unit
++    }
++
++    @Test fun `cutoff fields and inactive predecessor cannot relabel original Stop`() = runBlocking {
++        val session = session()
++        install(session)
++        assertTrue(database.withTransaction { database.savedSessionCutoff(session.copy(cutoffAtMs = 2_001)) }.clockUnknown)
++        database.openHelper.writableDatabase.execSQL(
++            "UPDATE session_lifecycle_intent_version SET desired_state = 'FINALIZED' WHERE logical_tracking_id = ? AND intent_revision = 1",
++            arrayOf<Any>(session.logicalTrackingId))
++        assertTrue(database.withTransaction { database.savedSessionCutoff(session) }.clockUnknown)
++        Unit
++    }
++
++    @Test fun `shared lifecycle encoder preserves its existing separators and null byte contract`() {
++        assertEquals("5493a7dce0ce7b1b11fa5c2b00512d436686bd7cd930085fb7e3510431be4a7f", SessionLifecycleIntegrity.checksum("a", listOf("b", null), null))
++    }
++
++    @Test fun `original Stop mutation invalidates actual shared tracking History dependency flow`() = kotlinx.coroutines.test.runTest {
++        val session = session()
++        install(session)
++        val initial = kotlinx.coroutines.CompletableDeferred<Unit>()
++        val observer = async(kotlinx.coroutines.Dispatchers.Unconfined) {
++            database.invalidationTracker.createFlow(*TRACKING_HISTORY_INVALIDATION_TABLES.toTypedArray(),
++                emitInitialState = true).map { tables -> initial.complete(Unit); tables }.take(2).toList()
++        }
++        try {
++            kotlinx.coroutines.withTimeout(5_000L) { initial.await() }
++            database.openHelper.writableDatabase.execSQL(
++                "UPDATE session_lifecycle_intent_version SET intent_checksum = ? WHERE logical_tracking_id = ? AND intent_revision = 2",
++                arrayOf<Any>("0".repeat(64), session.logicalTrackingId))
++            database.invalidationTracker.refreshAsync()
++            val emissions = kotlinx.coroutines.withTimeout(5_000L) { observer.await() }
++            assertTrue("session_lifecycle_intent_version" in emissions.last())
++        } finally { observer.cancel() }
++    }
++
++    private fun session() = LogicalTrackingSessionEntity("logical", "FINALIZED", 3, 1, 1,
++        "MANUAL_FOREGROUND_START", "measurement-boot", 1_000, 100, 2_000, 500, 2_000, 1, null,
++        currentManifestRevision = 1, currentIntentRevision = 3, lifecycleLeaseGeneration = 3,
++        lifecycleBootId = "retry-boot")
++
++    private suspend fun install(session: LogicalTrackingSessionEntity) {
++        database.sourceSessionDao().insertSession(session)
++        val member = SessionManifestSourceEntity(session.logicalTrackingId, 1, 1, "SESSION_CAPTURE", 0, true, 1)
++        val original = SessionManifestVersionEntity(session.logicalTrackingId, 1, "run", "MANUAL", 1, 1, 1,
++            "MANUAL_FOREGROUND_START", "measurement-boot", 100, 1_000, "UTC", null, "START", "")
++        val manifest = original.copy(manifestChecksum = SessionManifestIntegrity.compute(original, listOf(member)))
++        database.sourceSessionDao().insertManifest(manifest)
++        database.sourceSessionDao().insertManifestSources(listOf(member))
++        database.installOriginalStopFixture(session, manifest)
++    }
++
++    private suspend fun insertRetry() {
++        val original = requireNotNull(database.sourceSessionDao().firstStopIntent("logical"))
++        val retry = original.copy(intentRevision = 3, requestBootId = "retry-boot", stopDeadlineBootId = "retry-boot")
++        database.sourceSessionDao().insertLifecycleIntent(retry.copy(intentChecksum = SessionLifecycleIntegrity.checksum(
++            retry.logicalTrackingId, retry.intentRevision, retry.manifestRevision, retry.desiredState,
++            retry.stopReason, retry.requestBootId, retry.requestedElapsedRealtimeNanos, retry.stopDeadlineElapsedRealtimeNanos)))
++    }
++}
+--- a/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SavedLocationSummary.kt
++++ b/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SavedLocationSummary.kt
+@@ -0,0 +1,70 @@
++package com.adsamcik.tracker.stats.api.repository
++
++import com.adsamcik.tracker.shared.model.AltitudeDatum
++import com.adsamcik.tracker.shared.model.AltitudeSource
++
++/** Selection identifies a read, never permission to collect, restore or erase a point. */
++sealed interface SavedLocationSummarySelection {
++    data class Session(val segmentId: Long) : SavedLocationSummarySelection {
++        init { require(segmentId > 0L) }
++    }
++    data class Window(val window: HistoryObservationWindow) : SavedLocationSummarySelection
++}
++
++sealed interface SavedLocationSummaryRead {
++    data object NotFound : SavedLocationSummaryRead
++    data class Unavailable(val reason: HistoryProblemReason) : SavedLocationSummaryRead
++    data class Snapshot(
++        val selection: SavedLocationSummarySelection,
++        val readSnapshot: TrackingHistoryReadSnapshot,
++        val summary: SavedLocationSummary,
++        /** A failed continuation retains its available measured sections as partial data. */
++        val problem: HistoryProblemReason? = null,
++    ) : SavedLocationSummaryRead {
++        init { require(problem == null || summary.partial) }
++    }
++}
++
++/**
++ * Measurements from qualified original saved native points. No inferred acquisition coverage.
++ * A distance is the sum of measured continuous sections, never a bridge across a saved gap.
++ * Null distance means no measured pair; a stationary pair preserves the real value zero.
++ */
++data class SavedLocationSummary(
++    val pointCount: Long,
++    val latestFix: SavedLocationFix?,
++    val distanceMeters: Double?,
++    val partial: Boolean,
++    val qualificationGaps: Set<RadioLocationContextGap> = emptySet(),
++) {
++    init {
++        require(pointCount >= 0L)
++        require((pointCount == 0L) == (latestFix == null))
++        require(distanceMeters == null || distanceMeters.isFinite() && distanceMeters >= 0.0 && pointCount >= 2L)
++        require(qualificationGaps.isEmpty() || partial)
++    }
++}
++
++/** An original measured fix, not a new or fresh fix merely because the database was read now. */
++data class SavedLocationFix(
++    val sampleId: Long,
++    val measuredTimeMs: Long,
++    val wallTimeUncertaintyMs: Long,
++    val latitudeE7: Int,
++    val longitudeE7: Int,
++    val speedMetersPerSecond: Float?,
++    val speedAccuracyMetersPerSecond: Float?,
++    val horizontalAccuracyMeters: Float?,
++    val altitudeMeters: Float?,
++    val altitudeDatum: AltitudeDatum,
++    val altitudeSource: AltitudeSource,
++    val verticalAccuracyMeters: Float?,
++) {
++    init {
++        require(sampleId > 0L && measuredTimeMs >= 0L && wallTimeUncertaintyMs >= 0L)
++        require(latitudeE7 in -900_000_000..900_000_000 && longitudeE7 in -1_800_000_000..1_800_000_000)
++        require(listOf(speedMetersPerSecond, speedAccuracyMetersPerSecond,
++            horizontalAccuracyMeters, verticalAccuracyMeters).all { it == null || it.isFinite() && it >= 0f })
++        require(altitudeMeters == null || altitudeMeters.isFinite())
++    }
++}
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposer.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposer.kt
+@@ -1,5 +1,6 @@
+ package com.adsamcik.tracker.stats.data.repository
+ 
++import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
+ import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
+ import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthenticator
+ import com.adsamcik.tracker.shared.base.database.ProviderRegistrationActualObservation
+@@ -130,12 +131,14 @@
+ 		}
+ 		val hasActiveRun = runs.any(::isNonTerminalRun)
+ 		val session = snapshot.sessions[logicalId]
++		val savedCutoff = snapshot.savedSessionCutoffs[logicalId]
+ 		if (session == null || session.logicalTrackingId != logicalId ||
+ 			!hasConsistentCompletion(session.state, session.completedAtMs) ||
+ 			(session.state !in TERMINAL_RUN_STATES) != hasActiveRun ||
+ 			session.lifecycleRevision <= 0L || session.desiredPlanRevision <= 0L ||
+ 			session.rolloutRevision <= 0L || session.startedElapsedNanos < 0L ||
+-			session.cutoffElapsedNanos?.let { it < session.startedElapsedNanos } == true
++			((if (savedCutoff == null) session.lifecycleBootId else savedCutoff.bootId) == session.clockDomainId &&
++			session.cutoffElapsedNanos?.let { it < session.startedElapsedNanos } == true)
+ 		) return failed(logicalId, segments, ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+ 		val manifestsByRun = runs.associate { run ->
+ 			run.serviceRunId to snapshot.manifestsByRun[run.serviceRunId].orEmpty()
+@@ -211,7 +214,7 @@
+ 		val targetByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId)
+ 			.mapValues { (_, rows) -> rows.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull() }
+ 		val laneTarget = targetByRun.values.filterNotNull().maxOrNull()
+-		if (!hasValidLogicalSessionSettlement(session, runs, manifestsByRun, laneTarget) ||
++		if (!hasValidLogicalSessionSettlement(session, runs, manifestsByRun, laneTarget, savedCutoff) ||
+ 			laneTarget?.let { it < lane.activationOrdinal ||
+ 			lane.captureAdmissionCutoffOrdinal?.let { cutoff -> it > cutoff } == true } == true ||
+ 			snapshot.terminalFailures.isNotEmpty()
+@@ -249,8 +252,9 @@
+ 				candidate.serviceRunId == latest.serviceRunId &&
+ 					candidate.manifestRevision == latest.manifestRevision + 1L
+ 			}
+-			val expectedSessionRunEnd = session.cutoffElapsedNanos
+-				.takeIf { session.lifecycleBootId == latest.clockDomainId } ?: Long.MAX_VALUE
++			val cutoff = snapshot.savedSessionCutoffs[logicalId]
++				?: SavedSessionCutoff(session.lifecycleBootId, session.cutoffElapsedNanos)
++			val expectedSessionRunEnd = cutoff.retainedEnd(latest.clockDomainId, latest.sessionRunEffectEndNanos)
+ 			if (manifest == null || binding == null || run == null || plan == null || desiredPlan == null ||
+ 				provider == null ||
+ 				!factHasExactAuthority(
+@@ -321,6 +325,9 @@
+ 			return failedWithIntent(ActivityHistoryCause.VALUE_OVERFLOW)
+ 		}
+ 		val causes = linkedSetOf<ActivityHistoryCause>()
++		if (snapshot.savedSessionCutoffs[logicalId]?.clockUnknown == true) {
++			causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
++		}
+ 		if (bindings.size != manifests.size) causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
+ 		if (completeness.isEmpty() || completeness.any { !it.appDrainComplete || it.stopStatus != COMPLETE_STOP }) {
+ 			causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
+@@ -371,6 +378,7 @@
+ 		runs: List<SourceServiceRunEntity>,
+ 		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
+ 		targetOrdinal: Long?,
++		cutoff: SavedSessionCutoff?,
+ 	): Boolean {
+ 		val nonTerminalRuns = runs.filter(::isNonTerminalRun)
+ 		if (nonTerminalRuns.isNotEmpty()) {
+@@ -381,7 +389,8 @@
+ 			val hasAnyCutoff = session.cutoffAtMs != null || session.cutoffElapsedNanos != null
+ 			val hasExactCutoff = session.cutoffAtMs != null && session.cutoffElapsedNanos != null &&
+ 				requireNotNull(session.cutoffAtMs) >= session.startedAtMs &&
+-				requireNotNull(session.cutoffElapsedNanos) >= session.startedElapsedNanos
++				((if (cutoff == null) session.lifecycleBootId else cutoff.bootId) != session.clockDomainId ||
++					requireNotNull(session.cutoffElapsedNanos) >= session.startedElapsedNanos)
+ 			val validCutoff = if (stopping) hasExactCutoff else !hasAnyCutoff
+ 			return hasValidLiveLifecyclePair(session.state, currentRun.state) && validCutoff &&
+ 				session.completedAtMs == null && session.finalAdmissionOrdinal == null &&
+@@ -407,7 +416,7 @@
+ 		manifestsByRun.values.map { it.map(SessionManifestVersionEntity::manifestRevision) },
+ 	) && runs.all { run ->
+ 		val manifests = manifestsByRun[run.serviceRunId].orEmpty()
+-		SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) && manifests.all { manifest ->
++		SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) && manifests.all { manifest ->
+ 			manifest.logicalTrackingId == logicalId && manifest.serviceRunId == run.serviceRunId &&
+ 				SessionManifestIntegrity.verify(
+ 					manifest,
+@@ -545,11 +554,13 @@
+ 		return fact.sessionSegmentId == run.sessionSegmentId && fact.logicalTrackingId == run.logicalTrackingId &&
+ 		fact.serviceRunId == run.serviceRunId && fact.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+ 		fact.manifestRevision == manifest.manifestRevision && fact.sourcePolicyRevision == manifest.sourcePolicyRevision &&
+-		fact.captureConsentEpoch == binding.consentEpoch && fact.lifecycleLeaseGeneration == run.leaseGeneration &&
+-		fact.clockDomainId == run.bootId && manifest.effectiveBootId == run.bootId &&
++		fact.captureConsentEpoch == binding.consentEpoch && SessionManifestIntegrity.hasRetainedLeaseGeneration(run, fact.lifecycleLeaseGeneration) &&
++		fact.clockDomainId == manifest.effectiveBootId &&
+ 		fact.storedZoneId == manifest.zoneId && fact.windowStartElapsedRealtimeNanos >= run.startedElapsedNanos &&
+ 		fact.sessionRunEffectStartNanos == run.startedElapsedNanos &&
+-		fact.sessionRunEffectEndNanos == expectedSessionRunEndNanos &&
++		(fact.sessionRunEffectEndNanos == expectedSessionRunEndNanos ||
++			fact.sessionRunEffectEndNanos == Long.MAX_VALUE) &&
++		fact.windowEndElapsedRealtimeNanos <= expectedSessionRunEndNanos &&
+ 		fact.windowStartElapsedRealtimeNanos >= manifest.effectiveElapsedRealtimeNanos &&
+ 		(nextManifest == null || fact.windowEndElapsedRealtimeNanos <=
+ 			nextManifest.effectiveElapsedRealtimeNanos) &&
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt
+@@ -1,5 +1,6 @@
+ package com.adsamcik.tracker.stats.data.repository
+ 
++import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
+ import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
+ import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthenticator
+ import com.adsamcik.tracker.shared.base.database.CellPurposeItems
+@@ -395,6 +396,9 @@
+ 			}
+ 		}.getOrElse { return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED) }
+ 		val causes = linkedSetOf<CellHistoryCause>()
++		if (snapshot.savedSessionCutoffs[logicalId]?.clockUnknown == true) {
++			causes += CellHistoryCause.ACQUISITION_INCOMPLETE
++		}
+ 		if (isActive(session, runs)) causes += CellHistoryCause.SESSION_ACTIVE
+ 		if (lane.contiguousAdmissionOrdinal < (targetOrdinal ?: lane.activationOrdinal)) {
+ 			causes += CellHistoryCause.MATERIALIZATION_BEHIND
+@@ -432,7 +436,7 @@
+ 		manifestsByRun.values.map { it.map(SessionManifestVersionEntity::manifestRevision) },
+ 	) && runs.all { run ->
+ 		val manifests = manifestsByRun[run.serviceRunId].orEmpty()
+-		SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) && manifests.all { manifest ->
++		SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) && manifests.all { manifest ->
+ 			manifest.logicalTrackingId == logicalId && manifest.serviceRunId == run.serviceRunId &&
+ 				SessionManifestIntegrity.verify(
+ 					manifest,
+@@ -530,8 +534,9 @@
+ 		val provider = snapshot.providerRegistrations[fact.registrationGeneration] ?: return false
+ 		val authorizations = snapshot.authorizationsByRegistration[fact.registrationGeneration].orEmpty()
+ 		val session = snapshot.sessions[fact.logicalTrackingId] ?: return false
+-		val sessionEnd = session.cutoffElapsedNanos
+-			.takeIf { session.lifecycleBootId == fact.clockDomainId } ?: Long.MAX_VALUE
++		val cutoff = snapshot.savedSessionCutoffs[fact.logicalTrackingId]
++			?: SavedSessionCutoff(session.lifecycleBootId, session.cutoffElapsedNanos)
++		val sessionEnd = cutoff.retainedEnd(fact.clockDomainId, fact.deletionEffectEndNanos)
+ 		val providerAuthentication = ProviderRegistrationIntervalAuthenticator.authenticate(
+ 			registration = provider,
+ 			expectedSourceKind = CELL_SOURCE,
+@@ -573,15 +578,18 @@
+ 			fact.sessionSegmentId == run.sessionSegmentId && fact.logicalTrackingId == run.logicalTrackingId &&
+ 			fact.manifestRevision == manifest.manifestRevision &&
+ 			fact.sourcePolicyRevision == manifest.sourcePolicyRevision &&
+-			fact.captureConsentEpoch == binding.consentEpoch && fact.lifecycleLeaseGeneration == run.leaseGeneration &&
+-			fact.clockDomainId == run.bootId && fact.storedZoneId == manifest.zoneId &&
++			fact.captureConsentEpoch == binding.consentEpoch && SessionManifestIntegrity.hasRetainedLeaseGeneration(run, fact.lifecycleLeaseGeneration) &&
++			fact.clockDomainId == manifest.effectiveBootId && fact.storedZoneId == manifest.zoneId &&
+ 			fact.hasExactStoredDay(retentionLowerBoundMs) &&
+ 			fact.consentEffectStartNanos == consent.effectiveElapsedRealtimeNanos &&
+ 			fact.consentEffectEndNanos == fact.authorizationEffectEndNanos &&
+ 			fact.sessionRunEffectStartNanos == manifest.effectiveElapsedRealtimeNanos &&
+-			fact.sessionRunEffectEndNanos == expectedManifestEnd &&
++			(fact.sessionRunEffectEndNanos == expectedManifestEnd ||
++				fact.sessionRunEffectEndNanos == Long.MAX_VALUE) &&
++			fact.coverageIntervalEndNanos < expectedManifestEnd &&
+ 			fact.deletionEffectStartNanos == run.startedElapsedNanos &&
+-			fact.deletionEffectEndNanos == sessionEnd &&
++			(fact.deletionEffectEndNanos == sessionEnd || fact.deletionEffectEndNanos == Long.MAX_VALUE) &&
++			fact.coverageIntervalEndNanos < sessionEnd &&
+ 			fact.coverageIntervalStartNanos >= manifest.effectiveElapsedRealtimeNanos &&
+ 			(nextManifest == null || fact.coverageIntervalEndNanos < nextManifest.effectiveElapsedRealtimeNanos) &&
+ 			plan.revision == fact.configurationRevision &&
+@@ -1122,6 +1130,7 @@
+ 	val overflow: Boolean,
+ 	val currentProviderRegistrations: List<ProviderRegistrationGenerationEntity> = emptyList(),
+ 	val currentClockDomainId: String? = null,
++	val savedSessionCutoffs: Map<String, SavedSessionCutoff> = emptyMap(),
+ ) {
+ 	companion object {
+ 		fun empty(expansion: CellMembershipExpansion) = CellHistorySnapshot(
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt
+@@ -1,5 +1,7 @@
+ package com.adsamcik.tracker.stats.data.repository
+ 
++import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
++import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
+ import androidx.room.withTransaction
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+ import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+@@ -1337,6 +1339,7 @@
+ 		return ActivityHistorySnapshot(
+ 			expansion = expansion,
+ 			sessions = sessions.associateBy(LogicalTrackingSessionEntity::logicalTrackingId),
++			savedSessionCutoffs = sessions.associate { it.logicalTrackingId to database.savedSessionCutoff(it) },
+ 			runs = runs.associateBy(SourceServiceRunEntity::serviceRunId),
+ 			manifestsByRun = manifests.take(MAX_ACTIVITY_MANIFESTS)
+ 				.groupBy(SessionManifestVersionEntity::serviceRunId),
+@@ -1481,6 +1484,7 @@
+ 	val overflow: Boolean,
+ 	val currentProviderRegistrations: List<ProviderRegistrationGenerationEntity> = emptyList(),
+ 	val currentClockDomainId: String? = null,
++	val savedSessionCutoffs: Map<String, SavedSessionCutoff> = emptyMap(),
+ ) {
+ 	companion object {
+ 		fun empty(expansion: ActivityMembershipExpansion) = ActivityHistorySnapshot(
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt
+@@ -1,5 +1,7 @@
+ package com.adsamcik.tracker.stats.data.repository
+ 
++import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
++import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
+ import androidx.room.withTransaction
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+ import com.adsamcik.tracker.shared.base.database.DeletedCapturedCellSelectionAuthentication
+@@ -1274,6 +1276,7 @@
+ 		return CellHistorySnapshot(
+ 			expansion = expansion,
+ 			sessions = sessions.associateBy(LogicalTrackingSessionEntity::logicalTrackingId),
++			savedSessionCutoffs = sessions.associate { it.logicalTrackingId to database.savedSessionCutoff(it) },
+ 			runs = runs.associateBy(SourceServiceRunEntity::serviceRunId),
+ 			manifestsByRun = manifests.take(MAX_MANIFESTS).groupBy(SessionManifestVersionEntity::serviceRunId),
+ 			sourcesByManifest = sources.take(MAX_MANIFEST_SOURCES).groupBy {
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt
+@@ -1,5 +1,7 @@
+ package com.adsamcik.tracker.stats.data.repository
+ 
++import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
++import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
+ import androidx.room.withTransaction
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+ import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiDao
+@@ -907,6 +909,7 @@
+ 		return WifiHistorySnapshot(
+ 			expansion = expansion,
+ 			sessions = sessions.associateBy(LogicalTrackingSessionEntity::logicalTrackingId),
++			savedSessionCutoffs = sessions.associate { it.logicalTrackingId to database.savedSessionCutoff(it) },
+ 			runs = runs.associateBy(SourceServiceRunEntity::serviceRunId),
+ 			manifestsByRun = manifests.take(MAX_MANIFESTS).groupBy(SessionManifestVersionEntity::serviceRunId),
+ 			sourcesByManifest = sources.take(MAX_MANIFEST_SOURCES).groupBy {
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PortableStepsRoomReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PortableStepsRoomReader.kt
+@@ -1073,7 +1073,7 @@
+ 		dependencies: PortableRoomDependencies,
+ 	): PortableWriterBinding {
+ 		val manifests = dependencies.manifestsByRun[run.serviceRunId].orEmpty()
+-		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)) {
++		if (!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests)) {
+ 			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+ 		}
+ 		val bindings = manifests.mapNotNull { manifest ->
+@@ -1331,7 +1331,7 @@
+ 		run: SourceServiceRunEntity,
+ 		sessionMode: PortableStepsSessionMode,
+ 		ordered: List<SessionManifestVersionEntity>,
+-	): Boolean = SessionManifestIntegrity.hasValidServiceRunTimeline(run, ordered) &&
++	): Boolean = SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, ordered) &&
+ 		ordered.all { manifest -> manifest.sessionMode == sessionMode.name }
+ 
+ 	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
+@@ -1458,8 +1458,8 @@
+ 		val startElapsed = fact.intervalStartElapsedRealtimeNanos ?: return false
+ 		val endElapsed = fact.intervalEndElapsedRealtimeNanos ?: return false
+ 		if (!StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(fact) ||
+-			fact.clockDomainId != run.bootId ||
+-			fact.bootClockDomainId != run.bootId || manifest.effectiveBootId != run.bootId ||
++			fact.clockDomainId != manifest.effectiveBootId ||
++			fact.bootClockDomainId != manifest.effectiveBootId ||
+ 			startElapsed < run.startedElapsedNanos || recordingInterval == null ||
+ 			startElapsed !in recordingInterval || endElapsed !in recordingInterval
+ 		) {
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelector.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelector.kt
+@@ -390,7 +390,7 @@
+ 			}
+ 			sourcesByRevision[manifest.manifestRevision] = sources
+ 		}
+-		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(serviceRun, manifests)) {
++		if (!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(serviceRun, manifests)) {
+ 			return unavailable(
+ 				segment,
+ 				HistoricalCaptureFailure.MANIFEST_INTEGRITY_FAILED,
+@@ -638,7 +638,7 @@
+ 				fact.writerProjectionId != lane.projectionId ||
+ 				fact.writerProjectionVersion != lane.projectionVersion ||
+ 				fact.writerBindingGeneration != lane.bindingGeneration ||
+-				fact.clockDomainId != serviceRun.bootId || manifest.effectiveBootId != serviceRun.bootId ||
++				fact.clockDomainId != manifest.effectiveBootId ||
+ 				fact.windowStartElapsedRealtimeNanos < serviceRun.startedElapsedNanos ||
+ 				fact.windowStartElapsedRealtimeNanos < manifest.effectiveElapsedRealtimeNanos ||
+ 				nextManifest?.effectiveElapsedRealtimeNanos?.let { nextEffective ->
+@@ -684,6 +684,9 @@
+ 		val serviceRunCompleted = serviceRun.completedAtMs != null &&
+ 			serviceRun.state in TERMINAL_SERVICE_RUN_STATES
+ 		val reasons = linkedSetOf<PressureHistoryReason>()
++		if (snapshot.factProof.savedSessionCutoffs[logicalTrackingId]?.clockUnknown == true) {
++			reasons += PressureHistoryReason.STOP_INCOMPLETE
++		}
+ 		if (!captureCoveredWholeRun) reasons += PressureHistoryReason.CAPTURE_NOT_ENABLED_FOR_WHOLE_RUN
+ 		if (!serviceRunCompleted) reasons += PressureHistoryReason.SERVICE_RUN_ACTIVE
+ 		if (retentionCrossesSegment) reasons += PressureHistoryReason.RETENTION_CROSSES_SEGMENT
+@@ -756,6 +759,7 @@
+ 			windows.isEmpty() -> PressureHistoryCoverage.NONE
+ 			materialization == PressureHistoryMaterialization.READY && acquisitionComplete &&
+ 				captureCoveredWholeRun && !retentionCrossesSegment &&
++				PressureHistoryReason.STOP_INCOMPLETE !in reasons &&
+ 				PressureHistoryReason.PARTIAL_FACT !in reasons -> PressureHistoryCoverage.COMPLETE
+ 			else -> PressureHistoryCoverage.PARTIAL
+ 		}
+@@ -1125,7 +1129,7 @@
+ 						!SessionManifestIntegrity.verify(manifest, sources) ||
+ 							!hasValidZone(manifest.zoneId)
+ 					} -> PressureHistoryReason.MANIFEST_INTEGRITY_FAILED
+-					!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) ->
++					!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) ->
+ 						PressureHistoryReason.MANIFEST_INTEGRITY_FAILED
+ 					else -> null
+ 				}
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt
+@@ -1,5 +1,6 @@
+ package com.adsamcik.tracker.stats.data.repository
+ 
++import androidx.sqlite.db.SimpleSQLiteQuery
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
+ import com.adsamcik.tracker.shared.base.database.data.*
+ import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+@@ -34,11 +35,25 @@
+         return qualifyInTransaction(receipts)
+     }
+ 
++    /** Radio enrichment requires accuracy; ordinary saved measurements do not. */
++    suspend fun qualifyInTransaction(receipts: List<LocationAcceptedReceiptEntity>): RetainedLocationContextSnapshot {
++        val saved = qualifySavedInTransaction(receipts)
++        val points = saved.samples.mapNotNull { row ->
++            val latitude = row.sample.latE7?.takeIf { it in -900_000_000..900_000_000 } ?: return@mapNotNull null
++            val longitude = row.sample.lonE7?.takeIf { it in -1_800_000_000..1_800_000_000 } ?: return@mapNotNull null
++            val accuracy = row.sample.hAccM?.takeIf { it.isFinite() && it >= 0f } ?: return@mapNotNull null
++            val receipt = row.receipt
++            LocationContextInput(receipt.sourceEventId, row.scope, receipt.observedElapsedRealtimeNanos,
++                latitude, longitude, accuracy, true, receipt.observedWallTimeMs, receipt.wallTimeUncertaintyMs)
++        }
++        return RetainedLocationContextSnapshot(points, saved.gaps, saved.erasedNativeSampleIds, saved.historyProblem)
++    }
++
+     /** Shared source-owned lookup for range/history readers, using their already bounded candidates. */
+-    suspend fun qualifyInTransaction(receipts: List<LocationAcceptedReceiptEntity>): RetainedLocationContextSnapshot {
+-        if (receipts.size > MAX_CONTEXT_POINTS || receipts.map { it.sampleId }.distinct().size != receipts.size) return limited()
++    suspend fun qualifySavedInTransaction(receipts: List<LocationAcceptedReceiptEntity>): RetainedLocationSavedSnapshot {
++        if (receipts.size > MAX_CONTEXT_POINTS || receipts.map { it.sampleId }.distinct().size != receipts.size) return limitedSaved()
+         val state = database.sourceEvidenceStateDao().get()
+-            ?: return unavailable(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE)
++            ?: return unavailableSaved(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE)
+         val ids = receipts.map { it.sampleId }
+         val samples = ids.chunked(QUERY_CHUNK).flatMap { database.locationSampleDao().byIds(it) }.associateBy { it.id }
+         // Erase authority depends on the exact receipt/sample and dataset, never optional map-context dependencies.
+@@ -55,12 +70,12 @@
+         }.mapTo(linkedSetOf()) { it.sampleId }
+         return try {
+             if (database.locationPurposeDao().savedFileExportAuthorityStamp().endsWith("|1")) {
+-                return unavailable(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE, erasedNativeSampleIds)
++                return unavailableSaved(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE, erasedNativeSampleIds)
+             }
+             val purposes = mutableListOf<LocationSamplePurposeAuthorityEntity>()
+             for (chunk in ids.chunked(QUERY_CHUNK)) {
+                 purposes += database.locationPurposeDao().contextPurposes(chunk, MAX_CONTEXT_DEPENDENCIES - purposes.size + 1)
+-                if (purposes.size > MAX_CONTEXT_DEPENDENCIES) return limited(erasedNativeSampleIds)
++                if (purposes.size > MAX_CONTEXT_DEPENDENCIES) return limitedSaved(erasedNativeSampleIds)
+             }
+             val policyIds = purposes.map { it.sourcePolicyRevision }.distinct()
+             val policies = policyIds.chunked(QUERY_CHUNK).flatMap {
+@@ -72,11 +87,27 @@
+                 }
+             }.associateBy { it.purpose to it.epoch }
+             val runs = purposes.mapNotNull { it.serviceRunId }.distinct()
+-            if (runs.size > MAX_CONTEXT_CLOCKS) return limited(erasedNativeSampleIds)
++            if (runs.size > MAX_CONTEXT_CLOCKS) return limitedSaved(erasedNativeSampleIds)
+             val runRows = if (runs.isEmpty()) emptyList() else database.trackingHistoryReadDao().serviceRuns(runs)
+-            val manifests = if (runs.isEmpty()) emptyList() else database.trackingHistoryReadDao().manifests(runs, MAX_CONTEXT_DEPENDENCIES + 1)
+-            val sources = if (runs.isEmpty()) emptyList() else database.trackingHistoryReadDao().manifestSources(runs, MAX_CONTEXT_DEPENDENCIES + 1)
+-            if (manifests.size > MAX_CONTEXT_DEPENDENCIES || sources.size > MAX_CONTEXT_DEPENDENCIES) return limited(erasedNativeSampleIds)
++            // Retained grants name exact immutable revisions. Other quality changes in the same run
++            // are not dependencies of these points and must not make a long run disappear.
++            val keys = purposes.filter { it.purpose == CAPTURE }.map { purpose ->
++                RetainedLocationManifestKey(requireNotNull(purpose.logicalTrackingId),
++                    requireNotNull(purpose.serviceRunId), requireNotNull(purpose.sessionManifestRevision))
++            }.distinct()
++            val manifests = mutableListOf<SessionManifestVersionEntity>()
++            val sources = mutableListOf<SessionManifestSourceEntity>()
++            for (chunk in keys.chunked(MANIFEST_QUERY_CHUNK)) {
++                manifests += database.trackingHistoryReadDao().retainedLocationManifests(manifestQuery(chunk,
++                    MAX_CONTEXT_DEPENDENCIES - manifests.size + 1))
++                if (manifests.size > MAX_CONTEXT_DEPENDENCIES) return limitedSaved(erasedNativeSampleIds)
++            }
++            // A bad run reference must not load the same member twice and poison a valid sibling.
++            for (chunk in keys.distinctBy { it.logicalId to it.revision }.chunked(MANIFEST_QUERY_CHUNK)) {
++                sources += database.trackingHistoryReadDao().retainedLocationManifestSources(manifestSourceQuery(chunk,
++                    MAX_CONTEXT_DEPENDENCIES - sources.size + 1))
++                if (sources.size > MAX_CONTEXT_DEPENDENCIES) return limitedSaved(erasedNativeSampleIds)
++            }
+             val runById = runRows.associateBy { it.serviceRunId }
+             val manifestById = manifests.associateBy { it.serviceRunId to it.manifestRevision }
+             val sourcesById = sources.groupBy { it.logicalTrackingId to it.manifestRevision }
+@@ -84,14 +115,14 @@
+             val fences = digests.chunked(QUERY_CHUNK).flatMap {
+                 database.sourceDeletionFenceDao().contextFences(LOCATION, CAPTURE, it, MAX_CONTEXT_DEPENDENCIES + 1)
+             }
+-            if (fences.size > MAX_CONTEXT_DEPENDENCIES) return limited(erasedNativeSampleIds)
++            if (fences.size > MAX_CONTEXT_DEPENDENCIES) return limitedSaved(erasedNativeSampleIds)
+             val fenced = fences.map { it.scopeIdentityDigest }.toSet()
+             val revisions = purposes.mapNotNull { it.retentionApprovalRevision }.distinct()
+             val approvals = revisions.chunked(QUERY_CHUNK).flatMap {
+                 database.locationPurposeDao().contextRetentionApprovals(it, MAX_CONTEXT_DEPENDENCIES + 1)
+             }.associateBy { it.approvalRevision }
+             val bySample = purposes.groupBy { it.sampleId }
+-            val accepted = mutableListOf<LocationContextInput>()
++            val accepted = mutableListOf<QualifiedRetainedLocationSample>()
+             val gaps = mutableSetOf<RadioLocationContextGap>()
+             for (receipt in receipts) {
+                 val sample = samples[receipt.sampleId]
+@@ -101,9 +132,6 @@
+                 }
+                 if (sample.id in erasedNativeSampleIds) continue
+                 if (state.retainedFromMs?.let { receipt.observedWallTimeMs - receipt.wallTimeUncertaintyMs < it } == true) continue
+-                val latitude = sample.latE7 ?: continue
+-                val longitude = sample.lonE7 ?: continue
+-                val accuracy = sample.hAccM?.toFloat()?.takeIf { it.isFinite() && it >= 0f } ?: continue
+                 for (purpose in bySample[receipt.sampleId].orEmpty()) {
+                     if (!LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(purpose, receipt)) {
+                         gaps += RadioLocationContextGap.LOCATION_PROVENANCE_UNVERIFIABLE
+@@ -124,7 +152,7 @@
+                         val members = manifest?.let { sourcesById[it.logicalTrackingId to it.manifestRevision] }.orEmpty()
+                         if (run == null || manifest == null || !SessionManifestIntegrity.verify(manifest, members) ||
+                             run.logicalTrackingId != purpose.logicalTrackingId || run.sessionSegmentId != purpose.sessionSegmentId ||
+-                            run.leaseGeneration != purpose.lifecycleLeaseGeneration || run.bootId != receipt.bootId ||
++                            !SessionManifestIntegrity.hasRetainedLeaseGeneration(run, purpose.lifecycleLeaseGeneration) ||
+                             manifest.sourcePolicyRevision != purpose.sourcePolicyRevision || manifest.effectiveBootId != receipt.bootId ||
+                             manifest.effectiveElapsedRealtimeNanos > receipt.observedElapsedRealtimeNanos ||
+                             members.none { it.sourceKind == LOCATION && it.purpose == CAPTURE && it.persistenceEligible && it.consentEpoch == purpose.consentEpoch } ||
+@@ -146,22 +174,41 @@
+                         }
+                         RadioContextScope.Ambient(AmbientContextScope(receipt.bootId, receipt.clockDomainId, receipt.collectedDataEpoch))
+                     }
+-                    accepted += LocationContextInput(receipt.sourceEventId, scope, receipt.observedElapsedRealtimeNanos,
+-                        latitude, longitude, accuracy, true, receipt.observedWallTimeMs, receipt.wallTimeUncertaintyMs)
++                    accepted += QualifiedRetainedLocationSample(sample, receipt, scope)
+                 }
+             }
+-            RetainedLocationContextSnapshot(accepted.distinctBy { it.sourceEventId to it.scope }, gaps,
++            RetainedLocationSavedSnapshot(accepted.distinctBy { it.receipt.sourceEventId to it.scope }, gaps,
+                 erasedNativeSampleIds)
+         } catch (cancelled: CancellationException) {
+             throw cancelled
+         } catch (_: android.database.sqlite.SQLiteException) {
+-            unavailable(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE, erasedNativeSampleIds,
++            unavailableSaved(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE, erasedNativeSampleIds,
+                 HistoryProblemReason.STORAGE_UNAVAILABLE)
+         } catch (_: RuntimeException) {
+-            unavailable(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE, erasedNativeSampleIds,
++            unavailableSaved(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE, erasedNativeSampleIds,
+                 HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+         }
+     }
++
++    private fun manifestQuery(keys: List<RetainedLocationManifestKey>, limit: Int): SimpleSQLiteQuery {
++        val arguments = keys.flatMap { listOf<Any>(it.logicalId, it.runId, it.revision) } + limit
++        val where = keys.joinToString(" OR ") { "(logical_tracking_id = ? AND service_run_id = ? AND manifest_revision = ?)" }
++        return SimpleSQLiteQuery("SELECT * FROM session_manifest_version WHERE $where " +
++            "ORDER BY service_run_id, manifest_revision LIMIT ?", arguments.toTypedArray())
++    }
++    private fun manifestSourceQuery(keys: List<RetainedLocationManifestKey>, limit: Int): SimpleSQLiteQuery {
++        val selected = keys.map { it.logicalId to it.revision }.distinct()
++        val arguments = selected.flatMap { listOf<Any>(it.first, it.second) } + limit
++        val where = selected.joinToString(" OR ") { "(logical_tracking_id = ? AND manifest_revision = ?)" }
++        return SimpleSQLiteQuery("SELECT * FROM session_manifest_source WHERE $where " +
++            "ORDER BY logical_tracking_id, manifest_revision, purpose, source_kind LIMIT ?", arguments.toTypedArray())
++    }
++
++    private fun limitedSaved(erasedNativeSampleIds: Set<Long> = emptySet()) =
++        unavailableSaved(RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT, erasedNativeSampleIds)
++    private fun unavailableSaved(gap: RadioLocationContextGap, erasedNativeSampleIds: Set<Long> = emptySet(),
++        historyProblem: HistoryProblemReason? = null) =
++        RetainedLocationSavedSnapshot(emptyList(), setOf(gap), erasedNativeSampleIds, historyProblem)
+ 
+     private fun limited(erasedNativeSampleIds: Set<Long> = emptySet()) =
+         unavailable(RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT, erasedNativeSampleIds)
+@@ -170,6 +217,15 @@
+         RetainedLocationContextSnapshot(emptyList(), setOf(gap), erasedNativeSampleIds, historyProblem)
+ }
+ 
++/** Original saved content and one independently validated historical purpose; no acquisition permission. */
++internal data class QualifiedRetainedLocationSample(val sample: LocationSample,
++    val receipt: LocationAcceptedReceiptEntity, val scope: RadioContextScope)
++private data class RetainedLocationManifestKey(val logicalId: String, val runId: String, val revision: Long)
++
++internal data class RetainedLocationSavedSnapshot(val samples: List<QualifiedRetainedLocationSample>,
++    val gaps: Set<RadioLocationContextGap> = emptySet(), val erasedNativeSampleIds: Set<Long> = emptySet(),
++    val historyProblem: HistoryProblemReason? = null)
++
+ internal data class RetainedLocationContextSnapshot(val points: List<LocationContextInput>,
+     val gaps: Set<RadioLocationContextGap> = emptySet(),
+     /** Exact canonical native samples covered by authenticated dataset erase authority; no imported authority. */
+@@ -187,6 +243,7 @@
+ internal const val MAX_CONTEXT_POINTS = 4_096
+ internal const val MAX_CONTEXT_DEPENDENCIES = 16_384
+ internal const val QUERY_CHUNK = 400
++private const val MANIFEST_QUERY_CHUNK = 100 // At most 301 bind values, below Android's 999-variable floor.
+ private const val MAX_CONTEXT_CLOCKS = 100
+ private const val CONTEXT_MARGIN_NANOS = 60_000_000_000L
+ private const val LOCATION = SourceDestinationOwnerEntity.SOURCE_LOCATION
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAllDaySourceStatusQuery.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAllDaySourceStatusQuery.kt
+@@ -92,8 +92,8 @@
+ 	internal suspend fun readCellHistoryInTransaction(request: AmbientCellReadRequest): AmbientCellReadResult =
+ 		cell.readObservationWindowInTransaction(request)
+ 
+-	internal suspend fun qualifyLocationInTransaction(receipts: List<LocationAcceptedReceiptEntity>): RetainedLocationContextSnapshot =
+-		location.qualifyInTransaction(receipts)
++	internal suspend fun qualifyLocationInTransaction(receipts: List<LocationAcceptedReceiptEntity>): RetainedLocationSavedSnapshot =
++		location.qualifySavedInTransaction(receipts)
+ 
+ 	private suspend fun readSteps(request: AllDaySourceStatusRequest.Steps, evidence: SourceEvidenceState,
+ 		snapshot: TrackingHistoryReadSnapshot): AllDaySourceStatusRead {
+@@ -162,9 +162,12 @@
+ 			request.window.toExclusiveMs, request.limit + 1)
+ 		if (receipts.size > request.limit) return unavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
+ 		val read = qualifyLocationInTransaction(receipts)
+-		return AllDaySourceStatusRead.Location(snapshot, read.points.filter { it.scope is RadioContextScope.Ambient }
+-			.distinctBy { it.sourceEventId }.map { point ->
+-				AllDayLocationPointStatus(point.sourceEventId, AllDayReadingTime(point.observedWallTimeMs, point.wallTimeUncertaintyMs))
++		return AllDaySourceStatusRead.Location(snapshot, read.samples.filter { it.scope is RadioContextScope.Ambient &&
++			it.sample.latE7?.let { value -> value in -900_000_000..900_000_000 } == true &&
++			it.sample.lonE7?.let { value -> value in -1_800_000_000..1_800_000_000 } == true }
++			.distinctBy { it.receipt.sourceEventId }.map { point ->
++				AllDayLocationPointStatus(point.receipt.sourceEventId,
++					AllDayReadingTime(point.receipt.observedWallTimeMs, point.receipt.wallTimeUncertaintyMs))
+ 			}, read.gaps, read.historyProblem)
+ 	}
+ 
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt
+@@ -0,0 +1,193 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import androidx.room.withTransaction
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow
++import com.adsamcik.tracker.shared.base.database.data.LocationAcceptedReceiptEntity
++import com.adsamcik.tracker.shared.base.di.IoDispatcher
++import com.adsamcik.tracker.stats.api.repository.*
++import javax.inject.Inject
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.CoroutineDispatcher
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.withContext
++
++/**
++ * Read-only native saved measurements. One Room snapshot, keyset pages and constant-memory distance.
++ * Qualification batches are finite; the total point count is not capped. This reader has no cache,
++ * provider, projection, repair or correction writer. The approved effective correction reader is a
++ * separate assembly prerequisite; original rows must not be changed to bypass their receipt.
++ */
++internal class SavedLocationSummaryReader @Inject constructor(
++    private val database: AppDatabase,
++    @IoDispatcher private val io: CoroutineDispatcher,
++) {
++    private val retained = RetainedLocationContextReader(database)
++
++    suspend fun readSession(segmentId: Long): SavedLocationSummaryRead {
++        require(segmentId > 0L)
++        return read { readSessionInTransaction(segmentId, it) }
++    }
++
++    suspend fun readWindow(window: HistoryObservationWindow): SavedLocationSummaryRead =
++        read { readWindowInTransaction(window, it) }
++
++    /** The caller must own the same transaction and source-evidence snapshot as its other products. */
++    internal suspend fun readSessionInTransaction(segmentId: Long,
++        snapshot: TrackingHistoryReadSnapshot): SavedLocationSummaryRead {
++        val segment = database.trackingHistoryReadDao().segments(listOf(segmentId)).singleOrNull()
++            ?: return SavedLocationSummaryRead.NotFound
++        val logicalId = segment.logicalTrackingId
++        val runId = segment.serviceRunId
++        if (logicalId.isNullOrBlank() || runId.isNullOrBlank()) {
++            // Older/imported ordinary history remains readable through its existing compatibility reader.
++            return SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++        }
++        return readPages(SavedLocationSummarySelection.Session(segmentId), snapshot,
++            scopeMatches = { scope -> (scope as? RadioContextScope.Session)?.owner?.let {
++                it.sessionSegmentId == segmentId && it.logicalTrackingId == logicalId && it.serviceRunId == runId
++            } == true }, nextPage = { after ->
++                val rows = database.locationPurposeDao().savedLogicalTripPointPage(logicalId, listOf(runId),
++                    after?.timeMs, after?.sampleId, POINT_PAGE_SIZE)
++                val ids = rows.map { it.sample.id }
++                val receipts = database.locationPurposeDao().contextReceiptsForSamples(ids, ids.size + 1)
++                if (ids.distinct().size != ids.size || receipts.map { it.sampleId }.toSet() != ids.toSet() || receipts.size != ids.size) {
++                    throw InvalidSavedLocationPage()
++                }
++                val byId = receipts.associateBy { it.sampleId }
++                rows.map { row -> SavedLocationCandidate(requireNotNull(byId[row.sample.id]), row.sample.timeMs) }
++            })
++    }
++
++    /** Any independently retained native purpose can contribute to the same measured-date window. */
++    internal suspend fun readWindowInTransaction(window: HistoryObservationWindow,
++        snapshot: TrackingHistoryReadSnapshot): SavedLocationSummaryRead =
++        readPages(SavedLocationSummarySelection.Window(window), snapshot, scopeMatches = { true },
++            nextPage = { after -> database.locationPurposeDao().savedReceiptPageOverWindow(window.fromInclusiveMs,
++                window.toExclusiveMs, after?.timeMs, after?.sampleId, POINT_PAGE_SIZE)
++                .map { SavedLocationCandidate(it, it.observedWallTimeMs) } })
++
++    private suspend fun read(block: suspend (TrackingHistoryReadSnapshot) -> SavedLocationSummaryRead): SavedLocationSummaryRead =
++        withContext(io) {
++            currentCoroutineContext().ensureActive()
++            if (!database.isOpen) return@withContext SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
++            try {
++                database.withTransaction {
++                    val state = database.sourceEvidenceStateDao().get()
++                    if (state == null || !state.hasValidRangeShape()) {
++                        SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++                    } else block(TrackingHistoryReadSnapshot(state.collectedDataEpoch, state.revision))
++                }
++            } catch (cancelled: CancellationException) {
++                throw cancelled
++            } catch (_: android.database.sqlite.SQLiteException) {
++                SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
++            } catch (_: RuntimeException) {
++                SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++            }
++        }
++
++    private suspend fun readPages(selection: SavedLocationSummarySelection, snapshot: TrackingHistoryReadSnapshot,
++        scopeMatches: (RadioContextScope) -> Boolean,
++        nextPage: suspend (SavedLocationPosition?) -> List<SavedLocationCandidate>): SavedLocationSummaryRead {
++        val accumulator = SavedTripDistanceAccumulator()
++        var count = 0L
++        var latest: SavedLocationFix? = null
++        var after: SavedLocationPosition? = null
++        var partial = false
++        val gaps = linkedSetOf<RadioLocationContextGap>()
++        fun result(problem: HistoryProblemReason? = null) = SavedLocationSummaryRead.Snapshot(selection, snapshot,
++            SavedLocationSummary(count, latest, accumulator.measuredMeters?.takeIf { it.isFinite() },
++                partial || accumulator.hasDisconnectedSections || gaps.isNotEmpty() || problem != null, gaps.toSet()), problem)
++        try {
++            val state = database.sourceEvidenceStateDao().get()
++            if (state == null || !state.hasValidRangeShape() ||
++                state.collectedDataEpoch != snapshot.collectedDataEpoch || state.revision != snapshot.sourceEvidenceRevision) {
++                return SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++            }
++            while (true) {
++                currentCoroutineContext().ensureActive()
++                val page = nextPage(after)
++                if (page.size > POINT_PAGE_SIZE || page.zipWithNext().any { (left, right) -> left.position >= right.position } ||
++                    after?.let { cursor -> page.firstOrNull()?.position?.let { it <= cursor } } == true) {
++                    throw InvalidSavedLocationPage()
++                }
++                if (page.isEmpty()) return result()
++                val accepted = mutableMapOf<Long, QualifiedRetainedLocationSample>()
++                var pageProblem: HistoryProblemReason? = null
++                suspend fun qualify(receipts: List<LocationAcceptedReceiptEntity>) {
++                    currentCoroutineContext().ensureActive()
++                    val read = retained.qualifySavedInTransaction(receipts)
++                    // A busy window can contain many independent runs. Split only the bounded batch,
++                    // never discard the whole selection because optional dependencies exceed one call.
++                    if (RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in read.gaps && receipts.size > 1) {
++                        val middle = receipts.size / 2
++                        qualify(receipts.subList(0, middle))
++                        qualify(receipts.subList(middle, receipts.size))
++                    } else {
++                        gaps += read.gaps
++                        read.samples.filter { scopeMatches(it.scope) }.forEach { accepted.putIfAbsent(it.sample.id, it) }
++                        if (read.historyProblem != null) pageProblem = read.historyProblem
++                        if (RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in read.gaps) {
++                            pageProblem = HistoryProblemReason.DEPENDENCY_OVERFLOW
++                        }
++                    }
++                }
++                qualify(page.map { it.receipt })
++                for (candidate in page) {
++                    currentCoroutineContext().ensureActive()
++                    val row = accepted[candidate.receipt.sampleId]
++                    if (row == null) {
++                        accumulator.breakContinuity()
++                        partial = true
++                        continue
++                    }
++                    val sample = row.sample
++                    accumulator.add(LocationPathSampleRow(sample,
++                        row.receipt.sourceInstanceId + ":" + row.receipt.registrationGeneration,
++                        row.receipt.sourceSequence, row.scope is RadioContextScope.Ambient))
++                    val fix = row.toSavedFix()
++                    if (fix == null) {
++                        partial = true
++                    } else {
++                        count = Math.addExact(count, 1L)
++                        latest = fix
++                    }
++                }
++                if (pageProblem != null) return result(pageProblem)
++                if (accumulator.measuredMeters?.isFinite() == false) {
++                    return result(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++                }
++                after = page.last().position
++                if (page.size < POINT_PAGE_SIZE) return result()
++            }
++        } catch (cancelled: CancellationException) {
++            throw cancelled
++        } catch (_: android.database.sqlite.SQLiteException) {
++            return result(HistoryProblemReason.STORAGE_UNAVAILABLE)
++        } catch (_: RuntimeException) {
++            return result(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++        }
++    }
++
++    private fun QualifiedRetainedLocationSample.toSavedFix(): SavedLocationFix? {
++        val latitude = sample.latE7?.takeIf { it in -900_000_000..900_000_000 } ?: return null
++        val longitude = sample.lonE7?.takeIf { it in -1_800_000_000..1_800_000_000 } ?: return null
++        return SavedLocationFix(sample.id, sample.timeMs, receipt.wallTimeUncertaintyMs, latitude, longitude,
++            sample.speedMps.validNonNegative(), sample.speedAccuracyMps.validNonNegative(), sample.hAccM.validNonNegative(),
++            sample.altitudeM?.takeIf { it.isFinite() }, sample.altitudeDatum, sample.altitudeSource, sample.vAccM.validNonNegative())
++    }
++
++    private fun Float?.validNonNegative(): Float? = this?.takeIf { it.isFinite() && it >= 0f }
++    private class InvalidSavedLocationPage : IllegalStateException("Invalid saved Location page")
++    private companion object { const val POINT_PAGE_SIZE = 256 }
++}
++
++private data class SavedLocationCandidate(val receipt: LocationAcceptedReceiptEntity, val timeMs: Long) {
++    val position: SavedLocationPosition get() = SavedLocationPosition(timeMs, receipt.sampleId)
++}
++private data class SavedLocationPosition(val timeMs: Long, val sampleId: Long) : Comparable<SavedLocationPosition> {
++    override fun compareTo(other: SavedLocationPosition): Int = timeMs.compareTo(other.timeMs).takeIf { it != 0 }
++        ?: sampleId.compareTo(other.sampleId)
++}
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt
+@@ -182,17 +182,26 @@
+ 	private var previous: LocationPathSampleRow? = null
+ 	private var totalMeters = 0.0
+ 	private var hasMeasuredPair = false
++	var hasDisconnectedSections: Boolean = false
++		private set
+ 	val measuredMeters: Double? get() = totalMeters.takeIf { hasMeasuredPair }
++
++	/** A rejected or erased candidate cannot become a bridge between its valid neighbours. */
++	fun breakContinuity() {
++		if (previous != null) hasDisconnectedSections = true
++		previous = null
++	}
+ 
+ 	fun add(row: LocationPathSampleRow) {
+ 		val point = row.sample
+ 		val lat = point.latE7
+ 		val lon = point.lonE7
+ 		if (lat == null || lon == null || lat !in -900_000_000..900_000_000 || lon !in -1_800_000_000..1_800_000_000 || point.timeMs < 0L) {
+-			previous = null
++			breakContinuity()
+ 			return
+ 		}
+ 		val old = previous
++		if (old != null && !continuous(old, row)) hasDisconnectedSections = true
+ 		if (old != null && continuous(old, row)) {
+ 			totalMeters += Location.distance(requireNotNull(old.sample.latE7) / 1e7,
+ 				requireNotNull(old.sample.lonE7) / 1e7, lat / 1e7, lon / 1e7, LengthUnit.Meter)
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelector.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelector.kt
+@@ -180,7 +180,7 @@
+ 			}
+ 			sourcesByRevision[manifest.manifestRevision] = sources
+ 		}
+-		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(serviceRun, manifests)) {
++		if (!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(serviceRun, manifests)) {
+ 			return unavailableEvidence(
+ 				segment,
+ 				HistoricalCaptureFailure.MANIFEST_INTEGRITY_FAILED,
+@@ -415,9 +415,8 @@
+ 				scope.writerProjectionId != projectionId ||
+ 				scope.writerProjectionVersion != projectionVersion ||
+ 				!StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(scope) ||
+-				scope.clockDomainId != serviceRun.bootId ||
+-				scope.bootClockDomainId != serviceRun.bootId ||
+-				manifest.effectiveBootId != serviceRun.bootId ||
++				scope.clockDomainId != manifest.effectiveBootId ||
++				scope.bootClockDomainId != manifest.effectiveBootId ||
+ 				startElapsed == null || endElapsed == null ||
+ 				startElapsed < serviceRun.startedElapsedNanos ||
+ 				recordingInterval == null || startElapsed !in recordingInterval ||
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryNativeReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryNativeReader.kt
+@@ -236,7 +236,7 @@
+                 proofProblem = HistoryProblemReason.DEPENDENCY_OVERFLOW
+                 null
+             } else try {
+-                qualifiedLocation.qualifyInTransaction(receipts)
++                qualifiedLocation.qualifySavedInTransaction(receipts)
+             } catch (cancelled: CancellationException) {
+                 throw cancelled
+             } catch (_: android.database.sqlite.SQLiteException) {
+@@ -246,9 +246,8 @@
+                 proofProblem = HistoryProblemReason.INTEGRITY_UNAVAILABLE
+                 null
+             }
+-            val sourceSamples = receipts.associate { it.sourceEventId to it.sampleId }
+-            val qualifiedBySample = qualified?.points.orEmpty().filter {
+-                it.scope is RadioContextScope.Session }.groupBy { sourceSamples[it.sourceEventId] }
++            val qualifiedBySample = qualified?.samples.orEmpty().filter {
++                it.scope is RadioContextScope.Session }.groupBy { it.sample.id }
+             val groups = candidates.associate { candidate ->
+                 val points = probe.filter { point ->
+                     if (candidate.category == "legacy") {
+@@ -260,14 +259,14 @@
+                     }
+                 }.mapNotNull { point ->
+                     val sample = point.sample
+-                    val latitude = sample.latE7 ?: return@mapNotNull null
+-                    val longitude = sample.lonE7 ?: return@mapNotNull null
++                    val latitude = sample.latE7?.takeIf { it in -900_000_000..900_000_000 } ?: return@mapNotNull null
++                    val longitude = sample.lonE7?.takeIf { it in -1_800_000_000..1_800_000_000 } ?: return@mapNotNull null
+                     val publicPoint = HistoryLocationPoint(sample.timeMs, latitude, longitude,
+-                        sample.hAccM, point.continuityId, sample.id)
++                        sample.hAccM?.takeIf { it.isFinite() && it >= 0f }, point.continuityId, sample.id)
+                     val nativeProof = candidate.category == "native" && qualifiedBySample[sample.id].orEmpty().any {
+                         val owner = (it.scope as RadioContextScope.Session).owner
+                         owner.logicalTrackingId == candidate.identity.removePrefix("logical:") &&
+-                            it.observedWallTimeMs == sample.timeMs && it.latitudeE7 == latitude && it.longitudeE7 == longitude }
++                            it.sample.timeMs == sample.timeMs && it.sample.latE7 == latitude && it.sample.lonE7 == longitude }
+                     publicPoint to if (nativeProof) HistoryLocationCoverage.QUALIFIED else HistoryLocationCoverage.LEGACY_UNVERIFIABLE
+                 }
+                 val sections = points.groupBy { it.second }.map { (coverage, values) ->
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt
+@@ -455,34 +455,32 @@
+                     HistoryOrigin.LOCAL in range.origins, HistoryOrigin.IMPORTED in range.origins, HistoryOrigin.LEGACY in range.origins)
+                 if (points.size > MAX_DAY_FACTS) throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
+                 var qualificationProblem: HistoryProblemReason? = null
+-                var sourceSamples = emptyMap<String, Long>()
+                 val qualified = try {
+                     val receipts = points.map { it.point.sample.id }.chunked(64).flatMap { ids ->
+                         currentCoroutineContext().ensureActive()
+                         database.locationPurposeDao().contextReceiptsForSamples(ids, ids.size + 1).also {
+                             if (it.size > ids.size) throw RangeHistoryUnavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW) }
+                     }
+-                    sourceSamples = receipts.associate { it.sourceEventId to it.sampleId }
+                     allDaySources.qualifyLocationInTransaction(receipts)
+                 }
+                 catch (cancelled: CancellationException) { throw cancelled }
+                 catch (failure: RangeHistoryUnavailable) {
+                     qualificationProblem = failure.reason
+-                    RetainedLocationContextSnapshot(emptyList())
++                    RetainedLocationSavedSnapshot(emptyList())
+                 }
+                 catch (_: android.database.sqlite.SQLiteException) {
+                     qualificationProblem = HistoryProblemReason.STORAGE_UNAVAILABLE
+-                    RetainedLocationContextSnapshot(emptyList())
++                    RetainedLocationSavedSnapshot(emptyList())
+                 } catch (_: RuntimeException) {
+                     qualificationProblem = HistoryProblemReason.INTEGRITY_UNAVAILABLE
+-                    RetainedLocationContextSnapshot(emptyList())
+-                }
+-                val qualifiedBySample = qualified.points.filter { it.scope is com.adsamcik.tracker.stats.api.repository.RadioContextScope.Ambient }
+-                    .groupBy { sourceSamples[it.sourceEventId] }
++                    RetainedLocationSavedSnapshot(emptyList())
++                }
++                val qualifiedBySample = qualified.samples.filter { it.scope is com.adsamcik.tracker.stats.api.repository.RadioContextScope.Ambient }
++                    .groupBy { it.sample.id }
+                 fun hasQualifiedAmbient(row: LocationHistoryDayRow): Boolean {
+                     val sample = row.point.sample
+-                    return qualifiedBySample[sample.id].orEmpty().any { it.observedWallTimeMs == sample.timeMs &&
+-                        it.latitudeE7 == sample.latE7 && it.longitudeE7 == sample.lonE7 }
++                    return qualifiedBySample[sample.id].orEmpty().any { it.sample.timeMs == sample.timeMs &&
++                        it.sample.latE7 == sample.latE7 && it.sample.lonE7 == sample.lonE7 }
+                 }
+                 candidates.forEach { candidate ->
+                     val display = window(candidate)
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryComposer.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryComposer.kt
+@@ -1,5 +1,6 @@
+ package com.adsamcik.tracker.stats.data.repository
+ 
++import com.adsamcik.tracker.shared.base.database.SavedSessionCutoff
+ import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
+ import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthenticator
+ import com.adsamcik.tracker.shared.base.database.RadioPurposeItems
+@@ -374,6 +375,9 @@
+ 		)).map { (fact, aggregate) -> toObservation(fact, aggregate, snapshot) } }
+ 			.getOrElse { return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED) }
+ 		val causes = linkedSetOf<WifiHistoryCause>()
++		if (snapshot.savedSessionCutoffs[logicalId]?.clockUnknown == true) {
++			causes += WifiHistoryCause.ACQUISITION_INCOMPLETE
++		}
+ 		if (isActive(session, runs)) causes += WifiHistoryCause.SESSION_ACTIVE
+ 		if (lane.contiguousAdmissionOrdinal < (targetOrdinal ?: lane.activationOrdinal)) {
+ 			causes += WifiHistoryCause.MATERIALIZATION_BEHIND
+@@ -423,7 +427,7 @@
+ 		manifestsByRun.values.map { it.map(SessionManifestVersionEntity::manifestRevision) },
+ 	) && runs.all { run ->
+ 		val manifests = manifestsByRun[run.serviceRunId].orEmpty()
+-		SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) && manifests.all { manifest ->
++		SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) && manifests.all { manifest ->
+ 			manifest.logicalTrackingId == logicalId && manifest.serviceRunId == run.serviceRunId &&
+ 				SessionManifestIntegrity.verify(manifest,
+ 					snapshot.sourcesByManifest[WifiManifestKey(logicalId, manifest.manifestRevision)].orEmpty())
+@@ -576,7 +580,8 @@
+ 			(purposeItems != null || authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L) &&
+ 			LOWERCASE_SHA_256.matches(authorizationFingerprint.orEmpty()) && (payloadVersion == WIFI_WAL_PAYLOAD_VERSION || planAttribution == CAPTURED_PLAN_ORDINAL) &&
+ 			clockDomainId == manifest.effectiveBootId && policyRevision == manifest.sourcePolicyRevision &&
+-			consentEpoch == binding.consentEpoch && lease == snapshot.runs[ownedRun]?.leaseGeneration &&
++			consentEpoch == binding.consentEpoch && snapshot.runs[ownedRun]?.let {
++				SessionManifestIntegrity.hasRetainedLeaseGeneration(it, lease) } == true &&
+ 			capturedCollectedDataEpoch == evidence.collectedDataEpoch &&
+ 			admissionOrdinal > evidence.deletedSourceEventHighWaterOrdinal && deliveryUnitIndex == 0 &&
+ 			deliveryUnitCount == 1 && LOWERCASE_SHA_256.matches(deliveryIdentity.orEmpty()) &&
+@@ -778,8 +783,9 @@
+ 			snapshot.childrenByRevision[fact.logicalFactId to fact.semanticRevision].orEmpty()
+ 				.any { it.itemIndex !in requireNotNull(qualifiedIndexes) })) return false
+ 		val session = snapshot.sessions[fact.logicalTrackingId] ?: return false
+-		val sessionEnd = session.cutoffElapsedNanos.takeIf { session.lifecycleBootId == fact.clockDomainId }
+-			?: Long.MAX_VALUE
++		val cutoff = snapshot.savedSessionCutoffs[fact.logicalTrackingId]
++			?: SavedSessionCutoff(session.lifecycleBootId, session.cutoffElapsedNanos)
++		val sessionEnd = cutoff.retainedEnd(fact.clockDomainId, fact.sessionRunEffectEndNanos)
+ 		val consent = snapshot.consents[fact.captureConsentEpoch] ?: return false
+ 		val expectedManifestEnd = nextManifest?.effectiveElapsedRealtimeNanos
+ 			?: minOf(sessionEnd, providerEnd, fact.authorizationEffectEndNanos)
+@@ -804,13 +810,15 @@
+ 			fact.sessionSegmentId == run.sessionSegmentId && fact.logicalTrackingId == run.logicalTrackingId &&
+ 			fact.manifestRevision == manifest.manifestRevision &&
+ 			fact.sourcePolicyRevision == manifest.sourcePolicyRevision &&
+-			fact.captureConsentEpoch == binding.consentEpoch && fact.lifecycleLeaseGeneration == run.leaseGeneration &&
+-			fact.clockDomainId == run.bootId && fact.storedZoneId == manifest.zoneId &&
++			fact.captureConsentEpoch == binding.consentEpoch && SessionManifestIntegrity.hasRetainedLeaseGeneration(run, fact.lifecycleLeaseGeneration) &&
++			fact.clockDomainId == manifest.effectiveBootId && fact.storedZoneId == manifest.zoneId &&
+ 			fact.capturedSourceCodes == canonicalSourceCodes(sources.first) &&
+ 			fact.controlSourceCodes == canonicalSourceCodes(sources.second) && WIFI_SOURCE in sources.first &&
+ 			WIFI_SOURCE !in sources.second &&
+ 			fact.sessionRunEffectStartNanos == manifest.effectiveElapsedRealtimeNanos &&
+-			fact.sessionRunEffectEndNanos == expectedManifestEnd &&
++			(fact.sessionRunEffectEndNanos == expectedManifestEnd ||
++				fact.sessionRunEffectEndNanos == Long.MAX_VALUE) &&
++			fact.coverageIntervalEndNanos < expectedManifestEnd &&
+ 			fact.consentEffectIsExact(consent, qualifiedStart) &&
+ 			qualifiedStart >= manifest.effectiveElapsedRealtimeNanos &&
+ 			(nextManifest == null || (if (perReading) fact.coverageIntervalEndNanos else
+@@ -1359,6 +1367,7 @@
+ 	val terminalFailures: List<SourceProjectionFailureEntity>,
+ 	val evidenceState: SourceEvidenceState?,
+ 	val overflow: Boolean,
++	val savedSessionCutoffs: Map<String, SavedSessionCutoff> = emptyMap(),
+ ) {
+ 	companion object {
+ 		fun empty(expansion: WifiMembershipExpansion) = WifiHistorySnapshot(
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt
+@@ -120,6 +120,45 @@
+ 	fun tearDown() = database.close()
+ 
+ 	@Test
++	fun `saved Activity survives later lifecycle generations and retains its original elapsed clock`() = runTest {
++		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
++		persistFixture(original)
++		val repository = activityRepository(testScheduler)
++		val segment = original.expansion.segments.single()
++		val before = (repository.session(segment.id) as ActivityHistoryQuery.Found).entry
++		before.fragments.isNotEmpty() shouldBe true
++		val run = original.runs.getValue("run-a")
++		val session = original.sessions.getValue(LOGICAL_ID)
++		for (generation in listOf(2L, 3L)) {
++			database.withTransaction {
++				database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = generation,
++					bootId = "later-operation", runRevision = run.runRevision + generation))
++				database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = generation,
++					lifecycleBootId = "later-operation", lifecycleRevision = session.lifecycleRevision + generation))
++			}
++			val after = (repository.session(segment.id) as ActivityHistoryQuery.Found).entry
++			after.fragments shouldBe before.fragments
++			after.activeTime shouldBe before.activeTime
++			after.causes shouldBe before.causes
++		}
++		original.walByEventId.forEach { (id, wal) -> database.sourceEventWalDao().getByEventId(id) shouldBe wal }
++	}
++
++	@Test
++	fun `saved Activity does not lend a later run generation to a changed original authorization`() = runTest {
++		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
++		persistFixture(original)
++		val run = original.runs.getValue("run-a")
++		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = 3L, runRevision = 2L))
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE source_authorization SET lifecycle_lease_generation = 2 WHERE service_run_id = ?",
++			arrayOf<Any>(run.serviceRunId))
++		val after = (activityRepository(testScheduler).session(original.expansion.segments.single().id) as ActivityHistoryQuery.Found).entry
++		after.state shouldBe ActivityHistoryProductState.FAILED
++		after.fragments shouldBe emptyList()
++	}
++
++	@Test
+ 	fun `ordinary discovery finds Activity-only intent before its first fact`() = runTest {
+ 		val fixture = fixture(listOf(RunSpec(1L, "run-a", "UTC"))).copy(
+ 			revisions = emptyList(),
+@@ -2572,6 +2611,11 @@
+ 			snapshot.sourcesByManifest.values.flatten()
+ 				.sortedBy(SessionManifestSourceEntity::manifestRevision),
+ 		)
++		snapshot.sessions.values.forEach { session ->
++			val last = snapshot.manifestsByRun.values.flatten().filter { it.logicalTrackingId == session.logicalTrackingId }
++				.maxBy(SessionManifestVersionEntity::manifestRevision)
++			database.installOriginalStopFixture(session, last)
++		}
+ 		policyDao.insertPolicies(snapshot.policies.values.sortedBy(SourcePolicyEntity::policyRevision))
+ 		policyDao.insertConsentEpochs(snapshot.consents.values.sortedBy(SourceConsentEpochEntity::epoch))
+ 		snapshot.acquisitionPlanRevisions.values.sortedBy(AcquisitionPlanRevisionEntity::revision)
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt
+@@ -122,6 +122,72 @@
+ 	fun tearDown() = database.close()
+ 
+ 	@Test
++	fun `saved Cell survives later quality End and operation boot generations without rewriting observations`() = runTest {
++		val group = buildGroup(930, 1, setOf(0))
++		persist(listOf(group))
++		val run = group.runs.single()
++		val original = (repository { true }.session(run.segment.id) as CellHistoryQuery.Found).entry
++		original.observations.isNotEmpty() shouldBe true
++		for (generation in listOf(run.run.leaseGeneration + 1L, run.run.leaseGeneration + 2L)) {
++			database.withTransaction {
++				database.sourceSessionDao().updateServiceRun(run.run.copy(leaseGeneration = generation,
++					runRevision = run.run.runRevision + generation, bootId = "later-operation-boot"))
++				database.sourceSessionDao().updateSession(group.session.copy(lifecycleLeaseGeneration = generation,
++					lifecycleBootId = "later-operation-boot", lifecycleRevision = group.session.lifecycleRevision + generation))
++			}
++			val after = (repository { true }.session(run.segment.id) as CellHistoryQuery.Found).entry
++			after.observations shouldBe original.observations
++			after.causes shouldBe original.causes
++		}
++		database.sourceSessionDao().lifecycleActions(group.session.logicalTrackingId) shouldBe run.actions
++		run.facts.forEach { fact -> database.sourceEventWalDao().getByEventId(fact.sourceEventId) shouldBe
++			run.admissions.single { it.eventId == fact.sourceEventId } }
++	}
++
++	@Test
++	fun `saved Cell cannot borrow newer action authority and deletion still retracts history`() = runTest {
++		val group = buildGroup(931, 1, setOf(0))
++		persist(listOf(group))
++		val run = group.runs.single()
++		database.sourceSessionDao().updateServiceRun(run.run.copy(leaseGeneration = run.run.leaseGeneration + 2L,
++			runRevision = run.run.runRevision + 1L))
++		database.sourceSessionDao().updateSession(group.session.copy(lifecycleLeaseGeneration = run.run.leaseGeneration + 2L))
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE lifecycle_desired_action SET lease_generation = ? WHERE service_run_id = ?",
++			arrayOf<Any>(run.run.leaseGeneration + 1L, run.run.serviceRunId))
++		val invalid = (repository { true }.session(run.segment.id) as CellHistoryQuery.Found).entry
++		invalid.state shouldBe CellHistoryProductState.FAILED
++		invalid.observations shouldBe emptyList()
++		run.actions.forEach { database.sourceSessionDao().updateLifecycleAction(it) }
++		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
++			CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, group.session.logicalTrackingId,
++			run.run.serviceRunId, 1, 0, run.segment.endTimeMs + 1L))
++		(repository { true }.session(run.segment.id) as CellHistoryQuery.Found).entry.observations shouldBe emptyList()
++	}
++
++	@Test
++	fun `missing original Cell Stop never lends a retry clock and preserves partial measured data`() = runTest {
++		val group = buildGroup(932, 1, setOf(0))
++		persist(listOf(group))
++		val run = group.runs.single()
++		val original = (repository { true }.session(run.segment.id) as CellHistoryQuery.Found).entry
++		val stop = requireNotNull(database.sourceSessionDao().firstStopIntent(group.session.logicalTrackingId))
++		val retry = stop.copy(intentRevision = stop.intentRevision + 1L, requestBootId = "retry-boot",
++			stopDeadlineBootId = "retry-boot")
++		database.sourceSessionDao().insertLifecycleIntent(retry.copy(intentChecksum =
++			com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntegrity.checksum(retry.logicalTrackingId,
++				retry.intentRevision, retry.manifestRevision, retry.desiredState, retry.stopReason,
++				retry.requestBootId, retry.requestedElapsedRealtimeNanos, retry.stopDeadlineElapsedRealtimeNanos)))
++		database.openHelper.writableDatabase.execSQL(
++			"DELETE FROM session_lifecycle_intent_version WHERE logical_tracking_id = ? AND intent_revision = ?",
++			arrayOf<Any>(stop.logicalTrackingId, stop.intentRevision))
++		val after = (repository { true }.session(run.segment.id) as CellHistoryQuery.Found).entry
++		after.observations shouldBe original.observations
++		(after.causes.contains(CellHistoryCause.ACQUISITION_INCOMPLETE)) shouldBe true
++		after.state shouldBe CellHistoryProductState.PARTIAL
++	}
++
++	@Test
+ 	fun `paired Cell map reader uses the real captured history snapshot without Location collection`() = runTest {
+ 		val group = buildGroup(911, 1, setOf(0))
+ 		persist(listOf(group))
+@@ -1384,6 +1450,7 @@
+ 		runs.sortedBy { it.run.startedAtMs }.forEach { sessionDao.insertServiceRun(it.run) }
+ 		runs.sortedBy { it.manifest.manifestRevision }.forEach { sessionDao.insertManifest(it.manifest) }
+ 		sessionDao.insertManifestSources(runs.map(BuiltRun::source))
++		groups.forEach { group -> target.installOriginalStopFixture(group.session, group.runs.last().manifest) }
+ 		policyDao.insertPolicies(runs.map(BuiltRun::policy).sortedBy(SourcePolicyEntity::policyRevision))
+ 		policyDao.insertConsentEpochs(runs.map(BuiltRun::consent).sortedBy(SourceConsentEpochEntity::epoch))
+ 		runs.map(BuiltRun::planHeader).sortedBy(AcquisitionPlanRevisionEntity::revision)
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/HistoricalSavedAuthorityTestFixtures.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/HistoricalSavedAuthorityTestFixtures.kt
+@@ -0,0 +1,34 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
++import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntegrity
++import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
++import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
++
++/** Explicit immutable lifecycle fixture; it makes no Android/coordinator acceptance claim. */
++internal suspend fun AppDatabase.installOriginalStopFixture(
++    session: LogicalTrackingSessionEntity,
++    manifest: SessionManifestVersionEntity,
++) {
++    if (session.cutoffElapsedNanos == null || session.cutoffAtMs == null) return
++    val dao = sourceSessionDao()
++    if (dao.firstStopIntent(session.logicalTrackingId) != null) return
++    val active = SessionLifecycleIntentVersionEntity(session.logicalTrackingId, manifest.manifestRevision,
++        manifest.manifestRevision, "ACTIVE", manifest.startOrigin, manifest.effectiveBootId,
++        manifest.effectiveElapsedRealtimeNanos, manifest.effectiveWallTimeMs, session.automationEpoch,
++        null, null, null, null, null, null, null, null, null, "")
++    val activeSealed = active.copy(intentChecksum = SessionLifecycleIntegrity.checksum(active.logicalTrackingId,
++        active.intentRevision, active.manifestRevision, active.desiredState, active.startOrigin,
++        active.requestBootId, active.requestedElapsedRealtimeNanos, active.requestedWallTimeMs,
++        active.triggerId, active.automationEpoch, active.triggerCollectedDataEpoch, active.sourceCallerAuthorityReference))
++    val stop = activeSealed.copy(intentRevision = active.intentRevision + 1L, desiredState = "FINALIZED",
++        startOrigin = "POLICY_RECONCILIATION", requestedElapsedRealtimeNanos = session.cutoffElapsedNanos,
++        requestedWallTimeMs = session.cutoffAtMs, stopReason = "USER_STOP", stopDeadlineBootId = active.requestBootId,
++        stopDeadlineElapsedRealtimeNanos = session.cutoffElapsedNanos)
++    val stopSealed = stop.copy(intentChecksum = SessionLifecycleIntegrity.checksum(stop.logicalTrackingId,
++        stop.intentRevision, stop.manifestRevision, stop.desiredState, stop.stopReason, stop.requestBootId,
++        stop.requestedElapsedRealtimeNanos, stop.stopDeadlineElapsedRealtimeNanos))
++    dao.insertLifecycleIntent(activeSealed)
++    dao.insertLifecycleIntent(stopSealed)
++}
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt
+@@ -118,6 +118,47 @@
+ 	fun tearDown() = database.close()
+ 
+ 	@Test
++	fun `saved Pressure survives a later lifecycle generation without changing original measurements`() = runTest {
++		val fixture = insertFixture(factSemanticRevision = 1L)
++		val before = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
++		before.windows.isNotEmpty() shouldBe true
++		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
++		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
++		database.withTransaction {
++			database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = 3L, runRevision = 2L))
++			database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = 3L))
++		}
++		val after = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
++		after.windows shouldBe before.windows
++		after.reasons shouldBe before.reasons
++		after.coverage shouldBe before.coverage
++	}
++
++	@Test
++	fun `saved Pressure original action generation still matches the WAL after later End`() = runTest {
++		val fixture = insertFixture(factSemanticRevision = 1L)
++		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
++		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = 3L, runRevision = 2L))
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE lifecycle_desired_action SET lease_generation = 2 WHERE service_run_id = ?",
++			arrayOf<Any>(RUN_ID))
++		requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows shouldBe emptyList()
++	}
++
++	@Test
++	fun `saved Pressure remains useful with partial coverage when the original Stop clock is missing`() = runTest {
++		val fixture = insertFixture(factSemanticRevision = 1L)
++		val before = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
++		database.openHelper.writableDatabase.execSQL(
++			"DELETE FROM session_lifecycle_intent_version WHERE logical_tracking_id = ? AND desired_state = 'FINALIZED'",
++			arrayOf<Any>(LOGICAL_ID))
++		val after = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
++		after.windows shouldBe before.windows
++		after.coverage shouldBe PressureHistoryCoverage.PARTIAL
++		after.reasons.contains(PressureHistoryReason.STOP_INCOMPLETE) shouldBe true
++	}
++
++	@Test
+ 	@OptIn(ExperimentalCoroutinesApi::class)
+ 	fun productionFacadeExposesBatchedLogicalListAndExactPhysicalDetail() = runTest {
+ 		val first = insertFixture(
+@@ -2449,6 +2490,7 @@
+ 		)
+ 		database.sourceSessionDao().insertManifest(manifest)
+ 		database.sourceSessionDao().insertManifestSources(listOf(binding))
++		database.installOriginalStopFixture(requireNotNull(database.sourceSessionDao().session(unsignedManifest.logicalTrackingId)), unsignedManifest)
+ 		database.sourcePolicyDao().insertPolicies(listOf(pressurePolicy()))
+ 		database.sourcePolicyDao().insertConsentEpochs(listOf(pressureConsent()))
+ 		database.sourceProjectionStateDao().installProductLane(
+@@ -2560,6 +2602,7 @@
+ 			),
+ 		)
+ 		database.sourceSessionDao().insertManifestSources(listOf(binding))
++		database.installOriginalStopFixture(requireNotNull(database.sourceSessionDao().session(unsignedManifest.logicalTrackingId)), unsignedManifest)
+ 		database.sourceSessionDao().saveCompleteness(
+ 			SourceSessionCompletenessEntity(
+ 				logicalTrackingId = LOGICAL_ID,
+@@ -2684,6 +2727,7 @@
+ 		)
+ 		database.sourceSessionDao().insertManifest(manifest)
+ 		database.sourceSessionDao().insertManifestSources(listOf(binding))
++		database.installOriginalStopFixture(requireNotNull(database.sourceSessionDao().session(unsignedManifest.logicalTrackingId)), unsignedManifest)
+ 		val admissionOrdinal = 10L + index
+ 		database.sourceSessionDao().saveCompleteness(
+ 			SourceSessionCompletenessEntity(
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReaderTest.kt
+@@ -127,6 +127,46 @@
+         assertEquals(evidence, database.sourceEvidenceStateDao().get())
+     }
+ 
++    @Test fun `ordinary saved qualification keeps coordinates without optional accuracy but radio still requires it`() = runBlocking {
++        val receipt = installPoint(savedSample = sample().copy(hAccM = null, speedMps = 3f))
++        val saved = database.withTransaction { reader.qualifySavedInTransaction(listOf(receipt)) }
++        assertEquals(1, saved.samples.size)
++        assertNull(saved.samples.single().sample.hAccM)
++        assertEquals(3f, saved.samples.single().sample.speedMps)
++        assertIs<RadioContextScope.Ambient>(saved.samples.single().scope)
++        assertTrue(saved.gaps.isEmpty())
++        assertTrue(database.withTransaction { reader.qualifyInTransaction(listOf(receipt)) }.points.isEmpty())
++        assertEquals(1L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `all-day status uses ordinary saved qualification without an accuracy requirement`() = runBlocking {
++        installPoint(savedSample = sample().copy(hAccM = null))
++        val read = assertIs<AllDaySourceStatusRead.Location>(statusQuery().read(
++            AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))))
++        assertEquals("event", read.points.single().sourceEventId)
++        assertTrue(read.qualificationGaps.isEmpty())
++        assertNull(read.problem)
++    }
++
++    @Test fun `invalid optional accuracy does not erase other original saved measurements`() = runBlocking {
++        val receipt = installPoint(savedSample = sample().copy(hAccM = -1f, altitudeM = -12f))
++        val saved = database.withTransaction { reader.qualifySavedInTransaction(listOf(receipt)) }
++        assertEquals(-12f, saved.samples.single().sample.altitudeM)
++        assertEquals(-1f, saved.samples.single().sample.hAccM)
++        assertTrue(database.withTransaction { reader.qualifyInTransaction(listOf(receipt)) }.points.isEmpty())
++    }
++
++    @Test fun `shared saved qualification does not relax original content or epoch authority`() = runBlocking {
++        val receipt = installPoint(savedSample = sample().copy(hAccM = null))
++        assertEquals(1, database.withTransaction { reader.qualifySavedInTransaction(listOf(receipt)) }.samples.size)
++        database.openHelper.writableDatabase.execSQL("UPDATE location_sample SET lon_e7 = 1 WHERE id = ?", arrayOf(receipt.sampleId))
++        val changed = database.withTransaction { reader.qualifySavedInTransaction(listOf(receipt)) }
++        assertTrue(changed.samples.isEmpty())
++        assertTrue(RadioLocationContextGap.LOCATION_PROVENANCE_UNVERIFIABLE in changed.gaps)
++        assertTrue(changed.erasedNativeSampleIds.isEmpty())
++        assertEquals(1L, database.locationSampleDao().countAll())
++    }
++
+     private fun statusQuery() = RoomAllDaySourceStatusQuery(database, mockk(), mockk(), mockk(),
+         kotlinx.coroutines.Dispatchers.Unconfined)
+ 
+@@ -292,14 +332,14 @@
+         }
+     }
+ 
+-    private suspend fun installPoint(sealed: Boolean = true): LocationAcceptedReceiptEntity {
++    private suspend fun installPoint(sealed: Boolean = true, savedSample: LocationSample = sample()): LocationAcceptedReceiptEntity {
+         database.sourcePolicyDao().insertPolicies(listOf(policy()))
+         database.sourcePolicyDao().insertConsentEpochs(listOf(SourceConsentEpochEntity(1, SourceBrokerPurpose.AMBIENT_PRODUCT,
+             0, true, true, 1, "boot", 0, 0, "USER")))
+         database.locationPurposeDao().insertRetentionAuthority(AmbientLocationRetentionAuthorityIntegrity.create(
+             "LIVE_AMBIENT", 1, "ACTIVE", "retention", 1, 0, 0, "boot", 0, 0))
+-        val id = database.locationSampleDao().insert(sample())
+-        val sample = sample().copy(id = id)
++        val id = database.locationSampleDao().insert(savedSample)
++        val sample = savedSample.copy(id = id)
+         val initial = LocationAcceptedReceiptEntity(id, "event", requireNotNull(sample.sourceSignalId), 1, "a".repeat(64),
+             LocationAcceptedReceiptIntegrity.canonicalChecksum(sample), "instance", 1, 0, "delivery", 0, 1,
+             SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID,
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt
+@@ -51,6 +51,35 @@
+     }
+ 
+     @After fun cleanup() = database.close()
++
++    @Test fun `saved capture and ambient retain their original clock after later End and retry generations`() = runBlocking {
++        val receipt = installJoinedPoint()
++        val originalRun = requireNotNull(database.sourceSessionDao().serviceRun(RUN))
++        for (generation in listOf(2L, 3L)) {
++            database.sourceSessionDao().updateServiceRun(originalRun.copy(leaseGeneration = generation,
++                bootId = "new-operation-boot", runRevision = originalRun.runRevision + generation))
++            val saved = read(receipt)
++            assertEquals(setOf(captureScope, ambientScope), saved.points.map { it.scope }.toSet())
++            assertTrue(saved.gaps.isEmpty())
++            assertEquals(receipt, database.locationPurposeDao().receipt(receipt.sampleId))
++        }
++        Unit
++    }
++
++    @Test fun `future capture generation cannot borrow the valid saved ambient sibling`() = runBlocking {
++        val receipt = installJoinedPoint()
++        val purpose = database.locationPurposeDao().purposes(receipt.sampleId, 3)
++            .single { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
++        val future = LocationAcceptedReceiptIntegrity.seal(purpose.copy(lifecycleLeaseGeneration = 2L), receipt)
++        database.openHelper.writableDatabase.execSQL(
++            "UPDATE location_sample_purpose_authority SET lifecycle_lease_generation = ?, retained_proof_checksum = ? " +
++                "WHERE sample_id = ? AND purpose = ?",
++            arrayOf<Any>(2L, future.retainedProofChecksum, receipt.sampleId, purpose.purpose))
++        val saved = read(receipt)
++        assertEquals(listOf(ambientScope), saved.points.map { it.scope })
++        assertTrue(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE in saved.gaps)
++        Unit
++    }
+ 
+     @Test fun `closed run retains both qualified purposes without original WAL or live registration`() = runBlocking {
+         val receipt = installJoinedPoint()
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt
+@@ -101,6 +101,20 @@
+ 	}
+ 
+ 	@Test
++	fun `saved Steps export keeps original source metadata after later operation boot`() = runTest {
++		insertReadyFixture(facts = listOf(FactSeed("saved", 1L, count = 9L)))
++		val before = mutableListOf<PortableStepsEntryV1>()
++		exporter.export(request()) { before += it } shouldBe ExportPortableStepsResult.Exported(1)
++		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ONE))
++		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = 3L,
++			bootId = "later-operation-boot", runRevision = run.runRevision + 1L))
++		val after = mutableListOf<PortableStepsEntryV1>()
++		exporter.export(request()) { after += it } shouldBe ExportPortableStepsResult.Exported(1)
++		after shouldBe before
++		after.single().runs.single().facts.single().stepCount shouldBe 9L
++	}
++
++	@Test
+ 	fun `zero-sample Steps-only entry exports positive and covered-zero without fabricated siblings`() =
+ 		runTest {
+ 			insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 2_000L)
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReaderRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReaderRoomTest.kt
+@@ -0,0 +1,444 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import android.app.Application
++import android.database.sqlite.SQLiteException
++import androidx.room.withTransaction
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.shared.base.data.LengthUnit
++import com.adsamcik.tracker.shared.base.data.Location
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.dao.LocationPurposeDao
++import com.adsamcik.tracker.shared.base.database.data.*
++import com.adsamcik.tracker.shared.model.AltitudeDatum
++import com.adsamcik.tracker.shared.model.AltitudeSource
++import com.adsamcik.tracker.shared.model.SegmentSource
++import com.adsamcik.tracker.stats.api.repository.*
++import io.mockk.every
++import io.mockk.mockk
++import java.time.LocalDate
++import java.time.ZoneId
++import kotlin.test.*
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.runBlocking
++import kotlinx.coroutines.withTimeout
++import org.junit.After
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++/** Real Room readers with explicitly seeded saved writer grants; no provider/service acceptance claim. */
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class SavedLocationSummaryReaderRoomTest {
++    private lateinit var database: AppDatabase
++    private lateinit var reader: SavedLocationSummaryReader
++    private var ordinal = 0L
++
++    @Before fun setup() = runBlocking {
++        database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>())
++        database.sourceEvidenceStateDao().ensure()
++        database.sourcePolicyDao().insertPolicies(listOf(policy()))
++        database.sourcePolicyDao().insertConsentEpochs(listOf(
++            SourceConsentEpochEntity(1, SourceBrokerPurpose.AMBIENT_PRODUCT, 0, true, true, 1, "boot", 0, 0, "USER"),
++            SourceConsentEpochEntity(1, SourceBrokerPurpose.SESSION_CAPTURE, 0, true, true, 1, "boot", 0, 0, "USER")))
++        database.locationPurposeDao().insertRetentionAuthority(AmbientLocationRetentionAuthorityIntegrity.create(
++            "LIVE_AMBIENT", 1, "ACTIVE", "retention", 1, 0, 0, "boot", 0, 0))
++        reader = SavedLocationSummaryReader(database, Dispatchers.Unconfined)
++    }
++    @After fun close() = database.close()
++
++    @Test fun `saved session totals survive quality End and retry generations with original point identities`() = runBlocking {
++        val selected = session("historical")
++        val first = point(2_000, 0, 1, capture = selected)
++        val second = point(3_000, 100_000, 2, capture = selected)
++        val original = snapshot(reader.readSession(selected.id)).summary
++        val run = requireNotNull(database.sourceSessionDao().serviceRun(requireNotNull(selected.serviceRunId)))
++        for (generation in listOf(2L, 3L)) {
++            database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = generation,
++                bootId = "later-operation", runRevision = run.runRevision + generation))
++            val after = snapshot(reader.readSession(selected.id)).summary
++            assertEquals(original, after)
++            assertEquals(2L, after.pointCount)
++            assertEquals(second.id, after.latestFix?.sampleId)
++        }
++        assertEquals(setOf(first, second), database.locationSampleDao().byIds(listOf(first.id, second.id)).toSet())
++        Unit
++    }
++
++    @Test fun `empty and one-fix windows do not invent distance or zero`() = runBlocking {
++        val window = HistoryObservationWindow(0, 10_000)
++        assertNull(snapshot(reader.readWindow(window)).summary.distanceMeters)
++        val point = point(2_000, 0, 1)
++        val read = snapshot(reader.readWindow(window))
++        assertEquals(1L, read.summary.pointCount)
++        assertEquals(point.id, read.summary.latestFix?.sampleId)
++        assertNull(read.summary.distanceMeters)
++        assertFalse(read.summary.partial)
++    }
++
++    @Test fun `stationary coordinates without accuracy retain real zero and saved optional fields`() = runBlocking {
++        point(2_000, 0, 1)
++        val last = point(3_000, 0, 2, speed = 0f, altitude = -12f)
++        val read = snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000)))
++        assertEquals(0.0, read.summary.distanceMeters)
++        assertEquals(2L, read.summary.pointCount)
++        assertFalse(read.summary.partial)
++        val fix = requireNotNull(read.summary.latestFix)
++        assertEquals(last.id, fix.sampleId)
++        assertEquals(3_000L, fix.measuredTimeMs)
++        assertEquals(2L, fix.wallTimeUncertaintyMs)
++        assertEquals(0f, fix.speedMetersPerSecond)
++        assertNull(fix.horizontalAccuracyMeters)
++        assertEquals(-12f, fix.altitudeMeters)
++        assertEquals(AltitudeDatum.RELATIVE_BAROMETRIC, fix.altitudeDatum)
++        assertEquals(AltitudeSource.BAROMETER_PREDICTION, fix.altitudeSource)
++        val receipts = database.locationPurposeDao().contextReceiptsOverWindow(0, 10_000, 10)
++        assertTrue(database.withTransaction { RetainedLocationContextReader(database).qualifyInTransaction(receipts) }.points.isEmpty())
++    }
++
++    @Test fun `invalid optional accuracy and speed are absent while usable coordinates remain measured`() = runBlocking {
++        point(2_000, 0, 1)
++        point(3_000, 100_000, 2, accuracy = -1f, speed = -1f, altitude = -12f)
++        val read = snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000)))
++        assertEquals(distance(0, 100_000), read.summary.distanceMeters)
++        assertNull(read.summary.latestFix?.horizontalAccuracyMeters)
++        assertNull(read.summary.latestFix?.speedMetersPerSecond)
++        assertEquals(-12f, read.summary.latestFix?.altitudeMeters)
++        assertFalse(read.summary.partial)
++    }
++
++    @Test fun `existing background History qualifies saved coordinates without accuracy`() = runBlocking {
++        val sample = point(2_000, 0, 1)
++        val history = rangeReaderForRoomTest(database, ApplicationProvider.getApplicationContext<Application>())
++        val read = assertIs<HistoryRangeRead.Page>(history.read(HistoryRangeRequest(HistoryRange(0, 10_000, "UTC",
++            setOf(HistorySource.LOCATION), setOf(HistoryOrigin.LOCAL), setOf(HistoryPurpose.BACKGROUND)))))
++        val section = read.rows.single().sections.filterIsInstance<HistorySection.Location>().single()
++        assertEquals(HistoryLocationCoverage.QUALIFIED, section.coverage)
++        assertEquals(sample.id, section.points.single().sampleId)
++        assertNull(section.points.single().accuracyMeters)
++        assertTrue(read.problems.isEmpty())
++    }
++
++    @Test fun `existing native History qualifies saved coordinates without accuracy`() = runBlocking {
++        val selected = session("history")
++        val sample = point(2_000, 0, 1, capture = selected)
++        val history = rangeReaderForRoomTest(database, ApplicationProvider.getApplicationContext<Application>())
++        val read = assertIs<HistoryRangeRead.Page>(history.read(HistoryRangeRequest(HistoryRange(0, 10_000, "UTC",
++            setOf(HistorySource.LOCATION), setOf(HistoryOrigin.LOCAL), setOf(HistoryPurpose.CAPTURE)))))
++        val section = read.rows.single().sections.filterIsInstance<HistorySection.Location>().single()
++        assertEquals(HistoryLocationCoverage.QUALIFIED, section.coverage)
++        assertEquals(sample.id, section.points.single().sampleId)
++        assertNull(section.points.single().accuracyMeters)
++        assertTrue(read.problems.isEmpty())
++    }
++
++    @Test fun `long live session pages past 4096 without losing its anchor or borrowing raw totals`() = runBlocking {
++        withTimeout(90_000L) {
++            val session = session("long")
++            repeat(4_097) { index -> point(2_000L + index * 1_000L, index * 1_000, index + 1L, capture = session) }
++            val read = snapshot(reader.readSession(session.id))
++            assertEquals(SavedLocationSummarySelection.Session(session.id), read.selection)
++            assertEquals(4_097L, read.summary.pointCount)
++            assertEquals(distance(0, 1_000) * 4_096, requireNotNull(read.summary.distanceMeters), 0.01)
++            assertEquals(4_098_000L, read.summary.latestFix?.measuredTimeMs)
++            assertFalse(read.summary.partial)
++            assertNull(read.problem)
++            assertEquals(9_000_000f, requireNotNull(database.sessionSegmentDao().getById(session.id)).distanceM)
++            assertNull(database.sourceEventWalDao().getByEventId("event:1"))
++        }
++    }
++
++    @Test fun `sequence jumps clock changes and long gaps never bridge sections`() = runBlocking {
++        point(2_000, 0, 1)
++        point(3_000, 100_000, 2)
++        point(4_000, 900_000, 4)
++        point(5_000, 1_000_000, 5)
++        point(6_000, 9_000_000, 6, clock = "other")
++        point(130_000, 10_000_000, 7, clock = "other")
++        point(131_000, 10_100_000, 8, clock = "other")
++        val read = snapshot(reader.readWindow(HistoryObservationWindow(0, 200_000)))
++        assertEquals(distance(0, 100_000) + distance(900_000, 1_000_000) + distance(10_000_000, 10_100_000),
++            requireNotNull(read.summary.distanceMeters), 0.01)
++        assertEquals(7L, read.summary.pointCount)
++        assertTrue(read.summary.partial)
++    }
++
++    @Test fun `rejected middle point cannot join its valid neighbours or overwrite the original authority`() = runBlocking {
++        point(2_000, 0, 1)
++        val corrupt = point(3_000, 100_000, 2)
++        point(4_000, 200_000, 3)
++        point(5_000, 300_000, 4)
++        database.locationSampleDao().update(corrupt.copy(lonE7 = 9_000_000))
++        val read = snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000)))
++        assertEquals(3L, read.summary.pointCount)
++        assertEquals(distance(200_000, 300_000), read.summary.distanceMeters)
++        assertTrue(read.summary.partial)
++        assertTrue(RadioLocationContextGap.LOCATION_PROVENANCE_UNVERIFIABLE in read.summary.qualificationGaps)
++        assertEquals(4L, database.locationSampleDao().countAll())
++        assertEquals(9_000_000, database.locationSampleDao().byIds(listOf(corrupt.id)).single().lonE7)
++    }
++
++    @Test fun `exact session excludes coincident background and another run while window reads their own grants`() = runBlocking {
++        val selected = session("selected")
++        val foreign = session("foreign")
++        point(2_000, 0, 1, capture = selected)
++        point(3_000, 100_000, 2, capture = selected)
++        point(2_500, 9_000_000, 1, instance = "ambient")
++        point(3_500, 10_000_000, 1, capture = foreign, instance = "foreign")
++        val exact = snapshot(reader.readSession(selected.id))
++        assertEquals(2L, exact.summary.pointCount)
++        assertEquals(distance(0, 100_000), exact.summary.distanceMeters)
++        assertEquals(4L, snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000))).summary.pointCount)
++    }
++
++    @Test fun `End and later disabled policy keep retained original session readings without a physical owner`() = runBlocking {
++        val selected = session("retained")
++        point(2_000, 0, 1, capture = selected)
++        point(3_000, 100_000, 2, capture = selected)
++        val run = requireNotNull(database.sourceSessionDao().serviceRun(requireNotNull(selected.serviceRunId)))
++        database.sourceSessionDao().updateServiceRun(run.copy(state = "FINALIZED", completedAtMs = 5_000,
++            completionReason = "STOPPED", presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_QUIESCED,
++            presentationAcknowledgedAtMs = 5_000))
++        database.sourcePolicyDao().insertPolicies(listOf(policy().copy(policyRevision = 2, enabled = false,
++            capturePersistenceEligible = false, ambientPersistenceEligible = false)))
++        val read = snapshot(reader.readSession(selected.id))
++        assertEquals(2L, read.summary.pointCount)
++        assertEquals(distance(0, 100_000), read.summary.distanceMeters)
++        assertFalse(read.summary.partial)
++        assertNull(database.sourceEventWalDao().getByEventId("event:1"))
++    }
++
++    @Test fun `selected purpose erase preserves independently authorized background sibling`() = runBlocking {
++        val selected = session("erased")
++        point(2_000, 0, 1, capture = selected, alsoBackground = true)
++        point(3_000, 100_000, 2, capture = selected, alsoBackground = true)
++        val digest = SourceDeletionFenceEntity.logicalServiceRunIdentity(1, SourceBrokerPurpose.SESSION_CAPTURE,
++            requireNotNull(selected.logicalTrackingId), requireNotNull(selected.serviceRunId))
++        database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createForOriginalRunDigest(1,
++            SourceBrokerPurpose.SESSION_CAPTURE, digest, 1, 0, 5_000))
++        assertNull(snapshot(reader.readSession(selected.id)).summary.distanceMeters)
++        val sibling = snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000)))
++        assertEquals(2L, sibling.summary.pointCount)
++        assertEquals(distance(0, 100_000), sibling.summary.distanceMeters)
++        assertEquals(2L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `retention and full clear retract native values without inventing a measured zero`() = runBlocking {
++        point(2_000, 0, 1)
++        point(3_000, 100_000, 2)
++        database.sourceEvidenceStateDao().updateLifecycle(0, 2_500, 4_000)
++        val retained = snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000)))
++        assertEquals(1L, retained.summary.pointCount)
++        assertNull(retained.summary.distanceMeters)
++        database.sourceEvidenceStateDao().updateAfterFullDeletion(1, null, 2, 4_001)
++        val cleared = snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000)))
++        assertEquals(1L, cleared.readSnapshot.collectedDataEpoch)
++        assertEquals(0L, cleared.summary.pointCount)
++        assertNull(cleared.summary.distanceMeters)
++        assertNull(cleared.summary.latestFix)
++        assertEquals(2L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `displayed DST day selects measured UTC fixes rather than delivery or session time`() = runBlocking {
++        val date = LocalDate.of(2026, 10, 25)
++        val zone = ZoneId.of("Europe/Prague")
++        val from = date.atStartOfDay(zone).toInstant().toEpochMilli()
++        val to = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
++        assertEquals(25 * 60 * 60 * 1_000L, to - from)
++        point(from - 1, 0, 1)
++        point(from, 100_000, 2)
++        val last = point(to - 1, 200_000, 3)
++        point(to, 300_000, 4)
++        val read = snapshot(reader.readWindow(HistoryObservationWindow(from, to)))
++        assertEquals(2L, read.summary.pointCount)
++        assertEquals(last.id, read.summary.latestFix?.sampleId)
++        assertNull(read.summary.distanceMeters)
++        assertTrue(read.summary.partial)
++    }
++
++    @Test fun `many real run dependencies split qualification batches instead of dropping the window`() = runBlocking {
++        withTimeout(90_000L) {
++            repeat(101) { index -> point(2_000L + index, index * 1_000, 1,
++                instance = "instance:$index", capture = session("session:$index")) }
++            val read = snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000)))
++            assertEquals(101L, read.summary.pointCount)
++            assertNull(read.problem)
++            assertFalse(RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT in read.summary.qualificationGaps)
++        }
++    }
++
++    @Test fun `more than one exact manifest-key chunk keeps every named reading in a long run`() = runBlocking {
++        val selected = session("many-manifests")
++        repeat(129) { index ->
++            val revision = index + 1L
++            if (revision > 1) namedManifest(selected, revision)
++            point(2_000L + index * 1_000L, index * 1_000, revision,
++                capture = selected, captureManifestRevision = revision)
++        }
++        val read = snapshot(reader.readSession(selected.id))
++        assertEquals(129L, read.summary.pointCount)
++        assertEquals(distance(0, 1_000) * 128, requireNotNull(read.summary.distanceMeters), 0.01)
++        assertFalse(read.summary.partial)
++        assertNull(read.problem)
++        assertTrue(read.summary.qualificationGaps.isEmpty())
++    }
++
++    @Test fun `missing or mismatched named manifest preserves valid sibling data without borrowing another run`() = runBlocking {
++        val selected = session("named-dependency")
++        val valid = point(2_000, 0, 1, capture = selected)
++        point(3_000, 100_000, 2, capture = selected, captureManifestRevision = 2)
++        fun check(read: SavedLocationSummaryRead) {
++            val result = snapshot(read)
++            assertEquals(1L, result.summary.pointCount)
++            assertEquals(valid.id, result.summary.latestFix?.sampleId)
++            assertNull(result.summary.distanceMeters)
++            assertTrue(result.summary.partial)
++            assertTrue(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE in result.summary.qualificationGaps)
++        }
++        check(reader.readSession(selected.id))
++        namedManifest(selected, 2, serviceRunId = "foreign-run")
++        check(reader.readSession(selected.id))
++        assertEquals(2L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `continuation storage failure keeps previously measured data with an honest partial state`() = runBlocking {
++        repeat(300) { index -> point(2_000L + index * 1_000L, 0, index + 1L) }
++        val original = database.locationPurposeDao()
++        val fault = object : LocationPurposeDao by original {
++            override suspend fun savedReceiptPageOverWindow(fromMs: Long, toMs: Long, afterTimeMs: Long?,
++                afterSampleId: Long?, limit: Int): List<LocationAcceptedReceiptEntity> {
++                if (afterTimeMs != null) throw SQLiteException("Fixture: second page unavailable")
++                return original.savedReceiptPageOverWindow(fromMs, toMs, afterTimeMs, afterSampleId, limit)
++            }
++        }
++        val fixtureReader = readerWithPageFault(fault)
++        val read = database.withTransaction { snapshot(fixtureReader.readWindowInTransaction(
++            HistoryObservationWindow(0, 1_000_000), currentSnapshot())) }
++        assertEquals(256L, read.summary.pointCount)
++        assertEquals(0.0, read.summary.distanceMeters)
++        assertEquals(257_000L, read.summary.latestFix?.measuredTimeMs)
++        assertTrue(read.summary.partial)
++        assertEquals(HistoryProblemReason.STORAGE_UNAVAILABLE, read.problem)
++        assertEquals(300L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `continuation cancellation propagates instead of publishing a prefix or retrying`() = runBlocking {
++        repeat(300) { index -> point(2_000L + index * 1_000L, 0, index + 1L) }
++        val original = database.locationPurposeDao()
++        var pages = 0
++        val fault = object : LocationPurposeDao by original {
++            override suspend fun savedReceiptPageOverWindow(fromMs: Long, toMs: Long, afterTimeMs: Long?,
++                afterSampleId: Long?, limit: Int): List<LocationAcceptedReceiptEntity> {
++                pages++
++                if (afterTimeMs != null) throw CancellationException("Fixture: cancelled second page")
++                return original.savedReceiptPageOverWindow(fromMs, toMs, afterTimeMs, afterSampleId, limit)
++            }
++        }
++        val fixtureReader = readerWithPageFault(fault)
++        assertFailsWith<CancellationException> { database.withTransaction {
++            fixtureReader.readWindowInTransaction(HistoryObservationWindow(0, 1_000_000), currentSnapshot())
++        } }
++        assertEquals(2, pages)
++        assertEquals(300L, database.locationSampleDao().countAll())
++    }
++
++    @Test fun `missing session and closed storage remain typed without using raw session totals`() = runBlocking {
++        assertEquals(SavedLocationSummaryRead.NotFound, reader.readSession(999))
++        database.close()
++        assertEquals(HistoryProblemReason.STORAGE_UNAVAILABLE,
++            assertIs<SavedLocationSummaryRead.Unavailable>(reader.readWindow(HistoryObservationWindow(0, 10_000))).reason)
++    }
++
++    /** Only the page-fault boundary is artificial; all qualification DAOs and the outer transaction are real Room. */
++    private fun readerWithPageFault(purpose: LocationPurposeDao): SavedLocationSummaryReader {
++        val handle = mockk<AppDatabase>()
++        every { handle.locationPurposeDao() } returns purpose
++        every { handle.sourceEvidenceStateDao() } returns database.sourceEvidenceStateDao()
++        every { handle.locationSampleDao() } returns database.locationSampleDao()
++        every { handle.sourcePolicyDao() } returns database.sourcePolicyDao()
++        every { handle.trackingHistoryReadDao() } returns database.trackingHistoryReadDao()
++        every { handle.sourceDeletionFenceDao() } returns database.sourceDeletionFenceDao()
++        return SavedLocationSummaryReader(handle, Dispatchers.Unconfined)
++    }
++    private suspend fun currentSnapshot(): TrackingHistoryReadSnapshot {
++        val state = requireNotNull(database.sourceEvidenceStateDao().get())
++        return TrackingHistoryReadSnapshot(state.collectedDataEpoch, state.revision)
++    }
++    private fun snapshot(read: SavedLocationSummaryRead) = assertIs<SavedLocationSummaryRead.Snapshot>(read)
++
++    private suspend fun session(identity: String): SessionSegment {
++        val runId = "run:$identity"
++        database.sourceSessionDao().insertSession(LogicalTrackingSessionEntity(identity, "ACTIVE", 1, 1, 1,
++            "MANUAL_FOREGROUND_START", "boot", 1_000, 1, null, null, null, null, null,
++            sessionMode = "MANUAL", currentManifestRevision = 1, currentIntentRevision = 1,
++            currentServiceRunId = runId, lifecycleLeaseGeneration = 1, lifecycleBootId = "boot"))
++        val template = SessionSegment(startTimeMs = 1_000, endTimeMs = 5_000, distanceM = 9_000_000f,
++            steps = null, primaryActivity = null, activityConfidence = null, sampleCount = 2,
++            source = SegmentSource.USER_CREATED, inferenceVersion = null, createdAt = 1_000,
++            logicalTrackingId = identity, serviceRunId = runId)
++        val segment = template.copy(id = database.sessionSegmentDao().insert(template))
++        database.sourceSessionDao().insertServiceRun(SourceServiceRunEntity(runId, identity, "ACTIVE", 1, 1, 0,
++            1_000, 1, null, null, bootId = "boot", leaseGeneration = 1,
++            startOrigin = "MANUAL_FOREGROUND_START", runRevision = 1, startDeliveryToken = "start:$identity",
++            startCommandGeneration = 1, preparedManifestRevision = 1, preparedIntentRevision = 1, sessionSegmentId = segment.id))
++        val member = SessionManifestSourceEntity(identity, 1, 1, SourceBrokerPurpose.SESSION_CAPTURE, 0, true, 1)
++        val manifest = SessionManifestVersionEntity(identity, 1, runId, "MANUAL", 1, 1, 1,
++            "MANUAL_FOREGROUND_START", "boot", 1, 1_000, "UTC", null, "START", "")
++        database.sourceSessionDao().insertManifest(manifest.copy(manifestChecksum = SessionManifestIntegrity.compute(manifest, listOf(member))))
++        database.sourceSessionDao().insertManifestSources(listOf(member))
++        return segment
++    }
++
++    private suspend fun point(time: Long, longitude: Int, sequence: Long, capture: SessionSegment? = null,
++        instance: String = "instance", clock: String = "boot", alsoBackground: Boolean = false,
++        accuracy: Float? = null, speed: Float? = null, altitude: Float? = null,
++        captureManifestRevision: Long = 1): LocationSample {
++        ordinal++
++        val event = "event:$ordinal"
++        val elapsed = time * 1_000_000L
++        val template = LocationSample(timeMs = time, elapsedRealtimeNanos = elapsed, latE7 = 0, lonE7 = longitude,
++            altitudeM = altitude, rawGpsAltitudeM = null, hAccM = accuracy, vAccM = null, speedMps = speed,
++            speedAccuracyMps = null, provider = "fused", quality = SampleQuality.COARSE,
++            motionState = null, policy = null, bucketId = null, createdAt = time + 1,
++            receivedElapsedRealtimeNanos = elapsed + 1, sourceEventId = event,
++            sourceSignalId = protectedLocationCanonicalProductIdentity(event), clockDomainId = clock,
++            bootClockDomainId = clock, altitudeDatum = AltitudeDatum.RELATIVE_BAROMETRIC,
++            altitudeSource = AltitudeSource.BAROMETER_PREDICTION)
++        val sample = template.copy(id = database.locationSampleDao().insert(template))
++        val receipt = LocationAcceptedReceiptIntegrity.seal(LocationAcceptedReceiptEntity(sample.id, event,
++            requireNotNull(sample.sourceSignalId), ordinal, "a".repeat(64), LocationAcceptedReceiptIntegrity.canonicalChecksum(sample),
++            instance, 1, sequence, "delivery:$ordinal", 0, 1,
++            SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID,
++            SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION, 1, "physical", 1, "authorization",
++            clock, clock, elapsed, elapsed + 1, time, time + 1, 2, 0))
++        database.locationPurposeDao().insertReceiptIfAbsent(receipt)
++        if (capture != null) {
++            val purpose = LocationSamplePurposeAuthorityEntity(sample.id, SourceBrokerPurpose.SESSION_CAPTURE,
++                requireNotNull(capture.serviceRunId), 1, 0, 1, Long.MAX_VALUE, capture.logicalTrackingId,
++                capture.serviceRunId, capture.id, captureManifestRevision, 1, null, null, null, 0, "UTC")
++            database.locationPurposeDao().insertPurposeIfAbsent(LocationAcceptedReceiptIntegrity.seal(purpose, receipt))
++        }
++        if (capture == null || alsoBackground) {
++            val purpose = LocationSamplePurposeAuthorityEntity(sample.id, SourceBrokerPurpose.AMBIENT_PRODUCT,
++                "ambient", 1, 0, 1, Long.MAX_VALUE, null, null, null, null, null,
++                "ambient", "retention", 1, 0, "UTC")
++            database.locationPurposeDao().insertPurposeIfAbsent(LocationAcceptedReceiptIntegrity.seal(purpose, receipt))
++        }
++        return sample
++    }
++    private suspend fun namedManifest(session: SessionSegment, revision: Long,
++        serviceRunId: String = requireNotNull(session.serviceRunId)) {
++        val logicalId = requireNotNull(session.logicalTrackingId)
++        val member = SessionManifestSourceEntity(logicalId, revision, 1, SourceBrokerPurpose.SESSION_CAPTURE, 0, true, 1)
++        val manifest = SessionManifestVersionEntity(logicalId, revision, serviceRunId, "MANUAL", 1, 1, 1,
++            "POLICY_RECONCILIATION", "boot", revision, 1_000, "UTC", null, "POLICY_RECONCILIATION", "")
++        database.sourceSessionDao().insertManifest(manifest.copy(manifestChecksum = SessionManifestIntegrity.compute(manifest, listOf(member))))
++        database.sourceSessionDao().insertManifestSources(listOf(member))
++    }
++    private fun policy() = SourcePolicyEntity(1, 1, true, 1, null, null, null,
++        true, false, true, 0, null, 0, "boot", 0, 0, "USER")
++    private fun distance(first: Int, second: Int) = Location.distance(0.0, first / 1e7, 0.0, second / 1e7, LengthUnit.Meter)
++}
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt
+@@ -86,6 +86,18 @@
+ 
+ 	@After
+ 	fun tearDown() = database.close()
++
++	@Test
++	fun savedStepsUseOriginalManifestClockAfterNewerOperationBoot() = runTest {
++		insertCandidateRun(RUN_ONE, listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 9L)),
++			targetOrdinal = 1L, laneCursor = 1L)
++		val before = selector.select(segment(RUN_ONE, steps = 999))
++		before.count shouldBe 9L
++		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ONE))
++		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = 3L,
++			bootId = "later-operation-boot", runRevision = run.runRevision + 1L))
++		selector.select(segment(RUN_ONE, steps = 999)) shouldBe before
++	}
+ 
+ 	@Test
+ 	fun legacyRunUsesImmutableManifestInsteadOfCurrentOwnerAndNeverFabricatesZero() = runTest {
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReaderRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReaderRoomTest.kt
+@@ -103,7 +103,7 @@
+     @Test fun `missing optional Location qualification never hides ordinary saved points`() = runTest {
+         legacyLocation(1, 100, 200)
+         val proof = mockk<RetainedLocationContextReader>()
+-        coEvery { proof.qualifyInTransaction(any()) } throws android.database.sqlite.SQLiteException("Unavailable proof fixture")
++        coEvery { proof.qualifySavedInTransaction(any()) } throws android.database.sqlite.SQLiteException("Unavailable proof fixture")
+         reader = rangeReaderForRoomTest(database, context, wifi, proof)
+         val row = reader.read(HistoryRangeRequest(range(0, 300))).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
+         row.sections.single().shouldBeInstanceOf<HistorySection.Location>().points.single().timeMs shouldBe 101L
+@@ -116,7 +116,7 @@
+         val proof = mockk<RetainedLocationContextReader>()
+         reader = rangeReaderForRoomTest(database, context, wifi, proof)
+         for (reason in listOf(HistoryProblemReason.STORAGE_UNAVAILABLE, HistoryProblemReason.INTEGRITY_UNAVAILABLE)) {
+-            coEvery { proof.qualifyInTransaction(any()) } returns RetainedLocationContextSnapshot(
++            coEvery { proof.qualifySavedInTransaction(any()) } returns RetainedLocationSavedSnapshot(
+                 emptyList(), setOf(com.adsamcik.tracker.stats.api.repository.RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE),
+                 historyProblem = reason)
+             val row = reader.read(HistoryRangeRequest(range(0, 300))).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt
+@@ -111,6 +111,72 @@
+ 	fun tearDown() = database.close()
+ 
+ 	@Test
++	fun `saved Wifi survives later quality End and operation boot generations without rewriting observations`() = runTest {
++		val group = buildGroup(930, 1, setOf(0))
++		persist(listOf(group))
++		val run = group.runs.single()
++		val original = (repository { true }.session(run.segment.id) as WifiHistoryQuery.Found).entry
++		original.observations.isNotEmpty() shouldBe true
++		for (generation in listOf(run.run.leaseGeneration + 1L, run.run.leaseGeneration + 2L)) {
++			database.withTransaction {
++				database.sourceSessionDao().updateServiceRun(run.run.copy(leaseGeneration = generation,
++					runRevision = run.run.runRevision + generation, bootId = "later-operation-boot"))
++				database.sourceSessionDao().updateSession(group.session.copy(lifecycleLeaseGeneration = generation,
++					lifecycleBootId = "later-operation-boot", lifecycleRevision = group.session.lifecycleRevision + generation))
++			}
++			val after = (repository { true }.session(run.segment.id) as WifiHistoryQuery.Found).entry
++			after.observations shouldBe original.observations
++			after.causes shouldBe original.causes
++		}
++		database.sourceSessionDao().lifecycleActions(group.session.logicalTrackingId) shouldBe run.actions
++		run.facts.forEach { fact -> database.sourceEventWalDao().getByEventId(fact.sourceEventId) shouldBe
++			run.admissions.single { it.eventId == fact.sourceEventId } }
++	}
++
++	@Test
++	fun `saved Wifi cannot borrow newer action authority and deletion still retracts history`() = runTest {
++		val group = buildGroup(931, 1, setOf(0))
++		persist(listOf(group))
++		val run = group.runs.single()
++		database.sourceSessionDao().updateServiceRun(run.run.copy(leaseGeneration = run.run.leaseGeneration + 2L,
++			runRevision = run.run.runRevision + 1L))
++		database.sourceSessionDao().updateSession(group.session.copy(lifecycleLeaseGeneration = run.run.leaseGeneration + 2L))
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE lifecycle_desired_action SET lease_generation = ? WHERE service_run_id = ?",
++			arrayOf<Any>(run.run.leaseGeneration + 1L, run.run.serviceRunId))
++		val invalid = (repository { true }.session(run.segment.id) as WifiHistoryQuery.Found).entry
++		invalid.state shouldBe WifiHistoryProductState.FAILED
++		invalid.observations shouldBe emptyList()
++		run.actions.forEach { database.sourceSessionDao().updateLifecycleAction(it) }
++		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
++			WIFI_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, group.session.logicalTrackingId,
++			run.run.serviceRunId, 1, 0, run.segment.endTimeMs + 1L))
++		(repository { true }.session(run.segment.id) as WifiHistoryQuery.Found).entry.observations shouldBe emptyList()
++	}
++
++	@Test
++	fun `missing original Wifi Stop never lends a retry clock and preserves partial measured data`() = runTest {
++		val group = buildGroup(932, 1, setOf(0))
++		persist(listOf(group))
++		val run = group.runs.single()
++		val original = (repository { true }.session(run.segment.id) as WifiHistoryQuery.Found).entry
++		val stop = requireNotNull(database.sourceSessionDao().firstStopIntent(group.session.logicalTrackingId))
++		val retry = stop.copy(intentRevision = stop.intentRevision + 1L, requestBootId = "retry-boot",
++			stopDeadlineBootId = "retry-boot")
++		database.sourceSessionDao().insertLifecycleIntent(retry.copy(intentChecksum =
++			com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntegrity.checksum(retry.logicalTrackingId,
++				retry.intentRevision, retry.manifestRevision, retry.desiredState, retry.stopReason,
++				retry.requestBootId, retry.requestedElapsedRealtimeNanos, retry.stopDeadlineElapsedRealtimeNanos)))
++		database.openHelper.writableDatabase.execSQL(
++			"DELETE FROM session_lifecycle_intent_version WHERE logical_tracking_id = ? AND intent_revision = ?",
++			arrayOf<Any>(stop.logicalTrackingId, stop.intentRevision))
++		val after = (repository { true }.session(run.segment.id) as WifiHistoryQuery.Found).entry
++		after.observations shouldBe original.observations
++		(after.causes.contains(WifiHistoryCause.ACQUISITION_INCOMPLETE)) shouldBe true
++		after.state shouldBe WifiHistoryProductState.PARTIAL
++	}
++
++	@Test
+ 	fun `Wi-Fi export discovery excludes an unrelated unreadable old source cohort`() = runTest {
+ 		val old = buildGroup(910, 1, setOf(0))
+ 		val current = buildGroup(911, 1, setOf(0))
+@@ -1260,6 +1326,7 @@
+ 		runs.sortedBy { it.run.startedAtMs }.forEach { sessionDao.insertServiceRun(it.run) }
+ 		runs.sortedBy { it.manifest.manifestRevision }.forEach { sessionDao.insertManifest(it.manifest) }
+ 		sessionDao.insertManifestSources(runs.map(BuiltRun::source))
++		groups.forEach { group -> database.installOriginalStopFixture(group.session, group.runs.last().manifest) }
+ 		policyDao.insertPolicies(runs.map(BuiltRun::policy).sortedBy(SourcePolicyEntity::policyRevision))
+ 		policyDao.insertConsentEpochs(runs.map(BuiltRun::consent).sortedBy(SourceConsentEpochEntity::epoch))
+ 		runs.map(BuiltRun::planHeader).sortedBy(AcquisitionPlanRevisionEntity::revision)
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/DurableLifecycle.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/DurableLifecycle.kt
+@@ -10,7 +10,6 @@
+ import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeClaim
+ import com.adsamcik.tracker.tracker.source.runtime.SourceStartResult
+ import com.adsamcik.tracker.tracker.source.runtime.hasCompleteTerminalRetirement
+-import java.security.MessageDigest
+ 
+ enum class SessionMode { MANUAL, AUTOMATIC, LEGACY_UNKNOWN }
+ 
+@@ -134,14 +133,5 @@
+ 	)
+ }
+ 
+-internal fun stableLifecycleChecksum(vararg parts: Any?): String {
+-	val canonical = parts.joinToString(separator = "\u001f") { part ->
+-		when (part) {
+-			is Iterable<*> -> part.joinToString(separator = "\u001e") { it.toString() }
+-			else -> part?.toString().orEmpty()
+-		}
+-	}
+-	return MessageDigest.getInstance("SHA-256")
+-		.digest(canonical.toByteArray(Charsets.UTF_8))
+-		.joinToString(separator = "") { byte -> "%02x".format(byte) }
+-}
++internal fun stableLifecycleChecksum(vararg parts: Any?): String =
++	com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntegrity.checksum(*parts)
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt
+@@ -17,6 +17,7 @@
+ import androidx.test.core.app.ApplicationProvider
+ import com.adsamcik.tracker.activity.ActivityTransitionType
+ import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
+ import com.adsamcik.tracker.shared.base.database.StepsCountDomainMaintenanceResult
+ import com.adsamcik.tracker.shared.base.database.StepsCountDomainRetirementEvidence
+ import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
+@@ -255,6 +256,32 @@
+ 	fun tearDown() = database.close()
+ 
+ 	@Test
++	fun `actual End advances operation authority while retaining original recording generation and Stop clock`() = runTest {
++		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
++		val active = requireNotNull(database.sourceSessionDao().session(started.logicalTrackingId))
++		val runId = requireNotNull(active.currentServiceRunId)
++		val originalRun = requireNotNull(database.sourceSessionDao().serviceRun(runId))
++		val originalActions = database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
++			.filter { it.desiredState == "STARTED" }
++		originalActions.isNotEmpty() shouldBe true
++		stopOnIo(SessionStopRequest("test-owner", "manual", 2_000L, 2_000_000L,
++			"boot-1", perSourceTimeoutMs = 5_000L)).shouldBeInstanceOf<SessionStopResult.Stopped>()
++		val closed = requireNotNull(database.sourceSessionDao().session(started.logicalTrackingId))
++		val stoppedRun = requireNotNull(database.sourceSessionDao().serviceRun(runId))
++		stoppedRun.leaseGeneration shouldBeGreaterThan originalRun.leaseGeneration
++		SessionManifestIntegrity.hasRetainedLeaseGeneration(stoppedRun, originalRun.leaseGeneration) shouldBe true
++		SessionManifestIntegrity.hasRetainedLeaseGeneration(stoppedRun, stoppedRun.leaseGeneration + 1L) shouldBe false
++		database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
++			.filter { it.desiredState == "STARTED" } shouldBe originalActions
++		val cutoff = database.withTransaction { database.savedSessionCutoff(closed) }
++		cutoff.clockUnknown shouldBe false
++		cutoff.bootId shouldBe "boot-1"
++		cutoff.endForBoot("boot-1") shouldBe 2_000_000L
++		SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(stoppedRun,
++			database.sourceSessionDao().manifestsForServiceRun(runId)) shouldBe true
++	}
++
++	@Test
+ 	fun `Steps-only End completes with pending Wi-Fi and Cell background consumers`() = runTest {
+ 		runtime.hasNoAdmittedStepEvents = true
+ 		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()

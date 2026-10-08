@@ -798,18 +798,21 @@ private suspend fun AppDatabase.authenticateActivityCapturedAuthority(
 	val session = sessionDao.session(revision.logicalTrackingId)
 	val segment = sessionSegmentDao().getById(revision.sessionSegmentId)
 	val sameClockSessionEnd = session?.let { current ->
-		current.cutoffElapsedNanos.takeIf { current.lifecycleBootId == revision.clockDomainId }
+		savedSessionCutoff(current).retainedEnd(revision.clockDomainId, revision.sessionRunEffectEndNanos)
 	} ?: Long.MAX_VALUE
 	if (run == null || session == null || segment == null ||
 		run.logicalTrackingId != revision.logicalTrackingId ||
 		run.sessionSegmentId != revision.sessionSegmentId ||
-		run.bootId != revision.clockDomainId || run.leaseGeneration != revision.lifecycleLeaseGeneration ||
+		!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, revision.lifecycleLeaseGeneration) ||
 		run.startedElapsedNanos != revision.sessionRunEffectStartNanos ||
 		segment.logicalTrackingId != revision.logicalTrackingId ||
 		segment.serviceRunId != revision.serviceRunId ||
-		session.lifecycleBootId != revision.clockDomainId ||
+		(session.currentServiceRunId == run.serviceRunId &&
+			(run.leaseGeneration != session.lifecycleLeaseGeneration || run.bootId != session.lifecycleBootId)) ||
 		session.lifecycleLeaseGeneration < revision.lifecycleLeaseGeneration ||
-		sameClockSessionEnd != revision.sessionRunEffectEndNanos
+		(sameClockSessionEnd != revision.sessionRunEffectEndNanos &&
+			revision.sessionRunEffectEndNanos != Long.MAX_VALUE) ||
+		revision.windowEndElapsedRealtimeNanos > sameClockSessionEnd
 	) block(ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 
 	val manifests = sessionDao.manifestsForServiceRun(
@@ -817,7 +820,7 @@ private suspend fun AppDatabase.authenticateActivityCapturedAuthority(
 		limits.maximumManifestsPerRun + 1,
 	)
 	if (manifests.size > limits.maximumManifestsPerRun ||
-		!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)
+		!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests)
 	) block(ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	val sources = trackingHistoryReadDao().manifestSources(
 		listOf(revision.serviceRunId),

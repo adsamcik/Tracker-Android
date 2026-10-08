@@ -103,7 +103,7 @@ class UnifiedHistoryRangeReaderRoomTest {
     @Test fun `missing optional Location qualification never hides ordinary saved points`() = runTest {
         legacyLocation(1, 100, 200)
         val proof = mockk<RetainedLocationContextReader>()
-        coEvery { proof.qualifyInTransaction(any()) } throws android.database.sqlite.SQLiteException("Unavailable proof fixture")
+        coEvery { proof.qualifySavedInTransaction(any()) } throws android.database.sqlite.SQLiteException("Unavailable proof fixture")
         reader = rangeReaderForRoomTest(database, context, wifi, proof)
         val row = reader.read(HistoryRangeRequest(range(0, 300))).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
         row.sections.single().shouldBeInstanceOf<HistorySection.Location>().points.single().timeMs shouldBe 101L
@@ -116,7 +116,7 @@ class UnifiedHistoryRangeReaderRoomTest {
         val proof = mockk<RetainedLocationContextReader>()
         reader = rangeReaderForRoomTest(database, context, wifi, proof)
         for (reason in listOf(HistoryProblemReason.STORAGE_UNAVAILABLE, HistoryProblemReason.INTEGRITY_UNAVAILABLE)) {
-            coEvery { proof.qualifyInTransaction(any()) } returns RetainedLocationContextSnapshot(
+            coEvery { proof.qualifySavedInTransaction(any()) } returns RetainedLocationSavedSnapshot(
                 emptyList(), setOf(com.adsamcik.tracker.stats.api.repository.RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE),
                 historyProblem = reason)
             val row = reader.read(HistoryRangeRequest(range(0, 300))).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()

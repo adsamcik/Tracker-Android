@@ -92,8 +92,8 @@ internal class RoomAllDaySourceStatusQuery @Inject constructor(
 	internal suspend fun readCellHistoryInTransaction(request: AmbientCellReadRequest): AmbientCellReadResult =
 		cell.readObservationWindowInTransaction(request)
 
-	internal suspend fun qualifyLocationInTransaction(receipts: List<LocationAcceptedReceiptEntity>): RetainedLocationContextSnapshot =
-		location.qualifyInTransaction(receipts)
+	internal suspend fun qualifyLocationInTransaction(receipts: List<LocationAcceptedReceiptEntity>): RetainedLocationSavedSnapshot =
+		location.qualifySavedInTransaction(receipts)
 
 	private suspend fun readSteps(request: AllDaySourceStatusRequest.Steps, evidence: SourceEvidenceState,
 		snapshot: TrackingHistoryReadSnapshot): AllDaySourceStatusRead {
@@ -162,9 +162,12 @@ internal class RoomAllDaySourceStatusQuery @Inject constructor(
 			request.window.toExclusiveMs, request.limit + 1)
 		if (receipts.size > request.limit) return unavailable(HistoryProblemReason.DEPENDENCY_OVERFLOW)
 		val read = qualifyLocationInTransaction(receipts)
-		return AllDaySourceStatusRead.Location(snapshot, read.points.filter { it.scope is RadioContextScope.Ambient }
-			.distinctBy { it.sourceEventId }.map { point ->
-				AllDayLocationPointStatus(point.sourceEventId, AllDayReadingTime(point.observedWallTimeMs, point.wallTimeUncertaintyMs))
+		return AllDaySourceStatusRead.Location(snapshot, read.samples.filter { it.scope is RadioContextScope.Ambient &&
+			it.sample.latE7?.let { value -> value in -900_000_000..900_000_000 } == true &&
+			it.sample.lonE7?.let { value -> value in -1_800_000_000..1_800_000_000 } == true }
+			.distinctBy { it.receipt.sourceEventId }.map { point ->
+				AllDayLocationPointStatus(point.receipt.sourceEventId,
+					AllDayReadingTime(point.receipt.observedWallTimeMs, point.receipt.wallTimeUncertaintyMs))
 			}, read.gaps, read.historyProblem)
 	}
 

@@ -180,7 +180,7 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			}
 			sourcesByRevision[manifest.manifestRevision] = sources
 		}
-		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(serviceRun, manifests)) {
+		if (!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(serviceRun, manifests)) {
 			return unavailableEvidence(
 				segment,
 				HistoricalCaptureFailure.MANIFEST_INTEGRITY_FAILED,
@@ -415,9 +415,8 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 				scope.writerProjectionId != projectionId ||
 				scope.writerProjectionVersion != projectionVersion ||
 				!StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(scope) ||
-				scope.clockDomainId != serviceRun.bootId ||
-				scope.bootClockDomainId != serviceRun.bootId ||
-				manifest.effectiveBootId != serviceRun.bootId ||
+				scope.clockDomainId != manifest.effectiveBootId ||
+				scope.bootClockDomainId != manifest.effectiveBootId ||
 				startElapsed == null || endElapsed == null ||
 				startElapsed < serviceRun.startedElapsedNanos ||
 				recordingInterval == null || startElapsed !in recordingInterval ||

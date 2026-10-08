@@ -120,6 +120,45 @@ class ActivityHistoryComposerTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `saved Activity survives later lifecycle generations and retains its original elapsed clock`() = runTest {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		persistFixture(original)
+		val repository = activityRepository(testScheduler)
+		val segment = original.expansion.segments.single()
+		val before = (repository.session(segment.id) as ActivityHistoryQuery.Found).entry
+		before.fragments.isNotEmpty() shouldBe true
+		val run = original.runs.getValue("run-a")
+		val session = original.sessions.getValue(LOGICAL_ID)
+		for (generation in listOf(2L, 3L)) {
+			database.withTransaction {
+				database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = generation,
+					bootId = "later-operation", runRevision = run.runRevision + generation))
+				database.sourceSessionDao().updateSession(session.copy(lifecycleLeaseGeneration = generation,
+					lifecycleBootId = "later-operation", lifecycleRevision = session.lifecycleRevision + generation))
+			}
+			val after = (repository.session(segment.id) as ActivityHistoryQuery.Found).entry
+			after.fragments shouldBe before.fragments
+			after.activeTime shouldBe before.activeTime
+			after.causes shouldBe before.causes
+		}
+		original.walByEventId.forEach { (id, wal) -> database.sourceEventWalDao().getByEventId(id) shouldBe wal }
+	}
+
+	@Test
+	fun `saved Activity does not lend a later run generation to a changed original authorization`() = runTest {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		persistFixture(original)
+		val run = original.runs.getValue("run-a")
+		database.sourceSessionDao().updateServiceRun(run.copy(leaseGeneration = 3L, runRevision = 2L))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_authorization SET lifecycle_lease_generation = 2 WHERE service_run_id = ?",
+			arrayOf<Any>(run.serviceRunId))
+		val after = (activityRepository(testScheduler).session(original.expansion.segments.single().id) as ActivityHistoryQuery.Found).entry
+		after.state shouldBe ActivityHistoryProductState.FAILED
+		after.fragments shouldBe emptyList()
+	}
+
+	@Test
 	fun `ordinary discovery finds Activity-only intent before its first fact`() = runTest {
 		val fixture = fixture(listOf(RunSpec(1L, "run-a", "UTC"))).copy(
 			revisions = emptyList(),
@@ -2572,6 +2611,11 @@ class ActivityHistoryComposerTest {
 			snapshot.sourcesByManifest.values.flatten()
 				.sortedBy(SessionManifestSourceEntity::manifestRevision),
 		)
+		snapshot.sessions.values.forEach { session ->
+			val last = snapshot.manifestsByRun.values.flatten().filter { it.logicalTrackingId == session.logicalTrackingId }
+				.maxBy(SessionManifestVersionEntity::manifestRevision)
+			database.installOriginalStopFixture(session, last)
+		}
 		policyDao.insertPolicies(snapshot.policies.values.sortedBy(SourcePolicyEntity::policyRevision))
 		policyDao.insertConsentEpochs(snapshot.consents.values.sortedBy(SourceConsentEpochEntity::epoch))
 		snapshot.acquisitionPlanRevisions.values.sortedBy(AcquisitionPlanRevisionEntity::revision)

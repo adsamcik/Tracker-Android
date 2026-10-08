@@ -236,7 +236,7 @@ internal class UnifiedHistoryNativeReader @Inject constructor(
                 proofProblem = HistoryProblemReason.DEPENDENCY_OVERFLOW
                 null
             } else try {
-                qualifiedLocation.qualifyInTransaction(receipts)
+                qualifiedLocation.qualifySavedInTransaction(receipts)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: android.database.sqlite.SQLiteException) {
@@ -246,9 +246,8 @@ internal class UnifiedHistoryNativeReader @Inject constructor(
                 proofProblem = HistoryProblemReason.INTEGRITY_UNAVAILABLE
                 null
             }
-            val sourceSamples = receipts.associate { it.sourceEventId to it.sampleId }
-            val qualifiedBySample = qualified?.points.orEmpty().filter {
-                it.scope is RadioContextScope.Session }.groupBy { sourceSamples[it.sourceEventId] }
+            val qualifiedBySample = qualified?.samples.orEmpty().filter {
+                it.scope is RadioContextScope.Session }.groupBy { it.sample.id }
             val groups = candidates.associate { candidate ->
                 val points = probe.filter { point ->
                     if (candidate.category == "legacy") {
@@ -260,14 +259,14 @@ internal class UnifiedHistoryNativeReader @Inject constructor(
                     }
                 }.mapNotNull { point ->
                     val sample = point.sample
-                    val latitude = sample.latE7 ?: return@mapNotNull null
-                    val longitude = sample.lonE7 ?: return@mapNotNull null
+                    val latitude = sample.latE7?.takeIf { it in -900_000_000..900_000_000 } ?: return@mapNotNull null
+                    val longitude = sample.lonE7?.takeIf { it in -1_800_000_000..1_800_000_000 } ?: return@mapNotNull null
                     val publicPoint = HistoryLocationPoint(sample.timeMs, latitude, longitude,
-                        sample.hAccM, point.continuityId, sample.id)
+                        sample.hAccM?.takeIf { it.isFinite() && it >= 0f }, point.continuityId, sample.id)
                     val nativeProof = candidate.category == "native" && qualifiedBySample[sample.id].orEmpty().any {
                         val owner = (it.scope as RadioContextScope.Session).owner
                         owner.logicalTrackingId == candidate.identity.removePrefix("logical:") &&
-                            it.observedWallTimeMs == sample.timeMs && it.latitudeE7 == latitude && it.longitudeE7 == longitude }
+                            it.sample.timeMs == sample.timeMs && it.sample.latE7 == latitude && it.sample.lonE7 == longitude }
                     publicPoint to if (nativeProof) HistoryLocationCoverage.QUALIFIED else HistoryLocationCoverage.LEGACY_UNVERIFIABLE
                 }
                 val sections = points.groupBy { it.second }.map { (coverage, values) ->

@@ -509,7 +509,7 @@ suspend fun AppDatabase.authenticateDeletedCapturedCellSelectionInTransaction(
 			},
 		) || serviceRuns.any { run ->
 			val owned = manifestsByRun[run.serviceRunId].orEmpty()
-			owned.isEmpty() || !SessionManifestIntegrity.hasValidServiceRunTimeline(run, owned) ||
+			owned.isEmpty() || !SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, owned) ||
 				owned.any { manifest ->
 					val membership = sourcesByManifest[
 						logicalTrackingId to manifest.manifestRevision
@@ -1400,22 +1400,22 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 	val session = sessionDao.session(revision.logicalTrackingId)
 	val segment = sessionSegmentDao().getById(revision.sessionSegmentId)
 	if (run == null || session == null || segment == null ||
-		!session.hasValidHistoricalCellShape(revision.clockDomainId) ||
+		!session.hasValidHistoricalCellShape() ||
 		!run.hasValidHistoricalCellShape(session) ||
 		run.logicalTrackingId != revision.logicalTrackingId ||
 		run.sessionSegmentId != revision.sessionSegmentId ||
-		run.bootId != revision.clockDomainId || run.leaseGeneration != revision.lifecycleLeaseGeneration ||
+		!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, revision.lifecycleLeaseGeneration) ||
 		run.startedElapsedNanos != revision.deletionEffectStartNanos ||
 		segment.logicalTrackingId != revision.logicalTrackingId ||
 		segment.serviceRunId != revision.serviceRunId ||
 		(revision.payloadVersion != CELL_WAL_PAYLOAD_VERSION && session.finalAdmissionOrdinal != null &&
 			revision.sourceAdmissionOrdinal > session.finalAdmissionOrdinal) ||
-		session.clockDomainId != revision.clockDomainId ||
+
 		session.lifecycleLeaseGeneration < revision.lifecycleLeaseGeneration ||
 		(session.cutoffAtMs == null) != (session.cutoffElapsedNanos == null) ||
 		(session.completedAtMs != null && session.cutoffElapsedNanos == null)
 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-	val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
+	val sessionEnd = savedSessionCutoff(session).retainedEnd(revision.clockDomainId, revision.deletionEffectEndNanos)
 	if (!sessionEnd.isExactSettlementOf(revision.deletionEffectEndNanos)) {
 		block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	}
@@ -1430,7 +1430,7 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 	)
 	if (manifests.size > limits.maximumManifestsPerRun ||
 		sources.size > limits.maximumSourcesPerRun ||
-		!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) ||
+		!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) ||
 		manifests.any { manifest ->
 			!SessionManifestIntegrity.verify(
 				manifest,
@@ -2626,15 +2626,16 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 	val sessionDao = sourceSessionDao()
 	val run = sessionDao.serviceRun(serviceRunId)
 	val session = sessionDao.session(logicalTrackingId)
+	val cutoff = session?.let { savedSessionCutoff(it) }
 	if (run == null || session == null || run.logicalTrackingId != logicalTrackingId ||
-		!session.hasValidHistoricalCellShape(wal.clockDomainId) ||
+		!session.hasValidHistoricalCellShape() ||
 		!run.hasValidHistoricalCellShape(session) ||
-		run.bootId != wal.clockDomainId || run.leaseGeneration != leaseGeneration ||
-		session.clockDomainId != wal.clockDomainId || session.lifecycleLeaseGeneration < leaseGeneration ||
+		!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, leaseGeneration) ||
+		session.lifecycleLeaseGeneration < leaseGeneration ||
 		run.startedElapsedNanos > capturePoint ||
 		(purposeItems == null && session.finalAdmissionOrdinal != null && wal.admissionOrdinal > session.finalAdmissionOrdinal) ||
 		(session.cutoffAtMs == null) != (session.cutoffElapsedNanos == null) ||
-		selectedEndNanos >= (session.cutoffElapsedNanos ?: Long.MAX_VALUE)
+		selectedEndNanos >= requireNotNull(cutoff).endForBoot(wal.clockDomainId)
 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	val manifests = sessionDao.manifestsForServiceRun(serviceRunId, limits.maximumManifestsPerRun + 1)
 	val sources = trackingHistoryReadDao().manifestSources(
@@ -2642,7 +2643,7 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 		limits.maximumSourcesPerRun + 1,
 	)
 	if (manifests.size > limits.maximumManifestsPerRun || sources.size > limits.maximumSourcesPerRun ||
-		!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) ||
+		!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) ||
 		manifests.any { manifest ->
 			!SessionManifestIntegrity.verify(
 				manifest,
@@ -2667,7 +2668,7 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 		source.sourceKind == CELL_SOURCE && source.purpose == CAPTURE_PURPOSE
 	}
 	val manifestEnd = manifests.getOrNull(manifestIndex + 1)?.effectiveElapsedRealtimeNanos
-		?: minOf(session.cutoffElapsedNanos ?: Long.MAX_VALUE, registrationEnd, authorizationEnd)
+		?: minOf(requireNotNull(cutoff).endForBoot(wal.clockDomainId), registrationEnd, authorizationEnd)
 	val segmentId = run.sessionSegmentId
 	val segment = segmentId?.let { sessionSegmentDao().getById(it) }
 	val wallInterval = capturePointWallInterval(wal, selectedStartNanos, selectedEndNanos)
@@ -2895,15 +2896,13 @@ private fun CellWalIdentityFreeAggregate.toHistoricalAggregate() =
 		allKnownQualityIsWeak = allKnownQualityIsWeak,
 	)
 
-private fun LogicalTrackingSessionEntity.hasValidHistoricalCellShape(
-	expectedBootId: String,
-): Boolean {
+private fun LogicalTrackingSessionEntity.hasValidHistoricalCellShape(): Boolean {
 	val terminal = state in TERMINAL_SESSION_STATES
 	val nonterminal = state in NONTERMINAL_SESSION_STATES
 	if (!terminal && !nonterminal) return false
 	if (logicalTrackingId.isBlank() || lifecycleRevision <= 0L || desiredPlanRevision <= 0L ||
-		rolloutRevision <= 0L || startOrigin.isBlank() || clockDomainId != expectedBootId ||
-		lifecycleBootId != expectedBootId || lifecycleLeaseGeneration <= 0L ||
+		rolloutRevision <= 0L || startOrigin.isBlank() || clockDomainId.isBlank() ||
+		lifecycleBootId.isNullOrBlank() || lifecycleLeaseGeneration <= 0L ||
 		startedAtMs < 0L || startedElapsedNanos < 0L ||
 		(cutoffAtMs == null) != (cutoffElapsedNanos == null)
 	) return false
@@ -2925,7 +2924,9 @@ private fun SourceServiceRunEntity.hasValidHistoricalCellShape(
 	val nonterminal = state in NONTERMINAL_RUN_STATES
 	if (!terminal && !nonterminal) return false
 	if (serviceRunId.isBlank() || logicalTrackingId != session.logicalTrackingId ||
-		bootId != session.clockDomainId ||
+		bootId.isBlank() ||
+		(session.currentServiceRunId == serviceRunId &&
+			(leaseGeneration != session.lifecycleLeaseGeneration || bootId != session.lifecycleBootId)) ||
 		leaseGeneration <= 0L || leaseGeneration > session.lifecycleLeaseGeneration ||
 		desiredPlanRevision <= 0L || rolloutRevision <= 0L || startedAtMs < 0L ||
 		startedElapsedNanos < 0L || startOrigin.isBlank() || sessionSegmentId == null ||

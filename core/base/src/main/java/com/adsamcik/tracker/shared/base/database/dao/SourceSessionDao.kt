@@ -335,6 +335,13 @@ interface SourceSessionDao {
 	)
 	suspend fun lifecycleIntents(logicalTrackingId: String): List<SessionLifecycleIntentVersionEntity>
 
+	/** Earliest saved Stop only: later retries must never become an observation clock. */
+	@Query(
+		"SELECT * FROM session_lifecycle_intent_version WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND desired_state = 'FINALIZED' ORDER BY intent_revision ASC LIMIT 1",
+	)
+	suspend fun firstStopIntent(logicalTrackingId: String): SessionLifecycleIntentVersionEntity?
+
 	@Query(
 		"SELECT * FROM session_lifecycle_intent_version WHERE logical_tracking_id = :logicalTrackingId " +
 			"AND intent_revision = :intentRevision",

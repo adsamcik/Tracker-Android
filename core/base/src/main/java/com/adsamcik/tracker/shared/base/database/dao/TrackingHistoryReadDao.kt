@@ -558,6 +558,13 @@ interface TrackingHistoryReadDao {
 		afterServiceRunId: String?,
 	): List<SourceServiceRunEntity>
 
+	/** Exact retained Location grant keys supplied with bound arguments by the source-owned reader. */
+	@androidx.room.RawQuery
+	suspend fun retainedLocationManifests(query: androidx.sqlite.db.SupportSQLiteQuery): List<SessionManifestVersionEntity>
+
+	@androidx.room.RawQuery
+	suspend fun retainedLocationManifestSources(query: androidx.sqlite.db.SupportSQLiteQuery): List<SessionManifestSourceEntity>
+
 	/** Reads all immutable manifest revisions for the requested service runs. */
 	@Query(
 		"SELECT * FROM session_manifest_version WHERE service_run_id IN (:serviceRunIds) " +
