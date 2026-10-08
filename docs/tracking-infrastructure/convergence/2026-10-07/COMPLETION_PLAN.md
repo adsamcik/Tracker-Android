@@ -482,3 +482,9 @@ prerequisites and T25 remain OPEN. No gates or dev/v10 integration started.
   Nine new Room/runtime/recovery methods are NOT_RUN. See
   ../2026-10-08/STEPS_CONTINUITY_RUNTIME_SELECTED/SOURCE_REVIEW.md.
   Actual hardware, historical saved-read repair and full T03/T25 remain open.
+
+- [x] Obtain explicit historical saved-reading and shared live-Location-total
+  approvals. Confirmed actual quality/End generation loss blocks the held Location
+  V2 summary selection; repair across affected historical sources is in progress.
+- [ ] Finish and freshly review that historical repair, shared live consumer update
+  flow and actual measured-observation History caller/data wiring.

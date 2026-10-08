@@ -68,3 +68,52 @@ permissions, Stop/delete boundaries and factual measurement limits still apply.
 
 This general preference was saved in a user-requested Codex memory update note.
 No validation/activation/integration boundary is changed by these answers.
+
+## October 8 follow-up answers: historical data and live Location totals
+
+### Valid saved readings after quality changes and End — APPROVED
+
+The fresh source review confirmed that the actual coordinator advances the same
+service run operation generation during quality reconfiguration, Stop and retry.
+Historical readers incorrectly compare the original sealed reading generation to
+that mutable latest value, making valid earlier data disappear.
+
+The human answered: **Keep valid saved readings after changes (Recommended)**.
+Apply the rule consistently across affected saved-data readers, without new
+state/storage: use original recording settings/permission, immutable named
+manifest/receipt/scope and original generation checks; retain actual epoch,
+retention, deletion and original clock fences. Current runtime command/admission
+checks remain separate and strict. Off keeps saved history; explicit erase removes
+it. Positive historical generation must not exceed the real run's later generation.
+The exact original proof remains required; this is not a generic runtime ancestry
+exception. Current clock mutations need source review against original metadata.
+
+SAVED_LOCATION_SUMMARY_SELECTED V2 is **not accepted** until this confirmed blocker
+is repaired and independently reviewed. See SAVED_LOCATION_SUMMARY_REVIEW.md.
+The first manually finalized End fixture does not simulate the actual generation
+change and must not be presented as composed End coverage.
+
+### One shared live Location total — APPROVED
+
+The human answered: **Use one shared live total (Recommended)**.
+Tracker, notification and widget share one temporary source-owned total based on
+saved Location: seed once, then catch up newly saved points; rebuild on correction,
+delete, restore or delayed points that change measured order. No new database copy
+or provider demand. A slow/dropped/conflated notification cannot lose saved IDs.
+No stale value may survive destructive changes. Retained qualification/effective
+correction stays shared; accuracy is optional for ordinary summaries.
+
+The raw current controller/session counters and dormant LocationDomainProjection
+are not a safely qualified substitute. Per-fix full growing-session scans are not
+the approved implementation. Consumer/update source and independent review remain
+pending. The existing file/backup priority remains deferred behind tracking.
+
+### Routine shared-History reader execution
+
+The already approved six-source Timeline/Calendar list needs measured observation
+paging and untimed page-error metadata. Extend the existing range/paging facade
+with a measured browse mode for those callers; preserve existing recording/detail
+semantics for organization/session consumers. Page errors must not be synthetic
+measurements. Use original source-owned fact/window selectors and measured dates,
+real Steps windows, optional session labels, inline details and independent Retry.
+No new store, parallel tracking engine or unrequested History product is selected.

@@ -824,3 +824,17 @@ IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites and T25 remain OPEN.
   all-day provider and source-independent full-chain coverage.
 
 IMPLEMENTED_UNVALIDATED. All 25 prerequisites and T25 remain OPEN.
+
+## October 8 confirmed remaining core integration
+
+- [x] Obtain human approval to preserve valid readings against original recording
+  conditions after quality/End, with current admission and erase fences unchanged.
+- [x] Obtain human approval for one shared temporary saved-Location live total,
+  incremental saved-ID catch-up and destructive/out-of-order rebuilds.
+- [ ] Repair and freshly review historical Location/Activity/Pressure/radio checks.
+- [ ] Connect shared Location values to Tracker, notifications and widgets.
+- [ ] Finish actual Timeline/Calendar measured-observation paging and source Retry.
+
+Held Location V2 is not accepted; its new End-state fixture omits the actual
+operation-generation mutation. All tests remain NOT_RUN and all 25 prerequisites
+remain OPEN. No convergence gate or dev/v10 integration has begun.
