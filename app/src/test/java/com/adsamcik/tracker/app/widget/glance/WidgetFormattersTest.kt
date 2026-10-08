@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.app.widget.glance
 
-import com.adsamcik.tracker.shared.model.Location
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -129,27 +128,6 @@ class WidgetFormattersTest {
         }
     }
 
-    @Nested
-    @DisplayName("formatPathPreview")
-    inner class FormatPathPreview {
-
-        @Test
-        fun `not enough points returns dot`() {
-            assertEquals("•", WidgetFormatters.formatPathPreview(emptyList()))
-        }
-
-        @Test
-        fun `diagonal route renders arrow sequence`() {
-            val points = listOf(
-                testLocation(50.0, 14.0),
-                testLocation(50.001, 14.001),
-                testLocation(50.002, 14.001),
-            )
-
-            assertEquals("↗ ↑", WidgetFormatters.formatPathPreview(points))
-        }
-    }
-
     @Test
     fun `duration honors requested Arabic digits including negative durations`() {
         val arabic = Locale.forLanguageTag("ar-SA")
@@ -168,16 +146,4 @@ class WidgetFormattersTest {
         assertEquals("2.147.483.648", WidgetFormatters.formatSteps(2_147_483_648L, Locale.GERMANY))
         assertEquals("1.234", WidgetFormatters.formatSteps(1_234, Locale.GERMANY))
     }
-
-    private fun testLocation(latitude: Double, longitude: Double) =
-        Location(
-            time = 0L,
-            latitude = latitude,
-            longitude = longitude,
-            altitude = null,
-            horizontalAccuracy = null,
-            verticalAccuracy = null,
-            speed = null,
-            speedAccuracy = null,
-        )
 }

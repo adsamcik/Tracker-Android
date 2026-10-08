@@ -486,11 +486,6 @@
     <string name="widget_quick_start_description">Start or stop location tracking with a single tap.</string>
     <string name="widget_start_tracking">Start session</string>
     <string name="widget_stop_tracking">Stop Tracking</string>
-    <string name="widget_end_session" tools:ignore="MissingTranslation">End session</string>
-    <string name="widget_end_short" tools:ignore="MissingTranslation">End</string>
-    <string name="widget_turn_off_tracking" tools:ignore="MissingTranslation">Turn off tracking</string>
-    <string name="widget_turn_off_short" tools:ignore="MissingTranslation">Turn off</string>
-    <string name="widget_tracking_active">Tracking Active</string>
 
     <string name="widget_today_summary_name">Today\'s Summary</string>
     <string name="widget_today_summary_description">See your tracking stats for today at a glance.</string>
@@ -506,29 +501,11 @@
     <string name="widget_duration">Duration</string>
     <string name="widget_no_data_today">No tracking data today</string>
 
-    <string name="widget_active_session_name">Active Session</string>
-    <string name="widget_active_session_description">See the current session and available stats. Start, end or turn off tracking.</string>
-    <string name="widget_no_active_session">No active session</string>
-    <string name="widget_tap_to_start">Tap to start a session</string>
-    <string name="widget_session_distance">Session Distance</string>
-    <string name="widget_session_steps">Session Steps</string>
-    <string name="widget_session_duration">Session Duration</string>
-    <string name="widget_current_speed">Current Speed</string>
-    <string name="widget_speed_unknown">—</string>
-    <string name="widget_speed_format_decimal">%.1f km/h</string>
-    <string name="widget_speed_format_whole">%d km/h</string>
-    <string name="widget_collections">Collections</string>
 
-    <string name="widget_path_preview">Path Preview</string>
-    <string name="widget_activity_unknown">Activity unavailable</string>
     <string name="widget_goal_label">Goal:</string>
     <string name="widget_goal_progress">%1$s / %2$s steps</string>
     <string name="widget_format_km">%.1f km</string>
     <string name="widget_format_meters">%d m</string>
-    <string name="widget_tier_off">Off</string>
-    <string name="widget_tier_ambient">Ambient</string>
-    <string name="widget_tier_active">Active</string>
-    <string name="widget_tier_precision">Precision</string>
 
     <!-- Smart Goal Notifications (Task D) -->
     <string name="goal_notification_title_progress">Great progress!</string>

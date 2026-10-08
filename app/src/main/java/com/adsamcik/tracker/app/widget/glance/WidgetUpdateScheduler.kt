@@ -63,7 +63,6 @@ object WidgetUpdateScheduler {
     suspend fun updateAllWidgets(context: Context) {
         QuickStartWidget().updateAll(context)
         TodaySummaryWidget().updateAll(context)
-        ActiveSessionWidget().updateAll(context)
     }
 }
 

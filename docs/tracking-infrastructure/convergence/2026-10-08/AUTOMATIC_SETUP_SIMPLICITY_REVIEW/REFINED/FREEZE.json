@@ -1,0 +1,15 @@
+{
+  "baseCommit": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+  "currentSourceCommit": "3a3476e63e5c3bc40e2697f5e503a94cb18592ed",
+  "phase": "IMPLEMENTATION_ONLY",
+  "disposition": "PROPOSAL_NOT_IMPLEMENTED",
+  "sourcePinCount": 37,
+  "unchangedSourcePins": 37,
+  "proposalSha256": "22bf2815010b63ec8b42b96b05867ee06e5b293b06b866d2806ae2454c93bcd2",
+  "preservedPreReviewSha256": "e07aadf5507ab4c8157f6d1de5a5af77cbc08c5d2b0144bbc39a86a1a7d0485b",
+  "independentReviewSha256": "19518e3cb5d5643034b5052f8db233ffa7d16853971b21cb001f3f488b932901",
+  "sourcePinsSha256": "2e883863e0e46a023e50ecbd08bf95de889de8954a0702edbe266622baedfd68",
+  "sourceOrTestEdits": false,
+  "tests": "NOT_RUN",
+  "all25": "OPEN"
+}

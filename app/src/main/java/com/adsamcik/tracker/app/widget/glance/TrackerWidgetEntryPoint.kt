@@ -3,7 +3,6 @@ package com.adsamcik.tracker.app.widget.glance
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
-import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -19,8 +18,6 @@ interface TrackerWidgetEntryPoint {
     fun trackerStateReader(): TrackerStateReader
     fun trackingParamsRepository(): TrackingParamsRepository
 
-    /** Source-qualified durable history used by bounded widget reads. */
-    fun trackingHistoryRepository(): TrackingHistoryRepository
     fun dailySummaryProvider(): DailySummaryProvider
     fun goalProgressProvider(): GoalProgressProvider
 }

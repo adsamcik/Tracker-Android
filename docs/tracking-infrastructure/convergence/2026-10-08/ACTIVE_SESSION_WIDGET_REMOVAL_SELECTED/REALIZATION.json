@@ -1,0 +1,207 @@
+[
+  {
+    "path": "app/src/main/AndroidManifest.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "2316a2e18946a475c04036269cef3d724a48243f38e8d3a2fb123eaf61434446"
+  },
+  {
+    "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionWidget.kt",
+    "disposition": "REMOVED_UNCHANGED_WORKING_SOURCE",
+    "working_before_sha256": "bc5ecbac25fbf6716a899d0497a9f23a46b87e313525a8fc5554fecc9a3b716b"
+  },
+  {
+    "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/TrackerWidgetEntryPoint.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "a83307107d785431fee02a468abb22811467666ec167302611fdc61ddad01d95"
+  },
+  {
+    "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetFormatters.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "32112956c66c64b1c97d41ef9b74dafb217a492f1535e1093805c99227e3dcf4"
+  },
+  {
+    "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetGlancePreviews.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "b07919269d7f5ff4677e6aa76a78e97b0a5cfd8dc2204385927b6e5efb22bf4f"
+  },
+  {
+    "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetUpdateScheduler.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e145ac31eea21489e12c506a4dd5c100846f323fabea9a1c303cbccf8f0e9a32"
+  },
+  {
+    "path": "app/src/main/res/drawable/widget_preview_active_session.xml",
+    "disposition": "REMOVED_UNCHANGED_WORKING_SOURCE",
+    "working_before_sha256": "4d8bf53e95f954b795afad849a629c6af3f5b8be369aaef88eff26fa38f46ce4"
+  },
+  {
+    "path": "app/src/main/res/values-bg-rBG/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "334b72528a6a33111d04fe8ac2054a5429dec663848d66ae20ade737e5f779b9"
+  },
+  {
+    "path": "app/src/main/res/values-cs-rCZ/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "a87cd8b8691844059a35c6ba2a38c24356d9d930d6a045721cda0a1fbdad8372"
+  },
+  {
+    "path": "app/src/main/res/values-da-rDK/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "d4767b100bd6285c6bdfbfac148bb874b539f94f8799fd5ef4a8ac1fc3b577c0"
+  },
+  {
+    "path": "app/src/main/res/values-de-rDE/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "f5896218f9e3daadecaffa8c63e16a13fd560da1b4c85d5ac5cf0398c94f7212"
+  },
+  {
+    "path": "app/src/main/res/values-el-rGR/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "472a0b3e180fadb31a0fabbed8eadec4903c22494e636c76997fb7ad197e1696"
+  },
+  {
+    "path": "app/src/main/res/values-es-rES/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "b04e20394eeaf9cc46b80dc25712858d4f5eaff1997db22da150db2b888ff5fa"
+  },
+  {
+    "path": "app/src/main/res/values-et-rEE/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "224bf689848811fe592a290ce7d30a52064b203a935d2a480055cffd0440721b"
+  },
+  {
+    "path": "app/src/main/res/values-fi-rFI/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "78750d1b334a600589f55db07af2955e99384be83147f3ab1c7f3f2838a2b246"
+  },
+  {
+    "path": "app/src/main/res/values-fr-rFR/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "860a0856dee7a1ed7620404ed09aae6a58a00c197b6ddfe0e8cc307f7489b4a7"
+  },
+  {
+    "path": "app/src/main/res/values-ga-rIE/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "25b1cbd27368c9b1c7a2dbe4281ac89927a5f5674f982f811039be16ac08509e"
+  },
+  {
+    "path": "app/src/main/res/values-hi-rIN/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "671d6f79298b88bee9cadf88123775af415c2f058c0b723dffb447e07671f9b4"
+  },
+  {
+    "path": "app/src/main/res/values-hr-rHR/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "4d2957abe4c5e247fdd922761313b43c7c708fc7acf33c9c44eb760cb0e1f16d"
+  },
+  {
+    "path": "app/src/main/res/values-hu-rHU/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "11a374ba697d9ade0b0dfa5f58a3c3f345cdf02fc450c05c5258aab8d81d1330"
+  },
+  {
+    "path": "app/src/main/res/values-it-rIT/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "221945dd1adc78f1eebde4cf54df9795687e372fdb46332b33d7bf6e6175d394"
+  },
+  {
+    "path": "app/src/main/res/values-ja-rJP/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "486148220b8b705cb644edbfcb689e6988ed6bd7c2bb0e71e7a116e72d6d17af"
+  },
+  {
+    "path": "app/src/main/res/values-lt-rLT/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "4b7be525f16f904188b3cc8d84c778f8d035c9b5f48a899730d576ee574a9897"
+  },
+  {
+    "path": "app/src/main/res/values-lv-rLV/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "46a64715a2f340f29ed259798ced67fe3bd47d32bf8c111238f11895771eb909"
+  },
+  {
+    "path": "app/src/main/res/values-mt-rMT/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "a527bca9c45091e38ef19820a01b040328436dd56e3bb030f5b77a69a9624153"
+  },
+  {
+    "path": "app/src/main/res/values-nl-rNL/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "cc60ab0fed2cebe8fc8ec2e2248dddc0e502eac4935a2fe1e6e4fa4f60dd3b25"
+  },
+  {
+    "path": "app/src/main/res/values-pl-rPL/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "d9afcb15627b34396268e9ac73e68fc0c3d7790ecdd13edf97fb2d34ec7a6a68"
+  },
+  {
+    "path": "app/src/main/res/values-pt-rPT/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "cac208b1aaec47360c0bc58023be17c8d3601daad419619b8ddb7830953752bd"
+  },
+  {
+    "path": "app/src/main/res/values-ro-rRO/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "f48a339284e1a4e1545f30c1524260357d609d17dc23f244d48908a392133de0"
+  },
+  {
+    "path": "app/src/main/res/values-sk-rSK/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "994c4394cdcf2ea785e163960f9d253586b6c5b827c1c7c39db82ecce02c64b2"
+  },
+  {
+    "path": "app/src/main/res/values-sl-rSI/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "9527a23fde6678c43bdf029c9fa38f188fe601012482061e701ebd387e7b59f4"
+  },
+  {
+    "path": "app/src/main/res/values-sv-rSE/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "91fde12eaf455291710ff78ed5e6c9c5a27dfa2770093c3bb621b660e850d7cd"
+  },
+  {
+    "path": "app/src/main/res/values-zh-rCN/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "13227b50762f6121799e416b7a8c8f448e61beacbd6345fa71400bfd2f042052"
+  },
+  {
+    "path": "app/src/main/res/values-zh-rTW/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "ff352c76f4a98f82f2201b41d2ade0279baaa4432597c98d27a176b280f71dfd"
+  },
+  {
+    "path": "app/src/main/res/values/strings.xml",
+    "disposition": "PRESERVED_MIXED_WORKING_DRAFT",
+    "working_before_sha256": "df5513fbf573628c7bd1b6e87fea2a4f5c2567f7cf1986e43d21cc67881d1fa9"
+  },
+  {
+    "path": "app/src/main/res/xml-v31/widget_active_session_info.xml",
+    "disposition": "REMOVED_UNCHANGED_WORKING_SOURCE",
+    "working_before_sha256": "146af5e176b254d3396ffd4c7813c0fda7864afa25c7f42851d1009e32289a00"
+  },
+  {
+    "path": "app/src/main/res/xml/widget_active_session_info.xml",
+    "disposition": "REMOVED_UNCHANGED_WORKING_SOURCE",
+    "working_before_sha256": "5185fdfcf271f279680b22ca5834c1117dd6afed56ca7d2c3b84616bc774e2b6"
+  },
+  {
+    "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionSavedLocationTest.kt",
+    "disposition": "REMOVED_UNCHANGED_WORKING_SOURCE",
+    "working_before_sha256": "981394a86face01bd94bfe6f1d3ac651e53dfd321ee43fa599f4f0cc0d49bf3f"
+  },
+  {
+    "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionWidgetPresentationTest.kt",
+    "disposition": "REMOVED_UNCHANGED_WORKING_SOURCE",
+    "working_before_sha256": "30c6994dfa9c76bf109ba522ba4a531d0e086f133aa17df6fb4106b2312165ca"
+  },
+  {
+    "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/WidgetFormattersTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "702b1bc851f9481e26c65695c1315370d338da3bc189eea47448f33ec06a7aaf"
+  },
+  {
+    "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/LauncherWidgetRegistrationTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

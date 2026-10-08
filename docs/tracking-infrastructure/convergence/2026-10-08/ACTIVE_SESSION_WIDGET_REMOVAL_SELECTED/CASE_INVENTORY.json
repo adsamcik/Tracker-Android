@@ -1,0 +1,10 @@
+{
+  "execution": "NOT_RUN",
+  "cases": [
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/LauncherWidgetRegistrationTest.kt",
+      "method": "remaining launcher widgets have registered provider metadata",
+      "scope": "Robolectric packaged manifest/resources; Application avoids Tracker startup"
+    }
+  ]
+}

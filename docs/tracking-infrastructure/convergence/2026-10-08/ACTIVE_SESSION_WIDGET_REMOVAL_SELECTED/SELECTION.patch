@@ -1,0 +1,2407 @@
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -173,18 +173,6 @@
+                 android:resource="@xml/widget_today_summary_info" />
+         </receiver>
+ 
+-        <receiver
+-            android:name="com.adsamcik.tracker.app.widget.glance.ActiveSessionWidgetReceiver"
+-            android:exported="true"
+-            android:label="@string/widget_active_session_name">
+-            <intent-filter>
+-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+-            </intent-filter>
+-            <meta-data
+-                android:name="android.appwidget.provider"
+-                android:resource="@xml/widget_active_session_info" />
+-        </receiver>
+-
+     </application>
+ 
+ </manifest>
+--- a/app/src/main/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionWidget.kt
++++ /dev/null
+@@ -1,557 +0,0 @@
+-package com.adsamcik.tracker.app.widget.glance
+-
+-import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+-import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+-import com.adsamcik.tracker.tracker.controller.forLiveSegment
+-import com.adsamcik.tracker.tracker.controller.formatSavedDistance
+-import com.adsamcik.tracker.tracker.controller.hasLiveCapture
+-import android.content.Context
+-import androidx.annotation.StringRes
+-import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.collectAsState
+-import androidx.compose.runtime.getValue
+-import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+-import com.adsamcik.tracker.tracker.controller.TrackerStateReader
+-import androidx.compose.ui.unit.dp
+-import androidx.compose.ui.unit.sp
+-import androidx.glance.ColorFilter
+-import androidx.glance.GlanceId
+-import androidx.glance.GlanceModifier
+-import androidx.glance.GlanceTheme
+-import androidx.glance.Image
+-import androidx.glance.ImageProvider
+-import androidx.glance.action.clickable
+-import androidx.glance.appwidget.GlanceAppWidget
+-import androidx.glance.appwidget.GlanceAppWidgetReceiver
+-import androidx.glance.appwidget.action.actionRunCallback
+-import androidx.glance.appwidget.cornerRadius
+-import androidx.glance.appwidget.provideContent
+-import androidx.glance.background
+-import androidx.glance.layout.Alignment
+-import androidx.glance.layout.Column
+-import androidx.glance.layout.Row
+-import androidx.glance.layout.Spacer
+-import androidx.glance.layout.fillMaxSize
+-import androidx.glance.layout.fillMaxWidth
+-import androidx.glance.layout.height
+-import androidx.glance.layout.padding
+-import androidx.glance.layout.size
+-import androidx.glance.layout.width
+-import androidx.glance.text.FontWeight
+-import androidx.glance.text.Text
+-import androidx.glance.text.TextStyle
+-import com.adsamcik.tracker.R
+-import com.adsamcik.tracker.shared.base.data.DetectedActivity
+-import com.adsamcik.tracker.shared.model.Location
+-import com.adsamcik.tracker.stats.api.PolicyTier
+-import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+-import com.adsamcik.tracker.tracker.data.collection.TrackerActivityType
+-import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
+-import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
+-import dagger.hilt.android.EntryPointAccessors
+-import kotlinx.coroutines.CancellationException
+-import kotlinx.coroutines.flow.first
+-import kotlinx.coroutines.flow.map
+-import kotlinx.coroutines.withTimeoutOrNull
+-
+-/**
+- * Active Session widget (4x3): live-ish session data during tracking.
+- * Shows distance, duration, activity tier, and collection count.
+- * When not tracking, shows a "tap to start" idle state.
+- *
+- * Limitation: True real-time updates (e.g. every 5s) are not feasible with Glance
+- * due to Android background restrictions. Widget updates via WorkManager periodic task
+- * (~15 min minimum) plus event-driven updates when tracking starts/stops.
+- */
+-class ActiveSessionWidget : GlanceAppWidget() {
+-
+-    override suspend fun provideGlance(context: Context, id: GlanceId) {
+-        val isRunning: Boolean
+-        val session: TrackerSessionSnapshot?
+-        val stepsPresentation: WidgetStepsPresentation
+-        val trackingParams: TrackingParamsState
+-        val controller: TrackerStateReader
+-        val paramsRepository: TrackingParamsRepository
+-
+-        try {
+-            val entryPoint = EntryPointAccessors.fromApplication(
+-                context.applicationContext,
+-                TrackerWidgetEntryPoint::class.java,
+-            )
+-            controller = entryPoint.trackerStateReader()
+-            paramsRepository = entryPoint.trackingParamsRepository()
+-            isRunning = controller.hasLiveCapture
+-            trackingParams = withTimeoutOrNull(WIDGET_STEPS_SETTLEMENT_TIMEOUT_MILLIS) {
+-                paramsRepository.data.first()
+-            } ?: TrackingParamsState(locationEnabled = false, stepsEnabled = false, activityEnabled = false,
+-                wifiEnabled = false, cellEnabled = false, barometerEnabled = false)
+-            session = controller.sessionFlow.value
+-            stepsPresentation = if (isRunning && trackingParams.stepsEnabled) {
+-                readWidgetSteps(entryPoint.trackingHistoryRepository(), session)
+-            } else {
+-                WidgetStepsPresentation.NotCaptured
+-            }
+-        } catch (cancellation: CancellationException) {
+-            throw cancellation
+-        } catch (_: Exception) {
+-            // Hilt not initialized - show idle state.
+-            provideContent {
+-                GlanceTheme {
+-                    ActiveSessionContent(
+-                        isRunning = false,
+-                        session = null,
+-                        policyTier = PolicyTier.OFF,
+-                        snapshot = ActiveSessionSnapshot.empty(context),
+-                        stepsPresentation = WidgetStepsPresentation.StorageUnavailable,
+-                        context = context,
+-                    )
+-                }
+-            }
+-            return
+-        }
+-
+-        provideContent {
+-            // Glance owns these collectors while its existing composition is alive. No worker/wake is added.
+-            val hosted by controller.isServiceRunningFlow.collectAsState()
+-            val currentInfo by controller.sessionInfoFlow.collectAsState()
+-            val currentSession by controller.sessionFlow.collectAsState()
+-            val currentPolicy by controller.policyTierFlow.collectAsState()
+-            val currentCollection by controller.collectionDataFlow.collectAsState()
+-            val currentPath by controller.pathPointsFlow.collectAsState()
+-            val savedRead by controller.savedLocationSummaryFlow.collectAsState()
+-            val currentChoices by paramsRepository.data.collectAsState(initial = trackingParams)
+-            val active = hosted && currentInfo != null && (currentSession?.id ?: 0L) > 0L
+-            val savedLocation = savedRead.forLiveSegment(currentSession?.id, active && currentChoices.locationEnabled)
+-            val preview = currentPath?.takeIf {
+-                currentChoices.locationEnabled && it.first == currentSession?.id }?.second.orEmpty()
+-            val snapshot = buildSnapshot(context, currentCollection, preview, savedLocation,
+-                currentChoices.locationEnabled, currentChoices.activityEnabled)
+-            GlanceTheme {
+-                ActiveSessionContent(
+-                    isRunning = active,
+-                    session = currentSession,
+-                    policyTier = currentPolicy,
+-                    snapshot = snapshot,
+-                    stepsPresentation = if (currentSession?.id == session?.id) stepsPresentation
+-                        else WidgetStepsPresentation.Materializing,
+-                    savedLocation = savedLocation,
+-                    trackingParams = currentChoices,
+-                    context = context,
+-                )
+-            }
+-        }
+-    }
+-}
+-
+-@Composable
+-private fun ActiveSessionContent(
+-    isRunning: Boolean,
+-    session: TrackerSessionSnapshot?,
+-    policyTier: PolicyTier,
+-    snapshot: ActiveSessionSnapshot,
+-    stepsPresentation: WidgetStepsPresentation,
+-    savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound,
+-    trackingParams: TrackingParamsState = TrackingParamsState(),
+-    context: Context,
+-) {
+-    Column(
+-        modifier = GlanceModifier
+-            .fillMaxSize()
+-            .background(GlanceTheme.colors.surfaceVariant)
+-            .cornerRadius(16.dp)
+-            .padding(16.dp),
+-    ) {
+-        if (!isRunning || session == null) {
+-            IdleContent(context)
+-        } else {
+-            TrackingContent(
+-                session = session,
+-                policyTier = policyTier,
+-                snapshot = snapshot,
+-                stepsPresentation = stepsPresentation,
+-                savedLocation = savedLocation,
+-                trackingParams = trackingParams,
+-                context = context,
+-            )
+-        }
+-    }
+-}
+-
+-@Composable
+-private fun IdleContent(context: Context) {
+-    Row(
+-        modifier = GlanceModifier.fillMaxSize(),
+-        verticalAlignment = Alignment.CenterVertically,
+-    ) {
+-        Column(
+-            modifier = GlanceModifier.defaultWeight()
+-                .clickable(actionRunCallback<ToggleTrackingAction>()),
+-            horizontalAlignment = Alignment.CenterHorizontally,
+-        ) {
+-            Image(
+-                provider = ImageProvider(R.drawable.ic_widget_play),
+-                contentDescription = context.getString(R.string.widget_start_tracking),
+-                modifier = GlanceModifier.size(48.dp),
+-                colorFilter = ColorFilter.tint(GlanceTheme.colors.primary),
+-            )
+-            Spacer(modifier = GlanceModifier.height(8.dp))
+-            Text(
+-                text = context.getString(R.string.widget_no_active_session),
+-                style = TextStyle(
+-                    color = GlanceTheme.colors.onSurfaceVariant,
+-                    fontSize = 14.sp,
+-                    fontWeight = FontWeight.Medium,
+-                ),
+-            )
+-            Spacer(modifier = GlanceModifier.height(4.dp))
+-            Text(
+-                text = context.getString(R.string.widget_tap_to_start),
+-                style = TextStyle(
+-                    color = GlanceTheme.colors.onSurfaceVariant,
+-                    fontSize = 12.sp,
+-                ),
+-            )
+-        }
+-        Column(
+-            modifier = GlanceModifier.width(72.dp)
+-                .clickable(actionRunCallback<TurnOffTrackingAction>()),
+-            horizontalAlignment = Alignment.CenterHorizontally,
+-        ) {
+-            Image(
+-                provider = ImageProvider(R.drawable.ic_widget_stop),
+-                contentDescription = context.getString(R.string.widget_turn_off_tracking),
+-                modifier = GlanceModifier.size(32.dp),
+-                colorFilter = ColorFilter.tint(GlanceTheme.colors.error),
+-            )
+-            Text(
+-                text = context.getString(R.string.widget_turn_off_short),
+-                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 11.sp),
+-            )
+-        }
+-    }
+-}
+-
+-@Composable
+-private fun TrackingContent(
+-    session: TrackerSessionSnapshot,
+-    policyTier: PolicyTier,
+-    snapshot: ActiveSessionSnapshot,
+-    stepsPresentation: WidgetStepsPresentation,
+-    savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound,
+-    trackingParams: TrackingParamsState = TrackingParamsState(),
+-    context: Context,
+-) {
+-    Row(
+-        modifier = GlanceModifier.fillMaxWidth(),
+-        verticalAlignment = Alignment.CenterVertically,
+-    ) {
+-        Column(modifier = GlanceModifier.defaultWeight()) {
+-            Text(
+-                text = context.getString(R.string.widget_tracking_active),
+-                style = TextStyle(
+-                    color = GlanceTheme.colors.primary,
+-                    fontSize = 14.sp,
+-                    fontWeight = FontWeight.Bold,
+-                ),
+-            )
+-            Text(
+-                text = if (snapshot.activityEnabled)
+-                    "${snapshot.activityIcon} ${snapshot.activityLabel} • ${formatPolicyTier(policyTier, context)}"
+-                    else formatPolicyTier(policyTier, context),
+-                style = TextStyle(
+-                    color = GlanceTheme.colors.onSurfaceVariant,
+-                    fontSize = 11.sp,
+-                ),
+-            )
+-        }
+-        // Keep End distinct from the all-purpose Turn off control.
+-        Column(
+-            modifier = GlanceModifier
+-                .size(48.dp)
+-                .clickable(actionRunCallback<ToggleTrackingAction>()),
+-            horizontalAlignment = Alignment.CenterHorizontally,
+-            verticalAlignment = Alignment.CenterVertically,
+-        ) {
+-            Image(
+-                provider = ImageProvider(R.drawable.ic_widget_stop),
+-                contentDescription = context.getString(R.string.widget_end_session),
+-                modifier = GlanceModifier.size(24.dp),
+-                colorFilter = ColorFilter.tint(GlanceTheme.colors.error),
+-            )
+-            Text(
+-                text = context.getString(R.string.widget_end_short),
+-                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 10.sp),
+-            )
+-        }
+-        Column(
+-            modifier = GlanceModifier.width(64.dp)
+-                .height(48.dp)
+-                .clickable(actionRunCallback<TurnOffTrackingAction>()),
+-            horizontalAlignment = Alignment.CenterHorizontally,
+-            verticalAlignment = Alignment.CenterVertically,
+-        ) {
+-            Image(
+-                provider = ImageProvider(R.drawable.ic_widget_stop),
+-                contentDescription = context.getString(R.string.widget_turn_off_tracking),
+-                modifier = GlanceModifier.size(24.dp),
+-                colorFilter = ColorFilter.tint(GlanceTheme.colors.error),
+-            )
+-            Text(
+-                text = context.getString(R.string.widget_turn_off_short),
+-                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 10.sp),
+-            )
+-        }
+-    }
+-
+-    Spacer(modifier = GlanceModifier.height(12.dp))
+-
+-    if (snapshot.locationEnabled) Text(
+-        text = snapshot.speedText,
+-        style = TextStyle(
+-            color = GlanceTheme.colors.primary,
+-            fontSize = 32.sp,
+-            fontWeight = FontWeight.Bold,
+-        ),
+-    )
+-    if (snapshot.locationEnabled) Text(
+-        text = context.getString(R.string.widget_current_speed),
+-        style = TextStyle(
+-            color = GlanceTheme.colors.onSurfaceVariant,
+-            fontSize = 11.sp,
+-        ),
+-    )
+-
+-    Spacer(modifier = GlanceModifier.height(12.dp))
+-
+-    val stats = buildActiveSessionStats(
+-        context = context,
+-        session = session,
+-        stepsPresentation = stepsPresentation,
+-        nowMillis = System.currentTimeMillis(),
+-        savedLocation = savedLocation,
+-        locationEnabled = trackingParams.locationEnabled,
+-        stepsEnabled = trackingParams.stepsEnabled,
+-    )
+-    Row(
+-        modifier = GlanceModifier.fillMaxWidth(),
+-    ) {
+-        stats.take(2).forEach { stat ->
+-            SessionStatItem(
+-                label = context.getString(stat.labelRes),
+-                value = stat.value,
+-                modifier = GlanceModifier.defaultWeight(),
+-            )
+-        }
+-    }
+-
+-    Spacer(modifier = GlanceModifier.height(8.dp))
+-
+-    Row(
+-        modifier = GlanceModifier.fillMaxWidth(),
+-    ) {
+-        stats.drop(2).forEach { stat ->
+-            SessionStatItem(
+-                label = context.getString(stat.labelRes),
+-                value = stat.value,
+-                modifier = GlanceModifier.defaultWeight(),
+-            )
+-        }
+-    }
+-
+-    Spacer(modifier = GlanceModifier.height(8.dp))
+-
+-    if (snapshot.locationEnabled) Text(
+-        text = context.getString(R.string.widget_path_preview),
+-        style = TextStyle(
+-            color = GlanceTheme.colors.onSurfaceVariant,
+-            fontSize = 10.sp,
+-        ),
+-    )
+-    if (snapshot.locationEnabled) Text(
+-        text = snapshot.pathPreview,
+-        style = TextStyle(
+-            color = GlanceTheme.colors.onSurface,
+-            fontSize = 16.sp,
+-            fontWeight = FontWeight.Medium,
+-        ),
+-    )
+-}
+-
+-internal data class ActiveSessionStat(
+-    @StringRes val labelRes: Int,
+-    val value: String,
+-)
+-
+-/** Raw live-session Steps are never read; exact-segment history supplies a value or typed status. */
+-internal fun buildActiveSessionStats(
+-    context: Context,
+-    session: TrackerSessionSnapshot,
+-    stepsPresentation: WidgetStepsPresentation,
+-    nowMillis: Long,
+-    savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound,
+-    locationEnabled: Boolean = true,
+-    stepsEnabled: Boolean = true,
+-): List<ActiveSessionStat> = buildList {
+-    if (locationEnabled) add(
+-        ActiveSessionStat(
+-            R.string.widget_session_distance,
+-            savedLocation.forLiveSegment(session.id, locationEnabled).formatSavedDistance(context) {
+-                WidgetFormatters.formatDistance(context, it)
+-            },
+-        ),
+-    )
+-    add(
+-        ActiveSessionStat(
+-            R.string.widget_session_duration,
+-            WidgetFormatters.formatDuration(
+-                nowMillis - session.start, context.resources.configuration.locales[0],
+-            ),
+-        ),
+-    )
+-    if (stepsEnabled) add(
+-        ActiveSessionStat(
+-            R.string.widget_session_steps,
+-            stepsPresentation.displayValue(context),
+-        ),
+-    )
+-    add(
+-        ActiveSessionStat(
+-            R.string.widget_collections,
+-            String.format(context.resources.configuration.locales[0], "%,d", session.collections),
+-        ),
+-    )
+-}
+-
+-internal const val WIDGET_STEPS_SETTLEMENT_TIMEOUT_MILLIS = 5_000L
+-
+-internal suspend fun readWidgetSteps(
+-    repository: TrackingHistoryRepository,
+-    session: TrackerSessionSnapshot?,
+-    timeoutMillis: Long = WIDGET_STEPS_SETTLEMENT_TIMEOUT_MILLIS,
+-): WidgetStepsPresentation {
+-    require(timeoutMillis > 0L) { "Widget Steps timeout must be positive" }
+-    val segmentId = session?.id?.takeIf { it > 0L }
+-        ?: return WidgetStepsPresentation.Unavailable
+-    return try {
+-        withTimeoutOrNull(timeoutMillis) {
+-            repository.observeSession(segmentId)
+-                .map { query -> query.toWidgetStepsPresentation(segmentId) }
+-                .first { presentation -> presentation != WidgetStepsPresentation.Materializing }
+-        } ?: WidgetStepsPresentation.Materializing
+-    } catch (cancellation: CancellationException) {
+-        throw cancellation
+-    } catch (_: Exception) {
+-        WidgetStepsPresentation.StorageUnavailable
+-    }
+-}
+-
+-@Composable
+-private fun SessionStatItem(
+-    label: String,
+-    value: String,
+-    modifier: GlanceModifier = GlanceModifier,
+-) {
+-    Column(modifier = modifier) {
+-        Text(
+-            text = value,
+-            style = TextStyle(
+-                color = GlanceTheme.colors.onSurface,
+-                fontSize = 16.sp,
+-                fontWeight = FontWeight.Medium,
+-            ),
+-        )
+-        Text(
+-            text = label,
+-            style = TextStyle(
+-                color = GlanceTheme.colors.onSurfaceVariant,
+-                fontSize = 10.sp,
+-            ),
+-        )
+-    }
+-}
+-
+-private fun formatPolicyTier(tier: PolicyTier, context: Context): String {
+-    return when (tier) {
+-        PolicyTier.OFF -> context.getString(R.string.widget_tier_off)
+-        PolicyTier.AMBIENT -> context.getString(R.string.widget_tier_ambient)
+-        PolicyTier.ACTIVE -> context.getString(R.string.widget_tier_active)
+-        PolicyTier.PRECISION -> context.getString(R.string.widget_tier_precision)
+-    }
+-}
+-
+-private fun buildSnapshot(
+-    context: Context,
+-    collectionSnapshot: TrackerCollectionSnapshot?,
+-    pathPoints: List<Location>,
+-    savedLocation: SavedLocationSummaryRead,
+-    locationEnabled: Boolean,
+-    activityEnabled: Boolean,
+-): ActiveSessionSnapshot {
+-    val activity = collectionSnapshot?.activity?.takeIf { activityEnabled }?.type?.toLegacyDetectedActivity()
+-    return ActiveSessionSnapshot(
+-        speedText = WidgetFormatters.formatSpeed(context,
+-            (savedLocation as? SavedLocationSummaryRead.Snapshot)?.summary?.latestFix?.speedMetersPerSecond),
+-        locationEnabled = locationEnabled,
+-        activityEnabled = activityEnabled,
+-        activityIcon = activity.activityIcon(),
+-        activityLabel = activity?.let { context.getString(it.nameRes) }
+-            ?: context.getString(R.string.widget_activity_unknown),
+-        pathPreview = WidgetFormatters.formatPathPreview(pathPoints),
+-    )
+-}
+-
+-private fun TrackerActivityType.toLegacyDetectedActivity(): DetectedActivity = when (this) {
+-    TrackerActivityType.STILL -> DetectedActivity.STILL
+-    TrackerActivityType.RUNNING -> DetectedActivity.RUNNING
+-    TrackerActivityType.ON_FOOT -> DetectedActivity.ON_FOOT
+-    TrackerActivityType.ON_BICYCLE -> DetectedActivity.ON_BICYCLE
+-    TrackerActivityType.IN_VEHICLE -> DetectedActivity.IN_VEHICLE
+-    TrackerActivityType.TILTING -> DetectedActivity.TILTING
+-    TrackerActivityType.UNKNOWN -> DetectedActivity.UNKNOWN
+-    TrackerActivityType.WALKING -> DetectedActivity.WALKING
+-}
+-
+-private fun DetectedActivity?.activityIcon(): String = when (this) {
+-    DetectedActivity.WALKING, DetectedActivity.ON_FOOT -> "👣"
+-    DetectedActivity.RUNNING -> "🏃"
+-    DetectedActivity.ON_BICYCLE -> "🚴"
+-    DetectedActivity.IN_VEHICLE -> "🚗"
+-    else -> "◎"
+-}
+-
+-private data class ActiveSessionSnapshot(
+-    val speedText: String,
+-    val locationEnabled: Boolean,
+-    val activityEnabled: Boolean,
+-    val activityIcon: String,
+-    val activityLabel: String,
+-    val pathPreview: String,
+-) {
+-    companion object {
+-        fun empty(context: Context) = ActiveSessionSnapshot(
+-            speedText = context.getString(R.string.widget_speed_unknown),
+-            locationEnabled = false,
+-            activityEnabled = false,
+-            activityIcon = "◎",
+-            activityLabel = context.getString(R.string.widget_activity_unknown),
+-            pathPreview = "•",
+-        )
+-    }
+-}
+-
+-/**
+- * BroadcastReceiver for the Active Session widget.
+- */
+-class ActiveSessionWidgetReceiver : GlanceAppWidgetReceiver() {
+-    override val glanceAppWidget: GlanceAppWidget = ActiveSessionWidget()
+-
+-    override fun onEnabled(context: Context) {
+-        super.onEnabled(context)
+-        WidgetUpdateScheduler.schedulePeriodicUpdates(context)
+-    }
+-
+-    override fun onDisabled(context: Context) {
+-        super.onDisabled(context)
+-        WidgetUpdateScheduler.cancelPeriodicUpdates(context)
+-    }
+-}
+--- a/app/src/main/java/com/adsamcik/tracker/app/widget/glance/TrackerWidgetEntryPoint.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/widget/glance/TrackerWidgetEntryPoint.kt
+@@ -3,7 +3,6 @@
+ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+ import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
+ import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
+-import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+ import com.adsamcik.tracker.tracker.controller.TrackerStateReader
+ import dagger.hilt.EntryPoint
+ import dagger.hilt.InstallIn
+@@ -19,8 +18,6 @@
+     fun trackerStateReader(): TrackerStateReader
+     fun trackingParamsRepository(): TrackingParamsRepository
+ 
+-    /** Source-qualified durable history used by bounded widget reads. */
+-    fun trackingHistoryRepository(): TrackingHistoryRepository
+     fun dailySummaryProvider(): DailySummaryProvider
+     fun goalProgressProvider(): GoalProgressProvider
+ }
+--- a/app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetFormatters.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetFormatters.kt
+@@ -2,10 +2,8 @@
+ 
+ import android.content.Context
+ import com.adsamcik.tracker.R
+-import com.adsamcik.tracker.shared.model.Location
+ import java.text.NumberFormat
+ import java.util.Locale
+-import kotlin.math.abs
+ 
+ /**
+  * Lightweight formatting utilities for widget display.
+@@ -65,61 +63,4 @@
+             maximumFractionDigits = 0
+         }.format(percent / 100.0)
+     }
+-
+-    fun formatSpeed(context: Context, metersPerSecond: Float?): String {
+-        if (metersPerSecond == null || !metersPerSecond.isFinite() || metersPerSecond < 0f) {
+-            return context.getString(R.string.widget_speed_unknown)
+-        }
+-
+-        val kmPerHour = metersPerSecond * 3.6f
+-        return if (kmPerHour >= 10f) {
+-            context.getString(R.string.widget_speed_format_whole, kmPerHour.toInt())
+-        } else {
+-            context.getString(R.string.widget_speed_format_decimal, kmPerHour)
+-        }
+-    }
+-
+-    fun formatPathPreview(points: List<Location>): String {
+-        if (points.size < 2) {
+-            return "•"
+-        }
+-
+-        return points
+-            .zipWithNext()
+-            .takeLast(MAX_PATH_SEGMENTS)
+-            .map { (from, to) -> directionGlyph(from, to) }
+-            .joinToString(separator = " ")
+-    }
+-
+-    private fun directionGlyph(from: Location, to: Location): String {
+-        val deltaLat = to.latitude - from.latitude
+-        val deltaLon = to.longitude - from.longitude
+-
+-        if (abs(deltaLat) < MIN_COORDINATE_DELTA && abs(deltaLon) < MIN_COORDINATE_DELTA) {
+-            return "•"
+-        }
+-
+-        val vertical = when {
+-            deltaLat > MIN_COORDINATE_DELTA -> "↑"
+-            deltaLat < -MIN_COORDINATE_DELTA -> "↓"
+-            else -> ""
+-        }
+-        val horizontal = when {
+-            deltaLon > MIN_COORDINATE_DELTA -> "→"
+-            deltaLon < -MIN_COORDINATE_DELTA -> "←"
+-            else -> ""
+-        }
+-
+-        return when ("$vertical$horizontal") {
+-            "↑→" -> "↗"
+-            "↑←" -> "↖"
+-            "↓→" -> "↘"
+-            "↓←" -> "↙"
+-            "" -> "•"
+-            else -> "$vertical$horizontal"
+-        }
+-    }
+-
+-    private const val MAX_PATH_SEGMENTS = 5
+-    private const val MIN_COORDINATE_DELTA = 0.00001
+ }
+--- a/app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetGlancePreviews.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetGlancePreviews.kt
+@@ -5,7 +5,6 @@
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.padding
+-import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Surface
+@@ -15,12 +14,9 @@
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.tooling.preview.Preview
+ import androidx.compose.ui.unit.dp
+-import com.adsamcik.tracker.shared.base.di.DailySummary
+ import com.adsamcik.tracker.shared.base.di.GoalProgress
+ import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+ import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+-import com.adsamcik.tracker.stats.api.PolicyTier
+-import java.util.Locale
+ 
+ @Preview(showBackground = true, name = "Today summary")
+ @Composable
+@@ -111,57 +107,6 @@
+     }
+ }
+ 
+-@Preview(showBackground = true, name = "Active session idle")
+-@Composable
+-private fun ActiveSessionIdleContentPreview() {
+-    AppTheme {
+-        WidgetPreviewCard {
+-            Column(
+-                modifier = Modifier.fillMaxWidth(),
+-                horizontalAlignment = Alignment.CenterHorizontally,
+-                verticalArrangement = Arrangement.spacedBy(8.dp),
+-            ) {
+-                Text("▶", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary)
+-                Text("No active session", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+-                Text("Tap to start", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+-            }
+-        }
+-    }
+-}
+-
+-@Preview(showBackground = true, name = "Active session tracking")
+-@Composable
+-private fun ActiveSessionTrackingContentPreview() {
+-    val summary = DailySummary(totalDistanceM = 5420f, totalDurationMs = 6_300_000L, sessionCount = 1)
+-    val qualifiedPreviewSteps = 7_810L
+-    AppTheme {
+-        WidgetPreviewCard {
+-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+-                        Text("Tracking active", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+-                        Text("👣 Walking • ${previewPolicyTierLabel(PolicyTier.ACTIVE)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+-                    }
+-                    Text("■", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.error)
+-                }
+-                Text("4.3 km/h", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+-                WidgetPreviewStatsRow(
+-                    "Distance" to formatDistancePreview(summary.totalDistanceM),
+-                    "Duration" to WidgetFormatters.formatDuration(summary.totalDurationMs),
+-                    "Steps" to WidgetFormatters.formatSteps(qualifiedPreviewSteps),
+-                    "Collections" to "24",
+-                )
+-                Text("Path preview", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+-                    repeat(6) {
+-                        Surface(modifier = Modifier.size(10.dp), shape = RoundedCornerShape(999.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f + (it * 0.08f).coerceAtMost(0.4f))) {}
+-                    }
+-                }
+-            }
+-        }
+-    }
+-}
+-
+ @Composable
+ private fun WidgetPreviewCard(content: @Composable () -> Unit) {
+     Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+@@ -194,12 +139,3 @@
+     }
+ }
+ 
+-private fun formatDistancePreview(distanceMeters: Float): String =
+-    if (distanceMeters >= 1000f) {
+-        String.format(Locale.ROOT, "%.1f km", distanceMeters / 1000f)
+-    } else {
+-        "${distanceMeters.toInt()} m"
+-    }
+-
+-private fun previewPolicyTierLabel(tier: PolicyTier): String =
+-    tier.name.lowercase(Locale.ROOT).replaceFirstChar { it.titlecase(Locale.ROOT) }
+--- a/app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetUpdateScheduler.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetUpdateScheduler.kt
+@@ -63,7 +63,6 @@
+     suspend fun updateAllWidgets(context: Context) {
+         QuickStartWidget().updateAll(context)
+         TodaySummaryWidget().updateAll(context)
+-        ActiveSessionWidget().updateAll(context)
+     }
+ }
+ 
+--- a/app/src/main/res/drawable/widget_preview_active_session.xml
++++ /dev/null
+@@ -1,11 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<shape xmlns:android="http://schemas.android.com/apk/res/android"
+-    android:shape="rectangle">
+-    <corners android:radius="16dp" />
+-    <solid android:color="#F7FBF2" />
+-    <padding
+-        android:bottom="16dp"
+-        android:left="16dp"
+-        android:right="16dp"
+-        android:top="16dp" />
+-</shape>
+--- a/app/src/main/res/values-bg-rBG/strings.xml
++++ b/app/src/main/res/values-bg-rBG/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">Стартирайте или спрете проследяването на местоположението с едно докосване.</string>
+     <string name="widget_start_tracking">Стартиране на проследяването</string>
+     <string name="widget_stop_tracking">Спиране на проследяването</string>
+-    <string name="widget_tracking_active">Проследяването е активно</string>
+     <string name="widget_today_summary_name">Обобщение за днес</string>
+     <string name="widget_today_summary_description">Вижте с един поглед статистиката си за проследяване за днес.</string>
+     <string name="widget_today">Днес</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">Сесии</string>
+     <string name="widget_duration">Продължителност</string>
+     <string name="widget_no_data_today">Няма данни за проследяване за днес</string>
+-    <string name="widget_active_session_name">Активна сесия</string>
+-    <string name="widget_active_session_description">Наблюдавайте текущата си сесия за проследяване в реално време.</string>
+-    <string name="widget_no_active_session">Няма активна сесия</string>
+-    <string name="widget_tap_to_start">Докоснете, за да започнете проследяване</string>
+-    <string name="widget_session_distance">Разстояние за сесията</string>
+-    <string name="widget_session_steps">Крачки за сесията</string>
+-    <string name="widget_session_duration">Продължителност на сесията</string>
+-    <string name="widget_current_speed">Текуща скорост</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f км/ч</string>
+-    <string name="widget_speed_format_whole">%d км/ч</string>
+-    <string name="widget_collections">Колекции</string>
+-    <string name="widget_path_preview">Преглед на маршрута</string>
+-    <string name="widget_activity_unknown">Активността не е налична</string>
+     <string name="widget_goal_label">Цел:</string>
+     <string name="widget_goal_progress">%1$s / %2$s крачки</string>
+     <string name="widget_format_km">%.1f км</string>
+     <string name="widget_format_meters">%d м</string>
+-    <string name="widget_tier_off">Изключено</string>
+-    <string name="widget_tier_ambient">Пасивно</string>
+-    <string name="widget_tier_active">Активно</string>
+-    <string name="widget_tier_precision">Прецизно</string>
+     <string name="goal_notification_title_progress">Чудесен напредък!</string>
+     <string name="goal_notification_title_almost">Почти сте там!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-cs-rCZ/strings.xml
++++ b/app/src/main/res/values-cs-rCZ/strings.xml
+@@ -248,11 +248,6 @@
+     <string name="widget_quick_start_description">Jedním klepnutím spusťte nebo zastavte sledování polohy.</string>
+     <string name="widget_start_tracking">Spustit záznam</string>
+     <string name="widget_stop_tracking">Zastavit sledování</string>
+-    <string name="widget_end_session">Ukončit záznam</string>
+-    <string name="widget_end_short">Ukončit</string>
+-    <string name="widget_turn_off_tracking">Vypnout sledování</string>
+-    <string name="widget_turn_off_short">Vypnout</string>
+-    <string name="widget_tracking_active">Sledování je aktivní</string>
+     <string name="widget_today_summary_name">Dnešní souhrn</string>
+     <string name="widget_today_summary_description">Zobrazte si na první pohled dnešní statistiky sledování.</string>
+     <string name="widget_today">Dnes</string>
+@@ -261,28 +256,10 @@
+     <string name="widget_sessions">Relace</string>
+     <string name="widget_duration">Doba trvání</string>
+     <string name="widget_no_data_today">Dnes nejsou k dispozici žádná sledovaná data</string>
+-    <string name="widget_active_session_name">Aktivní relace</string>
+-    <string name="widget_active_session_description">Zobrazte aktuální záznam a dostupné údaje. Spusťte nebo ukončete záznam či vypněte sledování.</string>
+-    <string name="widget_no_active_session">Žádná aktivní relace</string>
+-    <string name="widget_tap_to_start">Klepnutím spusťte záznam</string>
+-    <string name="widget_session_distance">Vzdálenost relace</string>
+-    <string name="widget_session_steps">Kroky relace</string>
+-    <string name="widget_session_duration">Doba trvání relace</string>
+-    <string name="widget_current_speed">Aktuální rychlost</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Kolekce</string>
+-    <string name="widget_path_preview">Náhled trasy</string>
+-    <string name="widget_activity_unknown">Aktivita není k dispozici</string>
+     <string name="widget_goal_label">Cíl:</string>
+     <string name="widget_goal_progress">%1$s / %2$s kroků</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Vypnuto</string>
+-    <string name="widget_tier_ambient">Úsporný</string>
+-    <string name="widget_tier_active">Aktivní</string>
+-    <string name="widget_tier_precision">Přesný</string>
+     <string name="goal_notification_title_progress">Skvělý pokrok!</string>
+     <string name="goal_notification_title_almost">Už jen kousek!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-da-rDK/strings.xml
++++ b/app/src/main/res/values-da-rDK/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">Start eller stop positionssporing med et enkelt tryk.</string>
+     <string name="widget_start_tracking">Start sporing</string>
+     <string name="widget_stop_tracking">Stop sporing</string>
+-    <string name="widget_tracking_active">Sporing aktiv</string>
+     <string name="widget_today_summary_name">Dagens oversigt</string>
+     <string name="widget_today_summary_description">Se dine sporingsstatistikker for i dag med et blik.</string>
+     <string name="widget_today">I dag</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">Sessioner</string>
+     <string name="widget_duration">Varighed</string>
+     <string name="widget_no_data_today">Ingen sporingsdata i dag</string>
+-    <string name="widget_active_session_name">Aktiv session</string>
+-    <string name="widget_active_session_description">Overvåg din aktuelle sporingssession i realtid.</string>
+-    <string name="widget_no_active_session">Ingen aktiv session</string>
+-    <string name="widget_tap_to_start">Tryk for at starte sporing</string>
+-    <string name="widget_session_distance">Sessionsafstand</string>
+-    <string name="widget_session_steps">Skridt i session</string>
+-    <string name="widget_session_duration">Sessionsvarighed</string>
+-    <string name="widget_current_speed">Aktuel hastighed</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Samlinger</string>
+-    <string name="widget_path_preview">Forhåndsvisning af rute</string>
+-    <string name="widget_activity_unknown">Aktivitet utilgængelig</string>
+     <string name="widget_goal_label">Mål:</string>
+     <string name="widget_goal_progress">%1$s / %2$s skridt</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Fra</string>
+-    <string name="widget_tier_ambient">Baggrund</string>
+-    <string name="widget_tier_active">Aktiv</string>
+-    <string name="widget_tier_precision">Præcision</string>
+     <string name="goal_notification_title_progress">Godt gået!</string>
+     <string name="goal_notification_title_almost">Næsten i mål!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-de-rDE/strings.xml
++++ b/app/src/main/res/values-de-rDE/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">Starte oder beende die Standortaufzeichnung mit einem einzigen Tippen.</string>
+     <string name="widget_start_tracking">Aufzeichnung starten</string>
+     <string name="widget_stop_tracking">Aufzeichnung beenden</string>
+-    <string name="widget_tracking_active">Aufzeichnung aktiv</string>
+     <string name="widget_today_summary_name">Heutige Zusammenfassung</string>
+     <string name="widget_today_summary_description">Sieh deine heutigen Aufzeichnungsstatistiken auf einen Blick.</string>
+     <string name="widget_today">Heute</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">Sitzungen</string>
+     <string name="widget_duration">Dauer</string>
+     <string name="widget_no_data_today">Heute keine Aufzeichnungsdaten</string>
+-    <string name="widget_active_session_name">Aktive Sitzung</string>
+-    <string name="widget_active_session_description">Überwache deine aktuelle Aufzeichnungssitzung in Echtzeit.</string>
+-    <string name="widget_no_active_session">Keine aktive Sitzung</string>
+-    <string name="widget_tap_to_start">Tippe, um die Aufzeichnung zu starten</string>
+-    <string name="widget_session_distance">Sitzungsstrecke</string>
+-    <string name="widget_session_steps">Sitzungsschritte</string>
+-    <string name="widget_session_duration">Sitzungsdauer</string>
+-    <string name="widget_current_speed">Aktuelle Geschwindigkeit</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Sammlungen</string>
+-    <string name="widget_path_preview">Wegvorschau</string>
+-    <string name="widget_activity_unknown">Aktivität nicht verfügbar</string>
+     <string name="widget_goal_label">Ziel:</string>
+     <string name="widget_goal_progress">%1$s / %2$s Schritte</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Aus</string>
+-    <string name="widget_tier_ambient">Im Hintergrund</string>
+-    <string name="widget_tier_active">Aktiv</string>
+-    <string name="widget_tier_precision">Präzision</string>
+     <string name="goal_notification_title_progress">Großartiger Fortschritt!</string>
+     <string name="goal_notification_title_almost">Fast geschafft!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-el-rGR/strings.xml
++++ b/app/src/main/res/values-el-rGR/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">Έναρξη ή διακοπή καταγραφής τοποθεσίας με ένα πάτημα.</string>
+     <string name="widget_start_tracking">Έναρξη καταγραφής</string>
+     <string name="widget_stop_tracking">Διακοπή καταγραφής</string>
+-    <string name="widget_tracking_active">Ενεργή καταγραφή</string>
+     <string name="widget_today_summary_name">Η σημερινή σύνοψη</string>
+     <string name="widget_today_summary_description">Δείτε με μια ματιά τα σημερινά στατιστικά καταγραφής.</string>
+     <string name="widget_today">Σήμερα</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">Συνεδρίες</string>
+     <string name="widget_duration">Διάρκεια</string>
+     <string name="widget_no_data_today">Δεν υπάρχουν δεδομένα καταγραφής σήμερα</string>
+-    <string name="widget_active_session_name">Ενεργή συνεδρία</string>
+-    <string name="widget_active_session_description">Παρακολουθήστε την τρέχουσα συνεδρία καταγραφής σε πραγματικό χρόνο.</string>
+-    <string name="widget_no_active_session">Δεν υπάρχει ενεργή συνεδρία</string>
+-    <string name="widget_tap_to_start">Πατήστε για έναρξη καταγραφής</string>
+-    <string name="widget_session_distance">Απόσταση συνεδρίας</string>
+-    <string name="widget_session_steps">Βήματα συνεδρίας</string>
+-    <string name="widget_session_duration">Διάρκεια συνεδρίας</string>
+-    <string name="widget_current_speed">Τρέχουσα ταχύτητα</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Συλλογές</string>
+-    <string name="widget_path_preview">Προεπισκόπηση πορείας</string>
+-    <string name="widget_activity_unknown">Η δραστηριότητα δεν είναι διαθέσιμη</string>
+     <string name="widget_goal_label">Στόχος:</string>
+     <string name="widget_goal_progress">%1$s / %2$s βήματα</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Ανενεργό</string>
+-    <string name="widget_tier_ambient">Περιβάλλον</string>
+-    <string name="widget_tier_active">Ενεργό</string>
+-    <string name="widget_tier_precision">Ακρίβεια</string>
+     <string name="goal_notification_title_progress">Εξαιρετική πρόοδος!</string>
+     <string name="goal_notification_title_almost">Σχεδόν φτάσατε!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-es-rES/strings.xml
++++ b/app/src/main/res/values-es-rES/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">Inicia o detén el seguimiento de ubicación con un solo toque.</string>
+     <string name="widget_start_tracking">Iniciar seguimiento</string>
+     <string name="widget_stop_tracking">Detener seguimiento</string>
+-    <string name="widget_tracking_active">Seguimiento activo</string>
+     <string name="widget_today_summary_name">Resumen de hoy</string>
+     <string name="widget_today_summary_description">Consulta de un vistazo las estadísticas de seguimiento de hoy.</string>
+     <string name="widget_today">Hoy</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">Sesiones</string>
+     <string name="widget_duration">Duración</string>
+     <string name="widget_no_data_today">No hay datos de seguimiento hoy</string>
+-    <string name="widget_active_session_name">Sesión activa</string>
+-    <string name="widget_active_session_description">Supervisa en tiempo real tu sesión de seguimiento actual.</string>
+-    <string name="widget_no_active_session">No hay ninguna sesión activa</string>
+-    <string name="widget_tap_to_start">Toca para iniciar el seguimiento</string>
+-    <string name="widget_session_distance">Distancia de la sesión</string>
+-    <string name="widget_session_steps">Pasos de la sesión</string>
+-    <string name="widget_session_duration">Duración de la sesión</string>
+-    <string name="widget_current_speed">Velocidad actual</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Colecciones</string>
+-    <string name="widget_path_preview">Vista previa del recorrido</string>
+-    <string name="widget_activity_unknown">Actividad no disponible</string>
+     <string name="widget_goal_label">Objetivo:</string>
+     <string name="widget_goal_progress">%1$s / %2$s pasos</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Desactivado</string>
+-    <string name="widget_tier_ambient">Ambiental</string>
+-    <string name="widget_tier_active">Activo</string>
+-    <string name="widget_tier_precision">Precisión</string>
+     <string name="goal_notification_title_progress">¡Gran progreso!</string>
+     <string name="goal_notification_title_almost">¡Ya casi!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-et-rEE/strings.xml
++++ b/app/src/main/res/values-et-rEE/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">Alustage või peatage asukoha jälgimine ühe puudutusega.</string>
+     <string name="widget_start_tracking">Alusta jälgimist</string>
+     <string name="widget_stop_tracking">Peata jälgimine</string>
+-    <string name="widget_tracking_active">Jälgimine aktiivne</string>
+     <string name="widget_today_summary_name">Tänane kokkuvõte</string>
+     <string name="widget_today_summary_description">Vaadake tänast jälgimisstatistikat ühe pilguga.</string>
+     <string name="widget_today">Täna</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">Seansid</string>
+     <string name="widget_duration">Kestus</string>
+     <string name="widget_no_data_today">Täna pole jälgimisandmeid</string>
+-    <string name="widget_active_session_name">Aktiivne seanss</string>
+-    <string name="widget_active_session_description">Jälgige praegust jälgimisseanssi reaalajas.</string>
+-    <string name="widget_no_active_session">Aktiivset seanssi pole</string>
+-    <string name="widget_tap_to_start">Puudutage jälgimise alustamiseks</string>
+-    <string name="widget_session_distance">Seansi vahemaa</string>
+-    <string name="widget_session_steps">Seansi sammud</string>
+-    <string name="widget_session_duration">Seansi kestus</string>
+-    <string name="widget_current_speed">Praegune kiirus</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Kogumised</string>
+-    <string name="widget_path_preview">Tee eelvaade</string>
+-    <string name="widget_activity_unknown">Tegevus pole saadaval</string>
+     <string name="widget_goal_label">Eesmärk:</string>
+     <string name="widget_goal_progress">%1$s / %2$s sammu</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Väljas</string>
+-    <string name="widget_tier_ambient">Taust</string>
+-    <string name="widget_tier_active">Aktiivne</string>
+-    <string name="widget_tier_precision">Täpne</string>
+     <string name="goal_notification_title_progress">Hea edenemine!</string>
+     <string name="goal_notification_title_almost">Peaaegu kohal!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-fi-rFI/strings.xml
++++ b/app/src/main/res/values-fi-rFI/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">Aloita tai lopeta sijainninseuranta yhdellä napautuksella.</string>
+     <string name="widget_start_tracking">Aloita seuranta</string>
+     <string name="widget_stop_tracking">Lopeta seuranta</string>
+-    <string name="widget_tracking_active">Seuranta aktiivinen</string>
+     <string name="widget_today_summary_name">Tämän päivän yhteenveto</string>
+     <string name="widget_today_summary_description">Näe tämän päivän seurantatilastot yhdellä silmäyksellä.</string>
+     <string name="widget_today">Tänään</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">Istunnot</string>
+     <string name="widget_duration">Kesto</string>
+     <string name="widget_no_data_today">Ei seurantatietoja tänään</string>
+-    <string name="widget_active_session_name">Aktiivinen istunto</string>
+-    <string name="widget_active_session_description">Seuraa nykyistä seurantaistuntoasi reaaliajassa.</string>
+-    <string name="widget_no_active_session">Ei aktiivista istuntoa</string>
+-    <string name="widget_tap_to_start">Aloita seuranta napauttamalla</string>
+-    <string name="widget_session_distance">Istunnon matka</string>
+-    <string name="widget_session_steps">Istunnon askeleet</string>
+-    <string name="widget_session_duration">Istunnon kesto</string>
+-    <string name="widget_current_speed">Nykyinen nopeus</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Päivitykset</string>
+-    <string name="widget_path_preview">Reitin esikatselu</string>
+-    <string name="widget_activity_unknown">Aktiivisuutta ei ole saatavilla</string>
+     <string name="widget_goal_label">Tavoite:</string>
+     <string name="widget_goal_progress">%1$s / %2$s askelta</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Pois</string>
+-    <string name="widget_tier_ambient">Ympäristö</string>
+-    <string name="widget_tier_active">Aktiivinen</string>
+-    <string name="widget_tier_precision">Tarkkuus</string>
+     <string name="goal_notification_title_progress">Hienoa edistymistä!</string>
+     <string name="goal_notification_title_almost">Melkein perillä!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-fr-rFR/strings.xml
++++ b/app/src/main/res/values-fr-rFR/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">Démarrez ou arrêtez le suivi de localisation d’une seule pression.</string>
+     <string name="widget_start_tracking">DÉMARRER LE SUIVI</string>
+     <string name="widget_stop_tracking">ARRÊTER LE SUIVI</string>
+-    <string name="widget_tracking_active">Suivi actif</string>
+     <string name="widget_today_summary_name">Résumé du jour</string>
+     <string name="widget_today_summary_description">Consultez d’un coup d’œil vos statistiques de suivi du jour.</string>
+     <string name="widget_today">Aujourd’hui</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">Sessions</string>
+     <string name="widget_duration">Durée</string>
+     <string name="widget_no_data_today">Aucune donnée de suivi aujourd’hui</string>
+-    <string name="widget_active_session_name">Session active</string>
+-    <string name="widget_active_session_description">Surveillez votre session de suivi actuelle en temps réel.</string>
+-    <string name="widget_no_active_session">Aucune session active</string>
+-    <string name="widget_tap_to_start">Appuyez pour démarrer le suivi</string>
+-    <string name="widget_session_distance">Distance de session</string>
+-    <string name="widget_session_steps">Pas de la session</string>
+-    <string name="widget_session_duration">Durée de la session</string>
+-    <string name="widget_current_speed">Vitesse actuelle</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Collectes</string>
+-    <string name="widget_path_preview">Aperçu du trajet</string>
+-    <string name="widget_activity_unknown">Activité indisponible</string>
+     <string name="widget_goal_label">Objectif :</string>
+     <string name="widget_goal_progress">%1$s / %2$s pas</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Désactivé</string>
+-    <string name="widget_tier_ambient">Ambiant</string>
+-    <string name="widget_tier_active">Actif</string>
+-    <string name="widget_tier_precision">Précision</string>
+     <string name="goal_notification_title_progress">Belle progression !</string>
+     <string name="goal_notification_title_almost">Vous y êtes presque !</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-ga-rIE/strings.xml
++++ b/app/src/main/res/values-ga-rIE/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">Tosaigh nó stad rianú suímh le sconna amháin.</string>
+     <string name="widget_start_tracking">Tosaigh rianú</string>
+     <string name="widget_stop_tracking">Stad rianú</string>
+-    <string name="widget_tracking_active">Rianú gníomhach</string>
+     <string name="widget_today_summary_name">Achoimre an lae inniu</string>
+     <string name="widget_today_summary_description">Féach ar do staitisticí rianaithe don lá inniu go sciobtha.</string>
+     <string name="widget_today">Inniu</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">Seisiúin</string>
+     <string name="widget_duration">Fad ama</string>
+     <string name="widget_no_data_today">Gan sonraí rianaithe inniu</string>
+-    <string name="widget_active_session_name">Seisiún gníomhach</string>
+-    <string name="widget_active_session_description">Déan monatóireacht ar do sheisiún rianaithe reatha i bhfíor-am.</string>
+-    <string name="widget_no_active_session">Níl seisiún gníomhach ann</string>
+-    <string name="widget_tap_to_start">Sconna chun rianú a thosú</string>
+-    <string name="widget_session_distance">Fad an tseisiúin</string>
+-    <string name="widget_session_steps">Céimeanna an tseisiúin</string>
+-    <string name="widget_session_duration">Fad ama an tseisiúin</string>
+-    <string name="widget_current_speed">Luas reatha</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Bailiúcháin</string>
+-    <string name="widget_path_preview">Réamhamharc cosáin</string>
+-    <string name="widget_activity_unknown">Níl gníomhaíocht ar fáil</string>
+     <string name="widget_goal_label">Sprioc:</string>
+     <string name="widget_goal_progress">%1$s / %2$s céimeanna</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">As</string>
+-    <string name="widget_tier_ambient">Comhthimpeallach</string>
+-    <string name="widget_tier_active">Gníomhach</string>
+-    <string name="widget_tier_precision">Beachtas</string>
+     <string name="goal_notification_title_progress">Dul chun cinn iontach!</string>
+     <string name="goal_notification_title_almost">Beagnach ann!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-hi-rIN/strings.xml
++++ b/app/src/main/res/values-hi-rIN/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">एक टैप से स्थान ट्रैकिंग शुरू या बंद करें।</string>
+     <string name="widget_start_tracking">ट्रैकिंग शुरू करें</string>
+     <string name="widget_stop_tracking">ट्रैकिंग बंद करें</string>
+-    <string name="widget_tracking_active">ट्रैकिंग सक्रिय है</string>
+     <string name="widget_today_summary_name">आज का सारांश</string>
+     <string name="widget_today_summary_description">आज के ट्रैकिंग आँकड़े एक नज़र में देखें।</string>
+     <string name="widget_today">आज</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">सत्र</string>
+     <string name="widget_duration">अवधि</string>
+     <string name="widget_no_data_today">आज कोई ट्रैकिंग डेटा नहीं</string>
+-    <string name="widget_active_session_name">सक्रिय सत्र</string>
+-    <string name="widget_active_session_description">अपने वर्तमान ट्रैकिंग सत्र को वास्तविक समय में देखें।</string>
+-    <string name="widget_no_active_session">कोई सक्रिय सत्र नहीं</string>
+-    <string name="widget_tap_to_start">ट्रैकिंग शुरू करने के लिए टैप करें</string>
+-    <string name="widget_session_distance">सत्र की दूरी</string>
+-    <string name="widget_session_steps">सत्र के कदम</string>
+-    <string name="widget_session_duration">सत्र की अवधि</string>
+-    <string name="widget_current_speed">वर्तमान गति</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">संग्रह</string>
+-    <string name="widget_path_preview">पथ पूर्वावलोकन</string>
+-    <string name="widget_activity_unknown">गतिविधि उपलब्ध नहीं</string>
+     <string name="widget_goal_label">लक्ष्य:</string>
+     <string name="widget_goal_progress">%1$s / %2$s कदम</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">बंद</string>
+-    <string name="widget_tier_ambient">परिवेश</string>
+-    <string name="widget_tier_active">सक्रिय</string>
+-    <string name="widget_tier_precision">सटीकता</string>
+     <string name="goal_notification_title_progress">बहुत अच्छी प्रगति!</string>
+     <string name="goal_notification_title_almost">लगभग पहुँच गए!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-hr-rHR/strings.xml
++++ b/app/src/main/res/values-hr-rHR/strings.xml
+@@ -246,7 +246,6 @@
+     <string name="widget_quick_start_description">Pokrenite ili zaustavite praćenje lokacije jednim dodirom.</string>
+     <string name="widget_start_tracking">Pokreni praćenje</string>
+     <string name="widget_stop_tracking">Zaustavi praćenje</string>
+-    <string name="widget_tracking_active">Praćenje je aktivno</string>
+     <string name="widget_today_summary_name">Današnji sažetak</string>
+     <string name="widget_today_summary_description">Na prvi pogled pogledajte današnju statistiku praćenja.</string>
+     <string name="widget_today">Danas</string>
+@@ -255,28 +254,10 @@
+     <string name="widget_sessions">Sesije</string>
+     <string name="widget_duration">Trajanje</string>
+     <string name="widget_no_data_today">Nema podataka praćenja za danas</string>
+-    <string name="widget_active_session_name">Aktivna sesija</string>
+-    <string name="widget_active_session_description">Pratite trenutačnu sesiju praćenja u stvarnom vremenu.</string>
+-    <string name="widget_no_active_session">Nema aktivne sesije</string>
+-    <string name="widget_tap_to_start">Dodirnite za pokretanje praćenja</string>
+-    <string name="widget_session_distance">Udaljenost sesije</string>
+-    <string name="widget_session_steps">Koraci u sesiji</string>
+-    <string name="widget_session_duration">Trajanje sesije</string>
+-    <string name="widget_current_speed">Trenutačna brzina</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Zbirke</string>
+-    <string name="widget_path_preview">Pregled puta</string>
+-    <string name="widget_activity_unknown">Aktivnost nije dostupna</string>
+     <string name="widget_goal_label">Cilj:</string>
+     <string name="widget_goal_progress">%1$s / %2$s koraka</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Isključeno</string>
+-    <string name="widget_tier_ambient">Pozadinsko</string>
+-    <string name="widget_tier_active">Aktivno</string>
+-    <string name="widget_tier_precision">Precizno</string>
+     <string name="goal_notification_title_progress">Odličan napredak!</string>
+     <string name="goal_notification_title_almost">Još malo!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-hu-rHU/strings.xml
++++ b/app/src/main/res/values-hu-rHU/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">Egyetlen koppintással indítsa vagy állítsa le a helyadatok nyomkövetését.</string>
+     <string name="widget_start_tracking">Nyomkövetés indítása</string>
+     <string name="widget_stop_tracking">Nyomkövetés leállítása</string>
+-    <string name="widget_tracking_active">Nyomkövetés aktív</string>
+     <string name="widget_today_summary_name">Mai összegzés</string>
+     <string name="widget_today_summary_description">Tekintse át a mai nyomkövetési statisztikáit.</string>
+     <string name="widget_today">Ma</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">Munkamenetek</string>
+     <string name="widget_duration">Időtartam</string>
+     <string name="widget_no_data_today">Ma nincs nyomkövetési adat</string>
+-    <string name="widget_active_session_name">Aktív munkamenet</string>
+-    <string name="widget_active_session_description">Aktuális nyomkövetési munkamenet valós idejű figyelése.</string>
+-    <string name="widget_no_active_session">Nincs aktív munkamenet</string>
+-    <string name="widget_tap_to_start">Koppintson a nyomkövetés indításához</string>
+-    <string name="widget_session_distance">Munkamenet távolsága</string>
+-    <string name="widget_session_steps">Munkamenet lépései</string>
+-    <string name="widget_session_duration">Munkamenet időtartama</string>
+-    <string name="widget_current_speed">Jelenlegi sebesség</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Gyűjtemények</string>
+-    <string name="widget_path_preview">Útvonal előnézete</string>
+-    <string name="widget_activity_unknown">Tevékenység nem érhető el</string>
+     <string name="widget_goal_label">Cél:</string>
+     <string name="widget_goal_progress">%1$s / %2$s lépés</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Ki</string>
+-    <string name="widget_tier_ambient">Környezeti</string>
+-    <string name="widget_tier_active">Aktív</string>
+-    <string name="widget_tier_precision">Pontosság</string>
+     <string name="goal_notification_title_progress">Remek előrehaladás!</string>
+     <string name="goal_notification_title_almost">Már majdnem ott van!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-it-rIT/strings.xml
++++ b/app/src/main/res/values-it-rIT/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">Avvia o interrompi il tracciamento della posizione con un solo tocco.</string>
+     <string name="widget_start_tracking">Avvia tracciamento</string>
+     <string name="widget_stop_tracking">Arresta tracciamento</string>
+-    <string name="widget_tracking_active">Tracciamento attivo</string>
+     <string name="widget_today_summary_name">Riepilogo di oggi</string>
+     <string name="widget_today_summary_description">Visualizza a colpo d\'occhio le statistiche di tracciamento di oggi.</string>
+     <string name="widget_today">Oggi</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">Sessioni</string>
+     <string name="widget_duration">Durata</string>
+     <string name="widget_no_data_today">Nessun dato di tracciamento oggi</string>
+-    <string name="widget_active_session_name">Sessione attiva</string>
+-    <string name="widget_active_session_description">Monitora la sessione di tracciamento corrente in tempo reale.</string>
+-    <string name="widget_no_active_session">Nessuna sessione attiva</string>
+-    <string name="widget_tap_to_start">Tocca per avviare il tracciamento</string>
+-    <string name="widget_session_distance">Distanza sessione</string>
+-    <string name="widget_session_steps">Passi della sessione</string>
+-    <string name="widget_session_duration">Durata sessione</string>
+-    <string name="widget_current_speed">Velocità attuale</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Raccolte</string>
+-    <string name="widget_path_preview">Anteprima del percorso</string>
+-    <string name="widget_activity_unknown">Attività non disponibile</string>
+     <string name="widget_goal_label">Obiettivo:</string>
+     <string name="widget_goal_progress">%1$s / %2$s passi</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Disattivato</string>
+-    <string name="widget_tier_ambient">Ambiente</string>
+-    <string name="widget_tier_active">Attivo</string>
+-    <string name="widget_tier_precision">Precisione</string>
+     <string name="goal_notification_title_progress">Ottimo progresso!</string>
+     <string name="goal_notification_title_almost">Ci sei quasi!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-ja-rJP/strings.xml
++++ b/app/src/main/res/values-ja-rJP/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">1回のタップで位置情報トラッキングを開始または停止します。</string>
+     <string name="widget_start_tracking">トラッキングを開始</string>
+     <string name="widget_stop_tracking">トラッキングを停止</string>
+-    <string name="widget_tracking_active">トラッキング中</string>
+     <string name="widget_today_summary_name">今日の概要</string>
+     <string name="widget_today_summary_description">今日のトラッキング統計をひと目で確認します。</string>
+     <string name="widget_today">今日</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">セッション</string>
+     <string name="widget_duration">時間</string>
+     <string name="widget_no_data_today">今日のトラッキングデータはありません</string>
+-    <string name="widget_active_session_name">アクティブなセッション</string>
+-    <string name="widget_active_session_description">現在のトラッキングセッションをリアルタイムで確認します。</string>
+-    <string name="widget_no_active_session">アクティブなセッションはありません</string>
+-    <string name="widget_tap_to_start">タップしてトラッキングを開始</string>
+-    <string name="widget_session_distance">セッション距離</string>
+-    <string name="widget_session_steps">セッションの歩数</string>
+-    <string name="widget_session_duration">セッション時間</string>
+-    <string name="widget_current_speed">現在の速度</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">コレクション</string>
+-    <string name="widget_path_preview">経路プレビュー</string>
+-    <string name="widget_activity_unknown">アクティビティを利用できません</string>
+     <string name="widget_goal_label">目標:</string>
+     <string name="widget_goal_progress">%1$s / %2$s歩</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">オフ</string>
+-    <string name="widget_tier_ambient">アンビエント</string>
+-    <string name="widget_tier_active">アクティブ</string>
+-    <string name="widget_tier_precision">高精度</string>
+     <string name="goal_notification_title_progress">順調です！</string>
+     <string name="goal_notification_title_almost">あと少し！</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-lt-rLT/strings.xml
++++ b/app/src/main/res/values-lt-rLT/strings.xml
+@@ -246,7 +246,6 @@
+     <string name="widget_quick_start_description">Vienu palietimu pradėkite arba sustabdykite vietos sekimą.</string>
+     <string name="widget_start_tracking">Pradėti sekimą</string>
+     <string name="widget_stop_tracking">Sustabdyti sekimą</string>
+-    <string name="widget_tracking_active">Sekimas aktyvus</string>
+     <string name="widget_today_summary_name">Šiandienos suvestinė</string>
+     <string name="widget_today_summary_description">Vienu žvilgsniu peržiūrėkite šiandienos sekimo statistiką.</string>
+     <string name="widget_today">Šiandien</string>
+@@ -255,28 +254,10 @@
+     <string name="widget_sessions">Sesijos</string>
+     <string name="widget_duration">Trukmė</string>
+     <string name="widget_no_data_today">Šiandien nėra sekimo duomenų</string>
+-    <string name="widget_active_session_name">Aktyvi sesija</string>
+-    <string name="widget_active_session_description">Stebėkite dabartinę sekimo sesiją realiuoju laiku.</string>
+-    <string name="widget_no_active_session">Nėra aktyvios sesijos</string>
+-    <string name="widget_tap_to_start">Palieskite, kad pradėtumėte sekti</string>
+-    <string name="widget_session_distance">Sesijos atstumas</string>
+-    <string name="widget_session_steps">Sesijos žingsniai</string>
+-    <string name="widget_session_duration">Sesijos trukmė</string>
+-    <string name="widget_current_speed">Dabartinis greitis</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Rinkiniai</string>
+-    <string name="widget_path_preview">Kelio peržiūra</string>
+-    <string name="widget_activity_unknown">Veikla nepasiekiama</string>
+     <string name="widget_goal_label">Tikslas:</string>
+     <string name="widget_goal_progress">%1$s / %2$s žingsnių</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Išjungta</string>
+-    <string name="widget_tier_ambient">Aplinkos</string>
+-    <string name="widget_tier_active">Aktyvus</string>
+-    <string name="widget_tier_precision">Tikslus</string>
+     <string name="goal_notification_title_progress">Puiki pažanga!</string>
+     <string name="goal_notification_title_almost">Jau beveik!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-lv-rLV/strings.xml
++++ b/app/src/main/res/values-lv-rLV/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">Sāciet vai apturiet atrašanās vietas izsekošanu ar vienu pieskārienu.</string>
+     <string name="widget_start_tracking">Sākt izsekošanu</string>
+     <string name="widget_stop_tracking">Apturēt izsekošanu</string>
+-    <string name="widget_tracking_active">Izsekošana ir aktīva</string>
+     <string name="widget_today_summary_name">Šodienas kopsavilkums</string>
+     <string name="widget_today_summary_description">Ātri apskatiet šodienas izsekošanas statistiku.</string>
+     <string name="widget_today">Šodien</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">Sesijas</string>
+     <string name="widget_duration">Ilgums</string>
+     <string name="widget_no_data_today">Šodien nav izsekošanas datu</string>
+-    <string name="widget_active_session_name">Aktīva sesija</string>
+-    <string name="widget_active_session_description">Uzraugiet pašreizējo izsekošanas sesiju reāllaikā.</string>
+-    <string name="widget_no_active_session">Nav aktīvas sesijas</string>
+-    <string name="widget_tap_to_start">Pieskarieties, lai sāktu izsekošanu</string>
+-    <string name="widget_session_distance">Sesijas attālums</string>
+-    <string name="widget_session_steps">Sesijas soļi</string>
+-    <string name="widget_session_duration">Sesijas ilgums</string>
+-    <string name="widget_current_speed">Pašreizējais ātrums</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Kolekcijas</string>
+-    <string name="widget_path_preview">Ceļa priekšskatījums</string>
+-    <string name="widget_activity_unknown">Aktivitāte nav pieejama</string>
+     <string name="widget_goal_label">Mērķis:</string>
+     <string name="widget_goal_progress">%1$s / %2$s soļi</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Izslēgts</string>
+-    <string name="widget_tier_ambient">Fona</string>
+-    <string name="widget_tier_active">Aktīvs</string>
+-    <string name="widget_tier_precision">Precizitāte</string>
+     <string name="goal_notification_title_progress">Lielisks progress!</string>
+     <string name="goal_notification_title_almost">Gandrīz sasniegts!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-mt-rMT/strings.xml
++++ b/app/src/main/res/values-mt-rMT/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">Ibda jew waqqaf it-traċċar tal-post b’tektek waħda.</string>
+     <string name="widget_start_tracking">Ibda t-traċċar</string>
+     <string name="widget_stop_tracking">Waqqaf it-traċċar</string>
+-    <string name="widget_tracking_active">Traċċar attiv</string>
+     <string name="widget_today_summary_name">Sommarju tal-lum</string>
+     <string name="widget_today_summary_description">Ara l-istatistika tat-traċċar tiegħek għal-lum f’daqqa t’għajn.</string>
+     <string name="widget_today">Illum</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">Sessjonijiet</string>
+     <string name="widget_duration">Tul</string>
+     <string name="widget_no_data_today">Ebda dejta ta’ traċċar illum</string>
+-    <string name="widget_active_session_name">Sessjoni attiva</string>
+-    <string name="widget_active_session_description">Immonitorja s-sessjoni attwali tat-traċċar tiegħek f’ħin reali.</string>
+-    <string name="widget_no_active_session">Ebda sessjoni attiva</string>
+-    <string name="widget_tap_to_start">Tektek biex tibda t-traċċar</string>
+-    <string name="widget_session_distance">Distanza tas-sessjoni</string>
+-    <string name="widget_session_steps">Passi tas-sessjoni</string>
+-    <string name="widget_session_duration">Tul tas-sessjoni</string>
+-    <string name="widget_current_speed">Veloċità attwali</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Ġabriet</string>
+-    <string name="widget_path_preview">Previżjoni tal-mogħdija</string>
+-    <string name="widget_activity_unknown">Attività mhux disponibbli</string>
+     <string name="widget_goal_label">Mira:</string>
+     <string name="widget_goal_progress">%1$s / %2$s passi</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Mitfi</string>
+-    <string name="widget_tier_ambient">Ambjentali</string>
+-    <string name="widget_tier_active">Attiv</string>
+-    <string name="widget_tier_precision">Preċiżjoni</string>
+     <string name="goal_notification_title_progress">Avvanz kbir!</string>
+     <string name="goal_notification_title_almost">Kważi wasalt!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-nl-rNL/strings.xml
++++ b/app/src/main/res/values-nl-rNL/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">Start of stop locatietracking met één tik.</string>
+     <string name="widget_start_tracking">Tracking starten</string>
+     <string name="widget_stop_tracking">Tracking stoppen</string>
+-    <string name="widget_tracking_active">Tracking actief</string>
+     <string name="widget_today_summary_name">Overzicht van vandaag</string>
+     <string name="widget_today_summary_description">Bekijk in één oogopslag je trackingstatistieken van vandaag.</string>
+     <string name="widget_today">Vandaag</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">Sessies</string>
+     <string name="widget_duration">Duur</string>
+     <string name="widget_no_data_today">Geen trackinggegevens vandaag</string>
+-    <string name="widget_active_session_name">Actieve sessie</string>
+-    <string name="widget_active_session_description">Volg je huidige trackingsessie in realtime.</string>
+-    <string name="widget_no_active_session">Geen actieve sessie</string>
+-    <string name="widget_tap_to_start">Tik om tracking te starten</string>
+-    <string name="widget_session_distance">Sessieafstand</string>
+-    <string name="widget_session_steps">Sessiestappen</string>
+-    <string name="widget_session_duration">Sessieduur</string>
+-    <string name="widget_current_speed">Huidige snelheid</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Verzamelingen</string>
+-    <string name="widget_path_preview">Padvoorbeeld</string>
+-    <string name="widget_activity_unknown">Activiteit niet beschikbaar</string>
+     <string name="widget_goal_label">Doel:</string>
+     <string name="widget_goal_progress">%1$s / %2$s stappen</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Uit</string>
+-    <string name="widget_tier_ambient">Achtergrond</string>
+-    <string name="widget_tier_active">Actief</string>
+-    <string name="widget_tier_precision">Precisie</string>
+     <string name="goal_notification_title_progress">Geweldige voortgang!</string>
+     <string name="goal_notification_title_almost">Bijna zover!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-pl-rPL/strings.xml
++++ b/app/src/main/res/values-pl-rPL/strings.xml
+@@ -248,7 +248,6 @@
+     <string name="widget_quick_start_description">Rozpocznij lub zatrzymaj śledzenie lokalizacji jednym dotknięciem.</string>
+     <string name="widget_start_tracking">Rozpocznij śledzenie</string>
+     <string name="widget_stop_tracking">Zatrzymaj śledzenie</string>
+-    <string name="widget_tracking_active">Śledzenie aktywne</string>
+     <string name="widget_today_summary_name">Dzisiejsze podsumowanie</string>
+     <string name="widget_today_summary_description">Zobacz na pierwszy rzut oka dzisiejsze statystyki śledzenia.</string>
+     <string name="widget_today">Dzisiaj</string>
+@@ -257,28 +256,10 @@
+     <string name="widget_sessions">Sesje</string>
+     <string name="widget_duration">Czas trwania</string>
+     <string name="widget_no_data_today">Brak danych śledzenia z dzisiaj</string>
+-    <string name="widget_active_session_name">Aktywna sesja</string>
+-    <string name="widget_active_session_description">Monitoruj bieżącą sesję śledzenia w czasie rzeczywistym.</string>
+-    <string name="widget_no_active_session">Brak aktywnej sesji</string>
+-    <string name="widget_tap_to_start">Dotknij, aby rozpocząć śledzenie</string>
+-    <string name="widget_session_distance">Odległość sesji</string>
+-    <string name="widget_session_steps">Kroki w sesji</string>
+-    <string name="widget_session_duration">Czas trwania sesji</string>
+-    <string name="widget_current_speed">Bieżąca prędkość</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Kolekcje</string>
+-    <string name="widget_path_preview">Podgląd trasy</string>
+-    <string name="widget_activity_unknown">Aktywność niedostępna</string>
+     <string name="widget_goal_label">Cel:</string>
+     <string name="widget_goal_progress">%1$s / %2$s kroków</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Wyłączone</string>
+-    <string name="widget_tier_ambient">Otoczenie</string>
+-    <string name="widget_tier_active">Aktywny</string>
+-    <string name="widget_tier_precision">Precyzja</string>
+     <string name="goal_notification_title_progress">Świetny postęp!</string>
+     <string name="goal_notification_title_almost">Już prawie!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-pt-rPT/strings.xml
++++ b/app/src/main/res/values-pt-rPT/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">Inicie ou pare a monitorização de localização com um único toque.</string>
+     <string name="widget_start_tracking">Iniciar monitorização</string>
+     <string name="widget_stop_tracking">Parar monitorização</string>
+-    <string name="widget_tracking_active">Monitorização ativa</string>
+     <string name="widget_today_summary_name">Resumo de hoje</string>
+     <string name="widget_today_summary_description">Veja num relance as suas estatísticas de monitorização de hoje.</string>
+     <string name="widget_today">Hoje</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">Sessões</string>
+     <string name="widget_duration">Duração</string>
+     <string name="widget_no_data_today">Sem dados de monitorização hoje</string>
+-    <string name="widget_active_session_name">Sessão ativa</string>
+-    <string name="widget_active_session_description">Acompanhe a sessão de monitorização atual em tempo real.</string>
+-    <string name="widget_no_active_session">Sem sessão ativa</string>
+-    <string name="widget_tap_to_start">Toque para iniciar a monitorização</string>
+-    <string name="widget_session_distance">Distância da sessão</string>
+-    <string name="widget_session_steps">Passos da sessão</string>
+-    <string name="widget_session_duration">Duração da sessão</string>
+-    <string name="widget_current_speed">Velocidade atual</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Coleções</string>
+-    <string name="widget_path_preview">Pré-visualização do percurso</string>
+-    <string name="widget_activity_unknown">Atividade indisponível</string>
+     <string name="widget_goal_label">Objetivo:</string>
+     <string name="widget_goal_progress">%1$s / %2$s passos</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Desligado</string>
+-    <string name="widget_tier_ambient">Ambiente</string>
+-    <string name="widget_tier_active">Ativo</string>
+-    <string name="widget_tier_precision">Precisão</string>
+     <string name="goal_notification_title_progress">Excelente progresso!</string>
+     <string name="goal_notification_title_almost">Quase lá!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-ro-rRO/strings.xml
++++ b/app/src/main/res/values-ro-rRO/strings.xml
+@@ -246,7 +246,6 @@
+     <string name="widget_quick_start_description">Pornește sau oprește urmărirea locației printr-o singură atingere.</string>
+     <string name="widget_start_tracking">Pornește urmărirea</string>
+     <string name="widget_stop_tracking">Oprește urmărirea</string>
+-    <string name="widget_tracking_active">Urmărire activă</string>
+     <string name="widget_today_summary_name">Rezumatul de astăzi</string>
+     <string name="widget_today_summary_description">Vezi dintr-o privire statisticile de urmărire de astăzi.</string>
+     <string name="widget_today">Astăzi</string>
+@@ -255,28 +254,10 @@
+     <string name="widget_sessions">Sesiuni</string>
+     <string name="widget_duration">Durată</string>
+     <string name="widget_no_data_today">Nu există date de urmărire astăzi</string>
+-    <string name="widget_active_session_name">Sesiune activă</string>
+-    <string name="widget_active_session_description">Monitorizează în timp real sesiunea curentă de urmărire.</string>
+-    <string name="widget_no_active_session">Nicio sesiune activă</string>
+-    <string name="widget_tap_to_start">Atinge pentru a porni urmărirea</string>
+-    <string name="widget_session_distance">Distanța sesiunii</string>
+-    <string name="widget_session_steps">Pașii sesiunii</string>
+-    <string name="widget_session_duration">Durata sesiunii</string>
+-    <string name="widget_current_speed">Viteza curentă</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Colectări</string>
+-    <string name="widget_path_preview">Previzualizarea traseului</string>
+-    <string name="widget_activity_unknown">Activitatea nu este disponibilă</string>
+     <string name="widget_goal_label">Obiectiv:</string>
+     <string name="widget_goal_progress">%1$s / %2$s pași</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Oprit</string>
+-    <string name="widget_tier_ambient">Ambient</string>
+-    <string name="widget_tier_active">Activ</string>
+-    <string name="widget_tier_precision">Precizie</string>
+     <string name="goal_notification_title_progress">Progres excelent!</string>
+     <string name="goal_notification_title_almost">Aproape ai reușit!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-sk-rSK/strings.xml
++++ b/app/src/main/res/values-sk-rSK/strings.xml
+@@ -248,7 +248,6 @@
+     <string name="widget_quick_start_description">Jedným klepnutím spustite alebo zastavte sledovanie polohy.</string>
+     <string name="widget_start_tracking">Spustiť sledovanie</string>
+     <string name="widget_stop_tracking">Zastaviť sledovanie</string>
+-    <string name="widget_tracking_active">Sledovanie je aktívne</string>
+     <string name="widget_today_summary_name">Dnešný súhrn</string>
+     <string name="widget_today_summary_description">Pozrite si prehľad štatistík sledovania za dnešok.</string>
+     <string name="widget_today">Dnes</string>
+@@ -257,28 +256,10 @@
+     <string name="widget_sessions">Relácie</string>
+     <string name="widget_duration">Trvanie</string>
+     <string name="widget_no_data_today">Dnes nie sú žiadne údaje sledovania</string>
+-    <string name="widget_active_session_name">Aktívna relácia</string>
+-    <string name="widget_active_session_description">Sledujte aktuálnu reláciu sledovania v reálnom čase.</string>
+-    <string name="widget_no_active_session">Žiadna aktívna relácia</string>
+-    <string name="widget_tap_to_start">Klepnutím spustíte sledovanie</string>
+-    <string name="widget_session_distance">Vzdialenosť relácie</string>
+-    <string name="widget_session_steps">Kroky relácie</string>
+-    <string name="widget_session_duration">Trvanie relácie</string>
+-    <string name="widget_current_speed">Aktuálna rýchlosť</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Záznamy</string>
+-    <string name="widget_path_preview">Náhľad trasy</string>
+-    <string name="widget_activity_unknown">Aktivita nie je k dispozícii</string>
+     <string name="widget_goal_label">Cieľ:</string>
+     <string name="widget_goal_progress">%1$s / %2$s krokov</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Vypnuté</string>
+-    <string name="widget_tier_ambient">Ambientné</string>
+-    <string name="widget_tier_active">Aktívne</string>
+-    <string name="widget_tier_precision">Presnosť</string>
+     <string name="goal_notification_title_progress">Skvelý pokrok!</string>
+     <string name="goal_notification_title_almost">Už takmer!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-sl-rSI/strings.xml
++++ b/app/src/main/res/values-sl-rSI/strings.xml
+@@ -248,7 +248,6 @@
+     <string name="widget_quick_start_description">Začnite ali ustavite sledenje lokaciji z enim tapom.</string>
+     <string name="widget_start_tracking">Začni sledenje</string>
+     <string name="widget_stop_tracking">Ustavi sledenje</string>
+-    <string name="widget_tracking_active">Sledenje je aktivno</string>
+     <string name="widget_today_summary_name">Današnji povzetek</string>
+     <string name="widget_today_summary_description">Na hitro si oglejte današnjo statistiko sledenja.</string>
+     <string name="widget_today">Danes</string>
+@@ -257,28 +256,10 @@
+     <string name="widget_sessions">Seje</string>
+     <string name="widget_duration">Trajanje</string>
+     <string name="widget_no_data_today">Danes ni podatkov sledenja</string>
+-    <string name="widget_active_session_name">Aktivna seja</string>
+-    <string name="widget_active_session_description">V realnem času spremljajte trenutno sejo sledenja.</string>
+-    <string name="widget_no_active_session">Ni aktivne seje</string>
+-    <string name="widget_tap_to_start">Tapnite za začetek sledenja</string>
+-    <string name="widget_session_distance">Razdalja seje</string>
+-    <string name="widget_session_steps">Koraki seje</string>
+-    <string name="widget_session_duration">Trajanje seje</string>
+-    <string name="widget_current_speed">Trenutna hitrost</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Zbirke</string>
+-    <string name="widget_path_preview">Predogled poti</string>
+-    <string name="widget_activity_unknown">Dejavnost ni na voljo</string>
+     <string name="widget_goal_label">Cilj:</string>
+     <string name="widget_goal_progress">%1$s / %2$s korakov</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Izklopljeno</string>
+-    <string name="widget_tier_ambient">Ambientno</string>
+-    <string name="widget_tier_active">Aktivno</string>
+-    <string name="widget_tier_precision">Natančnost</string>
+     <string name="goal_notification_title_progress">Odličen napredek!</string>
+     <string name="goal_notification_title_almost">Skoraj ste tam!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-sv-rSE/strings.xml
++++ b/app/src/main/res/values-sv-rSE/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">Starta eller stoppa platsspårning med ett tryck.</string>
+     <string name="widget_start_tracking">Starta spårning</string>
+     <string name="widget_stop_tracking">Stoppa spårning</string>
+-    <string name="widget_tracking_active">Spårning aktiv</string>
+     <string name="widget_today_summary_name">Dagens sammanfattning</string>
+     <string name="widget_today_summary_description">Se dagens spårningsstatistik med en blick.</string>
+     <string name="widget_today">I dag</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">Sessioner</string>
+     <string name="widget_duration">Varaktighet</string>
+     <string name="widget_no_data_today">Inga spårningsdata i dag</string>
+-    <string name="widget_active_session_name">Aktiv session</string>
+-    <string name="widget_active_session_description">Övervaka din aktuella spårningssession i realtid.</string>
+-    <string name="widget_no_active_session">Ingen aktiv session</string>
+-    <string name="widget_tap_to_start">Tryck för att starta spårningen</string>
+-    <string name="widget_session_distance">Sessionsavstånd</string>
+-    <string name="widget_session_steps">Sessionssteg</string>
+-    <string name="widget_session_duration">Sessionslängd</string>
+-    <string name="widget_current_speed">Aktuell hastighet</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Samlingar</string>
+-    <string name="widget_path_preview">Förhandsvisning av rutt</string>
+-    <string name="widget_activity_unknown">Aktivitet är inte tillgänglig</string>
+     <string name="widget_goal_label">Mål:</string>
+     <string name="widget_goal_progress">%1$s / %2$s steg</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Av</string>
+-    <string name="widget_tier_ambient">Omgivande</string>
+-    <string name="widget_tier_active">Aktiv</string>
+-    <string name="widget_tier_precision">Precision</string>
+     <string name="goal_notification_title_progress">Bra framsteg!</string>
+     <string name="goal_notification_title_almost">Nästan framme!</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">点按一次即可开始或停止位置跟踪。</string>
+     <string name="widget_start_tracking">开始跟踪</string>
+     <string name="widget_stop_tracking">停止跟踪</string>
+-    <string name="widget_tracking_active">跟踪已启用</string>
+     <string name="widget_today_summary_name">今日摘要</string>
+     <string name="widget_today_summary_description">快速查看今天的跟踪统计数据。</string>
+     <string name="widget_today">今天</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">会话</string>
+     <string name="widget_duration">时长</string>
+     <string name="widget_no_data_today">今天没有跟踪数据</string>
+-    <string name="widget_active_session_name">活动会话</string>
+-    <string name="widget_active_session_description">实时监控当前跟踪会话。</string>
+-    <string name="widget_no_active_session">没有活动会话</string>
+-    <string name="widget_tap_to_start">点按以开始跟踪</string>
+-    <string name="widget_session_distance">会话距离</string>
+-    <string name="widget_session_steps">会话步数</string>
+-    <string name="widget_session_duration">会话时长</string>
+-    <string name="widget_current_speed">当前速度</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f 千米/小时</string>
+-    <string name="widget_speed_format_whole">%d 千米/小时</string>
+-    <string name="widget_collections">收藏集</string>
+-    <string name="widget_path_preview">路径预览</string>
+-    <string name="widget_activity_unknown">活动不可用</string>
+     <string name="widget_goal_label">目标：</string>
+     <string name="widget_goal_progress">%1$s / %2$s 步</string>
+     <string name="widget_format_km">%.1f 千米</string>
+     <string name="widget_format_meters">%d 米</string>
+-    <string name="widget_tier_off">关闭</string>
+-    <string name="widget_tier_ambient">环境</string>
+-    <string name="widget_tier_active">活动</string>
+-    <string name="widget_tier_precision">精确</string>
+     <string name="goal_notification_title_progress">进度不错！</string>
+     <string name="goal_notification_title_almost">快完成了！</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values-zh-rTW/strings.xml
++++ b/app/src/main/res/values-zh-rTW/strings.xml
+@@ -244,7 +244,6 @@
+     <string name="widget_quick_start_description">輕觸一次即可開始或停止位置追蹤。</string>
+     <string name="widget_start_tracking">開始追蹤</string>
+     <string name="widget_stop_tracking">停止追蹤</string>
+-    <string name="widget_tracking_active">追蹤已啟用</string>
+     <string name="widget_today_summary_name">今日摘要</string>
+     <string name="widget_today_summary_description">一覽今日追蹤統計資料。</string>
+     <string name="widget_today">今天</string>
+@@ -253,28 +252,10 @@
+     <string name="widget_sessions">工作階段</string>
+     <string name="widget_duration">持續時間</string>
+     <string name="widget_no_data_today">今日沒有追蹤資料</string>
+-    <string name="widget_active_session_name">進行中的工作階段</string>
+-    <string name="widget_active_session_description">即時監控目前的追蹤工作階段。</string>
+-    <string name="widget_no_active_session">沒有進行中的工作階段</string>
+-    <string name="widget_tap_to_start">輕觸以開始追蹤</string>
+-    <string name="widget_session_distance">工作階段距離</string>
+-    <string name="widget_session_steps">工作階段步數</string>
+-    <string name="widget_session_duration">工作階段持續時間</string>
+-    <string name="widget_current_speed">目前速度</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f 公里／小時</string>
+-    <string name="widget_speed_format_whole">%d 公里／小時</string>
+-    <string name="widget_collections">集合</string>
+-    <string name="widget_path_preview">路徑預覽</string>
+-    <string name="widget_activity_unknown">活動資料無法使用</string>
+     <string name="widget_goal_label">目標：</string>
+     <string name="widget_goal_progress">%1$s / %2$s 步</string>
+     <string name="widget_format_km">%.1f 公里</string>
+     <string name="widget_format_meters">%d 公尺</string>
+-    <string name="widget_tier_off">關閉</string>
+-    <string name="widget_tier_ambient">環境</string>
+-    <string name="widget_tier_active">活動</string>
+-    <string name="widget_tier_precision">精確</string>
+     <string name="goal_notification_title_progress">進度很棒！</string>
+     <string name="goal_notification_title_almost">快完成了！</string>
+     <plurals name="goal_notification_body_75">
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -486,11 +486,6 @@
+     <string name="widget_quick_start_description">Start or stop location tracking with a single tap.</string>
+     <string name="widget_start_tracking">Start session</string>
+     <string name="widget_stop_tracking">Stop Tracking</string>
+-    <string name="widget_end_session" tools:ignore="MissingTranslation">End session</string>
+-    <string name="widget_end_short" tools:ignore="MissingTranslation">End</string>
+-    <string name="widget_turn_off_tracking" tools:ignore="MissingTranslation">Turn off tracking</string>
+-    <string name="widget_turn_off_short" tools:ignore="MissingTranslation">Turn off</string>
+-    <string name="widget_tracking_active">Tracking Active</string>
+ 
+     <string name="widget_today_summary_name">Today\'s Summary</string>
+     <string name="widget_today_summary_description">See your tracking stats for today at a glance.</string>
+@@ -506,29 +501,11 @@
+     <string name="widget_duration">Duration</string>
+     <string name="widget_no_data_today">No tracking data today</string>
+ 
+-    <string name="widget_active_session_name">Active Session</string>
+-    <string name="widget_active_session_description">See the current session and available stats. Start, end or turn off tracking.</string>
+-    <string name="widget_no_active_session">No active session</string>
+-    <string name="widget_tap_to_start">Tap to start a session</string>
+-    <string name="widget_session_distance">Session Distance</string>
+-    <string name="widget_session_steps">Session Steps</string>
+-    <string name="widget_session_duration">Session Duration</string>
+-    <string name="widget_current_speed">Current Speed</string>
+-    <string name="widget_speed_unknown">—</string>
+-    <string name="widget_speed_format_decimal">%.1f km/h</string>
+-    <string name="widget_speed_format_whole">%d km/h</string>
+-    <string name="widget_collections">Collections</string>
+-
+-    <string name="widget_path_preview">Path Preview</string>
+-    <string name="widget_activity_unknown">Activity unavailable</string>
++
+     <string name="widget_goal_label">Goal:</string>
+     <string name="widget_goal_progress">%1$s / %2$s steps</string>
+     <string name="widget_format_km">%.1f km</string>
+     <string name="widget_format_meters">%d m</string>
+-    <string name="widget_tier_off">Off</string>
+-    <string name="widget_tier_ambient">Ambient</string>
+-    <string name="widget_tier_active">Active</string>
+-    <string name="widget_tier_precision">Precision</string>
+ 
+     <!-- Smart Goal Notifications (Task D) -->
+     <string name="goal_notification_title_progress">Great progress!</string>
+--- a/app/src/main/res/xml-v31/widget_active_session_info.xml
++++ /dev/null
+@@ -1,14 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+-    android:description="@string/widget_active_session_description"
+-    android:initialLayout="@layout/widget_loading"
+-    android:previewImage="@drawable/widget_preview_active_session"
+-    android:minWidth="250dp"
+-    android:minHeight="180dp"
+-    android:minResizeWidth="180dp"
+-    android:minResizeHeight="110dp"
+-    android:resizeMode="horizontal|vertical"
+-    android:targetCellWidth="4"
+-    android:targetCellHeight="3"
+-    android:updatePeriodMillis="0"
+-    android:widgetCategory="home_screen" />
+--- a/app/src/main/res/xml/widget_active_session_info.xml
++++ /dev/null
+@@ -1,12 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+-    android:description="@string/widget_active_session_description"
+-    android:initialLayout="@layout/widget_loading"
+-    android:previewImage="@drawable/widget_preview_active_session"
+-    android:minWidth="250dp"
+-    android:minHeight="180dp"
+-    android:minResizeWidth="180dp"
+-    android:minResizeHeight="110dp"
+-    android:resizeMode="horizontal|vertical"
+-    android:updatePeriodMillis="0"
+-    android:widgetCategory="home_screen" />
+--- a/app/src/test/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionSavedLocationTest.kt
++++ /dev/null
+@@ -1,54 +0,0 @@
+-package com.adsamcik.tracker.app.widget.glance
+-
+-import android.content.Context
+-import androidx.test.core.app.ApplicationProvider
+-import com.adsamcik.tracker.stats.api.repository.*
+-import com.adsamcik.tracker.shared.model.AltitudeDatum
+-import com.adsamcik.tracker.shared.model.AltitudeSource
+-import com.adsamcik.tracker.R
+-import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
+-import org.junit.Test
+-import org.junit.runner.RunWith
+-import org.robolectric.RobolectricTestRunner
+-import org.robolectric.annotation.Config
+-import kotlin.test.*
+-
+-@RunWith(RobolectricTestRunner::class)
+-@Config(sdk = [34])
+-class ActiveSessionSavedLocationTest {
+-    private val context: Context = ApplicationProvider.getApplicationContext()
+-    private val session = TrackerSessionSnapshot(id = 7, start = 1_000, distanceInM = 9_000_000f)
+-
+-    @Test fun `widget distance uses the shared saved value not the raw session counter`() {
+-        val rows = rows(saved())
+-        assertEquals(WidgetFormatters.formatDistance(context, 123f), rows.first().value)
+-    }
+-
+-    @Test fun `widget retains zero and marks measured partial sections`() {
+-        assertEquals(WidgetFormatters.formatDistance(context, 0f), rows(saved(distance = 0.0)).first().value)
+-        assertEquals("${WidgetFormatters.formatDistance(context, 123f)} · ${context.getString(com.adsamcik.tracker.tracker.R.string.tracker_measurement_partial)}",
+-            rows(saved(partial = true)).first().value)
+-        assertTrue(WidgetFormatters.formatSpeed(context, 0f) != context.getString(R.string.widget_speed_unknown))
+-    }
+-
+-    @Test fun `wrong segment and unavailable saved data never fall back to a raw positive value`() {
+-        assertEquals(context.getString(com.adsamcik.tracker.tracker.R.string.tracker_component_waiting_data),
+-            rows(saved(id = 8)).first().value)
+-        assertEquals(context.getString(com.adsamcik.tracker.tracker.R.string.tracker_steps_value_unavailable),
+-            rows(SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)).first().value)
+-    }
+-
+-    @Test fun `unchosen Location and Steps leave only session organization metadata`() {
+-        val rows = buildActiveSessionStats(context, session, WidgetStepsPresentation.Ready(999), 61_000,
+-            savedLocation = saved(), locationEnabled = false, stepsEnabled = false)
+-        assertEquals(listOf(R.string.widget_session_duration, R.string.widget_collections), rows.map { it.labelRes })
+-    }
+-
+-    private fun rows(read: SavedLocationSummaryRead) = buildActiveSessionStats(context, session,
+-        WidgetStepsPresentation.NotCaptured, 61_000, savedLocation = read)
+-    private fun saved(id: Long = 7, distance: Double? = 123.0, partial: Boolean = false,
+-        accuracy: Float? = null, altitude: Float? = -12f) = SavedLocationSummaryRead.Snapshot(
+-        SavedLocationSummarySelection.Session(id), TrackingHistoryReadSnapshot(0, 1),
+-        SavedLocationSummary(2, SavedLocationFix(1, 2_000, 0, 0, 10_000_000, 0f, null, accuracy,
+-            altitude, AltitudeDatum.WGS84_ELLIPSOID, AltitudeSource.UNKNOWN_LEGACY, null), distance, partial))
+-}
+--- a/app/src/test/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionWidgetPresentationTest.kt
++++ /dev/null
+@@ -1,316 +0,0 @@
+-package com.adsamcik.tracker.app.widget.glance
+-
+-import android.content.Context
+-import android.content.res.Configuration
+-import android.os.LocaleList
+-import java.util.Locale
+-import androidx.test.core.app.ApplicationProvider
+-import com.adsamcik.tracker.R
+-import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
+-import com.adsamcik.tracker.stats.api.repository.HistoryCapture
+-import com.adsamcik.tracker.stats.api.repository.HistoryCaptureRevision
+-import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
+-import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+-import com.adsamcik.tracker.stats.api.repository.HistorySource
+-import com.adsamcik.tracker.stats.api.repository.SessionHistory
+-import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
+-import com.adsamcik.tracker.stats.api.repository.StepsHistory
+-import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
+-import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
+-import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+-import com.adsamcik.tracker.stats.api.value.EpochMs
+-import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
+-import io.kotest.matchers.collections.shouldContainExactly
+-import io.kotest.matchers.shouldBe
+-import io.kotest.matchers.types.shouldBeInstanceOf
+-import io.mockk.every
+-import io.mockk.mockk
+-import io.mockk.verify
+-import kotlinx.coroutines.CancellationException
+-import kotlinx.coroutines.flow.flow
+-import kotlinx.coroutines.flow.flowOf
+-import kotlinx.coroutines.test.runTest
+-import org.junit.Test
+-import org.junit.runner.RunWith
+-import org.robolectric.RobolectricTestRunner
+-import org.robolectric.annotation.Config
+-
+-@RunWith(RobolectricTestRunner::class)
+-@Config(sdk = [34])
+-class ActiveSessionWidgetPresentationTest {
+-	@Test
+-	fun `widget counts duration and qualified Steps use the configured app locale`() {
+-		val context = ApplicationProvider.getApplicationContext<Context>()
+-		val configured = context.createConfigurationContext(
+-			Configuration(context.resources.configuration).apply {
+-				setLocales(LocaleList(Locale.forLanguageTag("ar-SA")))
+-			},
+-		)
+-		val stats = buildActiveSessionStats(
+-			context = configured,
+-			session = TrackerSessionSnapshot(id = 7L, start = 1_000L, collections = 1_234),
+-			stepsPresentation = WidgetStepsPresentation.Ready(2_147_483_648L),
+-			nowMillis = 61_000L,
+-		)
+-		stats.first { it.labelRes == R.string.widget_session_duration }.value shouldBe "١:٠٠"
+-		stats.first { it.labelRes == R.string.widget_collections }.value shouldBe "١٬٢٣٤"
+-		stats.first { it.labelRes == R.string.widget_session_steps }.value shouldBe "٢٬١٤٧٬٤٨٣٬٦٤٨"
+-	}
+-
+-	@Test
+-	fun `raw positive session Steps are ignored while truthful status remains`() {
+-		val context = ApplicationProvider.getApplicationContext<Context>()
+-		val stats = buildActiveSessionStats(
+-			context = context,
+-			session = TrackerSessionSnapshot(
+-				id = 1L,
+-				start = 1_000L,
+-				distanceInM = 1_500f,
+-				steps = 9_999,
+-				collections = 12,
+-			),
+-			stepsPresentation = WidgetStepsPresentation.NotCaptured,
+-			nowMillis = 61_000L,
+-		)
+-
+-		stats.map(ActiveSessionStat::labelRes) shouldContainExactly listOf(
+-			R.string.widget_session_distance,
+-			R.string.widget_session_duration,
+-			R.string.widget_session_steps,
+-			R.string.widget_collections,
+-		)
+-		stats.first { it.labelRes == R.string.widget_session_steps }.value shouldBe
+-			context.getString(R.string.widget_steps_not_captured)
+-		stats.last().value shouldBe "12"
+-	}
+-
+-	@Test
+-	fun `complete qualified positive and covered zero Steps are rendered`() {
+-		val context = ApplicationProvider.getApplicationContext<Context>()
+-		val session = TrackerSessionSnapshot(id = 7L, start = 1_000L, steps = 99_999)
+-
+-		listOf(1_234L, 0L).forEach { steps ->
+-			val stats = buildActiveSessionStats(
+-				context = context,
+-				session = session,
+-				stepsPresentation = WidgetStepsPresentation.Ready(steps),
+-				nowMillis = 61_000L,
+-			)
+-
+-			stats.map(ActiveSessionStat::labelRes) shouldContainExactly listOf(
+-				R.string.widget_session_distance,
+-				R.string.widget_session_duration,
+-				R.string.widget_session_steps,
+-				R.string.widget_collections,
+-			)
+-			stats.first { it.labelRes == R.string.widget_session_steps }.value shouldBe
+-				WidgetFormatters.formatSteps(steps, context.resources.configuration.locales[0])
+-		}
+-	}
+-
+-	@Test
+-	fun `exact segment complete history exposes its qualified value`() {
+-		completeQuery(segmentId = 7L, count = 1_234L)
+-			.toWidgetStepsPresentation(expectedSegmentId = 7L) shouldBe
+-			WidgetStepsPresentation.Ready(1_234L)
+-		completeQuery(segmentId = 7L, count = 0L)
+-			.toWidgetStepsPresentation(expectedSegmentId = 7L) shouldBe
+-			WidgetStepsPresentation.Ready(0L)
+-	}
+-
+-	@Test
+-	fun `segment mismatch withholds otherwise complete Steps`() {
+-		completeQuery(segmentId = 8L, count = 1_234L)
+-			.toWidgetStepsPresentation(expectedSegmentId = 7L) shouldBe
+-			WidgetStepsPresentation.Unavailable
+-	}
+-
+-	@Test
+-	fun `partial unqualified Steps remain an explicit lower bound`() {
+-		query(
+-			segmentId = 7L,
+-			qualified = false,
+-			steps = StepsHistory(
+-				count = 123L,
+-				availability = HistoryAvailability.AVAILABLE,
+-				evidence = HistoryEvidence.RECORDED,
+-				productState = HistoryProductState.PARTIAL,
+-				coverage = StepsHistoryCoverage.PARTIAL,
+-				causes = setOf(StepsHistoryCause.CAPTURE_PARTIAL),
+-			),
+-		).toWidgetStepsPresentation(expectedSegmentId = 7L) shouldBe
+-			WidgetStepsPresentation.Partial(123L)
+-	}
+-
+-	@Test
+-	fun `complete numeric history without qualified Steps source is withheld`() {
+-		query(
+-			segmentId = 7L,
+-			qualified = false,
+-			steps = StepsHistory(
+-				count = 123L,
+-				availability = HistoryAvailability.AVAILABLE,
+-				evidence = HistoryEvidence.RECORDED,
+-				productState = HistoryProductState.READY,
+-				coverage = StepsHistoryCoverage.COMPLETE,
+-			),
+-		).toWidgetStepsPresentation(expectedSegmentId = 7L) shouldBe
+-			WidgetStepsPresentation.Unavailable
+-	}
+-
+-	@Test
+-	fun `materializing and disabled Steps remain distinct`() {
+-		materializingQuery(segmentId = 7L)
+-			.toWidgetStepsPresentation(expectedSegmentId = 7L) shouldBe
+-			WidgetStepsPresentation.Materializing
+-		query(
+-			segmentId = 7L,
+-			qualified = false,
+-			steps = StepsHistory(
+-				count = null,
+-				availability = HistoryAvailability.DISABLED,
+-				evidence = HistoryEvidence.NONE,
+-				productState = HistoryProductState.FAILED,
+-				coverage = StepsHistoryCoverage.NONE,
+-				causes = setOf(StepsHistoryCause.SOURCE_NOT_CAPTURED),
+-			),
+-		).toWidgetStepsPresentation(expectedSegmentId = 7L) shouldBe
+-			WidgetStepsPresentation.Disabled
+-	}
+-
+-	@Test
+-	fun `nonnumeric widget states never display fabricated zero`() {
+-		val context = ApplicationProvider.getApplicationContext<Context>()
+-		val zero = WidgetFormatters.formatSteps(0L, context.resources.configuration.locales[0])
+-		listOf(
+-			WidgetStepsPresentation.Partial(),
+-			WidgetStepsPresentation.Materializing,
+-			WidgetStepsPresentation.NotCaptured,
+-			WidgetStepsPresentation.Disabled,
+-			WidgetStepsPresentation.Unavailable,
+-			WidgetStepsPresentation.StorageUnavailable,
+-		).forEach { state ->
+-			(state.displayValue(context) == zero) shouldBe false
+-		}
+-		WidgetStepsPresentation.Partial(123L).displayValue(context) shouldBe
+-			"≥${WidgetFormatters.formatSteps(123L, context.resources.configuration.locales[0])}"
+-		WidgetStepsPresentation.Partial().displayValue(context) shouldBe
+-			context.getString(R.string.widget_steps_partial)
+-		WidgetStepsPresentation.NotCaptured.displayValue(context) shouldBe
+-			context.getString(R.string.widget_steps_not_captured)
+-		WidgetStepsPresentation.Disabled.displayValue(context) shouldBe
+-			context.getString(R.string.widget_steps_disabled)
+-		WidgetStepsPresentation.Unavailable.displayValue(context) shouldBe
+-			context.getString(R.string.widget_steps_unavailable)
+-		WidgetStepsPresentation.StorageUnavailable.displayValue(context) shouldBe
+-			context.getString(R.string.widget_steps_storage_unavailable)
+-	}
+-
+-	@Test
+-	fun `widget read waits through materializing and uses exact segment identity`() = runTest {
+-		val repository = mockk<TrackingHistoryRepository>()
+-		every { repository.observeSession(7L) } returns flowOf(
+-			materializingQuery(segmentId = 7L),
+-			completeQuery(segmentId = 7L, count = 1_234L),
+-		)
+-
+-		readWidgetSteps(
+-			repository = repository,
+-			session = TrackerSessionSnapshot(id = 7L),
+-		) shouldBe WidgetStepsPresentation.Ready(1_234L)
+-		verify(exactly = 1) { repository.observeSession(7L) }
+-	}
+-
+-	@Test
+-	fun `widget read preserves materializing timeout and storage failure`() = runTest {
+-		val materializingRepository = mockk<TrackingHistoryRepository>()
+-		every { materializingRepository.observeSession(7L) } returns flow {
+-			emit(materializingQuery(segmentId = 7L))
+-			kotlinx.coroutines.awaitCancellation()
+-		}
+-		readWidgetSteps(
+-			repository = materializingRepository,
+-			session = TrackerSessionSnapshot(id = 7L),
+-			timeoutMillis = 1L,
+-		) shouldBe WidgetStepsPresentation.Materializing
+-
+-		val failedRepository = mockk<TrackingHistoryRepository>()
+-		every { failedRepository.observeSession(7L) } throws IllegalStateException("storage")
+-		readWidgetSteps(
+-			repository = failedRepository,
+-			session = TrackerSessionSnapshot(id = 7L),
+-		) shouldBe WidgetStepsPresentation.StorageUnavailable
+-	}
+-
+-	@Test
+-	fun `qualified widget read preserves cancellation`() = runTest {
+-		val repository = mockk<TrackingHistoryRepository>()
+-		every { repository.observeSession(7L) } returns flow {
+-			throw CancellationException("widget stopped")
+-		}
+-
+-		val failure = runCatching {
+-			readWidgetSteps(
+-				repository = repository,
+-				session = TrackerSessionSnapshot(id = 7L),
+-			)
+-		}.exceptionOrNull()
+-
+-		failure.shouldBeInstanceOf<CancellationException>()
+-	}
+-
+-	private fun materializingQuery(segmentId: Long): SessionHistoryQuery = query(
+-		segmentId = segmentId,
+-		qualified = false,
+-		steps = StepsHistory(
+-			count = null,
+-			availability = HistoryAvailability.AVAILABLE,
+-			evidence = HistoryEvidence.STARTING,
+-			productState = HistoryProductState.MATERIALIZING,
+-			coverage = StepsHistoryCoverage.NONE,
+-			causes = setOf(StepsHistoryCause.MATERIALIZATION_BEHIND),
+-		),
+-	)
+-
+-	private fun completeQuery(segmentId: Long, count: Long): SessionHistoryQuery = query(
+-		segmentId = segmentId,
+-		qualified = true,
+-		steps = StepsHistory(
+-			count = count,
+-			availability = HistoryAvailability.AVAILABLE,
+-			evidence = if (count == 0L) {
+-				HistoryEvidence.ACTIVE
+-			} else {
+-				HistoryEvidence.RECORDED
+-			},
+-			productState = HistoryProductState.READY,
+-			coverage = StepsHistoryCoverage.COMPLETE,
+-		),
+-	)
+-
+-	private fun query(
+-		segmentId: Long,
+-		qualified: Boolean,
+-		steps: StepsHistory,
+-	): SessionHistoryQuery = SessionHistoryQuery.Found(
+-		SessionHistory(
+-			segmentId = segmentId,
+-			capture = HistoryCapture.Exact(
+-				listOf(
+-					HistoryCaptureRevision(
+-						revision = 1L,
+-						effectiveAt = EpochMs(1_000L),
+-						capturedSources = setOf(HistorySource.STEPS),
+-						controlSources = emptySet(),
+-					),
+-				),
+-			),
+-			qualifiedSources = if (qualified) {
+-				setOf(HistorySource.STEPS)
+-			} else {
+-				emptySet()
+-			},
+-			steps = steps,
+-		),
+-	)
+-}
+--- a/app/src/test/java/com/adsamcik/tracker/app/widget/glance/WidgetFormattersTest.kt
++++ b/app/src/test/java/com/adsamcik/tracker/app/widget/glance/WidgetFormattersTest.kt
+@@ -1,6 +1,5 @@
+ package com.adsamcik.tracker.app.widget.glance
+ 
+-import com.adsamcik.tracker.shared.model.Location
+ import org.junit.jupiter.api.Assertions.assertEquals
+ import org.junit.jupiter.api.DisplayName
+ import org.junit.jupiter.api.Nested
+@@ -129,27 +128,6 @@
+         }
+     }
+ 
+-    @Nested
+-    @DisplayName("formatPathPreview")
+-    inner class FormatPathPreview {
+-
+-        @Test
+-        fun `not enough points returns dot`() {
+-            assertEquals("•", WidgetFormatters.formatPathPreview(emptyList()))
+-        }
+-
+-        @Test
+-        fun `diagonal route renders arrow sequence`() {
+-            val points = listOf(
+-                testLocation(50.0, 14.0),
+-                testLocation(50.001, 14.001),
+-                testLocation(50.002, 14.001),
+-            )
+-
+-            assertEquals("↗ ↑", WidgetFormatters.formatPathPreview(points))
+-        }
+-    }
+-
+     @Test
+     fun `duration honors requested Arabic digits including negative durations`() {
+         val arabic = Locale.forLanguageTag("ar-SA")
+@@ -168,16 +146,4 @@
+         assertEquals("2.147.483.648", WidgetFormatters.formatSteps(2_147_483_648L, Locale.GERMANY))
+         assertEquals("1.234", WidgetFormatters.formatSteps(1_234, Locale.GERMANY))
+     }
+-
+-    private fun testLocation(latitude: Double, longitude: Double) =
+-        Location(
+-            time = 0L,
+-            latitude = latitude,
+-            longitude = longitude,
+-            altitude = null,
+-            horizontalAccuracy = null,
+-            verticalAccuracy = null,
+-            speed = null,
+-            speedAccuracy = null,
+-        )
+ }
+--- /dev/null
++++ b/app/src/test/java/com/adsamcik/tracker/app/widget/glance/LauncherWidgetRegistrationTest.kt
+@@ -0,0 +1,47 @@
++package com.adsamcik.tracker.app.widget.glance
++
++import android.app.Application
++import android.content.Context
++import android.content.pm.PackageManager
++import androidx.test.core.app.ApplicationProvider
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertTrue
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++/** Reads the packaged manifest without starting Tracker or any tracking provider. */
++@RunWith(RobolectricTestRunner::class)
++@Config(application = Application::class, sdk = [28])
++class LauncherWidgetRegistrationTest {
++    @Test
++    fun `remaining launcher widgets have registered provider metadata`() {
++        val context = ApplicationProvider.getApplicationContext<Context>()
++        @Suppress("DEPRECATION")
++        val receivers = context.packageManager.getPackageInfo(
++            context.packageName,
++            PackageManager.GET_RECEIVERS or PackageManager.GET_META_DATA,
++        ).receivers.orEmpty().filter {
++            it.name.startsWith("com.adsamcik.tracker.app.widget.glance.")
++        }
++
++        assertEquals(
++            setOf(QuickStartWidgetReceiver::class.java.name, TodaySummaryWidgetReceiver::class.java.name),
++            receivers.map { it.name }.toSet(),
++        )
++        assertEquals(2, receivers.size)
++        receivers.forEach { receiver ->
++            val providerResource = receiver.metaData.getInt("android.appwidget.provider")
++            assertTrue(providerResource != 0)
++            val provider = context.resources.getXml(providerResource)
++            try {
++                while (provider.eventType != org.xmlpull.v1.XmlPullParser.START_TAG &&
++                    provider.eventType != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) provider.next()
++                assertEquals("appwidget-provider", provider.name)
++            } finally {
++                provider.close()
++            }
++        }
++    }
++}

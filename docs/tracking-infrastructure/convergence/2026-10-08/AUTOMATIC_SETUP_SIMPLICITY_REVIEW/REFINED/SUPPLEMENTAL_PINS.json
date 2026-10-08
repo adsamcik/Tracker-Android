@@ -1,0 +1,17 @@
+[
+  {
+    "path": "app/src/main/java/com/adsamcik/tracker/app/settings/CollectedDataDeletionService.kt",
+    "commit": "3a3476e63e5c3bc40e2697f5e503a94cb18592ed",
+    "sha256": "cb090e58829a9d17c332a27eaad02d75b4e94121a5243237e4a4c2a7f2f2c142"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/PressureSessionFactProjectionLane.kt",
+    "commit": "3a3476e63e5c3bc40e2697f5e503a94cb18592ed",
+    "sha256": "f7224530da1bb5fec98dc868e7f60866c10c839218910cffa074a4cab509d3bc"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomationOutboxDispatcher.kt",
+    "commit": "3a3476e63e5c3bc40e2697f5e503a94cb18592ed",
+    "sha256": "97295af0b34dbf7cde2c415c05f9cd51219d83f96121a2c1fdb1468f025192d4"
+  }
+]

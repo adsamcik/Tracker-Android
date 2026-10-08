@@ -1,0 +1,31 @@
+{
+  "sourceCommit": "3a3476e63e5c3bc40e2697f5e503a94cb18592ed",
+  "phase": "IMPLEMENTATION_ONLY",
+  "disposition": "ARCHITECTURE_SUPPORTED_FOR_SINGLE_HUMAN_APPROVAL",
+  "proposalSourcePinCount": 37,
+  "supplementalSourcePinCount": 3,
+  "tests": "NOT_RUN",
+  "T25": "OPEN",
+  "files": [
+    {
+      "path": "PROPOSAL.md",
+      "sha256": "22bf2815010b63ec8b42b96b05867ee06e5b293b06b866d2806ae2454c93bcd2"
+    },
+    {
+      "path": "SOURCE_PINS.json",
+      "sha256": "2e883863e0e46a023e50ecbd08bf95de889de8954a0702edbe266622baedfd68"
+    },
+    {
+      "path": "SUPPLEMENTAL_PINS.json",
+      "sha256": "f01e468055c77105750c9cdb5725fe7e3b53e020945580811bec2572e46e3803"
+    },
+    {
+      "path": "REVIEW_ACCEPTANCE.md",
+      "sha256": "b8d405a6f869ceef31733afd807c112f7dfcd2fb7b705228c123d49099530235"
+    },
+    {
+      "path": "SOURCE_BOUNDARY_ADDENDUM.md",
+      "sha256": "062f422837234089f828492b9894c7415bc1973c0ff08045a7fde52363cda12f"
+    }
+  ]
+}

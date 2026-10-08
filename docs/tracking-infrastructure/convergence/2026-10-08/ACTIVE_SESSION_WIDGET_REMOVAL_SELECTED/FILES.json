@@ -1,0 +1,293 @@
+{
+  "base_commit": "3a3476e63e5c3bc40e2697f5e503a94cb18592ed",
+  "phase": "IMPLEMENTATION_ONLY",
+  "files": [
+    {
+      "path": "app/src/main/AndroidManifest.xml",
+      "base_sha256": "e02a3ae5a48392479eb3a3ffce207319669cad0687ed707b3df78192068d71c9",
+      "selected_sha256": "bbb0b176592b522649b8b146bbaabdc9274bf855c8fada28b8c81ac02621f809",
+      "operation": "UPDATE",
+      "working_before_sha256": "2316a2e18946a475c04036269cef3d724a48243f38e8d3a2fb123eaf61434446"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionWidget.kt",
+      "base_sha256": "bc5ecbac25fbf6716a899d0497a9f23a46b87e313525a8fc5554fecc9a3b716b",
+      "selected_sha256": null,
+      "operation": "DELETE",
+      "working_before_sha256": "bc5ecbac25fbf6716a899d0497a9f23a46b87e313525a8fc5554fecc9a3b716b"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/TrackerWidgetEntryPoint.kt",
+      "base_sha256": "a83307107d785431fee02a468abb22811467666ec167302611fdc61ddad01d95",
+      "selected_sha256": "edd8824f48f18dfe9c854efdb539c0d4f3937ecaf2f26d9ff37d728ca9d81385",
+      "operation": "UPDATE",
+      "working_before_sha256": "a83307107d785431fee02a468abb22811467666ec167302611fdc61ddad01d95"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetFormatters.kt",
+      "base_sha256": "32112956c66c64b1c97d41ef9b74dafb217a492f1535e1093805c99227e3dcf4",
+      "selected_sha256": "89289202c0d1a07472e979e94fcc59946e05937c77f018038dbbe0063329c182",
+      "operation": "UPDATE",
+      "working_before_sha256": "32112956c66c64b1c97d41ef9b74dafb217a492f1535e1093805c99227e3dcf4"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetGlancePreviews.kt",
+      "base_sha256": "fe146b99133bc2a023be0af8fa252a8fda3daea789aab9376b32b755dea433dc",
+      "selected_sha256": "4e64fdd1854d3a5ff42ede5a4c8312ded7dfaa8925fe7c9cbc01a18197605dae",
+      "operation": "UPDATE",
+      "working_before_sha256": "b07919269d7f5ff4677e6aa76a78e97b0a5cfd8dc2204385927b6e5efb22bf4f"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetUpdateScheduler.kt",
+      "base_sha256": "56adb7763c78769ded7fc7c1f4cd690a592f84a5b04f589837bbc55d3736f402",
+      "selected_sha256": "936a899e6aa3296c84765ff78c5708c484341d8e22601697f6d4a272ad88340f",
+      "operation": "UPDATE",
+      "working_before_sha256": "e145ac31eea21489e12c506a4dd5c100846f323fabea9a1c303cbccf8f0e9a32"
+    },
+    {
+      "path": "app/src/main/res/drawable/widget_preview_active_session.xml",
+      "base_sha256": "9fdc0a5c5a0bd6cdacfe1e1e05a6fc8c9d510a8c48e494ef66ddac823c7d1b89",
+      "selected_sha256": null,
+      "operation": "DELETE",
+      "working_before_sha256": "4d8bf53e95f954b795afad849a629c6af3f5b8be369aaef88eff26fa38f46ce4"
+    },
+    {
+      "path": "app/src/main/res/values-bg-rBG/strings.xml",
+      "base_sha256": "48bd9d73228420174621d54a2d6b7fb5baa0ae32a241194e1ecc0b6fdf886592",
+      "selected_sha256": "a119110394b6d8f49c61ad1d4020fd666df3d06daeaf7b0584ff4237485bde06",
+      "operation": "UPDATE",
+      "working_before_sha256": "334b72528a6a33111d04fe8ac2054a5429dec663848d66ae20ade737e5f779b9"
+    },
+    {
+      "path": "app/src/main/res/values-cs-rCZ/strings.xml",
+      "base_sha256": "04924414132c4d097467fd56c5c204a13becbb19e4b201720875d0d268f8eb8d",
+      "selected_sha256": "3b5fffee4e1fd1d704e832dd53708e9221100dde2db8f07060eb383b3d767ca3",
+      "operation": "UPDATE",
+      "working_before_sha256": "a87cd8b8691844059a35c6ba2a38c24356d9d930d6a045721cda0a1fbdad8372"
+    },
+    {
+      "path": "app/src/main/res/values-da-rDK/strings.xml",
+      "base_sha256": "8a828d99020006548eb57dd27750ed21e75d4136372e485e300231e657d84938",
+      "selected_sha256": "69f928c3afa7a6e3cddbfbab218b474ea1dcedb2cd8b1536e8117d4005e54ed7",
+      "operation": "UPDATE",
+      "working_before_sha256": "d4767b100bd6285c6bdfbfac148bb874b539f94f8799fd5ef4a8ac1fc3b577c0"
+    },
+    {
+      "path": "app/src/main/res/values-de-rDE/strings.xml",
+      "base_sha256": "c79d6b81b9d88bf6a1702967147b814b826c88866ec31804d40ef64242f5d336",
+      "selected_sha256": "22a2c605c466987401de7ed6c5bad1b2ee384592205876a2febed0f1e6929d58",
+      "operation": "UPDATE",
+      "working_before_sha256": "f5896218f9e3daadecaffa8c63e16a13fd560da1b4c85d5ac5cf0398c94f7212"
+    },
+    {
+      "path": "app/src/main/res/values-el-rGR/strings.xml",
+      "base_sha256": "9d6de843b01903c37856e32aa2fe606a9dca7f26b322e25a42c36ea2095bd8f5",
+      "selected_sha256": "38d33be50da89e6340d379e2bebb77ba575811df88f044964c03b4c610072035",
+      "operation": "UPDATE",
+      "working_before_sha256": "472a0b3e180fadb31a0fabbed8eadec4903c22494e636c76997fb7ad197e1696"
+    },
+    {
+      "path": "app/src/main/res/values-es-rES/strings.xml",
+      "base_sha256": "cab72861c523df57cfa1d15c8dbc020e68a9a2e22800db287d5588a8bcc0b73c",
+      "selected_sha256": "b879da62a57799421dd8fdb6367fd940b5db02784754f69bb7b0051a333d8210",
+      "operation": "UPDATE",
+      "working_before_sha256": "b04e20394eeaf9cc46b80dc25712858d4f5eaff1997db22da150db2b888ff5fa"
+    },
+    {
+      "path": "app/src/main/res/values-et-rEE/strings.xml",
+      "base_sha256": "a240a6c695184aeec8249428ae2d3fd8133826339916c27fdb821b2627cfc469",
+      "selected_sha256": "984aeda9ba71e13aee73ef93a56b5d7ccfb6e058637182fffa439a35ee815729",
+      "operation": "UPDATE",
+      "working_before_sha256": "224bf689848811fe592a290ce7d30a52064b203a935d2a480055cffd0440721b"
+    },
+    {
+      "path": "app/src/main/res/values-fi-rFI/strings.xml",
+      "base_sha256": "f99c6dcc08ec5a171335739c6def781bf9e5dc04c33573d13bb03e5f1db6cbd3",
+      "selected_sha256": "2cfb5b167fbf1d7f0b893dfc27e4c375deb7a81e7893482beb68e3273eb2d68f",
+      "operation": "UPDATE",
+      "working_before_sha256": "78750d1b334a600589f55db07af2955e99384be83147f3ab1c7f3f2838a2b246"
+    },
+    {
+      "path": "app/src/main/res/values-fr-rFR/strings.xml",
+      "base_sha256": "b782a78301b1a10145b25889b96c611f766da02f52cf26ea09e865105bfde101",
+      "selected_sha256": "930f03b47c1449c56b778ca353a0bbda98f75933dea8897ee4890eb0c32f0158",
+      "operation": "UPDATE",
+      "working_before_sha256": "860a0856dee7a1ed7620404ed09aae6a58a00c197b6ddfe0e8cc307f7489b4a7"
+    },
+    {
+      "path": "app/src/main/res/values-ga-rIE/strings.xml",
+      "base_sha256": "9c8b652bf13699438267ae3168c637ff697f533a0f639231fb0f2fd14bb21a0a",
+      "selected_sha256": "a68e5c0b0bc2bf88244f257e3498190aa37628c7d9bec36cf5825448b90755d8",
+      "operation": "UPDATE",
+      "working_before_sha256": "25b1cbd27368c9b1c7a2dbe4281ac89927a5f5674f982f811039be16ac08509e"
+    },
+    {
+      "path": "app/src/main/res/values-hi-rIN/strings.xml",
+      "base_sha256": "4a831b51c656f7abd154fc664725ae047376850b3a0413f0de2dfa33ecdc2b52",
+      "selected_sha256": "e652193d76022a37565964b9d2edb08ee862b38d6291ed08cec3a2e0b43e79ab",
+      "operation": "UPDATE",
+      "working_before_sha256": "671d6f79298b88bee9cadf88123775af415c2f058c0b723dffb447e07671f9b4"
+    },
+    {
+      "path": "app/src/main/res/values-hr-rHR/strings.xml",
+      "base_sha256": "aa0c4e0a1be310423d4108ad1a7a8a8622fa72cec587fda8792d54ebba24fbd7",
+      "selected_sha256": "616d215c4ace9f0f04b105735918e93f5e6f336bf31703880810db7df1389feb",
+      "operation": "UPDATE",
+      "working_before_sha256": "4d2957abe4c5e247fdd922761313b43c7c708fc7acf33c9c44eb760cb0e1f16d"
+    },
+    {
+      "path": "app/src/main/res/values-hu-rHU/strings.xml",
+      "base_sha256": "e86c61b028a6be8178c2abe66ea475db4fd62fece99e6dc5fb62bbcd6a2258f7",
+      "selected_sha256": "1647b18ac9554e766828e8957732d8230529b11e6eee7087465b86a47c98ab95",
+      "operation": "UPDATE",
+      "working_before_sha256": "11a374ba697d9ade0b0dfa5f58a3c3f345cdf02fc450c05c5258aab8d81d1330"
+    },
+    {
+      "path": "app/src/main/res/values-it-rIT/strings.xml",
+      "base_sha256": "35896dac57382ecc2361f4ca6b699a1760311c37625da80d257ec5671ca5bb94",
+      "selected_sha256": "15cd7da27c8687fd0ee76889210b55f7e412b792f29f33d92b06804fa597eca0",
+      "operation": "UPDATE",
+      "working_before_sha256": "221945dd1adc78f1eebde4cf54df9795687e372fdb46332b33d7bf6e6175d394"
+    },
+    {
+      "path": "app/src/main/res/values-ja-rJP/strings.xml",
+      "base_sha256": "79edd7e2a6aedc21e824daea471ab2a87b1a419f508fadd8403735ca02af0a5b",
+      "selected_sha256": "ca8ff64286500c097df62df1997ccd779e419423a97ff02f24275c08b7cebf60",
+      "operation": "UPDATE",
+      "working_before_sha256": "486148220b8b705cb644edbfcb689e6988ed6bd7c2bb0e71e7a116e72d6d17af"
+    },
+    {
+      "path": "app/src/main/res/values-lt-rLT/strings.xml",
+      "base_sha256": "659252721be0cc1a6bd985e079872df2914f6bafaee97a4f17fe78b8c17a45bc",
+      "selected_sha256": "515c42625dd7bb0857456a09c5f92c159b8c5d6c70ee691e21619399a94c08fb",
+      "operation": "UPDATE",
+      "working_before_sha256": "4b7be525f16f904188b3cc8d84c778f8d035c9b5f48a899730d576ee574a9897"
+    },
+    {
+      "path": "app/src/main/res/values-lv-rLV/strings.xml",
+      "base_sha256": "c79f757c696669f208ca18de5de2fb08d767189de4f9d556b7cfe2a1591986b3",
+      "selected_sha256": "f3561605a1eda3e372776947a4102eff9d0e559996e003037c5eb673a1a7d671",
+      "operation": "UPDATE",
+      "working_before_sha256": "46a64715a2f340f29ed259798ced67fe3bd47d32bf8c111238f11895771eb909"
+    },
+    {
+      "path": "app/src/main/res/values-mt-rMT/strings.xml",
+      "base_sha256": "a2ee61df5ce5244793225285df7bb7f265a82ba8f2eab74b9b6c6403e4a0ee2f",
+      "selected_sha256": "438c5283bb0d3a4b8859f9afa71e5db3a6a80b5a0bf10bafa76507b7d7be8e3c",
+      "operation": "UPDATE",
+      "working_before_sha256": "a527bca9c45091e38ef19820a01b040328436dd56e3bb030f5b77a69a9624153"
+    },
+    {
+      "path": "app/src/main/res/values-nl-rNL/strings.xml",
+      "base_sha256": "f5777b0cdda03246543b7369435b685e848279a61e06cc5a4737c3cf24b79e86",
+      "selected_sha256": "31819fe9ddb9cb722e39873aa5db6a835c307820eb0c5195f860aa1f7dd04117",
+      "operation": "UPDATE",
+      "working_before_sha256": "cc60ab0fed2cebe8fc8ec2e2248dddc0e502eac4935a2fe1e6e4fa4f60dd3b25"
+    },
+    {
+      "path": "app/src/main/res/values-pl-rPL/strings.xml",
+      "base_sha256": "746e9bc2bd7565a642a096e13f5ea6b1ad64b784a6bfce9de21fe161187fc129",
+      "selected_sha256": "e4eb603e638802c009448c95d5c361f54152228486877f09fdc127ffb117f23d",
+      "operation": "UPDATE",
+      "working_before_sha256": "d9afcb15627b34396268e9ac73e68fc0c3d7790ecdd13edf97fb2d34ec7a6a68"
+    },
+    {
+      "path": "app/src/main/res/values-pt-rPT/strings.xml",
+      "base_sha256": "6a4f5aae27dabd18537f8434e96106fc2a718510a638e86c4a34b0a7c613a859",
+      "selected_sha256": "a2541bedb59d2a88018afc67163121dcfccc85251e4eec79d9befd7eb1a6c382",
+      "operation": "UPDATE",
+      "working_before_sha256": "cac208b1aaec47360c0bc58023be17c8d3601daad419619b8ddb7830953752bd"
+    },
+    {
+      "path": "app/src/main/res/values-ro-rRO/strings.xml",
+      "base_sha256": "9bd32e66103beedd6bd4f97492e8b69cd926f63e97801a32e0766d0f8251d60c",
+      "selected_sha256": "a769bd8f38492ad8a4d9859eee61d1df9ff7e5840524391587289445a735861d",
+      "operation": "UPDATE",
+      "working_before_sha256": "f48a339284e1a4e1545f30c1524260357d609d17dc23f244d48908a392133de0"
+    },
+    {
+      "path": "app/src/main/res/values-sk-rSK/strings.xml",
+      "base_sha256": "c24f8264057004bd95f87648ec2048c1ba7bedadba44347dcb0efaa747a9ac67",
+      "selected_sha256": "b972440095e809f62b1ede6fb008ac30ebe0c14f52a83f7c05b7950cad9ec859",
+      "operation": "UPDATE",
+      "working_before_sha256": "994c4394cdcf2ea785e163960f9d253586b6c5b827c1c7c39db82ecce02c64b2"
+    },
+    {
+      "path": "app/src/main/res/values-sl-rSI/strings.xml",
+      "base_sha256": "b21dbdb99f0a0dab318b9ab1a721e7704ff27b40453aabc1b6be1dd620fdb843",
+      "selected_sha256": "89754faf9b35b43cb12c4aaab09261768b0c91ed5516bb2df557cab29dd92b28",
+      "operation": "UPDATE",
+      "working_before_sha256": "9527a23fde6678c43bdf029c9fa38f188fe601012482061e701ebd387e7b59f4"
+    },
+    {
+      "path": "app/src/main/res/values-sv-rSE/strings.xml",
+      "base_sha256": "5c121efa25e075941a0affa14e701fde9350739812c9493da1f70c11dcd7b58b",
+      "selected_sha256": "9d424dc7c0e996ed0a70672742ba966afad3a7f0a579a52b6af436677e098628",
+      "operation": "UPDATE",
+      "working_before_sha256": "91fde12eaf455291710ff78ed5e6c9c5a27dfa2770093c3bb621b660e850d7cd"
+    },
+    {
+      "path": "app/src/main/res/values-zh-rCN/strings.xml",
+      "base_sha256": "3c37ab61ae413237f80afe410a5e79af6cfc561d688547b4ce157514f44054b5",
+      "selected_sha256": "4ffac9d3ad6453fd54251cd3eaac990fc4d0dbddea0eb3e273c5c8d330c25335",
+      "operation": "UPDATE",
+      "working_before_sha256": "13227b50762f6121799e416b7a8c8f448e61beacbd6345fa71400bfd2f042052"
+    },
+    {
+      "path": "app/src/main/res/values-zh-rTW/strings.xml",
+      "base_sha256": "8673da8807aa26f2673e92dc99dad068fddd01b1be9bada9da0740517477867c",
+      "selected_sha256": "0f4081c84981454e22855d806cd88183d8fbd4eeca0c35eb90813bd0ae28535b",
+      "operation": "UPDATE",
+      "working_before_sha256": "ff352c76f4a98f82f2201b41d2ade0279baaa4432597c98d27a176b280f71dfd"
+    },
+    {
+      "path": "app/src/main/res/values/strings.xml",
+      "base_sha256": "087569fa06d0d777c4a1a778550892459f4c529e3ef6f219207fc4c5f2baa2a4",
+      "selected_sha256": "e07fc4d40ebba258ecc734cba3795c0f2286b61f90765401db411a5aea234b1b",
+      "operation": "UPDATE",
+      "working_before_sha256": "df5513fbf573628c7bd1b6e87fea2a4f5c2567f7cf1986e43d21cc67881d1fa9"
+    },
+    {
+      "path": "app/src/main/res/xml-v31/widget_active_session_info.xml",
+      "base_sha256": "a876b97eda6ccf3152cbf32e9bde19003ef8dc53b75db0c205a1ccd62e56aff9",
+      "selected_sha256": null,
+      "operation": "DELETE",
+      "working_before_sha256": "146af5e176b254d3396ffd4c7813c0fda7864afa25c7f42851d1009e32289a00"
+    },
+    {
+      "path": "app/src/main/res/xml/widget_active_session_info.xml",
+      "base_sha256": "ee23d040db45b03ef26567c531dfebcb04f0ff5eed09f0abf26b8045139be286",
+      "selected_sha256": null,
+      "operation": "DELETE",
+      "working_before_sha256": "5185fdfcf271f279680b22ca5834c1117dd6afed56ca7d2c3b84616bc774e2b6"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionSavedLocationTest.kt",
+      "base_sha256": "981394a86face01bd94bfe6f1d3ac651e53dfd321ee43fa599f4f0cc0d49bf3f",
+      "selected_sha256": null,
+      "operation": "DELETE",
+      "working_before_sha256": "981394a86face01bd94bfe6f1d3ac651e53dfd321ee43fa599f4f0cc0d49bf3f"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionWidgetPresentationTest.kt",
+      "base_sha256": "f94f2df6f09943b5a25688583a1c817c187037e1bfe0ec5731c44c1c2655b791",
+      "selected_sha256": null,
+      "operation": "DELETE",
+      "working_before_sha256": "30c6994dfa9c76bf109ba522ba4a531d0e086f133aa17df6fb4106b2312165ca"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/WidgetFormattersTest.kt",
+      "base_sha256": "7d216fee40dda9611859b3dc9a6951d9005075b7cff765c50560a8bd990bb98a",
+      "selected_sha256": "c8dc94de060236a42790467e10cf3f02a0add7d58bcd27913b89349797f45826",
+      "operation": "UPDATE",
+      "working_before_sha256": "702b1bc851f9481e26c65695c1315370d338da3bc189eea47448f33ec06a7aaf"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/LauncherWidgetRegistrationTest.kt",
+      "base_sha256": null,
+      "selected_sha256": "df234c45c7b0b0e500f8f7365f05669fd116c1cf61cfb2cbe9ceb4f82d397488",
+      "operation": "ADD",
+      "working_before_sha256": null
+    }
+  ]
+}

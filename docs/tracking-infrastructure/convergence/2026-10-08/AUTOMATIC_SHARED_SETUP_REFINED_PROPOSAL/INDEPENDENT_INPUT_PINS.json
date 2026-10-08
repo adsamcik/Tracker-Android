@@ -1,0 +1,143 @@
+{
+  "review": "INDEPENDENT_SOURCE_ONLY",
+  "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+  "inputs": [
+    {
+      "path": "docs/tracking-infrastructure/convergence/2026-10-08/PASSIVE_LOCATION_AND_AUTOMATIC_PROPOSAL.md",
+      "source": "PROPOSED_NOT_IMPLEMENTED",
+      "sha256": "e07aadf5507ab4c8157f6d1de5a5af77cbc08c5d2b0144bbc39a86a1a7d0485b"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStore.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "cbd732f0fedc2969c5dc7726cee0f9469888c077a9119684ae931ed3f39a684a"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourceSpecificWriterTransitionCoordinators.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "d27ad50507913ae81e4a47d40e8675259a2f9fa357f77ca43199ae09c6ac81a5"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/module/TrackerModuleInitializer.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "a690079ea9d86212ea420749b66a3a99f8f9187cbf0f1b3f25bac91b81e9d976"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGate.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "8b00aa8978647e4e8fd20fa50582da123bd6d4efa23c0e12664cd008283031ad"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "1b500c2c83dc65b767594382f923532c323230a25a83844d88989c5c87c9c8ba"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackerServiceSourceSession.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "d1a3b5a1dd8fce0742409d21e43e1fcba528c1ea30e1935e57b26540aec1cf6c"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "21325d83c762c15c335acb9677673054b36577b1e987b4a48c6191b9f32228dc"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceWriterGenerationContract.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "afe5e2a5cf74f4fefe3812bae33aa8f1c368e369cf960e45a1200e00a38fb61a"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDestinationOwnerEntity.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "7557415377ece33928fc9530ee4ae3dba4d2db44a23d4ba08d1aa634523cd88c"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinator.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "d0a28afa454d12689c7ac3f6d564434797db74bba5852080923c0b822139e331"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourcePipelineRecovery.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "a6753b0e2e32ddb39e187fe098c0b4dbe452195ec62512c5bfe24a74bc2e75a1"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/PersistenceLegacySourceWriterTransitionBoundary.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "80f09a32b9dd604e6184293981d7087c89e4c4909fcdfc385789ca50a18b6f48"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/StepsWriterTransitionState.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "71564c4c5e48d37031dd656c975837601e3c91f14729a4d6a951aa0680295d0f"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/StepsWriterActivationTransition.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "231137be526e4e21471bd8d2296e1f6adfd0b3d37c18411fd0eddb41baea88d5"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "c97672d6bded0be734639a6a5500f1faf7d92bee6d02cbed27b367c174f17c98"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceProjectionStateDao.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "50ea77d5ce9a445fdfd33d28c622ca9c9f4107db257979d4183a60ed9ee44e0a"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "46271afa72131dfd0ba86bf593abb00cb0f1a39a7f01ede89b43a56789f46217"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/di/InfrastructureModule.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "f40f2a90ac013126bd60e9d3b5f8d50d5fdc8121ecf2d1870997b50d17993296"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/SourcePipelineModule.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "b9abbed0c5cae5fb5c491322a4e287e52ee4e2f9aa13d9c7ff01536c25a41712"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/StepsWriterDeletionRearm.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "4b53a7de68c8641915d347a0711aed982847fa476d6e46d4242bd9d6f6f83395"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/catalog/SourceProductFactories.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "86d4d6a2541afcdd32c9b8ceb5b3571050b77528baed5d9da5bb75e425743816"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourceProductDrainRouter.kt",
+      "source": "COMMITTED",
+      "revision": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+      "sha256": "e133d00726483f36eeb8a584884d5be65fa6c9dce39bd8d89da384c5a3f54e1a"
+    }
+  ]
+}

@@ -904,3 +904,9 @@ Exact source and independent acceptance: `../2026-10-08/DAILY_SUMMARY_CANCELLATI
 - [x] Remove the arbitrary total64 passive Location cap. Normalize the complete delivery once, preserve one-fix identities, and use cancellable64 work chunks within the unchanged receiver deadline. Seven new and one revised fixture methods NOT_RUN; retained delivery gaps and actual provider/device evidence remain open.
 
 Exact source and independent acceptance: `../2026-10-08/PASSIVE_LOCATION_DELIVERY_CHUNKS_SELECTED/` and `PASSIVE_LOCATION_DELIVERY_CHUNKS_REVIEW/`. IMPLEMENTED_UNVALIDATED; T25/all25 remain OPEN. No gates, activation or dev/v10 integration.
+
+### October 8 - active session widget removal
+
+- [x] Remove the requested Active Session launcher widget, receiver, provider XMLs, preview, exclusive localized strings/helpers/tests, scheduler call and unused History entry-point dependency. One packaged-manifest/resource case authored NOT_RUN; two other existing widgets retain their registrations and updater.
+
+Exact source/review: `../2026-10-08/ACTIVE_SESSION_WIDGET_REMOVAL_SELECTED/` and `ACTIVE_SESSION_WIDGET_REMOVAL_REVIEW/`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN; no gates, activation or integration.

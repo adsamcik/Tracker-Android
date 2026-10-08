@@ -1,0 +1,81 @@
+{
+  "base_commit": "3a3476e63e5c3bc40e2697f5e503a94cb18592ed",
+  "pins": [
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "app/build.gradle.kts",
+      "sha256": "2d13275df63ee2010c45805a69dbbea6eb2ad7680cdddb0b7dbdc85969b1ef9c"
+    },
+    {
+      "path": "gradle/libs.versions.toml",
+      "sha256": "3a4ccf984418e20f5e943456ab7e096823744ad74249699979a8cb4d22d19bde"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/QuickStartWidget.kt",
+      "sha256": "5b8ab269da13f9808300928b2476a140e2fd8ddaa24d214fcfcde61b6ffac16c"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/TodaySummaryWidget.kt",
+      "sha256": "e9a867c4e05eb4f66ad935015797e6261c146ce3094ebee9f76dea7d059b144d"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetStepsPresentation.kt",
+      "sha256": "5d46db1176aedadce09fc7b3bd0425dd3efab859789c9892a0b63f9ff12652a1"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetActions.kt",
+      "sha256": "daa06c607ee4085e6ab358fff7dcd54868d0b02a70c3db9c694b7f310cc57090"
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetTheme.kt",
+      "sha256": "6b560aae21a38644248370a808d7cb7729bdd525e866275a8b53018ec3488728"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/WidgetUpdateWorkerTest.kt",
+      "sha256": "39c0ce791d8c4852e932f280cf659092192ae50676e12bcdd038b8f44934be92"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/WidgetTrackingControlActionsTest.kt",
+      "sha256": "8c7aded7aa5e444a5244297b67a68e7c65cb36db1959ce103010181dca35f854"
+    },
+    {
+      "path": "build-logic/build.gradle.kts",
+      "sha256": "06045abc8ff15f71942c2caa4ce2a7a0a866fecb268310fceb9eb341620cdf63"
+    },
+    {
+      "path": "build-logic/convention/build.gradle.kts",
+      "sha256": "5bc306bef8445e6e99dd4cb72e88a7fdc9241cc67b26e6d5f5495dbd171fc3b8"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidConventionPlugins.kt",
+      "sha256": "6530e14a5465d6023516b430b05e792a49b2cbc802c2b9455101272c17c36229"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidFeatureConventionPlugins.kt",
+      "sha256": "e2df2278893f6fc1b47d6b51c15095e1e5638d2185ec35290fab465771772567"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidProtobufConventionPlugin.kt",
+      "sha256": "3b7ec3daad09dde5205241e0911908839e29840a23707bc4ca60812b9734a164"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/KotlinMultiplatformAndroidJvmConventionPlugin.kt",
+      "sha256": "c8529a9dbed549f132b22e8044ce9d2764bc0416a13e3473f63f7f867c307d06"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/RootVerificationConventionPlugin.kt",
+      "sha256": "7c8a9bf340649a9ee85a9ec1ea2a0d041ac43334247aaf8a35e5789087be3e3e"
+    },
+    {
+      "path": "build-logic/convention/src/test/kotlin/com/adsamcik/tracker/buildlogic/QualityGateContractTest.kt",
+      "sha256": "aa439a55ab38d729907321694a8b580a0111b27f14bf098b55264edc4bcf443d"
+    },
+    {
+      "path": "build-logic/settings.gradle.kts",
+      "sha256": "834c3d5c5165e75980e4404adcb323d5b6f038b6d65c03054ea4605ab08d2a01"
+    }
+  ]
+}

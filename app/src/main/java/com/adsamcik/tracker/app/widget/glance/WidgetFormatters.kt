@@ -2,10 +2,8 @@ package com.adsamcik.tracker.app.widget.glance
 
 import android.content.Context
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.shared.model.Location
 import java.text.NumberFormat
 import java.util.Locale
-import kotlin.math.abs
 
 /**
  * Lightweight formatting utilities for widget display.
@@ -65,61 +63,4 @@ object WidgetFormatters {
             maximumFractionDigits = 0
         }.format(percent / 100.0)
     }
-
-    fun formatSpeed(context: Context, metersPerSecond: Float?): String {
-        if (metersPerSecond == null || !metersPerSecond.isFinite() || metersPerSecond < 0f) {
-            return context.getString(R.string.widget_speed_unknown)
-        }
-
-        val kmPerHour = metersPerSecond * 3.6f
-        return if (kmPerHour >= 10f) {
-            context.getString(R.string.widget_speed_format_whole, kmPerHour.toInt())
-        } else {
-            context.getString(R.string.widget_speed_format_decimal, kmPerHour)
-        }
-    }
-
-    fun formatPathPreview(points: List<Location>): String {
-        if (points.size < 2) {
-            return "•"
-        }
-
-        return points
-            .zipWithNext()
-            .takeLast(MAX_PATH_SEGMENTS)
-            .map { (from, to) -> directionGlyph(from, to) }
-            .joinToString(separator = " ")
-    }
-
-    private fun directionGlyph(from: Location, to: Location): String {
-        val deltaLat = to.latitude - from.latitude
-        val deltaLon = to.longitude - from.longitude
-
-        if (abs(deltaLat) < MIN_COORDINATE_DELTA && abs(deltaLon) < MIN_COORDINATE_DELTA) {
-            return "•"
-        }
-
-        val vertical = when {
-            deltaLat > MIN_COORDINATE_DELTA -> "↑"
-            deltaLat < -MIN_COORDINATE_DELTA -> "↓"
-            else -> ""
-        }
-        val horizontal = when {
-            deltaLon > MIN_COORDINATE_DELTA -> "→"
-            deltaLon < -MIN_COORDINATE_DELTA -> "←"
-            else -> ""
-        }
-
-        return when ("$vertical$horizontal") {
-            "↑→" -> "↗"
-            "↑←" -> "↖"
-            "↓→" -> "↘"
-            "↓←" -> "↙"
-            "" -> "•"
-            else -> "$vertical$horizontal"
-        }
-    }
-
-    private const val MAX_PATH_SEGMENTS = 5
-    private const val MIN_COORDINATE_DELTA = 0.00001
 }
