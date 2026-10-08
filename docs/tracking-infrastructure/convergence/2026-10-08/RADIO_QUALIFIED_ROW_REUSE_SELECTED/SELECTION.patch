@@ -1,0 +1,180 @@
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioReader.kt
+@@ -302,7 +302,12 @@
+ 
+ internal data class RetainedAmbientRadioRows<T>(val rows: List<T>, val gaps: Set<RadioContextReadGapReason> = emptySet())
+ 
+-internal data class RetainedAmbientRead<T>(val result: T, val readGaps: Set<RadioContextReadGapReason> = emptySet())
++/** The native rows already accepted for this exact read; paired consumers need no second raw query. */
++internal data class RetainedAmbientRead<T, NativeRow>(
++    val result: T,
++    val readGaps: Set<RadioContextReadGapReason> = emptySet(),
++    val nativeRows: List<NativeRow> = emptyList(),
++)
+ 
+ private fun retainedGapPurposeQualifies(policy: SourcePolicyEntity?, consent: SourceConsentEpochEntity?, epoch: Long) =
+     policy?.ambientPersistenceEligible == true && policy.ambientConsentEpoch == epoch &&
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt
+@@ -68,15 +68,15 @@
+ 		readQualifiedWindowInTransaction(request, includeObservationOverlap = true).strictResult()
+ 
+ 	/** Saved-data status preserves valid siblings and typed gaps on the measured reading window. */
+-	internal suspend fun readQualifiedObservationWindowInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult> =
++	internal suspend fun readQualifiedObservationWindowInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult, AmbientWifiEffectiveLocalRow> =
+ 		readQualifiedWindowInTransaction(request, includeObservationOverlap = true)
+ 
+ 	/** Optional paired consumers keep independently qualified rows and the explicit read gaps. */
+-	internal suspend fun readQualifiedInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult> =
++	internal suspend fun readQualifiedInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult, AmbientWifiEffectiveLocalRow> =
+ 		readQualifiedWindowInTransaction(request, includeObservationOverlap = false)
+ 
+ 	private suspend fun readQualifiedWindowInTransaction(request: AmbientWifiReadRequest,
+-		includeObservationOverlap: Boolean): RetainedAmbientRead<AmbientWifiReadResult> {
++		includeObservationOverlap: Boolean): RetainedAmbientRead<AmbientWifiReadResult, AmbientWifiEffectiveLocalRow> {
+ 		val dao = database.ambientWifiFactDao()
+ 		val local = if (AmbientWifiOrigin.LOCAL_DEVICE in request.origins) {
+ 			if (includeObservationOverlap) dao.effectiveLocalOverObservationWindow(request.fromInclusiveMs,
+@@ -162,7 +162,7 @@
+ 
+ 	private suspend fun qualifyAndCompose(local: List<AmbientWifiEffectiveLocalRow>,
+ 		imported: List<ImportedAmbientWifiFactEntity>, gaps: List<AmbientWifiGapEntity>,
+-		importedGaps: List<ImportedAmbientWifiGapEntity>, limit: Int): RetainedAmbientRead<AmbientWifiReadResult> {
++		importedGaps: List<ImportedAmbientWifiGapEntity>, limit: Int): RetainedAmbientRead<AmbientWifiReadResult, AmbientWifiEffectiveLocalRow> {
+ 		if (local.size > limit || imported.size > limit || gaps.size > limit || importedGaps.size > limit ||
+ 			local.size + imported.size > limit || gaps.size + importedGaps.size > limit) {
+ 			return RetainedAmbientRead(AmbientWifiReadResult.DependencyOverflow)
+@@ -177,10 +177,10 @@
+ 		}
+ 		val portable = importedRetained.wifiInTransaction(imported, history, importedGaps)
+ 		return RetainedAmbientRead(compose(native.rows, portable.facts, nativeGaps.rows, portable.gaps, limit),
+-			native.gaps + nativeGaps.gaps + portable.readGaps)
+-	}
+-
+-	private fun RetainedAmbientRead<AmbientWifiReadResult>.strictResult(): AmbientWifiReadResult = when {
++			native.gaps + nativeGaps.gaps + portable.readGaps, native.rows)
++	}
++
++	private fun RetainedAmbientRead<AmbientWifiReadResult, AmbientWifiEffectiveLocalRow>.strictResult(): AmbientWifiReadResult = when {
+ 		RadioContextReadGapReason.DEPENDENCY_LIMIT in readGaps -> AmbientWifiReadResult.DependencyOverflow
+ 		readGaps.any { it != RadioContextReadGapReason.RETENTION_BOUNDARY } -> AmbientWifiReadResult.StorageUnavailable
+ 		else -> result
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt
+@@ -71,15 +71,15 @@
+ 		readQualifiedWindowInTransaction(request, includeObservationOverlap = true).strictResult()
+ 
+ 	/** Saved-data status preserves valid siblings and typed gaps on the measured reading window. */
+-	internal suspend fun readQualifiedObservationWindowInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult> =
++	internal suspend fun readQualifiedObservationWindowInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> =
+ 		readQualifiedWindowInTransaction(request, includeObservationOverlap = true)
+ 
+ 	/** Optional paired consumers keep independently qualified rows and the explicit read gaps. */
+-	internal suspend fun readQualifiedInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult> =
++	internal suspend fun readQualifiedInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> =
+ 		readQualifiedWindowInTransaction(request, includeObservationOverlap = false)
+ 
+ 	private suspend fun readQualifiedWindowInTransaction(request: AmbientCellReadRequest,
+-		includeObservationOverlap: Boolean): RetainedAmbientRead<AmbientCellReadResult> {
++		includeObservationOverlap: Boolean): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> {
+ 		val dao = database.ambientCellFactDao()
+ 		val local = if (AmbientCellOrigin.LOCAL_DEVICE in request.origins) {
+ 			if (includeObservationOverlap) dao.effectiveLocalOverObservationWindow(request.fromInclusiveMs,
+@@ -165,7 +165,7 @@
+ 
+ 	private suspend fun qualifyAndCompose(local: List<AmbientCellEffectiveLocalRow>,
+ 		imported: List<ImportedAmbientCellFactEntity>, gaps: List<AmbientCellGapEntity>,
+-		importedGaps: List<ImportedAmbientCellGapEntity>, limit: Int): RetainedAmbientRead<AmbientCellReadResult> {
++		importedGaps: List<ImportedAmbientCellGapEntity>, limit: Int): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> {
+ 		if (local.size > limit || imported.size > limit || gaps.size > limit || importedGaps.size > limit ||
+ 			local.size + imported.size > limit || gaps.size + importedGaps.size > limit) {
+ 			return RetainedAmbientRead(AmbientCellReadResult.DependencyOverflow)
+@@ -180,10 +180,10 @@
+ 		}
+ 		val portable = importedRetained.cellInTransaction(imported, history, importedGaps)
+ 		return RetainedAmbientRead(compose(native.rows, portable.facts, nativeGaps.rows, portable.gaps, limit),
+-			native.gaps + nativeGaps.gaps + portable.readGaps)
+-	}
+-
+-	private fun RetainedAmbientRead<AmbientCellReadResult>.strictResult(): AmbientCellReadResult = when {
++			native.gaps + nativeGaps.gaps + portable.readGaps, native.rows)
++	}
++
++	private fun RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow>.strictResult(): AmbientCellReadResult = when {
+ 		RadioContextReadGapReason.DEPENDENCY_LIMIT in readGaps -> AmbientCellReadResult.DependencyOverflow
+ 		readGaps.any { it != RadioContextReadGapReason.RETENTION_BOUNDARY } -> AmbientCellReadResult.StorageUnavailable
+ 		else -> result
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomRadioLocationContextRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomRadioLocationContextRepository.kt
+@@ -131,9 +131,7 @@
+         if (read !is AmbientWifiReadResult.Snapshot) return gap(gaps, RadioContextPurpose.AMBIENT,
+             if (read == AmbientWifiReadResult.DependencyOverflow) RadioContextReadGapReason.DEPENDENCY_LIMIT else RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE)
+         if (read.gaps.isNotEmpty()) gaps += RadioContextReadGap(RadioContextPurpose.AMBIENT, RadioContextReadGapReason.ACQUISITION_PARTIAL)
+-        val rows = database.ambientWifiFactDao().effectiveLocalOverWindow(request.fromInclusiveMs,
+-            request.toExclusiveMs, request.limit + 1)
+-        if (rows.size > request.limit) return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.DEPENDENCY_LIMIT)
++        val rows = qualified.nativeRows
+         val factsByIdentity = read.facts.associateBy { it.identity to it.semanticRevision }
+         return rows.mapNotNull { row ->
+             val fact = row.fact
+@@ -154,9 +152,7 @@
+         if (read !is AmbientCellReadResult.Snapshot) return gap(gaps, RadioContextPurpose.AMBIENT,
+             if (read == AmbientCellReadResult.DependencyOverflow) RadioContextReadGapReason.DEPENDENCY_LIMIT else RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE)
+         if (read.gaps.isNotEmpty()) gaps += RadioContextReadGap(RadioContextPurpose.AMBIENT, RadioContextReadGapReason.ACQUISITION_PARTIAL)
+-        val rows = database.ambientCellFactDao().effectiveLocalOverWindow(request.fromInclusiveMs,
+-            request.toExclusiveMs, request.limit + 1)
+-        if (rows.size > request.limit) return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.DEPENDENCY_LIMIT)
++        val rows = qualified.nativeRows
+         val factsByIdentity = read.facts.associateBy { it.identity to it.semanticRevision }
+         return rows.mapNotNull { row ->
+             val fact = row.fact
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt
+@@ -96,6 +96,38 @@
+ 	@After
+ 	fun tearDown() = database.close()
+ 
++	@Test fun `paired radio consumers reuse the same accepted native facts and exact identities`() = runTest {
++		val wifi = insertWifi(true); val cell = insertCell(true)
++		database.withTransaction {
++			val wifiRead = RoomAmbientWifiRepository(database, dispatcher).readQualifiedInTransaction(wifiWindow())
++			val cellRead = RoomAmbientCellRepository(database, dispatcher).readQualifiedInTransaction(cellWindow())
++			assertEquals(wifi, wifiRead.nativeRows.single().fact)
++			assertEquals(cell, cellRead.nativeRows.single().fact)
++			assertEquals(wifi.logicalFactId, assertIs<AmbientWifiReadResult.Snapshot>(wifiRead.result).facts.single().identity)
++			assertEquals(cell.logicalFactId, assertIs<AmbientCellReadResult.Snapshot>(cellRead.result).facts.single().identity)
++		}
++		val wifiContext = radioContext(RadioContextSource.WIFI).observations.single()
++		val cellContext = radioContext(RadioContextSource.CELL).observations.single()
++		assertEquals(wifi.sourceEventId, wifiContext.sourceEventId)
++		assertEquals(cell.sourceEventId, cellContext.sourceEventId)
++		assertEquals(wifi.observedWallTimeMs, wifiContext.observedWallTimeMs)
++		assertEquals(cell.observedWallTimeMs, cellContext.observedWallTimeMs)
++		assertIs<com.adsamcik.tracker.stats.api.repository.OptionalRetainedLocationContext.Unlocated>(wifiContext.location)
++		assertIs<com.adsamcik.tracker.stats.api.repository.OptionalRetainedLocationContext.Unlocated>(cellContext.location)
++	}
++
++	@Test fun `unaccepted native radio rows cannot enter optional map context and other source survives`() = runTest {
++		insertWifi(true); val cell = insertCell(true)
++		database.openHelper.writableDatabase.execSQL("UPDATE ambient_wifi_fact_revision SET effect_checksum = ?", arrayOf("0".repeat(64)))
++		val wifiRead = database.withTransaction {
++			RoomAmbientWifiRepository(database, dispatcher).readQualifiedInTransaction(wifiWindow())
++		}
++		assertTrue(wifiRead.nativeRows.isEmpty())
++		assertTrue(wifiRead.readGaps.isNotEmpty())
++		assertTrue(radioContext(RadioContextSource.WIFI).observations.isEmpty())
++		assertEquals(cell.sourceEventId, radioContext(RadioContextSource.CELL).observations.single().sourceEventId)
++	}
++
+ 	@Test fun `all-day native status finds each overnight child on its own measured day`() = runTest {
+ 		val offset = 86_400_000L - 1_950L
+ 		val originalWifi = insertWifi(true, wallOffsetMs = offset, storedZoneId = "America/Los_Angeles")
+@@ -130,6 +162,8 @@
+ 			query.read(AllDaySourceStatusRequest.Wifi(window)))
+ 		assertEquals(listOf(1_900L, 2_000L), assertIs<AllDaySourceStatusRead.Cell>(query.read(
+ 			AllDaySourceStatusRequest.Cell(window))).facts.single().readings.map { it.observedTimeMs })
++		assertTrue(radioContext(RadioContextSource.WIFI).observations.isEmpty())
++		assertEquals("cell-event", radioContext(RadioContextSource.CELL).observations.single().sourceEventId)
+ 	}
+ 
+ 	@Test

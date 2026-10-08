@@ -68,15 +68,15 @@ internal class RoomAmbientWifiRepository(
 		readQualifiedWindowInTransaction(request, includeObservationOverlap = true).strictResult()
 
 	/** Saved-data status preserves valid siblings and typed gaps on the measured reading window. */
-	internal suspend fun readQualifiedObservationWindowInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult> =
+	internal suspend fun readQualifiedObservationWindowInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult, AmbientWifiEffectiveLocalRow> =
 		readQualifiedWindowInTransaction(request, includeObservationOverlap = true)
 
 	/** Optional paired consumers keep independently qualified rows and the explicit read gaps. */
-	internal suspend fun readQualifiedInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult> =
+	internal suspend fun readQualifiedInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult, AmbientWifiEffectiveLocalRow> =
 		readQualifiedWindowInTransaction(request, includeObservationOverlap = false)
 
 	private suspend fun readQualifiedWindowInTransaction(request: AmbientWifiReadRequest,
-		includeObservationOverlap: Boolean): RetainedAmbientRead<AmbientWifiReadResult> {
+		includeObservationOverlap: Boolean): RetainedAmbientRead<AmbientWifiReadResult, AmbientWifiEffectiveLocalRow> {
 		val dao = database.ambientWifiFactDao()
 		val local = if (AmbientWifiOrigin.LOCAL_DEVICE in request.origins) {
 			if (includeObservationOverlap) dao.effectiveLocalOverObservationWindow(request.fromInclusiveMs,
@@ -162,7 +162,7 @@ internal class RoomAmbientWifiRepository(
 
 	private suspend fun qualifyAndCompose(local: List<AmbientWifiEffectiveLocalRow>,
 		imported: List<ImportedAmbientWifiFactEntity>, gaps: List<AmbientWifiGapEntity>,
-		importedGaps: List<ImportedAmbientWifiGapEntity>, limit: Int): RetainedAmbientRead<AmbientWifiReadResult> {
+		importedGaps: List<ImportedAmbientWifiGapEntity>, limit: Int): RetainedAmbientRead<AmbientWifiReadResult, AmbientWifiEffectiveLocalRow> {
 		if (local.size > limit || imported.size > limit || gaps.size > limit || importedGaps.size > limit ||
 			local.size + imported.size > limit || gaps.size + importedGaps.size > limit) {
 			return RetainedAmbientRead(AmbientWifiReadResult.DependencyOverflow)
@@ -177,10 +177,10 @@ internal class RoomAmbientWifiRepository(
 		}
 		val portable = importedRetained.wifiInTransaction(imported, history, importedGaps)
 		return RetainedAmbientRead(compose(native.rows, portable.facts, nativeGaps.rows, portable.gaps, limit),
-			native.gaps + nativeGaps.gaps + portable.readGaps)
+			native.gaps + nativeGaps.gaps + portable.readGaps, native.rows)
 	}
 
-	private fun RetainedAmbientRead<AmbientWifiReadResult>.strictResult(): AmbientWifiReadResult = when {
+	private fun RetainedAmbientRead<AmbientWifiReadResult, AmbientWifiEffectiveLocalRow>.strictResult(): AmbientWifiReadResult = when {
 		RadioContextReadGapReason.DEPENDENCY_LIMIT in readGaps -> AmbientWifiReadResult.DependencyOverflow
 		readGaps.any { it != RadioContextReadGapReason.RETENTION_BOUNDARY } -> AmbientWifiReadResult.StorageUnavailable
 		else -> result

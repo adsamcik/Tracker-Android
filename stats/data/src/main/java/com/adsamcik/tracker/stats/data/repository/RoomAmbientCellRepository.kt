@@ -71,15 +71,15 @@ internal class RoomAmbientCellRepository(
 		readQualifiedWindowInTransaction(request, includeObservationOverlap = true).strictResult()
 
 	/** Saved-data status preserves valid siblings and typed gaps on the measured reading window. */
-	internal suspend fun readQualifiedObservationWindowInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult> =
+	internal suspend fun readQualifiedObservationWindowInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> =
 		readQualifiedWindowInTransaction(request, includeObservationOverlap = true)
 
 	/** Optional paired consumers keep independently qualified rows and the explicit read gaps. */
-	internal suspend fun readQualifiedInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult> =
+	internal suspend fun readQualifiedInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> =
 		readQualifiedWindowInTransaction(request, includeObservationOverlap = false)
 
 	private suspend fun readQualifiedWindowInTransaction(request: AmbientCellReadRequest,
-		includeObservationOverlap: Boolean): RetainedAmbientRead<AmbientCellReadResult> {
+		includeObservationOverlap: Boolean): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> {
 		val dao = database.ambientCellFactDao()
 		val local = if (AmbientCellOrigin.LOCAL_DEVICE in request.origins) {
 			if (includeObservationOverlap) dao.effectiveLocalOverObservationWindow(request.fromInclusiveMs,
@@ -165,7 +165,7 @@ internal class RoomAmbientCellRepository(
 
 	private suspend fun qualifyAndCompose(local: List<AmbientCellEffectiveLocalRow>,
 		imported: List<ImportedAmbientCellFactEntity>, gaps: List<AmbientCellGapEntity>,
-		importedGaps: List<ImportedAmbientCellGapEntity>, limit: Int): RetainedAmbientRead<AmbientCellReadResult> {
+		importedGaps: List<ImportedAmbientCellGapEntity>, limit: Int): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> {
 		if (local.size > limit || imported.size > limit || gaps.size > limit || importedGaps.size > limit ||
 			local.size + imported.size > limit || gaps.size + importedGaps.size > limit) {
 			return RetainedAmbientRead(AmbientCellReadResult.DependencyOverflow)
@@ -180,10 +180,10 @@ internal class RoomAmbientCellRepository(
 		}
 		val portable = importedRetained.cellInTransaction(imported, history, importedGaps)
 		return RetainedAmbientRead(compose(native.rows, portable.facts, nativeGaps.rows, portable.gaps, limit),
-			native.gaps + nativeGaps.gaps + portable.readGaps)
+			native.gaps + nativeGaps.gaps + portable.readGaps, native.rows)
 	}
 
-	private fun RetainedAmbientRead<AmbientCellReadResult>.strictResult(): AmbientCellReadResult = when {
+	private fun RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow>.strictResult(): AmbientCellReadResult = when {
 		RadioContextReadGapReason.DEPENDENCY_LIMIT in readGaps -> AmbientCellReadResult.DependencyOverflow
 		readGaps.any { it != RadioContextReadGapReason.RETENTION_BOUNDARY } -> AmbientCellReadResult.StorageUnavailable
 		else -> result

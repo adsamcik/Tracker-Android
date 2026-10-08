@@ -96,6 +96,38 @@ class RoomAmbientRadioDetailCompletenessTest {
 	@After
 	fun tearDown() = database.close()
 
+	@Test fun `paired radio consumers reuse the same accepted native facts and exact identities`() = runTest {
+		val wifi = insertWifi(true); val cell = insertCell(true)
+		database.withTransaction {
+			val wifiRead = RoomAmbientWifiRepository(database, dispatcher).readQualifiedInTransaction(wifiWindow())
+			val cellRead = RoomAmbientCellRepository(database, dispatcher).readQualifiedInTransaction(cellWindow())
+			assertEquals(wifi, wifiRead.nativeRows.single().fact)
+			assertEquals(cell, cellRead.nativeRows.single().fact)
+			assertEquals(wifi.logicalFactId, assertIs<AmbientWifiReadResult.Snapshot>(wifiRead.result).facts.single().identity)
+			assertEquals(cell.logicalFactId, assertIs<AmbientCellReadResult.Snapshot>(cellRead.result).facts.single().identity)
+		}
+		val wifiContext = radioContext(RadioContextSource.WIFI).observations.single()
+		val cellContext = radioContext(RadioContextSource.CELL).observations.single()
+		assertEquals(wifi.sourceEventId, wifiContext.sourceEventId)
+		assertEquals(cell.sourceEventId, cellContext.sourceEventId)
+		assertEquals(wifi.observedWallTimeMs, wifiContext.observedWallTimeMs)
+		assertEquals(cell.observedWallTimeMs, cellContext.observedWallTimeMs)
+		assertIs<com.adsamcik.tracker.stats.api.repository.OptionalRetainedLocationContext.Unlocated>(wifiContext.location)
+		assertIs<com.adsamcik.tracker.stats.api.repository.OptionalRetainedLocationContext.Unlocated>(cellContext.location)
+	}
+
+	@Test fun `unaccepted native radio rows cannot enter optional map context and other source survives`() = runTest {
+		insertWifi(true); val cell = insertCell(true)
+		database.openHelper.writableDatabase.execSQL("UPDATE ambient_wifi_fact_revision SET effect_checksum = ?", arrayOf("0".repeat(64)))
+		val wifiRead = database.withTransaction {
+			RoomAmbientWifiRepository(database, dispatcher).readQualifiedInTransaction(wifiWindow())
+		}
+		assertTrue(wifiRead.nativeRows.isEmpty())
+		assertTrue(wifiRead.readGaps.isNotEmpty())
+		assertTrue(radioContext(RadioContextSource.WIFI).observations.isEmpty())
+		assertEquals(cell.sourceEventId, radioContext(RadioContextSource.CELL).observations.single().sourceEventId)
+	}
+
 	@Test fun `all-day native status finds each overnight child on its own measured day`() = runTest {
 		val offset = 86_400_000L - 1_950L
 		val originalWifi = insertWifi(true, wallOffsetMs = offset, storedZoneId = "America/Los_Angeles")
@@ -130,6 +162,8 @@ class RoomAmbientRadioDetailCompletenessTest {
 			query.read(AllDaySourceStatusRequest.Wifi(window)))
 		assertEquals(listOf(1_900L, 2_000L), assertIs<AllDaySourceStatusRead.Cell>(query.read(
 			AllDaySourceStatusRequest.Cell(window))).facts.single().readings.map { it.observedTimeMs })
+		assertTrue(radioContext(RadioContextSource.WIFI).observations.isEmpty())
+		assertEquals("cell-event", radioContext(RadioContextSource.CELL).observations.single().sourceEventId)
 	}
 
 	@Test

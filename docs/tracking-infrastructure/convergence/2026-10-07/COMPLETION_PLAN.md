@@ -459,3 +459,9 @@ prerequisites and T25 remain OPEN. No gates or dev/v10 integration started.
   a failed legacy reader, successful reload removes old enrichment, and cancellation
   stays fenced. Five new layer cases plus an existing repaired case are NOT_RUN.
   See ../2026-10-08/RADIO_MAP_PARTIAL_READ_SELECTED/SOURCE_REVIEW.md.
+
+- [x] Select independently reviewed shared radio row reuse: optional map context
+  consumes already accepted typed native rows from the existing source read, with
+  unchanged Snapshot/detail/identity checks and no repeated raw-window query.
+  Two new Room methods and one extended sibling case are NOT_RUN. See
+  ../2026-10-08/RADIO_QUALIFIED_ROW_REUSE_SELECTED/SOURCE_REVIEW.md.

@@ -302,7 +302,12 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
 
 internal data class RetainedAmbientRadioRows<T>(val rows: List<T>, val gaps: Set<RadioContextReadGapReason> = emptySet())
 
-internal data class RetainedAmbientRead<T>(val result: T, val readGaps: Set<RadioContextReadGapReason> = emptySet())
+/** The native rows already accepted for this exact read; paired consumers need no second raw query. */
+internal data class RetainedAmbientRead<T, NativeRow>(
+    val result: T,
+    val readGaps: Set<RadioContextReadGapReason> = emptySet(),
+    val nativeRows: List<NativeRow> = emptyList(),
+)
 
 private fun retainedGapPurposeQualifies(policy: SourcePolicyEntity?, consent: SourceConsentEpochEntity?, epoch: Long) =
     policy?.ambientPersistenceEligible == true && policy.ambientConsentEpoch == epoch &&

@@ -131,9 +131,7 @@ internal class RoomRadioLocationContextRepository @Inject constructor(
         if (read !is AmbientWifiReadResult.Snapshot) return gap(gaps, RadioContextPurpose.AMBIENT,
             if (read == AmbientWifiReadResult.DependencyOverflow) RadioContextReadGapReason.DEPENDENCY_LIMIT else RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE)
         if (read.gaps.isNotEmpty()) gaps += RadioContextReadGap(RadioContextPurpose.AMBIENT, RadioContextReadGapReason.ACQUISITION_PARTIAL)
-        val rows = database.ambientWifiFactDao().effectiveLocalOverWindow(request.fromInclusiveMs,
-            request.toExclusiveMs, request.limit + 1)
-        if (rows.size > request.limit) return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.DEPENDENCY_LIMIT)
+        val rows = qualified.nativeRows
         val factsByIdentity = read.facts.associateBy { it.identity to it.semanticRevision }
         return rows.mapNotNull { row ->
             val fact = row.fact
@@ -154,9 +152,7 @@ internal class RoomRadioLocationContextRepository @Inject constructor(
         if (read !is AmbientCellReadResult.Snapshot) return gap(gaps, RadioContextPurpose.AMBIENT,
             if (read == AmbientCellReadResult.DependencyOverflow) RadioContextReadGapReason.DEPENDENCY_LIMIT else RadioContextReadGapReason.SOURCE_PROVENANCE_UNVERIFIABLE)
         if (read.gaps.isNotEmpty()) gaps += RadioContextReadGap(RadioContextPurpose.AMBIENT, RadioContextReadGapReason.ACQUISITION_PARTIAL)
-        val rows = database.ambientCellFactDao().effectiveLocalOverWindow(request.fromInclusiveMs,
-            request.toExclusiveMs, request.limit + 1)
-        if (rows.size > request.limit) return gap(gaps, RadioContextPurpose.AMBIENT, RadioContextReadGapReason.DEPENDENCY_LIMIT)
+        val rows = qualified.nativeRows
         val factsByIdentity = read.facts.associateBy { it.identity to it.semanticRevision }
         return rows.mapNotNull { row ->
             val fact = row.fact

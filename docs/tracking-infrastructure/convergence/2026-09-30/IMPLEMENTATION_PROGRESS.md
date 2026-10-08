@@ -787,3 +787,14 @@ removed on successful reload, and cancellation/both-source failure remain honest
 Independent exact static acceptance: convergence/2026-10-08/RADIO_MAP_PARTIAL_READ_SELECTED/
 SOURCE_REVIEW.md. Tests NOT_RUN; Room/MapLibre/device/deletion execution not proved.
 No broad source or T25 gate is closed.
+
+## October 8 source-owned radio row reuse
+
+- [x] Author and independently review exact V2 internal row reuse; optional radio
+  Location context uses the existing qualified native rows rather than another
+  raw-window query. All acceptance/detail/identity/cancellation predicates remain.
+- [x] Author two actual Room cases and extend the missing-detail sibling case;
+  repair the invalid-digest fixture by static review. All cases NOT_RUN.
+- [ ] Complete the full source/provider/UI/export chains and final convergence.
+
+IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites remain OPEN.

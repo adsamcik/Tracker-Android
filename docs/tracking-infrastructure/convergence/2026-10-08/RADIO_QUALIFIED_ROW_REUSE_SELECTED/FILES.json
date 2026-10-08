@@ -1,0 +1,31 @@
+{
+  "base_commit": "5460cfc4f502cb516eb0dd6d926d29001aa5b2c5",
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "files": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioReader.kt",
+      "base_sha256": "74cfe88966e3675753bdee73373ce7f6265e4f891a389d318914e66eb4cb1107",
+      "selected_sha256": "09c33ee1a619edae1fd7a1b908de81753121f94d792a3a0c924ebef5a7910341"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt",
+      "base_sha256": "495f31cdcce065e7dd360b70eb657d4a3b0e88e8011a205c6ec6c3980c87f049",
+      "selected_sha256": "cd75ab9c80d3285d190b34c5829bed5921786b945694b05aa93536fda2fa653f"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt",
+      "base_sha256": "3e8af12b657c0481458018472e958132e5126c817436b65279a78226afc3e270",
+      "selected_sha256": "e6895668ac88a4555cb8aac66ca0e8d73d8d52fd6a71790635dc902f4b2a6935"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomRadioLocationContextRepository.kt",
+      "base_sha256": "e10babf06994ccbdae5e78583ac5d1548fc540a39107bc356c7f726e58c7f017",
+      "selected_sha256": "0520d3b4c89b5fb27d07de28a0ae0a8aba8065e40472632faf5b30d569554040"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "base_sha256": "7c95095be60bb7ba211673f9f314b8791e227736eae1b3ad14150a3c8f14a64b",
+      "selected_sha256": "4fe48839aa436b532650d7b8a6b7d550a94eb9dd4d5e2c1693fb9f29640e858c"
+    }
+  ]
+}

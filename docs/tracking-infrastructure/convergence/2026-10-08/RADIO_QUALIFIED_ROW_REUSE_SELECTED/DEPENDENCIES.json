@@ -1,0 +1,45 @@
+{
+  "base_commit": "5460cfc4f502cb516eb0dd6d926d29001aa5b2c5",
+  "dependencies": [
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/RadioLocationContextRepository.kt",
+      "sha256": "d53f44bd4b3eb1249ddea713c1de62022170da8b6d71079935b8df8932bc36de"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientWifiFacts.kt",
+      "sha256": "b13f0707196c670db1400e44e803b28987231be54de33febb54cf5569c01dede"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/AmbientCellFacts.kt",
+      "sha256": "b2ef9c5ed1a20dcaeb641e2e9a0a675da4e79c9c69f2b73cd11eded843f5d304"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientWifiFactDao.kt",
+      "sha256": "241e698b3788457663bd66940a218b48409b0aa8c44735d8674c8eb4d8ec6c05"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientCellFactDao.kt",
+      "sha256": "73be717deba220c66e16cf5771b2dbf31bb564ffa553459a4c5af73a08b07d2c"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioAuthority.kt",
+      "sha256": "f57ce97d9ce31017edce9eca2a5538e7142aab447f939bf527e58dd8a4f38e72"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedImportedAmbientRadioReader.kt",
+      "sha256": "0e13532a730f43cb08fb9e2fa9dc31e04d60fda2e4ad8847c441f386962be97c"
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "sha256": "a276144c34315be81b125df52eb7611f08e92a7629abb3d1f3587a3e92a93f24"
+    },
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidConventionPlugins.kt",
+      "sha256": "6530e14a5465d6023516b430b05e792a49b2cbc802c2b9455101272c17c36229"
+    }
+  ]
+}
