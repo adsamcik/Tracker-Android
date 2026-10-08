@@ -76,8 +76,8 @@ sealed interface ProviderRegistrationIntervalAuthentication {
  */
 object ProviderRegistrationIntervalAuthenticator {
 	/**
-	 * Strict actual-observation authentication. Both observed elapsed boundaries and the wall
-	 * timestamp must precede a finite retirement boundary.
+	 * Strict actual-observation authentication in the exact original elapsed clock. Wall
+	 * timestamps are retained values and may change when the phone clock is adjusted.
 	 */
 	@Suppress("ComplexCondition", "ReturnCount")
 	fun authenticate(
@@ -182,9 +182,8 @@ object ProviderRegistrationIntervalAuthenticator {
 		) {
 			return rejected(ProviderRegistrationIntervalFailure.REGISTRATION_IDENTITY_MISMATCH)
 		}
-		if (registration.reservedAtMs > acceptedAtMs ||
+		if (acceptedAtMs < 0L ||
 			registration.reservedElapsedRealtimeNanos > acceptedElapsedNanos ||
-			actualObservations.any { acceptedAtMs > it.wallTimeMs } ||
 			intervalStartNanos < acceptedElapsedNanos ||
 			intervalEndNanos < intervalStartNanos ||
 			actualObservations.any { observation ->
@@ -213,9 +212,8 @@ object ProviderRegistrationIntervalAuthenticator {
 					else -> false
 				}
 				if (!validStatus ||
-					retiredAtMs < acceptedAtMs ||
+					retiredAtMs < 0L ||
 					retiredElapsedNanos <= acceptedElapsedNanos ||
-					actualObservations.any { it.wallTimeMs >= retiredAtMs } ||
 					actualObservations.any { it.elapsedRealtimeNanos >= retiredElapsedNanos } ||
 					actualObservations.any {
 						it.coverageEndExclusiveNanos?.let { end -> end > retiredElapsedNanos } == true

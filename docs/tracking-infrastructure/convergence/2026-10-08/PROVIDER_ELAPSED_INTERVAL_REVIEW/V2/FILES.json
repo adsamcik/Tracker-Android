@@ -1,0 +1,18 @@
+{
+  "base_commit": "3a3476e63e5c3bc40e2697f5e503a94cb18592ed",
+  "phase": "IMPLEMENTATION_ONLY",
+  "files": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ProviderRegistrationIntervalAuthenticator.kt",
+      "base_sha256": "115c14157ccaeac657244116dfc97fc3ddf79c31c681800241265c3ee465ca36",
+      "selected_sha256": "2988e48a6755f491e9709cf6865091aea1b157c0082790eb02dae4df504d10fa",
+      "working_before_sha256": "115c14157ccaeac657244116dfc97fc3ddf79c31c681800241265c3ee465ca36"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ProviderRegistrationIntervalAuthenticatorTest.kt",
+      "base_sha256": "f8eb1b57b8be2399e7577264461bfa15900943a9020d537d3349cf742ca92b00",
+      "selected_sha256": "b92117c169201abbb3222a477cc57ccf94fe562170e21de66f2d4b8298008eb4",
+      "working_before_sha256": "f8eb1b57b8be2399e7577264461bfa15900943a9020d537d3349cf742ca92b00"
+    }
+  ]
+}

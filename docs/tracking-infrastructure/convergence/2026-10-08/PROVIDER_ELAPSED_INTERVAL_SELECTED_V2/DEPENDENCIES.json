@@ -1,0 +1,41 @@
+{
+  "base_commit": "3a3476e63e5c3bc40e2697f5e503a94cb18592ed",
+  "pins": [
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "core/base/build.gradle.kts",
+      "sha256": "e7d9147951041300b0b6d4613ed6b7cfd2b2edfadcc6f98fb513a2038dd46ac3"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceBrokerEntities.kt",
+      "sha256": "752d4b90d523ef1543d3032b31da63e0aa2943a13462b6b79fa40f28930b7fe0"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticator.kt",
+      "sha256": "f6c9a83bce8fea1e2d13cb64120f52acfbf11a02e809ed2fa0c579b2829e1139"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/DurableSourceIngress.kt",
+      "sha256": "0b019175630f6961e0fe09f2530c94b185679f837ff8395cfe5e382925b42453"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+      "sha256": "4e658cd80de7d3f131d84e404d2fb535567319dbf0ad3cf1dffd4ad4e228f6ca"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposer.kt",
+      "sha256": "744b740c9dc674baf83690bda884cd45f2323948cd6cc8cf8ee83f7a293e5fd1"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt",
+      "sha256": "a9cc723090082450138a26efc017d567a269154853cb111aa8926d8dd8a4b2c2"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryComposer.kt",
+      "sha256": "01511581d72578e5c95278ae16246315209866a4efea361ec30e77ebf41980f1"
+    }
+  ]
+}

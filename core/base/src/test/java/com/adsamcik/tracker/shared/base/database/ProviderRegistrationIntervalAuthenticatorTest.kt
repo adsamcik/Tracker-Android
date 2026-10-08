@@ -241,7 +241,7 @@ class ProviderRegistrationIntervalAuthenticatorTest {
 	}
 
 	@Test
-	fun `actual observation at retirement remains invalid for end exclusive fact window`() {
+	fun `elapsed retirement rejects actual observation while equal wall milliseconds remain valid`() {
 		val retired = registration(SourceDestinationOwnerEntity.SOURCE_ACTIVITY).copy(
 			providerResidency =
 				ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
@@ -277,7 +277,7 @@ class ProviderRegistrationIntervalAuthenticatorTest {
 				currentProviderRegistrations = emptyList(),
 			),
 		)
-		assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(
+		assertIs<ProviderRegistrationIntervalAuthentication.Authenticated>(
 			ProviderRegistrationIntervalAuthenticator.authenticateFactWindow(
 				registration = retired,
 				expectedSourceKind = retired.sourceKind,
@@ -417,10 +417,89 @@ class ProviderRegistrationIntervalAuthenticatorTest {
 		}
 	}
 
+	@Test
+	fun `active original interval survives backward and forward phone clock changes`() {
+		SOURCES.forEach { source ->
+			val row = registration(source).copy(reservedAtMs = 2_000L, acceptedAtMs = 1_000L)
+			listOf(50L, 5_000L).forEach { wall ->
+				val result = assertIs<ProviderRegistrationIntervalAuthentication.Authenticated>(
+					authenticate(row, observedWallTimeMs = wall))
+				org.junit.Assert.assertEquals(row, result.registration)
+				org.junit.Assert.assertEquals(100L, result.interval.startInclusiveNanos)
+			}
+		}
+	}
+
+	@Test
+	fun `retired original interval accepts shifted and equal wall milliseconds before elapsed cutoff`() {
+		SOURCES.forEach { source ->
+			listOf(ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+				ProviderRegistrationGenerationEntity.STATUS_RETIRED).forEach { status ->
+				val row = registration(source).copy(status = status, reservedAtMs = 2_000L,
+					acceptedAtMs = 1_000L, retiredAtMs = 500L,
+					retiredElapsedRealtimeNanos = 300L, failureCode = "STOPPED")
+				listOf(50L, 500L, 5_000L).forEach { wall ->
+					val result = assertIs<ProviderRegistrationIntervalAuthentication.Authenticated>(
+						authenticate(row, observedWallTimeMs = wall))
+					org.junit.Assert.assertEquals(row, result.registration)
+					org.junit.Assert.assertEquals(300L, result.interval.endExclusiveNanos)
+				}
+			}
+		}
+	}
+
+	@Test
+	fun `clock changes cannot lend authority before acceptance or at retirement`() {
+		SOURCES.forEach { source ->
+			val row = registration(source).copy(status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+				reservedAtMs = 2_000L, acceptedAtMs = 1_000L, retiredAtMs = 500L,
+				retiredElapsedRealtimeNanos = 199L, failureCode = "STOPPED")
+			assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(
+				authenticate(row, observedWallTimeMs = 100L))
+			assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(
+				authenticate(row.copy(acceptedElapsedRealtimeNanos = 151L,
+					retiredElapsedRealtimeNanos = 300L), observedWallTimeMs = 100L))
+		}
+	}
+
+	@Test
+	fun `wall clock changes do not allow negative original registration times`() {
+		val row = registration(SourceDestinationOwnerEntity.SOURCE_PRESSURE)
+		kotlin.test.assertFailsWith<IllegalArgumentException> { row.copy(reservedAtMs = -1L) }
+		kotlin.test.assertFailsWith<IllegalArgumentException> { row.copy(reservedElapsedRealtimeNanos = -1L) }
+		listOf(row.copy(acceptedAtMs = -1L), row.copy(acceptedElapsedRealtimeNanos = -1L),
+			row.copy(status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+				retiredAtMs = -1L, retiredElapsedRealtimeNanos = 300L)).forEach { invalid ->
+			assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(authenticate(invalid))
+		}
+	}
+
+	@Test
+	fun `derived window uses original elapsed retirement despite shifted wall clock`() {
+		val row = registration(SourceDestinationOwnerEntity.SOURCE_ACTIVITY).copy(
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			reservedAtMs = 2_000L, acceptedAtMs = 1_000L, retiredAtMs = 500L,
+			retiredElapsedRealtimeNanos = 300L)
+		fun verify(observed: Long, coverageEnd: Long? = null) =
+			ProviderRegistrationIntervalAuthenticator.authenticateFactWindow(
+				registration = row, expectedSourceKind = row.sourceKind,
+				expectedRegistrationGeneration = row.registrationGeneration,
+				expectedSourceInstanceId = row.sourceInstanceId, expectedClockDomainId = row.clockDomainId,
+				expectedPhysicalConfigurationFingerprint = row.physicalConfigurationFingerprint,
+				expectedCollectedDataEpoch = row.collectedDataEpoch, expectedProviderResidency = row.providerResidency,
+				factWindow = ProviderRegistrationFactWindow(150L, 300L,
+					listOf(ProviderRegistrationActualObservation(observed, 5_000L, coverageEnd))),
+				currentClockDomainId = BOOT, currentProviderRegistrations = emptyList())
+		assertIs<ProviderRegistrationIntervalAuthentication.Authenticated>(verify(299L))
+		assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(verify(300L))
+		assertIs<ProviderRegistrationIntervalAuthentication.Rejected>(verify(299L, 301L))
+	}
+
 	private fun authenticate(
 		registration: ProviderRegistrationGenerationEntity,
 		currentClockDomainId: String = BOOT,
 		currentRegistrations: List<ProviderRegistrationGenerationEntity>? = null,
+		observedWallTimeMs: Long = 19L,
 	) = ProviderRegistrationIntervalAuthenticator.authenticate(
 		registration = registration,
 		expectedSourceKind = registration.sourceKind,
@@ -433,7 +512,7 @@ class ProviderRegistrationIntervalAuthenticatorTest {
 			ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
 		observedStartNanos = 150L,
 		observedEndNanos = 199L,
-		observedWallTimeMs = 19L,
+		observedWallTimeMs = observedWallTimeMs,
 		currentClockDomainId = currentClockDomainId,
 		currentProviderRegistrations = currentRegistrations ?: listOf(registration),
 	)

@@ -922,3 +922,9 @@ Exact source/review: `../2026-10-08/PRESSURE_RECEPTION_TIMESTAMP_SELECTED/` and 
 - [x] Select eight-path native Activity/Wi-Fi/Cell retained readers and reached Wi-Fi maintenance with original manifest/generation/cutoff authority. Ten new Room methods and repaired existing fixtures are NOT_RUN; exact original demand/action/WAL, erase and current-owner checks remain. Saved-WAL adapter backlog and full file composition remain open.
 
 Exact selected source/review: `../2026-10-08/RETAINED_NATIVE_PORTABLE_SELECTED_V3/` and `RETAINED_NATIVE_PORTABLE_REVIEW/`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN; no gates, activation or integration.
+
+### October 8 - provider elapsed interval v2
+
+- [x] Use original exact elapsed provider lifetime while preserving UTC values after phone-clock changes or equal wall milliseconds. Actual observations remain strictly before retirement; derived exclusive windows may meet it. Five new pure contract methods and one aligned existing method NOT_RUN; source-local clock companions remain open.
+
+Exact selected source/review: `../2026-10-08/PROVIDER_ELAPSED_INTERVAL_SELECTED_V2/` and `PROVIDER_ELAPSED_INTERVAL_REVIEW/V2/`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN; no gates, activation or integration.

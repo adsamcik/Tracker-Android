@@ -1,0 +1,30 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "disposition": "ACCEPTED_SOURCE_ONLY",
+  "currentSourceResolution": "e542649404514112aa0cf505fbae3d2a42984ebc",
+  "baseCommit": "3a3476e63e5c3bc40e2697f5e503a94cb18592ed",
+  "selectedPathCount": 2,
+  "dependencyPinCount": 9,
+  "newTestMethods": 5,
+  "revisedCarriedTestMethods": 1,
+  "tests": "NOT_RUN",
+  "all25": "OPEN",
+  "files": [
+    {
+      "path": "FILES.json",
+      "sha256": "662a738bb13f85ef247f5cf6aa3692ee7cb6bee82af4cf3226ac6cb51be4cdd4"
+    },
+    {
+      "path": "SELECTION.patch",
+      "sha256": "108be9e976324c33d9d865fd40fd88e1336973bae945bcabe95f49c54d652138"
+    },
+    {
+      "path": "DEPENDENCIES.json",
+      "sha256": "35dac60a31d34d1bbd072c3541fd6a911cff4ef5a5a225289fe738f51fda86a9"
+    },
+    {
+      "path": "ACCEPTANCE.md",
+      "sha256": "db865030c8b33afc8f455f0062df9f2957f92ad0a4bf02e7cf7b0546575c63cb"
+    }
+  ]
+}

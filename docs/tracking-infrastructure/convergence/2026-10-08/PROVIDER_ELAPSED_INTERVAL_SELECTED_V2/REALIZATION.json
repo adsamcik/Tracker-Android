@@ -1,0 +1,12 @@
+[
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ProviderRegistrationIntervalAuthenticator.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "115c14157ccaeac657244116dfc97fc3ddf79c31c681800241265c3ee465ca36"
+  },
+  {
+    "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ProviderRegistrationIntervalAuthenticatorTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "f8eb1b57b8be2399e7577264461bfa15900943a9020d537d3349cf742ca92b00"
+  }
+]
