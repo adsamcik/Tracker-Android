@@ -1,0 +1,12 @@
+[
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/TripDao.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "f9e10197780d31abf0f62557cbdf6f095a4c0f0bb3a8bd67d09d8226170f0fce"
+  },
+  {
+    "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/TripDaoTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "b9b70ebbafe67afecc384720ae557b61aa9c04dd71cc3e5451d3694ab7e43f7e"
+  }
+]

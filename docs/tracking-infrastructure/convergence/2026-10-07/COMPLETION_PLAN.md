@@ -580,3 +580,9 @@ Exact source/review: `../2026-10-08/UNIFIED_HISTORY_FULL_COMPOSITION_SELECTED/` 
 `UNIFIED_HISTORY_FULL_COMPOSITION_REVIEW/`. Every authored test is NOT_RUN.
 IMPLEMENTED_UNVALIDATED. T13/T14/T17/T25 and all 25 full-chain prerequisites remain
 open. No execution gate, provider activation, dev/v10 integration or push.
+
+### October 8 - trip annotation cleanup
+
+- [x] Select the existing exact segment-and-label deletion transaction with independent group preservation and rollback. Three actual Room fixture methods NOT_RUN; full logical/source erase remains open.
+
+Exact source and independent acceptance: `../2026-10-08/TRIP_ANNOTATION_CLEANUP_SELECTED/` and `TRIP_ANNOTATION_CLEANUP_REVIEW/`. IMPLEMENTED_UNVALIDATED; T25/all25 remain OPEN. No gates, activation or dev/v10 integration.

@@ -126,8 +126,18 @@ interface TripDao {
 	/**
 	 * Delete a single trip (session segment) by ID.
 	 */
+	@androidx.room.Transaction
+	suspend fun deleteById(id: Long) {
+		deleteSegmentAnnotation(id)
+		deleteSegmentRow(id)
+	}
+
+	/** The same saved segment owns its migrated or edited organization label. */
+	@Query("DELETE FROM organization_annotation WHERE recording_adapter_key = 'segment:' || :id")
+	suspend fun deleteSegmentAnnotation(id: Long)
+
 	@Query("DELETE FROM session_segment WHERE id = :id")
-	suspend fun deleteById(id: Long)
+	suspend fun deleteSegmentRow(id: Long)
 
 	/**
 	 * Most recent trips, limited to [limit] results. For dashboard quick view.

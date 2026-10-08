@@ -5,12 +5,14 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -236,4 +238,68 @@ class TripDaoTest {
 		val anomalous = trips.first { it.hasDistanceAnomaly }
 		assertEquals(true, anomalous.hasDistanceAnomaly)
 	}
+
+	@Test
+	fun deletingTripRemovesItsSavedLabelAndPreservesOtherGroups() = runBlocking {
+		val id = segmentDao.insert(createSegment(1000L, 2000L))
+		val otherId = segmentDao.insert(createSegment(3000L, 4000L))
+		val organization = database.organizationAnnotationDao()
+		organization.insert(savedOrganization("selected", "segment:$id"))
+		organization.insert(savedOrganization("other", "segment:$otherId"))
+		organization.insert(savedOrganization("retrospective", null))
+		organization.insert(savedOrganization("logical", "logical:independent"))
+
+		tripDao.deleteById(id)
+
+		assertNull(tripDao.getById(id))
+		assertNull(organization.byId("selected"))
+		assertNotNull(tripDao.getById(otherId))
+		assertEquals("Saved label", organization.byId("other")?.name)
+		assertEquals("Saved label", organization.byId("retrospective")?.name)
+		assertEquals("Saved label", organization.byId("logical")?.name)
+	}
+
+	@Test
+	fun deletingMissingTripAlsoRemovesItsOrphanedLabel() = runBlocking {
+		val organization = database.organizationAnnotationDao()
+		organization.insert(savedOrganization("orphan", "segment:999"))
+		organization.insert(savedOrganization("different", "segment:9990"))
+
+		tripDao.deleteById(999L)
+		tripDao.deleteById(999L)
+
+		assertNull(organization.byId("orphan"))
+		assertEquals("Saved label", organization.byId("different")?.name)
+	}
+
+	@Test
+	fun failedTripDeleteRollsBackItsLabelCleanup() = runBlocking {
+		val id = segmentDao.insert(createSegment(1000L, 2000L))
+		val organization = database.organizationAnnotationDao()
+		organization.insert(savedOrganization("selected", "segment:$id"))
+		database.openHelper.writableDatabase.execSQL(
+			"CREATE TRIGGER trip_delete_failure BEFORE DELETE ON session_segment " +
+				"BEGIN SELECT RAISE(ABORT, 'constructed trip deletion failure'); END",
+		)
+
+		assertTrue(runCatching { tripDao.deleteById(id) }.isFailure)
+		assertNotNull(tripDao.getById(id))
+		assertEquals("Saved label", organization.byId("selected")?.name)
+		assertEquals("Imported activity", organization.byId("selected")?.importedActivityLabel)
+	}
+
+	private fun savedOrganization(id: String, adapter: String?) = OrganizationAnnotationEntity(
+		localId = id,
+		revision = 1L,
+		createdAtMs = 1L,
+		updatedAtMs = 1L,
+		recordingAdapterKey = adapter,
+		startTimeMs = 1000L,
+		endTimeMs = 2000L,
+		displayZoneId = "UTC",
+		name = "Saved label",
+		activityLabelId = null,
+		hidden = false,
+		importedActivityLabel = "Imported activity",
+	)
 }

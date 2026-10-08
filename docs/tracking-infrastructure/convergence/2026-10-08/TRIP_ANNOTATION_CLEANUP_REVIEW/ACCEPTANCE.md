@@ -1,0 +1,13 @@
+# Existing trip label cleanup review
+
+IMPLEMENTATION_ONLY / IMPLEMENTED_UNVALIDATED. Static source inspection only. All three new Room methods NOT_RUN. No Gradle, compilation, tests, lint, schema, device/provider, CI, Git mutation or integration. T25 and all 25 full-chain prerequisites remain open.
+
+Accepted for the exact two-path source slice. Both selected source hashes match FILES and use UTF-8 LF; all ten committed dependency pins match ab25. The selection preserves the mixed working copies as WORKING_BEFORE and contains only the focused existing DAO transaction and appended existing Room test source.
+
+The actual existing TripPresentationRepository -> DefaultTripRepository.deleteTrip -> TripDao.deleteById chain already deletes a session segment by its original ID. OrganizationAnnotationDao.visible independently selects an annotation with its own saved bounds even when that segment no longer exists, so a migrated or edited label can remain after deletion. The repair keeps the existing public/repository delete signatures and wraps exactly two existing-storage deletions in one Room transaction: the literal `segment:` adapter for the bound ID, then that original segment ID. It does not match a name, time window, prefix or nearby ID. Free/retrospective and logical adapters remain independent. No new persisted data, schema, trigger, permissions, collection, user flow or source deletion scope is introduced. Public DAO query helpers are the ordinary Room implementation of the same existing operation, not an additional product action.
+
+The actual existing AppDatabase owns both tables. No manual TripDao implementation requires extra abstract methods; production obtains the Room DAO, while unrelated repository tests use existing mocks. Relevant module/build and API/repository/organization/entity conventions remain unchanged. Room generation/transaction behavior awaits deferred compilation and execution.
+
+Three actual Room test sources exercise sibling and free/logical preservation, exact 999 versus 9990 orphan cleanup with an idempotent retry, and a constructed BEFORE DELETE storage trigger that aborts the parent delete after annotation removal. The rollback assertion checks the original parent, name and imported activity description survive. The trigger belongs only to the disposable test database. The methods return Unit under runBlocking and preserve all original existing cases.
+
+The tests are authored, not passed. They do not prove public UI failure handling, logical-session organization deletion, source-observation erasure, migration execution or device storage behavior. Those broader existing work items and final gates remain open; this review accepts only the bounded parent/segment-annotation transaction.
