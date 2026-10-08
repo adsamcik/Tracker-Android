@@ -3,4 +3,5 @@
     <string name="history_measurements_empty">Aucune donnée enregistrée</string>
     <string name="history_show_details">Afficher les détails</string>
     <string name="history_hide_details">Masquer les détails</string>
+    <string name="history_calendar_recorded_day">Jour %1$d, données enregistrées</string>
 </resources>

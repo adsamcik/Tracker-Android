@@ -1,0 +1,273 @@
+{
+  "packet": "docs/tracking-infrastructure/convergence/2026-10-08/MEASURED_CALENDAR_PRESENCE_SELECTED",
+  "phase": "IMPLEMENTATION_ONLY",
+  "execution": "NOT_RUN",
+  "inspected_current": "c99d76e97223be34ce15c7f04b923bc47299ee8e",
+  "inputs": {
+    "FILES.json": "4d44d6be2c7ce82098e2cdd90d29d274d4004ee1a59cb9ba7cc335d7510c5dba",
+    "SELECTION.patch": "1a8f97399894f8105cefbff3a64000c71bec1980a3344b0bd414f14fda7d72fb",
+    "DEPENDENCIES.json": "8e5ee72a52cc1805b935117e8273bfc195e077120b79edaf58ce775e0317f1e7",
+    "SOURCE_BOUNDARY.md": "02dea8ed4e2878d0eedfe2283f159efbe550085d25ce27a3b7c7526ded3636db",
+    "CURRENT_COMPOSITION.json": "1c6cafd18e0ea80982cb16ca33d3ca7984af58a78b907a8538b010360267e533",
+    "CASE_INVENTORY.json": "4a85c86068ab8a1f9b6d92d37f6d8dfe66a4ed4d07f4757ed69f07ba6d8990c5"
+  },
+  "selected_paths": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "8afb31184ffde0da4e498fea54d77cff0b8e6c4c365e0a7b1a56e02d4e64422c"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypes.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "03f81b6766e8b05b3f380ab300de02f3df79a5d69e63b1883f8d43b18d077015"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModel.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "caa4b68103edd1ed102d66b6901af9f3502b08a48c97392b11a55eebe3e871f4"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CalendarContent.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "997a0806315530dcf4d434f0d51cb03c17718c4c2b16f4857659ed9f4ad939e9"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "a08ba5785fa908ba0e02ccadb4d99ad011ff83dd7a15704f0ed2d1d117099a6a"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "f0eb43333459ebe5ccee2bf531e397df3cb1d5a95befdb13c9c4ad7233a41f6e"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-af-rZA/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "29229aa4b995f619058eed4c24b4b6bb13eab93b5a593f55835d0121fed4f250"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ar-rSA/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "df1d1d15b37b590172c3c1311a3c814853ed8a4d5669eab63852c81017a92c7e"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-bg-rBG/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "c9b06a7ad8174de1fdb0a5c744e62087b4e18e7b383a2bed2c0363384dacd29b"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ca-rES/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "48496d73eb156ee9db281228d3f23963e22d700c3c2cfa45bebe4a22209a5a74"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-cs-rCZ/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "ebb6aac15825895438e8e7bcbe05a520d7f5a1ba44fdc2eb2ce706456243d211"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-da-rDK/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "f5d8df6f99f52eada7371656586542e4781bdfc191359c81b39d8713f332025c"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-de-rDE/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "7064efe821875c4faee681c886ff87d92db2b7c27dfe472d32b7be511e675e0e"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-el-rGR/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "3e5c4d7bb6f417110b741009b3f96304696766734ed3c1dcf5c1045069dbba77"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-es-rES/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "ae0274042fe794608bf771c76ed5b4625b0da20225f5eb9518cf26985de38db5"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-et-rEE/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "b1e766e330aa188a57400dd0d2a49ea70629eed9218782e06d2282642af6585c"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-fi-rFI/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "051cb37490d9c9b491e00b3809d2d8db82e86a55c1ad361e6f5e6b4f48c849ad"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-fr-rFR/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "7f75ec650b594b386110e2539318a97c89f797342b5dc356e71c144566118764"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ga-rIE/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "00b826b5f7963cfb366ef031982b2c1889ce4b730f37591ccbcf4433298cb4f8"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hi-rIN/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "4bdb93f286ebf187b5cce21089c44bf2f3738b815721ede73616139eb2c0de81"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hr-rHR/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "2fab17eed32ed49055634ed12b4fa81bff6ae6e8d19bdaf5d2cc0e44b63a1a99"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hu-rHU/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "dc58f30bf61a6d79a13ce52b2ec75b94a281032cb70961eba68f51763fe2c428"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-it-rIT/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "1fd3df5d69764079507a9247f175455a88d405decb2a328fbd4d234a169e2e1e"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-iw-rIL/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "e95f68eda57d3a72ae4714d32bc20a04493516826ca9621415224dbc3a8feb0b"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ja-rJP/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "37a8f9e070d3d01fe1ab99bb7f763b759f15f5f4477eab848bdc15284e26e118"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ko-rKR/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "2ec0deba02adffc09d2d614a4241ced379c35e95f6343dd03c1fc73ce951a6ff"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-lt-rLT/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "6f3e93fd0f5885fb8162682cd47b0dc3470c646b9e27a7b40a1cc578b226bf97"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-lv-rLV/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "cf40c9c05adcbcc58d1c8fc82d1f4a249fca9d66718f2a0d0930d4cca1619fce"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-mt-rMT/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "bfd5ec21974270b7db694121d604b2cbdbad75c3e11bebd7a48179f0ebdf03dc"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-nl-rNL/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "eaab82d0662588f3b4defb1333be0f99d79917184f510b558435eb383f16d2bc"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-no-rNO/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "be89cacb30c3422ea4708f680233927ad671d64f7aebf6c74a0b96aeca3acea8"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pl-rPL/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "4ee17af86e53ffbb73d36ac52dfbe6c3cfd20acbf662d3c36c3e24a7d7826a99"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pt-rBR/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "c72054e6f9b6bd3d4ec93539000808880619d67bb65045b899ad403c9e351952"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pt-rPT/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "357c75cf675977a9e3d18cd57c91376baeaf5f0af0afcaf2644c4269a1f59831"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ro-rRO/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "564347a93450a6faf357970736653ffd0621e79fb3a79e76eb2debb29567e235"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ru-rRU/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "c635dddc576678953cf67080050a27c762f8e75b80734b7ac3503a64857bc9c0"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sk-rSK/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "576f00adbad6d31184fe833ed7796c5648ca93fa9dbb050880a5375d428292cf"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sl-rSI/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "23a745a95d34ee8f01cf616416830da79053b8e9ef6f2e3ef7090d6a5891b010"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sr-rSP/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "6797c3fcaa0a9bf759aca2cd67f8e6ed3156721ae129c826c435a386b6d3d2ab"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sv-rSE/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "28229113ac18d50152c6a06e2e6032956976c8012124943e0d69a61fac902aa1"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-tr-rTR/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "a17fd86db9f0f7d69826a26e8de10ae2737cc55e8e74d75c3334dbd5fa29d438"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-uk-rUA/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "342773b711144c017c4bf97b21b5d45b7f9f31b38809c146ab9724f6663b84a9"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-vi-rVN/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "eeb8a66e1b5ce5ac71225055de65b71c9a32936166d1257835004c5a8b454001"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-zh-rCN/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "850227f85285e14ac9fc1df0939ff6ff8650ebe6b8d06204dbd2bec28f22a724"
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-zh-rTW/measured_history_strings.xml",
+      "current_base_source_equal": true,
+      "selected_sha256": "04be62c460c1fdda0969547838bfeb472db6a90bb6e8800cb1a8cf89eba581a9"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypesTest.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "dd3a94560b1a1147fcaac431205c63475bd4c61c52cedd2fa719000e389cf4e4"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/HistoryTypesComposeTest.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "924615591533fc2b459a471ad0653a92427a7dc1cae563b01c4596de16e0b944"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterDeleteTest.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "2d0b647eaef2e9b6168637a105486e4f40370c32bc73b8ad0450364110a3bad8"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "ff7321592e04f7af03c7f3d52fa6ad24ea468e0ad01d874c4997372fdc7ce6a4"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/CalendarContentComposeTest.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "b1aceae38bba94844e453a6da2fe2ca941501af6ec9f340c3e4324bfa3e7c48b"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredCalendarRangeInvalidationRoomTest.kt",
+      "current_base_source_equal": true,
+      "selected_sha256": "8cec9ce2b232c8d3f77c78e38977c321df207c9cdcae18e61c533b0417df386e"
+    }
+  ],
+  "dependency_count": 17,
+  "current_declared_dependency_drift": []
+}

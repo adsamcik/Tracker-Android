@@ -3,4 +3,5 @@
     <string name="history_measurements_empty">Níl aon sonraí taifeadta</string>
     <string name="history_show_details">Taispeáin sonraí</string>
     <string name="history_hide_details">Folaigh sonraí</string>
+    <string name="history_calendar_recorded_day">Lá %1$d, sonraí taifeadta</string>
 </resources>

@@ -109,17 +109,16 @@ class HistoryTypesTest {
 		@Test
 		fun `stores all fields`() {
 			val date = LocalDate.of(2024, 6, 15)
-			val data = CalendarDayData(date = date, intensity = 0.75f, tripCount = 3)
+			val data = CalendarDayData(date = date)
 			data.date shouldBe date
-			data.intensity shouldBe 0.75f
-			data.tripCount shouldBe 3
+			data.hasSavedData shouldBe true
 		}
 
 		@Test
 		fun `equality works`() {
 			val date = LocalDate.of(2024, 1, 1)
-			val d1 = CalendarDayData(date, 0.5f, 1)
-			val d2 = CalendarDayData(date, 0.5f, 1)
+			val d1 = CalendarDayData(date)
+			val d2 = CalendarDayData(date)
 			d1 shouldBe d2
 		}
 	}

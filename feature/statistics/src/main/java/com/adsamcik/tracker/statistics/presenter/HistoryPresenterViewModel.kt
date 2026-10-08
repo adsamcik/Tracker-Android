@@ -8,11 +8,16 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.adsamcik.tracker.shared.model.Trip
-import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.ExplorationRepository
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.repository.PagedTrackingHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
+import com.adsamcik.tracker.stats.api.repository.HistoryContinuation
+import com.adsamcik.tracker.stats.api.repository.HistoryProblem
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
 import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
 import com.adsamcik.tracker.stats.api.repository.HistoryPagingItem
 import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData
@@ -21,6 +26,10 @@ import com.adsamcik.tracker.statistics.viewmodel.ExplorationStats
 import com.adsamcik.tracker.statistics.viewmodel.HistoryTab
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
@@ -34,7 +43,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -59,7 +67,6 @@ import javax.inject.Inject
 @HiltViewModel
 class HistoryPresenterViewModel @Inject constructor(
 	private val tripPresentationRepository: TripPresentationRepository,
-	private val dailySummaryRepository: DailySummaryRepository,
 	private val trackingHistoryRepository: PagedTrackingHistoryRepository,
 	private val explorationRepository: ExplorationRepository,
 	private val savedStateHandle: SavedStateHandle,
@@ -147,14 +154,17 @@ class HistoryPresenterViewModel @Inject constructor(
 	/** Display dates follow the current phone zone; saved UTC times remain unchanged. */
 	fun useViewZone(zone: ZoneId) { viewZone.value = zone }
 
+	private val monthRetry = MutableStateFlow(0L)
+
+    fun retryCalendarMonth() { monthRetry.value++ }
+
 	init {
 		viewModelScope.launch {
-			combine(_selectedTab, calendarRequest) { tab, request -> tab to request }
-				.collectLatest { (tab, request) ->
-					if (tab == HistoryTab.CALENDAR) {
-						loadCalendarRequest(request)
-					}
-				}
+            combine(_selectedTab, calendarRequest.map { it.month }.distinctUntilChanged(), viewZone, monthRetry) {
+                tab, month, zone, _ -> Triple(tab, month, zone)
+            }.collectLatest { (tab, month, zone) ->
+                if (tab == HistoryTab.CALENDAR) observeCalendarMonth(month, zone)
+            }
 		}
 		restorePendingDeletes()
 	}
@@ -176,7 +186,9 @@ class HistoryPresenterViewModel @Inject constructor(
 		savedStateHandle[KEY_CALENDAR_MONTH] = newMonth.toString()
 		savedStateHandle[KEY_CALENDAR_SELECTED_DAY] = date.toEpochDay()
 		_calendarState.update {
-			it.copy(selectedDay = date, selectedDayDetail = null)
+			it.copy(currentMonth = newMonth, selectedDay = date, selectedDayDetail = null,
+                dayData = if (it.currentMonth == newMonth) it.dayData else emptyMap(),
+                monthProblems = if (it.currentMonth == newMonth) it.monthProblems else emptySet())
 		}
 		calendarRequest.value = CalendarRequest(
 			generation = ++calendarRequestGeneration,
@@ -190,7 +202,7 @@ class HistoryPresenterViewModel @Inject constructor(
 		savedStateHandle[KEY_CALENDAR_MONTH] = month.toString()
 		savedStateHandle.remove<Long>(KEY_CALENDAR_SELECTED_DAY)
 		_calendarState.update {
-			it.copy(selectedDay = null, selectedDayDetail = null)
+			it.copy(currentMonth = month, selectedDay = null, selectedDayDetail = null, dayData = emptyMap(), monthProblems = emptySet())
 		}
 		calendarRequest.value = CalendarRequest(
 			generation = ++calendarRequestGeneration,
@@ -199,42 +211,82 @@ class HistoryPresenterViewModel @Inject constructor(
 		)
 	}
 
-	private suspend fun loadCalendarRequest(request: CalendarRequest) {
-		if (request.month != _calendarState.value.currentMonth || _calendarState.value.dayData.isEmpty()) {
-			loadCalendarMonth(request.month, request)
-		}
-	}
+    /** One existing qualified month observation supplies Room invalidation and deletion/epoch signals. */
+    private suspend fun observeCalendarMonth(month: YearMonth, zone: ZoneId) {
+        updateCalendarMonth(month, zone, emptyMap(), emptySet(), true)
+        val from = month.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli().coerceAtLeast(0L)
+        val to = month.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        if (to <= from) {
+            updateCalendarMonth(month, zone, emptyMap(), emptySet(), false)
+            return
+        }
+        val range = HistoryRange(from, to, zone.id, mode = HistoryBrowseMode.OBSERVATIONS)
+        try {
+            trackingHistoryRepository.observeRange(HistoryRangeRequest(range, limit = 1)).collectLatest { first ->
+                updateCalendarMonth(month, zone, emptyMap(), emptySet(), true)
+                if (first is HistoryRangeRead.Page) readCalendarMonthDays(month, zone, first.snapshot)
+                else updateCalendarMonth(month, zone, emptyMap(), setOf(HistoryProblem(null,
+                    (first as HistoryRangeRead.Unavailable).reason)), false)
+            }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) {
+            updateCalendarMonth(month, zone, emptyMap(), setOf(HistoryProblem(null,
+                HistoryProblemReason.STORAGE_UNAVAILABLE)), false)
+        }
+    }
 
-	private suspend fun loadCalendarMonth(
-		yearMonth: YearMonth,
-		request: CalendarRequest,
-	) {
-		val firstDay = yearMonth.atDay(1).toEpochDay()
-		val lastDay = yearMonth.atEndOfMonth().toEpochDay()
-		val summaries = dailySummaryRepository.observeBetween(firstDay, lastDay)
-			.first()
+    /** Each round reads at most one existing 100-key page per day and retains only day presence/frontiers. */
+    private suspend fun readCalendarMonthDays(month: YearMonth, zone: ZoneId, snapshot: TrackingHistoryReadSnapshot) {
+        val days = linkedMapOf<LocalDate, CalendarDayData>()
+        val problems = linkedSetOf<HistoryProblem>()
+        val pending = linkedMapOf<LocalDate, HistoryContinuation?>()
+        (month.lengthOfMonth() downTo 1).forEach { number ->
+            val day = month.atDay(number)
+            if (measuredDayRange(day, zone) != null) pending[day] = null
+        }
+        while (pending.isNotEmpty()) {
+            for (day in pending.keys.toList()) {
+                currentCoroutineContext().ensureActive()
+                val range = requireNotNull(measuredDayRange(day, zone))
+                val after = pending[day]
+                val read = try { trackingHistoryRepository.readRange(HistoryRangeRequest(range,
+                    limit = if (after == null) 1 else 100, after = after)) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE) }
+                when (read) {
+                    is HistoryRangeRead.Unavailable -> {
+                        problems += HistoryProblem(null, read.reason)
+                        pending.remove(day)
+                    }
+                    is HistoryRangeRead.Page -> {
+                        if (read.snapshot != snapshot) {
+                            updateCalendarMonth(month, zone, emptyMap(), setOf(HistoryProblem(null,
+                                HistoryProblemReason.INTEGRITY_UNAVAILABLE)), false)
+                            return
+                        }
+                        problems += read.problems
+                        if (read.rows.any { it.measurement != null }) {
+                            days[day] = CalendarDayData(day)
+                            pending.remove(day)
+                        } else if (read.next == null) pending.remove(day)
+                        else if (read.next.range != range || read.next == after) {
+                            problems += HistoryProblem(null, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+                            pending.remove(day)
+                        } else pending[day] = read.next
+                    }
+                }
+                updateCalendarMonth(month, zone, days.toMap(), problems.toSet(), pending.isNotEmpty())
+                yield()
+            }
+        }
+        updateCalendarMonth(month, zone, days.toMap(), problems.toSet(), false)
+    }
 
-		val maxDistance = summaries.maxOfOrNull { it.totalDistance.raw } ?: 1f
-		val dayData = summaries.associate { summary ->
-			val date = LocalDate.ofEpochDay(summary.dayEpoch)
-			date to CalendarDayData(
-				date = date,
-				intensity = if (maxDistance > 0) summary.totalDistance.raw / maxDistance else 0f,
-				tripCount = summary.tripCount,
-			)
-		}
-
-		if (calendarRequest.value == request) {
-			_calendarState.update {
-				it.copy(
-					currentMonth = yearMonth,
-					dayData = dayData,
-					selectedDay = request.selectedDay,
-					selectedDayDetail = null,
-				)
-			}
-		}
-	}
+    private fun updateCalendarMonth(month: YearMonth, zone: ZoneId, days: Map<LocalDate, CalendarDayData>,
+        problems: Set<HistoryProblem>, loading: Boolean) {
+        if (calendarRequest.value.month == month && viewZone.value == zone && _selectedTab.value == HistoryTab.CALENDAR)
+            _calendarState.update { it.copy(currentMonth = month, dayData = days, monthProblems = problems, monthLoading = loading) }
+    }
 
 	/**
 	 * Mark a trip as pending deletion and start the ViewModel-owned undo deadline.

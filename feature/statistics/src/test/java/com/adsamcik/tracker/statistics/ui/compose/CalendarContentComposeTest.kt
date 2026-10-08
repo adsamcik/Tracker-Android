@@ -12,6 +12,14 @@ import java.util.Locale
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertDoesNotExist
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.assertCountEquals
+import com.adsamcik.tracker.statistics.R
+import com.adsamcik.tracker.stats.api.repository.HistoryProblem
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -147,7 +155,7 @@ class CalendarContentComposeTest {
 		selectedDays shouldBe emptyList()
 	}
 
-	// ─── Day data with intensity ─────────────────────────────────────────
+	// ─── Saved-data day presence ─────────────────────────────────────────
 
 	@Test
 	fun `calendar renders day numbers`() {
@@ -345,14 +353,14 @@ class CalendarContentComposeTest {
 		composeTestRule.onNodeWithText("29").assertIsDisplayed()
 	}
 
-	// ─── Day data with intensity ─────────────────────────────────────────
+	// ─── Saved-data day presence ─────────────────────────────────────────
 
 	@Test
-	fun `calendar with intensity data renders without crash`() {
+	fun `calendar with saved-data days renders the grid`() {
 		val month = YearMonth.of(2024, 3)
 		val dayData = (1..31).associate { day ->
 			val date = month.atDay(day)
-			date to CalendarDayData(date = date, intensity = (day % 5) * 0.2f, tripCount = day % 3)
+			date to CalendarDayData(date = date)
 		}
 		composeTestRule.setContent {
 			MaterialTheme(colorScheme = lightColorScheme()) {
@@ -365,4 +373,48 @@ class CalendarContentComposeTest {
 		}
 		composeTestRule.onNodeWithText("March 2024", substring = true).assertIsDisplayed()
 	}
+
+    @Test fun `a saved source day has one data dot and accessible recorded-data description`() {
+        val month = YearMonth.of(2026, 3)
+        val day = month.atDay(10)
+        var chosen: LocalDate? = null
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        composeTestRule.setContent {
+            MaterialTheme {
+                CalendarContent(CalendarState(currentMonth = month, dayData = mapOf(day to CalendarDayData(day))),
+                    onDayClick = { chosen = it }, onNavigateToTripDetail = {}, organizationDays = setOf(day))
+            }
+        }
+        composeTestRule.onNodeWithTag("calendar_saved_day_10", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("calendar_saved_day_11", useUnmergedTree = true).assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription(context.getString(R.string.history_calendar_recorded_day, 10)).performClick()
+        chosen shouldBe day
+    }
+
+    @Test fun `a session annotation with no saved reading does not invent a data dot`() {
+        val month = YearMonth.of(2026, 3)
+        composeTestRule.setContent { MaterialTheme {
+            CalendarContent(CalendarState(currentMonth = month), onDayClick = {}, onNavigateToTripDetail = {},
+                organizationDays = setOf(month.atDay(10)))
+        } }
+        composeTestRule.onNodeWithTag("calendar_saved_day_10", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test fun `loading and source Retry retain an already qualified sibling day`() {
+        val month = YearMonth.of(2026, 3)
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        var retries = 0
+        composeTestRule.setContent { MaterialTheme {
+            CalendarContent(CalendarState(currentMonth = month, dayData = mapOf(month.atDay(10) to CalendarDayData(month.atDay(10))),
+                monthLoading = true, monthProblems = setOf(
+                    HistoryProblem(HistorySource.CELL, HistoryProblemReason.STORAGE_UNAVAILABLE),
+                    HistoryProblem(HistorySource.CELL, HistoryProblemReason.INTEGRITY_UNAVAILABLE))),
+                onDayClick = {}, onNavigateToTripDetail = {}, onRetryMonth = { retries++ })
+        } }
+        composeTestRule.onNodeWithTag("calendar_saved_day_10", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("calendar_loading").assertIsDisplayed()
+        composeTestRule.onAllNodesWithText(context.getString(R.string.action_retry)).assertCountEquals(1)
+        composeTestRule.onNodeWithText(context.getString(R.string.action_retry)).performClick()
+        retries shouldBe 1
+    }
 }

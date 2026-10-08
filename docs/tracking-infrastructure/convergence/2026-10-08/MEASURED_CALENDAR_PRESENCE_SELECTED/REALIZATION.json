@@ -1,0 +1,257 @@
+[
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt",
+    "working_before_sha256": "a48e0a249b6ca8a8db56985800459c1ee3c8867854d843a502c10f10e9932116",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypes.kt",
+    "working_before_sha256": "746814b2fc8ba862b76153f213fc768a1f6074452d483bc755ac5fda0aeb8c4f",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModel.kt",
+    "working_before_sha256": "3d5f0e54229e81996a78f27f8d5441e7d93d202df003b037dfe4ffe7379cd21a",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CalendarContent.kt",
+    "working_before_sha256": "2870a97c1bb5c6b46a2369cb12244bda05e423fb192d7fe947a1192120bfebfc",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt",
+    "working_before_sha256": "6793d6d1c6a28c04c9339ad21dd0dec00aed589b93a85732926ec20ff81c22f9",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values/measured_history_strings.xml",
+    "working_before_sha256": "b85f8416e02c5760f9bcb7c2cdddb63e6b4d1ef2c732d1537ec21e53238f196d",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-af-rZA/measured_history_strings.xml",
+    "working_before_sha256": "f157fe8b6fcb8e1a206921ad6f79b7ca68425656ec867c48524369a61230c474",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-ar-rSA/measured_history_strings.xml",
+    "working_before_sha256": "03fe8254e7a874349461d3195e68b2bb4e0e21f6d970a429e30ccd7f2d0de58f",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-bg-rBG/measured_history_strings.xml",
+    "working_before_sha256": "3927fca578c50072974434380215fed056064855f3e504adb606e8349586e66a",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-ca-rES/measured_history_strings.xml",
+    "working_before_sha256": "897495accdf1c58cfda3fba5387b8ba201f140f9f459f074fb164467d530db80",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-cs-rCZ/measured_history_strings.xml",
+    "working_before_sha256": "81864c82edac58eea799ffb2badd4e860fd3caabf2b043801b78a1822cecfc00",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-da-rDK/measured_history_strings.xml",
+    "working_before_sha256": "0d9de86bf6fb32f02516e1867e9dc3506385ebfdf7fc3b4a17daafa8710d47b5",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-de-rDE/measured_history_strings.xml",
+    "working_before_sha256": "3889ecda759ff569d68233b2a2117912188e8bc5f6a8129344f53e621550ca51",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-el-rGR/measured_history_strings.xml",
+    "working_before_sha256": "d94d8d1068d0d7d5a5ca2747d9ee0bad56a4ca9d308a1f3ea0bdb35a5a3ad0ce",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-es-rES/measured_history_strings.xml",
+    "working_before_sha256": "d39ab89f888f2e3f997c24e89933c199df9285008ef3a8a5b8d1c52ba71f0fb4",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-et-rEE/measured_history_strings.xml",
+    "working_before_sha256": "c4b5a64c914fcb6fe5d51ed27515ade5f8d08f1909450017da22fc2f60808e46",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-fi-rFI/measured_history_strings.xml",
+    "working_before_sha256": "bab1940e0ad544b35e892ae01fcb3788af31eedd5fdd20ac8e6a062c089b062e",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-fr-rFR/measured_history_strings.xml",
+    "working_before_sha256": "80be85d1e8c04ca6aa6d4d3d3868d270f37f58c882b9a911e6fcf89ed763228e",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-ga-rIE/measured_history_strings.xml",
+    "working_before_sha256": "327c949057953331a7464337a83bdaf29c7d25b7814b240935e8585d69927ad2",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-hi-rIN/measured_history_strings.xml",
+    "working_before_sha256": "23b85d94a081bb1b5eeb61cff5b2f8bc21a3e061b66147e90c8ff590bc09e833",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-hr-rHR/measured_history_strings.xml",
+    "working_before_sha256": "880431baa8cf932813bb13ab1dbade533321c3aeb9151b26687bc61e7e8f05f8",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-hu-rHU/measured_history_strings.xml",
+    "working_before_sha256": "3a8046607b98ed8df8f2dfc31b128683d8c856d11df71e57a14c06d2c9ad917f",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-it-rIT/measured_history_strings.xml",
+    "working_before_sha256": "624ef5552ecf15c3b0a4547bc8d1a7a3464cf9f54382d594314be7af5e1dd2b4",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-iw-rIL/measured_history_strings.xml",
+    "working_before_sha256": "54666a14185ca6730130c9a1309ce2f0e64b52efdfa486443b64c917ae7d0439",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-ja-rJP/measured_history_strings.xml",
+    "working_before_sha256": "f0fd94294d297e14330c92030a2cfad06a1e8ae9b0e64b958c2f22c674e4b566",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-ko-rKR/measured_history_strings.xml",
+    "working_before_sha256": "50c5e2728e6e62cca6464a0948a2239c1681288e99d6eb11a033883a494b3295",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-lt-rLT/measured_history_strings.xml",
+    "working_before_sha256": "e7350c232a5d232eba1d28257a9e43098ca725c95b149e1f1230aec042419b1e",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-lv-rLV/measured_history_strings.xml",
+    "working_before_sha256": "5e97ceca1440f8ca0b2a9e1fef65ae4b6fee26f4105602e7edc28b73080f836e",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-mt-rMT/measured_history_strings.xml",
+    "working_before_sha256": "f5616e1c0f15038e3ae5c08015b9e69613e992acdccfc58d4ef1648c281e8267",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-nl-rNL/measured_history_strings.xml",
+    "working_before_sha256": "a28e826e8b2ff98a0c45fd9718ccdb53420b78035c4ce201635615dce8d29c95",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-no-rNO/measured_history_strings.xml",
+    "working_before_sha256": "fa21400d2fe2d893fa60267783c144acc13853d1edf38335c18a10d3ed6e83e7",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-pl-rPL/measured_history_strings.xml",
+    "working_before_sha256": "bcdece6b76d5e105d32626c607da5a15a1cd1a1d503d90e199d746670d68e433",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-pt-rBR/measured_history_strings.xml",
+    "working_before_sha256": "35b98d63af50daa461b6487e6bf606559853836f6b9721cb972d66ef7126ad31",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-pt-rPT/measured_history_strings.xml",
+    "working_before_sha256": "fc8c41dcf0cfb421dbfc3f2e47def97941c5a1c9bbc9cabf8d0a6367d5598987",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-ro-rRO/measured_history_strings.xml",
+    "working_before_sha256": "4c0bfce2b96bf5e1aa159b92f6995eb8f8b03bb70647e5111e48a58699cc920d",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-ru-rRU/measured_history_strings.xml",
+    "working_before_sha256": "e9c02228d0ae967c05cb9e926fbbf38d739e4843103af5edcea845adee72eace",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-sk-rSK/measured_history_strings.xml",
+    "working_before_sha256": "568a66764c15df59f8ad1a46bebef0d8766a543d0ffec93dc1d61c22a4b9d58d",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-sl-rSI/measured_history_strings.xml",
+    "working_before_sha256": "f4978a0c3d745f75ccd6adb274e2d53b910b345c8d29e1fc7d2d9ca365dd5f25",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-sr-rSP/measured_history_strings.xml",
+    "working_before_sha256": "b5ea66cacb489c4ee873af8e38f3e04b1fe45846fa8216a4878cd030456dc747",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-sv-rSE/measured_history_strings.xml",
+    "working_before_sha256": "daaffba35f2ce503e2bd599d120296a72eb96d9bc818b3d935d576181277466b",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-tr-rTR/measured_history_strings.xml",
+    "working_before_sha256": "5d50f580ab98d9c4b1158bdf5476de5495f6cb06938da0618770aecde8242302",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-uk-rUA/measured_history_strings.xml",
+    "working_before_sha256": "f7045a88336b85c809382a19943ae6f3c76d7a0852656244b1c4abe67989ea0a",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-vi-rVN/measured_history_strings.xml",
+    "working_before_sha256": "923efa7d23f02f0af84442552aa46e7d0f6af293d938a0e019bba3db102b488b",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-zh-rCN/measured_history_strings.xml",
+    "working_before_sha256": "cded886739a720abc9b9e30206d1c96cca891b4213ae84e1abb387d61d8a2204",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-zh-rTW/measured_history_strings.xml",
+    "working_before_sha256": "e1f56b8ceae94f846e76dc5d570e85c32a573510b9f9f727ca85e87b788a4e3c",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypesTest.kt",
+    "working_before_sha256": "177fad53e18e51e758b03217cc86d6c9241f07424aecd6777109b7a9c886b309",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/HistoryTypesComposeTest.kt",
+    "working_before_sha256": "b04f3eb7d06793f76ffd3b32ac8e1997dfa9b1138ced958b21b4d930ce6a3e6d",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterDeleteTest.kt",
+    "working_before_sha256": "3b44553c2ac46b260c6c70f36dac8bb74eb8a0df534f13a90a3c6acaa7768509",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt",
+    "working_before_sha256": "7865fe54408722d4a1dbad061e129ba661fc86330d4da7f56041fe6dfb4a6a31",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/CalendarContentComposeTest.kt",
+    "working_before_sha256": "7a28de83e69ca87f1a46de15b6725c03cd4dd0552dcb39c90ec874de9f3168ad",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredCalendarRangeInvalidationRoomTest.kt",
+    "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  }
+]

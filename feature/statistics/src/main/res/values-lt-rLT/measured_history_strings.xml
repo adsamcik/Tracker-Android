@@ -3,4 +3,5 @@
     <string name="history_measurements_empty">Nėra įrašytų duomenų</string>
     <string name="history_show_details">Rodyti išsamią informaciją</string>
     <string name="history_hide_details">Slėpti išsamią informaciją</string>
+    <string name="history_calendar_recorded_day">%1$d diena, įrašyti duomenys</string>
 </resources>

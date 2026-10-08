@@ -179,6 +179,7 @@ fun HistoryRoute(
 						organizationRead = monthSessions,
 						onViewSessionsForDay = { day -> showRecordings = false; organization.showDay(day); viewModel.selectTab(HistoryTab.TRIPS) },
 						onMonthChange = viewModel::selectMonth,
+                    onRetryMonth = viewModel::retryCalendarMonth,
 						onNavigateToTripDetail = onNavigateToTripDetail,
 						onViewTripOnMap = { trip ->
 							onNavigateToMap(trip.id, trip.startTimeMs, trip.endTimeMs)
@@ -254,8 +255,6 @@ private fun HistoryRoutePreview() {
 			val date = month.atDay(day)
 			date to CalendarDayData(
 				date = date,
-				intensity = (day % 5) * 0.2f,
-				tripCount = day % 3,
 			)
 		},
 		selectedDay = today,

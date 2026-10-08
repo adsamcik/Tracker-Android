@@ -1,0 +1,1276 @@
+diff --git a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt
+@@ -51,6 +51,7 @@
+ import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
+ import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage as ApiStepsHistoryCoverage
+ import com.adsamcik.tracker.stats.api.repository.HistoryRange
++import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
+ import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
+ import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
+ import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+@@ -136,9 +137,13 @@
+ 		rangeReader?.read(request) ?: HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+ 
+ 	@OptIn(ExperimentalCoroutinesApi::class)
+-	override fun observeRange(request: HistoryRangeRequest): Flow<HistoryRangeRead> =
+-		database.invalidationTracker.createFlow(*UnifiedHistoryRangeReader.invalidationTables.toTypedArray(),
+-			emitInitialState = true).mapLatest { readRange(request) }.distinctUntilChanged().flowOn(ioDispatcher)
++	override fun observeRange(request: HistoryRangeRequest): Flow<HistoryRangeRead> {
++        val reads = database.invalidationTracker.createFlow(*UnifiedHistoryRangeReader.invalidationTables.toTypedArray(),
++            emitInitialState = true).mapLatest { readRange(request) }
++        // The same first page can hide an invalidated older day. Measured consumers need that signal.
++        return (if (request.range.mode == HistoryBrowseMode.OBSERVATIONS) reads else reads.distinctUntilChanged())
++            .flowOn(ioDispatcher)
++    }
+ 
+ 	override fun pagingSource(range: HistoryRange):
+ 		androidx.paging.PagingSource<com.adsamcik.tracker.stats.api.repository.HistoryContinuation,
+diff --git a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypes.kt b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypes.kt
+--- a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypes.kt
++++ b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypes.kt
+@@ -1,4 +1,6 @@
+ package com.adsamcik.tracker.statistics.viewmodel
++
++import com.adsamcik.tracker.stats.api.repository.HistoryProblem
+ 
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.filled.DirectionsBike
+@@ -112,8 +114,7 @@
+ @Immutable
+ data class CalendarDayData(
+ 	val date: LocalDate,
+-	val intensity: Float,
+-	val tripCount: Int,
++	val hasSavedData: Boolean = true,
+ )
+ 
+ /**
+@@ -125,6 +126,8 @@
+ 	val dayData: Map<LocalDate, CalendarDayData> = emptyMap(),
+ 	val selectedDay: LocalDate? = null,
+ 	val selectedDayDetail: DayDetail? = null,
++    val monthLoading: Boolean = false,
++    val monthProblems: Set<HistoryProblem> = emptySet(),
+ ) {
+ 	/**
+ 	 * Detail for a selected day showing trips and aggregate stats.
+diff --git a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModel.kt b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModel.kt
+--- a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModel.kt
++++ b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModel.kt
+@@ -8,11 +8,16 @@
+ import androidx.paging.PagingData
+ import androidx.paging.cachedIn
+ import com.adsamcik.tracker.shared.model.Trip
+-import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
+ import com.adsamcik.tracker.stats.api.repository.ExplorationRepository
+ import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
+ import com.adsamcik.tracker.stats.api.repository.PagedTrackingHistoryRepository
+ import com.adsamcik.tracker.stats.api.repository.HistoryRange
++import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
++import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
++import com.adsamcik.tracker.stats.api.repository.HistoryContinuation
++import com.adsamcik.tracker.stats.api.repository.HistoryProblem
++import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
++import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
+ import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
+ import com.adsamcik.tracker.stats.api.repository.HistoryPagingItem
+ import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData
+@@ -21,6 +26,10 @@
+ import com.adsamcik.tracker.statistics.viewmodel.HistoryTab
+ import dagger.hilt.android.lifecycle.HiltViewModel
+ import kotlinx.coroutines.CoroutineStart
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.yield
+ import kotlinx.coroutines.Job
+ import kotlinx.coroutines.NonCancellable
+ import kotlinx.coroutines.delay
+@@ -34,7 +43,6 @@
+ import kotlinx.coroutines.flow.asStateFlow
+ import kotlinx.coroutines.flow.collectLatest
+ import kotlinx.coroutines.flow.combine
+-import kotlinx.coroutines.flow.first
+ import kotlinx.coroutines.flow.distinctUntilChanged
+ import kotlinx.coroutines.flow.flatMapLatest
+ import kotlinx.coroutines.flow.flowOf
+@@ -59,7 +67,6 @@
+ @HiltViewModel
+ class HistoryPresenterViewModel @Inject constructor(
+ 	private val tripPresentationRepository: TripPresentationRepository,
+-	private val dailySummaryRepository: DailySummaryRepository,
+ 	private val trackingHistoryRepository: PagedTrackingHistoryRepository,
+ 	private val explorationRepository: ExplorationRepository,
+ 	private val savedStateHandle: SavedStateHandle,
+@@ -147,14 +154,17 @@
+ 	/** Display dates follow the current phone zone; saved UTC times remain unchanged. */
+ 	fun useViewZone(zone: ZoneId) { viewZone.value = zone }
+ 
++	private val monthRetry = MutableStateFlow(0L)
++
++    fun retryCalendarMonth() { monthRetry.value++ }
++
+ 	init {
+ 		viewModelScope.launch {
+-			combine(_selectedTab, calendarRequest) { tab, request -> tab to request }
+-				.collectLatest { (tab, request) ->
+-					if (tab == HistoryTab.CALENDAR) {
+-						loadCalendarRequest(request)
+-					}
+-				}
++            combine(_selectedTab, calendarRequest.map { it.month }.distinctUntilChanged(), viewZone, monthRetry) {
++                tab, month, zone, _ -> Triple(tab, month, zone)
++            }.collectLatest { (tab, month, zone) ->
++                if (tab == HistoryTab.CALENDAR) observeCalendarMonth(month, zone)
++            }
+ 		}
+ 		restorePendingDeletes()
+ 	}
+@@ -176,7 +186,9 @@
+ 		savedStateHandle[KEY_CALENDAR_MONTH] = newMonth.toString()
+ 		savedStateHandle[KEY_CALENDAR_SELECTED_DAY] = date.toEpochDay()
+ 		_calendarState.update {
+-			it.copy(selectedDay = date, selectedDayDetail = null)
++			it.copy(currentMonth = newMonth, selectedDay = date, selectedDayDetail = null,
++                dayData = if (it.currentMonth == newMonth) it.dayData else emptyMap(),
++                monthProblems = if (it.currentMonth == newMonth) it.monthProblems else emptySet())
+ 		}
+ 		calendarRequest.value = CalendarRequest(
+ 			generation = ++calendarRequestGeneration,
+@@ -190,7 +202,7 @@
+ 		savedStateHandle[KEY_CALENDAR_MONTH] = month.toString()
+ 		savedStateHandle.remove<Long>(KEY_CALENDAR_SELECTED_DAY)
+ 		_calendarState.update {
+-			it.copy(selectedDay = null, selectedDayDetail = null)
++			it.copy(currentMonth = month, selectedDay = null, selectedDayDetail = null, dayData = emptyMap(), monthProblems = emptySet())
+ 		}
+ 		calendarRequest.value = CalendarRequest(
+ 			generation = ++calendarRequestGeneration,
+@@ -199,42 +211,82 @@
+ 		)
+ 	}
+ 
+-	private suspend fun loadCalendarRequest(request: CalendarRequest) {
+-		if (request.month != _calendarState.value.currentMonth || _calendarState.value.dayData.isEmpty()) {
+-			loadCalendarMonth(request.month, request)
+-		}
+-	}
+-
+-	private suspend fun loadCalendarMonth(
+-		yearMonth: YearMonth,
+-		request: CalendarRequest,
+-	) {
+-		val firstDay = yearMonth.atDay(1).toEpochDay()
+-		val lastDay = yearMonth.atEndOfMonth().toEpochDay()
+-		val summaries = dailySummaryRepository.observeBetween(firstDay, lastDay)
+-			.first()
+-
+-		val maxDistance = summaries.maxOfOrNull { it.totalDistance.raw } ?: 1f
+-		val dayData = summaries.associate { summary ->
+-			val date = LocalDate.ofEpochDay(summary.dayEpoch)
+-			date to CalendarDayData(
+-				date = date,
+-				intensity = if (maxDistance > 0) summary.totalDistance.raw / maxDistance else 0f,
+-				tripCount = summary.tripCount,
+-			)
+-		}
+-
+-		if (calendarRequest.value == request) {
+-			_calendarState.update {
+-				it.copy(
+-					currentMonth = yearMonth,
+-					dayData = dayData,
+-					selectedDay = request.selectedDay,
+-					selectedDayDetail = null,
+-				)
+-			}
+-		}
+-	}
++    /** One existing qualified month observation supplies Room invalidation and deletion/epoch signals. */
++    private suspend fun observeCalendarMonth(month: YearMonth, zone: ZoneId) {
++        updateCalendarMonth(month, zone, emptyMap(), emptySet(), true)
++        val from = month.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli().coerceAtLeast(0L)
++        val to = month.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
++        if (to <= from) {
++            updateCalendarMonth(month, zone, emptyMap(), emptySet(), false)
++            return
++        }
++        val range = HistoryRange(from, to, zone.id, mode = HistoryBrowseMode.OBSERVATIONS)
++        try {
++            trackingHistoryRepository.observeRange(HistoryRangeRequest(range, limit = 1)).collectLatest { first ->
++                updateCalendarMonth(month, zone, emptyMap(), emptySet(), true)
++                if (first is HistoryRangeRead.Page) readCalendarMonthDays(month, zone, first.snapshot)
++                else updateCalendarMonth(month, zone, emptyMap(), setOf(HistoryProblem(null,
++                    (first as HistoryRangeRead.Unavailable).reason)), false)
++            }
++        } catch (cancelled: CancellationException) { throw cancelled }
++        catch (_: Exception) {
++            updateCalendarMonth(month, zone, emptyMap(), setOf(HistoryProblem(null,
++                HistoryProblemReason.STORAGE_UNAVAILABLE)), false)
++        }
++    }
++
++    /** Each round reads at most one existing 100-key page per day and retains only day presence/frontiers. */
++    private suspend fun readCalendarMonthDays(month: YearMonth, zone: ZoneId, snapshot: TrackingHistoryReadSnapshot) {
++        val days = linkedMapOf<LocalDate, CalendarDayData>()
++        val problems = linkedSetOf<HistoryProblem>()
++        val pending = linkedMapOf<LocalDate, HistoryContinuation?>()
++        (month.lengthOfMonth() downTo 1).forEach { number ->
++            val day = month.atDay(number)
++            if (measuredDayRange(day, zone) != null) pending[day] = null
++        }
++        while (pending.isNotEmpty()) {
++            for (day in pending.keys.toList()) {
++                currentCoroutineContext().ensureActive()
++                val range = requireNotNull(measuredDayRange(day, zone))
++                val after = pending[day]
++                val read = try { trackingHistoryRepository.readRange(HistoryRangeRequest(range,
++                    limit = if (after == null) 1 else 100, after = after)) }
++                catch (cancelled: CancellationException) { throw cancelled }
++                catch (_: Exception) { HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE) }
++                when (read) {
++                    is HistoryRangeRead.Unavailable -> {
++                        problems += HistoryProblem(null, read.reason)
++                        pending.remove(day)
++                    }
++                    is HistoryRangeRead.Page -> {
++                        if (read.snapshot != snapshot) {
++                            updateCalendarMonth(month, zone, emptyMap(), setOf(HistoryProblem(null,
++                                HistoryProblemReason.INTEGRITY_UNAVAILABLE)), false)
++                            return
++                        }
++                        problems += read.problems
++                        if (read.rows.any { it.measurement != null }) {
++                            days[day] = CalendarDayData(day)
++                            pending.remove(day)
++                        } else if (read.next == null) pending.remove(day)
++                        else if (read.next.range != range || read.next == after) {
++                            problems += HistoryProblem(null, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++                            pending.remove(day)
++                        } else pending[day] = read.next
++                    }
++                }
++                updateCalendarMonth(month, zone, days.toMap(), problems.toSet(), pending.isNotEmpty())
++                yield()
++            }
++        }
++        updateCalendarMonth(month, zone, days.toMap(), problems.toSet(), false)
++    }
++
++    private fun updateCalendarMonth(month: YearMonth, zone: ZoneId, days: Map<LocalDate, CalendarDayData>,
++        problems: Set<HistoryProblem>, loading: Boolean) {
++        if (calendarRequest.value.month == month && viewZone.value == zone && _selectedTab.value == HistoryTab.CALENDAR)
++            _calendarState.update { it.copy(currentMonth = month, dayData = days, monthProblems = problems, monthLoading = loading) }
++    }
+ 
+ 	/**
+ 	 * Mark a trip as pending deletion and start the ViewModel-owned undo deadline.
+diff --git a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CalendarContent.kt b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CalendarContent.kt
+--- a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CalendarContent.kt
++++ b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CalendarContent.kt
+@@ -23,6 +23,7 @@
+ import androidx.compose.material.icons.automirrored.filled.ArrowForward
+ import androidx.compose.material.icons.filled.Map
+ import androidx.compose.material3.Card
++import androidx.compose.material3.CircularProgressIndicator
+ import androidx.compose.material3.HorizontalDivider
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.IconButton
+@@ -35,11 +36,11 @@
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.graphics.Color
+-import androidx.compose.ui.graphics.lerp
+ import androidx.compose.ui.semantics.contentDescription
+ import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.semantics.selected
+ import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.platform.testTag
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.tooling.preview.Preview
+@@ -76,6 +77,7 @@
+ 	onViewSessionsForDay: ((LocalDate) -> Unit)? = null,
+ 	modifier: Modifier = Modifier,
+ 	observations: (@Composable () -> Unit)? = null,
++    onRetryMonth: () -> Unit = {},
+ ) {
+ 	Column(modifier = modifier.fillMaxSize()) {
+ 		MonthHeader(
+@@ -91,6 +93,18 @@
+ 			selectedDay = state.selectedDay,
+ 			onDayClick = onDayClick,
+ 		)
++
++        if (state.monthLoading) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
++            CircularProgressIndicator(Modifier.size(20.dp).testTag("calendar_loading"))
++        }
++        state.monthProblems.distinctBy { it.source }.sortedBy { it.source?.ordinal ?: -1 }.forEach { problem ->
++            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
++                Text(problem.source?.let { stringResource(it.labelResource) }
++                    ?: stringResource(R.string.history_screen_title), Modifier.weight(1f))
++                Text(stringResource(R.string.history_value_unavailable))
++                TextButton(onClick = onRetryMonth) { Text(stringResource(R.string.action_retry)) }
++            }
++        }
+ 
+ 		if (onViewSessionsForDay != null) {
+ 			state.selectedDay?.let { day -> TextButton(onClick = { onViewSessionsForDay(day) }) {
+@@ -194,7 +208,7 @@
+ 						val data = dayData[date]
+ 						CalendarCell(
+ 							dayNum = dayNum,
+-							intensity = data?.intensity ?: 0f,
++							hasSavedData = data?.hasSavedData == true,
+ 							hasOrganization = date in organizationDays,
+ 							isSelected = date == selectedDay,
+ 							isToday = date == LocalDate.now(),
+@@ -213,7 +227,7 @@
+ @Composable
+ private fun CalendarCell(
+ 	dayNum: Int,
+-	intensity: Float,
++	hasSavedData: Boolean,
+ 	hasOrganization: Boolean,
+ 	isSelected: Boolean,
+ 	isToday: Boolean,
+@@ -222,11 +236,6 @@
+ ) {
+ 	val bgColor = when {
+ 		isSelected -> MaterialTheme.colorScheme.primaryContainer
+-		intensity > 0f -> lerp(
+-			MaterialTheme.colorScheme.surfaceVariant,
+-			MaterialTheme.colorScheme.primary,
+-			intensity.coerceIn(0f, 1f) * 0.6f,
+-		)
+ 		else -> Color.Transparent
+ 	}
+ 	val textColor = when {
+@@ -236,7 +245,11 @@
+ 	}
+ 
+ 	val locale = LocalContext.current.resources.configuration.locales[0]
+-	val description = stringResource(if (hasOrganization) R.string.organization_calendar_day else R.string.history_calendar_day, dayNum)
++	val description = stringResource(when {
++        hasSavedData -> R.string.history_calendar_recorded_day
++        hasOrganization -> R.string.organization_calendar_day
++        else -> R.string.history_calendar_day
++    }, dayNum)
+ 	Box(
+ 		modifier = modifier
+ 			.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+@@ -251,7 +264,8 @@
+ 			},
+ 		contentAlignment = Alignment.Center,
+ 	) {
+-		if (hasOrganization) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp).size(4.dp).background(textColor, CircleShape))
++		if (hasSavedData) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp).size(4.dp)
++            .background(textColor, CircleShape).testTag("calendar_saved_day_$dayNum"))
+ 		Text(
+ 			text = String.format(locale, "%d", dayNum),
+ 			style = if (isToday) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodySmall,
+@@ -419,7 +433,7 @@
+ 	val month = YearMonth.from(today)
+ 	val sampleDayData = (1..today.dayOfMonth).associate { day ->
+ 		val date = month.atDay(day)
+-		date to CalendarDayData(date = date, intensity = (day % 5) * 0.25f, tripCount = day % 3)
++		date to CalendarDayData(date = date)
+ 	}
+ 	AppTheme {
+ 		CalendarContent(
+diff --git a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt
+--- a/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt
++++ b/feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt
+@@ -179,6 +179,7 @@
+ 						organizationRead = monthSessions,
+ 						onViewSessionsForDay = { day -> showRecordings = false; organization.showDay(day); viewModel.selectTab(HistoryTab.TRIPS) },
+ 						onMonthChange = viewModel::selectMonth,
++                    onRetryMonth = viewModel::retryCalendarMonth,
+ 						onNavigateToTripDetail = onNavigateToTripDetail,
+ 						onViewTripOnMap = { trip ->
+ 							onNavigateToMap(trip.id, trip.startTimeMs, trip.endTimeMs)
+@@ -254,8 +255,6 @@
+ 			val date = month.atDay(day)
+ 			date to CalendarDayData(
+ 				date = date,
+-				intensity = (day % 5) * 0.2f,
+-				tripCount = day % 3,
+ 			)
+ 		},
+ 		selectedDay = today,
+diff --git a/feature/statistics/src/main/res/values/measured_history_strings.xml b/feature/statistics/src/main/res/values/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">No recorded data</string>
+     <string name="history_show_details">Show details</string>
+     <string name="history_hide_details">Hide details</string>
++    <string name="history_calendar_recorded_day">Day %1$d, recorded data</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-af-rZA/measured_history_strings.xml b/feature/statistics/src/main/res/values-af-rZA/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-af-rZA/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-af-rZA/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Geen aangetekende data</string>
+     <string name="history_show_details">Wys besonderhede</string>
+     <string name="history_hide_details">Versteek besonderhede</string>
++    <string name="history_calendar_recorded_day">Dag %1$d, aangetekende data</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-ar-rSA/measured_history_strings.xml b/feature/statistics/src/main/res/values-ar-rSA/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-ar-rSA/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-ar-rSA/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">لا توجد بيانات مسجلة</string>
+     <string name="history_show_details">إظهار التفاصيل</string>
+     <string name="history_hide_details">إخفاء التفاصيل</string>
++    <string name="history_calendar_recorded_day">اليوم %1$d، بيانات مسجلة</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-bg-rBG/measured_history_strings.xml b/feature/statistics/src/main/res/values-bg-rBG/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-bg-rBG/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-bg-rBG/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Няма записани данни</string>
+     <string name="history_show_details">Показване на подробности</string>
+     <string name="history_hide_details">Скриване на подробности</string>
++    <string name="history_calendar_recorded_day">Ден %1$d, записани данни</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-ca-rES/measured_history_strings.xml b/feature/statistics/src/main/res/values-ca-rES/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-ca-rES/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-ca-rES/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">No hi ha dades enregistrades</string>
+     <string name="history_show_details">Mostra els detalls</string>
+     <string name="history_hide_details">Amaga els detalls</string>
++    <string name="history_calendar_recorded_day">Dia %1$d, dades enregistrades</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-cs-rCZ/measured_history_strings.xml b/feature/statistics/src/main/res/values-cs-rCZ/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-cs-rCZ/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-cs-rCZ/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Žádná zaznamenaná data</string>
+     <string name="history_show_details">Zobrazit podrobnosti</string>
+     <string name="history_hide_details">Skrýt podrobnosti</string>
++    <string name="history_calendar_recorded_day">Den %1$d, zaznamenaná data</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-da-rDK/measured_history_strings.xml b/feature/statistics/src/main/res/values-da-rDK/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-da-rDK/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-da-rDK/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Ingen registrerede data</string>
+     <string name="history_show_details">Vis detaljer</string>
+     <string name="history_hide_details">Skjul detaljer</string>
++    <string name="history_calendar_recorded_day">Dag %1$d, registrerede data</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-de-rDE/measured_history_strings.xml b/feature/statistics/src/main/res/values-de-rDE/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-de-rDE/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-de-rDE/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Keine aufgezeichneten Daten</string>
+     <string name="history_show_details">Details anzeigen</string>
+     <string name="history_hide_details">Details ausblenden</string>
++    <string name="history_calendar_recorded_day">Tag %1$d, aufgezeichnete Daten</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-el-rGR/measured_history_strings.xml b/feature/statistics/src/main/res/values-el-rGR/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-el-rGR/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-el-rGR/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Δεν υπάρχουν καταγεγραμμένα δεδομένα</string>
+     <string name="history_show_details">Εμφάνιση λεπτομερειών</string>
+     <string name="history_hide_details">Απόκρυψη λεπτομερειών</string>
++    <string name="history_calendar_recorded_day">Ημέρα %1$d, καταγεγραμμένα δεδομένα</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-es-rES/measured_history_strings.xml b/feature/statistics/src/main/res/values-es-rES/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-es-rES/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-es-rES/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">No hay datos registrados</string>
+     <string name="history_show_details">Mostrar detalles</string>
+     <string name="history_hide_details">Ocultar detalles</string>
++    <string name="history_calendar_recorded_day">Día %1$d, datos registrados</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-et-rEE/measured_history_strings.xml b/feature/statistics/src/main/res/values-et-rEE/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-et-rEE/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-et-rEE/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Salvestatud andmed puuduvad</string>
+     <string name="history_show_details">Näita üksikasju</string>
+     <string name="history_hide_details">Peida üksikasjad</string>
++    <string name="history_calendar_recorded_day">Päev %1$d, salvestatud andmed</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-fi-rFI/measured_history_strings.xml b/feature/statistics/src/main/res/values-fi-rFI/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-fi-rFI/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-fi-rFI/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Ei tallennettuja tietoja</string>
+     <string name="history_show_details">Näytä tiedot</string>
+     <string name="history_hide_details">Piilota tiedot</string>
++    <string name="history_calendar_recorded_day">Päivä %1$d, tallennettua tietoa</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-fr-rFR/measured_history_strings.xml b/feature/statistics/src/main/res/values-fr-rFR/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-fr-rFR/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-fr-rFR/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Aucune donnée enregistrée</string>
+     <string name="history_show_details">Afficher les détails</string>
+     <string name="history_hide_details">Masquer les détails</string>
++    <string name="history_calendar_recorded_day">Jour %1$d, données enregistrées</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-ga-rIE/measured_history_strings.xml b/feature/statistics/src/main/res/values-ga-rIE/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-ga-rIE/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-ga-rIE/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Níl aon sonraí taifeadta</string>
+     <string name="history_show_details">Taispeáin sonraí</string>
+     <string name="history_hide_details">Folaigh sonraí</string>
++    <string name="history_calendar_recorded_day">Lá %1$d, sonraí taifeadta</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-hi-rIN/measured_history_strings.xml b/feature/statistics/src/main/res/values-hi-rIN/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-hi-rIN/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-hi-rIN/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">कोई रिकॉर्ड किया गया डेटा नहीं</string>
+     <string name="history_show_details">विवरण दिखाएँ</string>
+     <string name="history_hide_details">विवरण छिपाएँ</string>
++    <string name="history_calendar_recorded_day">दिन %1$d, रिकॉर्ड किया गया डेटा</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-hr-rHR/measured_history_strings.xml b/feature/statistics/src/main/res/values-hr-rHR/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-hr-rHR/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-hr-rHR/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Nema zabilježenih podataka</string>
+     <string name="history_show_details">Prikaži pojedinosti</string>
+     <string name="history_hide_details">Sakrij pojedinosti</string>
++    <string name="history_calendar_recorded_day">Dan %1$d, zabilježeni podaci</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-hu-rHU/measured_history_strings.xml b/feature/statistics/src/main/res/values-hu-rHU/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-hu-rHU/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-hu-rHU/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Nincs rögzített adat</string>
+     <string name="history_show_details">Részletek megjelenítése</string>
+     <string name="history_hide_details">Részletek elrejtése</string>
++    <string name="history_calendar_recorded_day">%1$d. nap, rögzített adatok</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-it-rIT/measured_history_strings.xml b/feature/statistics/src/main/res/values-it-rIT/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-it-rIT/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-it-rIT/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Nessun dato registrato</string>
+     <string name="history_show_details">Mostra dettagli</string>
+     <string name="history_hide_details">Nascondi dettagli</string>
++    <string name="history_calendar_recorded_day">Giorno %1$d, dati registrati</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-iw-rIL/measured_history_strings.xml b/feature/statistics/src/main/res/values-iw-rIL/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-iw-rIL/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-iw-rIL/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">אין נתונים מוקלטים</string>
+     <string name="history_show_details">הצגת פרטים</string>
+     <string name="history_hide_details">הסתרת פרטים</string>
++    <string name="history_calendar_recorded_day">יום %1$d, נתונים מתועדים</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-ja-rJP/measured_history_strings.xml b/feature/statistics/src/main/res/values-ja-rJP/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-ja-rJP/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-ja-rJP/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">記録されたデータはありません</string>
+     <string name="history_show_details">詳細を表示</string>
+     <string name="history_hide_details">詳細を非表示</string>
++    <string name="history_calendar_recorded_day">%1$d日、記録データあり</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-ko-rKR/measured_history_strings.xml b/feature/statistics/src/main/res/values-ko-rKR/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-ko-rKR/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-ko-rKR/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">기록된 데이터 없음</string>
+     <string name="history_show_details">세부정보 표시</string>
+     <string name="history_hide_details">세부정보 숨기기</string>
++    <string name="history_calendar_recorded_day">%1$d일, 기록된 데이터 있음</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-lt-rLT/measured_history_strings.xml b/feature/statistics/src/main/res/values-lt-rLT/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-lt-rLT/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-lt-rLT/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Nėra įrašytų duomenų</string>
+     <string name="history_show_details">Rodyti išsamią informaciją</string>
+     <string name="history_hide_details">Slėpti išsamią informaciją</string>
++    <string name="history_calendar_recorded_day">%1$d diena, įrašyti duomenys</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-lv-rLV/measured_history_strings.xml b/feature/statistics/src/main/res/values-lv-rLV/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-lv-rLV/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-lv-rLV/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Nav ierakstītu datu</string>
+     <string name="history_show_details">Rādīt informāciju</string>
+     <string name="history_hide_details">Paslēpt informāciju</string>
++    <string name="history_calendar_recorded_day">%1$d. diena, ierakstīti dati</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-mt-rMT/measured_history_strings.xml b/feature/statistics/src/main/res/values-mt-rMT/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-mt-rMT/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-mt-rMT/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Ebda dejta rreġistrata</string>
+     <string name="history_show_details">Uri d-dettalji</string>
+     <string name="history_hide_details">Aħbi d-dettalji</string>
++    <string name="history_calendar_recorded_day">Jum %1$d, dejta rreġistrata</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-nl-rNL/measured_history_strings.xml b/feature/statistics/src/main/res/values-nl-rNL/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-nl-rNL/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-nl-rNL/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Geen vastgelegde gegevens</string>
+     <string name="history_show_details">Details tonen</string>
+     <string name="history_hide_details">Details verbergen</string>
++    <string name="history_calendar_recorded_day">Dag %1$d, vastgelegde gegevens</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-no-rNO/measured_history_strings.xml b/feature/statistics/src/main/res/values-no-rNO/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-no-rNO/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-no-rNO/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Ingen registrerte data</string>
+     <string name="history_show_details">Vis detaljer</string>
+     <string name="history_hide_details">Skjul detaljer</string>
++    <string name="history_calendar_recorded_day">Dag %1$d, registrerte data</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-pl-rPL/measured_history_strings.xml b/feature/statistics/src/main/res/values-pl-rPL/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-pl-rPL/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-pl-rPL/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Brak zapisanych danych</string>
+     <string name="history_show_details">Pokaż szczegóły</string>
+     <string name="history_hide_details">Ukryj szczegóły</string>
++    <string name="history_calendar_recorded_day">Dzień %1$d, zapisane dane</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-pt-rBR/measured_history_strings.xml b/feature/statistics/src/main/res/values-pt-rBR/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-pt-rBR/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-pt-rBR/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Nenhum dado registrado</string>
+     <string name="history_show_details">Mostrar detalhes</string>
+     <string name="history_hide_details">Ocultar detalhes</string>
++    <string name="history_calendar_recorded_day">Dia %1$d, dados registrados</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-pt-rPT/measured_history_strings.xml b/feature/statistics/src/main/res/values-pt-rPT/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-pt-rPT/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-pt-rPT/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Sem dados registados</string>
+     <string name="history_show_details">Mostrar detalhes</string>
+     <string name="history_hide_details">Ocultar detalhes</string>
++    <string name="history_calendar_recorded_day">Dia %1$d, dados registados</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-ro-rRO/measured_history_strings.xml b/feature/statistics/src/main/res/values-ro-rRO/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-ro-rRO/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-ro-rRO/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Nu există date înregistrate</string>
+     <string name="history_show_details">Afișează detaliile</string>
+     <string name="history_hide_details">Ascunde detaliile</string>
++    <string name="history_calendar_recorded_day">Ziua %1$d, date înregistrate</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-ru-rRU/measured_history_strings.xml b/feature/statistics/src/main/res/values-ru-rRU/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-ru-rRU/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-ru-rRU/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Нет записанных данных</string>
+     <string name="history_show_details">Показать подробности</string>
+     <string name="history_hide_details">Скрыть подробности</string>
++    <string name="history_calendar_recorded_day">День %1$d, записанные данные</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-sk-rSK/measured_history_strings.xml b/feature/statistics/src/main/res/values-sk-rSK/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-sk-rSK/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-sk-rSK/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Žiadne zaznamenané údaje</string>
+     <string name="history_show_details">Zobraziť podrobnosti</string>
+     <string name="history_hide_details">Skryť podrobnosti</string>
++    <string name="history_calendar_recorded_day">Deň %1$d, zaznamenané údaje</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-sl-rSI/measured_history_strings.xml b/feature/statistics/src/main/res/values-sl-rSI/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-sl-rSI/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-sl-rSI/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Ni zabeleženih podatkov</string>
+     <string name="history_show_details">Pokaži podrobnosti</string>
+     <string name="history_hide_details">Skrij podrobnosti</string>
++    <string name="history_calendar_recorded_day">Dan %1$d, zabeleženi podatki</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-sr-rSP/measured_history_strings.xml b/feature/statistics/src/main/res/values-sr-rSP/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-sr-rSP/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-sr-rSP/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Нема забележених података</string>
+     <string name="history_show_details">Прикажи детаље</string>
+     <string name="history_hide_details">Сакриј детаље</string>
++    <string name="history_calendar_recorded_day">Дан %1$d, забележени подаци</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-sv-rSE/measured_history_strings.xml b/feature/statistics/src/main/res/values-sv-rSE/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-sv-rSE/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-sv-rSE/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Inga registrerade data</string>
+     <string name="history_show_details">Visa detaljer</string>
+     <string name="history_hide_details">Dölj detaljer</string>
++    <string name="history_calendar_recorded_day">Dag %1$d, registrerade data</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-tr-rTR/measured_history_strings.xml b/feature/statistics/src/main/res/values-tr-rTR/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-tr-rTR/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-tr-rTR/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Kaydedilmiş veri yok</string>
+     <string name="history_show_details">Ayrıntıları göster</string>
+     <string name="history_hide_details">Ayrıntıları gizle</string>
++    <string name="history_calendar_recorded_day">%1$d. gün, kaydedilmiş veriler</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-uk-rUA/measured_history_strings.xml b/feature/statistics/src/main/res/values-uk-rUA/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-uk-rUA/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-uk-rUA/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Немає записаних даних</string>
+     <string name="history_show_details">Показати подробиці</string>
+     <string name="history_hide_details">Приховати подробиці</string>
++    <string name="history_calendar_recorded_day">День %1$d, записані дані</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-vi-rVN/measured_history_strings.xml b/feature/statistics/src/main/res/values-vi-rVN/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-vi-rVN/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-vi-rVN/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">Chưa có dữ liệu được ghi</string>
+     <string name="history_show_details">Hiện chi tiết</string>
+     <string name="history_hide_details">Ẩn chi tiết</string>
++    <string name="history_calendar_recorded_day">Ngày %1$d, dữ liệu đã ghi</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-zh-rCN/measured_history_strings.xml b/feature/statistics/src/main/res/values-zh-rCN/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-zh-rCN/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-zh-rCN/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">没有已记录的数据</string>
+     <string name="history_show_details">显示详情</string>
+     <string name="history_hide_details">隐藏详情</string>
++    <string name="history_calendar_recorded_day">%1$d日，有记录数据</string>
+ </resources>
+diff --git a/feature/statistics/src/main/res/values-zh-rTW/measured_history_strings.xml b/feature/statistics/src/main/res/values-zh-rTW/measured_history_strings.xml
+--- a/feature/statistics/src/main/res/values-zh-rTW/measured_history_strings.xml
++++ b/feature/statistics/src/main/res/values-zh-rTW/measured_history_strings.xml
+@@ -3,4 +3,5 @@
+     <string name="history_measurements_empty">沒有已記錄的資料</string>
+     <string name="history_show_details">顯示詳細資訊</string>
+     <string name="history_hide_details">隱藏詳細資訊</string>
++    <string name="history_calendar_recorded_day">%1$d日，有記錄資料</string>
+ </resources>
+diff --git a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypesTest.kt b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypesTest.kt
+--- a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypesTest.kt
++++ b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypesTest.kt
+@@ -109,17 +109,16 @@
+ 		@Test
+ 		fun `stores all fields`() {
+ 			val date = LocalDate.of(2024, 6, 15)
+-			val data = CalendarDayData(date = date, intensity = 0.75f, tripCount = 3)
++			val data = CalendarDayData(date = date)
+ 			data.date shouldBe date
+-			data.intensity shouldBe 0.75f
+-			data.tripCount shouldBe 3
++			data.hasSavedData shouldBe true
+ 		}
+ 
+ 		@Test
+ 		fun `equality works`() {
+ 			val date = LocalDate.of(2024, 1, 1)
+-			val d1 = CalendarDayData(date, 0.5f, 1)
+-			val d2 = CalendarDayData(date, 0.5f, 1)
++			val d1 = CalendarDayData(date)
++			val d2 = CalendarDayData(date)
+ 			d1 shouldBe d2
+ 		}
+ 	}
+diff --git a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/HistoryTypesComposeTest.kt b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/HistoryTypesComposeTest.kt
+--- a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/HistoryTypesComposeTest.kt
++++ b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/HistoryTypesComposeTest.kt
+@@ -210,9 +210,8 @@
+ 	@Test
+ 	fun `CalendarDayData holds correct values`() {
+ 		val date = LocalDate.of(2024, 6, 15)
+-		val data = CalendarDayData(date = date, intensity = 0.75f, tripCount = 3)
++		val data = CalendarDayData(date = date)
+ 		data.date shouldBe date
+-		data.intensity shouldBe 0.75f
+-		data.tripCount shouldBe 3
++		data.hasSavedData shouldBe true
+ 	}
+ }
+diff --git a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterDeleteTest.kt b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterDeleteTest.kt
+--- a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterDeleteTest.kt
++++ b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterDeleteTest.kt
+@@ -178,17 +178,12 @@
+ 			createMockTripPresentationRepository(),
+ 		savedStateHandle: SavedStateHandle = SavedStateHandle(),
+ 	): HistoryPresenterViewModel {
+-		val dailySummaryRepository: com.adsamcik.tracker.stats.api.repository.DailySummaryRepository =
+-			mockk(relaxed = true) {
+-				every { observeBetween(any(), any()) } returns kotlinx.coroutines.flow.flowOf(emptyList())
+-			}
+ 		val explorationRepository: com.adsamcik.tracker.stats.api.repository.ExplorationRepository =
+ 			mockk(relaxed = true) {
+ 				every { observeCellCount(any()) } returns kotlinx.coroutines.flow.flowOf(0)
+ 			}
+ 		return HistoryPresenterViewModel(
+ 			tripPresentationRepository = tripPresentationRepository,
+-			dailySummaryRepository = dailySummaryRepository,
+ 			trackingHistoryRepository = mockk(relaxed = true),
+ 			explorationRepository = explorationRepository,
+ 			savedStateHandle = savedStateHandle,
+diff --git a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt
+--- a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt
++++ b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt
+@@ -10,16 +10,25 @@
+ import com.adsamcik.tracker.stats.api.repository.HistoryPagingItem
+ import com.adsamcik.tracker.stats.api.repository.HistoryContinuation
+ import com.adsamcik.tracker.stats.api.repository.HistorySource
++import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
++import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
++import com.adsamcik.tracker.stats.api.repository.HistoryPosition
++import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
++import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
++import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
++import com.adsamcik.tracker.stats.api.repository.HistoryProblem
++import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
++import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
++import com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow
++import com.adsamcik.tracker.stats.api.repository.WifiObservedNetwork
++import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.flow.map
+ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.flow.collect
+ import com.adsamcik.tracker.shared.model.SegmentSource
+ import com.adsamcik.tracker.shared.model.Trip
+-import com.adsamcik.tracker.stats.api.repository.DailySummary
+-import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
+ import com.adsamcik.tracker.stats.api.repository.ExplorationRepository
+ import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
+-import com.adsamcik.tracker.stats.api.value.DistanceM
+-import com.adsamcik.tracker.stats.api.value.DurationMs
+ import com.adsamcik.tracker.statistics.viewmodel.HistoryTab
+ import io.kotest.matchers.shouldBe
+ import io.mockk.coEvery
+@@ -52,7 +61,6 @@
+ 	private val testDispatcher = StandardTestDispatcher()
+ 
+ 	private val tripPresentationRepository: TripPresentationRepository = mockk(relaxed = true)
+-	private val dailySummaryRepository: DailySummaryRepository = mockk()
+ 	private val trackingHistoryRepository = RecordingHistoryPages()
+ 	private val explorationRepository: ExplorationRepository = mockk()
+ 
+@@ -61,7 +69,6 @@
+ 		Dispatchers.setMain(testDispatcher)
+ 		// Default: empty flows and results
+ 		every { explorationRepository.observeCellCount(any()) } returns flowOf(0)
+-		every { dailySummaryRepository.observeBetween(any(), any()) } returns flowOf(emptyList())
+ 		coEvery { tripPresentationRepository.getTripsBetween(any(), any()) } returns emptyList()
+ 		every { tripPresentationRepository.getPagedTrips() } returns mockk<PagingSource<Int, Trip>>()
+ 	}
+@@ -75,7 +82,6 @@
+ 		savedStateHandle: SavedStateHandle = SavedStateHandle(),
+ 	) = HistoryPresenterViewModel(
+ 		tripPresentationRepository = tripPresentationRepository,
+-		dailySummaryRepository = dailySummaryRepository,
+ 		trackingHistoryRepository = trackingHistoryRepository,
+ 		explorationRepository = explorationRepository,
+ 		savedStateHandle = savedStateHandle,
+@@ -214,49 +220,142 @@
+ 	@DisplayName("Calendar month loading")
+ 	inner class CalendarTest {
+ 		@Test
+-		fun `loadCalendarMonth populates dayData with intensity`() = runTest {
+-			val month = YearMonth.of(2024, 6)
+-			val day1 = LocalDate.of(2024, 6, 1)
+-			val day2 = LocalDate.of(2024, 6, 15)
+-
+-			every { dailySummaryRepository.observeBetween(day1.toEpochDay(), month.atEndOfMonth().toEpochDay()) } returns flowOf(
+-				listOf(
+-					DailySummary(
+-						dayEpoch = day1.toEpochDay(),
+-						totalDistance = DistanceM(5000f),
+-						totalDuration = DurationMs(3600_000L),
+-						tripCount = 2,
+-						activeTrackingDuration = DurationMs(3600_000L),
+-					),
+-					DailySummary(
+-						dayEpoch = day2.toEpochDay(),
+-						totalDistance = DistanceM(2500f),
+-						totalDuration = DurationMs(1800_000L),
+-						tripCount = 1,
+-						activeTrackingDuration = DurationMs(1800_000L),
+-					),
+-				),
+-			)
+-
+-			val vm = createViewModel()
+-			advanceUntilIdle()
+-
+-			// Navigate to the target month
+-			vm.selectTab(HistoryTab.CALENDAR)
+-			vm.selectDay(day1)
+-			advanceUntilIdle()
+-
+-			val calState = vm.calendarState.value
+-			calState.currentMonth shouldBe month
+-			val data1 = calState.dayData[day1]!!
+-			val data2 = calState.dayData[day2]!!
+-			// day1 has max distance so intensity = 1.0
+-			data1.intensity shouldBe 1.0f
+-			// day2 intensity = 2500/5000 = 0.5
+-			data2.intensity shouldBe 0.5f
+-			data1.tripCount shouldBe 2
+-			data2.tripCount shouldBe 1
+-		}
++        fun `Calendar dots come from saved source readings with no trip or distance prerequisite`() = runTest {
++            val month = YearMonth.of(2024, 6)
++            val first = month.atDay(1)
++            val second = month.atDay(15)
++            val zone = ZoneId.of("UTC")
++            val times = setOf(first, second).map { it.atStartOfDay(zone).toInstant().toEpochMilli() + 1L }
++            trackingHistoryRepository.readPage = { request ->
++                trackingHistoryRepository.page(request, times.filter { it in request.range.fromInclusiveMs until request.range.toExclusiveMs }
++                    .map { measuredWifi(it) })
++            }
++            val vm = createViewModel()
++            vm.useViewZone(zone)
++            vm.selectMonth(month)
++            vm.selectTab(HistoryTab.CALENDAR)
++            advanceUntilIdle()
++            vm.calendarState.value.dayData.keys shouldBe setOf(first, second)
++            vm.calendarState.value.monthLoading shouldBe false
++            vm.calendarState.value.monthProblems shouldBe emptySet()
++            trackingHistoryRepository.dayReads.all { it.limit in 1..100 && it.range.mode == HistoryBrowseMode.OBSERVATIONS &&
++                it.range.sources == HistorySource.entries.toSet() } shouldBe true
++            coVerify(exactly = 0) { tripPresentationRepository.getTripsBetween(any(), any()) }
++        }
++
++        @Test fun `a rejected raw frontier stays loading and resumes until an older qualified reading`() = runTest {
++            val month = YearMonth.of(2026, 3)
++            val day = month.atDay(31)
++            val zone = ZoneId.of("UTC")
++            val from = day.atStartOfDay(zone).toInstant().toEpochMilli()
++            val release = CompletableDeferred<Unit>()
++            var attempts = 0
++            trackingHistoryRepository.readPage = { request ->
++                if (request.range.fromInclusiveMs != from) trackingHistoryRepository.page(request)
++                else {
++                    attempts++
++                    if (attempts < 3) trackingHistoryRepository.page(request, next = HistoryContinuation(request.range,
++                        HistoryPosition(from + 1_000L - attempts, "local:ambient_wifi", "rejected-$attempts")))
++                    else { release.await(); trackingHistoryRepository.page(request, listOf(measuredWifi(from + 1L))) }
++                }
++            }
++            val vm = createViewModel()
++            vm.useViewZone(zone); vm.selectMonth(month); vm.selectTab(HistoryTab.CALENDAR)
++            testScheduler.runCurrent()
++            vm.calendarState.value.monthLoading shouldBe true
++            vm.calendarState.value.dayData.containsKey(day) shouldBe false
++            attempts shouldBe 3
++            release.complete(Unit)
++            advanceUntilIdle()
++            vm.calendarState.value.dayData.containsKey(day) shouldBe true
++            vm.calendarState.value.monthLoading shouldBe false
++            trackingHistoryRepository.dayReads.filter { it.range.fromInclusiveMs == from }.map { it.after?.consumed?.stableId } shouldBe
++                listOf(null, "rejected-1", "rejected-2")
++        }
++
++        @Test fun `a failed source keeps a healthy dot and Retry refreshes the existing month observer`() = runTest {
++            val month = YearMonth.of(2026, 3)
++            val zone = ZoneId.of("UTC")
++            val from = month.atDay(10).atStartOfDay(zone).toInstant().toEpochMilli()
++            var failed = true
++            trackingHistoryRepository.readPage = { request -> trackingHistoryRepository.page(request,
++                if (request.range.fromInclusiveMs == from) listOf(measuredWifi(from + 1L)) else emptyList(),
++                problems = if (failed) setOf(HistoryProblem(HistorySource.CELL, HistoryProblemReason.STORAGE_UNAVAILABLE)) else emptySet()) }
++            val vm = createViewModel()
++            vm.useViewZone(zone); vm.selectMonth(month); vm.selectTab(HistoryTab.CALENDAR)
++            advanceUntilIdle()
++            vm.calendarState.value.dayData.keys shouldBe setOf(month.atDay(10))
++            vm.calendarState.value.monthProblems.map { it.source }.toSet() shouldBe setOf(HistorySource.CELL)
++            failed = false
++            vm.retryCalendarMonth()
++            advanceUntilIdle()
++            vm.calendarState.value.dayData.keys shouldBe setOf(month.atDay(10))
++            vm.calendarState.value.monthProblems shouldBe emptySet()
++            trackingHistoryRepository.monthRequests.size shouldBe 2
++        }
++
++        @Test fun `destructive invalidation clears prior dots while the new epoch is loading`() = runTest {
++            val month = YearMonth.of(2026, 3)
++            val zone = ZoneId.of("UTC")
++            val from = month.atDay(31).atStartOfDay(zone).toInstant().toEpochMilli()
++            val release = CompletableDeferred<Unit>()
++            trackingHistoryRepository.readPage = { request ->
++                if (trackingHistoryRepository.revision.value == 0L)
++                    trackingHistoryRepository.page(request, if (request.range.fromInclusiveMs == from) listOf(measuredWifi(from + 1L)) else emptyList())
++                else { release.await(); trackingHistoryRepository.page(request) }
++            }
++            val vm = createViewModel()
++            vm.useViewZone(zone); vm.selectMonth(month); vm.selectTab(HistoryTab.CALENDAR)
++            advanceUntilIdle()
++            vm.calendarState.value.dayData.keys shouldBe setOf(month.atDay(31))
++            trackingHistoryRepository.revision.value = 1L
++            testScheduler.runCurrent()
++            vm.calendarState.value.dayData shouldBe emptyMap()
++            vm.calendarState.value.monthLoading shouldBe true
++            release.complete(Unit)
++            advanceUntilIdle()
++            vm.calendarState.value.dayData shouldBe emptyMap()
++            vm.calendarState.value.monthLoading shouldBe false
++        }
++
++        @Test fun `month dots use real local DST days and restart after displayed zone changes`() = runTest {
++            val vm = createViewModel()
++            val month = YearMonth.of(2026, 3)
++            vm.useViewZone(ZoneId.of("Europe/Prague")); vm.selectMonth(month); vm.selectTab(HistoryTab.CALENDAR)
++            advanceUntilIdle()
++            val day = month.atDay(29)
++            val from = day.atStartOfDay(ZoneId.of("Europe/Prague")).toInstant().toEpochMilli()
++            val probe = trackingHistoryRepository.dayReads.single { it.range.fromInclusiveMs == from }
++            probe.range.toExclusiveMs - probe.range.fromInclusiveMs shouldBe 23L * 60L * 60L * 1_000L
++            vm.useViewZone(ZoneId.of("UTC"))
++            advanceUntilIdle()
++            trackingHistoryRepository.monthRequests.map { it.range.viewZoneId } shouldBe listOf("Europe/Prague", "UTC")
++            vm.calendarState.value.monthProblems shouldBe emptySet()
++        }
++
++        @Test fun `changing only the selected day does not rescan the entire month`() = runTest {
++            val vm = createViewModel()
++            val month = YearMonth.of(2026, 3)
++            vm.selectMonth(month); vm.selectTab(HistoryTab.CALENDAR)
++            advanceUntilIdle()
++            val count = trackingHistoryRepository.dayReads.size
++            vm.selectDay(month.atDay(10)); vm.selectDay(month.atDay(11))
++            advanceUntilIdle()
++            trackingHistoryRepository.dayReads.size shouldBe count
++            vm.calendarState.value.selectedDay shouldBe month.atDay(11)
++        }
++
++        @Test fun `a snapshot mismatch cannot retain dots from two epochs`() = runTest {
++            val vm = createViewModel()
++            val month = YearMonth.of(2026, 3)
++            trackingHistoryRepository.readPage = { request -> trackingHistoryRepository.page(request).copy(
++                snapshot = TrackingHistoryReadSnapshot(5, 10)) }
++            vm.selectMonth(month); vm.selectTab(HistoryTab.CALENDAR)
++            advanceUntilIdle()
++            vm.calendarState.value.dayData shouldBe emptyMap()
++            vm.calendarState.value.monthProblems shouldBe setOf(HistoryProblem(null, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
++            vm.calendarState.value.monthLoading shouldBe false
++        }
+ 
+ 	}
+ 
+@@ -358,7 +457,19 @@
+ 	}
+ }
+ 
+-private class RecordingHistoryPages : PagedTrackingHistoryRepository {
++private class RecordingHistoryPages : PagedTrackingHistoryRepository by mockk<PagedTrackingHistoryRepository>(relaxed = true) {
++    val revision = MutableStateFlow(0L)
++    val dayReads = mutableListOf<HistoryRangeRequest>()
++    val monthRequests = mutableListOf<HistoryRangeRequest>()
++    var readPage: suspend (HistoryRangeRequest) -> HistoryRangeRead = { page(it) }
++    fun page(request: HistoryRangeRequest, rows: List<UnifiedHistoryRow> = emptyList(), next: HistoryContinuation? = null,
++        problems: Set<HistoryProblem> = emptySet()) = HistoryRangeRead.Page(rows, TrackingHistoryReadSnapshot(revision.value, 1L), next, problems)
++        .also { require(next == null || next.range == request.range) }
++    override suspend fun readRange(request: HistoryRangeRequest): HistoryRangeRead { dayReads += request; return readPage(request) }
++    override fun observeRange(request: HistoryRangeRequest) = revision.map {
++        monthRequests += request
++        page(request)
++    }
+ 	val ranges = mutableListOf<HistoryRange>()
+ 	val sources = mutableListOf<PagingSource<HistoryContinuation, HistoryPagingItem>>()
+ 	override fun pagingSource(range: HistoryRange): PagingSource<HistoryContinuation, HistoryPagingItem> {
+@@ -370,3 +481,7 @@
+ 		}.also(sources::add)
+ 	}
+ }
++
++private fun measuredWifi(time: Long) = UnifiedHistoryRow(HistoryPosition(time, "local:ambient_wifi", "wifi:$time"), null,
++    setOf(HistoryOrigin.LOCAL), HistoryPurpose.BACKGROUND, sections = emptyList(),
++    measurement = HistoryMeasurement.Wifi(WifiObservedNetwork(time, 0, "ap", "Cafe", 2412, -45)))
+diff --git a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/CalendarContentComposeTest.kt b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/CalendarContentComposeTest.kt
+--- a/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/CalendarContentComposeTest.kt
++++ b/feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/CalendarContentComposeTest.kt
+@@ -12,6 +12,14 @@
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.lightColorScheme
+ import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.assertDoesNotExist
++import androidx.compose.ui.test.onNodeWithTag
++import androidx.compose.ui.test.onAllNodesWithText
++import androidx.compose.ui.test.assertCountEquals
++import com.adsamcik.tracker.statistics.R
++import com.adsamcik.tracker.stats.api.repository.HistoryProblem
++import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
++import com.adsamcik.tracker.stats.api.repository.HistorySource
+ import androidx.compose.ui.test.hasScrollAction
+ import androidx.compose.ui.test.junit4.createComposeRule
+ import androidx.compose.ui.test.onNodeWithText
+@@ -147,7 +155,7 @@
+ 		selectedDays shouldBe emptyList()
+ 	}
+ 
+-	// ─── Day data with intensity ─────────────────────────────────────────
++	// ─── Saved-data day presence ─────────────────────────────────────────
+ 
+ 	@Test
+ 	fun `calendar renders day numbers`() {
+@@ -345,14 +353,14 @@
+ 		composeTestRule.onNodeWithText("29").assertIsDisplayed()
+ 	}
+ 
+-	// ─── Day data with intensity ─────────────────────────────────────────
+-
+-	@Test
+-	fun `calendar with intensity data renders without crash`() {
++	// ─── Saved-data day presence ─────────────────────────────────────────
++
++	@Test
++	fun `calendar with saved-data days renders the grid`() {
+ 		val month = YearMonth.of(2024, 3)
+ 		val dayData = (1..31).associate { day ->
+ 			val date = month.atDay(day)
+-			date to CalendarDayData(date = date, intensity = (day % 5) * 0.2f, tripCount = day % 3)
++			date to CalendarDayData(date = date)
+ 		}
+ 		composeTestRule.setContent {
+ 			MaterialTheme(colorScheme = lightColorScheme()) {
+@@ -365,4 +373,48 @@
+ 		}
+ 		composeTestRule.onNodeWithText("March 2024", substring = true).assertIsDisplayed()
+ 	}
++
++    @Test fun `a saved source day has one data dot and accessible recorded-data description`() {
++        val month = YearMonth.of(2026, 3)
++        val day = month.atDay(10)
++        var chosen: LocalDate? = null
++        val context = ApplicationProvider.getApplicationContext<Context>()
++        composeTestRule.setContent {
++            MaterialTheme {
++                CalendarContent(CalendarState(currentMonth = month, dayData = mapOf(day to CalendarDayData(day))),
++                    onDayClick = { chosen = it }, onNavigateToTripDetail = {}, organizationDays = setOf(day))
++            }
++        }
++        composeTestRule.onNodeWithTag("calendar_saved_day_10", useUnmergedTree = true).assertIsDisplayed()
++        composeTestRule.onNodeWithTag("calendar_saved_day_11", useUnmergedTree = true).assertDoesNotExist()
++        composeTestRule.onNodeWithContentDescription(context.getString(R.string.history_calendar_recorded_day, 10)).performClick()
++        chosen shouldBe day
++    }
++
++    @Test fun `a session annotation with no saved reading does not invent a data dot`() {
++        val month = YearMonth.of(2026, 3)
++        composeTestRule.setContent { MaterialTheme {
++            CalendarContent(CalendarState(currentMonth = month), onDayClick = {}, onNavigateToTripDetail = {},
++                organizationDays = setOf(month.atDay(10)))
++        } }
++        composeTestRule.onNodeWithTag("calendar_saved_day_10", useUnmergedTree = true).assertDoesNotExist()
++    }
++
++    @Test fun `loading and source Retry retain an already qualified sibling day`() {
++        val month = YearMonth.of(2026, 3)
++        val context = ApplicationProvider.getApplicationContext<Context>()
++        var retries = 0
++        composeTestRule.setContent { MaterialTheme {
++            CalendarContent(CalendarState(currentMonth = month, dayData = mapOf(month.atDay(10) to CalendarDayData(month.atDay(10))),
++                monthLoading = true, monthProblems = setOf(
++                    HistoryProblem(HistorySource.CELL, HistoryProblemReason.STORAGE_UNAVAILABLE),
++                    HistoryProblem(HistorySource.CELL, HistoryProblemReason.INTEGRITY_UNAVAILABLE))),
++                onDayClick = {}, onNavigateToTripDetail = {}, onRetryMonth = { retries++ })
++        } }
++        composeTestRule.onNodeWithTag("calendar_saved_day_10", useUnmergedTree = true).assertIsDisplayed()
++        composeTestRule.onNodeWithTag("calendar_loading").assertIsDisplayed()
++        composeTestRule.onAllNodesWithText(context.getString(R.string.action_retry)).assertCountEquals(1)
++        composeTestRule.onNodeWithText(context.getString(R.string.action_retry)).performClick()
++        retries shouldBe 1
++    }
+ }
+diff --git a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredCalendarRangeInvalidationRoomTest.kt b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredCalendarRangeInvalidationRoomTest.kt
+--- /dev/null
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredCalendarRangeInvalidationRoomTest.kt
+@@ -0,0 +1,82 @@
++package com.adsamcik.tracker.stats.data.repository
++
++import android.app.Application
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.shared.base.database.AppDatabase
++import com.adsamcik.tracker.shared.base.database.data.LocationSample
++import com.adsamcik.tracker.shared.base.database.data.SampleQuality
++import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
++import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
++import com.adsamcik.tracker.stats.api.repository.HistoryRange
++import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
++import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
++import com.adsamcik.tracker.stats.api.repository.HistorySource
++import io.kotest.matchers.shouldBe
++import io.kotest.matchers.types.shouldBeInstanceOf
++import io.mockk.mockk
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.cancelAndJoin
++import kotlinx.coroutines.channels.Channel
++import kotlinx.coroutines.flow.collect
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.runBlocking
++import kotlinx.coroutines.withTimeout
++import org.junit.After
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++/** Real Room invalidation, facade and saved Location read. Unused capture entry collaborators are fixtures. NOT_RUN. */
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class MeasuredCalendarRangeInvalidationRoomTest {
++    private lateinit var database: AppDatabase
++    private lateinit var application: Application
++    @Before fun setup() = runBlocking {
++        application = ApplicationProvider.getApplicationContext()
++        database = AppDatabase.testDatabase(application)
++        database.sourceEvidenceStateDao().ensure()
++    }
++    @After fun close() = database.close()
++
++    @Test fun `an older measured mutation still invalidates the month when its first page is identical`() = runBlocking {
++        withTimeout(10_000L) {
++            point(2_000)
++            point(1_000)
++            val authority = SourceProductLaneExecutionAuthority { false }
++            val steps = StepsSegmentHistorySelector(database, authority)
++            val pressure = PressureHistorySelector(database, authority)
++            val repository = DefaultTrackingHistoryRepository(database = database, stepsSelector = steps,
++                logicalHistoryReader = LogicalTrackingHistoryReader(database, steps), pressureSelector = pressure,
++                pressurePageReader = mockk(relaxed = true), sourceUnionReader = mockk(relaxed = true),
++                ioDispatcher = Dispatchers.Unconfined, bootClockDomainProvider = mockk(relaxed = true),
++                rangeReader = rangeReaderForRoomTest(database, application))
++            val range = HistoryRange(0, 3_000, "UTC", sources = setOf(HistorySource.LOCATION),
++                mode = HistoryBrowseMode.OBSERVATIONS)
++            val observed = Channel<HistoryRangeRead>(4)
++            val job = launch(Dispatchers.IO) {
++                repository.observeRange(HistoryRangeRequest(range, limit = 1)).collect { observed.send(it) }
++            }
++            try {
++                val first = observed.receive().shouldBeInstanceOf<HistoryRangeRead.Page>()
++                first.rows.single().position.startTimeMs shouldBe 2_000L
++                point(500)
++                database.invalidationTracker.refreshAsync()
++                // Equal page content must still tell Calendar to requalify its older day probes.
++                val invalidated = observed.receive().shouldBeInstanceOf<HistoryRangeRead.Page>()
++                invalidated shouldBe first
++            } finally {
++                job.cancelAndJoin()
++                observed.close()
++            }
++        }
++    }
++
++    private suspend fun point(time: Long) = database.locationSampleDao().insert(LocationSample(timeMs = time,
++        elapsedRealtimeNanos = 0, latE7 = 500_000_000, lonE7 = 140_000_000, altitudeM = null,
++        rawGpsAltitudeM = null, hAccM = null, vAccM = null, speedMps = null, speedAccuracyMps = null,
++        provider = "legacy-fixture", quality = SampleQuality.HIGH, motionState = null, policy = null,
++        bucketId = null, createdAt = time))
++}

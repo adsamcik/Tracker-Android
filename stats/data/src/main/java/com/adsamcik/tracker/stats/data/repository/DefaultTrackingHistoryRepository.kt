@@ -51,6 +51,7 @@ import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage as ApiStepsHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
 import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
 import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
 import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
@@ -136,9 +137,13 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		rangeReader?.read(request) ?: HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
 
 	@OptIn(ExperimentalCoroutinesApi::class)
-	override fun observeRange(request: HistoryRangeRequest): Flow<HistoryRangeRead> =
-		database.invalidationTracker.createFlow(*UnifiedHistoryRangeReader.invalidationTables.toTypedArray(),
-			emitInitialState = true).mapLatest { readRange(request) }.distinctUntilChanged().flowOn(ioDispatcher)
+	override fun observeRange(request: HistoryRangeRequest): Flow<HistoryRangeRead> {
+        val reads = database.invalidationTracker.createFlow(*UnifiedHistoryRangeReader.invalidationTables.toTypedArray(),
+            emitInitialState = true).mapLatest { readRange(request) }
+        // The same first page can hide an invalidated older day. Measured consumers need that signal.
+        return (if (request.range.mode == HistoryBrowseMode.OBSERVATIONS) reads else reads.distinctUntilChanged())
+            .flowOn(ioDispatcher)
+    }
 
 	override fun pagingSource(range: HistoryRange):
 		androidx.paging.PagingSource<com.adsamcik.tracker.stats.api.repository.HistoryContinuation,

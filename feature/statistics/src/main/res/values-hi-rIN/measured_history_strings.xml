@@ -3,4 +3,5 @@
     <string name="history_measurements_empty">कोई रिकॉर्ड किया गया डेटा नहीं</string>
     <string name="history_show_details">विवरण दिखाएँ</string>
     <string name="history_hide_details">विवरण छिपाएँ</string>
+    <string name="history_calendar_recorded_day">दिन %1$d, रिकॉर्ड किया गया डेटा</string>
 </resources>

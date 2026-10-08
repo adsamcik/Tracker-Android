@@ -210,9 +210,8 @@ class HistoryTypesComposeTest {
 	@Test
 	fun `CalendarDayData holds correct values`() {
 		val date = LocalDate.of(2024, 6, 15)
-		val data = CalendarDayData(date = date, intensity = 0.75f, tripCount = 3)
+		val data = CalendarDayData(date = date)
 		data.date shouldBe date
-		data.intensity shouldBe 0.75f
-		data.tripCount shouldBe 3
+		data.hasSavedData shouldBe true
 	}
 }

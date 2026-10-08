@@ -1,0 +1,362 @@
+{
+  "commit": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+  "selected_paths": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "a48e0a249b6ca8a8db56985800459c1ee3c8867854d843a502c10f10e9932116",
+      "selected_sha256": "8afb31184ffde0da4e498fea54d77cff0b8e6c4c365e0a7b1a56e02d4e64422c",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypes.kt",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "746814b2fc8ba862b76153f213fc768a1f6074452d483bc755ac5fda0aeb8c4f",
+      "selected_sha256": "03f81b6766e8b05b3f380ab300de02f3df79a5d69e63b1883f8d43b18d077015",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModel.kt",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "3d5f0e54229e81996a78f27f8d5441e7d93d202df003b037dfe4ffe7379cd21a",
+      "selected_sha256": "caa4b68103edd1ed102d66b6901af9f3502b08a48c97392b11a55eebe3e871f4",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CalendarContent.kt",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "2870a97c1bb5c6b46a2369cb12244bda05e423fb192d7fe947a1192120bfebfc",
+      "selected_sha256": "997a0806315530dcf4d434f0d51cb03c17718c4c2b16f4857659ed9f4ad939e9",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "6793d6d1c6a28c04c9339ad21dd0dec00aed589b93a85732926ec20ff81c22f9",
+      "selected_sha256": "a08ba5785fa908ba0e02ccadb4d99ad011ff83dd7a15704f0ed2d1d117099a6a",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "b85f8416e02c5760f9bcb7c2cdddb63e6b4d1ef2c732d1537ec21e53238f196d",
+      "selected_sha256": "f0eb43333459ebe5ccee2bf531e397df3cb1d5a95befdb13c9c4ad7233a41f6e",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-af-rZA/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "f157fe8b6fcb8e1a206921ad6f79b7ca68425656ec867c48524369a61230c474",
+      "selected_sha256": "29229aa4b995f619058eed4c24b4b6bb13eab93b5a593f55835d0121fed4f250",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ar-rSA/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "03fe8254e7a874349461d3195e68b2bb4e0e21f6d970a429e30ccd7f2d0de58f",
+      "selected_sha256": "df1d1d15b37b590172c3c1311a3c814853ed8a4d5669eab63852c81017a92c7e",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-bg-rBG/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "3927fca578c50072974434380215fed056064855f3e504adb606e8349586e66a",
+      "selected_sha256": "c9b06a7ad8174de1fdb0a5c744e62087b4e18e7b383a2bed2c0363384dacd29b",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ca-rES/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "897495accdf1c58cfda3fba5387b8ba201f140f9f459f074fb164467d530db80",
+      "selected_sha256": "48496d73eb156ee9db281228d3f23963e22d700c3c2cfa45bebe4a22209a5a74",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-cs-rCZ/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "81864c82edac58eea799ffb2badd4e860fd3caabf2b043801b78a1822cecfc00",
+      "selected_sha256": "ebb6aac15825895438e8e7bcbe05a520d7f5a1ba44fdc2eb2ce706456243d211",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-da-rDK/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "0d9de86bf6fb32f02516e1867e9dc3506385ebfdf7fc3b4a17daafa8710d47b5",
+      "selected_sha256": "f5d8df6f99f52eada7371656586542e4781bdfc191359c81b39d8713f332025c",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-de-rDE/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "3889ecda759ff569d68233b2a2117912188e8bc5f6a8129344f53e621550ca51",
+      "selected_sha256": "7064efe821875c4faee681c886ff87d92db2b7c27dfe472d32b7be511e675e0e",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-el-rGR/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "d94d8d1068d0d7d5a5ca2747d9ee0bad56a4ca9d308a1f3ea0bdb35a5a3ad0ce",
+      "selected_sha256": "3e5c4d7bb6f417110b741009b3f96304696766734ed3c1dcf5c1045069dbba77",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-es-rES/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "d39ab89f888f2e3f997c24e89933c199df9285008ef3a8a5b8d1c52ba71f0fb4",
+      "selected_sha256": "ae0274042fe794608bf771c76ed5b4625b0da20225f5eb9518cf26985de38db5",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-et-rEE/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "c4b5a64c914fcb6fe5d51ed27515ade5f8d08f1909450017da22fc2f60808e46",
+      "selected_sha256": "b1e766e330aa188a57400dd0d2a49ea70629eed9218782e06d2282642af6585c",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-fi-rFI/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "bab1940e0ad544b35e892ae01fcb3788af31eedd5fdd20ac8e6a062c089b062e",
+      "selected_sha256": "051cb37490d9c9b491e00b3809d2d8db82e86a55c1ad361e6f5e6b4f48c849ad",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-fr-rFR/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "80be85d1e8c04ca6aa6d4d3d3868d270f37f58c882b9a911e6fcf89ed763228e",
+      "selected_sha256": "7f75ec650b594b386110e2539318a97c89f797342b5dc356e71c144566118764",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ga-rIE/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "327c949057953331a7464337a83bdaf29c7d25b7814b240935e8585d69927ad2",
+      "selected_sha256": "00b826b5f7963cfb366ef031982b2c1889ce4b730f37591ccbcf4433298cb4f8",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hi-rIN/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "23b85d94a081bb1b5eeb61cff5b2f8bc21a3e061b66147e90c8ff590bc09e833",
+      "selected_sha256": "4bdb93f286ebf187b5cce21089c44bf2f3738b815721ede73616139eb2c0de81",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hr-rHR/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "880431baa8cf932813bb13ab1dbade533321c3aeb9151b26687bc61e7e8f05f8",
+      "selected_sha256": "2fab17eed32ed49055634ed12b4fa81bff6ae6e8d19bdaf5d2cc0e44b63a1a99",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hu-rHU/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "3a8046607b98ed8df8f2dfc31b128683d8c856d11df71e57a14c06d2c9ad917f",
+      "selected_sha256": "dc58f30bf61a6d79a13ce52b2ec75b94a281032cb70961eba68f51763fe2c428",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-it-rIT/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "624ef5552ecf15c3b0a4547bc8d1a7a3464cf9f54382d594314be7af5e1dd2b4",
+      "selected_sha256": "1fd3df5d69764079507a9247f175455a88d405decb2a328fbd4d234a169e2e1e",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-iw-rIL/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "54666a14185ca6730130c9a1309ce2f0e64b52efdfa486443b64c917ae7d0439",
+      "selected_sha256": "e95f68eda57d3a72ae4714d32bc20a04493516826ca9621415224dbc3a8feb0b",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ja-rJP/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "f0fd94294d297e14330c92030a2cfad06a1e8ae9b0e64b958c2f22c674e4b566",
+      "selected_sha256": "37a8f9e070d3d01fe1ab99bb7f763b759f15f5f4477eab848bdc15284e26e118",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ko-rKR/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "50c5e2728e6e62cca6464a0948a2239c1681288e99d6eb11a033883a494b3295",
+      "selected_sha256": "2ec0deba02adffc09d2d614a4241ced379c35e95f6343dd03c1fc73ce951a6ff",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-lt-rLT/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "e7350c232a5d232eba1d28257a9e43098ca725c95b149e1f1230aec042419b1e",
+      "selected_sha256": "6f3e93fd0f5885fb8162682cd47b0dc3470c646b9e27a7b40a1cc578b226bf97",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-lv-rLV/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "5e97ceca1440f8ca0b2a9e1fef65ae4b6fee26f4105602e7edc28b73080f836e",
+      "selected_sha256": "cf40c9c05adcbcc58d1c8fc82d1f4a249fca9d66718f2a0d0930d4cca1619fce",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-mt-rMT/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "f5616e1c0f15038e3ae5c08015b9e69613e992acdccfc58d4ef1648c281e8267",
+      "selected_sha256": "bfd5ec21974270b7db694121d604b2cbdbad75c3e11bebd7a48179f0ebdf03dc",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-nl-rNL/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "a28e826e8b2ff98a0c45fd9718ccdb53420b78035c4ce201635615dce8d29c95",
+      "selected_sha256": "eaab82d0662588f3b4defb1333be0f99d79917184f510b558435eb383f16d2bc",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-no-rNO/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "fa21400d2fe2d893fa60267783c144acc13853d1edf38335c18a10d3ed6e83e7",
+      "selected_sha256": "be89cacb30c3422ea4708f680233927ad671d64f7aebf6c74a0b96aeca3acea8",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pl-rPL/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "bcdece6b76d5e105d32626c607da5a15a1cd1a1d503d90e199d746670d68e433",
+      "selected_sha256": "4ee17af86e53ffbb73d36ac52dfbe6c3cfd20acbf662d3c36c3e24a7d7826a99",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pt-rBR/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "35b98d63af50daa461b6487e6bf606559853836f6b9721cb972d66ef7126ad31",
+      "selected_sha256": "c72054e6f9b6bd3d4ec93539000808880619d67bb65045b899ad403c9e351952",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pt-rPT/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "fc8c41dcf0cfb421dbfc3f2e47def97941c5a1c9bbc9cabf8d0a6367d5598987",
+      "selected_sha256": "357c75cf675977a9e3d18cd57c91376baeaf5f0af0afcaf2644c4269a1f59831",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ro-rRO/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "4c0bfce2b96bf5e1aa159b92f6995eb8f8b03bb70647e5111e48a58699cc920d",
+      "selected_sha256": "564347a93450a6faf357970736653ffd0621e79fb3a79e76eb2debb29567e235",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ru-rRU/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "e9c02228d0ae967c05cb9e926fbbf38d739e4843103af5edcea845adee72eace",
+      "selected_sha256": "c635dddc576678953cf67080050a27c762f8e75b80734b7ac3503a64857bc9c0",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sk-rSK/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "568a66764c15df59f8ad1a46bebef0d8766a543d0ffec93dc1d61c22a4b9d58d",
+      "selected_sha256": "576f00adbad6d31184fe833ed7796c5648ca93fa9dbb050880a5375d428292cf",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sl-rSI/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "f4978a0c3d745f75ccd6adb274e2d53b910b345c8d29e1fc7d2d9ca365dd5f25",
+      "selected_sha256": "23a745a95d34ee8f01cf616416830da79053b8e9ef6f2e3ef7090d6a5891b010",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sr-rSP/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "b5ea66cacb489c4ee873af8e38f3e04b1fe45846fa8216a4878cd030456dc747",
+      "selected_sha256": "6797c3fcaa0a9bf759aca2cd67f8e6ed3156721ae129c826c435a386b6d3d2ab",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sv-rSE/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "daaffba35f2ce503e2bd599d120296a72eb96d9bc818b3d935d576181277466b",
+      "selected_sha256": "28229113ac18d50152c6a06e2e6032956976c8012124943e0d69a61fac902aa1",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-tr-rTR/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "5d50f580ab98d9c4b1158bdf5476de5495f6cb06938da0618770aecde8242302",
+      "selected_sha256": "a17fd86db9f0f7d69826a26e8de10ae2737cc55e8e74d75c3334dbd5fa29d438",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-uk-rUA/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "f7045a88336b85c809382a19943ae6f3c76d7a0852656244b1c4abe67989ea0a",
+      "selected_sha256": "342773b711144c017c4bf97b21b5d45b7f9f31b38809c146ab9724f6663b84a9",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-vi-rVN/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "923efa7d23f02f0af84442552aa46e7d0f6af293d938a0e019bba3db102b488b",
+      "selected_sha256": "eeb8a66e1b5ce5ac71225055de65b71c9a32936166d1257835004c5a8b454001",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-zh-rCN/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "cded886739a720abc9b9e30206d1c96cca891b4213ae84e1abb387d61d8a2204",
+      "selected_sha256": "850227f85285e14ac9fc1df0939ff6ff8650ebe6b8d06204dbd2bec28f22a724",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-zh-rTW/measured_history_strings.xml",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "e1f56b8ceae94f846e76dc5d570e85c32a573510b9f9f727ca85e87b788a4e3c",
+      "selected_sha256": "04be62c460c1fdda0969547838bfeb472db6a90bb6e8800cb1a8cf89eba581a9",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypesTest.kt",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "2090327aba65f8363e73a93e3567995f31955d6fd196160a9f0af6c6cc9b65b3",
+      "selected_sha256": "dd3a94560b1a1147fcaac431205c63475bd4c61c52cedd2fa719000e389cf4e4",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/HistoryTypesComposeTest.kt",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "ccd68cd0b513f12c0b3bcc2008c26292486ff97edc8e3acfc9d483ee2b1a584b",
+      "selected_sha256": "924615591533fc2b459a471ad0653a92427a7dc1cae563b01c4596de16e0b944",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterDeleteTest.kt",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "3b44553c2ac46b260c6c70f36dac8bb74eb8a0df534f13a90a3c6acaa7768509",
+      "selected_sha256": "2d0b647eaef2e9b6168637a105486e4f40370c32bc73b8ad0450364110a3bad8",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "7865fe54408722d4a1dbad061e129ba661fc86330d4da7f56041fe6dfb4a6a31",
+      "selected_sha256": "ff7321592e04f7af03c7f3d52fa6ad24ea468e0ad01d874c4997372fdc7ce6a4",
+      "selected_lf": true
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/CalendarContentComposeTest.kt",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "7108190917c46e7b1da122555a5536ee4eda96c00c00e2acf7edc91ba49b2380",
+      "selected_sha256": "b1aceae38bba94844e453a6da2fe2ca941501af6ec9f340c3e4324bfa3e7c48b",
+      "selected_lf": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredCalendarRangeInvalidationRoomTest.kt",
+      "base_matches_current_committed_bytes": true,
+      "base_lf_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "8cec9ce2b232c8d3f77c78e38977c321df207c9cdcae18e61c533b0417df386e",
+      "selected_lf": true
+    }
+  ]
+}

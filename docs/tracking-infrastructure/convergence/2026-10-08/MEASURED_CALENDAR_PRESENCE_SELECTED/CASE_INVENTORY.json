@@ -1,0 +1,175 @@
+{
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "execution": "NOT_RUN",
+  "files": [
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/viewmodel/HistoryTypesTest.kt",
+      "method_names": [
+        "`has all expected values`",
+        "`TripEntry id is prefixed with trip_`",
+        "`TripEntry default isDistancePlausible is true`",
+        "`DiscoveryEntry stores all fields`",
+        "`DaySummaryEntry id is prefixed with day_`",
+        "`Loading is singleton`",
+        "`Empty is singleton`",
+        "`Content stores entries`",
+        "`stores all fields`",
+        "`equality works`",
+        "`default values`",
+        "`DayDetail stores all fields`",
+        "`default values are zero`",
+        "`stores all fields`",
+        "`walking returns Walk`",
+        "`running returns Run`",
+        "`cycling returns Cycle`",
+        "`driving returns Drive`",
+        "`null returns Trip`",
+        "`unknown value returns Trip`",
+        "`negative value returns Trip`",
+        "`native activity values return specific labels`",
+        "`meters below 1000 formatted as meters`",
+        "`exactly 1000 meters formatted as km`",
+        "`above 1000 meters formatted as km`",
+        "`zero meters`",
+        "`large distance`",
+        "`returns non-null icon for all known types`",
+        "`null and unknown values return the same fallback icon`",
+        "`transit placeholder id 4 returns a distinct icon from fallback`"
+      ],
+      "new_method_names": [],
+      "removed_or_renamed_method_names": [],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/HistoryTypesComposeTest.kt",
+      "method_names": [
+        "`activityLabel returns Walk for 7`",
+        "`activityLabel returns Run for 8`",
+        "`activityLabel returns Cycle for 1`",
+        "`activityLabel returns Drive for 0`",
+        "`activityLabel returns Trip for null`",
+        "`activityLabel returns Trip for unknown value`",
+        "`activityIcon returns walk icon for 7`",
+        "`activityIcon returns run icon for 8`",
+        "`activityIcon returns bike icon for 1`",
+        "`activityIcon returns car icon for 0`",
+        "`activityIcon returns train icon for 4`",
+        "`activityIcon returns route icon for null`",
+        "`activityIcon returns route icon for unknown value`",
+        "`activityIcon returns walk icon for native walking constant`",
+        "`formatDistanceLabel returns km for distances over 1000m`",
+        "`formatDistanceLabel returns m for distances under 1000m`",
+        "`formatDistanceLabel returns 0 m for zero`",
+        "`formatDistanceLabel returns km at boundary 1000m`",
+        "`HistoryTab has three values`",
+        "`HistoryTab values are correct`",
+        "`TripEntry id is prefixed with trip_`",
+        "`DaySummaryEntry id is prefixed with day_`",
+        "`DiscoveryEntry uses provided id`",
+        "`CalendarState defaults have expected values`",
+        "`ExplorationStats defaults to zero`",
+        "`CalendarDayData holds correct values`"
+      ],
+      "new_method_names": [],
+      "removed_or_renamed_method_names": [],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterDeleteTest.kt",
+      "method_names": [
+        "`requestDeleteTrip adds id to pendingDeletes`",
+        "`undoDeleteTrip removes id from pendingDeletes`",
+        "`confirmDeleteTrip removes from pending and calls repository delete`",
+        "`delete deadline commits trip from viewModelScope`",
+        "`undo before delete deadline prevents repository deletion`",
+        "`cancelling snackbar collector does not cancel ViewModel delete deadline`",
+        "`restored pending delete commits immediately after recreation`",
+        "`multiple pending deletes are tracked independently`"
+      ],
+      "new_method_names": [],
+      "removed_or_renamed_method_names": [],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt",
+      "method_names": [
+        "`default tab is TIMELINE`",
+        "`selectTab updates selectedTab`",
+        "`selected tab and calendar state survive recreation`",
+        "`restored Timeline selection does not observe its saved calendar day`",
+        "`Timeline requests all six sources without a trip prerequisite or age cutoff`",
+        "`Calendar uses the same source list and the actual 23-hour selected day`",
+        "`changing the selected day creates a distinct observation paging generation`",
+        "`month navigation clears the observation day instead of displaying stale rows`",
+        "`changing the displayed zone rebuilds the selected-day query`",
+        "`Calendar dots come from saved source readings with no trip or distance prerequisite`",
+        "`a rejected raw frontier stays loading and resumes until an older qualified reading`",
+        "`a failed source keeps a healthy dot and Retry refreshes the existing month observer`",
+        "`destructive invalidation clears prior dots while the new epoch is loading`",
+        "`month dots use real local DST days and restart after displayed zone changes`",
+        "`changing only the selected day does not rescan the entire month`",
+        "`a snapshot mismatch cannot retain dots from two epochs`",
+        "`requestDeleteTrip adds tripId to pendingDeletes`",
+        "`undoDeleteTrip removes tripId from pendingDeletes`",
+        "`confirmDeleteTrip removes from pendingDeletes and calls repository`",
+        "`multiple pending deletes accumulate`",
+        "`explorationStats maps cell count from repository`"
+      ],
+      "new_method_names": [
+        "`Calendar dots come from saved source readings with no trip or distance prerequisite`",
+        "`a rejected raw frontier stays loading and resumes until an older qualified reading`",
+        "`a failed source keeps a healthy dot and Retry refreshes the existing month observer`",
+        "`destructive invalidation clears prior dots while the new epoch is loading`",
+        "`month dots use real local DST days and restart after displayed zone changes`",
+        "`changing only the selected day does not rescan the entire month`",
+        "`a snapshot mismatch cannot retain dots from two epochs`"
+      ],
+      "removed_or_renamed_method_names": [
+        "`loadCalendarMonth populates dayData with intensity`"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/CalendarContentComposeTest.kt",
+      "method_names": [
+        "`calendar app locale and selection semantics preserve actual day action`",
+        "`calendar shows month header`",
+        "`calendar shows navigation arrows`",
+        "`month arrows change month without selecting a synthetic day`",
+        "`calendar renders day numbers`",
+        "`clicking a day triggers onDayClick`",
+        "`selected day with detail shows stats`",
+        "`selected day renders materializing Steps without fabricated zero`",
+        "`selected day renders partial Steps as incomplete`",
+        "`no selected day hides detail section`",
+        "`trip card in day detail triggers navigation`",
+        "`calendar with empty day data still renders grid`",
+        "`calendar with saved-data days renders the grid`",
+        "`a saved source day has one data dot and accessible recorded-data description`",
+        "`a session annotation with no saved reading does not invent a data dot`",
+        "`loading and source Retry retain an already qualified sibling day`"
+      ],
+      "new_method_names": [
+        "`calendar with saved-data days renders the grid`",
+        "`a saved source day has one data dot and accessible recorded-data description`",
+        "`a session annotation with no saved reading does not invent a data dot`",
+        "`loading and source Retry retain an already qualified sibling day`"
+      ],
+      "removed_or_renamed_method_names": [
+        "`calendar with intensity data renders without crash`"
+      ],
+      "execution": "NOT_RUN"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredCalendarRangeInvalidationRoomTest.kt",
+      "method_names": [
+        "`an older measured mutation still invalidates the month when its first page is identical`"
+      ],
+      "new_method_names": [
+        "`an older measured mutation still invalidates the month when its first page is identical`"
+      ],
+      "removed_or_renamed_method_names": [],
+      "execution": "NOT_RUN"
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.statistics.viewmodel
 
+import com.adsamcik.tracker.stats.api.repository.HistoryProblem
+
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
@@ -112,8 +114,7 @@ sealed interface TimelineState {
 @Immutable
 data class CalendarDayData(
 	val date: LocalDate,
-	val intensity: Float,
-	val tripCount: Int,
+	val hasSavedData: Boolean = true,
 )
 
 /**
@@ -125,6 +126,8 @@ data class CalendarState(
 	val dayData: Map<LocalDate, CalendarDayData> = emptyMap(),
 	val selectedDay: LocalDate? = null,
 	val selectedDayDetail: DayDetail? = null,
+    val monthLoading: Boolean = false,
+    val monthProblems: Set<HistoryProblem> = emptySet(),
 ) {
 	/**
 	 * Detail for a selected day showing trips and aggregate stats.

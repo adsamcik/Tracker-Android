@@ -3,4 +3,5 @@
     <string name="history_measurements_empty">Nema zabilježenih podataka</string>
     <string name="history_show_details">Prikaži pojedinosti</string>
     <string name="history_hide_details">Sakrij pojedinosti</string>
+    <string name="history_calendar_recorded_day">Dan %1$d, zabilježeni podaci</string>
 </resources>

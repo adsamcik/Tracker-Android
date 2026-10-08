@@ -3,4 +3,5 @@
     <string name="history_measurements_empty">لا توجد بيانات مسجلة</string>
     <string name="history_show_details">إظهار التفاصيل</string>
     <string name="history_hide_details">إخفاء التفاصيل</string>
+    <string name="history_calendar_recorded_day">اليوم %1$d، بيانات مسجلة</string>
 </resources>

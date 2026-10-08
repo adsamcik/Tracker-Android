@@ -940,3 +940,9 @@ Exact V2 selected source and independent review: `../2026-10-08/SAVED_LOCATION_A
 - [x] Decorate already-qualified six-source observations with overlapping session names in expanded details; each observation remains one row. Imported labels use exact saved parent/Location archive membership, without capture-purpose restrictions on ordinary retrospective annotations. Eleven methods NOT_RUN; native radio imported-alias names remain a held companion.
 
 Exact accepted source/review: `../2026-10-08/MEASURED_HISTORY_ORGANIZATION_SELECTED/` and `MEASURED_HISTORY_ORGANIZATION_REVIEW/ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN; no gates, activation or integration.
+
+### October 8 - measured calendar presence
+
+- [x] Use the shared six-source measured-date readers for Calendar dots, bounded progressing per-day frontiers, selected month/zone guards and same-source Retry. Preserve healthy dots during sibling failure and reset destructive snapshots. Remove distance shading/legend across 40 locale files. Twelve new or renamed methods plus three adapted cases NOT_RUN; no query/device timing proof.
+
+Exact accepted source/review: `../2026-10-08/MEASURED_CALENDAR_PRESENCE_SELECTED/` and `MEASURED_CALENDAR_PRESENCE_REVIEW/ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN; no gates, activation or integration.

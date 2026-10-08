@@ -3,4 +3,5 @@
     <string name="history_measurements_empty">Nav ierakstītu datu</string>
     <string name="history_show_details">Rādīt informāciju</string>
     <string name="history_hide_details">Paslēpt informāciju</string>
+    <string name="history_calendar_recorded_day">%1$d. diena, ierakstīti dati</string>
 </resources>

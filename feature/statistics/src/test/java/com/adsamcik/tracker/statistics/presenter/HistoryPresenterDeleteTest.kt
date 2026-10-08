@@ -178,17 +178,12 @@ class HistoryPresenterDeleteTest {
 			createMockTripPresentationRepository(),
 		savedStateHandle: SavedStateHandle = SavedStateHandle(),
 	): HistoryPresenterViewModel {
-		val dailySummaryRepository: com.adsamcik.tracker.stats.api.repository.DailySummaryRepository =
-			mockk(relaxed = true) {
-				every { observeBetween(any(), any()) } returns kotlinx.coroutines.flow.flowOf(emptyList())
-			}
 		val explorationRepository: com.adsamcik.tracker.stats.api.repository.ExplorationRepository =
 			mockk(relaxed = true) {
 				every { observeCellCount(any()) } returns kotlinx.coroutines.flow.flowOf(0)
 			}
 		return HistoryPresenterViewModel(
 			tripPresentationRepository = tripPresentationRepository,
-			dailySummaryRepository = dailySummaryRepository,
 			trackingHistoryRepository = mockk(relaxed = true),
 			explorationRepository = explorationRepository,
 			savedStateHandle = savedStateHandle,

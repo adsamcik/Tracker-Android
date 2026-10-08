@@ -1,0 +1,26 @@
+{
+  "source_only": true,
+  "tests": "NOT_RUN",
+  "organization_acceptance_sha256": "cdf13d6dae07fa5a3d8d1d9f706ce6d1b39c3bbbe6b82883dc00b7b881dc051c",
+  "calendar_acceptance_sha256": "eed3cacc78705f5d334934b092c76211142c3ae16836d796dbe0a6feac5f2889",
+  "organization_dependencies_changed_by_calendar": [],
+  "calendar_dependencies_changed_by_accepted_organization": [
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistory.kt",
+      "calendar_pinned_base_sha256": "1336a0d0bc9fc4c51cd6e3d426f7a2015a5a1b269b050b34f1fb46baae43ed29",
+      "accepted_organization_selected_sha256": "5ace726bfa0549efddf35af46fb00c0d0da762f3dcbb78fcc1e07a88a7add32d"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "calendar_pinned_base_sha256": "06be7ba131ecd930d10448d497f838692e7cc1ccf14f3681eb1adae0b98e642f",
+      "accepted_organization_selected_sha256": "18323b320f631ab87d1aa5a8b949dcdaa0a5667ac68ed2b7788145ad759c363f"
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/MeasuredHistoryContent.kt",
+      "calendar_pinned_base_sha256": "d0fad8bbecb124a8aa8fa4c7e48089614c60827880d83dac9accd1c11000cb5d",
+      "accepted_organization_selected_sha256": "6c546d0d8013e280dd9f42bffc9a8bddb61dab287e7b079257a03d24a4b66ebc"
+    }
+  ],
+  "primary_path_overlap": [],
+  "disposition": "Only these exact reviewed Organization source overlays replace Calendar baseline dependencies in a second logical selection. No arbitrary drift, execution acceptance or integration readiness is authorized."
+}

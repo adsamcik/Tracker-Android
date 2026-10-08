@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,11 +36,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -76,6 +77,7 @@ internal fun CalendarContent(
 	onViewSessionsForDay: ((LocalDate) -> Unit)? = null,
 	modifier: Modifier = Modifier,
 	observations: (@Composable () -> Unit)? = null,
+    onRetryMonth: () -> Unit = {},
 ) {
 	Column(modifier = modifier.fillMaxSize()) {
 		MonthHeader(
@@ -91,6 +93,18 @@ internal fun CalendarContent(
 			selectedDay = state.selectedDay,
 			onDayClick = onDayClick,
 		)
+
+        if (state.monthLoading) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(Modifier.size(20.dp).testTag("calendar_loading"))
+        }
+        state.monthProblems.distinctBy { it.source }.sortedBy { it.source?.ordinal ?: -1 }.forEach { problem ->
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(problem.source?.let { stringResource(it.labelResource) }
+                    ?: stringResource(R.string.history_screen_title), Modifier.weight(1f))
+                Text(stringResource(R.string.history_value_unavailable))
+                TextButton(onClick = onRetryMonth) { Text(stringResource(R.string.action_retry)) }
+            }
+        }
 
 		if (onViewSessionsForDay != null) {
 			state.selectedDay?.let { day -> TextButton(onClick = { onViewSessionsForDay(day) }) {
@@ -194,7 +208,7 @@ private fun CalendarGrid(
 						val data = dayData[date]
 						CalendarCell(
 							dayNum = dayNum,
-							intensity = data?.intensity ?: 0f,
+							hasSavedData = data?.hasSavedData == true,
 							hasOrganization = date in organizationDays,
 							isSelected = date == selectedDay,
 							isToday = date == LocalDate.now(),
@@ -213,7 +227,7 @@ private fun CalendarGrid(
 @Composable
 private fun CalendarCell(
 	dayNum: Int,
-	intensity: Float,
+	hasSavedData: Boolean,
 	hasOrganization: Boolean,
 	isSelected: Boolean,
 	isToday: Boolean,
@@ -222,11 +236,6 @@ private fun CalendarCell(
 ) {
 	val bgColor = when {
 		isSelected -> MaterialTheme.colorScheme.primaryContainer
-		intensity > 0f -> lerp(
-			MaterialTheme.colorScheme.surfaceVariant,
-			MaterialTheme.colorScheme.primary,
-			intensity.coerceIn(0f, 1f) * 0.6f,
-		)
 		else -> Color.Transparent
 	}
 	val textColor = when {
@@ -236,7 +245,11 @@ private fun CalendarCell(
 	}
 
 	val locale = LocalContext.current.resources.configuration.locales[0]
-	val description = stringResource(if (hasOrganization) R.string.organization_calendar_day else R.string.history_calendar_day, dayNum)
+	val description = stringResource(when {
+        hasSavedData -> R.string.history_calendar_recorded_day
+        hasOrganization -> R.string.organization_calendar_day
+        else -> R.string.history_calendar_day
+    }, dayNum)
 	Box(
 		modifier = modifier
 			.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
@@ -251,7 +264,8 @@ private fun CalendarCell(
 			},
 		contentAlignment = Alignment.Center,
 	) {
-		if (hasOrganization) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp).size(4.dp).background(textColor, CircleShape))
+		if (hasSavedData) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp).size(4.dp)
+            .background(textColor, CircleShape).testTag("calendar_saved_day_$dayNum"))
 		Text(
 			text = String.format(locale, "%d", dayNum),
 			style = if (isToday) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodySmall,
@@ -419,7 +433,7 @@ private fun CalendarContentPreview() {
 	val month = YearMonth.from(today)
 	val sampleDayData = (1..today.dayOfMonth).associate { day ->
 		val date = month.atDay(day)
-		date to CalendarDayData(date = date, intensity = (day % 5) * 0.25f, tripCount = day % 3)
+		date to CalendarDayData(date = date)
 	}
 	AppTheme {
 		CalendarContent(
