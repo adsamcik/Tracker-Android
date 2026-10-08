@@ -1,0 +1,34 @@
+{
+  "packet": "PRESSURE_ORIGINAL_CLOCK_SELECTED",
+  "head": "d0098b37c5fd4adc8c22d5ef38d252039d7a6b07",
+  "phase": "IMPLEMENTATION_ONLY",
+  "test_execution": "NOT_RUN",
+  "manifest_hashes": {
+    "FILES.json": "11622e7bcf9e15860a2061c3da953529e26475569175ca3be2ad87ef223073e3",
+    "SELECTION.patch": "142289c6675d876828ff99467f4a49e53aff2a797878e0eca19795c8664a88ed",
+    "DEPENDENCIES.json": "13252864948806a26d5eb7110f331269ba44487901601b6af64143302e1a415d",
+    "SOURCE_BOUNDARY.md": "c1f1dfae70add788285ca4ee7413054544fd33d1a736ac0269ca4af459fe99cf",
+    "CASE_INVENTORY.json": "b0a7a3bc2ac8fc0b2ca86b910ebc3b038add1c95e17e1973383c721474881487"
+  },
+  "selected_base_raw_checked": 3,
+  "committed_dependency_pins_checked": 11,
+  "drift": [],
+  "additional_actual_consumers": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/DefaultSourceLifecycleProofAdapter.kt",
+      "sha256": "1ecb3accc88af00e00d9511805af46d2166b7b7d236113787b668caabb5df91c"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultSourceFactQueryRepository.kt",
+      "sha256": "f64e96b68dd80f9e04706862055de3453579ba0dc7516abcc7c4851e318def30"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/deletion/RoomPressureSelectedSessionDeletionService.kt",
+      "sha256": "95605bdde11101c1f7fd463a069527beee4f2cb3fe2736b5142304460269e97f"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/PressureRetentionTruncation.kt",
+      "sha256": "d90a48fc57857480ecbb65f55d000690d8c58f7deba376bd2b2bf19340088e94"
+    }
+  ]
+}

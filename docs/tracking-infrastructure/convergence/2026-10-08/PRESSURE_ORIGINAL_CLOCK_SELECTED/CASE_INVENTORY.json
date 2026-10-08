@@ -1,0 +1,18 @@
+[
+  {
+    "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticatorTest.kt",
+    "new_methods": [
+      "correction lineage preserves original readings through backwards UTC changes",
+      "repeated UTC timestamps do not replace sensor identity and increasing original sequence"
+    ],
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+    "new_methods": [
+      "saved Pressure remains readable when UTC moves back after source authorization",
+      "saved Pressure uses original Stop elapsed boundary when UTC moves past its display time"
+    ],
+    "status": "NOT_RUN"
+  }
+]

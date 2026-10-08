@@ -49,7 +49,6 @@ import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureResult
 import com.adsamcik.tracker.stats.api.repository.ExportSelectedPortablePressureRequest
-import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureResult
 import com.adsamcik.tracker.stats.api.repository.PortablePressureAvailability
@@ -123,6 +122,27 @@ class PressureHistorySelectorTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `saved Pressure remains readable when UTC moves back after source authorization`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L,
+			factIntervalEndTimeMs = 650L, factReceivedWallTimeMs = 600L)
+		val selected = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		selected.windows.single().intervalStartTimeMs shouldBe 500L
+		selected.windows.single().intervalEndTimeMs shouldBe 650L
+		// A changed UTC clock does not weaken the original registration's elapsed boundary.
+		replacePressureRegistration { registration -> registration.copy(
+			acceptedElapsedRealtimeNanos = PRESSURE_START_ELAPSED_NANOS + 1L) }
+		requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows shouldBe emptyList()
+	}
+
+	@Test
+	fun `saved Pressure uses original Stop elapsed boundary when UTC moves past its display time`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L, factIntervalEndTimeMs = 4_500L)
+		val selected = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		selected.windows.single().intervalStartTimeMs shouldBe 4_350L
+		selected.windows.single().intervalEndTimeMs shouldBe 4_500L
+	}
 
 	@Test
 	fun `saved Pressure survives a later lifecycle generation without changing original measurements`() = runTest {
@@ -2607,6 +2627,8 @@ class PressureHistorySelectorTest {
 		laneCutoffOrdinal: Long? = null,
 		laneRetentionRequired: Boolean = true,
 		laneStatus: String = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+		factIntervalEndTimeMs: Long = PRESSURE_END_MS,
+		factReceivedWallTimeMs: Long? = null,
 		factExpectedSampleCount: Int = 4,
 		factEffectiveSamplePeriodMicros: Int = 50_000,
 		factEffectiveMaximumReportLatencyMicros: Int = 0,
@@ -2692,6 +2714,8 @@ class PressureHistorySelectorTest {
 				binding = binding,
 				semanticRevision = revision,
 				admissionOrdinal = factAdmissionOrdinal,
+				intervalStartTimeMs = factIntervalEndTimeMs - (PRESSURE_END_MS - PRESSURE_START_MS),
+				intervalEndTimeMs = factIntervalEndTimeMs,
 				expectedSampleCount = factExpectedSampleCount,
 				effectiveSamplePeriodMicros = factEffectiveSamplePeriodMicros,
 				effectiveMaximumReportLatencyMicros =
@@ -2699,7 +2723,10 @@ class PressureHistorySelectorTest {
 				closureKind = factClosureKind,
 				qualification = factQualification,
 			)
-			val wal = pressureWal(fact)
+			val wal = pressureWal(fact).let { original ->
+				factReceivedWallTimeMs?.let { received -> rehashPressureWal(original.copy(
+					receivedWallTimeMs = received, createdAtMs = received)) } ?: original
+			}
 			insertPressureWalAuthority(fact, wal, binding, manifest, run)
 			database.sourceEventWalDao().insertIgnoringDuplicate(wal)
 			database.pressureFactRevisionDao().insert(fact)

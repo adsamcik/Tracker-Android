@@ -230,6 +230,7 @@ object PressureFactProofAuthenticator {
 			if (stableAuthority?.let { it != authority } == true) {
 				return rejectedLineage(PressureFactProofFailure.LINEAGE_INCOMPLETE)
 			}
+			// Original sensor-clock order is stable even when saved UTC timestamps repeat or jump.
 			val priorFact = previousFact
 			val priorWal = previousWal
 			if (priorFact != null && priorWal != null && (
@@ -239,12 +240,7 @@ object PressureFactProofAuthenticator {
 						requireNotNull(wal.observedIntervalStartNanos) <=
 						requireNotNull(priorWal.observedIntervalStartNanos) ||
 						wal.observedElapsedNanos <= priorWal.observedElapsedNanos ||
-						wal.receivedElapsedNanos <= priorWal.receivedElapsedNanos ||
-						requireNotNull(wal.wallTimeMs) <= requireNotNull(priorWal.wallTimeMs) ||
-						requireNotNull(wal.receivedWallTimeMs) <=
-						requireNotNull(priorWal.receivedWallTimeMs) ||
-						wal.acquiredAtMs <= priorWal.acquiredAtMs ||
-						wal.createdAtMs <= priorWal.createdAtMs
+						wal.receivedElapsedNanos <= priorWal.receivedElapsedNanos
 					)
 			) {
 				return rejectedLineage(PressureFactProofFailure.LINEAGE_INCOMPLETE)
@@ -294,9 +290,10 @@ object PressureFactProofAuthenticator {
 			?: return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
 		val wallTimeMs = wal.wallTimeMs
 			?: return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
-		val receivedWallTimeMs = wal.receivedWallTimeMs
-			?: return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
-		if (receivedWallTimeMs < wallTimeMs || wal.acquiredAtMs != wallTimeMs) {
+		if (wal.receivedWallTimeMs == null) {
+			return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
+		}
+		if (wal.acquiredAtMs != wallTimeMs) {
 			return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
 		}
 
@@ -368,8 +365,6 @@ object PressureFactProofAuthenticator {
 			?: return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
 		val providerStart = providerAuthentication.interval.startInclusiveNanos
 		val providerEnd = providerAuthentication.interval.endExclusiveNanos
-		val providerAcceptedAtMs = provider.acceptedAtMs
-			?: return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
 		val authorizationRows = snapshot.authorizationsByRegistration[wal.registrationGeneration]
 			.orEmpty()
 		val exactRows = authorizationRows.filter {
@@ -452,11 +447,8 @@ object PressureFactProofAuthenticator {
 				(run.leaseGeneration != session.lifecycleLeaseGeneration || run.bootId != session.lifecycleBootId)) ||
 			session.lifecycleLeaseGeneration < leaseGeneration ||
 			run.startedElapsedNanos > observedStart ||
-			run.startedAtMs > wallTimeMs ||
 			(session.clockDomainId == wal.clockDomainId && session.startedElapsedNanos > observedStart) ||
-			session.startedAtMs > wallTimeMs ||
 			observedEnd >= sessionEnd ||
-			session.cutoffAtMs?.let { wallTimeMs > it } == true ||
 			manifest.logicalTrackingId != logicalTrackingId ||
 			manifest.serviceRunId != serviceRunId ||
 			manifest.sourcePolicyRevision != sourcePolicyRevision ||
@@ -464,7 +456,6 @@ object PressureFactProofAuthenticator {
 			manifest.effectiveBootId != wal.clockDomainId ||
 			manifest.effectiveElapsedRealtimeNanos > observedStart ||
 			observedEnd >= manifestEnd ||
-			manifest.effectiveWallTimeMs > wallTimeMs ||
 			binding.consentEpoch != captureConsentEpoch ||
 			planHeader.revision != configurationRevision ||
 			planHeader.sourcePolicyRevision != sourcePolicyRevision ||
@@ -480,19 +471,16 @@ object PressureFactProofAuthenticator {
 				wal,
 				providerStart,
 				providerEnd,
-				providerAcceptedAtMs,
 			) ||
 			authorization.effectiveElapsedRealtimeNanos > observedStart ||
 			observedEnd >= authorizationEnd ||
-			exactRows.any { it.effectiveWallTimeMs > wallTimeMs } ||
-			!policy.authenticates(wal, binding, observedStart, wallTimeMs) ||
-			!consent.authenticates(wal, observedStart, wallTimeMs) ||
+			!policy.authenticates(wal, binding, observedStart) ||
+			!consent.authenticates(wal, observedStart) ||
 			demands.any {
 				!it.authenticatesPressureAuthority(
 					wal,
 					binding,
 					authorization.effectiveElapsedRealtimeNanos,
-					exactRows.first().effectiveWallTimeMs,
 					authorizationEnd,
 					desiredPlan,
 					payload,
@@ -525,10 +513,6 @@ object PressureFactProofAuthenticator {
 				manifest = manifest,
 				configurationRevision = configurationRevision,
 				appliedAtElapsedNanos = appliedAt,
-				providerAcceptedAtMs = providerAcceptedAtMs,
-				authorizationEffectiveWallTimeMs = exactRows.first().effectiveWallTimeMs,
-				policyEffectiveWallTimeMs = policy.effectiveWallTimeMs,
-				consentEffectiveWallTimeMs = consent.effectiveWallTimeMs,
 				observedStartNanos = observedStart,
 			)
 		) return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
@@ -922,7 +906,6 @@ private fun ProviderRegistrationGenerationEntity.authenticates(
 	wal: SourceEventWalEntity,
 	providerStart: Long,
 	providerEnd: Long,
-	providerAcceptedAtMs: Long,
 ): Boolean {
 	return sourceKind == PRESSURE_SOURCE &&
 		registrationGeneration == wal.registrationGeneration &&
@@ -937,12 +920,9 @@ private fun ProviderRegistrationGenerationEntity.authenticates(
 		clockDomainId == wal.clockDomainId &&
 		physicalConfigurationFingerprint == wal.physicalConfigurationFingerprint &&
 		collectedDataEpoch == wal.capturedCollectedDataEpoch &&
-		reservedAtMs <= providerAcceptedAtMs &&
 		reservedElapsedRealtimeNanos <= providerStart &&
 		providerStart <= requireNotNull(wal.observedIntervalStartNanos) &&
 		wal.observedElapsedNanos < providerEnd &&
-		providerAcceptedAtMs <= requireNotNull(wal.wallTimeMs) &&
-		retiredAtMs?.let { it >= providerAcceptedAtMs } != false &&
 		retiredElapsedRealtimeNanos?.let { it >= providerStart } != false
 }
 
@@ -951,7 +931,6 @@ private fun SourcePolicyEntity.authenticates(
 	wal: SourceEventWalEntity,
 	binding: SessionManifestSourceEntity,
 	observedStart: Long,
-	wallTimeMs: Long,
 ): Boolean =
 	policyRevision == wal.sourcePolicyRevision &&
 		sourceKind == PRESSURE_SOURCE &&
@@ -960,13 +939,12 @@ private fun SourcePolicyEntity.authenticates(
 		qosCode == binding.qosCode &&
 		effectiveBootId == wal.clockDomainId &&
 		effectiveElapsedRealtimeNanos <= observedStart &&
-		effectiveWallTimeMs <= wallTimeMs
+		effectiveWallTimeMs >= 0L
 
 @Suppress("ComplexCondition")
 private fun SourceConsentEpochEntity.authenticates(
 	wal: SourceEventWalEntity,
 	observedStart: Long,
-	wallTimeMs: Long,
 ): Boolean =
 	sourceKind == PRESSURE_SOURCE &&
 		purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
@@ -975,14 +953,13 @@ private fun SourceConsentEpochEntity.authenticates(
 		policyRevision <= requireNotNull(wal.sourcePolicyRevision) &&
 		effectiveBootId == wal.clockDomainId &&
 		effectiveElapsedRealtimeNanos <= observedStart &&
-		effectiveWallTimeMs <= wallTimeMs
+		effectiveWallTimeMs >= 0L
 
 @Suppress("ComplexCondition")
 private fun SourceDemandEntity.authenticatesPressureAuthority(
 	wal: SourceEventWalEntity,
 	binding: SessionManifestSourceEntity,
 	authorizationEffectiveElapsedNanos: Long,
-	authorizationEffectiveWallTimeMs: Long,
 	authorizationEndNanos: Long,
 	plan: StoredPressurePlan,
 	payload: PressureWalPayload,
@@ -1004,7 +981,6 @@ private fun SourceDemandEntity.authenticatesPressureAuthority(
 		purpose in PRESSURE_AUTHORITY_PURPOSES &&
 		requestedBootId == wal.clockDomainId &&
 		requestedElapsedRealtimeNanos <= authorizationEffectiveElapsedNanos &&
-		requestedAtMs <= authorizationEffectiveWallTimeMs &&
 		retirementShape &&
 		(purpose != SourceBrokerPurpose.SESSION_CAPTURE || (
 			persistenceEligible &&
@@ -1055,10 +1031,6 @@ private fun LifecycleDesiredActionEntity.authenticates(
 	manifest: SessionManifestVersionEntity,
 	configurationRevision: Long,
 	appliedAtElapsedNanos: Long,
-	providerAcceptedAtMs: Long,
-	authorizationEffectiveWallTimeMs: Long,
-	policyEffectiveWallTimeMs: Long,
-	consentEffectiveWallTimeMs: Long,
 	observedStartNanos: Long,
 ): Boolean {
 	val acknowledgedWall = acknowledgedAtMs ?: return false
@@ -1087,14 +1059,7 @@ private fun LifecycleDesiredActionEntity.authenticates(
 		requestedElapsedRealtimeNanos <= appliedAtElapsedNanos &&
 		appliedAtElapsedNanos <= acknowledgedElapsed &&
 		acknowledgedElapsed <= observedStartNanos &&
-		maxOf(
-			providerAcceptedAtMs,
-			authorizationEffectiveWallTimeMs,
-			policyEffectiveWallTimeMs,
-			consentEffectiveWallTimeMs,
-			manifest.effectiveWallTimeMs,
-		) <= acknowledgedWall &&
-		acknowledgedWall <= requireNotNull(wal.receivedWallTimeMs)
+		acknowledgedWall >= 0L
 }
 
 private suspend fun <K, V> loadPressureProofChunks(

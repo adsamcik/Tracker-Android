@@ -1,0 +1,17 @@
+[
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticator.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "f6c9a83bce8fea1e2d13cb64120f52acfbf11a02e809ed2fa0c579b2829e1139"
+  },
+  {
+    "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticatorTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "8e292e1f9f294ee36fb4712413c4e5ef8fe8d5766885548bc63d9d7b29f1d140"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "63459c8f0beb53d0cb4fdb0ecacfe4956f8ba1b0ffaa9b09fe691274a5f9bcce"
+  }
+]

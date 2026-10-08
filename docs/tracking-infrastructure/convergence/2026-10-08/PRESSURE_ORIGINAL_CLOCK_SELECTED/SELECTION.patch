@@ -1,0 +1,299 @@
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticator.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticator.kt
+@@ -230,6 +230,7 @@
+ 			if (stableAuthority?.let { it != authority } == true) {
+ 				return rejectedLineage(PressureFactProofFailure.LINEAGE_INCOMPLETE)
+ 			}
++			// Original sensor-clock order is stable even when saved UTC timestamps repeat or jump.
+ 			val priorFact = previousFact
+ 			val priorWal = previousWal
+ 			if (priorFact != null && priorWal != null && (
+@@ -239,12 +240,7 @@
+ 						requireNotNull(wal.observedIntervalStartNanos) <=
+ 						requireNotNull(priorWal.observedIntervalStartNanos) ||
+ 						wal.observedElapsedNanos <= priorWal.observedElapsedNanos ||
+-						wal.receivedElapsedNanos <= priorWal.receivedElapsedNanos ||
+-						requireNotNull(wal.wallTimeMs) <= requireNotNull(priorWal.wallTimeMs) ||
+-						requireNotNull(wal.receivedWallTimeMs) <=
+-						requireNotNull(priorWal.receivedWallTimeMs) ||
+-						wal.acquiredAtMs <= priorWal.acquiredAtMs ||
+-						wal.createdAtMs <= priorWal.createdAtMs
++						wal.receivedElapsedNanos <= priorWal.receivedElapsedNanos
+ 					)
+ 			) {
+ 				return rejectedLineage(PressureFactProofFailure.LINEAGE_INCOMPLETE)
+@@ -294,9 +290,10 @@
+ 			?: return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
+ 		val wallTimeMs = wal.wallTimeMs
+ 			?: return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
+-		val receivedWallTimeMs = wal.receivedWallTimeMs
+-			?: return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
+-		if (receivedWallTimeMs < wallTimeMs || wal.acquiredAtMs != wallTimeMs) {
++		if (wal.receivedWallTimeMs == null) {
++			return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
++		}
++		if (wal.acquiredAtMs != wallTimeMs) {
+ 			return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+ 		}
+ 
+@@ -368,8 +365,6 @@
+ 			?: return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+ 		val providerStart = providerAuthentication.interval.startInclusiveNanos
+ 		val providerEnd = providerAuthentication.interval.endExclusiveNanos
+-		val providerAcceptedAtMs = provider.acceptedAtMs
+-			?: return rejectedWal(PressureFactProofFailure.IMMUTABLE_AUTHORITY_MISSING)
+ 		val authorizationRows = snapshot.authorizationsByRegistration[wal.registrationGeneration]
+ 			.orEmpty()
+ 		val exactRows = authorizationRows.filter {
+@@ -452,11 +447,8 @@
+ 				(run.leaseGeneration != session.lifecycleLeaseGeneration || run.bootId != session.lifecycleBootId)) ||
+ 			session.lifecycleLeaseGeneration < leaseGeneration ||
+ 			run.startedElapsedNanos > observedStart ||
+-			run.startedAtMs > wallTimeMs ||
+ 			(session.clockDomainId == wal.clockDomainId && session.startedElapsedNanos > observedStart) ||
+-			session.startedAtMs > wallTimeMs ||
+ 			observedEnd >= sessionEnd ||
+-			session.cutoffAtMs?.let { wallTimeMs > it } == true ||
+ 			manifest.logicalTrackingId != logicalTrackingId ||
+ 			manifest.serviceRunId != serviceRunId ||
+ 			manifest.sourcePolicyRevision != sourcePolicyRevision ||
+@@ -464,7 +456,6 @@
+ 			manifest.effectiveBootId != wal.clockDomainId ||
+ 			manifest.effectiveElapsedRealtimeNanos > observedStart ||
+ 			observedEnd >= manifestEnd ||
+-			manifest.effectiveWallTimeMs > wallTimeMs ||
+ 			binding.consentEpoch != captureConsentEpoch ||
+ 			planHeader.revision != configurationRevision ||
+ 			planHeader.sourcePolicyRevision != sourcePolicyRevision ||
+@@ -480,19 +471,16 @@
+ 				wal,
+ 				providerStart,
+ 				providerEnd,
+-				providerAcceptedAtMs,
+ 			) ||
+ 			authorization.effectiveElapsedRealtimeNanos > observedStart ||
+ 			observedEnd >= authorizationEnd ||
+-			exactRows.any { it.effectiveWallTimeMs > wallTimeMs } ||
+-			!policy.authenticates(wal, binding, observedStart, wallTimeMs) ||
+-			!consent.authenticates(wal, observedStart, wallTimeMs) ||
++			!policy.authenticates(wal, binding, observedStart) ||
++			!consent.authenticates(wal, observedStart) ||
+ 			demands.any {
+ 				!it.authenticatesPressureAuthority(
+ 					wal,
+ 					binding,
+ 					authorization.effectiveElapsedRealtimeNanos,
+-					exactRows.first().effectiveWallTimeMs,
+ 					authorizationEnd,
+ 					desiredPlan,
+ 					payload,
+@@ -525,10 +513,6 @@
+ 				manifest = manifest,
+ 				configurationRevision = configurationRevision,
+ 				appliedAtElapsedNanos = appliedAt,
+-				providerAcceptedAtMs = providerAcceptedAtMs,
+-				authorizationEffectiveWallTimeMs = exactRows.first().effectiveWallTimeMs,
+-				policyEffectiveWallTimeMs = policy.effectiveWallTimeMs,
+-				consentEffectiveWallTimeMs = consent.effectiveWallTimeMs,
+ 				observedStartNanos = observedStart,
+ 			)
+ 		) return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
+@@ -922,7 +906,6 @@
+ 	wal: SourceEventWalEntity,
+ 	providerStart: Long,
+ 	providerEnd: Long,
+-	providerAcceptedAtMs: Long,
+ ): Boolean {
+ 	return sourceKind == PRESSURE_SOURCE &&
+ 		registrationGeneration == wal.registrationGeneration &&
+@@ -937,12 +920,9 @@
+ 		clockDomainId == wal.clockDomainId &&
+ 		physicalConfigurationFingerprint == wal.physicalConfigurationFingerprint &&
+ 		collectedDataEpoch == wal.capturedCollectedDataEpoch &&
+-		reservedAtMs <= providerAcceptedAtMs &&
+ 		reservedElapsedRealtimeNanos <= providerStart &&
+ 		providerStart <= requireNotNull(wal.observedIntervalStartNanos) &&
+ 		wal.observedElapsedNanos < providerEnd &&
+-		providerAcceptedAtMs <= requireNotNull(wal.wallTimeMs) &&
+-		retiredAtMs?.let { it >= providerAcceptedAtMs } != false &&
+ 		retiredElapsedRealtimeNanos?.let { it >= providerStart } != false
+ }
+ 
+@@ -951,7 +931,6 @@
+ 	wal: SourceEventWalEntity,
+ 	binding: SessionManifestSourceEntity,
+ 	observedStart: Long,
+-	wallTimeMs: Long,
+ ): Boolean =
+ 	policyRevision == wal.sourcePolicyRevision &&
+ 		sourceKind == PRESSURE_SOURCE &&
+@@ -960,13 +939,12 @@
+ 		qosCode == binding.qosCode &&
+ 		effectiveBootId == wal.clockDomainId &&
+ 		effectiveElapsedRealtimeNanos <= observedStart &&
+-		effectiveWallTimeMs <= wallTimeMs
++		effectiveWallTimeMs >= 0L
+ 
+ @Suppress("ComplexCondition")
+ private fun SourceConsentEpochEntity.authenticates(
+ 	wal: SourceEventWalEntity,
+ 	observedStart: Long,
+-	wallTimeMs: Long,
+ ): Boolean =
+ 	sourceKind == PRESSURE_SOURCE &&
+ 		purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+@@ -975,14 +953,13 @@
+ 		policyRevision <= requireNotNull(wal.sourcePolicyRevision) &&
+ 		effectiveBootId == wal.clockDomainId &&
+ 		effectiveElapsedRealtimeNanos <= observedStart &&
+-		effectiveWallTimeMs <= wallTimeMs
++		effectiveWallTimeMs >= 0L
+ 
+ @Suppress("ComplexCondition")
+ private fun SourceDemandEntity.authenticatesPressureAuthority(
+ 	wal: SourceEventWalEntity,
+ 	binding: SessionManifestSourceEntity,
+ 	authorizationEffectiveElapsedNanos: Long,
+-	authorizationEffectiveWallTimeMs: Long,
+ 	authorizationEndNanos: Long,
+ 	plan: StoredPressurePlan,
+ 	payload: PressureWalPayload,
+@@ -1004,7 +981,6 @@
+ 		purpose in PRESSURE_AUTHORITY_PURPOSES &&
+ 		requestedBootId == wal.clockDomainId &&
+ 		requestedElapsedRealtimeNanos <= authorizationEffectiveElapsedNanos &&
+-		requestedAtMs <= authorizationEffectiveWallTimeMs &&
+ 		retirementShape &&
+ 		(purpose != SourceBrokerPurpose.SESSION_CAPTURE || (
+ 			persistenceEligible &&
+@@ -1055,10 +1031,6 @@
+ 	manifest: SessionManifestVersionEntity,
+ 	configurationRevision: Long,
+ 	appliedAtElapsedNanos: Long,
+-	providerAcceptedAtMs: Long,
+-	authorizationEffectiveWallTimeMs: Long,
+-	policyEffectiveWallTimeMs: Long,
+-	consentEffectiveWallTimeMs: Long,
+ 	observedStartNanos: Long,
+ ): Boolean {
+ 	val acknowledgedWall = acknowledgedAtMs ?: return false
+@@ -1087,14 +1059,7 @@
+ 		requestedElapsedRealtimeNanos <= appliedAtElapsedNanos &&
+ 		appliedAtElapsedNanos <= acknowledgedElapsed &&
+ 		acknowledgedElapsed <= observedStartNanos &&
+-		maxOf(
+-			providerAcceptedAtMs,
+-			authorizationEffectiveWallTimeMs,
+-			policyEffectiveWallTimeMs,
+-			consentEffectiveWallTimeMs,
+-			manifest.effectiveWallTimeMs,
+-		) <= acknowledgedWall &&
+-		acknowledgedWall <= requireNotNull(wal.receivedWallTimeMs)
++		acknowledgedWall >= 0L
+ }
+ 
+ private suspend fun <K, V> loadPressureProofChunks(
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticatorTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticatorTest.kt
+@@ -150,6 +150,33 @@
+ 		) shouldBe PressureFactLineageProof.Rejected(
+ 			PressureFactProofFailure.INTEGRITY_MISMATCH,
+ 		)
++	}
++
++	@Test
++	fun `correction lineage preserves original readings through backwards UTC changes`() {
++		val lineage = correctionLineage().mapIndexed { index, original ->
++			val end = 3_150L - index * 1_000L
++			val unsigned = original.copy(intervalStartTimeMs = end - WINDOW_DURATION_MS,
++				intervalEndTimeMs = end, appliedAtMs = end, effectChecksum = "pending")
++			unsigned.copy(effectChecksum = PressureFactRevisionIntegrity.effectChecksum(unsigned, binding()))
++		}
++		val result = assertIs<PressureFactLineageProof.Authenticated>(authenticate(
++			lineage, lineage.associate { it.sourceEventId to wal(it) }, expectation(lineage.last())))
++		result.revisions shouldBe lineage
++		result.current shouldBe lineage.last()
++	}
++
++	@Test
++	fun `repeated UTC timestamps do not replace sensor identity and increasing original sequence`() {
++		val lineage = correctionLineage().map { original ->
++			val unsigned = original.copy(intervalStartTimeMs = 2_000L - WINDOW_DURATION_MS,
++				intervalEndTimeMs = 2_000L, appliedAtMs = 2_000L, effectChecksum = "pending")
++			unsigned.copy(effectChecksum = PressureFactRevisionIntegrity.effectChecksum(unsigned, binding()))
++		}
++		val result = assertIs<PressureFactLineageProof.Authenticated>(authenticate(
++			lineage, lineage.associate { it.sourceEventId to wal(it) }, expectation(lineage.first())))
++		result.selected shouldBe lineage.first()
++		result.current shouldBe lineage.last()
+ 	}
+ 
+ 	private fun authenticate(
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt
+@@ -49,7 +49,6 @@
+ import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
+ import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureResult
+ import com.adsamcik.tracker.stats.api.repository.ExportSelectedPortablePressureRequest
+-import com.adsamcik.tracker.stats.api.repository.HistorySource
+ import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureRequest
+ import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureResult
+ import com.adsamcik.tracker.stats.api.repository.PortablePressureAvailability
+@@ -123,6 +122,27 @@
+ 
+ 	@After
+ 	fun tearDown() = database.close()
++
++	@Test
++	fun `saved Pressure remains readable when UTC moves back after source authorization`() = runTest {
++		val fixture = insertFixture(factSemanticRevision = 1L,
++			factIntervalEndTimeMs = 650L, factReceivedWallTimeMs = 600L)
++		val selected = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
++		selected.windows.single().intervalStartTimeMs shouldBe 500L
++		selected.windows.single().intervalEndTimeMs shouldBe 650L
++		// A changed UTC clock does not weaken the original registration's elapsed boundary.
++		replacePressureRegistration { registration -> registration.copy(
++			acceptedElapsedRealtimeNanos = PRESSURE_START_ELAPSED_NANOS + 1L) }
++		requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows shouldBe emptyList()
++	}
++
++	@Test
++	fun `saved Pressure uses original Stop elapsed boundary when UTC moves past its display time`() = runTest {
++		val fixture = insertFixture(factSemanticRevision = 1L, factIntervalEndTimeMs = 4_500L)
++		val selected = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
++		selected.windows.single().intervalStartTimeMs shouldBe 4_350L
++		selected.windows.single().intervalEndTimeMs shouldBe 4_500L
++	}
+ 
+ 	@Test
+ 	fun `saved Pressure survives a later lifecycle generation without changing original measurements`() = runTest {
+@@ -2607,6 +2627,8 @@
+ 		laneCutoffOrdinal: Long? = null,
+ 		laneRetentionRequired: Boolean = true,
+ 		laneStatus: String = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
++		factIntervalEndTimeMs: Long = PRESSURE_END_MS,
++		factReceivedWallTimeMs: Long? = null,
+ 		factExpectedSampleCount: Int = 4,
+ 		factEffectiveSamplePeriodMicros: Int = 50_000,
+ 		factEffectiveMaximumReportLatencyMicros: Int = 0,
+@@ -2692,6 +2714,8 @@
+ 				binding = binding,
+ 				semanticRevision = revision,
+ 				admissionOrdinal = factAdmissionOrdinal,
++				intervalStartTimeMs = factIntervalEndTimeMs - (PRESSURE_END_MS - PRESSURE_START_MS),
++				intervalEndTimeMs = factIntervalEndTimeMs,
+ 				expectedSampleCount = factExpectedSampleCount,
+ 				effectiveSamplePeriodMicros = factEffectiveSamplePeriodMicros,
+ 				effectiveMaximumReportLatencyMicros =
+@@ -2699,7 +2723,10 @@
+ 				closureKind = factClosureKind,
+ 				qualification = factQualification,
+ 			)
+-			val wal = pressureWal(fact)
++			val wal = pressureWal(fact).let { original ->
++				factReceivedWallTimeMs?.let { received -> rehashPressureWal(original.copy(
++					receivedWallTimeMs = received, createdAtMs = received)) } ?: original
++			}
+ 			insertPressureWalAuthority(fact, wal, binding, manifest, run)
+ 			database.sourceEventWalDao().insertIgnoringDuplicate(wal)
+ 			database.pressureFactRevisionDao().insert(fact)

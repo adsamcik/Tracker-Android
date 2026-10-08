@@ -152,6 +152,33 @@ class PressureFactProofAuthenticatorTest {
 		)
 	}
 
+	@Test
+	fun `correction lineage preserves original readings through backwards UTC changes`() {
+		val lineage = correctionLineage().mapIndexed { index, original ->
+			val end = 3_150L - index * 1_000L
+			val unsigned = original.copy(intervalStartTimeMs = end - WINDOW_DURATION_MS,
+				intervalEndTimeMs = end, appliedAtMs = end, effectChecksum = "pending")
+			unsigned.copy(effectChecksum = PressureFactRevisionIntegrity.effectChecksum(unsigned, binding()))
+		}
+		val result = assertIs<PressureFactLineageProof.Authenticated>(authenticate(
+			lineage, lineage.associate { it.sourceEventId to wal(it) }, expectation(lineage.last())))
+		result.revisions shouldBe lineage
+		result.current shouldBe lineage.last()
+	}
+
+	@Test
+	fun `repeated UTC timestamps do not replace sensor identity and increasing original sequence`() {
+		val lineage = correctionLineage().map { original ->
+			val unsigned = original.copy(intervalStartTimeMs = 2_000L - WINDOW_DURATION_MS,
+				intervalEndTimeMs = 2_000L, appliedAtMs = 2_000L, effectChecksum = "pending")
+			unsigned.copy(effectChecksum = PressureFactRevisionIntegrity.effectChecksum(unsigned, binding()))
+		}
+		val result = assertIs<PressureFactLineageProof.Authenticated>(authenticate(
+			lineage, lineage.associate { it.sourceEventId to wal(it) }, expectation(lineage.first())))
+		result.selected shouldBe lineage.first()
+		result.current shouldBe lineage.last()
+	}
+
 	private fun authenticate(
 		lineage: List<PressureFactRevisionEntity>,
 		walByEventId: Map<String, SourceEventWalEntity>,

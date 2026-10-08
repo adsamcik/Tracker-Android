@@ -1,0 +1,49 @@
+{
+  "base_commit": "d0098b37c5fd4adc8c22d5ef38d252039d7a6b07",
+  "pins": [
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "core/base/build.gradle.kts",
+      "sha256": "e7d9147951041300b0b6d4613ed6b7cfd2b2edfadcc6f98fb513a2038dd46ac3"
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "sha256": "a276144c34315be81b125df52eb7611f08e92a7629abb3d1f3587a3e92a93f24"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ProviderRegistrationIntervalAuthenticator.kt",
+      "sha256": "2988e48a6755f491e9709cf6865091aea1b157c0082790eb02dae4df504d10fa"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
+      "sha256": "49e23c9e8afa1d4c5909423f24f2cc3e05eabbc9ad4fa2792821e40b867b3dad"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/PressureWalCarrierAuthenticator.kt",
+      "sha256": "ff410949c27f502f04b577f2a7a92579f5539304481557b96ad6056f94d709c4"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceBrokerEntities.kt",
+      "sha256": "752d4b90d523ef1543d3032b31da63e0aa2943a13462b6b79fa40f28930b7fe0"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelector.kt",
+      "sha256": "22a686f6b9ccd6f290f06ac7914da3b20d7dae89c24274527cc2a6c6c4ff8815"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryReadModel.kt",
+      "sha256": "3a8568cbc39d0581fbafe2e9f68460ce3651cbbac448ca95482a06639d496c05"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceWriterGenerationContract.kt",
+      "sha256": "afe5e2a5cf74f4fefe3812bae33aa8f1c368e369cf960e45a1200e00a38fb61a"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDestinationOwnerEntity.kt",
+      "sha256": "7557415377ece33928fc9530ee4ae3dba4d2db44a23d4ba08d1aa634523cd88c"
+    }
+  ]
+}

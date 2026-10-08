@@ -1,0 +1,27 @@
+{
+  "base_commit": "d0098b37c5fd4adc8c22d5ef38d252039d7a6b07",
+  "phase": "IMPLEMENTATION_ONLY",
+  "files": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticator.kt",
+      "operation": "UPDATE",
+      "base_sha256": "f6c9a83bce8fea1e2d13cb64120f52acfbf11a02e809ed2fa0c579b2829e1139",
+      "selected_sha256": "fab2684d7eebc8eef8889ce3792bf9a3ea81b34dd4ab8b6dad8f2e28853082f0",
+      "working_before_sha256": "f6c9a83bce8fea1e2d13cb64120f52acfbf11a02e809ed2fa0c579b2829e1139"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticatorTest.kt",
+      "operation": "UPDATE",
+      "base_sha256": "4409c42ffd8a38f5ae13a4779a193c70f336db4ad57fdd004a73d77d8281f3f9",
+      "selected_sha256": "dd6e49fa3dc9b6a761fd1436d193af7473265bba23c4866c3fbf23f09c680a82",
+      "working_before_sha256": "8e292e1f9f294ee36fb4712413c4e5ef8fe8d5766885548bc63d9d7b29f1d140"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "operation": "UPDATE",
+      "base_sha256": "63459c8f0beb53d0cb4fdb0ecacfe4956f8ba1b0ffaa9b09fe691274a5f9bcce",
+      "selected_sha256": "6d93fbc71397c2262914a2b1b912dbb28c8c26c83698cef45d798fe482a1e8d7",
+      "working_before_sha256": "63459c8f0beb53d0cb4fdb0ecacfe4956f8ba1b0ffaa9b09fe691274a5f9bcce"
+    }
+  ]
+}
