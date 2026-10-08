@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_measurements_empty">Nav ierakstītu datu</string>
+    <string name="history_show_details">Rādīt informāciju</string>
+    <string name="history_hide_details">Paslēpt informāciju</string>
+</resources>

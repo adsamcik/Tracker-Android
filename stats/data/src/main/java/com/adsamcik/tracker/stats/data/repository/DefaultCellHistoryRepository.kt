@@ -260,6 +260,29 @@ internal class DefaultCellHistoryRepository internal constructor(
 			}
 		}
 
+	/** Original imported receipt/lineage qualification without constructing a whole public entry. */
+	internal suspend fun measuredImportedOriginCandidatesInTransaction(evaluation: ImportedCellProductEvaluation.Readable,
+		observedTimeMs: Long, itemIndex: Int): List<CellCapturedFactRevisionEntity> =
+		importedProductReader.measuredChildOriginCandidatesInTransaction(evaluation, observedTimeMs, itemIndex, 101)
+
+	internal suspend fun measuredImportedEvaluationInTransaction(identity: String): ImportedCellProductEvaluation? =
+		importedProductReader.selectIdentityInTransaction(PortableCellOpaqueIdentity(identity))
+
+	internal suspend fun measuredFactInTransaction(factId: String, revision: Long): QualifiedMeasuredCellFact? {
+		val snapshot = measuredSnapshotInTransaction(factId)
+			?: throw MeasuredRadioParentFailure(com.adsamcik.tracker.stats.api.repository.HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+		return CellHistoryComposer.qualifyMeasuredFact(factId, revision, snapshot, laneExecutionAuthority)
+	}
+
+	/** Existing capture proof inputs, scoped to one current parent rather than a complete logical entry. */
+	internal suspend fun measuredSnapshotInTransaction(factId: String): CellHistorySnapshot? {
+		require(factId.isNotBlank())
+		val cursor = database.cellCapturedFactDao().cursor(SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION, factId) ?: return null
+		val seed = database.trackingHistoryReadDao().segments(listOf(cursor.sessionSegmentId)).singleOrNull() ?: return null
+		return loadSnapshot(CellMembershipExpansion(listOf(seed), emptyMap()), factId)
+	}
+
 	override suspend fun session(segmentId: Long): CellHistoryQuery {
 		require(segmentId > 0L)
 		return withContext(ioDispatcher) {
@@ -1143,7 +1166,7 @@ internal class DefaultCellHistoryRepository internal constructor(
 	}
 
 	@Suppress("LongMethod")
-	private suspend fun loadSnapshot(expansion: CellMembershipExpansion): CellHistorySnapshot {
+	private suspend fun loadSnapshot(expansion: CellMembershipExpansion, selectedFactId: String? = null): CellHistorySnapshot {
 		if (expansion.overflow) return CellHistorySnapshot.empty(expansion).copy(overflow = true)
 		val segments = expansion.segments
 		val runIds = segments.mapNotNull(SessionSegment::serviceRunId).filter(String::isNotBlank).distinct()
@@ -1157,7 +1180,11 @@ internal class DefaultCellHistoryRepository internal constructor(
 		val policies = readDao.policiesForServiceRuns(CELL_SOURCE, runIds)
 		val completeness = readDao.completeness(runIds, MAX_COMPLETENESS + 1)
 		val sessions = database.sourceSessionDao().sessions(logicalIds)
-		val factLoad = loadFactPages(runIds, logicalIds)
+		val factLoad = if (selectedFactId == null) loadFactPages(runIds, logicalIds) else {
+			val rows = factDao.selectedHistoryLineages(SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION, selectedFactId, MAX_FACT_REVISIONS + 1)
+			CellFactLoad(rows.take(MAX_FACT_REVISIONS), rows.size > MAX_FACT_REVISIONS)
+		}
 		val revisions = factLoad.revisions
 		val walEventIds = revisions.map(CellCapturedFactRevisionEntity::sourceEventId).distinct()
 		val admissions = walEventIds.chunked(SQL_ID_BATCH).flatMap { eventIds ->
@@ -1165,7 +1192,7 @@ internal class DefaultCellHistoryRepository internal constructor(
 			factDao.historyWalCarriers(eventIds, eventIds.size)
 		}
 		currentCoroutineContext().ensureActive()
-		val scopedCursors = factDao.historyCursorsForScopes(
+		val scopedCursors = if (selectedFactId != null) emptyList() else factDao.historyCursorsForScopes(
 			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
 			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
 			runIds,
@@ -1254,7 +1281,10 @@ internal class DefaultCellHistoryRepository internal constructor(
 				.mapNotNull { it.lastAdmissionOrdinal }.maxOrNull(),
 		)
 		val after = lanes.minOfOrNull { it.activationOrdinal }?.minus(1L)
-		val failures = if (after == null || through == null || after >= through) emptyList() else
+		val failures = if (selectedFactId != null) revisions.map { it.sourceAdmissionOrdinal }.distinct().mapNotNull { ordinal ->
+			database.sourceProjectionStateDao().failure(SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION, ordinal)?.takeIf { it.terminal }
+		} else if (after == null || through == null || after >= through) emptyList() else
 			readDao.terminalFailuresForServiceRuns(CELL_SOURCE, SessionManifestPurposeCode.SESSION_CAPTURE,
 				runIds, after, through, MAX_TERMINAL_FAILURES + 1)
 		val evidence = database.sourceEvidenceStateDao().get()

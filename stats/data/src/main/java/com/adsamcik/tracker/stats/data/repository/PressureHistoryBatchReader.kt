@@ -34,6 +34,7 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 	logicalMembershipFailures: Map<String, PressureHistoryReason> = emptyMap(),
 	factRevisionBudget: Int = MAX_PRESSURE_FACT_REVISIONS,
 	currentClockDomainId: String? = null,
+	selectedFacts: List<PressureFactRevisionEntity>? = null,
 ): PressureHistoryBatchSnapshot {
 	require(segments.isNotEmpty())
 	require(factRevisionBudget > 0)
@@ -77,14 +78,15 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 		currentCoroutineContext().ensureActive()
 		database.sourceSessionDao().sessions(identities)
 	}
-	val pressureFactLoad = loadPressureHistoryFactRevisions(
+	val pressureFactLoad = selectedFacts?.let { PressureFactLoad(it.take(factRevisionBudget), it.size > factRevisionBudget) }
+		?: loadPressureHistoryFactRevisions(
 		database = database,
 		serviceRunIds = serviceRunIds,
 		logicalTrackingIds = logicalTrackingIds,
 		factRevisionBudget = factRevisionBudget,
 	)
 	val pressureFacts = pressureFactLoad.revisions
-	val retentionAuthorities = if (serviceRunIds.isEmpty()) {
+	val retentionAuthorities = if (serviceRunIds.isEmpty() || selectedFacts != null) {
 		emptyList()
 	} else {
 		database.pressureFactRetentionAuthorityDao().forServiceRuns(
@@ -97,7 +99,7 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 		)
 	}
 	val retentionAuthorityOverflow = retentionAuthorities.size > factRevisionBudget
-	val retentionRevisionAuthorities = if (serviceRunIds.isEmpty()) {
+	val retentionRevisionAuthorities = if (serviceRunIds.isEmpty() || selectedFacts != null) {
 		emptyList()
 	} else {
 		database.pressureFactRetentionRevisionAuthorityDao().forServiceRuns(
@@ -188,7 +190,12 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 		.filter { it.sourceKind == SourceDestinationOwnerEntity.SOURCE_PRESSURE }
 		.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal)
 		.maxOrNull()
-	val terminalFailures = if (
+	val terminalFailures = if (selectedFacts != null) {
+		selectedFacts.map { Triple(it.writerProjectionId, it.writerProjectionVersion, it.sourceAdmissionOrdinal) }
+			.distinct().mapNotNull { (writerId, writerVersion, ordinal) ->
+				database.sourceProjectionStateDao().failure(writerId, writerVersion, ordinal)?.takeIf { it.terminal }
+			}
+	} else if (
 		serviceRunIds.isEmpty() || afterOrdinal == null || throughOrdinal == null ||
 		afterOrdinal >= throughOrdinal
 	) {

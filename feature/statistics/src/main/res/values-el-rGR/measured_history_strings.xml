@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_measurements_empty">Δεν υπάρχουν καταγεγραμμένα δεδομένα</string>
+    <string name="history_show_details">Εμφάνιση λεπτομερειών</string>
+    <string name="history_hide_details">Απόκρυψη λεπτομερειών</string>
+</resources>

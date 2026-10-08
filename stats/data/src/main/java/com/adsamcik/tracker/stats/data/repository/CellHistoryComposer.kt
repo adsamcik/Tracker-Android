@@ -68,6 +68,77 @@ import java.time.ZoneId
 /** Pure fail-closed composition of one bounded, transactionally loaded Cell snapshot. */
 @Suppress("LargeClass", "TooManyFunctions")
 internal object CellHistoryComposer {
+	/** A measured page proves this selected parent, not an invented complete logical session. */
+	@Suppress("LongMethod", "ComplexCondition")
+	internal fun qualifyMeasuredFact(factId: String, revision: Long, snapshot: CellHistorySnapshot,
+		laneExecutionAuthority: SourceProductLaneExecutionAuthority): QualifiedMeasuredCellFact? {
+		if (snapshot.overflow) throw MeasuredRadioParentFailure(com.adsamcik.tracker.stats.api.repository.HistoryProblemReason.DEPENDENCY_OVERFLOW)
+		val evidence = requireNotNull(snapshot.evidenceState)
+		val lineage = snapshot.revisions.filter { it.logicalFactId == factId }.sortedBy { it.semanticRevision }
+		val fact = requireNotNull(validateLineage(lineage, snapshot))
+		check(fact.semanticRevision == revision)
+		val aggregate = requireNotNull(resolveAggregate(fact, snapshot))
+		val logicalId = fact.logicalTrackingId
+		val run = requireNotNull(snapshot.runs[fact.serviceRunId])
+		val segment = snapshot.expansion.segments.singleOrNull { it.id == fact.sessionSegmentId }
+		check(segment != null && run.ownsExactSegment(logicalId, listOf(segment)) &&
+			hasConsistentCompletion(run.state, run.completedAtMs))
+		val manifests = snapshot.manifestsByRun[run.serviceRunId].orEmpty().sortedBy { it.manifestRevision }
+		val byRun = mapOf(run.serviceRunId to manifests)
+		check(hasValidManifestHistory(logicalId, listOf(run), byRun, snapshot, allowSubset = true))
+		val needed = setOf(fact.manifestRevision, aggregate.manifestRevision)
+		val bindings = needed.associateWith { manifestRevision ->
+			requireNotNull(snapshot.sourcesByManifest[CellManifestKey(logicalId, manifestRevision)]
+				.orEmpty().singleOrNull(::isCellCaptureMembership))
+		}
+		check(hasValidCaptureAuthority(manifests, bindings, snapshot))
+		val manifest = requireNotNull(manifests.singleOrNull { it.manifestRevision == fact.manifestRevision })
+		val lane = requireNotNull(snapshot.lanes.singleOrNull(::isCellLane))
+		val mode = when (manifest.sessionMode) { "MANUAL" -> MANUAL_CAPTURE_MASK; "AUTOMATIC" -> AUTOMATIC_CAPTURE_MASK; else -> 0L }
+		check(laneExecutionAuthority.owns(lane) && isValidLane(lane) && mode != 0L &&
+			lane.captureModeMask and mode == mode && lane.activatedRolloutRevision <= manifest.rolloutRevision &&
+			lane.activationOrdinal <= fact.sourceAdmissionOrdinal &&
+			(lane.captureAdmissionCutoffOrdinal == null || fact.sourceAdmissionOrdinal <= lane.captureAdmissionCutoffOrdinal))
+		val session = requireNotNull(snapshot.sessions[logicalId])
+		check(hasConsistentCompletion(session.state, session.completedAtMs) &&
+			session.lifecycleLeaseGeneration >= fact.lifecycleLeaseGeneration)
+		// A current operation must still agree exactly. Older completed runs keep their original proof.
+		if (run.completedAtMs == null || session.currentServiceRunId == run.serviceRunId) {
+			check(hasValidSessionSettlement(session, listOf(run), byRun, fact.sourceAdmissionOrdinal))
+		}
+		check(snapshot.revisions.all { it.logicalTrackingId == logicalId && it.serviceRunId == run.serviceRunId })
+		check(snapshot.terminalFailures.none { it.admissionOrdinal == fact.sourceAdmissionOrdinal || it.admissionOrdinal == aggregate.sourceAdmissionOrdinal })
+		val generation = snapshot.deletionGenerations[logicalId to run.serviceRunId]
+		check(generation == null || generation.collectedDataEpoch == evidence.collectedDataEpoch)
+		if (!fact.hasCurrentPrivacyAuthority(logicalId, evidence, snapshot) ||
+			!aggregate.hasCurrentPrivacyAuthority(logicalId, evidence, snapshot)) return null
+		val wal = requireNotNull(snapshot.admissions.singleOrNull { it.eventId == fact.sourceEventId })
+		val ownerWal = requireNotNull(snapshot.admissions.singleOrNull { it.eventId == aggregate.sourceEventId })
+		check(wal.admissionOrdinal == fact.sourceAdmissionOrdinal && wal.deliveryIdentity == fact.sourceDeliveryIdentity &&
+			ownerWal.admissionOrdinal == aggregate.sourceAdmissionOrdinal && ownerWal.deliveryIdentity == aggregate.sourceDeliveryIdentity)
+		val authenticated = requireNotNull(authenticateFactCarrier(fact, wal, snapshot))
+		val ownerAuthenticated = requireNotNull(authenticateFactCarrier(aggregate, ownerWal, snapshot))
+		val lower = requireNotNull(CellWalCarrierAuthenticator.retentionLowerBound(fact, authenticated.carrier))
+		val ownerLower = requireNotNull(CellWalCarrierAuthenticator.retentionLowerBound(aggregate, ownerAuthenticated.carrier))
+		val start = requireNotNull(CellWalCarrierAuthenticator.coverageStartWallTime(fact, authenticated.carrier))
+		check((if (fact.factKind == CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY)
+			CellWalCarrierAuthenticator.authenticatesAggregate(aggregate, authenticated.carrier, fact)
+			else CellWalCarrierAuthenticator.authenticatesAggregate(aggregate, authenticated.carrier)) &&
+			CellWalCarrierAuthenticator.authenticatesAggregate(aggregate, ownerAuthenticated.carrier) &&
+			factHasExactAuthority(fact, aggregate, lower, snapshot, byRun, bindings, evidence) &&
+			(aggregate === fact || factHasExactAuthority(aggregate, aggregate, ownerLower, snapshot, byRun, bindings, evidence)))
+		if (evidence.retainedFromMs?.let { lower < it || ownerLower < it } == true) return null
+		val children = snapshot.childrenByRevision[fact.logicalFactId to fact.semanticRevision].orEmpty()
+		val observation = toObservation(fact, aggregate, start, children)
+		val completeness = snapshot.completenessByRun[run.serviceRunId].orEmpty().filter { it.sourceKind == CELL_SOURCE }
+		val partial = fact.childCompleteness == CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_PARTIAL ||
+			snapshot.savedSessionCutoffs[logicalId]?.clockUnknown == true || run.completedAtMs == null ||
+			lane.contiguousAdmissionOrdinal < fact.sourceAdmissionOrdinal || completeness.isEmpty() ||
+			!hasValidCompleteness(completeness, logicalId, listOf(run.serviceRunId)) ||
+			completeness.any { it.providerCoverage != COMPLETE_PROVIDER_COVERAGE || it.stopStatus != COMPLETE_STOP_STATUS || it.unresolvedSequenceStart != null }
+		return QualifiedMeasuredCellFact(fact, observation, children, partial)
+	}
+
 	fun composeSelected(
 		seed: SessionSegment,
 		snapshot: CellHistorySnapshot,
@@ -432,9 +503,12 @@ internal object CellHistoryComposer {
 		runs: List<SourceServiceRunEntity>,
 		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 		snapshot: CellHistorySnapshot,
-	): Boolean = SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
+		allowSubset: Boolean = false,
+	): Boolean = (if (allowSubset) SessionManifestIntegrity.hasValidLogicalManifestRevisionSliceUnion(
 		manifestsByRun.values.map { it.map(SessionManifestVersionEntity::manifestRevision) },
-	) && runs.all { run ->
+	) else SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
+		manifestsByRun.values.map { it.map(SessionManifestVersionEntity::manifestRevision) },
+	)) && runs.all { run ->
 		val manifests = manifestsByRun[run.serviceRunId].orEmpty()
 		SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) && manifests.all { manifest ->
 			manifest.logicalTrackingId == logicalId && manifest.serviceRunId == run.serviceRunId &&
@@ -1179,3 +1253,6 @@ internal data class ComposedCellEntry(
 }
 
 internal const val CELL_SOURCE = SourceDestinationOwnerEntity.SOURCE_CELL
+
+internal data class QualifiedMeasuredCellFact(val fact: CellCapturedFactRevisionEntity,
+	val observation: CellHistoryObservation, val children: List<CellCapturedChildEntity>, val partial: Boolean)

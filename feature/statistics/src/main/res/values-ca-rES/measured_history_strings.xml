@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_measurements_empty">No hi ha dades enregistrades</string>
+    <string name="history_show_details">Mostra els detalls</string>
+    <string name="history_hide_details">Amaga els detalls</string>
+</resources>

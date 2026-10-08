@@ -8,6 +8,7 @@ data class HistoryRange(
     val sources: Set<HistorySource> = HistorySource.entries.toSet(),
     val origins: Set<HistoryOrigin> = HistoryOrigin.entries.toSet(),
     val purposes: Set<HistoryPurpose> = HistoryPurpose.entries.toSet(),
+    val mode: HistoryBrowseMode = HistoryBrowseMode.RECORDINGS,
 ) {
     init {
         require(fromInclusiveMs >= 0 && fromInclusiveMs < toExclusiveMs)
@@ -15,8 +16,11 @@ data class HistoryRange(
     }
 }
 
+/** Existing exact organization readers retain record mode; History screens select measured data. */
+enum class HistoryBrowseMode { RECORDINGS, OBSERVATIONS }
+
 enum class HistoryOrigin { LOCAL, IMPORTED, LEGACY, ORGANIZATION }
-enum class HistoryPurpose { CAPTURE, BACKGROUND, ORGANIZATION }
+enum class HistoryPurpose { CAPTURE, BACKGROUND, ORGANIZATION, UNKNOWN }
 
 /** Strict global order. This is a browse position, not export or erase authority. */
 data class HistoryPosition(val startTimeMs: Long, val originTag: String, val stableId: String) : Comparable<HistoryPosition> {
@@ -40,9 +44,16 @@ data class UnifiedHistoryRow(
     val name: String? = null,
     val sections: List<HistorySection>,
     val problems: Set<HistoryProblem> = emptySet(),
+    val measurement: HistoryMeasurement? = null,
 ) {
-    init { require(toExclusiveMs == null || toExclusiveMs >= position.startTimeMs) }
-    val sources: Set<HistorySource> get() = sections.mapNotNull { it.source }.toSet() + problems.mapNotNull { it.source }
+    init {
+        require(toExclusiveMs == null || toExclusiveMs >= position.startTimeMs ||
+            measurement is HistoryMeasurement.Activity &&
+                measurement.band.wallTimeContinuity == ActivityHistoryWallTimeContinuity.DISCONTINUITY_DETECTED &&
+                position.startTimeMs == measurement.band.startTime.raw && toExclusiveMs == measurement.band.endTime.raw)
+    }
+    val sources: Set<HistorySource> get() = sections.mapNotNull { it.source }.toSet() +
+        listOfNotNull(measurement?.source) + problems.mapNotNull { it.source }
 }
 
 /** All payloads have passed their source-owned reader in the containing snapshot. */
@@ -151,4 +162,57 @@ data class HistoryLocationPoint(
 data class HistoryObservationWindow(val fromInclusiveMs: Long, val toExclusiveMs: Long) {
     init { require(fromInclusiveMs >= 0L && toExclusiveMs > fromInclusiveMs) }
     fun contains(timeMs: Long): Boolean = timeMs in fromInclusiveMs until toExclusiveMs
+}
+
+/** A saved measured leaf or original window, independent of its optional session organization. */
+sealed interface HistoryMeasurement {
+    val source: HistorySource
+    data class Location(val point: HistoryLocationPoint, val coverage: HistoryLocationCoverage) : HistoryMeasurement {
+        override val source = HistorySource.LOCATION
+    }
+    data class Wifi(val network: WifiObservedNetwork, val partial: Boolean = false) : HistoryMeasurement {
+        override val source = HistorySource.WIFI
+    }
+    data class Cell(val tower: CellObservedTower, val partial: Boolean = false) : HistoryMeasurement {
+        override val source = HistorySource.CELL
+    }
+    /** Summary-only saved records remain summaries; a missing network list is never an empty scan. */
+    data class WifiSummary(val observation: WifiHistoryObservation) : HistoryMeasurement { override val source = HistorySource.WIFI }
+    data class CellSummary(val observation: CellHistoryObservation) : HistoryMeasurement { override val source = HistorySource.CELL }
+    data class BackgroundWifiSummary(val fact: AmbientWifiFact) : HistoryMeasurement { override val source = HistorySource.WIFI }
+    data class BackgroundCellSummary(val fact: AmbientCellFact) : HistoryMeasurement { override val source = HistorySource.CELL }
+    data class Activity(val band: ActivityHistoryFragment.Band) : HistoryMeasurement { override val source = HistorySource.ACTIVITY }
+    data class Pressure(val window: PressureHistoryWindow) : HistoryMeasurement { override val source = HistorySource.PRESSURE }
+    /** The containing row keeps the original count window; no prorated daily count is created. */
+    data class Steps(val history: StepsHistory) : HistoryMeasurement { override val source = HistorySource.STEPS }
+    /** A saved, timed source gap is data. Read failures instead use untimed PageProblems. */
+    data class Gap(override val source: HistorySource, val reason: String) : HistoryMeasurement {
+        init { require(reason.isNotBlank()) }
+    }
+    /** Released rows retain original fields and unknown purpose without modern authority claims. */
+    data class LegacyWifi(val bssid: String, val ssid: String, val capabilities: String,
+        val frequencyMhz: Int, val signalDbm: Int) : HistoryMeasurement { override val source = HistorySource.WIFI }
+    /** Legacy Activity is a timestamped observation, never an invented duration band. */
+    data class LegacyActivity(val activityType: Int, val confidencePercent: Int,
+        val isTransition: Boolean) : HistoryMeasurement { override val source = HistorySource.ACTIVITY }
+    /** Released Pressure aggregates keep only their known timestamp and saved aggregate values. */
+    data class LegacyPressure(val meanHectopascals: Float, val sampleCount: Int,
+        val minimumHectopascals: Float?, val maximumHectopascals: Float?,
+        val standardDeviationHectopascals: Float?, val altitudeMeters: Float?,
+        val windowStartElapsedRealtimeNanos: Long?, val windowEndElapsedRealtimeNanos: Long?) : HistoryMeasurement {
+        override val source = HistorySource.PRESSURE
+    }
+    /** Original scan count and device position; these are not access-point coordinates. */
+    data class LegacyWifiCount(val count: Int, val latitude: Double, val longitude: Double,
+        val altitudeMeters: Double?) : HistoryMeasurement { override val source = HistorySource.WIFI }
+    data class LegacyCell(val cellId: Long, val lac: Int, val mcc: Int, val mnc: Int,
+        val networkType: Int, val signalStrength: Int) : HistoryMeasurement { override val source = HistorySource.CELL }
+}
+
+/** Paging metadata is deliberately untimed, separate from saved measurement rows. */
+sealed interface HistoryPagingItem {
+    val snapshot: TrackingHistoryReadSnapshot
+    data class Row(val row: UnifiedHistoryRow, override val snapshot: TrackingHistoryReadSnapshot) : HistoryPagingItem
+    data class PageProblems(val problems: Set<HistoryProblem>, override val snapshot: TrackingHistoryReadSnapshot,
+        val after: HistoryContinuation?) : HistoryPagingItem { init { require(problems.isNotEmpty()) } }
 }

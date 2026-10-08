@@ -55,6 +55,49 @@ class SavedLocationLiveSummaryReaderRoomTest {
     }
     @After fun close() = database.close()
 
+    @Test fun `actual history facade retains finite and live Location summaries beside measured paging`() = runBlocking {
+        withTimeout(10_000L) {
+            val selected = session("facade")
+            val first = database.withTransaction { point(2_000, 0, 1, capture = selected) }
+            val authority = SourceProductLaneExecutionAuthority { false }
+            val steps = StepsSegmentHistorySelector(database, authority)
+            val pressure = PressureHistorySelector(database, authority)
+            val hints = SavedLocationLiveUpdateSignal()
+            // Only unrelated entry-page collaborators are fixtures. All three summary readers and the range facade are real.
+            val repository: TrackingHistoryRepository = DefaultTrackingHistoryRepository(
+                database = database, stepsSelector = steps,
+                logicalHistoryReader = LogicalTrackingHistoryReader(database, steps), pressureSelector = pressure,
+                pressurePageReader = mockk(relaxed = true), sourceUnionReader = mockk(relaxed = true),
+                ioDispatcher = Dispatchers.Unconfined, bootClockDomainProvider = mockk(relaxed = true),
+                rangeReader = rangeReaderForRoomTest(database, ApplicationProvider.getApplicationContext()),
+                savedLocationUpdates = hints)
+            val finite = repository.readSavedLocationSummary(SavedLocationSummarySelection.Session(selected.id))
+                as SavedLocationSummaryRead.Snapshot
+            assertEquals(1L, finite.summary.pointCount)
+            val window = repository.readSavedLocationSummary(SavedLocationSummarySelection.Window(
+                HistoryObservationWindow(0L, 10_000L))) as SavedLocationSummaryRead.Snapshot
+            assertEquals(first.id, window.summary.latestFix?.sampleId)
+            val range = HistoryRange(0L, 10_000L, "UTC", sources = setOf(HistorySource.LOCATION),
+                mode = HistoryBrowseMode.OBSERVATIONS)
+            val history = repository.readRange(HistoryRangeRequest(range)) as HistoryRangeRead.Page
+            assertEquals(first.id, (history.rows.single().measurement as HistoryMeasurement.Location).point.sampleId)
+            val paging = (repository as PagedTrackingHistoryRepository).pagingSource(range)
+            val paged = paging.load(androidx.paging.PagingSource.LoadParams.Refresh(null, 100, false))
+                as androidx.paging.PagingSource.LoadResult.Page<HistoryContinuation, HistoryPagingItem>
+            assertEquals(first.id, ((paged.data.single() as HistoryPagingItem.Row).row.measurement as
+                HistoryMeasurement.Location).point.sampleId)
+            paging.invalidate()
+            repository.observeLiveSavedLocationSummary(selected.id).test {
+                awaitCount(1L)
+                val next = database.withTransaction { point(3_000, 100_000, 2, capture = selected) }
+                hints.pointCommitted(next.id)
+                val live = awaitCount(2L)
+                assertEquals(next.id, live.summary.latestFix?.sampleId)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+    }
+
     @Test fun `one seed is extended without reading the growing session again`() = runBlocking {
         val selected = session("live")
         database.withTransaction { point(2_000, 0, 1, capture = selected) }

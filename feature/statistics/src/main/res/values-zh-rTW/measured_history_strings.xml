@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_measurements_empty">沒有已記錄的資料</string>
+    <string name="history_show_details">顯示詳細資訊</string>
+    <string name="history_hide_details">隱藏詳細資訊</string>
+</resources>

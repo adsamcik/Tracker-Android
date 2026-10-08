@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.dao.ImportedCellLiveCompletenes
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellLiveFactOwner
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellLiveRunOwner
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellOpaqueOwnerRow
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionEntity
@@ -39,6 +40,14 @@ class ImportedCellProductReader(
 	},
 ) {
 	private val scanContextIssuer = Any()
+
+	/** Optional measured-duplicate discovery keeps the opaque local handle inside its source owner. */
+	suspend fun measuredChildOriginCandidatesInTransaction(evaluation: ImportedCellProductEvaluation.Readable,
+		observedTimeMs: Long, itemIndex: Int, limit: Int): List<CellCapturedFactRevisionEntity> {
+		require(limit in 1..101)
+		val logicalId = evaluation.localOriginHandle?.logicalTrackingId ?: return emptyList()
+		return database.cellCapturedFactDao().measuredChildOriginCandidates(logicalId, observedTimeMs, itemIndex, limit)
+	}
 
 	suspend fun readLocalOriginInTransaction(
 		evaluation: ImportedCellProductEvaluation.Readable,

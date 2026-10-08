@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_measurements_empty">कोई रिकॉर्ड किया गया डेटा नहीं</string>
+    <string name="history_show_details">विवरण दिखाएँ</string>
+    <string name="history_hide_details">विवरण छिपाएँ</string>
+</resources>

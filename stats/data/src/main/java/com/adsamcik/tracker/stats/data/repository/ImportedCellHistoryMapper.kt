@@ -101,7 +101,7 @@ private fun ImportedCellProductEvaluation.Readable.toReadablePublicEntry(): Cell
 	)
 }
 
-private fun PortableCapturedCellObservationV1.toPublicObservation(): CellHistoryObservation {
+internal fun PortableCapturedCellObservationV1.toPublicObservation(): CellHistoryObservation {
 	val rejected = listOf(
 		staleChildCount,
 		futureTimeChildCount,

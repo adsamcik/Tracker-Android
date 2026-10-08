@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_measurements_empty">Нет записанных данных</string>
+    <string name="history_show_details">Показать подробности</string>
+    <string name="history_hide_details">Скрыть подробности</string>
+</resources>

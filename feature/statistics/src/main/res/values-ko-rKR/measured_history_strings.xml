@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_measurements_empty">기록된 데이터 없음</string>
+    <string name="history_show_details">세부정보 표시</string>
+    <string name="history_hide_details">세부정보 숨기기</string>
+</resources>

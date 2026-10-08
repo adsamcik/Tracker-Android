@@ -1,0 +1,978 @@
+{
+  "source_inventory_only": true,
+  "all_execution": "NOT_RUN",
+  "new_method_names": [
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt",
+      "method": "Timeline requests all six sources without a trip prerequisite or age cutoff",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt",
+      "method": "Calendar uses the same source list and the actual 23-hour selected day",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt",
+      "method": "changing the selected day creates a distinct observation paging generation",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt",
+      "method": "month navigation clears the observation day instead of displaying stale rows",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt",
+      "method": "changing the displayed zone rebuilds the selected-day query",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "sessionless Wi-Fi shows saved values and expansion without invented optional fields",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "older observations remain reachable beyond the old recent-trip list",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "equal UTC times use the displayed local day without hiding distinct readings",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "a genuine crossing Steps window expands to its original dates",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "source Retry preserves the sibling measurement and refreshes the actual Pager",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "ordinary saved Location needs no optional accuracy to remain visible",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "legacy Activity renders its saved observation without a duration",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "legacy Pressure expansion keeps its mean and range without an invented duration",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "Activity clock discontinuity renders both original wall times without normalization",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "repeated source problems share one current notice while valid sibling readings remain",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "different source problems each retain their own recovery action",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "different reasons for the same source still use one visible recovery action",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "an empty incomplete frontier stays pending instead of claiming no saved readings",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "a clean exhausted empty history shows its genuine empty state",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "an empty append error retains Retry without an empty claim",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "empty nonterminal pages advance to an older valid reading without a scroll target",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "an original count-only scan displays its saved number without invented network details",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "method": "an invalid original count is unavailable rather than an invented zero",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryViewZoneComposeTest.kt",
+      "method": "resuming History uses the phone new calendar day without changing the saved timestamp",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_UI_LIFECYCLE_SELECTED"
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryViewZoneComposeTest.kt",
+      "method": "changing or disposing the History owner removes the old resume observer",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_UI_LIFECYCLE_SELECTED"
+    },
+    {
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/MeasuredActivityTimeContractTest.kt",
+      "method": "original backward wall clock Activity band retains its exact times",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/MeasuredActivityTimeContractTest.kt",
+      "method": "a reversed row cannot borrow discontinuity from a band with different times",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/MeasuredActivityTimeContractTest.kt",
+      "method": "other measurements cannot accept reversed wall time windows",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "method": "measured Activity reads exact valid window despite an unrelated large revision cohort",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "method": "measured Activity rejects one broken cursor while preserving a valid sibling band",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "method": "measured Activity preserves an authenticated gap correction without assigning it a wall timestamp",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "method": "native Activity raw keys page dense rejected leaves and do not upgrade orphan evidence",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "method": "measured Activity keeps later valid parent when an older physical run was erased",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "method": "measured Activity keeps completed older parent while a different current run is active",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "method": "measured current Activity parent still rejects a stale live operation pointer",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "method": "measured Activity scopes terminal failures to the selected original evidence",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "method": "measured native all-day Steps returns real count window without a session or clipping",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "method": "measured native Steps uses raw lookahead and consumed continuation past one hundred windows",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "method": "measured native Steps preserves healthy sibling windows beside corrupt lineage",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "method": "measured native gap shows remaining hole after real provider backfill without date clipping",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "method": "measured native gap position follows actual retention boundary not selected dates",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "method": "measured native Steps shows verified zero and rejects stale epoch",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "method": "measured native Steps discovery never resurrects a redacted latest revision",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "method": "measured native Steps obeys source origin and purpose selection before raw paging",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "canonical dual-purpose Cell has one physical head and chooses independently qualified capture",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "canonical Cell falls back to valid background when only capture is erased",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "canonical capture-only Cell never borrows its valid background purpose",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "canonical changed Cell child tuple remains a separate qualified measurement",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "canonical Cell pages more than one hundred physical heads and their purpose copies without loss",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "canonical Cell propagates cancellation from reached real capture qualification",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "measured Cell preserves current revision and good parent beside corrupt sibling in one run",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "measured older Cell summaries retain real coverage and include observation exactly at selected start",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "measured Cell later End generation keeps saved towers until exact deletion",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "measured imported Cell detail is suppressed only for an identical independently readable native child",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "measured imported Cell keeps later observation when original entry is retention limited",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedActivityHistoryMapperTest.kt",
+      "method": "measured imported Activity uses original band time instead of recording envelope",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedActivityHistoryMapperTest.kt",
+      "method": "elapsed-only imported Activity gaps do not gain invented calendar timestamps",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedActivityHistoryMapperTest.kt",
+      "method": "measured imported Activity rejects a mutated original fragment",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedActivityHistoryMapperTest.kt",
+      "method": "measured imported Activity rejects a new collected data epoch",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedActivityHistoryMapperTest.kt",
+      "method": "measured imported Activity preserves accepted reversed clock endpoints and elapsed duration",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedActivityHistoryMapperTest.kt",
+      "method": "measured imported Activity includes its actual end observation at selected start",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluatorTest.kt",
+      "method": "measured imported Pressure selects overlapping original window without clipping",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluatorTest.kt",
+      "method": "measured imported Pressure isolates a damaged sibling parent",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluatorTest.kt",
+      "method": "measured imported Pressure applies uncertainty at the retained floor",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluatorTest.kt",
+      "method": "measured imported equal-time Pressure windows seek by original identity without timestamp dedup",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "method": "measured imported Steps keeps complete original count window for narrow dates",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "method": "measured imported Steps pages more than one hundred windows by original identity",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "method": "measured imported Steps shows verified zero but never invents a baseline count",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "method": "measured imported Steps isolates damaged parents and respects erase fences",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "method": "measured imported sensor reader obeys all source origin and purpose subsets",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedWifiHistoryDetailsRoomTest.kt",
+      "method": "measured imported Wi-Fi keeps exact time and nonconsecutive original child indexes",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedWifiHistoryDetailsRoomTest.kt",
+      "method": "measured imported Wi-Fi failure leaves another valid parent and keeps summary-only older data",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedWifiHistoryDetailsRoomTest.kt",
+      "method": "measured imported Wi-Fi selected parent does not inherit whole-entry detail ceiling",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedWifiHistoryDetailsRoomTest.kt",
+      "method": "measured older imported Wi-Fi summary includes its last observation at selected start",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedWifiHistoryDetailsRoomTest.kt",
+      "method": "measured imported Wi-Fi propagates cancellation from the reached selection",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacySensorHistoryReaderRoomTest.kt",
+      "method": "dense Activity data pages beyond 4096 with distinct equal timestamp keys",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacySensorHistoryReaderRoomTest.kt",
+      "method": "Pressure keeps the saved aggregate without manufacturing a wall time window",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacySensorHistoryReaderRoomTest.kt",
+      "method": "late deliveries select by original measured local day including its first millisecond",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacySensorHistoryReaderRoomTest.kt",
+      "method": "retention rejects only older leaves without turning the survivors into a recording",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacySensorHistoryReaderRoomTest.kt",
+      "method": "malformed Pressure leaves do not suppress good sibling measurements",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacySensorHistoryReaderRoomTest.kt",
+      "method": "browse subsets never relabel legacy rows as authorized capture or imported data",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_SENSOR_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacyWifiCountRoomTest.kt",
+      "method": "original count and position appear without networks session or modern authority",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacyWifiCountRoomTest.kt",
+      "method": "the actual range facade keeps original counts on the displayed measured day",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacyWifiCountRoomTest.kt",
+      "method": "more than4096 original counts remain reachable through strict bounded same-time keysets",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacyWifiCountRoomTest.kt",
+      "method": "source purpose and origin exclusions never lend modern recording ownership to old counts",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacyWifiCountRoomTest.kt",
+      "method": "original AP and scan count at the same time stay independent rather than guessed duplicates",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacyWifiCountRoomTest.kt",
+      "method": "retention floor and exact deletion remove counts without changing a surviving sibling",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacyWifiCountRoomTest.kt",
+      "method": "a failed AP sibling read does not discard valid original count data",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLocationHistoryReaderRoomTest.kt",
+      "method": "sessionless saved points page beyond the old whole-cohort cap with exact tie keys",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLocationHistoryReaderRoomTest.kt",
+      "method": "an overnight delivery still selects points by measured local day",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLocationHistoryReaderRoomTest.kt",
+      "method": "origin and source subsets do not borrow coincident imported or disabled points",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLocationHistoryReaderRoomTest.kt",
+      "method": "a saved retention floor removes only older measured points",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLocationHistoryReaderRoomTest.kt",
+      "method": "qualification storage failure retains ordinary saved point with an untimed problem",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLocationHistoryReaderRoomTest.kt",
+      "method": "cancellation remains cancellation instead of a saved-source failure",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativeSessionNamesRoomTest.kt",
+      "method": "edited closed recording names only points and complete windows inside its actual interval",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativeSessionNamesRoomTest.kt",
+      "method": "missing edits reuse original recorded bounds without inventing a name or end",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativeSessionNamesRoomTest.kt",
+      "method": "active open recording keeps its valid current name from the real start",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativeSessionNamesRoomTest.kt",
+      "method": "a stopping cutoff bounds the name even before finalization",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativeSessionNamesRoomTest.kt",
+      "method": "hidden malformed or absent metadata supplies no recording name",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativeSessionNamesRoomTest.kt",
+      "method": "genuine window boundary rules and reversed original endpoints are not normalized",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "method": "measured Pressure keeps original qualified window without unrelated fact cohort limits",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_PRESSURE_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "method": "measured Pressure isolates damaged selected lineage and preserves replacement sibling",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_PRESSURE_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "method": "measured Pressure retains a valid leaf without borrowing removed prefix completeness",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_PRESSURE_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "method": "measured Pressure rejects stale retention marker epoch and respects deletion",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_PRESSURE_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "method": "measured Pressure keeps exact parent despite a corrupted older manifest",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_PRESSURE_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "method": "measured Pressure does not expand unrelated incomplete physical membership beyond its budget",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_PRESSURE_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "method": "measured Pressure failure is confined to its own original evidence ordinal",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_PRESSURE_WINDOWS_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt",
+      "method": "measured Location chooses the surviving background purpose after exact capture erase",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LOCATION_PURPOSE_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt",
+      "method": "measured unknown fallback cannot revive an explicitly erased sole capture copy",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LOCATION_PURPOSE_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt",
+      "method": "older native proof gaps stay visible as unknown without borrowing any original purpose",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LOCATION_PURPOSE_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt",
+      "method": "erased capture cannot erase an independently saved older background copy with missing proof",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LOCATION_PURPOSE_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt",
+      "method": "actual older background cleanup leaves no unknown fallback after its capture copy was erased",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LOCATION_PURPOSE_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt",
+      "method": "missing old proof does not hide an explicit named capture erase",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LOCATION_PURPOSE_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt",
+      "method": "damaged capture metadata cannot borrow a valid background point in a capture subset",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LOCATION_PURPOSE_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt",
+      "method": "measured saved dataset erase still retracts both native purposes and unknown fallback",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LOCATION_PURPOSE_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt",
+      "method": "an unreadable exact erase lookup is Retry metadata rather than unknown native membership",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LOCATION_PURPOSE_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt",
+      "method": "an indeterminate original-purpose dependency limit is explicit rather than a clean empty history",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_LOCATION_PURPOSE_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "method": "canonical Wi-Fi physical keys are ASCII while saved network names remain Unicode",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "method": "canonical counterpart SQL failure preserves an already qualified released Wi-Fi reading",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "method": "canonical blank original-event Cell row advances without hiding valid sibling leaves",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "method": "measured radio discovery uses each overnight child time rather than delivery day",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "method": "radio keyset discovery makes progress beyond one hundred same-time released readings",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "method": "radio discovery filters origins and purpose without manufacturing modern legacy ownership",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "method": "measured radio qualifier preserves each authorized overnight leaf on its actual day",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "method": "old summary keeps its real measured bounds and inclusive last measurement selection",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "method": "one damaged radio parent leaves independently qualified sibling leaves visible",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "method": "dense released Wi-Fi reads retain every saved leaf through bounded qualification pages",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "method": "released storage failure preserves independently readable background leaves",
+      "status": "NOT_RUN",
+      "source_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportedAmbientStepsTransferTest.kt",
+      "method": "measured imported background Steps preserves original DST count window",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportedAmbientStepsTransferTest.kt",
+      "method": "measured imported background gaps retain real saved bounds and independent fact count",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportedAmbientStepsTransferTest.kt",
+      "method": "measured imported background reads later retained windows without losing the whole day",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportedAmbientStepsTransferTest.kt",
+      "method": "measured imported background isolates corrupt day and never exposes its raw count",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportedAmbientStepsTransferTest.kt",
+      "method": "measured imported background never makes old data current after full clear epoch",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportedAmbientStepsTransferTest.kt",
+      "method": "measured imported background Steps obeys excluded origin in both discovery and qualification",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "method": "actual history facade retains finite and live Location summaries beside measured paging",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_FACADE_WIRING_REPAIR_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt",
+      "method": "measured Steps selects genuine nonadjacent windows without weakening complete totals",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt",
+      "method": "measured Steps preserves valid leaves beside a damaged middle carrier",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt",
+      "method": "measured Steps baseline and reset keep original windows without a measured zero",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt",
+      "method": "measured Steps retains a genuine window after a prefix was pruned while total stays unavailable",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt",
+      "method": "measured Steps uses selected original failure ordinal without lending full run readiness",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt",
+      "method": "measured Steps source choices and durable deletion never create a row",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt",
+      "method": "measured Steps pages more than 4096 qualified fixture windows without losing equal timestamps",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt",
+      "method": "measured Steps stops at retained floor and changed data epoch",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt",
+      "method": "actual measured facade pages a qualified Steps window beside independently saved Activity",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt",
+      "method": "editing a native session interval removes only its measured Steps name",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryPagingMetadataRoomTest.kt",
+      "method": "source failure metadata stays untimed alongside the valid saved sibling",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryPagingMetadataRoomTest.kt",
+      "method": "a failed source without any timed candidate still reaches the caller",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryPagingMetadataRoomTest.kt",
+      "method": "append with changed saved data snapshot invalidates rather than combining epochs",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryPagingMetadataRoomTest.kt",
+      "method": "cancelled page read remains cancellation instead of a displayed storage error",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedMeasuredHistoryAssemblyRoomTest.kt",
+      "method": "all source choices show original saved readings even with no sessions",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedMeasuredHistoryAssemblyRoomTest.kt",
+      "method": "global source merge reaches older readings beyond 4096 with equal timestamp keys",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedMeasuredHistoryAssemblyRoomTest.kt",
+      "method": "a page of rejected raw keys advances without creating timed error readings",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedMeasuredHistoryAssemblyRoomTest.kt",
+      "method": "one selected source never borrows a coincident source or a recording purpose",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedMeasuredHistoryAssemblyRoomTest.kt",
+      "method": "Calendar day boundaries follow original measured time through a 23 hour day",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedMeasuredHistoryAssemblyRoomTest.kt",
+      "method": "default recording mode stays separate from measured sessionless leaves",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedMeasuredHistoryAssemblyRoomTest.kt",
+      "method": "qualification failure keeps sibling data and reaches untimed paging metadata",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedMeasuredHistoryAssemblyRoomTest.kt",
+      "method": "snapshot change cannot append old and new data epochs together",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedMeasuredHistoryAssemblyRoomTest.kt",
+      "method": "cancelling a real source qualifier cancels the containing history request",
+      "status": "NOT_RUN",
+      "source_packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+      "method": "measured Wi-Fi preserves original nonconsecutive item index without claiming a whole session",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+      "method": "measured Wi-Fi original run remains visible when a later sibling has corrupt storage",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+      "method": "measured Wi-Fi keeps original generation after End and retracts only an erased owner",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+      "method": "measured Wi-Fi coverage reuse still needs the original aggregate WAL",
+      "status": "NOT_RUN",
+      "source_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED"
+    }
+  ]
+}

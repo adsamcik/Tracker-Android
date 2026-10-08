@@ -4,6 +4,17 @@ import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.StepsFactCandidateIdentity
+import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
+import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
+import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.HistoryPosition
+import com.adsamcik.tracker.stats.api.repository.HistoryProblem
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
+import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
@@ -46,6 +57,7 @@ import com.adsamcik.tracker.stats.api.repository.StepsAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -3955,6 +3967,224 @@ class StepsSegmentHistorySelectorTest {
 		evidence.steps shouldBe failedResult(StepsHistoryReason.SOURCE_POLICY_ATTRIBUTION_INVALID)
 		evidence.qualifiedSources shouldBe emptySet()
 	}
+
+    @Test fun `measured Steps selects genuine nonadjacent windows without weakening complete totals`() = runTest {
+        val facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L),
+            fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 6L, cumulativeStart = 104L),
+            fact(3L, StepFactRevisionEntity.COVERAGE_COVERED, 7L, cumulativeStart = 110L))
+        insertCandidateRun(RUN_ONE, facts, targetOrdinal = 3L, laneCursor = 3L)
+        database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
+        val selected = database.withTransaction { selector.selectMeasuredFactsInTransaction(listOf(SEGMENT_ID),
+            listOf(measuredFactIdentity(facts.first()), measuredFactIdentity(facts.last()))) }
+        selected.getValue(measuredFactIdentity(facts.first())).steps.count shouldBe 4L
+        selected.getValue(measuredFactIdentity(facts.last())).steps.count shouldBe 7L
+        selected.values.forEach { it.steps.coverage shouldBe StepsHistoryCoverage.PARTIAL }
+        selector.select(segment(RUN_ONE, steps = null)).count shouldBe 17L
+        val reader = MeasuredNativeStepsHistoryReader(database, selector)
+        val range = measuredStepsRange()
+        val raw = reader.candidates(range, null).filter { it.factId != facts[1].logicalFactId }
+        val read = database.withTransaction { reader.qualify(raw, range) }
+        read.rows.size shouldBe 2
+        read.rows.values.map { (it.measurement as HistoryMeasurement.Steps).history.count }.toSet() shouldBe setOf(4L, 7L)
+        read.rows.values.forEach { it.position.startTimeMs shouldBe 1_500L; it.toExclusiveMs shouldBe 1_500L }
+        read.problems shouldBe emptySet()
+    }
+
+    @Test fun `measured Steps preserves valid leaves beside a damaged middle carrier`() = runTest {
+        val facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L),
+            fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 6L, cumulativeStart = 104L),
+            fact(3L, StepFactRevisionEntity.COVERAGE_COVERED, 7L, cumulativeStart = 110L))
+        insertCandidateRun(RUN_ONE, facts, targetOrdinal = 3L, laneCursor = 3L)
+        database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
+        database.openHelper.writableDatabase.execSQL("UPDATE step_fact_revision SET effect_checksum = ? WHERE logical_fact_id = ?",
+            arrayOf("f".repeat(64), facts[1].logicalFactId))
+        selector.select(segment(RUN_ONE, steps = null)).materialization shouldBe StepsHistoryMaterialization.FAILED
+        val reader = MeasuredNativeStepsHistoryReader(database, selector)
+        val range = measuredStepsRange()
+        val keys = reader.candidates(range, null)
+        val read = database.withTransaction { reader.qualify(keys, range) }
+        read.rows.size shouldBe 2
+        read.rows.values.map { (it.measurement as HistoryMeasurement.Steps).history.count }.toSet() shouldBe setOf(4L, 7L)
+        read.problems shouldBe setOf(HistoryProblem(HistorySource.STEPS, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+    }
+
+    @Test fun `measured Steps baseline and reset keep original windows without a measured zero`() = runTest {
+        insertCandidateRun(RUN_ONE, listOf(fact(1L, StepFactRevisionEntity.COVERAGE_BASELINE, 0L),
+            fact(2L, StepFactRevisionEntity.COVERAGE_RESET_GAP, 0L)), targetOrdinal = 2L, laneCursor = 2L)
+        database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
+        val reader = MeasuredNativeStepsHistoryReader(database, selector)
+        val range = measuredStepsRange()
+        val read = database.withTransaction { reader.qualify(reader.candidates(range, null), range) }
+        read.rows.size shouldBe 2
+        read.rows.values.forEach { row ->
+            (row.measurement as HistoryMeasurement.Steps).history.count shouldBe null
+            row.position.startTimeMs shouldBe 1_500L
+            row.toExclusiveMs shouldBe 1_500L
+        }
+        read.problems shouldBe emptySet()
+        read.rows.values.flatMap { (it.measurement as HistoryMeasurement.Steps).history.causes }
+            .contains(StepsHistoryCause.RESET_GAP) shouldBe true
+    }
+
+    @Test fun `measured Steps retains a genuine window after a prefix was pruned while total stays unavailable`() = runTest {
+        val expired = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)
+        val kept = fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 3L, cumulativeStart = 105L)
+        insertCandidateRun(RUN_ONE, listOf(expired, kept), targetOrdinal = 2L, laneCursor = 2L)
+        database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
+        database.openHelper.writableDatabase.execSQL("DELETE FROM step_fact_revision WHERE logical_fact_id = ?",
+            arrayOf(expired.logicalFactId))
+        database.sourceDeletionFenceDao().upsert(StepFactRevisionIntegrity.retentionTruncationFence(
+            LOGICAL_ID, RUN_ONE, 0L, 3_000L))
+        selector.select(segment(RUN_ONE, steps = null)).reasons shouldBe setOf(StepsHistoryReason.RETENTION_TRUNCATED_RUN)
+        val reader = MeasuredNativeStepsHistoryReader(database, selector)
+        val range = measuredStepsRange()
+        val read = database.withTransaction { reader.qualify(reader.candidates(range, null), range) }
+        read.rows.size shouldBe 1
+        (read.rows.values.single().measurement as HistoryMeasurement.Steps).history.count shouldBe 3L
+        read.rows.values.single().position.startTimeMs shouldBe 1_500L
+        read.problems shouldBe emptySet()
+    }
+
+    @Test fun `measured Steps uses selected original failure ordinal without lending full run readiness`() = runTest {
+        val first = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L)
+        val later = fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 6L, cumulativeStart = 104L)
+        insertCandidateRun(RUN_ONE, listOf(first, later), targetOrdinal = 2L, laneCursor = 2L)
+        database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
+        database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(WRITER_ID,
+            WRITER_VERSION, 2L, 1, "TERMINAL", true, 3_000L))
+        selector.select(segment(RUN_ONE, steps = null)).materialization shouldBe StepsHistoryMaterialization.FAILED
+        val reader = MeasuredNativeStepsHistoryReader(database, selector)
+        val range = measuredStepsRange()
+        val read = database.withTransaction { reader.qualify(reader.candidates(range, null), range) }
+        read.rows.size shouldBe 1
+        (read.rows.values.single().measurement as HistoryMeasurement.Steps).history.count shouldBe 4L
+        read.problems shouldBe setOf(HistoryProblem(HistorySource.STEPS, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+    }
+
+    @Test fun `measured Steps source choices and durable deletion never create a row`() = runTest {
+        insertCandidateRun(RUN_ONE, listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L)),
+            targetOrdinal = 1L, laneCursor = 1L)
+        database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
+        val reader = MeasuredNativeStepsHistoryReader(database, selector)
+        val range = measuredStepsRange()
+        val raw = reader.candidates(range, null)
+        reader.candidates(range.copy(sources = setOf(HistorySource.WIFI)), null) shouldBe emptyList()
+        reader.candidates(range.copy(origins = setOf(HistoryOrigin.IMPORTED)), null) shouldBe emptyList()
+        reader.candidates(range.copy(purposes = setOf(HistoryPurpose.BACKGROUND)), null) shouldBe emptyList()
+        database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+            SourceDestinationOwnerEntity.SOURCE_STEPS, SessionManifestPurposeCode.SESSION_CAPTURE,
+            LOGICAL_ID, RUN_ONE, 1L, 0L, 3_000L))
+        val erased = database.withTransaction { reader.qualify(raw, range) }
+        erased.rows shouldBe emptyMap()
+        erased.problems shouldBe emptySet()
+    }
+
+    @Test fun `measured Steps pages more than 4096 qualified fixture windows without losing equal timestamps`() = runTest {
+        val count = 4_201L
+        val facts = (1L..count).map { ordinal -> fact(ordinal, StepFactRevisionEntity.COVERAGE_COVERED,
+            1L, cumulativeStart = 100L + ordinal - 1L) }
+        insertCandidateRun(RUN_ONE, facts, targetOrdinal = count, laneCursor = count)
+        database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
+        val reader = MeasuredNativeStepsHistoryReader(database, selector)
+        val range = measuredStepsRange()
+        val seen = linkedSetOf<HistoryPosition>()
+        var after: HistoryPosition? = null
+        var pageCount = 0
+        do {
+            val candidates = database.withTransaction { reader.candidates(range, after) }
+            (candidates.size <= 101) shouldBe true
+            val selected = candidates.take(100)
+            val read = database.withTransaction { reader.qualify(selected, range) }
+            read.problems shouldBe emptySet()
+            read.rows.size shouldBe selected.size
+            read.rows.forEach { (position, row) ->
+                seen.add(position) shouldBe true
+                (row.measurement as HistoryMeasurement.Steps).history.count shouldBe 1L
+                position.startTimeMs shouldBe 1_500L
+            }
+            after = selected.lastOrNull()?.let(::measuredHistoryPosition)
+            pageCount++
+            (pageCount <= 43) shouldBe true
+        } while (candidates.size > 100)
+        seen.size shouldBe count.toInt()
+    }
+
+    @Test fun `measured Steps stops at retained floor and changed data epoch`() = runTest {
+        insertCandidateRun(RUN_ONE, listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L)),
+            targetOrdinal = 1L, laneCursor = 1L)
+        database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
+        val reader = MeasuredNativeStepsHistoryReader(database, selector)
+        val range = measuredStepsRange()
+        val keys = reader.candidates(range, null)
+        database.sourceEvidenceStateDao().updateLifecycle(0L, 2_000L, 3_000L) shouldBe 1
+        val belowFloor = database.withTransaction { reader.qualify(keys, range) }
+        belowFloor.rows shouldBe emptyMap()
+        belowFloor.problems shouldBe emptySet()
+        database.sourceEvidenceStateDao().updateLifecycle(1L, null, 4_000L) shouldBe 1
+        val oldEpoch = database.withTransaction { reader.qualify(keys, range) }
+        oldEpoch.rows shouldBe emptyMap()
+        oldEpoch.problems shouldBe emptySet()
+    }
+
+    @Test fun `actual measured facade pages a qualified Steps window beside independently saved Activity`() = runTest {
+        insertCandidateRun(RUN_ONE, listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L)),
+            targetOrdinal = 1L, laneCursor = 1L)
+        database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
+        database.activitySnapshotDao().insert(com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot(
+            timeMs = 1_600L, activityType = 7, confidence = 80, isTransition = true, createdAt = 1_700L))
+        val reader = rangeReaderForRoomTest(database, ApplicationProvider.getApplicationContext(),
+            laneAuthority = executableLaneAuthority())
+        val range = measuredStepsRange().copy(sources = setOf(HistorySource.STEPS, HistorySource.ACTIVITY),
+            origins = setOf(HistoryOrigin.LOCAL, HistoryOrigin.LEGACY),
+            purposes = setOf(HistoryPurpose.CAPTURE, HistoryPurpose.UNKNOWN))
+        val first = reader.read(HistoryRangeRequest(range, limit = 1)).shouldBeInstanceOf<HistoryRangeRead.Page>()
+        first.problems shouldBe emptySet()
+        first.rows.single().measurement.shouldBeInstanceOf<HistoryMeasurement.LegacyActivity>()
+        first.rows.single().position.startTimeMs shouldBe 1_600L
+        val second = reader.read(HistoryRangeRequest(range, limit = 1, after = requireNotNull(first.next)))
+            .shouldBeInstanceOf<HistoryRangeRead.Page>()
+        second.problems shouldBe emptySet()
+        second.next shouldBe null
+        val row = second.rows.single()
+        row.measurement.shouldBeInstanceOf<HistoryMeasurement.Steps>().history.count shouldBe 4L
+        row.position.startTimeMs shouldBe 1_500L
+        row.toExclusiveMs shouldBe 1_500L
+        row.purpose shouldBe HistoryPurpose.CAPTURE
+        row.origins shouldBe setOf(HistoryOrigin.LOCAL)
+        row.sections shouldBe emptyList()
+    }
+
+    @Test fun `editing a native session interval removes only its measured Steps name`() = runTest {
+        insertCandidateRun(RUN_ONE, listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L)),
+            targetOrdinal = 1L, laneCursor = 1L)
+        database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
+        database.sourceSessionDao().insertSession(com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity(
+            logicalTrackingId = LOGICAL_ID, state = "FINALIZED", lifecycleRevision = 1L, desiredPlanRevision = 1L,
+            rolloutRevision = 0L, startOrigin = "MANUAL", clockDomainId = "fixture-boot", startedAtMs = 1_000L,
+            startedElapsedNanos = 1_000_000L, cutoffAtMs = 2_000L, cutoffElapsedNanos = 2_000_000L,
+            completedAtMs = 2_000L, finalAdmissionOrdinal = 1L, failureCode = null))
+        val edit = com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity("native-name", 1L,
+            1_000L, 2_000L, "logical:$LOGICAL_ID", 1_300L, 1_800L, "UTC", "Walk", null, false)
+        database.organizationAnnotationDao().insert(edit)
+        val reader = MeasuredNativeStepsHistoryReader(database, selector)
+        val range = measuredStepsRange()
+        val keys = reader.candidates(range, null)
+        val before = database.withTransaction { reader.qualify(keys, range) }
+        val saved = before.rows.values.single()
+        saved.name shouldBe "Walk"
+        saved.measurement.shouldBeInstanceOf<HistoryMeasurement.Steps>().history.count shouldBe 4L
+        database.organizationAnnotationDao().update(edit.copy(revision = 2L, startTimeMs = 1_600L)) shouldBe 1
+        val after = database.withTransaction { reader.qualify(keys, range) }
+        after.problems shouldBe before.problems
+        after.rows.values.single() shouldBe saved.copy(name = null)
+        reader.candidates(range, null) shouldBe keys
+    }
+
+    private fun measuredFactIdentity(fact: StepFactRevisionEntity) = StepsFactCandidateIdentity(
+        fact.writerProjectionId, fact.writerProjectionVersion.toLong(), fact.logicalFactId)
+
+    private fun measuredStepsRange() = HistoryRange(1_000L, 2_000L, "UTC", sources = setOf(HistorySource.STEPS),
+        mode = HistoryBrowseMode.OBSERVATIONS)
 
 	private suspend fun insertCandidateRun(
 		runId: String,

@@ -23,6 +23,14 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.protectedLocationCanonicalProductIdentity
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
+import com.adsamcik.tracker.stats.api.repository.HistoryLocationCoverage
+import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
+import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
+import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.RadioContextSource
 import com.adsamcik.tracker.stats.api.repository.RadioLocationContextGap
 import kotlin.test.assertEquals
@@ -213,6 +221,131 @@ class RetainedLocationPurposeLifecycleRoomTest {
         assertEquals(receipt, database.locationPurposeDao().receipt(receipt.sampleId))
         assertEquals(2, database.locationPurposeDao().purposes(receipt.sampleId, 3).size)
         assertEquals(1L, database.locationSampleDao().countAll())
+    }
+
+    @Test fun `measured Location chooses the surviving background purpose after exact capture erase`() = runBlocking {
+        val receipt = installJoinedPoint()
+        database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+            LOCATION, SourceBrokerPurpose.SESSION_CAPTURE, LOGICAL, RUN, 1, 0, 2_100))
+        val all = measured(HistoryPurpose.entries.toSet()).rows.single()
+        assertEquals(HistoryPurpose.BACKGROUND, all.purpose)
+        assertEquals(HistoryLocationCoverage.QUALIFIED, (all.measurement as HistoryMeasurement.Location).coverage)
+        assertTrue(measured(setOf(HistoryPurpose.CAPTURE)).rows.isEmpty())
+        assertTrue(measured(setOf(HistoryPurpose.UNKNOWN)).rows.isEmpty())
+        assertEquals(receipt.sampleId, ((measured(setOf(HistoryPurpose.BACKGROUND)).rows.single().measurement)
+            as HistoryMeasurement.Location).point.sampleId)
+        assertEquals(2, database.locationPurposeDao().purposes(receipt.sampleId, 3).size)
+    }
+
+    @Test fun `measured unknown fallback cannot revive an explicitly erased sole capture copy`() = runBlocking {
+        val receipt = installJoinedPoint()
+        database.withTransaction { database.removeLocationAmbientPurposeInCurrentTransaction() }
+        database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+            LOCATION, SourceBrokerPurpose.SESSION_CAPTURE, LOGICAL, RUN, 1, 0, 2_100))
+        assertEquals(setOf(receipt.sampleId), database.withTransaction {
+            reader.qualifySavedInTransaction(listOf(receipt)) }.erasedNativeScopeSampleIds)
+        assertTrue(measured(HistoryPurpose.entries.toSet()).rows.isEmpty())
+        assertTrue(measured(setOf(HistoryPurpose.UNKNOWN)).rows.isEmpty())
+        assertEquals(1L, database.locationSampleDao().countAll())
+    }
+
+    @Test fun `older native proof gaps stay visible as unknown without borrowing any original purpose`() = runBlocking {
+        val receipt = installJoinedPoint(sealed = false)
+        val before = database.locationPurposeDao().purposes(receipt.sampleId, 3)
+        val row = measured(HistoryPurpose.entries.toSet()).rows.single()
+        assertEquals(HistoryPurpose.UNKNOWN, row.purpose)
+        assertEquals(HistoryLocationCoverage.LEGACY_UNVERIFIABLE, (row.measurement as HistoryMeasurement.Location).coverage)
+        assertTrue(measured(setOf(HistoryPurpose.CAPTURE)).rows.isEmpty())
+        assertTrue(measured(setOf(HistoryPurpose.BACKGROUND)).rows.isEmpty())
+        assertEquals(row, measured(setOf(HistoryPurpose.UNKNOWN)).rows.single())
+        assertEquals(before, database.locationPurposeDao().purposes(receipt.sampleId, 3))
+        assertEquals(receipt, database.locationPurposeDao().receipt(receipt.sampleId))
+    }
+
+    @Test fun `erased capture cannot erase an independently saved older background copy with missing proof`() = runBlocking {
+        val receipt = installJoinedPoint(sealed = false)
+        database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+            LOCATION, SourceBrokerPurpose.SESSION_CAPTURE, LOGICAL, RUN, 1, 0, 2_100))
+        val row = measured(HistoryPurpose.entries.toSet()).rows.single()
+        assertEquals(HistoryPurpose.UNKNOWN, row.purpose)
+        assertEquals(HistoryLocationCoverage.LEGACY_UNVERIFIABLE, (row.measurement as HistoryMeasurement.Location).coverage)
+        assertEquals(row, measured(setOf(HistoryPurpose.UNKNOWN)).rows.single())
+        assertTrue(measured(setOf(HistoryPurpose.CAPTURE)).rows.isEmpty())
+        assertTrue(measured(setOf(HistoryPurpose.BACKGROUND)).rows.isEmpty())
+        assertEquals(emptySet<Long>(), database.withTransaction {
+            reader.qualifySavedInTransaction(listOf(receipt)) }.erasedNativeScopeSampleIds)
+        assertEquals(2, database.locationPurposeDao().purposes(receipt.sampleId, 3).size)
+    }
+
+    @Test fun `actual older background cleanup leaves no unknown fallback after its capture copy was erased`() = runBlocking {
+        val receipt = installJoinedPoint(sealed = false)
+        database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+            LOCATION, SourceBrokerPurpose.SESSION_CAPTURE, LOGICAL, RUN, 1, 0, 2_100))
+        assertEquals(HistoryPurpose.UNKNOWN, measured(HistoryPurpose.entries.toSet()).rows.single().purpose)
+        database.withTransaction { database.removeLocationAmbientPurposeInCurrentTransaction() }
+        assertTrue(measured(HistoryPurpose.entries.toSet()).rows.isEmpty())
+        assertTrue(measured(setOf(HistoryPurpose.UNKNOWN)).rows.isEmpty())
+        assertEquals(setOf(receipt.sampleId), database.withTransaction {
+            reader.qualifySavedInTransaction(listOf(receipt)) }.erasedNativeScopeSampleIds)
+    }
+
+    @Test fun `missing old proof does not hide an explicit named capture erase`() = runBlocking {
+        val receipt = installJoinedPoint(sealed = false)
+        database.withTransaction { database.removeLocationAmbientPurposeInCurrentTransaction() }
+        database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+            LOCATION, SourceBrokerPurpose.SESSION_CAPTURE, LOGICAL, RUN, 1, 0, 2_100))
+        assertTrue(measured(HistoryPurpose.entries.toSet()).rows.isEmpty())
+        assertTrue(measured(setOf(HistoryPurpose.UNKNOWN)).rows.isEmpty())
+        assertEquals(1L, database.locationSampleDao().countAll())
+        assertEquals(receipt, database.locationPurposeDao().receipt(receipt.sampleId))
+    }
+
+    @Test fun `damaged capture metadata cannot borrow a valid background point in a capture subset`() = runBlocking {
+        val receipt = installJoinedPoint()
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE location_sample_purpose_authority SET retained_proof_checksum = ? WHERE sample_id = ? AND purpose = ?",
+            arrayOf("0".repeat(64), receipt.sampleId, SourceBrokerPurpose.SESSION_CAPTURE))
+        assertEquals(HistoryPurpose.BACKGROUND, measured(HistoryPurpose.entries.toSet()).rows.single().purpose)
+        assertTrue(measured(setOf(HistoryPurpose.CAPTURE, HistoryPurpose.UNKNOWN)).rows.isEmpty())
+        assertTrue(measured(setOf(HistoryPurpose.UNKNOWN)).rows.isEmpty())
+    }
+
+    @Test fun `measured saved dataset erase still retracts both native purposes and unknown fallback`() = runBlocking {
+        val receipt = installJoinedPoint()
+        database.sourceEvidenceStateDao().updateAfterFullDeletion(0, null, receipt.sourceAdmissionOrdinal, 2_100)
+        for (purposes in listOf(HistoryPurpose.entries.toSet(), setOf(HistoryPurpose.UNKNOWN),
+            setOf(HistoryPurpose.CAPTURE), setOf(HistoryPurpose.BACKGROUND))) assertTrue(measured(purposes).rows.isEmpty())
+    }
+
+    @Test fun `an unreadable exact erase lookup is Retry metadata rather than unknown native membership`() = runBlocking {
+        installJoinedPoint(sealed = false)
+        database.openHelper.writableDatabase.execSQL("DROP TABLE source_deletion_fence")
+        val page = measured(HistoryPurpose.entries.toSet())
+        assertTrue(page.rows.isEmpty())
+        assertTrue(page.problems.any { it.source == HistorySource.LOCATION })
+    }
+
+    @Test fun `an indeterminate original-purpose dependency limit is explicit rather than a clean empty history`() = runBlocking {
+        val receipt = installJoinedPoint(sealed = false)
+        // Deliberately unqualified legacy fanout, not a claim of real provider/capture authorization.
+        database.withTransaction {
+            for (index in 1..MAX_CONTEXT_DEPENDENCIES) database.locationPurposeDao().insertPurposeIfAbsent(
+                LocationSamplePurposeAuthorityEntity(receipt.sampleId, SourceBrokerPurpose.SESSION_CAPTURE,
+                    "fanout-run-$index", 1, 0, 10, 11, "fanout-logical-$index", "fanout-run-$index",
+                    1, 1, 1, null, null, null, 0, "UTC"))
+        }
+        val page = measured(HistoryPurpose.entries.toSet())
+        assertTrue(page.rows.isEmpty())
+        assertTrue(page.problems.any { it.source == HistorySource.LOCATION &&
+            it.reason == com.adsamcik.tracker.stats.api.repository.HistoryProblemReason.DEPENDENCY_OVERFLOW })
+        assertNull(database.withTransaction { reader.qualifySavedInTransaction(listOf(receipt)) }.erasedNativeScopeSampleIds)
+    }
+
+    private suspend fun measured(purposes: Set<HistoryPurpose>): HistoryRangeRead.Page {
+        val reader = rangeReaderForRoomTest(database, ApplicationProvider.getApplicationContext())
+        return reader.read(HistoryRangeRequest(HistoryRange(0L, 2_000L, "UTC",
+            sources = setOf(HistorySource.LOCATION), purposes = purposes, mode = HistoryBrowseMode.OBSERVATIONS)))
+            as HistoryRangeRead.Page
     }
 
     private suspend fun read(receipt: LocationAcceptedReceiptEntity) = database.withTransaction {

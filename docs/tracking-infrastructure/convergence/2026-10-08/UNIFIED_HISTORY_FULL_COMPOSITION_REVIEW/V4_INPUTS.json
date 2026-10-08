@@ -1,0 +1,16 @@
+{
+  "candidate": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+  "phase": "IMPLEMENTATION_ONLY",
+  "tests": "NOT_RUN",
+  "selected_paths": 124,
+  "supplier_packets": 19,
+  "resolved_committed_pins": 168,
+  "resolved_selected_pins": 51,
+  "inputs": {
+    "FILES.json": "91188248d1df13792725390f9ed31363f1d9acf7ffcacb4e1cc29c0237086189",
+    "SELECTION.patch": "a7d1d982db489b148617fa37bec66af15bd3b7872ad2cbd2b41e81780df5b1ff",
+    "DEPENDENCIES.json": "f16603f77e73dfec17671bdaa98a0b09d4a187242d0c9998b40a9d10da03b1ce",
+    "SOURCE_PROVENANCE.json": "2c1901b7ba670a9f314a7d839fd8915e51c79e7095e7556ffb42c189fd0bc66f",
+    "CASE_INVENTORY.json": "925e99798f04c2ab222f22894cd9926bf2893523a5bc83af3a8a18a78aa18a93"
+  }
+}

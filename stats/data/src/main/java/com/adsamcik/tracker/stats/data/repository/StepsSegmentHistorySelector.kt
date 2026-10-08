@@ -3,6 +3,8 @@ package com.adsamcik.tracker.stats.data.repository
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainOwnerLookupKey
+import com.adsamcik.tracker.shared.base.database.dao.StepsFactCandidateIdentity
+import com.adsamcik.tracker.shared.base.database.dao.loadSelectedStepsFactCandidateStatesByRun
 import com.adsamcik.tracker.shared.base.database.dao.StepsFactCandidateState
 import com.adsamcik.tracker.shared.base.database.dao.hasValidStepsFactCandidateState
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -73,18 +75,56 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		return selectManyWithSnapshot(segments, snapshot)
 	}
 
+
+	/** Each original count window is checked independently; complete total readers remain unchanged. */
+	internal suspend fun selectMeasuredFactsInTransaction(
+		segmentIds: List<Long>, identities: List<StepsFactCandidateIdentity>,
+	): Map<StepsFactCandidateIdentity, StepsMeasuredFactRead> {
+		require(segmentIds.size <= 100 && segmentIds.distinct().size == segmentIds.size)
+		require(identities.size <= 100 && identities.distinct().size == identities.size)
+		if (segmentIds.isEmpty() || identities.isEmpty()) return emptyMap()
+		val segments = database.trackingHistoryReadDao().segments(segmentIds)
+		if (segments.isEmpty()) return emptyMap()
+		val snapshot = loadStepsHistoryBatchSnapshot(database, segments, selectedFactStatesByRun = emptyMap())
+		val states = database.trackingHistoryReadDao().loadSelectedStepsFactCandidateStatesByRun(
+			snapshot.serviceRuns.values.toList(), identities)
+		val results = linkedMapOf<StepsFactCandidateIdentity, StepsMeasuredFactRead>()
+		for ((runId, selected) in states) {
+			val segment = segments.singleOrNull { it.serviceRunId == runId } ?: continue
+			for ((identity, state) in selected) {
+				val byRun = mapOf(runId to listOf(state))
+				val carrier = loadStepsCarrierAuthority(database, byRun)
+				val originalOrdinal = state.scopeCarrier?.sourceAdmissionOrdinal
+				val terminalFailures = originalOrdinal?.let { ordinal ->
+					database.sourceProjectionStateDao().failure(identity.writerProjectionId,
+						identity.writerProjectionVersion.toInt(), ordinal)?.takeIf { it.terminal }
+				}?.let(::listOf).orEmpty()
+				val leaf = snapshot.copy(factStatesByRun = byRun, walByEventId = carrier.walByEventId,
+					countDomainOwners = carrier.countDomainOwners, carrierAuthorityState = carrier.state,
+					terminalFailures = terminalFailures)
+				val evidence = selectWithSnapshot(segment, leaf, measuredOnly = true)
+				val prior = results.put(identity, StepsMeasuredFactRead(segment, state.scopeCarrier, evidence.steps))
+				if (prior != null) results[identity] = StepsMeasuredFactRead(segment, null,
+					failed(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED))
+			}
+		}
+		return results
+	}
+
 	/** Pure reuse seam for readers that already assembled one bounded Room snapshot. */
 	internal fun selectManyWithSnapshot(
 		segments: List<SessionSegment>,
 		snapshot: StepsHistoryBatchSnapshot,
+		measuredOnly: Boolean = false,
 	): List<HistoricalSegmentEvidence> =
-		segments.map { segment -> selectWithSnapshot(segment, snapshot) }
+		segments.map { segment -> selectWithSnapshot(segment, snapshot, measuredOnly) }
 
 	// This fail-closed tree is pure over one fixed-count batch snapshot.
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private fun selectWithSnapshot(
 		segment: SessionSegment,
 		snapshot: StepsHistoryBatchSnapshot,
+		measuredOnly: Boolean = false,
 	): HistoricalSegmentEvidence {
 		val dependencyOverflow = snapshot.dependencyOverflow
 		if (
@@ -223,7 +263,7 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 					failed(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED),
 				)
 			}
-			return HistoricalSegmentEvidence(
+			if (!measuredOnly) return HistoricalSegmentEvidence(
 				segment,
 				captureAuthority,
 				unavailable(StepsHistoryReason.RETENTION_TRUNCATED_RUN),
@@ -293,7 +333,7 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			)
 		}
 		val writer = writers.single()
-		val captureCoveredWholeRun = stepsBindings.size == manifests.size
+		val captureCoveredWholeRun = !measuredOnly && stepsBindings.size == manifests.size
 		val orderedManifests = manifests.sortedBy(SessionManifestVersionEntity::manifestRevision)
 		val steps = when (writer.owner) {
 			SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL -> legacy(
@@ -309,6 +349,7 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 				stepsBindings = stepsBindings,
 				captureCoveredWholeRun = captureCoveredWholeRun,
 				snapshot = snapshot,
+				measuredOnly = measuredOnly,
 			)
 			else -> unavailable(StepsHistoryReason.UNKNOWN_WRITER)
 		}
@@ -325,6 +366,7 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		stepsBindings: Map<Long, SessionManifestSourceEntity>,
 		captureCoveredWholeRun: Boolean,
 		snapshot: StepsHistoryBatchSnapshot,
+		measuredOnly: Boolean = false,
 	): StepsSegmentHistoryResult {
 		val logicalTrackingId = serviceRun.logicalTrackingId
 		val serviceRunId = serviceRun.serviceRunId
@@ -425,7 +467,7 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 				!snapshot.authenticatesExactCarrier(scope)
 		}) return failed(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED)
 		val canonicalRunFacts = rawFactStates.map { scoped -> requireNotNull(scoped.scopeCarrier) }
-		if (!StepFactRevisionIntegrity.hasValidCanonicalLiveWalRunTimeline(
+		if (!measuredOnly && !StepFactRevisionIntegrity.hasValidCanonicalLiveWalRunTimeline(
 				canonicalRunFacts,
 				logicalTrackingId,
 				serviceRunId,
@@ -474,33 +516,35 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			reasons += StepsHistoryReason.FACTS_MISSING_FOR_ADMITTED_RUN
 		}
 		val laneCutoffOrdinal = lane.captureAdmissionCutoffOrdinal
+		val productTargetOrdinal = if (measuredOnly) facts.mapNotNull(StepFactRevisionEntity::sourceAdmissionOrdinal)
+			.maxOrNull() else targetOrdinal
 
 		val materialization = when {
-			targetOrdinal != null && targetOrdinal < lane.activationOrdinal -> {
+			productTargetOrdinal != null && productTargetOrdinal < lane.activationOrdinal -> {
 				reasons += StepsHistoryReason.TARGET_BEFORE_LANE_ACTIVATION
 				StepsHistoryMaterialization.FAILED
 			}
-			targetOrdinal != null && snapshot.terminalFailures.any { failure ->
+			productTargetOrdinal != null && snapshot.terminalFailures.any { failure ->
 				failure.projectionId == projectionId &&
 					failure.projectionVersion == projectionVersion &&
 					failure.admissionOrdinal > lane.activationOrdinal - 1L &&
-					failure.admissionOrdinal <= targetOrdinal
+					failure.admissionOrdinal <= productTargetOrdinal
 			} -> {
 				reasons += StepsHistoryReason.TERMINAL_PROJECTION_FAILURE
 				StepsHistoryMaterialization.FAILED
 			}
-			targetOrdinal != null && laneCutoffOrdinal != null &&
-				targetOrdinal > laneCutoffOrdinal -> {
+			productTargetOrdinal != null && laneCutoffOrdinal != null &&
+				productTargetOrdinal > laneCutoffOrdinal -> {
 				reasons += StepsHistoryReason.PRODUCT_LANE_CUTOFF_BEFORE_TARGET
 				StepsHistoryMaterialization.FAILED
 			}
-			targetOrdinal != null &&
+			productTargetOrdinal != null &&
 				lane.status == SourceProductProjectionLaneEntity.STATUS_RETIRED &&
-				lane.contiguousAdmissionOrdinal < targetOrdinal -> {
+				lane.contiguousAdmissionOrdinal < productTargetOrdinal -> {
 				reasons += StepsHistoryReason.PRODUCT_LANE_RETIRED_BEFORE_TARGET
 				StepsHistoryMaterialization.FAILED
 			}
-			targetOrdinal != null && lane.contiguousAdmissionOrdinal < targetOrdinal -> {
+			productTargetOrdinal != null && lane.contiguousAdmissionOrdinal < productTargetOrdinal -> {
 				reasons += StepsHistoryReason.PRODUCT_LANE_BEHIND
 				StepsHistoryMaterialization.MATERIALIZING
 			}
@@ -809,3 +853,9 @@ internal enum class StepsHistoryReason {
 	BATCH_DEPENDENCY_OVERFLOW,
 	COUNT_OVERFLOW,
 }
+
+internal data class StepsMeasuredFactRead(
+    val segment: SessionSegment,
+    val fact: StepFactRevisionEntity?,
+    val steps: StepsSegmentHistoryResult,
+)

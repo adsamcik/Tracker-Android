@@ -133,8 +133,23 @@ Questions were presented with the questions tool and have not received answers:
    names in expanded details, versus showing only the most recent name.
 4. Calendar month: replace Location-distance shading/legend with one data-presence
    dot for any saved source, versus retaining shading and adding source data dots.
+5. Live Location: accept valid coordinates and original time when optional accuracy,
+   altitude, speed or bearing are missing/unusable; keep those fields unknown instead
+   of rejecting the whole point. My location still requires freshness; games with an
+   explicit accuracy ceiling and optional radio matching keep those requirements.
 
 Do not treat unanswered questions as authorization. Original approved local dates,
 source independence, useful partial data, concise recovery and optional session
 organization remain authoritative. Tracking work proceeds on independent approved
 source composition while these choices are pending.
+
+## October 8 practical runtime follow-up
+
+`../2026-10-08/RUNTIME_COMPLETION_FOLLOWUP.md` records the actual remaining automatic
+capture bindings, passive Location total cap, pending live optional-metrics question
+and confirmed measured-History purpose-erasure rendering repair. These are source
+findings, not executed validation or platform capability conclusions. Existing
+first-use/final binding simplification and durable Location-gap storage still need
+their exact proposals settled; no general upgrade engine or raw-delivery inbox is
+selected. The independent source-accepted direct segment-annotation cleanup uses
+the existing trip deletion transaction and leaves other groups untouched.

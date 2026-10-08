@@ -1,0 +1,1529 @@
+{
+  "base_commit": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+  "phase": "IMPLEMENTATION_ONLY",
+  "held": true,
+  "files": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ImportedCellProductReader.kt",
+      "base_exists": true,
+      "base_sha256": "8cd9e90a78afed3a903add88496042cca866d9a7492dbf46995169c98c69e9ba",
+      "selected_sha256": "c606b7540dcc4e142219f22815924b2e32ba5fc74093f8c83ada5b950b9a675b",
+      "working_before_exists": true,
+      "working_before_sha256": "d98e42a491768398d731bb8fc20c2f1f93b52828f1e5857358424715439b4f3e",
+      "selected_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/TrackingHistoryInvalidationTables.kt",
+      "base_exists": true,
+      "base_sha256": "f01f114f0a9b58185b07e71cd3c0be901c4221e9c205f7d7f19b99a07a05db94",
+      "selected_sha256": "0d5d105525c5775443b8be098b012b9973747edc6bf5d4c097ad0a3188bc0fc6",
+      "working_before_exists": true,
+      "working_before_sha256": "f01f114f0a9b58185b07e71cd3c0be901c4221e9c205f7d7f19b99a07a05db94",
+      "selected_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ActivitySnapshotDao.kt",
+      "base_exists": true,
+      "base_sha256": "8e17524bc76b5ccbaee639bf11a7b2894fab55c620adfdcd492621d98523aea2",
+      "selected_sha256": "4b79691037e79d98e5468b67f51691a5df87d56d29ffa09fa60342c21c7d43f3",
+      "working_before_exists": true,
+      "working_before_sha256": "44e9819cb1467275871483581e6951ec1a1bee311fb9b8008ea74856eacde941",
+      "selected_packet": "MEASURED_LEGACY_SENSOR_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientStepsFactRevisionDao.kt",
+      "base_exists": true,
+      "base_sha256": "599d0d2349a65cf7299236d36798164ce4d117360e29d811387a8854924dbba2",
+      "selected_sha256": "1080e7619741fb15b292a33f040f7786deaa03f003956d1f202b284fb382977c",
+      "working_before_exists": true,
+      "working_before_sha256": "7671548026ee2e60ec51e598a540b66efd962554669cfe6055724686fa75b9df",
+      "selected_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientStepsImportStateDao.kt",
+      "base_exists": true,
+      "base_sha256": "0eb572ca2a3acb62a7d19f1f578032df95eabbce8c3b3003a40a10e1c4265c50",
+      "selected_sha256": "5c6ac518517fa017418ae374e925f5300ae9dec9d9332ae58303d8f69b668dc8",
+      "working_before_exists": true,
+      "working_before_sha256": "f144f911973161802a18b28a5b53325fd7621bc84046c40a27fbee5fbf84c11e",
+      "selected_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/CellCapturedFactDao.kt",
+      "base_exists": true,
+      "base_sha256": "38f7e4f69ae54954e6350bf06d8831274335a23170ba41d428955e85d16f2e3a",
+      "selected_sha256": "9203d85a833409b0b87a1a7845ff4e252fa31ab2e439f7ae9e664f48cc785c22",
+      "working_before_exists": true,
+      "working_before_sha256": "38f7e4f69ae54954e6350bf06d8831274335a23170ba41d428955e85d16f2e3a",
+      "selected_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LegacyPreservedDataDao.kt",
+      "base_exists": true,
+      "base_sha256": "2687177be93ffae91a6147c1acc138db5c5d0535df6d43afd9883302ff861989",
+      "selected_sha256": "9cbbd05b910d847c72449f7846da3c9e37e4b512978d7ce79b82f30e3184d800",
+      "working_before_exists": true,
+      "working_before_sha256": "2687177be93ffae91a6147c1acc138db5c5d0535df6d43afd9883302ff861989",
+      "selected_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/MeasuredHistoryCandidate.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "f4cc165b7e5a70a492ad643ffee95f9bf64c54c14d5fdbf39352fbcc794fd482",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "NATIVE_RADIO_CANONICAL_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+          "sha256": "70113d8975aa1556d8229ffbfa6b0e912302330bbb0bc9296370c5aa9bd60f36"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/PressureSampleDao.kt",
+      "base_exists": true,
+      "base_sha256": "71be48885b11c889a73a6f5b19cc69023fa990742c4e85c6b1e420c076b0694a",
+      "selected_sha256": "92e63849730f60bef6b803d2674b7bc448a913ebe5c4bf3ed848054732915cf4",
+      "working_before_exists": true,
+      "working_before_sha256": "4ed5d0b65ad1118ad6de5ad218e0d1f1a60fe337be5f863bb798c726dad16616",
+      "selected_packet": "MEASURED_LEGACY_SENSOR_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/RadioObservationChildDao.kt",
+      "base_exists": true,
+      "base_sha256": "d8ee527389d7f5b6011c6a617c51a213b7f64f6cd580613f621b7a35b6dca779",
+      "selected_sha256": "d6ecd3b8c09d0264368d0382736c3e767831fefd24e34408824a600f8292c5c1",
+      "working_before_exists": true,
+      "working_before_sha256": "a1536f2f75d5030958c49c8238a563fb3658db8ec4a3ed5dc553666c5ddd9e6a",
+      "selected_packet": "NATIVE_RADIO_CANONICAL_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "MEASURED_RADIO_HISTORY_SELECTED",
+          "sha256": "8fcc4af329810fcc564d155333ebf239ba254951196f7dcf3cb729750e6c7a82"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/StepsFactCandidateReader.kt",
+      "base_exists": true,
+      "base_sha256": "b6a157620fdc8075cd8c49a9f0267e3a7134a732eff5efca7621b248d3e1d593",
+      "selected_sha256": "163c73add1a7261470f1d0b27618e119eecaa7f036109d54eaac0e7a1bdb8c9d",
+      "working_before_exists": true,
+      "working_before_sha256": "ebd51b71fe119007a0026431c962a5c1123da0a50d6723f6e145f2056c513e11",
+      "selected_packet": "MEASURED_STEPS_WINDOWS_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/TrackingHistoryReadDao.kt",
+      "base_exists": true,
+      "base_sha256": "11de03853bc54ba8e7a306a12a0d39b66be30372dbb96673cb3dd249de352699",
+      "selected_sha256": "5ed5a7b827af1399b2893c85d259f6450b13a5fd86f503f7e727fd2674619438",
+      "working_before_exists": true,
+      "working_before_sha256": "a87144596cd6a12f1dc3402988473fc37ec40d392c755c2a803a9f8756437884",
+      "selected_packet": "MEASURED_STEPS_WINDOWS_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+          "sha256": "e4ef3dbe270d50679cc4ca75b5d12f8850c32f0f6827cf8abc0e32b1b0f0881d"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/WifiCapturedFactDao.kt",
+      "base_exists": true,
+      "base_sha256": "f7624c5c5e1e20612e97f7b8687b172daa77aee78290930e4c173939215449a4",
+      "selected_sha256": "fe1d8ca7b028e0b7672f065ce1f0b64f19eeb4389e1486db8a4cc6f34cd7c1e9",
+      "working_before_exists": true,
+      "working_before_sha256": "f7624c5c5e1e20612e97f7b8687b172daa77aee78290930e4c173939215449a4",
+      "selected_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModel.kt",
+      "base_exists": true,
+      "base_sha256": "d89cf7b2c9de84b2407f33705ac835e2d10ed664eb9bfd930b549064bf4f46a0",
+      "selected_sha256": "3d5f0e54229e81996a78f27f8d5441e7d93d202df003b037dfe4ffe7379cd21a",
+      "working_before_exists": true,
+      "working_before_sha256": "d89cf7b2c9de84b2407f33705ac835e2d10ed664eb9bfd930b549064bf4f46a0",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CalendarContent.kt",
+      "base_exists": true,
+      "base_sha256": "152679e87b539fccc82e1224778bc465093d1464f306a8f16dfdf499ed2720e3",
+      "selected_sha256": "2870a97c1bb5c6b46a2369cb12244bda05e423fb192d7fe947a1192120bfebfc",
+      "working_before_exists": true,
+      "working_before_sha256": "152679e87b539fccc82e1224778bc465093d1464f306a8f16dfdf499ed2720e3",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt",
+      "base_exists": true,
+      "base_sha256": "fc634c3f5534cebd9203f2e3c0a8027eeeb9a8d70690cdb01b335a070945fb73",
+      "selected_sha256": "6793d6d1c6a28c04c9339ad21dd0dec00aed589b93a85732926ec20ff81c22f9",
+      "working_before_exists": true,
+      "working_before_sha256": "9a4aecef63a996766981ff7f2d2b7f6662973eb640b28b74d47e8982815a6c8b",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_UI_LIFECYCLE_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+          "sha256": "42630f14cb1bcbd5ca0f7ddb51559d56c3d4d836783776952c63dc62d4904730"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/MeasuredHistoryContent.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "d0fad8bbecb124a8aa8fa4c7e48089614c60827880d83dac9accd1c11000cb5d",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+          "sha256": "92d32a4f5facfe516e015fb342b446f7123e143415bdfd07784de7f82e3c95db"
+        },
+        {
+          "packet": "MEASURED_LEGACY_SENSOR_HISTORY_SELECTED",
+          "sha256": "bda173fc07f6d9fed42e84294dfb2e07afc845474b24126517e7001984bc0596"
+        },
+        {
+          "packet": "UNIFIED_HISTORY_MEASURED_UI_LIFECYCLE_SELECTED",
+          "sha256": "123f9885b82aa0c669189ac5b969e889486069b1ac064b95aaf75ccb12c7b82b"
+        },
+        {
+          "packet": "MEASURED_HISTORY_PENDING_EMPTY_SELECTED",
+          "sha256": "115c6ed1bbab264285f123bf3ad55965f7f1b345c41ad9f9e57841e9ef46e56a"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/TripDetailRadioOverviews.kt",
+      "base_exists": true,
+      "base_sha256": "bf6a4ba77a50004f3f6041af9448640d015716138104d7b4ca453b71edebdd59",
+      "selected_sha256": "a4b2b1f966078d55ace36186086bbc30790d87343c365f68b6b6456d12951739",
+      "working_before_exists": true,
+      "working_before_sha256": "bf6a4ba77a50004f3f6041af9448640d015716138104d7b4ca453b71edebdd59",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/TripDetailSourceOverviews.kt",
+      "base_exists": true,
+      "base_sha256": "274d197970db44029b7320994fb13b4c060355c8159f0daf640788fe00157396",
+      "selected_sha256": "5a8ec153ffcf681cc400722801dc08fd3f75a43758a3e48c759d60008a1aa5fb",
+      "working_before_exists": true,
+      "working_before_sha256": "33e34ba87ad8e1e964d4aa63f816b9d2b8988f44a3b86a50da96072c953a8fcb",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-af-rZA/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "f157fe8b6fcb8e1a206921ad6f79b7ca68425656ec867c48524369a61230c474",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ar-rSA/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "03fe8254e7a874349461d3195e68b2bb4e0e21f6d970a429e30ccd7f2d0de58f",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-bg-rBG/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "3927fca578c50072974434380215fed056064855f3e504adb606e8349586e66a",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ca-rES/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "897495accdf1c58cfda3fba5387b8ba201f140f9f459f074fb164467d530db80",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-cs-rCZ/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "81864c82edac58eea799ffb2badd4e860fd3caabf2b043801b78a1822cecfc00",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-da-rDK/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "0d9de86bf6fb32f02516e1867e9dc3506385ebfdf7fc3b4a17daafa8710d47b5",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-de-rDE/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "3889ecda759ff569d68233b2a2117912188e8bc5f6a8129344f53e621550ca51",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-el-rGR/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "d94d8d1068d0d7d5a5ca2747d9ee0bad56a4ca9d308a1f3ea0bdb35a5a3ad0ce",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-es-rES/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "d39ab89f888f2e3f997c24e89933c199df9285008ef3a8a5b8d1c52ba71f0fb4",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-et-rEE/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "c4b5a64c914fcb6fe5d51ed27515ade5f8d08f1909450017da22fc2f60808e46",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-fi-rFI/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "bab1940e0ad544b35e892ae01fcb3788af31eedd5fdd20ac8e6a062c089b062e",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-fr-rFR/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "80be85d1e8c04ca6aa6d4d3d3868d270f37f58c882b9a911e6fcf89ed763228e",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ga-rIE/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "327c949057953331a7464337a83bdaf29c7d25b7814b240935e8585d69927ad2",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hi-rIN/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "23b85d94a081bb1b5eeb61cff5b2f8bc21a3e061b66147e90c8ff590bc09e833",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hr-rHR/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "880431baa8cf932813bb13ab1dbade533321c3aeb9151b26687bc61e7e8f05f8",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-hu-rHU/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "3a8046607b98ed8df8f2dfc31b128683d8c856d11df71e57a14c06d2c9ad917f",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-it-rIT/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "624ef5552ecf15c3b0a4547bc8d1a7a3464cf9f54382d594314be7af5e1dd2b4",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-iw-rIL/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "54666a14185ca6730130c9a1309ce2f0e64b52efdfa486443b64c917ae7d0439",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ja-rJP/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "f0fd94294d297e14330c92030a2cfad06a1e8ae9b0e64b958c2f22c674e4b566",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ko-rKR/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "50c5e2728e6e62cca6464a0948a2239c1681288e99d6eb11a033883a494b3295",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-lt-rLT/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "e7350c232a5d232eba1d28257a9e43098ca725c95b149e1f1230aec042419b1e",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-lv-rLV/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "5e97ceca1440f8ca0b2a9e1fef65ae4b6fee26f4105602e7edc28b73080f836e",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-mt-rMT/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "f5616e1c0f15038e3ae5c08015b9e69613e992acdccfc58d4ef1648c281e8267",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-nl-rNL/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "a28e826e8b2ff98a0c45fd9718ccdb53420b78035c4ce201635615dce8d29c95",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-no-rNO/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "fa21400d2fe2d893fa60267783c144acc13853d1edf38335c18a10d3ed6e83e7",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pl-rPL/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "bcdece6b76d5e105d32626c607da5a15a1cd1a1d503d90e199d746670d68e433",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pt-rBR/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "35b98d63af50daa461b6487e6bf606559853836f6b9721cb972d66ef7126ad31",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-pt-rPT/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "fc8c41dcf0cfb421dbfc3f2e47def97941c5a1c9bbc9cabf8d0a6367d5598987",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ro-rRO/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "4c0bfce2b96bf5e1aa159b92f6995eb8f8b03bb70647e5111e48a58699cc920d",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-ru-rRU/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "e9c02228d0ae967c05cb9e926fbbf38d739e4843103af5edcea845adee72eace",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sk-rSK/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "568a66764c15df59f8ad1a46bebef0d8766a543d0ffec93dc1d61c22a4b9d58d",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sl-rSI/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "f4978a0c3d745f75ccd6adb274e2d53b910b345c8d29e1fc7d2d9ca365dd5f25",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sr-rSP/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "b5ea66cacb489c4ee873af8e38f3e04b1fe45846fa8216a4878cd030456dc747",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-sv-rSE/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "daaffba35f2ce503e2bd599d120296a72eb96d9bc818b3d935d576181277466b",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-tr-rTR/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "5d50f580ab98d9c4b1158bdf5476de5495f6cb06938da0618770aecde8242302",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-uk-rUA/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "f7045a88336b85c809382a19943ae6f3c76d7a0852656244b1c4abe67989ea0a",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-vi-rVN/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "923efa7d23f02f0af84442552aa46e7d0f6af293d938a0e019bba3db102b488b",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-zh-rCN/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "cded886739a720abc9b9e30206d1c96cca891b4213ae84e1abb387d61d8a2204",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values-zh-rTW/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "e1f56b8ceae94f846e76dc5d570e85c32a573510b9f9f727ca85e87b788a4e3c",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/main/res/values/measured_history_strings.xml",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "b85f8416e02c5760f9bcb7c2cdddb63e6b4d1ef2c732d1537ec21e53238f196d",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterDeleteTest.kt",
+      "base_exists": true,
+      "base_sha256": "969006615aa0b4087648ece857bab9d8210f01709e88ca7098c25eeae5d592e4",
+      "selected_sha256": "3b44553c2ac46b260c6c70f36dac8bb74eb8a0df534f13a90a3c6acaa7768509",
+      "working_before_exists": true,
+      "working_before_sha256": "8efaa22f82ca5669e1a18c7911ff1af05fb0a19a4fd5590d8268696a2b075dbe",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt",
+      "base_exists": true,
+      "base_sha256": "3998b43292c4c38a067941c315cedfd84455a54eaf1e635256725cc5e3289c7f",
+      "selected_sha256": "7865fe54408722d4a1dbad061e129ba661fc86330d4da7f56041fe6dfb4a6a31",
+      "working_before_exists": true,
+      "working_before_sha256": "3998b43292c4c38a067941c315cedfd84455a54eaf1e635256725cc5e3289c7f",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "aa173f64b71bb08d3bdc8d62bdeeea759ce03f243c59c0cd04e73cd4c2865c26",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+          "sha256": "3d14deac3a2d9bac74a9c425ac0c1753dda1594a3e8132885cc385addb9c0079"
+        },
+        {
+          "packet": "MEASURED_LEGACY_SENSOR_HISTORY_SELECTED",
+          "sha256": "68524fb0d5ac69d128d72efd6b3c2422bfd3bf5efd4e023e5bbfe632d7819b14"
+        },
+        {
+          "packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED",
+          "sha256": "a251d2e3e1b57e8fa49a29800c52dc6cb61ee427e25bf19c934b653dae2a71c2"
+        },
+        {
+          "packet": "UNIFIED_HISTORY_MEASURED_UI_LIFECYCLE_SELECTED",
+          "sha256": "35e1192ae3a99e7918ea7c1e24a638487dc87d9b903dfea32a23421fdacd7d48"
+        },
+        {
+          "packet": "UNIFIED_HISTORY_EMPTY_FRONTIER_UI_SELECTED",
+          "sha256": "50a1577a9d3c7fc3fb000e32f719d9caac162b60280e718e087a80413602f41f"
+        },
+        {
+          "packet": "MEASURED_HISTORY_PENDING_EMPTY_SELECTED",
+          "sha256": "ad72c0af1ccc67faad58a5d0ad8be87dab1c38b38616a2b7eb44b8133ca0bdab"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryViewZoneComposeTest.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "51cde6d949806461fa15bf9222f9970e5444131dcae595a101fef932a229e2c0",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_UI_LIFECYCLE_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/PagedTrackingHistoryRepository.kt",
+      "base_exists": true,
+      "base_sha256": "08e94992992aee24a0bae1a8e9300c515f6e430c6dcdba6701e95005f8fd9203",
+      "selected_sha256": "8961831d537b99884b54abec88a0369ce13da9322365b023d99ec4c491497e51",
+      "working_before_exists": true,
+      "working_before_sha256": "94d20e2746778063cc4c1c41bb69c14d71319378b5a6630126f34026519c4de6",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistory.kt",
+      "base_exists": true,
+      "base_sha256": "482e2732b4bb223a7952e8e6a14fc48ad8785c14c620e88ce1874ab74440435a",
+      "selected_sha256": "1336a0d0bc9fc4c51cd6e3d426f7a2015a5a1b269b050b34f1fb46baae43ed29",
+      "working_before_exists": true,
+      "working_before_sha256": "b3b19bf1d7c2e0866b90802ecc586acea74a2888449a728d07cc32cf386f4dc6",
+      "selected_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+          "sha256": "ad4ca318b10c15aad14cf78f7cc71781f75cbbe2ff4a1eaa6f9d22e75706f0f2"
+        },
+        {
+          "packet": "MEASURED_LEGACY_SENSOR_HISTORY_SELECTED",
+          "sha256": "0f99c00a292cd2240dc289d6be8725799cf278fbbdd214059fce7bb3e286cd8b"
+        },
+        {
+          "packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED",
+          "sha256": "02a22e3867676b7f4bc0386a34229cdbc16b246ec70d2ae09ec78e894a07f2cd"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/MeasuredActivityTimeContractTest.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "bf56f95fd874ee551de2abc4fc8a8e7110ac00593d1e7f10507426b7f7a148cb",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposer.kt",
+      "base_exists": true,
+      "base_sha256": "1226c506f513917dd1569c0da3432b838c93736ff3d05af7f4050277db12cb51",
+      "selected_sha256": "744b740c9dc674baf83690bda884cd45f2323948cd6cc8cf8ee83f7a293e5fd1",
+      "working_before_exists": true,
+      "working_before_sha256": "1226c506f513917dd1569c0da3432b838c93736ff3d05af7f4050277db12cb51",
+      "selected_packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt",
+      "base_exists": true,
+      "base_sha256": "fd5416cb99f1ce2541ef2dfbbcc371d7392e1ddc687513bf23ea3b9a2d2852dc",
+      "selected_sha256": "a9cc723090082450138a26efc017d567a269154853cb111aa8926d8dd8a4b2c2",
+      "working_before_exists": true,
+      "working_before_sha256": "fd5416cb99f1ce2541ef2dfbbcc371d7392e1ddc687513bf23ea3b9a2d2852dc",
+      "selected_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt",
+      "base_exists": true,
+      "base_sha256": "f7a08d6b2bc5a57b9395b2c2fffad88a846ec429755e1c881ab940083b53f19c",
+      "selected_sha256": "d703147c6a0c3f31ca31a32a7f8a88c1c948895a7abd544a487d0d8ccfc1c19d",
+      "working_before_exists": true,
+      "working_before_sha256": "f7a08d6b2bc5a57b9395b2c2fffad88a846ec429755e1c881ab940083b53f19c",
+      "selected_packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultAmbientStepsHistoryRepository.kt",
+      "base_exists": true,
+      "base_sha256": "550ba0ed244079d816dafecc733095d18ae386df5938df4bd0e5d928d84fff32",
+      "selected_sha256": "f03b847bc73e026c1a8a6a4f2d69dd18329dee92a745e3f94aa2a3c43d18ed56",
+      "working_before_exists": true,
+      "working_before_sha256": "3b7d8e0d8f5a789b82e5d38d5ce5f7fc79219a910fcfe5f29872d6a668ac544d",
+      "selected_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt",
+      "base_exists": true,
+      "base_sha256": "51c9798bc347c00372a7139423554c14e9b3a791f979403c2c241e770b2ad156",
+      "selected_sha256": "a825ddd9e8ef37563763b4abfbe0a2dc83b2f6d80229adad676c780fdca8b735",
+      "working_before_exists": true,
+      "working_before_sha256": "51c9798bc347c00372a7139423554c14e9b3a791f979403c2c241e770b2ad156",
+      "selected_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt",
+      "base_exists": true,
+      "base_sha256": "ee5e46d3e1d44c0ee33e866ef9591efb069eea16475e7455c7fe0f81b3883939",
+      "selected_sha256": "a48e0a249b6ca8a8db56985800459c1ee3c8867854d843a502c10f10e9932116",
+      "working_before_exists": true,
+      "working_before_sha256": "ee5e46d3e1d44c0ee33e866ef9591efb069eea16475e7455c7fe0f81b3883939",
+      "selected_packet": "UNIFIED_HISTORY_FACADE_WIRING_REPAIR_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+          "sha256": "7ab55a96048e4fb8d044a1c77cc255fe0097e5dd542f053787ef74c6d3b1216b"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt",
+      "base_exists": true,
+      "base_sha256": "6c9d440c6b4444e3deb5e6b03b5bc5a43aa0034f56a9c7552e60f31c8480f8ce",
+      "selected_sha256": "edd726f297a35a9f49a4da7e688ce5588381b587a848bf410b7524c4f7413a87",
+      "working_before_exists": true,
+      "working_before_sha256": "6c9d440c6b4444e3deb5e6b03b5bc5a43aa0034f56a9c7552e60f31c8480f8ce",
+      "selected_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedActivityHistoryMapper.kt",
+      "base_exists": true,
+      "base_sha256": "0a11c13c801a57e86989fc37acc9236d8bc7a2a00b94f2ad8aacbed8c7bcb9b9",
+      "selected_sha256": "3a5cdcc3e1ab64523abcc96084083f41118f07e89b357b34d777e83ab299268b",
+      "working_before_exists": true,
+      "working_before_sha256": "0f19b27c9703d4f2c4a96edd6da8b74ace14edb03ae7b6e1540c0c8abfdd08fc",
+      "selected_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedCellHistoryDetails.kt",
+      "base_exists": true,
+      "base_sha256": "b0919d6ad540ac2e4b09b59e6968b2665847aa6f1a5abe0c9c7abaa4ca23b6de",
+      "selected_sha256": "afc501e47fef7161b94ee318acc832fe99c79388352a31996b1de3d580889bcb",
+      "working_before_exists": true,
+      "working_before_sha256": "b0919d6ad540ac2e4b09b59e6968b2665847aa6f1a5abe0c9c7abaa4ca23b6de",
+      "selected_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedCellHistoryMapper.kt",
+      "base_exists": true,
+      "base_sha256": "945be6931a10939785a96429be03086da8305932d7d107b4574952d365a514e8",
+      "selected_sha256": "ce11d21cf1c2984831b5cf7b7f032271d69a7e7f007fce15e6b54866bc3b49a3",
+      "working_before_exists": true,
+      "working_before_sha256": "3f4d7f7779c30206d5dc2ad3a0dd14bc91dd965825095a233537c81d67f019fd",
+      "selected_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluator.kt",
+      "base_exists": true,
+      "base_sha256": "fdb6138738d2f688a7209483e6b72d14befdbcb6067524c9ee32579945b4f575",
+      "selected_sha256": "472663bf3d2170cfbaa43e0c049dcdc37caba6304d80ed50b72b2952dd84d9a7",
+      "working_before_exists": true,
+      "working_before_sha256": "0d5fa8fc260c9d32bfe750af7191fe1e46adad18a8e638c9300e09ecd5038811",
+      "selected_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryPublicMapper.kt",
+      "base_exists": true,
+      "base_sha256": "e9e98b3d8793d5e1bbba8add241a98402761c0d67e740fc529b7f549e182be4e",
+      "selected_sha256": "ea8ac27482e95e98c90a09ebf970cba03c50de80998474e6db52013ac84b4b30",
+      "working_before_exists": true,
+      "working_before_sha256": "1cc30ea4a21d0db88e93fa37f750b883e64dfcc82803c813a268a17d65ba9049",
+      "selected_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedWifiHistoryDetails.kt",
+      "base_exists": true,
+      "base_sha256": "643e2def6b9ab57e4f27e77f9cfbc680089cb8e76e911b54f477fcdf3da3c105",
+      "selected_sha256": "8da614d1d4186f52f17376a37955f337b24fde48f46d3d9957ee62f209aa2b1a",
+      "working_before_exists": true,
+      "working_before_sha256": "643e2def6b9ab57e4f27e77f9cfbc680089cb8e76e911b54f477fcdf3da3c105",
+      "selected_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedWifiHistoryMapper.kt",
+      "base_exists": true,
+      "base_sha256": "0057dc768d4fd740ca844e74115e15c4d6aaba7261907180c6e58b9f777e712c",
+      "selected_sha256": "41f7e13701d7743759d4a726d54d1eb4d5a86b373032b3bb0d63fb28ea231347",
+      "working_before_exists": true,
+      "working_before_sha256": "b92b8c1367168c0cc8b320895d80a78c1a8c84d8ab206a341395f4d2c09036d1",
+      "selected_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredBackgroundStepsHistoryReader.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "ba97e646d8007d88cbb4d0d86925d106ab2050d44c2d0ee1bcf8a8cbdcafc80a",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredCapturedRadioHistoryReader.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "34d92953f65ade5fefd9fdc36e2a7569448c44497dd752b090893aa0df31a999",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredHistoryPosition.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "31657df04ebed5a4d013555cccbd668b6a83154e554144a74eaf90269774acd7",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "NATIVE_RADIO_CANONICAL_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+          "sha256": "c951191f4e4b0b5ba8156f14e7a9f1b1db8a0aaad2008c684820ac6d0733a625"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredImportedSensorHistoryReader.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "9d443777f21d6f53a3668b382308cea939e292c64d01b377068d8e58f36a8f7f",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacySensorHistoryReader.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "31b72c79fb4769f4d6f98ea25df9dd97700213bd5e034ce81e9ac07b749e1e1c",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "MEASURED_LEGACY_SENSOR_HISTORY_SELECTED",
+          "sha256": "36d2b2abc03ed7ed4860b1cb99f561e94a3e563707b6d3f37e3250e447322f51"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredLocationHistoryReader.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "1b985d37a1dda7faee13064184b3679aab23eb844ed16f54f99622b2c8483b31",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "MEASURED_LOCATION_PURPOSE_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+          "sha256": "f50b6ffcc5e8c8472075f43abb473bdca55e35ff049ba56ea8f258402c990aa3"
+        },
+        {
+          "packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED",
+          "sha256": "9db71013b61e42649179326c6dc59428c9af1535938311801cfb869412e56f74"
+        },
+        {
+          "packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED",
+          "sha256": "c775622416ec52df04a7b96bccf3d97f89262525001d647c0486e687934d2e46"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativeActivityHistoryReader.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "c09f13e5620b9b2eb3bec00da1093dbed9a445a668c7a62c6462a633bdba297e",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED",
+          "sha256": "c52b33c205be274b18dbcfba51f68729c27a92a6bdec6692003b76eaddba848f"
+        },
+        {
+          "packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED",
+          "sha256": "31e285b3c79b15ba5cb222f8d9003b60a2219d1d38b396bc7791ff4f9849a707"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativePressureHistoryReader.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "75fa6a61569dee92d04a72ccf84780e703e85eea55366904bed6d9a769fec7e6",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "MEASURED_PRESSURE_WINDOWS_SELECTED",
+          "sha256": "3da27de16ea1f485d098b631ad39469c0f297704a27cdf1362ced10b7a9ce199"
+        },
+        {
+          "packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED",
+          "sha256": "19553abd1d5ca276605cba2eec415f9c2acc8c9c450e0253c98e420206a89d23"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativeSessionNames.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "9f6e3e7032ebb343e15fe517a6c3d34354cb2289a08536ce33bd19be72c154fd",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativeStepsHistoryReader.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "55f2cb8edc7b02dc3020bd63807522b0303a089773645012c7494fd50880fd33",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "MEASURED_STEPS_WINDOWS_SELECTED",
+          "sha256": "fe281aee1ba23e47ffc64b6862ba9108ba1dcfd9943311a34fad3a7132dffd1c"
+        },
+        {
+          "packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED",
+          "sha256": "6bf0c7c8ba44eb95ba8b5821aefc1274c99f26eac88448ddca5147190fb4473a"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredRadioHistoryReader.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "844aad8cbbff493c7ff86150986b1f4de89cbb49275794f9e50510feff92e920",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "MEASURED_RADIO_HISTORY_SELECTED",
+          "sha256": "e74bde1360a460c0ad2c4a2b17594c10666c780fe643aa5546d51781b334b35c"
+        },
+        {
+          "packet": "NATIVE_RADIO_CANONICAL_SELECTED",
+          "sha256": "48eeac45654938adb24e3ae3c3a0982f03ceb30e30c159761c96d0c3c0fe4604"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/NativeAmbientStepsRangeReader.kt",
+      "base_exists": true,
+      "base_sha256": "93e9784b6b0783fede77b82e131a689049ecf53f5b1f998c1b21f37cfe3870ff",
+      "selected_sha256": "c0a59c881a8bb84c2f891a4e235b4c1d787c08951f314ab0173603741febfaf2",
+      "working_before_exists": true,
+      "working_before_sha256": "93e9784b6b0783fede77b82e131a689049ecf53f5b1f998c1b21f37cfe3870ff",
+      "selected_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryBatchReader.kt",
+      "base_exists": true,
+      "base_sha256": "d53bf19029343a3fce04e97629e0e3186bd6691b3e8c89f884e0ef999c5f01d3",
+      "selected_sha256": "e9cc678cdf6541801ef66fed765cfb7bc0d7c2ada7635bd4ea431b59ad932d60",
+      "working_before_exists": true,
+      "working_before_sha256": "9168ec54d34491a65ca7bc942bed2b0d7b75aa7699725187d13aafa35275d130",
+      "selected_packet": "MEASURED_PRESSURE_WINDOWS_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryPublicMapper.kt",
+      "base_exists": true,
+      "base_sha256": "55a1254b94ed07c94a6025dab593b24d1912b493390f6d73f5a4cc1b79fcd1c2",
+      "selected_sha256": "2a60b6596a17eee41888303c1b43d325aaa6666d652cf98164749bc07e548f2a",
+      "working_before_exists": true,
+      "working_before_sha256": "9800522702f7f79d8d56025b212f15c7ddfed7ec92aa4cf045041800dbda6545",
+      "selected_packet": "MEASURED_PRESSURE_WINDOWS_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelector.kt",
+      "base_exists": true,
+      "base_sha256": "ed0ab037e7d982591ae3cbb72f8f4d05cb96f8c16881dbd16aa7cbec5aeceede",
+      "selected_sha256": "22a686f6b9ccd6f290f06ac7914da3b20d7dae89c24274527cc2a6c6c4ff8815",
+      "working_before_exists": true,
+      "working_before_sha256": "0b2d6b42695cfc4747d8a060a6e56b2227fabd7de77414593842161d4e695682",
+      "selected_packet": "MEASURED_PRESSURE_WINDOWS_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "base_exists": true,
+      "base_sha256": "a88d0e60bb6c292c3f15a4dd3fae169a18bb865c7f6007d3e9cbda31e21c26e0",
+      "selected_sha256": "2f67e6dd9e061aaa6ab6f65a5f46cdacfce04e38decce6b3c7fcc885df54b196",
+      "working_before_exists": true,
+      "working_before_sha256": "a88d0e60bb6c292c3f15a4dd3fae169a18bb865c7f6007d3e9cbda31e21c26e0",
+      "selected_packet": "MEASURED_LOCATION_PURPOSE_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/StepsHistoryBatchReader.kt",
+      "base_exists": true,
+      "base_sha256": "3b6bf7f3582985cd53a3d8a35f0359ca8380abc83f28afd7d4e61f898ed949ad",
+      "selected_sha256": "e0a8e69e25bb33b4b431d19d0526c453b6567d11711f91bd82061abee30d290e",
+      "working_before_exists": true,
+      "working_before_sha256": "3b6bf7f3582985cd53a3d8a35f0359ca8380abc83f28afd7d4e61f898ed949ad",
+      "selected_packet": "MEASURED_STEPS_WINDOWS_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelector.kt",
+      "base_exists": true,
+      "base_sha256": "174335e53a19997fc7f4e30ee76394564bf6406627bad247a4018638c05310e1",
+      "selected_sha256": "98d5d3cff9a3e60b396699b3a6f1c3e6c3686428410b3aae473581edfd77ee20",
+      "working_before_exists": true,
+      "working_before_sha256": "174335e53a19997fc7f4e30ee76394564bf6406627bad247a4018638c05310e1",
+      "selected_packet": "MEASURED_STEPS_WINDOWS_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryPagingSource.kt",
+      "base_exists": true,
+      "base_sha256": "889f1f0d63d9b74f01a57839dc50f99b836c5674b66d0f6ae00af20e20fc0ca0",
+      "selected_sha256": "c62c07bcdb129172b1688d7fc253002cf6260843e7230b874af902f9514ea10a",
+      "working_before_exists": true,
+      "working_before_sha256": "889f1f0d63d9b74f01a57839dc50f99b836c5674b66d0f6ae00af20e20fc0ca0",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+      "base_exists": true,
+      "base_sha256": "f51a6a98870cd82674cd0406ef3b3a9a79b4aa6ea898b5144a662e6218660476",
+      "selected_sha256": "06be7ba131ecd930d10448d497f838692e7cc1ccf14f3681eb1adae0b98e642f",
+      "working_before_exists": true,
+      "working_before_sha256": "f51a6a98870cd82674cd0406ef3b3a9a79b4aa6ea898b5144a662e6218660476",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryComposer.kt",
+      "base_exists": true,
+      "base_sha256": "252ae39652eac2ef9df6c608f6be8f83d507850ae8fcf6bc216c095fa8d50009",
+      "selected_sha256": "01511581d72578e5c95278ae16246315209866a4efea361ec30e77ebf41980f1",
+      "working_before_exists": true,
+      "working_before_sha256": "252ae39652eac2ef9df6c608f6be8f83d507850ae8fcf6bc216c095fa8d50009",
+      "selected_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "base_exists": true,
+      "base_sha256": "17ff21166d5dd6c84fd16247556a963201ad86c77f717ecc2446077c43290fdc",
+      "selected_sha256": "acf7218e09cc0eaa403fc1b2b8bdc32781e23abd5f946b7948385ea86ec60dba",
+      "working_before_exists": true,
+      "working_before_sha256": "17ff21166d5dd6c84fd16247556a963201ad86c77f717ecc2446077c43290fdc",
+      "selected_packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+      "base_exists": true,
+      "base_sha256": "56b6ecd890ff201c669913d80b4e4f230f908cb72148a06fa180423eb6d30579",
+      "selected_sha256": "64e3130df9e9d652c1dd108fe58bd62f26741ad60f06cce9b10d7c98b6d853c0",
+      "working_before_exists": true,
+      "working_before_sha256": "56b6ecd890ff201c669913d80b4e4f230f908cb72148a06fa180423eb6d30579",
+      "selected_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "base_exists": true,
+      "base_sha256": "ee5c08b60b4d81283357175386511ba33f53d3911f9b068d43baecb797f5d0ea",
+      "selected_sha256": "04a9409c47c33c53bb59ee644500764e297da008c9ea17ec3a4f189690595ae4",
+      "working_before_exists": true,
+      "working_before_sha256": "ee5c08b60b4d81283357175386511ba33f53d3911f9b068d43baecb797f5d0ea",
+      "selected_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+          "sha256": "0286327a30283177b80a9b5ed54661362ea5e883c8f90c91928f63b62d7a8cdc"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedActivityHistoryMapperTest.kt",
+      "base_exists": true,
+      "base_sha256": "af495bc4ade26122573563cf2aedb83f581d9d470b63acf51052121770c9eecf",
+      "selected_sha256": "31331e81bb73af98d14c11f3dc33c2ed4f17f0040b7f7dc0669eb0e590ecc622",
+      "working_before_exists": true,
+      "working_before_sha256": "82590b26020611fbbe56197a3c5b6ec849c4efa2af85437aee5f67c934098521",
+      "selected_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluatorTest.kt",
+      "base_exists": true,
+      "base_sha256": "7ba48323cf15712663b0b6b84529162a6382d54daef600abf3993e46d60b10ee",
+      "selected_sha256": "a3275f81f422b66844a0068e02ec6073f7446e6c6c92f42398076d4611d297e6",
+      "working_before_exists": true,
+      "working_before_sha256": "7ba48323cf15712663b0b6b84529162a6382d54daef600abf3993e46d60b10ee",
+      "selected_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+      "base_exists": true,
+      "base_sha256": "d3f1b329c356953d9262e34d31fcbae913c9a23501c292e9b9e1405a3f3ffec1",
+      "selected_sha256": "68888c2f71ee334bd7a9408ec3e589c05e211b57b56e000f25e3f4dd2a5e8691",
+      "working_before_exists": true,
+      "working_before_sha256": "f6866fb15b4b8bd642c4262feb3adcb975921751e77d4d14803ef148fd4fe817",
+      "selected_packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedWifiHistoryDetailsRoomTest.kt",
+      "base_exists": true,
+      "base_sha256": "9f3dfa04fe0cd5c6eee7bffb63ea93cd956a4760f5d72e9219908425f86c9fb5",
+      "selected_sha256": "5f9bbc73bc6f90960ec414f9696d0059c51bbf6647c6340a2f049a80a3a73132",
+      "working_before_exists": true,
+      "working_before_sha256": "a263a3dd872243e531e42f2409f1942f36712df36f38f64304662aef9fea1b05",
+      "selected_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredCapturedRadioRoomSupport.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "776fa6b6d2d725e5cd9177488cd74b98ca0827a9587da04eb8cc9841083a008e",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacySensorHistoryReaderRoomTest.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "65c93123195953219496e1546d4a4adff14d161daca0fab6882faa61fa5d6ac5",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "MEASURED_LEGACY_SENSOR_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacyWifiCountRoomTest.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "6ba670dbb70f67a3d6b8a739b1afc6b925abe39ec71b3b5d399c448e0fe6a062",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLocationHistoryReaderRoomTest.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "93cc6fa8ac70e5f2a27893a7565a496692375df877f25444ef93cf64e1e7f504",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativeSessionNamesRoomTest.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "a9c4ea82426994c574d0537128b9bb66480c1f4f66dd7abd69e159b0a05bb6ed",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "base_exists": true,
+      "base_sha256": "69bda7de41e56ad6b0aa021391febaed96c871fa93898b73b7b42dd08794612b",
+      "selected_sha256": "63459c8f0beb53d0cb4fdb0ecacfe4956f8ba1b0ffaa9b09fe691274a5f9bcce",
+      "working_before_exists": true,
+      "working_before_sha256": "69bda7de41e56ad6b0aa021391febaed96c871fa93898b73b7b42dd08794612b",
+      "selected_packet": "MEASURED_PRESSURE_WINDOWS_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt",
+      "base_exists": true,
+      "base_sha256": "fcb948864048b94afd2320cba348c0801241e3ac6faad59453c5d07c3d30aeac",
+      "selected_sha256": "92735887aee5d87ad230f9f0af19759de229a87f99d0e59500f103e9c08880a4",
+      "working_before_exists": true,
+      "working_before_sha256": "fcb948864048b94afd2320cba348c0801241e3ac6faad59453c5d07c3d30aeac",
+      "selected_packet": "MEASURED_LOCATION_PURPOSE_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "base_exists": true,
+      "base_sha256": "a35308abbedf69eaf8bcf610cfa30dc904089f3852eec025b6d07250d8e5da32",
+      "selected_sha256": "7dd3ba459ed704b87ae22f13054cbb6088583b0546f86486b36e4a2e47df5b5f",
+      "working_before_exists": true,
+      "working_before_sha256": "314e6688c17322220b9f6faf16dc6fc642157e0ab13be7d347663ae08e054557",
+      "selected_packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "MEASURED_RADIO_HISTORY_SELECTED",
+          "sha256": "4a24057e9b6d50260de98bc2e522d6411912717aa445cef8b998dc43e49106d5"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportedAmbientStepsTransferTest.kt",
+      "base_exists": true,
+      "base_sha256": "f56a190b5883a78a58b317757eae595255e16ac524790d7cb5df4f24a3681038",
+      "selected_sha256": "7b48a6f9ac2041260c7298409ebb3048e91a6e5c36f5ad56a317a4628f5a6905",
+      "working_before_exists": true,
+      "working_before_sha256": "edc1324df03ab9ae575338ff70cf7213d8a82b13357a73866792fb84d3781985",
+      "selected_packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "base_exists": true,
+      "base_sha256": "9ae3dfe03cc5a1b6f7f93e0a92dbe1ca300a610096c3f288cdf42f5f8c107ad9",
+      "selected_sha256": "56b5f93ded0eec00c745a2c66d456cdbba2d55c104e2b20d1cbe2437516ec862",
+      "working_before_exists": true,
+      "working_before_sha256": "9ae3dfe03cc5a1b6f7f93e0a92dbe1ca300a610096c3f288cdf42f5f8c107ad9",
+      "selected_packet": "UNIFIED_HISTORY_FACADE_WIRING_REPAIR_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt",
+      "base_exists": true,
+      "base_sha256": "3c423ac91e78d262ec92e1239836abcda9c1811f3560860c5ac6a5dbf85720ed",
+      "selected_sha256": "8c820bd3adfff8cce4c81e5ccb7f2f8316bf08f453d6e9ff065bf1829ce51dbb",
+      "working_before_exists": true,
+      "working_before_sha256": "3c423ac91e78d262ec92e1239836abcda9c1811f3560860c5ac6a5dbf85720ed",
+      "selected_packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED",
+      "previous_selected_inputs": [
+        {
+          "packet": "MEASURED_STEPS_WINDOWS_SELECTED",
+          "sha256": "fdeaa2cd6505a5e42b9f7cf48a0755f4e444dd79160625be431ff581e230f0f1"
+        },
+        {
+          "packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED",
+          "sha256": "9c185c2bfff0801f830002839df61adf854b3fa17395e22f3d7cbc7be9514f35"
+        }
+      ],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryPagingMetadataRoomTest.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "c383c2f83e6f67e333495a1d2e1e548c5853b0b44841fedd96252699f2956fcc",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReaderRoomTest.kt",
+      "base_exists": true,
+      "base_sha256": "df52f86c195a693ee0877c5c64df1870a47cb7e2200213cecb4d6e9192283b36",
+      "selected_sha256": "5c81b8d53fe6ff988bbc6902b19047cdaccaace36fe14ef74092dbbe58446f2e",
+      "working_before_exists": true,
+      "working_before_sha256": "df52f86c195a693ee0877c5c64df1870a47cb7e2200213cecb4d6e9192283b36",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRoomFixtures.kt",
+      "base_exists": true,
+      "base_sha256": "3ed4ad5c04307230a070cac2fe3063aa74443bc9a62811a3e3d6ce26e7dda5a9",
+      "selected_sha256": "18c3de6a686ea2c713b56aa0cb7f5d1aa3251a409798d6d3b9eff52ecc709f16",
+      "working_before_exists": true,
+      "working_before_sha256": "3ed4ad5c04307230a070cac2fe3063aa74443bc9a62811a3e3d6ce26e7dda5a9",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedMeasuredHistoryAssemblyRoomTest.kt",
+      "base_exists": false,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_sha256": "21c6d08cd88f1b54d26168d3ea2200d8462dc2c29189ef2c2e05f6790150b3e3",
+      "working_before_exists": false,
+      "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+      "base_exists": true,
+      "base_sha256": "a653d51c49c42172c6c158b25aec42920dc7188788aca109379cb950239b39a8",
+      "selected_sha256": "3e1dbf4726fbc802bac4c0865b9e59e6aff3f58c908d9cfb2a99640962e2ba34",
+      "working_before_exists": true,
+      "working_before_sha256": "a653d51c49c42172c6c158b25aec42920dc7188788aca109379cb950239b39a8",
+      "selected_packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+      "previous_selected_inputs": [],
+      "selected_lf_only": true
+    }
+  ]
+}

@@ -220,6 +220,20 @@ interface AmbientStepsFactRevisionDao {
 		limit: Int,
 	): List<AmbientStepsFactRevisionEntity>
 
+    /** Exact measured History selection; later redacted RETRACTs still suppress each original. */
+    @Query("""
+        SELECT candidate.* FROM ambient_steps_fact_revision candidate
+        WHERE candidate.writer_id = :writerId AND candidate.writer_version = :writerVersion
+            AND candidate.logical_fact_id IN (:logicalFactIds) AND candidate.operation = 'UPSERT'
+            AND candidate.semantic_revision = (SELECT MAX(state.semantic_revision)
+                FROM ambient_steps_fact_revision state WHERE state.writer_id = candidate.writer_id
+                    AND state.writer_version = candidate.writer_version
+                    AND state.logical_fact_id = candidate.logical_fact_id)
+        ORDER BY candidate.logical_fact_id ASC LIMIT :limit
+    """)
+    suspend fun latestEffectiveForIds(writerId: String, writerVersion: Int,
+        logicalFactIds: List<String>, limit: Int): List<AmbientStepsFactRevisionEntity>
+
 	/** Complete correction lineages for one bounded product fact batch. */
 	@Query(
 		"SELECT * FROM ambient_steps_fact_revision WHERE writer_id = :writerId " +

@@ -10,22 +10,15 @@ import androidx.paging.cachedIn
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.ExplorationRepository
-import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
-import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayValue
-import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
-import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
-import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
+import com.adsamcik.tracker.stats.api.repository.PagedTrackingHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
+import com.adsamcik.tracker.stats.api.repository.HistoryPagingItem
 import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData
 import com.adsamcik.tracker.statistics.viewmodel.CalendarState
 import com.adsamcik.tracker.statistics.viewmodel.ExplorationStats
 import com.adsamcik.tracker.statistics.viewmodel.HistoryTab
-import com.adsamcik.tracker.statistics.viewmodel.HistoryStepsValue
-import com.adsamcik.tracker.statistics.viewmodel.TimelineEntry
-import com.adsamcik.tracker.statistics.viewmodel.TimelineState
-import com.adsamcik.tracker.statistics.viewmodel.activityIcon
-import com.adsamcik.tracker.statistics.viewmodel.activityLabel
-import com.adsamcik.tracker.statistics.viewmodel.formatDistanceLabel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -39,22 +32,20 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
-import java.util.Locale
 import javax.inject.Inject
 
 /**
@@ -62,13 +53,14 @@ import javax.inject.Inject
  * Replaces direct DAO access in [com.adsamcik.tracker.statistics.viewmodel.HistoryViewModel]
  * with stats-layer repository contracts.
  *
- * Outputs: [selectedTab], [timelineState], [calendarState], [pagedTrips], [explorationStats].
+ * Observation paging is shared by Timeline and the selected Calendar day.
+ * Exact session/recording actions retain their existing repository.
  */
 @HiltViewModel
 class HistoryPresenterViewModel @Inject constructor(
 	private val tripPresentationRepository: TripPresentationRepository,
 	private val dailySummaryRepository: DailySummaryRepository,
-	private val stepsNumericSummaryRepository: StepsNumericSummaryRepository,
+	private val trackingHistoryRepository: PagedTrackingHistoryRepository,
 	private val explorationRepository: ExplorationRepository,
 	private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -82,14 +74,12 @@ class HistoryPresenterViewModel @Inject constructor(
 	)
 	val selectedTab: StateFlow<HistoryTab> = _selectedTab.asStateFlow()
 
-	private val _timelineState = MutableStateFlow<TimelineState>(TimelineState.Loading)
-	val timelineState: StateFlow<TimelineState> = _timelineState.asStateFlow()
-
 	private val restoredCalendarMonth = savedStateHandle.get<String>(KEY_CALENDAR_MONTH)
 		?.let { savedMonth -> runCatching { YearMonth.parse(savedMonth) }.getOrNull() }
 		?: YearMonth.now()
 	private val restoredSelectedDay = savedStateHandle.get<Long>(KEY_CALENDAR_SELECTED_DAY)
-		?.let(LocalDate::ofEpochDay)
+		?.let { runCatching { LocalDate.ofEpochDay(it) }.getOrNull() }
+		?.takeIf { YearMonth.from(it) == restoredCalendarMonth }
 
 	private val _calendarState = MutableStateFlow(
 		CalendarState(
@@ -131,8 +121,33 @@ class HistoryPresenterViewModel @Inject constructor(
 		pagingSourceFactory = { tripPresentationRepository.getPagedTrips() },
 	).flow.cachedIn(viewModelScope)
 
+	private val viewZone = MutableStateFlow(ZoneId.systemDefault())
+
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	val timelineHistory: Flow<PagingData<HistoryPagingItem>> = viewZone
+		.flatMapLatest { zone -> observationPages(HistoryRange(
+			fromInclusiveMs = 0L,
+			toExclusiveMs = Long.MAX_VALUE,
+			viewZoneId = zone.id,
+			mode = HistoryBrowseMode.OBSERVATIONS,
+		)) }.cachedIn(viewModelScope)
+
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	val calendarHistory: Flow<PagingData<HistoryPagingItem>> = combine(
+		calendarRequest.map { it.selectedDay }.distinctUntilChanged(), viewZone,
+	) { day, zone -> day?.let { measuredDayRange(it, zone) } }.flatMapLatest { range ->
+		if (range == null) flowOf(PagingData.empty()) else observationPages(range)
+	}.cachedIn(viewModelScope)
+
+	private fun observationPages(range: HistoryRange): Flow<PagingData<HistoryPagingItem>> = Pager(
+		config = PagingConfig(pageSize = OBSERVATION_PAGE_SIZE, enablePlaceholders = false),
+		pagingSourceFactory = { trackingHistoryRepository.pagingSource(range) },
+	).flow
+
+	/** Display dates follow the current phone zone; saved UTC times remain unchanged. */
+	fun useViewZone(zone: ZoneId) { viewZone.value = zone }
+
 	init {
-		loadTimeline()
 		viewModelScope.launch {
 			combine(_selectedTab, calendarRequest) { tab, request -> tab to request }
 				.collectLatest { (tab, request) ->
@@ -188,102 +203,6 @@ class HistoryPresenterViewModel @Inject constructor(
 		if (request.month != _calendarState.value.currentMonth || _calendarState.value.dayData.isEmpty()) {
 			loadCalendarMonth(request.month, request)
 		}
-		request.selectedDay?.let { observeSelectedDay(it, request) }
-	}
-
-	private suspend fun observeSelectedDay(date: LocalDate, request: CalendarRequest) {
-		val startOfDay = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-		val endOfDay = date.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
-			.toEpochMilli()
-		val trips = tripPresentationRepository.getTripsBetween(startOfDay, endOfDay)
-		val epochDay = date.toEpochDay()
-		val summary = dailySummaryRepository.observeBetween(epochDay, epochDay)
-			.first()
-			.firstOrNull()
-		if (calendarRequest.value != request) return
-		_calendarState.update {
-			it.copy(
-				selectedDay = date,
-				selectedDayDetail = CalendarState.DayDetail(
-					totalDistanceM = summary?.totalDistance?.raw ?: 0f,
-					steps = HistoryStepsValue.Materializing,
-					tripCount = trips.size,
-					trips = trips,
-				),
-			)
-		}
-		stepsNumericSummaryRepository.observeDisplay(stepsRequest(epochDay, epochDay)).collect { summary ->
-			if (calendarRequest.value == request) {
-				_calendarState.update { state ->
-					state.copy(
-						selectedDayDetail = state.selectedDayDetail?.copy(
-							steps = summary.forDay(epochDay),
-						),
-					)
-				}
-			}
-		}
-	}
-
-	private fun loadTimeline() {
-		viewModelScope.launch {
-			val now = System.currentTimeMillis()
-			val thirtyDaysAgo = now - THIRTY_DAYS_MS
-			val trips = tripPresentationRepository.getTripsBetween(thirtyDaysAgo, now)
-
-			if (trips.isEmpty()) {
-				_timelineState.value = TimelineState.Empty
-				return@launch
-			}
-
-			val entries = mutableListOf<TimelineEntry>()
-			val timeFormatter = java.text.SimpleDateFormat("HH:mm", Locale.getDefault())
-			val dateFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-
-			val tripsByDay = trips.groupBy { trip ->
-				Instant.ofEpochMilli(trip.startTimeMs)
-					.atZone(ZoneId.systemDefault())
-					.toLocalDate()
-			}
-
-			// Preload summaries for the date range via repository
-			val firstDay = tripsByDay.keys.minOrNull()?.toEpochDay() ?: return@launch
-			val lastDay = tripsByDay.keys.maxOrNull()?.toEpochDay() ?: return@launch
-			val summaryMap = dailySummaryRepository.observeBetween(firstDay, lastDay)
-				.first()
-				.associateBy { it.dayEpoch }
-			for ((date, dayTrips) in tripsByDay.toSortedMap(compareByDescending { it })) {
-				val summary = summaryMap[date.toEpochDay()]
-				entries.add(
-					TimelineEntry.DaySummaryEntry(
-						epochDay = date.toEpochDay(),
-						timestampMs = date.atStartOfDay(ZoneId.systemDefault()).toInstant()
-							.toEpochMilli(),
-						dateLabel = date.format(dateFormatter),
-						distanceLabel = formatDistanceLabel(
-							summary?.totalDistance?.raw ?: 0f,
-						),
-						tripCount = dayTrips.size,
-					),
-				)
-
-				for (trip in dayTrips.sortedByDescending { it.startTimeMs }) {
-					entries.add(
-						TimelineEntry.TripEntry(
-							tripId = trip.id,
-							timestampMs = trip.startTimeMs,
-							title = activityLabel(trip.primaryActivity),
-							subtitle = "${timeFormatter.format(java.util.Date(trip.startTimeMs))}" +
-								" - ${timeFormatter.format(java.util.Date(trip.endTimeMs))}",
-							timeLabel = formatDistanceLabel(trip.distanceM),
-							modeIcon = activityIcon(trip.primaryActivity),
-						),
-					)
-				}
-			}
-
-			_timelineState.value = TimelineState.Content(entries)
-		}
 	}
 
 	private suspend fun loadCalendarMonth(
@@ -316,15 +235,6 @@ class HistoryPresenterViewModel @Inject constructor(
 			}
 		}
 	}
-
-	private fun stepsRequest(
-		firstEpochDay: Long,
-		lastEpochDayInclusive: Long,
-	) = StepsNumericSummaryRequest(
-		firstEpochDay = firstEpochDay,
-		lastEpochDayInclusive = lastEpochDayInclusive,
-		fallbackCalendarZoneId = ZoneId.systemDefault().id,
-	)
 
 	/**
 	 * Mark a trip as pending deletion and start the ViewModel-owned undo deadline.
@@ -405,7 +315,7 @@ class HistoryPresenterViewModel @Inject constructor(
 
 	companion object {
 		private const val PAGE_SIZE = 20
-		private const val THIRTY_DAYS_MS = 30L * 24 * 60 * 60 * 1000
+		private const val OBSERVATION_PAGE_SIZE = 50
 		private const val EXPLORATION_ZOOM_LEVEL = 14
 		private const val PENDING_DELETE_EVENT_BUFFER_CAPACITY = 16
 
@@ -425,15 +335,11 @@ private data class CalendarRequest(
 	val selectedDay: LocalDate?,
 )
 
-/** Display subtotals remain visibly incomplete; this adapter never promotes one to a total. */
-internal fun StepsDailyDisplay.forDay(epochDay: Long): HistoryStepsValue = when (this) {
-	is StepsDailyDisplay.Snapshot -> when (val value = days.firstOrNull { it.epochDay == epochDay }?.value) {
-		is StepsDailyDisplayValue.Complete -> HistoryStepsValue.Ready(value.count)
-		is StepsDailyDisplayValue.Recorded -> HistoryStepsValue.Recorded(value.count, value.causes)
-		StepsDailyDisplayValue.Materializing -> HistoryStepsValue.Materializing
-		is StepsDailyDisplayValue.Unavailable -> HistoryStepsValue.Unavailable(value.reason)
-		null -> HistoryStepsValue.Unavailable(StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
-	}
-	StepsDailyDisplay.Materializing -> HistoryStepsValue.Materializing
-	StepsDailyDisplay.StorageUnavailable -> HistoryStepsValue.Unavailable(StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE)
+
+/** A day before the supported UTC epoch contains no saved observation. */
+internal fun measuredDayRange(day: LocalDate, zone: ZoneId): HistoryRange? {
+	val start = day.atStartOfDay(zone).toInstant().toEpochMilli().coerceAtLeast(0L)
+	val end = day.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli()
+	return if (end <= start) null else HistoryRange(start, end, zone.id,
+		mode = HistoryBrowseMode.OBSERVATIONS)
 }

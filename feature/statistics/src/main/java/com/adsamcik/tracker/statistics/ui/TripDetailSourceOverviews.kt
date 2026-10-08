@@ -384,7 +384,7 @@ private val ActivityHistoryOrigin.labelResource: Int
 		ActivityHistoryOrigin.IMPORTED -> R.string.trip_detail_activity_origin_imported
 	}
 
-private val ActivityHistoryType.labelResource: Int
+internal val ActivityHistoryType.labelResource: Int
 	get() = when (this) {
 		ActivityHistoryType.STILL -> R.string.trip_detail_activity_still
 		ActivityHistoryType.WALKING -> R.string.trip_detail_activity_walking

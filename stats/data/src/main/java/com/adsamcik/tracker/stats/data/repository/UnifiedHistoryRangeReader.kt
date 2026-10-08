@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.activeRetentionFloorSettlement
 import com.adsamcik.tracker.shared.base.database.TRACKING_HISTORY_INVALIDATION_TABLES
 import com.adsamcik.tracker.shared.base.database.dao.LocationHistoryDayRow
+import com.adsamcik.tracker.shared.base.database.dao.MeasuredHistoryCandidate
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedHistoryCandidate
 import com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -25,6 +26,7 @@ import com.adsamcik.tracker.stats.api.repository.AmbientStepsStructuralDay
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiOrigin
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadRequest
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadResult
+import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
 import com.adsamcik.tracker.stats.api.repository.HistoryContinuation
 import com.adsamcik.tracker.stats.api.repository.HistoryLocationCoverage
 import com.adsamcik.tracker.stats.api.repository.HistoryLocationPoint
@@ -74,6 +76,9 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
     private val backgroundCell: RoomAmbientCellRepository,
     @ApplicationContext private val context: Context,
     @IoDispatcher private val io: CoroutineDispatcher,
+    private val qualifiedLocation: RetainedLocationContextReader,
+    private val stepsSelector: StepsSegmentHistorySelector,
+    private val pressureSelector: PressureHistorySelector,
     private val allDaySources: RoomAllDaySourceStatusQuery = RoomAllDaySourceStatusQuery(
         database, backgroundSteps, backgroundWifi, backgroundCell, io),
 ) {
@@ -103,6 +108,9 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
             return HistoryRangeRead.Unavailable(HistoryProblemReason.TIME_UNCERTAIN)
         }
         val snapshot = TrackingHistoryReadSnapshot(state.collectedDataEpoch, state.revision)
+        if (request.range.mode == HistoryBrowseMode.OBSERVATIONS) {
+            return readObservationsInTransaction(request, state, snapshot)
+        }
         val problems = linkedSetOf<HistoryProblem>()
         val streams = mutableListOf<HistoryStreamBuffer<RangeHistoryCandidate>>()
         val range = request.range
@@ -710,6 +718,104 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
             archive.availablePointCount < archive.declaredPointCount, unknownPurpose)
     }
 
+    /** Plan a finite raw frontier first; rejected measurements still advance browsing. */
+    private suspend fun readObservationsInTransaction(request: HistoryRangeRequest,
+        state: SourceEvidenceState, snapshot: TrackingHistoryReadSnapshot): HistoryRangeRead {
+        val range = request.range
+        val after = request.after?.consumed
+        val problems = linkedSetOf<HistoryProblem>()
+        val streams = mutableListOf<HistoryStreamBuffer<MeasuredRangeCandidate>>()
+        val location = MeasuredLocationHistoryReader(database, qualifiedLocation)
+        val radio = MeasuredRadioHistoryReader(database, backgroundWifi, backgroundCell)
+        val capturedRadio = MeasuredCapturedRadioHistoryReader(database, wifi, cell)
+        val nativeActivity = MeasuredNativeActivityHistoryReader(database, activity)
+        val nativePressure = MeasuredNativePressureHistoryReader(database, pressureSelector)
+        val nativeSteps = MeasuredNativeStepsHistoryReader(database, stepsSelector)
+        val legacy = MeasuredLegacySensorHistoryReader(database)
+        val imported = MeasuredImportedSensorHistoryReader(database)
+        val ambientSteps = MeasuredBackgroundStepsHistoryReader(database)
+        suspend fun add(kind: MeasuredRangeKind, source: HistorySource,
+            read: suspend () -> List<MeasuredHistoryCandidate>) {
+            if (source !in range.sources) return
+            try {
+                currentCoroutineContext().ensureActive()
+                val keys = read().map { MeasuredRangeCandidate(kind, source, it) }
+                require(keys.size <= MAX_CANDIDATES + 1)
+                streams += HistoryStreamBuffer(keys.take(MAX_CANDIDATES),
+                    { measuredHistoryPosition(it.seed) }, keys.getOrNull(MAX_CANDIDATES)?.let { measuredHistoryPosition(it.seed) })
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (_: android.database.sqlite.SQLiteException) {
+                problems += HistoryProblem(source, HistoryProblemReason.STORAGE_UNAVAILABLE)
+            } catch (_: RuntimeException) {
+                problems += HistoryProblem(source, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+            }
+        }
+        add(MeasuredRangeKind.LOCATION, HistorySource.LOCATION) { location.candidates(range, after) }
+        add(MeasuredRangeKind.WIFI, HistorySource.WIFI) { radio.candidates(HistorySource.WIFI, range, after) }
+        add(MeasuredRangeKind.CELL, HistorySource.CELL) { radio.candidates(HistorySource.CELL, range, after) }
+        add(MeasuredRangeKind.NATIVE_ACTIVITY, HistorySource.ACTIVITY) { nativeActivity.candidates(range, after) }
+        add(MeasuredRangeKind.NATIVE_PRESSURE, HistorySource.PRESSURE) { nativePressure.candidates(range, after) }
+        add(MeasuredRangeKind.NATIVE_STEPS, HistorySource.STEPS) { nativeSteps.candidates(range, after) }
+        add(MeasuredRangeKind.LEGACY_ACTIVITY, HistorySource.ACTIVITY) { legacy.candidates(HistorySource.ACTIVITY, range, after) }
+        add(MeasuredRangeKind.LEGACY_PRESSURE, HistorySource.PRESSURE) { legacy.candidates(HistorySource.PRESSURE, range, after) }
+        if (HistoryOrigin.IMPORTED in range.origins && HistoryPurpose.CAPTURE in range.purposes) {
+            add(MeasuredRangeKind.IMPORTED_ACTIVITY, HistorySource.ACTIVITY) { imported.candidates(HistorySource.ACTIVITY, range, after) }
+            add(MeasuredRangeKind.IMPORTED_PRESSURE, HistorySource.PRESSURE) { imported.candidates(HistorySource.PRESSURE, range, after) }
+            add(MeasuredRangeKind.IMPORTED_STEPS, HistorySource.STEPS) { imported.candidates(HistorySource.STEPS, range, after) }
+        }
+        if (HistoryPurpose.BACKGROUND in range.purposes &&
+            range.origins.any { it == HistoryOrigin.LOCAL || it == HistoryOrigin.IMPORTED }) {
+            add(MeasuredRangeKind.BACKGROUND_STEPS, HistorySource.STEPS) { ambientSteps.candidates(range, after) }
+        }
+        val planned = mergeHistoryBuffers(streams, request.limit) { _, representatives -> representatives }
+        val rows = linkedMapOf<HistoryPosition, UnifiedHistoryRow>()
+        for ((kind, selected) in planned.rows.flatten().groupBy { it.kind }) {
+            currentCoroutineContext().ensureActive()
+            val keys = selected.map { it.seed }
+            val positions = keys.mapTo(hashSetOf(), ::measuredHistoryPosition)
+            fun append(readRows: Map<HistoryPosition, UnifiedHistoryRow>, readProblems: Set<HistoryProblem>) {
+                check(readRows.keys.all { it in positions } && readRows.keys.none { it in rows })
+                rows += readRows
+                problems += readProblems
+            }
+            try {
+                when (kind) {
+                    MeasuredRangeKind.LOCATION -> location.qualify(keys, range).let { append(it.rows, it.problems) }
+                    MeasuredRangeKind.WIFI -> radio.qualify(HistorySource.WIFI, keys, range, capturedRadio)
+                        .let { append(it.rows, it.problems) }
+                    MeasuredRangeKind.CELL -> radio.qualify(HistorySource.CELL, keys, range, capturedRadio)
+                        .let { append(it.rows, it.problems) }
+                    MeasuredRangeKind.NATIVE_ACTIVITY -> nativeActivity.qualify(keys, range).let { append(it.rows, it.problems) }
+                    MeasuredRangeKind.NATIVE_PRESSURE -> nativePressure.qualify(keys, range).let { append(it.rows, it.problems) }
+                    MeasuredRangeKind.NATIVE_STEPS -> nativeSteps.qualify(keys, range).let { append(it.rows, it.problems) }
+                    MeasuredRangeKind.LEGACY_ACTIVITY -> legacy.qualify(HistorySource.ACTIVITY, keys, range)
+                        .let { append(it.rows, it.problems) }
+                    MeasuredRangeKind.LEGACY_PRESSURE -> legacy.qualify(HistorySource.PRESSURE, keys, range)
+                        .let { append(it.rows, it.problems) }
+                    MeasuredRangeKind.IMPORTED_ACTIVITY -> imported.qualify(HistorySource.ACTIVITY, keys, range)
+                        .let { append(it.rows, it.problems) }
+                    MeasuredRangeKind.IMPORTED_PRESSURE -> imported.qualify(HistorySource.PRESSURE, keys, range)
+                        .let { append(it.rows, it.problems) }
+                    MeasuredRangeKind.IMPORTED_STEPS -> imported.qualify(HistorySource.STEPS, keys, range)
+                        .let { append(it.rows, it.problems) }
+                    MeasuredRangeKind.BACKGROUND_STEPS -> ambientSteps.qualify(keys, range).let { append(it.rows, it.problems) }
+                }
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (_: android.database.sqlite.SQLiteException) {
+                problems += HistoryProblem(selected.first().source, HistoryProblemReason.STORAGE_UNAVAILABLE)
+            } catch (_: RuntimeException) {
+                problems += HistoryProblem(selected.first().source, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+            }
+        }
+        if (database.sourceEvidenceStateDao().get() != state) {
+            return HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+        }
+        val ordered = planned.rows.mapNotNull { representatives ->
+            rows[measuredHistoryPosition(representatives.first().seed)] }
+        val next = if (planned.hasMore && planned.consumed != null) HistoryContinuation(range, planned.consumed) else null
+        return HistoryRangeRead.Page(ordered, snapshot, next, problems)
+    }
+
     private suspend fun sourceRead(candidates: List<RangeHistoryCandidate>,
         read: suspend () -> RangeHistorySections): RangeHistorySections = try {
         currentCoroutineContext().ensureActive()
@@ -732,7 +838,7 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
         private val BACKGROUND_SOURCES = setOf(HistorySource.LOCATION, HistorySource.STEPS, HistorySource.WIFI, HistorySource.CELL)
         val invalidationTables: List<String> = (TRACKING_HISTORY_INVALIDATION_TABLES +
             DefaultAmbientStepsHistoryRepository.AMBIENT_HISTORY_DEPENDENCY_TABLES + listOf(
-                "activity", "ambient_wifi_authority", "ambient_wifi_retention_authority", "ambient_wifi_fact_cursor",
+                "activity", "activity_snapshot", "pressure_sample", "ambient_wifi_authority", "ambient_wifi_retention_authority", "ambient_wifi_fact_cursor",
                 "ambient_cell_authority", "ambient_cell_retention_authority", "ambient_cell_fact_cursor",
                 "imported_ambient_wifi_receipt", "imported_ambient_cell_receipt",
                 "wifi_selected_deletion_receipt", "wifi_selected_deletion_protected_identity",
@@ -796,3 +902,10 @@ private fun unavailableRow(position: HistoryPosition, end: Long?, origin: Histor
     purpose: HistoryPurpose, source: HistorySource?, reason: HistoryProblemReason) = UnifiedHistoryRow(
     position, end?.takeIf { it >= position.startTimeMs }, setOf(origin), purpose,
     sections = emptyList(), problems = setOf(HistoryProblem(source, reason)))
+
+private enum class MeasuredRangeKind {
+    LOCATION, WIFI, CELL, NATIVE_ACTIVITY, NATIVE_PRESSURE, NATIVE_STEPS,
+    LEGACY_ACTIVITY, LEGACY_PRESSURE, IMPORTED_ACTIVITY, IMPORTED_PRESSURE, IMPORTED_STEPS, BACKGROUND_STEPS,
+}
+private data class MeasuredRangeCandidate(val kind: MeasuredRangeKind, val source: HistorySource,
+    val seed: MeasuredHistoryCandidate)

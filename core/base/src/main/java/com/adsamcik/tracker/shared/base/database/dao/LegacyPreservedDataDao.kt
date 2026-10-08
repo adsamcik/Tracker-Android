@@ -19,6 +19,22 @@ interface LegacyPreservedDataDao {
 	suspend fun wifiCounts(fromMs: Long, toMs: Long, limit: Int,
 		afterTimeMs: Long? = null, afterId: Long? = null): List<LegacyLocationWifiCount>
 
+	/** Original released scan-count keys; this never invents an AP or a tracking purpose. */
+	@Query("""SELECT 'legacy_wifi_count' AS kind, 'LEGACY' AS origin, 'UNKNOWN' AS purpose,
+		length(CAST(id AS TEXT)) || ':' || CAST(id AS TEXT) AS identity, time AS startTimeMs, NULL AS endTimeMs,
+		id AS rowId, NULL AS writerId, NULL AS writerVersion, NULL AS factId, NULL AS factRevision,
+		NULL AS itemIndex, NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM legacy_location_wifi_count WHERE time >= :fromMs AND time < :toMs
+		AND (:afterTime IS NULL OR time < :afterTime OR
+		(time = :afterTime AND ('legacy:legacy_wifi_count' > :afterTag OR
+		('legacy:legacy_wifi_count' = :afterTag AND length(CAST(id AS TEXT)) || ':' || CAST(id AS TEXT) > :afterIdentity))))
+		ORDER BY time DESC, identity ASC LIMIT :limit""")
+	suspend fun wifiCountHistoryCandidates(fromMs: Long, toMs: Long, afterTime: Long?, afterTag: String?,
+		afterIdentity: String?, limit: Int): List<MeasuredHistoryCandidate>
+
+	@Query("SELECT * FROM legacy_location_wifi_count WHERE id IN (:ids)")
+	suspend fun wifiCountsByIds(ids: List<Long>): List<LegacyLocationWifiCount>
+
 	@Query("SELECT * FROM network_operator WHERE mcc = :mcc AND mnc = :mnc")
 	suspend fun networkOperator(mcc: String, mnc: String): NetworkOperator?
 

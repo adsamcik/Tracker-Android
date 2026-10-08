@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_measurements_empty">Keine aufgezeichneten Daten</string>
+    <string name="history_show_details">Details anzeigen</string>
+    <string name="history_hide_details">Details ausblenden</string>
+</resources>

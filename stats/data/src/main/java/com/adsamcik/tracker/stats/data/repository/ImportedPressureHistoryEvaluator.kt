@@ -29,6 +29,14 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 	private val integrationObserver: TrackingHistoryIntegrationObserver =
 		TrackingHistoryIntegrationObserver(),
 ) {
+	/** Exact measured parent reuses the same original receipt, lineage, epoch and privacy checks. */
+	internal suspend fun selectedInTransaction(identity: String): ImportedPressureHistoryEvaluation? {
+		require(identity.isNotBlank())
+		val candidates = database.importedPressureDao().selectedHistoryCandidates(listOf(identity))
+		check(candidates.size <= 1 && candidates.all { it.identity == identity })
+		return candidates.singleOrNull()?.let { evaluateCandidateInTransaction(it) }
+	}
+
 	internal suspend fun selectRecentInTransaction(
 		limit: Int,
 	): ImportedPressureHistorySelection {

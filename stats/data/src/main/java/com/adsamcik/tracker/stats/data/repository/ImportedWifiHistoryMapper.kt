@@ -166,7 +166,7 @@ private fun ImportedWifiProductEvaluation.Readable.emptyReadableShell(
 	importedSelection = candidate.selection,
 )
 
-private fun PortableCapturedWifiObservationV1.toPublicObservation(): WifiHistoryObservation {
+internal fun PortableCapturedWifiObservationV1.toPublicObservation(): WifiHistoryObservation {
 	val rejected = Math.addExact(
 		Math.addExact(staleResultCount, clockUnverifiableResultCount),
 		malformedResultCount,

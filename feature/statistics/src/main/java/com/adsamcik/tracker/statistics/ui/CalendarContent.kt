@@ -75,6 +75,7 @@ internal fun CalendarContent(
 	organizationRead: SessionOrganizationRead? = null,
 	onViewSessionsForDay: ((LocalDate) -> Unit)? = null,
 	modifier: Modifier = Modifier,
+	observations: (@Composable () -> Unit)? = null,
 ) {
 	Column(modifier = modifier.fillMaxSize()) {
 		MonthHeader(
@@ -101,8 +102,11 @@ internal fun CalendarContent(
 				else -> Unit
 			}
 		}
-		// Day detail bottom section
-		state.selectedDayDetail?.let { detail ->
+		// Timeline and selected-day History use the same bounded measured list.
+		if (state.selectedDay != null && observations != null) {
+			HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+			Box(Modifier.fillMaxWidth().weight(1f)) { observations() }
+		} else state.selectedDayDetail?.let { detail ->
 			HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 			DayDetailSection(
 				detail = detail,

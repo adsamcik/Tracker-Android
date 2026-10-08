@@ -40,21 +40,9 @@ internal suspend fun AppDatabase.withImportedCellDetails(
 	}
 	// An imported correction can retain children for an erased run. Keep its details hidden.
 	val byObservation = rows.groupBy { row ->
-		check(row.entryIdentity == readable.entry.identity.value &&
-			row.entryImportRevision == readable.candidate.importRevision)
 		val owner = requireNotNull(owners[row.observationIdentity])
-		check(owner.first == row.runIdentity)
-		val parent = owner.second
-		check(row.itemIndex >= 0 && row.providerTimestampNanos > 0L &&
-			row.wallTimeUncertaintyMs >= 0L && row.observedWallTimeMs >= row.wallTimeUncertaintyMs &&
-			row.observedWallTimeMs - row.wallTimeUncertaintyMs >= parent.coverageStartTimeMs &&
-			row.observedWallTimeMs <= Long.MAX_VALUE - row.wallTimeUncertaintyMs &&
-			row.observedWallTimeMs + row.wallTimeUncertaintyMs <= parent.latestPossibleTimeMs)
-		check(row.contentChecksum == PortableRadioChildIntegrity.digest("cell",
-			listOf(row.entryIdentity, row.runIdentity, row.observationIdentity),
-			listOf(parent.semanticRevision, row.itemIndex, row.providerTimestampNanos,
-				row.observedWallTimeMs, row.wallTimeUncertaintyMs, row.towerIdentity,
-				row.radioType, row.registered, row.signalDbm)))
+		validateImportedCellChild(row, readable.entry.identity.value, readable.candidate.importRevision,
+			owner.first, owner.second)
 		row.observationIdentity
 	}
 	check(visible.all { (_, observation) ->
@@ -71,3 +59,35 @@ internal suspend fun AppDatabase.withImportedCellDetails(
 
 private const val MAX_IMPORTED_CELL_DETAILS = 4_096
 private const val IMPORTED_CELL_OWNER_BATCH = 64
+
+/** Exact selected imported parent details; legacy absent groups remain typed summaries. */
+internal suspend fun AppDatabase.measuredImportedCellChildren(
+	evaluation: ImportedCellProductEvaluation.Readable,
+	runIdentity: String,
+	parent: com.adsamcik.tracker.shared.base.database.PortableCapturedCellObservationV1,
+): List<ImportedCellChildEntity> {
+	val owner = evaluation.entry.runs.singleOrNull { it.identity.value == runIdentity }
+	check(owner != null && owner.observations.singleOrNull { it.identity == parent.identity } == parent)
+	val rows = importedRadioChildDao().cellSessionChildrenForObservations(evaluation.entry.identity.value,
+		evaluation.candidate.importRevision, runIdentity, listOf(parent.identity.value), Math.addExact(parent.acceptedChildCount, 1))
+	check(rows.size <= parent.acceptedChildCount && (rows.isEmpty() || rows.size == parent.acceptedChildCount))
+	check(rows.map { it.itemIndex }.distinct().size == rows.size)
+	rows.forEach { row -> validateImportedCellChild(row, evaluation.entry.identity.value,
+		evaluation.candidate.importRevision, runIdentity, parent) }
+	return rows
+}
+
+private fun validateImportedCellChild(row: ImportedCellChildEntity, entryIdentity: String,
+	importRevision: Long, runIdentity: String,
+	parent: com.adsamcik.tracker.shared.base.database.PortableCapturedCellObservationV1) {
+	check(row.entryIdentity == entryIdentity && row.entryImportRevision == importRevision &&
+		row.runIdentity == runIdentity && row.observationIdentity == parent.identity.value)
+	check(row.itemIndex >= 0 && row.providerTimestampNanos > 0L && row.wallTimeUncertaintyMs >= 0L &&
+		row.observedWallTimeMs >= row.wallTimeUncertaintyMs && row.observedWallTimeMs - row.wallTimeUncertaintyMs >= parent.coverageStartTimeMs &&
+		row.observedWallTimeMs <= Long.MAX_VALUE - row.wallTimeUncertaintyMs &&
+		row.observedWallTimeMs + row.wallTimeUncertaintyMs <= parent.latestPossibleTimeMs)
+	check(row.contentChecksum == PortableRadioChildIntegrity.digest("cell",
+		listOf(row.entryIdentity, row.runIdentity, row.observationIdentity),
+		listOf(parent.semanticRevision, row.itemIndex, row.providerTimestampNanos, row.observedWallTimeMs,
+			row.wallTimeUncertaintyMs, row.towerIdentity, row.radioType, row.registered, row.signalDbm)))
+}

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_measurements_empty">Chưa có dữ liệu được ghi</string>
+    <string name="history_show_details">Hiện chi tiết</string>
+    <string name="history_hide_details">Ẩn chi tiết</string>
+</resources>

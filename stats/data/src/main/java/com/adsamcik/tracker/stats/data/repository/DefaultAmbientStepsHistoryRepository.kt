@@ -846,12 +846,13 @@ private fun AmbientStepsDayCause.toPublicCause(): AmbientStepsHistoryCause = whe
 		AmbientStepsHistoryCause.SESSION_COUNT_EXCEEDS_TOTAL
 }
 
-private sealed interface ImportedAmbientStepsRangeRead {
+internal sealed interface ImportedAmbientStepsRangeRead {
 	data class Ready(
 		val factsByDay: Map<AmbientStepsHistoryKey, List<QualifiedAmbientStepsFact>>,
 		val gapsByDay: Map<AmbientStepsHistoryKey, List<EffectiveAmbientStepsGap>>,
 		val causesByDay: Map<AmbientStepsHistoryKey, Set<AmbientStepsDayCause>>,
 		val dispositionByDay: Map<AmbientStepsHistoryKey, AmbientStepsImportedDisposition>,
+        val measuredGapsByDay: Map<AmbientStepsHistoryKey, List<com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsGapV1>> = emptyMap(),
 	) : ImportedAmbientStepsRangeRead
 
 	data class DependencyOverflow(
@@ -863,7 +864,7 @@ private sealed interface ImportedAmbientStepsRangeRead {
 
 internal class AmbientStepsHistorySelectionOverflow : RuntimeException(null, null, false, false)
 
-private class ImportedAmbientStepsRangeReader(
+internal class ImportedAmbientStepsRangeReader(
 	private val database: AppDatabase,
 	private val dao: ImportedAmbientStepsDao,
 ) {
@@ -872,7 +873,9 @@ private class ImportedAmbientStepsRangeReader(
 		range: AmbientStepsRequestedRange,
 		evidence: SourceEvidenceState,
 		selectedDayIds: Set<String>? = null,
+        selectedMeasurements: Boolean = false,
 	): ImportedAmbientStepsRangeRead {
+        require(!selectedMeasurements || selectedDayIds != null)
 		try {
 			dao.authenticateAllAmbientStepsFences(evidence.collectedDataEpoch)
 		} catch (failure: ImportedAmbientStepsLineageFailure) {
@@ -961,7 +964,7 @@ private class ImportedAmbientStepsRangeReader(
 		}
 		val retainedFloor = evidence.retainedFromMs
 		val live = selected.filterNot { candidate ->
-			val retained = retainedFloor != null && (
+			val retained = !selectedMeasurements && retainedFloor != null && (
 				candidate.structuralDayEndTimeMs <= retainedFloor ||
 					candidate.structuralDayStartTimeMs < retainedFloor &&
 					(candidate.retainedFromTimeMs?.let { it < retainedFloor } ?: true)
@@ -1039,6 +1042,7 @@ private class ImportedAmbientStepsRangeReader(
 		val resultFacts = linkedMapOf<AmbientStepsHistoryKey, List<QualifiedAmbientStepsFact>>()
 		val resultGaps = linkedMapOf<AmbientStepsHistoryKey, List<EffectiveAmbientStepsGap>>()
 		val resultCauses = linkedMapOf<AmbientStepsHistoryKey, Set<AmbientStepsDayCause>>()
+        val measuredGaps = linkedMapOf<AmbientStepsHistoryKey, List<com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsGapV1>>()
 		dispositions.forEach { (key, disposition) ->
 			when (disposition) {
 				AmbientStepsImportedDisposition.DELETED ->
@@ -1114,6 +1118,7 @@ private class ImportedAmbientStepsRangeReader(
 					countDomainOwner = countDomainOwners[fact.identity.value],
 				)
 			}
+			            if (selectedMeasurements) measuredGaps[key] = day.gaps
 			resultGaps[key] = day.gaps.map {
 				EffectiveAmbientStepsGap(it.intervalStartTimeMs, it.intervalEndTimeMs)
 			}
@@ -1125,6 +1130,7 @@ private class ImportedAmbientStepsRangeReader(
 			resultGaps,
 			resultCauses,
 			dispositions,
+            measuredGaps,
 		)
 	}
 

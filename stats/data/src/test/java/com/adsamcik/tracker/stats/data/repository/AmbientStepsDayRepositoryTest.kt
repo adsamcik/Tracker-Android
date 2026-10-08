@@ -2,6 +2,12 @@ package com.adsamcik.tracker.stats.data.repository
 
 import androidx.room.withTransaction
 import android.app.Application
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
+import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
+import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.HistoryProblem
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
@@ -68,6 +74,138 @@ class AmbientStepsDayRepositoryTest {
 			Dispatchers.Unconfined,
 		)
 	}
+
+    @Test fun `measured native all-day Steps returns real count window without a session or clipping`() = runTest {
+        val fingerprint = seedPublicAuthority()
+        database.ambientStepsFactRevisionDao().insert(fact(12L, authorizationFingerprint = fingerprint))
+        val range = HistoryRange(1_000L, 2_000L, "Europe/Prague")
+        val read = database.withTransaction {
+            val reader = MeasuredBackgroundStepsHistoryReader(database)
+            reader.qualify(reader.candidates(range, null), range)
+        }
+        val row = read.rows.values.single()
+        row.position.startTimeMs shouldBe 0L
+        row.toExclusiveMs shouldBe DAY_END
+        row.purpose shouldBe HistoryPurpose.BACKGROUND
+        row.origins shouldBe setOf(HistoryOrigin.LOCAL)
+        (row.measurement as HistoryMeasurement.Steps).history.count shouldBe 12L
+    }
+
+    @Test fun `measured native Steps uses raw lookahead and consumed continuation past one hundred windows`() = runTest {
+        val fingerprint = seedPublicAuthority()
+        repeat(102) { index -> database.ambientStepsFactRevisionDao().insert(
+            fact(1L, index * 1_000L, (index + 1) * 1_000L, authorizationFingerprint = fingerprint)) }
+        val range = HistoryRange(0L, DAY_END, "UTC")
+        database.withTransaction {
+            val reader = MeasuredBackgroundStepsHistoryReader(database)
+            val first = reader.candidates(range, null)
+            first.size shouldBe 101
+            val consumed = first.take(100)
+            reader.qualify(consumed, range).rows.size shouldBe 100
+            val second = reader.candidates(range, measuredHistoryPosition(consumed.last()))
+            second.size shouldBe 2
+            (consumed + second).map { it.identity }.distinct().size shouldBe 102
+        }
+    }
+
+    @Test fun `measured native Steps preserves healthy sibling windows beside corrupt lineage`() = runTest {
+        val fingerprint = seedPublicAuthority()
+        database.ambientStepsFactRevisionDao().insert(fact(3L, 0L, 1_000L, authorizationFingerprint = fingerprint))
+        val damaged = fact(4L, 1_000L, 2_000L, authorizationFingerprint = fingerprint)
+        database.ambientStepsFactRevisionDao().insert(damaged)
+        val range = HistoryRange(0L, 3_000L, "UTC")
+        val read = database.withTransaction {
+            val reader = MeasuredBackgroundStepsHistoryReader(database)
+            val keys = reader.candidates(range, null)
+            database.openHelper.writableDatabase.execSQL("UPDATE ambient_steps_fact_revision SET step_count = 7 WHERE logical_fact_id = ?", arrayOf(damaged.logicalFactId))
+            reader.qualify(keys, range)
+        }
+        read.rows.size shouldBe 1
+        (read.rows.values.single().measurement as HistoryMeasurement.Steps).history.count shouldBe 3L
+        read.problems shouldBe setOf(HistoryProblem(HistorySource.STEPS, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+    }
+
+    @Test fun `measured native gap shows remaining hole after real provider backfill without date clipping`() = runTest {
+        seedMeasuredGapWithBackfill()
+        val range = HistoryRange(11_300L, 11_700L, "UTC")
+        val read = database.withTransaction {
+            val reader = MeasuredBackgroundStepsHistoryReader(database)
+            reader.qualify(reader.candidates(range, null), range)
+        }
+        val row = read.rows.values.single()
+        row.position.startTimeMs shouldBe 11_000L
+        row.toExclusiveMs shouldBe 12_000L
+        (row.measurement as HistoryMeasurement.Gap).reason shouldBe AmbientStepsImportGapEntity.REASON_PROCESS_ABSENCE
+    }
+
+    @Test fun `measured native gap position follows actual retention boundary not selected dates`() = runTest {
+        seedMeasuredGapWithBackfill()
+        database.sourceEvidenceStateDao().updateLifecycle(7L, 11_500L, DAY_END)
+        val range = HistoryRange(11_600L, 11_700L, "Europe/Prague")
+        val read = database.withTransaction {
+            val reader = MeasuredBackgroundStepsHistoryReader(database)
+            reader.qualify(reader.candidates(range, null), range)
+        }
+        val row = read.rows.values.single()
+        row.position.startTimeMs shouldBe 11_500L
+        row.toExclusiveMs shouldBe 12_000L
+        requireNotNull(row.measurement)::class shouldBe HistoryMeasurement.Gap::class
+    }
+
+    @Test fun `measured native Steps shows verified zero and rejects stale epoch`() = runTest {
+        val fingerprint = seedPublicAuthority()
+        val original = fact(0L, authorizationFingerprint = fingerprint)
+        database.ambientStepsFactRevisionDao().insert(original)
+        val range = HistoryRange(0L, DAY_END, "UTC")
+        database.withTransaction {
+            val reader = MeasuredBackgroundStepsHistoryReader(database)
+            val keys = reader.candidates(range, null)
+            (reader.qualify(keys, range).rows.values.single().measurement as HistoryMeasurement.Steps).history.count shouldBe 0L
+            database.sourceEvidenceStateDao().updateLifecycle(8L, null, DAY_END)
+            reader.qualify(keys, range).rows shouldBe emptyMap()
+        }
+    }
+
+    @Test fun `measured native Steps discovery never resurrects a redacted latest revision`() = runTest {
+        val fingerprint = seedPublicAuthority()
+        val original = fact(12L, authorizationFingerprint = fingerprint)
+        database.ambientStepsFactRevisionDao().insert(original)
+        database.ambientStepsFactRevisionDao().insert(retract(original))
+        database.withTransaction {
+            MeasuredBackgroundStepsHistoryReader(database).candidates(HistoryRange(0L, DAY_END, "UTC"), null) shouldBe emptyList()
+        }
+    }
+
+    private suspend fun seedMeasuredGapWithBackfill(): String {
+        val original = gap(1L, 10_000L)
+        val end = 13_000L
+        val revised = original.copy(gapEndTimeMs = end, recordedAtMs = end,
+            gapId = AmbientStepsImportGapIntegrity.gapId(original.registrationGeneration, original.gapSequence,
+                original.provider, original.sourceInstanceId, original.reason, original.gapStartTimeMs, end,
+                original.predecessorRegistrationGeneration, original.predecessorProvider,
+                original.previousClockDomainId, original.nextClockDomainId,
+                original.previousZoneId, original.nextZoneId, original.collectedDataEpoch))
+        val fingerprint = seedPublicAuthority(cursorWithGap().copy(segmentStartTimeMs = end))
+        database.ambientStepsImportStateDao().insertGap(revised)
+        database.ambientStepsFactRevisionDao().insert(fact(3L, 10_000L, 11_000L, authorizationFingerprint = fingerprint))
+        database.ambientStepsFactRevisionDao().insert(fact(4L, 12_000L, 13_000L, authorizationFingerprint = fingerprint))
+        return fingerprint
+    }
+
+    @Test fun `measured native Steps obeys source origin and purpose selection before raw paging`() = runTest {
+        val fingerprint = seedPublicAuthority()
+        database.ambientStepsFactRevisionDao().insert(fact(12L, authorizationFingerprint = fingerprint))
+        val range = HistoryRange(0L, DAY_END, "UTC")
+        database.withTransaction {
+            val reader = MeasuredBackgroundStepsHistoryReader(database)
+            val keys = reader.candidates(range, null)
+            for (excluded in listOf(range.copy(sources = setOf(HistorySource.LOCATION)),
+                range.copy(origins = setOf(HistoryOrigin.IMPORTED)), range.copy(purposes = setOf(HistoryPurpose.CAPTURE)))) {
+                reader.candidates(excluded, null) shouldBe emptyList()
+                reader.qualify(keys, excluded).rows shouldBe emptyMap()
+            }
+        }
+    }
 
 	@After
 	fun tearDown() = database.close()

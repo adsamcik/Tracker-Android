@@ -1,6 +1,14 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellChildEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityIntegrity
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
+import kotlinx.coroutines.Dispatchers
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -70,6 +78,10 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeUnavailableReas
 import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDay
 import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDayCompleteness
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
+import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellChildEntity
+import com.adsamcik.tracker.shared.base.database.data.PortableRadioChildIntegrity
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
 import com.adsamcik.tracker.stats.api.repository.MaterializedProofState
@@ -118,8 +130,395 @@ class CellHistoryRepositoryRoomTest {
 		database = AppDatabase.testDatabase(application)
 	}
 
+    @Test fun `canonical dual-purpose Cell has one physical head and chooses independently qualified capture`() = runTest {
+        val group = joinedCanonicalCellGroup(perReadingGroup(buildGroup(970, 1, setOf(0))))
+        persist(listOf(group)); persistPerReadingChildren(group); persistCanonicalCellBackground(group)
+        val range = canonicalCellRange(group)
+        database.withTransaction {
+            val reader = canonicalCellReader()
+            val heads = reader.candidates(HistorySource.CELL, range, null)
+            heads.size shouldBe 1
+            heads.single().physicalEventId shouldBe group.runs.single().facts.first().sourceEventId
+            val read = reader.qualify(HistorySource.CELL, heads, range,
+                measuredCapturedRadioFixture(database, cell = repository { true }))
+            read.rows.size shouldBe 1
+            read.rows.values.single().purpose shouldBe HistoryPurpose.CAPTURE
+            (read.rows.values.single().measurement as HistoryMeasurement.Cell).tower.registered shouldBe true
+            read.problems shouldBe emptySet()
+        }
+    }
+
+    @Test fun `canonical Cell falls back to valid background when only capture is erased`() = runTest {
+        val group = joinedCanonicalCellGroup(perReadingGroup(buildGroup(971, 1, setOf(0))))
+        persist(listOf(group)); persistPerReadingChildren(group); persistCanonicalCellBackground(group)
+        val run = group.runs.single()
+        database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+            CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, group.session.logicalTrackingId,
+            run.run.serviceRunId, 1L, 0L, run.segment.endTimeMs + 1L))
+        val range = canonicalCellRange(group)
+        database.withTransaction {
+            val reader = canonicalCellReader()
+            val heads = reader.candidates(HistorySource.CELL, range, null)
+            heads.size shouldBe 1
+            val read = reader.qualify(HistorySource.CELL, heads, range,
+                measuredCapturedRadioFixture(database, cell = repository { true }))
+            read.rows.size shouldBe 1
+            read.rows.values.single().purpose shouldBe HistoryPurpose.BACKGROUND
+        }
+    }
+
+    @Test fun `canonical capture-only Cell never borrows its valid background purpose`() = runTest {
+        val group = joinedCanonicalCellGroup(perReadingGroup(buildGroup(972, 1, setOf(0))))
+        persist(listOf(group)); persistPerReadingChildren(group); persistCanonicalCellBackground(group)
+        val run = group.runs.single()
+        database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+            CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, group.session.logicalTrackingId,
+            run.run.serviceRunId, 1L, 0L, run.segment.endTimeMs + 1L))
+        val range = canonicalCellRange(group).copy(purposes = setOf(HistoryPurpose.CAPTURE))
+        database.withTransaction {
+            val reader = canonicalCellReader()
+            val heads = reader.candidates(HistorySource.CELL, range, null)
+            heads.size shouldBe 1
+            reader.qualify(HistorySource.CELL, heads, range,
+                measuredCapturedRadioFixture(database, cell = repository { true })).rows shouldBe emptyMap()
+        }
+    }
+
+    @Test fun `canonical changed Cell child tuple remains a separate qualified measurement`() = runTest {
+        val group = joinedCanonicalCellGroup(perReadingGroup(buildGroup(973, 1, setOf(0))))
+        persist(listOf(group)); persistPerReadingChildren(group); persistCanonicalCellBackground(group)
+        val original = database.radioObservationChildDao().cellCurrentBackgroundChildrenForFactIds(
+            listOf(canonicalAmbientCellId(group.runs.single())), 2).single()
+        val owner = RadioChildOwner(RadioChildPurpose.BACKGROUND, original.writerId, original.writerVersion,
+            original.logicalFactId, original.semanticRevision, original.itemIndex)
+        val changedIdentity = "LTE:changed-original-detail"
+        val checksum = RadioObservationChildIntegrity.cell(CellChildChecksumInput(owner,
+            original.providerTimestampNanos, original.observedWallTimeMs, original.wallTimeUncertaintyMs,
+            changedIdentity, original.radioType, original.registered, original.signalDbm))
+        database.openHelper.writableDatabase.execSQL("UPDATE ambient_cell_child SET tower_identity = ?, content_checksum = ? WHERE logical_fact_id = ?",
+            arrayOf(changedIdentity, checksum, original.logicalFactId))
+        val range = canonicalCellRange(group)
+        database.withTransaction {
+            val reader = canonicalCellReader()
+            val heads = reader.candidates(HistorySource.CELL, range, null)
+            heads.size shouldBe 2
+            heads.map { it.physicalIdentity }.distinct().size shouldBe 2
+            val read = reader.qualify(HistorySource.CELL, heads, range,
+                measuredCapturedRadioFixture(database, cell = repository { true }))
+            read.rows.size shouldBe 2
+            read.rows.values.map { (it.measurement as HistoryMeasurement.Cell).tower.identity }.toSet() shouldBe setOf(null, changedIdentity)
+        }
+    }
+
+    @Test fun `canonical Cell pages more than one hundred physical heads and their purpose copies without loss`() = runTest {
+        val groups = (980..1081).map { joinedCanonicalCellGroup(perReadingGroup(buildGroup(it, 1, setOf(0)))) }
+        persist(groups)
+        groups.forEach { persistPerReadingChildren(it); persistCanonicalCellBackground(it) }
+        val range = HistoryRange(groups.minOf { it.session.startedAtMs },
+            groups.maxOf { requireNotNull(it.session.completedAtMs) } + 1L, "UTC",
+            setOf(HistorySource.CELL), setOf(HistoryOrigin.LOCAL),
+            setOf(HistoryPurpose.CAPTURE, HistoryPurpose.BACKGROUND), com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode.OBSERVATIONS)
+        database.withTransaction {
+            val reader = canonicalCellReader()
+            val first = reader.candidates(HistorySource.CELL, range, null)
+            first.size shouldBe 101
+            val consumed = first.take(100)
+            val firstRead = reader.qualify(HistorySource.CELL, consumed, range,
+                measuredCapturedRadioFixture(database, cell = repository { true }))
+            firstRead.rows.size shouldBe 100
+            val next = reader.candidates(HistorySource.CELL, range, measuredHistoryPosition(consumed.last()))
+            next.size shouldBe 101
+            val second = next.take(100)
+            val secondRead = reader.qualify(HistorySource.CELL, second, range,
+                measuredCapturedRadioFixture(database, cell = repository { true }))
+            secondRead.rows.size shouldBe 100
+            val last = reader.candidates(HistorySource.CELL, range, measuredHistoryPosition(second.last()))
+            last.size shouldBe 4
+            val finalRead = reader.qualify(HistorySource.CELL, last, range,
+                measuredCapturedRadioFixture(database, cell = repository { true }))
+            finalRead.rows.size shouldBe 4
+            (consumed + second + last).map(::measuredHistoryPosition).distinct().size shouldBe 204
+        }
+    }
+
+    @Test fun `canonical Cell propagates cancellation from reached real capture qualification`() = runTest {
+        val group = joinedCanonicalCellGroup(perReadingGroup(buildGroup(974, 1, setOf(0))))
+        persist(listOf(group)); persistPerReadingChildren(group); persistCanonicalCellBackground(group)
+        val range = canonicalCellRange(group)
+        var reached = false
+        var returned = false
+        assertFailsWith<CancellationException> {
+            database.withTransaction {
+                val reader = canonicalCellReader()
+                val heads = reader.candidates(HistorySource.CELL, range, null)
+                reader.qualify(HistorySource.CELL, heads, range,
+                    measuredCapturedRadioFixture(database, cell = repository {
+                        reached = true; throw CancellationException("reached capture authority fixture") }))
+                returned = true
+            }
+        }
+        reached shouldBe true
+        returned shouldBe false
+    }
+
+    private fun canonicalCellReader() = MeasuredRadioHistoryReader(database,
+        RoomAmbientWifiRepository(database, Dispatchers.Unconfined), RoomAmbientCellRepository(database, Dispatchers.Unconfined))
+
+    private fun canonicalCellRange(group: Group): HistoryRange {
+        val fact = group.runs.single().facts.first()
+        return HistoryRange(fact.observedWallTimeMs, fact.observedWallTimeMs + 1L, "UTC",
+            setOf(HistorySource.CELL), setOf(HistoryOrigin.LOCAL),
+            setOf(HistoryPurpose.CAPTURE, HistoryPurpose.BACKGROUND), com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode.OBSERVATIONS)
+    }
+
+    /** Same original callback and each purpose's own durable grant/receipt; no provider is activated. */
+    private fun joinedCanonicalCellGroup(group: Group) = group.copy(runs = group.runs.map { run ->
+        val bg = run.demands.single().copy(demandId = "canonical-bg-${run.run.serviceRunId}",
+            consumerId = "canonical-background", purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+            logicalTrackingId = null, serviceRunId = null, manifestRevision = null, lifecycleLeaseGeneration = null,
+            consentEpoch = run.policy.policyRevision, liveAmbientRetentionPolicyId = "canonical-retention",
+            liveAmbientRetentionApprovalRevision = run.policy.policyRevision)
+        val demands = run.demands + bg
+        val grants = run.authorizations.groupBy { it.authorizationRevision }.flatMap { (revision, rows) ->
+            val first = rows.first()
+            SourceBrokerAuthorization.rows(CELL_SOURCE, requireNotNull(run.provider).registrationGeneration,
+                revision, if (first.purposeEligibilityMask == 0L) emptyList() else demands, BOOT_ID,
+                first.effectiveElapsedRealtimeNanos, first.effectiveWallTimeMs)
+        }
+        val facts = run.facts.map { original ->
+            val grant = grants.first { it.authorizationRevision == original.authorizationRevision }
+            val unsigned = original.copy(authorizationFingerprint = grant.authorizationFingerprint,
+                purposeEligibilityMask = grant.purposeEligibilityMask)
+            val wal = walFor(unsigned)
+            val stamped = unsigned.copy(walIntegrityIdentity = wal.integrityIdentity, payloadChecksum = wal.payloadChecksum)
+            stamped.copy(effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(stamped))
+        }
+        run.copy(demands = demands, authorizations = grants, facts = facts,
+            policy = run.policy.copy(ambientPersistenceEligible = true, ambientConsentEpoch = run.policy.policyRevision),
+            cursors = facts.groupBy { it.logicalFactId }.values.map { cursor(it.maxBy { fact -> fact.semanticRevision }) })
+    })
+
+    private fun canonicalAmbientCellId(run: BuiltRun): String {
+        val fact = run.facts.first { it.factKind == CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE }
+        return AmbientCellFactIntegrity.logicalFactId(fact.sourceDeliveryIdentity, run.policy.policyRevision,
+            fact.collectedDataEpoch, 0L, run.demands.single { it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT }.demandId)
+    }
+
+    private suspend fun persistCanonicalCellBackground(group: Group) {
+        for (run in group.runs) {
+            val bg = run.demands.single { it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT }
+            database.sourcePolicyDao().insertConsentEpochs(listOf(run.consent.copy(
+                purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, epoch = run.policy.policyRevision)))
+            database.ambientCellFactDao().insertRetentionAuthority(AmbientCellRetentionAuthorityIntegrity.create(
+                "LIVE_AMBIENT", run.policy.policyRevision, "ACTIVE", "canonical-retention",
+                run.policy.policyRevision, run.policy.policyRevision, 0L, BOOT_ID,
+                run.policy.effectiveElapsedRealtimeNanos, run.policy.effectiveWallTimeMs))
+            val source = run.facts.filter { it.factKind == CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE }.maxBy { it.semanticRevision }
+            val child = database.radioObservationChildDao().cellCurrentSessionChildrenByFactIds(source.writerProjectionId, source.writerProjectionVersion, listOf(source.logicalFactId), 2).single()
+            val date = java.time.Instant.ofEpochMilli(source.observedWallTimeMs).atZone(ZoneId.of(ZONE_ID)).toLocalDate()
+            val id = canonicalAmbientCellId(run)
+            val unsigned = AmbientCellFactRevisionEntity(writerId = AmbientCellFactRevisionEntity.WRITER_ID,
+                writerVersion = AmbientCellFactRevisionEntity.WRITER_VERSION, writerOwnerGeneration = 1L,
+                logicalFactId = id, semanticRevision = 1L, supersedesSemanticRevision = null,
+                mutationId = AmbientCellFactIntegrity.mutationId(id, 1L), factKind = AmbientCellFactRevisionEntity.FACT_KIND_AGGREGATE,
+                aggregateOwnerLogicalFactId = null, aggregateOwnerSemanticRevision = null,
+                sourceEventId = source.sourceEventId, sourceAdmissionOrdinal = source.sourceAdmissionOrdinal,
+                walIntegrityIdentity = source.walIntegrityIdentity, payloadChecksum = source.payloadChecksum,
+                sourceDeliveryIdentity = source.sourceDeliveryIdentity, sourceInstanceId = source.sourceInstanceId,
+                registrationGeneration = source.registrationGeneration, configurationRevision = source.configurationRevision,
+                physicalConfigurationFingerprint = source.physicalConfigurationFingerprint, authorizationRevision = source.authorizationRevision,
+                authorizationFingerprint = source.authorizationFingerprint, purposeEligibilityMask = source.purposeEligibilityMask,
+                sourcePolicyRevision = run.policy.policyRevision, ambientConsentEpoch = bg.consentEpoch,
+                retentionPolicyId = "canonical-retention", retentionApprovalRevision = run.policy.policyRevision,
+                collectedDataEpoch = source.collectedDataEpoch, scopeDeletionGeneration = 0L,
+                clockDomainId = source.clockDomainId, storedZoneId = ZONE_ID, structuralEpochDay = date.toEpochDay(),
+                structuralDayStartTimeMs = date.atStartOfDay(ZoneId.of(ZONE_ID)).toInstant().toEpochMilli(),
+                structuralDayEndTimeMs = date.plusDays(1L).atStartOfDay(ZoneId.of(ZONE_ID)).toInstant().toEpochMilli(),
+                observedIntervalStartNanos = source.observedIntervalStartNanos, observedElapsedNanos = source.observedElapsedNanos,
+                receivedElapsedNanos = source.receivedElapsedNanos, coverageStartTimeMs = child.observedWallTimeMs - child.wallTimeUncertaintyMs,
+                observedWallTimeMs = source.observedWallTimeMs, wallTimeUncertaintyMs = source.wallTimeUncertaintyMs,
+                coverageCompleteness = AmbientCellFactRevisionEntity.COMPLETENESS_COMPLETE,
+                subscriptionCompleteness = source.subscriptionCompleteness, observationCount = source.observationCount,
+                registeredObservationCount = source.registeredObservationCount, gsmCount = source.gsmCount, cdmaCount = source.cdmaCount,
+                wcdmaCount = source.wcdmaCount, tdscdmaCount = source.tdscdmaCount, lteCount = source.lteCount, nrCount = source.nrCount,
+                qualityUnknownCount = source.qualityUnknownCount, qualityNoneOrUnknownCount = source.qualityNoneOrUnknownCount,
+                qualityPoorCount = source.qualityPoorCount, qualityModerateCount = source.qualityModerateCount,
+                qualityGoodCount = source.qualityGoodCount, qualityGreatCount = source.qualityGreatCount,
+                qualityFlags = source.qualityFlags, qualityConfidence = source.qualityConfidence, effectChecksum = ZERO_SHA,
+                appliedAtMs = source.createdAtMs, purposeDemandId = bg.demandId)
+            val fact = unsigned.copy(effectChecksum = AmbientCellFactIntegrity.effectChecksum(unsigned))
+            database.ambientCellFactDao().insertRevision(fact)
+            database.ambientCellFactDao().insertCursor(AmbientCellFactCursorEntity(fact.writerId, fact.writerVersion,
+                id, 1L, fact.mutationId, fact.effectChecksum, fact.sourceAdmissionOrdinal, 0L, 0L, 1L, fact.appliedAtMs))
+            val owner = RadioChildOwner(RadioChildPurpose.BACKGROUND, fact.writerId, fact.writerVersion, id, 1L, child.itemIndex)
+            database.radioObservationChildDao().insertCellBackground(listOf(AmbientCellChildEntity(fact.writerId, fact.writerVersion,
+                id, 1L, child.itemIndex, child.providerTimestampNanos, child.observedWallTimeMs, child.wallTimeUncertaintyMs,
+                child.towerIdentity, child.radioType, child.registered, child.signalDbm,
+                RadioObservationChildIntegrity.cell(CellChildChecksumInput(owner, child.providerTimestampNanos,
+                    child.observedWallTimeMs, child.wallTimeUncertaintyMs, child.towerIdentity, child.radioType,
+                    child.registered, child.signalDbm)))))
+        }
+    }
+
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `measured Cell preserves current revision and good parent beside corrupt sibling in one run`() = runTest {
+		val group = perReadingGroup(buildGroup(940, 1, setOf(0)))
+		persist(listOf(group))
+		persistPerReadingChildren(group)
+		val aggregate = group.runs.single().facts.single { it.semanticRevision == 2L }
+		val dependent = group.runs.single().facts.single { it.factKind == CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY }
+		database.openHelper.writableDatabase.execSQL("UPDATE cell_captured_fact_revision SET effect_checksum = ? WHERE logical_fact_id = ?",
+			arrayOf("f".repeat(64), dependent.logicalFactId))
+		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L, HistorySource.CELL)
+		val result = database.withTransaction {
+			val raw = database.radioObservationChildDao().cellMeasuredHistoryCandidates(range.fromInclusiveMs,
+				range.toExclusiveMs, listOf("LOCAL"), listOf("CAPTURE"), null, null, null, 100)
+			raw.single { it.factId == aggregate.logicalFactId }.factRevision shouldBe 2L
+			measuredCapturedRadioFixture(database, cell = repository { true }).qualify(HistorySource.CELL, raw, range)
+		}
+		result.rows.size shouldBe 1
+		result.rows.keys.single().startTimeMs shouldBe aggregate.observedWallTimeMs
+		(result.rows.values.single().measurement as HistoryMeasurement.Cell).tower.registered shouldBe true
+		result.problems.isNotEmpty() shouldBe true
+	}
+
+	@Test
+	fun `measured older Cell summaries retain real coverage and include observation exactly at selected start`() = runTest {
+		val group = buildGroup(941, 1, setOf(0))
+		persist(listOf(group))
+		val current = group.runs.single().facts.single { it.semanticRevision == 2L }
+		val range = measuredCaptureRange(current.observedWallTimeMs, current.observedWallTimeMs + 1L, HistorySource.CELL)
+		val result = database.withTransaction {
+			val raw = database.radioObservationChildDao().cellMeasuredHistoryCandidates(range.fromInclusiveMs,
+				range.toExclusiveMs, listOf("LOCAL"), listOf("CAPTURE"), null, null, null, 100)
+			raw.single { it.factId == current.logicalFactId }.kind shouldBe "captured_cell_summary"
+			measuredCapturedRadioFixture(database, cell = repository { true }).qualify(HistorySource.CELL, raw, range)
+		}
+		val row = result.rows.values.single { (it.measurement as HistoryMeasurement.CellSummary).observation.observedTime.raw == current.observedWallTimeMs }
+		row.toExclusiveMs shouldBe current.observedWallTimeMs
+		val observation = (row.measurement as HistoryMeasurement.CellSummary).observation
+		row.position.startTimeMs shouldBe observation.intervalStartTime.raw
+		observation.towers shouldBe emptyList()
+		result.problems shouldBe emptySet()
+	}
+
+	@Test
+	fun `measured Cell later End generation keeps saved towers until exact deletion`() = runTest {
+		val group = perReadingGroup(buildGroup(942, 1, setOf(0)))
+		persist(listOf(group))
+		persistPerReadingChildren(group)
+		val run = group.runs.single()
+		database.sourceSessionDao().updateServiceRun(run.run.copy(leaseGeneration = run.run.leaseGeneration + 1L,
+			runRevision = run.run.runRevision + 1L, bootId = "later-operation"))
+		database.sourceSessionDao().updateSession(group.session.copy(lifecycleLeaseGeneration = run.run.leaseGeneration + 1L,
+			lifecycleRevision = group.session.lifecycleRevision + 1L, lifecycleBootId = "later-operation"))
+		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L, HistorySource.CELL)
+		suspend fun read() = database.withTransaction {
+			val raw = database.radioObservationChildDao().cellMeasuredHistoryCandidates(range.fromInclusiveMs,
+				range.toExclusiveMs, listOf("LOCAL"), listOf("CAPTURE"), null, null, null, 100)
+			measuredCapturedRadioFixture(database, cell = repository { true }).qualify(HistorySource.CELL, raw, range)
+		}
+		read().rows.size shouldBe 2
+		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+			CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, group.session.logicalTrackingId,
+			run.run.serviceRunId, 1L, 0L, run.segment.endTimeMs + 1L))
+		read().rows shouldBe emptyMap()
+	}
+
+	@Test
+	fun `measured imported Cell detail is suppressed only for an identical independently readable native child`() = runTest {
+		val group = perReadingGroup(buildGroup(943, 1, setOf(0)))
+		persist(listOf(group))
+		persistPerReadingChildren(group)
+		val importedChildren = importMeasuredCellChildren(group)
+		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L,
+			HistorySource.CELL, setOf(HistoryOrigin.LOCAL, HistoryOrigin.IMPORTED))
+		suspend fun read(selectedRange: com.adsamcik.tracker.stats.api.repository.HistoryRange) = database.withTransaction {
+			val raw = database.radioObservationChildDao().cellMeasuredHistoryCandidates(selectedRange.fromInclusiveMs,
+				selectedRange.toExclusiveMs, selectedRange.origins.map { it.name }, listOf("CAPTURE"), null, null, null, 100)
+			measuredCapturedRadioFixture(database, cell = repository { true }).qualify(HistorySource.CELL, raw, selectedRange)
+		}
+		val mixed = read(range)
+		mixed.problems shouldBe emptySet()
+		mixed.rows.size shouldBe 2
+		mixed.rows.values.all { it.origins == setOf(HistoryOrigin.LOCAL) } shouldBe true
+		val importedOnly = read(range.copy(origins = setOf(HistoryOrigin.IMPORTED)))
+		importedOnly.rows.size shouldBe importedChildren.size
+		importedOnly.rows.values.all { it.origins == setOf(HistoryOrigin.IMPORTED) } shouldBe true
+		val changed = importedChildren.first()
+		database.openHelper.writableDatabase.execSQL("UPDATE imported_cell_child SET tower_identity = ?, content_checksum = ? " +
+			"WHERE entry_identity = ? AND entry_import_revision = ? AND observation_identity = ? AND item_index = ?",
+			arrayOf("user-edited-tower", measuredCellChildChecksum(changed.copy(towerIdentity = "user-edited-tower"), 2L),
+				changed.entryIdentity, changed.entryImportRevision, changed.observationIdentity, changed.itemIndex))
+		val edited = read(range)
+		edited.problems shouldBe emptySet()
+		edited.rows.size shouldBe 3
+		(edited.rows.values.single { it.origins == setOf(HistoryOrigin.IMPORTED) }.measurement as HistoryMeasurement.Cell)
+			.tower.identity shouldBe "user-edited-tower"
+	}
+
+	@Test
+	fun `measured imported Cell keeps later observation when original entry is retention limited`() = runTest {
+		val group = perReadingGroup(buildGroup(944, 1, setOf(0)))
+		persist(listOf(group))
+		persistPerReadingChildren(group)
+		importMeasuredCellChildren(group)
+		val dependent = group.runs.single().facts.single { it.factKind == CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY }
+		val entryIdentity = PortableCellOpaqueIdentity.derive(PortableCellIdentityKind.LOGICAL_ENTRY, group.session.logicalTrackingId)
+		val original = database.withTransaction {
+			repository { true }.measuredImportedEvaluationInTransaction(entryIdentity.value)
+		} as com.adsamcik.tracker.shared.base.database.ImportedCellProductEvaluation.Readable
+		val later = original.entry.runs.single().observations.single { it.identity.value ==
+			PortableCellOpaqueIdentity.derive(PortableCellIdentityKind.OBSERVATION, dependent.logicalFactId).value }
+		database.sourceEvidenceStateDao().updateLifecycle(0L, later.coverageStartTimeMs, requireNotNull(group.session.completedAtMs)) shouldBe 1
+		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L,
+			HistorySource.CELL, setOf(HistoryOrigin.IMPORTED))
+		val result = database.withTransaction {
+			val evaluation = repository { true }.measuredImportedEvaluationInTransaction(entryIdentity.value)
+			(evaluation as com.adsamcik.tracker.shared.base.database.ImportedCellProductEvaluation.Readable).retentionLimited shouldBe true
+			val raw = database.radioObservationChildDao().cellMeasuredHistoryCandidates(range.fromInclusiveMs,
+				range.toExclusiveMs, listOf("IMPORTED"), listOf("CAPTURE"), null, null, null, 100)
+			measuredCapturedRadioFixture(database, cell = repository { true }).qualify(HistorySource.CELL, raw, range)
+		}
+		result.problems shouldBe emptySet()
+		result.rows.size shouldBe 1
+		(result.rows.values.single().measurement as HistoryMeasurement.Cell).partial shouldBe true
+		result.rows.keys.single().startTimeMs shouldBe later.observedTimeMs
+	}
+
+	private suspend fun importMeasuredCellChildren(group: Group): List<ImportedCellChildEntity> {
+		val portable = database.withTransaction {
+			RoomReadLocalPortableCapturedCell(database, SourceProductLaneExecutionAuthority { database.inTransaction() })
+				.readInTransaction(group.session.logicalTrackingId)
+		} as ReadLocalPortableCapturedCellResult.Ready
+		RoomImportPortableCapturedCell(database, UnconfinedTestDispatcher()).importEntry(ImportPortableCapturedCellRequest(
+			portable.entry, PortableCellImportReceipt("measured-cell", "measured-cell", "measured.trackercell", portable.entry.endTimeMs), 0L))
+			.shouldBe(ImportPortableCapturedCellResult.Applied(1L, portable.entry.runs.size,
+				portable.entry.runs.sumOf { it.observations.size }))
+		val rows = group.runs.flatMap { run -> run.facts.filter { fact -> run.cursors.any {
+			it.logicalFactId == fact.logicalFactId && it.latestSemanticRevision == fact.semanticRevision } }.flatMap { fact ->
+			val children = database.radioObservationChildDao().cellSessionChildren(fact.writerProjectionId,
+				fact.writerProjectionVersion, fact.logicalFactId, fact.semanticRevision, 100)
+			children.map { child -> ImportedCellChildEntity(portable.entry.identity.value, 1L,
+				PortableCellOpaqueIdentity.derive(PortableCellIdentityKind.PHYSICAL_RUN, fact.serviceRunId).value,
+				PortableCellOpaqueIdentity.derive(PortableCellIdentityKind.OBSERVATION, fact.logicalFactId).value,
+				child.itemIndex, child.providerTimestampNanos, child.observedWallTimeMs, child.wallTimeUncertaintyMs,
+				child.towerIdentity, child.radioType, child.registered, child.signalDbm, "0".repeat(64)).let { row ->
+				row.copy(contentChecksum = measuredCellChildChecksum(row, fact.semanticRevision)) } }
+		} }
+		database.importedRadioChildDao().insertCellSession(rows)
+		return rows
+	}
+
+	private fun measuredCellChildChecksum(child: ImportedCellChildEntity, semanticRevision: Long): String = PortableRadioChildIntegrity.digest("cell",
+		listOf(child.entryIdentity, child.runIdentity, child.observationIdentity),
+		listOf(semanticRevision, child.itemIndex,
+			child.providerTimestampNanos, child.observedWallTimeMs, child.wallTimeUncertaintyMs, child.towerIdentity,
+			child.radioType, child.registered, child.signalDbm))
+
 
 	@Test
 	fun `saved Cell survives later quality End and operation boot generations without rewriting observations`() = runTest {

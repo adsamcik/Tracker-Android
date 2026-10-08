@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
@@ -77,6 +78,8 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryRangeRequest
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryStructuralDayPage
 import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryReader
 import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryResult
+import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -84,7 +87,9 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.security.MessageDigest
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.test.assertIs
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -109,6 +114,94 @@ class WifiHistoryRepositoryRoomTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `measured Wi-Fi preserves original nonconsecutive item index without claiming a whole session`() = runTest {
+		val group = v6RotatedGroup(buildGroup(940, 1, setOf(0)), excludeFirst = true)
+		persist(listOf(group))
+		persistV6Children(group)
+		val fact = group.runs.single().facts.last()
+		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L, HistorySource.WIFI)
+		val result = database.withTransaction {
+			val raw = database.radioObservationChildDao().wifiMeasuredHistoryCandidates(range.fromInclusiveMs,
+				range.toExclusiveMs, listOf("LOCAL"), listOf("CAPTURE"), null, null, null, 100)
+			raw.single().itemIndex shouldBe 1
+			val snapshot = requireNotNull(repository { true }.measuredSnapshotInTransaction(fact.logicalFactId))
+			snapshot.revisions.map { it.logicalFactId }.distinct() shouldBe listOf(fact.logicalFactId)
+			measuredCapturedRadioFixture(database, wifi = repository { true }).qualify(HistorySource.WIFI, raw, range)
+		}
+		result.problems shouldBe emptySet()
+		val row = result.rows.values.single()
+		row.toExclusiveMs shouldBe null
+		row.sections shouldBe emptyList()
+		(row.measurement as HistoryMeasurement.Wifi).network.frequencyMhz shouldBe 5_180
+		row.position.startTimeMs shouldBe fact.observedWallTimeMs
+	}
+
+	@Test
+	fun `measured Wi-Fi original run remains visible when a later sibling has corrupt storage`() = runTest {
+		val group = v6RotatedGroup(buildGroup(941, 2, setOf(0, 1)))
+		persist(listOf(group))
+		persistV6Children(group)
+		val first = group.runs.first().facts.last()
+		val corrupt = group.runs.last().facts.last()
+		database.openHelper.writableDatabase.execSQL("UPDATE wifi_captured_fact_revision SET effect_checksum = ? WHERE logical_fact_id = ?",
+			arrayOf("f".repeat(64), corrupt.logicalFactId))
+		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L, HistorySource.WIFI)
+		val result = database.withTransaction {
+			val raw = database.radioObservationChildDao().wifiMeasuredHistoryCandidates(range.fromInclusiveMs,
+				range.toExclusiveMs, listOf("LOCAL"), listOf("CAPTURE"), null, null, null, 100)
+			measuredCapturedRadioFixture(database, wifi = repository { true }).qualify(HistorySource.WIFI, raw, range)
+		}
+		result.rows.size shouldBe 2
+		result.rows.values.all { it.measurement is HistoryMeasurement.Wifi } shouldBe true
+		result.rows.keys.all { first.logicalFactId in it.stableId } shouldBe true
+		result.problems.isNotEmpty() shouldBe true
+	}
+
+	@Test
+	fun `measured Wi-Fi keeps original generation after End and retracts only an erased owner`() = runTest {
+		val group = v6RotatedGroup(buildGroup(942, 2, setOf(0, 1)))
+		persist(listOf(group))
+		persistV6Children(group)
+		val first = group.runs.first()
+		database.sourceSessionDao().updateServiceRun(first.run.copy(leaseGeneration = first.run.leaseGeneration + 1L,
+			runRevision = first.run.runRevision + 1L, bootId = "later-operation"))
+		database.sourceSessionDao().updateSession(group.session.copy(lifecycleLeaseGeneration = first.run.leaseGeneration + 1L,
+			lifecycleRevision = group.session.lifecycleRevision + 1L, lifecycleBootId = "later-operation"))
+		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L, HistorySource.WIFI)
+		suspend fun read() = database.withTransaction {
+			val raw = database.radioObservationChildDao().wifiMeasuredHistoryCandidates(range.fromInclusiveMs,
+				range.toExclusiveMs, listOf("LOCAL"), listOf("CAPTURE"), null, null, null, 100)
+			measuredCapturedRadioFixture(database, wifi = repository { true }).qualify(HistorySource.WIFI, raw, range)
+		}
+		val before = read()
+		before.rows.size shouldBe 4
+		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+			WIFI_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, group.session.logicalTrackingId,
+			first.run.serviceRunId, 1L, 0L, first.segment.endTimeMs + 1L))
+		val after = read()
+		after.rows.size shouldBe 2
+		after.rows.all { it.key in before.rows && it.value == before.rows[it.key] } shouldBe true
+		after.problems shouldBe emptySet()
+	}
+
+	@Test
+	fun `measured Wi-Fi coverage reuse still needs the original aggregate WAL`() = runTest {
+		val group = buildGroup(943, 1, setOf(0), includeReuse = true)
+		persist(listOf(group))
+		val facts = group.runs.single().facts
+		val dependent = facts.single { it.factKind == WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY }
+		val owner = facts.single { it.logicalFactId == dependent.aggregateOwnerLogicalFactId &&
+			it.semanticRevision == dependent.aggregateOwnerSemanticRevision }
+		database.withTransaction {
+			requireNotNull(repository { true }.measuredFactInTransaction(dependent.logicalFactId, dependent.semanticRevision))
+		}
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_event_wal WHERE event_id = ?", arrayOf(owner.sourceEventId))
+		assertFailsWith<IllegalArgumentException> {
+			database.withTransaction { repository { true }.measuredFactInTransaction(dependent.logicalFactId, dependent.semanticRevision) }
+		}
+	}
 
 	@Test
 	fun `saved Wifi survives later quality End and operation boot generations without rewriting observations`() = runTest {

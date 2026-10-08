@@ -63,4 +63,8 @@ interface ActivitySnapshotDao : BaseDao<ActivitySnapshot> {
 	 */
 	@Query("DELETE FROM activity_snapshot WHERE time_ms < :beforeMs")
 	suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    /** Exact saved leaves selected by the bounded measured-history key page. */
+    @Query("SELECT * FROM activity_snapshot WHERE id IN (:ids) ORDER BY id")
+    suspend fun historyRows(ids: List<Long>): List<ActivitySnapshot>
 }

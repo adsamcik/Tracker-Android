@@ -1,6 +1,12 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
+import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
+import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.HistoryProblem
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -79,6 +85,80 @@ class ImportedStepsProductRoomTest {
 		)
 		exporter = RoomExportPortableSteps(PortableStepsRoomReader(database, selector, lane), Dispatchers.IO)
 	}
+
+    @Test fun `measured imported Steps keeps complete original count window for narrow dates`() = runTest {
+        seed(entry(listOf(run('2', 10L, 20L, 9L))))
+        val range = HistoryRange(15L, 16L, "Europe/Prague")
+        val read = database.withTransaction {
+            val reader = MeasuredImportedSensorHistoryReader(database)
+            reader.qualify(HistorySource.STEPS, reader.candidates(HistorySource.STEPS, range, null), range)
+        }
+        val row = read.rows.values.single()
+        row.position.startTimeMs shouldBe 10L
+        row.toExclusiveMs shouldBe 20L
+        (row.measurement as HistoryMeasurement.Steps).history.count shouldBe 9L
+    }
+
+    @Test fun `measured imported Steps pages more than one hundred windows by original identity`() = runTest {
+        repeat(102) { seed(numberedEntry(it + 1, 1), 1_000L + it) }
+        val range = HistoryRange(0L, 200_000L, "UTC")
+        database.withTransaction {
+            val reader = MeasuredImportedSensorHistoryReader(database)
+            val first = reader.candidates(HistorySource.STEPS, range, null)
+            first.size shouldBe 101
+            val consumed = first.take(100)
+            reader.qualify(HistorySource.STEPS, consumed, range).rows.size shouldBe 100
+            val second = reader.candidates(HistorySource.STEPS, range, measuredHistoryPosition(consumed.last()))
+            second.size shouldBe 2
+            (consumed + second).map { it.identity }.distinct().size shouldBe 102
+        }
+    }
+
+    @Test fun `measured imported Steps shows verified zero but never invents a baseline count`() = runTest {
+        val baselineRun = run('3', 30L, 30L, 0L).copy(facts = listOf(PortableStepsFactV1.create(
+            opaque('8'), 1L, 30L, 30L, 0L, PortableStepsFactCoverage.BASELINE, null)))
+        seed(entry(listOf(run('2', 10L, 20L, 0L), baselineRun)))
+        val range = HistoryRange(0L, 40L, "UTC")
+        val read = database.withTransaction {
+            val reader = MeasuredImportedSensorHistoryReader(database)
+            reader.qualify(HistorySource.STEPS, reader.candidates(HistorySource.STEPS, range, null), range)
+        }
+        val histories = read.rows.values.map { (it.measurement as HistoryMeasurement.Steps).history }
+        histories.map { it.count }.toSet() shouldBe setOf(null, 0L)
+        histories.single { it.count == null }.causes shouldBe setOf(StepsHistoryCause.BASELINE_ONLY)
+    }
+
+    @Test fun `measured imported Steps isolates damaged parents and respects erase fences`() = runTest {
+        seed(entry(listOf(run('2', 10L, 20L, 9L))))
+        seed(entry(listOf(run('4', 30L, 40L, 7L)), '3'), 42L)
+        val range = HistoryRange(0L, 50L, "UTC")
+        database.withTransaction {
+            val reader = MeasuredImportedSensorHistoryReader(database)
+            val keys = reader.candidates(HistorySource.STEPS, range, null)
+            database.openHelper.writableDatabase.execSQL("UPDATE step_fact_revision SET effective_step_count = 8 WHERE service_run_id = ?", arrayOf(opaque('4').value))
+            val read = reader.qualify(HistorySource.STEPS, keys, range)
+            read.rows.size shouldBe 1
+            (read.rows.values.single().measurement as HistoryMeasurement.Steps).history.count shouldBe 9L
+            read.problems shouldBe setOf(HistoryProblem(HistorySource.STEPS, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+            database.sourceEvidenceStateDao().updateLifecycle(1L, null, 100L)
+            reader.qualify(HistorySource.STEPS, keys, range).rows shouldBe emptyMap()
+        }
+    }
+
+    @Test fun `measured imported sensor reader obeys all source origin and purpose subsets`() = runTest {
+        seed(entry(listOf(run('2', 10L, 20L, 9L))))
+        val range = HistoryRange(0L, 40L, "UTC")
+        database.withTransaction {
+            val reader = MeasuredImportedSensorHistoryReader(database)
+            val keys = reader.candidates(HistorySource.STEPS, range, null)
+            keys.size shouldBe 1
+            for (excluded in listOf(range.copy(sources = setOf(HistorySource.LOCATION)),
+                range.copy(origins = setOf(HistoryOrigin.LOCAL)), range.copy(purposes = setOf(HistoryPurpose.BACKGROUND)))) {
+                reader.candidates(HistorySource.STEPS, excluded, null) shouldBe emptyList()
+                reader.qualify(HistorySource.STEPS, keys, excluded).rows shouldBe emptyMap()
+            }
+        }
+    }
 
 	@After
 	fun tearDown() = database.close()

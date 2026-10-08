@@ -22,6 +22,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -35,9 +36,14 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalConfiguration
+import java.time.ZoneId
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
@@ -73,7 +79,8 @@ fun HistoryRoute(
 	organization: SessionOrganizationViewModel = hiltViewModel(),
 ) {
 	val selectedTab by viewModel.selectedTab.collectAsState()
-	val timelineState by viewModel.timelineState.collectAsState()
+	val viewZone = rememberMeasuredHistoryViewZone()
+	LaunchedEffect(viewZone) { viewModel.useViewZone(viewZone) }
 	val calendarState by viewModel.calendarState.collectAsState()
 	val sessionPages = organization.pagedSessions.collectAsLazyPagingItems()
 	val recordingPages = viewModel.pagedTrips.collectAsLazyPagingItems()
@@ -141,12 +148,13 @@ fun HistoryRoute(
 				modifier = Modifier.padding(horizontal = 16.dp))
 			AnimatedContent(
 				targetState = selectedTab,
+				modifier = Modifier.weight(1f),
 				label = "history_tab_content",
 			) { tab ->
 				when (tab) {
-					HistoryTab.TIMELINE -> TimelineContent(
-						state = timelineState,
-						onTripClick = onNavigateToTripDetail,
+					HistoryTab.TIMELINE -> MeasuredHistoryContent(
+						pages = viewModel.timelineHistory.collectAsLazyPagingItems(),
+						viewZone = viewZone,
 					)
 					HistoryTab.TRIPS -> Column {
 						TextButton(onClick = { showRecordings = !showRecordings }) {
@@ -161,6 +169,12 @@ fun HistoryRoute(
 					HistoryTab.CALENDAR -> CalendarContent(
 						state = calendarState,
 						onDayClick = viewModel::selectDay,
+						observations = {
+							MeasuredHistoryContent(
+								pages = viewModel.calendarHistory.collectAsLazyPagingItems(),
+								viewZone = viewZone,
+							)
+						},
 						organizationDays = organizationDays,
 						organizationRead = monthSessions,
 						onViewSessionsForDay = { day -> showRecordings = false; organization.showDay(day); viewModel.selectTab(HistoryTab.TRIPS) },
@@ -178,6 +192,23 @@ fun HistoryRoute(
 		onDismiss = organization::dismiss, onReload = organization::reload,
 		onSave = organization::save, onRemove = organization::remove, onRecording = onNavigateToTripDetail) }
 
+}
+
+/** Re-read the phone's display zone after returning from system settings or travel. */
+@Composable
+internal fun rememberMeasuredHistoryViewZone(): ZoneId {
+    val configuration = LocalConfiguration.current
+    val owner = LocalLifecycleOwner.current
+    var zone by remember { mutableStateOf(ZoneId.systemDefault()) }
+    DisposableEffect(owner, configuration) {
+        zone = ZoneId.systemDefault()
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) zone = ZoneId.systemDefault()
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
+    return zone
 }
 
 @Composable

@@ -103,7 +103,7 @@ class UnifiedHistoryRangeReaderRoomTest {
     @Test fun `missing optional Location qualification never hides ordinary saved points`() = runTest {
         legacyLocation(1, 100, 200)
         val proof = mockk<RetainedLocationContextReader>()
-        coEvery { proof.qualifySavedInTransaction(any()) } throws android.database.sqlite.SQLiteException("Unavailable proof fixture")
+        coEvery { proof.qualifyInTransaction(any()) } throws android.database.sqlite.SQLiteException("Unavailable proof fixture")
         reader = rangeReaderForRoomTest(database, context, wifi, proof)
         val row = reader.read(HistoryRangeRequest(range(0, 300))).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
         row.sections.single().shouldBeInstanceOf<HistorySection.Location>().points.single().timeMs shouldBe 101L
@@ -116,7 +116,7 @@ class UnifiedHistoryRangeReaderRoomTest {
         val proof = mockk<RetainedLocationContextReader>()
         reader = rangeReaderForRoomTest(database, context, wifi, proof)
         for (reason in listOf(HistoryProblemReason.STORAGE_UNAVAILABLE, HistoryProblemReason.INTEGRITY_UNAVAILABLE)) {
-            coEvery { proof.qualifySavedInTransaction(any()) } returns RetainedLocationSavedSnapshot(
+            coEvery { proof.qualifyInTransaction(any()) } returns RetainedLocationContextSnapshot(
                 emptyList(), setOf(com.adsamcik.tracker.stats.api.repository.RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE),
                 historyProblem = reason)
             val row = reader.read(HistoryRangeRequest(range(0, 300))).shouldBeInstanceOf<HistoryRangeRead.Page>().rows.single()
@@ -291,14 +291,14 @@ class UnifiedHistoryRangeReaderRoomTest {
         for (id in 1L..125L) legacyLocation(id, id * 10, id * 10 + 5)
         val source = UnifiedHistoryPagingSource(database, range(0, 2_000), reader::read)
         val first = source.load(PagingSource.LoadParams.Refresh<HistoryContinuation>(null, 200, false))
-            .shouldBeInstanceOf<PagingSource.LoadResult.Page<HistoryContinuation, com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow>>()
+            .shouldBeInstanceOf<PagingSource.LoadResult.Page<HistoryContinuation, com.adsamcik.tracker.stats.api.repository.HistoryPagingItem>>()
         first.data.size shouldBe 100
         first.prevKey shouldBe null
         val next = requireNotNull(first.nextKey)
         next.range shouldBe range(0, 2_000)
         val second = source.load(PagingSource.LoadParams.Append(next, 200, false))
-            .shouldBeInstanceOf<PagingSource.LoadResult.Page<HistoryContinuation, com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow>>()
-        (first.data + second.data).map { it.position }.distinct().size shouldBe 125
+            .shouldBeInstanceOf<PagingSource.LoadResult.Page<HistoryContinuation, com.adsamcik.tracker.stats.api.repository.HistoryPagingItem>>()
+        (first.data + second.data).filterIsInstance<com.adsamcik.tracker.stats.api.repository.HistoryPagingItem.Row>().map { it.row.position }.distinct().size shouldBe 125
         second.nextKey shouldBe null
         val invalidated = CompletableDeferred<Unit>()
         source.registerInvalidatedCallback { invalidated.complete(Unit) }
@@ -308,7 +308,7 @@ class UnifiedHistoryRangeReaderRoomTest {
         withContext(Dispatchers.IO) { withTimeout(5_000) { invalidated.await() } }
         source.invalid shouldBe true
         source.load(PagingSource.LoadParams.Refresh<HistoryContinuation>(null, 10, false))
-            .shouldBeInstanceOf<PagingSource.LoadResult.Invalid<HistoryContinuation, com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow>>()
+            .shouldBeInstanceOf<PagingSource.LoadResult.Invalid<HistoryContinuation, com.adsamcik.tracker.stats.api.repository.HistoryPagingItem>>()
     }
 
     @Test fun `invalid display zone is unavailable instead of shifting observation dates`() = runTest {

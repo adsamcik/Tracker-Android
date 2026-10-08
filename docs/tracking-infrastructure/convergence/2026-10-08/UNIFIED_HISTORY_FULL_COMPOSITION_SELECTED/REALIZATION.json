@@ -1,0 +1,622 @@
+[
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ImportedCellProductReader.kt",
+    "disposition": "PRESERVED_MIXED_WORKING_DRAFT",
+    "working_before_sha256": "d98e42a491768398d731bb8fc20c2f1f93b52828f1e5857358424715439b4f3e"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/TrackingHistoryInvalidationTables.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "0d5d105525c5775443b8be098b012b9973747edc6bf5d4c097ad0a3188bc0fc6"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ActivitySnapshotDao.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "4b79691037e79d98e5468b67f51691a5df87d56d29ffa09fa60342c21c7d43f3"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientStepsFactRevisionDao.kt",
+    "disposition": "PRESERVED_MIXED_WORKING_DRAFT",
+    "working_before_sha256": "7671548026ee2e60ec51e598a540b66efd962554669cfe6055724686fa75b9df"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientStepsImportStateDao.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "5c6ac518517fa017418ae374e925f5300ae9dec9d9332ae58303d8f69b668dc8"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/CellCapturedFactDao.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "9203d85a833409b0b87a1a7845ff4e252fa31ab2e439f7ae9e664f48cc785c22"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LegacyPreservedDataDao.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "9cbbd05b910d847c72449f7846da3c9e37e4b512978d7ce79b82f30e3184d800"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/MeasuredHistoryCandidate.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "f4cc165b7e5a70a492ad643ffee95f9bf64c54c14d5fdbf39352fbcc794fd482"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/PressureSampleDao.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "92e63849730f60bef6b803d2674b7bc448a913ebe5c4bf3ed848054732915cf4"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/RadioObservationChildDao.kt",
+    "disposition": "PRESERVED_MIXED_WORKING_DRAFT",
+    "working_before_sha256": "a1536f2f75d5030958c49c8238a563fb3658db8ec4a3ed5dc553666c5ddd9e6a"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/StepsFactCandidateReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "163c73add1a7261470f1d0b27618e119eecaa7f036109d54eaac0e7a1bdb8c9d"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/TrackingHistoryReadDao.kt",
+    "disposition": "PRESERVED_MIXED_WORKING_DRAFT",
+    "working_before_sha256": "a87144596cd6a12f1dc3402988473fc37ec40d392c755c2a803a9f8756437884"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/WifiCapturedFactDao.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "fe1d8ca7b028e0b7672f065ce1f0b64f19eeb4389e1486db8a4cc6f34cd7c1e9"
+  },
+  {
+    "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModel.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "3d5f0e54229e81996a78f27f8d5441e7d93d202df003b037dfe4ffe7379cd21a"
+  },
+  {
+    "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CalendarContent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "2870a97c1bb5c6b46a2369cb12244bda05e423fb192d7fe947a1192120bfebfc"
+  },
+  {
+    "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "6793d6d1c6a28c04c9339ad21dd0dec00aed589b93a85732926ec20ff81c22f9"
+  },
+  {
+    "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/MeasuredHistoryContent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "d0fad8bbecb124a8aa8fa4c7e48089614c60827880d83dac9accd1c11000cb5d"
+  },
+  {
+    "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/TripDetailRadioOverviews.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "a4b2b1f966078d55ace36186086bbc30790d87343c365f68b6b6456d12951739"
+  },
+  {
+    "path": "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/TripDetailSourceOverviews.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "5a8ec153ffcf681cc400722801dc08fd3f75a43758a3e48c759d60008a1aa5fb"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-af-rZA/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "f157fe8b6fcb8e1a206921ad6f79b7ca68425656ec867c48524369a61230c474"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-ar-rSA/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "03fe8254e7a874349461d3195e68b2bb4e0e21f6d970a429e30ccd7f2d0de58f"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-bg-rBG/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "3927fca578c50072974434380215fed056064855f3e504adb606e8349586e66a"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-ca-rES/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "897495accdf1c58cfda3fba5387b8ba201f140f9f459f074fb164467d530db80"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-cs-rCZ/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "81864c82edac58eea799ffb2badd4e860fd3caabf2b043801b78a1822cecfc00"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-da-rDK/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "0d9de86bf6fb32f02516e1867e9dc3506385ebfdf7fc3b4a17daafa8710d47b5"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-de-rDE/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "3889ecda759ff569d68233b2a2117912188e8bc5f6a8129344f53e621550ca51"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-el-rGR/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "d94d8d1068d0d7d5a5ca2747d9ee0bad56a4ca9d308a1f3ea0bdb35a5a3ad0ce"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-es-rES/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "d39ab89f888f2e3f997c24e89933c199df9285008ef3a8a5b8d1c52ba71f0fb4"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-et-rEE/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "c4b5a64c914fcb6fe5d51ed27515ade5f8d08f1909450017da22fc2f60808e46"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-fi-rFI/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "bab1940e0ad544b35e892ae01fcb3788af31eedd5fdd20ac8e6a062c089b062e"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-fr-rFR/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "80be85d1e8c04ca6aa6d4d3d3868d270f37f58c882b9a911e6fcf89ed763228e"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-ga-rIE/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "327c949057953331a7464337a83bdaf29c7d25b7814b240935e8585d69927ad2"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-hi-rIN/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "23b85d94a081bb1b5eeb61cff5b2f8bc21a3e061b66147e90c8ff590bc09e833"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-hr-rHR/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "880431baa8cf932813bb13ab1dbade533321c3aeb9151b26687bc61e7e8f05f8"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-hu-rHU/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "3a8046607b98ed8df8f2dfc31b128683d8c856d11df71e57a14c06d2c9ad917f"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-it-rIT/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "624ef5552ecf15c3b0a4547bc8d1a7a3464cf9f54382d594314be7af5e1dd2b4"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-iw-rIL/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "54666a14185ca6730130c9a1309ce2f0e64b52efdfa486443b64c917ae7d0439"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-ja-rJP/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "f0fd94294d297e14330c92030a2cfad06a1e8ae9b0e64b958c2f22c674e4b566"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-ko-rKR/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "50c5e2728e6e62cca6464a0948a2239c1681288e99d6eb11a033883a494b3295"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-lt-rLT/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e7350c232a5d232eba1d28257a9e43098ca725c95b149e1f1230aec042419b1e"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-lv-rLV/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "5e97ceca1440f8ca0b2a9e1fef65ae4b6fee26f4105602e7edc28b73080f836e"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-mt-rMT/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "f5616e1c0f15038e3ae5c08015b9e69613e992acdccfc58d4ef1648c281e8267"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-nl-rNL/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "a28e826e8b2ff98a0c45fd9718ccdb53420b78035c4ce201635615dce8d29c95"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-no-rNO/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "fa21400d2fe2d893fa60267783c144acc13853d1edf38335c18a10d3ed6e83e7"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-pl-rPL/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "bcdece6b76d5e105d32626c607da5a15a1cd1a1d503d90e199d746670d68e433"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-pt-rBR/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "35b98d63af50daa461b6487e6bf606559853836f6b9721cb972d66ef7126ad31"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-pt-rPT/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "fc8c41dcf0cfb421dbfc3f2e47def97941c5a1c9bbc9cabf8d0a6367d5598987"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-ro-rRO/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "4c0bfce2b96bf5e1aa159b92f6995eb8f8b03bb70647e5111e48a58699cc920d"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-ru-rRU/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e9c02228d0ae967c05cb9e926fbbf38d739e4843103af5edcea845adee72eace"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-sk-rSK/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "568a66764c15df59f8ad1a46bebef0d8766a543d0ffec93dc1d61c22a4b9d58d"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-sl-rSI/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "f4978a0c3d745f75ccd6adb274e2d53b910b345c8d29e1fc7d2d9ca365dd5f25"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-sr-rSP/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "b5ea66cacb489c4ee873af8e38f3e04b1fe45846fa8216a4878cd030456dc747"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-sv-rSE/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "daaffba35f2ce503e2bd599d120296a72eb96d9bc818b3d935d576181277466b"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-tr-rTR/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "5d50f580ab98d9c4b1158bdf5476de5495f6cb06938da0618770aecde8242302"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-uk-rUA/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "f7045a88336b85c809382a19943ae6f3c76d7a0852656244b1c4abe67989ea0a"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-vi-rVN/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "923efa7d23f02f0af84442552aa46e7d0f6af293d938a0e019bba3db102b488b"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-zh-rCN/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "cded886739a720abc9b9e30206d1c96cca891b4213ae84e1abb387d61d8a2204"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values-zh-rTW/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e1f56b8ceae94f846e76dc5d570e85c32a573510b9f9f727ca85e87b788a4e3c"
+  },
+  {
+    "path": "feature/statistics/src/main/res/values/measured_history_strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "b85f8416e02c5760f9bcb7c2cdddb63e6b4d1ef2c732d1537ec21e53238f196d"
+  },
+  {
+    "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterDeleteTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "3b44553c2ac46b260c6c70f36dac8bb74eb8a0df534f13a90a3c6acaa7768509"
+  },
+  {
+    "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModelTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "7865fe54408722d4a1dbad061e129ba661fc86330d4da7f56041fe6dfb4a6a31"
+  },
+  {
+    "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryContentComposeTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "aa173f64b71bb08d3bdc8d62bdeeea759ce03f243c59c0cd04e73cd4c2865c26"
+  },
+  {
+    "path": "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/compose/MeasuredHistoryViewZoneComposeTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "51cde6d949806461fa15bf9222f9970e5444131dcae595a101fef932a229e2c0"
+  },
+  {
+    "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/PagedTrackingHistoryRepository.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "8961831d537b99884b54abec88a0369ce13da9322365b023d99ec4c491497e51"
+  },
+  {
+    "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistory.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "1336a0d0bc9fc4c51cd6e3d426f7a2015a5a1b269b050b34f1fb46baae43ed29"
+  },
+  {
+    "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/MeasuredActivityTimeContractTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "bf56f95fd874ee551de2abc4fc8a8e7110ac00593d1e7f10507426b7f7a148cb"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposer.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "744b740c9dc674baf83690bda884cd45f2323948cd6cc8cf8ee83f7a293e5fd1"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "a9cc723090082450138a26efc017d567a269154853cb111aa8926d8dd8a4b2c2"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultActivityHistoryRepository.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "d703147c6a0c3f31ca31a32a7f8a88c1c948895a7abd544a487d0d8ccfc1c19d"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultAmbientStepsHistoryRepository.kt",
+    "disposition": "PRESERVED_MIXED_WORKING_DRAFT",
+    "working_before_sha256": "3b7d8e0d8f5a789b82e5d38d5ce5f7fc79219a910fcfe5f29872d6a668ac544d"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "a825ddd9e8ef37563763b4abfbe0a2dc83b2f6d80229adad676c780fdca8b735"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultTrackingHistoryRepository.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "a48e0a249b6ca8a8db56985800459c1ee3c8867854d843a502c10f10e9932116"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "edd726f297a35a9f49a4da7e688ce5588381b587a848bf410b7524c4f7413a87"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedActivityHistoryMapper.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "3a5cdcc3e1ab64523abcc96084083f41118f07e89b357b34d777e83ab299268b"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedCellHistoryDetails.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "afc501e47fef7161b94ee318acc832fe99c79388352a31996b1de3d580889bcb"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedCellHistoryMapper.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "ce11d21cf1c2984831b5cf7b7f032271d69a7e7f007fce15e6b54866bc3b49a3"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluator.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "472663bf3d2170cfbaa43e0c049dcdc37caba6304d80ed50b72b2952dd84d9a7"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryPublicMapper.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "ea8ac27482e95e98c90a09ebf970cba03c50de80998474e6db52013ac84b4b30"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedWifiHistoryDetails.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "8da614d1d4186f52f17376a37955f337b24fde48f46d3d9957ee62f209aa2b1a"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedWifiHistoryMapper.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "41f7e13701d7743759d4a726d54d1eb4d5a86b373032b3bb0d63fb28ea231347"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredBackgroundStepsHistoryReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "ba97e646d8007d88cbb4d0d86925d106ab2050d44c2d0ee1bcf8a8cbdcafc80a"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredCapturedRadioHistoryReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "34d92953f65ade5fefd9fdc36e2a7569448c44497dd752b090893aa0df31a999"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredHistoryPosition.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "31657df04ebed5a4d013555cccbd668b6a83154e554144a74eaf90269774acd7"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredImportedSensorHistoryReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "9d443777f21d6f53a3668b382308cea939e292c64d01b377068d8e58f36a8f7f"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacySensorHistoryReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "31b72c79fb4769f4d6f98ea25df9dd97700213bd5e034ce81e9ac07b749e1e1c"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredLocationHistoryReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "1b985d37a1dda7faee13064184b3679aab23eb844ed16f54f99622b2c8483b31"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativeActivityHistoryReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "c09f13e5620b9b2eb3bec00da1093dbed9a445a668c7a62c6462a633bdba297e"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativePressureHistoryReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "75fa6a61569dee92d04a72ccf84780e703e85eea55366904bed6d9a769fec7e6"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativeSessionNames.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "9f6e3e7032ebb343e15fe517a6c3d34354cb2289a08536ce33bd19be72c154fd"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativeStepsHistoryReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "55f2cb8edc7b02dc3020bd63807522b0303a089773645012c7494fd50880fd33"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredRadioHistoryReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "844aad8cbbff493c7ff86150986b1f4de89cbb49275794f9e50510feff92e920"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/NativeAmbientStepsRangeReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "c0a59c881a8bb84c2f891a4e235b4c1d787c08951f314ab0173603741febfaf2"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryBatchReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e9cc678cdf6541801ef66fed765cfb7bc0d7c2ada7635bd4ea431b59ad932d60"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistoryPublicMapper.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "2a60b6596a17eee41888303c1b43d325aaa6666d652cf98164749bc07e548f2a"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelector.kt",
+    "disposition": "PRESERVED_MIXED_WORKING_DRAFT",
+    "working_before_sha256": "0b2d6b42695cfc4747d8a060a6e56b2227fabd7de77414593842161d4e695682"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "2f67e6dd9e061aaa6ab6f65a5f46cdacfce04e38decce6b3c7fcc885df54b196"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/StepsHistoryBatchReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e0a8e69e25bb33b4b431d19d0526c453b6567d11711f91bd82061abee30d290e"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelector.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "98d5d3cff9a3e60b396699b3a6f1c3e6c3686428410b3aae473581edfd77ee20"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryPagingSource.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "c62c07bcdb129172b1688d7fc253002cf6260843e7230b874af902f9514ea10a"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "06be7ba131ecd930d10448d497f838692e7cc1ccf14f3681eb1adae0b98e642f"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryComposer.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "01511581d72578e5c95278ae16246315209866a4efea361ec30e77ebf41980f1"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "acf7218e09cc0eaa403fc1b2b8bdc32781e23abd5f946b7948385ea86ec60dba"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepositoryTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "64e3130df9e9d652c1dd108fe58bd62f26741ad60f06cce9b10d7c98b6d853c0"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "04a9409c47c33c53bb59ee644500764e297da008c9ea17ec3a4f189690595ae4"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedActivityHistoryMapperTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "31331e81bb73af98d14c11f3dc33c2ed4f17f0040b7f7dc0669eb0e590ecc622"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedPressureHistoryEvaluatorTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "a3275f81f422b66844a0068e02ec6073f7446e6c6c92f42398076d4611d297e6"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedStepsProductRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "68888c2f71ee334bd7a9408ec3e589c05e211b57b56e000f25e3f4dd2a5e8691"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ImportedWifiHistoryDetailsRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "5f9bbc73bc6f90960ec414f9696d0059c51bbf6647c6340a2f049a80a3a73132"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredCapturedRadioRoomSupport.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "776fa6b6d2d725e5cd9177488cd74b98ca0827a9587da04eb8cc9841083a008e"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacySensorHistoryReaderRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "65c93123195953219496e1546d4a4adff14d161daca0fab6882faa61fa5d6ac5"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLegacyWifiCountRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "6ba670dbb70f67a3d6b8a739b1afc6b925abe39ec71b3b5d399c448e0fe6a062"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredLocationHistoryReaderRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "93cc6fa8ac70e5f2a27893a7565a496692375df877f25444ef93cf64e1e7f504"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredNativeSessionNamesRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "a9c4ea82426994c574d0537128b9bb66480c1f4f66dd7abd69e159b0a05bb6ed"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "63459c8f0beb53d0cb4fdb0ecacfe4956f8ba1b0ffaa9b09fe691274a5f9bcce"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationPurposeLifecycleRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "92735887aee5d87ad230f9f0af19759de229a87f99d0e59500f103e9c08880a4"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+    "disposition": "PRESERVED_MIXED_WORKING_DRAFT",
+    "working_before_sha256": "314e6688c17322220b9f6faf16dc6fc642157e0ab13be7d347663ae08e054557"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomImportedAmbientStepsTransferTest.kt",
+    "disposition": "PRESERVED_MIXED_WORKING_DRAFT",
+    "working_before_sha256": "edc1324df03ab9ae575338ff70cf7213d8a82b13357a73866792fb84d3781985"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "56b5f93ded0eec00c745a2c66d456cdbba2d55c104e2b20d1cbe2437516ec862"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelectorTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "8c820bd3adfff8cce4c81e5ccb7f2f8316bf08f453d6e9ff065bf1829ce51dbb"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryPagingMetadataRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "c383c2f83e6f67e333495a1d2e1e548c5853b0b44841fedd96252699f2956fcc"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReaderRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "5c81b8d53fe6ff988bbc6902b19047cdaccaace36fe14ef74092dbbe58446f2e"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRoomFixtures.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "18c3de6a686ea2c713b56aa0cb7f5d1aa3251a409798d6d3b9eff52ecc709f16"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/UnifiedMeasuredHistoryAssemblyRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "21c6d08cd88f1b54d26168d3ea2200d8462dc2c29189ef2c2e05f6790150b3e3"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "3e1dbf4726fbc802bac4c0865b9e59e6aff3f58c908d9cfb2a99640962e2ba34"
+  }
+]

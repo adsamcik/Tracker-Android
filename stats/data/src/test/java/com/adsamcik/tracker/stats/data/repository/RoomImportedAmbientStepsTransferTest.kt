@@ -1,6 +1,13 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
+import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
+import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.HistoryProblem
+import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwner
@@ -129,6 +136,104 @@ class RoomImportedAmbientStepsTransferTest {
 		database = newDatabase()
 		seedEvidence(database)
 	}
+
+    @Test fun `measured imported background Steps preserves original DST count window`() = runTest {
+        val date = LocalDate.of(2026, 10, 25)
+        val day = completeDay(date, 12L, "Europe/Prague")
+        val original = archive(day)
+        importer(database).importArchive(request(original)) shouldBe applied(original, 1)
+        val range = HistoryRange(day.structuralDayStartTimeMs + 1_000L,
+            day.structuralDayStartTimeMs + 2_000L, "UTC")
+        val read = database.withTransaction {
+            val reader = MeasuredBackgroundStepsHistoryReader(database)
+            reader.qualify(reader.candidates(range, null), range)
+        }
+        val row = read.rows.values.single()
+        row.position.startTimeMs shouldBe day.structuralDayStartTimeMs
+        row.toExclusiveMs shouldBe day.structuralDayEndTimeMs
+        day.structuralDayEndTimeMs - day.structuralDayStartTimeMs shouldBe 25L * 60L * 60L * 1_000L
+        row.origins shouldBe setOf(HistoryOrigin.IMPORTED)
+        (row.measurement as HistoryMeasurement.Steps).history.count shouldBe 12L
+    }
+
+    @Test fun `measured imported background gaps retain real saved bounds and independent fact count`() = runTest {
+        val day = partialDay(LocalDate.of(2026, 3, 29), 5L, "Europe/Prague")
+        val original = archive(day)
+        importer(database).importArchive(request(original)) shouldBe applied(original, 1)
+        val range = HistoryRange(day.structuralDayStartTimeMs, day.structuralDayEndTimeMs, "UTC")
+        val read = database.withTransaction {
+            val reader = MeasuredBackgroundStepsHistoryReader(database)
+            reader.qualify(reader.candidates(range, null), range)
+        }
+        read.rows.size shouldBe 2
+        val gap = read.rows.values.single { it.measurement is HistoryMeasurement.Gap }
+        gap.position.startTimeMs shouldBe day.gaps.single().intervalStartTimeMs
+        gap.toExclusiveMs shouldBe day.gaps.single().intervalEndTimeMs
+        (read.rows.values.single { it.measurement is HistoryMeasurement.Steps }.measurement as HistoryMeasurement.Steps).history.count shouldBe 5L
+    }
+
+    @Test fun `measured imported background reads later retained windows without losing the whole day`() = runTest {
+        val day = twoFactDay(LocalDate.of(2026, 1, 1))
+        val original = archive(day)
+        importer(database).importArchive(request(original)) shouldBe applied(original, 1)
+        val floor = day.facts.last().intervalStartTimeMs
+        database.sourceEvidenceStateDao().updateLifecycle(EPOCH, floor, day.structuralDayEndTimeMs)
+        val range = HistoryRange(floor, day.structuralDayEndTimeMs, "UTC")
+        val read = database.withTransaction {
+            val reader = MeasuredBackgroundStepsHistoryReader(database)
+            reader.qualify(reader.candidates(range, null), range)
+        }
+        read.rows.size shouldBe 1
+        (read.rows.values.single().measurement as HistoryMeasurement.Steps).history.count shouldBe 4L
+        read.rows.values.single().position.startTimeMs shouldBe floor
+    }
+
+    @Test fun `measured imported background isolates corrupt day and never exposes its raw count`() = runTest {
+        val first = completeDay(LocalDate.of(2026, 1, 1), 3L)
+        val second = completeDay(LocalDate.of(2026, 1, 2), 4L)
+        // Separate original archives prevent a corrupted envelope from claiming its healthy sibling.
+        val firstArchive = archive(first)
+        val secondArchive = archive(second)
+        importer(database).importArchive(request(firstArchive)) shouldBe applied(firstArchive, 1)
+        importer(database).importArchive(request(secondArchive, jobId = "other", archiveKey = "other")) shouldBe applied(secondArchive, 1)
+        val range = HistoryRange(first.structuralDayStartTimeMs, second.structuralDayEndTimeMs, "UTC")
+        val read = database.withTransaction {
+            val reader = MeasuredBackgroundStepsHistoryReader(database)
+            val keys = reader.candidates(range, null)
+            database.openHelper.writableDatabase.execSQL("UPDATE imported_ambient_steps_fact SET step_count = 9 WHERE day_identity = ?", arrayOf(second.identity.value))
+            reader.qualify(keys, range)
+        }
+        read.rows.size shouldBe 1
+        (read.rows.values.single().measurement as HistoryMeasurement.Steps).history.count shouldBe 3L
+        read.problems shouldBe setOf(HistoryProblem(HistorySource.STEPS, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+    }
+
+    @Test fun `measured imported background never makes old data current after full clear epoch`() = runTest {
+        val day = completeDay(LocalDate.of(2026, 1, 1), 3L)
+        val original = archive(day)
+        importer(database).importArchive(request(original)) shouldBe applied(original, 1)
+        val range = HistoryRange(day.structuralDayStartTimeMs, day.structuralDayEndTimeMs, "UTC")
+        database.withTransaction {
+            val reader = MeasuredBackgroundStepsHistoryReader(database)
+            val keys = reader.candidates(range, null)
+            database.sourceEvidenceStateDao().updateLifecycle(EPOCH + 1L, null, day.structuralDayEndTimeMs)
+            reader.qualify(keys, range).rows shouldBe emptyMap()
+        }
+    }
+
+    @Test fun `measured imported background Steps obeys excluded origin in both discovery and qualification`() = runTest {
+        val day = completeDay(LocalDate.of(2026, 1, 1), 3L)
+        val original = archive(day)
+        importer(database).importArchive(request(original)) shouldBe applied(original, 1)
+        val range = HistoryRange(day.structuralDayStartTimeMs, day.structuralDayEndTimeMs, "UTC")
+        database.withTransaction {
+            val reader = MeasuredBackgroundStepsHistoryReader(database)
+            val keys = reader.candidates(range, null)
+            val localOnly = range.copy(origins = setOf(HistoryOrigin.LOCAL))
+            reader.candidates(localOnly, null) shouldBe emptyList()
+            reader.qualify(keys, localOnly).rows shouldBe emptyMap()
+        }
+    }
 
 	@After
 	fun tearDown() {

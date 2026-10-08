@@ -3,39 +3,32 @@ package com.adsamcik.tracker.statistics.presenter
 import androidx.lifecycle.SavedStateHandle
 
 import androidx.paging.PagingSource
+import androidx.paging.PagingState
+import com.adsamcik.tracker.stats.api.repository.PagedTrackingHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
+import com.adsamcik.tracker.stats.api.repository.HistoryPagingItem
+import com.adsamcik.tracker.stats.api.repository.HistoryContinuation
+import com.adsamcik.tracker.stats.api.repository.HistorySource
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.repository.DailySummary
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.ExplorationRepository
-import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
-import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
-import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayDay
-import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplayValue
-import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
-import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
-import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData
-import com.adsamcik.tracker.statistics.viewmodel.CalendarState
 import com.adsamcik.tracker.statistics.viewmodel.HistoryTab
-import com.adsamcik.tracker.statistics.viewmodel.HistoryStepsValue
-import com.adsamcik.tracker.statistics.viewmodel.TimelineEntry
-import com.adsamcik.tracker.statistics.viewmodel.TimelineState
-import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -60,7 +53,7 @@ class HistoryPresenterViewModelTest {
 
 	private val tripPresentationRepository: TripPresentationRepository = mockk(relaxed = true)
 	private val dailySummaryRepository: DailySummaryRepository = mockk()
-	private val stepsNumericSummaryRepository: StepsNumericSummaryRepository = mockk()
+	private val trackingHistoryRepository = RecordingHistoryPages()
 	private val explorationRepository: ExplorationRepository = mockk()
 
 	@BeforeEach
@@ -69,9 +62,6 @@ class HistoryPresenterViewModelTest {
 		// Default: empty flows and results
 		every { explorationRepository.observeCellCount(any()) } returns flowOf(0)
 		every { dailySummaryRepository.observeBetween(any(), any()) } returns flowOf(emptyList())
-		every { stepsNumericSummaryRepository.observeDisplay(any()) } returns flowOf(
-			testDisplayUnavailable(StepsNumericUnverifiableReason.NOT_CAPTURED),
-		)
 		coEvery { tripPresentationRepository.getTripsBetween(any(), any()) } returns emptyList()
 		every { tripPresentationRepository.getPagedTrips() } returns mockk<PagingSource<Int, Trip>>()
 	}
@@ -86,7 +76,7 @@ class HistoryPresenterViewModelTest {
 	) = HistoryPresenterViewModel(
 		tripPresentationRepository = tripPresentationRepository,
 		dailySummaryRepository = dailySummaryRepository,
-		stepsNumericSummaryRepository = stepsNumericSummaryRepository,
+		trackingHistoryRepository = trackingHistoryRepository,
 		explorationRepository = explorationRepository,
 		savedStateHandle = savedStateHandle,
 	)
@@ -148,93 +138,75 @@ class HistoryPresenterViewModelTest {
 
 			vm.selectedTab.value shouldBe HistoryTab.TIMELINE
 			vm.calendarState.value.selectedDay shouldBe selectedDay
-			verify(exactly = 0) { stepsNumericSummaryRepository.observeDisplay(any()) }
+			coVerify(exactly = 0) { tripPresentationRepository.getTripsBetween(any(), any()) }
 		}
 	}
 
 	@Nested
-	@DisplayName("Timeline loading")
-	inner class TimelineTest {
-		@Test
-		fun `empty trips yields TimelineState Empty`() = runTest {
-			coEvery { tripPresentationRepository.getTripsBetween(any(), any()) } returns emptyList()
-
+	@DisplayName("Measured observation paging")
+	inner class ObservationsTest {
+		@Test fun `Timeline requests all six sources without a trip prerequisite or age cutoff`() = runTest {
 			val vm = createViewModel()
-			advanceUntilIdle()
-
-			vm.timelineState.value shouldBe TimelineState.Empty
+			backgroundScope.launch { vm.timelineHistory.collect {} }
+			testScheduler.runCurrent()
+			val range = trackingHistoryRepository.ranges.single()
+			range.mode shouldBe HistoryBrowseMode.OBSERVATIONS
+			range.fromInclusiveMs shouldBe 0L
+			range.toExclusiveMs shouldBe Long.MAX_VALUE
+			range.sources shouldBe HistorySource.entries.toSet()
+			coVerify(exactly = 0) { tripPresentationRepository.getTripsBetween(any(), any()) }
 		}
 
-		@Test
-		fun `trips produce Content with day summary and trip entries`() = runTest {
-			val now = System.currentTimeMillis()
-			val today = LocalDate.now()
-			val todayStart = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-			val trip = makeTrip(id = 1, startTimeMs = todayStart + 3600_000, endTimeMs = todayStart + 7200_000, distanceM = 1500f)
-
-			coEvery { tripPresentationRepository.getTripsBetween(any(), any()) } returns listOf(trip)
-			every { dailySummaryRepository.observeBetween(any(), any()) } returns flowOf(
-				listOf(
-					DailySummary(
-						dayEpoch = today.toEpochDay(),
-						totalDistance = DistanceM(1500f),
-						totalDuration = DurationMs(3600_000L),
-						tripCount = 1,
-						activeTrackingDuration = DurationMs(3600_000L),
-					),
-				),
-			)
-
+		@Test fun `Calendar uses the same source list and the actual 23-hour selected day`() = runTest {
 			val vm = createViewModel()
-			advanceUntilIdle()
-
-			val state = vm.timelineState.value
-			state.shouldBeInstanceOf<TimelineState.Content>()
-			// 1 day summary + 1 trip entry
-			state.entries shouldHaveSize 2
+			vm.useViewZone(ZoneId.of("Europe/Prague"))
+			vm.selectDay(LocalDate.of(2026, 3, 29))
+			backgroundScope.launch { vm.calendarHistory.collect {} }
+			testScheduler.runCurrent()
+			val range = trackingHistoryRepository.ranges.single()
+			range.mode shouldBe HistoryBrowseMode.OBSERVATIONS
+			range.sources shouldBe HistorySource.entries.toSet()
+			range.toExclusiveMs - range.fromInclusiveMs shouldBe 23L * 60L * 60L * 1_000L
+			range.viewZoneId shouldBe "Europe/Prague"
 		}
 
-		@Test
-		fun `timeline omits Steps without per-day qualification`() = runTest {
-			val today = LocalDate.now()
-			val todayStart = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-			coEvery { tripPresentationRepository.getTripsBetween(any(), any()) } returns listOf(
-				makeTrip(startTimeMs = todayStart + 1_000L, endTimeMs = todayStart + 2_000L),
-			)
-			every { dailySummaryRepository.observeBetween(any(), any()) } returns flowOf(
-				listOf(
-					DailySummary(
-						dayEpoch = today.toEpochDay(),
-						totalDistance = DistanceM(10f),
-						totalDuration = DurationMs(1_000L),
-						tripCount = 1,
-						activeTrackingDuration = DurationMs(1_000L),
-					),
-				),
-			)
+		@Test fun `changing the selected day creates a distinct observation paging generation`() = runTest {
 			val vm = createViewModel()
-			advanceUntilIdle()
-
-			val state = vm.timelineState.value.shouldBeInstanceOf<TimelineState.Content>()
-			state.entries.first().shouldBeInstanceOf<TimelineEntry.DaySummaryEntry>()
-			coVerify(exactly = 0) { stepsNumericSummaryRepository.read(any()) }
+			val day = LocalDate.of(2026, 3, 29)
+			vm.useViewZone(ZoneId.of("UTC"))
+			vm.selectDay(day)
+			backgroundScope.launch { vm.calendarHistory.collect {} }
+			testScheduler.runCurrent()
+			val first = trackingHistoryRepository.sources.single()
+			vm.selectDay(day.plusDays(1L))
+			testScheduler.runCurrent()
+			trackingHistoryRepository.ranges.size shouldBe 2
+			trackingHistoryRepository.ranges.last().fromInclusiveMs shouldBe day.plusDays(1L)
+				.atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
+			(trackingHistoryRepository.sources.last() !== first) shouldBe true
 		}
 
-		@Test
-		fun `timeline only loads trips from last 30 days`() = runTest {
+		@Test fun `month navigation clears the observation day instead of displaying stale rows`() = runTest {
 			val vm = createViewModel()
-			advanceUntilIdle()
+			vm.selectDay(LocalDate.of(2026, 3, 29))
+			backgroundScope.launch { vm.calendarHistory.collect {} }
+			testScheduler.runCurrent()
+			vm.selectMonth(YearMonth.of(2026, 4))
+			testScheduler.runCurrent()
+			vm.calendarState.value.selectedDay shouldBe null
+			trackingHistoryRepository.ranges.size shouldBe 1
+			vm.calendarState.value.selectedDayDetail shouldBe null
+		}
 
-			coVerify {
-				tripPresentationRepository.getTripsBetween(
-					match { fromMs ->
-						val thirtyDaysMs = 30L * 24 * 60 * 60 * 1000
-						val now = System.currentTimeMillis()
-						fromMs in (now - thirtyDaysMs - 5000)..(now - thirtyDaysMs + 5000)
-					},
-					any(),
-				)
-			}
+		@Test fun `changing the displayed zone rebuilds the selected-day query`() = runTest {
+			val vm = createViewModel()
+			vm.useViewZone(ZoneId.of("UTC"))
+			vm.selectDay(LocalDate.of(2026, 3, 29))
+			backgroundScope.launch { vm.calendarHistory.collect {} }
+			testScheduler.runCurrent()
+			vm.useViewZone(ZoneId.of("Europe/Prague"))
+			testScheduler.runCurrent()
+			trackingHistoryRepository.ranges.map { it.viewZoneId } shouldBe listOf("UTC", "Europe/Prague")
 		}
 	}
 
@@ -286,186 +258,6 @@ class HistoryPresenterViewModelTest {
 			data2.tripCount shouldBe 1
 		}
 
-		@Test
-		fun `selected day keeps a recorded subtotal distinct from a complete total`() = runTest {
-			val date = LocalDate.of(2024, 6, 15)
-			val cause = setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.EXPLICIT_GAP)
-			every { stepsNumericSummaryRepository.observeDisplay(match { it.firstEpochDay == date.toEpochDay() }) } returns flowOf(
-				StepsDailyDisplay.Snapshot(3L, listOf(StepsDailyDisplayDay(date.toEpochDay(), StepsDailyDisplayValue.Recorded(42L, cause)))),
-			)
-			val vm = createViewModel()
-			advanceUntilIdle()
-			vm.selectTab(HistoryTab.CALENDAR)
-			vm.selectDay(date)
-			advanceUntilIdle()
-			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Recorded(42L, cause)
-			verify(exactly = 0) { stepsNumericSummaryRepository.observe(any()) }
-		}
-
-		@Test
-		fun `selected day settles materializing Steps without reselection`() = runTest {
-			val date = LocalDate.of(2024, 6, 15)
-			val epochDay = date.toEpochDay()
-			val steps = MutableStateFlow<StepsDailyDisplay>(StepsDailyDisplay.Materializing)
-			every { dailySummaryRepository.observeBetween(epochDay, epochDay) } returns flowOf(
-				listOf(
-					DailySummary(
-						dayEpoch = epochDay,
-						totalDistance = DistanceM(0f),
-						totalDuration = DurationMs(0L),
-						tripCount = 0,
-						activeTrackingDuration = DurationMs(0L),
-					),
-				),
-			)
-			every {
-				stepsNumericSummaryRepository.observeDisplay(
-					match { it.firstEpochDay == epochDay && it.lastEpochDayInclusive == epochDay },
-				)
-			} returns steps
-
-			val vm = createViewModel()
-			advanceUntilIdle()
-			vm.selectTab(HistoryTab.CALENDAR)
-			vm.selectDay(date)
-			advanceUntilIdle()
-
-			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Materializing
-
-			steps.value = testDisplayReady(listOf(StepsNumericDay(epochDay, 42L)))
-			advanceUntilIdle()
-
-			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Ready(42L)
-			coVerify(exactly = 0) { stepsNumericSummaryRepository.read(any()) }
-		}
-
-		@Test
-		fun `selected day exposes zero only from complete qualified coverage`() = runTest {
-			val date = LocalDate.of(2024, 7, 3)
-			val epochDay = date.toEpochDay()
-			every {
-				stepsNumericSummaryRepository.observeDisplay(
-					match { it.firstEpochDay == epochDay && it.lastEpochDayInclusive == epochDay },
-				)
-			} returns flowOf(testDisplayReady(listOf(StepsNumericDay(epochDay, 0L))))
-
-			val vm = createViewModel()
-			advanceUntilIdle()
-			vm.selectTab(HistoryTab.CALENDAR)
-			vm.selectDay(date)
-			advanceUntilIdle()
-
-			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Ready(0L)
-		}
-
-		@Test
-		fun `late selected day emission cannot overwrite replacement day`() = runTest {
-			val dayA = LocalDate.of(2024, 7, 3)
-			val dayB = LocalDate.of(2024, 7, 4)
-			val stepsA = MutableStateFlow<StepsDailyDisplay>(StepsDailyDisplay.Materializing)
-			val stepsB = MutableStateFlow<StepsDailyDisplay>(
-				testDisplayReady(listOf(StepsNumericDay(dayB.toEpochDay(), 20L))),
-			)
-			every {
-				stepsNumericSummaryRepository.observeDisplay(match { it.firstEpochDay == dayA.toEpochDay() })
-			} returns stepsA
-			every {
-				stepsNumericSummaryRepository.observeDisplay(match { it.firstEpochDay == dayB.toEpochDay() })
-			} returns stepsB
-			val vm = createViewModel()
-			advanceUntilIdle()
-
-			vm.selectTab(HistoryTab.CALENDAR)
-			vm.selectDay(dayA)
-			advanceUntilIdle()
-			vm.selectDay(dayB)
-			advanceUntilIdle()
-			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Ready(20L)
-
-			stepsA.value = testDisplayReady(
-				listOf(StepsNumericDay(dayA.toEpochDay(), 99L)),
-			)
-			advanceUntilIdle()
-
-			vm.calendarState.value.selectedDay shouldBe dayB
-			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Ready(20L)
-		}
-
-		@Test
-		fun `month navigation cancels selected day settlement and clears selection`() = runTest {
-			val day = LocalDate.of(2024, 7, 3)
-			val backingSteps = MutableStateFlow<StepsDailyDisplay>(StepsDailyDisplay.Materializing)
-			var cancelled = false
-			every {
-				stepsNumericSummaryRepository.observeDisplay(match { it.firstEpochDay == day.toEpochDay() })
-			} returns flow {
-				try {
-					emitAll(backingSteps)
-				} finally {
-					cancelled = true
-				}
-			}
-			val savedStateHandle = SavedStateHandle()
-			val vm = createViewModel(savedStateHandle)
-			advanceUntilIdle()
-
-			vm.selectTab(HistoryTab.CALENDAR)
-			vm.selectDay(day)
-			advanceUntilIdle()
-			vm.selectMonth(YearMonth.of(2024, 8))
-			advanceUntilIdle()
-
-			cancelled shouldBe true
-			vm.calendarState.value.currentMonth shouldBe YearMonth.of(2024, 8)
-			vm.calendarState.value.selectedDay shouldBe null
-			vm.calendarState.value.selectedDayDetail shouldBe null
-			savedStateHandle.get<Long>("history_calendar_selected_day") shouldBe null
-		}
-
-		@Test
-		fun `leaving Calendar cancels selected day settlement and reentering resubscribes`() =
-			runTest {
-				val day = LocalDate.of(2024, 7, 3)
-				val backingSteps = MutableStateFlow<StepsDailyDisplay>(StepsDailyDisplay.Materializing)
-				var subscriptions = 0
-				var cancellations = 0
-				every {
-					stepsNumericSummaryRepository.observeDisplay(
-						match { it.firstEpochDay == day.toEpochDay() },
-					)
-				} returns flow {
-					subscriptions += 1
-					try {
-						emitAll(backingSteps)
-					} finally {
-						cancellations += 1
-					}
-				}
-				val vm = createViewModel()
-				advanceUntilIdle()
-
-				vm.selectTab(HistoryTab.CALENDAR)
-				vm.selectDay(day)
-				advanceUntilIdle()
-				subscriptions shouldBe 1
-
-				vm.selectTab(HistoryTab.TIMELINE)
-				advanceUntilIdle()
-				cancellations shouldBe 1
-
-				backingSteps.value = testDisplayReady(
-					listOf(StepsNumericDay(day.toEpochDay(), 42L)),
-				)
-				advanceUntilIdle()
-				vm.calendarState.value.selectedDayDetail?.steps shouldBe
-					HistoryStepsValue.Materializing
-
-				vm.selectTab(HistoryTab.CALENDAR)
-				advanceUntilIdle()
-
-				subscriptions shouldBe 2
-				vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Ready(42L)
-			}
 	}
 
 	@Nested
@@ -566,10 +358,15 @@ class HistoryPresenterViewModelTest {
 	}
 }
 
-private fun testDisplayReady(days: List<com.adsamcik.tracker.stats.api.repository.StepsNumericDay>) =
-	StepsDailyDisplay.Snapshot(1L, days.map { StepsDailyDisplayDay(it.epochDay, StepsDailyDisplayValue.Complete(it.steps)) })
-
-private fun testDisplayUnavailable(reason: com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason) =
-	StepsDailyDisplay.Snapshot(1L, listOf(StepsDailyDisplayDay(
-		java.time.LocalDate.now().toEpochDay(), StepsDailyDisplayValue.Unavailable(reason),
-	)))
+private class RecordingHistoryPages : PagedTrackingHistoryRepository {
+	val ranges = mutableListOf<HistoryRange>()
+	val sources = mutableListOf<PagingSource<HistoryContinuation, HistoryPagingItem>>()
+	override fun pagingSource(range: HistoryRange): PagingSource<HistoryContinuation, HistoryPagingItem> {
+		ranges += range
+		return object : PagingSource<HistoryContinuation, HistoryPagingItem>() {
+			override suspend fun load(params: LoadParams<HistoryContinuation>): LoadResult<HistoryContinuation, HistoryPagingItem> =
+				LoadResult.Page(emptyList(), null, null)
+			override fun getRefreshKey(state: PagingState<HistoryContinuation, HistoryPagingItem>): HistoryContinuation? = null
+		}.also(sources::add)
+	}
+}

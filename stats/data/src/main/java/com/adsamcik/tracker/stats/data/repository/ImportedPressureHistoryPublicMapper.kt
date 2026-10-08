@@ -163,7 +163,7 @@ private fun List<PortablePressureRunV1>.toPublicCoverage(
 }
 
 @Suppress("LongMethod")
-private fun PortablePressureWindowV1.toPublicWindow() = PressureHistoryWindow(
+internal fun PortablePressureWindowV1.toPublicWindow() = PressureHistoryWindow(
 	intervalStartTime = EpochMs(intervalStartTimeMs),
 	intervalEndTime = EpochMs(intervalEndTimeMs),
 	sampleCount = sampleCount,

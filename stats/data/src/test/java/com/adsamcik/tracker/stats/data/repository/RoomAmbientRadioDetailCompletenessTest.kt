@@ -30,6 +30,13 @@ import com.adsamcik.tracker.stats.api.repository.RadioContextSource
 import com.adsamcik.tracker.stats.api.repository.RadioLocationContextReadResult
 import com.adsamcik.tracker.stats.api.repository.RadioLocationContextRequest
 import kotlin.test.assertTrue
+import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
+import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
+import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.HistoryProblem
+import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellChildEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactCursorEntity
@@ -96,6 +103,71 @@ class RoomAmbientRadioDetailCompletenessTest {
 	@After
 	fun tearDown() = database.close()
 
+
+    @Test fun `canonical Wi-Fi physical keys are ASCII while saved network names remain Unicode`() = runTest {
+        val wifi = insertWifi(true)
+        val child = database.radioObservationChildDao().wifiCurrentBackgroundChildrenForFactIds(listOf(wifi.logicalFactId), 3).first()
+        val name = "Kavárna 東京 📶"
+        val owner = RadioChildOwner(RadioChildPurpose.BACKGROUND, child.writerId, child.writerVersion,
+            child.logicalFactId, child.semanticRevision, child.itemIndex)
+        val checksum = RadioObservationChildIntegrity.wifi(WifiChildChecksumInput(owner, child.providerTimestampNanos,
+            child.observedWallTimeMs, child.wallTimeUncertaintyMs, child.bssid, name, child.frequencyMhz, child.signalDbm))
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE ambient_wifi_child SET ssid = ?, content_checksum = ? WHERE logical_fact_id = ? AND item_index = ?",
+            arrayOf(name, checksum, child.logicalFactId, child.itemIndex))
+        val range = measuredRadioRange(0L, 3_000L).copy(sources = setOf(HistorySource.WIFI),
+            origins = setOf(HistoryOrigin.LOCAL), purposes = setOf(HistoryPurpose.BACKGROUND))
+        database.withTransaction {
+            val reader = measuredRadioReader()
+            val heads = reader.candidates(HistorySource.WIFI, range, null)
+            assertEquals(2, heads.size)
+            assertTrue(heads.all { requireNotNull(it.physicalIdentity).all { c -> c.code < 128 } })
+            val read = reader.qualify(HistorySource.WIFI, heads, range, measuredCapturedRadioFixture(database))
+            assertEquals(2, read.rows.size); assertTrue(read.problems.isEmpty())
+            assertEquals(name, assertIs<HistoryMeasurement.Wifi>(read.rows.values.single {
+                it.position.startTimeMs == child.observedWallTimeMs }.measurement).network.ssid)
+        }
+    }
+
+    @Test fun `canonical counterpart SQL failure preserves an already qualified released Wi-Fi reading`() = runTest {
+        insertWifi(true)
+        database.withTransaction { insertLegacyWifiForMeasuredHistory(901L, 2_100L) }
+        val reader = measuredRadioReader()
+        val range = measuredRadioRange(0L, 3_000L).copy(sources = setOf(HistorySource.WIFI),
+            origins = setOf(HistoryOrigin.LOCAL, HistoryOrigin.LEGACY))
+        val heads = reader.candidates(HistorySource.WIFI, range, null)
+        assertEquals(3, heads.size)
+        // The captured fact table has no rows in this disposable fixture; real counterpart SQL must fail.
+        database.openHelper.writableDatabase.execSQL("DROP TABLE wifi_captured_fact_revision")
+        val read = database.withTransaction {
+            reader.qualify(HistorySource.WIFI, heads, range, measuredCapturedRadioFixture(database)) }
+        assertEquals(1, read.rows.size)
+        assertEquals(setOf(HistoryOrigin.LEGACY), read.rows.values.single().origins)
+        assertEquals(2_100L, read.rows.values.single().position.startTimeMs)
+        assertTrue(read.problems.contains(HistoryProblem(HistorySource.WIFI, HistoryProblemReason.STORAGE_UNAVAILABLE)))
+    }
+
+    @Test fun `canonical blank original-event Cell row advances without hiding valid sibling leaves`() = runTest {
+        val old = insertCell(true)
+        val newer = appendNewerCellGroup(old)
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE ambient_cell_fact_revision SET source_event_id = '' WHERE logical_fact_id = ?", arrayOf(old.logicalFactId))
+        val range = measuredRadioRange(0L, 4_000L).copy(sources = setOf(HistorySource.CELL),
+            origins = setOf(HistoryOrigin.LOCAL), purposes = setOf(HistoryPurpose.BACKGROUND))
+        database.withTransaction {
+            val reader = measuredRadioReader()
+            val heads = reader.candidates(HistorySource.CELL, range, null)
+            assertEquals(4, heads.size)
+            assertEquals(2, heads.count { it.physicalEventId == "" })
+            val read = reader.qualify(HistorySource.CELL, heads, range, measuredCapturedRadioFixture(database))
+            assertEquals(setOf(2_600L, 2_700L), read.rows.values.map { it.position.startTimeMs }.toSet())
+            assertTrue(read.rows.keys.all { position -> heads.single { measuredHistoryPosition(it) == position }.factId == newer.logicalFactId })
+            assertTrue(read.problems.contains(HistoryProblem(HistorySource.CELL, HistoryProblemReason.INTEGRITY_UNAVAILABLE)))
+            val next = reader.candidates(HistorySource.CELL, range, measuredHistoryPosition(heads.last()))
+            assertTrue(next.isEmpty())
+        }
+    }
+
 	@Test fun `exact selected background parents retain the complete qualified network and tower set`() = runTest {
 		val offset = 86_400_000L - 1_950L
 		val wifi = insertWifi(true, wallOffsetMs = offset)
@@ -124,6 +196,162 @@ class RoomAmbientRadioDetailCompletenessTest {
 				.readSelectedInTransaction(listOf(cell.logicalFactId), emptyList(), emptyList(), emptyList()).result).facts.single().identity)
 		}
 	}
+
+	@Test fun `measured radio discovery uses each overnight child time rather than delivery day`() = runTest {
+		val offset = 86_400_000L - 1_950L
+		val wifi = insertWifi(true, wallOffsetMs = offset, storedZoneId = "America/Los_Angeles")
+		val cell = insertCell(true, wallOffsetMs = offset, storedZoneId = "America/Los_Angeles")
+		val dao = database.radioObservationChildDao()
+		for ((from, to, time, index) in listOf(
+			listOf(86_399_000L, 86_400_000L, 86_399_950L, 0L),
+			listOf(86_400_000L, 86_401_000L, 86_400_050L, 1L))) {
+			val w = dao.wifiMeasuredHistoryCandidates(from, to, listOf("LOCAL"), listOf("BACKGROUND"), null, null, null, 101).single()
+			val c = dao.cellMeasuredHistoryCandidates(from, to, listOf("LOCAL"), listOf("BACKGROUND"), null, null, null, 101).single()
+			assertEquals("ambient_wifi", w.kind); assertEquals("ambient_cell", c.kind)
+			assertEquals(time, w.startTimeMs); assertEquals(time, c.startTimeMs)
+			assertEquals(index.toInt(), w.itemIndex); assertEquals(index.toInt(), c.itemIndex)
+			assertEquals(wifi.logicalFactId, w.factId); assertEquals(cell.logicalFactId, c.factId)
+			assertEquals(null, w.endTimeMs); assertEquals(null, c.endTimeMs)
+		}
+	}
+
+	@Test fun `radio keyset discovery makes progress beyond one hundred same-time released readings`() = runTest {
+		database.withTransaction {
+			for (id in 1L..150L) insertLegacyWifiForMeasuredHistory(id, 2_000L)
+		}
+		val dao = database.radioObservationChildDao()
+		val first = dao.wifiMeasuredHistoryCandidates(0L, 3_000L, listOf("LEGACY"), listOf("UNKNOWN"), null, null, null, 101)
+		assertEquals(101, first.size)
+		val consumed = measuredHistoryPosition(first[99])
+		val second = dao.wifiMeasuredHistoryCandidates(0L, 3_000L, listOf("LEGACY"), listOf("UNKNOWN"),
+			consumed.startTimeMs, consumed.originTag, consumed.stableId, 101)
+		assertEquals(50, second.size)
+		val all = first.take(100) + second
+		assertEquals((1L..150L).toSet(), all.map { it.rowId }.toSet())
+		assertEquals(150, all.map { measuredHistoryPosition(it) }.distinct().size)
+		assertTrue(all.zipWithNext().all { (a, b) -> measuredHistoryPosition(a) < measuredHistoryPosition(b) })
+		assertTrue(all.all { it.purpose == "UNKNOWN" && it.origin == "LEGACY" && it.endTimeMs == null })
+	}
+
+	@Test fun `radio discovery filters origins and purpose without manufacturing modern legacy ownership`() = runTest {
+		insertWifi(true); insertCell(true)
+		database.withTransaction { insertLegacyWifiForMeasuredHistory(1L, 2_000L) }
+		val dao = database.radioObservationChildDao()
+		assertTrue(dao.wifiMeasuredHistoryCandidates(0L, 3_000L, listOf("LEGACY"), listOf("CAPTURE", "BACKGROUND"), null, null, null, 101).isEmpty())
+		assertEquals(1L, dao.wifiMeasuredHistoryCandidates(2_000L, 2_001L, listOf("LEGACY"), listOf("UNKNOWN"), null, null, null, 101).single().rowId)
+		assertEquals(2, dao.wifiMeasuredHistoryCandidates(0L, 3_000L, listOf("LOCAL"), listOf("BACKGROUND"), null, null, null, 101).size)
+		assertEquals(2, dao.cellMeasuredHistoryCandidates(0L, 3_000L, listOf("LOCAL"), listOf("BACKGROUND"), null, null, null, 101).size)
+		assertTrue(dao.wifiMeasuredHistoryCandidates(0L, 2_000L, listOf("LEGACY"), listOf("UNKNOWN"), null, null, null, 101).isEmpty())
+	}
+
+	private fun insertLegacyWifiForMeasuredHistory(id: Long, timeMs: Long) {
+		database.openHelper.writableDatabase.execSQL(
+			"INSERT INTO legacy_wifi_child (legacy_row_id,time_ms,bssid,ssid,capabilities,frequency,level,provenance,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+			arrayOf(id, timeMs, "aa:bb:cc:dd:ee:ff", "Saved network", "", 2_412, -55, "LEGACY_RELEASED", timeMs))
+	}
+
+	@Test fun `measured radio qualifier preserves each authorized overnight leaf on its actual day`() = runTest {
+		val offset = 86_400_000L - 1_950L
+		insertWifi(true, wallOffsetMs = offset, storedZoneId = "America/Los_Angeles")
+		insertCell(true, wallOffsetMs = offset, storedZoneId = "America/Los_Angeles")
+		val reader = measuredRadioReader()
+		data class ExpectedLeaf(val from: Long, val to: Long, val observed: Long, val name: String)
+		for ((from, to, observed, name) in listOf(
+			ExpectedLeaf(86_399_000L, 86_400_000L, 86_399_950L, "Home"),
+			ExpectedLeaf(86_400_000L, 86_401_000L, 86_400_050L, "Cafe"))) {
+			val range = measuredRadioRange(from, to)
+			for (source in listOf(HistorySource.WIFI, HistorySource.CELL)) database.withTransaction {
+				val keys = reader.candidates(source, range, null)
+				val result = reader.qualifyBackgroundAndLegacy(source, keys, range)
+				assertTrue(result.problems.isEmpty())
+				val row = result.rows.values.single()
+				assertEquals(observed, row.position.startTimeMs)
+				assertEquals(HistoryPurpose.BACKGROUND, row.purpose)
+				assertEquals(setOf(HistoryOrigin.LOCAL), row.origins)
+				assertEquals(null, row.toExclusiveMs)
+				if (source == HistorySource.WIFI) assertEquals(name,
+					assertIs<HistoryMeasurement.Wifi>(row.measurement).network.ssid)
+				else assertEquals(observed, assertIs<HistoryMeasurement.Cell>(row.measurement).tower.observedTimeMs)
+			}
+		}
+	}
+
+	@Test fun `old summary keeps its real measured bounds and inclusive last measurement selection`() = runTest {
+		insertWifi(false); insertCell(false)
+		val reader = measuredRadioReader()
+		val range = measuredRadioRange(2_000L, 2_001L)
+		for (source in listOf(HistorySource.WIFI, HistorySource.CELL)) database.withTransaction {
+			val keys = reader.candidates(source, range, null)
+			assertEquals(1, keys.size)
+			val result = reader.qualifyBackgroundAndLegacy(source, keys, range)
+			assertTrue(result.problems.isEmpty())
+			val row = result.rows.values.single()
+			assertEquals(1_899L, row.position.startTimeMs)
+			assertEquals(2_000L, row.toExclusiveMs)
+			assertEquals(HistoryPurpose.BACKGROUND, row.purpose)
+			if (source == HistorySource.WIFI) assertEquals(2,
+				assertIs<HistoryMeasurement.BackgroundWifiSummary>(row.measurement).fact.observationCount)
+			else assertEquals(2, assertIs<HistoryMeasurement.BackgroundCellSummary>(row.measurement).fact.observationCount)
+		}
+	}
+
+	@Test fun `one damaged radio parent leaves independently qualified sibling leaves visible`() = runTest {
+		val wifi = insertWifi(true); insertCell(true)
+		val newer = appendNewerWifiGroup(wifi)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE ambient_wifi_child SET content_checksum = ? WHERE logical_fact_id = ? AND item_index = 0",
+			arrayOf("0".repeat(64), wifi.logicalFactId))
+		val reader = measuredRadioReader()
+		val range = measuredRadioRange(0L, 4_000L)
+		database.withTransaction {
+			val keys = reader.candidates(HistorySource.WIFI, range, null)
+			assertEquals(4, keys.size)
+			val result = reader.qualifyBackgroundAndLegacy(HistorySource.WIFI, keys, range)
+			assertEquals(setOf(2_600L, 2_700L), result.rows.values.map { it.position.startTimeMs }.toSet())
+			assertTrue(result.rows.keys.all { key -> keys.single { measuredHistoryPosition(it) == key }.factId == newer.logicalFactId })
+			assertTrue(result.problems.any { it.source == HistorySource.WIFI })
+			val sibling = reader.qualifyBackgroundAndLegacy(HistorySource.CELL,
+				reader.candidates(HistorySource.CELL, range, null), range)
+			assertEquals(2, sibling.rows.size); assertTrue(sibling.problems.isEmpty())
+		}
+	}
+
+	@Test fun `dense released Wi-Fi reads retain every saved leaf through bounded qualification pages`() = runTest {
+		database.sourceEvidenceStateDao().ensure()
+		database.withTransaction { for (id in 1L..150L) insertLegacyWifiForMeasuredHistory(id, 2_000L) }
+		val reader = measuredRadioReader()
+		val range = measuredRadioRange(0L, 3_000L).copy(origins = setOf(HistoryOrigin.LEGACY), purposes = setOf(HistoryPurpose.UNKNOWN))
+		val first = reader.candidates(HistorySource.WIFI, range, null)
+		val a = database.withTransaction { reader.qualifyBackgroundAndLegacy(HistorySource.WIFI, first.take(100), range) }
+		val second = reader.candidates(HistorySource.WIFI, range, measuredHistoryPosition(first[99]))
+		val b = database.withTransaction { reader.qualifyBackgroundAndLegacy(HistorySource.WIFI, second, range) }
+		assertEquals(100, a.rows.size); assertEquals(50, b.rows.size)
+		assertTrue(a.problems.isEmpty()); assertTrue(b.problems.isEmpty())
+		val all = a.rows.values + b.rows.values
+		assertEquals(150, all.map { it.position }.distinct().size)
+		assertTrue(all.all { it.purpose == HistoryPurpose.UNKNOWN && it.name == null && it.toExclusiveMs == null })
+		assertTrue(all.all { assertIs<HistoryMeasurement.LegacyWifi>(it.measurement).ssid == "Saved network" })
+	}
+
+	@Test fun `released storage failure preserves independently readable background leaves`() = runTest {
+		insertWifi(true)
+		database.withTransaction { insertLegacyWifiForMeasuredHistory(1L, 2_000L) }
+		val reader = measuredRadioReader()
+		val range = measuredRadioRange(0L, 3_000L)
+		val keys = reader.candidates(HistorySource.WIFI, range, null)
+		assertEquals(3, keys.size)
+		// Real missing-table fault after key discovery, scoped to this disposable Room database.
+		database.openHelper.writableDatabase.execSQL("DROP TABLE legacy_wifi_child")
+		val result = database.withTransaction { reader.qualifyBackgroundAndLegacy(HistorySource.WIFI, keys, range) }
+		assertEquals(setOf(1_900L, 2_000L), result.rows.values.map { it.position.startTimeMs }.toSet())
+		assertTrue(result.problems.contains(HistoryProblem(HistorySource.WIFI, HistoryProblemReason.STORAGE_UNAVAILABLE)))
+	}
+
+	private fun measuredRadioReader() = MeasuredRadioHistoryReader(database,
+		RoomAmbientWifiRepository(database, dispatcher), RoomAmbientCellRepository(database, dispatcher))
+	private fun measuredRadioRange(from: Long, to: Long) = HistoryRange(from, to, "UTC",
+		sources = setOf(HistorySource.WIFI, HistorySource.CELL),
+		purposes = setOf(HistoryPurpose.BACKGROUND, HistoryPurpose.UNKNOWN), mode = HistoryBrowseMode.OBSERVATIONS)
 
 	@Test fun `paired radio consumers reuse the same accepted native facts and exact identities`() = runTest {
 		val wifi = insertWifi(true); val cell = insertCell(true)

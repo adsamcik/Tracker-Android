@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_measurements_empty">Нема забележених података</string>
+    <string name="history_show_details">Прикажи детаље</string>
+    <string name="history_hide_details">Сакриј детаље</string>
+</resources>

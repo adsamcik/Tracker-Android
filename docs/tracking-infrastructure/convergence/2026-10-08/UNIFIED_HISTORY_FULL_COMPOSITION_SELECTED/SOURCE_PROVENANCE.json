@@ -1,0 +1,106 @@
+{
+  "inputs": [
+    {
+      "packet": "UNIFIED_HISTORY_MEASURED_SELECTED",
+      "files_sha256": "e29aec601cd6edd835914b7cb87a93c65c80d84463cb1f940812c71ef27b80d9",
+      "patch_sha256": "2dce84c8d1123adb0dbde84676996fb7478cd68522bc1397038a09a45e6469da"
+    },
+    {
+      "packet": "MEASURED_LEGACY_SENSOR_HISTORY_SELECTED",
+      "files_sha256": "4d689cebdefd2ad11c3640b563a1a09883ec9c0c1214506b27eed87f050f49fc",
+      "patch_sha256": "6b9cace7c7e45ca146306aef6ee1518e502f2851b23f677bfbb91a1d1779a957"
+    },
+    {
+      "packet": "MEASURED_ACTIVITY_WINDOWS_SELECTED",
+      "files_sha256": "ede6f2a966042c230413d29cd48a17340ddb5272e0972fdaf1b48d38ead16735",
+      "patch_sha256": "3e348f49b375f1d522c6f3adc28b6222093ac16e13fd32f6443631413604b3fc"
+    },
+    {
+      "packet": "MEASURED_PRESSURE_WINDOWS_SELECTED",
+      "files_sha256": "4d3b130e8ab95284b7d908113654218e15192a718f3a0172f37d73a85b7a1059",
+      "patch_sha256": "ace89b536462794c5d0c9594b0d9cb5f0ed7bd93cf408b630a9bd98dd6ba814b"
+    },
+    {
+      "packet": "MEASURED_STEPS_WINDOWS_SELECTED",
+      "files_sha256": "0dd3e186d0a2b49a09df854d951aa0210e8161b9ab5808ec82ab82a61b02bde7",
+      "patch_sha256": "727b6915957b6d0c518513a9a762851b4695a7e9a4bdfecf0b7aae1a663bca4e"
+    },
+    {
+      "packet": "MEASURED_CAPTURED_RADIO_HISTORY_SELECTED",
+      "files_sha256": "9bb5daa357d7989e27f9efa805081a0e5e8f1754214ec8c0e29f7177a4980db3",
+      "patch_sha256": "3420ea4f745a53e0f6a363401e928dd645084b48f5e6c0e10ed15c215335306e"
+    },
+    {
+      "packet": "MEASURED_RADIO_HISTORY_SELECTED",
+      "files_sha256": "0178a3add0766b0a903646e5df6f1deaf1b1cd98013714e5709dc6df26b97843",
+      "patch_sha256": "51b913f89e8cd0ec01da53029bc5e57963d97d48cf8feb12c1f8ba96d30de3f2"
+    },
+    {
+      "packet": "MEASURED_IMPORTED_SENSOR_HISTORY_SELECTED",
+      "files_sha256": "dc59408bfc1541f9b1be3e5791fee74c95ef8fc348814f5a1757c6e176b1df11",
+      "patch_sha256": "457d7a19518dcc45f0463c63bbb0feafbda0b325fbff20cb60b78175ccbeef5b"
+    },
+    {
+      "packet": "MEASURED_BACKGROUND_STEPS_HISTORY_SELECTED",
+      "files_sha256": "1dae38b86c7aece66bc38f42eab0c9d188ae0f69828f8fe7605d1a3c6a9e136b",
+      "patch_sha256": "519e0f733fe03b9f1cd9c34a02d3858fa963c4f1a0dde1be0369b6670dd03eee"
+    },
+    {
+      "packet": "NATIVE_RADIO_CANONICAL_SELECTED",
+      "files_sha256": "48453207e04aa5cf32cbc2cc3d9a6f571dbc7939430cfc93e547a269b3b4f808",
+      "patch_sha256": "9dc6c2412ce6555886ce3106d5ad69d488efb51bf455b2accf760ff5492b1dd2"
+    },
+    {
+      "packet": "NATIVE_RADIO_CANONICAL_ROOM_SELECTED",
+      "files_sha256": "59acbc6df611f7a2a792f0933890bf1baf2fc1acbdd5b4e462149f5474841443",
+      "patch_sha256": "dd06bd72f72cc3e0350d6c59e3037c250b6a586ad12c992a6e654eb0df339218"
+    },
+    {
+      "packet": "UNIFIED_HISTORY_MEASURED_ASSEMBLY_SELECTED",
+      "files_sha256": "113c8eafcb455c3fbdf5134782a573245401e11e59592da0202916809aa5a1f3",
+      "patch_sha256": "b829e95c9ade83f9920e5c8d50fe3aa2d9829a0d3a48cca9a0d10efa6c0bfad0"
+    },
+    {
+      "packet": "UNIFIED_HISTORY_MEASURED_UI_LIFECYCLE_SELECTED",
+      "files_sha256": "16026172368b3fa74cfcd4341063ef3fa48b740d20bec41e6596cbe0da7764fa",
+      "patch_sha256": "526eee174e1fd1ebd2eadd7f8e895877f1ee17770d5eb859841bdc82486cbd7a"
+    },
+    {
+      "packet": "UNIFIED_HISTORY_EMPTY_FRONTIER_UI_SELECTED",
+      "files_sha256": "6f658e294423dbfd8954fd7569cf3b0f4c2493264c93b1b00ce37eeb37d707d4",
+      "patch_sha256": "ca78d737ed9702b5da6072e3cb2607fed922db459353b4262692779fa48e6ece"
+    },
+    {
+      "packet": "MEASURED_NATIVE_NAME_INTERVAL_SELECTED",
+      "files_sha256": "7a8b5c382051c0c97364e0bf7dd81ae6cf6828c17df50fe94c8debefe9d8aa9d",
+      "patch_sha256": "66f8001f3d1155976a948a7df4f831841dc246a80bdba5ddf3283abba19f9d0d"
+    },
+    {
+      "packet": "UNIFIED_HISTORY_FACADE_WIRING_REPAIR_SELECTED",
+      "files_sha256": "2360b0ddbf6ddfa5add2d8cf9ddd3015cb86891d1d8b2fb5fe33e4545d05243b",
+      "patch_sha256": "22b7a230f1ebc45045790dc347c8544bad400b866abee0e799449f7d194d856d"
+    },
+    {
+      "packet": "MEASURED_HISTORY_PENDING_EMPTY_SELECTED",
+      "files_sha256": "d5559bb3ccc366a7e4bc692e9c4c796afd9255ad9a84c0d628b17883b33eecf6",
+      "patch_sha256": "c4212aff5d8745111a96ca55445c4e67b84b44f56edb82c3e7f4c609c4ad7d99"
+    },
+    {
+      "packet": "MEASURED_LEGACY_WIFI_COUNT_SELECTED",
+      "files_sha256": "bcee2893ed1331a981ce080642ed867793e4a24e853a23c9712e072c02daefd1",
+      "patch_sha256": "3e5cb5bd24e93e6d4864726df9a8210a8f04da6b749e1bd4ae1c290ede3d1702"
+    },
+    {
+      "packet": "MEASURED_LOCATION_PURPOSE_SELECTED",
+      "files_sha256": "f9c7368d961905ecd33ff776ec11177ba15c0dcc1ec9f6fa2aba3e9e60987e3a",
+      "patch_sha256": "571a554de1229d6f9509ae5170bd6468ad33d357c1ee531c2530b8d7d76c7ffe"
+    }
+  ],
+  "overlap_rule": "latest explicitly frozen overlay after preserved predecessor; acceptance is documented separately and is not inferred from composition",
+  "source_bytes_authored_during_composition": 0,
+  "prior_full_revisions": [
+    "REVIEW_V1",
+    "REVIEW_V2",
+    "REVIEW_V3"
+  ]
+}

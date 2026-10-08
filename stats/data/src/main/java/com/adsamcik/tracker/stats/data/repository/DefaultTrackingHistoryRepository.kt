@@ -142,7 +142,7 @@ internal class DefaultTrackingHistoryRepository private constructor(
 
 	override fun pagingSource(range: HistoryRange):
 		androidx.paging.PagingSource<com.adsamcik.tracker.stats.api.repository.HistoryContinuation,
-			com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow> =
+			com.adsamcik.tracker.stats.api.repository.HistoryPagingItem> =
 		UnifiedHistoryPagingSource(database, range, ::readRange)
 
 	/** Steps-only host fixtures install no active Pressure lane. Production uses Hilt. */

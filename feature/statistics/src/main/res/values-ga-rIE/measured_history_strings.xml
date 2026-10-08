@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_measurements_empty">Níl aon sonraí taifeadta</string>
+    <string name="history_show_details">Taispeáin sonraí</string>
+    <string name="history_hide_details">Folaigh sonraí</string>
+</resources>

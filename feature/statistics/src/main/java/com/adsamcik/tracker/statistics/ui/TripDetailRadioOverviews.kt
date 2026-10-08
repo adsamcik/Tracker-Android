@@ -424,7 +424,7 @@ private val WifiHistoryBand.labelResource: Int
 		WifiHistoryBand.OTHER -> R.string.trip_detail_wifi_band_other
 	}
 
-private val CellHistoryTechnology.labelResource: Int
+internal val CellHistoryTechnology.labelResource: Int
 	get() = when (this) {
 		CellHistoryTechnology.GSM -> R.string.trip_detail_cell_technology_gsm
 		CellHistoryTechnology.CDMA -> R.string.trip_detail_cell_technology_cdma

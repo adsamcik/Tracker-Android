@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_measurements_empty">Žiadne zaznamenané údaje</string>
+    <string name="history_show_details">Zobraziť podrobnosti</string>
+    <string name="history_hide_details">Skryť podrobnosti</string>
+</resources>

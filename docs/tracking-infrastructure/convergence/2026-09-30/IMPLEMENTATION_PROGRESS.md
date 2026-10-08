@@ -867,3 +867,22 @@ IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites and T25 remain OPEN; no
 - [ ] Finish moving-average speed, installed-widget delivery outside active composition, native mode attribution, all-day/released/imported/logical totals and effective corrections. Pending questions and limitations remain explicit; T17/T25/all25 full chains stay OPEN.
 
 IMPLEMENTED_UNVALIDATED. No compile, test, schema, lint, device/provider, battery, CI or dev/v10 integration.
+
+### October 8 - selected six-source measured History foundation
+
+- [x] Compose and select the freshly reviewed measured browsing foundation: actual
+  six-source native/background/imported/legacy selectors, strict keyset frontier,
+  independent source failures and concise Retry, Timeline and Calendar selected-day
+  callers, local measured dates and pending empty pages. Native names follow edited
+  intervals. Valid joined radio copies appear once; each purpose qualifies separately.
+- [x] Include released count-only Wi-Fi observations without invented AP linkage,
+  preserve committed finite/live Location summary wiring, and select surviving
+  Location purposes after exact original erase checks. Older proof gaps stay honest
+  Unknown without reviving erased native copies or dropping retained siblings.
+- [ ] Finish retrospective/radio/imported organization names, Calendar month presence,
+  numerical consumers/corrections, automatic setup and remaining source chains.
+
+Exact source/review: `../2026-10-08/UNIFIED_HISTORY_FULL_COMPOSITION_SELECTED/` and
+`UNIFIED_HISTORY_FULL_COMPOSITION_REVIEW/`. Every authored test is NOT_RUN.
+IMPLEMENTED_UNVALIDATED. T13/T14/T17/T25 and all 25 full-chain prerequisites remain
+open. No execution gate, provider activation, dev/v10 integration or push.

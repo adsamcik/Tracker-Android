@@ -275,19 +275,46 @@ internal class PressureHistorySelector private constructor(
 		return selectManyWithSnapshot(expansion.segments, snapshot)
 	}
 
+
+	/** Exact original Pressure lineages for measured browsing; the caller holds the snapshot transaction. */
+	internal suspend fun selectMeasuredWindowsInTransaction(keys: List<PressureMeasuredFactKey>): List<PressurePhysicalHistory> {
+		require(keys.size <= 100 && keys.distinct().size == keys.size &&
+			keys.map { Triple(it.writerId, it.writerVersion, it.factId) }.distinct().size == keys.size)
+		if (keys.isEmpty()) return emptyList()
+		val facts = mutableListOf<PressureFactRevisionEntity>()
+		for (key in keys) {
+			currentCoroutineContext().ensureActive()
+			val remaining = 8_192 - facts.size
+			val lineage = database.pressureFactRevisionDao().revisionsForFact(key.writerId, key.writerVersion, key.factId, remaining + 1)
+			if (lineage.size > remaining) throw PressureHistoryPageDependencyOverflow(SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED)
+			facts += lineage
+		}
+		val runIds = facts.map(PressureFactRevisionEntity::serviceRunId).distinct()
+		val runs = if (runIds.isEmpty()) emptyList() else database.trackingHistoryReadDao().serviceRuns(runIds)
+		val segmentIds = runs.mapNotNull(SourceServiceRunEntity::sessionSegmentId).distinct()
+		val seeds = if (segmentIds.isEmpty()) emptyList() else database.trackingHistoryReadDao().segments(segmentIds)
+		if (seeds.isEmpty()) return emptyList()
+		val snapshot = loadPressureHistoryBatchSnapshot(database, seeds,
+			currentClockDomainId = currentClockDomainId(), selectedFacts = facts)
+		return selectManyWithSnapshot(seeds, snapshot, measuredOnly = true)
+			.filter { it.segment.serviceRunId in runIds }
+	}
+
 	/** Pure seam for correction, attribution, and replacement-run contract tests. */
 	internal fun selectManyWithSnapshot(
 		segments: List<SessionSegment>,
 		snapshot: PressureHistoryBatchSnapshot,
+		measuredOnly: Boolean = false,
 	): List<PressurePhysicalHistory> {
-		val validatedSnapshot = snapshot.withLogicalManifestMembershipValidation(segments)
-		return segments.map { segment -> select(segment, validatedSnapshot) }
+		val validatedSnapshot = snapshot.withLogicalManifestMembershipValidation(segments, measuredOnly)
+		return segments.map { segment -> select(segment, validatedSnapshot, measuredOnly) }
 	}
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "LongParameterList", "ReturnCount")
 	private fun select(
 		segment: SessionSegment,
 		snapshot: PressureHistoryBatchSnapshot,
+		measuredOnly: Boolean = false,
 	): PressurePhysicalHistory {
 		if (snapshot.terminalFailureOverflow || snapshot.factRevisionOverflow ||
 			snapshot.retentionAuthorityOverflow || snapshot.retentionRevisionAuthorityOverflow
@@ -512,8 +539,9 @@ internal class PressureHistorySelector private constructor(
 			manifests = manifests,
 			pressureBindings = pressureBindings,
 			lane = lane,
-			captureCoveredWholeRun = pressureBindings.size == manifests.size,
+			captureCoveredWholeRun = !measuredOnly && pressureBindings.size == manifests.size,
 			snapshot = snapshot,
+			measuredOnly = measuredOnly,
 		)
 	}
 
@@ -527,6 +555,7 @@ internal class PressureHistorySelector private constructor(
 		lane: SourceProductProjectionLaneEntity,
 		captureCoveredWholeRun: Boolean,
 		snapshot: PressureHistoryBatchSnapshot,
+		measuredOnly: Boolean = false,
 	): PressurePhysicalHistory {
 		val logicalTrackingId = serviceRun.logicalTrackingId
 		val serviceRunId = serviceRun.serviceRunId
@@ -542,6 +571,7 @@ internal class PressureHistorySelector private constructor(
 			collectedDataEpoch = evidenceState.collectedDataEpoch,
 			retainedFromMs = evidenceState.retainedFromMs,
 			retainedFacts = snapshot.factRevisionsByRun[serviceRunId].orEmpty(),
+			measuredOnly = measuredOnly,
 		)
 		if (markerState == PressureRetentionTruncationState.INVALID) {
 			return failed(
@@ -715,31 +745,34 @@ internal class PressureHistorySelector private constructor(
 		}
 
 		val laneCutoffOrdinal = lane.captureAdmissionCutoffOrdinal
+		val productTargetOrdinal = if (measuredOnly) effectiveFacts.maxOfOrNull(PressureFactRevisionEntity::sourceAdmissionOrdinal)
+			else targetOrdinal
 		val materialization = when {
-			targetOrdinal != null && targetOrdinal < lane.activationOrdinal -> {
+			productTargetOrdinal != null && productTargetOrdinal < lane.activationOrdinal -> {
 				reasons += PressureHistoryReason.TARGET_BEFORE_LANE_ACTIVATION
 				PressureHistoryMaterialization.FAILED
 			}
-			targetOrdinal != null && snapshot.terminalFailures.any { failure ->
+			productTargetOrdinal != null && snapshot.terminalFailures.any { failure ->
 				failure.projectionId == lane.projectionId &&
 					failure.projectionVersion == lane.projectionVersion &&
 					failure.admissionOrdinal >= lane.activationOrdinal &&
-					failure.admissionOrdinal <= targetOrdinal
+					failure.admissionOrdinal <= productTargetOrdinal &&
+					(!measuredOnly || revisions.any { it.sourceAdmissionOrdinal == failure.admissionOrdinal })
 			} -> {
 				reasons += PressureHistoryReason.TERMINAL_PROJECTION_FAILURE
 				PressureHistoryMaterialization.FAILED
 			}
-			targetOrdinal != null && laneCutoffOrdinal != null && targetOrdinal > laneCutoffOrdinal -> {
+			productTargetOrdinal != null && laneCutoffOrdinal != null && productTargetOrdinal > laneCutoffOrdinal -> {
 				reasons += PressureHistoryReason.PRODUCT_LANE_CUTOFF_BEFORE_TARGET
 				PressureHistoryMaterialization.FAILED
 			}
-			targetOrdinal != null &&
+			productTargetOrdinal != null &&
 				lane.status == SourceProductProjectionLaneEntity.STATUS_RETIRED &&
-				lane.contiguousAdmissionOrdinal < targetOrdinal -> {
+				lane.contiguousAdmissionOrdinal < productTargetOrdinal -> {
 				reasons += PressureHistoryReason.PRODUCT_LANE_RETIRED_BEFORE_TARGET
 				PressureHistoryMaterialization.FAILED
 			}
-			targetOrdinal != null && lane.contiguousAdmissionOrdinal < targetOrdinal -> {
+			productTargetOrdinal != null && lane.contiguousAdmissionOrdinal < productTargetOrdinal -> {
 				reasons += PressureHistoryReason.PRODUCT_LANE_BEHIND
 				PressureHistoryMaterialization.MATERIALIZING
 			}
@@ -786,12 +819,21 @@ internal class PressureHistorySelector private constructor(
 		collectedDataEpoch: Long,
 		retainedFromMs: Long?,
 		retainedFacts: List<PressureFactRevisionEntity>,
+		measuredOnly: Boolean = false,
 	): PressureRetentionTruncationState {
 		val digest = PressureFactRevisionIntegrity.retentionTruncationIdentity(
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
 		)
 		val marker = snapshot.retentionTruncationFencesByDigest[digest]
+		// A retained leaf does not claim completeness of the removed recording prefix.
+		if (measuredOnly) {
+			if (marker == null) return PressureRetentionTruncationState.ABSENT
+			return if (retainedFromMs != null && PressureFactRevisionIntegrity.isRetentionTruncationFence(
+				fence = marker, logicalTrackingId = logicalTrackingId, serviceRunId = serviceRunId,
+				collectedDataEpoch = collectedDataEpoch)) PressureRetentionTruncationState.VALID
+			else PressureRetentionTruncationState.INVALID
+		}
 		val authorities = snapshot.retentionAuthoritiesByRun[serviceRunId].orEmpty()
 		val revisionAuthorities =
 			snapshot.retentionRevisionAuthoritiesByRun[serviceRunId].orEmpty()
@@ -1086,6 +1128,7 @@ internal class PressureHistorySelector private constructor(
 
 	private fun PressureHistoryBatchSnapshot.withLogicalManifestMembershipValidation(
 		segments: List<SessionSegment>,
+		measuredOnly: Boolean = false,
 	): PressureHistoryBatchSnapshot {
 		val failures = logicalMembershipFailures.toMutableMap()
 		segments.groupBy(SessionSegment::logicalTrackingId).forEach { (logicalTrackingId, members) ->
@@ -1107,7 +1150,9 @@ internal class PressureHistorySelector private constructor(
 				manifestsByRun[serviceRunId].orEmpty()
 					.map(SessionManifestVersionEntity::manifestRevision)
 			}
-			if (!SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(revisionsByRun)) {
+			val validUnion = if (measuredOnly) SessionManifestIntegrity.hasValidLogicalManifestRevisionSliceUnion(revisionsByRun)
+			else SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(revisionsByRun)
+			if (!validUnion) {
 				failures[logicalTrackingId] =
 					PressureHistoryReason.LOGICAL_MANIFEST_REVISION_UNION_INVALID
 				return@forEach
@@ -1209,3 +1254,5 @@ private enum class PressureOnlyDiscoveryMode { ORDINARY, EXACT_INTENT }
 internal class PressureHistoryPageDependencyOverflow(
 	val reason: SourceAwareHistoryPageUnavailableReason,
 ) : IllegalStateException("Pressure history dependency budget exceeded: $reason")
+
+internal data class PressureMeasuredFactKey(val writerId: String, val writerVersion: Int, val factId: String, val revision: Long)

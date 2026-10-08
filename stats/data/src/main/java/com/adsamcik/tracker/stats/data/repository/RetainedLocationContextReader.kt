@@ -68,6 +68,7 @@ internal class RetainedLocationContextReader @Inject constructor(private val dat
             (it.collectedDataEpoch != state.collectedDataEpoch ||
                 it.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal)
         }.mapTo(linkedSetOf()) { it.sampleId }
+        var erasedNativeScopeSampleIds: Set<Long>? = null
         return try {
             if (database.locationPurposeDao().savedFileExportAuthorityStamp().endsWith("|1")) {
                 return unavailableSaved(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE, erasedNativeSampleIds)
@@ -75,8 +76,19 @@ internal class RetainedLocationContextReader @Inject constructor(private val dat
             val purposes = mutableListOf<LocationSamplePurposeAuthorityEntity>()
             for (chunk in ids.chunked(QUERY_CHUNK)) {
                 purposes += database.locationPurposeDao().contextPurposes(chunk, MAX_CONTEXT_DEPENDENCIES - purposes.size + 1)
-                if (purposes.size > MAX_CONTEXT_DEPENDENCIES) return limitedSaved(erasedNativeSampleIds)
+                if (purposes.size > MAX_CONTEXT_DEPENDENCIES) return limitedSaved(erasedNativeSampleIds).copy(erasedNativeScopeSampleIds = erasedNativeScopeSampleIds)
             }
+            // Exact erase is independent of optional historical proof. Missing proof must not revive a fenced copy.
+            val digests = purposes.filter { it.purpose == CAPTURE }.map { it.scopeDigest() }.distinct()
+            val fences = digests.chunked(QUERY_CHUNK).flatMap {
+                database.sourceDeletionFenceDao().contextFences(LOCATION, CAPTURE, it, MAX_CONTEXT_DEPENDENCIES + 1)
+            }
+            if (fences.size > MAX_CONTEXT_DEPENDENCIES) return limitedSaved(erasedNativeSampleIds).copy(erasedNativeScopeSampleIds = erasedNativeScopeSampleIds)
+            val fenced = fences.map { it.scopeIdentityDigest }.toSet()
+            // An unverified sibling remains saved content, not a qualified purpose. Erasing one copy must not erase it.
+            erasedNativeScopeSampleIds = purposes.groupBy { it.sampleId }.filterValues { original ->
+                original.all { it.purpose == CAPTURE && it.scopeDigest() in fenced }
+            }.keys
             val policyIds = purposes.map { it.sourcePolicyRevision }.distinct()
             val policies = policyIds.chunked(QUERY_CHUNK).flatMap {
                 database.sourcePolicyDao().policiesAtRevisions(LOCATION, it)
@@ -87,7 +99,7 @@ internal class RetainedLocationContextReader @Inject constructor(private val dat
                 }
             }.associateBy { it.purpose to it.epoch }
             val runs = purposes.mapNotNull { it.serviceRunId }.distinct()
-            if (runs.size > MAX_CONTEXT_CLOCKS) return limitedSaved(erasedNativeSampleIds)
+            if (runs.size > MAX_CONTEXT_CLOCKS) return limitedSaved(erasedNativeSampleIds).copy(erasedNativeScopeSampleIds = erasedNativeScopeSampleIds)
             val runRows = if (runs.isEmpty()) emptyList() else database.trackingHistoryReadDao().serviceRuns(runs)
             // Retained grants name exact immutable revisions. Other quality changes in the same run
             // are not dependencies of these points and must not make a long run disappear.
@@ -100,23 +112,17 @@ internal class RetainedLocationContextReader @Inject constructor(private val dat
             for (chunk in keys.chunked(MANIFEST_QUERY_CHUNK)) {
                 manifests += database.trackingHistoryReadDao().retainedLocationManifests(manifestQuery(chunk,
                     MAX_CONTEXT_DEPENDENCIES - manifests.size + 1))
-                if (manifests.size > MAX_CONTEXT_DEPENDENCIES) return limitedSaved(erasedNativeSampleIds)
+                if (manifests.size > MAX_CONTEXT_DEPENDENCIES) return limitedSaved(erasedNativeSampleIds).copy(erasedNativeScopeSampleIds = erasedNativeScopeSampleIds)
             }
             // A bad run reference must not load the same member twice and poison a valid sibling.
             for (chunk in keys.distinctBy { it.logicalId to it.revision }.chunked(MANIFEST_QUERY_CHUNK)) {
                 sources += database.trackingHistoryReadDao().retainedLocationManifestSources(manifestSourceQuery(chunk,
                     MAX_CONTEXT_DEPENDENCIES - sources.size + 1))
-                if (sources.size > MAX_CONTEXT_DEPENDENCIES) return limitedSaved(erasedNativeSampleIds)
+                if (sources.size > MAX_CONTEXT_DEPENDENCIES) return limitedSaved(erasedNativeSampleIds).copy(erasedNativeScopeSampleIds = erasedNativeScopeSampleIds)
             }
             val runById = runRows.associateBy { it.serviceRunId }
             val manifestById = manifests.associateBy { it.serviceRunId to it.manifestRevision }
             val sourcesById = sources.groupBy { it.logicalTrackingId to it.manifestRevision }
-            val digests = purposes.filter { it.purpose == CAPTURE }.map { it.scopeDigest() }.distinct()
-            val fences = digests.chunked(QUERY_CHUNK).flatMap {
-                database.sourceDeletionFenceDao().contextFences(LOCATION, CAPTURE, it, MAX_CONTEXT_DEPENDENCIES + 1)
-            }
-            if (fences.size > MAX_CONTEXT_DEPENDENCIES) return limitedSaved(erasedNativeSampleIds)
-            val fenced = fences.map { it.scopeIdentityDigest }.toSet()
             val revisions = purposes.mapNotNull { it.retentionApprovalRevision }.distinct()
             val approvals = revisions.chunked(QUERY_CHUNK).flatMap {
                 database.locationPurposeDao().contextRetentionApprovals(it, MAX_CONTEXT_DEPENDENCIES + 1)
@@ -178,15 +184,15 @@ internal class RetainedLocationContextReader @Inject constructor(private val dat
                 }
             }
             RetainedLocationSavedSnapshot(accepted.distinctBy { it.receipt.sourceEventId to it.scope }, gaps,
-                erasedNativeSampleIds)
+                erasedNativeSampleIds, erasedNativeScopeSampleIds = erasedNativeScopeSampleIds)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: android.database.sqlite.SQLiteException) {
             unavailableSaved(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE, erasedNativeSampleIds,
-                HistoryProblemReason.STORAGE_UNAVAILABLE)
+                HistoryProblemReason.STORAGE_UNAVAILABLE).copy(erasedNativeScopeSampleIds = erasedNativeScopeSampleIds)
         } catch (_: RuntimeException) {
             unavailableSaved(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE, erasedNativeSampleIds,
-                HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+                HistoryProblemReason.INTEGRITY_UNAVAILABLE).copy(erasedNativeScopeSampleIds = erasedNativeScopeSampleIds)
         }
     }
 
@@ -224,7 +230,9 @@ private data class RetainedLocationManifestKey(val logicalId: String, val runId:
 
 internal data class RetainedLocationSavedSnapshot(val samples: List<QualifiedRetainedLocationSample>,
     val gaps: Set<RadioLocationContextGap> = emptySet(), val erasedNativeSampleIds: Set<Long> = emptySet(),
-    val historyProblem: HistoryProblemReason? = null)
+    val historyProblem: HistoryProblemReason? = null,
+    /** null: erase lookup unfinished; otherwise samples with every original native copy explicitly erased. */
+    val erasedNativeScopeSampleIds: Set<Long>? = null)
 
 internal data class RetainedLocationContextSnapshot(val points: List<LocationContextInput>,
     val gaps: Set<RadioLocationContextGap> = emptySet(),

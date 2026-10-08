@@ -2,6 +2,13 @@ package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
 import androidx.room.withTransaction
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
+import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
+import com.adsamcik.tracker.stats.api.repository.HistoryPosition
+import com.adsamcik.tracker.stats.api.repository.HistoryProblem
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.persistPressureFactRetentionAuthority
@@ -2380,6 +2387,151 @@ class PressureHistorySelectorTest {
 	}
 
 	@OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun `measured Pressure keeps original qualified window without unrelated fact cohort limits`() = runTest {
+        insertFixture(factSemanticRevision = 1L)
+        val fact = requireNotNull(database.pressureFactRevisionDao().latest(
+            SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+            SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+            "${SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID}:$SOURCE_EVENT_ID"))
+        database.withTransaction { (1..8_201).forEach { index ->
+            database.pressureFactRevisionDao().insert(fact.copy(logicalFactId = "unrelated-$index",
+                mutationId = "unrelated-mutation-$index", sourceAdmissionOrdinal = 10_000L + index,
+                intervalStartTimeMs = 10_000L + index / 3, intervalEndTimeMs = 10_150L + index / 3,
+                appliedAtMs = 10_150L + index / 3))
+        } }
+        val reader = MeasuredNativePressureHistoryReader(database, selector)
+        val range = HistoryRange(1_000L, 2_000L, "UTC", sources = setOf(HistorySource.PRESSURE), mode = HistoryBrowseMode.OBSERVATIONS)
+        val read = database.withTransaction { reader.qualify(reader.candidates(range, null), range) }
+        read.problems shouldBe emptySet()
+        val row = read.rows.values.single()
+        row.position.startTimeMs shouldBe fact.intervalStartTimeMs
+        row.toExclusiveMs shouldBe fact.intervalEndTimeMs
+        val window = (row.measurement as HistoryMeasurement.Pressure).window
+        window.sampleCount shouldBe fact.sampleCount
+        window.meanHectopascals shouldBe fact.meanHectopascals
+        window.intervalStartTime.raw shouldBe fact.intervalStartTimeMs
+        window.intervalEndTime.raw shouldBe fact.intervalEndTimeMs
+        val denseRange = range.copy(fromInclusiveMs = 10_000L, toExclusiveMs = 20_000L)
+        val found = linkedSetOf<String>()
+        var after: HistoryPosition? = null
+        var pages = 0
+        do {
+            val page = database.withTransaction { reader.candidates(denseRange, after) }
+            (page.size <= 101) shouldBe true
+            val keys = page.take(100)
+            keys.forEach { found.add(it.identity) shouldBe true }
+            after = keys.lastOrNull()?.let(::measuredHistoryPosition)
+            pages++
+            (pages <= 83) shouldBe true
+        } while (page.size > 100)
+        found.size shouldBe 8_201
+        val denied = database.withTransaction { reader.qualify(reader.candidates(denseRange, null).take(1), denseRange) }
+        denied.rows shouldBe emptyMap()
+        denied.problems shouldBe setOf(HistoryProblem(HistorySource.PRESSURE, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+    }
+
+    @Test fun `measured Pressure isolates damaged selected lineage and preserves replacement sibling`() = runTest {
+        insertFixture(factSemanticRevision = 1L, laneCursor = 2L)
+        insertReplacementFixture()
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE pressure_fact_revision SET effect_checksum = ? WHERE service_run_id = ?", arrayOf("f".repeat(64), RUN_ID))
+        val reader = MeasuredNativePressureHistoryReader(database, selector)
+        val range = HistoryRange(0L, 10_000L, "UTC", sources = setOf(HistorySource.PRESSURE), mode = HistoryBrowseMode.OBSERVATIONS)
+        val read = database.withTransaction { reader.qualify(reader.candidates(range, null), range) }
+        read.rows.size shouldBe 1
+        read.rows.values.single().position.startTimeMs shouldBe REPLACEMENT_PRESSURE_START_MS
+        read.problems shouldBe setOf(HistoryProblem(HistorySource.PRESSURE, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+    }
+
+    @Test fun `measured Pressure retains a valid leaf without borrowing removed prefix completeness`() = runTest {
+        val fixture = insertFixture(factSemanticRevision = 1L)
+        establishPressureRetentionFloor()
+        installPressureRetentionLoss(fixture)
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE pressure_fact_retention_revision_authority SET effect_checksum = ?", arrayOf("f".repeat(64)))
+        val ordinary = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+        ordinary.hasQualifiedRetainedProof shouldBe false
+        val reader = MeasuredNativePressureHistoryReader(database, selector)
+        val range = HistoryRange(1_000L, 2_000L, "UTC", mode = HistoryBrowseMode.OBSERVATIONS)
+        val read = database.withTransaction { reader.qualify(reader.candidates(range, null), range) }
+        read.rows.size shouldBe 1
+        read.problems shouldBe emptySet()
+        val keys = reader.candidates(range, null).map { PressureMeasuredFactKey(requireNotNull(it.writerId),
+            requireNotNull(it.writerVersion), requireNotNull(it.factId), requireNotNull(it.factRevision)) }
+        val retained = database.withTransaction { selector.selectMeasuredWindowsInTransaction(keys) }.single()
+        retained.coverage shouldBe PressureHistoryCoverage.PARTIAL
+        (PressureHistoryReason.RETENTION_TRUNCATED in retained.reasons) shouldBe true
+    }
+
+    @Test fun `measured Pressure rejects stale retention marker epoch and respects deletion`() = runTest {
+        val fixture = insertFixture(factSemanticRevision = 1L)
+        establishPressureRetentionFloor()
+        database.sourceDeletionFenceDao().upsert(pressureRetentionMarker(fixture.logicalId, fixture.runId, collectedDataEpoch = 1L))
+        val reader = MeasuredNativePressureHistoryReader(database, selector)
+        val range = HistoryRange(1_000L, 2_000L, "UTC", mode = HistoryBrowseMode.OBSERVATIONS)
+        val denied = database.withTransaction { reader.qualify(reader.candidates(range, null), range) }
+        denied.rows shouldBe emptyMap()
+        denied.problems shouldBe setOf(HistoryProblem(HistorySource.PRESSURE, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+        database.sourceDeletionFenceDao().upsert(pressureFence(fixture.logicalId, fixture.runId))
+        val deleted = database.withTransaction { reader.qualify(reader.candidates(range, null), range) }
+        deleted.rows shouldBe emptyMap()
+        deleted.problems shouldBe emptySet()
+    }
+
+    @Test fun `measured Pressure keeps exact parent despite a corrupted older manifest`() = runTest {
+        insertFixture(factSemanticRevision = 1L, laneCursor = 2L)
+        insertReplacementFixture()
+        database.openHelper.writableDatabase.execSQL("UPDATE session_manifest_version SET manifest_checksum = ? WHERE service_run_id = ?",
+            arrayOf("f".repeat(64), RUN_ID))
+        val reader = MeasuredNativePressureHistoryReader(database, selector)
+        val range = HistoryRange(0L, 10_000L, "UTC", mode = HistoryBrowseMode.OBSERVATIONS)
+        val keys = reader.candidates(range, null).filter { it.rowId == REPLACEMENT_SEGMENT_ID }
+        val read = database.withTransaction { reader.qualify(keys, range) }
+        read.rows.size shouldBe 1
+        read.rows.values.single().position.startTimeMs shouldBe REPLACEMENT_PRESSURE_START_MS
+        read.problems shouldBe emptySet()
+        val older = reader.candidates(range, null).filter { it.rowId == SEGMENT_ID }
+        val denied = database.withTransaction { reader.qualify(older, range) }
+        denied.rows shouldBe emptyMap()
+        denied.problems shouldBe setOf(HistoryProblem(HistorySource.PRESSURE, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+    }
+
+    @Test fun `measured Pressure does not expand unrelated incomplete physical membership beyond its budget`() = runTest {
+        insertFixture(factSemanticRevision = 1L)
+        // These intentionally incomplete old metadata rows have no segment/manifest authority.
+        database.withTransaction { (1..65).forEach { index ->
+            database.sourceSessionDao().insertServiceRun(serviceRun(runId = "unrelated-$index",
+                segmentId = 10_000L + index))
+        } }
+        val reader = MeasuredNativePressureHistoryReader(database, selector)
+        val range = HistoryRange(0L, 10_000L, "UTC", mode = HistoryBrowseMode.OBSERVATIONS)
+        val read = database.withTransaction { reader.qualify(reader.candidates(range, null), range) }
+        read.rows.size shouldBe 1
+        read.problems shouldBe emptySet()
+        requireNotNull(selector.selectBySegmentId(SEGMENT_ID)).hasQualifiedRetainedProof shouldBe false
+    }
+
+    @Test fun `measured Pressure failure is confined to its own original evidence ordinal`() = runTest {
+        insertFixture(factSemanticRevision = 1L, laneCursor = 2L)
+        insertReplacementFixture()
+        database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+            SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+            SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION, 1L, 1, "TERMINAL", true, 10_000L))
+        val reader = MeasuredNativePressureHistoryReader(database, selector)
+        val range = HistoryRange(0L, 10_000L, "UTC", mode = HistoryBrowseMode.OBSERVATIONS)
+        val keys = reader.candidates(range, null)
+        val read = database.withTransaction { reader.qualify(keys, range) }
+        read.rows.size shouldBe 1
+        read.rows.values.single().position.startTimeMs shouldBe REPLACEMENT_PRESSURE_START_MS
+        read.problems shouldBe setOf(HistoryProblem(HistorySource.PRESSURE, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+        database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+            SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+            SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION, 2L, 1, "TERMINAL", true, 10_000L))
+        val exactOwnFailure = database.withTransaction { reader.qualify(keys.filter { it.rowId == REPLACEMENT_SEGMENT_ID }, range) }
+        exactOwnFailure.rows shouldBe emptyMap()
+        exactOwnFailure.problems shouldBe setOf(HistoryProblem(HistorySource.PRESSURE, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+    }
+
 	private fun selectedPressureExporter(scheduler: TestCoroutineScheduler) = RoomExportPortablePressure(
 		PortablePressureRoomReader(database, selector), UnconfinedTestDispatcher(scheduler))
 	private fun selectedExportRequest(native: List<Long> = listOf(SEGMENT_ID),

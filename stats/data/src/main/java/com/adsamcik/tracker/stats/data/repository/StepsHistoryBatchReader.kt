@@ -32,6 +32,7 @@ import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptInt
 internal suspend fun loadStepsHistoryBatchSnapshot(
 	database: AppDatabase,
 	segments: List<SessionSegment>,
+	selectedFactStatesByRun: Map<String, List<StepsFactCandidateState>>? = null,
 ): StepsHistoryBatchSnapshot {
 	require(segments.isNotEmpty())
 	val readDao = database.trackingHistoryReadDao()
@@ -78,7 +79,7 @@ internal suspend fun loadStepsHistoryBatchSnapshot(
 	} else {
 		readDao.completeness(serviceRunIds)
 	}
-	val factStatesByRun = readDao.loadStepsFactCandidateStatesByRun(serviceRuns)
+	val factStatesByRun = selectedFactStatesByRun ?: readDao.loadStepsFactCandidateStatesByRun(serviceRuns)
 	val carrierAuthority = loadStepsCarrierAuthority(database, factStatesByRun)
 	val scopeDigests = segments.mapNotNull { segment ->
 		val logicalTrackingId = segment.logicalTrackingId?.takeIf(String::isNotBlank)
@@ -139,7 +140,7 @@ internal suspend fun loadStepsHistoryBatchSnapshot(
 		lane.activationOrdinal.takeIf { it > 0L }?.minus(1L)
 	}.minOrNull()
 	val throughOrdinal = completeness.mapNotNull { it.lastAdmissionOrdinal }.maxOrNull()
-	val terminalFailures = if (
+	val terminalFailures = if (selectedFactStatesByRun != null) emptyList() else if (
 		serviceRunIds.isEmpty() || afterOrdinal == null || throughOrdinal == null ||
 		afterOrdinal >= throughOrdinal
 	) {

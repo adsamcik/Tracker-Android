@@ -63,6 +63,25 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 	private val bootClockDomainProvider: BootClockDomainProvider,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : WifiHistoryRepository {
+	/** Original imported receipt/lineage qualification without constructing a whole public entry. */
+	internal suspend fun measuredImportedEvaluationInTransaction(identity: String): ImportedWifiProductEvaluation? =
+		importedProductEvaluator.selectIdentityInTransaction(WifiImportedHistorySelectionKey(identity))
+
+	internal suspend fun measuredFactInTransaction(factId: String, revision: Long): QualifiedMeasuredWifiFact? {
+		val snapshot = measuredSnapshotInTransaction(factId)
+			?: throw MeasuredRadioParentFailure(com.adsamcik.tracker.stats.api.repository.HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+		return WifiHistoryComposer.qualifyMeasuredFact(factId, revision, snapshot, laneExecutionAuthority)
+	}
+
+	/** Existing capture proof inputs, scoped to one current parent rather than a complete logical entry. */
+	internal suspend fun measuredSnapshotInTransaction(factId: String): WifiHistorySnapshot? {
+		require(factId.isNotBlank())
+		val cursor = database.wifiCapturedFactDao().cursor(SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION, factId) ?: return null
+		val seed = database.trackingHistoryReadDao().segments(listOf(cursor.sessionSegmentId)).singleOrNull() ?: return null
+		return loadSnapshot(WifiMembershipExpansion(listOf(seed), emptyMap()), factId)
+	}
+
 	override suspend fun session(segmentId: Long): WifiHistoryQuery {
 		require(segmentId > 0L)
 		return withContext(ioDispatcher) {
@@ -769,7 +788,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 	}
 
 	@Suppress("LongMethod")
-	private suspend fun loadSnapshot(expansion: WifiMembershipExpansion): WifiHistorySnapshot {
+	private suspend fun loadSnapshot(expansion: WifiMembershipExpansion, selectedFactId: String? = null): WifiHistorySnapshot {
 		if (expansion.overflow) return WifiHistorySnapshot.empty(expansion).copy(overflow = true)
 		val segments = expansion.segments
 		val runIds = segments.mapNotNull(SessionSegment::serviceRunId).filter(String::isNotBlank).distinct()
@@ -783,10 +802,14 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 		val policies = factDao.historyPolicies(WIFI_SOURCE, runIds, MAX_POLICIES + 1)
 		val completeness = readDao.completeness(runIds, MAX_COMPLETENESS + 1)
 		val sessions = database.sourceSessionDao().sessions(logicalIds)
-		val factLoad = loadFactPages(runIds, logicalIds)
+		val factLoad = if (selectedFactId == null) loadFactPages(runIds, logicalIds) else {
+			val rows = factDao.selectedHistoryLineages(SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION, selectedFactId, MAX_FACT_REVISIONS + 1)
+			WifiFactLoad(rows.take(MAX_FACT_REVISIONS), rows.size > MAX_FACT_REVISIONS)
+		}
 		val revisions = factLoad.revisions
 		currentCoroutineContext().ensureActive()
-		val scopedCursors = factDao.historyCursorsForScopes(
+		val scopedCursors = if (selectedFactId != null) emptyList() else factDao.historyCursorsForScopes(
 			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
 			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,
 			runIds,
@@ -819,9 +842,13 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			factDao.historyAcquisitionPlanRevisions(planRevisions, MAX_PLANS + 1)
 		val desiredPlans = if (planRevisions.isEmpty()) emptyList() else
 			factDao.historyDesiredPlans(WIFI_SOURCE, planRevisions, MAX_PLANS + 1)
-		val admissions = factDao.historyAdmissionWal(
+		val admissions = if (selectedFactId == null) factDao.historyAdmissionWal(
 			WIFI_SOURCE, runIds, SourceBrokerPurpose.MASK_SESSION_CAPTURE, MAX_ADMISSION_ROWS + 1,
-		)
+		) else revisions.map(WifiCapturedFactRevisionEntity::sourceEventId).distinct().chunked(SQL_ID_BATCH).flatMap { eventIds ->
+			currentCoroutineContext().ensureActive()
+			database.sourceEventWalDao().boundedPayloadsByEventIds(WIFI_SOURCE, eventIds,
+				com.adsamcik.tracker.shared.base.database.data.MAX_WIFI_WAL_PAYLOAD_BYTES, eventIds.size + 1)
+		}
 		val registrationGenerations = (revisions.map(WifiCapturedFactRevisionEntity::registrationGeneration) +
 			admissions.map { it.registrationGeneration }).distinct()
 		val providerLoad = loadChunked(registrationGenerations, MAX_PROVIDERS) { ids, limit ->
@@ -883,7 +910,10 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			admissions.maxOfOrNull { it.admissionOrdinal },
 		)
 		val after = lanes.minOfOrNull { it.activationOrdinal }?.minus(1L)
-		val failures = if (after == null || through == null || after >= through) emptyList() else
+		val failures = if (selectedFactId != null) revisions.map { it.sourceAdmissionOrdinal }.distinct().mapNotNull { ordinal ->
+			database.sourceProjectionStateDao().failure(SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION, ordinal)?.takeIf { it.terminal }
+		} else if (after == null || through == null || after >= through) emptyList() else
 			readDao.terminalFailuresForServiceRuns(
 				WIFI_SOURCE, SessionManifestPurposeCode.SESSION_CAPTURE, runIds,
 				after, through, MAX_TERMINAL_FAILURES + 1,

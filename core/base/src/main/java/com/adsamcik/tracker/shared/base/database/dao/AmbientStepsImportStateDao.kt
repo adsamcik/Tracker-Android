@@ -5,6 +5,8 @@ import androidx.room.ColumnInfo
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.RawQuery
+import androidx.sqlite.db.SupportSQLiteQuery
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
@@ -272,6 +274,17 @@ interface AmbientStepsImportStateDao {
 		toTimeMs: Long,
 		limit: Int,
 	): List<AmbientStepsEffectiveGapInterval>
+
+    /** Existing gap subtraction, reloaded by exact remaining-hole keys in one caller snapshot. */
+    @RawQuery
+    suspend fun selectedEffectiveGapIntervals(query: SupportSQLiteQuery): List<AmbientStepsEffectiveGapInterval>
+
+    /** Complete sequences for the selected original registrations; unrelated history is not a dependency. */
+    @Query("""
+        SELECT * FROM ambient_steps_import_gap WHERE registration_generation IN (:registrationGenerations)
+        ORDER BY registration_generation ASC, gap_sequence ASC LIMIT :limit
+    """)
+    suspend fun gapsForRegistrations(registrationGenerations: List<Long>, limit: Int): List<AmbientStepsImportGapEntity>
 
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertAuthorityTransition(

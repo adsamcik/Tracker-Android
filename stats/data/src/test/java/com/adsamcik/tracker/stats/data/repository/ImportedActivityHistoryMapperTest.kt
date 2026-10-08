@@ -1,6 +1,14 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
+import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
+import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.HistoryProblem
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+import androidx.room.withTransaction
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedPortableIntegrity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -53,6 +61,101 @@ class ImportedActivityHistoryMapperTest {
 		database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>())
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 7L))
 	}
+
+    @Test fun `measured imported Activity uses original band time instead of recording envelope`() = runTest {
+        val portable = entry(window())
+        importMeasuredActivity(portable)
+        val range = HistoryRange(1_000L, 1_001L, "Europe/Prague")
+        val read = database.withTransaction {
+            val reader = MeasuredImportedSensorHistoryReader(database)
+            val keys = reader.candidates(HistorySource.ACTIVITY, range, null)
+            keys.size shouldBe 1
+            reader.qualify(HistorySource.ACTIVITY, keys, range)
+        }
+        val row = read.rows.values.single()
+        row.position.startTimeMs shouldBe 1_000L
+        row.toExclusiveMs shouldBe 1_001L
+        row.purpose shouldBe HistoryPurpose.CAPTURE
+        row.origins shouldBe setOf(HistoryOrigin.IMPORTED)
+        (row.measurement as HistoryMeasurement.Activity).band.durationNanos shouldBe 100L
+        read.problems shouldBe emptySet()
+    }
+
+    @Test fun `elapsed-only imported Activity gaps do not gain invented calendar timestamps`() = runTest {
+        importMeasuredActivity(entry(gapWindow()))
+        database.withTransaction {
+            MeasuredImportedSensorHistoryReader(database).candidates(HistorySource.ACTIVITY,
+                HistoryRange(0L, 3_000L, "UTC"), null) shouldBe emptyList()
+        }
+    }
+
+    @Test fun `measured imported Activity rejects a mutated original fragment`() = runTest {
+        importMeasuredActivity(entry(window()))
+        val range = HistoryRange(0L, 3_000L, "UTC")
+        database.withTransaction {
+            val reader = MeasuredImportedSensorHistoryReader(database)
+            val keys = reader.candidates(HistorySource.ACTIVITY, range, null)
+            database.openHelper.writableDatabase.execSQL("UPDATE imported_activity_fragment SET activity = 'STILL'")
+            val damaged = reader.qualify(HistorySource.ACTIVITY, keys, range)
+            damaged.rows shouldBe emptyMap()
+            damaged.problems.contains(HistoryProblem(HistorySource.ACTIVITY, HistoryProblemReason.INTEGRITY_UNAVAILABLE)) shouldBe true
+        }
+    }
+
+    private suspend fun importMeasuredActivity(portable: PortableActivityEntryV1) {
+        RoomImportPortableCapturedActivity(database, kotlinx.coroutines.Dispatchers.Unconfined).importEntry(
+            ImportPortableCapturedActivityRequest(portable,
+                PortableActivityImportReceipt("measured-${portable.identity.value}", "entry", "saved.trackeractivity", 3_000L), 7L)) shouldBe
+            ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+    }
+
+    @Test fun `measured imported Activity rejects a new collected data epoch`() = runTest {
+        importMeasuredActivity(entry(window()))
+        val range = HistoryRange(0L, 3_000L, "UTC")
+        database.withTransaction {
+            val reader = MeasuredImportedSensorHistoryReader(database)
+            val keys = reader.candidates(HistorySource.ACTIVITY, range, null)
+            database.sourceEvidenceStateDao().updateLifecycle(8L, null, 3_000L)
+            reader.qualify(HistorySource.ACTIVITY, keys, range).rows shouldBe emptyMap()
+        }
+    }
+
+    @Test fun `measured imported Activity preserves accepted reversed clock endpoints and elapsed duration`() = runTest {
+        val original = window().fragments.single() as PortableActivityFragmentV1.Band
+        val reversed = original.copy(startWallTimeMs = 1_001L, endWallTimeMs = 1_000L,
+            endBoundaryKind = "EXACT_PROVIDER_OBSERVATION", wallTimeContinuity = "DISCONTINUITY_DETECTED")
+        val portable = entry(window(PortableActivityWindowCoverage.COMPLETE, 100L, 0L, listOf(reversed)))
+        importMeasuredActivity(portable)
+        val range = HistoryRange(1_001L, 1_002L, "UTC")
+        val read = database.withTransaction {
+            val reader = MeasuredImportedSensorHistoryReader(database)
+            val keys = reader.candidates(HistorySource.ACTIVITY, range, null)
+            keys.size shouldBe 1
+            reader.qualify(HistorySource.ACTIVITY, keys, range)
+        }
+        val row = read.rows.values.single()
+        row.position.startTimeMs shouldBe 1_001L
+        row.toExclusiveMs shouldBe 1_000L
+        val band = (row.measurement as HistoryMeasurement.Activity).band
+        band.startTime.raw shouldBe reversed.startWallTimeMs
+        band.endTime.raw shouldBe reversed.endWallTimeMs
+        band.durationNanos shouldBe 100L
+        band.wallTimeContinuity shouldBe com.adsamcik.tracker.stats.api.repository.ActivityHistoryWallTimeContinuity.DISCONTINUITY_DETECTED
+        read.problems shouldBe emptySet()
+    }
+
+    @Test fun `measured imported Activity includes its actual end observation at selected start`() = runTest {
+        importMeasuredActivity(entry(window()))
+        val range = HistoryRange(1_001L, 1_002L, "UTC")
+        database.withTransaction {
+            val reader = MeasuredImportedSensorHistoryReader(database)
+            val keys = reader.candidates(HistorySource.ACTIVITY, range, null)
+            keys.size shouldBe 1
+            val row = reader.qualify(HistorySource.ACTIVITY, keys, range).rows.values.single()
+            row.position.startTimeMs shouldBe 1_000L
+            row.toExclusiveMs shouldBe 1_001L
+        }
+    }
 
 	@After
 	fun tearDown() = database.close()

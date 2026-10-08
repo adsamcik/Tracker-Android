@@ -29,6 +29,7 @@ internal sealed interface NativeAmbientStepsRangeRead {
 		val gapsByDay: Map<AmbientStepsHistoryKey, List<EffectiveAmbientStepsGap>>,
 		val materializingDays: Set<AmbientStepsHistoryKey>,
 		val unverifiableDays: Set<AmbientStepsHistoryKey>,
+        val qualifiedMeasuredGaps: List<AmbientStepsEffectiveGapInterval> = emptyList(),
 	) : NativeAmbientStepsRangeRead
 
 	data class DependencyOverflow(
@@ -41,11 +42,21 @@ internal sealed interface NativeAmbientStepsRangeRead {
 internal class NativeAmbientStepsRangeReader(
 	private val database: AppDatabase,
 ) {
-	@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
-	suspend fun read(
-		range: AmbientStepsRequestedRange,
-		evidence: SourceEvidenceState,
-	): NativeAmbientStepsRangeRead {
+    suspend fun read(range: AmbientStepsRequestedRange, evidence: SourceEvidenceState): NativeAmbientStepsRangeRead =
+        readSnapshot(range, evidence, selectedFactRows = null, selectedMeasuredGaps = null)
+
+    /** Original selected records use the same qualifier without scanning unrelated days/cursors. */
+    suspend fun readSelected(range: AmbientStepsRequestedRange, evidence: SourceEvidenceState,
+        facts: List<AmbientStepsFactRevisionEntity>, gaps: List<AmbientStepsEffectiveGapInterval>): NativeAmbientStepsRangeRead {
+        require(facts.size <= 100 && facts.map { it.logicalFactId }.distinct().size == facts.size && gaps.size <= 100)
+        return readSnapshot(range, evidence, facts, gaps)
+    }
+
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
+    private suspend fun readSnapshot(
+        range: AmbientStepsRequestedRange, evidence: SourceEvidenceState,
+        selectedFactRows: List<AmbientStepsFactRevisionEntity>?, selectedMeasuredGaps: List<AmbientStepsEffectiveGapInterval>?,
+    ): NativeAmbientStepsRangeRead {
 		val factDao = database.ambientStepsFactRevisionDao()
 		val stateDao = database.ambientStepsImportStateDao()
 		val owner = database.sourceDestinationOwnerDao().get(
@@ -53,8 +64,9 @@ internal class NativeAmbientStepsRangeReader(
 			SourceDestinationOwnerEntity.DESTINATION_AMBIENT_STEPS,
 		)
 		val hasOwner = owner?.owner == SourceDestinationOwnerEntity.OWNER_AMBIENT_STEPS_FACTS
-		val hasNativeState = factDao.countAll() != 0L || stateDao.countCursors() != 0L ||
-			stateDao.countGaps() != 0L || stateDao.countAuthorityTransitions() != 0L
+		val hasNativeState = if (selectedFactRows != null) selectedFactRows.isNotEmpty() || !selectedMeasuredGaps.isNullOrEmpty()
+        else factDao.countAll() != 0L || stateDao.countCursors() != 0L ||
+            stateDao.countGaps() != 0L || stateDao.countAuthorityTransitions() != 0L
 		if (!hasOwner) {
 			return if (hasNativeState) {
 				NativeAmbientStepsRangeRead.Unverifiable
@@ -63,11 +75,11 @@ internal class NativeAmbientStepsRangeReader(
 			}
 		}
 		val ownerGeneration = requireNotNull(owner).ownerGeneration
-		val activeCursors = stateDao.activeCursors(MAX_ACTIVE_CURSORS + 1)
+		val activeCursors = if (selectedFactRows != null) emptyList() else stateDao.activeCursors(MAX_ACTIVE_CURSORS + 1)
 		if (activeCursors.size > MAX_ACTIVE_CURSORS) {
 			return overflow(AmbientStepsHistoryDependency.NATIVE_CURSORS)
 		}
-		val facts = factDao.latestEffectiveOverlapping(
+		val facts = selectedFactRows ?: factDao.latestEffectiveOverlapping(
 			AmbientStepsFactRevisionEntity.WRITER_ID,
 			AmbientStepsFactRevisionEntity.WRITER_VERSION,
 			range.fromMs,
@@ -80,7 +92,7 @@ internal class NativeAmbientStepsRangeReader(
 		val selectedFacts = facts.filter {
 			it.historyKeyOrNull() in range.keys
 		}
-		if (factDao.countUnrecognizedPayloadRows(
+		if (selectedFactRows == null && factDao.countUnrecognizedPayloadRows(
 				AmbientStepsFactRevisionEntity.WRITER_ID,
 				AmbientStepsFactRevisionEntity.WRITER_VERSION,
 			) != 0L
@@ -102,16 +114,12 @@ internal class NativeAmbientStepsRangeReader(
 		if (!selectedFacts.haveAuthenticatedNativeLineages(revisions)) {
 			return NativeAmbientStepsRangeRead.Unverifiable
 		}
-		val gaps = stateDao.effectiveGapIntervalsOverlapping(
+		val gaps = selectedMeasuredGaps ?: stateDao.effectiveGapIntervalsOverlapping(
 			range.fromMs,
 			range.toMs,
 			MAX_NATIVE_GAPS + 1,
 		)
 		if (gaps.size > MAX_NATIVE_GAPS) {
-			return overflow(AmbientStepsHistoryDependency.NATIVE_GAPS)
-		}
-		val allGaps = stateDao.maintenanceGaps(MAX_NATIVE_GAPS + 1)
-		if (allGaps.size > MAX_NATIVE_GAPS) {
 			return overflow(AmbientStepsHistoryDependency.NATIVE_GAPS)
 		}
 		val registrations = buildSet {
@@ -123,6 +131,9 @@ internal class NativeAmbientStepsRangeReader(
 		if (registrations.size > MAX_NATIVE_CURSORS) {
 			return overflow(AmbientStepsHistoryDependency.NATIVE_CURSORS)
 		}
+        val allGaps = if (selectedFactRows == null) stateDao.maintenanceGaps(MAX_NATIVE_GAPS + 1)
+        else if (registrations.isEmpty()) emptyList() else stateDao.gapsForRegistrations(registrations, MAX_NATIVE_GAPS + 1)
+        if (allGaps.size > MAX_NATIVE_GAPS) return overflow(AmbientStepsHistoryDependency.NATIVE_GAPS)
 		val cursors = if (registrations.isEmpty()) emptyList() else stateDao.cursors(registrations)
 		if (cursors.size != registrations.size) return NativeAmbientStepsRangeRead.Unverifiable
 		val allGapsByRegistration = allGaps.groupBy(AmbientStepsImportGapEntity::registrationGeneration)
@@ -282,8 +293,13 @@ internal class NativeAmbientStepsRangeReader(
 			}
 		}
 		val gapsByDay = linkedMapOf<AmbientStepsHistoryKey, MutableList<EffectiveAmbientStepsGap>>()
+        val qualifiedMeasuredGaps = mutableListOf<AmbientStepsEffectiveGapInterval>()
 		gaps.forEach { gap ->
 			val qualification = gap.qualifyNativeGap(evidence, cursorsByGeneration)
+            if (selectedMeasuredGaps != null && qualification.valid && qualification.effect != null) {
+                qualifiedMeasuredGaps += gap.copy(gapStartTimeMs = qualification.effect.startTimeMs,
+                    gapEndTimeMs = qualification.effect.endTimeMs)
+            }
 			range.days.filter {
 				gap.gapEndTimeMs > it.startTimeMs && gap.gapStartTimeMs < it.endTimeMs
 			}.forEach { day ->
@@ -296,7 +312,7 @@ internal class NativeAmbientStepsRangeReader(
 				}
 			}
 		}
-		val materializing = materializingDays(
+		val materializing = if (selectedFactRows != null) emptySet() else materializingDays(
 			range,
 			evidence,
 			activeCursors,
@@ -308,6 +324,7 @@ internal class NativeAmbientStepsRangeReader(
 			gapsByDay.mapValues { it.value.toList() },
 			materializing,
 			unverifiable,
+            qualifiedMeasuredGaps,
 		)
 	}
 

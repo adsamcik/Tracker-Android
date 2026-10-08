@@ -69,6 +69,7 @@ private suspend fun TrackingHistoryReadDao.visitStepsFactCandidateStateBatch(
 	serviceRuns: List<SourceServiceRunEntity>,
 	onPageLoaded: (Int) -> Unit,
 	visit: (String, StepsFactCandidateIdentity, StepsFactCandidateState) -> Boolean,
+	selectedIdentities: List<String>? = null,
 ): Boolean {
 	val serviceRunIds = serviceRuns.map(SourceServiceRunEntity::serviceRunId)
 	val requestedRunIds = serviceRunIds.toHashSet()
@@ -83,6 +84,8 @@ private suspend fun TrackingHistoryReadDao.visitStepsFactCandidateStateBatch(
 			afterWriterProjectionId = cursor?.writerProjectionId,
 			afterWriterProjectionVersion = cursor?.writerProjectionVersion,
 			afterLogicalFactId = cursor?.logicalFactId,
+			filterSelectedFacts = selectedIdentities != null,
+			selectedFactIdentities = selectedIdentities.orEmpty(),
 		)
 		onPageLoaded(page.size)
 		if (page.isEmpty()) {
@@ -102,6 +105,26 @@ private suspend fun TrackingHistoryReadDao.visitStepsFactCandidateStateBatch(
 		cursor = nextCursor
 	}
 	return true
+}
+
+
+/** Exact bounded leaves of the same carrier/current-state relation; no lineage check is bypassed. */
+suspend fun TrackingHistoryReadDao.loadSelectedStepsFactCandidateStatesByRun(
+    serviceRuns: List<SourceServiceRunEntity>,
+    identities: List<StepsFactCandidateIdentity>,
+): Map<String, Map<StepsFactCandidateIdentity, StepsFactCandidateState>> {
+    require(identities.size <= 100 && identities.distinct().size == identities.size)
+    if (identities.isEmpty() || serviceRuns.isEmpty()) return emptyMap()
+    val selected = identities.map { "${it.writerProjectionId.length}:${it.writerProjectionId}:" +
+        "${it.writerProjectionVersion}:${it.logicalFactId.length}:${it.logicalFactId}" }
+    val states = linkedMapOf<String, MutableMap<StepsFactCandidateIdentity, StepsFactCandidateState>>()
+    for (batch in serviceRuns.chunked(STEPS_FACT_QUERY_RUN_BATCH_SIZE)) {
+        visitStepsFactCandidateStateBatch(batch, {}, { run, identity, state ->
+            states.getOrPut(run, ::linkedMapOf)[identity] = state
+            true
+        }, selected)
+    }
+    return states
 }
 
 /** Verifies intrinsic writer or local-delete lineage without granting deletion authority. */

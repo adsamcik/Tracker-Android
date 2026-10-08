@@ -119,33 +119,25 @@ private fun ImportedActivityProductEvaluation.Readable.toReadablePublicEntry(): 
 }
 
 private fun PortableActivityWindowV1.toPublicFragments(): List<ActivityHistoryFragment> =
-	fragments.map { fragment ->
-		val duration = Math.subtractExact(fragment.endOffsetNanos, fragment.startOffsetNanos)
-		when (fragment) {
-			is PortableActivityFragmentV1.Gap -> ActivityHistoryFragment.Gap(
-				storedZoneId = storedZoneId,
-				reason = ActivityHistoryGapReason.valueOf(fragment.reason),
-				durationNanos = duration,
-			)
-			is PortableActivityFragmentV1.Band -> ActivityHistoryFragment.Band(
-				storedZoneId = storedZoneId,
-				startTime = EpochMs(fragment.startWallTimeMs),
-				endTime = EpochMs(fragment.endWallTimeMs),
-				startUncertaintyMs = fragment.startWallTimeUncertaintyMs,
-				endUncertaintyMs = fragment.endWallTimeUncertaintyMs,
-				activity = ActivityHistoryType.valueOf(fragment.activity),
-				mechanism = ActivityHistoryMechanism.valueOf(fragment.mechanism),
-				refinedTransitionActivity = fragment.refinedTransitionActivity?.let(
-					ActivityHistoryType::valueOf,
-				),
-				confidence = fragment.toPublicConfidence(),
-				wallTimeContinuity = ActivityHistoryWallTimeContinuity.valueOf(
-					fragment.wallTimeContinuity,
-				),
-				durationNanos = duration,
-			)
-		}
+	fragments.map { it.toMeasuredPublicFragment(storedZoneId) }
+
+/** Source-qualified original fragment; no session envelope or invented wall projection. */
+internal fun PortableActivityFragmentV1.toMeasuredPublicFragment(storedZoneId: String): ActivityHistoryFragment {
+	val duration = Math.subtractExact(endOffsetNanos, startOffsetNanos)
+	return when (this) {
+		is PortableActivityFragmentV1.Gap -> ActivityHistoryFragment.Gap(
+			storedZoneId = storedZoneId, reason = ActivityHistoryGapReason.valueOf(reason), durationNanos = duration,
+		)
+		is PortableActivityFragmentV1.Band -> ActivityHistoryFragment.Band(
+			storedZoneId = storedZoneId, startTime = EpochMs(startWallTimeMs), endTime = EpochMs(endWallTimeMs),
+			startUncertaintyMs = startWallTimeUncertaintyMs, endUncertaintyMs = endWallTimeUncertaintyMs,
+			activity = ActivityHistoryType.valueOf(activity), mechanism = ActivityHistoryMechanism.valueOf(mechanism),
+			refinedTransitionActivity = refinedTransitionActivity?.let(ActivityHistoryType::valueOf),
+			confidence = toPublicConfidence(), wallTimeContinuity = ActivityHistoryWallTimeContinuity.valueOf(wallTimeContinuity),
+			durationNanos = duration,
+		)
 	}
+}
 
 private fun PortableActivityFragmentV1.Band.toPublicConfidence(): ActivityHistoryConfidence =
 	when (confidenceKind) {

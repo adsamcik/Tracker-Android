@@ -62,6 +62,13 @@ internal object ActivityHistoryComposer {
 		return composeGroup(logicalId, snapshot, laneExecutionAuthority)
 	}
 
+	/** Qualifies selected immutable windows without synthesizing the rest of a recording timeline. */
+	fun composeMeasuredWindows(
+		logicalId: String,
+		snapshot: ActivityHistorySnapshot,
+		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
+	): ActivityHistoryEntry? = composeGroupEvidence(logicalId, snapshot, laneExecutionAuthority, measuredOnly = true)
+
 	fun composeRecent(
 		snapshot: ActivityHistorySnapshot,
 		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
@@ -112,6 +119,7 @@ internal object ActivityHistoryComposer {
 		logicalId: String,
 		snapshot: ActivityHistorySnapshot,
 		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
+		measuredOnly: Boolean = false,
 	): ActivityHistoryEntry? {
 		val segments = members(logicalId, snapshot)
 		if (segments.isEmpty()) return null
@@ -134,7 +142,7 @@ internal object ActivityHistoryComposer {
 		val savedCutoff = snapshot.savedSessionCutoffs[logicalId]
 		if (session == null || session.logicalTrackingId != logicalId ||
 			!hasConsistentCompletion(session.state, session.completedAtMs) ||
-			(session.state !in TERMINAL_RUN_STATES) != hasActiveRun ||
+			(!measuredOnly || hasActiveRun) && (session.state !in TERMINAL_RUN_STATES) != hasActiveRun ||
 			session.lifecycleRevision <= 0L || session.desiredPlanRevision <= 0L ||
 			session.rolloutRevision <= 0L || session.startedElapsedNanos < 0L ||
 			((if (savedCutoff == null) session.lifecycleBootId else savedCutoff.bootId) == session.clockDomainId &&
@@ -144,7 +152,7 @@ internal object ActivityHistoryComposer {
 			run.serviceRunId to snapshot.manifestsByRun[run.serviceRunId].orEmpty()
 				.sortedBy(SessionManifestVersionEntity::manifestRevision)
 		}
-		if (!hasValidManifestHistory(logicalId, runs, manifestsByRun, snapshot)) {
+		if (!hasValidManifestHistory(logicalId, runs, manifestsByRun, snapshot, measuredOnly)) {
 			return failed(logicalId, segments, ActivityHistoryCause.MANIFEST_INTEGRITY_FAILED)
 		}
 		val manifests = manifestsByRun.values.flatten().associateBy(SessionManifestVersionEntity::manifestRevision)
@@ -214,7 +222,7 @@ internal object ActivityHistoryComposer {
 		val targetByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId)
 			.mapValues { (_, rows) -> rows.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull() }
 		val laneTarget = targetByRun.values.filterNotNull().maxOrNull()
-		if (!hasValidLogicalSessionSettlement(session, runs, manifestsByRun, laneTarget, savedCutoff) ||
+		if (!hasValidLogicalSessionSettlement(session, runs, manifestsByRun, laneTarget, savedCutoff, measuredOnly) ||
 			laneTarget?.let { it < lane.activationOrdinal ||
 			lane.captureAdmissionCutoffOrdinal?.let { cutoff -> it > cutoff } == true } == true ||
 			snapshot.terminalFailures.isNotEmpty()
@@ -307,7 +315,8 @@ internal object ActivityHistoryComposer {
 			}
 		}) return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
 		val timeline = runCatching {
-			composeCaptureTimeline(ordered, manifests.values.sortedBy { it.manifestRevision }, bindings, session,
+			if (measuredOnly) ActivityCaptureTimeline(ordered.flatMap { toPublicFragments(it, snapshot) }, 0L, false)
+			else composeCaptureTimeline(ordered, manifests.values.sortedBy { it.manifestRevision }, bindings, session,
 				snapshot, active)
 		}.getOrNull() ?: return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
 		val fragments = timeline.fragments
@@ -341,7 +350,7 @@ internal object ActivityHistoryComposer {
 		}
 		val laneBehind = laneTarget != null && lane.contiguousAdmissionOrdinal < laneTarget
 		if (laneBehind) causes += ActivityHistoryCause.MATERIALIZATION_BEHIND
-		val coverage = if (ordered.all { it.coverage == "COMPLETE" } && timeline.externalGapDurationNanos == 0L &&
+		val coverage = if (!measuredOnly && ordered.all { it.coverage == "COMPLETE" } && timeline.externalGapDurationNanos == 0L &&
 			!timeline.hasPendingUnboundedCaptureInterval &&
 			ActivityHistoryCause.ACQUISITION_INCOMPLETE !in causes) {
 			ActivityHistoryCoverage.COMPLETE
@@ -379,6 +388,7 @@ internal object ActivityHistoryComposer {
 		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 		targetOrdinal: Long?,
 		cutoff: SavedSessionCutoff?,
+		measuredOnly: Boolean = false,
 	): Boolean {
 		val nonTerminalRuns = runs.filter(::isNonTerminalRun)
 		if (nonTerminalRuns.isNotEmpty()) {
@@ -399,6 +409,18 @@ internal object ActivityHistoryComposer {
 				session.lifecycleLeaseGeneration == currentRun.leaseGeneration &&
 				session.lifecycleBootId == currentRun.bootId
 		}
+		// A completed selected parent keeps its original authority while a different run is live.
+		// Selected live parents still pass the exact operation pair above.
+		if (measuredOnly && session.state in LIVE_RUN_STATES) {
+			val currentManifestRevision = session.currentManifestRevision ?: return false
+			val lastManifestRevision = manifestsByRun.values.flatten()
+				.maxOfOrNull(SessionManifestVersionEntity::manifestRevision) ?: return false
+			return !session.currentServiceRunId.isNullOrBlank() &&
+				runs.none { it.serviceRunId == session.currentServiceRunId } &&
+				lastManifestRevision < currentManifestRevision &&
+				runs.all { it.leaseGeneration <= session.lifecycleLeaseGeneration } &&
+				session.completedAtMs == null && session.finalAdmissionOrdinal == null
+		}
 		return session.cutoffAtMs != null && session.cutoffElapsedNanos != null &&
 			session.completedAtMs?.let { it >= session.startedAtMs } == true &&
 		session.finalAdmissionOrdinal?.let { finalOrdinal ->
@@ -412,9 +434,12 @@ internal object ActivityHistoryComposer {
 		runs: List<SourceServiceRunEntity>,
 		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 		snapshot: ActivityHistorySnapshot,
-	): Boolean = SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
+		measuredOnly: Boolean = false,
+	): Boolean = (if (measuredOnly) SessionManifestIntegrity.hasValidLogicalManifestRevisionSliceUnion(
 		manifestsByRun.values.map { it.map(SessionManifestVersionEntity::manifestRevision) },
-	) && runs.all { run ->
+	) else SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
+		manifestsByRun.values.map { it.map(SessionManifestVersionEntity::manifestRevision) },
+	)) && runs.all { run ->
 		val manifests = manifestsByRun[run.serviceRunId].orEmpty()
 		SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) && manifests.all { manifest ->
 			manifest.logicalTrackingId == logicalId && manifest.serviceRunId == run.serviceRunId &&
@@ -722,7 +747,7 @@ internal object ActivityHistoryComposer {
 		return ActivityCaptureTimeline(public, externalGapNanos, hasPendingUnboundedCaptureInterval)
 	}
 
-	private fun toPublicFragments(
+	internal fun toPublicFragments(
 		revision: ActivityCapturedWindowRevisionEntity,
 		snapshot: ActivityHistorySnapshot,
 	): List<ActivityHistoryFragment> = snapshot.fragmentsByRevision[revisionKey(revision)].orEmpty()

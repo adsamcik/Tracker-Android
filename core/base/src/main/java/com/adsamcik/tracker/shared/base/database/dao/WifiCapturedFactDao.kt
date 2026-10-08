@@ -49,6 +49,21 @@ data class WifiPortableWalIdentityRow(
 @Dao
 interface WifiCapturedFactDao {
 
+	/** Optional duplicate discovery only; original opaque identity and source qualification decide equality. */
+	@Query(
+		"SELECT fact.* FROM wifi_captured_child child " +
+			"JOIN wifi_captured_fact_revision fact ON fact.writer_projection_id = child.writer_projection_id " +
+			"AND fact.writer_projection_version = child.writer_projection_version " +
+			"AND fact.logical_fact_id = child.logical_fact_id AND fact.semantic_revision = child.semantic_revision " +
+			"JOIN wifi_captured_fact_cursor cursor ON cursor.writer_projection_id = fact.writer_projection_id " +
+			"AND cursor.writer_projection_version = fact.writer_projection_version " +
+			"AND cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = fact.semantic_revision " +
+			"WHERE fact.logical_tracking_id = :logicalId AND child.observed_wall_time_ms = :observedTimeMs " +
+			"AND child.item_index = :itemIndex ORDER BY fact.logical_fact_id LIMIT :limit",
+	)
+	suspend fun measuredChildOriginCandidates(logicalId: String, observedTimeMs: Long, itemIndex: Int,
+		limit: Int): List<WifiCapturedFactRevisionEntity>
+
 	/**
 	 * Key-only conservative export discovery. Qualification and smart whole-entry selection remain
 	 * source-owned. Unknown owner timing is retained as a candidate, never treated as outside dates.
@@ -148,6 +163,21 @@ interface WifiCapturedFactDao {
 		"WHERE fact.fact_kind IN ('AGGREGATE', 'COVERAGE_ONLY') AND fact.observed_wall_time_ms >= :fromMs " +
 		"AND fact.observed_wall_time_ms < :toMs ORDER BY fact.observed_wall_time_ms, fact.logical_fact_id LIMIT :limit")
 	suspend fun contextCandidates(fromMs: Long, toMs: Long, limit: Int): List<WifiCapturedFactRevisionEntity>
+
+	/** Exact selected correction lineage and its single direct aggregate owner; no whole-session scan. */
+	@Query("""SELECT fact.* FROM wifi_captured_fact_revision fact
+		WHERE fact.writer_projection_id = :writerId AND fact.writer_projection_version = :writerVersion
+		AND (fact.logical_fact_id = :factId OR fact.logical_fact_id IN (
+		  SELECT dependent.aggregate_owner_logical_fact_id FROM wifi_captured_fact_revision dependent
+		  JOIN wifi_captured_fact_cursor cursor ON cursor.writer_projection_id = dependent.writer_projection_id
+		    AND cursor.writer_projection_version = dependent.writer_projection_version
+		    AND cursor.logical_fact_id = dependent.logical_fact_id
+		    AND cursor.latest_semantic_revision = dependent.semantic_revision
+		  WHERE dependent.writer_projection_id = :writerId AND dependent.writer_projection_version = :writerVersion
+		    AND dependent.logical_fact_id = :factId AND dependent.aggregate_owner_logical_fact_id IS NOT NULL
+		)) ORDER BY fact.logical_fact_id, fact.semantic_revision LIMIT :limit""")
+	suspend fun selectedHistoryLineages(writerId: String, writerVersion: Int, factId: String,
+		limit: Int): List<WifiCapturedFactRevisionEntity>
 
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertRevision(entity: WifiCapturedFactRevisionEntity): Long

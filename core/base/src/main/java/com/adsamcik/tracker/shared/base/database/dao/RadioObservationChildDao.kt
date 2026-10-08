@@ -244,4 +244,845 @@ interface RadioObservationChildDao {
 
 	@Query("DELETE FROM legacy_cell_child")
 	suspend fun deleteAllLegacyCell()
+
+	/** Key-only measured discovery; exact source qualification remains in the same caller snapshot. */
+	@Query("""
+		WITH b0_raw AS (
+		SELECT 'captured_wifi' AS kind, 'LOCAL' AS origin, 'CAPTURE' AS purpose,
+		  length(CAST(c.writer_projection_id AS TEXT)) || ':' || CAST(c.writer_projection_id AS TEXT) || ':' || length(CAST(c.writer_projection_version AS TEXT)) || ':' || CAST(c.writer_projection_version AS TEXT) || ':' || length(CAST(c.logical_fact_id AS TEXT)) || ':' || CAST(c.logical_fact_id AS TEXT) || ':' || length(CAST(c.semantic_revision AS TEXT)) || ':' || CAST(c.semantic_revision AS TEXT) || ':' || length(CAST(c.item_index AS TEXT)) || ':' || CAST(c.item_index AS TEXT) AS identity, c.observed_wall_time_ms AS startTimeMs, NULL AS endTimeMs,
+		  NULL AS rowId, c.writer_projection_id AS writerId, c.writer_projection_version AS writerVersion,
+		  c.logical_fact_id AS factId, c.semantic_revision AS factRevision, c.item_index AS itemIndex,
+		  f.source_event_id AS physicalEventId, 'physical:' || CASE WHEN f.source_event_id IS NULL THEN 'N' ELSE 'V' || hex(CAST(f.source_event_id AS BLOB)) END || ':' || CASE WHEN c.item_index IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.item_index AS BLOB)) END || ':' || CASE WHEN c.provider_timestamp_nanos IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.provider_timestamp_nanos AS BLOB)) END || ':' || CASE WHEN c.observed_wall_time_ms IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.observed_wall_time_ms AS BLOB)) END || ':' || CASE WHEN c.wall_time_uncertainty_ms IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.wall_time_uncertainty_ms AS BLOB)) END || ':' || CASE WHEN c.bssid IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.bssid AS BLOB)) END || ':' || CASE WHEN c.ssid IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.ssid AS BLOB)) END || ':' || CASE WHEN c.frequency_mhz IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.frequency_mhz AS BLOB)) END || ':' || CASE WHEN c.signal_dbm IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.signal_dbm AS BLOB)) END AS physicalIdentity
+		FROM wifi_captured_child c JOIN wifi_captured_fact_cursor k ON
+		  k.writer_projection_id = c.writer_projection_id AND k.writer_projection_version = c.writer_projection_version AND k.logical_fact_id = c.logical_fact_id
+		  AND k.latest_semantic_revision = c.semantic_revision
+		JOIN wifi_captured_fact_revision f ON f.writer_projection_id = c.writer_projection_id AND f.writer_projection_version = c.writer_projection_version
+		  AND f.logical_fact_id = c.logical_fact_id AND f.semantic_revision = c.semantic_revision
+		),
+		b0_eligible AS (
+		SELECT * FROM b0_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b0_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b0_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b0_chosen AS (
+		SELECT e.* FROM b0_eligible e JOIN b0_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_wifi' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b1_raw AS (
+		SELECT 'captured_wifi_summary' AS kind, 'LOCAL' AS origin, 'CAPTURE' AS purpose,
+		  length(CAST(f.writer_projection_id AS TEXT)) || ':' || CAST(f.writer_projection_id AS TEXT) || ':' || length(CAST(f.writer_projection_version AS TEXT)) || ':' || CAST(f.writer_projection_version AS TEXT) || ':' || length(CAST(f.logical_fact_id AS TEXT)) || ':' || CAST(f.logical_fact_id AS TEXT) || ':' || length(CAST(f.semantic_revision AS TEXT)) || ':' || CAST(f.semantic_revision AS TEXT) AS identity, f.observed_wall_time_ms - (f.coverage_interval_end_nanos - f.coverage_interval_start_nanos) / 1000000 AS startTimeMs, f.observed_wall_time_ms AS endTimeMs,
+		  NULL AS rowId, f.writer_projection_id AS writerId, f.writer_projection_version AS writerVersion,
+		  f.logical_fact_id AS factId, f.semantic_revision AS factRevision, NULL AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM wifi_captured_fact_revision f JOIN wifi_captured_fact_cursor k ON
+		  k.writer_projection_id = f.writer_projection_id AND k.writer_projection_version = f.writer_projection_version AND k.logical_fact_id = f.logical_fact_id
+		  AND k.latest_semantic_revision = f.semantic_revision
+		WHERE f.fact_kind IN ('AGGREGATE', 'COVERAGE_ONLY') AND NOT EXISTS (SELECT 1 FROM wifi_captured_child c WHERE c.writer_projection_id = f.writer_projection_id
+		  AND c.writer_projection_version = f.writer_projection_version AND c.logical_fact_id = f.logical_fact_id
+		  AND c.semantic_revision = f.semantic_revision)
+		),
+		b1_eligible AS (
+		SELECT * FROM b1_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b1_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b1_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b1_chosen AS (
+		SELECT e.* FROM b1_eligible e JOIN b1_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_wifi' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b2_raw AS (
+		SELECT 'ambient_wifi' AS kind, 'LOCAL' AS origin, 'BACKGROUND' AS purpose,
+		  length(CAST(c.writer_id AS TEXT)) || ':' || CAST(c.writer_id AS TEXT) || ':' || length(CAST(c.writer_version AS TEXT)) || ':' || CAST(c.writer_version AS TEXT) || ':' || length(CAST(c.logical_fact_id AS TEXT)) || ':' || CAST(c.logical_fact_id AS TEXT) || ':' || length(CAST(c.semantic_revision AS TEXT)) || ':' || CAST(c.semantic_revision AS TEXT) || ':' || length(CAST(c.item_index AS TEXT)) || ':' || CAST(c.item_index AS TEXT) AS identity, c.observed_wall_time_ms AS startTimeMs, NULL AS endTimeMs,
+		  NULL AS rowId, c.writer_id AS writerId, c.writer_version AS writerVersion,
+		  c.logical_fact_id AS factId, c.semantic_revision AS factRevision, c.item_index AS itemIndex,
+		  f.source_event_id AS physicalEventId, 'physical:' || CASE WHEN f.source_event_id IS NULL THEN 'N' ELSE 'V' || hex(CAST(f.source_event_id AS BLOB)) END || ':' || CASE WHEN c.item_index IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.item_index AS BLOB)) END || ':' || CASE WHEN c.provider_timestamp_nanos IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.provider_timestamp_nanos AS BLOB)) END || ':' || CASE WHEN c.observed_wall_time_ms IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.observed_wall_time_ms AS BLOB)) END || ':' || CASE WHEN c.wall_time_uncertainty_ms IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.wall_time_uncertainty_ms AS BLOB)) END || ':' || CASE WHEN c.bssid IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.bssid AS BLOB)) END || ':' || CASE WHEN c.ssid IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.ssid AS BLOB)) END || ':' || CASE WHEN c.frequency_mhz IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.frequency_mhz AS BLOB)) END || ':' || CASE WHEN c.signal_dbm IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.signal_dbm AS BLOB)) END AS physicalIdentity
+		FROM ambient_wifi_child c JOIN ambient_wifi_fact_cursor k ON
+		  k.writer_id = c.writer_id AND k.writer_version = c.writer_version AND k.logical_fact_id = c.logical_fact_id
+		  AND k.latest_semantic_revision = c.semantic_revision
+		JOIN ambient_wifi_fact_revision f ON f.writer_id = c.writer_id AND f.writer_version = c.writer_version
+		  AND f.logical_fact_id = c.logical_fact_id AND f.semantic_revision = c.semantic_revision
+		),
+		b2_eligible AS (
+		SELECT * FROM b2_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b2_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b2_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b2_chosen AS (
+		SELECT e.* FROM b2_eligible e JOIN b2_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_wifi' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b3_raw AS (
+		SELECT 'ambient_wifi_summary' AS kind, 'LOCAL' AS origin, 'BACKGROUND' AS purpose,
+		  length(CAST(f.writer_id AS TEXT)) || ':' || CAST(f.writer_id AS TEXT) || ':' || length(CAST(f.writer_version AS TEXT)) || ':' || CAST(f.writer_version AS TEXT) || ':' || length(CAST(f.logical_fact_id AS TEXT)) || ':' || CAST(f.logical_fact_id AS TEXT) || ':' || length(CAST(f.semantic_revision AS TEXT)) || ':' || CAST(f.semantic_revision AS TEXT) AS identity, min(f.coverage_start_time_ms, f.observed_wall_time_ms - ((f.observed_elapsed_nanos - f.observed_interval_start_nanos) / 1000000 + CASE WHEN (f.observed_elapsed_nanos - f.observed_interval_start_nanos) % 1000000 != 0 THEN 1 ELSE 0 END)) - f.wall_time_uncertainty_ms AS startTimeMs, f.observed_wall_time_ms AS endTimeMs,
+		  NULL AS rowId, f.writer_id AS writerId, f.writer_version AS writerVersion,
+		  f.logical_fact_id AS factId, f.semantic_revision AS factRevision, NULL AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM ambient_wifi_fact_revision f JOIN ambient_wifi_fact_cursor k ON
+		  k.writer_id = f.writer_id AND k.writer_version = f.writer_version AND k.logical_fact_id = f.logical_fact_id
+		  AND k.latest_semantic_revision = f.semantic_revision
+		WHERE f.fact_kind IN ('AGGREGATE', 'COVERAGE_ONLY') AND NOT EXISTS (SELECT 1 FROM ambient_wifi_child c WHERE c.writer_id = f.writer_id
+		  AND c.writer_version = f.writer_version AND c.logical_fact_id = f.logical_fact_id
+		  AND c.semantic_revision = f.semantic_revision)
+		),
+		b3_eligible AS (
+		SELECT * FROM b3_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b3_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b3_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b3_chosen AS (
+		SELECT e.* FROM b3_eligible e JOIN b3_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_wifi' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b4_raw AS (
+		SELECT 'imported_wifi' AS kind, 'IMPORTED' AS origin, 'CAPTURE' AS purpose,
+		  length(CAST(c.entry_identity AS TEXT)) || ':' || CAST(c.entry_identity AS TEXT) || ':' || length(CAST(c.entry_import_revision AS TEXT)) || ':' || CAST(c.entry_import_revision AS TEXT) || ':' || length(CAST(c.run_identity AS TEXT)) || ':' || CAST(c.run_identity AS TEXT) || ':' || length(CAST(c.observation_identity AS TEXT)) || ':' || CAST(c.observation_identity AS TEXT) || ':' || length(CAST(c.item_index AS TEXT)) || ':' || CAST(c.item_index AS TEXT) AS identity, c.observed_wall_time_ms AS startTimeMs, NULL AS endTimeMs,
+		  NULL AS rowId, c.entry_identity AS writerId, NULL AS writerVersion,
+		  c.observation_identity AS factId, c.entry_import_revision AS factRevision, c.item_index AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM imported_wifi_child c JOIN imported_wifi_entry_revision e ON e.identity = c.entry_identity
+		  AND e.import_revision = c.entry_import_revision
+		WHERE e.import_revision = (SELECT MAX(n.import_revision) FROM imported_wifi_entry_revision n
+		  WHERE n.identity = e.identity)
+		),
+		b4_eligible AS (
+		SELECT * FROM b4_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b4_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b4_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b4_chosen AS (
+		SELECT e.* FROM b4_eligible e JOIN b4_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_wifi' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b5_raw AS (
+		SELECT 'imported_wifi_summary' AS kind, 'IMPORTED' AS origin, 'CAPTURE' AS purpose,
+		  length(CAST(f.entry_identity AS TEXT)) || ':' || CAST(f.entry_identity AS TEXT) || ':' || length(CAST(f.entry_import_revision AS TEXT)) || ':' || CAST(f.entry_import_revision AS TEXT) || ':' || length(CAST(f.run_identity AS TEXT)) || ':' || CAST(f.run_identity AS TEXT) || ':' || length(CAST(f.identity AS TEXT)) || ':' || CAST(f.identity AS TEXT) AS identity, f.coverage_start_time_ms AS startTimeMs, f.observed_time_ms AS endTimeMs,
+		  NULL AS rowId, f.entry_identity AS writerId, NULL AS writerVersion,
+		  f.identity AS factId, f.entry_import_revision AS factRevision, NULL AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM imported_wifi_observation f JOIN imported_wifi_entry_revision e ON
+		  e.identity = f.entry_identity AND e.import_revision = f.entry_import_revision
+		WHERE e.import_revision = (SELECT MAX(n.import_revision) FROM imported_wifi_entry_revision n
+		  WHERE n.identity = e.identity)
+		AND NOT EXISTS (SELECT 1 FROM imported_wifi_child c WHERE c.entry_identity = f.entry_identity
+		  AND c.entry_import_revision = f.entry_import_revision AND c.run_identity = f.run_identity
+		  AND c.observation_identity = f.identity)
+		),
+		b5_eligible AS (
+		SELECT * FROM b5_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b5_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b5_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b5_chosen AS (
+		SELECT e.* FROM b5_eligible e JOIN b5_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_wifi' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b6_raw AS (
+		SELECT 'imported_ambient_wifi' AS kind, 'IMPORTED' AS origin, 'BACKGROUND' AS purpose,
+		  length(CAST(c.archive_id AS TEXT)) || ':' || CAST(c.archive_id AS TEXT) || ':' || length(CAST(c.fact_id AS TEXT)) || ':' || CAST(c.fact_id AS TEXT) || ':' || length(CAST(c.semantic_revision AS TEXT)) || ':' || CAST(c.semantic_revision AS TEXT) || ':' || length(CAST(c.item_index AS TEXT)) || ':' || CAST(c.item_index AS TEXT) AS identity, c.observed_wall_time_ms AS startTimeMs, NULL AS endTimeMs,
+		  NULL AS rowId, c.archive_id AS writerId, NULL AS writerVersion,
+		  c.fact_id AS factId, c.semantic_revision AS factRevision, c.item_index AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM imported_ambient_wifi_child c JOIN imported_ambient_wifi_fact f ON f.archive_id = c.archive_id
+		  AND f.fact_id = c.fact_id AND f.semantic_revision = c.semantic_revision
+		WHERE f.semantic_revision = (SELECT MAX(n.semantic_revision) FROM imported_ambient_wifi_fact n
+		  WHERE n.fact_id = f.fact_id)
+		),
+		b6_eligible AS (
+		SELECT * FROM b6_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b6_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b6_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b6_chosen AS (
+		SELECT e.* FROM b6_eligible e JOIN b6_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_wifi' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b7_raw AS (
+		SELECT 'imported_ambient_wifi_summary' AS kind, 'IMPORTED' AS origin, 'BACKGROUND' AS purpose,
+		  length(CAST(f.archive_id AS TEXT)) || ':' || CAST(f.archive_id AS TEXT) || ':' || length(CAST(f.fact_id AS TEXT)) || ':' || CAST(f.fact_id AS TEXT) || ':' || length(CAST(f.semantic_revision AS TEXT)) || ':' || CAST(f.semantic_revision AS TEXT) AS identity, f.coverage_start_time_ms AS startTimeMs, f.observed_time_ms AS endTimeMs,
+		  NULL AS rowId, f.archive_id AS writerId, NULL AS writerVersion,
+		  f.fact_id AS factId, f.semantic_revision AS factRevision, NULL AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM imported_ambient_wifi_fact f WHERE f.semantic_revision =
+		  (SELECT MAX(n.semantic_revision) FROM imported_ambient_wifi_fact n WHERE n.fact_id = f.fact_id)
+		AND NOT EXISTS (SELECT 1 FROM imported_ambient_wifi_child c WHERE c.archive_id = f.archive_id
+		  AND c.fact_id = f.fact_id AND c.semantic_revision = f.semantic_revision)
+		),
+		b7_eligible AS (
+		SELECT * FROM b7_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b7_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b7_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b7_chosen AS (
+		SELECT e.* FROM b7_eligible e JOIN b7_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_wifi' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b8_raw AS (
+		SELECT 'ambient_wifi_gap' AS kind, 'LOCAL' AS origin, 'BACKGROUND' AS purpose,
+		  length(CAST(g.gap_id AS TEXT)) || ':' || CAST(g.gap_id AS TEXT) AS identity, g.gap_start_time_ms AS startTimeMs, g.gap_end_time_ms AS endTimeMs,
+		  NULL AS rowId, NULL AS writerId, NULL AS writerVersion,
+		  g.gap_id AS factId, NULL AS factRevision, NULL AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM ambient_wifi_gap g
+		),
+		b8_eligible AS (
+		SELECT * FROM b8_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b8_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b8_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b8_chosen AS (
+		SELECT e.* FROM b8_eligible e JOIN b8_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_wifi' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b9_raw AS (
+		SELECT 'imported_ambient_wifi_gap' AS kind, 'IMPORTED' AS origin, 'BACKGROUND' AS purpose,
+		  length(CAST(g.archive_id AS TEXT)) || ':' || CAST(g.archive_id AS TEXT) || ':' || length(CAST(g.gap_id AS TEXT)) || ':' || CAST(g.gap_id AS TEXT) AS identity, g.start_time_ms AS startTimeMs, g.end_time_ms AS endTimeMs,
+		  NULL AS rowId, g.archive_id AS writerId, NULL AS writerVersion,
+		  g.gap_id AS factId, NULL AS factRevision, NULL AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM imported_ambient_wifi_gap g
+		),
+		b9_eligible AS (
+		SELECT * FROM b9_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b9_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b9_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b9_chosen AS (
+		SELECT e.* FROM b9_eligible e JOIN b9_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_wifi' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b10_raw AS (
+		SELECT 'legacy_wifi' AS kind, 'LEGACY' AS origin, 'UNKNOWN' AS purpose,
+		  length(CAST(l.legacy_row_id AS TEXT)) || ':' || CAST(l.legacy_row_id AS TEXT) AS identity, l.time_ms AS startTimeMs, NULL AS endTimeMs,
+		  l.legacy_row_id AS rowId, NULL AS writerId, NULL AS writerVersion,
+		  NULL AS factId, NULL AS factRevision, NULL AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM legacy_wifi_child l
+		),
+		b10_eligible AS (
+		SELECT * FROM b10_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b10_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b10_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b10_chosen AS (
+		SELECT e.* FROM b10_eligible e JOIN b10_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_wifi' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		eligible AS (
+		SELECT * FROM b0_chosen
+		UNION ALL
+		SELECT * FROM b1_chosen
+		UNION ALL
+		SELECT * FROM b2_chosen
+		UNION ALL
+		SELECT * FROM b3_chosen
+		UNION ALL
+		SELECT * FROM b4_chosen
+		UNION ALL
+		SELECT * FROM b5_chosen
+		UNION ALL
+		SELECT * FROM b6_chosen
+		UNION ALL
+		SELECT * FROM b7_chosen
+		UNION ALL
+		SELECT * FROM b8_chosen
+		UNION ALL
+		SELECT * FROM b9_chosen
+		UNION ALL
+		SELECT * FROM b10_chosen
+		),
+		heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(CASE purpose WHEN 'CAPTURE' THEN '0' ELSE '1' END || ':' || kind || ':' || identity) AS winner
+		FROM eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END, coalesce(physicalIdentity, identity)
+		),
+		chosen AS (
+		SELECT e.* FROM eligible e JOIN heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_wifi' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND CASE e.purpose WHEN 'CAPTURE' THEN '0' ELSE '1' END || ':' || e.kind || ':' || e.identity = h.winner
+		)
+		SELECT kind, origin, purpose, identity, startTimeMs, endTimeMs, rowId, writerId, writerVersion,
+		  factId, factRevision, itemIndex, physicalEventId, physicalIdentity FROM chosen
+		ORDER BY startTimeMs DESC, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_wifi' END ASC, coalesce(physicalIdentity, identity) ASC LIMIT :limit
+	""")
+	suspend fun wifiMeasuredHistoryCandidates(fromMs: Long, toMs: Long, origins: List<String>,
+		purposes: List<String>, afterTime: Long?, afterTag: String?, afterIdentity: String?,
+		limit: Int): List<MeasuredHistoryCandidate>
+
+	@Query("""
+		WITH candidates AS (
+		SELECT 'captured_wifi' AS kind, 'LOCAL' AS origin, 'CAPTURE' AS purpose,
+		  length(CAST(c.writer_projection_id AS TEXT)) || ':' || CAST(c.writer_projection_id AS TEXT) || ':' || length(CAST(c.writer_projection_version AS TEXT)) || ':' || CAST(c.writer_projection_version AS TEXT) || ':' || length(CAST(c.logical_fact_id AS TEXT)) || ':' || CAST(c.logical_fact_id AS TEXT) || ':' || length(CAST(c.semantic_revision AS TEXT)) || ':' || CAST(c.semantic_revision AS TEXT) || ':' || length(CAST(c.item_index AS TEXT)) || ':' || CAST(c.item_index AS TEXT) AS identity, c.observed_wall_time_ms AS startTimeMs, NULL AS endTimeMs,
+		  NULL AS rowId, c.writer_projection_id AS writerId, c.writer_projection_version AS writerVersion,
+		  c.logical_fact_id AS factId, c.semantic_revision AS factRevision, c.item_index AS itemIndex,
+		  f.source_event_id AS physicalEventId, 'physical:' || CASE WHEN f.source_event_id IS NULL THEN 'N' ELSE 'V' || hex(CAST(f.source_event_id AS BLOB)) END || ':' || CASE WHEN c.item_index IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.item_index AS BLOB)) END || ':' || CASE WHEN c.provider_timestamp_nanos IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.provider_timestamp_nanos AS BLOB)) END || ':' || CASE WHEN c.observed_wall_time_ms IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.observed_wall_time_ms AS BLOB)) END || ':' || CASE WHEN c.wall_time_uncertainty_ms IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.wall_time_uncertainty_ms AS BLOB)) END || ':' || CASE WHEN c.bssid IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.bssid AS BLOB)) END || ':' || CASE WHEN c.ssid IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.ssid AS BLOB)) END || ':' || CASE WHEN c.frequency_mhz IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.frequency_mhz AS BLOB)) END || ':' || CASE WHEN c.signal_dbm IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.signal_dbm AS BLOB)) END AS physicalIdentity
+		FROM wifi_captured_child c JOIN wifi_captured_fact_cursor k ON
+		  k.writer_projection_id = c.writer_projection_id AND k.writer_projection_version = c.writer_projection_version AND k.logical_fact_id = c.logical_fact_id
+		  AND k.latest_semantic_revision = c.semantic_revision
+		JOIN wifi_captured_fact_revision f ON f.writer_projection_id = c.writer_projection_id AND f.writer_projection_version = c.writer_projection_version
+		  AND f.logical_fact_id = c.logical_fact_id AND f.semantic_revision = c.semantic_revision
+		WHERE c.observed_wall_time_ms IN (:observedTimes)
+		UNION ALL
+		SELECT 'ambient_wifi' AS kind, 'LOCAL' AS origin, 'BACKGROUND' AS purpose,
+		  length(CAST(c.writer_id AS TEXT)) || ':' || CAST(c.writer_id AS TEXT) || ':' || length(CAST(c.writer_version AS TEXT)) || ':' || CAST(c.writer_version AS TEXT) || ':' || length(CAST(c.logical_fact_id AS TEXT)) || ':' || CAST(c.logical_fact_id AS TEXT) || ':' || length(CAST(c.semantic_revision AS TEXT)) || ':' || CAST(c.semantic_revision AS TEXT) || ':' || length(CAST(c.item_index AS TEXT)) || ':' || CAST(c.item_index AS TEXT) AS identity, c.observed_wall_time_ms AS startTimeMs, NULL AS endTimeMs,
+		  NULL AS rowId, c.writer_id AS writerId, c.writer_version AS writerVersion,
+		  c.logical_fact_id AS factId, c.semantic_revision AS factRevision, c.item_index AS itemIndex,
+		  f.source_event_id AS physicalEventId, 'physical:' || CASE WHEN f.source_event_id IS NULL THEN 'N' ELSE 'V' || hex(CAST(f.source_event_id AS BLOB)) END || ':' || CASE WHEN c.item_index IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.item_index AS BLOB)) END || ':' || CASE WHEN c.provider_timestamp_nanos IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.provider_timestamp_nanos AS BLOB)) END || ':' || CASE WHEN c.observed_wall_time_ms IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.observed_wall_time_ms AS BLOB)) END || ':' || CASE WHEN c.wall_time_uncertainty_ms IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.wall_time_uncertainty_ms AS BLOB)) END || ':' || CASE WHEN c.bssid IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.bssid AS BLOB)) END || ':' || CASE WHEN c.ssid IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.ssid AS BLOB)) END || ':' || CASE WHEN c.frequency_mhz IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.frequency_mhz AS BLOB)) END || ':' || CASE WHEN c.signal_dbm IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.signal_dbm AS BLOB)) END AS physicalIdentity
+		FROM ambient_wifi_child c JOIN ambient_wifi_fact_cursor k ON
+		  k.writer_id = c.writer_id AND k.writer_version = c.writer_version AND k.logical_fact_id = c.logical_fact_id
+		  AND k.latest_semantic_revision = c.semantic_revision
+		JOIN ambient_wifi_fact_revision f ON f.writer_id = c.writer_id AND f.writer_version = c.writer_version
+		  AND f.logical_fact_id = c.logical_fact_id AND f.semantic_revision = c.semantic_revision
+		WHERE c.observed_wall_time_ms IN (:observedTimes)
+		)
+		SELECT * FROM candidates
+		WHERE physicalIdentity IN (:identities) AND purpose IN (:purposes)
+		  AND (:afterKind IS NULL OR kind > :afterKind OR (kind = :afterKind AND identity > :afterIdentity))
+		ORDER BY kind, identity LIMIT :limit
+	""")
+	suspend fun wifiNativeMeasuredPurposeCandidates(identities: List<String>, purposes: List<String>, observedTimes: List<Long>,
+		afterKind: String?, afterIdentity: String?, limit: Int): List<MeasuredHistoryCandidate>
+
+	@Query("""
+		WITH b0_raw AS (
+		SELECT 'captured_cell' AS kind, 'LOCAL' AS origin, 'CAPTURE' AS purpose,
+		  length(CAST(c.writer_projection_id AS TEXT)) || ':' || CAST(c.writer_projection_id AS TEXT) || ':' || length(CAST(c.writer_projection_version AS TEXT)) || ':' || CAST(c.writer_projection_version AS TEXT) || ':' || length(CAST(c.logical_fact_id AS TEXT)) || ':' || CAST(c.logical_fact_id AS TEXT) || ':' || length(CAST(c.semantic_revision AS TEXT)) || ':' || CAST(c.semantic_revision AS TEXT) || ':' || length(CAST(c.item_index AS TEXT)) || ':' || CAST(c.item_index AS TEXT) AS identity, c.observed_wall_time_ms AS startTimeMs, NULL AS endTimeMs,
+		  NULL AS rowId, c.writer_projection_id AS writerId, c.writer_projection_version AS writerVersion,
+		  c.logical_fact_id AS factId, c.semantic_revision AS factRevision, c.item_index AS itemIndex,
+		  f.source_event_id AS physicalEventId, 'physical:' || CASE WHEN f.source_event_id IS NULL THEN 'N' ELSE 'V' || hex(CAST(f.source_event_id AS BLOB)) END || ':' || CASE WHEN c.item_index IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.item_index AS BLOB)) END || ':' || CASE WHEN c.provider_timestamp_nanos IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.provider_timestamp_nanos AS BLOB)) END || ':' || CASE WHEN c.observed_wall_time_ms IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.observed_wall_time_ms AS BLOB)) END || ':' || CASE WHEN c.wall_time_uncertainty_ms IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.wall_time_uncertainty_ms AS BLOB)) END || ':' || CASE WHEN c.tower_identity IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.tower_identity AS BLOB)) END || ':' || CASE WHEN c.radio_type IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.radio_type AS BLOB)) END || ':' || CASE WHEN c.registered IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.registered AS BLOB)) END || ':' || CASE WHEN c.signal_dbm IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.signal_dbm AS BLOB)) END AS physicalIdentity
+		FROM cell_captured_child c JOIN cell_captured_fact_cursor k ON
+		  k.writer_projection_id = c.writer_projection_id AND k.writer_projection_version = c.writer_projection_version AND k.logical_fact_id = c.logical_fact_id
+		  AND k.latest_semantic_revision = c.semantic_revision
+		JOIN cell_captured_fact_revision f ON f.writer_projection_id = c.writer_projection_id AND f.writer_projection_version = c.writer_projection_version
+		  AND f.logical_fact_id = c.logical_fact_id AND f.semantic_revision = c.semantic_revision
+		),
+		b0_eligible AS (
+		SELECT * FROM b0_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b0_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b0_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b0_chosen AS (
+		SELECT e.* FROM b0_eligible e JOIN b0_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_cell' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b1_raw AS (
+		SELECT 'captured_cell_summary' AS kind, 'LOCAL' AS origin, 'CAPTURE' AS purpose,
+		  length(CAST(f.writer_projection_id AS TEXT)) || ':' || CAST(f.writer_projection_id AS TEXT) || ':' || length(CAST(f.writer_projection_version AS TEXT)) || ':' || CAST(f.writer_projection_version AS TEXT) || ':' || length(CAST(f.logical_fact_id AS TEXT)) || ':' || CAST(f.logical_fact_id AS TEXT) || ':' || length(CAST(f.semantic_revision AS TEXT)) || ':' || CAST(f.semantic_revision AS TEXT) AS identity, w.wall_time_ms - ((w.observed_elapsed_nanos - f.coverage_interval_start_nanos) / 1000000 + CASE WHEN (w.observed_elapsed_nanos - f.coverage_interval_start_nanos) % 1000000 != 0 THEN 1 ELSE 0 END) AS startTimeMs, f.observed_wall_time_ms AS endTimeMs,
+		  NULL AS rowId, f.writer_projection_id AS writerId, f.writer_projection_version AS writerVersion,
+		  f.logical_fact_id AS factId, f.semantic_revision AS factRevision, NULL AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM cell_captured_fact_revision f JOIN cell_captured_fact_cursor k ON
+		  k.writer_projection_id = f.writer_projection_id AND k.writer_projection_version = f.writer_projection_version AND k.logical_fact_id = f.logical_fact_id
+		  AND k.latest_semantic_revision = f.semantic_revision
+		JOIN source_event_wal w ON w.event_id = f.source_event_id
+		  AND w.admission_ordinal = f.source_admission_ordinal
+		WHERE f.fact_kind IN ('AGGREGATE', 'COVERAGE_ONLY') AND NOT EXISTS (SELECT 1 FROM cell_captured_child c WHERE c.writer_projection_id = f.writer_projection_id
+		  AND c.writer_projection_version = f.writer_projection_version AND c.logical_fact_id = f.logical_fact_id
+		  AND c.semantic_revision = f.semantic_revision)
+		),
+		b1_eligible AS (
+		SELECT * FROM b1_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b1_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b1_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b1_chosen AS (
+		SELECT e.* FROM b1_eligible e JOIN b1_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_cell' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b2_raw AS (
+		SELECT 'ambient_cell' AS kind, 'LOCAL' AS origin, 'BACKGROUND' AS purpose,
+		  length(CAST(c.writer_id AS TEXT)) || ':' || CAST(c.writer_id AS TEXT) || ':' || length(CAST(c.writer_version AS TEXT)) || ':' || CAST(c.writer_version AS TEXT) || ':' || length(CAST(c.logical_fact_id AS TEXT)) || ':' || CAST(c.logical_fact_id AS TEXT) || ':' || length(CAST(c.semantic_revision AS TEXT)) || ':' || CAST(c.semantic_revision AS TEXT) || ':' || length(CAST(c.item_index AS TEXT)) || ':' || CAST(c.item_index AS TEXT) AS identity, c.observed_wall_time_ms AS startTimeMs, NULL AS endTimeMs,
+		  NULL AS rowId, c.writer_id AS writerId, c.writer_version AS writerVersion,
+		  c.logical_fact_id AS factId, c.semantic_revision AS factRevision, c.item_index AS itemIndex,
+		  f.source_event_id AS physicalEventId, 'physical:' || CASE WHEN f.source_event_id IS NULL THEN 'N' ELSE 'V' || hex(CAST(f.source_event_id AS BLOB)) END || ':' || CASE WHEN c.item_index IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.item_index AS BLOB)) END || ':' || CASE WHEN c.provider_timestamp_nanos IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.provider_timestamp_nanos AS BLOB)) END || ':' || CASE WHEN c.observed_wall_time_ms IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.observed_wall_time_ms AS BLOB)) END || ':' || CASE WHEN c.wall_time_uncertainty_ms IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.wall_time_uncertainty_ms AS BLOB)) END || ':' || CASE WHEN c.tower_identity IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.tower_identity AS BLOB)) END || ':' || CASE WHEN c.radio_type IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.radio_type AS BLOB)) END || ':' || CASE WHEN c.registered IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.registered AS BLOB)) END || ':' || CASE WHEN c.signal_dbm IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.signal_dbm AS BLOB)) END AS physicalIdentity
+		FROM ambient_cell_child c JOIN ambient_cell_fact_cursor k ON
+		  k.writer_id = c.writer_id AND k.writer_version = c.writer_version AND k.logical_fact_id = c.logical_fact_id
+		  AND k.latest_semantic_revision = c.semantic_revision
+		JOIN ambient_cell_fact_revision f ON f.writer_id = c.writer_id AND f.writer_version = c.writer_version
+		  AND f.logical_fact_id = c.logical_fact_id AND f.semantic_revision = c.semantic_revision
+		),
+		b2_eligible AS (
+		SELECT * FROM b2_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b2_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b2_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b2_chosen AS (
+		SELECT e.* FROM b2_eligible e JOIN b2_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_cell' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b3_raw AS (
+		SELECT 'ambient_cell_summary' AS kind, 'LOCAL' AS origin, 'BACKGROUND' AS purpose,
+		  length(CAST(f.writer_id AS TEXT)) || ':' || CAST(f.writer_id AS TEXT) || ':' || length(CAST(f.writer_version AS TEXT)) || ':' || CAST(f.writer_version AS TEXT) || ':' || length(CAST(f.logical_fact_id AS TEXT)) || ':' || CAST(f.logical_fact_id AS TEXT) || ':' || length(CAST(f.semantic_revision AS TEXT)) || ':' || CAST(f.semantic_revision AS TEXT) AS identity, min(f.coverage_start_time_ms, f.observed_wall_time_ms - ((f.observed_elapsed_nanos - f.observed_interval_start_nanos) / 1000000 + CASE WHEN (f.observed_elapsed_nanos - f.observed_interval_start_nanos) % 1000000 != 0 THEN 1 ELSE 0 END)) - f.wall_time_uncertainty_ms AS startTimeMs, f.observed_wall_time_ms AS endTimeMs,
+		  NULL AS rowId, f.writer_id AS writerId, f.writer_version AS writerVersion,
+		  f.logical_fact_id AS factId, f.semantic_revision AS factRevision, NULL AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM ambient_cell_fact_revision f JOIN ambient_cell_fact_cursor k ON
+		  k.writer_id = f.writer_id AND k.writer_version = f.writer_version AND k.logical_fact_id = f.logical_fact_id
+		  AND k.latest_semantic_revision = f.semantic_revision
+		WHERE f.fact_kind IN ('AGGREGATE', 'COVERAGE_ONLY') AND NOT EXISTS (SELECT 1 FROM ambient_cell_child c WHERE c.writer_id = f.writer_id
+		  AND c.writer_version = f.writer_version AND c.logical_fact_id = f.logical_fact_id
+		  AND c.semantic_revision = f.semantic_revision)
+		),
+		b3_eligible AS (
+		SELECT * FROM b3_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b3_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b3_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b3_chosen AS (
+		SELECT e.* FROM b3_eligible e JOIN b3_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_cell' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b4_raw AS (
+		SELECT 'imported_cell' AS kind, 'IMPORTED' AS origin, 'CAPTURE' AS purpose,
+		  length(CAST(c.entry_identity AS TEXT)) || ':' || CAST(c.entry_identity AS TEXT) || ':' || length(CAST(c.entry_import_revision AS TEXT)) || ':' || CAST(c.entry_import_revision AS TEXT) || ':' || length(CAST(c.run_identity AS TEXT)) || ':' || CAST(c.run_identity AS TEXT) || ':' || length(CAST(c.observation_identity AS TEXT)) || ':' || CAST(c.observation_identity AS TEXT) || ':' || length(CAST(c.item_index AS TEXT)) || ':' || CAST(c.item_index AS TEXT) AS identity, c.observed_wall_time_ms AS startTimeMs, NULL AS endTimeMs,
+		  NULL AS rowId, c.entry_identity AS writerId, NULL AS writerVersion,
+		  c.observation_identity AS factId, c.entry_import_revision AS factRevision, c.item_index AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM imported_cell_child c JOIN imported_cell_entry_revision e ON e.identity = c.entry_identity
+		  AND e.import_revision = c.entry_import_revision
+		WHERE e.import_revision = (SELECT MAX(n.import_revision) FROM imported_cell_entry_revision n
+		  WHERE n.identity = e.identity)
+		),
+		b4_eligible AS (
+		SELECT * FROM b4_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b4_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b4_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b4_chosen AS (
+		SELECT e.* FROM b4_eligible e JOIN b4_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_cell' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b5_raw AS (
+		SELECT 'imported_cell_summary' AS kind, 'IMPORTED' AS origin, 'CAPTURE' AS purpose,
+		  length(CAST(f.entry_identity AS TEXT)) || ':' || CAST(f.entry_identity AS TEXT) || ':' || length(CAST(f.entry_import_revision AS TEXT)) || ':' || CAST(f.entry_import_revision AS TEXT) || ':' || length(CAST(f.run_identity AS TEXT)) || ':' || CAST(f.run_identity AS TEXT) || ':' || length(CAST(f.identity AS TEXT)) || ':' || CAST(f.identity AS TEXT) AS identity, f.coverage_start_time_ms AS startTimeMs, f.observed_time_ms AS endTimeMs,
+		  NULL AS rowId, f.entry_identity AS writerId, NULL AS writerVersion,
+		  f.identity AS factId, f.entry_import_revision AS factRevision, NULL AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM imported_cell_observation f JOIN imported_cell_entry_revision e ON
+		  e.identity = f.entry_identity AND e.import_revision = f.entry_import_revision
+		WHERE e.import_revision = (SELECT MAX(n.import_revision) FROM imported_cell_entry_revision n
+		  WHERE n.identity = e.identity)
+		AND NOT EXISTS (SELECT 1 FROM imported_cell_child c WHERE c.entry_identity = f.entry_identity
+		  AND c.entry_import_revision = f.entry_import_revision AND c.run_identity = f.run_identity
+		  AND c.observation_identity = f.identity)
+		),
+		b5_eligible AS (
+		SELECT * FROM b5_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b5_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b5_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b5_chosen AS (
+		SELECT e.* FROM b5_eligible e JOIN b5_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_cell' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b6_raw AS (
+		SELECT 'imported_ambient_cell' AS kind, 'IMPORTED' AS origin, 'BACKGROUND' AS purpose,
+		  length(CAST(c.archive_id AS TEXT)) || ':' || CAST(c.archive_id AS TEXT) || ':' || length(CAST(c.fact_id AS TEXT)) || ':' || CAST(c.fact_id AS TEXT) || ':' || length(CAST(c.semantic_revision AS TEXT)) || ':' || CAST(c.semantic_revision AS TEXT) || ':' || length(CAST(c.item_index AS TEXT)) || ':' || CAST(c.item_index AS TEXT) AS identity, c.observed_wall_time_ms AS startTimeMs, NULL AS endTimeMs,
+		  NULL AS rowId, c.archive_id AS writerId, NULL AS writerVersion,
+		  c.fact_id AS factId, c.semantic_revision AS factRevision, c.item_index AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM imported_ambient_cell_child c JOIN imported_ambient_cell_fact f ON f.archive_id = c.archive_id
+		  AND f.fact_id = c.fact_id AND f.semantic_revision = c.semantic_revision
+		WHERE f.semantic_revision = (SELECT MAX(n.semantic_revision) FROM imported_ambient_cell_fact n
+		  WHERE n.fact_id = f.fact_id)
+		),
+		b6_eligible AS (
+		SELECT * FROM b6_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b6_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b6_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b6_chosen AS (
+		SELECT e.* FROM b6_eligible e JOIN b6_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_cell' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b7_raw AS (
+		SELECT 'imported_ambient_cell_summary' AS kind, 'IMPORTED' AS origin, 'BACKGROUND' AS purpose,
+		  length(CAST(f.archive_id AS TEXT)) || ':' || CAST(f.archive_id AS TEXT) || ':' || length(CAST(f.fact_id AS TEXT)) || ':' || CAST(f.fact_id AS TEXT) || ':' || length(CAST(f.semantic_revision AS TEXT)) || ':' || CAST(f.semantic_revision AS TEXT) AS identity, f.coverage_start_time_ms AS startTimeMs, f.observed_time_ms AS endTimeMs,
+		  NULL AS rowId, f.archive_id AS writerId, NULL AS writerVersion,
+		  f.fact_id AS factId, f.semantic_revision AS factRevision, NULL AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM imported_ambient_cell_fact f WHERE f.semantic_revision =
+		  (SELECT MAX(n.semantic_revision) FROM imported_ambient_cell_fact n WHERE n.fact_id = f.fact_id)
+		AND NOT EXISTS (SELECT 1 FROM imported_ambient_cell_child c WHERE c.archive_id = f.archive_id
+		  AND c.fact_id = f.fact_id AND c.semantic_revision = f.semantic_revision)
+		),
+		b7_eligible AS (
+		SELECT * FROM b7_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b7_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b7_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b7_chosen AS (
+		SELECT e.* FROM b7_eligible e JOIN b7_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_cell' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b8_raw AS (
+		SELECT 'ambient_cell_gap' AS kind, 'LOCAL' AS origin, 'BACKGROUND' AS purpose,
+		  length(CAST(g.gap_id AS TEXT)) || ':' || CAST(g.gap_id AS TEXT) AS identity, g.gap_start_time_ms AS startTimeMs, g.gap_end_time_ms AS endTimeMs,
+		  NULL AS rowId, NULL AS writerId, NULL AS writerVersion,
+		  g.gap_id AS factId, NULL AS factRevision, NULL AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM ambient_cell_gap g
+		),
+		b8_eligible AS (
+		SELECT * FROM b8_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b8_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b8_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b8_chosen AS (
+		SELECT e.* FROM b8_eligible e JOIN b8_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_cell' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b9_raw AS (
+		SELECT 'imported_ambient_cell_gap' AS kind, 'IMPORTED' AS origin, 'BACKGROUND' AS purpose,
+		  length(CAST(g.archive_id AS TEXT)) || ':' || CAST(g.archive_id AS TEXT) || ':' || length(CAST(g.gap_id AS TEXT)) || ':' || CAST(g.gap_id AS TEXT) AS identity, g.start_time_ms AS startTimeMs, g.end_time_ms AS endTimeMs,
+		  NULL AS rowId, g.archive_id AS writerId, NULL AS writerVersion,
+		  g.gap_id AS factId, NULL AS factRevision, NULL AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM imported_ambient_cell_gap g
+		),
+		b9_eligible AS (
+		SELECT * FROM b9_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b9_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b9_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b9_chosen AS (
+		SELECT e.* FROM b9_eligible e JOIN b9_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_cell' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		b10_raw AS (
+		SELECT 'legacy_cell' AS kind, 'LEGACY' AS origin, 'UNKNOWN' AS purpose,
+		  length(CAST(l.legacy_row_id AS TEXT)) || ':' || CAST(l.legacy_row_id AS TEXT) AS identity, l.time_ms AS startTimeMs, NULL AS endTimeMs,
+		  l.legacy_row_id AS rowId, NULL AS writerId, NULL AS writerVersion,
+		  NULL AS factId, NULL AS factRevision, NULL AS itemIndex,
+		  NULL AS physicalEventId, NULL AS physicalIdentity
+		FROM legacy_cell_child l
+		),
+		b10_eligible AS (
+		SELECT * FROM b10_raw
+		WHERE startTimeMs >= 0 AND startTimeMs < :toMs
+		  AND (startTimeMs >= :fromMs OR endTimeMs > :fromMs OR
+		    (endTimeMs = :fromMs AND kind LIKE '%_summary'))
+		  AND origin IN (:origins) AND purpose IN (:purposes)
+		  AND (:afterTime IS NULL OR startTimeMs < :afterTime OR
+		    (startTimeMs = :afterTime AND (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END > :afterTag OR
+		      (lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END = :afterTag AND coalesce(physicalIdentity, identity) > :afterIdentity))))
+		),
+		b10_heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(identity) AS winner
+		FROM b10_eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END, coalesce(physicalIdentity, identity)
+		ORDER BY startTimeMs DESC, headTag ASC, headIdentity ASC LIMIT :limit
+		),
+		b10_chosen AS (
+		SELECT e.* FROM b10_eligible e JOIN b10_heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_cell' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND e.identity = h.winner
+		),
+		eligible AS (
+		SELECT * FROM b0_chosen
+		UNION ALL
+		SELECT * FROM b1_chosen
+		UNION ALL
+		SELECT * FROM b2_chosen
+		UNION ALL
+		SELECT * FROM b3_chosen
+		UNION ALL
+		SELECT * FROM b4_chosen
+		UNION ALL
+		SELECT * FROM b5_chosen
+		UNION ALL
+		SELECT * FROM b6_chosen
+		UNION ALL
+		SELECT * FROM b7_chosen
+		UNION ALL
+		SELECT * FROM b8_chosen
+		UNION ALL
+		SELECT * FROM b9_chosen
+		UNION ALL
+		SELECT * FROM b10_chosen
+		),
+		heads AS (
+		SELECT startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END AS headTag, coalesce(physicalIdentity, identity) AS headIdentity, min(CASE purpose WHEN 'CAPTURE' THEN '0' ELSE '1' END || ':' || kind || ':' || identity) AS winner
+		FROM eligible GROUP BY startTimeMs, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END, coalesce(physicalIdentity, identity)
+		),
+		chosen AS (
+		SELECT e.* FROM eligible e JOIN heads h ON e.startTimeMs = h.startTimeMs
+		  AND lower(e.origin) || ':' || CASE WHEN e.physicalIdentity IS NULL THEN e.kind ELSE 'native_cell' END = h.headTag AND coalesce(e.physicalIdentity, e.identity) = h.headIdentity
+		  AND CASE e.purpose WHEN 'CAPTURE' THEN '0' ELSE '1' END || ':' || e.kind || ':' || e.identity = h.winner
+		)
+		SELECT kind, origin, purpose, identity, startTimeMs, endTimeMs, rowId, writerId, writerVersion,
+		  factId, factRevision, itemIndex, physicalEventId, physicalIdentity FROM chosen
+		ORDER BY startTimeMs DESC, lower(origin) || ':' || CASE WHEN physicalIdentity IS NULL THEN kind ELSE 'native_cell' END ASC, coalesce(physicalIdentity, identity) ASC LIMIT :limit
+	""")
+	suspend fun cellMeasuredHistoryCandidates(fromMs: Long, toMs: Long, origins: List<String>,
+		purposes: List<String>, afterTime: Long?, afterTag: String?, afterIdentity: String?,
+		limit: Int): List<MeasuredHistoryCandidate>
+
+	@Query("""
+		WITH candidates AS (
+		SELECT 'captured_cell' AS kind, 'LOCAL' AS origin, 'CAPTURE' AS purpose,
+		  length(CAST(c.writer_projection_id AS TEXT)) || ':' || CAST(c.writer_projection_id AS TEXT) || ':' || length(CAST(c.writer_projection_version AS TEXT)) || ':' || CAST(c.writer_projection_version AS TEXT) || ':' || length(CAST(c.logical_fact_id AS TEXT)) || ':' || CAST(c.logical_fact_id AS TEXT) || ':' || length(CAST(c.semantic_revision AS TEXT)) || ':' || CAST(c.semantic_revision AS TEXT) || ':' || length(CAST(c.item_index AS TEXT)) || ':' || CAST(c.item_index AS TEXT) AS identity, c.observed_wall_time_ms AS startTimeMs, NULL AS endTimeMs,
+		  NULL AS rowId, c.writer_projection_id AS writerId, c.writer_projection_version AS writerVersion,
+		  c.logical_fact_id AS factId, c.semantic_revision AS factRevision, c.item_index AS itemIndex,
+		  f.source_event_id AS physicalEventId, 'physical:' || CASE WHEN f.source_event_id IS NULL THEN 'N' ELSE 'V' || hex(CAST(f.source_event_id AS BLOB)) END || ':' || CASE WHEN c.item_index IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.item_index AS BLOB)) END || ':' || CASE WHEN c.provider_timestamp_nanos IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.provider_timestamp_nanos AS BLOB)) END || ':' || CASE WHEN c.observed_wall_time_ms IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.observed_wall_time_ms AS BLOB)) END || ':' || CASE WHEN c.wall_time_uncertainty_ms IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.wall_time_uncertainty_ms AS BLOB)) END || ':' || CASE WHEN c.tower_identity IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.tower_identity AS BLOB)) END || ':' || CASE WHEN c.radio_type IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.radio_type AS BLOB)) END || ':' || CASE WHEN c.registered IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.registered AS BLOB)) END || ':' || CASE WHEN c.signal_dbm IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.signal_dbm AS BLOB)) END AS physicalIdentity
+		FROM cell_captured_child c JOIN cell_captured_fact_cursor k ON
+		  k.writer_projection_id = c.writer_projection_id AND k.writer_projection_version = c.writer_projection_version AND k.logical_fact_id = c.logical_fact_id
+		  AND k.latest_semantic_revision = c.semantic_revision
+		JOIN cell_captured_fact_revision f ON f.writer_projection_id = c.writer_projection_id AND f.writer_projection_version = c.writer_projection_version
+		  AND f.logical_fact_id = c.logical_fact_id AND f.semantic_revision = c.semantic_revision
+		WHERE c.observed_wall_time_ms IN (:observedTimes)
+		UNION ALL
+		SELECT 'ambient_cell' AS kind, 'LOCAL' AS origin, 'BACKGROUND' AS purpose,
+		  length(CAST(c.writer_id AS TEXT)) || ':' || CAST(c.writer_id AS TEXT) || ':' || length(CAST(c.writer_version AS TEXT)) || ':' || CAST(c.writer_version AS TEXT) || ':' || length(CAST(c.logical_fact_id AS TEXT)) || ':' || CAST(c.logical_fact_id AS TEXT) || ':' || length(CAST(c.semantic_revision AS TEXT)) || ':' || CAST(c.semantic_revision AS TEXT) || ':' || length(CAST(c.item_index AS TEXT)) || ':' || CAST(c.item_index AS TEXT) AS identity, c.observed_wall_time_ms AS startTimeMs, NULL AS endTimeMs,
+		  NULL AS rowId, c.writer_id AS writerId, c.writer_version AS writerVersion,
+		  c.logical_fact_id AS factId, c.semantic_revision AS factRevision, c.item_index AS itemIndex,
+		  f.source_event_id AS physicalEventId, 'physical:' || CASE WHEN f.source_event_id IS NULL THEN 'N' ELSE 'V' || hex(CAST(f.source_event_id AS BLOB)) END || ':' || CASE WHEN c.item_index IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.item_index AS BLOB)) END || ':' || CASE WHEN c.provider_timestamp_nanos IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.provider_timestamp_nanos AS BLOB)) END || ':' || CASE WHEN c.observed_wall_time_ms IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.observed_wall_time_ms AS BLOB)) END || ':' || CASE WHEN c.wall_time_uncertainty_ms IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.wall_time_uncertainty_ms AS BLOB)) END || ':' || CASE WHEN c.tower_identity IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.tower_identity AS BLOB)) END || ':' || CASE WHEN c.radio_type IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.radio_type AS BLOB)) END || ':' || CASE WHEN c.registered IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.registered AS BLOB)) END || ':' || CASE WHEN c.signal_dbm IS NULL THEN 'N' ELSE 'V' || hex(CAST(c.signal_dbm AS BLOB)) END AS physicalIdentity
+		FROM ambient_cell_child c JOIN ambient_cell_fact_cursor k ON
+		  k.writer_id = c.writer_id AND k.writer_version = c.writer_version AND k.logical_fact_id = c.logical_fact_id
+		  AND k.latest_semantic_revision = c.semantic_revision
+		JOIN ambient_cell_fact_revision f ON f.writer_id = c.writer_id AND f.writer_version = c.writer_version
+		  AND f.logical_fact_id = c.logical_fact_id AND f.semantic_revision = c.semantic_revision
+		WHERE c.observed_wall_time_ms IN (:observedTimes)
+		)
+		SELECT * FROM candidates
+		WHERE physicalIdentity IN (:identities) AND purpose IN (:purposes)
+		  AND (:afterKind IS NULL OR kind > :afterKind OR (kind = :afterKind AND identity > :afterIdentity))
+		ORDER BY kind, identity LIMIT :limit
+	""")
+	suspend fun cellNativeMeasuredPurposeCandidates(identities: List<String>, purposes: List<String>, observedTimes: List<Long>,
+		afterKind: String?, afterIdentity: String?, limit: Int): List<MeasuredHistoryCandidate>
+
+	@Query("SELECT * FROM legacy_wifi_child WHERE legacy_row_id IN (:ids) ORDER BY legacy_row_id")
+	suspend fun legacyWifiByIds(ids: List<Long>): List<LegacyWifiChildEntity>
+
+	@Query("SELECT * FROM legacy_cell_child WHERE legacy_row_id IN (:ids) ORDER BY legacy_row_id")
+	suspend fun legacyCellByIds(ids: List<Long>): List<LegacyCellChildEntity>
 }

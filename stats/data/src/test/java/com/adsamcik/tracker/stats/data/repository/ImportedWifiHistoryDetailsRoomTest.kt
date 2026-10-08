@@ -11,6 +11,9 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunEntity
 import com.adsamcik.tracker.shared.base.database.data.PortableRadioChildIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
 import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiRequest
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductCandidate
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
@@ -67,6 +70,101 @@ class ImportedWifiHistoryDetailsRoomTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `measured imported Wi-Fi keeps exact time and nonconsecutive original child indexes`() = runTest {
+		val value = seedParent()
+		val rows = children(value).mapIndexed { ordinal, original ->
+			original.copy(itemIndex = ordinal * 3 + 1).let { it.copy(contentChecksum = checksum(it)) }
+		}
+		database.importedRadioChildDao().insertWifiSession(rows)
+		val qualified = evaluation(value)
+		val range = measuredCaptureRange(111L, 113L, HistorySource.WIFI, setOf(HistoryOrigin.IMPORTED))
+		val result = database.withTransaction {
+			val raw = database.radioObservationChildDao().wifiMeasuredHistoryCandidates(range.fromInclusiveMs,
+				range.toExclusiveMs, listOf("IMPORTED"), listOf("CAPTURE"), null, null, null, 100)
+			raw.single().itemIndex shouldBe 4
+			measuredCapturedRadioFixture(database, importedWifi = qualified).qualify(HistorySource.WIFI, raw, range)
+		}
+		result.problems shouldBe emptySet()
+		val row = result.rows.values.single()
+		row.position.startTimeMs shouldBe 112L
+		row.toExclusiveMs shouldBe null
+		(row.measurement as HistoryMeasurement.Wifi).network.ssid shouldBe "Network 1"
+	}
+
+	@Test
+	fun `measured imported Wi-Fi failure leaves another valid parent and keeps summary-only older data`() = runTest {
+		val value = seedParent(listOf(run("bad", 10L), run("good", 30L)))
+		val bad = value.runs.first()
+		val good = value.runs.last()
+		database.importedRadioChildDao().insertWifiSession(children(value, bad).take(1))
+		val range = measuredCaptureRange(90L, 120L, HistorySource.WIFI, setOf(HistoryOrigin.IMPORTED))
+		val result = database.withTransaction {
+			val raw = database.radioObservationChildDao().wifiMeasuredHistoryCandidates(range.fromInclusiveMs,
+				range.toExclusiveMs, listOf("IMPORTED"), listOf("CAPTURE"), null, null, null, 100)
+			measuredCapturedRadioFixture(database, importedWifi = evaluation(value)).qualify(HistorySource.WIFI, raw, range)
+		}
+		result.problems.isNotEmpty() shouldBe true
+		val summary = result.rows.values.single().measurement as HistoryMeasurement.WifiSummary
+		summary.observation.observationCount shouldBe good.observations.single().observationCount
+		summary.observation.networks shouldBe emptyList()
+	}
+
+	@Test
+	fun `measured imported Wi-Fi selected parent does not inherit whole-entry detail ceiling`() = runTest {
+		val value = seedParent(listOf(run("many", 10L, 2_049)))
+		val run = value.runs.single()
+		database.importedRadioChildDao().insertWifiSession(run.observations.flatMap { children(value, run, it) })
+		val range = measuredCaptureRange(90L, 120L, HistorySource.WIFI, setOf(HistoryOrigin.IMPORTED))
+		val result = database.withTransaction {
+			val raw = database.radioObservationChildDao().wifiMeasuredHistoryCandidates(range.fromInclusiveMs,
+				range.toExclusiveMs, listOf("IMPORTED"), listOf("CAPTURE"), null, null, null, 100)
+			raw shouldHaveSize 100
+			measuredCapturedRadioFixture(database, importedWifi = evaluation(value)).qualify(HistorySource.WIFI, raw, range)
+		}
+		result.rows.size shouldBe 100
+		result.problems shouldBe emptySet()
+	}
+
+	@Test
+	fun `measured older imported Wi-Fi summary includes its last observation at selected start`() = runTest {
+		val value = seedParent()
+		val range = measuredCaptureRange(110L, 111L, HistorySource.WIFI, setOf(HistoryOrigin.IMPORTED))
+		val result = database.withTransaction {
+			val raw = database.radioObservationChildDao().wifiMeasuredHistoryCandidates(range.fromInclusiveMs,
+				range.toExclusiveMs, listOf("IMPORTED"), listOf("CAPTURE"), null, null, null, 100)
+			measuredCapturedRadioFixture(database, importedWifi = evaluation(value)).qualify(HistorySource.WIFI, raw, range)
+		}
+		val row = result.rows.values.single()
+		row.position.startTimeMs shouldBe 100L
+		row.toExclusiveMs shouldBe 110L
+		(row.measurement as HistoryMeasurement.WifiSummary).observation.observedTime.raw shouldBe 110L
+		result.problems shouldBe emptySet()
+	}
+
+	@Test
+	fun `measured imported Wi-Fi propagates cancellation from the reached selection`() = runTest {
+		val value = seedParent()
+		database.importedRadioChildDao().insertWifiSession(children(value))
+		val range = measuredCaptureRange(90L, 120L, HistorySource.WIFI, setOf(HistoryOrigin.IMPORTED))
+		var selectionReached = false
+		var returned = false
+		val reader = measuredCapturedRadioFixture(database, importedWifi = evaluation(value), onWifiSelection = {
+			selectionReached = true
+			throw CancellationException("imported selection cancelled")
+		})
+		shouldThrow<CancellationException> {
+			database.withTransaction {
+				val raw = database.radioObservationChildDao().wifiMeasuredHistoryCandidates(range.fromInclusiveMs,
+					range.toExclusiveMs, listOf("IMPORTED"), listOf("CAPTURE"), null, null, null, 100)
+				reader.qualify(HistorySource.WIFI, raw, range)
+				returned = true
+			}
+		}
+		selectionReached shouldBe true
+		returned shouldBe false
+	}
 
 	@Test
 	fun `complete stored Wi-Fi details preserve names and exact measured boundary points`() = runTest {

@@ -67,6 +67,87 @@ import java.time.ZoneId
 /** Pure fail-closed composition of one bounded, transactionally loaded Wi-Fi snapshot. */
 @Suppress("LargeClass", "TooManyFunctions")
 internal object WifiHistoryComposer {
+	/** A measured page proves this selected parent, not an invented complete logical session. */
+	@Suppress("LongMethod", "ComplexCondition")
+	internal fun qualifyMeasuredFact(factId: String, revision: Long, snapshot: WifiHistorySnapshot,
+		laneExecutionAuthority: SourceProductLaneExecutionAuthority): QualifiedMeasuredWifiFact? {
+		if (snapshot.overflow) throw MeasuredRadioParentFailure(com.adsamcik.tracker.stats.api.repository.HistoryProblemReason.DEPENDENCY_OVERFLOW)
+		val evidence = requireNotNull(snapshot.evidenceState)
+		val lineage = snapshot.revisions.filter { it.logicalFactId == factId }.sortedBy { it.semanticRevision }
+		val fact = requireNotNull(validateLineage(lineage, snapshot))
+		check(fact.semanticRevision == revision)
+		val aggregate = requireNotNull(resolveAggregate(fact, snapshot))
+		val logicalId = fact.logicalTrackingId
+		val run = requireNotNull(snapshot.runs[fact.serviceRunId])
+		val segment = snapshot.expansion.segments.singleOrNull { it.id == fact.sessionSegmentId }
+		check(segment != null && run.ownsExactSegment(logicalId, listOf(segment)) &&
+			hasConsistentCompletion(run.state, run.completedAtMs))
+		val manifests = snapshot.manifestsByRun[run.serviceRunId].orEmpty().sortedBy { it.manifestRevision }
+		val byRun = mapOf(run.serviceRunId to manifests)
+		check(hasValidManifestHistory(logicalId, listOf(run), byRun, snapshot, allowSubset = true))
+		val needed = setOf(fact.manifestRevision, aggregate.manifestRevision)
+		val bindings = needed.associateWith { manifestRevision ->
+			requireNotNull(snapshot.sourcesByManifest[WifiManifestKey(logicalId, manifestRevision)]
+				.orEmpty().singleOrNull(::isWifiCaptureMembership))
+		}
+		check(hasValidCaptureAuthority(manifests, bindings, snapshot))
+		val manifest = requireNotNull(manifests.singleOrNull { it.manifestRevision == fact.manifestRevision })
+		val lane = requireNotNull(snapshot.lanes.singleOrNull(::isWifiLane))
+		val mode = when (manifest.sessionMode) { "MANUAL" -> MANUAL_CAPTURE_MASK; "AUTOMATIC" -> AUTOMATIC_CAPTURE_MASK; else -> 0L }
+		check(laneExecutionAuthority.owns(lane) && isValidLane(lane) && mode != 0L &&
+			lane.captureModeMask and mode == mode && lane.activatedRolloutRevision <= manifest.rolloutRevision &&
+			lane.activationOrdinal <= fact.sourceAdmissionOrdinal &&
+			(lane.captureAdmissionCutoffOrdinal == null || fact.sourceAdmissionOrdinal <= lane.captureAdmissionCutoffOrdinal))
+		val session = requireNotNull(snapshot.sessions[logicalId])
+		check(hasConsistentCompletion(session.state, session.completedAtMs) &&
+			session.lifecycleLeaseGeneration >= fact.lifecycleLeaseGeneration)
+		// A current operation must still agree exactly. Older completed runs keep their original proof.
+		if (run.completedAtMs == null || session.currentServiceRunId == run.serviceRunId) {
+			check(hasValidSessionSettlement(session, listOf(run), byRun, fact.sourceAdmissionOrdinal))
+		}
+		check(snapshot.revisions.all { it.logicalTrackingId == logicalId && it.serviceRunId == run.serviceRunId })
+		check(snapshot.terminalFailures.none { it.admissionOrdinal == fact.sourceAdmissionOrdinal || it.admissionOrdinal == aggregate.sourceAdmissionOrdinal })
+		val generation = snapshot.deletionGenerations[logicalId to run.serviceRunId]
+		check(generation == null || generation.collectedDataEpoch == evidence.collectedDataEpoch)
+		if (!fact.hasCurrentPrivacyAuthority(logicalId, evidence, snapshot) ||
+			!aggregate.hasCurrentPrivacyAuthority(logicalId, evidence, snapshot)) return null
+		val wal = requireNotNull(snapshot.admissions.singleOrNull { it.eventId == fact.sourceEventId })
+		val ownerWal = requireNotNull(snapshot.admissions.singleOrNull { it.eventId == aggregate.sourceEventId })
+		check(wal.admissionOrdinal == fact.sourceAdmissionOrdinal && wal.deliveryIdentity == fact.sourceDeliveryIdentity &&
+			ownerWal.admissionOrdinal == aggregate.sourceAdmissionOrdinal && ownerWal.deliveryIdentity == aggregate.sourceDeliveryIdentity)
+		val authenticated = requireNotNull(WifiWalCarrierAuthenticator.authenticate(fact, wal,
+			snapshot.childrenByRevision[fact.logicalFactId to fact.semanticRevision].orEmpty()) as? WifiWalCarrierAuthentication.Authenticated)
+		val ownerAuthenticated = requireNotNull(WifiWalCarrierAuthenticator.authenticate(aggregate, ownerWal,
+			snapshot.childrenByRevision[aggregate.logicalFactId to aggregate.semanticRevision].orEmpty()) as? WifiWalCarrierAuthentication.Authenticated)
+		fun validCarrier(value: WifiCapturedFactRevisionEntity, carrier: SourceEventWalEntity): Boolean {
+			if (carrier.payloadVersion != WIFI_WAL_PAYLOAD_VERSION)
+				return carrier.isValidHistoryCarrier(logicalId, snapshot, byRun, evidence)
+			val member = snapshot.authorizationsByRegistration[carrier.registrationGeneration].orEmpty().singleOrNull {
+				it.purpose == SourceBrokerPurpose.SESSION_CAPTURE && it.persistenceEligible &&
+				it.authorizationRevision == value.authorizationRevision && it.logicalTrackingId == logicalId &&
+				it.serviceRunId == value.serviceRunId && it.manifestRevision == value.manifestRevision &&
+				it.lifecycleLeaseGeneration == value.lifecycleLeaseGeneration && it.sourcePolicyRevision == value.sourcePolicyRevision &&
+				it.consentEpoch == value.captureConsentEpoch
+			} ?: return false
+			return carrier.isValidHistoryCarrier(logicalId, snapshot, byRun, evidence, member)
+		}
+		if (evidence.retainedFromMs?.let { earliestPossibleWallTimeMs(fact) < it || earliestPossibleWallTimeMs(aggregate) < it } == true) return null
+		check(validCarrier(fact, wal) && validCarrier(aggregate, ownerWal))
+		check(WifiWalCarrierAuthenticator.authenticatesAggregate(aggregate, ownerAuthenticated.carrier) &&
+			WifiWalCarrierAuthenticator.authenticatesAggregate(aggregate, authenticated.carrier, fact) &&
+			factHasExactAuthority(fact, aggregate, snapshot, byRun, bindings, evidence) &&
+			factHasExactAuthority(aggregate, aggregate, snapshot, byRun, bindings, evidence))
+		val observation = toObservation(fact, aggregate, snapshot)
+		val children = snapshot.childrenByRevision[fact.logicalFactId to fact.semanticRevision].orEmpty()
+		val completeness = snapshot.completenessByRun[run.serviceRunId].orEmpty().filter { it.sourceKind == WIFI_SOURCE }
+		val partial = fact.coverageCompleteness == WifiCapturedFactRevisionEntity.COVERAGE_PARTIAL ||
+			snapshot.savedSessionCutoffs[logicalId]?.clockUnknown == true || run.completedAtMs == null ||
+			lane.contiguousAdmissionOrdinal < fact.sourceAdmissionOrdinal || completeness.isEmpty() ||
+			!hasValidCompleteness(completeness, logicalId, listOf(run.serviceRunId)) ||
+			completeness.any { it.providerCoverage != COMPLETE_PROVIDER_COVERAGE || it.stopStatus != COMPLETE_STOP_STATUS || it.unresolvedSequenceStart != null }
+		return QualifiedMeasuredWifiFact(fact, observation, children, partial)
+	}
+
 	fun composeSelected(
 		seed: SessionSegment,
 		snapshot: WifiHistorySnapshot,
@@ -423,9 +504,12 @@ internal object WifiHistoryComposer {
 		runs: List<SourceServiceRunEntity>,
 		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 		snapshot: WifiHistorySnapshot,
-	): Boolean = SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
+		allowSubset: Boolean = false,
+	): Boolean = (if (allowSubset) SessionManifestIntegrity.hasValidLogicalManifestRevisionSliceUnion(
 		manifestsByRun.values.map { it.map(SessionManifestVersionEntity::manifestRevision) },
-	) && runs.all { run ->
+	) else SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
+		manifestsByRun.values.map { it.map(SessionManifestVersionEntity::manifestRevision) },
+	)) && runs.all { run ->
 		val manifests = manifestsByRun[run.serviceRunId].orEmpty()
 		SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) && manifests.all { manifest ->
 			manifest.logicalTrackingId == logicalId && manifest.serviceRunId == run.serviceRunId &&
@@ -1468,3 +1552,6 @@ internal val wifiCompositionOrder =
 		.thenByDescending { it.recencySegmentId }
 
 internal const val WIFI_SOURCE = SourceDestinationOwnerEntity.SOURCE_WIFI
+
+internal data class QualifiedMeasuredWifiFact(val fact: WifiCapturedFactRevisionEntity,
+	val observation: WifiHistoryObservation, val children: List<WifiCapturedChildEntity>, val partial: Boolean)

@@ -33,4 +33,8 @@ interface PressureSampleDao : BaseDao<PressureSample> {
     /** Delete samples older than given timestamp. */
     @Query("DELETE FROM pressure_sample WHERE time_ms < :beforeMs")
     suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    /** Exact saved leaves selected by the bounded measured-history key page. */
+    @Query("SELECT * FROM pressure_sample WHERE id IN (:ids) ORDER BY id")
+    suspend fun historyRows(ids: List<Long>): List<PressureSample>
 }

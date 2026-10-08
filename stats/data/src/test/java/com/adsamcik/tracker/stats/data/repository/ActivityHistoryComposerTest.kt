@@ -49,6 +49,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
@@ -80,6 +81,12 @@ import com.adsamcik.tracker.stats.api.repository.ActivitySelectionDeletionResult
 import com.adsamcik.tracker.stats.api.repository.ActivitySessionDeletion
 import com.adsamcik.tracker.stats.api.repository.ActivitySessionDeletionResult
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistoryBrowseMode
+import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
+import com.adsamcik.tracker.stats.api.repository.HistoryPosition
+import com.adsamcik.tracker.stats.api.repository.HistoryProblem
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
@@ -2239,6 +2246,164 @@ class ActivityHistoryComposerTest {
 		entry.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 		entry.fragments shouldBe emptyList()
 	}
+
+    @Test fun `measured Activity reads exact valid window despite an unrelated large revision cohort`() = runTest {
+        val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+        persistFixture(original)
+        val revision = original.revisions.single()
+        database.withTransaction {
+            (1..600).forEach { index ->
+                database.activityCapturedFactDao().insertRevisionRow(revision.copy(
+                    logicalWindowId = "unrelated-$index", mutationId = "unrelated-mutation-$index"))
+            }
+        }
+        val repository = activityRepository(testScheduler)
+        val selected = database.withTransaction { repository.selectMeasuredWindowsInTransaction(listOf(revisionKey(revision))) }
+        selected.causes shouldBe emptySet()
+        selected.windows.keys shouldBe setOf(revisionKey(revision))
+        val band = selected.windows.values.single().fragments.values.single() as ActivityHistoryFragment.Band
+        band.startTime.raw shouldBe requireNotNull(original.fragmentsByRevision[revisionKey(revision)]).single().startWallTimeMs
+        band.endTime.raw shouldBe requireNotNull(original.fragmentsByRevision[revisionKey(revision)]).single().endWallTimeMs
+        selected.windows.values.single().fragments.size shouldBe 1
+    }
+
+    @Test fun `measured Activity rejects one broken cursor while preserving a valid sibling band`() = runTest {
+        val original = fixture(listOf(RunSpec(1L, "run-a", "UTC"), RunSpec(2L, "run-b", "UTC")))
+        persistFixture(original)
+        val broken = original.revisions.last()
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE activity_captured_window_cursor SET latest_effect_checksum = ? WHERE logical_window_id = ?",
+            arrayOf("f".repeat(64), broken.logicalWindowId))
+        val reader = MeasuredNativeActivityHistoryReader(database, activityRepository(testScheduler))
+        val range = HistoryRange(0L, 100_000L, "UTC", sources = setOf(HistorySource.ACTIVITY), mode = HistoryBrowseMode.OBSERVATIONS)
+        val read = database.withTransaction { reader.qualify(reader.candidates(range, null), range) }
+        read.rows.size shouldBe 1
+        read.rows.values.single().measurement.let { it as HistoryMeasurement.Activity }.band.startTime.raw shouldBe
+            original.fragmentsByRevision.getValue(revisionKey(original.revisions.first())).single().startWallTimeMs
+        read.problems shouldBe setOf(HistoryProblem(HistorySource.ACTIVITY, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+    }
+
+    @Test fun `measured Activity preserves an authenticated gap correction without assigning it a wall timestamp`() = runTest {
+        val corrected = gapOnlyCorrection(fixture(listOf(RunSpec(1L, "run-a", "UTC"))))
+        persistFixture(corrected)
+        val current = corrected.revisions.maxBy(ActivityCapturedWindowRevisionEntity::semanticRevision)
+        val read = database.withTransaction { activityRepository(testScheduler).selectMeasuredWindowsInTransaction(listOf(revisionKey(current))) }
+        read.causes shouldBe emptySet()
+        val fragments = read.windows.getValue(revisionKey(current)).fragments.values
+        fragments.size shouldBe 1
+        (fragments.single() is ActivityHistoryFragment.Gap) shouldBe true
+        val reader = MeasuredNativeActivityHistoryReader(database, activityRepository(testScheduler))
+        reader.candidates(HistoryRange(0L, 100_000L, "UTC", mode = HistoryBrowseMode.OBSERVATIONS), null) shouldBe emptyList()
+    }
+
+    @Test fun `native Activity raw keys page dense rejected leaves and do not upgrade orphan evidence`() = runTest {
+        val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+        persistFixture(original)
+        val fragment = original.fragmentsByRevision.values.single().single()
+        val originalRevision = original.revisions.single()
+        database.withTransaction { (1..4_201).forEach { index ->
+            // The real FK requires a parent; its unchanged receipt intentionally fails qualification.
+            database.activityCapturedFactDao().insertRevisionRow(originalRevision.copy(
+                logicalWindowId = "orphan-$index", mutationId = "orphan-mutation-$index"))
+            database.activityCapturedFactDao().insertFragments(listOf(fragment.copy(logicalWindowId = "orphan-$index",
+                startWallTimeMs = 10_000L + index / 3, endWallTimeMs = 11_000L + index / 3)))
+        } }
+        val reader = MeasuredNativeActivityHistoryReader(database, activityRepository(testScheduler))
+        val range = HistoryRange(10_000L, 20_000L, "UTC", sources = setOf(HistorySource.ACTIVITY), mode = HistoryBrowseMode.OBSERVATIONS)
+        val found = linkedSetOf<String>()
+        var after: HistoryPosition? = null
+        var pageCount = 0
+        do {
+            val page = database.withTransaction { reader.candidates(range, after) }
+            (page.size <= 101) shouldBe true
+            val keys = page.take(100)
+            keys.forEach { found.add(it.identity) shouldBe true }
+            after = keys.lastOrNull()?.let(::measuredHistoryPosition)
+            pageCount++
+            (pageCount <= 43) shouldBe true
+        } while (page.size > 100)
+        found.size shouldBe 4_201
+        val first = reader.candidates(range, null).take(1)
+        val denied = database.withTransaction { reader.qualify(first, range) }
+        denied.rows shouldBe emptyMap()
+        denied.problems shouldBe setOf(HistoryProblem(HistorySource.ACTIVITY, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+    }
+
+    @Test fun `measured Activity keeps later valid parent when an older physical run was erased`() = runTest {
+        val original = fixture(listOf(RunSpec(1L, "run-a", "UTC"), RunSpec(2L, "run-b", "UTC")))
+        persistFixture(original)
+        database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+            ACTIVITY_SOURCE, SessionManifestPurposeCode.SESSION_CAPTURE, LOGICAL_ID, "run-a", 1L, 0L, 100_000L))
+        val later = original.revisions.last()
+        val read = database.withTransaction { activityRepository(testScheduler)
+            .selectMeasuredWindowsInTransaction(listOf(revisionKey(later))) }
+        read.causes shouldBe emptySet()
+        read.windows.keys shouldBe setOf(revisionKey(later))
+        val band = read.windows.getValue(revisionKey(later)).fragments.values.single() as ActivityHistoryFragment.Band
+        band.startTime.raw shouldBe original.fragmentsByRevision.getValue(revisionKey(later)).single().startWallTimeMs
+        val erased = database.withTransaction { activityRepository(testScheduler)
+            .selectMeasuredWindowsInTransaction(listOf(revisionKey(original.revisions.first()))) }
+        erased.windows shouldBe emptyMap()
+        erased.causes shouldBe setOf(ActivityHistoryCause.RETENTION_LIMIT)
+    }
+
+    @Test fun `measured Activity keeps completed older parent while a different current run is active`() = runTest {
+        val original = fixture(listOf(RunSpec(1L, "run-a", "UTC"), RunSpec(2L, "run-b", "UTC")))
+        val live = measuredActiveSiblingFixture(original)
+        persistFixture(live)
+        val older = original.revisions.first()
+        val read = database.withTransaction { activityRepository(testScheduler)
+            .selectMeasuredWindowsInTransaction(listOf(revisionKey(older))) }
+        read.causes shouldBe emptySet()
+        read.windows.keys shouldBe setOf(revisionKey(older))
+        val current = original.revisions.last()
+        val currentRead = database.withTransaction { activityRepository(testScheduler)
+            .selectMeasuredWindowsInTransaction(listOf(revisionKey(current))) }
+        currentRead.causes shouldBe emptySet()
+        currentRead.windows.keys shouldBe setOf(revisionKey(current))
+    }
+
+    @Test fun `measured current Activity parent still rejects a stale live operation pointer`() = runTest {
+        val original = fixture(listOf(RunSpec(1L, "run-a", "UTC"), RunSpec(2L, "run-b", "UTC")))
+        val live = measuredActiveSiblingFixture(original)
+        val session = live.sessions.getValue(LOGICAL_ID)
+        persistFixture(live.copy(sessions = mapOf(LOGICAL_ID to session.copy(lifecycleLeaseGeneration =
+            session.lifecycleLeaseGeneration + 1L))))
+        val read = database.withTransaction { activityRepository(testScheduler)
+            .selectMeasuredWindowsInTransaction(listOf(revisionKey(original.revisions.last()))) }
+        read.windows shouldBe emptyMap()
+        read.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+    }
+
+    @Test fun `measured Activity scopes terminal failures to the selected original evidence`() = runTest {
+        val original = fixture(listOf(RunSpec(1L, "run-a", "UTC"), RunSpec(2L, "run-b", "UTC")))
+        persistFixture(original)
+        val earlier = original.revisions.first()
+        val ordinal = original.evidenceByRevision.getValue(revisionKey(earlier)).first().sourceAdmissionOrdinal
+        database.sourceProjectionStateDao().saveFailure(SourceProjectionFailureEntity(
+            SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
+            SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION, ordinal, 1, "TERMINAL", true, 100_000L))
+        val later = original.revisions.last()
+        val read = database.withTransaction { activityRepository(testScheduler)
+            .selectMeasuredWindowsInTransaction(listOf(revisionKey(later))) }
+        read.causes shouldBe emptySet()
+        read.windows.keys shouldBe setOf(revisionKey(later))
+        val denied = database.withTransaction { activityRepository(testScheduler)
+            .selectMeasuredWindowsInTransaction(listOf(revisionKey(earlier))) }
+        denied.windows shouldBe emptyMap()
+        denied.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+    }
+
+    private fun measuredActiveSiblingFixture(original: ActivityHistorySnapshot): ActivityHistorySnapshot {
+        val current = original.runs.getValue("run-b").copy(state = "ACTIVE", completedAtMs = null,
+            completionReason = null, presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+            presentationAcknowledgedAtMs = null)
+        val session = original.sessions.getValue(LOGICAL_ID).copy(state = "ACTIVE", cutoffAtMs = null,
+            cutoffElapsedNanos = null, completedAtMs = null, finalAdmissionOrdinal = null,
+            currentServiceRunId = current.serviceRunId, currentManifestRevision = 2L,
+            lifecycleLeaseGeneration = current.leaseGeneration, lifecycleBootId = current.bootId)
+        return original.copy(sessions = mapOf(LOGICAL_ID to session), runs = original.runs + (current.serviceRunId to current))
+    }
 
 	private fun fixture(specs: List<RunSpec>, logicalId: String = LOGICAL_ID): ActivityHistorySnapshot {
 		val initialRuns = specs.map { buildRun(it, logicalId) }

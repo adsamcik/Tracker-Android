@@ -9,9 +9,10 @@ import kotlinx.coroutines.Dispatchers
 /** Unused capture sources are deliberately absent; Location, radio, keys and organization use real Room. */
 internal fun rangeReaderForRoomTest(database: AppDatabase, context: Application,
     wifi: DefaultWifiHistoryRepository = mockk(),
-    qualifiedLocation: RetainedLocationContextReader = RetainedLocationContextReader(database)): UnifiedHistoryRangeReader {
+    qualifiedLocation: RetainedLocationContextReader = RetainedLocationContextReader(database),
+    laneAuthority: SourceProductLaneExecutionAuthority = SourceProductLaneExecutionAuthority { false }): UnifiedHistoryRangeReader {
     val io = Dispatchers.Unconfined
-    val lane = SourceProductLaneExecutionAuthority { false }
+    val lane = laneAuthority
     val steps = StepsSegmentHistorySelector(database, lane)
     val logical = LogicalTrackingHistoryReader(database, steps)
     val pressure = PressureHistorySelector(database, lane)
@@ -22,5 +23,5 @@ internal fun rangeReaderForRoomTest(database: AppDatabase, context: Application,
         wifi, cell, activity, PressureHistoryPageReader(database, pressure, ImportedPressureHistoryEvaluator(database),
             PortablePressureRoomReader(database, pressure)),
         DefaultAmbientStepsHistoryRepository(database, database.importedAmbientStepsDao(), steps, mockk(), io),
-        RoomAmbientWifiRepository(database, io), RoomAmbientCellRepository(database, io), context, io)
+        RoomAmbientWifiRepository(database, io), RoomAmbientCellRepository(database, io), context, io, qualifiedLocation, steps, pressure)
 }

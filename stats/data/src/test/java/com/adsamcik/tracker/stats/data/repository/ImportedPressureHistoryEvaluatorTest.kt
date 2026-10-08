@@ -1,6 +1,12 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
+import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
+import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
+import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.HistoryProblem
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -68,6 +74,68 @@ class ImportedPressureHistoryEvaluatorTest {
 		database = newDatabase()
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
 	}
+
+    @Test fun `measured imported Pressure selects overlapping original window without clipping`() = runTest {
+        importer(database, testScheduler).importEntry(request())
+        val range = HistoryRange(1_050L, 1_100L, "America/New_York")
+        val read = database.withTransaction {
+            val reader = MeasuredImportedSensorHistoryReader(database)
+            reader.qualify(HistorySource.PRESSURE, reader.candidates(HistorySource.PRESSURE, range, null), range)
+        }
+        val row = read.rows.values.single()
+        row.position.startTimeMs shouldBe 1_000L
+        row.toExclusiveMs shouldBe 1_150L
+        val measurement = row.measurement as HistoryMeasurement.Pressure
+        measurement.window.sampleCount shouldBe 4
+        measurement.window.zoneId shouldBe "Europe/Prague"
+        measurement.window.latestHectopascals shouldBe 1_003f
+    }
+
+    @Test fun `measured imported Pressure isolates a damaged sibling parent`() = runTest {
+        importer(database, testScheduler).importEntry(request())
+        val other = entry(runLocalId = "other-run", windowLocalId = "other-window", entryLocalId = "other-entry")
+        importer(database, testScheduler).importEntry(request(other, receipt("other-job", "other-entry")))
+        val range = HistoryRange(0L, 3_000L, "UTC")
+        val read = database.withTransaction {
+            val reader = MeasuredImportedSensorHistoryReader(database)
+            val keys = reader.candidates(HistorySource.PRESSURE, range, null)
+            database.openHelper.writableDatabase.execSQL("UPDATE imported_pressure_window SET latest_hectopascals = 1002 WHERE entry_identity = ?",
+                arrayOf(other.identity.value))
+            reader.qualify(HistorySource.PRESSURE, keys, range)
+        }
+        read.rows.size shouldBe 1
+        (read.rows.values.single().measurement as HistoryMeasurement.Pressure).window.latestHectopascals shouldBe 1_003f
+        read.problems shouldBe setOf(HistoryProblem(HistorySource.PRESSURE, HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+    }
+
+    @Test fun `measured imported Pressure applies uncertainty at the retained floor`() = runTest {
+        importer(database, testScheduler).importEntry(request())
+        database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 990L, 3_000L)
+        val range = HistoryRange(990L, 3_000L, "UTC")
+        database.withTransaction {
+            val reader = MeasuredImportedSensorHistoryReader(database)
+            val keys = reader.candidates(HistorySource.PRESSURE, range, null)
+            keys.size shouldBe 1
+            reader.qualify(HistorySource.PRESSURE, keys, range).rows shouldBe emptyMap()
+        }
+    }
+
+    @Test fun `measured imported equal-time Pressure windows seek by original identity without timestamp dedup`() = runTest {
+        importer(database, testScheduler).importEntry(request())
+        val other = entry(runLocalId = "tie-run", windowLocalId = "tie-window", entryLocalId = "tie-entry")
+        importer(database, testScheduler).importEntry(request(other, receipt("tie-job", "tie-entry")))
+        val range = HistoryRange(0L, 3_000L, "UTC")
+        database.withTransaction {
+            val reader = MeasuredImportedSensorHistoryReader(database)
+            val keys = reader.candidates(HistorySource.PRESSURE, range, null)
+            keys.size shouldBe 2
+            keys.map { it.startTimeMs }.distinct().size shouldBe 1
+            keys.map { it.identity }.distinct().size shouldBe 2
+            reader.qualify(HistorySource.PRESSURE, keys, range).rows.size shouldBe 2
+            val next = reader.candidates(HistorySource.PRESSURE, range, measuredHistoryPosition(keys.first()))
+            next.map { it.identity } shouldBe listOf(keys.last().identity)
+        }
+    }
 
 	@After
 	fun tearDown() = database.close()

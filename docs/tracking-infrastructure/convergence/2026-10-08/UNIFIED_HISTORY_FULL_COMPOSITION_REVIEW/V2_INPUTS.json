@@ -1,0 +1,16 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "tests": "NOT_RUN",
+  "candidate": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+  "inputs": {
+    "FILES.json": "209e0d0757ae0b366aaabfce524148ec1ca5cf4eb0fa9d87cdb265104a2edeb4",
+    "SELECTION.patch": "860a5a8833ab34ac945098312cfd013effa7075f0baac367d37e792c94985ab0",
+    "DEPENDENCIES.json": "59e3f83c2929211805f2a11b8835832adc82fa478b03fe25d195c2d10fe31fa7",
+    "SOURCE_PROVENANCE.json": "c6b065911d1ee85534d46a93b761f2ded187283cd5c545f5c625f9bca7d64245",
+    "CASE_INVENTORY.json": "c314922870ab7e73527ef69d57a0f760e8dcd11bef7e34a2bc1e6c564b7338cc"
+  },
+  "selected_paths": 122,
+  "supplier_packets": 18,
+  "resolved_committed_pins": 168,
+  "resolved_selected_pins": 49
+}

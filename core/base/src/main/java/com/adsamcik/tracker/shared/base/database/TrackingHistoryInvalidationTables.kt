@@ -55,6 +55,7 @@ val TRACKING_HISTORY_INVALIDATION_TABLES: List<String> = listOf(
 	"ambient_cell_deletion_marker",
 	"ambient_cell_child",
 	"legacy_wifi_child",
+	"legacy_location_wifi_count",
 	"legacy_cell_child",
 	"activity_captured_window_revision",
 	"activity_captured_fragment",

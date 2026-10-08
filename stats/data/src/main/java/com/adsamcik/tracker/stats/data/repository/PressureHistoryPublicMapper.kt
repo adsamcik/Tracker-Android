@@ -145,7 +145,7 @@ private fun PressureHistoryCoverage.toPublicCoverage(): ApiPressureHistoryCovera
 	PressureHistoryCoverage.UNKNOWN -> ApiPressureHistoryCoverage.UNKNOWN
 }
 
-private fun PressureHistoryWindow.toPublicWindow() = ApiPressureHistoryWindow(
+internal fun PressureHistoryWindow.toPublicWindow() = ApiPressureHistoryWindow(
 	intervalStartTime = EpochMs(intervalStartTimeMs),
 	intervalEndTime = EpochMs(intervalEndTimeMs),
 	sampleCount = sampleCount,

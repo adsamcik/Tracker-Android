@@ -1025,6 +1025,58 @@ internal class DefaultActivityHistoryRepository private constructor(
 		)
 	}
 
+	/** Exact measured lineage qualification; the outer facade owns the Room read transaction. */
+	internal suspend fun selectMeasuredWindowsInTransaction(keys: List<ActivityRevisionKey>): ActivityMeasuredWindowsRead {
+		require(keys.size <= MAX_ACTIVITY_HISTORY_RESULTS && keys.distinct().size == keys.size &&
+			keys.map { Triple(it.writerProjectionId, it.writerProjectionVersion, it.logicalWindowId) }.distinct().size == keys.size)
+		if (keys.isEmpty()) return ActivityMeasuredWindowsRead()
+		val revisionLoad = loadMeasuredActivityLineages(keys)
+		if (revisionLoad.overflow) return ActivityMeasuredWindowsRead(causes = setOf(ActivityHistoryCause.READ_BUDGET_EXCEEDED))
+		val segmentIds = revisionLoad.revisions.map(ActivityCapturedWindowRevisionEntity::sessionSegmentId).distinct()
+		val seeds = if (segmentIds.isEmpty()) emptyList() else database.trackingHistoryReadDao().segments(segmentIds)
+		val snapshot = loadActivitySnapshot(ActivityMembershipExpansion(seeds, emptyMap(), overflow = false), revisionLoad)
+		if (snapshot.overflow) return ActivityMeasuredWindowsRead(causes = setOf(ActivityHistoryCause.READ_BUDGET_EXCEEDED))
+		val qualified = linkedMapOf<ActivityRevisionKey, ActivityMeasuredWindow>()
+		val causes = linkedSetOf<ActivityHistoryCause>()
+		val logicalIds = revisionLoad.revisions.map(ActivityCapturedWindowRevisionEntity::logicalTrackingId).distinct()
+		for (logicalId in logicalIds) {
+			val composed = ActivityHistoryComposer.composeMeasuredWindows(logicalId, snapshot, laneExecutionAuthority)
+			if (composed == null || composed.fragments.isEmpty()) {
+				causes += composed?.causes ?: setOf(ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+				continue
+			}
+			for (key in keys) {
+				val current = snapshot.revisions.filter { it.writerProjectionId == key.writerProjectionId &&
+					it.writerProjectionVersion == key.writerProjectionVersion && it.logicalWindowId == key.logicalWindowId }
+					.maxByOrNull(ActivityCapturedWindowRevisionEntity::semanticRevision) ?: continue
+				if (current.logicalTrackingId != logicalId) continue
+				if (revisionKey(current) != key) {
+					causes += ActivityHistoryCause.FACT_INTEGRITY_FAILED
+					continue
+				}
+				val saved = snapshot.fragmentsByRevision[key].orEmpty().sortedBy(ActivityCapturedFragmentEntity::fragmentOrdinal)
+				val fragments = ActivityHistoryComposer.toPublicFragments(current, snapshot)
+				qualified[key] = ActivityMeasuredWindow(current, saved.zip(fragments).associate { (row, fragment) ->
+					row.fragmentOrdinal to fragment })
+			}
+		}
+		if (qualified.keys != keys.toSet() && causes.isEmpty()) causes += ActivityHistoryCause.FACT_INTEGRITY_FAILED
+		return ActivityMeasuredWindowsRead(qualified, causes)
+	}
+
+	private suspend fun loadMeasuredActivityLineages(keys: List<ActivityRevisionKey>): ActivityRevisionLoad {
+		val revisions = mutableListOf<ActivityCapturedWindowRevisionEntity>()
+		for (key in keys) {
+			currentCoroutineContext().ensureActive()
+			val remaining = MAX_ACTIVITY_REVISIONS - revisions.size
+			val lineage = database.activityCapturedFactDao().revisionsForWindow(key.writerProjectionId,
+				key.writerProjectionVersion, key.logicalWindowId, remaining + 1)
+			if (lineage.size > remaining) return ActivityRevisionLoad(revisions, overflow = true)
+			revisions += lineage
+		}
+		return ActivityRevisionLoad(revisions, overflow = false)
+	}
+
 	/** Intent-first recent Activity-only rows; absence of a captured fact is not a filter. */
 	internal suspend fun recentActivityOnlyInTransaction(limit: Int): ActivityComposedPage {
 		require(limit in 1..MAX_ACTIVITY_HISTORY_RESULTS)
@@ -1176,6 +1228,7 @@ internal class DefaultActivityHistoryRepository private constructor(
 	@Suppress("LongMethod")
 	private suspend fun loadActivitySnapshot(
 		expansion: ActivityMembershipExpansion,
+		selectedLineages: ActivityRevisionLoad? = null,
 	): ActivityHistorySnapshot {
 		if (expansion.overflow) return ActivityHistorySnapshot.overflow(expansion)
 		val segments = expansion.segments
@@ -1192,18 +1245,37 @@ internal class DefaultActivityHistoryRepository private constructor(
 			.filter(String::isNotBlank).distinct()
 		val sessions = database.sourceSessionDao().sessions(logicalIds)
 		val factDao = database.activityCapturedFactDao()
-		val revisionLoad = loadActivityRevisionPages(runIds, logicalIds)
+		val revisionLoad = selectedLineages ?: loadActivityRevisionPages(runIds, logicalIds)
 		val revisions = revisionLoad.revisions
 		currentCoroutineContext().ensureActive()
 		val windowIds = revisions.map(ActivityCapturedWindowRevisionEntity::logicalWindowId).distinct()
-		val cursors = if (windowIds.isEmpty()) emptyList() else {
+		val cursors = if (windowIds.isEmpty()) emptyList() else if (selectedLineages == null) {
 			factDao.historyCursors(windowIds, MAX_ACTIVITY_CURSORS + 1)
-		}
-		val fragments = if (windowIds.isEmpty()) emptyList() else {
+		} else revisions.distinctBy { Triple(it.writerProjectionId, it.writerProjectionVersion, it.logicalWindowId) }
+			.mapNotNull { factDao.cursor(it.writerProjectionId, it.writerProjectionVersion, it.logicalWindowId) }
+		val fragments = if (windowIds.isEmpty()) emptyList() else if (selectedLineages == null) {
 			factDao.historyFragments(windowIds, MAX_ACTIVITY_FRAGMENTS + 1)
+		} else {
+			val selected = mutableListOf<ActivityCapturedFragmentEntity>()
+			for (revision in revisions) {
+				if (selected.size > MAX_ACTIVITY_FRAGMENTS) break
+				currentCoroutineContext().ensureActive()
+				selected += factDao.maintenanceFragments(revision.writerProjectionId, revision.writerProjectionVersion,
+					revision.logicalWindowId, revision.semanticRevision, MAX_ACTIVITY_FRAGMENTS - selected.size + 1)
+			}
+			selected
 		}
-		val evidence = if (windowIds.isEmpty()) emptyList() else {
+		val evidence = if (windowIds.isEmpty()) emptyList() else if (selectedLineages == null) {
 			factDao.historyEvidence(windowIds, MAX_ACTIVITY_EVIDENCE + 1)
+		} else {
+			val selected = mutableListOf<ActivityCapturedEvidenceEntity>()
+			for (revision in revisions) {
+				if (selected.size > MAX_ACTIVITY_EVIDENCE) break
+				currentCoroutineContext().ensureActive()
+				selected += factDao.maintenanceEvidence(revision.writerProjectionId, revision.writerProjectionVersion,
+					revision.logicalWindowId, revision.semanticRevision, MAX_ACTIVITY_EVIDENCE - selected.size + 1)
+			}
+			selected
 		}
 		val activityEventIds = evidence.map(ActivityCapturedEvidenceEntity::sourceEventId).distinct()
 		val activityWalRows = mutableListOf<SourceEventWalEntity>()
@@ -1309,7 +1381,14 @@ internal class DefaultActivityHistoryRepository private constructor(
 			completeness.asSequence().filter { it.sourceKind == ACTIVITY_SOURCE }
 				.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull(),
 		).filterNotNull().maxOrNull()
-		val terminalFailures = if (afterOrdinal == null || throughOrdinal == null ||
+		val terminalFailures = if (selectedLineages != null) {
+			val projectionDao = database.sourceProjectionStateDao()
+			evidence.map(ActivityCapturedEvidenceEntity::sourceAdmissionOrdinal).distinct().mapNotNull { ordinal ->
+				currentCoroutineContext().ensureActive()
+				projectionDao.failure(SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
+					SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION, ordinal)?.takeIf { it.terminal }
+			}
+		} else if (afterOrdinal == null || throughOrdinal == null ||
 			afterOrdinal >= throughOrdinal
 		) emptyList() else {
 			readDao.terminalFailuresForServiceRuns(
@@ -1772,3 +1851,14 @@ private const val MAX_ACTIVITY_PROVIDER_REGISTRATIONS = 512
 private const val MAX_ACTIVITY_AUTHORIZATIONS = 4_096
 private const val MAX_ACTIVITY_TERMINAL_FAILURES = 512
 private const val RANGE_SOURCE_CANDIDATE_LIMIT = 100
+
+/** A qualified immutable window's actual fragments, before optional date selection. */
+internal data class ActivityMeasuredWindow(
+	val revision: ActivityCapturedWindowRevisionEntity,
+	val fragments: Map<Int, com.adsamcik.tracker.stats.api.repository.ActivityHistoryFragment>,
+)
+internal data class ActivityMeasuredWindowsRead(
+	val windows: Map<ActivityRevisionKey, ActivityMeasuredWindow> = emptyMap(),
+	val causes: Set<ActivityHistoryCause> = emptySet(),
+	val storageFailed: Boolean = false,
+)

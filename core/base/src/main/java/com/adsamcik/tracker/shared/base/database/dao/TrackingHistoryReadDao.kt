@@ -27,6 +27,9 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 @Dao
 @Suppress("LargeClass") // Cohesive batched history reads; a second Room DAO has no independent owner.
 interface TrackingHistoryReadDao {
+	@androidx.room.RawQuery
+	suspend fun measuredHistoryCandidates(query: androidx.sqlite.db.SupportSQLiteQuery): List<MeasuredHistoryCandidate>
+
     /** Code-owned, bound key-only discovery. Qualification always occurs in the same transaction. */
     @androidx.room.RawQuery
     suspend fun unifiedHistoryCandidates(query: androidx.sqlite.db.SupportSQLiteQuery): List<UnifiedHistoryCandidate>
@@ -770,7 +773,11 @@ interface TrackingHistoryReadDao {
 			       writer_projection_version,
 			       logical_fact_id
 			FROM provisional_candidate
-			WHERE :afterWriterProjectionId IS NULL
+			WHERE (:filterSelectedFacts = 0 OR
+			       length(writer_projection_id) || ':' || writer_projection_id || ':' ||
+			       writer_projection_version || ':' || length(logical_fact_id) || ':' || logical_fact_id
+			       IN (:selectedFactIdentities))
+			AND (:afterWriterProjectionId IS NULL
 			   OR writer_projection_id > :afterWriterProjectionId
 			   OR (
 			     writer_projection_id = :afterWriterProjectionId
@@ -781,6 +788,7 @@ interface TrackingHistoryReadDao {
 			     AND writer_projection_version = :afterWriterProjectionVersion
 			     AND logical_fact_id > :afterLogicalFactId
 			   )
+			)
 			GROUP BY writer_projection_id,
 			         writer_projection_version,
 			         logical_fact_id
@@ -934,6 +942,8 @@ interface TrackingHistoryReadDao {
 		afterWriterProjectionId: String? = null,
 		afterWriterProjectionVersion: Long? = null,
 		afterLogicalFactId: String? = null,
+		filterSelectedFacts: Boolean = false,
+		selectedFactIdentities: List<String> = emptyList(),
 	): List<UnvalidatedStepFactState>
 
 	/**
