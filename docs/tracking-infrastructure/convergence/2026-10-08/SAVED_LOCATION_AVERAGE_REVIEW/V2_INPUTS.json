@@ -1,0 +1,24 @@
+{
+  "packet": "docs/tracking-infrastructure/convergence/2026-10-08/SAVED_LOCATION_AVERAGE_SELECTED_V2",
+  "base": "e542649404514112aa0cf505fbae3d2a42984ebc",
+  "inspected_current": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+  "phase": "IMPLEMENTATION_ONLY",
+  "tests": "NOT_RUN",
+  "inputs": {
+    "FILES.json": "2657feba33bc43133775fc02e04658ff382139825b7ccc32da943f8a12b40290",
+    "SELECTION.patch": "34761d3a3c4b048c66b6a15a5b369ff74b27110c5e64886392b1d4586c46bd32",
+    "DEPENDENCIES.json": "271d7aa6c487ba51d5328db073187ce4e7b9ca4e2bf7efff65be404f8bbe7e37",
+    "SOURCE_BOUNDARY.md": "da1f0ebee684209bdb3cef239a15ce18290d587190d7ebb450c205780039fdd9"
+  },
+  "additional_inspected_committed_sources": {
+    "core/base/src/main/java/com/adsamcik/tracker/shared/base/data/Location.kt": "484046443f267b99de27db4366ec27057e11fa1ee73f6e514284760a443c9681",
+    "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidFeatureConventionPlugins.kt": "25e2412d796696bbbf6e5868a655af376c56f2af592a54d3a259e95a8428783b"
+  },
+  "selected_operations": 13,
+  "declared_dependency_pins": 9,
+  "changed_from_V1": [
+    "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt",
+    "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReaderRoomTest.kt"
+  ],
+  "current_source_drift": []
+}

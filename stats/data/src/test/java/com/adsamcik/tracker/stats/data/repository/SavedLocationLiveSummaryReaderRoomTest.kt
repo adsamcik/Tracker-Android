@@ -98,6 +98,27 @@ class SavedLocationLiveSummaryReaderRoomTest {
         }
     }
 
+
+    @Test fun `live shared average extends saved pairs and excludes a stationary update`() = runBlocking {
+        withTimeout(10_000L) {
+            val selected = session("average")
+            database.withTransaction { point(2_000, 0, 1, capture = selected) }
+            val hints = SavedLocationLiveUpdateSignal()
+            val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, hints, reader)
+            live.observeSession(selected.id).test {
+                assertNull(awaitCount(1L).summary.movingAverageSpeedMetersPerSecond)
+                val next = database.withTransaction { point(3_000, 100_000, 2, capture = selected) }
+                hints.pointCommitted(next.id)
+                val moving = awaitCount(2L).summary.movingAverageSpeedMetersPerSecond
+                assertEquals(distance(0, 100_000), moving)
+                val still = database.withTransaction { point(4_000, 100_000, 3, capture = selected) }
+                hints.pointCommitted(still.id)
+                assertEquals(moving, awaitCount(3L).summary.movingAverageSpeedMetersPerSecond)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+    }
+
     @Test fun `one seed is extended without reading the growing session again`() = runBlocking {
         val selected = session("live")
         database.withTransaction { point(2_000, 0, 1, capture = selected) }

@@ -15,6 +15,8 @@ import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.*
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.test.*
@@ -65,6 +67,53 @@ class SavedLocationSummaryReaderRoomTest {
             assertEquals(second.id, after.latestFix?.sampleId)
         }
         assertEquals(setOf(first, second), database.locationSampleDao().byIds(listOf(first.id, second.id)).toSet())
+        Unit
+    }
+
+
+    @Test fun `non-finite distance preserves saved points without an average or resumable prefix`() = runBlocking {
+        val selected = session("non-finite")
+        point(2_000, 0, 1, capture = selected)
+        val last = point(3_000, 100_000, 2, capture = selected)
+        // The numerical fault is artificial; saved rows, grants, readers and transaction are real Room.
+        mockkObject(Location.Companion)
+        try {
+            for (invalid in listOf(Double.NaN, Double.POSITIVE_INFINITY)) {
+                every { Location.distance(any<Double>(), any<Double>(), any<Double>(), any<Double>(),
+                    any<LengthUnit>()) } returns invalid
+                var suppliedState = false
+                val sessionRead = database.withTransaction {
+                    snapshot(reader.readSessionInTransaction(selected.id, currentSnapshot()) { _, _ ->
+                        suppliedState = true
+                    })
+                }
+                val windowRead = snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000)))
+                for (read in listOf(sessionRead, windowRead)) {
+                    assertEquals(2L, read.summary.pointCount)
+                    assertEquals(last.id, read.summary.latestFix?.sampleId)
+                    assertNull(read.summary.distanceMeters)
+                    assertNull(read.summary.movingAverageSpeedMetersPerSecond)
+                    assertTrue(read.summary.partial)
+                    assertEquals(HistoryProblemReason.INTEGRITY_UNAVAILABLE, read.problem)
+                }
+                assertFalse(suppliedState)
+            }
+        } finally {
+            unmockkObject(Location.Companion)
+        }
+        assertEquals(2L, database.locationSampleDao().countAll())
+        Unit
+    }
+
+    @Test fun `qualified saved window calculates average independently of sensor speed and stationary time`() = runBlocking {
+        point(2_000, 0, 1)
+        point(3_000, 100_000, 2, speed = 999f)
+        point(4_000, 100_000, 3, speed = 999f)
+        point(5_000, 200_000, 4, speed = 999f)
+        val value = snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000))).summary
+        assertEquals((distance(0, 100_000) + distance(100_000, 200_000)) / 2.0,
+            value.movingAverageSpeedMetersPerSecond)
+        assertFalse(value.partial)
         Unit
     }
 

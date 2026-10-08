@@ -36,12 +36,16 @@ data class SavedLocationSummary(
     val distanceMeters: Double?,
     val partial: Boolean,
     val qualificationGaps: Set<RadioLocationContextGap> = emptySet(),
+    /** Measured continuous moving pairs; null without a pair, zero for measured stationary data. */
+    val movingAverageSpeedMetersPerSecond: Double? = null,
 ) {
     init {
         require(pointCount >= 0L)
         require((pointCount == 0L) == (latestFix == null))
         require(distanceMeters == null || distanceMeters.isFinite() && distanceMeters >= 0.0 && pointCount >= 2L)
         require(qualificationGaps.isEmpty() || partial)
+        require(movingAverageSpeedMetersPerSecond == null ||
+            movingAverageSpeedMetersPerSecond.isFinite() && movingAverageSpeedMetersPerSecond >= 0.0 && distanceMeters != null)
     }
 }
 

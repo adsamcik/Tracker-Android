@@ -108,10 +108,17 @@ internal class SavedLocationSummaryReader @Inject constructor(
         var partial = false
         var processed: SavedLocationPosition? = null
         val gaps = linkedSetOf<RadioLocationContextGap>()
-        fun result(problem: HistoryProblemReason? = null) = SavedLocationSummaryRead.Snapshot(selection, snapshot,
-            SavedLocationSummary(count, latest, accumulator.measuredMeters?.takeIf { it.isFinite() },
-                partial || accumulator.hasDisconnectedSections || gaps.isNotEmpty() || problem != null, gaps.toSet()), problem)
-                .also { onState?.invoke(accumulator.snapshotState(), processed) }
+        fun result(problem: HistoryProblemReason? = null): SavedLocationSummaryRead.Snapshot {
+            val measuredMeters = accumulator.measuredMeters
+            val meters = measuredMeters?.takeIf { it.isFinite() }
+            val read = SavedLocationSummaryRead.Snapshot(selection, snapshot,
+                SavedLocationSummary(count, latest, meters,
+                    partial || accumulator.hasDisconnectedSections || gaps.isNotEmpty() || problem != null, gaps.toSet(),
+                    accumulator.movingAverageSpeedMetersPerSecond.takeIf { meters != null }), problem)
+            // Preserve the saved-point snapshot, but never resume an invalid numerical prefix.
+            if (measuredMeters?.isFinite() != false) onState?.invoke(accumulator.snapshotState(), processed)
+            return read
+        }
         try {
             val state = database.sourceEvidenceStateDao().get()
             if (state == null || !state.hasValidRangeShape() ||

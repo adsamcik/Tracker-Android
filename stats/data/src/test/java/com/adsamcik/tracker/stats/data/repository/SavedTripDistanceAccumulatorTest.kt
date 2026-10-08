@@ -53,6 +53,43 @@ class SavedTripDistanceAccumulatorTest {
 		assertEquals(0.0, distance.measuredMeters)
 	}
 
+    @Test fun `moving average excludes stationary pairs and keeps measured zero distinct from absent data`() {
+        val route = SavedTripDistanceAccumulator()
+        route.add(point(1_000, 0, "owner:1", 1))
+        assertNull(route.movingAverageSpeedMetersPerSecond)
+        route.add(point(2_000, 100_000, "owner:1", 2))
+        route.add(point(102_000, 100_000, "owner:1", 3))
+        route.add(point(103_000, 200_000, "owner:1", 4))
+        assertEquals((edge(0, 100_000) + edge(100_000, 200_000)) / 2.0,
+            route.movingAverageSpeedMetersPerSecond)
+        val stationary = SavedTripDistanceAccumulator()
+        stationary.add(point(1_000, 0))
+        stationary.add(point(2_000, 0))
+        assertEquals(0.0, stationary.movingAverageSpeedMetersPerSecond)
+    }
+
+    @Test fun `moving average excludes gaps and resumes the shared running state exactly`() {
+        val points = listOf(point(1_000, 0, "owner:1", 1), point(2_000, 100_000, "owner:1", 2),
+            point(200_000, 9_000_000, "owner:1", 3), point(202_000, 9_100_000, "owner:1", 4))
+        val route = SavedTripDistanceAccumulator()
+        points.take(2).forEach(route::add)
+        val continued = SavedTripDistanceAccumulator(route.snapshotState())
+        points.drop(2).forEach(continued::add)
+        points.drop(2).forEach(route::add)
+        assertEquals(route.snapshotState(), continued.snapshotState())
+        assertEquals((edge(0, 100_000) + edge(9_000_000, 9_100_000)) / 3.0,
+            continued.movingAverageSpeedMetersPerSecond)
+        kotlin.test.assertTrue(continued.hasDisconnectedSections)
+    }
+
+    @Test fun `native moving average uses recorded elapsed time despite reversed wall timestamps`() {
+        val route = SavedTripDistanceAccumulator()
+        route.add(point(2_000, 0, "owner:1", 1))
+        route.add(point(3_000, 100_000, "owner:1", 2).copy(
+            sample = point(3_000, 100_000).sample.copy(timeMs = 1_000)))
+        assertEquals(edge(0, 100_000), route.movingAverageSpeedMetersPerSecond)
+    }
+
 	private fun point(time: Long, longitude: Int?, continuity: String? = null, sequence: Long? = null) =
 		LocationPathSampleRow(LocationSample(timeMs = time, elapsedRealtimeNanos = time * 1_000_000,
 			latE7 = 0, lonE7 = longitude, altitudeM = null, rawGpsAltitudeM = null, hAccM = null,

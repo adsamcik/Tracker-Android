@@ -154,7 +154,8 @@ internal class SavedLocationLiveSummaryReader(
         if (meters?.isFinite() == false) throw InvalidContinuation()
         val read = SavedLocationSummaryRead.Snapshot(SavedLocationSummarySelection.Session(segmentId), snapshot,
             SavedLocationSummary(count, latestFix, meters,
-                partial || distance.hasDisconnectedSections || gaps.isNotEmpty() || problem != null, gaps), problem)
+                partial || distance.hasDisconnectedSections || gaps.isNotEmpty() || problem != null, gaps,
+                distance.movingAverageSpeedMetersPerSecond), problem)
         // An incomplete qualification must not advance an incremental prefix as if it were complete.
         if (problem != null) return Next(read, null)
         return Next(read, Progress(scope, guard, throughId, candidateCount, latestPosition, distance.snapshotState(), read))

@@ -183,18 +183,32 @@ internal data class SavedTripDistanceState(
     val totalMeters: Double = 0.0,
     val hasMeasuredPair: Boolean = false,
     val disconnected: Boolean = false,
+    val movingDistanceMeters: Double = 0.0,
+    val movingDurationSeconds: Double = 0.0,
 ) {
-    init { require(totalMeters.isFinite() && totalMeters >= 0.0) }
+    init {
+        require(totalMeters.isFinite() && totalMeters >= 0.0)
+        require(movingDistanceMeters.isFinite() && movingDistanceMeters >= 0.0)
+        require(movingDurationSeconds.isFinite() && movingDurationSeconds >= 0.0)
+    }
 }
 
 internal class SavedTripDistanceAccumulator(state: SavedTripDistanceState = SavedTripDistanceState()) {
     private var previous: LocationPathSampleRow? = state.previous
     private var totalMeters = state.totalMeters
     private var hasMeasuredPair = state.hasMeasuredPair
-    fun snapshotState() = SavedTripDistanceState(previous, totalMeters, hasMeasuredPair, hasDisconnectedSections)
+    private var movingDistanceMeters = state.movingDistanceMeters
+    private var movingDurationSeconds = state.movingDurationSeconds
+    fun snapshotState() = SavedTripDistanceState(previous, totalMeters, hasMeasuredPair,
+        hasDisconnectedSections, movingDistanceMeters, movingDurationSeconds)
     var hasDisconnectedSections: Boolean = state.disconnected
 		private set
 	val measuredMeters: Double? get() = totalMeters.takeIf { hasMeasuredPair }
+    val movingAverageSpeedMetersPerSecond: Double? get() = when {
+        !hasMeasuredPair -> null
+        movingDurationSeconds > 0.0 -> movingDistanceMeters / movingDurationSeconds
+        else -> 0.0
+    }
 
 	/** A rejected or erased candidate cannot become a bridge between its valid neighbours. */
 	fun breakContinuity() {
@@ -213,8 +227,17 @@ internal class SavedTripDistanceAccumulator(state: SavedTripDistanceState = Save
 		val old = previous
 		if (old != null && !continuous(old, row)) hasDisconnectedSections = true
 		if (old != null && continuous(old, row)) {
-			totalMeters += Location.distance(requireNotNull(old.sample.latE7) / 1e7,
+			val meters = Location.distance(requireNotNull(old.sample.latE7) / 1e7,
 				requireNotNull(old.sample.lonE7) / 1e7, lat / 1e7, lon / 1e7, LengthUnit.Meter)
+			totalMeters += meters
+            if (meters > 0.0) {
+                movingDistanceMeters += meters
+                movingDurationSeconds += if (old.continuityId != null) {
+                    (point.elapsedRealtimeNanos - old.sample.elapsedRealtimeNanos).toDouble() / 1_000_000_000.0
+                } else {
+                    (point.timeMs - old.sample.timeMs).toDouble() / 1_000.0
+                }
+            }
 			hasMeasuredPair = true
 		}
 		previous = row

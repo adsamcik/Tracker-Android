@@ -52,6 +52,17 @@ class SavedLocationPresentationTest {
         assertEquals(AltitudeDatum.WGS84_ELLIPSOID, fix.altitudeDatum)
         assertEquals(2_000L, fix.measuredTimeMs)
     }
+
+    @Test fun `saved moving average preserves zero partial and waiting states`() {
+        val covered = saved().copy(summary = saved().summary.copy(movingAverageSpeedMetersPerSecond = 0.0))
+        assertEquals("0.0 m/s", covered.formatSavedAverageSpeed(context) { "$it m/s" })
+        val partial = covered.copy(summary = covered.summary.copy(partial = true, movingAverageSpeedMetersPerSecond = 2.5))
+        assertEquals("2.5 m/s · ${context.getString(R.string.tracker_measurement_partial)}",
+            partial.formatSavedAverageSpeed(context) { "$it m/s" })
+        assertEquals(context.getString(R.string.tracker_component_waiting_data),
+            saved().formatSavedAverageSpeed(context) { error("No average") })
+    }
+
     private fun saved(id: Long = 7, distance: Double? = 123.0, partial: Boolean = false,
         accuracy: Float? = null, altitude: Float? = -12f) = SavedLocationSummaryRead.Snapshot(
         SavedLocationSummarySelection.Session(id), TrackingHistoryReadSnapshot(0, 1),

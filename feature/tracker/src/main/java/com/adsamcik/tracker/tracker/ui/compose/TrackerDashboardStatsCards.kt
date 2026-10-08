@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
 import com.adsamcik.tracker.tracker.controller.forLiveSegment
 import com.adsamcik.tracker.tracker.controller.formatSavedDistance
+import com.adsamcik.tracker.tracker.controller.formatSavedAverageSpeed
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
@@ -102,8 +103,9 @@ internal fun StatusAndQuickStatsCard(
     val distanceText = locationRead.formatSavedDistance(context) { distance ->
         resources.formatDistance(distance, if (distance >= 1000.0) 1 else 0, settings.lengthSystem)
     }
-    // No saved moving-average attribution exists; sampled preview points do not define an exact metric.
-    val avgSpeedText = context.getString(R.string.tracker_steps_value_unavailable)
+    val avgSpeedText = locationRead.formatSavedAverageSpeed(context) { average ->
+        resources.formatSpeed(context, average, 1)
+    }
     val speedText = currentSpeed?.let { resources.formatSpeed(context, it.toDouble(), 1) } ?: "—"
     val altitudeText = fix?.altitudeMeters?.let {
         resources.formatDistance(it, 0, settings.lengthSystem)

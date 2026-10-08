@@ -1,0 +1,98 @@
+{
+  "base_commit": "e542649404514112aa0cf505fbae3d2a42984ebc",
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "HELD_FOR_REVIEW",
+  "files": [
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SavedLocationSummary.kt",
+      "base_sha256": "64391aab0f012a53e470fb73840a2b7bca294518a62067ff53543f527043d0f2",
+      "selected_sha256": "2fb6bd7c405c9aa3ca9bac0c022f1f6bfcd3c0b236afe07e49844fb1c64933dc",
+      "operation": "UPDATE",
+      "working_before_sha256": "64391aab0f012a53e470fb73840a2b7bca294518a62067ff53543f527043d0f2"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt",
+      "base_sha256": "b42fedb2f991d08a5345def76cae11f6bb631cc2561c133b6ccbdb2f0b8122f0",
+      "selected_sha256": "939cd80260398975848b7b653733c0af69e3d27da937dbcc7a8b0a6fb30d99d0",
+      "operation": "UPDATE",
+      "working_before_sha256": "b42fedb2f991d08a5345def76cae11f6bb631cc2561c133b6ccbdb2f0b8122f0"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt",
+      "base_sha256": "1fc7703e613a860eaa40ff08ed1f01e69b35582ff885e10b0c2a9d90a23044e2",
+      "selected_sha256": "3edc7bfb13d2410f58cf00f132b65a237085d820b01028985334c222ce56fc90",
+      "operation": "UPDATE",
+      "working_before_sha256": "1fc7703e613a860eaa40ff08ed1f01e69b35582ff885e10b0c2a9d90a23044e2"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReader.kt",
+      "base_sha256": "c50d2dbbbe36920a42f0240a07b38239ccb56ea8820b616c266dd0c16ca192a3",
+      "selected_sha256": "79125ab7aa857e3ffd0f1aad590584423d1205ed70ffb49bda3ff5c463502b81",
+      "operation": "UPDATE",
+      "working_before_sha256": "c50d2dbbbe36920a42f0240a07b38239ccb56ea8820b616c266dd0c16ca192a3"
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/controller/SavedLocationPresentation.kt",
+      "base_sha256": "afc27e6a710c0acfc6d76c482710e73d2df1c53349a9125321fd641c668f5065",
+      "selected_sha256": "5b87d745c6caa59f0a0b0c3da3634fb38903784b39e11ec1562fd0662a5b5791",
+      "operation": "UPDATE",
+      "working_before_sha256": "afc27e6a710c0acfc6d76c482710e73d2df1c53349a9125321fd641c668f5065"
+    },
+    {
+      "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardStatsCards.kt",
+      "base_sha256": "0e5b81a5e6075dcd05e7da423a3d27b5d0614ca2d0caeeff3b7c857af2e75627",
+      "selected_sha256": "24b091f5746e96feaf0e23ac0951d491f34c9b7d304d779639f04d3fa7cf3be8",
+      "operation": "UPDATE",
+      "working_before_sha256": "0e5b81a5e6075dcd05e7da423a3d27b5d0614ca2d0caeeff3b7c857af2e75627"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceAccumulatorTest.kt",
+      "base_sha256": "f81c28e5acd139389de59b73a9022291eb6559a6c50993e375434402a5892a8b",
+      "selected_sha256": "953366983a7f62c12ec9b6317e18f349cc0decb36d50c9e82fee27de4654dec9",
+      "operation": "UPDATE",
+      "working_before_sha256": "f81c28e5acd139389de59b73a9022291eb6559a6c50993e375434402a5892a8b"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReaderRoomTest.kt",
+      "base_sha256": "5743c8da9f9d36f50dae0a760f2a9035d34e0013df8848e9dc2c10faf5900ec5",
+      "selected_sha256": "468bd96a992158654cc3e041b3b11b6a184d46ae404d6d68b1f5c8c3ded0771b",
+      "operation": "UPDATE",
+      "working_before_sha256": "5743c8da9f9d36f50dae0a760f2a9035d34e0013df8848e9dc2c10faf5900ec5"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt",
+      "base_sha256": "56b5f93ded0eec00c745a2c66d456cdbba2d55c104e2b20d1cbe2437516ec862",
+      "selected_sha256": "5ced44b698b99cf07bbb31afbb3d71b8c63b431fc3524ecd97a25e939c1d5c7c",
+      "operation": "UPDATE",
+      "working_before_sha256": "56b5f93ded0eec00c745a2c66d456cdbba2d55c104e2b20d1cbe2437516ec862"
+    },
+    {
+      "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/controller/SavedLocationPresentationTest.kt",
+      "base_sha256": "5b66dca222a92549d2634b8237a7cde772367f93abd16c582ac95d1152cd2b48",
+      "selected_sha256": "ec34b2651f0938e95788ed995538451b41fc4beab6357c68df0bad222c468ab7",
+      "operation": "UPDATE",
+      "working_before_sha256": "5b66dca222a92549d2634b8237a7cde772367f93abd16c582ac95d1152cd2b48"
+    },
+    {
+      "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerSavedLocationDisplayTest.kt",
+      "base_sha256": "78cda9c307269d0b1a632b9bae146ad72ff7a90ae66b97a74e01b8e243d83132",
+      "selected_sha256": "5ed61310699b02abc5f9bd75d93b338c17236999d03f369406a66cdf54ed678e",
+      "operation": "UPDATE",
+      "working_before_sha256": "78cda9c307269d0b1a632b9bae146ad72ff7a90ae66b97a74e01b8e243d83132"
+    },
+    {
+      "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/PathMetricsAccumulator.kt",
+      "base_sha256": "b526d6c1683c6422148e23bb63c18743edf839dd170f3d85e74257fc1bf9d953",
+      "selected_sha256": null,
+      "operation": "DELETE",
+      "working_before_sha256": "ba7582323946316be17e057e133c74201c702a7d8f1ce2db17d895291f46d36b"
+    },
+    {
+      "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/PathMetricsAccumulatorTest.kt",
+      "base_sha256": "a1a96ce5054320d3d19d6e5306d90538e2d5099c25808fb6081efabc5e55f51d",
+      "selected_sha256": null,
+      "operation": "DELETE",
+      "working_before_sha256": "bf604eca58d931a17cb6e176fddcadb7521be93b1ecd55501a750c9ec7757fff"
+    }
+  ]
+}

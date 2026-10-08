@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.extension.formatDistance
+import com.adsamcik.tracker.shared.preferences.extension.formatSpeed
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
@@ -68,6 +69,18 @@ class TrackerSavedLocationDisplayTest {
         composeRule.onAllNodesWithText(context.getString(R.string.speed_title)).assertCountEquals(0)
         composeRule.onNodeWithText(context.getString(R.string.duration_title)).assertIsDisplayed()
     }
+
+    @Test fun `Tracker Avg uses shared measured average with its partial state`() {
+        val read = saved(partial = true).let { it.copy(summary = it.summary.copy(movingAverageSpeedMetersPerSecond = 2.5)) }
+        composeRule.setContent { AppTheme {
+            StatusAndQuickStatsCard(true, TrackerSessionSnapshot(id = 7, start = 1_000),
+                null, 61_000, {}, savedLocation = read)
+        } }
+        val average = context.resources.formatSpeed(context, 2.5, 1)
+        composeRule.onNodeWithText("$average · ${context.getString(R.string.tracker_measurement_partial)}")
+            .assertIsDisplayed()
+    }
+
     private fun saved(id: Long = 7, distance: Double? = 123.0, partial: Boolean = false,
         accuracy: Float? = null, altitude: Float? = -12f) = SavedLocationSummaryRead.Snapshot(
         SavedLocationSummarySelection.Session(id), TrackingHistoryReadSnapshot(0, 1),

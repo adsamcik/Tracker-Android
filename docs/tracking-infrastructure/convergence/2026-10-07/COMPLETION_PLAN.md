@@ -622,3 +622,9 @@ Exact selected source/review: `../2026-10-08/RETAINED_NATIVE_PORTABLE_SELECTED_V
 - [x] Use original exact elapsed provider lifetime while preserving UTC values after phone-clock changes or equal wall milliseconds. Actual observations remain strictly before retirement; derived exclusive windows may meet it. Five new pure contract methods and one aligned existing method NOT_RUN; source-local clock companions remain open.
 
 Exact selected source/review: `../2026-10-08/PROVIDER_ELAPSED_INTERVAL_SELECTED_V2/` and `PROVIDER_ELAPSED_INTERVAL_REVIEW/V2/`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN; no gates, activation or integration.
+
+### October 8 - shared saved Location average
+
+- [x] Add approved Avg from the existing shared constant-memory saved-route distance and moving duration. Tracker uses existing localized speed and Partial/Waiting states; the finite fault path preserves saved points without an invalid average or resumable prefix. Retire the superseded unused feature-local calculator. Eight authored methods NOT_RUN; no new provider, observer, storage or full-session rescan.
+
+Exact V2 selected source and independent review: `../2026-10-08/SAVED_LOCATION_AVERAGE_SELECTED_V2/` and `SAVED_LOCATION_AVERAGE_REVIEW/V2_ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN. No gates, activation, integration or push.

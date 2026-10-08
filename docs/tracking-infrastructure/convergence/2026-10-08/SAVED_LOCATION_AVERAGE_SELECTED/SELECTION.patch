@@ -1,0 +1,447 @@
+--- a/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SavedLocationSummary.kt
++++ b/stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SavedLocationSummary.kt
+@@ -36,12 +36,16 @@
+     val distanceMeters: Double?,
+     val partial: Boolean,
+     val qualificationGaps: Set<RadioLocationContextGap> = emptySet(),
++    /** Measured continuous moving pairs; null without a pair, zero for measured stationary data. */
++    val movingAverageSpeedMetersPerSecond: Double? = null,
+ ) {
+     init {
+         require(pointCount >= 0L)
+         require((pointCount == 0L) == (latestFix == null))
+         require(distanceMeters == null || distanceMeters.isFinite() && distanceMeters >= 0.0 && pointCount >= 2L)
+         require(qualificationGaps.isEmpty() || partial)
++        require(movingAverageSpeedMetersPerSecond == null ||
++            movingAverageSpeedMetersPerSecond.isFinite() && movingAverageSpeedMetersPerSecond >= 0.0 && distanceMeters != null)
+     }
+ }
+ 
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceReader.kt
+@@ -183,18 +183,32 @@
+     val totalMeters: Double = 0.0,
+     val hasMeasuredPair: Boolean = false,
+     val disconnected: Boolean = false,
++    val movingDistanceMeters: Double = 0.0,
++    val movingDurationSeconds: Double = 0.0,
+ ) {
+-    init { require(totalMeters.isFinite() && totalMeters >= 0.0) }
++    init {
++        require(totalMeters.isFinite() && totalMeters >= 0.0)
++        require(movingDistanceMeters.isFinite() && movingDistanceMeters >= 0.0)
++        require(movingDurationSeconds.isFinite() && movingDurationSeconds >= 0.0)
++    }
+ }
+ 
+ internal class SavedTripDistanceAccumulator(state: SavedTripDistanceState = SavedTripDistanceState()) {
+     private var previous: LocationPathSampleRow? = state.previous
+     private var totalMeters = state.totalMeters
+     private var hasMeasuredPair = state.hasMeasuredPair
+-    fun snapshotState() = SavedTripDistanceState(previous, totalMeters, hasMeasuredPair, hasDisconnectedSections)
++    private var movingDistanceMeters = state.movingDistanceMeters
++    private var movingDurationSeconds = state.movingDurationSeconds
++    fun snapshotState() = SavedTripDistanceState(previous, totalMeters, hasMeasuredPair,
++        hasDisconnectedSections, movingDistanceMeters, movingDurationSeconds)
+     var hasDisconnectedSections: Boolean = state.disconnected
+ 		private set
+ 	val measuredMeters: Double? get() = totalMeters.takeIf { hasMeasuredPair }
++    val movingAverageSpeedMetersPerSecond: Double? get() = when {
++        !hasMeasuredPair -> null
++        movingDurationSeconds > 0.0 -> movingDistanceMeters / movingDurationSeconds
++        else -> 0.0
++    }
+ 
+ 	/** A rejected or erased candidate cannot become a bridge between its valid neighbours. */
+ 	fun breakContinuity() {
+@@ -213,8 +227,17 @@
+ 		val old = previous
+ 		if (old != null && !continuous(old, row)) hasDisconnectedSections = true
+ 		if (old != null && continuous(old, row)) {
+-			totalMeters += Location.distance(requireNotNull(old.sample.latE7) / 1e7,
++			val meters = Location.distance(requireNotNull(old.sample.latE7) / 1e7,
+ 				requireNotNull(old.sample.lonE7) / 1e7, lat / 1e7, lon / 1e7, LengthUnit.Meter)
++			totalMeters += meters
++            if (meters > 0.0) {
++                movingDistanceMeters += meters
++                movingDurationSeconds += if (old.continuityId != null) {
++                    (point.elapsedRealtimeNanos - old.sample.elapsedRealtimeNanos).toDouble() / 1_000_000_000.0
++                } else {
++                    (point.timeMs - old.sample.timeMs).toDouble() / 1_000.0
++                }
++            }
+ 			hasMeasuredPair = true
+ 		}
+ 		previous = row
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReader.kt
+@@ -110,7 +110,8 @@
+         val gaps = linkedSetOf<RadioLocationContextGap>()
+         fun result(problem: HistoryProblemReason? = null) = SavedLocationSummaryRead.Snapshot(selection, snapshot,
+             SavedLocationSummary(count, latest, accumulator.measuredMeters?.takeIf { it.isFinite() },
+-                partial || accumulator.hasDisconnectedSections || gaps.isNotEmpty() || problem != null, gaps.toSet()), problem)
++                partial || accumulator.hasDisconnectedSections || gaps.isNotEmpty() || problem != null, gaps.toSet(),
++                accumulator.movingAverageSpeedMetersPerSecond), problem)
+                 .also { onState?.invoke(accumulator.snapshotState(), processed) }
+         try {
+             val state = database.sourceEvidenceStateDao().get()
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReader.kt
+@@ -154,7 +154,8 @@
+         if (meters?.isFinite() == false) throw InvalidContinuation()
+         val read = SavedLocationSummaryRead.Snapshot(SavedLocationSummarySelection.Session(segmentId), snapshot,
+             SavedLocationSummary(count, latestFix, meters,
+-                partial || distance.hasDisconnectedSections || gaps.isNotEmpty() || problem != null, gaps), problem)
++                partial || distance.hasDisconnectedSections || gaps.isNotEmpty() || problem != null, gaps,
++                distance.movingAverageSpeedMetersPerSecond), problem)
+         // An incomplete qualification must not advance an incremental prefix as if it were complete.
+         if (problem != null) return Next(read, null)
+         return Next(read, Progress(scope, guard, throughId, candidateCount, latestPosition, distance.snapshotState(), read))
+--- a/tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/controller/SavedLocationPresentation.kt
++++ b/tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/controller/SavedLocationPresentation.kt
+@@ -22,7 +22,21 @@
+     format: (Double) -> String,
+ ): String {
+     val snapshot = this as? SavedLocationSummaryRead.Snapshot
+-    val value = snapshot?.summary?.distanceMeters
++    return formatSavedValue(context, snapshot?.summary?.distanceMeters, format)
++}
++
++fun SavedLocationSummaryRead.formatSavedAverageSpeed(
++    context: Context,
++    format: (Double) -> String,
++): String = formatSavedValue(context,
++    (this as? SavedLocationSummaryRead.Snapshot)?.summary?.movingAverageSpeedMetersPerSecond, format)
++
++private fun SavedLocationSummaryRead.formatSavedValue(
++    context: Context,
++    value: Double?,
++    format: (Double) -> String,
++): String {
++    val snapshot = this as? SavedLocationSummaryRead.Snapshot
+     val formatted = value?.let(format)
+     return when {
+         formatted != null && snapshot?.summary?.partial == true ->
+--- a/feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardStatsCards.kt
++++ b/feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardStatsCards.kt
+@@ -60,6 +60,7 @@
+ import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.tracker.controller.forLiveSegment
+ import com.adsamcik.tracker.tracker.controller.formatSavedDistance
++import com.adsamcik.tracker.tracker.controller.formatSavedAverageSpeed
+ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+ import com.adsamcik.tracker.shared.base.assist.Assist
+ import com.adsamcik.tracker.shared.base.extension.formatAsDuration
+@@ -102,8 +103,9 @@
+     val distanceText = locationRead.formatSavedDistance(context) { distance ->
+         resources.formatDistance(distance, if (distance >= 1000.0) 1 else 0, settings.lengthSystem)
+     }
+-    // No saved moving-average attribution exists; sampled preview points do not define an exact metric.
+-    val avgSpeedText = context.getString(R.string.tracker_steps_value_unavailable)
++    val avgSpeedText = locationRead.formatSavedAverageSpeed(context) { average ->
++        resources.formatSpeed(context, average, 1)
++    }
+     val speedText = currentSpeed?.let { resources.formatSpeed(context, it.toDouble(), 1) } ?: "—"
+     val altitudeText = fix?.altitudeMeters?.let {
+         resources.formatDistance(it, 0, settings.lengthSystem)
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceAccumulatorTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedTripDistanceAccumulatorTest.kt
+@@ -53,6 +53,43 @@
+ 		assertEquals(0.0, distance.measuredMeters)
+ 	}
+ 
++    @Test fun `moving average excludes stationary pairs and keeps measured zero distinct from absent data`() {
++        val route = SavedTripDistanceAccumulator()
++        route.add(point(1_000, 0, "owner:1", 1))
++        assertNull(route.movingAverageSpeedMetersPerSecond)
++        route.add(point(2_000, 100_000, "owner:1", 2))
++        route.add(point(102_000, 100_000, "owner:1", 3))
++        route.add(point(103_000, 200_000, "owner:1", 4))
++        assertEquals((edge(0, 100_000) + edge(100_000, 200_000)) / 2.0,
++            route.movingAverageSpeedMetersPerSecond)
++        val stationary = SavedTripDistanceAccumulator()
++        stationary.add(point(1_000, 0))
++        stationary.add(point(2_000, 0))
++        assertEquals(0.0, stationary.movingAverageSpeedMetersPerSecond)
++    }
++
++    @Test fun `moving average excludes gaps and resumes the shared running state exactly`() {
++        val points = listOf(point(1_000, 0, "owner:1", 1), point(2_000, 100_000, "owner:1", 2),
++            point(200_000, 9_000_000, "owner:1", 3), point(202_000, 9_100_000, "owner:1", 4))
++        val route = SavedTripDistanceAccumulator()
++        points.take(2).forEach(route::add)
++        val continued = SavedTripDistanceAccumulator(route.snapshotState())
++        points.drop(2).forEach(continued::add)
++        points.drop(2).forEach(route::add)
++        assertEquals(route.snapshotState(), continued.snapshotState())
++        assertEquals((edge(0, 100_000) + edge(9_000_000, 9_100_000)) / 3.0,
++            continued.movingAverageSpeedMetersPerSecond)
++        kotlin.test.assertTrue(continued.hasDisconnectedSections)
++    }
++
++    @Test fun `native moving average uses recorded elapsed time despite reversed wall timestamps`() {
++        val route = SavedTripDistanceAccumulator()
++        route.add(point(2_000, 0, "owner:1", 1))
++        route.add(point(3_000, 100_000, "owner:1", 2).copy(
++            sample = point(3_000, 100_000).sample.copy(timeMs = 1_000)))
++        assertEquals(edge(0, 100_000), route.movingAverageSpeedMetersPerSecond)
++    }
++
+ 	private fun point(time: Long, longitude: Int?, continuity: String? = null, sequence: Long? = null) =
+ 		LocationPathSampleRow(LocationSample(timeMs = time, elapsedRealtimeNanos = time * 1_000_000,
+ 			latE7 = 0, lonE7 = longitude, altitudeM = null, rawGpsAltitudeM = null, hAccM = null,
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReaderRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationSummaryReaderRoomTest.kt
+@@ -68,6 +68,19 @@
+         Unit
+     }
+ 
++
++    @Test fun `qualified saved window calculates average independently of sensor speed and stationary time`() = runBlocking {
++        point(2_000, 0, 1)
++        point(3_000, 100_000, 2, speed = 999f)
++        point(4_000, 100_000, 3, speed = 999f)
++        point(5_000, 200_000, 4, speed = 999f)
++        val value = snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000))).summary
++        assertEquals((distance(0, 100_000) + distance(100_000, 200_000)) / 2.0,
++            value.movingAverageSpeedMetersPerSecond)
++        assertFalse(value.partial)
++        Unit
++    }
++
+     @Test fun `empty and one-fix windows do not invent distance or zero`() = runBlocking {
+         val window = HistoryObservationWindow(0, 10_000)
+         assertNull(snapshot(reader.readWindow(window)).summary.distanceMeters)
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveSummaryReaderRoomTest.kt
+@@ -98,6 +98,27 @@
+         }
+     }
+ 
++
++    @Test fun `live shared average extends saved pairs and excludes a stationary update`() = runBlocking {
++        withTimeout(10_000L) {
++            val selected = session("average")
++            database.withTransaction { point(2_000, 0, 1, capture = selected) }
++            val hints = SavedLocationLiveUpdateSignal()
++            val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, hints, reader)
++            live.observeSession(selected.id).test {
++                assertNull(awaitCount(1L).summary.movingAverageSpeedMetersPerSecond)
++                val next = database.withTransaction { point(3_000, 100_000, 2, capture = selected) }
++                hints.pointCommitted(next.id)
++                val moving = awaitCount(2L).summary.movingAverageSpeedMetersPerSecond
++                assertEquals(distance(0, 100_000), moving)
++                val still = database.withTransaction { point(4_000, 100_000, 3, capture = selected) }
++                hints.pointCommitted(still.id)
++                assertEquals(moving, awaitCount(3L).summary.movingAverageSpeedMetersPerSecond)
++                cancelAndIgnoreRemainingEvents()
++            }
++        }
++    }
++
+     @Test fun `one seed is extended without reading the growing session again`() = runBlocking {
+         val selected = session("live")
+         database.withTransaction { point(2_000, 0, 1, capture = selected) }
+--- a/tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/controller/SavedLocationPresentationTest.kt
++++ b/tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/controller/SavedLocationPresentationTest.kt
+@@ -52,6 +52,17 @@
+         assertEquals(AltitudeDatum.WGS84_ELLIPSOID, fix.altitudeDatum)
+         assertEquals(2_000L, fix.measuredTimeMs)
+     }
++
++    @Test fun `saved moving average preserves zero partial and waiting states`() {
++        val covered = saved().copy(summary = saved().summary.copy(movingAverageSpeedMetersPerSecond = 0.0))
++        assertEquals("0.0 m/s", covered.formatSavedAverageSpeed(context) { "$it m/s" })
++        val partial = covered.copy(summary = covered.summary.copy(partial = true, movingAverageSpeedMetersPerSecond = 2.5))
++        assertEquals("2.5 m/s · ${context.getString(R.string.tracker_measurement_partial)}",
++            partial.formatSavedAverageSpeed(context) { "$it m/s" })
++        assertEquals(context.getString(R.string.tracker_component_waiting_data),
++            saved().formatSavedAverageSpeed(context) { error("No average") })
++    }
++
+     private fun saved(id: Long = 7, distance: Double? = 123.0, partial: Boolean = false,
+         accuracy: Float? = null, altitude: Float? = -12f) = SavedLocationSummaryRead.Snapshot(
+         SavedLocationSummarySelection.Session(id), TrackingHistoryReadSnapshot(0, 1),
+--- a/feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerSavedLocationDisplayTest.kt
++++ b/feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerSavedLocationDisplayTest.kt
+@@ -11,6 +11,7 @@
+ import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
+ import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
+ import com.adsamcik.tracker.shared.preferences.extension.formatDistance
++import com.adsamcik.tracker.shared.preferences.extension.formatSpeed
+ import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+ import com.adsamcik.tracker.tracker.R
+ import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
+@@ -68,6 +69,18 @@
+         composeRule.onAllNodesWithText(context.getString(R.string.speed_title)).assertCountEquals(0)
+         composeRule.onNodeWithText(context.getString(R.string.duration_title)).assertIsDisplayed()
+     }
++
++    @Test fun `Tracker Avg uses shared measured average with its partial state`() {
++        val read = saved(partial = true).let { it.copy(summary = it.summary.copy(movingAverageSpeedMetersPerSecond = 2.5)) }
++        composeRule.setContent { AppTheme {
++            StatusAndQuickStatsCard(true, TrackerSessionSnapshot(id = 7, start = 1_000),
++                null, 61_000, {}, savedLocation = read)
++        } }
++        val average = context.resources.formatSpeed(context, 2.5, 1)
++        composeRule.onNodeWithText("$average · ${context.getString(R.string.tracker_measurement_partial)}")
++            .assertIsDisplayed()
++    }
++
+     private fun saved(id: Long = 7, distance: Double? = 123.0, partial: Boolean = false,
+         accuracy: Float? = null, altitude: Float? = -12f) = SavedLocationSummaryRead.Snapshot(
+         SavedLocationSummarySelection.Session(id), TrackingHistoryReadSnapshot(0, 1),
+--- a/feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/PathMetricsAccumulator.kt
++++ /dev/null
+@@ -1,94 +0,0 @@
+-package com.adsamcik.tracker.tracker.ui.compose
+-
+-import com.adsamcik.tracker.shared.model.Location
+-import kotlin.math.atan2
+-import kotlin.math.cos
+-import kotlin.math.sin
+-import kotlin.math.sqrt
+-
+-internal data class PathMetrics(
+-	val distanceMeters: Double = 0.0,
+-	val movingAverageSpeedMps: Double = 0.0,
+-)
+-
+-internal class PathMetricsAccumulator(
+-	private val distanceBetween: (Location, Location) -> Double = Location::distanceFlatMeters,
+-) {
+-	private var previousPath: List<Location>? = null
+-	private var processedSize = 0
+-	private var distanceMeters = 0.0
+-	private var movingDistanceMeters = 0.0
+-	private var movingDurationSeconds = 0.0
+-
+-	fun update(path: List<Location>?): PathMetrics {
+-		if (path.isNullOrEmpty()) {
+-			reset()
+-			return PathMetrics()
+-		}
+-
+-		val previous = previousPath
+-		val isAppendOnly = previous != null &&
+-			processedSize == previous.size &&
+-			path.size >= processedSize &&
+-			path.first() == previous.first() &&
+-			path[processedSize - 1] == previous.last()
+-
+-		val startIndex = if (isAppendOnly) {
+-			processedSize.coerceAtLeast(1)
+-		} else {
+-			resetMetrics()
+-			1
+-		}
+-
+-		for (index in startIndex until path.size) {
+-			val start = path[index - 1]
+-			val end = path[index]
+-			val segmentDistanceMeters = distanceBetween(start, end).coerceAtLeast(0.0)
+-			distanceMeters += segmentDistanceMeters
+-
+-			val deltaMillis = end.time - start.time
+-			if (deltaMillis > 0L && segmentDistanceMeters > 0.0) {
+-				movingDistanceMeters += segmentDistanceMeters
+-				movingDurationSeconds += deltaMillis.toDouble() / 1000.0
+-			}
+-		}
+-
+-		previousPath = path
+-		processedSize = path.size
+-		return PathMetrics(
+-			distanceMeters = distanceMeters,
+-			movingAverageSpeedMps = if (movingDurationSeconds > 0.0) {
+-				movingDistanceMeters / movingDurationSeconds
+-			} else {
+-				0.0
+-			},
+-		)
+-	}
+-
+-	private fun reset() {
+-		previousPath = null
+-		processedSize = 0
+-		resetMetrics()
+-	}
+-
+-	private fun resetMetrics() {
+-		distanceMeters = 0.0
+-		movingDistanceMeters = 0.0
+-		movingDurationSeconds = 0.0
+-	}
+-}
+-
+-private const val EARTH_CIRCUMFERENCE_METERS = 40_075_000.0
+-
+-private fun Location.distanceFlatMeters(other: Location): Double {
+-	val lat1Rad = Math.toRadians(latitude)
+-	val lat2Rad = Math.toRadians(other.latitude)
+-	val latDistance = Math.toRadians(other.latitude - latitude)
+-	val lonDistance = Math.toRadians(other.longitude - longitude)
+-	val sinLatDistance = sin(latDistance / 2)
+-	val sinLonDistance = sin(lonDistance / 2)
+-	val a = sinLatDistance * sinLatDistance +
+-		cos(lat1Rad) * cos(lat2Rad) * sinLonDistance * sinLonDistance
+-	val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+-	return (EARTH_CIRCUMFERENCE_METERS / (2 * Math.PI)) * c
+-}
+--- a/feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/PathMetricsAccumulatorTest.kt
++++ /dev/null
+@@ -1,54 +0,0 @@
+-package com.adsamcik.tracker.tracker.ui.compose
+-
+-import com.adsamcik.tracker.shared.model.Location
+-import io.kotest.matchers.doubles.shouldBeExactly
+-import io.kotest.matchers.ints.shouldBeExactly
+-import org.junit.Test
+-
+-class PathMetricsAccumulatorTest {
+-
+-	@Test
+-	fun `processes only newly appended path segments`() {
+-		var distanceCalls = 0
+-		val accumulator = PathMetricsAccumulator { _, _ ->
+-			distanceCalls++
+-			10.0
+-		}
+-		val firstPath = listOf(location(time = 0L), location(time = 1_000L))
+-
+-		val first = accumulator.update(firstPath)
+-		val second = accumulator.update(firstPath + location(time = 2_000L))
+-
+-		first.distanceMeters.shouldBeExactly(10.0)
+-		second.distanceMeters.shouldBeExactly(20.0)
+-		second.movingAverageSpeedMps.shouldBeExactly(10.0)
+-		distanceCalls.shouldBeExactly(2)
+-	}
+-
+-	@Test
+-	fun `recomputes metrics when path is replaced`() {
+-		var distanceCalls = 0
+-		val accumulator = PathMetricsAccumulator { _, _ ->
+-			distanceCalls++
+-			5.0
+-		}
+-		accumulator.update(listOf(location(0L), location(1_000L), location(2_000L)))
+-
+-		val replacement = accumulator.update(listOf(location(10_000L), location(11_000L)))
+-
+-		replacement.distanceMeters.shouldBeExactly(5.0)
+-		replacement.movingAverageSpeedMps.shouldBeExactly(5.0)
+-		distanceCalls.shouldBeExactly(3)
+-	}
+-
+-	private fun location(time: Long) = Location(
+-		time = time,
+-		latitude = 50.0,
+-		longitude = 14.0,
+-		altitude = null,
+-		horizontalAccuracy = null,
+-		verticalAccuracy = null,
+-		speed = null,
+-		speedAccuracy = null,
+-	)
+-}

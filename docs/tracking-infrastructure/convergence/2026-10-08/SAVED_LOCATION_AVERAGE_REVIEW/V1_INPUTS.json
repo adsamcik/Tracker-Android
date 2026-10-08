@@ -1,0 +1,13 @@
+{
+  "packet": "docs/tracking-infrastructure/convergence/2026-10-08/SAVED_LOCATION_AVERAGE_SELECTED",
+  "base": "e542649404514112aa0cf505fbae3d2a42984ebc",
+  "inspected_current": "8187f45ced4e7507ff398b0f217a2b6edacc3ae0",
+  "phase": "IMPLEMENTATION_ONLY",
+  "tests": "NOT_RUN",
+  "inputs": {
+    "FILES.json": "86a111ed61752730f13c5765ee4f7a04fb0f27cd372f3589de1d2f1bb811b0b8",
+    "SELECTION.patch": "ad70210962087cc3a83213c84e1e9d101fdb5e41f6957ff545f52ba9dbcac209",
+    "DEPENDENCIES.json": "271d7aa6c487ba51d5328db073187ce4e7b9ca4e2bf7efff65be404f8bbe7e37",
+    "SOURCE_BOUNDARY.md": "1a22340ec1c516e31b2a125fb626d7ee6a20778402157cee65b7d1cae4155cb4"
+  }
+}

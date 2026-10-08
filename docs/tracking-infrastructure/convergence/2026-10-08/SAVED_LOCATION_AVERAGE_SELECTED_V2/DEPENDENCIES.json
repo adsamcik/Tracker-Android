@@ -1,0 +1,41 @@
+{
+  "base_commit": "e542649404514112aa0cf505fbae3d2a42984ebc",
+  "pins": [
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "stats/api/build.gradle.kts",
+      "sha256": "aa99b3d4ada0f474600ef53d1c7b4b29b5bb034e5bf700d1cac7412d35ae39b4"
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "sha256": "a276144c34315be81b125df52eb7611f08e92a7629abb3d1f3587a3e92a93f24"
+    },
+    {
+      "path": "tracker/api-module/build.gradle.kts",
+      "sha256": "67bb5c2b70196d20be7f1bef18484e92dbbea72cd83f3264e47bded86e6d4d30"
+    },
+    {
+      "path": "feature/tracker/build.gradle.kts",
+      "sha256": "8b64ab538f3de43aa7809b059ce4e78565306dedbd894d0fea4329b5de93c802"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+      "sha256": "408075a1ae59a6288996c3a2f3f556f26637f59b5694b1378d66923bcfe2348b"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationSample.kt",
+      "sha256": "74a9112e842cf33993d99696e01b5d681f88f0e049ea7f6c2fceafab317f4b1a"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "sha256": "2f67e6dd9e061aaa6ab6f65a5f46cdacfce04e38decce6b3c7fcc885df54b196"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/SavedLocationLiveUpdateSignal.kt",
+      "sha256": "88534a22cbb97d79539040dd9be7945ec9939c3d69b0a99208d711b487564fbc"
+    }
+  ]
+}

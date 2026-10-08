@@ -22,7 +22,21 @@ fun SavedLocationSummaryRead.formatSavedDistance(
     format: (Double) -> String,
 ): String {
     val snapshot = this as? SavedLocationSummaryRead.Snapshot
-    val value = snapshot?.summary?.distanceMeters
+    return formatSavedValue(context, snapshot?.summary?.distanceMeters, format)
+}
+
+fun SavedLocationSummaryRead.formatSavedAverageSpeed(
+    context: Context,
+    format: (Double) -> String,
+): String = formatSavedValue(context,
+    (this as? SavedLocationSummaryRead.Snapshot)?.summary?.movingAverageSpeedMetersPerSecond, format)
+
+private fun SavedLocationSummaryRead.formatSavedValue(
+    context: Context,
+    value: Double?,
+    format: (Double) -> String,
+): String {
+    val snapshot = this as? SavedLocationSummaryRead.Snapshot
     val formatted = value?.let(format)
     return when {
         formatted != null && snapshot?.summary?.partial == true ->
