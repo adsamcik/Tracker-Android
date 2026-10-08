@@ -1,0 +1,37 @@
+{
+  "base": "29e49a7cb51b667e774532ef74e2871f68dd86e6",
+  "phase": "IMPLEMENTATION_ONLY",
+  "tests": "NOT_RUN",
+  "files": [
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientWifiFactDao.kt",
+      "base_sha256": "241e698b3788457663bd66940a218b48409b0aa8c44735d8674c8eb4d8ec6c05",
+      "selected_sha256": "f2cb3b8de9730625e1f896b1b0bf23d5f17552be7f74f5f852174bac812a432d",
+      "working_before_sha256": "e7ba7bc11d3927058cbd63ff5362ed9900ed338e870cba201ea3a1df5f389168"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientCellFactDao.kt",
+      "base_sha256": "73be717deba220c66e16cf5771b2dbf31bb564ffa553459a4c5af73a08b07d2c",
+      "selected_sha256": "2147e311d178d061102a57ee1a998a394bb3e5c1942c1f4d6a9a8b66050c55d6",
+      "working_before_sha256": "51ffc96e01a15765a4c1cb027edefa254f17076d6aeea13b18b35e1665fa9acd"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt",
+      "base_sha256": "cd75ab9c80d3285d190b34c5829bed5921786b945694b05aa93536fda2fa653f",
+      "selected_sha256": "59bc2d5bf64828fb66bbdbc1b87bcf0afd4ea9587a297198dedaeb62b6c3a433",
+      "working_before_sha256": "cd75ab9c80d3285d190b34c5829bed5921786b945694b05aa93536fda2fa653f"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt",
+      "base_sha256": "e6895668ac88a4555cb8aac66ca0e8d73d8d52fd6a71790635dc902f4b2a6935",
+      "selected_sha256": "6a9828c4cec5bf4263eab2aa85e7f04f39f5dc96d513e34a2a07062dfb62884c",
+      "working_before_sha256": "e6895668ac88a4555cb8aac66ca0e8d73d8d52fd6a71790635dc902f4b2a6935"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+      "base_sha256": "4fe48839aa436b532650d7b8a6b7d550a94eb9dd4d5e2c1693fb9f29640e858c",
+      "selected_sha256": "a35308abbedf69eaf8bcf610cfa30dc904089f3852eec025b6d07250d8e5da32",
+      "working_before_sha256": "314e6688c17322220b9f6faf16dc6fc642157e0ab13be7d347663ae08e054557"
+    }
+  ]
+}

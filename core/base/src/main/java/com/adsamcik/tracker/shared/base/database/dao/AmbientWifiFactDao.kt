@@ -715,4 +715,34 @@ interface AmbientWifiFactDao {
 
 	@Query("DELETE FROM ambient_wifi_retention_authority")
 	fun deleteAllRetentionAuthoritiesForFullClear(): Int
+
+	/** Exact current parent selection for measured History, independent of the size of a day. */
+	@Query(
+		"SELECT fact.*, owner.observation_count AS owner_observation_count, " +
+			"owner.two_point_four_ghz_count AS owner_two_point_four_ghz_count, " +
+			"owner.five_ghz_count AS owner_five_ghz_count, " +
+			"owner.six_ghz_count AS owner_six_ghz_count, owner.other_band_count AS owner_other_band_count, " +
+			"owner.strongest_signal_dbm AS owner_strongest_signal_dbm, " +
+			"owner.weakest_signal_dbm AS owner_weakest_signal_dbm, " +
+			"owner.signal_sum_dbm AS owner_signal_sum_dbm " +
+			"FROM ambient_wifi_fact_revision AS fact " +
+			"INNER JOIN ambient_wifi_fact_cursor AS cursor ON cursor.writer_id = fact.writer_id " +
+			"AND cursor.writer_version = fact.writer_version AND cursor.logical_fact_id = fact.logical_fact_id " +
+			"AND cursor.latest_semantic_revision = fact.semantic_revision " +
+			"LEFT JOIN ambient_wifi_fact_revision AS owner ON owner.writer_id = fact.writer_id " +
+			"AND owner.writer_version = fact.writer_version " +
+			"AND owner.logical_fact_id = fact.aggregate_owner_logical_fact_id " +
+			"AND owner.semantic_revision = fact.aggregate_owner_semantic_revision " +
+			"WHERE fact.logical_fact_id IN (:factIds) " +
+			"ORDER BY fact.observed_wall_time_ms, fact.logical_fact_id LIMIT :limit",
+	)
+	suspend fun effectiveLocalByFactIds(factIds: List<String>, limit: Int): List<AmbientWifiEffectiveLocalRow>
+
+	@Query("SELECT * FROM imported_ambient_wifi_fact f WHERE f.fact_id IN (:factIds) " +
+		"AND f.semantic_revision = (SELECT MAX(n.semantic_revision) FROM imported_ambient_wifi_fact n " +
+		"WHERE n.fact_id = f.fact_id) ORDER BY f.fact_id, f.archive_id LIMIT :limit")
+	suspend fun effectiveImportedByFactIds(factIds: List<String>, limit: Int): List<ImportedAmbientWifiFactEntity>
+
+	@Query("SELECT * FROM ambient_wifi_gap WHERE gap_id IN (:gapIds) ORDER BY gap_id LIMIT :limit")
+	suspend fun gapsByIds(gapIds: List<String>, limit: Int): List<AmbientWifiGapEntity>
 }

@@ -96,6 +96,35 @@ class RoomAmbientRadioDetailCompletenessTest {
 	@After
 	fun tearDown() = database.close()
 
+	@Test fun `exact selected background parents retain the complete qualified network and tower set`() = runTest {
+		val offset = 86_400_000L - 1_950L
+		val wifi = insertWifi(true, wallOffsetMs = offset)
+		val cell = insertCell(true, wallOffsetMs = offset)
+		database.withTransaction {
+			val w = RoomAmbientWifiRepository(database, dispatcher).readSelectedInTransaction(
+				listOf(wifi.logicalFactId), emptyList(), emptyList(), emptyList())
+			val c = RoomAmbientCellRepository(database, dispatcher).readSelectedInTransaction(
+				listOf(cell.logicalFactId), emptyList(), emptyList(), emptyList())
+			assertEquals(wifi, w.nativeRows.single().fact); assertEquals(cell, c.nativeRows.single().fact)
+			assertEquals(listOf(86_399_950L, 86_400_050L), assertIs<AmbientWifiReadResult.Snapshot>(w.result).facts.single().networks.map { it.observedTimeMs })
+			assertEquals(listOf(86_399_950L, 86_400_050L), assertIs<AmbientCellReadResult.Snapshot>(c.result).facts.single().towers.map { it.observedTimeMs })
+		}
+		assertEquals(wifi, database.ambientWifiFactDao().revision(wifi.writerId, wifi.writerVersion, wifi.logicalFactId, 1L))
+		assertEquals(cell, database.ambientCellFactDao().revision(cell.writerId, cell.writerVersion, cell.logicalFactId, 1L))
+	}
+
+
+	@Test fun `selected background radio read still rejects a missing mandatory child set`() = runTest {
+		val wifi = insertWifi(true); val cell = insertCell(true)
+		database.openHelper.writableDatabase.execSQL("DELETE FROM ambient_wifi_child WHERE item_index = 1")
+		database.withTransaction {
+			assertEquals(AmbientWifiReadResult.StorageUnavailable, RoomAmbientWifiRepository(database, dispatcher)
+				.readSelectedInTransaction(listOf(wifi.logicalFactId), emptyList(), emptyList(), emptyList()).result)
+			assertEquals(cell.logicalFactId, assertIs<AmbientCellReadResult.Snapshot>(RoomAmbientCellRepository(database, dispatcher)
+				.readSelectedInTransaction(listOf(cell.logicalFactId), emptyList(), emptyList(), emptyList()).result).facts.single().identity)
+		}
+	}
+
 	@Test fun `paired radio consumers reuse the same accepted native facts and exact identities`() = runTest {
 		val wifi = insertWifi(true); val cell = insertCell(true)
 		database.withTransaction {

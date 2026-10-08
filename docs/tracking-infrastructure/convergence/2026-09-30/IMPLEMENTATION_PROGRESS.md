@@ -838,3 +838,9 @@ IMPLEMENTED_UNVALIDATED. All 25 prerequisites and T25 remain OPEN.
 Held Location V2 is not accepted; its new End-state fixture omits the actual
 operation-generation mutation. All tests remain NOT_RUN and all 25 prerequisites
 remain OPEN. No convergence gate or dev/v10 integration has begun.
+
+## 2026-10-08 — source-owned selected background radio parents
+
+IMPLEMENTED_UNVALIDATED: existing Ambient Wi-Fi/Cell repositories can read at most100 exact current native/imported parent or saved-gap identities in the caller's Room snapshot. Unrelated observations elsewhere in a day do not consume that selection budget. No acceptance predicates, database schema, physical provider, public contract or export format changed. Complete child sets remain qualified before a future measured History selector chooses leaves.
+
+Independent source-only reviewer `/root/daily_steps_display_fresh_review_1007` accepted the exact five-path slice at29e49; packet pins and scope are recorded in `convergence/2026-10-08/BACKGROUND_RADIO_SELECTED_PARENT_READ/SOURCE_REVIEW.md`. Two actual Room test methods were authored, NOT_RUN. Imports/gaps have static trace only. Full measured History, captured-radio exact readers, independent failing-parent isolation and all six-source caller integration still remain. All25 full-chain prerequisites/T25 OPEN; no gates or dev/v10 integration.

@@ -75,6 +75,22 @@ internal class RoomAmbientWifiRepository(
 	internal suspend fun readQualifiedInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult, AmbientWifiEffectiveLocalRow> =
 		readQualifiedWindowInTransaction(request, includeObservationOverlap = false)
 
+	/** Caller owns one Room snapshot and selects real parent identities, never a whole day limit. */
+	internal suspend fun readSelectedInTransaction(localFactIds: List<String>, importedFactIds: List<String>,
+		localGapIds: List<String>, importedGapIds: List<String>): RetainedAmbientRead<AmbientWifiReadResult, AmbientWifiEffectiveLocalRow> {
+		require(localFactIds.size + importedFactIds.size + localGapIds.size + importedGapIds.size in 1..100)
+		val dao = database.ambientWifiFactDao()
+		val local = if (localFactIds.isEmpty()) emptyList() else dao.effectiveLocalByFactIds(localFactIds, localFactIds.size + 1)
+		val imported = if (importedFactIds.isEmpty()) emptyList() else dao.effectiveImportedByFactIds(importedFactIds, importedFactIds.size + 1)
+		val gaps = if (localGapIds.isEmpty()) emptyList() else dao.gapsByIds(localGapIds, localGapIds.size + 1)
+		val importedGaps = if (importedGapIds.isEmpty()) emptyList() else dao.importedGapsByIds(importedGapIds, importedGapIds.size + 1)
+		if (local.size > localFactIds.size || imported.size > importedFactIds.size ||
+			gaps.size > localGapIds.size || importedGaps.size > importedGapIds.size) {
+			return RetainedAmbientRead(AmbientWifiReadResult.DependencyOverflow)
+		}
+		return qualifyAndCompose(local, imported, gaps, importedGaps, 100)
+	}
+
 	private suspend fun readQualifiedWindowInTransaction(request: AmbientWifiReadRequest,
 		includeObservationOverlap: Boolean): RetainedAmbientRead<AmbientWifiReadResult, AmbientWifiEffectiveLocalRow> {
 		val dao = database.ambientWifiFactDao()

@@ -1,0 +1,45 @@
+{
+  "base": "29e49a7cb51b667e774532ef74e2871f68dd86e6",
+  "files": [
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "sha256": "a276144c34315be81b125df52eb7611f08e92a7629abb3d1f3587a3e92a93f24"
+    },
+    {
+      "path": "core/base/build.gradle.kts",
+      "sha256": "e7d9147951041300b0b6d4613ed6b7cfd2b2edfadcc6f98fb513a2038dd46ac3"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "sha256": "46271afa72131dfd0ba86bf593abb00cb0f1a39a7f01ede89b43a56789f46217"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedAmbientRadioReader.kt",
+      "sha256": "09c33ee1a619edae1fd7a1b908de81753121f94d792a3a0c924ebef5a7910341"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedImportedAmbientRadioReader.kt",
+      "sha256": "0e13532a730f43cb08fb9e2fa9dc31e04d60fda2e4ad8847c441f386962be97c"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/RadioObservationChildDao.kt",
+      "sha256": "d8ee527389d7f5b6011c6a617c51a213b7f64f6cd580613f621b7a35b6dca779"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ImportedRadioChildDao.kt",
+      "sha256": "bbb13cdbad10a10e4cc6373bca6b13dc7a8b12a36561497457131a5a5ea67e73"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AmbientWifiRepository.kt",
+      "sha256": "57ea51d644a14bb8580124486a21e2d1a1d08a83e901ba61c955f14cc5a64157"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AmbientCellRepository.kt",
+      "sha256": "329d595032de24183865fdbce6b23c263603eeb7a6ddd56a75456e59ce7853e4"
+    }
+  ]
+}

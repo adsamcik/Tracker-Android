@@ -1,0 +1,166 @@
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientWifiFactDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientWifiFactDao.kt
+@@ -715,4 +715,34 @@
+ 
+ 	@Query("DELETE FROM ambient_wifi_retention_authority")
+ 	fun deleteAllRetentionAuthoritiesForFullClear(): Int
++
++	/** Exact current parent selection for measured History, independent of the size of a day. */
++	@Query(
++		"SELECT fact.*, owner.observation_count AS owner_observation_count, " +
++			"owner.two_point_four_ghz_count AS owner_two_point_four_ghz_count, " +
++			"owner.five_ghz_count AS owner_five_ghz_count, " +
++			"owner.six_ghz_count AS owner_six_ghz_count, owner.other_band_count AS owner_other_band_count, " +
++			"owner.strongest_signal_dbm AS owner_strongest_signal_dbm, " +
++			"owner.weakest_signal_dbm AS owner_weakest_signal_dbm, " +
++			"owner.signal_sum_dbm AS owner_signal_sum_dbm " +
++			"FROM ambient_wifi_fact_revision AS fact " +
++			"INNER JOIN ambient_wifi_fact_cursor AS cursor ON cursor.writer_id = fact.writer_id " +
++			"AND cursor.writer_version = fact.writer_version AND cursor.logical_fact_id = fact.logical_fact_id " +
++			"AND cursor.latest_semantic_revision = fact.semantic_revision " +
++			"LEFT JOIN ambient_wifi_fact_revision AS owner ON owner.writer_id = fact.writer_id " +
++			"AND owner.writer_version = fact.writer_version " +
++			"AND owner.logical_fact_id = fact.aggregate_owner_logical_fact_id " +
++			"AND owner.semantic_revision = fact.aggregate_owner_semantic_revision " +
++			"WHERE fact.logical_fact_id IN (:factIds) " +
++			"ORDER BY fact.observed_wall_time_ms, fact.logical_fact_id LIMIT :limit",
++	)
++	suspend fun effectiveLocalByFactIds(factIds: List<String>, limit: Int): List<AmbientWifiEffectiveLocalRow>
++
++	@Query("SELECT * FROM imported_ambient_wifi_fact f WHERE f.fact_id IN (:factIds) " +
++		"AND f.semantic_revision = (SELECT MAX(n.semantic_revision) FROM imported_ambient_wifi_fact n " +
++		"WHERE n.fact_id = f.fact_id) ORDER BY f.fact_id, f.archive_id LIMIT :limit")
++	suspend fun effectiveImportedByFactIds(factIds: List<String>, limit: Int): List<ImportedAmbientWifiFactEntity>
++
++	@Query("SELECT * FROM ambient_wifi_gap WHERE gap_id IN (:gapIds) ORDER BY gap_id LIMIT :limit")
++	suspend fun gapsByIds(gapIds: List<String>, limit: Int): List<AmbientWifiGapEntity>
+ }
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientCellFactDao.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientCellFactDao.kt
+@@ -732,4 +732,38 @@
+ 
+ 	@Query("DELETE FROM ambient_cell_retention_authority")
+ 	fun deleteAllRetentionAuthoritiesForFullClear(): Int
++
++	/** Exact current parent selection for measured History, independent of the size of a day. */
++	@Query(
++		"SELECT fact.*, owner.observation_count AS owner_observation_count, " +
++			"owner.registered_observation_count AS owner_registered_observation_count, " +
++			"owner.gsm_count AS owner_gsm_count, owner.cdma_count AS owner_cdma_count, " +
++			"owner.wcdma_count AS owner_wcdma_count, owner.tdscdma_count AS owner_tdscdma_count, " +
++			"owner.lte_count AS owner_lte_count, owner.nr_count AS owner_nr_count, " +
++			"owner.quality_unknown_count AS owner_quality_unknown_count, " +
++			"owner.quality_none_or_unknown_count AS owner_quality_none_or_unknown_count, " +
++			"owner.quality_poor_count AS owner_quality_poor_count, " +
++			"owner.quality_moderate_count AS owner_quality_moderate_count, " +
++			"owner.quality_good_count AS owner_quality_good_count, " +
++			"owner.quality_great_count AS owner_quality_great_count " +
++			"FROM ambient_cell_fact_revision AS fact " +
++			"INNER JOIN ambient_cell_fact_cursor AS cursor ON cursor.writer_id = fact.writer_id " +
++			"AND cursor.writer_version = fact.writer_version AND cursor.logical_fact_id = fact.logical_fact_id " +
++			"AND cursor.latest_semantic_revision = fact.semantic_revision " +
++			"LEFT JOIN ambient_cell_fact_revision AS owner ON owner.writer_id = fact.writer_id " +
++			"AND owner.writer_version = fact.writer_version " +
++			"AND owner.logical_fact_id = fact.aggregate_owner_logical_fact_id " +
++			"AND owner.semantic_revision = fact.aggregate_owner_semantic_revision " +
++			"WHERE fact.logical_fact_id IN (:factIds) " +
++			"ORDER BY fact.observed_wall_time_ms, fact.logical_fact_id LIMIT :limit",
++	)
++	suspend fun effectiveLocalByFactIds(factIds: List<String>, limit: Int): List<AmbientCellEffectiveLocalRow>
++
++	@Query("SELECT * FROM imported_ambient_cell_fact f WHERE f.fact_id IN (:factIds) " +
++		"AND f.semantic_revision = (SELECT MAX(n.semantic_revision) FROM imported_ambient_cell_fact n " +
++		"WHERE n.fact_id = f.fact_id) ORDER BY f.fact_id, f.archive_id LIMIT :limit")
++	suspend fun effectiveImportedByFactIds(factIds: List<String>, limit: Int): List<ImportedAmbientCellFactEntity>
++
++	@Query("SELECT * FROM ambient_cell_gap WHERE gap_id IN (:gapIds) ORDER BY gap_id LIMIT :limit")
++	suspend fun gapsByIds(gapIds: List<String>, limit: Int): List<AmbientCellGapEntity>
+ }
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt
+@@ -75,6 +75,22 @@
+ 	internal suspend fun readQualifiedInTransaction(request: AmbientWifiReadRequest): RetainedAmbientRead<AmbientWifiReadResult, AmbientWifiEffectiveLocalRow> =
+ 		readQualifiedWindowInTransaction(request, includeObservationOverlap = false)
+ 
++	/** Caller owns one Room snapshot and selects real parent identities, never a whole day limit. */
++	internal suspend fun readSelectedInTransaction(localFactIds: List<String>, importedFactIds: List<String>,
++		localGapIds: List<String>, importedGapIds: List<String>): RetainedAmbientRead<AmbientWifiReadResult, AmbientWifiEffectiveLocalRow> {
++		require(localFactIds.size + importedFactIds.size + localGapIds.size + importedGapIds.size in 1..100)
++		val dao = database.ambientWifiFactDao()
++		val local = if (localFactIds.isEmpty()) emptyList() else dao.effectiveLocalByFactIds(localFactIds, localFactIds.size + 1)
++		val imported = if (importedFactIds.isEmpty()) emptyList() else dao.effectiveImportedByFactIds(importedFactIds, importedFactIds.size + 1)
++		val gaps = if (localGapIds.isEmpty()) emptyList() else dao.gapsByIds(localGapIds, localGapIds.size + 1)
++		val importedGaps = if (importedGapIds.isEmpty()) emptyList() else dao.importedGapsByIds(importedGapIds, importedGapIds.size + 1)
++		if (local.size > localFactIds.size || imported.size > importedFactIds.size ||
++			gaps.size > localGapIds.size || importedGaps.size > importedGapIds.size) {
++			return RetainedAmbientRead(AmbientWifiReadResult.DependencyOverflow)
++		}
++		return qualifyAndCompose(local, imported, gaps, importedGaps, 100)
++	}
++
+ 	private suspend fun readQualifiedWindowInTransaction(request: AmbientWifiReadRequest,
+ 		includeObservationOverlap: Boolean): RetainedAmbientRead<AmbientWifiReadResult, AmbientWifiEffectiveLocalRow> {
+ 		val dao = database.ambientWifiFactDao()
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt
+@@ -77,6 +77,22 @@
+ 	/** Optional paired consumers keep independently qualified rows and the explicit read gaps. */
+ 	internal suspend fun readQualifiedInTransaction(request: AmbientCellReadRequest): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> =
+ 		readQualifiedWindowInTransaction(request, includeObservationOverlap = false)
++
++	/** Caller owns one Room snapshot and selects real parent identities, never a whole day limit. */
++	internal suspend fun readSelectedInTransaction(localFactIds: List<String>, importedFactIds: List<String>,
++		localGapIds: List<String>, importedGapIds: List<String>): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> {
++		require(localFactIds.size + importedFactIds.size + localGapIds.size + importedGapIds.size in 1..100)
++		val dao = database.ambientCellFactDao()
++		val local = if (localFactIds.isEmpty()) emptyList() else dao.effectiveLocalByFactIds(localFactIds, localFactIds.size + 1)
++		val imported = if (importedFactIds.isEmpty()) emptyList() else dao.effectiveImportedByFactIds(importedFactIds, importedFactIds.size + 1)
++		val gaps = if (localGapIds.isEmpty()) emptyList() else dao.gapsByIds(localGapIds, localGapIds.size + 1)
++		val importedGaps = if (importedGapIds.isEmpty()) emptyList() else dao.importedGapsByIds(importedGapIds, importedGapIds.size + 1)
++		if (local.size > localFactIds.size || imported.size > importedFactIds.size ||
++			gaps.size > localGapIds.size || importedGaps.size > importedGapIds.size) {
++			return RetainedAmbientRead(AmbientCellReadResult.DependencyOverflow)
++		}
++		return qualifyAndCompose(local, imported, gaps, importedGaps, 100)
++	}
+ 
+ 	private suspend fun readQualifiedWindowInTransaction(request: AmbientCellReadRequest,
+ 		includeObservationOverlap: Boolean): RetainedAmbientRead<AmbientCellReadResult, AmbientCellEffectiveLocalRow> {
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt
+@@ -96,6 +96,35 @@
+ 	@After
+ 	fun tearDown() = database.close()
+ 
++	@Test fun `exact selected background parents retain the complete qualified network and tower set`() = runTest {
++		val offset = 86_400_000L - 1_950L
++		val wifi = insertWifi(true, wallOffsetMs = offset)
++		val cell = insertCell(true, wallOffsetMs = offset)
++		database.withTransaction {
++			val w = RoomAmbientWifiRepository(database, dispatcher).readSelectedInTransaction(
++				listOf(wifi.logicalFactId), emptyList(), emptyList(), emptyList())
++			val c = RoomAmbientCellRepository(database, dispatcher).readSelectedInTransaction(
++				listOf(cell.logicalFactId), emptyList(), emptyList(), emptyList())
++			assertEquals(wifi, w.nativeRows.single().fact); assertEquals(cell, c.nativeRows.single().fact)
++			assertEquals(listOf(86_399_950L, 86_400_050L), assertIs<AmbientWifiReadResult.Snapshot>(w.result).facts.single().networks.map { it.observedTimeMs })
++			assertEquals(listOf(86_399_950L, 86_400_050L), assertIs<AmbientCellReadResult.Snapshot>(c.result).facts.single().towers.map { it.observedTimeMs })
++		}
++		assertEquals(wifi, database.ambientWifiFactDao().revision(wifi.writerId, wifi.writerVersion, wifi.logicalFactId, 1L))
++		assertEquals(cell, database.ambientCellFactDao().revision(cell.writerId, cell.writerVersion, cell.logicalFactId, 1L))
++	}
++
++
++	@Test fun `selected background radio read still rejects a missing mandatory child set`() = runTest {
++		val wifi = insertWifi(true); val cell = insertCell(true)
++		database.openHelper.writableDatabase.execSQL("DELETE FROM ambient_wifi_child WHERE item_index = 1")
++		database.withTransaction {
++			assertEquals(AmbientWifiReadResult.StorageUnavailable, RoomAmbientWifiRepository(database, dispatcher)
++				.readSelectedInTransaction(listOf(wifi.logicalFactId), emptyList(), emptyList(), emptyList()).result)
++			assertEquals(cell.logicalFactId, assertIs<AmbientCellReadResult.Snapshot>(RoomAmbientCellRepository(database, dispatcher)
++				.readSelectedInTransaction(listOf(cell.logicalFactId), emptyList(), emptyList(), emptyList()).result).facts.single().identity)
++		}
++	}
++
+ 	@Test fun `paired radio consumers reuse the same accepted native facts and exact identities`() = runTest {
+ 		val wifi = insertWifi(true); val cell = insertCell(true)
+ 		database.withTransaction {

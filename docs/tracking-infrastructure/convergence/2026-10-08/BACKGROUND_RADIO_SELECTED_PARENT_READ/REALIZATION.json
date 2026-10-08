@@ -1,0 +1,22 @@
+[
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientWifiFactDao.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/AmbientCellFactDao.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientWifiRepository.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientCellRepository.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomAmbientRadioDetailCompletenessTest.kt",
+    "disposition": "PRESERVED_MIXED_WORKING_DRAFT"
+  }
+]

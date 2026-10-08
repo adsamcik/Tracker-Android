@@ -488,3 +488,10 @@ prerequisites and T25 remain OPEN. No gates or dev/v10 integration started.
   V2 summary selection; repair across affected historical sources is in progress.
 - [ ] Finish and freshly review that historical repair, shared live consumer update
   flow and actual measured-observation History caller/data wiring.
+
+### October 8 — bounded background radio parent reads
+
+- [x] Author and independently review exact current Wi-Fi/Cell parent and saved-gap ID reads in the existing source repositories. Native and imported scope stays separate internally; existing authority, child completeness, correction lineage, erase and retention checks are reused. Four production paths and two new actual Room test methods selected; IMPLEMENTED_UNVALIDATED, tests NOT_RUN. Evidence: `../2026-10-08/BACKGROUND_RADIO_SELECTED_PARENT_READ/`.
+- [ ] Finish exact measured radio leaf qualification across captured, background, imported and released records, source-level failure recovery, and actual shared History routing. The selected read hook does not close T13 or any full-chain prerequisite.
+
+All 25 prerequisites and T25 remain OPEN. No validation, provider activation, integration or push.
