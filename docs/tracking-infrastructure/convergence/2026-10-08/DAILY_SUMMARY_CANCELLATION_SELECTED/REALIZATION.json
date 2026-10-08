@@ -1,0 +1,12 @@
+[
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultDailySummaryRepository.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "0b07ce1dfaa32403fca212111b366b1dac08a35329989d4538cfd8a160a4aaed"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultDailySummaryRepositoryTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "c4c55a42a655f772a14d92edc3eeccb09e7f6a5d261ce42438c678ec0abe1db8"
+  }
+]

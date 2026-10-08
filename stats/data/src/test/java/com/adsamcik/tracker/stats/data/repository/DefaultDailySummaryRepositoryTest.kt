@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -84,6 +85,16 @@ class DefaultDailySummaryRepositoryTest {
 
 		val error = resultError(repository.getBetween(4L, 9L))
 		error shouldBe StatsError.DatabaseError("Failed to load daily summaries: db read failed", failure)
+	}
+
+	@Test
+	fun `getBetween preserves cancellation from the storage read`() = runTest {
+		val cancelled = CancellationException("summary caller stopped")
+		coEvery { dao.getBetween(4L, 9L) } throws cancelled
+
+		val thrown = runCatching { repository.getBetween(4L, 9L) }.exceptionOrNull()
+
+		(thrown === cancelled) shouldBe true
 	}
 
 	private fun resultError(result: Either<StatsError, *>): StatsError {

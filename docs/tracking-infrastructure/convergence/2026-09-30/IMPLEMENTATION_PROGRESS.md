@@ -892,3 +892,9 @@ open. No execution gate, provider activation, dev/v10 integration or push.
 - [x] Select the existing exact segment-and-label deletion transaction with independent group preservation and rollback. Three actual Room fixture methods NOT_RUN; full logical/source erase remains open.
 
 Exact source and independent acceptance: `../2026-10-08/TRIP_ANNOTATION_CLEANUP_SELECTED/` and `TRIP_ANNOTATION_CLEANUP_REVIEW/`. IMPLEMENTED_UNVALIDATED; T25/all25 remain OPEN. No gates, activation or dev/v10 integration.
+
+### October 8 - daily summary cancellation
+
+- [x] Preserve coroutine cancellation in the existing daily summary read; ordinary storage-error handling stays intact. One focused host fixture method NOT_RUN; all-day numerical composition remains open.
+
+Exact source and independent acceptance: `../2026-10-08/DAILY_SUMMARY_CANCELLATION_SELECTED/` and `DAILY_SUMMARY_CANCELLATION_REVIEW/`. IMPLEMENTED_UNVALIDATED; T25/all25 remain OPEN. No gates, activation or dev/v10 integration.

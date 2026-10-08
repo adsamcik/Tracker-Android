@@ -1,0 +1,18 @@
+{
+  "base_commit": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+  "phase": "IMPLEMENTATION_ONLY",
+  "files": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultDailySummaryRepository.kt",
+      "base_sha256": "7bece5def7416fd1535fcfac3f74aa9458fb985f424321f6d358df0abe45a0bf",
+      "selected_sha256": "3f8ed03de9ac1a3f07a101d944e55253452dccc0479c971f5e8dda420002543b",
+      "working_before_sha256": "0b07ce1dfaa32403fca212111b366b1dac08a35329989d4538cfd8a160a4aaed"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/DefaultDailySummaryRepositoryTest.kt",
+      "base_sha256": "c1a5c92deb4043c92ac477073361caf59a5455f15a12e1569c2ccd9713b974c0",
+      "selected_sha256": "3ec4c66cb49c94c00dcbddbc7626a229032364dfba55c03f268dfcdaf7aa2a66",
+      "working_before_sha256": "c4c55a42a655f772a14d92edc3eeccb09e7f6a5d261ce42438c678ec0abe1db8"
+    }
+  ]
+}

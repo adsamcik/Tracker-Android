@@ -1,0 +1,20 @@
+{
+  "pins": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "694fe135558539f94821481708982dc3880f92f72476b54e418b2eeccb8c8971"
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "sha256": "a276144c34315be81b125df52eb7611f08e92a7629abb3d1f3587a3e92a93f24"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/DailySummaryDao.kt",
+      "sha256": "5c43fd8d4963f6d561493ec8c05bff18e126905401b241d71a36f91f3747c351"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/DailySummaryRepository.kt",
+      "sha256": "41e238cb0d965cf0bea85d78fd6d35d1f851c825040c99124cd939481fa82c76"
+    }
+  ]
+}

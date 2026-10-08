@@ -9,6 +9,7 @@ import com.adsamcik.tracker.stats.api.repository.DailySummary
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
@@ -43,6 +44,8 @@ class DefaultDailySummaryRepository @Inject constructor(
 		return try {
 			val entities = dailySummaryDao.getBetween(fromDay, toDay)
 			entities.map { it.toDailySummary() }.right()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
 		} catch (e: Exception) {
 			StatsError.DatabaseError("Failed to load daily summaries: ${e.message}", e).left()
 		}
