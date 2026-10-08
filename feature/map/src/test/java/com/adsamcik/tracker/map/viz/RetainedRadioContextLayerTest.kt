@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.stats.api.repository.*
 import io.mockk.mockk
 import kotlin.test.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
@@ -59,7 +60,125 @@ class RetainedRadioContextLayerTest {
         layer.enable(mockk(), 1f).join()
         assertEquals(legacyConfig, layer.lastConfig)
         read = RadioLocationContextReadResult.DependencyLimit
-        assertIs<LayerReloadResult.Failure>(layer.reloadData(mockk()))
+        assertIs<LayerReloadResult.Success>(layer.reloadData(mockk()))
+        assertEquals(legacyConfig, layer.lastConfig)
+        read = RadioLocationContextReadResult.StorageUnavailable
+        assertIs<LayerReloadResult.Success>(layer.reloadData(mockk()))
+        assertEquals(legacyConfig, layer.lastConfig)
+        layer.disable()
+    }
+
+    @Test fun `unavailable enrichment on first load still renders saved legacy radio data`() = runTest {
+        val legacy = WeightedGeoFeature(51.0, 15.0, 1_000, 1.0)
+        val legacyConfig = MapLibreLayerConfig.Circle("legacy", listOf(0f to 1, 1f to 1), 1f, 1f)
+        var loaded = false
+        var aggregated: List<WeightedGeoFeature>? = null
+        val pipeline = VizPipeline("wifi_heatmap", VizSource { loaded = true; listOf(legacy) },
+            Aggregator<WeightedGeoFeature, SpatialData.Markers> { features, _ ->
+                aggregated = features; SpatialData.Markers(features)
+            }, Encoder<SpatialData.Markers> { _, _ -> legacyConfig })
+        val repository = object : RadioLocationContextRepository {
+            override suspend fun read(request: RadioLocationContextRequest) =
+                RadioLocationContextReadResult.DependencyLimit
+        }
+        val layer = RetainedRadioContextLayer(pipeline, repository, RadioContextSource.WIFI,
+            TestDispatchersProvider(StandardTestDispatcher(testScheduler)))
+
+        layer.enable(mockk(), 1f).join()
+
+        assertTrue(loaded)
+        assertEquals(listOf(legacy), aggregated)
+        assertEquals(legacyConfig, layer.lastConfig)
+        layer.disable()
+    }
+
+    @Test fun `failed enrichment removes old device points while preserving the current legacy layer`() = runTest {
+        val legacyConfig = MapLibreLayerConfig.Circle("legacy", listOf(0f to 1, 1f to 1), 1f, 1f)
+        val pipeline = VizPipeline("wifi_heatmap", VizSource<WeightedGeoFeature> { emptyList() },
+            Aggregator<WeightedGeoFeature, SpatialData.Markers> { features, _ -> SpatialData.Markers(features) },
+            Encoder<SpatialData.Markers> { _, _ -> legacyConfig })
+        var fail = false
+        val repository = object : RadioLocationContextRepository {
+            override suspend fun read(request: RadioLocationContextRequest): RadioLocationContextReadResult {
+                if (fail) throw IllegalStateException("Local read failed")
+                return RadioLocationContextReadResult.Ready(RadioContextSource.WIFI, listOf(observation()))
+            }
+        }
+        val layer = RetainedRadioContextLayer(pipeline, repository, RadioContextSource.WIFI,
+            TestDispatchersProvider(StandardTestDispatcher(testScheduler)))
+        layer.enable(mockk(), 1f).join()
+        assertIs<MapLibreLayerConfig.Composite>(layer.lastConfig)
+
+        fail = true
+        assertIs<LayerReloadResult.Success>(layer.reloadData(mockk()))
+
+        assertEquals(legacyConfig, layer.lastConfig)
+        layer.disable()
+    }
+
+    @Test fun `valid retained device points survive an unavailable legacy radio reader`() = runTest {
+        val pipeline = VizPipeline("wifi_heatmap", VizSource<WeightedGeoFeature> {
+            throw IllegalStateException("Legacy read failed")
+        }, Aggregator<WeightedGeoFeature, SpatialData.Markers> { features, _ -> SpatialData.Markers(features) },
+            Encoder<SpatialData.Markers> { _, _ -> null })
+        val repository = object : RadioLocationContextRepository {
+            override suspend fun read(request: RadioLocationContextRequest) =
+                RadioLocationContextReadResult.Ready(RadioContextSource.WIFI, listOf(observation()))
+        }
+        val layer = RetainedRadioContextLayer(pipeline, repository, RadioContextSource.WIFI,
+            TestDispatchersProvider(StandardTestDispatcher(testScheduler)))
+
+        layer.enable(mockk(), 1f).join()
+
+        val config = assertIs<MapLibreLayerConfig.Composite>(layer.lastConfig)
+        assertTrue(assertIs<MapLibreLayerConfig.Circle>(config.layers.last()).geoJson.contains("[14.0,50.0]"))
+        layer.disable()
+    }
+
+    @Test fun `cancelling the context read never falls back to an independent legacy load`() = runTest {
+        var legacyLoads = 0
+        val pipeline = VizPipeline("wifi_heatmap", VizSource<WeightedGeoFeature> { legacyLoads++; emptyList() },
+            Aggregator<WeightedGeoFeature, SpatialData.Markers> { features, _ -> SpatialData.Markers(features) },
+            Encoder<SpatialData.Markers> { _, _ -> null })
+        var cancel = false
+        val repository = object : RadioLocationContextRepository {
+            override suspend fun read(request: RadioLocationContextRequest): RadioLocationContextReadResult {
+                if (cancel) throw CancellationException("Screen closed")
+                return RadioLocationContextReadResult.Ready(RadioContextSource.WIFI, emptyList())
+            }
+        }
+        val layer = RetainedRadioContextLayer(pipeline, repository, RadioContextSource.WIFI,
+            TestDispatchersProvider(StandardTestDispatcher(testScheduler)))
+        layer.enable(mockk(), 1f).join()
+        cancel = true
+
+        assertEquals(1, legacyLoads)
+        assertFailsWith<CancellationException> { layer.reloadData(mockk()) }
+        assertEquals(1, legacyLoads)
+
+        layer.disable()
+    }
+
+    @Test fun `both unavailable radio readers remain a load failure rather than an empty recording`() = runTest {
+        var fail = false
+        val pipeline = VizPipeline("wifi_heatmap", VizSource<WeightedGeoFeature> {
+            if (fail) throw IllegalStateException("Legacy read failed")
+            emptyList()
+        }, Aggregator<WeightedGeoFeature, SpatialData.Markers> { features, _ -> SpatialData.Markers(features) },
+            Encoder<SpatialData.Markers> { _, _ -> null })
+        val repository = object : RadioLocationContextRepository {
+            override suspend fun read(request: RadioLocationContextRequest): RadioLocationContextReadResult =
+                if (fail) RadioLocationContextReadResult.StorageUnavailable
+                else RadioLocationContextReadResult.Ready(RadioContextSource.WIFI, emptyList())
+        }
+        val layer = RetainedRadioContextLayer(pipeline, repository, RadioContextSource.WIFI,
+            TestDispatchersProvider(StandardTestDispatcher(testScheduler)))
+        layer.enable(mockk(), 1f).join()
+        fail = true
+
+        val result = assertIs<LayerReloadResult.Failure>(layer.reloadData(mockk()))
+        assertEquals("Legacy read failed", result.cause.message)
+
         layer.disable()
     }
 

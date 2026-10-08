@@ -10,6 +10,7 @@ import com.adsamcik.tracker.stats.api.repository.*
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import kotlin.math.*
+import kotlinx.coroutines.CancellationException
 
 /** Existing radio view, adding actual observed device points without feeding AP/tower estimators. */
 internal class RetainedRadioContextLayer<Feature, F : SpatialData>(
@@ -22,22 +23,34 @@ internal class RetainedRadioContextLayer<Feature, F : SpatialData>(
 
     override suspend fun loadData(context: Context, bounds: Bounds?): RetainedRadioLayerInput<Feature> {
         val end = if (dateRange.last == Long.MAX_VALUE) Long.MAX_VALUE else dateRange.last + 1L
-        val read = repository.read(RadioLocationContextRequest(source, maxOf(0L, dateRange.first), end))
+        val read = try {
+            repository.read(RadioLocationContextRequest(source, maxOf(0L, dateRange.first), end))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            RadioLocationContextReadResult.StorageUnavailable
+        }
         val snapshot = read as? RadioLocationContextReadResult.Ready
-            ?: throw RetainedRadioMapReadUnavailable()
-        val legacy = pipeline.source.load(VizRequest(dateRange, bounds, currentPerformanceBudgets().maxPoints))
-        val visible = snapshot.observations.filter { observation ->
+        val legacy = try {
+            pipeline.source.load(VizRequest(dateRange, bounds, currentPerformanceBudgets().maxPoints))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            if (snapshot == null) throw error
+            emptyList()
+        }
+        val visible = snapshot?.observations.orEmpty().filter { observation ->
             val point = (observation.location as? OptionalRetainedLocationContext.Located)?.value ?: return@filter false
             val latitude = point.latitudeE7 / 10_000_000.0
             val longitude = point.longitudeE7 / 10_000_000.0
             bounds == null || latitude in bounds.south..bounds.north && bounds.containsLongitude(longitude)
         }
-        return RetainedRadioLayerInput(legacy, visible, snapshot.gaps)
+        return RetainedRadioLayerInput(legacy, visible, snapshot?.gaps.orEmpty(), read)
     }
 
     override fun processData(input: RetainedRadioLayerInput<Feature>, budgets: PerformanceManager.PerformanceBudgets) =
         RetainedRadioLayerOutput(pipeline.aggregator.aggregate(input.legacy,
-            AggContext(zoom, quality, budgets.maxPoints)), input.observations.take(budgets.maxPoints), input.gaps)
+            AggContext(zoom, quality, budgets.maxPoints)), input.observations.take(budgets.maxPoints), input.gaps, input.contextRead)
 
     override fun produceConfig(processed: RetainedRadioLayerOutput<F>): MapLibreLayerConfig? {
         val configurations = listOfNotNull(pipeline.encoder.encode(processed.legacy, RenderContext(quality)),
@@ -51,10 +64,9 @@ internal class RetainedRadioContextLayer<Feature, F : SpatialData>(
 }
 
 internal data class RetainedRadioLayerInput<F>(val legacy: List<F>, val observations: List<RadioContextObservation>,
-    val gaps: Set<RadioContextReadGap>)
+    val gaps: Set<RadioContextReadGap>, val contextRead: RadioLocationContextReadResult)
 internal data class RetainedRadioLayerOutput<F>(val legacy: F, val observations: List<RadioContextObservation>,
-    val gaps: Set<RadioContextReadGap>)
-private class RetainedRadioMapReadUnavailable : IllegalStateException("Retained radio map context unavailable")
+    val gaps: Set<RadioContextReadGap>, val contextRead: RadioLocationContextReadResult)
 
 /** Coordinates and accuracy belong to the device fix, never to a Wi-Fi network or Cell tower. */
 internal object RetainedRadioContextEncoder {

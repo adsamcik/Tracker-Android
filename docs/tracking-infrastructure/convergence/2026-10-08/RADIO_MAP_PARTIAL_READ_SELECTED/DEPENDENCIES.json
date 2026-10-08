@@ -1,0 +1,33 @@
+{
+  "baseCommit": "d39c420b63a76fa3600f497524e04f9d3dbedf88",
+  "pins": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "694fe135558539f94821481708982dc3880f92f72476b54e418b2eeccb8c8971"
+    },
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidConventionPlugins.kt",
+      "sha256": "6530e14a5465d6023516b430b05e792a49b2cbc802c2b9455101272c17c36229"
+    },
+    {
+      "path": "feature/map/build.gradle.kts",
+      "sha256": "6cc3815f6c84121e2c4cb5eb6febd8589055197ec1a3b7b708213c4249740cf8"
+    },
+    {
+      "path": "feature/map/src/main/java/com/adsamcik/tracker/map/layers/base/BaseMapLayer.kt",
+      "sha256": "16c42d95fe057e85ede209c4cb272e129362a582380c4def06af6c68aa3c4634"
+    },
+    {
+      "path": "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt",
+      "sha256": "f219d9d4d1cc89a5942285c4c0c8924941f26920d2496f1be86be8d07fc25666"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/RadioLocationContextRepository.kt",
+      "sha256": "d53f44bd4b3eb1249ddea713c1de62022170da8b6d71079935b8df8932bc36de"
+    }
+  ]
+}

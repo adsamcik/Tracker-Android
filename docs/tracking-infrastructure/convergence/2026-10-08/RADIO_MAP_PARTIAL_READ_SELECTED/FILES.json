@@ -1,0 +1,15 @@
+{
+  "baseCommit": "d39c420b63a76fa3600f497524e04f9d3dbedf88",
+  "files": [
+    {
+      "path": "feature/map/src/main/java/com/adsamcik/tracker/map/viz/RetainedRadioContextLayer.kt",
+      "baseSha256": "8661058d21cee1f6e9ff69a2094378131510fa08e56bf9b3e28900b72e788cc8",
+      "sha256": "fc3adb462ea4fee57f2e092cb0db86836574d505ae1c8cb5b14d215130856354"
+    },
+    {
+      "path": "feature/map/src/test/java/com/adsamcik/tracker/map/viz/RetainedRadioContextLayerTest.kt",
+      "baseSha256": "a1e59c4fc7e198f7e8e2474b5c65019652e83cfda574d35ca4b6daab8dcfade7",
+      "sha256": "d8bbd34f56343a42acd2ffd8a13ab7faaa29db55c122558adf61e9ab7de7fb7a"
+    }
+  ]
+}

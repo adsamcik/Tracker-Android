@@ -776,3 +776,14 @@ History wiring, legacy browse, dense-day paging, optional map-failure isolation
 and unreachable radio/session export callers. Approved follow-up work is underway.
 Migration already shares durable import receipts; reuse that atomic path rather
 than add an unnecessary transfer helper or file-worker dependency at database open.
+
+### October 8 — Optional radio map failures preserve useful siblings
+
+Select the existing layer's source-local failure isolation and five new layer
+fixture methods, preserving earlier coverage and fixing the old expectation that
+a dependency limit should blank the map. Typed optional read outcome stays internal;
+valid legacy/retained sibling data remains renderable, stale optional overlays are
+removed on successful reload, and cancellation/both-source failure remain honest.
+Independent exact static acceptance: convergence/2026-10-08/RADIO_MAP_PARTIAL_READ_SELECTED/
+SOURCE_REVIEW.md. Tests NOT_RUN; Room/MapLibre/device/deletion execution not proved.
+No broad source or T25 gate is closed.

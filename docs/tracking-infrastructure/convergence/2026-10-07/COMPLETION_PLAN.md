@@ -453,3 +453,9 @@ prerequisites and T25 remain OPEN. No gates or dev/v10 integration started.
   unreachable radio/session exports are recorded in
   ../2026-10-08/PRACTICAL_APP_REVIEW/automatic_stop_fence_review_1007_facbb/REVIEW.md.
   These are implementation findings, not device results or acceptance.
+
+- [x] Select independently reviewed radio map failure isolation: valid legacy
+  data survives unavailable optional context, valid retained device points survive
+  a failed legacy reader, successful reload removes old enrichment, and cancellation
+  stays fenced. Five new layer cases plus an existing repaired case are NOT_RUN.
+  See ../2026-10-08/RADIO_MAP_PARTIAL_READ_SELECTED/SOURCE_REVIEW.md.
