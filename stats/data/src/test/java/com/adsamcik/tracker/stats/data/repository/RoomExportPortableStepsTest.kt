@@ -814,6 +814,67 @@ class RoomExportPortableStepsTest {
 	}
 
 	@Test
+	fun `quality changes keep the original Steps recording in the existing file format`() = runTest {
+		insertReadyFixture(facts = listOf(FactSeed("continued", 1L, count = 9L)))
+		insertAdditionalManifest(2L, 1_010L, 10_001_000L)
+		insertAdditionalManifest(3L, 1_015L, 15_001_000L)
+		setStepsRecordingOrigin(1L, 1L)
+		setStepsRecordingOrigin(2L, 1L)
+		setStepsRecordingOrigin(3L, 1L)
+		val entries = mutableListOf<PortableStepsEntryV1>()
+
+		exporter.export(request()) { entries += it } shouldBe ExportPortableStepsResult.Exported(1)
+
+		val run = entries.single().runs.single()
+		run.manifests.map { it.revision } shouldBe listOf(1L)
+		run.facts.single().manifestRevision shouldBe 1L
+		run.facts.single().stepCount shouldBe 9L
+		run.facts.single().intervalStartTimeMs shouldBe 1_020L
+		run.facts.single().intervalEndTimeMs shouldBe 1_025L
+	}
+
+	@Test
+	fun `continued recording ends only at the next real Steps recording boundary`() = runTest {
+		insertReadyFixture(facts = listOf(FactSeed("continued", 1L, count = 9L)))
+		insertAdditionalManifest(2L, 1_010L, 10_001_000L)
+		insertAdditionalManifest(3L, 1_015L, 15_001_000L)
+		insertAdditionalManifest(4L, 1_030L, 30_001_000L)
+		setStepsRecordingOrigin(1L, 1L)
+		setStepsRecordingOrigin(2L, 1L)
+		setStepsRecordingOrigin(3L, 1L)
+		setStepsRecordingOrigin(4L, 4L)
+		val entries = mutableListOf<PortableStepsEntryV1>()
+
+		exporter.export(request()) { entries += it } shouldBe ExportPortableStepsResult.Exported(1)
+
+		val run = entries.single().runs.single()
+		run.manifests.map { it.revision } shouldBe listOf(1L, 4L)
+		run.facts.single().manifestRevision shouldBe 1L
+		run.facts.single().stepCount shouldBe 9L
+	}
+
+	@Test
+	fun `an old-origin fact cannot cross an actual new Steps recording boundary`() = runTest {
+		insertReadyFixture()
+		insertAdditionalManifest(2L, 1_025L, 25_001_000L)
+		setStepsRecordingOrigin(1L, 1L)
+		setStepsRecordingOrigin(2L, 2L)
+
+		assertZeroSinkUnverifiable(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+	}
+
+	@Test
+	fun `an older Steps origin cannot revive through an intervening unmarked revision`() = runTest {
+		insertReadyFixture()
+		insertAdditionalManifest(2L, 1_010L, 10_001_000L)
+		insertAdditionalManifest(3L, 1_015L, 15_001_000L)
+		setStepsRecordingOrigin(1L, 1L)
+		setStepsRecordingOrigin(3L, 1L)
+
+		assertZeroSinkUnverifiable(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+	}
+
+	@Test
 	fun `manifest effective boundary belongs exclusively to the new revision`() = runTest {
 		insertReadyFixture(facts = emptyList())
 		insertAdditionalManifest(
@@ -2505,6 +2566,29 @@ class RoomExportPortableStepsTest {
 			),
 		)
 		database.sourceSessionDao().insertManifestSources(listOf(steps))
+	}
+
+	/** Fixture metadata is updated with its real checksum; saved fact/WAL values stay unchanged. */
+	private suspend fun setStepsRecordingOrigin(revision: Long, origin: Long) = database.withTransaction {
+		val dao = database.sourceSessionDao()
+		val manifest = requireNotNull(dao.manifestByServiceRunRevision(RUN_ONE, revision))
+		val sources = dao.manifestSources(LOGICAL_ONE, revision).map { source ->
+			if (source.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+				source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE
+			) source.copy(stepsRecordingManifestRevision = origin) else source
+		}
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"UPDATE session_manifest_source SET steps_recording_manifest_revision = ? " +
+				"WHERE logical_tracking_id = ? AND manifest_revision = ? AND source_kind = ? AND purpose = ?",
+			arrayOf<Any>(origin, LOGICAL_ONE, revision, SourceDestinationOwnerEntity.SOURCE_STEPS,
+				SessionManifestPurposeCode.SESSION_CAPTURE),
+		)
+		sqlite.execSQL(
+			"UPDATE session_manifest_version SET manifest_checksum = ? " +
+				"WHERE logical_tracking_id = ? AND manifest_revision = ?",
+			arrayOf<Any>(SessionManifestIntegrity.compute(manifest, sources), LOGICAL_ONE, revision),
+		)
 	}
 
 	private suspend fun ensurePolicy(revision: Long) {

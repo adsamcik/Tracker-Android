@@ -1,0 +1,41 @@
+{
+  "baseCommit": "d39c420b63a76fa3600f497524e04f9d3dbedf88",
+  "pins": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "694fe135558539f94821481708982dc3880f92f72476b54e418b2eeccb8c8971"
+    },
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidConventionPlugins.kt",
+      "sha256": "6530e14a5465d6023516b430b05e792a49b2cbc802c2b9455101272c17c36229"
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "sha256": "a276144c34315be81b125df52eb7611f08e92a7629abb3d1f3587a3e92a93f24"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepsRecordingLifetime.kt",
+      "sha256": "af6cde1399b9603e60eab8f1b87feef19a81a98b3613919ee52c932855db39b6"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/StepsSegmentHistorySelector.kt",
+      "sha256": "7fb30b9b160167119873e86c96ccbf3c2c9ff797d0d38386752c9599e6e6e281"
+    },
+    {
+      "path": "core/model/src/androidMain/kotlin/com/adsamcik/tracker/shared/model/steps/portable/StepsPortableFormatV1.kt",
+      "sha256": "ecb11fb7f9a83f23e6ddab231619f926d29e5d071cada45bfe00ccaf2148c033"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableSteps.kt",
+      "sha256": "3d99f4a5c2702a77ca394f0eb29852cb21cd86fa82b44d249c99d2d7d651d3d7"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDao.kt",
+      "sha256": "623e820365325c02ed52950662ec52b0f7f05ee916040998b59567ad19ade447"
+    }
+  ]
+}

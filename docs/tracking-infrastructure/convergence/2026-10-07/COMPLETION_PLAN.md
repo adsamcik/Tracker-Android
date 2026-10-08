@@ -442,3 +442,14 @@ create a caller. This is recorded work, not a new implicit UI approval.
 
 IMPLEMENTATION_ONLY / IMPLEMENTED_UNVALIDATED. All tests NOT_RUN. All 25 full-chain
 prerequisites and T25 remain OPEN. No gates or dev/v10 integration started.
+
+- [x] Select the independently reviewed Steps portable lifetime convergence: one
+  prepared source-local run interval map, original marked recording manifests,
+  preserved null-origin behavior and four new Room cases. See
+  ../2026-10-08/STEPS_PORTABLE_LIFETIME_SELECTED/SOURCE_REVIEW.md; tests NOT_RUN.
+  Live provider continuity and complete format integration remain open.
+- [x] Obtain independent practical whole-app source review. Actual missing History
+  wiring, legacy browse coverage, dense-day pagination, optional map failure and
+  unreachable radio/session exports are recorded in
+  ../2026-10-08/PRACTICAL_APP_REVIEW/automatic_stop_fence_review_1007_facbb/REVIEW.md.
+  These are implementation findings, not device results or acceptance.

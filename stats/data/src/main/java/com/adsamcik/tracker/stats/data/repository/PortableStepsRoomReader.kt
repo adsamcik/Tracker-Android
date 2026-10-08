@@ -29,6 +29,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsRecordingLifetime
 import com.adsamcik.tracker.shared.base.database.data.StepsSessionCompletenessIntegrity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
@@ -1160,17 +1161,24 @@ internal class PortableStepsRoomReader @Inject constructor(
 					abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 				}
 				stepsBindings[manifest.manifestRevision] = binding
-				portableManifests += PortableStepsManifestV1(
-					revision = manifest.manifestRevision,
-					effectiveWallTimeMs = manifest.effectiveWallTimeMs,
-					originSourcePolicyRevision = manifest.sourcePolicyRevision,
-					captureConsentEpoch = binding.consentEpoch,
-				)
+				// A quality-only continuation is the same recording, not a new file boundary.
+				if (binding.stepsRecordingManifestRevision == null ||
+					binding.stepsRecordingManifestRevision == manifest.manifestRevision
+				) {
+					portableManifests += PortableStepsManifestV1(
+						revision = manifest.manifestRevision,
+						effectiveWallTimeMs = manifest.effectiveWallTimeMs,
+						originSourcePolicyRevision = manifest.sourcePolicyRevision,
+						captureConsentEpoch = binding.consentEpoch,
+					)
+				}
 			}
 		}
 		if (stepsBindings.isEmpty() || zoneIds.size != 1) {
 			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
+		val recordingIntervals = StepsRecordingLifetime.validatedIntervals(orderedManifests, stepsBindings)
+			?: abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		val writer = stepsBindings.values.map(::writerBinding).distinct().singleOrNull()
 			?: abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		if (writer.owner != SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS ||
@@ -1185,6 +1193,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 			sessionMode = sessionMode,
 			stepsBindings = stepsBindings,
 			manifests = orderedManifests,
+			recordingIntervals = recordingIntervals,
 			writer = writer,
 			dependencies = dependencies,
 		)
@@ -1331,6 +1340,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 		sessionMode: PortableStepsSessionMode,
 		stepsBindings: Map<Long, SessionManifestSourceEntity>,
 		manifests: List<SessionManifestVersionEntity>,
+		recordingIntervals: Map<Long, LongRange>,
 		writer: PortableWriterBinding,
 		dependencies: PortableRoomDependencies,
 	): PortableRunAuthority {
@@ -1375,7 +1385,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 				abort(PortableStepsExportUnverifiableReason.ENTRY_MATERIALIZING)
 			}
 		}
-		return PortableRunAuthority(writer, lane, targetOrdinal, completeness)
+		return PortableRunAuthority(writer, lane, targetOrdinal, completeness, recordingIntervals)
 	}
 
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
@@ -1429,14 +1439,10 @@ internal class PortableStepsRoomReader @Inject constructor(
 		) {
 			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
-		val manifestIndex = manifests.indexOfFirst { candidate ->
-			candidate.manifestRevision == manifestRevision
-		}
-		if (manifestIndex < 0) {
-			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
-		}
-		val nextManifest = manifests.getOrNull(manifestIndex + 1)
-		if (!validLiveWalFactSemantics(fact, run, manifest, nextManifest)) {
+		if (!validLiveWalFactSemantics(
+				fact, run, manifest, authority.recordingIntervals[manifest.manifestRevision],
+			)
+		) {
 			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
 	}
@@ -1447,22 +1453,19 @@ internal class PortableStepsRoomReader @Inject constructor(
 		fact: StepFactRevisionEntity,
 		run: SourceServiceRunEntity,
 		manifest: SessionManifestVersionEntity,
-		nextManifest: SessionManifestVersionEntity?,
+		recordingInterval: LongRange?,
 	): Boolean {
 		val startElapsed = fact.intervalStartElapsedRealtimeNanos ?: return false
 		val endElapsed = fact.intervalEndElapsedRealtimeNanos ?: return false
 		if (!StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(fact) ||
 			fact.clockDomainId != run.bootId ||
 			fact.bootClockDomainId != run.bootId || manifest.effectiveBootId != run.bootId ||
-			startElapsed < run.startedElapsedNanos ||
-			startElapsed < manifest.effectiveElapsedRealtimeNanos ||
-			endElapsed < manifest.effectiveElapsedRealtimeNanos
+			startElapsed < run.startedElapsedNanos || recordingInterval == null ||
+			startElapsed !in recordingInterval || endElapsed !in recordingInterval
 		) {
 			return false
 		}
-		val nextEffective = nextManifest?.effectiveElapsedRealtimeNanos
-		return nextEffective == null ||
-			(startElapsed < nextEffective && endElapsed < nextEffective)
+		return true
 	}
 
 	@Suppress("ComplexCondition")
@@ -1844,6 +1847,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 		val lane: SourceProductProjectionLaneEntity,
 		val targetOrdinal: Long?,
 		val completeness: List<SourceSessionCompletenessEntity>,
+		val recordingIntervals: Map<Long, LongRange>,
 	)
 
 	private data class BuiltPortableRun(

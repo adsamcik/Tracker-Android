@@ -1,0 +1,15 @@
+{
+  "baseCommit": "d39c420b63a76fa3600f497524e04f9d3dbedf88",
+  "files": [
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PortableStepsRoomReader.kt",
+      "baseSha256": "f6ea1ec1081c63692b3f387964a66b7f3a0a061a5b76574a5122ae1f0cadde3b",
+      "sha256": "359de9e3d6379b28f1e7309497ed79aa2246790ce8ee946a4964216b51951eaf"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/RoomExportPortableStepsTest.kt",
+      "baseSha256": "d02fd8da7382843d496a6b9a0938cd2eb74f6a1247bb9c7eb6a3859dc2923cdb",
+      "sha256": "d110c416a023c1b5755a6c646630e1af1159c9306f66edaf682de529e29fe101"
+    }
+  ]
+}

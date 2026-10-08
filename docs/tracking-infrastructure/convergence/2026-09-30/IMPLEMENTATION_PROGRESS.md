@@ -760,3 +760,19 @@ A separate independent observer is auditing unnecessary user-facing restrictions
 across the whole application. The broader design preference has been saved in
 user-requested memory. Production/test-source slices are in progress; none is
 claimed validated. IMPLEMENTATION_ONLY, all tests NOT_RUN; T25 and all 25 chains OPEN.
+
+### October 8 — Steps portable recording lifetime
+
+Select two source paths with one source-local lifetime map prepared per run.
+Quality-only native manifests keep the original recording attribution and do not
+become false portable boundaries. Existing wire format and null-origin legacy
+semantics remain unchanged. Four actual Room export methods added; original 63
+methods retained. Independent static review accepted the exact packet in
+convergence/2026-10-08/STEPS_PORTABLE_LIFETIME_SELECTED/SOURCE_REVIEW.md. All NOT_RUN.
+No full source/lifecycle/transfer chain or T25 closure.
+
+Independent practical whole-app review additionally documents missing all-day
+History wiring, legacy browse, dense-day paging, optional map-failure isolation
+and unreachable radio/session export callers. Approved follow-up work is underway.
+Migration already shares durable import receipts; reuse that atomic path rather
+than add an unnecessary transfer helper or file-worker dependency at database open.
