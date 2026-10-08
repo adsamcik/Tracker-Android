@@ -1,0 +1,19 @@
+{
+  "packet": "MEASURED_RADIO_ORGANIZATION_ALIASES_SELECTED V2",
+  "head": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+  "phase": "IMPLEMENTATION_ONLY",
+  "test_execution": "NOT_RUN",
+  "hashes": {
+    "FILES.json": "2d98090ab7cda325d0a0df06834d23961c0d53f4e3f457c3dfecd4c61f2d1a76",
+    "SELECTION.patch": "50046a5d52b9abd53610a7b8824567af8fcd3d4bf935acdc0ee10d3d2fd5b49f",
+    "DEPENDENCIES.json": "d007765b473bcd63163da5562e98c890d25ba1211f8dfd3eb5c0255b43eddee8",
+    "SOURCE_BOUNDARY.md": "6e2436f9802eda69b2b55891055664df9dd17bf67f57fe27ea5e7af8b8850964",
+    "CASE_INVENTORY.json": "9457f754704e83b316f11e5fa91ff7b23c6b4af8054e7e365b04321bbe8220a7",
+    "CURRENT_COMPOSITION.json": "4fcf0f4146ebcb65ef93c3548e9d72c8dbc94df9ea2ab62437c46246f6143ac5"
+  },
+  "six_selected_base_raw_and_32_committed_pins": "MATCH",
+  "preserved_v1_matches_original_review": {
+    "FILES.json": "9c2c24a4377eab4dc96f42cc64eeeedbc7c5a63497041c6126d22997166e057c",
+    "SELECTION.patch": "e9d55dd7c489d3e5442ebe7f5b43f1107fafcfea139a60a7c8623cae75343eaa"
+  }
+}

@@ -1,0 +1,44 @@
+[
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredCapturedRadioHistoryReader.kt",
+    "base_origin": "c99d76e97223be34ce15c7f04b923bc47299ee8e",
+    "base_sha256": "34d92953f65ade5fefd9fdc36e2a7569448c44497dd752b090893aa0df31a999",
+    "selected_sha256": "3ae674d7cbc4262119627d223fb01395405101438ce6f63a3c644e3458bb4779",
+    "working_before_sha256": "34d92953f65ade5fefd9fdc36e2a7569448c44497dd752b090893aa0df31a999"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesReader.kt",
+    "base_origin": "MEASURED_HISTORY_ORGANIZATION_SELECTED",
+    "base_sha256": "62755a9bee10f17b3f5eaaa2de73abb6a76d53de45c5d3d34ea8bfc570597982",
+    "selected_sha256": "7e95189bdb5e2f7e50511905e1f9070b1c895f73bcfe447b7e25c7870e861185",
+    "working_before_sha256": "62755a9bee10f17b3f5eaaa2de73abb6a76d53de45c5d3d34ea8bfc570597982"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+    "base_origin": "MEASURED_HISTORY_ORGANIZATION_SELECTED",
+    "base_sha256": "18323b320f631ab87d1aa5a8b949dcdaa0a5667ac68ed2b7788145ad759c363f",
+    "selected_sha256": "3ed5dfac7257739e55d7472fefdcab41ec63541bb817265c587d09bdf7e4450c",
+    "working_before_sha256": "18323b320f631ab87d1aa5a8b949dcdaa0a5667ac68ed2b7788145ad759c363f"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesRoomTest.kt",
+    "base_origin": "MEASURED_HISTORY_ORGANIZATION_SELECTED",
+    "base_sha256": "18433cf1f87736a3e17483cc312e725f6bc00bd62d01e2cdea0f2f7c81d7a11b",
+    "selected_sha256": "ff270ba629ca6f6fa749a392c6a07c62660a9e0f2001a8009f818122d8afdb2f",
+    "working_before_sha256": "18433cf1f87736a3e17483cc312e725f6bc00bd62d01e2cdea0f2f7c81d7a11b"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+    "base_origin": "c99d76e97223be34ce15c7f04b923bc47299ee8e",
+    "base_sha256": "8f725622ed70a1d29f5733f54229d93ab9d1183e4a8b8567a252ae33b6de054f",
+    "selected_sha256": "5d09af93a93c4cdf8c113ebd316a1e208a9ecc274ca058d6de924e9804dc68c0",
+    "working_before_sha256": "8f725622ed70a1d29f5733f54229d93ab9d1183e4a8b8567a252ae33b6de054f"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+    "base_origin": "c99d76e97223be34ce15c7f04b923bc47299ee8e",
+    "base_sha256": "3e1dbf4726fbc802bac4c0865b9e59e6aff3f58c908d9cfb2a99640962e2ba34",
+    "selected_sha256": "a607087c64945816aeb552f142665706f9e525d7f6b4225ddbc7fa65d0a6e965",
+    "working_before_sha256": "3e1dbf4726fbc802bac4c0865b9e59e6aff3f58c908d9cfb2a99640962e2ba34"
+  }
+]

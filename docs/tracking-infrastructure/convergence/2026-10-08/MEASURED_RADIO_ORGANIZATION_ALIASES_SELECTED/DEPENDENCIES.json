@@ -1,0 +1,166 @@
+{
+  "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "pins": [
+    {
+      "path": "settings.gradle.kts",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "stats/data/build.gradle.kts",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "a276144c34315be81b125df52eb7611f08e92a7629abb3d1f3587a3e92a93f24"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidConventionPlugins.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "6530e14a5465d6023516b430b05e792a49b2cbc802c2b9455101272c17c36229"
+    },
+    {
+      "path": "core/base/src/main/AndroidManifest.xml",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "fe4b715ee338d5422f53897270a2152b424e65cb1819a2a5f7591f7219709bc8"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/UnifiedHistory.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "5ace726bfa0549efddf35af46fb00c0d0da762f3dcbb78fcc1e07a88a7add32d"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/SessionOrganizationRepository.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "ed0194ea24b6407a8f0c820f71e2e796ad7d044a95c5192afaeff7f7b7e73050"
+    },
+    {
+      "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/WifiImportedProduct.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "3e27577313f5395940c437cde37a450f33f013a8ace3bdebb4bdd3af0b845092"
+    },
+    {
+      "path": "stats/api/src/androidMain/kotlin/com/adsamcik/tracker/stats/api/repository/WifiCapturedPortableFormatV1.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "f29cd08d4337eb0b5852e4661d1ba1fd75e9abd9b89395ebdd131839a358fee1"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "46271afa72131dfd0ba86bf593abb00cb0f1a39a7f01ede89b43a56789f46217"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/MeasuredHistoryCandidate.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "f4cc165b7e5a70a492ad643ffee95f9bf64c54c14d5fdbf39352fbcc794fd482"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/RadioObservationChildDao.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "d6ecd3b8c09d0264368d0382736c3e767831fefd24e34408824a600f8292c5c1"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/WifiCapturedFactDao.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "fe1d8ca7b028e0b7672f065ce1f0b64f19eeb4389e1486db8a4cc6f34cd7c1e9"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ImportedRadioChildDao.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "bbb13cdbad10a10e4cc6373bca6b13dc7a8b12a36561497457131a5a5ea67e73"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/OrganizationAnnotationDao.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "e47a986dd7be1242a84f8b22979eec0b8d0294618270b7bb2ad463a4bc0d7c68"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationFileIdentityDao.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "8e420f043396577c1ae4f3bbb6671f73d4e191bc8b2cd5237f3f2faa678d05ed"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/RadioObservationChildren.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "7e06faf1bc9c38b636fd8021433284912780b7bdd9259422b02d88898a9cde40"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/ImportedRadioChildren.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "b52f29ef2b8d6455e473e8a849aeb15e8cd9be958bfdaa95ee9bf605711036d1"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/ImportedWifiEntities.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "b6c13762458495bf0a6d314f408a3c7c56c6f6de1882296c4ec341cee756eef0"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/OrganizationAnnotationEntity.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "21f1ba1a7b06b6f93c82d51523d1e455ab54e47848957b1add85d4056711b2c7"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ImportedCellProductReader.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "c606b7540dcc4e142219f22815924b2e32ba5fc74093f8c83ada5b950b9a675b"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedPortableTransfer.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "1ef304f5d70d3e2beb3dfee114a131da1ca7b1cb4b8b0c1139367f3483644ae1"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RoomImportPortableCapturedCell.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "3a151eee907a527c2cd8a4b56ae69b82789fb386a7d3a47b38144446ed6b0c94"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultWifiHistoryRepository.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "edd726f297a35a9f49a4da7e688ce5588381b587a848bf410b7524c4f7413a87"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultCellHistoryRepository.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "a825ddd9e8ef37563763b4abfbe0a2dc83b2f6d80229adad676c780fdca8b735"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryComposer.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "01511581d72578e5c95278ae16246315209866a4efea361ec30e77ebf41980f1"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "a9cc723090082450138a26efc017d567a269154853cb111aa8926d8dd8a4b2c2"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredRadioHistoryReader.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "844aad8cbbff493c7ff86150986b1f4de89cbb49275794f9e50510feff92e920"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredHistoryPosition.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "31657df04ebed5a4d013555cccbd668b6a83154e554144a74eaf90269774acd7"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedWifiHistoryDetails.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "8da614d1d4186f52f17376a37955f337b24fde48f46d3d9957ee62f209aa2b1a"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ImportedCellHistoryDetails.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "afc501e47fef7161b94ee318acc832fe99c79388352a31996b1de3d580889bcb"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredCapturedRadioRoomSupport.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "776fa6b6d2d725e5cd9177488cd74b98ca0827a9587da04eb8cc9841083a008e"
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/HistoricalSavedAuthorityTestFixtures.kt",
+      "commit": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+      "sha256": "22008c8288438bf3cfb6a20295cbbd01f805412a011b99466b5eb9e08a668813"
+    }
+  ]
+}

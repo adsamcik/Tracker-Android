@@ -1,0 +1,597 @@
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredCapturedRadioHistoryReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredCapturedRadioHistoryReader.kt
+@@ -9,6 +9,8 @@
+ import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.currentCoroutineContext
+ import kotlinx.coroutines.ensureActive
++
++internal data class MeasuredRadioMembershipRead(val positions: Set<HistoryPosition>, val problems: Set<HistoryProblem>)
+ 
+ /** Original selected capture parents; the outer measured reader owns one Room snapshot and frontier. */
+ internal class MeasuredCapturedRadioHistoryReader(
+@@ -130,8 +132,8 @@
+                     selected.startTimeMs == child.observedWallTimeMs)
+                 HistoryMeasurement.Wifi(child.toMeasuredNetwork(), partial)
+             }
+-            if (selected.kind != "imported_wifi" || !duplicatesWifi(readable, run.identity.value, observation.identity.value,
+-                    requireNotNull(children.singleOrNull { it.itemIndex == selected.itemIndex }), range, nativeMatches))
++            if (selected.kind != "imported_wifi" || matchingNativeWifi(readable, run.identity.value, observation.identity.value,
++                    requireNotNull(children.singleOrNull { it.itemIndex == selected.itemIndex }), range, nativeMatches) == null)
+                 add(selected, measurement, range, output)
+         }
+     }
+@@ -165,69 +167,168 @@
+                     selected.startTimeMs == child.observedWallTimeMs)
+                 HistoryMeasurement.Cell(child.toMeasuredTower(), partial)
+             }
+-            if (selected.kind != "imported_cell" || !duplicatesCell(readable, run.identity.value, observation.identity.value,
+-                    requireNotNull(children.singleOrNull { it.itemIndex == selected.itemIndex }), range, nativeMatches))
++            if (selected.kind != "imported_cell" || matchingNativeCell(readable, run.identity.value, observation.identity.value,
++                    requireNotNull(children.singleOrNull { it.itemIndex == selected.itemIndex }), range, nativeMatches) == null)
+                 add(selected, measurement, range, output)
+         }
+     }
+ 
++    /** Exact aliases for a native leaf already shown instead of its identical imported copy. */
++    suspend fun importedNativeMembership(source: HistorySource, entryIdentity: String,
++        candidates: List<MeasuredHistoryCandidate>, range: HistoryRange): MeasuredRadioMembershipRead {
++        require(source == HistorySource.WIFI || source == HistorySource.CELL)
++        require(candidates.size <= 100)
++        val selected = candidates.filter { it.origin == "LOCAL" && it.physicalIdentity != null &&
++            (source == HistorySource.WIFI && it.kind in setOf("captured_wifi", "ambient_wifi") ||
++                source == HistorySource.CELL && it.kind in setOf("captured_cell", "ambient_cell")) }
++        if (selected.isEmpty() || HistoryOrigin.LOCAL !in range.origins) return MeasuredRadioMembershipRead(emptySet(), emptySet())
++        val result = linkedSetOf<HistoryPosition>()
++        val problems = linkedSetOf<HistoryProblem>()
++        if (source == HistorySource.WIFI) {
++            val evaluation = wifi.measuredImportedEvaluationInTransaction(entryIdentity) ?: return MeasuredRadioMembershipRead(emptySet(), emptySet())
++            val readable = evaluation as? ImportedWifiProductEvaluation.Readable ?: throw MeasuredRadioParentFailure(
++                if ((evaluation as? ImportedWifiProductEvaluation.Unverifiable)?.reason == ImportedWifiProductFailure.DEPENDENCY_OVERFLOW)
++                    HistoryProblemReason.DEPENDENCY_OVERFLOW else HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++            if (readable.entryDeleted) return MeasuredRadioMembershipRead(emptySet(), emptySet())
++            val matches = mutableMapOf<Pair<String, Long>, QualifiedMeasuredWifiFact?>()
++            for (run in readable.entry.runs) {
++                if (run.identity in readable.deletedRunIdentities) continue
++                for (observation in run.observations) {
++                    currentCoroutineContext().ensureActive()
++                    if (observation.identity !in readable.retainedObservationIdentities ||
++                        selected.none { it.startTimeMs >= observation.coverageStartTimeMs &&
++                            it.startTimeMs <= observation.latestPossibleTimeMs }) continue
++                    try {
++                        for (child in database.measuredImportedWifiChildren(readable, run.identity.value, observation)) {
++                            if (selected.none { it.startTimeMs == child.observedWallTimeMs && it.itemIndex == child.itemIndex }) continue
++                            val match = matchingNativeWifi(readable, run.identity.value, observation.identity.value, child, range, matches) ?: continue
++                            nativeCapturePosition(source, selected, match.parent.fact.writerProjectionId,
++                                match.parent.fact.writerProjectionVersion, match.parent.fact.logicalFactId,
++                                match.parent.fact.semanticRevision, match.child.itemIndex)?.let { result += it }
++                        }
++                    } catch (cancelled: CancellationException) { throw cancelled }
++                    catch (failure: Exception) { problems += membershipProblem(source, failure) }
++                }
++            }
++        } else {
++            val evaluation = cell.measuredImportedEvaluationInTransaction(entryIdentity) ?: return MeasuredRadioMembershipRead(emptySet(), emptySet())
++            val readable = evaluation as? ImportedCellProductEvaluation.Readable ?: throw MeasuredRadioParentFailure(
++                if ((evaluation as? ImportedCellProductEvaluation.Unverifiable)?.reason == ImportedCellProductFailure.DEPENDENCY_OVERFLOW)
++                    HistoryProblemReason.DEPENDENCY_OVERFLOW else HistoryProblemReason.INTEGRITY_UNAVAILABLE)
++            if (readable.entryDeleted) return MeasuredRadioMembershipRead(emptySet(), emptySet())
++            val matches = mutableMapOf<Pair<String, Long>, QualifiedMeasuredCellFact?>()
++            for (run in readable.entry.runs) {
++                if (run.identity.value in readable.deletedRunIdentities) continue
++                for (observation in run.observations) {
++                    currentCoroutineContext().ensureActive()
++                    if (readable.retainedFromMs?.let { observation.coverageStartTimeMs < it } == true ||
++                        selected.none { it.startTimeMs >= observation.coverageStartTimeMs &&
++                            it.startTimeMs <= observation.latestPossibleTimeMs }) continue
++                    try {
++                        for (child in database.measuredImportedCellChildren(readable, run.identity.value, observation)) {
++                            if (selected.none { it.startTimeMs == child.observedWallTimeMs && it.itemIndex == child.itemIndex }) continue
++                            val match = matchingNativeCell(readable, run.identity.value, observation.identity.value, child, range, matches) ?: continue
++                            nativeCapturePosition(source, selected, match.parent.fact.writerProjectionId,
++                                match.parent.fact.writerProjectionVersion, match.parent.fact.logicalFactId,
++                                match.parent.fact.semanticRevision, match.child.itemIndex)?.let { result += it }
++                        }
++                    } catch (cancelled: CancellationException) { throw cancelled }
++                    catch (failure: Exception) { problems += membershipProblem(source, failure) }
++                }
++            }
++        }
++        return MeasuredRadioMembershipRead(result, problems)
++    }
++
++    private fun membershipProblem(source: HistorySource, failure: Exception) = HistoryProblem(source, when (failure) {
++        is MeasuredRadioParentFailure -> failure.reason
++        is android.database.sqlite.SQLiteException -> HistoryProblemReason.STORAGE_UNAVAILABLE
++        else -> HistoryProblemReason.INTEGRITY_UNAVAILABLE
++    })
++
++    /** Read the existing complete original tuple from SQL instead of reconstructing or decoding it. */
++    private suspend fun nativeCapturePosition(source: HistorySource, selected: List<MeasuredHistoryCandidate>,
++        writerId: String, writerVersion: Int, factId: String, revision: Long, itemIndex: Int): HistoryPosition? {
++        val identities = selected.map { requireNotNull(it.physicalIdentity) }.distinct()
++        val times = selected.map { it.startTimeMs }.distinct()
++        var after: MeasuredHistoryCandidate? = null
++        while (true) {
++            currentCoroutineContext().ensureActive()
++            val batch = if (source == HistorySource.WIFI) database.radioObservationChildDao().wifiNativeMeasuredPurposeCandidates(
++                identities, listOf("CAPTURE"), times, after?.kind, after?.identity, 101)
++            else database.radioObservationChildDao().cellNativeMeasuredPurposeCandidates(
++                identities, listOf("CAPTURE"), times, after?.kind, after?.identity, 101)
++            val consumed = batch.take(100)
++            consumed.firstOrNull { it.writerId == writerId && it.writerVersion == writerVersion &&
++                it.factId == factId && it.factRevision == revision && it.itemIndex == itemIndex }
++                ?.let { return measuredHistoryPosition(it) }
++            if (batch.size <= 100) return null
++            val next = consumed.last()
++            check(after == null || next.kind > after.kind || next.kind == after.kind && next.identity > after.identity)
++            after = next
++        }
++    }
++
++    private data class NativeWifiMatch(val parent: QualifiedMeasuredWifiFact, val child: WifiCapturedChildEntity)
++    private data class NativeCellMatch(val parent: QualifiedMeasuredCellFact, val child: CellCapturedChildEntity)
++
+     /** A failed optional native comparison must never hide an independently valid import. */
+-    private suspend fun duplicatesWifi(readable: ImportedWifiProductEvaluation.Readable, runIdentity: String,
++    private suspend fun matchingNativeWifi(readable: ImportedWifiProductEvaluation.Readable, runIdentity: String,
+         observationIdentity: String, child: ImportedWifiChildEntity, range: HistoryRange,
+-        nativeMatches: MutableMap<Pair<String, Long>, QualifiedMeasuredWifiFact?>): Boolean {
+-        if (HistoryOrigin.LOCAL !in range.origins) return false
+-        val logicalId = readable.collidingLocalLogicalTrackingId ?: return false
++        nativeMatches: MutableMap<Pair<String, Long>, QualifiedMeasuredWifiFact?>): NativeWifiMatch? {
++        if (HistoryOrigin.LOCAL !in range.origins) return null
++        val logicalId = readable.collidingLocalLogicalTrackingId ?: return null
+         return optionalNativeMatch {
+             val candidates = database.wifiCapturedFactDao().measuredChildOriginCandidates(
+                 logicalId, child.observedWallTimeMs, child.itemIndex, 101)
+-            if (candidates.size > 100) return@optionalNativeMatch false
++            if (candidates.size > 100) return@optionalNativeMatch null
+             val original = candidates.singleOrNull {
+                 PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.PHYSICAL_RUN, it.serviceRunId).value == runIdentity &&
+                 PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.OBSERVATION, it.logicalFactId).value == observationIdentity
+-            } ?: return@optionalNativeMatch false
++            } ?: return@optionalNativeMatch null
+             val nativeKey = original.logicalFactId to original.semanticRevision
+             val qualified = (if (nativeKey in nativeMatches) nativeMatches[nativeKey] else
+                 wifi.measuredFactInTransaction(original.logicalFactId, original.semanticRevision).also { nativeMatches[nativeKey] = it })
+-                ?: return@optionalNativeMatch false
++                ?: return@optionalNativeMatch null
+             val native = qualified.children.singleOrNull { it.itemIndex == child.itemIndex }
+-                ?: return@optionalNativeMatch false
+-            native.providerTimestampNanos == child.providerTimestampNanos &&
++                ?: return@optionalNativeMatch null
++            if (native.providerTimestampNanos == child.providerTimestampNanos &&
+                 native.observedWallTimeMs == child.observedWallTimeMs && native.wallTimeUncertaintyMs == child.wallTimeUncertaintyMs &&
+                 native.bssid == child.bssid && native.ssid == child.ssid && native.frequencyMhz == child.frequencyMhz &&
+-                native.signalDbm == child.signalDbm
+-        }
+-    }
+-
+-    private suspend fun duplicatesCell(readable: ImportedCellProductEvaluation.Readable, runIdentity: String,
++                native.signalDbm == child.signalDbm) NativeWifiMatch(qualified, native) else null
++        }
++    }
++
++    private suspend fun matchingNativeCell(readable: ImportedCellProductEvaluation.Readable, runIdentity: String,
+         observationIdentity: String, child: ImportedCellChildEntity, range: HistoryRange,
+-        nativeMatches: MutableMap<Pair<String, Long>, QualifiedMeasuredCellFact?>): Boolean {
+-        if (HistoryOrigin.LOCAL !in range.origins) return false
+-        if (readable.localOriginHandle == null) return false
++        nativeMatches: MutableMap<Pair<String, Long>, QualifiedMeasuredCellFact?>): NativeCellMatch? {
++        if (HistoryOrigin.LOCAL !in range.origins) return null
++        if (readable.localOriginHandle == null) return null
+         return optionalNativeMatch {
+             val candidates = cell.measuredImportedOriginCandidatesInTransaction(readable, child.observedWallTimeMs, child.itemIndex)
+-            if (candidates.size > 100) return@optionalNativeMatch false
++            if (candidates.size > 100) return@optionalNativeMatch null
+             val original = candidates.singleOrNull {
+                 com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity.derive(
+                     com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind.PHYSICAL_RUN, it.serviceRunId).value == runIdentity &&
+                 com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity.derive(
+                     com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind.OBSERVATION, it.logicalFactId).value == observationIdentity
+-            } ?: return@optionalNativeMatch false
++            } ?: return@optionalNativeMatch null
+             val nativeKey = original.logicalFactId to original.semanticRevision
+             val qualified = (if (nativeKey in nativeMatches) nativeMatches[nativeKey] else
+                 cell.measuredFactInTransaction(original.logicalFactId, original.semanticRevision).also { nativeMatches[nativeKey] = it })
+-                ?: return@optionalNativeMatch false
++                ?: return@optionalNativeMatch null
+             val native = qualified.children.singleOrNull { it.itemIndex == child.itemIndex }
+-                ?: return@optionalNativeMatch false
+-            native.providerTimestampNanos == child.providerTimestampNanos &&
++                ?: return@optionalNativeMatch null
++            if (native.providerTimestampNanos == child.providerTimestampNanos &&
+                 native.observedWallTimeMs == child.observedWallTimeMs && native.wallTimeUncertaintyMs == child.wallTimeUncertaintyMs &&
+                 native.towerIdentity == child.towerIdentity && native.radioType == child.radioType &&
+-                native.registered == child.registered && native.signalDbm == child.signalDbm
+-        }
+-    }
+-
+-    private suspend fun optionalNativeMatch(compare: suspend () -> Boolean): Boolean = try { compare() }
++                native.registered == child.registered && native.signalDbm == child.signalDbm) NativeCellMatch(qualified, native) else null
++        }
++    }
++
++    private suspend fun <T> optionalNativeMatch(compare: suspend () -> T?): T? = try { compare() }
+     catch (cancelled: CancellationException) { throw cancelled }
+-    catch (_: Exception) { false }
++    catch (_: Exception) { null }
+ 
+     private fun add(key: MeasuredHistoryCandidate, measurement: HistoryMeasurement, range: HistoryRange,
+         output: MutableMap<HistoryPosition, UnifiedHistoryRow>) {
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesReader.kt
+@@ -7,6 +7,7 @@
+ import com.adsamcik.tracker.stats.api.repository.HistoryProblem
+ import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+ import com.adsamcik.tracker.stats.api.repository.HistorySource
++import com.adsamcik.tracker.stats.api.repository.HistoryRange
+ import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelectionCodec
+ import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelector
+ import com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow
+@@ -17,8 +18,9 @@
+ internal data class MeasuredSessionNamesRead(val rows: List<UnifiedHistoryRow>, val problems: Set<HistoryProblem>)
+ 
+ /** Metadata only, in the caller's qualified Room snapshot. It never clips, admits or duplicates data. */
+-internal class MeasuredSessionNamesReader(private val database: AppDatabase) {
+-    suspend fun decorate(rows: List<UnifiedHistoryRow>, candidates: List<MeasuredHistoryCandidate>): MeasuredSessionNamesRead {
++internal class MeasuredSessionNamesReader(private val database: AppDatabase,
++    private val capturedRadio: MeasuredCapturedRadioHistoryReader) {
++    suspend fun decorate(rows: List<UnifiedHistoryRow>, candidates: List<MeasuredHistoryCandidate>, range: HistoryRange): MeasuredSessionNamesRead {
+         require(rows.size <= 100 && candidates.size <= 100)
+         if (rows.isEmpty()) return MeasuredSessionNamesRead(rows, emptySet())
+         val keys = candidates.associateBy(::measuredHistoryPosition)
+@@ -52,9 +54,24 @@
+                         currentCoroutineContext().ensureActive()
+                         locationMembers += database.locationFileIdentityDao().sampleIdsInArchive(selector.archiveIdentity, locationIds)
+                     }
++                    val nativeRadioMembers = linkedSetOf<com.adsamcik.tracker.stats.api.repository.HistoryPosition>()
++                    for (selector in selected.orEmpty().filterIsInstance<OrganizationSourceSelector.CapturedEntry>()) {
++                        if (selector.source != HistorySource.WIFI && selector.source != HistorySource.CELL) continue
++                        try {
++                            val membership = capturedRadio.importedNativeMembership(selector.source, selector.entryIdentity,
++                                eligible.mapNotNull { keys[it.position] }, range)
++                            nativeRadioMembers += membership.positions
++                            problems += membership.problems
++                        } catch (cancelled: CancellationException) { throw cancelled }
++                        catch (failure: MeasuredRadioParentFailure) { problems += HistoryProblem(selector.source, failure.reason) }
++                        catch (_: android.database.sqlite.SQLiteException) {
++                            problems += HistoryProblem(selector.source, HistoryProblemReason.STORAGE_UNAVAILABLE)
++                        } catch (_: Exception) { problems += HistoryProblem(selector.source, HistoryProblemReason.INTEGRITY_UNAVAILABLE) }
++                    }
+                     for (row in eligible) {
+                         val key = keys[row.position] ?: continue
+-                        if (selected == null || selected.any { member(it, row, key, locationMembers) })
++                        if (selected == null || selected.any { member(it, row, key, locationMembers) ||
++                            it is OrganizationSourceSelector.CapturedEntry && it.source == row.measurement?.source && row.position in nativeRadioMembers })
+                             names.getValue(row.position) += name
+                     }
+                 }
+--- a/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt
++++ b/stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt
+@@ -809,8 +809,8 @@
+         }
+         val ordered = planned.rows.mapNotNull { representatives ->
+             rows[measuredHistoryPosition(representatives.first().seed)] }
+-        val named = MeasuredSessionNamesReader(database).decorate(ordered,
+-            planned.rows.map { it.first().seed })
++        val named = MeasuredSessionNamesReader(database, capturedRadio).decorate(ordered,
++            planned.rows.map { it.first().seed }, range)
+         problems += named.problems
+         if (database.sourceEvidenceStateDao().get() != state) {
+             return HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesRoomTest.kt
+@@ -150,7 +150,8 @@
+     }
+ 
+     private suspend fun decorate(rows: List<UnifiedHistoryRow>, keys: List<MeasuredHistoryCandidate>) =
+-        database.withTransaction { MeasuredSessionNamesReader(database).decorate(rows, keys) }
++        database.withTransaction { MeasuredSessionNamesReader(database, measuredCapturedRadioFixture(database)).decorate(rows, keys,
++            HistoryRange(0, Long.MAX_VALUE, "UTC", mode = HistoryBrowseMode.OBSERVATIONS)) }
+     private fun key(kind: String, origin: String, purpose: String, id: String, start: Long,
+         end: Long? = null, parent: String? = null, sample: Long? = null) =
+         MeasuredHistoryCandidate(kind, origin, purpose, id, start, end, sample, parent, null, null, null, null)
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt
+@@ -580,6 +580,122 @@
+ 		result.rows.keys.single().startTimeMs shouldBe later.observedTimeMs
+ 	}
+ 
++	@Test
++	fun `imported Cell session name follows the exact native reading without adding a duplicate`() = runTest {
++		val group = perReadingGroup(buildGroup(950, 1, setOf(0)))
++		persist(listOf(group)); persistPerReadingChildren(group)
++		val children = importMeasuredCellChildren(group)
++		installCellBundleName(group, children.first().entryIdentity)
++		val read = cellBundleNames(group)
++		read.rows.size shouldBe children.size
++		read.rows.all { it.origins == setOf(HistoryOrigin.LOCAL) } shouldBe true
++		read.rows.all { it.sessionNames == listOf("Imported trip") } shouldBe true
++		read.problems shouldBe emptySet()
++	}
++
++	@Test
++	fun `edited imported Cell child cannot lend its name to the original native child`() = runTest {
++		val group = perReadingGroup(buildGroup(951, 1, setOf(0)))
++		persist(listOf(group)); persistPerReadingChildren(group)
++		val children = importMeasuredCellChildren(group)
++		installCellBundleName(group, children.first().entryIdentity)
++		val changed = children.first().copy(towerIdentity = "LTE:user-edited")
++		database.openHelper.writableDatabase.execSQL("UPDATE imported_cell_child SET tower_identity = ?, content_checksum = ? " +
++			"WHERE entry_identity = ? AND entry_import_revision = ? AND observation_identity = ? AND item_index = ?",
++			arrayOf(changed.towerIdentity, measuredCellChildChecksum(changed, 2L), changed.entryIdentity,
++				changed.entryImportRevision, changed.observationIdentity, changed.itemIndex))
++		val result = cellBundleNames(group)
++		result.rows.size shouldBe 3
++		val original = result.rows.single { it.origins == setOf(HistoryOrigin.LOCAL) &&
++			(it.measurement as HistoryMeasurement.Cell).tower.observedTimeMs == changed.observedWallTimeMs }
++		original.sessionNames shouldBe emptyList()
++		val edited = result.rows.single { it.origins == setOf(HistoryOrigin.IMPORTED) }
++		edited.sessionNames shouldBe listOf("Imported trip")
++		(edited.measurement as HistoryMeasurement.Cell).tower.identity shouldBe changed.towerIdentity
++		result.problems shouldBe emptySet()
++	}
++
++	@Test
++	fun `Cell bundle labels the same background leaf through its independently valid original capture`() = runTest {
++		val group = joinedCanonicalCellGroup(perReadingGroup(buildGroup(952, 1, setOf(0))))
++		persist(listOf(group)); persistPerReadingChildren(group); persistCanonicalCellBackground(group)
++		val children = importMeasuredCellChildren(group)
++		installCellBundleName(group, children.first().entryIdentity)
++		val range = canonicalCellRange(group).copy(purposes = setOf(HistoryPurpose.BACKGROUND))
++		val result = database.withTransaction {
++			val raw = canonicalCellReader().candidates(HistorySource.CELL, range, null).take(100)
++			val capture = measuredCapturedRadioFixture(database, cell = repository { true })
++			val rows = canonicalCellReader().qualify(HistorySource.CELL, raw, range, capture).rows.values.toList()
++			MeasuredSessionNamesReader(database, capture).decorate(rows, raw, range)
++		}
++		result.rows.size shouldBe 1
++		result.rows.single().purpose shouldBe HistoryPurpose.BACKGROUND
++		result.rows.single().sessionNames shouldBe listOf("Imported trip")
++		result.problems shouldBe emptySet()
++	}
++
++	@Test
++	fun `Cell bundle metadata never revives an explicitly erased native capture`() = runTest {
++		val group = perReadingGroup(buildGroup(953, 1, setOf(0)))
++		persist(listOf(group)); persistPerReadingChildren(group)
++		val children = importMeasuredCellChildren(group)
++		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L,
++			HistorySource.CELL, setOf(HistoryOrigin.LOCAL, HistoryOrigin.IMPORTED))
++		val keys = database.radioObservationChildDao().cellMeasuredHistoryCandidates(range.fromInclusiveMs,
++			range.toExclusiveMs, listOf("LOCAL"), listOf("CAPTURE"), null, null, null, 100)
++		val capture = measuredCapturedRadioFixture(database, cell = repository { true })
++		database.withTransaction { capture.importedNativeMembership(HistorySource.CELL,
++			children.first().entryIdentity, keys, range).positions.size } shouldBe 2
++		val run = group.runs.single()
++		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
++			CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, group.session.logicalTrackingId,
++			run.run.serviceRunId, 1L, 0L, run.segment.endTimeMs + 1L))
++		database.withTransaction { capture.importedNativeMembership(HistorySource.CELL,
++			children.first().entryIdentity, keys, range).positions } shouldBe emptySet()
++	}
++
++	@Test
++	fun `one corrupt imported Cell parent preserves the valid sibling session name and reading`() = runTest {
++		val group = perReadingGroup(buildGroup(954, 1, setOf(0)))
++		persist(listOf(group)); persistPerReadingChildren(group)
++		val children = importMeasuredCellChildren(group)
++		installCellBundleName(group, children.first().entryIdentity)
++		val bad = children.first()
++		database.openHelper.writableDatabase.execSQL("UPDATE imported_cell_child SET content_checksum = ? " +
++			"WHERE entry_identity = ? AND entry_import_revision = ? AND observation_identity = ? AND item_index = ?",
++			arrayOf("f".repeat(64), bad.entryIdentity, bad.entryImportRevision, bad.observationIdentity, bad.itemIndex))
++		val entry = database.withTransaction { repository { true }.measuredImportedEvaluationInTransaction(bad.entryIdentity) }
++		(entry is com.adsamcik.tracker.shared.base.database.ImportedCellProductEvaluation.Readable) shouldBe true
++		val result = cellBundleNames(group)
++		result.rows.size shouldBe 2
++		result.rows.all { it.origins == setOf(HistoryOrigin.LOCAL) } shouldBe true
++		result.rows.single { (it.measurement as HistoryMeasurement.Cell).tower.observedTimeMs == bad.observedWallTimeMs }
++			.sessionNames shouldBe emptyList()
++		result.rows.single { (it.measurement as HistoryMeasurement.Cell).tower.observedTimeMs != bad.observedWallTimeMs }
++			.sessionNames shouldBe listOf("Imported trip")
++		result.problems shouldBe setOf(com.adsamcik.tracker.stats.api.repository.HistoryProblem(
++			HistorySource.CELL, com.adsamcik.tracker.stats.api.repository.HistoryProblemReason.INTEGRITY_UNAVAILABLE))
++	}
++
++	private suspend fun installCellBundleName(group: Group, entryIdentity: String) {
++		database.organizationAnnotationDao().insert(com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity(
++			"imported-cell-name", 1L, 0L, 0L, null, group.session.startedAtMs,
++			requireNotNull(group.session.completedAtMs) + 1L, "UTC", "Imported trip", null, false,
++			com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelectionCodec.encode(listOf(
++				com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelector.CapturedEntry(HistorySource.CELL, entryIdentity)))))
++	}
++
++	private suspend fun cellBundleNames(group: Group): MeasuredSessionNamesRead = database.withTransaction {
++		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L,
++			HistorySource.CELL, setOf(HistoryOrigin.LOCAL, HistoryOrigin.IMPORTED))
++		val raw = database.radioObservationChildDao().cellMeasuredHistoryCandidates(range.fromInclusiveMs,
++			range.toExclusiveMs, range.origins.map { it.name }, listOf("CAPTURE"), null, null, null, 100)
++		val capture = measuredCapturedRadioFixture(database, cell = repository { true })
++		val read = capture.qualify(HistorySource.CELL, raw, range)
++		val names = MeasuredSessionNamesReader(database, capture).decorate(read.rows.values.toList(), raw, range)
++		names.copy(problems = names.problems + read.problems)
++	}
++
+ 	private suspend fun importMeasuredCellChildren(group: Group): List<ImportedCellChildEntity> {
+ 		val portable = database.withTransaction {
+ 			RoomReadLocalPortableCapturedCell(database, SourceProductLaneExecutionAuthority { database.inTransaction() })
+--- a/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt
++++ b/stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt
+@@ -78,6 +78,23 @@
+ import com.adsamcik.tracker.stats.api.repository.WifiHistoryStructuralDayPage
+ import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryReader
+ import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryResult
++import com.adsamcik.tracker.shared.base.database.data.ImportedWifiEntryRevisionEntity
++import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunEntity
++import com.adsamcik.tracker.shared.base.database.data.ImportedWifiObservationEntity
++import com.adsamcik.tracker.shared.base.database.data.ImportedWifiChildEntity
++import com.adsamcik.tracker.shared.base.database.data.PortableRadioChildIntegrity
++import com.adsamcik.tracker.stats.api.repository.PortableWifiIntegrity
++import com.adsamcik.tracker.stats.api.repository.PortableWifiOpaqueIdentity
++import com.adsamcik.tracker.stats.api.repository.PortableWifiIdentityKind
++import com.adsamcik.tracker.stats.api.repository.PortableWifiAvailability
++import com.adsamcik.tracker.stats.api.repository.PortableWifiResultCompleteness
++import com.adsamcik.tracker.stats.api.repository.PortableWifiDeletionScopeDigest
++import com.adsamcik.tracker.stats.api.repository.PortableWifiCaptureCoverage
++import com.adsamcik.tracker.stats.api.repository.PortableWifiRunAvailability
++import com.adsamcik.tracker.stats.api.repository.PortableWifiAcquisitionCompleteness
++import com.adsamcik.tracker.stats.api.repository.PortableWifiSessionMode
++import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductCandidate
++import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
+ import com.adsamcik.tracker.stats.api.repository.HistorySource
+ import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
+ import com.adsamcik.tracker.stats.api.value.EpochMs
+@@ -202,6 +219,151 @@
+ 			database.withTransaction { repository { true }.measuredFactInTransaction(dependent.logicalFactId, dependent.semanticRevision) }
+ 		}
+ 	}
++
++	@Test
++	fun `Wi-Fi bundle name follows only the identical independently qualified native child`() = runTest {
++		val group = v6RotatedGroup(buildGroup(950, 1, setOf(0)))
++		persist(listOf(group)); persistV6Children(group)
++		val evaluation = seedWifiBundleAlias(group)
++		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L,
++			HistorySource.WIFI, setOf(HistoryOrigin.LOCAL, HistoryOrigin.IMPORTED))
++		suspend fun read() = database.withTransaction {
++			val raw = database.radioObservationChildDao().wifiMeasuredHistoryCandidates(range.fromInclusiveMs,
++				range.toExclusiveMs, range.origins.map { it.name }, listOf("CAPTURE"), null, null, null, 100)
++			val capture = measuredCapturedRadioFixture(database, importedWifi = evaluation)
++			val qualified = capture.qualify(HistorySource.WIFI, raw, range)
++			val names = MeasuredSessionNamesReader(database, capture).decorate(qualified.rows.values.toList(), raw, range)
++			names.copy(problems = names.problems + qualified.problems)
++		}
++		val before = read()
++		before.rows.size shouldBe 2
++		before.rows.all { it.origins == setOf(HistoryOrigin.LOCAL) && it.sessionNames == listOf("Imported Wi-Fi trip") } shouldBe true
++		before.problems shouldBe emptySet()
++		val observation = evaluation.entry.runs.single().observations.single()
++		val child = database.importedRadioChildDao().wifiSessionChildrenForObservations(evaluation.entry.identity.value,
++			1L, evaluation.entry.runs.single().identity.value, listOf(observation.identity.value), 100).first()
++		val edited = child.copy(ssid = "Changed network")
++		database.openHelper.writableDatabase.execSQL("UPDATE imported_wifi_child SET ssid = ?, content_checksum = ? " +
++			"WHERE entry_identity = ? AND entry_import_revision = ? AND observation_identity = ? AND item_index = ?",
++			arrayOf(edited.ssid, wifiAliasChecksum(edited, observation.semanticRevision), edited.entryIdentity,
++				edited.entryImportRevision, edited.observationIdentity, edited.itemIndex))
++		val after = read()
++		after.rows.size shouldBe 3
++		after.rows.single { it.origins == setOf(HistoryOrigin.LOCAL) &&
++			(it.measurement as HistoryMeasurement.Wifi).network.observedTimeMs == child.observedWallTimeMs }.sessionNames shouldBe emptyList()
++		after.rows.single { it.origins == setOf(HistoryOrigin.IMPORTED) }.sessionNames shouldBe listOf("Imported Wi-Fi trip")
++		after.problems shouldBe emptySet()
++	}
++
++	@Test
++	fun `Wi-Fi native alias comparison retains the original deleted-run and origin filters`() = runTest {
++		val group = v6RotatedGroup(buildGroup(951, 1, setOf(0)))
++		persist(listOf(group)); persistV6Children(group)
++		val evaluation = seedWifiBundleAlias(group)
++		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L,
++			HistorySource.WIFI, setOf(HistoryOrigin.LOCAL, HistoryOrigin.IMPORTED))
++		val keys = database.radioObservationChildDao().wifiMeasuredHistoryCandidates(range.fromInclusiveMs,
++			range.toExclusiveMs, listOf("LOCAL"), listOf("CAPTURE"), null, null, null, 100)
++		database.withTransaction {
++			measuredCapturedRadioFixture(database, importedWifi = evaluation).importedNativeMembership(
++				HistorySource.WIFI, evaluation.entry.identity.value, keys, range).positions.size
++		} shouldBe 2
++		val deleted = evaluation.copy(deletedRunIdentities = setOf(evaluation.entry.runs.single().identity))
++		database.withTransaction {
++			measuredCapturedRadioFixture(database, importedWifi = deleted).importedNativeMembership(
++				HistorySource.WIFI, evaluation.entry.identity.value, keys, range).positions
++		} shouldBe emptySet()
++		database.withTransaction {
++			measuredCapturedRadioFixture(database, importedWifi = evaluation).importedNativeMembership(
++				HistorySource.WIFI, evaluation.entry.identity.value, keys, range.copy(origins = setOf(HistoryOrigin.IMPORTED))).positions
++		} shouldBe emptySet()
++	}
++
++	@Test
++	fun `Wi-Fi metadata cancellation cannot become a returned partial name list`() = runTest {
++		val group = v6RotatedGroup(buildGroup(952, 1, setOf(0)))
++		persist(listOf(group)); persistV6Children(group)
++		val evaluation = seedWifiBundleAlias(group)
++		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L, HistorySource.WIFI)
++		var reached = false
++		var returned = false
++		assertFailsWith<CancellationException> { database.withTransaction {
++			val keys = database.radioObservationChildDao().wifiMeasuredHistoryCandidates(range.fromInclusiveMs,
++				range.toExclusiveMs, listOf("LOCAL"), listOf("CAPTURE"), null, null, null, 100)
++			val capture = measuredCapturedRadioFixture(database, importedWifi = evaluation, onWifiSelection = {
++				reached = true
++				throw CancellationException("metadata selection cancelled")
++			})
++			val rows = capture.qualify(HistorySource.WIFI, keys, range).rows.values.toList()
++			MeasuredSessionNamesReader(database, capture).decorate(rows, keys, range)
++			returned = true
++		} }
++		reached shouldBe true
++		returned shouldBe false
++	}
++
++	/** Real FK-enforced imported children/native authority; imported envelope evaluation is a declared fixture. */
++	private suspend fun seedWifiBundleAlias(group: Group): ImportedWifiProductEvaluation.Readable {
++		val run = group.runs.single()
++		val fact = run.facts.last()
++		val qualified = database.withTransaction { requireNotNull(repository { true }.measuredFactInTransaction(fact.logicalFactId, fact.semanticRevision)) }
++		val value = qualified.observation
++		val observation = PortableWifiIntegrity.createObservation(
++			PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.OBSERVATION, fact.logicalFactId),
++			fact.semanticRevision, fact.supersedesSemanticRevision, null, null,
++			value.intervalStartTime.raw, value.observedTime.raw, value.observedTime.raw + value.wallTimeUncertaintyMs,
++			value.wallTimeUncertaintyMs, value.storedZoneId, PortableWifiAvailability.AVAILABLE,
++			PortableWifiResultCompleteness.valueOf(fact.coverageCompleteness), fact.submittedResultCount,
++			fact.acceptedResultCount, fact.staleResultCount, fact.clockUnverifiableResultCount, fact.malformedResultCount,
++			value.observationCount, value.bandMix[WifiHistoryBand.TWO_POINT_FOUR_GHZ] ?: 0,
++			value.bandMix[WifiHistoryBand.FIVE_GHZ] ?: 0, value.bandMix[WifiHistoryBand.SIX_GHZ] ?: 0,
++			value.bandMix[WifiHistoryBand.OTHER] ?: 0, value.signalQuality.strongestSignalDbm,
++			value.signalQuality.weakestSignalDbm, value.signalQuality.meanSignalDbm, value.sourceQualityFlags, value.sourceQualityConfidence)
++		val portableRun = PortableWifiIntegrity.createRun(PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.PHYSICAL_RUN,
++			run.run.serviceRunId), PortableWifiDeletionScopeDigest("d".repeat(64)), run.segment.startTimeMs,
++			run.segment.endTimeMs, listOf(value.storedZoneId), PortableWifiCaptureCoverage.WHOLE_RUN,
++			PortableWifiRunAvailability.RETAINED, PortableWifiAcquisitionCompleteness.COMPLETE, false, false, listOf(observation))
++		val entry = PortableWifiIntegrity.createEntry(PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.LOGICAL_ENTRY,
++			group.session.logicalTrackingId), PortableWifiSessionMode.MANUAL, portableRun.startTimeMs, portableRun.endTimeMs, listOf(portableRun))
++		val dao = database.importedWifiDao()
++		dao.insertEntryRevision(ImportedWifiEntryRevisionEntity(entry.identity.value, 1L, null, entry.contentChecksum.value,
++			ImportedWifiEntryRevisionEntity.SOURCE_FORMAT, 1, "MANUAL", entry.startTimeMs, entry.endTimeMs, 0L,
++			"alias-fixture", "alias-fixture", "alias.trackerwifi", entry.endTimeMs))
++		dao.insertRun(ImportedWifiRunEntity(entry.identity.value, 1L, portableRun.identity.value, portableRun.deletionScopeDigest.value,
++			portableRun.contentChecksum.value, portableRun.startTimeMs, portableRun.endTimeMs, portableRun.captureCoverage.name,
++			portableRun.availability.name, portableRun.acquisitionCompleteness.name, false, false, 0L, 0L))
++		dao.insertObservation(ImportedWifiObservationEntity(entryIdentity = entry.identity.value, entryImportRevision = 1L,
++			runIdentity = portableRun.identity.value, identity = observation.identity.value, semanticRevision = observation.semanticRevision,
++			supersedesSemanticRevision = observation.supersedesSemanticRevision, aggregateOwnerIdentity = null, aggregateOwnerSemanticRevision = null,
++			contentChecksum = observation.contentChecksum.value, coverageStartTimeMs = observation.coverageStartTimeMs,
++			observedTimeMs = observation.observedTimeMs, latestPossibleTimeMs = observation.latestPossibleTimeMs,
++			wallTimeUncertaintyMs = observation.wallTimeUncertaintyMs, storedZoneId = observation.storedZoneId,
++			availability = observation.availability.name, resultCompleteness = observation.resultCompleteness.name,
++			submittedResultCount = observation.submittedResultCount, acceptedResultCount = observation.acceptedResultCount,
++			staleResultCount = observation.staleResultCount, clockUnverifiableResultCount = observation.clockUnverifiableResultCount,
++			malformedResultCount = observation.malformedResultCount, observationCount = observation.observationCount,
++			twoPointFourGhzCount = observation.twoPointFourGhzCount, fiveGhzCount = observation.fiveGhzCount,
++			sixGhzCount = observation.sixGhzCount, otherBandCount = observation.otherBandCount,
++			strongestSignalDbm = observation.strongestSignalDbm, weakestSignalDbm = observation.weakestSignalDbm,
++			meanSignalDbm = observation.meanSignalDbm, sourceQualityFlags = observation.sourceQualityFlags,
++			sourceQualityConfidence = observation.sourceQualityConfidence))
++		database.importedRadioChildDao().insertWifiSession(qualified.children.map { child ->
++			ImportedWifiChildEntity(entry.identity.value, 1L, portableRun.identity.value, observation.identity.value, child.itemIndex,
++				child.providerTimestampNanos, child.observedWallTimeMs, child.wallTimeUncertaintyMs, child.bssid, child.ssid,
++				child.frequencyMhz, child.signalDbm, "").let { it.copy(contentChecksum = wifiAliasChecksum(it, observation.semanticRevision)) } })
++		database.organizationAnnotationDao().insert(com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity(
++			"wifi-import-name", 1L, 0L, 0L, null, group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L,
++			"UTC", "Imported Wi-Fi trip", null, false, com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelectionCodec.encode(listOf(
++				com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelector.CapturedEntry(HistorySource.WIFI, entry.identity.value)))))
++		return ImportedWifiProductEvaluation.Readable(ImportedWifiProductCandidate(entry.identity, 1L, entry.contentChecksum,
++			entry.startTimeMs, entry.endTimeMs, entry.endTimeMs, portableRun.startTimeMs, portableRun.identity), entry, false,
++			emptySet(), setOf(observation.identity), false, group.session.logicalTrackingId)
++	}
++
++	private fun wifiAliasChecksum(child: ImportedWifiChildEntity, revision: Long) = PortableRadioChildIntegrity.digest("wifi",
++		listOf(child.entryIdentity, child.runIdentity, child.observationIdentity), listOf(revision, child.itemIndex,
++			child.providerTimestampNanos, child.observedWallTimeMs, child.wallTimeUncertaintyMs, child.bssid, child.ssid,
++			child.frequencyMhz, child.signalDbm))
+ 
+ 	@Test
+ 	fun `saved Wifi survives later quality End and operation boot generations without rewriting observations`() = runTest {

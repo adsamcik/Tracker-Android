@@ -78,6 +78,23 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryRangeRequest
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryStructuralDayPage
 import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryReader
 import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryResult
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiObservationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiChildEntity
+import com.adsamcik.tracker.shared.base.database.data.PortableRadioChildIntegrity
+import com.adsamcik.tracker.stats.api.repository.PortableWifiIntegrity
+import com.adsamcik.tracker.stats.api.repository.PortableWifiOpaqueIdentity
+import com.adsamcik.tracker.stats.api.repository.PortableWifiIdentityKind
+import com.adsamcik.tracker.stats.api.repository.PortableWifiAvailability
+import com.adsamcik.tracker.stats.api.repository.PortableWifiResultCompleteness
+import com.adsamcik.tracker.stats.api.repository.PortableWifiDeletionScopeDigest
+import com.adsamcik.tracker.stats.api.repository.PortableWifiCaptureCoverage
+import com.adsamcik.tracker.stats.api.repository.PortableWifiRunAvailability
+import com.adsamcik.tracker.stats.api.repository.PortableWifiAcquisitionCompleteness
+import com.adsamcik.tracker.stats.api.repository.PortableWifiSessionMode
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductCandidate
+import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
 import com.adsamcik.tracker.stats.api.value.EpochMs
@@ -202,6 +219,151 @@ class WifiHistoryRepositoryRoomTest {
 			database.withTransaction { repository { true }.measuredFactInTransaction(dependent.logicalFactId, dependent.semanticRevision) }
 		}
 	}
+
+	@Test
+	fun `Wi-Fi bundle name follows only the identical independently qualified native child`() = runTest {
+		val group = v6RotatedGroup(buildGroup(950, 1, setOf(0)))
+		persist(listOf(group)); persistV6Children(group)
+		val evaluation = seedWifiBundleAlias(group)
+		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L,
+			HistorySource.WIFI, setOf(HistoryOrigin.LOCAL, HistoryOrigin.IMPORTED))
+		suspend fun read() = database.withTransaction {
+			val raw = database.radioObservationChildDao().wifiMeasuredHistoryCandidates(range.fromInclusiveMs,
+				range.toExclusiveMs, range.origins.map { it.name }, listOf("CAPTURE"), null, null, null, 100)
+			val capture = measuredCapturedRadioFixture(database, importedWifi = evaluation)
+			val qualified = capture.qualify(HistorySource.WIFI, raw, range)
+			val names = MeasuredSessionNamesReader(database, capture).decorate(qualified.rows.values.toList(), raw, range)
+			names.copy(problems = names.problems + qualified.problems)
+		}
+		val before = read()
+		before.rows.size shouldBe 2
+		before.rows.all { it.origins == setOf(HistoryOrigin.LOCAL) && it.sessionNames == listOf("Imported Wi-Fi trip") } shouldBe true
+		before.problems shouldBe emptySet()
+		val observation = evaluation.entry.runs.single().observations.single()
+		val child = database.importedRadioChildDao().wifiSessionChildrenForObservations(evaluation.entry.identity.value,
+			1L, evaluation.entry.runs.single().identity.value, listOf(observation.identity.value), 100).first()
+		val edited = child.copy(ssid = "Changed network")
+		database.openHelper.writableDatabase.execSQL("UPDATE imported_wifi_child SET ssid = ?, content_checksum = ? " +
+			"WHERE entry_identity = ? AND entry_import_revision = ? AND observation_identity = ? AND item_index = ?",
+			arrayOf(edited.ssid, wifiAliasChecksum(edited, observation.semanticRevision), edited.entryIdentity,
+				edited.entryImportRevision, edited.observationIdentity, edited.itemIndex))
+		val after = read()
+		after.rows.size shouldBe 3
+		after.rows.single { it.origins == setOf(HistoryOrigin.LOCAL) &&
+			(it.measurement as HistoryMeasurement.Wifi).network.observedTimeMs == child.observedWallTimeMs }.sessionNames shouldBe emptyList()
+		after.rows.single { it.origins == setOf(HistoryOrigin.IMPORTED) }.sessionNames shouldBe listOf("Imported Wi-Fi trip")
+		after.problems shouldBe emptySet()
+	}
+
+	@Test
+	fun `Wi-Fi native alias comparison retains the original deleted-run and origin filters`() = runTest {
+		val group = v6RotatedGroup(buildGroup(951, 1, setOf(0)))
+		persist(listOf(group)); persistV6Children(group)
+		val evaluation = seedWifiBundleAlias(group)
+		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L,
+			HistorySource.WIFI, setOf(HistoryOrigin.LOCAL, HistoryOrigin.IMPORTED))
+		val keys = database.radioObservationChildDao().wifiMeasuredHistoryCandidates(range.fromInclusiveMs,
+			range.toExclusiveMs, listOf("LOCAL"), listOf("CAPTURE"), null, null, null, 100)
+		database.withTransaction {
+			measuredCapturedRadioFixture(database, importedWifi = evaluation).importedNativeMembership(
+				HistorySource.WIFI, evaluation.entry.identity.value, keys, range).positions.size
+		} shouldBe 2
+		val deleted = evaluation.copy(deletedRunIdentities = setOf(evaluation.entry.runs.single().identity))
+		database.withTransaction {
+			measuredCapturedRadioFixture(database, importedWifi = deleted).importedNativeMembership(
+				HistorySource.WIFI, evaluation.entry.identity.value, keys, range).positions
+		} shouldBe emptySet()
+		database.withTransaction {
+			measuredCapturedRadioFixture(database, importedWifi = evaluation).importedNativeMembership(
+				HistorySource.WIFI, evaluation.entry.identity.value, keys, range.copy(origins = setOf(HistoryOrigin.IMPORTED))).positions
+		} shouldBe emptySet()
+	}
+
+	@Test
+	fun `Wi-Fi metadata cancellation cannot become a returned partial name list`() = runTest {
+		val group = v6RotatedGroup(buildGroup(952, 1, setOf(0)))
+		persist(listOf(group)); persistV6Children(group)
+		val evaluation = seedWifiBundleAlias(group)
+		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L, HistorySource.WIFI)
+		var reached = false
+		var returned = false
+		assertFailsWith<CancellationException> { database.withTransaction {
+			val keys = database.radioObservationChildDao().wifiMeasuredHistoryCandidates(range.fromInclusiveMs,
+				range.toExclusiveMs, listOf("LOCAL"), listOf("CAPTURE"), null, null, null, 100)
+			val capture = measuredCapturedRadioFixture(database, importedWifi = evaluation, onWifiSelection = {
+				reached = true
+				throw CancellationException("metadata selection cancelled")
+			})
+			val rows = capture.qualify(HistorySource.WIFI, keys, range).rows.values.toList()
+			MeasuredSessionNamesReader(database, capture).decorate(rows, keys, range)
+			returned = true
+		} }
+		reached shouldBe true
+		returned shouldBe false
+	}
+
+	/** Real FK-enforced imported children/native authority; imported envelope evaluation is a declared fixture. */
+	private suspend fun seedWifiBundleAlias(group: Group): ImportedWifiProductEvaluation.Readable {
+		val run = group.runs.single()
+		val fact = run.facts.last()
+		val qualified = database.withTransaction { requireNotNull(repository { true }.measuredFactInTransaction(fact.logicalFactId, fact.semanticRevision)) }
+		val value = qualified.observation
+		val observation = PortableWifiIntegrity.createObservation(
+			PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.OBSERVATION, fact.logicalFactId),
+			fact.semanticRevision, fact.supersedesSemanticRevision, null, null,
+			value.intervalStartTime.raw, value.observedTime.raw, value.observedTime.raw + value.wallTimeUncertaintyMs,
+			value.wallTimeUncertaintyMs, value.storedZoneId, PortableWifiAvailability.AVAILABLE,
+			PortableWifiResultCompleteness.valueOf(fact.coverageCompleteness), fact.submittedResultCount,
+			fact.acceptedResultCount, fact.staleResultCount, fact.clockUnverifiableResultCount, fact.malformedResultCount,
+			value.observationCount, value.bandMix[WifiHistoryBand.TWO_POINT_FOUR_GHZ] ?: 0,
+			value.bandMix[WifiHistoryBand.FIVE_GHZ] ?: 0, value.bandMix[WifiHistoryBand.SIX_GHZ] ?: 0,
+			value.bandMix[WifiHistoryBand.OTHER] ?: 0, value.signalQuality.strongestSignalDbm,
+			value.signalQuality.weakestSignalDbm, value.signalQuality.meanSignalDbm, value.sourceQualityFlags, value.sourceQualityConfidence)
+		val portableRun = PortableWifiIntegrity.createRun(PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.PHYSICAL_RUN,
+			run.run.serviceRunId), PortableWifiDeletionScopeDigest("d".repeat(64)), run.segment.startTimeMs,
+			run.segment.endTimeMs, listOf(value.storedZoneId), PortableWifiCaptureCoverage.WHOLE_RUN,
+			PortableWifiRunAvailability.RETAINED, PortableWifiAcquisitionCompleteness.COMPLETE, false, false, listOf(observation))
+		val entry = PortableWifiIntegrity.createEntry(PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.LOGICAL_ENTRY,
+			group.session.logicalTrackingId), PortableWifiSessionMode.MANUAL, portableRun.startTimeMs, portableRun.endTimeMs, listOf(portableRun))
+		val dao = database.importedWifiDao()
+		dao.insertEntryRevision(ImportedWifiEntryRevisionEntity(entry.identity.value, 1L, null, entry.contentChecksum.value,
+			ImportedWifiEntryRevisionEntity.SOURCE_FORMAT, 1, "MANUAL", entry.startTimeMs, entry.endTimeMs, 0L,
+			"alias-fixture", "alias-fixture", "alias.trackerwifi", entry.endTimeMs))
+		dao.insertRun(ImportedWifiRunEntity(entry.identity.value, 1L, portableRun.identity.value, portableRun.deletionScopeDigest.value,
+			portableRun.contentChecksum.value, portableRun.startTimeMs, portableRun.endTimeMs, portableRun.captureCoverage.name,
+			portableRun.availability.name, portableRun.acquisitionCompleteness.name, false, false, 0L, 0L))
+		dao.insertObservation(ImportedWifiObservationEntity(entryIdentity = entry.identity.value, entryImportRevision = 1L,
+			runIdentity = portableRun.identity.value, identity = observation.identity.value, semanticRevision = observation.semanticRevision,
+			supersedesSemanticRevision = observation.supersedesSemanticRevision, aggregateOwnerIdentity = null, aggregateOwnerSemanticRevision = null,
+			contentChecksum = observation.contentChecksum.value, coverageStartTimeMs = observation.coverageStartTimeMs,
+			observedTimeMs = observation.observedTimeMs, latestPossibleTimeMs = observation.latestPossibleTimeMs,
+			wallTimeUncertaintyMs = observation.wallTimeUncertaintyMs, storedZoneId = observation.storedZoneId,
+			availability = observation.availability.name, resultCompleteness = observation.resultCompleteness.name,
+			submittedResultCount = observation.submittedResultCount, acceptedResultCount = observation.acceptedResultCount,
+			staleResultCount = observation.staleResultCount, clockUnverifiableResultCount = observation.clockUnverifiableResultCount,
+			malformedResultCount = observation.malformedResultCount, observationCount = observation.observationCount,
+			twoPointFourGhzCount = observation.twoPointFourGhzCount, fiveGhzCount = observation.fiveGhzCount,
+			sixGhzCount = observation.sixGhzCount, otherBandCount = observation.otherBandCount,
+			strongestSignalDbm = observation.strongestSignalDbm, weakestSignalDbm = observation.weakestSignalDbm,
+			meanSignalDbm = observation.meanSignalDbm, sourceQualityFlags = observation.sourceQualityFlags,
+			sourceQualityConfidence = observation.sourceQualityConfidence))
+		database.importedRadioChildDao().insertWifiSession(qualified.children.map { child ->
+			ImportedWifiChildEntity(entry.identity.value, 1L, portableRun.identity.value, observation.identity.value, child.itemIndex,
+				child.providerTimestampNanos, child.observedWallTimeMs, child.wallTimeUncertaintyMs, child.bssid, child.ssid,
+				child.frequencyMhz, child.signalDbm, "").let { it.copy(contentChecksum = wifiAliasChecksum(it, observation.semanticRevision)) } })
+		database.organizationAnnotationDao().insert(com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity(
+			"wifi-import-name", 1L, 0L, 0L, null, group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L,
+			"UTC", "Imported Wi-Fi trip", null, false, com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelectionCodec.encode(listOf(
+				com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelector.CapturedEntry(HistorySource.WIFI, entry.identity.value)))))
+		return ImportedWifiProductEvaluation.Readable(ImportedWifiProductCandidate(entry.identity, 1L, entry.contentChecksum,
+			entry.startTimeMs, entry.endTimeMs, entry.endTimeMs, portableRun.startTimeMs, portableRun.identity), entry, false,
+			emptySet(), setOf(observation.identity), false, group.session.logicalTrackingId)
+	}
+
+	private fun wifiAliasChecksum(child: ImportedWifiChildEntity, revision: Long) = PortableRadioChildIntegrity.digest("wifi",
+		listOf(child.entryIdentity, child.runIdentity, child.observationIdentity), listOf(revision, child.itemIndex,
+			child.providerTimestampNanos, child.observedWallTimeMs, child.wallTimeUncertaintyMs, child.bssid, child.ssid,
+			child.frequencyMhz, child.signalDbm))
 
 	@Test
 	fun `saved Wifi survives later quality End and operation boot generations without rewriting observations`() = runTest {

@@ -1,0 +1,17 @@
+{
+  "packet": "MEASURED_RADIO_ORGANIZATION_ALIASES_SELECTED",
+  "reviewed_head": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+  "phase": "IMPLEMENTATION_ONLY",
+  "tests": "NOT_RUN",
+  "files": {
+    "FILES.json": "9c2c24a4377eab4dc96f42cc64eeeedbc7c5a63497041c6126d22997166e057c",
+    "SELECTION.patch": "e9d55dd7c489d3e5442ebe7f5b43f1107fafcfea139a60a7c8623cae75343eaa",
+    "DEPENDENCIES.json": "d007765b473bcd63163da5562e98c890d25ba1211f8dfd3eb5c0255b43eddee8",
+    "SOURCE_BOUNDARY.md": "4e34a9a61a8884a92797c84777c6261586cd7e2a04791b09a8130935d881577f",
+    "CASE_INVENTORY.json": "05d3b453abd55bb70d76f825aa7e8a8ae5cfad00de5050644c4411789270818c",
+    "CURRENT_COMPOSITION.json": "08ef81ee198ba2b2dd491181ba474e5dd8217f4281356dd05d7eb8d494009b4a"
+  },
+  "selected_base_raw_checked": 6,
+  "committed_pins_checked": 32,
+  "drift": []
+}

@@ -1,0 +1,54 @@
+{
+  "status": "NOT_RUN",
+  "new_method_count": 8,
+  "cases": [
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "imported Cell session name follows the exact native reading without adding a duplicate",
+      "status": "NOT_RUN",
+      "boundary": "Actual Room/native source qualification and full child comparison; Cell uses actual importer. Wi-Fi imported envelope is an explicit evaluator fixture."
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "edited imported Cell child cannot lend its name to the original native child",
+      "status": "NOT_RUN",
+      "boundary": "Actual Room/native source qualification and full child comparison; Cell uses actual importer. Wi-Fi imported envelope is an explicit evaluator fixture."
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "Cell bundle labels the same background leaf through its independently valid original capture",
+      "status": "NOT_RUN",
+      "boundary": "Actual Room/native source qualification and full child comparison; Cell uses actual importer. Wi-Fi imported envelope is an explicit evaluator fixture."
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "Cell bundle metadata never revives an explicitly erased native capture",
+      "status": "NOT_RUN",
+      "boundary": "Actual Room/native source qualification and full child comparison; Cell uses actual importer. Wi-Fi imported envelope is an explicit evaluator fixture."
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "method": "one corrupt imported Cell parent preserves the valid sibling session name and reading",
+      "status": "NOT_RUN",
+      "boundary": "Actual Room/native source qualification and full child comparison; Cell uses actual importer. Wi-Fi imported envelope is an explicit evaluator fixture."
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+      "method": "Wi-Fi bundle name follows only the identical independently qualified native child",
+      "status": "NOT_RUN",
+      "boundary": "Actual Room/native source qualification and full child comparison; Cell uses actual importer. Wi-Fi imported envelope is an explicit evaluator fixture."
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+      "method": "Wi-Fi native alias comparison retains the original deleted-run and origin filters",
+      "status": "NOT_RUN",
+      "boundary": "Actual Room/native source qualification and full child comparison; Cell uses actual importer. Wi-Fi imported envelope is an explicit evaluator fixture."
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+      "method": "Wi-Fi metadata cancellation cannot become a returned partial name list",
+      "status": "NOT_RUN",
+      "boundary": "Actual Room/native source qualification and full child comparison; Cell uses actual importer. Wi-Fi imported envelope is an explicit evaluator fixture."
+    }
+  ]
+}

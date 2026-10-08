@@ -809,8 +809,8 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
         }
         val ordered = planned.rows.mapNotNull { representatives ->
             rows[measuredHistoryPosition(representatives.first().seed)] }
-        val named = MeasuredSessionNamesReader(database).decorate(ordered,
-            planned.rows.map { it.first().seed })
+        val named = MeasuredSessionNamesReader(database, capturedRadio).decorate(ordered,
+            planned.rows.map { it.first().seed }, range)
         problems += named.problems
         if (database.sourceEvidenceStateDao().get() != state) {
             return HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)

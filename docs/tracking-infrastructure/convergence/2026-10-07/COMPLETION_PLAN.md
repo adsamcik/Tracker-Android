@@ -640,3 +640,9 @@ Exact accepted source/review: `../2026-10-08/MEASURED_HISTORY_ORGANIZATION_SELEC
 - [x] Use the shared six-source measured-date readers for Calendar dots, bounded progressing per-day frontiers, selected month/zone guards and same-source Retry. Preserve healthy dots during sibling failure and reset destructive snapshots. Remove distance shading/legend across 40 locale files. Twelve new or renamed methods plus three adapted cases NOT_RUN; no query/device timing proof.
 
 Exact accepted source/review: `../2026-10-08/MEASURED_CALENDAR_PRESENCE_SELECTED/` and `MEASURED_CALENDAR_PRESENCE_REVIEW/ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN; no gates, activation or integration.
+
+### October 8 - radio session organization aliases
+
+- [x] Connect exact imported radio membership to the single qualified native History row. Preserve valid sibling session names if another imported parent has malformed details, using existing typed problems. No guessed time joins, new storage, extra authority or sensor requests. Eight authored methods NOT_RUN.
+
+Exact V2 source `MEASURED_RADIO_ORGANIZATION_ALIASES_SELECTED` and independent review `MEASURED_RADIO_ORGANIZATION_ALIASES_REVIEW/V2_ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25 and all25 full-chain prerequisites remain OPEN. No validation, activation, integration or push.

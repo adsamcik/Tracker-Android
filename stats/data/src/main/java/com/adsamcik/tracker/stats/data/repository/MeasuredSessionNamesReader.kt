@@ -7,6 +7,7 @@ import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
 import com.adsamcik.tracker.stats.api.repository.HistoryProblem
 import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.HistoryRange
 import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelectionCodec
 import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelector
 import com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow
@@ -17,8 +18,9 @@ import kotlinx.coroutines.ensureActive
 internal data class MeasuredSessionNamesRead(val rows: List<UnifiedHistoryRow>, val problems: Set<HistoryProblem>)
 
 /** Metadata only, in the caller's qualified Room snapshot. It never clips, admits or duplicates data. */
-internal class MeasuredSessionNamesReader(private val database: AppDatabase) {
-    suspend fun decorate(rows: List<UnifiedHistoryRow>, candidates: List<MeasuredHistoryCandidate>): MeasuredSessionNamesRead {
+internal class MeasuredSessionNamesReader(private val database: AppDatabase,
+    private val capturedRadio: MeasuredCapturedRadioHistoryReader) {
+    suspend fun decorate(rows: List<UnifiedHistoryRow>, candidates: List<MeasuredHistoryCandidate>, range: HistoryRange): MeasuredSessionNamesRead {
         require(rows.size <= 100 && candidates.size <= 100)
         if (rows.isEmpty()) return MeasuredSessionNamesRead(rows, emptySet())
         val keys = candidates.associateBy(::measuredHistoryPosition)
@@ -52,9 +54,24 @@ internal class MeasuredSessionNamesReader(private val database: AppDatabase) {
                         currentCoroutineContext().ensureActive()
                         locationMembers += database.locationFileIdentityDao().sampleIdsInArchive(selector.archiveIdentity, locationIds)
                     }
+                    val nativeRadioMembers = linkedSetOf<com.adsamcik.tracker.stats.api.repository.HistoryPosition>()
+                    for (selector in selected.orEmpty().filterIsInstance<OrganizationSourceSelector.CapturedEntry>()) {
+                        if (selector.source != HistorySource.WIFI && selector.source != HistorySource.CELL) continue
+                        try {
+                            val membership = capturedRadio.importedNativeMembership(selector.source, selector.entryIdentity,
+                                eligible.mapNotNull { keys[it.position] }, range)
+                            nativeRadioMembers += membership.positions
+                            problems += membership.problems
+                        } catch (cancelled: CancellationException) { throw cancelled }
+                        catch (failure: MeasuredRadioParentFailure) { problems += HistoryProblem(selector.source, failure.reason) }
+                        catch (_: android.database.sqlite.SQLiteException) {
+                            problems += HistoryProblem(selector.source, HistoryProblemReason.STORAGE_UNAVAILABLE)
+                        } catch (_: Exception) { problems += HistoryProblem(selector.source, HistoryProblemReason.INTEGRITY_UNAVAILABLE) }
+                    }
                     for (row in eligible) {
                         val key = keys[row.position] ?: continue
-                        if (selected == null || selected.any { member(it, row, key, locationMembers) })
+                        if (selected == null || selected.any { member(it, row, key, locationMembers) ||
+                            it is OrganizationSourceSelector.CapturedEntry && it.source == row.measurement?.source && row.position in nativeRadioMembers })
                             names.getValue(row.position) += name
                     }
                 }

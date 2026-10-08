@@ -580,6 +580,122 @@ class CellHistoryRepositoryRoomTest {
 		result.rows.keys.single().startTimeMs shouldBe later.observedTimeMs
 	}
 
+	@Test
+	fun `imported Cell session name follows the exact native reading without adding a duplicate`() = runTest {
+		val group = perReadingGroup(buildGroup(950, 1, setOf(0)))
+		persist(listOf(group)); persistPerReadingChildren(group)
+		val children = importMeasuredCellChildren(group)
+		installCellBundleName(group, children.first().entryIdentity)
+		val read = cellBundleNames(group)
+		read.rows.size shouldBe children.size
+		read.rows.all { it.origins == setOf(HistoryOrigin.LOCAL) } shouldBe true
+		read.rows.all { it.sessionNames == listOf("Imported trip") } shouldBe true
+		read.problems shouldBe emptySet()
+	}
+
+	@Test
+	fun `edited imported Cell child cannot lend its name to the original native child`() = runTest {
+		val group = perReadingGroup(buildGroup(951, 1, setOf(0)))
+		persist(listOf(group)); persistPerReadingChildren(group)
+		val children = importMeasuredCellChildren(group)
+		installCellBundleName(group, children.first().entryIdentity)
+		val changed = children.first().copy(towerIdentity = "LTE:user-edited")
+		database.openHelper.writableDatabase.execSQL("UPDATE imported_cell_child SET tower_identity = ?, content_checksum = ? " +
+			"WHERE entry_identity = ? AND entry_import_revision = ? AND observation_identity = ? AND item_index = ?",
+			arrayOf(changed.towerIdentity, measuredCellChildChecksum(changed, 2L), changed.entryIdentity,
+				changed.entryImportRevision, changed.observationIdentity, changed.itemIndex))
+		val result = cellBundleNames(group)
+		result.rows.size shouldBe 3
+		val original = result.rows.single { it.origins == setOf(HistoryOrigin.LOCAL) &&
+			(it.measurement as HistoryMeasurement.Cell).tower.observedTimeMs == changed.observedWallTimeMs }
+		original.sessionNames shouldBe emptyList()
+		val edited = result.rows.single { it.origins == setOf(HistoryOrigin.IMPORTED) }
+		edited.sessionNames shouldBe listOf("Imported trip")
+		(edited.measurement as HistoryMeasurement.Cell).tower.identity shouldBe changed.towerIdentity
+		result.problems shouldBe emptySet()
+	}
+
+	@Test
+	fun `Cell bundle labels the same background leaf through its independently valid original capture`() = runTest {
+		val group = joinedCanonicalCellGroup(perReadingGroup(buildGroup(952, 1, setOf(0))))
+		persist(listOf(group)); persistPerReadingChildren(group); persistCanonicalCellBackground(group)
+		val children = importMeasuredCellChildren(group)
+		installCellBundleName(group, children.first().entryIdentity)
+		val range = canonicalCellRange(group).copy(purposes = setOf(HistoryPurpose.BACKGROUND))
+		val result = database.withTransaction {
+			val raw = canonicalCellReader().candidates(HistorySource.CELL, range, null).take(100)
+			val capture = measuredCapturedRadioFixture(database, cell = repository { true })
+			val rows = canonicalCellReader().qualify(HistorySource.CELL, raw, range, capture).rows.values.toList()
+			MeasuredSessionNamesReader(database, capture).decorate(rows, raw, range)
+		}
+		result.rows.size shouldBe 1
+		result.rows.single().purpose shouldBe HistoryPurpose.BACKGROUND
+		result.rows.single().sessionNames shouldBe listOf("Imported trip")
+		result.problems shouldBe emptySet()
+	}
+
+	@Test
+	fun `Cell bundle metadata never revives an explicitly erased native capture`() = runTest {
+		val group = perReadingGroup(buildGroup(953, 1, setOf(0)))
+		persist(listOf(group)); persistPerReadingChildren(group)
+		val children = importMeasuredCellChildren(group)
+		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L,
+			HistorySource.CELL, setOf(HistoryOrigin.LOCAL, HistoryOrigin.IMPORTED))
+		val keys = database.radioObservationChildDao().cellMeasuredHistoryCandidates(range.fromInclusiveMs,
+			range.toExclusiveMs, listOf("LOCAL"), listOf("CAPTURE"), null, null, null, 100)
+		val capture = measuredCapturedRadioFixture(database, cell = repository { true })
+		database.withTransaction { capture.importedNativeMembership(HistorySource.CELL,
+			children.first().entryIdentity, keys, range).positions.size } shouldBe 2
+		val run = group.runs.single()
+		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+			CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, group.session.logicalTrackingId,
+			run.run.serviceRunId, 1L, 0L, run.segment.endTimeMs + 1L))
+		database.withTransaction { capture.importedNativeMembership(HistorySource.CELL,
+			children.first().entryIdentity, keys, range).positions } shouldBe emptySet()
+	}
+
+	@Test
+	fun `one corrupt imported Cell parent preserves the valid sibling session name and reading`() = runTest {
+		val group = perReadingGroup(buildGroup(954, 1, setOf(0)))
+		persist(listOf(group)); persistPerReadingChildren(group)
+		val children = importMeasuredCellChildren(group)
+		installCellBundleName(group, children.first().entryIdentity)
+		val bad = children.first()
+		database.openHelper.writableDatabase.execSQL("UPDATE imported_cell_child SET content_checksum = ? " +
+			"WHERE entry_identity = ? AND entry_import_revision = ? AND observation_identity = ? AND item_index = ?",
+			arrayOf("f".repeat(64), bad.entryIdentity, bad.entryImportRevision, bad.observationIdentity, bad.itemIndex))
+		val entry = database.withTransaction { repository { true }.measuredImportedEvaluationInTransaction(bad.entryIdentity) }
+		(entry is com.adsamcik.tracker.shared.base.database.ImportedCellProductEvaluation.Readable) shouldBe true
+		val result = cellBundleNames(group)
+		result.rows.size shouldBe 2
+		result.rows.all { it.origins == setOf(HistoryOrigin.LOCAL) } shouldBe true
+		result.rows.single { (it.measurement as HistoryMeasurement.Cell).tower.observedTimeMs == bad.observedWallTimeMs }
+			.sessionNames shouldBe emptyList()
+		result.rows.single { (it.measurement as HistoryMeasurement.Cell).tower.observedTimeMs != bad.observedWallTimeMs }
+			.sessionNames shouldBe listOf("Imported trip")
+		result.problems shouldBe setOf(com.adsamcik.tracker.stats.api.repository.HistoryProblem(
+			HistorySource.CELL, com.adsamcik.tracker.stats.api.repository.HistoryProblemReason.INTEGRITY_UNAVAILABLE))
+	}
+
+	private suspend fun installCellBundleName(group: Group, entryIdentity: String) {
+		database.organizationAnnotationDao().insert(com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity(
+			"imported-cell-name", 1L, 0L, 0L, null, group.session.startedAtMs,
+			requireNotNull(group.session.completedAtMs) + 1L, "UTC", "Imported trip", null, false,
+			com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelectionCodec.encode(listOf(
+				com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelector.CapturedEntry(HistorySource.CELL, entryIdentity)))))
+	}
+
+	private suspend fun cellBundleNames(group: Group): MeasuredSessionNamesRead = database.withTransaction {
+		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L,
+			HistorySource.CELL, setOf(HistoryOrigin.LOCAL, HistoryOrigin.IMPORTED))
+		val raw = database.radioObservationChildDao().cellMeasuredHistoryCandidates(range.fromInclusiveMs,
+			range.toExclusiveMs, range.origins.map { it.name }, listOf("CAPTURE"), null, null, null, 100)
+		val capture = measuredCapturedRadioFixture(database, cell = repository { true })
+		val read = capture.qualify(HistorySource.CELL, raw, range)
+		val names = MeasuredSessionNamesReader(database, capture).decorate(read.rows.values.toList(), raw, range)
+		names.copy(problems = names.problems + read.problems)
+	}
+
 	private suspend fun importMeasuredCellChildren(group: Group): List<ImportedCellChildEntity> {
 		val portable = database.withTransaction {
 			RoomReadLocalPortableCapturedCell(database, SourceProductLaneExecutionAuthority { database.inTransaction() })

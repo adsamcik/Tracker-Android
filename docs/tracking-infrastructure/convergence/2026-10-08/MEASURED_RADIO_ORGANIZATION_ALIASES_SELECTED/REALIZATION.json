@@ -1,0 +1,32 @@
+[
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredCapturedRadioHistoryReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "34d92953f65ade5fefd9fdc36e2a7569448c44497dd752b090893aa0df31a999"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "62755a9bee10f17b3f5eaaa2de73abb6a76d53de45c5d3d34ea8bfc570597982"
+  },
+  {
+    "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/UnifiedHistoryRangeReader.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "18323b320f631ab87d1aa5a8b949dcdaa0a5667ac68ed2b7788145ad759c363f"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/MeasuredSessionNamesRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "18433cf1f87736a3e17483cc312e725f6bc00bd62d01e2cdea0f2f7c81d7a11b"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "8f725622ed70a1d29f5733f54229d93ab9d1183e4a8b8567a252ae33b6de054f"
+  },
+  {
+    "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "3e1dbf4726fbc802bac4c0865b9e59e6aff3f58c908d9cfb2a99640962e2ba34"
+  }
+]

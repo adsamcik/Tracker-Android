@@ -150,7 +150,8 @@ class MeasuredSessionNamesRoomTest {
     }
 
     private suspend fun decorate(rows: List<UnifiedHistoryRow>, keys: List<MeasuredHistoryCandidate>) =
-        database.withTransaction { MeasuredSessionNamesReader(database).decorate(rows, keys) }
+        database.withTransaction { MeasuredSessionNamesReader(database, measuredCapturedRadioFixture(database)).decorate(rows, keys,
+            HistoryRange(0, Long.MAX_VALUE, "UTC", mode = HistoryBrowseMode.OBSERVATIONS)) }
     private fun key(kind: String, origin: String, purpose: String, id: String, start: Long,
         end: Long? = null, parent: String? = null, sample: Long? = null) =
         MeasuredHistoryCandidate(kind, origin, purpose, id, start, end, sample, parent, null, null, null, null)
