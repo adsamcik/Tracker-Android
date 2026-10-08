@@ -898,3 +898,9 @@ Exact source and independent acceptance: `../2026-10-08/TRIP_ANNOTATION_CLEANUP_
 - [x] Preserve coroutine cancellation in the existing daily summary read; ordinary storage-error handling stays intact. One focused host fixture method NOT_RUN; all-day numerical composition remains open.
 
 Exact source and independent acceptance: `../2026-10-08/DAILY_SUMMARY_CANCELLATION_SELECTED/` and `DAILY_SUMMARY_CANCELLATION_REVIEW/`. IMPLEMENTED_UNVALIDATED; T25/all25 remain OPEN. No gates, activation or dev/v10 integration.
+
+### October 8 - passive location delivery chunks
+
+- [x] Remove the arbitrary total64 passive Location cap. Normalize the complete delivery once, preserve one-fix identities, and use cancellable64 work chunks within the unchanged receiver deadline. Seven new and one revised fixture methods NOT_RUN; retained delivery gaps and actual provider/device evidence remain open.
+
+Exact source and independent acceptance: `../2026-10-08/PASSIVE_LOCATION_DELIVERY_CHUNKS_SELECTED/` and `PASSIVE_LOCATION_DELIVERY_CHUNKS_REVIEW/`. IMPLEMENTED_UNVALIDATED; T25/all25 remain OPEN. No gates, activation or dev/v10 integration.

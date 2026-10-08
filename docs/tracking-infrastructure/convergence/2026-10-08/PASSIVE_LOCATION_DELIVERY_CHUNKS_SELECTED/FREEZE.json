@@ -1,0 +1,11 @@
+{
+  "baseCommit": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+  "observedHead": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+  "paths": 2,
+  "dependencies": 21,
+  "newMethods": 7,
+  "tests": "NOT_RUN",
+  "filesSha256": "117b2e709ae7e675292af9e446c58b11ac75274d1e8f5e9fe76b137ecbed10e7",
+  "patchSha256": "9b5b4c4632a52d732eb71c4f00738ec53ad9685091714d172e13d3ae6c045b12",
+  "dependenciesSha256": "ba35bf22940fa368e916d10f3f7bf720530c462bb881d2d7f6239cc37867da5a"
+}

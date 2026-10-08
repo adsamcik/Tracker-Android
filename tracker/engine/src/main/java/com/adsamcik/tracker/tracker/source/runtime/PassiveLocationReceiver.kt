@@ -21,8 +21,11 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.yield
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)
@@ -111,53 +114,61 @@ internal class PassiveLocationDeliveryAdmission @Inject constructor(
 		receivedElapsedNanos: Long,
 		receivedWallTimeMs: Long,
 	): PassiveLocationDeliveryOutcome {
-		if (locations.isEmpty()) return PassiveLocationDeliveryOutcome(0, 0, false)
-		val overflow = locations.size > MAX_DELIVERY_FIXES
+		currentCoroutineContext().ensureActive()
+		if (locations.isEmpty()) return PassiveLocationDeliveryOutcome(0, 0)
 		if (startup.reconcileAdmission() !is TrackingAdmissionStartupResult.Ready ||
 			!startup.permitsNewCollection || !permissionsAllowAdmission(device.snapshot())
-		) return PassiveLocationDeliveryOutcome(0, locations.size, overflow)
+		) return PassiveLocationDeliveryOutcome(0, locations.size)
 		var admitted = 0
-		var unverified = if (overflow) locations.size - MAX_DELIVERY_FIXES else 0
-		for (location in normalizeLocationBatch(locations.take(MAX_DELIVERY_FIXES).map(::Location))) {
-			if (!startup.permitsNewCollection || !permissionsAllowAdmission(device.snapshot())) {
-				unverified++
-				continue
-			}
-			val observed = location.qualifiedObservedElapsedRealtimeNanos(receivedElapsedNanos)
-			if (observed == null || !location.isValidLocationEvidence()) {
-				unverified++
-				continue
-			}
-			val admission = registrations.passiveLocationAdmissionAt(identity, observed)
-			if (admission == null || (admission.approximate && !device.snapshot().coarsePermission) ||
-				(!admission.approximate && !device.snapshot().finePermission) ||
-				startup.collectionResumeBoundary?.permitsObservation(identity.bootId, observed,
-					location.time.takeIf { it > 0L } ?: receivedWallTimeMs) == false
-			) {
-				unverified++
-				continue
-			}
-			val candidate = locationDeliveryCandidate(listOf(location), listOf(observed),
-				receivedElapsedNanos, receivedWallTimeMs, admission.attribution,
-				admission.approximate)
-			when (sink.admit(candidate)) {
-				is SourceDeliveryAdmissionHandoff.Durable,
-				is SourceDeliveryAdmissionHandoff.Duplicate -> admitted++
-				else -> unverified++
+		var unverified = 0
+		// Normalize the entire delivery once: chunk boundaries must not change source ordering,
+		// exact duplicate removal, or the existing one-fix delivery identities.
+		val normalized = normalizeLocationBatch(locations.map(::Location))
+		for (chunk in normalized.asSequence().chunked(WORK_CHUNK_SIZE)) {
+			// The receiver's existing timeout remains the total work budget. A chunk is only a
+			// cancellable scheduling boundary; subsequent chunks are not discarded by count.
+			yield()
+			for (location in chunk) {
+				currentCoroutineContext().ensureActive()
+				if (!startup.permitsNewCollection || !permissionsAllowAdmission(device.snapshot())) {
+					unverified++
+					continue
+				}
+				val observed = location.qualifiedObservedElapsedRealtimeNanos(receivedElapsedNanos)
+				if (observed == null || !location.isValidLocationEvidence()) {
+					unverified++
+					continue
+				}
+				val admission = registrations.passiveLocationAdmissionAt(identity, observed)
+				if (admission == null || (admission.approximate && !device.snapshot().coarsePermission) ||
+					(!admission.approximate && !device.snapshot().finePermission) ||
+					startup.collectionResumeBoundary?.permitsObservation(identity.bootId, observed,
+						location.time.takeIf { it > 0L } ?: receivedWallTimeMs) == false
+				) {
+					unverified++
+					continue
+				}
+				val candidate = locationDeliveryCandidate(listOf(location), listOf(observed),
+					receivedElapsedNanos, receivedWallTimeMs, admission.attribution,
+					admission.approximate)
+				when (sink.admit(candidate)) {
+					is SourceDeliveryAdmissionHandoff.Durable,
+					is SourceDeliveryAdmissionHandoff.Duplicate -> admitted++
+					else -> unverified++
+				}
 			}
 		}
-		return PassiveLocationDeliveryOutcome(admitted, unverified, overflow)
+		return PassiveLocationDeliveryOutcome(admitted, unverified)
 	}
 
 	private fun permissionsAllowAdmission(state: LocationDeviceState): Boolean =
 		state.hasLocationPermission() &&
 			(state.apiLevel < Build.VERSION_CODES.Q || state.backgroundLocationPermission)
 
-	private companion object { const val MAX_DELIVERY_FIXES = 64 }
+	private companion object { const val WORK_CHUNK_SIZE = 64 }
 }
 
 internal data class PassiveLocationDeliveryOutcome(
 	val admittedOrDuplicate: Int,
 	val unverified: Int,
-	val overflow: Boolean,
 )

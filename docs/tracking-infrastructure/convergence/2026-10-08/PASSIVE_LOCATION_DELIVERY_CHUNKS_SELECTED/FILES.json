@@ -1,0 +1,19 @@
+{
+  "baseCommit": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+  "phase": "IMPLEMENTATION_ONLY",
+  "tests": "NOT_RUN",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationReceiver.kt",
+      "baseSha256": "c85fac4ba9e87ef290822f56c41b01e976f2109e70687a03a4b17ea741683c7f",
+      "sha256": "1b25cd917f7b43867bf3a25ae21c6f9ebbc570dadd2559f26972d36c839ee7c1",
+      "workingBeforeSha256": "c85fac4ba9e87ef290822f56c41b01e976f2109e70687a03a4b17ea741683c7f"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationDeliveryAdmissionTest.kt",
+      "baseSha256": "fa91374f0beeba0bfdcfd539ac6deb8192062b737d5c9d7ddaaf8ffa56858fae",
+      "sha256": "f23794119cbae929b16a9c448216868001ec0ac78b6b93b78d5dc1d080a42256",
+      "workingBeforeSha256": "fa91374f0beeba0bfdcfd539ac6deb8192062b737d5c9d7ddaaf8ffa56858fae"
+    }
+  ]
+}

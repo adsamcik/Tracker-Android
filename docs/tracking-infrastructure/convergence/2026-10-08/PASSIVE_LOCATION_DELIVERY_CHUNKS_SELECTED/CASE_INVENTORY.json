@@ -1,0 +1,51 @@
+{
+  "status": "NOT_RUN",
+  "newMethods": [
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationDeliveryAdmissionTest.kt",
+      "method": "oversized cold delivery retains all original one-fix identities and canonical ordering",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationDeliveryAdmissionTest.kt",
+      "method": "invalid original at a work boundary does not discard healthy later fixes",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationDeliveryAdmissionTest.kt",
+      "method": "permission revoked after a full work chunk fences every later original",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationDeliveryAdmissionTest.kt",
+      "method": "collection stop after a full work chunk fences every later original",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationDeliveryAdmissionTest.kt",
+      "method": "reached ingress cancellation preserves the admitted prefix and prevents later calls",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationDeliveryAdmissionTest.kt",
+      "method": "cooperative cancellation at a work boundary prevents the next registration lookup",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationDeliveryAdmissionTest.kt",
+      "method": "existing five second receiver timeout cancels unfinished later admission",
+      "status": "NOT_RUN"
+    }
+  ],
+  "existingCaseRepair": {
+    "oldMethod": "cold receiver bounds an oversized provider batch and reports excluded fixes",
+    "newMethod": "oversized cold delivery authenticates every fix and reports unavailable originals",
+    "change": "Remove obsolete overflow assertion and require original65 to be authenticated rather than discarded by count",
+    "status": "NOT_RUN"
+  },
+  "preservedOriginalMethods": [
+    "only independently authenticated fixes reach unbound durable ingress",
+    "background permission loss blocks a cold delivery before storage admission"
+  ],
+  "totalSelectedTestMethods": 10
+}

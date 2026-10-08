@@ -1,0 +1,12 @@
+[
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationReceiver.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "c85fac4ba9e87ef290822f56c41b01e976f2109e70687a03a4b17ea741683c7f"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationDeliveryAdmissionTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "fa91374f0beeba0bfdcfd539ac6deb8192062b737d5c9d7ddaaf8ffa56858fae"
+  }
+]

@@ -1,0 +1,12 @@
+{
+  "candidate": "ab25a6dbfaab82d838a22ed97099cdd92bf2a2e7",
+  "phase": "IMPLEMENTATION_ONLY",
+  "test_status": "NOT_RUN",
+  "inputs": {
+    "FILES.json": "117b2e709ae7e675292af9e446c58b11ac75274d1e8f5e9fe76b137ecbed10e7",
+    "SELECTION.patch": "9b5b4c4632a52d732eb71c4f00738ec53ad9685091714d172e13d3ae6c045b12",
+    "DEPENDENCIES.json": "ba35bf22940fa368e916d10f3f7bf720530c462bb881d2d7f6239cc37867da5a",
+    "SOURCE_BOUNDARY.md": "80cbd0d357343a1607c028956d5fc41a1a1b104881bd1357b877cafbcc37410b",
+    "CASE_INVENTORY.json": "687f347ae127310f153119ee1ae3fbc10eaa7f6afbc7824feb7dfefbb0de7a8b"
+  }
+}
