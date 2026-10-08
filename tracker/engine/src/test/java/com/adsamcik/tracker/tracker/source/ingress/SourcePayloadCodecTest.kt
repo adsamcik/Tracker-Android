@@ -9,6 +9,7 @@ import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
+import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
 import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
@@ -28,6 +29,22 @@ import org.junit.Test
 
 class SourcePayloadCodecTest {
 	private val codec = DefaultSourcePayloadCodec()
+
+
+    @Test
+    fun `nullable accuracy round trips and cannot be silently encoded as an old required value`() {
+        val known = LocationFixPayload(50.1, 14.4, 5f, null, null, null, null, "gps", false)
+        val legacy = codec.encode(known, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION)
+        codec.decode(SourceKind.LOCATION, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION, legacy.bytes) shouldBe known
+        val unknown = known.copy(horizontalAccuracyMeters = null)
+        val fresh = codec.encode(unknown, LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION)
+        codec.decode(SourceKind.LOCATION, LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION, fresh.bytes) shouldBe unknown
+        codec.decode(SourceKind.LOCATION, LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION,
+            codec.encode(known, LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION).bytes) shouldBe known
+        shouldThrow<IllegalArgumentException> { codec.encode(unknown, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) }
+        shouldThrow<IllegalArgumentException> { codec.decode(SourceKind.LOCATION,
+            LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION, fresh.bytes + byteArrayOf(0)) }
+    }
 
 	@Test
 	fun `all durable payload kinds have a stable version-one round trip`() {

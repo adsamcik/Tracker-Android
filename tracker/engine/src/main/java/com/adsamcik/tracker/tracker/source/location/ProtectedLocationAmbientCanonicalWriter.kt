@@ -65,7 +65,7 @@ internal class ProtectedLocationAmbientCanonicalWriter @Inject constructor(
 			}
 			val reason = if (command.payload.isMock == true) "MOCK_LOCATION_REJECTED"
 				else curation.outcome.decisionReason
-			val accepted = data.location?.horizontalAccuracy != null
+			val accepted = data.location != null
 			check(accepted || reason != null) { "Location curation has no terminal outcome" }
 			persistence.commitProtectedAmbientLocation(ProtectedLocationAmbientWrite(
 				command, before,
@@ -101,7 +101,7 @@ private fun LocationAmbientFactCommand.toAmbientTrackingCycle(
 		elapsedRealtimeNanos = wal.observedElapsedNanos
 		latitude = payload.latitudeDegrees
 		longitude = payload.longitudeDegrees
-		accuracy = payload.horizontalAccuracyMeters
+		payload.horizontalAccuracyMeters?.let { accuracy = it }
 		payload.altitudeMeters?.let { altitude = it }
 		payload.verticalAccuracyMeters?.let { verticalAccuracyMeters = it }
 		payload.speedMetersPerSecond?.let { speed = it }

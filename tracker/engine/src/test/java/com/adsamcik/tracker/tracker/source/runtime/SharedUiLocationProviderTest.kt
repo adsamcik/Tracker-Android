@@ -135,6 +135,34 @@ class SharedUiLocationProviderTest {
 		assertFalse(location(now - 11_000_000_000L).isFreshForUi(10_000L, now))
 	}
 
+
+    @Test
+    fun `My location receives a fresh unknown-accuracy point with invalid optional values absent`() = runTest {
+        val owner = mockk<SharedLocationSourceController>()
+        val lifecycle = mockk<Lifecycle>(relaxed = true)
+        val fixes = MutableSharedFlow<UiLocationEvent>(extraBufferCapacity = 1)
+        every { owner.uiLocationEvents } returns fixes
+        every { owner.uiPermissionGranted() } returns true
+        every { owner.uiProviderAvailable() } returns true
+        coEvery { owner.acquireUiLease(any()) } returns 9L
+        coEvery { owner.releaseUiLease(9L) } returns Unit
+        val provider = SharedUiLocationProvider(owner, lifecycle,
+            elapsedRealtimeNanos = { 20_000_000_000L })
+        val result = async { provider.locationUpdates(UiLocationRequest("my-location", 10_000L,
+            cancelOnAppBackground = false)).first() }
+        runCurrent()
+        val raw = location(19_000_000_000L).apply { removeAccuracy(); speed = Float.NaN }
+        fixes.tryEmit(UiLocationEvent.Fix(raw))
+        runCurrent()
+        val received = result.await()
+        assertEquals(raw.latitude, received.latitude, 0.0)
+        assertEquals(raw.elapsedRealtimeNanos, received.elapsedRealtimeNanos)
+        assertFalse(received.hasAccuracy())
+        assertFalse(received.hasSpeed())
+        assertTrue(raw.hasSpeed())
+        coVerify(exactly = 1) { owner.releaseUiLease(9L) }
+    }
+
 	private fun location(observedElapsedNanos: Long) = Location("test").apply {
 		latitude = 50.0
 		longitude = 14.0

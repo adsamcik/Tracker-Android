@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.pipeline
 
 import androidx.core.location.LocationCompat
+import com.adsamcik.tracker.tracker.source.runtime.withValidOptionalFields
 import com.adsamcik.tracker.shared.base.constant.CoordinateConstants
 import com.adsamcik.tracker.shared.base.data.LocationProviderObservation
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -20,7 +21,7 @@ internal fun LocationProviderObservation.toLocationObservationSignal(
 	policyTier: PolicyTier,
 	policyName: String?,
 ): TrackingSignal {
-	val rawLocation = location
+	val rawLocation = location.withValidOptionalFields()
 	val fixMetadata = metadata
 	val hasValidCoordinate = rawLocation.latitude.isFinite() && rawLocation.longitude.isFinite() &&
 		rawLocation.latitude in CoordinateConstants.MIN_LATITUDE..CoordinateConstants.MAX_LATITUDE &&

@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEnt
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
@@ -1955,6 +1956,29 @@ class LocationSourceRuntimeTest {
 		val registrations: SourceRegistrationRepository,
 		val fusedBackend: FusedLocationSourceBackend,
 	)
+
+
+    @Test
+    fun `actual callback actor keeps valid coordinates with unknown accuracy and optional sensor values`() = runTest {
+        val fixture = locationRuntimeFixture(backgroundScope)
+        assertTrue(fixture.runtime.start(fixture.plan, fixture.sink) is SourceStartResult.Started)
+        val raw = location(50.0, SystemClock.elapsedRealtimeNanos()).apply {
+            removeAccuracy()
+            speed = Float.NaN
+            altitude = Double.NaN
+        }
+        fixture.providerCallback()(listOf(raw))
+        runCurrent()
+        val evidence = fixture.sink.deliveries.single().units.single().evidence
+        val point = evidence.payload as LocationFixPayload
+        assertEquals(LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION, evidence.payloadVersion)
+        assertEquals(raw.latitude, point.latitudeDegrees, 0.0)
+        assertEquals(raw.elapsedRealtimeNanos, evidence.observedElapsedRealtimeNanos)
+        assertNull(point.horizontalAccuracyMeters)
+        assertNull(point.altitudeMeters)
+        assertNull(point.speedMetersPerSecond)
+        fixture.runtime.close()
+    }
 
 	private fun failingStartFixture(
 		applicationScope: CoroutineScope,

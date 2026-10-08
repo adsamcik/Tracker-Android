@@ -1,0 +1,125 @@
+{
+  "base_commit": "c99d76e97223be34ce15c7f04b923bc47299ee8e",
+  "pins": [
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c"
+    },
+    {
+      "path": "gradle/libs.versions.toml",
+      "sha256": "3a4ccf984418e20f5e943456ab7e096823744ad74249699979a8cb4d22d19bde"
+    },
+    {
+      "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidFeatureConventionPlugins.kt",
+      "sha256": "e2df2278893f6fc1b47d6b51c15095e1e5638d2185ec35290fab465771772567"
+    },
+    {
+      "path": "tracker/engine/src/main/AndroidManifest.xml",
+      "sha256": "03539ecdd919df33156ef5a6a2be5f605c17ba49868a2982fba11613f9b5cbef"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/PassiveLocationReceiver.kt",
+      "sha256": "1b25cd917f7b43867bf3a25ae21c6f9ebbc570dadd2559f26972d36c839ee7c1"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/LegacyV27SourcePayloadDecoder.kt",
+      "sha256": "6ac82d513eba2437e662b17252c9cec7abe94c2461c58ecead801751a6a4fcbe"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservation.kt",
+      "sha256": "ea0faab2b5742e0df12a537de71a20efe337aa7acc6ddd5625745b0c2b24cb89"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationOfflineCanonicalWriter.kt",
+      "sha256": "476d51ca7c272a915efd12fdd0c566848f030ff0a0803c81bf3c9284c13f644c"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/persistence/RawLocationObservationRepair.kt",
+      "sha256": "a34468c6b2165acb6fb536ce067bf4459672766a0419170048fbbb5d99b9f3f7"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/persistence/PersistenceProcessor.kt",
+      "sha256": "bd104a2f51d7206353c0972abf6294406641c7ff35d25c7897ee14c970a78aaf"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/data/collection/TrackingCycle.kt",
+      "sha256": "470405f133127b947867c4ff8399844735d0706dbdfd52cca595830aa0ff9a28"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/data/Location.kt",
+      "sha256": "391217e71a9d98a68ea302847ef3e34facdd18d65654c065e776bde6f156c25e"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/data/LocationData.kt",
+      "sha256": "4c37fcb5ef9fff04ffaf101617f6ca50b5fbe29cfbd18bd6de30663b9b303ed9"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/data/CollectionData.kt",
+      "sha256": "0cc9b22a0029e1c9a2c216f6f2747a2bea6c726b1e74feb51e6837006252f846"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationSample.kt",
+      "sha256": "74a9112e842cf33993d99696e01b5d681f88f0e049ea7f6c2fceafab317f4b1a"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/LocationProjectionEntities.kt",
+      "sha256": "cc9a4559c6278f6816869fe373a7c186e903cba8347f6a8662a203db66e9ef2e"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/LocationPurposeDao.kt",
+      "sha256": "408075a1ae59a6288996c3a2f3f556f26637f59b5694b1378d66923bcfe2348b"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RetainedLocationContextReader.kt",
+      "sha256": "2f67e6dd9e061aaa6ab6f65a5f46cdacfce04e38decce6b3c7fcc885df54b196"
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/RadioLocationContextResolver.kt",
+      "sha256": "f1dcf2c65f2a604b1a66c31c303bb8b7f552fbb6381b293b80855b4ee3fd8709"
+    },
+    {
+      "path": "feature/game/src/main/java/com/adsamcik/tracker/game/minigame/location/FusedMiniGameLocationSource.kt",
+      "sha256": "dd4c1b30b423d2faaf4455097ea9d6b91d37c38c1bd984e78f5d9258a99a8314"
+    },
+    {
+      "path": "feature/map/src/main/java/com/adsamcik/tracker/map/presentation/sensors/LocationAndSensorsManager.kt",
+      "sha256": "61cc5b1f7d932cde549b26755370ff2669cdaf2bb165731cb90eaad4bf8fdef5"
+    },
+    {
+      "path": "stats/api/build.gradle.kts",
+      "sha256": "aa99b3d4ada0f474600ef53d1c7b4b29b5bb034e5bf700d1cac7412d35ae39b4"
+    },
+    {
+      "path": "stats/engine/build.gradle.kts",
+      "sha256": "bdbd2c387172ea94634012453edbfb68bcf4b66fc0563051505df1013b529b66"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/value/LatE7.kt",
+      "sha256": "16bd6620ef08debfd2c5cec563bd81ef3ab6f565230bcdc5f65a3631c3f78471"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/value/LonE7.kt",
+      "sha256": "d8222cf236527abf7bb2e1ef91cff4da5acc59a9f35e78d8b056105247b9f611"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/SegmentSignal.kt",
+      "sha256": "7b0d7f12e02643f47f9cddcb2faa922c003630ed728e4a866a05d39f70181abd"
+    },
+    {
+      "path": "stats/engine/src/commonMain/kotlin/com/adsamcik/tracker/stats/engine/exploration/CellDiscoveryEngine.kt",
+      "sha256": "38e9cfd85b0698eb8d0371f94eb50745d291bc510dab2df191fa0a4992d55428"
+    },
+    {
+      "path": "stats/engine/src/commonMain/kotlin/com/adsamcik/tracker/stats/engine/processor/ExplorationProcessor.kt",
+      "sha256": "57c348b3d72f97ab43526a346f8acdd6cfe6efae4dd3a8baadb655901ea1e867"
+    },
+    {
+      "path": "stats/engine/src/commonMain/kotlin/com/adsamcik/tracker/stats/engine/processor/SegmentDetectorProcessor.kt",
+      "sha256": "f2f28644a45de9e1aa0417a26f57ad6cb4a55ff6a1803d49ef403f85104dbd55"
+    }
+  ]
+}

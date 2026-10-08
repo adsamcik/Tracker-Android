@@ -60,6 +60,7 @@ import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
+import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -733,7 +734,7 @@ class LocationWalQualificationAdapterTest {
 	@Test
 	fun `selected payload one byte beyond canonical maximum is rejected without loading a blob`() = runTest {
 		installValidFixture()
-		replacePayloadWithZeroBlob(EVENT_ID.value, MAX_LOCATION_PAYLOAD_BYTES + 1)
+		replacePayloadWithZeroBlob(EVENT_ID.value, MAX_OPTIONAL_LOCATION_PAYLOAD_BYTES + 1)
 		walPayloadQueries.clear()
 
 		assertEquals(
@@ -748,7 +749,7 @@ class LocationWalQualificationAdapterTest {
 		installValidFixture(
 			deliveryPayloads = listOf(locationPayload(), locationPayload().copy(provider = "network")),
 		)
-		replacePayloadWithZeroBlob("location-event-sibling-1", MAX_LOCATION_PAYLOAD_BYTES + 1)
+		replacePayloadWithZeroBlob("location-event-sibling-1", MAX_OPTIONAL_LOCATION_PAYLOAD_BYTES + 1)
 		walPayloadQueries.clear()
 
 		assertEquals(
@@ -1370,6 +1371,51 @@ class LocationWalQualificationAdapterTest {
 		val evaluated = assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
 		assertEquals(LocationStaleReason.TOO_OLD, assertIs<LocationObservationQualification.Stale>(evaluated.qualification).reason)
 	}
+
+
+    @Test
+    fun `version three capture WAL uses the canonical writer with unknown optional fields`() = runTest {
+        val payload = locationPayload(false).copy(horizontalAccuracyMeters = null, altitudeMeters = null,
+            verticalAccuracyMeters = null, speedMetersPerSecond = null, bearingDegrees = null)
+        installValidFixture(payloadVersion = LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION,
+            deliveryPayloads = listOf(payload))
+        val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value)).admissionOrdinal
+        installProtectedHandoffAuthority(ordinal)
+        val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+        val writer = ProtectedLocationOfflineCanonicalWriter(context, database, dispatchers,
+            newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)))
+        val handoff = ProtectedLocationCanonicalHandoff(database, subject, writer)
+        assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal))
+        val sample = requireNotNull(database.locationSampleDao().getBySourceSignalId(
+            ProtectedLocationCanonicalSignalIdentity.canonicalProduct(EVENT_ID.value)))
+        assertEquals(null, sample.hAccM)
+        assertEquals(null, sample.speedMps)
+        assertEquals(500_870_000, sample.latE7)
+        assertEquals(OBSERVED_WALL_MS, sample.timeMs)
+        assertEquals("COARSE", sample.quality.name)
+        assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal))
+        assertEquals(1L, database.locationSampleDao().countAll())
+    }
+
+    @Test
+    fun `version three background WAL saves unknown accuracy without needing a session`() = runTest {
+        val payload = locationPayload(false).copy(horizontalAccuracyMeters = null, altitudeMeters = null,
+            verticalAccuracyMeters = null, speedMetersPerSecond = null, bearingDegrees = null)
+        installValidFixture(ambientOnly = true, payloadVersion = LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION,
+            deliveryPayloads = listOf(payload))
+        val command = assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(EVENT_ID)).command
+        installProtectedHandoffAuthority(command.wal.admissionOrdinal)
+        val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+        val writer = ProtectedLocationAmbientCanonicalWriter(context, database, dispatchers,
+            newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)))
+        assertEquals(ProtectedLocationCanonicalWriteResult.Committed, writer.write(command))
+        val sample = database.locationPurposeDao().visiblePathChunk(0, Long.MAX_VALUE, null, null, 10).single().sample
+        assertEquals(null, sample.hAccM)
+        assertEquals(OBSERVED_WALL_MS, sample.timeMs)
+        assertEquals(null, database.sourceSessionDao().session(LOGICAL_ID))
+        assertEquals(ProtectedLocationCanonicalWriteResult.Committed, writer.write(command))
+        assertEquals(1L, database.locationSampleDao().countAll())
+    }
 
 	private suspend fun installValidFixture(
 		plan: LocationPlan = locationPlan(PLAN_REVISION),
@@ -2098,15 +2144,18 @@ class LocationWalQualificationAdapterTest {
 					output.writeLong(OBSERVED_WALL_MS)
 					output.writeLong(java.lang.Double.doubleToRawLongBits(payload.latitudeDegrees))
 					output.writeLong(java.lang.Double.doubleToRawLongBits(payload.longitudeDegrees))
-					output.writeInt(java.lang.Float.floatToRawIntBits(payload.horizontalAccuracyMeters))
-					output.writeBoolean(true)
-					output.writeLong(java.lang.Double.doubleToRawLongBits(requireNotNull(payload.altitudeMeters)))
-					output.writeBoolean(true)
-					output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.verticalAccuracyMeters)))
-					output.writeBoolean(true)
-					output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.speedMetersPerSecond)))
-					output.writeBoolean(true)
-					output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.bearingDegrees)))
+                    if (payloadVersion >= LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION) {
+                        output.writeBoolean(payload.horizontalAccuracyMeters != null)
+                        payload.horizontalAccuracyMeters?.let { output.writeInt(java.lang.Float.floatToRawIntBits(it)) }
+                    } else output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.horizontalAccuracyMeters)))
+                    output.writeBoolean(payload.altitudeMeters != null)
+                    payload.altitudeMeters?.let { output.writeLong(java.lang.Double.doubleToRawLongBits(it)) }
+                    output.writeBoolean(payload.verticalAccuracyMeters != null)
+                    payload.verticalAccuracyMeters?.let { output.writeInt(java.lang.Float.floatToRawIntBits(it)) }
+                    output.writeBoolean(payload.speedMetersPerSecond != null)
+                    payload.speedMetersPerSecond?.let { output.writeInt(java.lang.Float.floatToRawIntBits(it)) }
+                    output.writeBoolean(payload.bearingDegrees != null)
+                    payload.bearingDegrees?.let { output.writeInt(java.lang.Float.floatToRawIntBits(it)) }
 					if (payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) {
 						output.writeBoolean(requireNotNull(payload.isMock))
 					}
@@ -2136,6 +2185,7 @@ class LocationWalQualificationAdapterTest {
 		const val SOURCE_SEQUENCE = 0L
 		const val LEGACY_LOCATION_PAYLOAD_VERSION = 1
 		const val MAX_LOCATION_PAYLOAD_BYTES = 65_586
+		const val MAX_OPTIONAL_LOCATION_PAYLOAD_BYTES = 65_587
 		const val QOS_CODE = 2
 		const val START_ORIGIN = "MANUAL_FOREGROUND_START"
 		const val RUN_START_NANOS = 100L

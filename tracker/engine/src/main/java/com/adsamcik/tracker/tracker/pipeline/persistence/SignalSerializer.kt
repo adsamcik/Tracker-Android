@@ -218,8 +218,7 @@ internal object SignalSerializer {
 			append(loc.coordinate.lat.raw)
 			append(",\"lon\":")
 			append(loc.coordinate.lon.raw)
-			append(",\"hAcc\":")
-			append(loc.horizontalAccuracyM)
+			loc.horizontalAccuracyM?.let { append(",\"hAcc\":"); append(it) }
 			loc.speed?.let { append(",\"spd\":"); append(it.raw) }
 			loc.rawPlatformSpeedMps?.let { append(",\"rawSpd\":"); append(it) }
 			loc.rawPlatformSpeedAccuracyMps?.let { append(",\"rawSAcc\":"); append(it) }
@@ -521,7 +520,7 @@ internal object SignalSerializer {
 			lat = LatE7(getInt("lat")),
 			lon = LonE7(getInt("lon")),
 		),
-		horizontalAccuracyM = getDouble("hAcc").toFloat(),
+		horizontalAccuracyM = if (has("hAcc") && !isNull("hAcc")) getDouble("hAcc").toFloat() else null,
 		speed = if (has("spd")) SpeedMps(getDouble("spd").toFloat()) else null,
 		rawPlatformSpeedMps = if (has("rawSpd")) getDouble("rawSpd").toFloat() else null,
 		rawPlatformSpeedAccuracyMps =

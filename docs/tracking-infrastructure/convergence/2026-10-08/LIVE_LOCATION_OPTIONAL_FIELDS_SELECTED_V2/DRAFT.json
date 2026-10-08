@@ -1,0 +1,20 @@
+{
+  "base_commit": "c99d76e97223be34ce15c7f04b923bc47299ee8e",
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "PRODUCTION_DRAFT_TESTS_PENDING",
+  "paths": [
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourcePayload.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationEvidenceNormalizer.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/SourcePayloadCodec.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntime.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedUiLocationProvider.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservationQualifier.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationAmbientCanonicalWriter.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/control/CollectionMotionController.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/LocationDomainProjection.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/consumer/data/LocationTrackerComponent.kt",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/LocationObservationAdapter.kt"
+  ]
+}

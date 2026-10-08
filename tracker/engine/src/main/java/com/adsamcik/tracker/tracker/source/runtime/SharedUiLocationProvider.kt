@@ -77,7 +77,7 @@ class SharedUiLocationProvider constructor(
 					UiLocationEvent.Ready -> Unit
 					is UiLocationEvent.Fix -> if (event.location.isFreshForUi(
 						request.maximumAgeMillis, elapsedRealtimeNanos())) {
-						send(Location(event.location))
+						send(event.location.withValidOptionalFields())
 					}
 					UiLocationEvent.Unavailable -> throw IllegalStateException("Location became unavailable")
 				}

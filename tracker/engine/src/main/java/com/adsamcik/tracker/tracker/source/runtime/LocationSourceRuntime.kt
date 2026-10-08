@@ -9,6 +9,7 @@ import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
+import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
@@ -1751,6 +1752,9 @@ internal fun locationDeliveryCandidate(
 			observedTimes[index] > 0L && observedTimes[index] <= receivedElapsedNanos &&
 			locations[index].isValidLocationEvidence()
 	}) { "Every location delivery unit must carry qualified provider evidence" }
+    val payloadVersion = if (locations.any { !it.hasAccuracy() }) {
+        LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
+    } else LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
 	return SourceDeliveryCandidate(
 		identity = sourceDeliveryIdentity(canonicalLocationDeliveryBytes(locations)),
 		units = locations.mapIndexed { index, location ->
@@ -1793,11 +1797,11 @@ internal fun locationDeliveryCandidate(
 							}
 						},
 					),
-					payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+					payloadVersion = payloadVersion,
 					payload = LocationFixPayload(
 						latitudeDegrees = location.latitude,
 						longitudeDegrees = location.longitude,
-						horizontalAccuracyMeters = location.accuracy,
+						horizontalAccuracyMeters = location.accuracy.takeIf { location.hasAccuracy() },
 						altitudeMeters = location.altitude.takeIf { location.hasAltitude() },
 						verticalAccuracyMeters = location.verticalAccuracyMeters
 							.takeIf { location.hasVerticalAccuracy() },
@@ -1816,7 +1820,9 @@ private fun canonicalLocationDeliveryBytes(locations: List<Location>): ByteArray
 	ByteArrayOutputStream().use { bytes ->
 		DataOutputStream(bytes).use { output ->
 			output.writeInt(LOCATION_DELIVERY_MAGIC)
-			output.writeInt(LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION)
+            val nullableAccuracy = locations.any { !it.hasAccuracy() }
+			output.writeInt(if (nullableAccuracy) LOCATION_OPTIONAL_ACCURACY_DELIVERY_VERSION
+                else LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION)
 			output.writeInt(locations.size)
 			locations.forEach { location ->
 				val providerBytes = (location.provider ?: "unknown").encodeToByteArray()
@@ -1826,7 +1832,8 @@ private fun canonicalLocationDeliveryBytes(locations: List<Location>): ByteArray
 				output.writeLong(location.time)
 				output.writeLong(java.lang.Double.doubleToRawLongBits(location.latitude))
 				output.writeLong(java.lang.Double.doubleToRawLongBits(location.longitude))
-				output.writeInt(java.lang.Float.floatToRawIntBits(location.accuracy))
+                if (nullableAccuracy) output.writeOptionalFloat(location.hasAccuracy(), location.accuracy)
+                else output.writeInt(java.lang.Float.floatToRawIntBits(location.accuracy))
 				output.writeOptionalDouble(location.hasAltitude(), location.altitude)
 				output.writeOptionalFloat(location.hasVerticalAccuracy(), location.verticalAccuracyMeters)
 				output.writeOptionalFloat(location.hasSpeed(), location.speed)
@@ -1849,6 +1856,7 @@ private fun DataOutputStream.writeOptionalFloat(present: Boolean, value: Float) 
 
 private const val LOCATION_DELIVERY_MAGIC = 0x4c4f4342 // LOCB
 private const val LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION = 2
+private const val LOCATION_OPTIONAL_ACCURACY_DELIVERY_VERSION = 3
 private const val LOCATION_NANOS_PER_MILLISECOND = 1_000_000L
 private const val LOCATION_BATCHED_AFTER_NANOS = 5_000L * LOCATION_NANOS_PER_MILLISECOND
 private const val LOCATION_CALLBACK_BUFFER_CAPACITY = 64

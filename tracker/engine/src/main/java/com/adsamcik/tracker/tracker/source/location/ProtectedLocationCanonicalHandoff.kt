@@ -2443,7 +2443,7 @@ internal fun LocationCapturedFactCommand.toProtectedLocationTrackingCycle(
 		elapsedRealtimeNanos = clock.observedElapsedRealtimeNanos
 		latitude = payload.latitudeDegrees
 		longitude = payload.longitudeDegrees
-		accuracy = payload.horizontalAccuracyMeters
+		payload.horizontalAccuracyMeters?.let { accuracy = it }
 		payload.altitudeMeters?.let { altitude = it }
 		payload.verticalAccuracyMeters?.let { verticalAccuracyMeters = it }
 		payload.speedMetersPerSecond?.let { speed = it }
@@ -2673,14 +2673,15 @@ private fun StoredLocationSample.matchesQualifiedEvidence(
 		bootClockDomainId == evidence.clockAuthority.clockDomainId
 }
 
-private fun expectedLocationQuality(horizontalAccuracyMeters: Float): String = when {
+private fun expectedLocationQuality(horizontalAccuracyMeters: Float?): String = when {
+    horizontalAccuracyMeters == null -> "COARSE"
 	horizontalAccuracyMeters < 10f -> "HIGH"
 	horizontalAccuracyMeters < 50f -> "MEDIUM"
 	else -> "LOW"
 }
 
 private fun expectedStoredLocationQuality(
-	horizontalAccuracyMeters: Float,
+	horizontalAccuracyMeters: Float?,
 ): com.adsamcik.tracker.shared.base.database.data.SampleQuality =
 	com.adsamcik.tracker.shared.base.database.data.SampleQuality.valueOf(
 		expectedLocationQuality(horizontalAccuracyMeters),

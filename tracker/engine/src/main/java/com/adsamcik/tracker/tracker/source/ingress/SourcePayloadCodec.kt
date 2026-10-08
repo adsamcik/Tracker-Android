@@ -7,6 +7,7 @@ import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
+import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
 import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
@@ -267,7 +268,11 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 				writeInt(TYPE_LOCATION_FIX)
 				writeDouble(payload.latitudeDegrees)
 				writeDouble(payload.longitudeDegrees)
-				writeFloat(payload.horizontalAccuracyMeters)
+				if (payloadVersion >= LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION) {
+                    writeNullableFloat(payload.horizontalAccuracyMeters)
+                } else {
+                    writeFloat(requireNotNull(payload.horizontalAccuracyMeters))
+                }
 				writeNullableDouble(payload.altitudeMeters)
 				writeNullableFloat(payload.verticalAccuracyMeters)
 				writeNullableFloat(payload.speedMetersPerSecond)
@@ -409,7 +414,9 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 		TYPE_LOCATION_FIX -> LocationFixPayload(
 			latitudeDegrees = readDouble(),
 			longitudeDegrees = readDouble(),
-			horizontalAccuracyMeters = readFloat(),
+			horizontalAccuracyMeters = if (payloadVersion >= LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION) {
+                readNullableFloat()
+            } else readFloat(),
 			altitudeMeters = readNullableDouble(),
 			verticalAccuracyMeters = readNullableFloat(),
 			speedMetersPerSecond = readNullableFloat(),

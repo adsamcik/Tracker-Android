@@ -1,0 +1,909 @@
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/consumer/data/LocationTrackerComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/consumer/data/LocationTrackerComponent.kt
+@@ -23,6 +23,7 @@
+ import com.adsamcik.tracker.tracker.data.collection.toCanonicalCurationPoint
+ import com.adsamcik.tracker.tracker.data.collection.toPlatformLocation
+ import com.adsamcik.tracker.tracker.source.location.PROTECTED_LOCATION_CANONICAL_CURATION_VERSION
++import com.adsamcik.tracker.tracker.source.runtime.withValidOptionalFields
+ import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.Job
+ import kotlinx.coroutines.SupervisorJob
+@@ -182,8 +183,7 @@
+ 			location.isFromMockProvider
+ 		}
+ 		if (isMock) return REJECTION_MOCK
+-		if (!location.hasAccuracy()) return REJECTION_MISSING_ACCURACY
+-		if (location.accuracy > requiredAccuracyMeters) return REJECTION_INSUFFICIENT_ACCURACY
++		if (location.hasAccuracy() && location.accuracy > requiredAccuracyMeters) return REJECTION_INSUFFICIENT_ACCURACY
+ 
+ 		val previous = lastAcceptedLocation ?: return null
+ 		val currentElapsed = location.elapsedRealtimeNanos
+@@ -198,7 +198,8 @@
+ 		// information, and can distort downstream duration/sample-rate calculations.
+ 		if (location.latitude != previous.latitude ||
+ 			location.longitude != previous.longitude ||
+-			location.accuracy != previous.accuracy ||
++			location.hasAccuracy() != previous.hasAccuracy() ||
++			(location.hasAccuracy() && location.accuracy != previous.accuracy) ||
+ 			location.speed != previous.speed ||
+ 			location.bearing != previous.bearing ||
+ 			location.hasAltitude() != previous.hasAltitude() ||
+@@ -243,7 +244,7 @@
+ 		}
+ 		val locationResult = requireNotNull(cycle.location)
+ 
+-		val location = locationResult.lastLocation
++		val location = locationResult.lastLocation.withValidOptionalFields()
+ 		val acceptedAnchor = lastAcceptedLocation
+ 		val previousLocation = acceptedAnchor ?: locationResult.previousLocation
+ 		val requiredAccuracy = canonicalCuration?.requiredAccuracyMeters
+@@ -392,8 +393,6 @@
+ 		internal const val REJECTION_TELEPORT_CANDIDATE =
+ 			"CURATED_LOCATION_TELEPORT_CANDIDATE"
+ 		private const val REJECTION_MOCK = "CURATED_LOCATION_MOCK_REJECTED"
+-		private const val REJECTION_MISSING_ACCURACY =
+-			"CURATED_LOCATION_MISSING_ACCURACY"
+ 		private const val REJECTION_INSUFFICIENT_ACCURACY =
+ 			"CURATED_LOCATION_INSUFFICIENT_ACCURACY"
+ 		private const val REJECTION_NON_MONOTONIC_TIME =
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/LocationObservationAdapter.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/LocationObservationAdapter.kt
+@@ -1,6 +1,7 @@
+ package com.adsamcik.tracker.tracker.pipeline
+ 
+ import androidx.core.location.LocationCompat
++import com.adsamcik.tracker.tracker.source.runtime.withValidOptionalFields
+ import com.adsamcik.tracker.shared.base.constant.CoordinateConstants
+ import com.adsamcik.tracker.shared.base.data.LocationProviderObservation
+ import com.adsamcik.tracker.stats.api.PolicyTier
+@@ -20,7 +21,7 @@
+ 	policyTier: PolicyTier,
+ 	policyName: String?,
+ ): TrackingSignal {
+-	val rawLocation = location
++	val rawLocation = location.withValidOptionalFields()
+ 	val fixMetadata = metadata
+ 	val hasValidCoordinate = rawLocation.latitude.isFinite() && rawLocation.longitude.isFinite() &&
+ 		rawLocation.latitude in CoordinateConstants.MIN_LATITUDE..CoordinateConstants.MAX_LATITUDE &&
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/SignalAdapter.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/SignalAdapter.kt
+@@ -140,7 +140,7 @@
+ 		policyName: String? = null,
+ 		persistenceSignalId: String? = null,
+ 	): TrackingSignal {
+-		val locationSignal = if (latitude != null && longitude != null && accuracy != null) {
++		val locationSignal = if (latitude != null && longitude != null) {
+ 			LocationSignal(
+ 				coordinate = CoordinateE7(
+ 					lat = LatE7.fromDegrees(latitude),
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/stages/SignalDispatchStage.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/stages/SignalDispatchStage.kt
+@@ -40,8 +40,8 @@
+ 			val canonicalCuration = cycle.locationCanonicalCuration
+ 			val sourceEventId = locationMetadata?.sourceEventId
+ 			// Keep the decision boundary identical to SignalAdapter's LocationSignal construction.
+-			// A partial curated object is not an accepted persisted sample.
+-			val locationAccepted = collectionData.location?.horizontalAccuracy != null
++			// Accuracy is optional; the curated point itself determines acceptance.
++			val locationAccepted = collectionData.location != null
+ 
+ 			val cellTowers = cycle.cellScan
+ 				?.takeIf { cycle.cellScanFresh }
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/control/CollectionMotionController.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/control/CollectionMotionController.kt
+@@ -186,8 +186,9 @@
+ 		}
+ 
+ 		fun onLocation(payload: LocationFixPayload, at: Long, speedUncertainty: Float?) {
+-			val accurate = payload.horizontalAccuracyMeters.isFinite() &&
+-				payload.horizontalAccuracyMeters in 0f..MAX_MOTION_LOCATION_ACCURACY_METERS
++			val accurate = payload.horizontalAccuracyMeters?.let {
++                it.isFinite() && it in 0f..MAX_MOTION_LOCATION_ACCURACY_METERS
++            } == true
+ 			val speed = payload.speedMetersPerSecond?.takeIf { it.isFinite() && it >= 0f }
+ 			val uncertainty = speedUncertainty?.takeIf { it.isFinite() && it >= 0f }
+ 			val minimumSpeed = if (speed != null && uncertainty != null) maxOf(0f, speed - uncertainty) else null
+@@ -310,7 +311,9 @@
+ 				next.latitudeDegrees,
+ 				next.longitudeDegrees,
+ 			)
+-			val uncertainty = payload.horizontalAccuracyMeters + next.horizontalAccuracyMeters
++            val beforeAccuracy = payload.horizontalAccuracyMeters ?: return false
++            val nextAccuracy = next.horizontalAccuracyMeters ?: return false
++			val uncertainty = beforeAccuracy + nextAccuracy
+ 			return distance >= max(MINIMUM_DISPLACEMENT_METERS, uncertainty.toDouble())
+ 		}
+ 	}
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/SourcePayloadCodec.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/SourcePayloadCodec.kt
+@@ -7,6 +7,7 @@
+ import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
+ import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+ import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
++import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
+ import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
+ import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
+ import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
+@@ -267,7 +268,11 @@
+ 				writeInt(TYPE_LOCATION_FIX)
+ 				writeDouble(payload.latitudeDegrees)
+ 				writeDouble(payload.longitudeDegrees)
+-				writeFloat(payload.horizontalAccuracyMeters)
++				if (payloadVersion >= LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION) {
++                    writeNullableFloat(payload.horizontalAccuracyMeters)
++                } else {
++                    writeFloat(requireNotNull(payload.horizontalAccuracyMeters))
++                }
+ 				writeNullableDouble(payload.altitudeMeters)
+ 				writeNullableFloat(payload.verticalAccuracyMeters)
+ 				writeNullableFloat(payload.speedMetersPerSecond)
+@@ -409,7 +414,9 @@
+ 		TYPE_LOCATION_FIX -> LocationFixPayload(
+ 			latitudeDegrees = readDouble(),
+ 			longitudeDegrees = readDouble(),
+-			horizontalAccuracyMeters = readFloat(),
++			horizontalAccuracyMeters = if (payloadVersion >= LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION) {
++                readNullableFloat()
++            } else readFloat(),
+ 			altitudeMeters = readNullableDouble(),
+ 			verticalAccuracyMeters = readNullableFloat(),
+ 			speedMetersPerSecond = readNullableFloat(),
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservationQualifier.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservationQualifier.kt
+@@ -4,6 +4,7 @@
+ import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
+ import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+ import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
++import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
+ import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
+ 
+ internal enum class LocationObservationOrigin {
+@@ -202,9 +203,14 @@
+ 		if (!LOWERCASE_SHA_256.matches(evidence.walIntegrityIdentity)) {
+ 			return rejected(LocationFactRejection.WAL_INTEGRITY_UNVERIFIABLE)
+ 		}
+-		if (evidence.payloadVersion != LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) {
++		if (evidence.payloadVersion !in setOf(LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
++            LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION)) {
+ 			return rejected(LocationFactRejection.UNSUPPORTED_PAYLOAD_VERSION)
+ 		}
++        if (evidence.payloadVersion == LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION &&
++            evidence.payload.horizontalAccuracyMeters == null) {
++            return rejected(LocationFactRejection.INVALID_ACCURACY)
++        }
+ 		if (evidence.payload.isMock == null || evidence.payload.isMock != evidence.isMock) {
+ 			return rejected(LocationFactRejection.MOCK_PROVENANCE_MISMATCH)
+ 		}
+@@ -302,9 +308,9 @@
+ 		!latitudeDegrees.isFinite() || latitudeDegrees !in MIN_LATITUDE..MAX_LATITUDE ||
+ 			!longitudeDegrees.isFinite() || longitudeDegrees !in MIN_LONGITUDE..MAX_LONGITUDE ->
+ 			LocationFactRejection.INVALID_COORDINATE
+-		!horizontalAccuracyMeters.isFinite() || horizontalAccuracyMeters < 0f ->
++		horizontalAccuracyMeters?.let { !it.isFinite() || it < 0f } == true ->
+ 			LocationFactRejection.INVALID_ACCURACY
+-		horizontalAccuracyMeters > maximumAccuracyMeters ->
++		horizontalAccuracyMeters?.let { it > maximumAccuracyMeters } == true ->
+ 			LocationFactRejection.INSUFFICIENT_ACCURACY
+ 		altitudeMeters?.isFinite() == false -> LocationFactRejection.INVALID_ALTITUDE
+ 		verticalAccuracyMeters?.let { !it.isFinite() || it < 0f } == true ->
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt
+@@ -29,6 +29,7 @@
+ import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+ import com.adsamcik.tracker.tracker.source.model.LocationBackend
+ import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
++import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
+ import com.adsamcik.tracker.tracker.source.model.LocationMode
+ import com.adsamcik.tracker.tracker.source.model.LocationPlan
+ import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
+@@ -254,7 +255,7 @@
+ 			?: return@withTransaction reject(LocationWalAdapterRejection.POLICY_MISMATCH)
+ 		val maximumAge = runCatching { Math.multiplyExact(demand.maximumAgeMs, 1_000_000L) }.getOrDefault(Long.MAX_VALUE)
+ 		val quality = sourceQualityFromStableFlags(wal.qualityFlags, wal.qualityConfidence)
+-		if (physical.payload.isMock == null || wal.payloadVersion != LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION ||
++		if (physical.payload.isMock == null || wal.payloadVersion !in setOf(LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION, LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION) ||
+ 			wal.receivedElapsedNanos - wal.observedElapsedNanos > maximumAge ||
+ 			SourceQualityFlag.CACHED in quality.flags ||
+ 			(SourceQualityFlag.APPROXIMATE in quality.flags) == plan.preciseLocationAvailable ||
+@@ -920,7 +921,9 @@
+ 				val payloadVersion = units.first().wal.payloadVersion
+ 				output.writeInt(LOCATION_DELIVERY_MAGIC)
+ 				output.writeInt(
+-					if (payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) {
++                    if (payloadVersion >= LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION) {
++                        LOCATION_OPTIONAL_ACCURACY_DELIVERY_VERSION
++                    } else if (payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) {
+ 						LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION
+ 					} else {
+ 						LOCATION_LEGACY_DELIVERY_VERSION
+@@ -937,7 +940,11 @@
+ 					output.writeLong(if (row.wallTimeUncertaintyMs == DERIVED_WALL_UNCERTAINTY_MS) 0L else requireNotNull(row.wallTimeMs))
+ 					output.writeLong(java.lang.Double.doubleToRawLongBits(payload.latitudeDegrees))
+ 					output.writeLong(java.lang.Double.doubleToRawLongBits(payload.longitudeDegrees))
+-					output.writeInt(java.lang.Float.floatToRawIntBits(payload.horizontalAccuracyMeters))
++                    if (payloadVersion >= LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION) {
++                        output.writeOptionalFloat(payload.horizontalAccuracyMeters)
++                    } else {
++                        output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.horizontalAccuracyMeters)))
++                    }
+ 					output.writeOptionalDouble(payload.altitudeMeters)
+ 					output.writeOptionalFloat(payload.verticalAccuracyMeters)
+ 					output.writeOptionalFloat(payload.speedMetersPerSecond)
+@@ -969,17 +976,19 @@
+ 		const val LOCATION_SOURCE = 1
+ 		const val PLAN_PAYLOAD_VERSION = 1
+ 		const val MAX_LOCATION_DELIVERY_UNITS = 256
+-		// DataOutputStream.writeUTF permits 65,535 provider bytes; all v2 fields add at most 51.
+-		const val MAX_LOCATION_PAYLOAD_BYTES = 65_535 + 51
++		// DataOutputStream.writeUTF permits 65,535 provider bytes; nullable accuracy adds one flag.
++		const val MAX_LOCATION_PAYLOAD_BYTES = 65_535 + 52
+ 		const val MAX_DURABLE_SOURCE_SEQUENCE = Long.MAX_VALUE - 1L
+ 		const val MAX_MANIFESTS_PER_RUN = 256
+ 		const val MAX_MANIFEST_SOURCE_ROWS = 4_096
+ 		const val LOCATION_DELIVERY_MAGIC = 0x4c4f4342
+ 		const val LOCATION_LEGACY_DELIVERY_VERSION = 1
+ 		const val LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION = 2
++		const val LOCATION_OPTIONAL_ACCURACY_DELIVERY_VERSION = 3
+ 		const val DERIVED_WALL_UNCERTAINTY_MS = 1L
+ 		val SUPPORTED_LOCATION_PAYLOAD_VERSIONS =
+-			setOf(LOCATION_LEGACY_DELIVERY_VERSION, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION)
++			setOf(LOCATION_LEGACY_DELIVERY_VERSION, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
++                LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION)
+ 	}
+ }
+ 
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationAmbientCanonicalWriter.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationAmbientCanonicalWriter.kt
+@@ -65,7 +65,7 @@
+ 			}
+ 			val reason = if (command.payload.isMock == true) "MOCK_LOCATION_REJECTED"
+ 				else curation.outcome.decisionReason
+-			val accepted = data.location?.horizontalAccuracy != null
++			val accepted = data.location != null
+ 			check(accepted || reason != null) { "Location curation has no terminal outcome" }
+ 			persistence.commitProtectedAmbientLocation(ProtectedLocationAmbientWrite(
+ 				command, before,
+@@ -101,7 +101,7 @@
+ 		elapsedRealtimeNanos = wal.observedElapsedNanos
+ 		latitude = payload.latitudeDegrees
+ 		longitude = payload.longitudeDegrees
+-		accuracy = payload.horizontalAccuracyMeters
++		payload.horizontalAccuracyMeters?.let { accuracy = it }
+ 		payload.altitudeMeters?.let { altitude = it }
+ 		payload.verticalAccuracyMeters?.let { verticalAccuracyMeters = it }
+ 		payload.speedMetersPerSecond?.let { speed = it }
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt
+@@ -2443,7 +2443,7 @@
+ 		elapsedRealtimeNanos = clock.observedElapsedRealtimeNanos
+ 		latitude = payload.latitudeDegrees
+ 		longitude = payload.longitudeDegrees
+-		accuracy = payload.horizontalAccuracyMeters
++		payload.horizontalAccuracyMeters?.let { accuracy = it }
+ 		payload.altitudeMeters?.let { altitude = it }
+ 		payload.verticalAccuracyMeters?.let { verticalAccuracyMeters = it }
+ 		payload.speedMetersPerSecond?.let { speed = it }
+@@ -2673,14 +2673,15 @@
+ 		bootClockDomainId == evidence.clockAuthority.clockDomainId
+ }
+ 
+-private fun expectedLocationQuality(horizontalAccuracyMeters: Float): String = when {
++private fun expectedLocationQuality(horizontalAccuracyMeters: Float?): String = when {
++    horizontalAccuracyMeters == null -> "COARSE"
+ 	horizontalAccuracyMeters < 10f -> "HIGH"
+ 	horizontalAccuracyMeters < 50f -> "MEDIUM"
+ 	else -> "LOW"
+ }
+ 
+ private fun expectedStoredLocationQuality(
+-	horizontalAccuracyMeters: Float,
++	horizontalAccuracyMeters: Float?,
+ ): com.adsamcik.tracker.shared.base.database.data.SampleQuality =
+ 	com.adsamcik.tracker.shared.base.database.data.SampleQuality.valueOf(
+ 		expectedLocationQuality(horizontalAccuracyMeters),
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourcePayload.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourcePayload.kt
+@@ -9,7 +9,8 @@
+ data class LocationFixPayload(
+ 	val latitudeDegrees: Double,
+ 	val longitudeDegrees: Double,
+-	val horizontalAccuracyMeters: Float,
++	/** Unknown accuracy never becomes an invented zero or discards valid coordinates. */
++	val horizontalAccuracyMeters: Float?,
+ 	val altitudeMeters: Double?,
+ 	val verticalAccuracyMeters: Float?,
+ 	val speedMetersPerSecond: Float?,
+@@ -23,6 +24,9 @@
+ 
+ /** First Location payload revision that durably binds the platform mock-provider provenance. */
+ internal const val LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION = 2
++
++/** Nullable accuracy; versions one and two keep their exact original field layout. */
++internal const val LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION = 3
+ 
+ data class ActivityTransitionPayload(
+ 	val activityType: Int,
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/LocationDomainProjection.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/LocationDomainProjection.kt
+@@ -33,6 +33,8 @@
+ 		context: ProjectionContext,
+ 	) {
+ 		val payload = event.evidence.payload as? LocationFixPayload ?: return
++        // This dormant legacy shadow schema requires accuracy; the protected canonical writer does not.
++        val accuracy = payload.horizontalAccuracyMeters ?: return
+ 		val logicalTrackingId = event.evidence.logicalTrackingId?.value ?: return
+ 		val dao = database.locationProjectionDao()
+ 		val observationEntity = LocationProjectionObservationEntity(
+@@ -43,7 +45,7 @@
+ 			wallTimeMs = event.evidence.wallTimeMs ?: event.evidence.acquiredAtMs,
+ 			latitudeDegrees = payload.latitudeDegrees,
+ 			longitudeDegrees = payload.longitudeDegrees,
+-			horizontalAccuracyMeters = payload.horizontalAccuracyMeters,
++			horizontalAccuracyMeters = accuracy,
+ 			altitudeMeters = payload.altitudeMeters,
+ 			verticalAccuracyMeters = payload.verticalAccuracyMeters,
+ 			speedMetersPerSecond = payload.speedMetersPerSecond,
+@@ -239,7 +241,8 @@
+ ): LocationDerivation {
+ 	val cumulative = state.cumulativeDistanceMeters
+ 	val payload = observation.payload
+-	if (!payload.horizontalAccuracyMeters.isFinite() || payload.horizontalAccuracyMeters > MAX_ACCURACY_METERS) {
++	if (payload.horizontalAccuracyMeters == null || !payload.horizontalAccuracyMeters.isFinite() ||
++        payload.horizontalAccuracyMeters > MAX_ACCURACY_METERS) {
+ 		return LocationDerivation(observation.rejected(LocationRejection.LOW_ACCURACY, cumulative), state)
+ 	}
+ 	val anchor = state.accepted
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationEvidenceNormalizer.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationEvidenceNormalizer.kt
+@@ -6,6 +6,7 @@
+ 
+ /** Canonical source-field ordering for provider batches, independent of callback list permutation. */
+ internal fun normalizeLocationBatch(locations: List<Location>): List<Location> = locations
++	.map { it.withValidOptionalFields() }
+ 	.withIndex()
+ 	.map { indexed ->
+ 		IndexedProviderObservation(
+@@ -75,8 +76,24 @@
+ internal fun Location.isValidLocationEvidence(): Boolean =
+ 	latitude.isFinite() && longitude.isFinite() &&
+ 		latitude in CoordinateConstants.MIN_LATITUDE..CoordinateConstants.MAX_LATITUDE &&
+-		longitude in CoordinateConstants.MIN_LONGITUDE..CoordinateConstants.MAX_LONGITUDE &&
+-		hasAccuracy() && accuracy.isFinite() && accuracy >= 0f
++		longitude in CoordinateConstants.MIN_LONGITUDE..CoordinateConstants.MAX_LONGITUDE
++
++/** Copy the provider fix; optional invalid values are absent, never repaired measurements. */
++internal fun Location.withValidOptionalFields(): Location = Location(this).apply {
++    if (hasAccuracy() && (!accuracy.isFinite() || accuracy < 0f)) removeAccuracy()
++    if (hasAltitude() && (!altitude.isFinite() || !altitude.toFloat().isFinite())) removeAltitude()
++    if (hasVerticalAccuracy() && (!verticalAccuracyMeters.isFinite() || verticalAccuracyMeters < 0f)) {
++        LocationCompat.removeVerticalAccuracy(this)
++    }
++    if (hasSpeed() && (!speed.isFinite() || speed < 0f)) removeSpeed()
++    if (hasSpeedAccuracy() && (!speedAccuracyMetersPerSecond.isFinite() || speedAccuracyMetersPerSecond < 0f)) {
++        LocationCompat.removeSpeedAccuracy(this)
++    }
++    if (hasBearing() && (!bearing.isFinite() || bearing !in 0f..<360f)) removeBearing()
++    if (hasBearingAccuracy() && (!bearingAccuracyDegrees.isFinite() || bearingAccuracyDegrees < 0f)) {
++        LocationCompat.removeBearingAccuracy(this)
++    }
++}
+ 
+ /**
+  * Returns only provider-observed monotonic time from the current boot domain.
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntime.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntime.kt
+@@ -9,6 +9,7 @@
+ import com.adsamcik.tracker.tracker.source.model.LocationBackend
+ import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+ import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
++import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
+ import com.adsamcik.tracker.tracker.source.model.LocationMode
+ import com.adsamcik.tracker.tracker.source.model.LocationPlan
+ import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
+@@ -1751,6 +1752,9 @@
+ 			observedTimes[index] > 0L && observedTimes[index] <= receivedElapsedNanos &&
+ 			locations[index].isValidLocationEvidence()
+ 	}) { "Every location delivery unit must carry qualified provider evidence" }
++    val payloadVersion = if (locations.any { !it.hasAccuracy() }) {
++        LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
++    } else LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
+ 	return SourceDeliveryCandidate(
+ 		identity = sourceDeliveryIdentity(canonicalLocationDeliveryBytes(locations)),
+ 		units = locations.mapIndexed { index, location ->
+@@ -1793,11 +1797,11 @@
+ 							}
+ 						},
+ 					),
+-					payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
++					payloadVersion = payloadVersion,
+ 					payload = LocationFixPayload(
+ 						latitudeDegrees = location.latitude,
+ 						longitudeDegrees = location.longitude,
+-						horizontalAccuracyMeters = location.accuracy,
++						horizontalAccuracyMeters = location.accuracy.takeIf { location.hasAccuracy() },
+ 						altitudeMeters = location.altitude.takeIf { location.hasAltitude() },
+ 						verticalAccuracyMeters = location.verticalAccuracyMeters
+ 							.takeIf { location.hasVerticalAccuracy() },
+@@ -1816,7 +1820,9 @@
+ 	ByteArrayOutputStream().use { bytes ->
+ 		DataOutputStream(bytes).use { output ->
+ 			output.writeInt(LOCATION_DELIVERY_MAGIC)
+-			output.writeInt(LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION)
++            val nullableAccuracy = locations.any { !it.hasAccuracy() }
++			output.writeInt(if (nullableAccuracy) LOCATION_OPTIONAL_ACCURACY_DELIVERY_VERSION
++                else LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION)
+ 			output.writeInt(locations.size)
+ 			locations.forEach { location ->
+ 				val providerBytes = (location.provider ?: "unknown").encodeToByteArray()
+@@ -1826,7 +1832,8 @@
+ 				output.writeLong(location.time)
+ 				output.writeLong(java.lang.Double.doubleToRawLongBits(location.latitude))
+ 				output.writeLong(java.lang.Double.doubleToRawLongBits(location.longitude))
+-				output.writeInt(java.lang.Float.floatToRawIntBits(location.accuracy))
++                if (nullableAccuracy) output.writeOptionalFloat(location.hasAccuracy(), location.accuracy)
++                else output.writeInt(java.lang.Float.floatToRawIntBits(location.accuracy))
+ 				output.writeOptionalDouble(location.hasAltitude(), location.altitude)
+ 				output.writeOptionalFloat(location.hasVerticalAccuracy(), location.verticalAccuracyMeters)
+ 				output.writeOptionalFloat(location.hasSpeed(), location.speed)
+@@ -1849,6 +1856,7 @@
+ 
+ private const val LOCATION_DELIVERY_MAGIC = 0x4c4f4342 // LOCB
+ private const val LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION = 2
++private const val LOCATION_OPTIONAL_ACCURACY_DELIVERY_VERSION = 3
+ private const val LOCATION_NANOS_PER_MILLISECOND = 1_000_000L
+ private const val LOCATION_BATCHED_AFTER_NANOS = 5_000L * LOCATION_NANOS_PER_MILLISECOND
+ private const val LOCATION_CALLBACK_BUFFER_CAPACITY = 64
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedUiLocationProvider.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedUiLocationProvider.kt
+@@ -77,7 +77,7 @@
+ 					UiLocationEvent.Ready -> Unit
+ 					is UiLocationEvent.Fix -> if (event.location.isFreshForUi(
+ 						request.maximumAgeMillis, elapsedRealtimeNanos())) {
+-						send(Location(event.location))
++						send(event.location.withValidOptionalFields())
+ 					}
+ 					UiLocationEvent.Unavailable -> throw IllegalStateException("Location became unavailable")
+ 				}
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/data/LocationTrackerComponentTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/data/LocationTrackerComponentTest.kt
+@@ -323,14 +323,37 @@
+ 	}
+ 
+ 	@Test
+-	fun `location without horizontal accuracy is rejected`() = runTest {
++	fun `location without horizontal accuracy retains the valid point and unknown accuracy`() = runTest {
+ 		component.onEnable(RuntimeEnvironment.getApplication())
+ 		val location = createAndroidLocation().apply { removeAccuracy() }
+ 		val collectionData = MutableCollectionData()
+ 
+ 		component.onDataUpdated(createCycle(location), collectionData)
+ 
+-		collectionData.location.shouldBeNull()
++		collectionData.location.shouldNotBeNull()
++        collectionData.location?.horizontalAccuracy.shouldBeNull()
++	}
++
++	@Test
++	fun `known zero and unknown accuracy are distinct observations in both directions`() = runTest {
++		component.onEnable(RuntimeEnvironment.getApplication())
++		val points = listOf(
++			createAndroidLocation(time = 1_000L).apply { accuracy = 0f },
++			createAndroidLocation(time = 2_000L).apply { removeAccuracy() },
++			createAndroidLocation(time = 3_000L).apply { accuracy = 0f },
++		)
++		points.forEach { point ->
++			val data = MutableCollectionData()
++			component.onDataUpdated(createCycle(point), data)
++			data.location.shouldNotBeNull()
++			data.location?.horizontalAccuracy shouldBe point.accuracy.takeIf { point.hasAccuracy() }
++		}
++		val duplicate = MutableCollectionData()
++		component.onDataUpdated(
++			createCycle(createAndroidLocation(time = 4_000L).apply { accuracy = 0f }),
++			duplicate,
++		)
++		duplicate.location.shouldBeNull()
+ 	}
+ 
+ 	@Test
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/pipeline/SignalAdapterTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/pipeline/SignalAdapterTest.kt
+@@ -108,7 +108,7 @@
+ 	}
+ 
+ 	@Test
+-	fun `accuracy null with lat lon present produces null location`() {
++	fun `valid coordinates with unknown accuracy produce a Location signal`() {
+ 		val signal = SignalAdapter.buildSignal(
+ 			timestampMs = 7000L,
+ 			latitude = 49.2,
+@@ -116,7 +116,10 @@
+ 			accuracy = null,
+ 		)
+ 
+-		signal.location.shouldBeNull()
++		signal.location.shouldNotBeNull()
++		signal.location?.horizontalAccuracyM.shouldBeNull()
++		signal.location?.coordinate?.lat?.degrees shouldBe 49.2
++		signal.location?.coordinate?.lon?.degrees shouldBe 16.6
+ 	}
+ 
+ 	@Test
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/pipeline/stages/SignalDispatchStageTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/pipeline/stages/SignalDispatchStageTest.kt
+@@ -192,6 +192,46 @@
+ 		processor.observedSignals[1].activityFresh shouldBe false
+ 	}
+ 
++	@Test
++	fun `curated unknown accuracy reaches signal fanout with an accepted decision`() = runTest {
++		val processor = CapturingProcessor()
++		val pipeline = ProcessorPipeline(processors = setOf(processor))
++		val stage = SignalDispatchStage(
++			processorPipelineProvider = { pipeline },
++			currentTierProvider = { PolicyTier.AMBIENT },
++		)
++		val metadata = com.adsamcik.tracker.shared.base.data.LocationFixMetadata(
++			sourceEventId = "unknown-accuracy-point",
++			clockDomainId = "clock-a",
++			bootClockDomainId = "boot-a",
++		)
++		val rawLocation = mockk<android.location.Location>(relaxed = true)
++		val locationData = mockk<com.adsamcik.tracker.shared.base.data.LocationData> {
++			every { lastLocation } returns rawLocation
++			every { lastFixMetadata } returns metadata
++		}
++		val point = com.adsamcik.tracker.shared.base.data.Location(
++			time = 1_000L, latitude = 50.0, longitude = 14.0,
++			altitude = null, horizontalAccuracy = null, verticalAccuracy = null,
++			speed = null, speedAccuracy = null,
++		)
++		val data = mockk<MutableCollectionData>(relaxed = true) {
++			every { location } returns point
++		}
++		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
++		stage.process(context, CycleContext(
++			cycle = TrackingCycle(timestampMs = 1_000L, elapsedRealtimeNanos = 1_000_000_000L,
++				location = locationData),
++			collectionData = data,
++		))
++		val signal = processor.observedSignals.single()
++		signal.location.shouldNotBeNull()
++		signal.location?.horizontalAccuracyM shouldBe null
++		signal.locationDecision?.sourceEventId shouldBe metadata.sourceEventId
++		signal.locationDecision?.decision shouldBe com.adsamcik.tracker.stats.api.signal.LocationDecision.ACCEPTED
++		signal.locationDecision?.reason shouldBe null
++	}
++
+ 	private fun cycleContext(timestampMs: Long): CycleContext {
+ 		return CycleContext(
+ 			cycle = TestCycleFactory.minimal(timestampMs = timestampMs),
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/SourcePayloadCodecTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/SourcePayloadCodecTest.kt
+@@ -9,6 +9,7 @@
+ import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
+ import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+ import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
++import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
+ import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
+ import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
+ import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
+@@ -28,6 +29,22 @@
+ 
+ class SourcePayloadCodecTest {
+ 	private val codec = DefaultSourcePayloadCodec()
++
++
++    @Test
++    fun `nullable accuracy round trips and cannot be silently encoded as an old required value`() {
++        val known = LocationFixPayload(50.1, 14.4, 5f, null, null, null, null, "gps", false)
++        val legacy = codec.encode(known, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION)
++        codec.decode(SourceKind.LOCATION, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION, legacy.bytes) shouldBe known
++        val unknown = known.copy(horizontalAccuracyMeters = null)
++        val fresh = codec.encode(unknown, LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION)
++        codec.decode(SourceKind.LOCATION, LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION, fresh.bytes) shouldBe unknown
++        codec.decode(SourceKind.LOCATION, LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION,
++            codec.encode(known, LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION).bytes) shouldBe known
++        shouldThrow<IllegalArgumentException> { codec.encode(unknown, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) }
++        shouldThrow<IllegalArgumentException> { codec.decode(SourceKind.LOCATION,
++            LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION, fresh.bytes + byteArrayOf(0)) }
++    }
+ 
+ 	@Test
+ 	fun `all durable payload kinds have a stable version-one round trip`() {
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservationQualifierTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservationQualifierTest.kt
+@@ -4,6 +4,7 @@
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+ import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+ import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
++import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
+ import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
+ import com.adsamcik.tracker.tracker.source.model.ServiceRunId
+ import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
+@@ -460,6 +461,23 @@
+ 		)
+ 	}
+ 
++
++    @Test
++    fun `version three accepts unknown accuracy without weakening coordinates age or old wire shape`() {
++        val authority = authority()
++        val unknown = evidence(authority, payload = payload().copy(horizontalAccuracyMeters = null))
++            .copy(payloadVersion = LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION)
++        val accepted = qualified(input(authority, unknown), authority)
++        assertEquals(null, accepted.productEffect.payload.horizontalAccuracyMeters)
++        assertRejected(input(authority, unknown.copy(payload = unknown.payload.copy(latitudeDegrees = Double.NaN))),
++            authority, LocationFactRejection.INVALID_COORDINATE)
++        assertRejected(input(authority, unknown.copy(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION)),
++            authority, LocationFactRejection.INVALID_ACCURACY)
++        assertRejected(input(authority, unknown.copy(clockAuthority = unknown.clockAuthority.copy(
++            observedElapsedRealtimeNanos = unknown.clockAuthority.receivedElapsedRealtimeNanos + 1))),
++            authority, LocationFactRejection.FUTURE_PROVIDER_TIME)
++    }
++
+ 	private fun qualified(
+ 		input: LocationObservationInput,
+ 		authority: LocationCaptureAuthority,
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt
+@@ -60,6 +60,7 @@
+ import com.adsamcik.tracker.tracker.source.model.LocationBackend
+ import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+ import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
++import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
+ import com.adsamcik.tracker.tracker.source.model.LocationMode
+ import com.adsamcik.tracker.tracker.source.model.LocationPlan
+ import com.adsamcik.tracker.tracker.source.model.PlanAttribution
+@@ -733,7 +734,7 @@
+ 	@Test
+ 	fun `selected payload one byte beyond canonical maximum is rejected without loading a blob`() = runTest {
+ 		installValidFixture()
+-		replacePayloadWithZeroBlob(EVENT_ID.value, MAX_LOCATION_PAYLOAD_BYTES + 1)
++		replacePayloadWithZeroBlob(EVENT_ID.value, MAX_OPTIONAL_LOCATION_PAYLOAD_BYTES + 1)
+ 		walPayloadQueries.clear()
+ 
+ 		assertEquals(
+@@ -748,7 +749,7 @@
+ 		installValidFixture(
+ 			deliveryPayloads = listOf(locationPayload(), locationPayload().copy(provider = "network")),
+ 		)
+-		replacePayloadWithZeroBlob("location-event-sibling-1", MAX_LOCATION_PAYLOAD_BYTES + 1)
++		replacePayloadWithZeroBlob("location-event-sibling-1", MAX_OPTIONAL_LOCATION_PAYLOAD_BYTES + 1)
+ 		walPayloadQueries.clear()
+ 
+ 		assertEquals(
+@@ -1371,6 +1372,51 @@
+ 		assertEquals(LocationStaleReason.TOO_OLD, assertIs<LocationObservationQualification.Stale>(evaluated.qualification).reason)
+ 	}
+ 
++
++    @Test
++    fun `version three capture WAL uses the canonical writer with unknown optional fields`() = runTest {
++        val payload = locationPayload(false).copy(horizontalAccuracyMeters = null, altitudeMeters = null,
++            verticalAccuracyMeters = null, speedMetersPerSecond = null, bearingDegrees = null)
++        installValidFixture(payloadVersion = LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION,
++            deliveryPayloads = listOf(payload))
++        val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value)).admissionOrdinal
++        installProtectedHandoffAuthority(ordinal)
++        val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
++        val writer = ProtectedLocationOfflineCanonicalWriter(context, database, dispatchers,
++            newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)))
++        val handoff = ProtectedLocationCanonicalHandoff(database, subject, writer)
++        assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal))
++        val sample = requireNotNull(database.locationSampleDao().getBySourceSignalId(
++            ProtectedLocationCanonicalSignalIdentity.canonicalProduct(EVENT_ID.value)))
++        assertEquals(null, sample.hAccM)
++        assertEquals(null, sample.speedMps)
++        assertEquals(500_870_000, sample.latE7)
++        assertEquals(OBSERVED_WALL_MS, sample.timeMs)
++        assertEquals("COARSE", sample.quality.name)
++        assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal))
++        assertEquals(1L, database.locationSampleDao().countAll())
++    }
++
++    @Test
++    fun `version three background WAL saves unknown accuracy without needing a session`() = runTest {
++        val payload = locationPayload(false).copy(horizontalAccuracyMeters = null, altitudeMeters = null,
++            verticalAccuracyMeters = null, speedMetersPerSecond = null, bearingDegrees = null)
++        installValidFixture(ambientOnly = true, payloadVersion = LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION,
++            deliveryPayloads = listOf(payload))
++        val command = assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(EVENT_ID)).command
++        installProtectedHandoffAuthority(command.wal.admissionOrdinal)
++        val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
++        val writer = ProtectedLocationAmbientCanonicalWriter(context, database, dispatchers,
++            newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)))
++        assertEquals(ProtectedLocationCanonicalWriteResult.Committed, writer.write(command))
++        val sample = database.locationPurposeDao().visiblePathChunk(0, Long.MAX_VALUE, null, null, 10).single().sample
++        assertEquals(null, sample.hAccM)
++        assertEquals(OBSERVED_WALL_MS, sample.timeMs)
++        assertEquals(null, database.sourceSessionDao().session(LOGICAL_ID))
++        assertEquals(ProtectedLocationCanonicalWriteResult.Committed, writer.write(command))
++        assertEquals(1L, database.locationSampleDao().countAll())
++    }
++
+ 	private suspend fun installValidFixture(
+ 		plan: LocationPlan = locationPlan(PLAN_REVISION),
+ 		providerFingerprint: String = plan.physicalConfigurationFingerprint(),
+@@ -2098,15 +2144,18 @@
+ 					output.writeLong(OBSERVED_WALL_MS)
+ 					output.writeLong(java.lang.Double.doubleToRawLongBits(payload.latitudeDegrees))
+ 					output.writeLong(java.lang.Double.doubleToRawLongBits(payload.longitudeDegrees))
+-					output.writeInt(java.lang.Float.floatToRawIntBits(payload.horizontalAccuracyMeters))
+-					output.writeBoolean(true)
+-					output.writeLong(java.lang.Double.doubleToRawLongBits(requireNotNull(payload.altitudeMeters)))
+-					output.writeBoolean(true)
+-					output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.verticalAccuracyMeters)))
+-					output.writeBoolean(true)
+-					output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.speedMetersPerSecond)))
+-					output.writeBoolean(true)
+-					output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.bearingDegrees)))
++                    if (payloadVersion >= LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION) {
++                        output.writeBoolean(payload.horizontalAccuracyMeters != null)
++                        payload.horizontalAccuracyMeters?.let { output.writeInt(java.lang.Float.floatToRawIntBits(it)) }
++                    } else output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.horizontalAccuracyMeters)))
++                    output.writeBoolean(payload.altitudeMeters != null)
++                    payload.altitudeMeters?.let { output.writeLong(java.lang.Double.doubleToRawLongBits(it)) }
++                    output.writeBoolean(payload.verticalAccuracyMeters != null)
++                    payload.verticalAccuracyMeters?.let { output.writeInt(java.lang.Float.floatToRawIntBits(it)) }
++                    output.writeBoolean(payload.speedMetersPerSecond != null)
++                    payload.speedMetersPerSecond?.let { output.writeInt(java.lang.Float.floatToRawIntBits(it)) }
++                    output.writeBoolean(payload.bearingDegrees != null)
++                    payload.bearingDegrees?.let { output.writeInt(java.lang.Float.floatToRawIntBits(it)) }
+ 					if (payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) {
+ 						output.writeBoolean(requireNotNull(payload.isMock))
+ 					}
+@@ -2136,6 +2185,7 @@
+ 		const val SOURCE_SEQUENCE = 0L
+ 		const val LEGACY_LOCATION_PAYLOAD_VERSION = 1
+ 		const val MAX_LOCATION_PAYLOAD_BYTES = 65_586
++		const val MAX_OPTIONAL_LOCATION_PAYLOAD_BYTES = 65_587
+ 		const val QOS_CODE = 2
+ 		const val START_ORIGIN = "MANUAL_FOREGROUND_START"
+ 		const val RUN_START_NANOS = 100L
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationEvidenceNormalizerTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationEvidenceNormalizerTest.kt
+@@ -46,7 +46,7 @@
+ 	}
+ 
+ 	@Test
+-	fun `rejects invalid coordinates and missing accuracy`() {
++	fun `rejects invalid coordinates while retaining missing accuracy`() {
+ 		val valid = location("gps", 1_000L, 1L)
+ 		assertTrue(valid.isValidLocationEvidence())
+ 
+@@ -54,7 +54,7 @@
+ 		assertFalse(invalidCoordinate.isValidLocationEvidence())
+ 
+ 		val missingAccuracy = location("gps", 1_000L, 1L).apply { removeAccuracy() }
+-		assertFalse(missingAccuracy.isValidLocationEvidence())
++		assertTrue(missingAccuracy.isValidLocationEvidence())
+ 	}
+ 
+ 	@Test
+@@ -68,6 +68,48 @@
+ 		assertEquals(2, normalized.size)
+ 		assertEquals(listOf(50.0, 50.0001), normalized.map { it.latitude })
+ 	}
++
++
++    @Test
++    fun `normalization keeps coordinates and original times while clearing invalid optional values`() {
++        val original = location("gps", 2_000L, 300L).apply {
++            accuracy = Float.NaN
++            altitude = Double.NaN
++            verticalAccuracyMeters = Float.POSITIVE_INFINITY
++            speed = Float.NaN
++            speedAccuracyMetersPerSecond = Float.NaN
++            bearingAccuracyDegrees = Float.NaN
++        }
++        val clean = normalizeLocationBatch(listOf(original)).single()
++        assertEquals(original.latitude, clean.latitude)
++        assertEquals(original.longitude, clean.longitude)
++        assertEquals(300L, clean.time)
++        assertEquals(2_000L, clean.elapsedRealtimeNanos)
++        assertFalse(clean.hasAccuracy())
++        assertFalse(clean.hasAltitude())
++        assertFalse(clean.hasVerticalAccuracy())
++        assertFalse(clean.hasSpeed())
++        assertFalse(clean.hasSpeedAccuracy())
++        assertFalse(clean.hasBearing())
++        assertFalse(clean.hasBearingAccuracy())
++        assertTrue(original.hasAccuracy())
++        assertTrue(original.accuracy.isNaN())
++    }
++
++    @Test
++    @Config(sdk = [28])
++    fun `compat normalization removes invalid accuracy extras on supported older Android`() {
++        val original = location("gps", 2_000L, 300L).apply {
++            verticalAccuracyMeters = Float.NaN
++            speedAccuracyMetersPerSecond = Float.POSITIVE_INFINITY
++            bearingAccuracyDegrees = Float.NaN
++        }
++        val clean = normalizeLocationBatch(listOf(original)).single()
++        assertEquals(5f, clean.accuracy)
++        assertFalse(clean.hasVerticalAccuracy())
++        assertFalse(clean.hasSpeedAccuracy())
++        assertFalse(clean.hasBearingAccuracy())
++    }
+ 
+ 	private fun location(
+ 		provider: String = "gps",
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt
+@@ -18,6 +18,7 @@
+ import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+ import com.adsamcik.tracker.tracker.source.model.LocationBackend
+ import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
++import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
+ import com.adsamcik.tracker.tracker.source.model.LocationMode
+ import com.adsamcik.tracker.tracker.source.model.LocationPlan
+ import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
+@@ -1956,6 +1957,29 @@
+ 		val fusedBackend: FusedLocationSourceBackend,
+ 	)
+ 
++
++    @Test
++    fun `actual callback actor keeps valid coordinates with unknown accuracy and optional sensor values`() = runTest {
++        val fixture = locationRuntimeFixture(backgroundScope)
++        assertTrue(fixture.runtime.start(fixture.plan, fixture.sink) is SourceStartResult.Started)
++        val raw = location(50.0, SystemClock.elapsedRealtimeNanos()).apply {
++            removeAccuracy()
++            speed = Float.NaN
++            altitude = Double.NaN
++        }
++        fixture.providerCallback()(listOf(raw))
++        runCurrent()
++        val evidence = fixture.sink.deliveries.single().units.single().evidence
++        val point = evidence.payload as LocationFixPayload
++        assertEquals(LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION, evidence.payloadVersion)
++        assertEquals(raw.latitude, point.latitudeDegrees, 0.0)
++        assertEquals(raw.elapsedRealtimeNanos, evidence.observedElapsedRealtimeNanos)
++        assertNull(point.horizontalAccuracyMeters)
++        assertNull(point.altitudeMeters)
++        assertNull(point.speedMetersPerSecond)
++        fixture.runtime.close()
++    }
++
+ 	private fun failingStartFixture(
+ 		applicationScope: CoroutineScope,
+ 		startFailure: Throwable?,
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedUiLocationProviderTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedUiLocationProviderTest.kt
+@@ -135,6 +135,34 @@
+ 		assertFalse(location(now - 11_000_000_000L).isFreshForUi(10_000L, now))
+ 	}
+ 
++
++    @Test
++    fun `My location receives a fresh unknown-accuracy point with invalid optional values absent`() = runTest {
++        val owner = mockk<SharedLocationSourceController>()
++        val lifecycle = mockk<Lifecycle>(relaxed = true)
++        val fixes = MutableSharedFlow<UiLocationEvent>(extraBufferCapacity = 1)
++        every { owner.uiLocationEvents } returns fixes
++        every { owner.uiPermissionGranted() } returns true
++        every { owner.uiProviderAvailable() } returns true
++        coEvery { owner.acquireUiLease(any()) } returns 9L
++        coEvery { owner.releaseUiLease(9L) } returns Unit
++        val provider = SharedUiLocationProvider(owner, lifecycle,
++            elapsedRealtimeNanos = { 20_000_000_000L })
++        val result = async { provider.locationUpdates(UiLocationRequest("my-location", 10_000L,
++            cancelOnAppBackground = false)).first() }
++        runCurrent()
++        val raw = location(19_000_000_000L).apply { removeAccuracy(); speed = Float.NaN }
++        fixes.tryEmit(UiLocationEvent.Fix(raw))
++        runCurrent()
++        val received = result.await()
++        assertEquals(raw.latitude, received.latitude, 0.0)
++        assertEquals(raw.elapsedRealtimeNanos, received.elapsedRealtimeNanos)
++        assertFalse(received.hasAccuracy())
++        assertFalse(received.hasSpeed())
++        assertTrue(raw.hasSpeed())
++        coVerify(exactly = 1) { owner.releaseUiLease(9L) }
++    }
++
+ 	private fun location(observedElapsedNanos: Long) = Location("test").apply {
+ 		latitude = 50.0
+ 		longitude = 14.0

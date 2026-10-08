@@ -1,0 +1,84 @@
+[
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/data/LocationTrackerComponentTest.kt",
+    "new_or_renamed_methods": [
+      "known zero and unknown accuracy are distinct observations in both directions",
+      "location without horizontal accuracy retains the valid point and unknown accuracy"
+    ],
+    "retired_or_renamed_methods": [
+      "location without horizontal accuracy is rejected"
+    ],
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/pipeline/SignalAdapterTest.kt",
+    "new_or_renamed_methods": [
+      "valid coordinates with unknown accuracy produce a Location signal"
+    ],
+    "retired_or_renamed_methods": [
+      "accuracy null with lat lon present produces null location"
+    ],
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/pipeline/stages/SignalDispatchStageTest.kt",
+    "new_or_renamed_methods": [
+      "curated unknown accuracy reaches signal fanout with an accepted decision"
+    ],
+    "retired_or_renamed_methods": [],
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/SourcePayloadCodecTest.kt",
+    "new_or_renamed_methods": [
+      "nullable accuracy round trips and cannot be silently encoded as an old required value"
+    ],
+    "retired_or_renamed_methods": [],
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservationQualifierTest.kt",
+    "new_or_renamed_methods": [
+      "version three accepts unknown accuracy without weakening coordinates age or old wire shape"
+    ],
+    "retired_or_renamed_methods": [],
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+    "new_or_renamed_methods": [
+      "version three background WAL saves unknown accuracy without needing a session",
+      "version three capture WAL uses the canonical writer with unknown optional fields"
+    ],
+    "retired_or_renamed_methods": [],
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationEvidenceNormalizerTest.kt",
+    "new_or_renamed_methods": [
+      "compat normalization removes invalid accuracy extras on supported older Android",
+      "normalization keeps coordinates and original times while clearing invalid optional values",
+      "rejects invalid coordinates while retaining missing accuracy"
+    ],
+    "retired_or_renamed_methods": [
+      "rejects invalid coordinates and missing accuracy"
+    ],
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt",
+    "new_or_renamed_methods": [
+      "actual callback actor keeps valid coordinates with unknown accuracy and optional sensor values"
+    ],
+    "retired_or_renamed_methods": [],
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedUiLocationProviderTest.kt",
+    "new_or_renamed_methods": [
+      "My location receives a fresh unknown-accuracy point with invalid optional values absent"
+    ],
+    "retired_or_renamed_methods": [],
+    "status": "NOT_RUN"
+  }
+]

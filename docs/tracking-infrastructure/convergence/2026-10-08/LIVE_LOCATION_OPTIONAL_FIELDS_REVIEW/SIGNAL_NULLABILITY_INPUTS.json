@@ -1,0 +1,51 @@
+{
+  "head": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "STATIC_ONLY_NOT_RUN",
+  "pins": [
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/signal/TrackingSignal.kt",
+      "sha256": "2b37abe81eada2b94abc60be87a2d2ec7299bb3c18c69842f1b1cee55a543116"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/persistence/SignalSerializer.kt",
+      "sha256": "9db76f3c4d0405b9a671c96623b795c4621c88d69480a475ed267821e609b534"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/persistence/PersistenceProcessor.kt",
+      "sha256": "bd104a2f51d7206353c0972abf6294406641c7ff35d25c7897ee14c970a78aaf"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+      "sha256": "21325d83c762c15c335acb9677673054b36577b1e987b4a48c6191b9f32228dc"
+    },
+    {
+      "path": "stats/engine/src/commonMain/kotlin/com/adsamcik/tracker/stats/engine/processor/ExplorationProcessor.kt",
+      "sha256": "57c348b3d72f97ab43526a346f8acdd6cfe6efae4dd3a8baadb655901ea1e867"
+    },
+    {
+      "path": "stats/engine/src/commonMain/kotlin/com/adsamcik/tracker/stats/engine/exploration/CellDiscoveryEngine.kt",
+      "sha256": "38e9cfd85b0698eb8d0371f94eb50745d291bc510dab2df191fa0a4992d55428"
+    },
+    {
+      "path": "stats/engine/src/commonMain/kotlin/com/adsamcik/tracker/stats/engine/processor/SegmentDetectorProcessor.kt",
+      "sha256": "f2f28644a45de9e1aa0417a26f57ad6cb4a55ff6a1803d49ef403f85104dbd55"
+    },
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/SegmentSignal.kt",
+      "sha256": "7b0d7f12e02643f47f9cddcb2faa922c003630ed728e4a866a05d39f70181abd"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/pipeline/persistence/SignalSerializerTest.kt",
+      "sha256": "1dedcc058376628b4c3b3a323a337fac669d60ccbea1bb6318f484e0a6b25ff2"
+    },
+    {
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/signal/TrackingSignalTest.kt",
+      "sha256": "8a004b952d2d63d221486e25f7365238471054210465fb582a6206e133c18834"
+    },
+    {
+      "path": "stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/signal/TrackingSignalContractsTest.kt",
+      "sha256": "18f102365995eb97bb6a8f99b4442725b55556200adf0aa7c41717bd2d7de79e"
+    }
+  ]
+}

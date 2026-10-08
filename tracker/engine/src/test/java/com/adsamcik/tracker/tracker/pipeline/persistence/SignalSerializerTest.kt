@@ -235,6 +235,31 @@ class SignalSerializerTest {
 	}
 
 	@Test
+	fun `unknown curated accuracy survives the existing pending signal envelope and checksum`() {
+		val original = createLocationOnlySignal().let { signal ->
+			signal.copy(location = signal.location.shouldNotBeNull().copy(horizontalAccuracyM = null))
+		}
+		val encoded = SignalSerializer.encode(original)
+		val locationJson = org.json.JSONObject(encoded.payloadJson).getJSONObject("payload").getJSONObject("loc")
+		locationJson.has("hAcc") shouldBe false
+		roundTrip(original) shouldBe original
+	}
+
+	@Test
+	fun `missing or explicit null curated accuracy stays unknown when reading a saved signal`() {
+		listOf(
+			"""{"ts":1700000000000,"loc":{"lat":500000000,"lon":140000000}}""",
+			"""{"ts":1700000000000,"loc":{"lat":500000000,"lon":140000000,"hAcc":null}}""",
+		).forEach { payload ->
+			val signal = decodeCurrentPayload(payload).shouldBeInstanceOf<PendingSignalDecodeResult.Valid>().signal
+			val location = signal.location.shouldNotBeNull()
+			location.horizontalAccuracyM.shouldBeNull()
+			location.coordinate.lat.raw shouldBe 500_000_000
+			location.coordinate.lon.raw shouldBe 140_000_000
+		}
+	}
+
+	@Test
 	fun `current envelope rejects a payload checksum mismatch`() {
 		val encoded = SignalSerializer.encode(createMinimalSignal())
 		val alteredPayload = encoded.payloadJson.replace("1700000000000", "1700000000001")

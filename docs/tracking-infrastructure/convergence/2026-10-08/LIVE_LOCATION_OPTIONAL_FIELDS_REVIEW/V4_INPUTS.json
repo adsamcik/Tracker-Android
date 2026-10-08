@@ -1,0 +1,18 @@
+{
+  "packet": "LIVE_LOCATION_OPTIONAL_FIELDS_SELECTED_V4",
+  "head": "e4191d8d7611a1645fccfd860735553fe92956d6",
+  "phase": "IMPLEMENTATION_ONLY",
+  "execution": "NOT_RUN",
+  "hashes": {
+    "FILES.json": "abe85cc6647e2ef07311567213ae63d29ca2b842789ce80121ee1e28a92136bc",
+    "SELECTION.patch": "63a2f0a631429e16acfdbd421da97e3485eb54a20f21cd4e9a7d3c9e37fff07f",
+    "DEPENDENCIES.json": "cdf53b788ce8e0b56bbc6a7779c0d86a7478c313f2d1742bac0112c153188d39",
+    "SOURCE_BOUNDARY.md": "689b85ff1f71dfe5b97c2a2b02b33265bf99cf94fb0b0b8dd6193cd3410bd903",
+    "CASE_INVENTORY.json": "79428c9466885a8a93ef21357007bd02affe7151491e1f6163e9c0122e02a127"
+  },
+  "selected_base_raw_snapshots_checked": 27,
+  "committed_dependency_pins_checked": 30,
+  "drift": [],
+  "earlier_signal_type_misstatement_superseded_by": "SIGNAL_NULLABILITY_CORRECTION.md",
+  "test_inventory": "15 new or renamed method names, all NOT_RUN"
+}

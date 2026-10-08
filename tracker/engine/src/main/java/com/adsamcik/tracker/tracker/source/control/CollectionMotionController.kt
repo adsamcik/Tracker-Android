@@ -186,8 +186,9 @@ class CollectionMotionController @Inject constructor() {
 		}
 
 		fun onLocation(payload: LocationFixPayload, at: Long, speedUncertainty: Float?) {
-			val accurate = payload.horizontalAccuracyMeters.isFinite() &&
-				payload.horizontalAccuracyMeters in 0f..MAX_MOTION_LOCATION_ACCURACY_METERS
+			val accurate = payload.horizontalAccuracyMeters?.let {
+                it.isFinite() && it in 0f..MAX_MOTION_LOCATION_ACCURACY_METERS
+            } == true
 			val speed = payload.speedMetersPerSecond?.takeIf { it.isFinite() && it >= 0f }
 			val uncertainty = speedUncertainty?.takeIf { it.isFinite() && it >= 0f }
 			val minimumSpeed = if (speed != null && uncertainty != null) maxOf(0f, speed - uncertainty) else null
@@ -310,7 +311,9 @@ class CollectionMotionController @Inject constructor() {
 				next.latitudeDegrees,
 				next.longitudeDegrees,
 			)
-			val uncertainty = payload.horizontalAccuracyMeters + next.horizontalAccuracyMeters
+            val beforeAccuracy = payload.horizontalAccuracyMeters ?: return false
+            val nextAccuracy = next.horizontalAccuracyMeters ?: return false
+			val uncertainty = beforeAccuracy + nextAccuracy
 			return distance >= max(MINIMUM_DISPLACEMENT_METERS, uncertainty.toDouble())
 		}
 	}

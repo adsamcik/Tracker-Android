@@ -1,0 +1,197 @@
+{
+  "base_commit": "c99d76e97223be34ce15c7f04b923bc47299ee8e",
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "HELD_FOR_INDEPENDENT_SOURCE_REVIEW",
+  "files": [
+    {
+      "path": "stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/signal/TrackingSignal.kt",
+      "operation": "UPDATE",
+      "base_sha256": "2b37abe81eada2b94abc60be87a2d2ec7299bb3c18c69842f1b1cee55a543116",
+      "selected_sha256": "b0e5eddcba4d2b12eea37a1c7df823a429b83bc592bdf0e9ca446b2c2b9f8524",
+      "working_before_sha256": "238458366ded7f4af017ed4564170a723d4928299d3e316687c61ae8fabbd314"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/consumer/data/LocationTrackerComponent.kt",
+      "base_sha256": "ef20ba76179026fe684affddf3eb85cf659a22bb043a9b962a042f53c3ab3d96",
+      "selected_sha256": "ee3373aa3f11808e69f39e8002147db6e9a20a1f4aea44eb245d5ad7e2221074",
+      "working_before_sha256": "a6773d977514bc9163cfee2c9bd06b24b60d2c5f2e7c8431be11a39bda2306d7",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/LocationObservationAdapter.kt",
+      "base_sha256": "d50309a008383e32650dc599cdfe65b3006a9263845b052e91e7061f99399136",
+      "selected_sha256": "36f91a5e4a872a26953172aff029f5426310395dfe29b1731558b3ff0a00516b",
+      "working_before_sha256": "628d1ba022237d0c9828895762c17c7109f1e2a555aecae188ea6e0b12dbee1b",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/SignalAdapter.kt",
+      "operation": "UPDATE",
+      "base_sha256": "8d88ffa60a242e208561ae1a1b232b4a38e1a2bed2d1037cc7c4fc3e5ad1d01c",
+      "selected_sha256": "4714ff8475050110a2498baa306bfec5602318372d53e04b1179579e582da1a0",
+      "working_before_sha256": "f237e86f858ca323eb15ae326c139d38466db15fd25fffd23a4a57b748d75bac"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/persistence/SignalSerializer.kt",
+      "operation": "UPDATE",
+      "base_sha256": "9db76f3c4d0405b9a671c96623b795c4621c88d69480a475ed267821e609b534",
+      "selected_sha256": "dc0d6f86e933eff61dab07407c5d0067da33d0b2a6427e37999e9293ff6203e2",
+      "working_before_sha256": "0fb645fb74976c9d946b249a7bc09f2b3a74ad0a859db3ee06130498d6ab64c8"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/stages/SignalDispatchStage.kt",
+      "operation": "UPDATE",
+      "base_sha256": "ef380b95bf7c9ef3dd09ef77fc214c82213bbf6cd317056a97adf7783aea0577",
+      "selected_sha256": "7ade1bc92889d6a0856aefbfccff4ea80b40a31a380b3da2ad4619691edcff4f",
+      "working_before_sha256": "a1a4a50961053d13b6520e7bdb961df0b57ba1fd9e6ab7222d092673c90e4973"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/control/CollectionMotionController.kt",
+      "base_sha256": "adf39a3e158fecbaf2f8a774ccba7ea98941faccb9747788617ac5142b07427e",
+      "selected_sha256": "c552d49bd07551a1d176adc0aa4dcda9aea43afab859474b9777aaf1e2846cd4",
+      "working_before_sha256": "d6a766d3315c514fb98b775f653bc05c3249cc14a1a5ded9a800d02a6d503b2e",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ingress/SourcePayloadCodec.kt",
+      "base_sha256": "c7e66dfa662bfaaff51d3d9ffca55955182e055fc1a565f77c1664257b97f2f7",
+      "selected_sha256": "813d28b903482d2747ccba2930db79298e686ebd6cad37dcc10274cebb7f4904",
+      "working_before_sha256": "c7e66dfa662bfaaff51d3d9ffca55955182e055fc1a565f77c1664257b97f2f7",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservationQualifier.kt",
+      "base_sha256": "add8e3ad2bc360ccd0ebb206561ef5c446f8abeb5d0856dd9d505a86060ca565",
+      "selected_sha256": "e521682b38de240dec8a4256a182c650ea830ff1ceb41b4a9a1b2a0b9c3c09e0",
+      "working_before_sha256": "add8e3ad2bc360ccd0ebb206561ef5c446f8abeb5d0856dd9d505a86060ca565",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+      "base_sha256": "4e658cd80de7d3f131d84e404d2fb535567319dbf0ad3cf1dffd4ad4e228f6ca",
+      "selected_sha256": "3bbbac651aa386664bd6307b7091c8e32f9af476107c6747af62a6258283366c",
+      "working_before_sha256": "4e658cd80de7d3f131d84e404d2fb535567319dbf0ad3cf1dffd4ad4e228f6ca",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationAmbientCanonicalWriter.kt",
+      "base_sha256": "03abf20feb38c21251811ed1ada7b5382f212e5419038015ffd9243429097c05",
+      "selected_sha256": "206e0956a90f39c707cd0a1dc68ad4904452ee34924ccd6ed4550c83125221e6",
+      "working_before_sha256": "37cbe1ef6c67fd34ddd4f0d6417abb8927d3f939a1b0eb857274a24e23dfcdcf",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+      "base_sha256": "21325d83c762c15c335acb9677673054b36577b1e987b4a48c6191b9f32228dc",
+      "selected_sha256": "6ff943fccad5c953c4cd03b50710677c96d90ecd747d1871a25f4209f15c2fd0",
+      "working_before_sha256": "21325d83c762c15c335acb9677673054b36577b1e987b4a48c6191b9f32228dc",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourcePayload.kt",
+      "base_sha256": "a2c1c0f55497cfebaef0b705e5ab00f901222fab26531603267e414532ed2709",
+      "selected_sha256": "73cc977b3de3b2cb9f6ec9c30658cbf35f965f75edb244a299a89692eac98a67",
+      "working_before_sha256": "a2c1c0f55497cfebaef0b705e5ab00f901222fab26531603267e414532ed2709",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/LocationDomainProjection.kt",
+      "base_sha256": "ff0c213c4a4de97fb2c13fb4bd25dbd36fed7c62dbfca67bb571e0f602d412fe",
+      "selected_sha256": "5b32edf0ddfe44cb71a6b456c7d7776cbf94ea50d9b5458b34b26ddbb4519b67",
+      "working_before_sha256": "37218015636b695850d8fd457eedadbe4e69f81983371ff009d623dc9aec72b8",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationEvidenceNormalizer.kt",
+      "base_sha256": "fa5ad894f933278dd9ebd1d3e545afad7444e6a2d12d2558e5f8ad1fc8b5ea6b",
+      "selected_sha256": "8c5c1904cfd5c1ecaca2babdffd1d9b91e65ff748470284561cdfc62635c39cc",
+      "working_before_sha256": "c8994da8c42a051626a03259edb62c9756596da324828978dabf80e43d49f2a4",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntime.kt",
+      "base_sha256": "6429bffcfe704600ac5433d794e59e9f3e3c75ebf99f1dbf81ed99c8b47d82ee",
+      "selected_sha256": "beb25d2736d7d4d02717b331db3fb0485c608b8f17686877cd2da678b8e54f9b",
+      "working_before_sha256": "850ddbcd89b88df2519892189cdcb50c1a4870790f85eb6824249bc85a95c8ba",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedUiLocationProvider.kt",
+      "base_sha256": "80b3947ad5f4d1b91273932fcb8817b4b6a4aacefbc22dfe2e066f997834aa07",
+      "selected_sha256": "38ec6809730257035e05bcc8344335e2e1bd41d09afdcd1055d773e5cb5985d3",
+      "working_before_sha256": "80b3947ad5f4d1b91273932fcb8817b4b6a4aacefbc22dfe2e066f997834aa07",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/data/LocationTrackerComponentTest.kt",
+      "base_sha256": "479e2fa92c650aec813d2bd0132296ebc89756db8a4f4be3cdf56b0e99348574",
+      "selected_sha256": "884826cf7c4b2de017a044551047b60a30469c1ea1bc2d6787419f02df75c507",
+      "working_before_sha256": "f0eee958228fb1ccbd8be5a182ee36e9eb017ebf8f0667a683d5d6486c177da6",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/pipeline/SignalAdapterTest.kt",
+      "operation": "UPDATE",
+      "base_sha256": "f137459f59f9e6d3e8d7a42b45e0483ab09ab6f086cd0bf51d8f41f5b2696d02",
+      "selected_sha256": "34976ad8a54f138530ee053b518f19868d55cb00a345409d4b344e4a9f1a6a26",
+      "working_before_sha256": "5dfd9c12bc55bfaf92f6b2b8e0e8067f9c6e9e4857e774e9a19a453e07caa8cf"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/pipeline/persistence/SignalSerializerTest.kt",
+      "operation": "UPDATE",
+      "base_sha256": "1dedcc058376628b4c3b3a323a337fac669d60ccbea1bb6318f484e0a6b25ff2",
+      "selected_sha256": "d029125bb7db4847f303511bbdaafc347e41919e6db57e5dc0be42675dd69af2",
+      "working_before_sha256": "f49f566f62177a8edf19251686f8a458995a7e4b7baf72c67f5a1395e09f2e12"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/pipeline/stages/SignalDispatchStageTest.kt",
+      "operation": "UPDATE",
+      "base_sha256": "e3df511527a3a39e7c25aa1dbdb6944959f0c60e9c4a8eaa1911db7dc96bc152",
+      "selected_sha256": "352baa105cb82e91f81bd263fe6701e76dceb9cb18520ec71b91dd5e40eaf6bc",
+      "working_before_sha256": "be971401fef0aaf9bf5d591dfe35e334ca83a53b6c9dec81624722c91d174be0"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/SourcePayloadCodecTest.kt",
+      "base_sha256": "029d8498fcb2e25fb7e936572b00b9841bde304373666b2684cb98b7dba448ab",
+      "selected_sha256": "6e9ffec400f4a25e9bc9084472af785d22bbe7422dec127fcd362b7573513eb3",
+      "working_before_sha256": "029d8498fcb2e25fb7e936572b00b9841bde304373666b2684cb98b7dba448ab",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservationQualifierTest.kt",
+      "base_sha256": "d69bf2b969aa8c9661a9292c3a11c19630948666bfda7ebe752a0b38f24cc34c",
+      "selected_sha256": "f19b9fbd411ab50ba7c7fe1876de5a758b37c3cbd10c250cbd94729ad013f864",
+      "working_before_sha256": "ee9d26ce6a09bd9ebb4c0df65551c31a0d840176ac865261c11143e080214c4f",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+      "base_sha256": "a9b67056042b5889a2d9ceb5cd4ddb99aab49edf5d1f979494b79dd05a69ab7b",
+      "selected_sha256": "f8713b8a4d9416aca8e8f38ee7f52c0292e624c6a872db6fb0470d27d49fc486",
+      "working_before_sha256": "73de75db7777e09015b9e57eeffe0fd4a6129704de355ba531642b9803410190",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationEvidenceNormalizerTest.kt",
+      "base_sha256": "16a2dd698b69b6cf8fba569656c5c8f167784a19f5e0ea995616d9d8b2bf916a",
+      "selected_sha256": "86e10d9b0b8bb11d74ea6c64ea103daf2a88c88cfcb065ddfa40baa921b48855",
+      "working_before_sha256": "d580e4d226a18f038d1474189cdaebbd316f75966c124bea2452fa01694aa40e",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt",
+      "base_sha256": "b3549eab568283bc91df750cbe45a6bc824e4386d65f60b87b5d5a65797a9d48",
+      "selected_sha256": "51b9857e603e12d806b0c361b727f605414ac88e42797a65f93c4b59d950f20a",
+      "working_before_sha256": "b3549eab568283bc91df750cbe45a6bc824e4386d65f60b87b5d5a65797a9d48",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedUiLocationProviderTest.kt",
+      "base_sha256": "7586bd3aea47a85f5d44210d192d78886d2b440d5a79f237fa71f680bd78a316",
+      "selected_sha256": "9b44dafb0e41e3c9c57b2801f2fb2419cca19abe4c8ee85ee719018cbabd5257",
+      "working_before_sha256": "7586bd3aea47a85f5d44210d192d78886d2b440d5a79f237fa71f680bd78a316",
+      "operation": "UPDATE"
+    }
+  ],
+  "supersedes": "LIVE_LOCATION_OPTIONAL_FIELDS_SELECTED_V3"
+}

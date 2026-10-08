@@ -192,6 +192,46 @@ class SignalDispatchStageTest {
 		processor.observedSignals[1].activityFresh shouldBe false
 	}
 
+	@Test
+	fun `curated unknown accuracy reaches signal fanout with an accepted decision`() = runTest {
+		val processor = CapturingProcessor()
+		val pipeline = ProcessorPipeline(processors = setOf(processor))
+		val stage = SignalDispatchStage(
+			processorPipelineProvider = { pipeline },
+			currentTierProvider = { PolicyTier.AMBIENT },
+		)
+		val metadata = com.adsamcik.tracker.shared.base.data.LocationFixMetadata(
+			sourceEventId = "unknown-accuracy-point",
+			clockDomainId = "clock-a",
+			bootClockDomainId = "boot-a",
+		)
+		val rawLocation = mockk<android.location.Location>(relaxed = true)
+		val locationData = mockk<com.adsamcik.tracker.shared.base.data.LocationData> {
+			every { lastLocation } returns rawLocation
+			every { lastFixMetadata } returns metadata
+		}
+		val point = com.adsamcik.tracker.shared.base.data.Location(
+			time = 1_000L, latitude = 50.0, longitude = 14.0,
+			altitude = null, horizontalAccuracy = null, verticalAccuracy = null,
+			speed = null, speedAccuracy = null,
+		)
+		val data = mockk<MutableCollectionData>(relaxed = true) {
+			every { location } returns point
+		}
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
+		stage.process(context, CycleContext(
+			cycle = TrackingCycle(timestampMs = 1_000L, elapsedRealtimeNanos = 1_000_000_000L,
+				location = locationData),
+			collectionData = data,
+		))
+		val signal = processor.observedSignals.single()
+		signal.location.shouldNotBeNull()
+		signal.location?.horizontalAccuracyM shouldBe null
+		signal.locationDecision?.sourceEventId shouldBe metadata.sourceEventId
+		signal.locationDecision?.decision shouldBe com.adsamcik.tracker.stats.api.signal.LocationDecision.ACCEPTED
+		signal.locationDecision?.reason shouldBe null
+	}
+
 	private fun cycleContext(timestampMs: Long): CycleContext {
 		return CycleContext(
 			cycle = TestCycleFactory.minimal(timestampMs = timestampMs),

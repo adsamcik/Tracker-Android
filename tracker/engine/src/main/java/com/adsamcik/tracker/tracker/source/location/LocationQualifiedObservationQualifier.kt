@@ -4,6 +4,7 @@ import com.adsamcik.tracker.shared.base.data.LocationPermissionPrecision
 import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
+import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 
 internal enum class LocationObservationOrigin {
@@ -202,9 +203,14 @@ internal object LocationQualifiedObservationQualifier {
 		if (!LOWERCASE_SHA_256.matches(evidence.walIntegrityIdentity)) {
 			return rejected(LocationFactRejection.WAL_INTEGRITY_UNVERIFIABLE)
 		}
-		if (evidence.payloadVersion != LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) {
+		if (evidence.payloadVersion !in setOf(LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+            LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION)) {
 			return rejected(LocationFactRejection.UNSUPPORTED_PAYLOAD_VERSION)
 		}
+        if (evidence.payloadVersion == LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION &&
+            evidence.payload.horizontalAccuracyMeters == null) {
+            return rejected(LocationFactRejection.INVALID_ACCURACY)
+        }
 		if (evidence.payload.isMock == null || evidence.payload.isMock != evidence.isMock) {
 			return rejected(LocationFactRejection.MOCK_PROVENANCE_MISMATCH)
 		}
@@ -302,9 +308,9 @@ internal object LocationQualifiedObservationQualifier {
 		!latitudeDegrees.isFinite() || latitudeDegrees !in MIN_LATITUDE..MAX_LATITUDE ||
 			!longitudeDegrees.isFinite() || longitudeDegrees !in MIN_LONGITUDE..MAX_LONGITUDE ->
 			LocationFactRejection.INVALID_COORDINATE
-		!horizontalAccuracyMeters.isFinite() || horizontalAccuracyMeters < 0f ->
+		horizontalAccuracyMeters?.let { !it.isFinite() || it < 0f } == true ->
 			LocationFactRejection.INVALID_ACCURACY
-		horizontalAccuracyMeters > maximumAccuracyMeters ->
+		horizontalAccuracyMeters?.let { it > maximumAccuracyMeters } == true ->
 			LocationFactRejection.INSUFFICIENT_ACCURACY
 		altitudeMeters?.isFinite() == false -> LocationFactRejection.INVALID_ALTITUDE
 		verticalAccuracyMeters?.let { !it.isFinite() || it < 0f } == true ->

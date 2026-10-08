@@ -4,6 +4,7 @@ import com.adsamcik.tracker.shared.base.data.LocationPermissionPrecision
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
+import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
@@ -459,6 +460,23 @@ class LocationQualifiedObservationQualifierTest {
 			correctionBase = original,
 		)
 	}
+
+
+    @Test
+    fun `version three accepts unknown accuracy without weakening coordinates age or old wire shape`() {
+        val authority = authority()
+        val unknown = evidence(authority, payload = payload().copy(horizontalAccuracyMeters = null))
+            .copy(payloadVersion = LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION)
+        val accepted = qualified(input(authority, unknown), authority)
+        assertEquals(null, accepted.productEffect.payload.horizontalAccuracyMeters)
+        assertRejected(input(authority, unknown.copy(payload = unknown.payload.copy(latitudeDegrees = Double.NaN))),
+            authority, LocationFactRejection.INVALID_COORDINATE)
+        assertRejected(input(authority, unknown.copy(payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION)),
+            authority, LocationFactRejection.INVALID_ACCURACY)
+        assertRejected(input(authority, unknown.copy(clockAuthority = unknown.clockAuthority.copy(
+            observedElapsedRealtimeNanos = unknown.clockAuthority.receivedElapsedRealtimeNanos + 1))),
+            authority, LocationFactRejection.FUTURE_PROVIDER_TIME)
+    }
 
 	private fun qualified(
 		input: LocationObservationInput,

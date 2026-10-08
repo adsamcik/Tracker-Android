@@ -23,6 +23,7 @@ import com.adsamcik.tracker.tracker.data.collection.LocationCanonicalCurationSta
 import com.adsamcik.tracker.tracker.data.collection.toCanonicalCurationPoint
 import com.adsamcik.tracker.tracker.data.collection.toPlatformLocation
 import com.adsamcik.tracker.tracker.source.location.PROTECTED_LOCATION_CANONICAL_CURATION_VERSION
+import com.adsamcik.tracker.tracker.source.runtime.withValidOptionalFields
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -182,8 +183,7 @@ internal class LocationTrackerComponent(
 			location.isFromMockProvider
 		}
 		if (isMock) return REJECTION_MOCK
-		if (!location.hasAccuracy()) return REJECTION_MISSING_ACCURACY
-		if (location.accuracy > requiredAccuracyMeters) return REJECTION_INSUFFICIENT_ACCURACY
+		if (location.hasAccuracy() && location.accuracy > requiredAccuracyMeters) return REJECTION_INSUFFICIENT_ACCURACY
 
 		val previous = lastAcceptedLocation ?: return null
 		val currentElapsed = location.elapsedRealtimeNanos
@@ -198,7 +198,8 @@ internal class LocationTrackerComponent(
 		// information, and can distort downstream duration/sample-rate calculations.
 		if (location.latitude != previous.latitude ||
 			location.longitude != previous.longitude ||
-			location.accuracy != previous.accuracy ||
+			location.hasAccuracy() != previous.hasAccuracy() ||
+			(location.hasAccuracy() && location.accuracy != previous.accuracy) ||
 			location.speed != previous.speed ||
 			location.bearing != previous.bearing ||
 			location.hasAltitude() != previous.hasAltitude() ||
@@ -243,7 +244,7 @@ internal class LocationTrackerComponent(
 		}
 		val locationResult = requireNotNull(cycle.location)
 
-		val location = locationResult.lastLocation
+		val location = locationResult.lastLocation.withValidOptionalFields()
 		val acceptedAnchor = lastAcceptedLocation
 		val previousLocation = acceptedAnchor ?: locationResult.previousLocation
 		val requiredAccuracy = canonicalCuration?.requiredAccuracyMeters
@@ -392,8 +393,6 @@ internal class LocationTrackerComponent(
 		internal const val REJECTION_TELEPORT_CANDIDATE =
 			"CURATED_LOCATION_TELEPORT_CANDIDATE"
 		private const val REJECTION_MOCK = "CURATED_LOCATION_MOCK_REJECTED"
-		private const val REJECTION_MISSING_ACCURACY =
-			"CURATED_LOCATION_MISSING_ACCURACY"
 		private const val REJECTION_INSUFFICIENT_ACCURACY =
 			"CURATED_LOCATION_INSUFFICIENT_ACCURACY"
 		private const val REJECTION_NON_MONOTONIC_TIME =

@@ -52,7 +52,8 @@ data class TrackingSignal(
 /** GPS location data for a single cycle. */
 data class LocationSignal(
 	val coordinate: CoordinateE7,
-	val horizontalAccuracyM: Float,
+	/** Horizontal uncertainty in metres, or null when the provider did not supply it. */
+	val horizontalAccuracyM: Float?,
 	val speed: SpeedMps?,
 	/** Raw platform speed before the curated tracker derives or smooths velocity. */
 	val rawPlatformSpeedMps: Float? = null,
@@ -100,8 +101,8 @@ data class LocationSignal(
 )
 
 /**
- * Lossless-enough provider fix used for calibration/replay. Unlike [LocationSignal], accuracy is
- * nullable and the observation may have been rejected by the accepted-sample pipeline.
+ * Lossless-enough provider fix used for calibration/replay. The observation may have been
+ * rejected by the accepted-sample pipeline.
  */
 data class LocationObservationSignal(
 	/** Raw provider timestamp, retained even when invalid for [EpochMs]. */

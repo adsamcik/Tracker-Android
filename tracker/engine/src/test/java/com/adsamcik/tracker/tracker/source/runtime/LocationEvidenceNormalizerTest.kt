@@ -46,7 +46,7 @@ class LocationEvidenceNormalizerTest {
 	}
 
 	@Test
-	fun `rejects invalid coordinates and missing accuracy`() {
+	fun `rejects invalid coordinates while retaining missing accuracy`() {
 		val valid = location("gps", 1_000L, 1L)
 		assertTrue(valid.isValidLocationEvidence())
 
@@ -54,7 +54,7 @@ class LocationEvidenceNormalizerTest {
 		assertFalse(invalidCoordinate.isValidLocationEvidence())
 
 		val missingAccuracy = location("gps", 1_000L, 1L).apply { removeAccuracy() }
-		assertFalse(missingAccuracy.isValidLocationEvidence())
+		assertTrue(missingAccuracy.isValidLocationEvidence())
 	}
 
 	@Test
@@ -68,6 +68,48 @@ class LocationEvidenceNormalizerTest {
 		assertEquals(2, normalized.size)
 		assertEquals(listOf(50.0, 50.0001), normalized.map { it.latitude })
 	}
+
+
+    @Test
+    fun `normalization keeps coordinates and original times while clearing invalid optional values`() {
+        val original = location("gps", 2_000L, 300L).apply {
+            accuracy = Float.NaN
+            altitude = Double.NaN
+            verticalAccuracyMeters = Float.POSITIVE_INFINITY
+            speed = Float.NaN
+            speedAccuracyMetersPerSecond = Float.NaN
+            bearingAccuracyDegrees = Float.NaN
+        }
+        val clean = normalizeLocationBatch(listOf(original)).single()
+        assertEquals(original.latitude, clean.latitude)
+        assertEquals(original.longitude, clean.longitude)
+        assertEquals(300L, clean.time)
+        assertEquals(2_000L, clean.elapsedRealtimeNanos)
+        assertFalse(clean.hasAccuracy())
+        assertFalse(clean.hasAltitude())
+        assertFalse(clean.hasVerticalAccuracy())
+        assertFalse(clean.hasSpeed())
+        assertFalse(clean.hasSpeedAccuracy())
+        assertFalse(clean.hasBearing())
+        assertFalse(clean.hasBearingAccuracy())
+        assertTrue(original.hasAccuracy())
+        assertTrue(original.accuracy.isNaN())
+    }
+
+    @Test
+    @Config(sdk = [28])
+    fun `compat normalization removes invalid accuracy extras on supported older Android`() {
+        val original = location("gps", 2_000L, 300L).apply {
+            verticalAccuracyMeters = Float.NaN
+            speedAccuracyMetersPerSecond = Float.POSITIVE_INFINITY
+            bearingAccuracyDegrees = Float.NaN
+        }
+        val clean = normalizeLocationBatch(listOf(original)).single()
+        assertEquals(5f, clean.accuracy)
+        assertFalse(clean.hasVerticalAccuracy())
+        assertFalse(clean.hasSpeedAccuracy())
+        assertFalse(clean.hasBearingAccuracy())
+    }
 
 	private fun location(
 		provider: String = "gps",

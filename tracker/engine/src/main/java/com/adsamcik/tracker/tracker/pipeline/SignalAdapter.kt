@@ -140,7 +140,7 @@ object SignalAdapter {
 		policyName: String? = null,
 		persistenceSignalId: String? = null,
 	): TrackingSignal {
-		val locationSignal = if (latitude != null && longitude != null && accuracy != null) {
+		val locationSignal = if (latitude != null && longitude != null) {
 			LocationSignal(
 				coordinate = CoordinateE7(
 					lat = LatE7.fromDegrees(latitude),

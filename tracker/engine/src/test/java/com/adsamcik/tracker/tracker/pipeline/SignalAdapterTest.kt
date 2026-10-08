@@ -108,7 +108,7 @@ class SignalAdapterTest {
 	}
 
 	@Test
-	fun `accuracy null with lat lon present produces null location`() {
+	fun `valid coordinates with unknown accuracy produce a Location signal`() {
 		val signal = SignalAdapter.buildSignal(
 			timestampMs = 7000L,
 			latitude = 49.2,
@@ -116,7 +116,10 @@ class SignalAdapterTest {
 			accuracy = null,
 		)
 
-		signal.location.shouldBeNull()
+		signal.location.shouldNotBeNull()
+		signal.location?.horizontalAccuracyM.shouldBeNull()
+		signal.location?.coordinate?.lat?.toDegrees() shouldBe 49.2
+		signal.location?.coordinate?.lon?.toDegrees() shouldBe 16.6
 	}
 
 	@Test

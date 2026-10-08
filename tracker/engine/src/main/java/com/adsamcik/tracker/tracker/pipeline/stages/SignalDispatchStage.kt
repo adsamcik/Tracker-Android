@@ -40,8 +40,8 @@ internal class SignalDispatchStage(
 			val canonicalCuration = cycle.locationCanonicalCuration
 			val sourceEventId = locationMetadata?.sourceEventId
 			// Keep the decision boundary identical to SignalAdapter's LocationSignal construction.
-			// A partial curated object is not an accepted persisted sample.
-			val locationAccepted = collectionData.location?.horizontalAccuracy != null
+			// Accuracy is optional; the curated point itself determines acceptance.
+			val locationAccepted = collectionData.location != null
 
 			val cellTowers = cycle.cellScan
 				?.takeIf { cycle.cellScanFresh }

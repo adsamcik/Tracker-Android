@@ -9,7 +9,8 @@ interface SourcePayload {
 data class LocationFixPayload(
 	val latitudeDegrees: Double,
 	val longitudeDegrees: Double,
-	val horizontalAccuracyMeters: Float,
+	/** Unknown accuracy never becomes an invented zero or discards valid coordinates. */
+	val horizontalAccuracyMeters: Float?,
 	val altitudeMeters: Double?,
 	val verticalAccuracyMeters: Float?,
 	val speedMetersPerSecond: Float?,
@@ -23,6 +24,9 @@ data class LocationFixPayload(
 
 /** First Location payload revision that durably binds the platform mock-provider provenance. */
 internal const val LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION = 2
+
+/** Nullable accuracy; versions one and two keep their exact original field layout. */
+internal const val LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION = 3
 
 data class ActivityTransitionPayload(
 	val activityType: Int,

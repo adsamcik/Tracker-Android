@@ -1,0 +1,21 @@
+{
+  "reviewed_head": "98beaecb12da86f91ec3004bd3b8448db3ee6156",
+  "packet": "LIVE_LOCATION_OPTIONAL_FIELDS_SELECTED_V2",
+  "phase": "IMPLEMENTATION_ONLY",
+  "execution": "NOT_RUN",
+  "manifests": {
+    "FILES.json": "cb96dd49832207590f37510e52e8ba1f875529d6137301cf1a8bfa294853afe5",
+    "SELECTION.patch": "a87fa04f0d7cdf8a46005df4d164c3283c8003b2a3cccd377688ba0533bf4046",
+    "DEPENDENCIES.json": "b1c1e42de63370943563c6ba62c9b10169941f5a4002aa4f6cfa9283f22125e3",
+    "SOURCE_BOUNDARY.md": "58294fe362a077c781d7dcd2f7ea2774188fc5e977fbc3ec863b5cf736634d4d",
+    "CASE_INVENTORY.json": "879b09c9e73911176db24a10ebe911ef1650e20e9789ea9d925be8f0c8b3870b"
+  },
+  "primary_snapshots_checked": 20,
+  "committed_dependency_pins_checked": 22,
+  "primary_and_dependency_drift": [],
+  "additional_committed_capture_callers": {
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/SignalAdapter.kt": "8d88ffa60a242e208561ae1a1b232b4a38e1a2bed2d1037cc7c4fc3e5ad1d01c",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/stages/SignalDispatchStage.kt": "ef380b95bf7c9ef3dd09ef77fc214c82213bbf6cd317056a97adf7783aea0577",
+    "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationOfflineCanonicalWriter.kt": "476d51ca7c272a915efd12fdd0c566848f030ff0a0803c81bf3c9284c13f644c"
+  }
+}

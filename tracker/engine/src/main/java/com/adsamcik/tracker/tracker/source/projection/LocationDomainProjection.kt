@@ -33,6 +33,8 @@ class LocationDomainProjection @Inject constructor(
 		context: ProjectionContext,
 	) {
 		val payload = event.evidence.payload as? LocationFixPayload ?: return
+        // This dormant legacy shadow schema requires accuracy; the protected canonical writer does not.
+        val accuracy = payload.horizontalAccuracyMeters ?: return
 		val logicalTrackingId = event.evidence.logicalTrackingId?.value ?: return
 		val dao = database.locationProjectionDao()
 		val observationEntity = LocationProjectionObservationEntity(
@@ -43,7 +45,7 @@ class LocationDomainProjection @Inject constructor(
 			wallTimeMs = event.evidence.wallTimeMs ?: event.evidence.acquiredAtMs,
 			latitudeDegrees = payload.latitudeDegrees,
 			longitudeDegrees = payload.longitudeDegrees,
-			horizontalAccuracyMeters = payload.horizontalAccuracyMeters,
+			horizontalAccuracyMeters = accuracy,
 			altitudeMeters = payload.altitudeMeters,
 			verticalAccuracyMeters = payload.verticalAccuracyMeters,
 			speedMetersPerSecond = payload.speedMetersPerSecond,
@@ -239,7 +241,8 @@ internal fun advanceLocationTrack(
 ): LocationDerivation {
 	val cumulative = state.cumulativeDistanceMeters
 	val payload = observation.payload
-	if (!payload.horizontalAccuracyMeters.isFinite() || payload.horizontalAccuracyMeters > MAX_ACCURACY_METERS) {
+	if (payload.horizontalAccuracyMeters == null || !payload.horizontalAccuracyMeters.isFinite() ||
+        payload.horizontalAccuracyMeters > MAX_ACCURACY_METERS) {
 		return LocationDerivation(observation.rejected(LocationRejection.LOW_ACCURACY, cumulative), state)
 	}
 	val anchor = state.accepted

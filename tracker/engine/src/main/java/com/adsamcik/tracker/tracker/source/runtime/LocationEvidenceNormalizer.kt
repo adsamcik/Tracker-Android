@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.constant.CoordinateConstants
 
 /** Canonical source-field ordering for provider batches, independent of callback list permutation. */
 internal fun normalizeLocationBatch(locations: List<Location>): List<Location> = locations
+	.map { it.withValidOptionalFields() }
 	.withIndex()
 	.map { indexed ->
 		IndexedProviderObservation(
@@ -75,8 +76,24 @@ internal fun Location.isMockProviderEvidence(): Boolean = LocationCompat.isMock(
 internal fun Location.isValidLocationEvidence(): Boolean =
 	latitude.isFinite() && longitude.isFinite() &&
 		latitude in CoordinateConstants.MIN_LATITUDE..CoordinateConstants.MAX_LATITUDE &&
-		longitude in CoordinateConstants.MIN_LONGITUDE..CoordinateConstants.MAX_LONGITUDE &&
-		hasAccuracy() && accuracy.isFinite() && accuracy >= 0f
+		longitude in CoordinateConstants.MIN_LONGITUDE..CoordinateConstants.MAX_LONGITUDE
+
+/** Copy the provider fix; optional invalid values are absent, never repaired measurements. */
+internal fun Location.withValidOptionalFields(): Location = Location(this).apply {
+    if (hasAccuracy() && (!accuracy.isFinite() || accuracy < 0f)) removeAccuracy()
+    if (hasAltitude() && (!altitude.isFinite() || !altitude.toFloat().isFinite())) removeAltitude()
+    if (hasVerticalAccuracy() && (!verticalAccuracyMeters.isFinite() || verticalAccuracyMeters < 0f)) {
+        LocationCompat.removeVerticalAccuracy(this)
+    }
+    if (hasSpeed() && (!speed.isFinite() || speed < 0f)) removeSpeed()
+    if (hasSpeedAccuracy() && (!speedAccuracyMetersPerSecond.isFinite() || speedAccuracyMetersPerSecond < 0f)) {
+        LocationCompat.removeSpeedAccuracy(this)
+    }
+    if (hasBearing() && (!bearing.isFinite() || bearing !in 0f..<360f)) removeBearing()
+    if (hasBearingAccuracy() && (!bearingAccuracyDegrees.isFinite() || bearingAccuracyDegrees < 0f)) {
+        LocationCompat.removeBearingAccuracy(this)
+    }
+}
 
 /**
  * Returns only provider-observed monotonic time from the current boot domain.

@@ -29,6 +29,7 @@ import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
+import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
@@ -254,7 +255,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			?: return@withTransaction reject(LocationWalAdapterRejection.POLICY_MISMATCH)
 		val maximumAge = runCatching { Math.multiplyExact(demand.maximumAgeMs, 1_000_000L) }.getOrDefault(Long.MAX_VALUE)
 		val quality = sourceQualityFromStableFlags(wal.qualityFlags, wal.qualityConfidence)
-		if (physical.payload.isMock == null || wal.payloadVersion != LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION ||
+		if (physical.payload.isMock == null || wal.payloadVersion !in setOf(LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION, LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION) ||
 			wal.receivedElapsedNanos - wal.observedElapsedNanos > maximumAge ||
 			SourceQualityFlag.CACHED in quality.flags ||
 			(SourceQualityFlag.APPROXIMATE in quality.flags) == plan.preciseLocationAvailable ||
@@ -920,7 +921,9 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 				val payloadVersion = units.first().wal.payloadVersion
 				output.writeInt(LOCATION_DELIVERY_MAGIC)
 				output.writeInt(
-					if (payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) {
+                    if (payloadVersion >= LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION) {
+                        LOCATION_OPTIONAL_ACCURACY_DELIVERY_VERSION
+                    } else if (payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) {
 						LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION
 					} else {
 						LOCATION_LEGACY_DELIVERY_VERSION
@@ -937,7 +940,11 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 					output.writeLong(if (row.wallTimeUncertaintyMs == DERIVED_WALL_UNCERTAINTY_MS) 0L else requireNotNull(row.wallTimeMs))
 					output.writeLong(java.lang.Double.doubleToRawLongBits(payload.latitudeDegrees))
 					output.writeLong(java.lang.Double.doubleToRawLongBits(payload.longitudeDegrees))
-					output.writeInt(java.lang.Float.floatToRawIntBits(payload.horizontalAccuracyMeters))
+                    if (payloadVersion >= LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION) {
+                        output.writeOptionalFloat(payload.horizontalAccuracyMeters)
+                    } else {
+                        output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.horizontalAccuracyMeters)))
+                    }
 					output.writeOptionalDouble(payload.altitudeMeters)
 					output.writeOptionalFloat(payload.verticalAccuracyMeters)
 					output.writeOptionalFloat(payload.speedMetersPerSecond)
@@ -969,17 +976,19 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		const val LOCATION_SOURCE = 1
 		const val PLAN_PAYLOAD_VERSION = 1
 		const val MAX_LOCATION_DELIVERY_UNITS = 256
-		// DataOutputStream.writeUTF permits 65,535 provider bytes; all v2 fields add at most 51.
-		const val MAX_LOCATION_PAYLOAD_BYTES = 65_535 + 51
+		// DataOutputStream.writeUTF permits 65,535 provider bytes; nullable accuracy adds one flag.
+		const val MAX_LOCATION_PAYLOAD_BYTES = 65_535 + 52
 		const val MAX_DURABLE_SOURCE_SEQUENCE = Long.MAX_VALUE - 1L
 		const val MAX_MANIFESTS_PER_RUN = 256
 		const val MAX_MANIFEST_SOURCE_ROWS = 4_096
 		const val LOCATION_DELIVERY_MAGIC = 0x4c4f4342
 		const val LOCATION_LEGACY_DELIVERY_VERSION = 1
 		const val LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION = 2
+		const val LOCATION_OPTIONAL_ACCURACY_DELIVERY_VERSION = 3
 		const val DERIVED_WALL_UNCERTAINTY_MS = 1L
 		val SUPPORTED_LOCATION_PAYLOAD_VERSIONS =
-			setOf(LOCATION_LEGACY_DELIVERY_VERSION, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION)
+			setOf(LOCATION_LEGACY_DELIVERY_VERSION, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+                LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION)
 	}
 }
 

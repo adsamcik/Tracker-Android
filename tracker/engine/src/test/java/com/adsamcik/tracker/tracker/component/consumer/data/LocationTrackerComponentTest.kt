@@ -323,14 +323,37 @@ class LocationTrackerComponentTest {
 	}
 
 	@Test
-	fun `location without horizontal accuracy is rejected`() = runTest {
+	fun `location without horizontal accuracy retains the valid point and unknown accuracy`() = runTest {
 		component.onEnable(RuntimeEnvironment.getApplication())
 		val location = createAndroidLocation().apply { removeAccuracy() }
 		val collectionData = MutableCollectionData()
 
 		component.onDataUpdated(createCycle(location), collectionData)
 
-		collectionData.location.shouldBeNull()
+		collectionData.location.shouldNotBeNull()
+        collectionData.location?.horizontalAccuracy.shouldBeNull()
+	}
+
+	@Test
+	fun `known zero and unknown accuracy are distinct observations in both directions`() = runTest {
+		component.onEnable(RuntimeEnvironment.getApplication())
+		val points = listOf(
+			createAndroidLocation(time = 1_000L).apply { accuracy = 0f },
+			createAndroidLocation(time = 2_000L).apply { removeAccuracy() },
+			createAndroidLocation(time = 3_000L).apply { accuracy = 0f },
+		)
+		points.forEach { point ->
+			val data = MutableCollectionData()
+			component.onDataUpdated(createCycle(point), data)
+			data.location.shouldNotBeNull()
+			data.location?.horizontalAccuracy shouldBe point.accuracy.takeIf { point.hasAccuracy() }
+		}
+		val duplicate = MutableCollectionData()
+		component.onDataUpdated(
+			createCycle(createAndroidLocation(time = 4_000L).apply { accuracy = 0f }),
+			duplicate,
+		)
+		duplicate.location.shouldBeNull()
 	}
 
 	@Test
