@@ -664,3 +664,9 @@ Exact selected source and independent review: `../2026-10-08/PRESSURE_ORIGINAL_C
 - [x] Drain already admitted Wi-Fi/Cell WAL under its original manifest, registration, permission and operation generation after quality/End changes. Use authenticated original Stop clocks while preserving per-reading grants, current relationships, live replacement guards, epoch, erase, retention and finite bounds. Four real-ingress/Room writer/lane methods NOT_RUN; later operations and Stop intents are explicit fixtures. Activity and final shared-writer compatibility remain separate open work.
 
 Exact V2 selected source and independent review: `../2026-10-08/RETAINED_RADIO_BACKLOG_SELECTED_V2/` and `RETAINED_RADIO_BACKLOG_REVIEW/V2_ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN. No gates, activation, integration or push.
+
+### October 8 - retained Activity original measurement clock
+
+- [x] Retained Activity admission uses its original manifest/lease and authenticated saved Stop clock after later operation boots or quality changes. Unknown original Stop remains explicitly unavailable; the exact Stop boundary still rejects. Original provider, permission, epoch, deletion, retention and finite-window checks remain. Three seeded Room admission methods NOT_RUN. Static V1 review caught reference equality in a test; V2 compares actual original values. Shared final bindings and full-chain activation remain separate open work.
+
+Exact selected source and independent review: `../2026-10-08/ACTIVITY_ORIGINAL_CLOCK_SELECTED_V2/` and `ACTIVITY_ORIGINAL_CLOCK_REVIEW/V2_ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN. No gates, activation, integration or push.

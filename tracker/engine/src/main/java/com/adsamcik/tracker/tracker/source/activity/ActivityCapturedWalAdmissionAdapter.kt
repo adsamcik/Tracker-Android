@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.activity
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.ProviderRegistrationIntervalAuthentication
 import com.adsamcik.tracker.shared.base.database.authenticateHistoricalProviderRegistration
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventWalPayloadPreflightRow
@@ -427,9 +428,8 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			val session = sessionDao.session(logicalTrackingId)
 			val run = sessionDao.serviceRun(serviceRunId)
 			if (session == null || run == null || run.logicalTrackingId != logicalTrackingId ||
-				run.bootId != selected.clockDomainId || run.leaseGeneration != leaseGeneration ||
+				!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, leaseGeneration) ||
 				session.logicalTrackingId != logicalTrackingId ||
-				session.lifecycleBootId != selected.clockDomainId ||
 				session.lifecycleLeaseGeneration < leaseGeneration ||
 				run.startedElapsedNanos > selected.observedElapsedNanos
 			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH)
@@ -466,7 +466,13 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			if (!terminalWindow && !settledStoppingWindow) return@transaction unavailable(
 				ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW,
 			)
-			val sessionEnd = session.cutoffElapsedNanos
+			val savedCutoff = database.savedSessionCutoff(session)
+			val sessionEnd = when {
+				savedCutoff.bootId == selected.clockDomainId -> savedCutoff.elapsedNanos
+				savedCutoff.bootId == null && session.lifecycleBootId == selected.clockDomainId ->
+					session.cutoffElapsedNanos
+				else -> null
+			}
 			val finalAdmissionOrdinal = session.finalAdmissionOrdinal
 			if (sessionEnd == null || finalAdmissionOrdinal == null ||
 				maximumDeliveryOrdinal > finalAdmissionOrdinal
@@ -479,7 +485,7 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 
 			val manifests = sessionDao.manifestsForServiceRun(serviceRunId, MAX_MANIFESTS_PER_RUN + 1)
 			if (manifests.size > MAX_MANIFESTS_PER_RUN ||
-				!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)
+				!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests)
 			) return@transaction rejected(
 				ActivityCapturedWalAdmissionRejection.MANIFEST_TIMELINE_UNVERIFIABLE,
 			)

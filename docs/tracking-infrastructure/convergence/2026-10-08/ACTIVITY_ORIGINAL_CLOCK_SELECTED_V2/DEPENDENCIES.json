@@ -1,0 +1,45 @@
+{
+  "base_commit": "a4ef349384a0910058c7dca4a048ba0ef36d23aa",
+  "pins": [
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+    },
+    {
+      "path": "tracker/engine/build.gradle.kts",
+      "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SavedSessionCutoff.kt",
+      "sha256": "b93bd784de5b69c4b8c79a178f52ee0407d2f67223b23efc35dd03163e94073a"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
+      "sha256": "49e23c9e8afa1d4c5909423f24f2cc3e05eabbc9ad4fa2792821e40b867b3dad"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionLifecycleIntegrity.kt",
+      "sha256": "f6c6f0803f62808b2b1944c1384e60a3f783e874d4759e1b41c81cc60939ba22"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/HistoricalSavedSourceTestFixtures.kt",
+      "sha256": "96e5cfaf475c489b4f3eddede99620fd06cac72ee60a29688c7b83d8cfaae8bd"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFact.kt",
+      "sha256": "a7045aac8225724ef818d3356691dee61faebf329045de5cb43ab06c537c53e5"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactProjectionLane.kt",
+      "sha256": "56cafab45b726786bb50b2fa1dbc4cf95be4e1af2b99026a99d7ee2edea22b8d"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactWriter.kt",
+      "sha256": "cbb04a14dedd3ecef25bbc950a4afe3bd0265f274848a9ea502ca7931487f39e"
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedObservationAdmission.kt",
+      "sha256": "d35e343c1d9d40ba51d9d98b9541adca71c780b11f62a27350f08587a63a30cf"
+    }
+  ]
+}

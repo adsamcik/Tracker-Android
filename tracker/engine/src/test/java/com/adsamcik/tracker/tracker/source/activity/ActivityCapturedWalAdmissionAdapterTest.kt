@@ -8,6 +8,7 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatc
 import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.tracker.source.advanceRetainedSourceOperations
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
@@ -67,6 +68,47 @@ class ActivityCapturedWalAdmissionAdapterTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `retained Activity admission keeps its original finite window after later operation state`() = runTest {
+		installFixture()
+		val before = subject().admit(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+		database.advanceRetainedSourceOperations(listOf(LOGICAL_TRACKING_ID to SERVICE_RUN_ID))
+		val after = subject().admit(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted
+		assertSameAdmissionValues(after, before)
+		assertSameAdmissionValues(
+			subject().admitHistorical(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted,
+			before,
+		)
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `retained Activity does not borrow a later operation boot for an unknown original Stop`() = runTest {
+		installFixture()
+		val dao = database.sourceSessionDao()
+		val run = requireNotNull(dao.serviceRun(SERVICE_RUN_ID))
+		val session = requireNotNull(dao.session(LOGICAL_TRACKING_ID))
+		dao.updateServiceRun(run.copy(leaseGeneration = LEASE_GENERATION + 2L, bootId = "later-activity-operation",
+			runRevision = run.runRevision + 1L))
+		dao.updateSession(session.copy(lifecycleLeaseGeneration = LEASE_GENERATION + 2L,
+			lifecycleBootId = "later-activity-operation", lifecycleRevision = session.lifecycleRevision + 1L))
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Unavailable(
+			ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW)
+	}
+
+	@Test
+	fun `retained Activity still excludes the exact original Stop boundary after later operations`() = runTest {
+		installFixture()
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(LOGICAL_TRACKING_ID))
+		val observed = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value)).observedElapsedNanos
+		dao.updateSession(session.copy(cutoffElapsedNanos = observed))
+		database.advanceRetainedSourceOperations(listOf(LOGICAL_TRACKING_ID to SERVICE_RUN_ID))
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH)
+	}
 
 	@Test
 	fun `first zero-based Activity WAL delivery admits exact transition`() = runTest {
@@ -373,6 +415,29 @@ class ActivityCapturedWalAdmissionAdapterTest {
 		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
 			ActivityCapturedWalAdmissionRejection.DELETED_EVIDENCE,
 		)
+	}
+
+	private fun assertSameAdmissionValues(
+		actual: ActivityCapturedWalAdmissionResult.Admitted,
+		expected: ActivityCapturedWalAdmissionResult.Admitted,
+	) {
+		actual.observation shouldBe expected.observation
+		actual.settledWindow shouldBe expected.settledWindow
+		actual.deliveryIdentity shouldBe expected.deliveryIdentity
+		actual.deliveryUnitIndex shouldBe expected.deliveryUnitIndex
+		actual.deliveryUnitCount shouldBe expected.deliveryUnitCount
+		actual.acquisitionAuthority.captureAuthority shouldBe expected.acquisitionAuthority.captureAuthority
+		val actualConfiguration = actual.acquisitionAuthority.historicalConfiguration
+		val expectedConfiguration = expected.acquisitionAuthority.historicalConfiguration
+		actualConfiguration.identity shouldBe expectedConfiguration.identity
+		actualConfiguration.providerAcceptance shouldBe expectedConfiguration.providerAcceptance
+		actualConfiguration.authorizationEffect shouldBe expectedConfiguration.authorizationEffect
+		actualConfiguration.sessionRunEffect shouldBe expectedConfiguration.sessionRunEffect
+		actualConfiguration.desiredPlanPayloadVersion shouldBe expectedConfiguration.desiredPlanPayloadVersion
+		actualConfiguration.desiredPlanPayloadChecksum shouldBe expectedConfiguration.desiredPlanPayloadChecksum
+		actualConfiguration.activityPlan shouldBe expectedConfiguration.activityPlan
+		actualConfiguration.maximumObservationAgeNanos shouldBe expectedConfiguration.maximumObservationAgeNanos
+		actualConfiguration.sampledClassificationPolicy shouldBe expectedConfiguration.sampledClassificationPolicy
 	}
 
 	private fun subject() = ActivityCapturedWalAdmissionAdapter(

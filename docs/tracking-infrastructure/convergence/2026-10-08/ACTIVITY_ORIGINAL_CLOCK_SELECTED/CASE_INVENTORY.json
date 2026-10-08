@@ -1,0 +1,11 @@
+[
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapterTest.kt",
+    "new_methods": [
+      "retained Activity admission keeps its original finite window after later operation state",
+      "retained Activity does not borrow a later operation boot for an unknown original Stop",
+      "retained Activity still excludes the exact original Stop boundary after later operations"
+    ],
+    "status": "NOT_RUN"
+  }
+]

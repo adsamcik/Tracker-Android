@@ -1,0 +1,74 @@
+{
+  "phase": "IMPLEMENTATION_ONLY",
+  "head": "a4ef349384a0910058c7dca4a048ba0ef36d23aa",
+  "packet": "ACTIVITY_ORIGINAL_CLOCK_SELECTED",
+  "packet_evidence": {
+    "FILES.json": "54ad15abebb151ddb023e4cbc55397287b182fa948f275631ce08430610ef0ef",
+    "SELECTION.patch": "84e5feb14580e912b8c3770d31ee43530eef3f0ccdc2c963c63537084e92512a",
+    "DEPENDENCIES.json": "910f147bb2c8ef9f08d662cd514057e604a679bc1eed0765ccc26fe85630a02a",
+    "SOURCE_BOUNDARY.md": "a64d253aa1d7c3675536663554c9933915bcfa25b2d6fc180607bb5aef4aff3d",
+    "CASE_INVENTORY.json": "9f665399c03e020af5b710b30e265e6c71c163a75bd23ff355c2023f89e653c7"
+  },
+  "files": {
+    "base_commit": "a4ef349384a0910058c7dca4a048ba0ef36d23aa",
+    "phase": "IMPLEMENTATION_ONLY",
+    "files": [
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapter.kt",
+        "operation": "UPDATE",
+        "base_sha256": "cd26ffbb4637181f3a9495e6801db4aa85be58758c1d3ffc5040f39af22f32b9",
+        "selected_sha256": "8c03de5bfab33e23eb3a5d2e5923053ba7b52e858c5ae5408a3262f36ce8e7d0",
+        "working_before_sha256": "cd26ffbb4637181f3a9495e6801db4aa85be58758c1d3ffc5040f39af22f32b9"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapterTest.kt",
+        "operation": "UPDATE",
+        "base_sha256": "ea5980147334c28dbb86c025c0aac16c44517028b385ff38e0594f3cf4676479",
+        "selected_sha256": "2c1d5e55593dd1e9c336b850275101b49dc455b172b74b7038153d45aae32c2e",
+        "working_before_sha256": "ea5980147334c28dbb86c025c0aac16c44517028b385ff38e0594f3cf4676479"
+      }
+    ]
+  },
+  "dependencies": {
+    "base_commit": "a4ef349384a0910058c7dca4a048ba0ef36d23aa",
+    "pins": [
+      {
+        "path": "settings.gradle.kts",
+        "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+      },
+      {
+        "path": "tracker/engine/build.gradle.kts",
+        "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/SavedSessionCutoff.kt",
+        "sha256": "b93bd784de5b69c4b8c79a178f52ee0407d2f67223b23efc35dd03163e94073a"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionManifestIntegrity.kt",
+        "sha256": "49e23c9e8afa1d4c5909423f24f2cc3e05eabbc9ad4fa2792821e40b867b3dad"
+      },
+      {
+        "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SessionLifecycleIntegrity.kt",
+        "sha256": "f6c6f0803f62808b2b1944c1384e60a3f783e874d4759e1b41c81cc60939ba22"
+      },
+      {
+        "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/HistoricalSavedSourceTestFixtures.kt",
+        "sha256": "96e5cfaf475c489b4f3eddede99620fd06cac72ee60a29688c7b83d8cfaae8bd"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFact.kt",
+        "sha256": "a7045aac8225724ef818d3356691dee61faebf329045de5cb43ab06c537c53e5"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactProjectionLane.kt",
+        "sha256": "56cafab45b726786bb50b2fa1dbc4cf95be4e1af2b99026a99d7ee2edea22b8d"
+      },
+      {
+        "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactWriter.kt",
+        "sha256": "cbb04a14dedd3ecef25bbc950a4afe3bd0265f274848a9ea502ca7931487f39e"
+      }
+    ]
+  },
+  "tests": "NOT_RUN"
+}
