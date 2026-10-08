@@ -181,4 +181,5 @@
     <string name="insight_distance_desc">Šios sesijos metu įveikėte %1$s.</string>
     <string name="insight_steps_title">Užfiksuoti žingsniai</string>
     <string name="insight_steps_desc">Šios sesijos metu žengėte %1$s žingsnių – taip ir toliau!</string>
+    <string name="tracker_measurement_partial">Daliniai</string>
 </resources>

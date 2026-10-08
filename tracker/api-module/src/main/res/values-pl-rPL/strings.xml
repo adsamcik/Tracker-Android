@@ -185,4 +185,5 @@
     <string name="insight_distance_desc">Pokonano %1$s w tej sesji.</string>
     <string name="insight_steps_title">Zarejestrowane kroki</string>
     <string name="insight_steps_desc">%1$s kroków w tej sesji — tak trzymaj!</string>
+    <string name="tracker_measurement_partial">Częściowe</string>
 </resources>

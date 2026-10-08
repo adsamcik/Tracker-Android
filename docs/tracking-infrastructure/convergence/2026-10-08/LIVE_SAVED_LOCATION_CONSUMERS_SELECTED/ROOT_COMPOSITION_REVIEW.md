@@ -1,0 +1,3 @@
+# Root consumer composition selection
+
+IMPLEMENTED_UNVALIDATED. Exact72 source paths match the independently accepted V2. All103 committed and six resolved prior private pins agree with3b85. Original mixed working drafts remain preserved; staged source is only the reviewed selected bytes. All23 methods NOT_RUN. Actual shared-core controller API/Hilt wiring and generator signatures are source-traced. This selects saved Location consumers, not complete numerical delivery: moving Avg, outside-active-Glance cadence, native Activity attribution, all-day/released/imported/logical totals and effective correction hooks remain open. T17/T25/all25 complete chains remain open. No execution gate, provider activation, merge or push.

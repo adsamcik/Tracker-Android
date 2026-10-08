@@ -49,6 +49,7 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.stats.api.repository.SavedLocationFix
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
 import com.adsamcik.tracker.shared.preferences.extension.formatDistance
@@ -311,14 +312,16 @@ internal fun ComponentMetricText(
 
 internal fun buildLocationMetrics(
     context: Context,
-    collectionData: TrackerCollectionSnapshot?,
+    savedFix: SavedLocationFix?,
     settings: TrackerSettingsState,
     useDecimalDegrees: Boolean,
     onToggleFormat: () -> Unit
 ): ComponentMetrics? {
-    val location = collectionData?.location ?: return null
+    val location = savedFix ?: return null
+    val latitude = location.latitudeE7 / 10_000_000.0
+    val longitude = location.longitudeE7 / 10_000_000.0
     val resources = context.resources
-    val primary = location.horizontalAccuracy?.takeIf { it > 0f }?.let { accuracy ->
+    val primary = location.horizontalAccuracyMeters?.let { accuracy ->
         val formattedAccuracy = resources.formatDistance(
             distanceInMeters = accuracy,
             digits = if (accuracy >= 100f) 0 else 1,
@@ -333,18 +336,18 @@ internal fun buildLocationMetrics(
 
     val secondary = buildList {
         // Add coordinates first
-        val latFormatted = if (useDecimalDegrees) location.latitude.toString() else Assist.coordinateToString(location.latitude)
-        val lonFormatted = if (useDecimalDegrees) location.longitude.toString() else Assist.coordinateToString(location.longitude)
+        val latFormatted = if (useDecimalDegrees) latitude.toString() else Assist.coordinateToString(latitude)
+        val lonFormatted = if (useDecimalDegrees) longitude.toString() else Assist.coordinateToString(longitude)
         add(
             ComponentMetric(
                 label = context.getString(R.string.coordinates_title),
                 value = "$latFormatted, $lonFormatted",
-                copyableValue = "Latitude: $latFormatted (${location.latitude})\nLongitude: $lonFormatted (${location.longitude})",
+                copyableValue = "Latitude: $latFormatted (${latitude})\nLongitude: $lonFormatted (${longitude})",
                 onClick = onToggleFormat
             )
         )
         
-        location.speed?.takeIf { it > 0f }?.let { speed ->
+        location.speedMetersPerSecond?.let { speed ->
             val formattedSpeed = resources.formatSpeed(context, speed.toDouble(), 1)
             add(
                 ComponentMetric(
@@ -354,7 +357,7 @@ internal fun buildLocationMetrics(
                 )
             )
         }
-        collectionData.androidModelMslAltitudeM?.let { altitude ->
+        location.altitudeMeters?.let { altitude ->
             val formattedAltitude = resources.formatDistance(altitude, 0, settings.lengthSystem)
             add(
                 ComponentMetric(
@@ -366,7 +369,7 @@ internal fun buildLocationMetrics(
         }
     }
 
-    val status = formatRelativeUpdate(context, location.time)
+    val status = formatRelativeUpdate(context, location.measuredTimeMs)
     if (primary == null && secondary.isEmpty() && status == null) return null
     return ComponentMetrics(primary = primary, secondary = secondary, status = status)
 }

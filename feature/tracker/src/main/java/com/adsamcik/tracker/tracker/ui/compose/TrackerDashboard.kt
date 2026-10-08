@@ -92,6 +92,8 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.model.Trip
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.tracker.controller.forLiveSegment
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
@@ -108,6 +110,7 @@ internal data class TrackerDashboardUiState(
     val isLocked: Boolean = false,
     val sessionData: TrackerSessionSnapshot? = null,
     val collectionData: TrackerCollectionSnapshot? = null,
+    val savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound,
     val hasLocationPermission: Boolean = false,
     val pathPoints: List<Location>? = null,
     val policyTier: PolicyTier = PolicyTier.OFF,
@@ -188,6 +191,7 @@ internal fun TrackerDashboard(
             TrackingContent(
                 sessionData = sessionData,
                 collectionData = collectionData,
+                savedLocation = state.savedLocation,
                 isTracking = isTracking,
                 isLocked = isLocked,
                 wallClockNowMillis = wallClockNowMillis,
@@ -380,6 +384,7 @@ private fun rememberWallClockMillis(isTracking: Boolean): Long {
 private fun TrackingContent(
     sessionData: TrackerSessionSnapshot?,
     collectionData: TrackerCollectionSnapshot?,
+    savedLocation: SavedLocationSummaryRead,
     isTracking: Boolean,
     isLocked: Boolean,
     wallClockNowMillis: Long,
@@ -403,6 +408,7 @@ private fun TrackingContent(
 
     val context = LocalContext.current
     val locationEnabled = trackingParams.locationEnabled
+    val liveLocation = savedLocation.forLiveSegment(sessionData?.id, isTracking && locationEnabled)
     val cellEnabled = trackingParams.cellEnabled
     val wifiEnabled = trackingParams.wifiEnabled
     val activityEnabled = trackingParams.activityEnabled
@@ -455,7 +461,8 @@ private fun TrackingContent(
                         collectionData = collectionData,
                         wallClockNowMillis = wallClockNowMillis,
                         onMapClick = onMapClick,
-                        pathPoints = pathPoints
+                        savedLocation = liveLocation,
+                        trackingParams = trackingParams,
                     )
                 }
             }
@@ -520,12 +527,12 @@ private fun TrackingContent(
             val componentModels = buildList {
                 val locationMetrics = buildLocationMetrics(
                     context = context,
-                    collectionData = collectionData,
+                    savedFix = (liveLocation as? SavedLocationSummaryRead.Snapshot)?.summary?.latestFix,
                     settings = trackerSettings,
                     useDecimalDegrees = useDecimalDegrees,
                     onToggleFormat = { useDecimalDegrees = !useDecimalDegrees }
                 )
-                if (locationMetrics != null) add(
+                if (isTracking && locationEnabled) add(
                     TrackingComponentModel(
                         component = TrackingComponent.Location,
                         enabled = locationEnabled,
@@ -534,7 +541,7 @@ private fun TrackingContent(
                 )
 
                 val activityMetrics = buildActivityMetrics(context, collectionData)
-                if (activityMetrics != null) add(
+                if (activityEnabled) add(
                     TrackingComponentModel(
                         component = TrackingComponent.Activity,
                         enabled = activityEnabled,
@@ -543,7 +550,7 @@ private fun TrackingContent(
                 )
 
                 val wifiMetrics = buildWifiMetrics(context, collectionData)
-                if (wifiMetrics != null) add(
+                if (wifiEnabled) add(
                     TrackingComponentModel(
                         component = TrackingComponent.Wifi,
                         enabled = wifiEnabled,
@@ -552,7 +559,7 @@ private fun TrackingContent(
                 )
 
                 val cellMetrics = buildCellMetrics(context, collectionData)
-                if (cellMetrics != null) add(
+                if (cellEnabled) add(
                     TrackingComponentModel(
                         component = TrackingComponent.Cell,
                         enabled = cellEnabled,

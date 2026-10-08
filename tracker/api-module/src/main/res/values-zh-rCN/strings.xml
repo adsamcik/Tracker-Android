@@ -177,4 +177,5 @@
     <string name="insight_distance_desc">您在此会话中覆盖了 %1$s。</string>
     <string name="insight_steps_title">已记录步数</string>
     <string name="insight_steps_desc">此会话共 %1$s 步 — 继续加油！</string>
+    <string name="tracker_measurement_partial">部分</string>
 </resources>

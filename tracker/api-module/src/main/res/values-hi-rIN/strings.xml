@@ -177,4 +177,5 @@
     <string name="insight_distance_desc">आपने इस सत्र में %1$s तय की।</string>
     <string name="insight_steps_title">रिकॉर्ड किए कदम</string>
     <string name="insight_steps_desc">इस सत्र में %1$s कदम — जारी रखें!</string>
+    <string name="tracker_measurement_partial">आंशिक</string>
 </resources>

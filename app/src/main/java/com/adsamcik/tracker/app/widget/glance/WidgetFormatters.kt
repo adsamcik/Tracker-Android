@@ -17,9 +17,12 @@ object WidgetFormatters {
      * Formats distance in meters to a human-readable string.
      * Uses km for >= 1000m, otherwise meters.
      */
-    fun formatDistance(context: Context, meters: Float): String {
-        return if (meters >= 1000f) {
-            val km = meters / 1000f
+    fun formatDistance(context: Context, meters: Float): String = formatDistance(context, meters.toDouble())
+
+    /** Formats the shared saved distance without narrowing its accumulated value to Float. */
+    fun formatDistance(context: Context, meters: Double): String {
+        return if (meters >= 1000.0) {
+            val km = meters / 1000.0
             context.getString(R.string.widget_format_km, km)
         } else {
             context.getString(R.string.widget_format_meters, meters.toInt())
@@ -64,7 +67,7 @@ object WidgetFormatters {
     }
 
     fun formatSpeed(context: Context, metersPerSecond: Float?): String {
-        if (metersPerSecond == null || metersPerSecond <= 0.1f) {
+        if (metersPerSecond == null || !metersPerSecond.isFinite() || metersPerSecond < 0f) {
             return context.getString(R.string.widget_speed_unknown)
         }
 

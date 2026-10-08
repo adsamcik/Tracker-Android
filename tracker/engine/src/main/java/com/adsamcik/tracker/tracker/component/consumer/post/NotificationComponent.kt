@@ -1,6 +1,21 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
 import android.content.Context
+import android.os.SystemClock
+import com.adsamcik.tracker.shared.base.data.MutableCollectionData
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.tracker.controller.forLiveSegment
+import com.adsamcik.tracker.tracker.controller.hasLiveCapture
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.catch
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.shared.base.Time
@@ -34,7 +49,11 @@ interface NotificationComponentEntryPoint {
 	fun trackingParamsRepository(): TrackingParamsRepository
 }
 
-internal class NotificationComponent :
+internal class NotificationComponent(
+    private val resolveEntryPoint: (Context) -> NotificationComponentEntryPoint = { context ->
+        EntryPointAccessors.fromApplication(context.applicationContext, NotificationComponentEntryPoint::class.java)
+    },
+) :
 		PostTrackerComponent {
 
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf()
@@ -49,6 +68,12 @@ internal class NotificationComponent :
 	private val updateGate = NotificationUpdateGate(MAX_REFRESH_INTERVAL_NANOS)
 	private val notificationLock = Any()
 	private var lastPayload: NotificationPayload? = null
+    private var activeGeneration = 0L
+    private var savedUpdatesJob: Job? = null
+    private var stateReader: TrackerStateReader? = null
+    private var currentParams = TrackingParamsState(locationEnabled = false, activityEnabled = false,
+        wifiEnabled = false, cellEnabled = false, stepsEnabled = false, barometerEnabled = false)
+    private var lastData: Pair<Long, CollectionData>? = null
 
 	// Separator for notification text components
 	// Uses comma-space which is appropriate for most locales
@@ -65,6 +90,11 @@ internal class NotificationComponent :
 	 */
 	fun onServiceStopped(context: Context) {
 		synchronized(notificationLock) {
+            activeGeneration++
+            savedUpdatesJob?.cancel()
+            savedUpdatesJob = null
+            stateReader = null
+            lastData = null
 			trackerNotificationManager = null
 			contentComponentList.clear()
 			titleComponentList.clear()
@@ -74,32 +104,82 @@ internal class NotificationComponent :
 		}
 	}
 
-	override suspend fun onEnable(context: Context) = coroutineScope<Unit> {
-		val preferenceUpdate = async(DefaultDispatchersProvider.default) {
-			TrackerNotificationProvider.updatePreferences(context)
-			val configuredComponents = TrackerNotificationProvider.configuredComponents()
-			contentComponentList.addAll(configuredComponents.filter { it.preference.isInContent })
+    override suspend fun onEnable(context: Context) = coroutineScope<Unit> {
+        val generation = synchronized(notificationLock) {
+            activeGeneration++
+            savedUpdatesJob?.cancel()
+            savedUpdatesJob = null
+            trackerNotificationManager = null
+            stateReader = null
+            lastData = null
+            titleComponentList.clear()
+            contentComponentList.clear()
+            lastPayload = null
+            updateGate.reset()
+            activeGeneration
+        }
+        val preferenceUpdate = async(DefaultDispatchersProvider.default) {
+            TrackerNotificationProvider.updatePreferences(context)
+            TrackerNotificationProvider.configuredComponents()
+        }
+        val entryPoint = resolveEntryPoint(context)
+        val reader = entryPoint.trackerStateReader()
+        val sessionInfo = requireNotNull(reader.sessionInfoFlow.value) {
+            "TrackerService sessionInfo must be initialized before NotificationComponent.onEnable"
+        }
+        val params = entryPoint.trackingParamsRepository().data.first()
+        val manager = TrackerNotificationManager(context, sessionInfo.isInitiatedByUser,
+            notificationStyled = params.notificationStyled)
+        val configured = preferenceUpdate.await()
+        synchronized(notificationLock) {
+            if (activeGeneration == generation) {
+                trackerNotificationManager = manager
+                stateReader = reader
+                currentParams = params
+                contentComponentList.addAll(configured.filter { it.preference.isInContent })
+                titleComponentList.addAll(configured.filter { it.preference.isInTitle })
+            }
+        }
+    }
 
-			titleComponentList.addAll(configuredComponents.filter { it.preference.isInTitle })
-		}
-		val entryPoint = EntryPointAccessors.fromApplication(
-			context.applicationContext,
-			NotificationComponentEntryPoint::class.java
-		)
-		val sessionInfoFlow = entryPoint.trackerStateReader().sessionInfoFlow
-		val sessionInfo = requireNotNull(sessionInfoFlow.value) {
-			"TrackerService sessionInfo must be initialized before NotificationComponent.onEnable"
-		}
-		val params = entryPoint.trackingParamsRepository().data.first()
-		trackerNotificationManager = TrackerNotificationManager(
-				context,
-				sessionInfo.isInitiatedByUser,
-				notificationStyled = params.notificationStyled
-		)
+    /** Reuses the controller's sole saved total, never a second Location reader or provider. */
+    fun startSavedLocationUpdates(
+        context: Context,
+        reader: TrackerStateReader,
+        params: TrackingParamsRepository,
+        scope: CoroutineScope,
+    ): Job = synchronized(notificationLock) {
+        savedUpdatesJob?.cancel()
+        val generation = activeGeneration
+        scope.launch {
+            combine(reader.savedLocationSummaryFlow, reader.sessionFlow, reader.sessionInfoFlow,
+                reader.isServiceRunningFlow, params.data) { saved, session, info, running, choices ->
+                LiveNotificationInput(saved, session, info != null && running, choices)
+            }.catch { failure ->
+                if (failure is CancellationException) throw failure
+                emit(LiveNotificationInput(SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE),
+                    reader.sessionFlow.value, reader.hasLiveCapture, currentParams))
+            }.collect { input ->
+                synchronized(notificationLock) {
+                    val session = input.session
+                    if (activeGeneration != generation || trackerNotificationManager == null ||
+                        !input.active || !reader.hasLiveCapture || session == null ||
+                        reader.sessionFlow.value?.id != session.id) return@synchronized
+                    currentParams = input.params
+                    val data = lastData?.takeIf { it.first == session.id }?.second ?: MutableCollectionData(0L)
+                    publish(context, session.asNotificationSession(), data,
+                        input.saved.forLiveSegment(session.id, input.params.locationEnabled),
+                        SystemClock.elapsedRealtimeNanos())
+                }
+            }
+        }.also { savedUpdatesJob = it }
+    }
 
-		preferenceUpdate.await()
-		synchronized(notificationLock) { updateGate.reset() }
-	}
+    private data class LiveNotificationInput(val saved: SavedLocationSummaryRead,
+        val session: TrackerSessionSnapshot?, val active: Boolean, val params: TrackingParamsState)
+
+    private fun TrackerSessionSnapshot.asNotificationSession() = TrackerSession(
+        id = id, start = start, end = end, isUserInitiated = isUserInitiated, collections = collections)
 
 	override fun onNewData(
 			context: Context,
@@ -107,22 +187,28 @@ internal class NotificationComponent :
 			collectionData: CollectionData,
 			cycle: TrackingCycle
 	) {
-		synchronized(notificationLock) {
-			if (trackerNotificationManager == null) return
-			val payload = NotificationPayload(
-				title = generateTitle(context, collectionData, session),
-				text = buildNotificationText(context, session, collectionData),
-			)
-			lastPayload = payload
-			if (updateGate.shouldUpdate(payload, cycle.elapsedRealtimeNanos)) {
-				notify(generateNotification(payload))
-			}
-		}
-	}
+        synchronized(notificationLock) {
+            val reader = stateReader ?: return
+            if (trackerNotificationManager == null || !reader.hasLiveCapture ||
+                reader.sessionFlow.value?.id != session.id) return
+            lastData = session.id to collectionData
+            publish(context, session, collectionData,
+                reader.savedLocationSummaryFlow.value.forLiveSegment(session.id, currentParams.locationEnabled),
+                cycle.elapsedRealtimeNanos)
+        }
+    }
+
+    private fun publish(context: Context, session: TrackerSession, data: CollectionData,
+        savedLocation: SavedLocationSummaryRead, elapsedRealtimeNanos: Long) {
+        val payload = NotificationPayload(generateTitle(context, data, session, savedLocation),
+            buildNotificationText(context, session, data, savedLocation))
+        lastPayload = payload
+        if (updateGate.shouldUpdate(payload, elapsedRealtimeNanos)) notify(generateNotification(payload))
+    }
 
 	fun onForegroundServiceTypeChanged() {
 		synchronized(notificationLock) {
-			if (trackerNotificationManager == null) return
+			if (trackerNotificationManager == null || stateReader?.hasLiveCapture != true) return
 			updateGate.reset()
 			lastPayload?.let { notify(generateNotification(it)) }
 		}
@@ -154,11 +240,13 @@ internal class NotificationComponent :
 	private fun generateTitle(
 			context: Context,
 			data: CollectionData,
-			session: TrackerSession
+			session: TrackerSession,
+            savedLocation: SavedLocationSummaryRead
 	): String {
 		val sb = StringBuilder()
 		titleComponentList.forEach {
-			val text = it.generateText(context, session, data) ?: return@forEach
+			if (!it.isChosen(currentParams)) return@forEach
+            val text = it.generateText(context, session, data, savedLocation) ?: return@forEach
 
 			sb.append(text).append(delimiter)
 		}
@@ -181,13 +269,14 @@ internal class NotificationComponent :
 	private fun buildNotificationText(
 			context: Context,
 			session: TrackerSession,
-			data: CollectionData
+			data: CollectionData,
+            savedLocation: SavedLocationSummaryRead
 	): String {
-		context.resources
 		val sb = StringBuilder()
 
 		contentComponentList.forEach {
-			val text = it.generateText(context, session, data) ?: return@forEach
+			if (!it.isChosen(currentParams)) return@forEach
+            val text = it.generateText(context, session, data, savedLocation) ?: return@forEach
 
 			sb.append(text).append(delimiter)
 		}

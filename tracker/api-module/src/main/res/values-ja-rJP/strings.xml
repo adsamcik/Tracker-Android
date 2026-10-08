@@ -177,4 +177,5 @@
     <string name="insight_distance_desc">このセッションで%1$sを移動しました。</string>
     <string name="insight_steps_title">記録した歩数</string>
     <string name="insight_steps_desc">このセッションで%1$s歩 — この調子です！</string>
+    <string name="tracker_measurement_partial">一部</string>
 </resources>

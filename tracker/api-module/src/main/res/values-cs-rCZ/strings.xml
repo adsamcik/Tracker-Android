@@ -194,4 +194,5 @@
     <string name="insight_distance_desc">Během této relace jste urazili %1$s.</string>
     <string name="insight_steps_title">Zaznamenané kroky</string>
     <string name="insight_steps_desc">Během této relace %1$s kroků — jen tak dál!</string>
+    <string name="tracker_measurement_partial">Částečné</string>
 </resources>

@@ -1,9 +1,17 @@
 package com.adsamcik.tracker.app.widget.glance
 
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.tracker.controller.forLiveSegment
+import com.adsamcik.tracker.tracker.controller.formatSavedDistance
 import com.adsamcik.tracker.tracker.controller.hasLiveCapture
 import android.content.Context
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.ColorFilter
@@ -60,23 +68,25 @@ class ActiveSessionWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val isRunning: Boolean
         val session: TrackerSessionSnapshot?
-        val policyTier: PolicyTier
-        val collectionSnapshot: TrackerCollectionSnapshot?
-        val pathPoints: List<Location>
         val stepsPresentation: WidgetStepsPresentation
+        val trackingParams: TrackingParamsState
+        val controller: TrackerStateReader
+        val paramsRepository: TrackingParamsRepository
 
         try {
             val entryPoint = EntryPointAccessors.fromApplication(
                 context.applicationContext,
                 TrackerWidgetEntryPoint::class.java,
             )
-            val controller = entryPoint.trackerStateReader()
+            controller = entryPoint.trackerStateReader()
+            paramsRepository = entryPoint.trackingParamsRepository()
             isRunning = controller.hasLiveCapture
+            trackingParams = withTimeoutOrNull(WIDGET_STEPS_SETTLEMENT_TIMEOUT_MILLIS) {
+                paramsRepository.data.first()
+            } ?: TrackingParamsState(locationEnabled = false, stepsEnabled = false, activityEnabled = false,
+                wifiEnabled = false, cellEnabled = false, barometerEnabled = false)
             session = controller.sessionFlow.value
-            policyTier = controller.policyTierFlow.value
-            collectionSnapshot = controller.collectionDataFlow.value
-            pathPoints = controller.pathPointsFlow.value?.second.orEmpty()
-            stepsPresentation = if (isRunning) {
+            stepsPresentation = if (isRunning && trackingParams.stepsEnabled) {
                 readWidgetSteps(entryPoint.trackingHistoryRepository(), session)
             } else {
                 WidgetStepsPresentation.NotCaptured
@@ -100,15 +110,32 @@ class ActiveSessionWidget : GlanceAppWidget() {
             return
         }
 
-        val snapshot = buildSnapshot(context, collectionSnapshot, pathPoints)
         provideContent {
+            // Glance owns these collectors while its existing composition is alive. No worker/wake is added.
+            val hosted by controller.isServiceRunningFlow.collectAsState()
+            val currentInfo by controller.sessionInfoFlow.collectAsState()
+            val currentSession by controller.sessionFlow.collectAsState()
+            val currentPolicy by controller.policyTierFlow.collectAsState()
+            val currentCollection by controller.collectionDataFlow.collectAsState()
+            val currentPath by controller.pathPointsFlow.collectAsState()
+            val savedRead by controller.savedLocationSummaryFlow.collectAsState()
+            val currentChoices by paramsRepository.data.collectAsState(initial = trackingParams)
+            val active = hosted && currentInfo != null && (currentSession?.id ?: 0L) > 0L
+            val savedLocation = savedRead.forLiveSegment(currentSession?.id, active && currentChoices.locationEnabled)
+            val preview = currentPath?.takeIf {
+                currentChoices.locationEnabled && it.first == currentSession?.id }?.second.orEmpty()
+            val snapshot = buildSnapshot(context, currentCollection, preview, savedLocation,
+                currentChoices.locationEnabled, currentChoices.activityEnabled)
             GlanceTheme {
                 ActiveSessionContent(
-                    isRunning = isRunning,
-                    session = session,
-                    policyTier = policyTier,
+                    isRunning = active,
+                    session = currentSession,
+                    policyTier = currentPolicy,
                     snapshot = snapshot,
-                    stepsPresentation = stepsPresentation,
+                    stepsPresentation = if (currentSession?.id == session?.id) stepsPresentation
+                        else WidgetStepsPresentation.Materializing,
+                    savedLocation = savedLocation,
+                    trackingParams = currentChoices,
                     context = context,
                 )
             }
@@ -123,6 +150,8 @@ private fun ActiveSessionContent(
     policyTier: PolicyTier,
     snapshot: ActiveSessionSnapshot,
     stepsPresentation: WidgetStepsPresentation,
+    savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound,
+    trackingParams: TrackingParamsState = TrackingParamsState(),
     context: Context,
 ) {
     Column(
@@ -140,6 +169,8 @@ private fun ActiveSessionContent(
                 policyTier = policyTier,
                 snapshot = snapshot,
                 stepsPresentation = stepsPresentation,
+                savedLocation = savedLocation,
+                trackingParams = trackingParams,
                 context = context,
             )
         }
@@ -206,6 +237,8 @@ private fun TrackingContent(
     policyTier: PolicyTier,
     snapshot: ActiveSessionSnapshot,
     stepsPresentation: WidgetStepsPresentation,
+    savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound,
+    trackingParams: TrackingParamsState = TrackingParamsState(),
     context: Context,
 ) {
     Row(
@@ -222,7 +255,9 @@ private fun TrackingContent(
                 ),
             )
             Text(
-                text = "${snapshot.activityIcon} ${snapshot.activityLabel} • ${formatPolicyTier(policyTier, context)}",
+                text = if (snapshot.activityEnabled)
+                    "${snapshot.activityIcon} ${snapshot.activityLabel} • ${formatPolicyTier(policyTier, context)}"
+                    else formatPolicyTier(policyTier, context),
                 style = TextStyle(
                     color = GlanceTheme.colors.onSurfaceVariant,
                     fontSize = 11.sp,
@@ -270,7 +305,7 @@ private fun TrackingContent(
 
     Spacer(modifier = GlanceModifier.height(12.dp))
 
-    Text(
+    if (snapshot.locationEnabled) Text(
         text = snapshot.speedText,
         style = TextStyle(
             color = GlanceTheme.colors.primary,
@@ -278,7 +313,7 @@ private fun TrackingContent(
             fontWeight = FontWeight.Bold,
         ),
     )
-    Text(
+    if (snapshot.locationEnabled) Text(
         text = context.getString(R.string.widget_current_speed),
         style = TextStyle(
             color = GlanceTheme.colors.onSurfaceVariant,
@@ -293,6 +328,9 @@ private fun TrackingContent(
         session = session,
         stepsPresentation = stepsPresentation,
         nowMillis = System.currentTimeMillis(),
+        savedLocation = savedLocation,
+        locationEnabled = trackingParams.locationEnabled,
+        stepsEnabled = trackingParams.stepsEnabled,
     )
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
@@ -322,14 +360,14 @@ private fun TrackingContent(
 
     Spacer(modifier = GlanceModifier.height(8.dp))
 
-    Text(
+    if (snapshot.locationEnabled) Text(
         text = context.getString(R.string.widget_path_preview),
         style = TextStyle(
             color = GlanceTheme.colors.onSurfaceVariant,
             fontSize = 10.sp,
         ),
     )
-    Text(
+    if (snapshot.locationEnabled) Text(
         text = snapshot.pathPreview,
         style = TextStyle(
             color = GlanceTheme.colors.onSurface,
@@ -350,11 +388,16 @@ internal fun buildActiveSessionStats(
     session: TrackerSessionSnapshot,
     stepsPresentation: WidgetStepsPresentation,
     nowMillis: Long,
+    savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound,
+    locationEnabled: Boolean = true,
+    stepsEnabled: Boolean = true,
 ): List<ActiveSessionStat> = buildList {
-    add(
+    if (locationEnabled) add(
         ActiveSessionStat(
             R.string.widget_session_distance,
-            WidgetFormatters.formatDistance(context, session.distanceInM),
+            savedLocation.forLiveSegment(session.id, locationEnabled).formatSavedDistance(context) {
+                WidgetFormatters.formatDistance(context, it)
+            },
         ),
     )
     add(
@@ -365,7 +408,7 @@ internal fun buildActiveSessionStats(
             ),
         ),
     )
-    add(
+    if (stepsEnabled) add(
         ActiveSessionStat(
             R.string.widget_session_steps,
             stepsPresentation.displayValue(context),
@@ -440,10 +483,16 @@ private fun buildSnapshot(
     context: Context,
     collectionSnapshot: TrackerCollectionSnapshot?,
     pathPoints: List<Location>,
+    savedLocation: SavedLocationSummaryRead,
+    locationEnabled: Boolean,
+    activityEnabled: Boolean,
 ): ActiveSessionSnapshot {
-    val activity = collectionSnapshot?.activity?.type?.toLegacyDetectedActivity()
+    val activity = collectionSnapshot?.activity?.takeIf { activityEnabled }?.type?.toLegacyDetectedActivity()
     return ActiveSessionSnapshot(
-        speedText = WidgetFormatters.formatSpeed(context, collectionSnapshot?.location?.speed),
+        speedText = WidgetFormatters.formatSpeed(context,
+            (savedLocation as? SavedLocationSummaryRead.Snapshot)?.summary?.latestFix?.speedMetersPerSecond),
+        locationEnabled = locationEnabled,
+        activityEnabled = activityEnabled,
         activityIcon = activity.activityIcon(),
         activityLabel = activity?.let { context.getString(it.nameRes) }
             ?: context.getString(R.string.widget_activity_unknown),
@@ -472,6 +521,8 @@ private fun DetectedActivity?.activityIcon(): String = when (this) {
 
 private data class ActiveSessionSnapshot(
     val speedText: String,
+    val locationEnabled: Boolean,
+    val activityEnabled: Boolean,
     val activityIcon: String,
     val activityLabel: String,
     val pathPreview: String,
@@ -479,6 +530,8 @@ private data class ActiveSessionSnapshot(
     companion object {
         fun empty(context: Context) = ActiveSessionSnapshot(
             speedText = context.getString(R.string.widget_speed_unknown),
+            locationEnabled = false,
+            activityEnabled = false,
             activityIcon = "◎",
             activityLabel = context.getString(R.string.widget_activity_unknown),
             pathPreview = "•",

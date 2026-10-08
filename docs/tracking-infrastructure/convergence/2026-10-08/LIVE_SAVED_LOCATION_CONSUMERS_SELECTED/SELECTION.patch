@@ -1,0 +1,2317 @@
+--- a/app/src/main/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionWidget.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionWidget.kt
+@@ -1,9 +1,17 @@
+ package com.adsamcik.tracker.app.widget.glance
+ 
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
++import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
++import com.adsamcik.tracker.tracker.controller.forLiveSegment
++import com.adsamcik.tracker.tracker.controller.formatSavedDistance
+ import com.adsamcik.tracker.tracker.controller.hasLiveCapture
+ import android.content.Context
+ import androidx.annotation.StringRes
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.collectAsState
++import androidx.compose.runtime.getValue
++import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
++import com.adsamcik.tracker.tracker.controller.TrackerStateReader
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.sp
+ import androidx.glance.ColorFilter
+@@ -60,23 +68,25 @@
+     override suspend fun provideGlance(context: Context, id: GlanceId) {
+         val isRunning: Boolean
+         val session: TrackerSessionSnapshot?
+-        val policyTier: PolicyTier
+-        val collectionSnapshot: TrackerCollectionSnapshot?
+-        val pathPoints: List<Location>
+         val stepsPresentation: WidgetStepsPresentation
++        val trackingParams: TrackingParamsState
++        val controller: TrackerStateReader
++        val paramsRepository: TrackingParamsRepository
+ 
+         try {
+             val entryPoint = EntryPointAccessors.fromApplication(
+                 context.applicationContext,
+                 TrackerWidgetEntryPoint::class.java,
+             )
+-            val controller = entryPoint.trackerStateReader()
++            controller = entryPoint.trackerStateReader()
++            paramsRepository = entryPoint.trackingParamsRepository()
+             isRunning = controller.hasLiveCapture
++            trackingParams = withTimeoutOrNull(WIDGET_STEPS_SETTLEMENT_TIMEOUT_MILLIS) {
++                paramsRepository.data.first()
++            } ?: TrackingParamsState(locationEnabled = false, stepsEnabled = false, activityEnabled = false,
++                wifiEnabled = false, cellEnabled = false, barometerEnabled = false)
+             session = controller.sessionFlow.value
+-            policyTier = controller.policyTierFlow.value
+-            collectionSnapshot = controller.collectionDataFlow.value
+-            pathPoints = controller.pathPointsFlow.value?.second.orEmpty()
+-            stepsPresentation = if (isRunning) {
++            stepsPresentation = if (isRunning && trackingParams.stepsEnabled) {
+                 readWidgetSteps(entryPoint.trackingHistoryRepository(), session)
+             } else {
+                 WidgetStepsPresentation.NotCaptured
+@@ -100,15 +110,32 @@
+             return
+         }
+ 
+-        val snapshot = buildSnapshot(context, collectionSnapshot, pathPoints)
+         provideContent {
++            // Glance owns these collectors while its existing composition is alive. No worker/wake is added.
++            val hosted by controller.isServiceRunningFlow.collectAsState()
++            val currentInfo by controller.sessionInfoFlow.collectAsState()
++            val currentSession by controller.sessionFlow.collectAsState()
++            val currentPolicy by controller.policyTierFlow.collectAsState()
++            val currentCollection by controller.collectionDataFlow.collectAsState()
++            val currentPath by controller.pathPointsFlow.collectAsState()
++            val savedRead by controller.savedLocationSummaryFlow.collectAsState()
++            val currentChoices by paramsRepository.data.collectAsState(initial = trackingParams)
++            val active = hosted && currentInfo != null && (currentSession?.id ?: 0L) > 0L
++            val savedLocation = savedRead.forLiveSegment(currentSession?.id, active && currentChoices.locationEnabled)
++            val preview = currentPath?.takeIf {
++                currentChoices.locationEnabled && it.first == currentSession?.id }?.second.orEmpty()
++            val snapshot = buildSnapshot(context, currentCollection, preview, savedLocation,
++                currentChoices.locationEnabled, currentChoices.activityEnabled)
+             GlanceTheme {
+                 ActiveSessionContent(
+-                    isRunning = isRunning,
+-                    session = session,
+-                    policyTier = policyTier,
++                    isRunning = active,
++                    session = currentSession,
++                    policyTier = currentPolicy,
+                     snapshot = snapshot,
+-                    stepsPresentation = stepsPresentation,
++                    stepsPresentation = if (currentSession?.id == session?.id) stepsPresentation
++                        else WidgetStepsPresentation.Materializing,
++                    savedLocation = savedLocation,
++                    trackingParams = currentChoices,
+                     context = context,
+                 )
+             }
+@@ -123,6 +150,8 @@
+     policyTier: PolicyTier,
+     snapshot: ActiveSessionSnapshot,
+     stepsPresentation: WidgetStepsPresentation,
++    savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound,
++    trackingParams: TrackingParamsState = TrackingParamsState(),
+     context: Context,
+ ) {
+     Column(
+@@ -140,6 +169,8 @@
+                 policyTier = policyTier,
+                 snapshot = snapshot,
+                 stepsPresentation = stepsPresentation,
++                savedLocation = savedLocation,
++                trackingParams = trackingParams,
+                 context = context,
+             )
+         }
+@@ -206,6 +237,8 @@
+     policyTier: PolicyTier,
+     snapshot: ActiveSessionSnapshot,
+     stepsPresentation: WidgetStepsPresentation,
++    savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound,
++    trackingParams: TrackingParamsState = TrackingParamsState(),
+     context: Context,
+ ) {
+     Row(
+@@ -222,7 +255,9 @@
+                 ),
+             )
+             Text(
+-                text = "${snapshot.activityIcon} ${snapshot.activityLabel} • ${formatPolicyTier(policyTier, context)}",
++                text = if (snapshot.activityEnabled)
++                    "${snapshot.activityIcon} ${snapshot.activityLabel} • ${formatPolicyTier(policyTier, context)}"
++                    else formatPolicyTier(policyTier, context),
+                 style = TextStyle(
+                     color = GlanceTheme.colors.onSurfaceVariant,
+                     fontSize = 11.sp,
+@@ -270,7 +305,7 @@
+ 
+     Spacer(modifier = GlanceModifier.height(12.dp))
+ 
+-    Text(
++    if (snapshot.locationEnabled) Text(
+         text = snapshot.speedText,
+         style = TextStyle(
+             color = GlanceTheme.colors.primary,
+@@ -278,7 +313,7 @@
+             fontWeight = FontWeight.Bold,
+         ),
+     )
+-    Text(
++    if (snapshot.locationEnabled) Text(
+         text = context.getString(R.string.widget_current_speed),
+         style = TextStyle(
+             color = GlanceTheme.colors.onSurfaceVariant,
+@@ -293,6 +328,9 @@
+         session = session,
+         stepsPresentation = stepsPresentation,
+         nowMillis = System.currentTimeMillis(),
++        savedLocation = savedLocation,
++        locationEnabled = trackingParams.locationEnabled,
++        stepsEnabled = trackingParams.stepsEnabled,
+     )
+     Row(
+         modifier = GlanceModifier.fillMaxWidth(),
+@@ -322,14 +360,14 @@
+ 
+     Spacer(modifier = GlanceModifier.height(8.dp))
+ 
+-    Text(
++    if (snapshot.locationEnabled) Text(
+         text = context.getString(R.string.widget_path_preview),
+         style = TextStyle(
+             color = GlanceTheme.colors.onSurfaceVariant,
+             fontSize = 10.sp,
+         ),
+     )
+-    Text(
++    if (snapshot.locationEnabled) Text(
+         text = snapshot.pathPreview,
+         style = TextStyle(
+             color = GlanceTheme.colors.onSurface,
+@@ -350,11 +388,16 @@
+     session: TrackerSessionSnapshot,
+     stepsPresentation: WidgetStepsPresentation,
+     nowMillis: Long,
++    savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound,
++    locationEnabled: Boolean = true,
++    stepsEnabled: Boolean = true,
+ ): List<ActiveSessionStat> = buildList {
+-    add(
++    if (locationEnabled) add(
+         ActiveSessionStat(
+             R.string.widget_session_distance,
+-            WidgetFormatters.formatDistance(context, session.distanceInM),
++            savedLocation.forLiveSegment(session.id, locationEnabled).formatSavedDistance(context) {
++                WidgetFormatters.formatDistance(context, it)
++            },
+         ),
+     )
+     add(
+@@ -365,7 +408,7 @@
+             ),
+         ),
+     )
+-    add(
++    if (stepsEnabled) add(
+         ActiveSessionStat(
+             R.string.widget_session_steps,
+             stepsPresentation.displayValue(context),
+@@ -440,10 +483,16 @@
+     context: Context,
+     collectionSnapshot: TrackerCollectionSnapshot?,
+     pathPoints: List<Location>,
++    savedLocation: SavedLocationSummaryRead,
++    locationEnabled: Boolean,
++    activityEnabled: Boolean,
+ ): ActiveSessionSnapshot {
+-    val activity = collectionSnapshot?.activity?.type?.toLegacyDetectedActivity()
++    val activity = collectionSnapshot?.activity?.takeIf { activityEnabled }?.type?.toLegacyDetectedActivity()
+     return ActiveSessionSnapshot(
+-        speedText = WidgetFormatters.formatSpeed(context, collectionSnapshot?.location?.speed),
++        speedText = WidgetFormatters.formatSpeed(context,
++            (savedLocation as? SavedLocationSummaryRead.Snapshot)?.summary?.latestFix?.speedMetersPerSecond),
++        locationEnabled = locationEnabled,
++        activityEnabled = activityEnabled,
+         activityIcon = activity.activityIcon(),
+         activityLabel = activity?.let { context.getString(it.nameRes) }
+             ?: context.getString(R.string.widget_activity_unknown),
+@@ -472,6 +521,8 @@
+ 
+ private data class ActiveSessionSnapshot(
+     val speedText: String,
++    val locationEnabled: Boolean,
++    val activityEnabled: Boolean,
+     val activityIcon: String,
+     val activityLabel: String,
+     val pathPreview: String,
+@@ -479,6 +530,8 @@
+     companion object {
+         fun empty(context: Context) = ActiveSessionSnapshot(
+             speedText = context.getString(R.string.widget_speed_unknown),
++            locationEnabled = false,
++            activityEnabled = false,
+             activityIcon = "◎",
+             activityLabel = context.getString(R.string.widget_activity_unknown),
+             pathPreview = "•",
+--- a/app/src/main/java/com/adsamcik/tracker/app/widget/glance/TrackerWidgetEntryPoint.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/widget/glance/TrackerWidgetEntryPoint.kt
+@@ -1,5 +1,6 @@
+ package com.adsamcik.tracker.app.widget.glance
+ 
++import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+ import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
+ import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
+ import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+@@ -16,6 +17,7 @@
+ @InstallIn(SingletonComponent::class)
+ interface TrackerWidgetEntryPoint {
+     fun trackerStateReader(): TrackerStateReader
++    fun trackingParamsRepository(): TrackingParamsRepository
+ 
+     /** Source-qualified durable history used by bounded widget reads. */
+     fun trackingHistoryRepository(): TrackingHistoryRepository
+--- a/app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetFormatters.kt
++++ b/app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetFormatters.kt
+@@ -17,9 +17,12 @@
+      * Formats distance in meters to a human-readable string.
+      * Uses km for >= 1000m, otherwise meters.
+      */
+-    fun formatDistance(context: Context, meters: Float): String {
+-        return if (meters >= 1000f) {
+-            val km = meters / 1000f
++    fun formatDistance(context: Context, meters: Float): String = formatDistance(context, meters.toDouble())
++
++    /** Formats the shared saved distance without narrowing its accumulated value to Float. */
++    fun formatDistance(context: Context, meters: Double): String {
++        return if (meters >= 1000.0) {
++            val km = meters / 1000.0
+             context.getString(R.string.widget_format_km, km)
+         } else {
+             context.getString(R.string.widget_format_meters, meters.toInt())
+@@ -64,7 +67,7 @@
+     }
+ 
+     fun formatSpeed(context: Context, metersPerSecond: Float?): String {
+-        if (metersPerSecond == null || metersPerSecond <= 0.1f) {
++        if (metersPerSecond == null || !metersPerSecond.isFinite() || metersPerSecond < 0f) {
+             return context.getString(R.string.widget_speed_unknown)
+         }
+ 
+--- /dev/null
++++ b/app/src/test/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionSavedLocationTest.kt
+@@ -0,0 +1,54 @@
++package com.adsamcik.tracker.app.widget.glance
++
++import android.content.Context
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.stats.api.repository.*
++import com.adsamcik.tracker.shared.model.AltitudeDatum
++import com.adsamcik.tracker.shared.model.AltitudeSource
++import com.adsamcik.tracker.R
++import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++import kotlin.test.*
++
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class ActiveSessionSavedLocationTest {
++    private val context: Context = ApplicationProvider.getApplicationContext()
++    private val session = TrackerSessionSnapshot(id = 7, start = 1_000, distanceInM = 9_000_000f)
++
++    @Test fun `widget distance uses the shared saved value not the raw session counter`() {
++        val rows = rows(saved())
++        assertEquals(WidgetFormatters.formatDistance(context, 123f), rows.first().value)
++    }
++
++    @Test fun `widget retains zero and marks measured partial sections`() {
++        assertEquals(WidgetFormatters.formatDistance(context, 0f), rows(saved(distance = 0.0)).first().value)
++        assertEquals("${WidgetFormatters.formatDistance(context, 123f)} · ${context.getString(com.adsamcik.tracker.tracker.R.string.tracker_measurement_partial)}",
++            rows(saved(partial = true)).first().value)
++        assertTrue(WidgetFormatters.formatSpeed(context, 0f) != context.getString(R.string.widget_speed_unknown))
++    }
++
++    @Test fun `wrong segment and unavailable saved data never fall back to a raw positive value`() {
++        assertEquals(context.getString(com.adsamcik.tracker.tracker.R.string.tracker_component_waiting_data),
++            rows(saved(id = 8)).first().value)
++        assertEquals(context.getString(com.adsamcik.tracker.tracker.R.string.tracker_steps_value_unavailable),
++            rows(SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)).first().value)
++    }
++
++    @Test fun `unchosen Location and Steps leave only session organization metadata`() {
++        val rows = buildActiveSessionStats(context, session, WidgetStepsPresentation.Ready(999), 61_000,
++            savedLocation = saved(), locationEnabled = false, stepsEnabled = false)
++        assertEquals(listOf(R.string.widget_session_duration, R.string.widget_collections), rows.map { it.labelRes })
++    }
++
++    private fun rows(read: SavedLocationSummaryRead) = buildActiveSessionStats(context, session,
++        WidgetStepsPresentation.NotCaptured, 61_000, savedLocation = read)
++    private fun saved(id: Long = 7, distance: Double? = 123.0, partial: Boolean = false,
++        accuracy: Float? = null, altitude: Float? = -12f) = SavedLocationSummaryRead.Snapshot(
++        SavedLocationSummarySelection.Session(id), TrackingHistoryReadSnapshot(0, 1),
++        SavedLocationSummary(2, SavedLocationFix(1, 2_000, 0, 0, 10_000_000, 0f, null, accuracy,
++            altitude, AltitudeDatum.WGS84_ELLIPSOID, AltitudeSource.UNKNOWN_LEGACY, null), distance, partial))
++}
+--- a/feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboard.kt
++++ b/feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboard.kt
+@@ -92,6 +92,8 @@
+ import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
+ import com.adsamcik.tracker.shared.model.Location
+ import com.adsamcik.tracker.shared.model.Trip
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
++import com.adsamcik.tracker.tracker.controller.forLiveSegment
+ import com.adsamcik.tracker.stats.api.PolicyTier
+ import com.adsamcik.tracker.tracker.R
+ import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
+@@ -108,6 +110,7 @@
+     val isLocked: Boolean = false,
+     val sessionData: TrackerSessionSnapshot? = null,
+     val collectionData: TrackerCollectionSnapshot? = null,
++    val savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound,
+     val hasLocationPermission: Boolean = false,
+     val pathPoints: List<Location>? = null,
+     val policyTier: PolicyTier = PolicyTier.OFF,
+@@ -188,6 +191,7 @@
+             TrackingContent(
+                 sessionData = sessionData,
+                 collectionData = collectionData,
++                savedLocation = state.savedLocation,
+                 isTracking = isTracking,
+                 isLocked = isLocked,
+                 wallClockNowMillis = wallClockNowMillis,
+@@ -380,6 +384,7 @@
+ private fun TrackingContent(
+     sessionData: TrackerSessionSnapshot?,
+     collectionData: TrackerCollectionSnapshot?,
++    savedLocation: SavedLocationSummaryRead,
+     isTracking: Boolean,
+     isLocked: Boolean,
+     wallClockNowMillis: Long,
+@@ -403,6 +408,7 @@
+ 
+     val context = LocalContext.current
+     val locationEnabled = trackingParams.locationEnabled
++    val liveLocation = savedLocation.forLiveSegment(sessionData?.id, isTracking && locationEnabled)
+     val cellEnabled = trackingParams.cellEnabled
+     val wifiEnabled = trackingParams.wifiEnabled
+     val activityEnabled = trackingParams.activityEnabled
+@@ -455,7 +461,8 @@
+                         collectionData = collectionData,
+                         wallClockNowMillis = wallClockNowMillis,
+                         onMapClick = onMapClick,
+-                        pathPoints = pathPoints
++                        savedLocation = liveLocation,
++                        trackingParams = trackingParams,
+                     )
+                 }
+             }
+@@ -520,12 +527,12 @@
+             val componentModels = buildList {
+                 val locationMetrics = buildLocationMetrics(
+                     context = context,
+-                    collectionData = collectionData,
++                    savedFix = (liveLocation as? SavedLocationSummaryRead.Snapshot)?.summary?.latestFix,
+                     settings = trackerSettings,
+                     useDecimalDegrees = useDecimalDegrees,
+                     onToggleFormat = { useDecimalDegrees = !useDecimalDegrees }
+                 )
+-                if (locationMetrics != null) add(
++                if (isTracking && locationEnabled) add(
+                     TrackingComponentModel(
+                         component = TrackingComponent.Location,
+                         enabled = locationEnabled,
+@@ -534,7 +541,7 @@
+                 )
+ 
+                 val activityMetrics = buildActivityMetrics(context, collectionData)
+-                if (activityMetrics != null) add(
++                if (activityEnabled) add(
+                     TrackingComponentModel(
+                         component = TrackingComponent.Activity,
+                         enabled = activityEnabled,
+@@ -543,7 +550,7 @@
+                 )
+ 
+                 val wifiMetrics = buildWifiMetrics(context, collectionData)
+-                if (wifiMetrics != null) add(
++                if (wifiEnabled) add(
+                     TrackingComponentModel(
+                         component = TrackingComponent.Wifi,
+                         enabled = wifiEnabled,
+@@ -552,7 +559,7 @@
+                 )
+ 
+                 val cellMetrics = buildCellMetrics(context, collectionData)
+-                if (cellMetrics != null) add(
++                if (cellEnabled) add(
+                     TrackingComponentModel(
+                         component = TrackingComponent.Cell,
+                         enabled = cellEnabled,
+--- a/feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardStatsCards.kt
++++ b/feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardStatsCards.kt
+@@ -57,12 +57,15 @@
+ import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.unit.dp
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
++import com.adsamcik.tracker.tracker.controller.forLiveSegment
++import com.adsamcik.tracker.tracker.controller.formatSavedDistance
++import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+ import com.adsamcik.tracker.shared.base.assist.Assist
+ import com.adsamcik.tracker.shared.base.extension.formatAsDuration
+ import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
+ import com.adsamcik.tracker.shared.preferences.extension.formatDistance
+ import com.adsamcik.tracker.shared.preferences.extension.formatSpeed
+-import com.adsamcik.tracker.shared.model.Location
+ import com.adsamcik.tracker.tracker.R
+ import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
+ import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
+@@ -74,7 +77,8 @@
+     collectionData: TrackerCollectionSnapshot?,
+     wallClockNowMillis: Long,
+     onMapClick: () -> Unit,
+-    pathPoints: List<Location>? = null,
++    savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound,
++    trackingParams: TrackingParamsState = TrackingParamsState(),
+     modifier: Modifier = Modifier
+ ) {
+     val context = LocalContext.current
+@@ -82,8 +86,11 @@
+     val settings = TrackerSettingsQuick.snapshot(context)
+     var selectedTab by rememberSaveable { mutableStateOf(TrackingStatsTab.LIVE) }
+ 
+-    val currentSpeed = collectionData?.location?.speed
+-    val currentActivity = collectionData?.activity?.getGroupedActivityName(context)
++    val locationRead = savedLocation.forLiveSegment(sessionData?.id, isTracking && trackingParams.locationEnabled)
++    val fix = (locationRead as? SavedLocationSummaryRead.Snapshot)?.summary?.latestFix
++    val currentSpeed = fix?.speedMetersPerSecond
++    val currentActivity = collectionData?.activity?.takeIf { trackingParams.activityEnabled }
++        ?.getGroupedActivityName(context)
+     val sessionEnd = when {
+         isTracking -> wallClockNowMillis
+         sessionData != null && sessionData.end > sessionData.start -> sessionData.end
+@@ -92,29 +99,28 @@
+     val durationMillis = if (sessionData != null) (sessionEnd - sessionData.start).coerceAtLeast(0L) else 0L
+     val durationText = durationMillis.formatAsDuration(context)
+     val isMoving = (currentSpeed ?: 0f) > 0.5f
+-    val pathMetricsAccumulator = remember(sessionData?.id) { PathMetricsAccumulator() }
+-    val pathMetrics = remember(pathPoints, pathMetricsAccumulator) {
+-        pathMetricsAccumulator.update(pathPoints)
+-    }
+-    val derivedDistanceMeters = pathMetrics.distanceMeters.toFloat()
+-    val distanceMeters = maxOf(sessionData?.distanceInM ?: 0f, derivedDistanceMeters)
+-    val distanceText = resources.formatDistance(
+-        distanceMeters,
+-        digits = if (distanceMeters >= 1000f) 1 else 0,
+-        unit = settings.lengthSystem
+-    )
+-    val avgSpeed = pathMetrics.movingAverageSpeedMps
+-    val avgSpeedText = resources.formatSpeed(context, avgSpeed, 1)
++    val distanceText = locationRead.formatSavedDistance(context) { distance ->
++        resources.formatDistance(distance, if (distance >= 1000.0) 1 else 0, settings.lengthSystem)
++    }
++    // No saved moving-average attribution exists; sampled preview points do not define an exact metric.
++    val avgSpeedText = context.getString(R.string.tracker_steps_value_unavailable)
+     val speedText = currentSpeed?.let { resources.formatSpeed(context, it.toDouble(), 1) } ?: "—"
+-    val altitudeText = collectionData?.androidModelMslAltitudeM?.let {
++    val altitudeText = fix?.altitudeMeters?.let {
+         resources.formatDistance(it, 0, settings.lengthSystem)
+     } ?: "—"
+-    val accuracyText = collectionData?.location?.horizontalAccuracy?.let {
++    val accuracyText = fix?.horizontalAccuracyMeters?.let {
+         "±${resources.formatDistance(it, 0, settings.lengthSystem)}"
+     } ?: "—"
+-    val wifiText = collectionData?.wifi?.inRange?.size?.takeIf { it > 0 }?.toString() ?: "—"
+-    val cellText = collectionData?.cell?.totalCount?.takeIf { it > 0 }?.toString() ?: "—"
++    val wifiText = collectionData?.wifi?.takeIf { trackingParams.wifiEnabled }?.inRange?.size?.toString() ?: "—"
++    val cellText = collectionData?.cell?.takeIf { trackingParams.cellEnabled }?.totalCount?.toString() ?: "—"
+     val activityText = currentActivity ?: "—"
++    val availableTabs = buildList {
++        if (trackingParams.locationEnabled) { add(TrackingStatsTab.LIVE); add(TrackingStatsTab.ROUTE) }
++        if (trackingParams.activityEnabled || trackingParams.wifiEnabled || trackingParams.cellEnabled) {
++            add(TrackingStatsTab.ACTIVITY)
++        }
++    }
++    val displayedTab = selectedTab.takeIf { it in availableTabs } ?: availableTabs.firstOrNull()
+ 
+     Card(
+         modifier = modifier.fillMaxWidth(),
+@@ -216,10 +222,10 @@
+ 
+             Spacer(Modifier.height(16.dp))
+ 
+-            TabRow(selectedTabIndex = TrackingStatsTab.entries.indexOf(selectedTab)) {
+-                TrackingStatsTab.entries.forEach { tab ->
++            if (availableTabs.isNotEmpty()) TabRow(selectedTabIndex = availableTabs.indexOf(displayedTab)) {
++                availableTabs.forEach { tab ->
+                     Tab(
+-                        selected = selectedTab == tab,
++                        selected = displayedTab == tab,
+                         onClick = { selectedTab = tab },
+                         text = { Text(text = stringResource(tab.titleRes)) }
+                     )
+@@ -228,7 +234,7 @@
+ 
+             Spacer(Modifier.height(12.dp))
+ 
+-            when (selectedTab) {
++            when (displayedTab) {
+                 TrackingStatsTab.LIVE -> {
+                     TrackingStatRow(
+                         first = stringResource(R.string.speed_title) to speedText,
+@@ -247,19 +253,20 @@
+ 
+                 TrackingStatsTab.ACTIVITY -> {
+                     TrackingStatRow(
+-                        first = stringResource(R.string.tracker_activity_title) to activityText,
++                        first = if (trackingParams.activityEnabled) stringResource(R.string.tracker_activity_title) to activityText else null,
+                         second = null,
+-                        third = stringResource(R.string.tracker_accuracy_label) to accuracyText,
++                        third = if (trackingParams.locationEnabled) stringResource(R.string.tracker_accuracy_label) to accuracyText else null,
+                     )
+                     Spacer(Modifier.height(12.dp))
+                     TrackingTechnicalRow(
+                         wifiText = wifiText,
+                         cellText = cellText,
+-                        coordinatesText = collectionData?.location?.let { location ->
+-                            "${Assist.coordinateToString(location.latitude)}, ${Assist.coordinateToString(location.longitude)}"
++                        coordinatesText = fix?.let {
++                            "${Assist.coordinateToString(it.latitudeE7 / 10_000_000.0)}, ${Assist.coordinateToString(it.longitudeE7 / 10_000_000.0)}"
+                         }
+                     )
+                 }
++                null -> Unit
+             }
+         }
+     }
+@@ -273,33 +280,16 @@
+ 
+ @Composable
+ private fun TrackingStatRow(
+-    first: Pair<String, String>,
++    first: Pair<String, String>?,
+     second: Pair<String, String>?,
+-    third: Pair<String, String>,
+-) {
+-    Row(
+-        modifier = Modifier.fillMaxWidth(),
+-        horizontalArrangement = Arrangement.SpaceBetween
+-    ) {
+-        CompactStatItem(
+-            label = first.first,
+-            value = first.second,
+-            modifier = Modifier.weight(1f)
+-        )
+-        if (second != null) {
+-            CompactStatItem(
+-                label = second.first,
+-                value = second.second,
+-                modifier = Modifier.weight(1f)
+-            )
+-        } else {
+-            Spacer(Modifier.weight(1f))
+-        }
+-        CompactStatItem(
+-            label = third.first,
+-            value = third.second,
+-            modifier = Modifier.weight(1f)
+-        )
++    third: Pair<String, String>?,
++) {
++    val items = listOfNotNull(first, second, third)
++    if (items.isEmpty()) return
++    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
++        items.forEach { item ->
++            CompactStatItem(label = item.first, value = item.second, modifier = Modifier.weight(1f))
++        }
+     }
+ }
+ 
+--- a/feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardTrackingComponents.kt
++++ b/feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardTrackingComponents.kt
+@@ -49,6 +49,7 @@
+ import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.unit.dp
++import com.adsamcik.tracker.stats.api.repository.SavedLocationFix
+ import com.adsamcik.tracker.shared.base.assist.Assist
+ import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
+ import com.adsamcik.tracker.shared.preferences.extension.formatDistance
+@@ -311,14 +312,16 @@
+ 
+ internal fun buildLocationMetrics(
+     context: Context,
+-    collectionData: TrackerCollectionSnapshot?,
++    savedFix: SavedLocationFix?,
+     settings: TrackerSettingsState,
+     useDecimalDegrees: Boolean,
+     onToggleFormat: () -> Unit
+ ): ComponentMetrics? {
+-    val location = collectionData?.location ?: return null
++    val location = savedFix ?: return null
++    val latitude = location.latitudeE7 / 10_000_000.0
++    val longitude = location.longitudeE7 / 10_000_000.0
+     val resources = context.resources
+-    val primary = location.horizontalAccuracy?.takeIf { it > 0f }?.let { accuracy ->
++    val primary = location.horizontalAccuracyMeters?.let { accuracy ->
+         val formattedAccuracy = resources.formatDistance(
+             distanceInMeters = accuracy,
+             digits = if (accuracy >= 100f) 0 else 1,
+@@ -333,18 +336,18 @@
+ 
+     val secondary = buildList {
+         // Add coordinates first
+-        val latFormatted = if (useDecimalDegrees) location.latitude.toString() else Assist.coordinateToString(location.latitude)
+-        val lonFormatted = if (useDecimalDegrees) location.longitude.toString() else Assist.coordinateToString(location.longitude)
++        val latFormatted = if (useDecimalDegrees) latitude.toString() else Assist.coordinateToString(latitude)
++        val lonFormatted = if (useDecimalDegrees) longitude.toString() else Assist.coordinateToString(longitude)
+         add(
+             ComponentMetric(
+                 label = context.getString(R.string.coordinates_title),
+                 value = "$latFormatted, $lonFormatted",
+-                copyableValue = "Latitude: $latFormatted (${location.latitude})\nLongitude: $lonFormatted (${location.longitude})",
++                copyableValue = "Latitude: $latFormatted (${latitude})\nLongitude: $lonFormatted (${longitude})",
+                 onClick = onToggleFormat
+             )
+         )
+         
+-        location.speed?.takeIf { it > 0f }?.let { speed ->
++        location.speedMetersPerSecond?.let { speed ->
+             val formattedSpeed = resources.formatSpeed(context, speed.toDouble(), 1)
+             add(
+                 ComponentMetric(
+@@ -354,7 +357,7 @@
+                 )
+             )
+         }
+-        collectionData.androidModelMslAltitudeM?.let { altitude ->
++        location.altitudeMeters?.let { altitude ->
+             val formattedAltitude = resources.formatDistance(altitude, 0, settings.lengthSystem)
+             add(
+                 ComponentMetric(
+@@ -366,7 +369,7 @@
+         }
+     }
+ 
+-    val status = formatRelativeUpdate(context, location.time)
++    val status = formatRelativeUpdate(context, location.measuredTimeMs)
+     if (primary == null && secondary.isEmpty() && status == null) return null
+     return ComponentMetrics(primary = primary, secondary = secondary, status = status)
+ }
+--- a/feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt
++++ b/feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt
+@@ -162,6 +162,7 @@
+     // Observe full session and collection data via injected controller
+     val sessionData by controller.sessionFlow.collectAsStateWithLifecycle()
+     val collectionData by controller.collectionDataFlow.collectAsStateWithLifecycle()
++    val savedLocation by controller.savedLocationSummaryFlow.collectAsStateWithLifecycle()
+     val pathPoints by controller.pathPointsFlow.collectAsStateWithLifecycle()
+     val recentTrips by viewModel.recentTrips.collectAsStateWithLifecycle()
+     val trackingParams by trackingParamsRepository.data.collectAsStateWithLifecycle(initialValue = TrackingParamsState())
+@@ -349,6 +350,7 @@
+             isLocked = isLocked,
+             sessionData = displaySession,
+             collectionData = collectionData,
++            savedLocation = savedLocation,
+             hasLocationPermission = locationPermissionSatisfied,
+             pathPoints = relevantPathPoints,
+             policyTier = policyTier,
+--- a/feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardStatsCardsAdditionalTest.kt
++++ b/feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardStatsCardsAdditionalTest.kt
+@@ -6,6 +6,9 @@
+ import androidx.compose.ui.test.onAllNodesWithText
+ import androidx.compose.ui.test.onNodeWithText
+ import androidx.compose.ui.test.performClick
++import com.adsamcik.tracker.stats.api.repository.*
++import com.adsamcik.tracker.shared.model.AltitudeDatum
++import com.adsamcik.tracker.shared.model.AltitudeSource
+ import com.adsamcik.tracker.shared.base.Time
+ import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
+ import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+@@ -177,7 +180,14 @@
+ 					collectionData = null,
+ 					wallClockNowMillis = Time.nowMillis,
+ 					onMapClick = {},
+-					pathPoints = points,
++					savedLocation = SavedLocationSummaryRead.Snapshot(
++                        SavedLocationSummarySelection.Session(session.id), TrackingHistoryReadSnapshot(0, 1),
++                        SavedLocationSummary(2, SavedLocationFix(2, points.last().time, 0,
++                            (points.last().latitude * 1e7).toInt(), (points.last().longitude * 1e7).toInt(),
++                            points.last().speed, points.last().speedAccuracy, points.last().horizontalAccuracy,
++                            points.last().altitude?.toFloat(), AltitudeDatum.UNKNOWN_LEGACY,
++                            AltitudeSource.UNKNOWN_LEGACY, points.last().verticalAccuracy), null, true),
++                    ),
+ 				)
+ 			}
+ 		}
+--- /dev/null
++++ b/feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerSavedLocationDisplayTest.kt
+@@ -0,0 +1,76 @@
++package com.adsamcik.tracker.tracker.ui.compose
++
++import android.content.Context
++import androidx.test.core.app.ApplicationProvider
++import androidx.compose.ui.test.*
++import androidx.compose.ui.test.junit4.createComposeRule
++import com.adsamcik.tracker.stats.api.repository.*
++import com.adsamcik.tracker.shared.model.AltitudeDatum
++import com.adsamcik.tracker.shared.model.AltitudeSource
++import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
++import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
++import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
++import com.adsamcik.tracker.shared.preferences.extension.formatDistance
++import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
++import com.adsamcik.tracker.tracker.R
++import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
++import org.junit.Rule
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++import kotlin.test.*
++
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class TrackerSavedLocationDisplayTest {
++    @get:Rule val composeRule = createComposeRule()
++    private val context: Context = ApplicationProvider.getApplicationContext()
++
++    @Test fun `coordinates zero speed and negative original altitude remain usable without accuracy`() {
++        val metrics = assertNotNull(buildLocationMetrics(context, saved().summary.latestFix,
++            TrackerSettingsState.DEFAULT, false, {}))
++        assertNull(metrics.primary)
++        assertEquals(3, metrics.secondary.size)
++        assertEquals(context.getString(R.string.coordinates_title), metrics.secondary[0].label)
++        assertEquals(context.getString(R.string.speed_title), metrics.secondary[1].label)
++        assertTrue(metrics.secondary[1].copyableValue!!.contains("0.0m/s"))
++        assertEquals(context.getString(R.string.altitude_title), metrics.secondary[2].label)
++        assertTrue(metrics.secondary[2].copyableValue!!.contains("-12.0m"))
++        assertEquals(formatRelativeUpdate(context, 2_000L), metrics.status)
++    }
++
++    @Test fun `zero accuracy is displayed while an absent saved fix has no invented detail`() {
++        assertNotNull(buildLocationMetrics(context, saved(accuracy = 0f).summary.latestFix,
++            TrackerSettingsState.DEFAULT, false, {})?.primary)
++        assertNull(buildLocationMetrics(context, null, TrackerSettingsState.DEFAULT, false, {}))
++    }
++
++    @Test fun `Tracker route shows shared saved distance and partial state rather than raw session counter`() {
++        composeRule.setContent { AppTheme {
++            StatusAndQuickStatsCard(true, TrackerSessionSnapshot(id = 7, start = 1_000, distanceInM = 9_000_000f),
++                null, 61_000, {}, savedLocation = saved(partial = true))
++        } }
++        composeRule.onNodeWithText(context.getString(R.string.tracker_route_tab)).performClick()
++        val distance = context.resources.formatDistance(123.0, 0, TrackerSettingsQuick.lengthSystem(context))
++        composeRule.onNodeWithText("$distance · ${context.getString(R.string.tracker_measurement_partial)}")
++            .assertIsDisplayed()
++    }
++
++    @Test fun `Location off suppresses Location tabs even when an old saved snapshot exists`() {
++        composeRule.setContent { AppTheme {
++            StatusAndQuickStatsCard(true, TrackerSessionSnapshot(id = 7, start = 1_000, distanceInM = 9_000_000f),
++                null, 61_000, {}, savedLocation = saved(),
++                trackingParams = TrackingParamsState(locationEnabled = false, activityEnabled = false,
++                    wifiEnabled = false, cellEnabled = false))
++        } }
++        composeRule.onAllNodesWithText(context.getString(R.string.tracker_route_tab)).assertCountEquals(0)
++        composeRule.onAllNodesWithText(context.getString(R.string.speed_title)).assertCountEquals(0)
++        composeRule.onNodeWithText(context.getString(R.string.duration_title)).assertIsDisplayed()
++    }
++    private fun saved(id: Long = 7, distance: Double? = 123.0, partial: Boolean = false,
++        accuracy: Float? = null, altitude: Float? = -12f) = SavedLocationSummaryRead.Snapshot(
++        SavedLocationSummarySelection.Session(id), TrackingHistoryReadSnapshot(0, 1),
++        SavedLocationSummary(2, SavedLocationFix(1, 2_000, 0, 0, 10_000_000, 0f, null, accuracy,
++            altitude, AltitudeDatum.WGS84_ELLIPSOID, AltitudeSource.UNKNOWN_LEGACY, null), distance, partial))
++}
+--- /dev/null
++++ b/tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/controller/SavedLocationPresentation.kt
+@@ -0,0 +1,36 @@
++package com.adsamcik.tracker.tracker.controller
++
++import android.content.Context
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection
++import com.adsamcik.tracker.tracker.R
++
++/** Read-only live presentation gate; source-owned saved readers retain qualification and epoch authority. */
++fun SavedLocationSummaryRead.forLiveSegment(
++    segmentId: Long?,
++    participating: Boolean,
++): SavedLocationSummaryRead = when {
++    !participating || segmentId == null || segmentId <= 0L -> SavedLocationSummaryRead.NotFound
++    this is SavedLocationSummaryRead.Snapshot &&
++        selection != SavedLocationSummarySelection.Session(segmentId) -> SavedLocationSummaryRead.NotFound
++    else -> this
++}
++
++/** A missing measurement is never a measured zero; available partial distance stays useful. */
++fun SavedLocationSummaryRead.formatSavedDistance(
++    context: Context,
++    format: (Double) -> String,
++): String {
++    val snapshot = this as? SavedLocationSummaryRead.Snapshot
++    val value = snapshot?.summary?.distanceMeters
++    val formatted = value?.let(format)
++    return when {
++        formatted != null && snapshot?.summary?.partial == true ->
++            "$formatted · ${context.getString(R.string.tracker_measurement_partial)}"
++        formatted != null -> formatted
++        snapshot?.summary?.partial == true -> context.getString(R.string.tracker_measurement_partial)
++        this is SavedLocationSummaryRead.Unavailable ->
++            context.getString(R.string.tracker_steps_value_unavailable)
++        else -> context.getString(R.string.tracker_component_waiting_data)
++    }
++}
+--- a/tracker/api-module/src/main/res/values/strings.xml
++++ b/tracker/api-module/src/main/res/values/strings.xml
+@@ -246,4 +246,5 @@
+     <string name="insight_steps_title">Steps recorded</string>
+     <string name="insight_steps_desc">%1$s steps this session — keep it up!</string>
+ 
++    <string name="tracker_measurement_partial">Partial</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-bg-rBG/strings.xml
++++ b/tracker/api-module/src/main/res/values-bg-rBG/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">Изминахте %1$s през тази сесия.</string>
+     <string name="insight_steps_title">Записани крачки</string>
+     <string name="insight_steps_desc">%1$s крачки през тази сесия — продължавайте така!</string>
++    <string name="tracker_measurement_partial">Частично</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-cs-rCZ/strings.xml
++++ b/tracker/api-module/src/main/res/values-cs-rCZ/strings.xml
+@@ -194,4 +194,5 @@
+     <string name="insight_distance_desc">Během této relace jste urazili %1$s.</string>
+     <string name="insight_steps_title">Zaznamenané kroky</string>
+     <string name="insight_steps_desc">Během této relace %1$s kroků — jen tak dál!</string>
++    <string name="tracker_measurement_partial">Částečné</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-da-rDK/strings.xml
++++ b/tracker/api-module/src/main/res/values-da-rDK/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">Du tilbagelagde %1$s i denne session.</string>
+     <string name="insight_steps_title">Registrerede skridt</string>
+     <string name="insight_steps_desc">%1$s skridt i denne session — fortsæt sådan!</string>
++    <string name="tracker_measurement_partial">Delvis</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-de-rDE/strings.xml
++++ b/tracker/api-module/src/main/res/values-de-rDE/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">Du hast in dieser Sitzung %1$s zurückgelegt.</string>
+     <string name="insight_steps_title">Aufgezeichnete Schritte</string>
+     <string name="insight_steps_desc">%1$s Schritte in dieser Sitzung — weiter so!</string>
++    <string name="tracker_measurement_partial">Teilweise</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-el-rGR/strings.xml
++++ b/tracker/api-module/src/main/res/values-el-rGR/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">Καλύψατε %1$s σε αυτή τη συνεδρία.</string>
+     <string name="insight_steps_title">Καταγεγραμμένα βήματα</string>
+     <string name="insight_steps_desc">%1$s βήματα σε αυτή τη συνεδρία — συνεχίστε έτσι!</string>
++    <string name="tracker_measurement_partial">Μερικό</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-es-rES/strings.xml
++++ b/tracker/api-module/src/main/res/values-es-rES/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">Recorriste %1$s en esta sesión.</string>
+     <string name="insight_steps_title">Pasos registrados</string>
+     <string name="insight_steps_desc">%1$s pasos en esta sesión; ¡sigue así!</string>
++    <string name="tracker_measurement_partial">Parcial</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-et-rEE/strings.xml
++++ b/tracker/api-module/src/main/res/values-et-rEE/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">Läbisite selle seansi jooksul %1$s.</string>
+     <string name="insight_steps_title">Salvestatud sammud</string>
+     <string name="insight_steps_desc">%1$s sammu selle seansi jooksul — jätkake samas vaimus!</string>
++    <string name="tracker_measurement_partial">Osaline</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-fi-rFI/strings.xml
++++ b/tracker/api-module/src/main/res/values-fi-rFI/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">Kuljit tällä istunnolla %1$s.</string>
+     <string name="insight_steps_title">Tallennetut askeleet</string>
+     <string name="insight_steps_desc">%1$s askelta tällä istunnolla — jatka samaan malliin!</string>
++    <string name="tracker_measurement_partial">Osittainen</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-fr-rFR/strings.xml
++++ b/tracker/api-module/src/main/res/values-fr-rFR/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">Vous avez parcouru %1$s pendant cette session.</string>
+     <string name="insight_steps_title">Pas enregistrés</string>
+     <string name="insight_steps_desc">%1$s pas pendant cette session — continuez ainsi !</string>
++    <string name="tracker_measurement_partial">Partiel</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-ga-rIE/strings.xml
++++ b/tracker/api-module/src/main/res/values-ga-rIE/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">Chlúdaigh tú %1$s sa seisiún seo.</string>
+     <string name="insight_steps_title">Céimeanna taifeadta</string>
+     <string name="insight_steps_desc">%1$s céimeanna sa seisiún seo — lean ort!</string>
++    <string name="tracker_measurement_partial">Páirteach</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-hi-rIN/strings.xml
++++ b/tracker/api-module/src/main/res/values-hi-rIN/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">आपने इस सत्र में %1$s तय की।</string>
+     <string name="insight_steps_title">रिकॉर्ड किए कदम</string>
+     <string name="insight_steps_desc">इस सत्र में %1$s कदम — जारी रखें!</string>
++    <string name="tracker_measurement_partial">आंशिक</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-hr-rHR/strings.xml
++++ b/tracker/api-module/src/main/res/values-hr-rHR/strings.xml
+@@ -181,4 +181,5 @@
+     <string name="insight_distance_desc">U ovoj ste sesiji prešli %1$s.</string>
+     <string name="insight_steps_title">Zabilježeni koraci</string>
+     <string name="insight_steps_desc">%1$s koraka u ovoj sesiji — samo tako!</string>
++    <string name="tracker_measurement_partial">Djelomično</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-hu-rHU/strings.xml
++++ b/tracker/api-module/src/main/res/values-hu-rHU/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">Ebben a munkamenetben %1$s távolságot tett meg.</string>
+     <string name="insight_steps_title">Rögzített lépések</string>
+     <string name="insight_steps_desc">%1$s lépés ebben a munkamenetben — csak így tovább!</string>
++    <string name="tracker_measurement_partial">Részleges</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-it-rIT/strings.xml
++++ b/tracker/api-module/src/main/res/values-it-rIT/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">Hai percorso %1$s in questa sessione.</string>
+     <string name="insight_steps_title">Passi registrati</string>
+     <string name="insight_steps_desc">%1$s passi in questa sessione — continua così!</string>
++    <string name="tracker_measurement_partial">Parziale</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-iw-rIL/strings.xml
++++ b/tracker/api-module/src/main/res/values-iw-rIL/strings.xml
+@@ -79,4 +79,5 @@
+     <string name="tracker_session_card_title">Session</string>
+     <string name="wifi_count_title">Wi-Fi count</string>
+     <string name="wifi_count_value">Wi-Fi %d</string>
++    <string name="tracker_measurement_partial">חלקי</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-ja-rJP/strings.xml
++++ b/tracker/api-module/src/main/res/values-ja-rJP/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">このセッションで%1$sを移動しました。</string>
+     <string name="insight_steps_title">記録した歩数</string>
+     <string name="insight_steps_desc">このセッションで%1$s歩 — この調子です！</string>
++    <string name="tracker_measurement_partial">一部</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-ko-rKR/strings.xml
++++ b/tracker/api-module/src/main/res/values-ko-rKR/strings.xml
+@@ -76,4 +76,5 @@
+     <string name="tracker_session_card_title">Session</string>
+     <string name="wifi_count_title">Wi-Fi count</string>
+     <string name="wifi_count_value">Wi-Fi %d</string>
++    <string name="tracker_measurement_partial">부분</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-lt-rLT/strings.xml
++++ b/tracker/api-module/src/main/res/values-lt-rLT/strings.xml
+@@ -181,4 +181,5 @@
+     <string name="insight_distance_desc">Šios sesijos metu įveikėte %1$s.</string>
+     <string name="insight_steps_title">Užfiksuoti žingsniai</string>
+     <string name="insight_steps_desc">Šios sesijos metu žengėte %1$s žingsnių – taip ir toliau!</string>
++    <string name="tracker_measurement_partial">Daliniai</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-lv-rLV/strings.xml
++++ b/tracker/api-module/src/main/res/values-lv-rLV/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">Šajā sesijā veicāt %1$s.</string>
+     <string name="insight_steps_title">Ierakstītie soļi</string>
+     <string name="insight_steps_desc">Šajā sesijā %1$s soļi — turpiniet tā!</string>
++    <string name="tracker_measurement_partial">Daļēji</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-mt-rMT/strings.xml
++++ b/tracker/api-module/src/main/res/values-mt-rMT/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">Koprejt %1$s f’din is-sessjoni.</string>
+     <string name="insight_steps_title">Passi rreġistrati</string>
+     <string name="insight_steps_desc">%1$s passi f’din is-sessjoni — kompli hekk!</string>
++    <string name="tracker_measurement_partial">Parzjali</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-nl-rNL/strings.xml
++++ b/tracker/api-module/src/main/res/values-nl-rNL/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">Je hebt deze sessie %1$s afgelegd.</string>
+     <string name="insight_steps_title">Vastgelegde stappen</string>
+     <string name="insight_steps_desc">%1$s stappen in deze sessie — ga zo door!</string>
++    <string name="tracker_measurement_partial">Gedeeltelijk</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-no-rNO/strings.xml
++++ b/tracker/api-module/src/main/res/values-no-rNO/strings.xml
+@@ -77,4 +77,5 @@
+     <string name="tracker_session_card_title">Session</string>
+     <string name="wifi_count_title">Wi-Fi count</string>
+     <string name="wifi_count_value">Wi-Fi %d</string>
++    <string name="tracker_measurement_partial">Delvis</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-pl-rPL/strings.xml
++++ b/tracker/api-module/src/main/res/values-pl-rPL/strings.xml
+@@ -185,4 +185,5 @@
+     <string name="insight_distance_desc">Pokonano %1$s w tej sesji.</string>
+     <string name="insight_steps_title">Zarejestrowane kroki</string>
+     <string name="insight_steps_desc">%1$s kroków w tej sesji — tak trzymaj!</string>
++    <string name="tracker_measurement_partial">Częściowe</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-pt-rBR/strings.xml
++++ b/tracker/api-module/src/main/res/values-pt-rBR/strings.xml
+@@ -77,4 +77,5 @@
+     <string name="tracker_session_card_title">Session</string>
+     <string name="wifi_count_title">Wi-Fi count</string>
+     <string name="wifi_count_value">Wi-Fi %d</string>
++    <string name="tracker_measurement_partial">Parcial</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-pt-rPT/strings.xml
++++ b/tracker/api-module/src/main/res/values-pt-rPT/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">Percorreu %1$s nesta sessão.</string>
+     <string name="insight_steps_title">Passos registados</string>
+     <string name="insight_steps_desc">%1$s passos nesta sessão — continue assim!</string>
++    <string name="tracker_measurement_partial">Parcial</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-ro-rRO/strings.xml
++++ b/tracker/api-module/src/main/res/values-ro-rRO/strings.xml
+@@ -181,4 +181,5 @@
+     <string name="insight_distance_desc">Ai parcurs %1$s în această sesiune.</string>
+     <string name="insight_steps_title">Pași înregistrați</string>
+     <string name="insight_steps_desc">%1$s pași în această sesiune — continuă tot așa!</string>
++    <string name="tracker_measurement_partial">Parțial</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-ru-rRU/strings.xml
++++ b/tracker/api-module/src/main/res/values-ru-rRU/strings.xml
+@@ -79,4 +79,5 @@
+     <string name="tracker_session_card_title">Session</string>
+     <string name="wifi_count_title">Wi-Fi count</string>
+     <string name="wifi_count_value">Wi-Fi %d</string>
++    <string name="tracker_measurement_partial">Частично</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-sk-rSK/strings.xml
++++ b/tracker/api-module/src/main/res/values-sk-rSK/strings.xml
+@@ -185,4 +185,5 @@
+     <string name="insight_distance_desc">V tejto relácii ste prekonali %1$s.</string>
+     <string name="insight_steps_title">Zaznamenané kroky</string>
+     <string name="insight_steps_desc">%1$s krokov v tejto relácii — len tak ďalej!</string>
++    <string name="tracker_measurement_partial">Čiastočné</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-sl-rSI/strings.xml
++++ b/tracker/api-module/src/main/res/values-sl-rSI/strings.xml
+@@ -185,4 +185,5 @@
+     <string name="insight_distance_desc">V tej seji ste prevozili %1$s.</string>
+     <string name="insight_steps_title">Zabeleženi koraki</string>
+     <string name="insight_steps_desc">%1$s korakov v tej seji — kar tako naprej!</string>
++    <string name="tracker_measurement_partial">Delno</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-sr-rSP/strings.xml
++++ b/tracker/api-module/src/main/res/values-sr-rSP/strings.xml
+@@ -78,4 +78,5 @@
+     <string name="tracker_session_card_title">Session</string>
+     <string name="wifi_count_title">Wi-Fi count</string>
+     <string name="wifi_count_value">Wi-Fi %d</string>
++    <string name="tracker_measurement_partial">Делимично</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-sv-rSE/strings.xml
++++ b/tracker/api-module/src/main/res/values-sv-rSE/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">Du tillryggalade %1$s under denna session.</string>
+     <string name="insight_steps_title">Registrerade steg</string>
+     <string name="insight_steps_desc">%1$s steg under denna session — fortsätt så!</string>
++    <string name="tracker_measurement_partial">Delvis</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-tr-rTR/strings.xml
++++ b/tracker/api-module/src/main/res/values-tr-rTR/strings.xml
+@@ -77,4 +77,5 @@
+     <string name="tracker_session_card_title">Session</string>
+     <string name="wifi_count_title">Wi-Fi count</string>
+     <string name="wifi_count_value">Wi-Fi %d</string>
++    <string name="tracker_measurement_partial">Kısmi</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-uk-rUA/strings.xml
++++ b/tracker/api-module/src/main/res/values-uk-rUA/strings.xml
+@@ -79,4 +79,5 @@
+     <string name="tracker_session_card_title">Session</string>
+     <string name="wifi_count_title">Wi-Fi count</string>
+     <string name="wifi_count_value">Wi-Fi %d</string>
++    <string name="tracker_measurement_partial">Частково</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-vi-rVN/strings.xml
++++ b/tracker/api-module/src/main/res/values-vi-rVN/strings.xml
+@@ -76,4 +76,5 @@
+     <string name="tracker_session_card_title">Session</string>
+     <string name="wifi_count_title">Wi-Fi count</string>
+     <string name="wifi_count_value">Wi-Fi %d</string>
++    <string name="tracker_measurement_partial">Một phần</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-zh-rCN/strings.xml
++++ b/tracker/api-module/src/main/res/values-zh-rCN/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">您在此会话中覆盖了 %1$s。</string>
+     <string name="insight_steps_title">已记录步数</string>
+     <string name="insight_steps_desc">此会话共 %1$s 步 — 继续加油！</string>
++    <string name="tracker_measurement_partial">部分</string>
+ </resources>
+--- a/tracker/api-module/src/main/res/values-zh-rTW/strings.xml
++++ b/tracker/api-module/src/main/res/values-zh-rTW/strings.xml
+@@ -177,4 +177,5 @@
+     <string name="insight_distance_desc">您在此工作階段行進了 %1$s。</string>
+     <string name="insight_steps_title">已記錄步數</string>
+     <string name="insight_steps_desc">此工作階段 %1$s 步 — 繼續保持！</string>
++    <string name="tracker_measurement_partial">部分</string>
+ </resources>
+--- /dev/null
++++ b/tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/controller/SavedLocationPresentationTest.kt
+@@ -0,0 +1,60 @@
++package com.adsamcik.tracker.tracker.controller
++
++import android.content.Context
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.stats.api.repository.*
++import com.adsamcik.tracker.shared.model.AltitudeDatum
++import com.adsamcik.tracker.shared.model.AltitudeSource
++import com.adsamcik.tracker.tracker.R
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++import kotlin.test.*
++
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class SavedLocationPresentationTest {
++    private val context: Context = ApplicationProvider.getApplicationContext()
++
++    @Test fun `only chosen exact live segment can expose a saved snapshot`() {
++        val read = saved()
++        assertSame(read, read.forLiveSegment(7, true))
++        listOf(null, 0L, 8L).forEach { id ->
++            assertEquals(SavedLocationSummaryRead.NotFound, read.forLiveSegment(id, true))
++        }
++        assertEquals(SavedLocationSummaryRead.NotFound, read.forLiveSegment(7, false))
++    }
++
++    @Test fun `covered zero and available partial measured distance keep their value`() {
++        assertEquals("0.0 m", saved(distance = 0.0).formatSavedDistance(context) { "$it m" })
++        assertEquals("123.0 m · ${context.getString(R.string.tracker_measurement_partial)}",
++            saved(partial = true).formatSavedDistance(context) { "$it m" })
++    }
++
++    @Test fun `absent pair missing snapshot and failed read never fabricate zero`() {
++        assertEquals(context.getString(R.string.tracker_component_waiting_data),
++            saved(distance = null).formatSavedDistance(context) { error("No measured pair") })
++        assertEquals(context.getString(R.string.tracker_component_waiting_data),
++            SavedLocationSummaryRead.NotFound.formatSavedDistance(context) { error("Missing") })
++        assertEquals(context.getString(R.string.tracker_steps_value_unavailable),
++            SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
++                .formatSavedDistance(context) { error("Unavailable") })
++        assertEquals(context.getString(R.string.tracker_measurement_partial),
++            saved(distance = null, partial = true).formatSavedDistance(context) { error("Partial without pair") })
++    }
++
++    @Test fun `saved fix keeps optional accuracy original altitude datum and measured timestamp`() {
++        val fix = saved().summary.latestFix!!
++        assertNull(fix.horizontalAccuracyMeters)
++        assertEquals(0f, fix.speedMetersPerSecond)
++        assertEquals(-12f, fix.altitudeMeters)
++        assertEquals(AltitudeDatum.WGS84_ELLIPSOID, fix.altitudeDatum)
++        assertEquals(2_000L, fix.measuredTimeMs)
++    }
++    private fun saved(id: Long = 7, distance: Double? = 123.0, partial: Boolean = false,
++        accuracy: Float? = null, altitude: Float? = -12f) = SavedLocationSummaryRead.Snapshot(
++        SavedLocationSummarySelection.Session(id), TrackingHistoryReadSnapshot(0, 1),
++        SavedLocationSummary(2, SavedLocationFix(1, 2_000, 0, 0, 10_000_000, 0f, null, accuracy,
++            altitude, AltitudeDatum.WGS84_ELLIPSOID, AltitudeSource.UNKNOWN_LEGACY, null), distance, partial))
++}
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/consumer/post/NotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/consumer/post/NotificationComponent.kt
+@@ -1,6 +1,21 @@
+ package com.adsamcik.tracker.tracker.component.consumer.post
+ 
+ import android.content.Context
++import android.os.SystemClock
++import com.adsamcik.tracker.shared.base.data.MutableCollectionData
++import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
++import com.adsamcik.tracker.tracker.controller.forLiveSegment
++import com.adsamcik.tracker.tracker.controller.hasLiveCapture
++import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.flow.catch
++import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.flow.combine
++import kotlinx.coroutines.flow.collect
++import kotlinx.coroutines.launch
+ import androidx.annotation.StringRes
+ import androidx.core.app.NotificationCompat
+ import com.adsamcik.tracker.shared.base.Time
+@@ -34,7 +49,11 @@
+ 	fun trackingParamsRepository(): TrackingParamsRepository
+ }
+ 
+-internal class NotificationComponent :
++internal class NotificationComponent(
++    private val resolveEntryPoint: (Context) -> NotificationComponentEntryPoint = { context ->
++        EntryPointAccessors.fromApplication(context.applicationContext, NotificationComponentEntryPoint::class.java)
++    },
++) :
+ 		PostTrackerComponent {
+ 
+ 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf()
+@@ -49,6 +68,12 @@
+ 	private val updateGate = NotificationUpdateGate(MAX_REFRESH_INTERVAL_NANOS)
+ 	private val notificationLock = Any()
+ 	private var lastPayload: NotificationPayload? = null
++    private var activeGeneration = 0L
++    private var savedUpdatesJob: Job? = null
++    private var stateReader: TrackerStateReader? = null
++    private var currentParams = TrackingParamsState(locationEnabled = false, activityEnabled = false,
++        wifiEnabled = false, cellEnabled = false, stepsEnabled = false, barometerEnabled = false)
++    private var lastData: Pair<Long, CollectionData>? = null
+ 
+ 	// Separator for notification text components
+ 	// Uses comma-space which is appropriate for most locales
+@@ -65,6 +90,11 @@
+ 	 */
+ 	fun onServiceStopped(context: Context) {
+ 		synchronized(notificationLock) {
++            activeGeneration++
++            savedUpdatesJob?.cancel()
++            savedUpdatesJob = null
++            stateReader = null
++            lastData = null
+ 			trackerNotificationManager = null
+ 			contentComponentList.clear()
+ 			titleComponentList.clear()
+@@ -74,32 +104,82 @@
+ 		}
+ 	}
+ 
+-	override suspend fun onEnable(context: Context) = coroutineScope<Unit> {
+-		val preferenceUpdate = async(DefaultDispatchersProvider.default) {
+-			TrackerNotificationProvider.updatePreferences(context)
+-			val configuredComponents = TrackerNotificationProvider.configuredComponents()
+-			contentComponentList.addAll(configuredComponents.filter { it.preference.isInContent })
+-
+-			titleComponentList.addAll(configuredComponents.filter { it.preference.isInTitle })
+-		}
+-		val entryPoint = EntryPointAccessors.fromApplication(
+-			context.applicationContext,
+-			NotificationComponentEntryPoint::class.java
+-		)
+-		val sessionInfoFlow = entryPoint.trackerStateReader().sessionInfoFlow
+-		val sessionInfo = requireNotNull(sessionInfoFlow.value) {
+-			"TrackerService sessionInfo must be initialized before NotificationComponent.onEnable"
+-		}
+-		val params = entryPoint.trackingParamsRepository().data.first()
+-		trackerNotificationManager = TrackerNotificationManager(
+-				context,
+-				sessionInfo.isInitiatedByUser,
+-				notificationStyled = params.notificationStyled
+-		)
+-
+-		preferenceUpdate.await()
+-		synchronized(notificationLock) { updateGate.reset() }
+-	}
++    override suspend fun onEnable(context: Context) = coroutineScope<Unit> {
++        val generation = synchronized(notificationLock) {
++            activeGeneration++
++            savedUpdatesJob?.cancel()
++            savedUpdatesJob = null
++            trackerNotificationManager = null
++            stateReader = null
++            lastData = null
++            titleComponentList.clear()
++            contentComponentList.clear()
++            lastPayload = null
++            updateGate.reset()
++            activeGeneration
++        }
++        val preferenceUpdate = async(DefaultDispatchersProvider.default) {
++            TrackerNotificationProvider.updatePreferences(context)
++            TrackerNotificationProvider.configuredComponents()
++        }
++        val entryPoint = resolveEntryPoint(context)
++        val reader = entryPoint.trackerStateReader()
++        val sessionInfo = requireNotNull(reader.sessionInfoFlow.value) {
++            "TrackerService sessionInfo must be initialized before NotificationComponent.onEnable"
++        }
++        val params = entryPoint.trackingParamsRepository().data.first()
++        val manager = TrackerNotificationManager(context, sessionInfo.isInitiatedByUser,
++            notificationStyled = params.notificationStyled)
++        val configured = preferenceUpdate.await()
++        synchronized(notificationLock) {
++            if (activeGeneration == generation) {
++                trackerNotificationManager = manager
++                stateReader = reader
++                currentParams = params
++                contentComponentList.addAll(configured.filter { it.preference.isInContent })
++                titleComponentList.addAll(configured.filter { it.preference.isInTitle })
++            }
++        }
++    }
++
++    /** Reuses the controller's sole saved total, never a second Location reader or provider. */
++    fun startSavedLocationUpdates(
++        context: Context,
++        reader: TrackerStateReader,
++        params: TrackingParamsRepository,
++        scope: CoroutineScope,
++    ): Job = synchronized(notificationLock) {
++        savedUpdatesJob?.cancel()
++        val generation = activeGeneration
++        scope.launch {
++            combine(reader.savedLocationSummaryFlow, reader.sessionFlow, reader.sessionInfoFlow,
++                reader.isServiceRunningFlow, params.data) { saved, session, info, running, choices ->
++                LiveNotificationInput(saved, session, info != null && running, choices)
++            }.catch { failure ->
++                if (failure is CancellationException) throw failure
++                emit(LiveNotificationInput(SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE),
++                    reader.sessionFlow.value, reader.hasLiveCapture, currentParams))
++            }.collect { input ->
++                synchronized(notificationLock) {
++                    val session = input.session
++                    if (activeGeneration != generation || trackerNotificationManager == null ||
++                        !input.active || !reader.hasLiveCapture || session == null ||
++                        reader.sessionFlow.value?.id != session.id) return@synchronized
++                    currentParams = input.params
++                    val data = lastData?.takeIf { it.first == session.id }?.second ?: MutableCollectionData(0L)
++                    publish(context, session.asNotificationSession(), data,
++                        input.saved.forLiveSegment(session.id, input.params.locationEnabled),
++                        SystemClock.elapsedRealtimeNanos())
++                }
++            }
++        }.also { savedUpdatesJob = it }
++    }
++
++    private data class LiveNotificationInput(val saved: SavedLocationSummaryRead,
++        val session: TrackerSessionSnapshot?, val active: Boolean, val params: TrackingParamsState)
++
++    private fun TrackerSessionSnapshot.asNotificationSession() = TrackerSession(
++        id = id, start = start, end = end, isUserInitiated = isUserInitiated, collections = collections)
+ 
+ 	override fun onNewData(
+ 			context: Context,
+@@ -107,22 +187,28 @@
+ 			collectionData: CollectionData,
+ 			cycle: TrackingCycle
+ 	) {
+-		synchronized(notificationLock) {
+-			if (trackerNotificationManager == null) return
+-			val payload = NotificationPayload(
+-				title = generateTitle(context, collectionData, session),
+-				text = buildNotificationText(context, session, collectionData),
+-			)
+-			lastPayload = payload
+-			if (updateGate.shouldUpdate(payload, cycle.elapsedRealtimeNanos)) {
+-				notify(generateNotification(payload))
+-			}
+-		}
+-	}
++        synchronized(notificationLock) {
++            val reader = stateReader ?: return
++            if (trackerNotificationManager == null || !reader.hasLiveCapture ||
++                reader.sessionFlow.value?.id != session.id) return
++            lastData = session.id to collectionData
++            publish(context, session, collectionData,
++                reader.savedLocationSummaryFlow.value.forLiveSegment(session.id, currentParams.locationEnabled),
++                cycle.elapsedRealtimeNanos)
++        }
++    }
++
++    private fun publish(context: Context, session: TrackerSession, data: CollectionData,
++        savedLocation: SavedLocationSummaryRead, elapsedRealtimeNanos: Long) {
++        val payload = NotificationPayload(generateTitle(context, data, session, savedLocation),
++            buildNotificationText(context, session, data, savedLocation))
++        lastPayload = payload
++        if (updateGate.shouldUpdate(payload, elapsedRealtimeNanos)) notify(generateNotification(payload))
++    }
+ 
+ 	fun onForegroundServiceTypeChanged() {
+ 		synchronized(notificationLock) {
+-			if (trackerNotificationManager == null) return
++			if (trackerNotificationManager == null || stateReader?.hasLiveCapture != true) return
+ 			updateGate.reset()
+ 			lastPayload?.let { notify(generateNotification(it)) }
+ 		}
+@@ -154,11 +240,13 @@
+ 	private fun generateTitle(
+ 			context: Context,
+ 			data: CollectionData,
+-			session: TrackerSession
++			session: TrackerSession,
++            savedLocation: SavedLocationSummaryRead
+ 	): String {
+ 		val sb = StringBuilder()
+ 		titleComponentList.forEach {
+-			val text = it.generateText(context, session, data) ?: return@forEach
++			if (!it.isChosen(currentParams)) return@forEach
++            val text = it.generateText(context, session, data, savedLocation) ?: return@forEach
+ 
+ 			sb.append(text).append(delimiter)
+ 		}
+@@ -181,13 +269,14 @@
+ 	private fun buildNotificationText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++            savedLocation: SavedLocationSummaryRead
+ 	): String {
+-		context.resources
+ 		val sb = StringBuilder()
+ 
+ 		contentComponentList.forEach {
+-			val text = it.generateText(context, session, data) ?: return@forEach
++			if (!it.isChosen(currentParams)) return@forEach
++            val text = it.generateText(context, session, data, savedLocation) ?: return@forEach
+ 
+ 			sb.append(text).append(delimiter)
+ 		}
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/ActivityNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/ActivityNotificationComponent.kt
+@@ -1,6 +1,8 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+@@ -9,6 +11,7 @@
+ import java.util.Locale
+ 
+ internal class ActivityNotificationComponent : TrackerNotificationComponent() {
++	override val source: SourceKind get() = SourceKind.ACTIVITY
+ 	override val defaultPreference: NotificationPreference
+ 		get() = NotificationPreference(
+ 				this::class.java.simpleName,
+@@ -23,7 +26,8 @@
+ 	override fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String? {
+ 		val activity = data.activity ?: return null
+ 		return context.getString(
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/AltitudeNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/AltitudeNotificationComponent.kt
+@@ -1,9 +1,11 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.tracker.controller.forLiveSegment
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+-import com.adsamcik.tracker.shared.base.data.androidModelMslAltitudeM
+ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+ import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
+ import com.adsamcik.tracker.shared.preferences.extension.formatDistance
+@@ -12,6 +14,7 @@
+ import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
+ 
+ internal class AltitudeNotificationComponent : TrackerNotificationComponent() {
++	override val source: SourceKind get() = SourceKind.LOCATION
+ 	override val defaultPreference: NotificationPreference
+ 		get() = NotificationPreference(
+ 				this::class.java.simpleName,
+@@ -26,9 +29,11 @@
+ 	override fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String? {
+-		val altitude = data.androidModelMslAltitudeM ?: return null
++		val altitude = (savedLocation.forLiveSegment(session.id, true) as? SavedLocationSummaryRead.Snapshot)
++            ?.summary?.latestFix?.altitudeMeters ?: return null
+ 
+ 		return context.getString(
+ 				R.string.altitude_value,
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/BatteryNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/BatteryNotificationComponent.kt
+@@ -1,6 +1,7 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import android.content.Intent
+ import android.content.IntentFilter
+ import android.os.BatteryManager
+@@ -25,7 +26,8 @@
+ 	override fun generateText(
+ 		context: Context,
+ 		session: TrackerSession,
+-		data: CollectionData
++		data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String? {
+ 		val level = getBatteryLevel(context)
+ 		if (level < 0) return null
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/CellCountNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/CellCountNotificationComponent.kt
+@@ -1,6 +1,8 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+@@ -8,6 +10,7 @@
+ import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
+ 
+ internal class CellCountNotificationComponent : TrackerNotificationComponent() {
++	override val source: SourceKind get() = SourceKind.CELL
+ 	override val defaultPreference: NotificationPreference
+ 		get() = NotificationPreference(
+ 				this::class.java.simpleName,
+@@ -22,7 +25,8 @@
+ 	override fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String? {
+ 		val cell = data.cell ?: return null
+ 		return context.getString(R.string.cell_count_value, cell.totalCount)
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/CellCurrentNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/CellCurrentNotificationComponent.kt
+@@ -1,6 +1,8 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+@@ -8,6 +10,7 @@
+ import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
+ 
+ internal class CellCurrentNotificationComponent : TrackerNotificationComponent() {
++	override val source: SourceKind get() = SourceKind.CELL
+ 	override val defaultPreference: NotificationPreference
+ 		get() = NotificationPreference(
+ 				this::class.java.simpleName,
+@@ -22,7 +25,8 @@
+ 	override fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String? {
+ 		val cell = data.cell ?: return null
+ 
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/CollectionCountNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/CollectionCountNotificationComponent.kt
+@@ -1,6 +1,7 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+@@ -22,7 +23,8 @@
+ 	override fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String {
+ 		return context.getString(R.string.collection_count_value, session.collections)
+ 	}
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/DistanceInVehicleNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/DistanceInVehicleNotificationComponent.kt
+@@ -1,16 +1,17 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+-import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
+-import com.adsamcik.tracker.shared.preferences.extension.formatDistance
+ 
+ import com.adsamcik.tracker.tracker.R
+ import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
+ 
+ internal class DistanceInVehicleNotificationComponent : TrackerNotificationComponent() {
++	override val source: SourceKind get() = SourceKind.LOCATION
+ 	override val defaultPreference: NotificationPreference
+ 		get() = NotificationPreference(
+ 				this::class.java.simpleName,
+@@ -25,15 +26,10 @@
+ 	override fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String {
+-		return context.getString(
+-				R.string.distance_invehicle_value,
+-				context.resources.formatDistance(
+-						session.distanceInVehicleInM,
+-						0,
+-						TrackerSettingsQuick.lengthSystem(context)
+-				)
+-		)
+-	}
++        // The native saved product has no mode-attributed distance; a raw counter is not a measured zero.
++        return context.getString(R.string.distance_invehicle_value, context.getString(R.string.tracker_steps_value_unavailable))
++    }
+ }
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/DistanceNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/DistanceNotificationComponent.kt
+@@ -1,6 +1,10 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.tracker.controller.formatSavedDistance
++import com.adsamcik.tracker.tracker.controller.forLiveSegment
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+@@ -11,6 +15,7 @@
+ import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
+ 
+ internal class DistanceNotificationComponent : TrackerNotificationComponent() {
++	override val source: SourceKind get() = SourceKind.LOCATION
+ 	override val defaultPreference: NotificationPreference
+ 		get() = NotificationPreference(
+ 				this::class.java.simpleName,
+@@ -25,15 +30,12 @@
+ 	override fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String {
+-		return context.getString(
+-				R.string.distance_value,
+-				context.resources.formatDistance(
+-						session.distanceInM,
+-						0,
+-						TrackerSettingsQuick.lengthSystem(context)
+-				)
+-		)
+-	}
++        val read = savedLocation.forLiveSegment(session.id, true)
++        return context.getString(R.string.distance_value, read.formatSavedDistance(context) {
++            context.resources.formatDistance(it, 0, TrackerSettingsQuick.lengthSystem(context))
++        })
++    }
+ }
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/DistanceOnFootNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/DistanceOnFootNotificationComponent.kt
+@@ -1,16 +1,17 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+-import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
+-import com.adsamcik.tracker.shared.preferences.extension.formatDistance
+ 
+ import com.adsamcik.tracker.tracker.R
+ import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
+ 
+ internal class DistanceOnFootNotificationComponent : TrackerNotificationComponent() {
++	override val source: SourceKind get() = SourceKind.LOCATION
+ 	override val defaultPreference: NotificationPreference
+ 		get() = NotificationPreference(
+ 				this::class.java.simpleName,
+@@ -25,15 +26,10 @@
+ 	override fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String {
+-		return context.getString(
+-				R.string.distance_onfoot_value,
+-				context.resources.formatDistance(
+-						session.distanceOnFootInM,
+-						0,
+-						TrackerSettingsQuick.lengthSystem(context)
+-				)
+-		)
+-	}
++        // The native saved product has no mode-attributed distance; a raw counter is not a measured zero.
++        return context.getString(R.string.distance_onfoot_value, context.getString(R.string.tracker_steps_value_unavailable))
++    }
+ }
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/DurationNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/DurationNotificationComponent.kt
+@@ -1,6 +1,8 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.shared.base.Time
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+@@ -23,9 +25,10 @@
+ 	override fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String {
+-		val duration = session.end - session.start
++		val duration = (Time.nowMillis - session.start).coerceAtLeast(0L)
+ 		return context.getString(R.string.duration_value, duration.formatAsDuration(context))
+ 	}
+ }
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/HorizontalAccuracyNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/HorizontalAccuracyNotificationComponent.kt
+@@ -1,6 +1,9 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.tracker.controller.forLiveSegment
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+@@ -12,6 +15,7 @@
+ import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
+ 
+ internal class HorizontalAccuracyNotificationComponent : TrackerNotificationComponent() {
++	override val source: SourceKind get() = SourceKind.LOCATION
+ 	override val defaultPreference: NotificationPreference
+ 		get() = NotificationPreference(
+ 				this::class.java.simpleName,
+@@ -26,10 +30,12 @@
+ 	override fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String? {
+-		val location = data.location ?: return null
+-		val altitude = location.horizontalAccuracy ?: return null
++		val location = (savedLocation.forLiveSegment(session.id, true) as? SavedLocationSummaryRead.Snapshot)
++            ?.summary?.latestFix ?: return null
++		val altitude = location.horizontalAccuracyMeters ?: return null
+ 
+ 		return context.getString(
+ 				R.string.horizontal_accuracy_value,
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/LastUpdateNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/LastUpdateNotificationComponent.kt
+@@ -1,6 +1,7 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+@@ -23,7 +24,8 @@
+ 	override fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String {
+ 		return context.getString(R.string.last_update_value, session.end.formatAsDateTime())
+ 	}
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/LatitudeNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/LatitudeNotificationComponent.kt
+@@ -1,6 +1,9 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.tracker.controller.forLiveSegment
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.assist.Assist
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+@@ -10,6 +13,7 @@
+ import kotlin.math.abs
+ 
+ internal class LatitudeNotificationComponent : TrackerNotificationComponent() {
++	override val source: SourceKind get() = SourceKind.LOCATION
+ 	override val defaultPreference: NotificationPreference
+ 		get() = NotificationPreference(
+ 				this::class.java.simpleName,
+@@ -24,10 +28,12 @@
+ 	override fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String? {
+-		val location = data.location ?: return null
+-		val latitude = location.latitude
++		val location = (savedLocation.forLiveSegment(session.id, true) as? SavedLocationSummaryRead.Snapshot)
++            ?.summary?.latestFix ?: return null
++		val latitude = location.latitudeE7 / 10_000_000.0
+ 
+ 		val resource = if (latitude >= 0) {
+ 			R.string.latitude_value_north
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/LongitudeNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/LongitudeNotificationComponent.kt
+@@ -1,6 +1,9 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.tracker.controller.forLiveSegment
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.assist.Assist
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+@@ -10,6 +13,7 @@
+ import kotlin.math.abs
+ 
+ internal class LongitudeNotificationComponent : TrackerNotificationComponent() {
++	override val source: SourceKind get() = SourceKind.LOCATION
+ 	override val defaultPreference: NotificationPreference
+ 		get() = NotificationPreference(
+ 				this::class.java.simpleName,
+@@ -24,10 +28,12 @@
+ 	override fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String? {
+-		val location = data.location ?: return null
+-		val longitude = location.longitude
++		val location = (savedLocation.forLiveSegment(session.id, true) as? SavedLocationSummaryRead.Snapshot)
++            ?.summary?.latestFix ?: return null
++		val longitude = location.longitudeE7 / 10_000_000.0
+ 
+ 		val resource = if (longitude >= 0) {
+ 			R.string.longitude_value_east
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/SkiNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/SkiNotificationComponent.kt
+@@ -1,6 +1,7 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+@@ -34,7 +35,8 @@
+ 	override fun generateText(
+ 		context: Context,
+ 		session: TrackerSession,
+-		data: CollectionData
++		data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String? {
+ 		val entryPoint = EntryPointAccessors.fromApplication(
+ 			context.applicationContext,
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/SpeedNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/SpeedNotificationComponent.kt
+@@ -1,6 +1,9 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.tracker.controller.forLiveSegment
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+@@ -9,6 +12,7 @@
+ import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
+ 
+ internal class SpeedNotificationComponent : TrackerNotificationComponent() {
++	override val source: SourceKind get() = SourceKind.LOCATION
+ 	override val defaultPreference: NotificationPreference
+ 		get() = NotificationPreference(
+ 				this::class.java.simpleName,
+@@ -23,10 +27,11 @@
+ 	override fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String? {
+-		data.location ?: return null
+-		val speed = data.estimatedSpeedMps ?: return null
++		val speed = (savedLocation.forLiveSegment(session.id, true) as? SavedLocationSummaryRead.Snapshot)
++            ?.summary?.latestFix?.speedMetersPerSecond ?: return null
+ 		return context.getString(
+ 				R.string.speed_value,
+ 				context.resources.formatSpeed(context, speed.toDouble(), 1)
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/StartTimeNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/StartTimeNotificationComponent.kt
+@@ -1,6 +1,7 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+@@ -23,7 +24,8 @@
+ 	override fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String {
+ 		return context.getString(R.string.start_time_value, session.start.formatAsDateTime())
+ 	}
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/WiFiCountNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/WiFiCountNotificationComponent.kt
+@@ -1,6 +1,8 @@
+ package com.adsamcik.tracker.tracker.notification.component
+ 
+ import android.content.Context
++import com.adsamcik.tracker.tracker.source.model.SourceKind
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+@@ -8,6 +10,7 @@
+ import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
+ 
+ internal class WiFiCountNotificationComponent : TrackerNotificationComponent() {
++	override val source: SourceKind get() = SourceKind.WIFI
+ 	override val defaultPreference: NotificationPreference
+ 		get() = NotificationPreference(
+ 				this::class.java.simpleName,
+@@ -22,7 +25,8 @@
+ 	override fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead
+ 	): String? {
+ 		val wifi = data.wifi ?: return null
+ 		return context.getString(R.string.wifi_count_value, wifi.inRange.size)
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/TrackerNotificationComponent.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/TrackerNotificationComponent.kt
+@@ -1,11 +1,26 @@
+ package com.adsamcik.tracker.tracker.notification
+ 
+ import android.content.Context
++import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
++import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
++import com.adsamcik.tracker.tracker.source.model.SourceKind
+ import com.adsamcik.tracker.shared.base.data.CollectionData
+ import com.adsamcik.tracker.shared.base.data.TrackerSession
+ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+ 
+ internal abstract class TrackerNotificationComponent {
++    open val source: SourceKind? = null
++
++    fun isChosen(params: TrackingParamsState): Boolean = when (source) {
++        SourceKind.LOCATION -> params.locationEnabled
++        SourceKind.ACTIVITY -> params.activityEnabled
++        SourceKind.STEPS -> params.stepsEnabled
++        SourceKind.WIFI -> params.wifiEnabled
++        SourceKind.CELL -> params.cellEnabled
++        SourceKind.PRESSURE -> params.barometerEnabled
++        null -> true
++    }
++
+ 	/**
+ 	 * Stable ID used by the legacy Room preference table.
+ 	 */
+@@ -24,6 +39,7 @@
+ 	abstract fun generateText(
+ 			context: Context,
+ 			session: TrackerSession,
+-			data: CollectionData
++			data: CollectionData,
++			savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound
+ 	): String?
+ }
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerComponentFactory.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerComponentFactory.kt
+@@ -104,6 +104,8 @@
+ 
+ 			if (enableNotifications) {
+ 				notificationComponent.onEnable(context)
++                stateCollectorJobs += notificationComponent.startSavedLocationUpdates(
++                    context, controller, trackingParamsRepository, scope)
+ 				notificationEnabled = true
+ 			}
+ 
+--- /dev/null
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/post/SavedLocationNotificationUpdatesTest.kt
+@@ -0,0 +1,168 @@
++package com.adsamcik.tracker.tracker.component.consumer.post
++
++import android.app.Notification
++import android.app.NotificationManager
++import android.content.ComponentName
++import android.content.Context
++import android.content.Intent
++import android.content.pm.ActivityInfo
++import android.content.pm.PackageManager
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.shared.model.AltitudeDatum
++import com.adsamcik.tracker.shared.model.AltitudeSource
++import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
++import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
++import com.adsamcik.tracker.shared.preferences.extension.formatDistance
++import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
++import com.adsamcik.tracker.stats.api.repository.*
++import com.adsamcik.tracker.testing.fake.FakeTrackerServiceController
++import com.adsamcik.tracker.tracker.R
++import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
++import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
++import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
++import com.adsamcik.tracker.tracker.notification.TrackerNotificationProvider
++import com.adsamcik.tracker.tracker.notification.component.DistanceNotificationComponent
++import io.mockk.*
++import kotlinx.coroutines.*
++import kotlinx.coroutines.flow.MutableStateFlow
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.Shadows.shadowOf
++import org.robolectric.annotation.Config
++import kotlin.test.*
++
++/** Actual component/manager with explicit state, settings, launcher and preference fixtures; no Hilt/device proof. */
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class SavedLocationNotificationUpdatesTest {
++    @Test fun `saved summary updates the actual notification without a raw tracking cycle`() = fixtureTest {
++        enable()
++        reader.setSavedLocationSummary(saved(distance = 123.0))
++        awaitTitle(context.getString(R.string.distance_value, formatted(123.0)))
++        reader.setSavedLocationSummary(saved(distance = 456.0))
++        awaitTitle(context.getString(R.string.distance_value, formatted(456.0)))
++        assertEquals(9_000_000f, reader.sessionFlow.value?.distanceInM)
++    }
++
++    @Test fun `Location off removes its configured value and preserves customization`() = fixtureTest {
++        enable()
++        reader.setSavedLocationSummary(saved())
++        awaitTitle(context.getString(R.string.distance_value, formatted(123.0)))
++        choices.value = choices.value.copy(locationEnabled = false)
++        awaitTitle(context.getString(R.string.notification_tracking_active))
++        assertEquals(DistanceNotificationComponent::class.java.simpleName, distance.id)
++        assertTrue(distance.preference.isInTitle)
++    }
++
++    @Test fun `clear or storage failure retracts old saved numbers rather than keeping a raw fallback`() = fixtureTest {
++        enable()
++        reader.setSavedLocationSummary(saved())
++        awaitTitle(context.getString(R.string.distance_value, formatted(123.0)))
++        reader.setSavedLocationSummary(SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE))
++        awaitTitle(context.getString(R.string.distance_value, context.getString(R.string.tracker_steps_value_unavailable)))
++        reader.setSavedLocationSummary(SavedLocationSummaryRead.NotFound)
++        awaitTitle(context.getString(R.string.distance_value, context.getString(R.string.tracker_component_waiting_data)))
++    }
++
++    @Test fun `replacement segment cannot reuse the previous shared saved value`() = fixtureTest {
++        enable()
++        reader.setSavedLocationSummary(saved())
++        awaitTitle(context.getString(R.string.distance_value, formatted(123.0)))
++        reader.updateSession(TrackerSessionSnapshot(id = 8, start = 1_000, distanceInM = 8_000_000f))
++        awaitTitle(context.getString(R.string.distance_value, context.getString(R.string.tracker_component_waiting_data)))
++        reader.setSavedLocationSummary(saved(id = 7, distance = 999.0))
++        assertEquals(SavedLocationSummaryRead.NotFound, reader.savedLocationSummaryFlow.value)
++        reader.setSavedLocationSummary(saved(id = 8, distance = 456.0))
++        awaitTitle(context.getString(R.string.distance_value, formatted(456.0)))
++    }
++
++    @Test fun `End and service teardown cancel updates so late saved data cannot recreate notification`() = fixtureTest {
++        enable()
++        reader.setSavedLocationSummary(saved())
++        awaitTitle(context.getString(R.string.distance_value, formatted(123.0)))
++        reader.updateSessionInfo(null)
++        component.onServiceStopped(context)
++        updates!!.join()
++        assertTrue(updates!!.isCancelled)
++        reader.setSavedLocationSummary(saved(distance = 999.0))
++        component.onForegroundServiceTypeChanged()
++        assertNull(notification())
++    }
++
++    @Test fun `teardown while preferences load cannot install a late notification manager`() = fixtureTest {
++        val entered = CompletableDeferred<Unit>()
++        val release = CompletableDeferred<Unit>()
++        coEvery { TrackerNotificationProvider.updatePreferences(any()) } coAnswers {
++            entered.complete(Unit); release.await()
++        }
++        val pending = scope.launch { component.onEnable(context) }
++        try {
++            entered.await()
++            component.onServiceStopped(context)
++            release.complete(Unit)
++            pending.join()
++            updates = component.startSavedLocationUpdates(context, reader, params, scope)
++            reader.setSavedLocationSummary(saved())
++            yield()
++            assertNull(notification())
++        } finally { release.complete(Unit); pending.cancelAndJoin() }
++    }
++
++    private fun fixtureTest(block: suspend Fixture.() -> Unit) = runBlocking {
++        mockkObject(TrackerNotificationProvider)
++        val fixture = Fixture()
++        try { withTimeout(5_000L) { fixture.block() } }
++        finally { fixture.close(); unmockkObject(TrackerNotificationProvider) }
++    }
++
++    private class Fixture {
++        val context: Context = spyk(ApplicationProvider.getApplicationContext<Context>())
++        val reader = FakeTrackerServiceController().also {
++            it.updateServiceRunning(true)
++            it.updateSessionInfo(TrackerSessionInfo(true))
++            it.updateSession(TrackerSessionSnapshot(id = 7, start = 1_000, distanceInM = 9_000_000f))
++        }
++        val choices = MutableStateFlow(TrackingParamsState(locationEnabled = true))
++        val params = mockk<TrackingParamsRepository>().also { every { it.data } returns choices }
++        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
++        val distance = DistanceNotificationComponent().also { it.preference = it.defaultPreference }
++        private val entryPoint = mockk<NotificationComponentEntryPoint>().also {
++            every { it.trackerStateReader() } returns reader
++            every { it.trackingParamsRepository() } returns params
++        }
++        val component = NotificationComponent { entryPoint }
++        var updates: Job? = null
++
++        init {
++            val manager = mockk<PackageManager>(relaxed = true)
++            every { context.packageManager } returns manager
++            every { manager.getLaunchIntentForPackage(any()) } returns Intent().setComponent(
++                ComponentName(context.packageName, "FixtureLauncher"))
++            every { manager.getActivityInfo(any<ComponentName>(), any<Int>()) } returns ActivityInfo().apply {
++                packageName = context.packageName; name = "FixtureLauncher"
++            }
++            coEvery { TrackerNotificationProvider.updatePreferences(any()) } returns Unit
++            every { TrackerNotificationProvider.configuredComponents() } returns listOf(distance)
++        }
++        suspend fun enable() {
++            component.onEnable(context)
++            updates = component.startSavedLocationUpdates(context, reader, params, scope)
++        }
++        fun notification(): Notification? = shadowOf(context.getSystemService(Context.NOTIFICATION_SERVICE)
++            as NotificationManager).getNotification(TrackerNotificationManager.NOTIFICATION_ID)
++        suspend fun awaitTitle(expected: String) {
++            while (notification()?.extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString() != expected) yield()
++        }
++        fun formatted(value: Double) = context.resources.formatDistance(value, 0,
++            TrackerSettingsQuick.lengthSystem(context))
++        suspend fun close() {
++            component.onServiceStopped(context)
++            scope.coroutineContext[Job]!!.cancelAndJoin()
++        }
++    }
++    private fun saved(id: Long = 7, distance: Double = 123.0) = SavedLocationSummaryRead.Snapshot(
++        SavedLocationSummarySelection.Session(id), TrackingHistoryReadSnapshot(0, 1),
++        SavedLocationSummary(2, SavedLocationFix(1, 2_000, 0, 0, 10_000_000, 0f, null, null,
++            -12f, AltitudeDatum.WGS84_ELLIPSOID, AltitudeSource.UNKNOWN_LEGACY, null), distance, false))
++}
+--- /dev/null
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/notification/SavedLocationNotificationTextTest.kt
+@@ -0,0 +1,87 @@
++package com.adsamcik.tracker.tracker.notification
++
++import android.content.Context
++import androidx.test.core.app.ApplicationProvider
++import com.adsamcik.tracker.stats.api.repository.*
++import com.adsamcik.tracker.shared.model.AltitudeDatum
++import com.adsamcik.tracker.shared.model.AltitudeSource
++import com.adsamcik.tracker.shared.base.data.MutableCollectionData
++import com.adsamcik.tracker.shared.base.data.TrackerSession
++import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
++import com.adsamcik.tracker.shared.preferences.extension.formatDistance
++import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
++import com.adsamcik.tracker.tracker.R
++import com.adsamcik.tracker.tracker.notification.component.*
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++import kotlin.test.*
++
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [34])
++class SavedLocationNotificationTextTest {
++    private val context: Context = ApplicationProvider.getApplicationContext()
++    private val session = TrackerSession(id = 7, distanceInM = 9_000_000f,
++        distanceOnFootInM = 8_000_000f, distanceInVehicleInM = 7_000_000f)
++    private val data = MutableCollectionData(9_000L)
++
++    @Test fun `notification retains covered zero and marks saved partial distance`() {
++        val component = DistanceNotificationComponent()
++        val zero = context.resources.formatDistance(0.0, 0, TrackerSettingsQuick.lengthSystem(context))
++        assertEquals(context.getString(R.string.distance_value, zero),
++            component.generateText(context, session, data, saved(distance = 0.0)))
++        val value = context.resources.formatDistance(123.0, 0, TrackerSettingsQuick.lengthSystem(context))
++        assertEquals(context.getString(R.string.distance_value,
++            "$value · ${context.getString(R.string.tracker_measurement_partial)}"),
++            component.generateText(context, session, data, saved(partial = true)))
++    }
++
++    @Test fun `missing or wrong segment never uses a raw distance or coordinates`() {
++        val read = saved(id = 8)
++        assertEquals(context.getString(R.string.distance_value,
++            context.getString(R.string.tracker_component_waiting_data)),
++            DistanceNotificationComponent().generateText(context, session, data, read))
++        assertNull(LatitudeNotificationComponent().generateText(context, session, data, read))
++        assertNull(SpeedNotificationComponent().generateText(context, session, data, SavedLocationSummaryRead.NotFound))
++    }
++
++    @Test fun `accuracy is optional and generic altitude accepts its saved original datum`() {
++        val read = saved()
++        assertNotNull(LatitudeNotificationComponent().generateText(context, session, data, read))
++        assertNotNull(LongitudeNotificationComponent().generateText(context, session, data, read))
++        assertNotNull(SpeedNotificationComponent().generateText(context, session, data, read))
++        assertNull(HorizontalAccuracyNotificationComponent().generateText(context, session, data, read))
++        assertNotNull(HorizontalAccuracyNotificationComponent().generateText(context, session, data, saved(accuracy = 0f)))
++        assertEquals(context.getString(R.string.altitude_value,
++            context.resources.formatDistance(-12f, 2, TrackerSettingsQuick.lengthSystem(context))),
++            AltitudeNotificationComponent().generateText(context, session, data, read))
++    }
++
++    @Test fun `chosen-source gate leaves notification customization intact`() {
++        val choices = TrackingParamsState(locationEnabled = false, activityEnabled = false,
++            wifiEnabled = true, cellEnabled = false)
++        listOf(DistanceNotificationComponent(), LatitudeNotificationComponent(), SpeedNotificationComponent(),
++            AltitudeNotificationComponent(), HorizontalAccuracyNotificationComponent()).forEach {
++            assertFalse(it.isChosen(choices))
++            assertTrue(it.isChosen(choices.copy(locationEnabled = true)))
++        }
++        assertTrue(WiFiCountNotificationComponent().isChosen(choices))
++        assertFalse(CellCountNotificationComponent().isChosen(choices))
++        assertFalse(ActivityNotificationComponent().isChosen(choices))
++        assertTrue(DurationNotificationComponent().isChosen(choices))
++    }
++
++    @Test fun `native mode-specific distance never presents raw counters as measured zero or complete values`() {
++        val unavailable = context.getString(R.string.tracker_steps_value_unavailable)
++        assertEquals(context.getString(R.string.distance_onfoot_value, unavailable),
++            DistanceOnFootNotificationComponent().generateText(context, session, data, saved()))
++        assertEquals(context.getString(R.string.distance_invehicle_value, unavailable),
++            DistanceInVehicleNotificationComponent().generateText(context, session, data, saved()))
++    }
++    private fun saved(id: Long = 7, distance: Double? = 123.0, partial: Boolean = false,
++        accuracy: Float? = null, altitude: Float? = -12f) = SavedLocationSummaryRead.Snapshot(
++        SavedLocationSummarySelection.Session(id), TrackingHistoryReadSnapshot(0, 1),
++        SavedLocationSummary(2, SavedLocationFix(1, 2_000, 0, 0, 10_000_000, 0f, null, accuracy,
++            altitude, AltitudeDatum.WGS84_ELLIPSOID, AltitudeSource.UNKNOWN_LEGACY, null), distance, partial))
++}

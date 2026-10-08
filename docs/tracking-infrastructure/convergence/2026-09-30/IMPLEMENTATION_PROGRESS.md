@@ -859,3 +859,11 @@ IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites and T25 remain OPEN. No
 - [ ] Finish the Tracker/notification/widget numerical consumers and installed-widget refresh decision. Effective imported corrections, logical multi-run/day/imported numerical readers and full source chains remain open.
 
 IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites and T25 remain OPEN; no gates, activation or dev/v10 integration.
+
+### October 8 - shared saved Location consumer checkpoint
+
+- [x] Select the independently accepted V2 Tracker/Dashboard, notification and active-Glance consumer wiring. All use the existing shared source-qualified saved Location values for the exact active segment, with current source participation and teardown guards; no raw Location fallback, extra Room observer, sensor or database copy.
+- [x] Author 23 helper/Compose/widget/generator/component methods, all NOT_RUN. Exact source and final static acceptance: `../2026-10-08/LIVE_SAVED_LOCATION_CONSUMERS_SELECTED/` and `LIVE_SAVED_LOCATION_CONSUMERS_REVIEW/V2_ACCEPTANCE.md`.
+- [ ] Finish moving-average speed, installed-widget delivery outside active composition, native mode attribution, all-day/released/imported/logical totals and effective corrections. Pending questions and limitations remain explicit; T17/T25/all25 full chains stay OPEN.
+
+IMPLEMENTED_UNVALIDATED. No compile, test, schema, lint, device/provider, battery, CI or dev/v10 integration.

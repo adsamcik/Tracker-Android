@@ -185,4 +185,5 @@
     <string name="insight_distance_desc">V tejto relácii ste prekonali %1$s.</string>
     <string name="insight_steps_title">Zaznamenané kroky</string>
     <string name="insight_steps_desc">%1$s krokov v tejto relácii — len tak ďalej!</string>
+    <string name="tracker_measurement_partial">Čiastočné</string>
 </resources>

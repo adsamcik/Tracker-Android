@@ -177,4 +177,5 @@
     <string name="insight_distance_desc">Изминахте %1$s през тази сесия.</string>
     <string name="insight_steps_title">Записани крачки</string>
     <string name="insight_steps_desc">%1$s крачки през тази сесия — продължавайте така!</string>
+    <string name="tracker_measurement_partial">Частично</string>
 </resources>

@@ -1,0 +1,25 @@
+{
+  "phase": "IMPLEMENTATION_ONLY / IMPLEMENTED_UNVALIDATED",
+  "review": "STATIC_SOURCE_ONLY",
+  "base_commit": "3b85ee34ebfb8bebc42356a4b8cd6e3bc97f5742",
+  "packet": "LIVE_SAVED_LOCATION_CONSUMERS_SELECTED",
+  "files_sha256": "16e0e7476270797af2f140d35eda5496700d7f6bc565c86b2d9cb53f30bb6487",
+  "patch_sha256": "d7f9c720cec80baac4f8b1f2d93f7b86973dc3ec9d1748c9f890bd26b70a11ef",
+  "dependencies_sha256": "e4e0562c96cde2bdddee4d868e6b621683c9b0e31ebbe1b8aeddaac0167aa1fc",
+  "selected_paths": 72,
+  "production_kotlin": 29,
+  "test_kotlin": 6,
+  "resource_paths": 37,
+  "committed_dependency_pins": 103,
+  "resolved_previous_private_companions": 6,
+  "new_methods": 23,
+  "test_status": "NOT_RUN",
+  "remaining_behavior": [
+    "Moving average speed",
+    "Installed-widget publication outside active Glance composition",
+    "Mode-attributed distance",
+    "All-day/imported/released/logical-multisegment numeric adaptation",
+    "Effective correction and restore hooks",
+    "Other sources and generic LastUpdate native numerical wiring"
+  ]
+}

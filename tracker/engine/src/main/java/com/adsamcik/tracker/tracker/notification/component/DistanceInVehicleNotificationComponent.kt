@@ -1,16 +1,17 @@
 package com.adsamcik.tracker.tracker.notification.component
 
 import android.content.Context
+import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
-import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
-import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
 
 internal class DistanceInVehicleNotificationComponent : TrackerNotificationComponent() {
+	override val source: SourceKind get() = SourceKind.LOCATION
 	override val defaultPreference: NotificationPreference
 		get() = NotificationPreference(
 				this::class.java.simpleName,
@@ -25,15 +26,10 @@ internal class DistanceInVehicleNotificationComponent : TrackerNotificationCompo
 	override fun generateText(
 			context: Context,
 			session: TrackerSession,
-			data: CollectionData
+			data: CollectionData,
+			savedLocation: SavedLocationSummaryRead
 	): String {
-		return context.getString(
-				R.string.distance_invehicle_value,
-				context.resources.formatDistance(
-						session.distanceInVehicleInM,
-						0,
-						TrackerSettingsQuick.lengthSystem(context)
-				)
-		)
-	}
+        // The native saved product has no mode-attributed distance; a raw counter is not a measured zero.
+        return context.getString(R.string.distance_invehicle_value, context.getString(R.string.tracker_steps_value_unavailable))
+    }
 }

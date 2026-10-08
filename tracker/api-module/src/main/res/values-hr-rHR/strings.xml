@@ -181,4 +181,5 @@
     <string name="insight_distance_desc">U ovoj ste sesiji prešli %1$s.</string>
     <string name="insight_steps_title">Zabilježeni koraci</string>
     <string name="insight_steps_desc">%1$s koraka u ovoj sesiji — samo tako!</string>
+    <string name="tracker_measurement_partial">Djelomično</string>
 </resources>

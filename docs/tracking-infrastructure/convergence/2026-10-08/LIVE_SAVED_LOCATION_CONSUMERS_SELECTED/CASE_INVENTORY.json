@@ -1,0 +1,122 @@
+{
+  "new_method_count": 23,
+  "status": "NOT_RUN",
+  "methods": [
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionSavedLocationTest.kt",
+      "method": "widget distance uses the shared saved value not the raw session counter",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionSavedLocationTest.kt",
+      "method": "widget retains zero and marks measured partial sections",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionSavedLocationTest.kt",
+      "method": "wrong segment and unavailable saved data never fall back to a raw positive value",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionSavedLocationTest.kt",
+      "method": "unchosen Location and Steps leave only session organization metadata",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerSavedLocationDisplayTest.kt",
+      "method": "coordinates zero speed and negative original altitude remain usable without accuracy",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerSavedLocationDisplayTest.kt",
+      "method": "zero accuracy is displayed while an absent saved fix has no invented detail",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerSavedLocationDisplayTest.kt",
+      "method": "Tracker route shows shared saved distance and partial state rather than raw session counter",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerSavedLocationDisplayTest.kt",
+      "method": "Location off suppresses Location tabs even when an old saved snapshot exists",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/controller/SavedLocationPresentationTest.kt",
+      "method": "only chosen exact live segment can expose a saved snapshot",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/controller/SavedLocationPresentationTest.kt",
+      "method": "covered zero and available partial measured distance keep their value",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/controller/SavedLocationPresentationTest.kt",
+      "method": "absent pair missing snapshot and failed read never fabricate zero",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/controller/SavedLocationPresentationTest.kt",
+      "method": "saved fix keeps optional accuracy original altitude datum and measured timestamp",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/post/SavedLocationNotificationUpdatesTest.kt",
+      "method": "saved summary updates the actual notification without a raw tracking cycle",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/post/SavedLocationNotificationUpdatesTest.kt",
+      "method": "Location off removes its configured value and preserves customization",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/post/SavedLocationNotificationUpdatesTest.kt",
+      "method": "clear or storage failure retracts old saved numbers rather than keeping a raw fallback",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/post/SavedLocationNotificationUpdatesTest.kt",
+      "method": "replacement segment cannot reuse the previous shared saved value",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/post/SavedLocationNotificationUpdatesTest.kt",
+      "method": "End and service teardown cancel updates so late saved data cannot recreate notification",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/post/SavedLocationNotificationUpdatesTest.kt",
+      "method": "teardown while preferences load cannot install a late notification manager",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/notification/SavedLocationNotificationTextTest.kt",
+      "method": "notification retains covered zero and marks saved partial distance",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/notification/SavedLocationNotificationTextTest.kt",
+      "method": "missing or wrong segment never uses a raw distance or coordinates",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/notification/SavedLocationNotificationTextTest.kt",
+      "method": "accuracy is optional and generic altitude accepts its saved original datum",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/notification/SavedLocationNotificationTextTest.kt",
+      "method": "chosen-source gate leaves notification customization intact",
+      "status": "NOT_RUN"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/notification/SavedLocationNotificationTextTest.kt",
+      "method": "native mode-specific distance never presents raw counters as measured zero or complete values",
+      "status": "NOT_RUN"
+    }
+  ],
+  "existing_case_edit": "One existing StatusCard path-preview fixture now supplies an explicit saved summary from its original points; original method and assertions preserved."
+}

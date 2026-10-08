@@ -177,4 +177,5 @@
     <string name="insight_distance_desc">Šajā sesijā veicāt %1$s.</string>
     <string name="insight_steps_title">Ierakstītie soļi</string>
     <string name="insight_steps_desc">Šajā sesijā %1$s soļi — turpiniet tā!</string>
+    <string name="tracker_measurement_partial">Daļēji</string>
 </resources>

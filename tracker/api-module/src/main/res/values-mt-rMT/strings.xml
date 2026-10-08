@@ -177,4 +177,5 @@
     <string name="insight_distance_desc">Koprejt %1$s f’din is-sessjoni.</string>
     <string name="insight_steps_title">Passi rreġistrati</string>
     <string name="insight_steps_desc">%1$s passi f’din is-sessjoni — kompli hekk!</string>
+    <string name="tracker_measurement_partial">Parzjali</string>
 </resources>

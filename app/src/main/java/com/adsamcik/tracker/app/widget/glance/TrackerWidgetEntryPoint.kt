@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.widget.glance
 
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
@@ -16,6 +17,7 @@ import dagger.hilt.components.SingletonComponent
 @InstallIn(SingletonComponent::class)
 interface TrackerWidgetEntryPoint {
     fun trackerStateReader(): TrackerStateReader
+    fun trackingParamsRepository(): TrackingParamsRepository
 
     /** Source-qualified durable history used by bounded widget reads. */
     fun trackingHistoryRepository(): TrackingHistoryRepository

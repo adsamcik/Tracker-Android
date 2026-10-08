@@ -511,3 +511,53 @@ IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites and T25 remain OPEN. No
 - [ ] Finish the Tracker/notification/widget numerical consumers and installed-widget refresh decision. Effective imported corrections, logical multi-run/day/imported numerical readers and full source chains remain open.
 
 IMPLEMENTED_UNVALIDATED. All 25 full-chain prerequisites and T25 remain OPEN; no gates, activation or dev/v10 integration.
+
+## October 8 measured-History assembly progress
+
+These checks record completed source authorship/review only. The following inputs
+are **held**, not selected into production, until their connected companions are
+composed. All authored methods are NOT_RUN; T14/T17/T25 and all 25 complete chains
+remain open.
+
+- [x] Author and independently review native Activity V2 (7 paths/12 methods),
+  Pressure V2 (5/7) and Steps V2 (6/8) measured-window readers. Selected original
+  parent checks preserve valid siblings instead of expanding unrelated recordings.
+- [x] Author and independently review imported Activity/Pressure/session Steps V2
+  (7 paths/15 methods) and local/imported all-day Steps (7/14). Preserve real count
+  windows, original imported receipts, retained gaps and reversed Activity clock
+  endpoints without invented times or counts.
+- [x] Author and independently review actual shared History dispatcher V2
+  (9 paths/10 composed methods). Actual saved Steps fixture now passes its original
+  allowed product lane; this is no claim of platform admission.
+- [x] Author and independently review shared History resume/local-date and concise
+  source Retry presentation V2 (4 paths/5 new,9 carried methods). Every original
+  error reason remains in page metadata; one visible Retry per source suffices.
+- [x] Author and independently review native radio canonical production V2
+  (4 paths). One physical reading is presented once only when original event and
+  full saved tuple match. Each original purpose independently qualifies; valid
+  background/legacy/earlier rows survive another copy or query failing. The focused
+  joined-purpose Room companion is still being authored.
+- [ ] Freeze and independently review the canonical radio test companion; compose
+  all exact source overlays and the actual Timeline/Calendar callers together.
+- [ ] Finish optional session labels under original organization interval/import
+  membership. Native adapter labels must obey edited closed intervals. The question
+  about showing both names for overlapping sessions is pending.
+- [ ] Finish Calendar month presence using the same measured source readers.
+  The question about simple all-source data dots versus retained distance shading
+  is pending. No new calendar store or raw-key authority is selected.
+- [ ] Finish shared Location numerical consumer V2 review and approved remaining
+  behavior. Moving-average speed and installed-widget refresh questions are pending;
+  attribution, day/imported/multi-run/effective-correction readers remain open.
+
+Exact source/review packets are in `../2026-10-08/`. Whole-recording APIs, strict
+Steps totals/rewards, current callback admission and deletion authority are separate
+and remain unchanged by measured leaf selection. No Gradle/compile/test/lint/schema,
+provider/device/battery/CI or dev/v10 integration has begun.
+
+### October 8 - shared saved Location consumer checkpoint
+
+- [x] Select the independently accepted V2 Tracker/Dashboard, notification and active-Glance consumer wiring. All use the existing shared source-qualified saved Location values for the exact active segment, with current source participation and teardown guards; no raw Location fallback, extra Room observer, sensor or database copy.
+- [x] Author 23 helper/Compose/widget/generator/component methods, all NOT_RUN. Exact source and final static acceptance: `../2026-10-08/LIVE_SAVED_LOCATION_CONSUMERS_SELECTED/` and `LIVE_SAVED_LOCATION_CONSUMERS_REVIEW/V2_ACCEPTANCE.md`.
+- [ ] Finish moving-average speed, installed-widget delivery outside active composition, native mode attribution, all-day/released/imported/logical totals and effective corrections. Pending questions and limitations remain explicit; T17/T25/all25 full chains stay OPEN.
+
+IMPLEMENTED_UNVALIDATED. No compile, test, schema, lint, device/provider, battery, CI or dev/v10 integration.

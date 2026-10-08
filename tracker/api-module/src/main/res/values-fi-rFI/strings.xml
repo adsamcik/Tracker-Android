@@ -177,4 +177,5 @@
     <string name="insight_distance_desc">Kuljit tällä istunnolla %1$s.</string>
     <string name="insight_steps_title">Tallennetut askeleet</string>
     <string name="insight_steps_desc">%1$s askelta tällä istunnolla — jatka samaan malliin!</string>
+    <string name="tracker_measurement_partial">Osittainen</string>
 </resources>

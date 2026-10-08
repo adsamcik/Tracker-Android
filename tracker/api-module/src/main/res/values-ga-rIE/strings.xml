@@ -177,4 +177,5 @@
     <string name="insight_distance_desc">Chlúdaigh tú %1$s sa seisiún seo.</string>
     <string name="insight_steps_title">Céimeanna taifeadta</string>
     <string name="insight_steps_desc">%1$s céimeanna sa seisiún seo — lean ort!</string>
+    <string name="tracker_measurement_partial">Páirteach</string>
 </resources>

@@ -177,4 +177,5 @@
     <string name="insight_distance_desc">Je hebt deze sessie %1$s afgelegd.</string>
     <string name="insight_steps_title">Vastgelegde stappen</string>
     <string name="insight_steps_desc">%1$s stappen in deze sessie — ga zo door!</string>
+    <string name="tracker_measurement_partial">Gedeeltelijk</string>
 </resources>

@@ -177,4 +177,5 @@
     <string name="insight_distance_desc">Du hast in dieser Sitzung %1$s zurückgelegt.</string>
     <string name="insight_steps_title">Aufgezeichnete Schritte</string>
     <string name="insight_steps_desc">%1$s Schritte in dieser Sitzung — weiter so!</string>
+    <string name="tracker_measurement_partial">Teilweise</string>
 </resources>

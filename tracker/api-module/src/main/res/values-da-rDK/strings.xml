@@ -177,4 +177,5 @@
     <string name="insight_distance_desc">Du tilbagelagde %1$s i denne session.</string>
     <string name="insight_steps_title">Registrerede skridt</string>
     <string name="insight_steps_desc">%1$s skridt i denne session — fortsæt sådan!</string>
+    <string name="tracker_measurement_partial">Delvis</string>
 </resources>

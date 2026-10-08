@@ -117,3 +117,24 @@ semantics for organization/session consumers. Page errors must not be synthetic
 measurements. Use original source-owned fact/window selectors and measured dates,
 real Steps windows, optional session labels, inline details and independent Retry.
 No new store, parallel tracking engine or unrequested History product is selected.
+
+## October 8 pending presentation choices
+
+Questions were presented with the questions tool and have not received answers:
+
+1. Installed-widget values: use the existing shared saved-total flow to update
+   installed widgets at most every 30 seconds while the app is already running,
+   plus immediate accepted Start/End/destructive changes; no new wakeups/sensors,
+   versus the existing fifteen-minute worker refresh.
+2. Existing Tracker Avg: retain its moving average over continuous saved Location
+   pairs, excluding stationary intervals and gaps, versus removing that item.
+   The held consumer currently leaves it unavailable; that limitation is open.
+3. Overlapping retrospective sessions: keep one measured row and show both session
+   names in expanded details, versus showing only the most recent name.
+4. Calendar month: replace Location-distance shading/legend with one data-presence
+   dot for any saved source, versus retaining shading and adding source data dots.
+
+Do not treat unanswered questions as authorization. Original approved local dates,
+source independence, useful partial data, concise recovery and optional session
+organization remain authoritative. Tracking work proceeds on independent approved
+source composition while these choices are pending.

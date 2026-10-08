@@ -162,6 +162,7 @@ fun TrackerRoute(
     // Observe full session and collection data via injected controller
     val sessionData by controller.sessionFlow.collectAsStateWithLifecycle()
     val collectionData by controller.collectionDataFlow.collectAsStateWithLifecycle()
+    val savedLocation by controller.savedLocationSummaryFlow.collectAsStateWithLifecycle()
     val pathPoints by controller.pathPointsFlow.collectAsStateWithLifecycle()
     val recentTrips by viewModel.recentTrips.collectAsStateWithLifecycle()
     val trackingParams by trackingParamsRepository.data.collectAsStateWithLifecycle(initialValue = TrackingParamsState())
@@ -349,6 +350,7 @@ fun TrackerRoute(
             isLocked = isLocked,
             sessionData = displaySession,
             collectionData = collectionData,
+            savedLocation = savedLocation,
             hasLocationPermission = locationPermissionSatisfied,
             pathPoints = relevantPathPoints,
             policyTier = policyTier,

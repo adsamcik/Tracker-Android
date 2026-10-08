@@ -177,4 +177,5 @@
     <string name="insight_distance_desc">您在此工作階段行進了 %1$s。</string>
     <string name="insight_steps_title">已記錄步數</string>
     <string name="insight_steps_desc">此工作階段 %1$s 步 — 繼續保持！</string>
+    <string name="tracker_measurement_partial">部分</string>
 </resources>

@@ -177,4 +177,5 @@
     <string name="insight_distance_desc">Hai percorso %1$s in questa sessione.</string>
     <string name="insight_steps_title">Passi registrati</string>
     <string name="insight_steps_desc">%1$s passi in questa sessione — continua così!</string>
+    <string name="tracker_measurement_partial">Parziale</string>
 </resources>

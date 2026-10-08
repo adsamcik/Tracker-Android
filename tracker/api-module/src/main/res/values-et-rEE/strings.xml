@@ -177,4 +177,5 @@
     <string name="insight_distance_desc">Läbisite selle seansi jooksul %1$s.</string>
     <string name="insight_steps_title">Salvestatud sammud</string>
     <string name="insight_steps_desc">%1$s sammu selle seansi jooksul — jätkake samas vaimus!</string>
+    <string name="tracker_measurement_partial">Osaline</string>
 </resources>

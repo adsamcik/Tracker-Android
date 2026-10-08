@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.tracker.notification.component
 
 import android.content.Context
+import com.adsamcik.tracker.tracker.controller.forLiveSegment
+import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
@@ -10,6 +13,7 @@ import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
 import kotlin.math.abs
 
 internal class LongitudeNotificationComponent : TrackerNotificationComponent() {
+	override val source: SourceKind get() = SourceKind.LOCATION
 	override val defaultPreference: NotificationPreference
 		get() = NotificationPreference(
 				this::class.java.simpleName,
@@ -24,10 +28,12 @@ internal class LongitudeNotificationComponent : TrackerNotificationComponent() {
 	override fun generateText(
 			context: Context,
 			session: TrackerSession,
-			data: CollectionData
+			data: CollectionData,
+			savedLocation: SavedLocationSummaryRead
 	): String? {
-		val location = data.location ?: return null
-		val longitude = location.longitude
+		val location = (savedLocation.forLiveSegment(session.id, true) as? SavedLocationSummaryRead.Snapshot)
+            ?.summary?.latestFix ?: return null
+		val longitude = location.longitudeE7 / 10_000_000.0
 
 		val resource = if (longitude >= 0) {
 			R.string.longitude_value_east

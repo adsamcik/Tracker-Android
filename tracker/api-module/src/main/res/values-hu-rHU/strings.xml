@@ -177,4 +177,5 @@
     <string name="insight_distance_desc">Ebben a munkamenetben %1$s távolságot tett meg.</string>
     <string name="insight_steps_title">Rögzített lépések</string>
     <string name="insight_steps_desc">%1$s lépés ebben a munkamenetben — csak így tovább!</string>
+    <string name="tracker_measurement_partial">Részleges</string>
 </resources>

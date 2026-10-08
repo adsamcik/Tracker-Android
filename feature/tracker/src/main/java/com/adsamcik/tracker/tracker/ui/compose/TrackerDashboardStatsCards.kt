@@ -57,12 +57,15 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.tracker.controller.forLiveSegment
+import com.adsamcik.tracker.tracker.controller.formatSavedDistance
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 import com.adsamcik.tracker.shared.preferences.extension.formatSpeed
-import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
@@ -74,7 +77,8 @@ internal fun StatusAndQuickStatsCard(
     collectionData: TrackerCollectionSnapshot?,
     wallClockNowMillis: Long,
     onMapClick: () -> Unit,
-    pathPoints: List<Location>? = null,
+    savedLocation: SavedLocationSummaryRead = SavedLocationSummaryRead.NotFound,
+    trackingParams: TrackingParamsState = TrackingParamsState(),
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -82,8 +86,11 @@ internal fun StatusAndQuickStatsCard(
     val settings = TrackerSettingsQuick.snapshot(context)
     var selectedTab by rememberSaveable { mutableStateOf(TrackingStatsTab.LIVE) }
 
-    val currentSpeed = collectionData?.location?.speed
-    val currentActivity = collectionData?.activity?.getGroupedActivityName(context)
+    val locationRead = savedLocation.forLiveSegment(sessionData?.id, isTracking && trackingParams.locationEnabled)
+    val fix = (locationRead as? SavedLocationSummaryRead.Snapshot)?.summary?.latestFix
+    val currentSpeed = fix?.speedMetersPerSecond
+    val currentActivity = collectionData?.activity?.takeIf { trackingParams.activityEnabled }
+        ?.getGroupedActivityName(context)
     val sessionEnd = when {
         isTracking -> wallClockNowMillis
         sessionData != null && sessionData.end > sessionData.start -> sessionData.end
@@ -92,29 +99,28 @@ internal fun StatusAndQuickStatsCard(
     val durationMillis = if (sessionData != null) (sessionEnd - sessionData.start).coerceAtLeast(0L) else 0L
     val durationText = durationMillis.formatAsDuration(context)
     val isMoving = (currentSpeed ?: 0f) > 0.5f
-    val pathMetricsAccumulator = remember(sessionData?.id) { PathMetricsAccumulator() }
-    val pathMetrics = remember(pathPoints, pathMetricsAccumulator) {
-        pathMetricsAccumulator.update(pathPoints)
+    val distanceText = locationRead.formatSavedDistance(context) { distance ->
+        resources.formatDistance(distance, if (distance >= 1000.0) 1 else 0, settings.lengthSystem)
     }
-    val derivedDistanceMeters = pathMetrics.distanceMeters.toFloat()
-    val distanceMeters = maxOf(sessionData?.distanceInM ?: 0f, derivedDistanceMeters)
-    val distanceText = resources.formatDistance(
-        distanceMeters,
-        digits = if (distanceMeters >= 1000f) 1 else 0,
-        unit = settings.lengthSystem
-    )
-    val avgSpeed = pathMetrics.movingAverageSpeedMps
-    val avgSpeedText = resources.formatSpeed(context, avgSpeed, 1)
+    // No saved moving-average attribution exists; sampled preview points do not define an exact metric.
+    val avgSpeedText = context.getString(R.string.tracker_steps_value_unavailable)
     val speedText = currentSpeed?.let { resources.formatSpeed(context, it.toDouble(), 1) } ?: "—"
-    val altitudeText = collectionData?.androidModelMslAltitudeM?.let {
+    val altitudeText = fix?.altitudeMeters?.let {
         resources.formatDistance(it, 0, settings.lengthSystem)
     } ?: "—"
-    val accuracyText = collectionData?.location?.horizontalAccuracy?.let {
+    val accuracyText = fix?.horizontalAccuracyMeters?.let {
         "±${resources.formatDistance(it, 0, settings.lengthSystem)}"
     } ?: "—"
-    val wifiText = collectionData?.wifi?.inRange?.size?.takeIf { it > 0 }?.toString() ?: "—"
-    val cellText = collectionData?.cell?.totalCount?.takeIf { it > 0 }?.toString() ?: "—"
+    val wifiText = collectionData?.wifi?.takeIf { trackingParams.wifiEnabled }?.inRange?.size?.toString() ?: "—"
+    val cellText = collectionData?.cell?.takeIf { trackingParams.cellEnabled }?.totalCount?.toString() ?: "—"
     val activityText = currentActivity ?: "—"
+    val availableTabs = buildList {
+        if (trackingParams.locationEnabled) { add(TrackingStatsTab.LIVE); add(TrackingStatsTab.ROUTE) }
+        if (trackingParams.activityEnabled || trackingParams.wifiEnabled || trackingParams.cellEnabled) {
+            add(TrackingStatsTab.ACTIVITY)
+        }
+    }
+    val displayedTab = selectedTab.takeIf { it in availableTabs } ?: availableTabs.firstOrNull()
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -216,10 +222,10 @@ internal fun StatusAndQuickStatsCard(
 
             Spacer(Modifier.height(16.dp))
 
-            TabRow(selectedTabIndex = TrackingStatsTab.entries.indexOf(selectedTab)) {
-                TrackingStatsTab.entries.forEach { tab ->
+            if (availableTabs.isNotEmpty()) TabRow(selectedTabIndex = availableTabs.indexOf(displayedTab)) {
+                availableTabs.forEach { tab ->
                     Tab(
-                        selected = selectedTab == tab,
+                        selected = displayedTab == tab,
                         onClick = { selectedTab = tab },
                         text = { Text(text = stringResource(tab.titleRes)) }
                     )
@@ -228,7 +234,7 @@ internal fun StatusAndQuickStatsCard(
 
             Spacer(Modifier.height(12.dp))
 
-            when (selectedTab) {
+            when (displayedTab) {
                 TrackingStatsTab.LIVE -> {
                     TrackingStatRow(
                         first = stringResource(R.string.speed_title) to speedText,
@@ -247,19 +253,20 @@ internal fun StatusAndQuickStatsCard(
 
                 TrackingStatsTab.ACTIVITY -> {
                     TrackingStatRow(
-                        first = stringResource(R.string.tracker_activity_title) to activityText,
+                        first = if (trackingParams.activityEnabled) stringResource(R.string.tracker_activity_title) to activityText else null,
                         second = null,
-                        third = stringResource(R.string.tracker_accuracy_label) to accuracyText,
+                        third = if (trackingParams.locationEnabled) stringResource(R.string.tracker_accuracy_label) to accuracyText else null,
                     )
                     Spacer(Modifier.height(12.dp))
                     TrackingTechnicalRow(
                         wifiText = wifiText,
                         cellText = cellText,
-                        coordinatesText = collectionData?.location?.let { location ->
-                            "${Assist.coordinateToString(location.latitude)}, ${Assist.coordinateToString(location.longitude)}"
+                        coordinatesText = fix?.let {
+                            "${Assist.coordinateToString(it.latitudeE7 / 10_000_000.0)}, ${Assist.coordinateToString(it.longitudeE7 / 10_000_000.0)}"
                         }
                     )
                 }
+                null -> Unit
             }
         }
     }
@@ -273,33 +280,16 @@ internal enum class TrackingStatsTab(val titleRes: Int) {
 
 @Composable
 private fun TrackingStatRow(
-    first: Pair<String, String>,
+    first: Pair<String, String>?,
     second: Pair<String, String>?,
-    third: Pair<String, String>,
+    third: Pair<String, String>?,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        CompactStatItem(
-            label = first.first,
-            value = first.second,
-            modifier = Modifier.weight(1f)
-        )
-        if (second != null) {
-            CompactStatItem(
-                label = second.first,
-                value = second.second,
-                modifier = Modifier.weight(1f)
-            )
-        } else {
-            Spacer(Modifier.weight(1f))
+    val items = listOfNotNull(first, second, third)
+    if (items.isEmpty()) return
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        items.forEach { item ->
+            CompactStatItem(label = item.first, value = item.second, modifier = Modifier.weight(1f))
         }
-        CompactStatItem(
-            label = third.first,
-            value = third.second,
-            modifier = Modifier.weight(1f)
-        )
     }
 }
 

@@ -6,6 +6,9 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.adsamcik.tracker.stats.api.repository.*
+import com.adsamcik.tracker.shared.model.AltitudeDatum
+import com.adsamcik.tracker.shared.model.AltitudeSource
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
@@ -177,7 +180,14 @@ class TrackerDashboardStatsCardsAdditionalTest {
 					collectionData = null,
 					wallClockNowMillis = Time.nowMillis,
 					onMapClick = {},
-					pathPoints = points,
+					savedLocation = SavedLocationSummaryRead.Snapshot(
+                        SavedLocationSummarySelection.Session(session.id), TrackingHistoryReadSnapshot(0, 1),
+                        SavedLocationSummary(2, SavedLocationFix(2, points.last().time, 0,
+                            (points.last().latitude * 1e7).toInt(), (points.last().longitude * 1e7).toInt(),
+                            points.last().speed, points.last().speedAccuracy, points.last().horizontalAccuracy,
+                            points.last().altitude?.toFloat(), AltitudeDatum.UNKNOWN_LEGACY,
+                            AltitudeSource.UNKNOWN_LEGACY, points.last().verticalAccuracy), null, true),
+                    ),
 				)
 			}
 		}

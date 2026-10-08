@@ -177,4 +177,5 @@
     <string name="insight_distance_desc">Καλύψατε %1$s σε αυτή τη συνεδρία.</string>
     <string name="insight_steps_title">Καταγεγραμμένα βήματα</string>
     <string name="insight_steps_desc">%1$s βήματα σε αυτή τη συνεδρία — συνεχίστε έτσι!</string>
+    <string name="tracker_measurement_partial">Μερικό</string>
 </resources>

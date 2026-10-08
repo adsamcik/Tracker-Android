@@ -79,4 +79,5 @@
     <string name="tracker_session_card_title">Session</string>
     <string name="wifi_count_title">Wi-Fi count</string>
     <string name="wifi_count_value">Wi-Fi %d</string>
+    <string name="tracker_measurement_partial">חלקי</string>
 </resources>

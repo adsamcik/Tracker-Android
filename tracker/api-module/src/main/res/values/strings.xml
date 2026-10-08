@@ -246,4 +246,5 @@
     <string name="insight_steps_title">Steps recorded</string>
     <string name="insight_steps_desc">%1$s steps this session — keep it up!</string>
 
+    <string name="tracker_measurement_partial">Partial</string>
 </resources>

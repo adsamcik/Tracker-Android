@@ -1,0 +1,362 @@
+[
+  {
+    "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionWidget.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "82e577c00c5d3e601be41e727aa429291d76186893c36323e5bb8bf6b6ca40d1"
+  },
+  {
+    "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/TrackerWidgetEntryPoint.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "8fe13ee2c5892daf241d7ab6a98b040387b6d416b19b00506e2703ca5fd9c836"
+  },
+  {
+    "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetFormatters.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "d4033664b75946f9a69c0b071e1b77d8959c6d19bd56d1db94635c5468a92f9f"
+  },
+  {
+    "path": "app/src/test/java/com/adsamcik/tracker/app/widget/glance/ActiveSessionSavedLocationTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboard.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "ebbe09a5b13c1afad82c5c25739732eabdd9fabf1b2b7396251533f642e810f4"
+  },
+  {
+    "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardStatsCards.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "f2b81b0c2db78154e7e31a3dfbaa8c56e698f514360720c3414daccb7c542037"
+  },
+  {
+    "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardTrackingComponents.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e80bdb6ce07d26de3705c1f63feb63d9661d22a77078b187a4be43bdd06c4fd7"
+  },
+  {
+    "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "28fb6fb43e929ed60207167f4141d9ea0c2b02bf477a343e506e491febfb9eb9"
+  },
+  {
+    "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardStatsCardsAdditionalTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "669fb71bd7e01104dca7fa2468628971151b5df434aba0f90dbdda0e7cb3a74e"
+  },
+  {
+    "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerSavedLocationDisplayTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/controller/SavedLocationPresentation.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values/strings.xml",
+    "disposition": "PRESERVED_MIXED_WORKING_DRAFT",
+    "working_before_sha256": "868be72211815f98ccc6ce9cccbd8d1b8ab65ddd2bd955ed47145b350042dd11"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-bg-rBG/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "2ea8228a933fbb2baecbda0483af60e8e696b2228042a95813364c83193c5930"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-cs-rCZ/strings.xml",
+    "disposition": "PRESERVED_MIXED_WORKING_DRAFT",
+    "working_before_sha256": "d0711fdb5bbed2312d81ef939ffbfe5112d3af4c8400a17fe33d11e3e6cdae3e"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-da-rDK/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "d1aca1dbedcd17b7c4aecc4892316e41bc64511ad929b7699b931b3d0783bed1"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-de-rDE/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "b5ba90e142c298870c8ac3d3f807ee977f6b9f8a8b7874b07ff3df78128b3876"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-el-rGR/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e3f0b979dbc0160bc3fbf39e9954629ccd59827f30b8f73347acc34a0724202d"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-es-rES/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "65bd87d42792d0519a9cf19a2429ad0fd7de969e20d2ce80af9a8bcde3434516"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-et-rEE/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e0f9a19c9dbf87295c2a3984ae63bc9fdd976375acb7790299d4748dd859f0ca"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-fi-rFI/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "d1d72e57597c9d0b5f106f7bbe3e0a51e03617c9b0a3e227ca18e33a2428c382"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-fr-rFR/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "caba3ceeb827506ec1d05d378e009de849f1fda34e51686e4886841f28b7bb5d"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-ga-rIE/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "c00fdb84c59c80795addb9ce589625cb1d94fea6faa919a1ea49a8f0c7746ee9"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-hi-rIN/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "0c9a71d099e0181ceda839a4ca79701987e61c0a1f4fe22c0956d65871005784"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-hr-rHR/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "79bbd5b558a497ffce593814056ac82a846b7bd703b6b13e1973517aef6b425e"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-hu-rHU/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "ae2adfa6d22f5dde25f9052662e3f4fc52d21786375d3af0b155e107429d5096"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-it-rIT/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "ceb59dbb69527bcfb608e686154f999ad2303153201c9c3203a6472c44f7c695"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-iw-rIL/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "334191ad06fc635be9589fd0855598c987604828935be748d1e3486f9d949fc0"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-ja-rJP/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "c8a8bf22b6d0abbc1946fadd2643031ee150da18048d379928370b405f627a6a"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-ko-rKR/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "2d503f31ce44d3ad766b491508a0c6e2cab91be965d2ca2bdf3c0a79d5ef5a9a"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-lt-rLT/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "54ffe66d4c85bc4fe0b7d12f335346261a72ae9cd1e7712cf2e8538f3fdbc5a9"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-lv-rLV/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "c0e69c2f7d123123976abeeccdfa71de44a0cfdfa64483dc00ed8999d31b6294"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-mt-rMT/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "4de77849723ffcff7c3e2daa8904fafb8eb4de84d6ddfeb040b6d0face6d3340"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-nl-rNL/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "d4bfdbcfa9dece4584cb0de20a496e538311037886585e21cf8af76175753611"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-no-rNO/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "5f1b589939129d002a9e93ad9a4ac6451f4e4f7731bed3070c2d8a7e707448a2"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-pl-rPL/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "b67a789e0e3696f8c093d8354be0c9744c081b1a704233aceaa7c0be3b471144"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-pt-rBR/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "88423f8456e5aad8122d7ca38f6e9dc55e48e4b08d6cdd2b138729ca591ef1e8"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-pt-rPT/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "73371a4b50948464c20c0cf9542c08a8b278a2935ca38c9499600c5a47ff4fee"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-ro-rRO/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "0b1f3b6301390335763382d500b380d65538bfe8d8fdd75bf59222b142a1a915"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-ru-rRU/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "b689a09b6a644f8c7bcb495820af9328c8bacaea71fa999f63e1d3917c5b3bab"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-sk-rSK/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "19adfbc0d2763fa557c3ccebf362d0794d83533dfac7da9ad051c3aa1d68a8bc"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-sl-rSI/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "5caef0949efa32112acb81e1ce2fc47ad90e91bab14bd777086a52bd49c9dd77"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-sr-rSP/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "075a8e2cb9e11e2353db281aa65ed1a8d847de8f749cf4457467a35b7dc8133e"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-sv-rSE/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "0036c080a4d11088eae23e574fdd29cfeaa832ac16054eff7430eb629a133c8a"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-tr-rTR/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "dcb98d647b5b767125b58398b124d7028c8ac1d71dd4428e9e2386af4a46a737"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-uk-rUA/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "b689a09b6a644f8c7bcb495820af9328c8bacaea71fa999f63e1d3917c5b3bab"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-vi-rVN/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "ffa28564869e4f4892664e0ddd2669617f9cb9eb09c2a4605b444982cf598e73"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-zh-rCN/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "0a569ef61e994eb809b4acfe1e554f3b689ffb2acc15b21c74c5a8a678fb377d"
+  },
+  {
+    "path": "tracker/api-module/src/main/res/values-zh-rTW/strings.xml",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "a6681ffbda214fcfa091e38597fedf90a907730b064034e2626eda7be9223773"
+  },
+  {
+    "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/controller/SavedLocationPresentationTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/consumer/post/NotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "faa93555200f252eea403c40441d93d73ea6b54bc78a973adfa7806a0ebee5be"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/ActivityNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "742a32fdf4c9531663e567dbb25a8ec822b630443d46fb84b4d117134b4c8eca"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/AltitudeNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "6d29933efa5b554e3e2feaafdebbfafcff5339208c90f22705429b6d243a255b"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/BatteryNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "dd22ed59ecd2dccb9df3bf2405536ea1af9c663b31c92e61cf303dba9eb00453"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/CellCountNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "c8aea05fd1d1b5d63e64e759c97caa38967bce53ecafe52a9d165abb9150b447"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/CellCurrentNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "2884d86a8fb50396db223657ba9070e9729ed418610cab9bf0b3a8912a9337df"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/CollectionCountNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "afe73e6f4dfbaaffe21a866da9b9e4f7558483cab01568fdb7c44c728de7092d"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/DistanceInVehicleNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "2d67b08fe74a60e39718a6b052c773a55e79a2a1ca40348e26b68486c420a50c"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/DistanceNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "0e97f2d41c918dfc298d4fd166ab954606aa8b4856e8fb4d375ba0253d6cb294"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/DistanceOnFootNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "1af0e239de2663ea581292059d3cb6b4af42481f4efe67cf31a0320b8464fc60"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/DurationNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "41a94c478c81c563c6133305d1e1e1bd06e387958a5c4086a90077106c0c74e9"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/HorizontalAccuracyNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "33377d9db08863c85fc7b0db5e6bf309ef0a55d9ef1a42efc6b5e11f23f3eb28"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/LastUpdateNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "7a113275ab349d26eb4dcf06187f909d2fc81bdcf9ea24f3d90e3283327ecb97"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/LatitudeNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "9c40ac8f8e931b93348644ee3ff82ae94c1b4ae2fa3361ec21bef1d1787007c2"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/LongitudeNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "fdf7803316edfa1ffec3f739b7f65cd505562ffad384d6e91948034c8b83a37b"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/SkiNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "b7b62ca8d8fa4b233b9e09a380fb65f036ab90df931d07ca8fa137117ec05767"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/SpeedNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "27c80417b51f9890db4aa3acae7621bd5a10147a05f3f6e9661f4122c782f30a"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/StartTimeNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "77615147a9f94ebde3a638cb55e594804309b8049b191b64cb56695c5b56ddb8"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/WiFiCountNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "75b015b60713f8fb9e2e1f56ecb8e812db14659f15b4ac6cd4f9132c2ee286a2"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/TrackerNotificationComponent.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "a3d3858ef567ad7c7b93d501ced13c241651c66ea870f0982052141a761c5d80"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/TrackerComponentFactory.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "aee2b62d706be88afe67521ee84837c86676134d29d36b355324a9339fee4b42"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/component/consumer/post/SavedLocationNotificationUpdatesTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/notification/SavedLocationNotificationTextTest.kt",
+    "disposition": "APPLIED_SELECTED_SOURCE",
+    "working_before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

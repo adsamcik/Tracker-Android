@@ -181,4 +181,5 @@
     <string name="insight_distance_desc">Ai parcurs %1$s în această sesiune.</string>
     <string name="insight_steps_title">Pași înregistrați</string>
     <string name="insight_steps_desc">%1$s pași în această sesiune — continuă tot așa!</string>
+    <string name="tracker_measurement_partial">Parțial</string>
 </resources>

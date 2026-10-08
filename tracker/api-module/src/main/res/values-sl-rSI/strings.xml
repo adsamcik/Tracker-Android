@@ -185,4 +185,5 @@
     <string name="insight_distance_desc">V tej seji ste prevozili %1$s.</string>
     <string name="insight_steps_title">Zabeleženi koraki</string>
     <string name="insight_steps_desc">%1$s korakov v tej seji — kar tako naprej!</string>
+    <string name="tracker_measurement_partial">Delno</string>
 </resources>

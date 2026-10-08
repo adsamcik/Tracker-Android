@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.notification.component
 
 import android.content.Context
+import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
@@ -25,7 +26,8 @@ internal class BatteryNotificationComponent : TrackerNotificationComponent() {
 	override fun generateText(
 		context: Context,
 		session: TrackerSession,
-		data: CollectionData
+		data: CollectionData,
+			savedLocation: SavedLocationSummaryRead
 	): String? {
 		val level = getBatteryLevel(context)
 		if (level < 0) return null
