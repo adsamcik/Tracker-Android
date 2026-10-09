@@ -279,6 +279,7 @@ when the concrete proposal is ready; do not reask settled decisions.
 | Shared measured-observation list for Timeline and Calendar day | T14, T17 | Concrete screen and existing-reader extension explicitly approved on October 8; implementation in progress. See `UNIFIED_HISTORY_PRESENTATION_PROPOSAL/SOURCE_TRACE_AND_PROPOSAL.md`. |
 | Recover original released data in current rows and older-record tables | T13, T18 | Exact V2 storage reuse proposal explicitly approved on October 8, with migration reuse of the existing import/export workflow required; implementation seam under review. See `RELEASED_DATA_RECOVERY_AUDIT`. |
 | Durable background Location gap records | T07, T12 | Unanswered storage choice. |
+| Keep an independently valid all-day Location point when session curation rejects it | T07, T11, T12 | Proposed reuse of existing point storage with separate purpose outcomes; question sent, user approval pending. |
 | New Activity/Pressure divergent-import conflict display | T14, T20 | Keep existing outcome until a concrete UI proposal is approved. |
 | Exact repeated Steps file membership for bundles | T21 | Review existing receipt semantics before proposing changes. |
 | Incompatible JSON wire representation, if necessary | T22 | Six-source/all-day JSON goal already approved; only incompatible representation unresolved. |
@@ -558,7 +559,7 @@ provider/device/battery/CI or dev/v10 integration has begun.
 
 - [x] Select the independently accepted V2 Tracker/Dashboard, notification and active-Glance consumer wiring. All use the existing shared source-qualified saved Location values for the exact active segment, with current source participation and teardown guards; no raw Location fallback, extra Room observer, sensor or database copy.
 - [x] Author 23 helper/Compose/widget/generator/component methods, all NOT_RUN. Exact source and final static acceptance: `../2026-10-08/LIVE_SAVED_LOCATION_CONSUMERS_SELECTED/` and `LIVE_SAVED_LOCATION_CONSUMERS_REVIEW/V2_ACCEPTANCE.md`.
-- [ ] Finish moving-average speed, installed-widget delivery outside active composition, native mode attribution, all-day/released/imported/logical totals and effective corrections. Pending questions and limitations remain explicit; T17/T25/all25 full chains stay OPEN.
+- [ ] Finish native mode attribution, all-day/released/imported/logical totals and effective corrections. The later saved Location average milestone completes Avg; the approved Active Session launcher widget removal retires its refresh work. Pending questions and limitations remain explicit; T17/T25/all25 full chains stay OPEN.
 
 IMPLEMENTED_UNVALIDATED. No compile, test, schema, lint, device/provider, battery, CI or dev/v10 integration.
 
