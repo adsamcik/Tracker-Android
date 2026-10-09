@@ -1,0 +1,10 @@
+{
+  "base_commit": "b412a14ed0ffdcdb21641e445a485b380b2e3ab1",
+  "files": [
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetStepsPresentation.kt",
+      "base_sha256": "5d46db1176aedadce09fc7b3bd0425dd3efab859789c9892a0b63f9ff12652a1",
+      "selected_sha256": "65263d470ca7ed30d9eeff45c9860464cbc2e922a5c4daf3b6ef5cd194fa45bf"
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+# Active Session widget remainder
+
+Approved removal follow-up, IMPLEMENTED_UNVALIDATED. The removed Active Session widget was the only production caller of the segment-specific Steps presentation converter. Committed production/test call-site inspection now finds only Today Summary using the separate QualifiedStepCount converter. Remove that dead session converter and its five unused imports. No remaining widget, display converter, resource, source or data behavior changes. Existing TodaySummaryWidgetPresentationTest remains unchanged and NOT_RUN. No redundant dead-code unit test added. All compilation/tests/CI/device gates remain deferred; T25/all25 OPEN.

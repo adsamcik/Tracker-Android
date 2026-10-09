@@ -676,3 +676,7 @@ Exact selected source and independent review: `../2026-10-08/ACTIVITY_ORIGINAL_C
 - [x] Three Activity lifecycle shape guards treat UTC as nonnegative metadata rather than a monotonic clock. Original elapsed, manifest, provider, permission, authenticated Stop, epoch, deletion and retention checks remain. Two authored Room admission methods NOT_RUN cover actual stored RTC rollback/later operation fixtures and invalid negative completion metadata. The separate shared final binding and History reader companions remain open.
 
 Exact selected source and independent review: `../2026-10-08/ACTIVITY_WALL_CLOCK_VALIDITY_SELECTED/` and `ACTIVITY_WALL_CLOCK_VALIDITY_REVIEW/ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN. No gates, activation, integration or push.
+
+### October 9 - Active Session widget dead-code cleanup
+
+- [x] Remove the unused segment Steps converter and five imports left after the approved launcher widget removal. Static committed caller inspection confirms Today Summary uses its separate converter. Existing Today Summary test source retained; no redundant dead-code test. IMPLEMENTED_UNVALIDATED, every execution gate deferred, T25/all25 OPEN. Exact source-only record: `../2026-10-08/ACTIVE_WIDGET_REMAINDER_SELECTED/`.
