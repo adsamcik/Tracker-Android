@@ -998,3 +998,9 @@ Selected source: `../2026-10-08/ACTIVITY_WINDOW_VALUE_KEY_SELECTED/`; review: `A
 - [x] Preserve independently authorized all-day Cell during Cell-only session-recording consent cleanup across the existing runtime finite FIFO barrier, registration publisher and Room captured-data deletion. Authenticate the surviving sessionless Ambient policy/consent and demand; leave generic/full-purpose/Steps fences unchanged. Seven focused runtime and real Room source cases authored NOT_RUN; independent static review accepted the standalone clean-HEAD fix. Final generation, Location callback and session-only setup successor companions remain held and are not selected by this step.
 
 Selected source: `../2026-10-08/CELL_CAPTURE_SIBLING_STANDALONE_SELECTED/`; review: `CELL_CAPTURE_SIBLING_REVIEW/STANDALONE_ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN. No execution gates, activation, integration or push.
+
+### October 9 - Cell cleanup follows the actual Ambient producer
+
+- [x] Remove two redundant Cell cleanup comparisons between Ambient demand QoS and source policy QoS. The actual broker deliberately uses independent Ambient QoS0; complete immutable demand/authorization reconstruction already authenticates its collection terms. Current and original Ambient consent, lifetime, clock, epoch and deletion checks remain. Update the four reached Room fixture methods to that actual producer shape with nonzero policies; all seven prior cases remain NOT_RUN. Fresh producer-aware source review accepts this correction. The earlier Cell receipt is preserved as a scoped historical input, not final producer agreement evidence. Wi-Fi custom contracts and shared setup remain separate open work.
+
+Selected source: `../2026-10-08/CELL_AMBIENT_CLEANUP_AUTHORITY_SELECTED/`; review: `CELL_AMBIENT_CLEANUP_AUTHORITY_REVIEW/ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN. No execution gates, activation, integration or push.

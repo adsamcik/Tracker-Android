@@ -1,0 +1,33 @@
+{
+  "base": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt",
+      "base_sha256": "63a6217fa008980ffa9ac14454010ca41ee1ead5fc25a4e55d6aa01694bdc806",
+      "selected_sha256": "f184c7b9cd9fce74340b34ee040da8295b4552f518000e37eb27ef6b1e3f44ab",
+      "working_before_sha256": "63a6217fa008980ffa9ac14454010ca41ee1ead5fc25a4e55d6aa01694bdc806",
+      "selected_eol": "LF"
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt",
+      "base_sha256": "c711238ad6b020f22346503a0110c7c4a0a45e99461f6fdf75540d3ee6a2b5e4",
+      "selected_sha256": "32b19900e026c6b27851e65628a687573ad5d1ab4aa94bf2fe24e9a43c27f5d6",
+      "working_before_sha256": "c711238ad6b020f22346503a0110c7c4a0a45e99461f6fdf75540d3ee6a2b5e4",
+      "selected_eol": "LF"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepositoryTest.kt",
+      "base_sha256": "0bb878bd5c38781c6db26fa7cf2b186bff369a2a9debb4878cdf6bd420520928",
+      "selected_sha256": "5a62ab35f6d09368de0a046c294323075bb32606ea749d64a9028d89e4f1354c",
+      "working_before_sha256": "0bb878bd5c38781c6db26fa7cf2b186bff369a2a9debb4878cdf6bd420520928",
+      "selected_eol": "LF"
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt",
+      "base_sha256": "13e0281d71e78f30b842a7e99d3aed5788e90f7a0ba900381cf28527543cc086",
+      "selected_sha256": "7542fc0471d8c87ea258dae8143f2d2099b5de7a4128fc997dd1585acee41cf6",
+      "working_before_sha256": "13e0281d71e78f30b842a7e99d3aed5788e90f7a0ba900381cf28527543cc086",
+      "selected_eol": "LF"
+    }
+  ]
+}

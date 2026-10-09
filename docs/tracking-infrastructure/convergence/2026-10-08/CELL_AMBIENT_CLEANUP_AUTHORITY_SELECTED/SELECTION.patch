@@ -1,0 +1,70 @@
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt
+@@ -1091,7 +1091,7 @@
+ 				demand.retireElapsedRealtimeNanos == null && demand.retiredAtMs == null &&
+ 				demand.persistenceEligible && historical.hasExactEligibleAmbientConsentReference(consent) &&
+ 				current.ambientConsentEpoch == demand.consentEpoch && historical.ambientConsentEpoch == demand.consentEpoch &&
+-				consent != null && consent.policyRevision <= historical.policyRevision && historical.qosCode == demand.qosCode &&
++				consent != null && consent.policyRevision <= historical.policyRevision &&
+ 				historical.isEffectiveAtOrBefore(demand.requestedBootId, demand.requestedElapsedRealtimeNanos, demand.requestedAtMs) &&
+ 				consent.isEffectiveAtOrBefore(demand.requestedBootId, demand.requestedElapsedRealtimeNanos, demand.requestedAtMs) &&
+ 				demand.requestedBootId == authorization.effectiveBootId &&
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt
+@@ -1823,7 +1823,7 @@
+ 			if (policy == null || !policy.hasExactEligibleAmbientConsentReference(consent) ||
+ 				!currentPolicy.hasExactEligibleAmbientConsentReference(consent) || consent == null ||
+ 				policy.ambientConsentEpoch != demand.consentEpoch || currentPolicy.ambientConsentEpoch != demand.consentEpoch ||
+-				!demand.persistenceEligible || demand.qosCode != policy.qosCode ||
++				!demand.persistenceEligible ||
+ 				demand.status != SourceDemandEntity.STATUS_ACTIVE || demand.logicalTrackingId != null ||
+ 				demand.serviceRunId != null || demand.manifestRevision != null || demand.lifecycleLeaseGeneration != null ||
+ 				demand.retireBootId != null || demand.retireElapsedRealtimeNanos != null || demand.retiredAtMs != null ||
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepositoryTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepositoryTest.kt
+@@ -106,12 +106,15 @@
+ 
+ 	@Test
+ 	fun `Cell capture callback barrier keeps exact current Ambient after capture removal`() = runTest {
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE source_policy SET balance_profile_version = 1, balance_level = 3, overall_balance_level = 3 " +
++				"WHERE policy_revision = 5 AND source_kind = ?", arrayOf(SourceKind.CELL.stableCode))
+ 		val capture = cellDemand("cell-capture", "session:cell", SourceBrokerPurpose.SESSION_CAPTURE, "cell", 1L, true)
+ 		database.sourceBrokerDao().insertDemands(listOf(capture))
+ 		val reserved = subject.begin(SourceKind.CELL, 1L, PHYSICAL_CONFIG, 100L, 100L)
+ 		subject.markAccepted(reserved, 110L, 110L)
+ 		val ambient = cellDemand("cell-ambient", "app:ambient:cell", SourceBrokerPurpose.AMBIENT_PRODUCT, null, null, true)
+-			.copy(requestedElapsedRealtimeNanos = 200L, requestedAtMs = 200L)
++			.copy(qosCode = 0, requestedElapsedRealtimeNanos = 200L, requestedAtMs = 200L)
+ 		database.withTransaction {
+ 			database.sourceBrokerDao().insertDemands(listOf(ambient))
+ 			database.fenceSourcePurposesInTransaction(SourceKind.CELL.stableCode,
+@@ -129,6 +132,7 @@
+ 	@Test
+ 	fun `Cell capture callback barrier refuses revoked Ambient without borrowing capture consent`() = runTest {
+ 		val ambient = cellDemand("cell-ambient", "app:ambient:cell", SourceBrokerPurpose.AMBIENT_PRODUCT, null, null, true)
++			.copy(qosCode = 0)
+ 		database.sourceBrokerDao().insertDemands(listOf(ambient))
+ 		val reserved = subject.begin(SourceKind.CELL, 1L, PHYSICAL_CONFIG, 100L, 100L)
+ 		subject.markAccepted(reserved, 110L, 110L)
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt
+@@ -83,6 +83,10 @@
+ 	fun `capture consent deletion preserves independently current Ambient Cell provider and demand`() = runTest {
+ 		seedCapturedCell(revokedCapture = true)
+ 		val ambient = installActiveControlOnlyProvider(CONTROL_AUTHORIZATION_REVISION, ambient = true)
++		ambient.qosCode shouldBe 0
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE source_policy SET balance_profile_version = 1, balance_level = 3, overall_balance_level = 3 " +
++				"WHERE policy_revision = ? AND source_kind = ?", arrayOf(REVOKED_POLICY_REVISION, CELL_SOURCE))
+ 		val provider = requireNotNull(database.sourceBrokerDao().registration(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION))
+ 		database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
+ 			DELETION_TIME_MS) shouldBe CellCapturedSourceDeletionResult.Deleted(1, 1, 1)
+@@ -4568,6 +4572,7 @@
+ 			sourcePolicyRevision = REVOKED_POLICY_REVISION,
+ 			consentEpoch = CONTROL_CONSENT_EPOCH,
+ 			persistenceEligible = ambient,
++			qosCode = if (ambient) 0 else fixtureQosCode,
+ 			requestedElapsedRealtimeNanos = REVOKED_POLICY_NANOS,
+ 			requestedAtMs = REVOKED_POLICY_WALL_MS,
+ 		)

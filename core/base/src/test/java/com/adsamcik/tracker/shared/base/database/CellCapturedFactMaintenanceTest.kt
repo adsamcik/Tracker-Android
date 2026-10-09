@@ -83,6 +83,10 @@ class CellCapturedFactMaintenanceTest {
 	fun `capture consent deletion preserves independently current Ambient Cell provider and demand`() = runTest {
 		seedCapturedCell(revokedCapture = true)
 		val ambient = installActiveControlOnlyProvider(CONTROL_AUTHORIZATION_REVISION, ambient = true)
+		ambient.qosCode shouldBe 0
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_policy SET balance_profile_version = 1, balance_level = 3, overall_balance_level = 3 " +
+				"WHERE policy_revision = ? AND source_kind = ?", arrayOf(REVOKED_POLICY_REVISION, CELL_SOURCE))
 		val provider = requireNotNull(database.sourceBrokerDao().registration(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION))
 		database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
 			DELETION_TIME_MS) shouldBe CellCapturedSourceDeletionResult.Deleted(1, 1, 1)
@@ -4568,6 +4572,7 @@ class CellCapturedFactMaintenanceTest {
 			sourcePolicyRevision = REVOKED_POLICY_REVISION,
 			consentEpoch = CONTROL_CONSENT_EPOCH,
 			persistenceEligible = ambient,
+			qosCode = if (ambient) 0 else fixtureQosCode,
 			requestedElapsedRealtimeNanos = REVOKED_POLICY_NANOS,
 			requestedAtMs = REVOKED_POLICY_WALL_MS,
 		)

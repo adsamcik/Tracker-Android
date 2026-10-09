@@ -1091,7 +1091,7 @@ class SourceRegistrationRepository @Inject constructor(
 				demand.retireElapsedRealtimeNanos == null && demand.retiredAtMs == null &&
 				demand.persistenceEligible && historical.hasExactEligibleAmbientConsentReference(consent) &&
 				current.ambientConsentEpoch == demand.consentEpoch && historical.ambientConsentEpoch == demand.consentEpoch &&
-				consent != null && consent.policyRevision <= historical.policyRevision && historical.qosCode == demand.qosCode &&
+				consent != null && consent.policyRevision <= historical.policyRevision &&
 				historical.isEffectiveAtOrBefore(demand.requestedBootId, demand.requestedElapsedRealtimeNanos, demand.requestedAtMs) &&
 				consent.isEffectiveAtOrBefore(demand.requestedBootId, demand.requestedElapsedRealtimeNanos, demand.requestedAtMs) &&
 				demand.requestedBootId == authorization.effectiveBootId &&

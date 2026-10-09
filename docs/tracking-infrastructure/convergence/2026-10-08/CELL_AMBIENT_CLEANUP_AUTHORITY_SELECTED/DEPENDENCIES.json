@@ -1,0 +1,27 @@
+[
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceBroker.kt",
+    "commit": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+    "sha256": "be0057395daf7109198514631bd1ea7697dbb2745e299b049405b7c7ada276a4"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/AmbientRadioSourceBrokerTest.kt",
+    "commit": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+    "sha256": "a8801cc5fe14dd2300d938788e5613e8efdf8fad9de1098a3c2faa20cf953d4f"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourceAcquisitionFloor.kt",
+    "commit": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+    "sha256": "6b5bfde1e09166c7cdc6935ba36df79d31655be1225cd8dc63ccfb9e9e932b7f"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourcePolicyConsentSemantics.kt",
+    "commit": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+    "sha256": "2e1cdb8a4baa9e41a070ed262e3aa1ed378f4b7ed48b9b7be3a5b0ebfa79fcb2"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceBrokerEntities.kt",
+    "commit": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+    "sha256": "752d4b90d523ef1543d3032b31da63e0aa2943a13462b6b79fa40f28930b7fe0"
+  }
+]

@@ -106,12 +106,15 @@ class SourceRegistrationRepositoryTest {
 
 	@Test
 	fun `Cell capture callback barrier keeps exact current Ambient after capture removal`() = runTest {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_policy SET balance_profile_version = 1, balance_level = 3, overall_balance_level = 3 " +
+				"WHERE policy_revision = 5 AND source_kind = ?", arrayOf(SourceKind.CELL.stableCode))
 		val capture = cellDemand("cell-capture", "session:cell", SourceBrokerPurpose.SESSION_CAPTURE, "cell", 1L, true)
 		database.sourceBrokerDao().insertDemands(listOf(capture))
 		val reserved = subject.begin(SourceKind.CELL, 1L, PHYSICAL_CONFIG, 100L, 100L)
 		subject.markAccepted(reserved, 110L, 110L)
 		val ambient = cellDemand("cell-ambient", "app:ambient:cell", SourceBrokerPurpose.AMBIENT_PRODUCT, null, null, true)
-			.copy(requestedElapsedRealtimeNanos = 200L, requestedAtMs = 200L)
+			.copy(qosCode = 0, requestedElapsedRealtimeNanos = 200L, requestedAtMs = 200L)
 		database.withTransaction {
 			database.sourceBrokerDao().insertDemands(listOf(ambient))
 			database.fenceSourcePurposesInTransaction(SourceKind.CELL.stableCode,
@@ -129,6 +132,7 @@ class SourceRegistrationRepositoryTest {
 	@Test
 	fun `Cell capture callback barrier refuses revoked Ambient without borrowing capture consent`() = runTest {
 		val ambient = cellDemand("cell-ambient", "app:ambient:cell", SourceBrokerPurpose.AMBIENT_PRODUCT, null, null, true)
+			.copy(qosCode = 0)
 		database.sourceBrokerDao().insertDemands(listOf(ambient))
 		val reserved = subject.begin(SourceKind.CELL, 1L, PHYSICAL_CONFIG, 100L, 100L)
 		subject.markAccepted(reserved, 110L, 110L)

@@ -1823,7 +1823,7 @@ private suspend fun AppDatabase.authenticateCurrentCellDemands(
 			if (policy == null || !policy.hasExactEligibleAmbientConsentReference(consent) ||
 				!currentPolicy.hasExactEligibleAmbientConsentReference(consent) || consent == null ||
 				policy.ambientConsentEpoch != demand.consentEpoch || currentPolicy.ambientConsentEpoch != demand.consentEpoch ||
-				!demand.persistenceEligible || demand.qosCode != policy.qosCode ||
+				!demand.persistenceEligible ||
 				demand.status != SourceDemandEntity.STATUS_ACTIVE || demand.logicalTrackingId != null ||
 				demand.serviceRunId != null || demand.manifestRevision != null || demand.lifecycleLeaseGeneration != null ||
 				demand.retireBootId != null || demand.retireElapsedRealtimeNanos != null || demand.retiredAtMs != null ||

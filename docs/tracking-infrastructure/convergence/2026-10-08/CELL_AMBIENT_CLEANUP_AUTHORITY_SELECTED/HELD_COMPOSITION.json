@@ -1,0 +1,26 @@
+[
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt",
+    "supplier": "CELL_CAPTURE_SIBLING_SELECTED/SELECTED",
+    "supplier_sha256": "523ee5955b7889b4ab4e825a1e4aa85ec5f2fdba6d48e7abf8650d562f51a61b",
+    "composed_sha256": "5cd45e9d106fe0ae848f280e2e1cc1ce9bde57c5dbbaa527b427fb34f7bda0c2"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt",
+    "supplier": "CELL_CAPTURE_SIBLING_SELECTED/SELECTED",
+    "supplier_sha256": "da15a0cb23043f5fb65534495e1c37416126a2e59326463b063eac33dac7c75b",
+    "composed_sha256": "a870d7a91c1ee3e9f98810fa352f59a1b36a3484f2b5b8ab52dea92456ede376"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepositoryTest.kt",
+    "supplier": "CELL_CAPTURE_SIBLING_SELECTED/SELECTED",
+    "supplier_sha256": "7015c2a9498f893229aed277bd6f810002682a3df013b2eeed076bbc2d495148",
+    "composed_sha256": "acb518e981cd03c5f3ef071994e9d640f0b266190ed2e56a000b077ad561b9ef"
+  },
+  {
+    "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt",
+    "supplier": "CELL_CAPTURE_SIBLING_SELECTED/SELECTED",
+    "supplier_sha256": "a9ae9da889e2dd81ceee0e1890427390f502104791c1ee49e83b93e3748ca523",
+    "composed_sha256": "99b55267c55980b7aa8c2e3afa331f2af4c5486e033ac5313e455e42e0bae168"
+  }
+]
