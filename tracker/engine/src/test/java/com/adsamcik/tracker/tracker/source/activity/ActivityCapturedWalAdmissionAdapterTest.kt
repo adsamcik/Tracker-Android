@@ -30,6 +30,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
@@ -68,6 +69,43 @@ class ActivityCapturedWalAdmissionAdapterTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `actual original Activity lane coalesces separately decoded observations into one saved window`() = runTest {
+		installFixture()
+		database.sourceProjectionStateDao().installProductLane(SourceProductProjectionLaneEntity(
+			sourceKind = ACTIVITY_SOURCE,
+			bindingGeneration = 1L,
+			projectionId = ActivityCapturedFactProjectionLane.WRITER_ID,
+			projectionVersion = ActivityCapturedFactProjectionLane.WRITER_VERSION,
+			captureModeMask = 1L,
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			activatedRolloutRevision = 1L,
+			activationOrdinal = 1L,
+			contiguousAdmissionOrdinal = 0L,
+			captureAdmissionCutoffOrdinal = null,
+			retentionRequired = true,
+			status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+			installedAtMs = 1_000L,
+			updatedAtMs = 1_000L,
+		))
+		// Providers and lifecycle rows are fixtures. Admission, grouping, coalescing and writes
+		// below use their actual Room-backed implementations, not mocked decoded objects.
+		val projection = ActivityCapturedFactProjectionLane(database, subject())
+		projection.drainAvailable() shouldBe ActivityCapturedFactDrainResult.Complete(2L, 1, 2)
+		val dao = database.activityCapturedFactDao()
+		dao.revisionCount() shouldBe 1L
+		val saved = dao.currentRevisionsForWriterAdmission(
+			ActivityCapturedFactProjectionLane.WRITER_ID,
+			ActivityCapturedFactProjectionLane.WRITER_VERSION, 1L, 2).single()
+		dao.evidence(saved.writerProjectionId, saved.writerProjectionVersion,
+			saved.logicalWindowId, saved.semanticRevision).map { it.sourceEventId }.toSet() shouldBe
+			setOf(EVENT_ID.value, "activity-event-2")
+		database.sourceProjectionStateDao().activeProductLane(ACTIVITY_SOURCE)
+			?.contiguousAdmissionOrdinal shouldBe 2L
+		projection.drainAvailable() shouldBe ActivityCapturedFactDrainResult.Complete(2L, 0, 0)
+		dao.revisionCount() shouldBe 1L
+	}
 
 	@Test
 	fun `Activity UTC rollback does not invalidate its original elapsed Stop and saved observations`() = runTest {

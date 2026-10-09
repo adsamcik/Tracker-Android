@@ -1,0 +1,12 @@
+[
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactProjectionLane.kt",
+    "working_before_sha256": "02445d480cd6735c3f3a1bbe73805592bee402908d915ea6e32939a664c59220",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapterTest.kt",
+    "working_before_sha256": "f0bbf7b572581fa0203cbeee471a00534fc055defb0309e563811e6511a7944d",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  }
+]

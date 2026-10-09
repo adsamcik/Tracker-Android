@@ -353,7 +353,9 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 						)
 					}
 					val key = ActivityProjectionWindowKey(
-						admission.acquisitionAuthority,
+						candidateAuthority,
+						admission.acquisitionAuthority.historicalConfiguration.desiredPlanPayloadVersion,
+						admission.acquisitionAuthority.historicalConfiguration.desiredPlanPayloadChecksum,
 						admission.settledWindow,
 					)
 					groups.getOrPut(key) {
@@ -413,7 +415,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 				ActivityCapturedCoalescingRequest(
 					mutation = ActivityCapturedWindowMutation(
 						identity = ActivityCapturedWindowIdentity(
-							key.acquisitionAuthority.captureAuthority,
+							key.captureAuthority,
 							interval.startInclusiveNanos,
 							interval.endExclusiveNanos,
 						),
@@ -718,8 +720,11 @@ private sealed interface ActivityProjectionPass {
 	) : ActivityProjectionPass
 }
 
+// Each WAL admission decodes a new configuration instance. Group by its verified values.
 private data class ActivityProjectionWindowKey(
-	val acquisitionAuthority: ActivityCaptureAcquisitionAuthority,
+	val captureAuthority: ActivityCaptureAuthority,
+	val desiredPlanPayloadVersion: Int,
+	val desiredPlanPayloadChecksum: String,
 	val settledWindow: ActivityCapturedSettledWindow,
 )
 

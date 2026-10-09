@@ -680,3 +680,9 @@ Exact selected source and independent review: `../2026-10-08/ACTIVITY_WALL_CLOCK
 ### October 9 - Active Session widget dead-code cleanup
 
 - [x] Remove the unused segment Steps converter and five imports left after the approved launcher widget removal. Static committed caller inspection confirms Today Summary uses its separate converter. Existing Today Summary test source retained; no redundant dead-code test. IMPLEMENTED_UNVALIDATED, every execution gate deferred, T25/all25 OPEN. Exact source-only record: `../2026-10-08/ACTIVE_WIDGET_REMAINDER_SELECTED/`.
+
+### October 9 - Activity window grouping by original values
+
+- [x] Fix the existing Activity lane grouping key to compare exact original capture authority, canonical historical plan version/checksum and settled window rather than a decoded object reference. One actual original-binding Room WAL-to-adapter/coalescer/writer/evidence/cursor/replay case authored NOT_RUN. Independent static review accepts the bounded source fix and separately rechecks its held final automatic writer composition. The validated configuration wrapper and all admission/owner checks stay unchanged. Held final setup/caller slices remain unselected.
+
+Selected source: `../2026-10-08/ACTIVITY_WINDOW_VALUE_KEY_SELECTED/`; review: `ACTIVITY_WINDOW_VALUE_KEY_REVIEW/ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN. No execution gates, activation, integration or push.

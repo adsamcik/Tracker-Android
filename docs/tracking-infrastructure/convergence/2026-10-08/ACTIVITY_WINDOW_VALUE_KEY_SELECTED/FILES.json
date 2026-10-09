@@ -1,0 +1,19 @@
+{
+  "base_commit": "3aece01b7849eaab8d9005e0a7a66e652b3985d2",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactProjectionLane.kt",
+      "base_sha256": "56cafab45b726786bb50b2fa1dbc4cf95be4e1af2b99026a99d7ee2edea22b8d",
+      "selected_sha256": "010107e6fd9ad9af72aaefc80b784cdb68b93a9f6d74f8363066d60aad99ac48",
+      "working_before_sha256": "02445d480cd6735c3f3a1bbe73805592bee402908d915ea6e32939a664c59220",
+      "operation": "UPDATE"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapterTest.kt",
+      "base_sha256": "f0bbf7b572581fa0203cbeee471a00534fc055defb0309e563811e6511a7944d",
+      "selected_sha256": "c489080e57717047539c94878339f365c63cf55e401b29f4d1374ce301da1d27",
+      "working_before_sha256": "f0bbf7b572581fa0203cbeee471a00534fc055defb0309e563811e6511a7944d",
+      "operation": "UPDATE"
+    }
+  ]
+}

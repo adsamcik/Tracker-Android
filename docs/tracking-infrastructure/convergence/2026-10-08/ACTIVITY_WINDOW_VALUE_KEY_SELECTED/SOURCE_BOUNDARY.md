@@ -1,0 +1,7 @@
+# Activity settled-window value identity
+
+IMPLEMENTATION_ONLY / IMPLEMENTED_UNVALIDATED. One new real Room source case NOT_RUN. No live production edits, Git mutations, compilation, tests, lint, schema, device, provider, battery, CI or integration gates. All25/T25 OPEN.
+
+Two selected paths form a standalone clean-HEAD slice. The existing private lane key uses the already authenticated capture authority, canonical serialized historical plan version and checksum, and exact settled window. Each adapter call decodes a separate validated configuration object; reference equality must not divide identical original observations. The plan checksum covers its full canonical thresholds; capture authority contains exact provider/configuration/authorization/session/manifest/consent/epoch and temporal values. The validated historical wrapper, admission, owner, cursor, reducer, storage and public contracts remain unchanged.
+
+The test reaches actual original binding1 Room WAL, adapter, lane, coalescer, writer, evidence and cursor, with two independently decoded transition units and idempotent replay. It does not claim physical provider or coordinator execution. HELD_COMPOSED separately preserves the exact final-lane supplier and root/writer admission cases; it also enables the prior final automatic retained-operation chain to group both actual WAL units. No held setup source is selected by this standalone packet.

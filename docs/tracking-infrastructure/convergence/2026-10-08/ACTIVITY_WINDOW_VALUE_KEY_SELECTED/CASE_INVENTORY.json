@@ -1,0 +1,7 @@
+[
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapterTest.kt",
+    "method": "actual original Activity lane coalesces separately decoded observations into one saved window",
+    "status": "NOT_RUN"
+  }
+]

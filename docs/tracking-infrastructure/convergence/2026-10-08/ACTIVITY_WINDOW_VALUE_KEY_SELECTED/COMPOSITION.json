@@ -1,0 +1,16 @@
+[
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactProjectionLane.kt",
+    "supplier": "SHARED_SETUP_SOURCE_LANES_SELECTED",
+    "files_sha256": "ab96bd99862338906c4fd99a1c2e97823245d1ae43dfe3300f36ee07551ede54",
+    "held_base_sha256": "bd071a3ec098a95e510c48e145c0b138d15abb9c7b96b7e7f660f6f6148cf483",
+    "held_composed_sha256": "941ecdbc9d69852dbc1b3a8e85b570f770cbbc6fcf1bea95f8ed40af267aaf44"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapterTest.kt",
+    "supplier": "ORIGINAL_CAPTURED_WRITER_AUTHORITY_SELECTED",
+    "files_sha256": "4ef91e8db7dd1b6f5268435a92ce5e63d68b2645a149c59b80ef15123b18d495",
+    "held_base_sha256": "3cc19a4a1ced4628bc1779deb7bbeac7270fb2795cd0982e7b9d522405772052",
+    "held_composed_sha256": "c786748ed80860ece6f9546d925704feddcf0cd1c7c358a5411eebfba628c553"
+  }
+]
