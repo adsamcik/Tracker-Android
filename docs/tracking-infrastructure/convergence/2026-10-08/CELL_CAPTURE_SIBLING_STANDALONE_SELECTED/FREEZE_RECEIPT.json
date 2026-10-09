@@ -1,0 +1,18 @@
+{
+  "phase": "IMPLEMENTED_UNVALIDATED",
+  "status": "HELD_FOR_INDEPENDENT_SOURCE_REVIEW",
+  "base": "0ee63e717ec8c18fdce51d799935b477500f5266",
+  "selected_paths": 6,
+  "new_methods": 7,
+  "tests": "NOT_RUN",
+  "committed_dependencies": 17,
+  "hashes": {
+    "FILES.json": "3ad59ac9f3f399fd458ba035f7dfee16e0e3965bd66a6daacfcc40fe480641be",
+    "SELECTION.patch": "fe5220f49bde130e3725c12a5bdf84d58c6a861a7851bb1cf7b2bf778d0f8ac2",
+    "DEPENDENCIES.json": "cb2c4413f9c720c3b1b3acd2fe3af9e1a654140b3a5d8d186c0958694a98c341",
+    "SUPPLIERS.json": "0e0448cb01b7b659c38d649faf6613f4e7e6cce62eaa105e4833cd82b8fd8b6c",
+    "CASE_INVENTORY.json": "9378cc31c42ad616113d09a877630b9cc98c8b9dfd98a7d15bf8af1ed831e506",
+    "SOURCE_BOUNDARY.md": "002aecba8c8a2147640f55af13847d1e5fd0a59836284910a7ec0d2e88448161",
+    "COMPOSITION.json": "e39838a56edae260cb380174abe67ff8f2f93c30fddf9f352bfc1c6a3ceb9fdf"
+  }
+}

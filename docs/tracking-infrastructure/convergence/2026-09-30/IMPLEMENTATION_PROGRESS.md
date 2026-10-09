@@ -992,3 +992,9 @@ Exact selected source and independent review: `../2026-10-08/ACTIVITY_WALL_CLOCK
 - [x] Fix the existing Activity lane grouping key to compare exact original capture authority, canonical historical plan version/checksum and settled window rather than a decoded object reference. One actual original-binding Room WAL-to-adapter/coalescer/writer/evidence/cursor/replay case authored NOT_RUN. Independent static review accepts the bounded source fix and separately rechecks its held final automatic writer composition. The validated configuration wrapper and all admission/owner checks stay unchanged. Held final setup/caller slices remain unselected.
 
 Selected source: `../2026-10-08/ACTIVITY_WINDOW_VALUE_KEY_SELECTED/`; review: `ACTIVITY_WINDOW_VALUE_KEY_REVIEW/ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN. No execution gates, activation, integration or push.
+
+### October 9 - Preserve all-day Cell during session-capture cleanup
+
+- [x] Preserve independently authorized all-day Cell during Cell-only session-recording consent cleanup across the existing runtime finite FIFO barrier, registration publisher and Room captured-data deletion. Authenticate the surviving sessionless Ambient policy/consent and demand; leave generic/full-purpose/Steps fences unchanged. Seven focused runtime and real Room source cases authored NOT_RUN; independent static review accepted the standalone clean-HEAD fix. Final generation, Location callback and session-only setup successor companions remain held and are not selected by this step.
+
+Selected source: `../2026-10-08/CELL_CAPTURE_SIBLING_STANDALONE_SELECTED/`; review: `CELL_CAPTURE_SIBLING_REVIEW/STANDALONE_ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN. No execution gates, activation, integration or push.

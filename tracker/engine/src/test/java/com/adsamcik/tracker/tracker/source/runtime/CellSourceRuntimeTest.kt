@@ -72,6 +72,124 @@ import org.robolectric.shadows.ShadowSystemClock
 class CellSourceRuntimeTest {
 
 	@Test
+	fun `Cell capture deletion barrier drains FIFO and preserves independent Ambient provider`() = runTest {
+		val plan = cellPlan()
+		val ambientRegistration = ambientOnlyRegistration(plan, authorizationRevision = 2L)
+		val fixture = runtimeFixture(this, plan, listOf(ambientRegistration))
+		val admissionEntered = CompletableDeferred<Unit>()
+		val releaseAdmission = CompletableDeferred<Unit>()
+		var admissions = 0
+		fixture.start(cellCandidateSink {
+			admissions++
+			if (admissions == 1) {
+				admissionEntered.complete(Unit)
+				releaseAdmission.await()
+			}
+			SourceAdmissionHandoff.Durable(admissions.toLong())
+		})
+		coEvery {
+			fixture.registrations.publishCellCaptureCallbackBarrier(ambientRegistration, 1L)
+		} returns CellCaptureCallbackBarrierPublication.Established(1L)
+		fixture.emit(freshProviderDelivery())
+		runCurrent()
+		admissionEntered.await()
+
+		val barrier = async { fixture.runtime.establishCaptureDeletionBarrier(1L) }
+		runCurrent()
+		coVerify(exactly = 0) {
+			fixture.registrations.publishCellCaptureCallbackBarrier(any(), any())
+		}
+
+		releaseAdmission.complete(Unit)
+		assertEquals(CellCaptureDeletionBarrierResult.Established(1L), barrier.await())
+		verify(exactly = 0) { fixture.backend.stop() }
+		ShadowSystemClock.advanceBy(Duration.ofMillis(1))
+		fixture.emit(freshProviderDelivery())
+		advanceUntilIdle()
+		assertEquals(2, admissions)
+		fixture.runtime.close()
+	}
+
+
+	@Test
+	fun `Cell barrier publication exception is typed and restores exact Ambient lane`() = runTest {
+		val plan = cellPlan()
+		val ambientRegistration = ambientOnlyRegistration(plan, authorizationRevision = 2L)
+		val fixture = runtimeFixture(this, plan, listOf(ambientRegistration))
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		fixture.start(cellCandidateSink { candidate ->
+			admitted += candidate
+			SourceAdmissionHandoff.Durable(admitted.size.toLong())
+		})
+		coEvery {
+			fixture.registrations.publishCellCaptureCallbackBarrier(ambientRegistration, 1L)
+		} throws IllegalStateException("barrier publication failed")
+
+		val barrier = async { fixture.runtime.establishCaptureDeletionBarrier(1L) }
+		advanceUntilIdle()
+		assertEquals(
+			CellCaptureDeletionBarrierResult.Retryable(
+				CellCaptureDeletionBarrierRetryableReason.BARRIER_PUBLICATION_FAILED,
+			),
+			barrier.await(),
+		)
+		fixture.emit(freshProviderDelivery())
+		advanceUntilIdle()
+
+		assertEquals(1, admitted.size)
+		assertEquals(
+			ambientRegistration.purposeEligibilityMask,
+			admitted.single().registrationPurposeEligibilityMask,
+		)
+		coVerify(atLeast = 3) { fixture.wakeups.cancel("cell-sparse-refresh") }
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.runtime.close()
+	}
+
+
+	@Test
+	fun `cancelling Cell capture barrier propagates after restoring Ambient lane`() = runTest {
+		val plan = cellPlan()
+		val ambientRegistration = ambientOnlyRegistration(plan, authorizationRevision = 2L)
+		val fixture = runtimeFixture(this, plan, listOf(ambientRegistration))
+		val admissionEntered = CompletableDeferred<Unit>()
+		val releaseAdmission = CompletableDeferred<Unit>()
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		fixture.start(cellCandidateSink { candidate ->
+			admitted += candidate
+			if (admitted.size == 1) {
+				admissionEntered.complete(Unit)
+				releaseAdmission.await()
+			}
+			SourceAdmissionHandoff.Durable(admitted.size.toLong())
+		})
+		fixture.emit(freshProviderDelivery())
+		runCurrent()
+		admissionEntered.await()
+		val barrier = async { fixture.runtime.establishCaptureDeletionBarrier(1L) }
+		runCurrent()
+
+		barrier.cancel()
+		assertFailsWith<CancellationException> { barrier.await() }
+		ShadowSystemClock.advanceBy(Duration.ofMillis(1))
+		fixture.emit(freshProviderDelivery())
+		releaseAdmission.complete(Unit)
+		advanceUntilIdle()
+
+		assertEquals(2, admitted.size)
+		assertTrue(admitted.all { candidate ->
+			candidate.registrationPurposeEligibilityMask == ambientRegistration.purposeEligibilityMask
+		})
+		coVerify(exactly = 0) {
+			fixture.registrations.publishCellCaptureCallbackBarrier(any(), any())
+		}
+		coVerify(atLeast = 3) { fixture.wakeups.cancel("cell-sparse-refresh") }
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.runtime.close()
+	}
+
+
+	@Test
 	fun `Room-qualified Cell ambient-only reading cannot satisfy a stricter capture request`() = runTest {
 		ShadowSystemClock.advanceBy(Duration.ofSeconds(330))
 		val active = cellPlan(maximumAgeMs = 600_000L, mode = CellMode.OBSERVE_AND_SPARSE_REFRESH)

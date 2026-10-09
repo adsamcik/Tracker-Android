@@ -324,7 +324,7 @@ class CellSourceRuntime @Inject internal constructor(
 
 	/**
 	 * Closes Cell callback entry, drains the exact FIFO prefix, and publishes its durable capture
-	 * barrier without stopping a compatible CONTROL-only provider.
+	 * barrier without stopping independently authorized CONTROL or Ambient work.
 	 */
 	internal suspend fun establishCaptureDeletionBarrier(
 		expectedCollectedDataEpoch: Long,
@@ -337,10 +337,7 @@ class CellSourceRuntime @Inject internal constructor(
 			)
 		}
 		if (activeRegistration.authorization.authorizedMembers.any { member ->
-				member.persistenceEligible && member.purpose in setOf(
-					SourceBrokerPurpose.SESSION_CAPTURE,
-					SourceBrokerPurpose.AMBIENT_PRODUCT,
-				)
+				member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
 			}) return@withLock CellCaptureDeletionBarrierResult.Blocked(
 			CellCaptureDeletionBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
 		)
@@ -411,17 +408,17 @@ class CellSourceRuntime @Inject internal constructor(
 			}
 		} finally {
 			// Closure is an acquisition-lane fence, not a permanent provider shutdown. Attempt the
-			// exact compatible CONTROL-only transition even when drain/publication/caller fails.
+			// exact compatible non-session transition even when drain/publication/caller fails.
 			resumed = resumeCaptureDeletionBarrierLane(
 				activeRegistration,
 				activeToken,
 				activeQueue,
 				activeActor,
-				allowResume = outcome.allowsControlLaneResumption(),
+				allowResume = outcome.allowsNoncaptureLaneResumption(),
 			)
 		}
 		cancellation?.let { throw it }
-		if (!outcome.allowsControlLaneResumption()) {
+		if (!outcome.allowsNoncaptureLaneResumption()) {
 			requireNotNull(outcome)
 		} else if (!resumed) {
 			CellCaptureDeletionBarrierResult.Retryable(
@@ -479,10 +476,7 @@ class CellSourceRuntime @Inject internal constructor(
 			callbackToken !== activeToken || queue !== activeQueue || actor !== activeActor ||
 			!activeActor.isActive || currentPlan == null || currentSink == null ||
 			currentRegistration.authorization.authorizedMembers.any { member ->
-				member.persistenceEligible && member.purpose in setOf(
-					SourceBrokerPurpose.SESSION_CAPTURE,
-					SourceBrokerPurpose.AMBIENT_PRODUCT,
-				)
+				member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
 			}
 		) {
 			false
@@ -493,7 +487,7 @@ class CellSourceRuntime @Inject internal constructor(
 		}
 	}
 
-	private fun CellCaptureDeletionBarrierResult?.allowsControlLaneResumption(): Boolean = when (this) {
+	private fun CellCaptureDeletionBarrierResult?.allowsNoncaptureLaneResumption(): Boolean = when (this) {
 		is CellCaptureDeletionBarrierResult.Blocked -> reason !in setOf(
 			CellCaptureDeletionBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
 			CellCaptureDeletionBarrierBlockedReason.STALE_LIFECYCLE,

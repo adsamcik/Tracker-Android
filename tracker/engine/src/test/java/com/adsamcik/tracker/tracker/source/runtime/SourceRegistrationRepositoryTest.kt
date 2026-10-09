@@ -105,6 +105,44 @@ class SourceRegistrationRepositoryTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `Cell capture callback barrier keeps exact current Ambient after capture removal`() = runTest {
+		val capture = cellDemand("cell-capture", "session:cell", SourceBrokerPurpose.SESSION_CAPTURE, "cell", 1L, true)
+		database.sourceBrokerDao().insertDemands(listOf(capture))
+		val reserved = subject.begin(SourceKind.CELL, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(reserved, 110L, 110L)
+		val ambient = cellDemand("cell-ambient", "app:ambient:cell", SourceBrokerPurpose.AMBIENT_PRODUCT, null, null, true)
+			.copy(requestedElapsedRealtimeNanos = 200L, requestedAtMs = 200L)
+		database.withTransaction {
+			database.sourceBrokerDao().insertDemands(listOf(ambient))
+			database.fenceSourcePurposesInTransaction(SourceKind.CELL.stableCode,
+				listOf(SourceBrokerPurpose.SESSION_CAPTURE), "boot-7", 200L, 200L)
+		}
+		val refreshed = requireNotNull(subject.refreshActiveAuthorization(SourceKind.CELL,
+			reserved, 2L, PHYSICAL_CONFIG, 210L, 210L))
+		subject.publishCellCaptureCallbackBarrier(refreshed, 3L) shouldBe
+			CellCaptureCallbackBarrierPublication.Established(2L)
+		database.sourceBrokerDao().demandsByIds(listOf(ambient.demandId)) shouldBe listOf(ambient)
+		database.sourceBrokerDao().registration(SourceKind.CELL.stableCode, refreshed.state.registrationGeneration)
+			?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+	}
+
+	@Test
+	fun `Cell capture callback barrier refuses revoked Ambient without borrowing capture consent`() = runTest {
+		val ambient = cellDemand("cell-ambient", "app:ambient:cell", SourceBrokerPurpose.AMBIENT_PRODUCT, null, null, true)
+		database.sourceBrokerDao().insertDemands(listOf(ambient))
+		val reserved = subject.begin(SourceKind.CELL, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(reserved, 110L, 110L)
+		database.sourcePolicyDao().insertConsentEpochs(listOf(SourceConsentEpochEntity(
+			SourceKind.CELL.stableCode, SourceBrokerPurpose.AMBIENT_PRODUCT, 9L, false, false,
+			5L, "boot-7", 200L, 200L, "TEST_REVOKED_AMBIENT")))
+		subject.publishCellCaptureCallbackBarrier(reserved, 3L) shouldBe
+			CellCaptureCallbackBarrierPublication.Blocked(CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE)
+		database.sourceBrokerDao().registration(SourceKind.CELL.stableCode, reserved.state.registrationGeneration)
+			?.captureCallbackBarrierAuthorizationRevision shouldBe 0L
+		database.sourceBrokerDao().demandsByIds(listOf(ambient.demandId)) shouldBe listOf(ambient)
+	}
+
+	@Test
 	fun `registration fails closed without a durable active demand`() = runTest {
 		shouldThrow<IllegalArgumentException> {
 			subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)

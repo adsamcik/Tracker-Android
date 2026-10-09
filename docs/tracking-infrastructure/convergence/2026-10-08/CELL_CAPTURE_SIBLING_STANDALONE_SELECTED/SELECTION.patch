@@ -1,0 +1,479 @@
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntime.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntime.kt
+@@ -324,7 +324,7 @@
+ 
+ 	/**
+ 	 * Closes Cell callback entry, drains the exact FIFO prefix, and publishes its durable capture
+-	 * barrier without stopping a compatible CONTROL-only provider.
++	 * barrier without stopping independently authorized CONTROL or Ambient work.
+ 	 */
+ 	internal suspend fun establishCaptureDeletionBarrier(
+ 		expectedCollectedDataEpoch: Long,
+@@ -337,10 +337,7 @@
+ 			)
+ 		}
+ 		if (activeRegistration.authorization.authorizedMembers.any { member ->
+-				member.persistenceEligible && member.purpose in setOf(
+-					SourceBrokerPurpose.SESSION_CAPTURE,
+-					SourceBrokerPurpose.AMBIENT_PRODUCT,
+-				)
++				member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+ 			}) return@withLock CellCaptureDeletionBarrierResult.Blocked(
+ 			CellCaptureDeletionBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
+ 		)
+@@ -411,17 +408,17 @@
+ 			}
+ 		} finally {
+ 			// Closure is an acquisition-lane fence, not a permanent provider shutdown. Attempt the
+-			// exact compatible CONTROL-only transition even when drain/publication/caller fails.
++			// exact compatible non-session transition even when drain/publication/caller fails.
+ 			resumed = resumeCaptureDeletionBarrierLane(
+ 				activeRegistration,
+ 				activeToken,
+ 				activeQueue,
+ 				activeActor,
+-				allowResume = outcome.allowsControlLaneResumption(),
++				allowResume = outcome.allowsNoncaptureLaneResumption(),
+ 			)
+ 		}
+ 		cancellation?.let { throw it }
+-		if (!outcome.allowsControlLaneResumption()) {
++		if (!outcome.allowsNoncaptureLaneResumption()) {
+ 			requireNotNull(outcome)
+ 		} else if (!resumed) {
+ 			CellCaptureDeletionBarrierResult.Retryable(
+@@ -479,10 +476,7 @@
+ 			callbackToken !== activeToken || queue !== activeQueue || actor !== activeActor ||
+ 			!activeActor.isActive || currentPlan == null || currentSink == null ||
+ 			currentRegistration.authorization.authorizedMembers.any { member ->
+-				member.persistenceEligible && member.purpose in setOf(
+-					SourceBrokerPurpose.SESSION_CAPTURE,
+-					SourceBrokerPurpose.AMBIENT_PRODUCT,
+-				)
++				member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+ 			}
+ 		) {
+ 			false
+@@ -493,7 +487,7 @@
+ 		}
+ 	}
+ 
+-	private fun CellCaptureDeletionBarrierResult?.allowsControlLaneResumption(): Boolean = when (this) {
++	private fun CellCaptureDeletionBarrierResult?.allowsNoncaptureLaneResumption(): Boolean = when (this) {
+ 		is CellCaptureDeletionBarrierResult.Blocked -> reason !in setOf(
+ 			CellCaptureDeletionBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
+ 			CellCaptureDeletionBarrierBlockedReason.STALE_LIFECYCLE,
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt
+@@ -35,6 +35,7 @@
+ import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
++import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
+ import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
+ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
+@@ -1023,13 +1024,16 @@
+ 				CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
+ 			)
+ 			if (currentAuthorization.authorizedMembers.any { member ->
+-					member.persistenceEligible && member.purpose in setOf(
+-						SourceBrokerPurpose.SESSION_CAPTURE,
+-						SourceBrokerPurpose.AMBIENT_PRODUCT,
+-					)
++					member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+ 				}) return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
+ 				CellCaptureCallbackBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
+ 			)
++
++			if (!authenticateCellAmbientCallbackDemands(activeDemands, currentAuthorization)) {
++				return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
++					CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
++				)
++			}
+ 
+ 			val maximumCaptureRevision = database.sourceBrokerDao()
+ 				.maximumCaptureAuthorizationRevision(
+@@ -1060,6 +1064,38 @@
+ 				)
+ 			}
+ 			CellCaptureCallbackBarrierPublication.Established(maximumCaptureRevision)
++		}
++	}
++
++	/** The surviving Cell Ambient purpose keeps its own current policy and consent authority. */
++	private suspend fun authenticateCellAmbientCallbackDemands(
++		demands: List<SourceDemandEntity>,
++		authorization: SourceAuthorizationSnapshot,
++	): Boolean {
++		val ambient = demands.filter { it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT }
++		if (ambient.isEmpty()) return true
++		val policies = database.sourcePolicyDao()
++		val authority = policies.authority()?.takeIf {
++			it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE
++		} ?: return false
++		val current = policies.policyAtRevision(authority.currentPolicyRevision, SourceKind.CELL.stableCode)
++			?: return false
++		val consent = policies.latestConsentEpoch(SourceKind.CELL.stableCode, SourceBrokerPurpose.AMBIENT_PRODUCT)
++		if (!current.hasExactEligibleAmbientConsentReference(consent)) return false
++		return ambient.all { demand ->
++			val historical = policies.policyAtRevision(demand.sourcePolicyRevision, SourceKind.CELL.stableCode)
++				?: return@all false
++			demand.sourceKind == SourceKind.CELL.stableCode && demand.status == SourceDemandEntity.STATUS_ACTIVE &&
++				demand.logicalTrackingId == null && demand.serviceRunId == null && demand.manifestRevision == null &&
++				demand.lifecycleLeaseGeneration == null && demand.retireBootId == null &&
++				demand.retireElapsedRealtimeNanos == null && demand.retiredAtMs == null &&
++				demand.persistenceEligible && historical.hasExactEligibleAmbientConsentReference(consent) &&
++				current.ambientConsentEpoch == demand.consentEpoch && historical.ambientConsentEpoch == demand.consentEpoch &&
++				consent != null && consent.policyRevision <= historical.policyRevision && historical.qosCode == demand.qosCode &&
++				historical.isEffectiveAtOrBefore(demand.requestedBootId, demand.requestedElapsedRealtimeNanos, demand.requestedAtMs) &&
++				consent.isEffectiveAtOrBefore(demand.requestedBootId, demand.requestedElapsedRealtimeNanos, demand.requestedAtMs) &&
++				demand.requestedBootId == authorization.effectiveBootId &&
++				demand.requestedElapsedRealtimeNanos <= authorization.effectiveElapsedRealtimeNanos
+ 		}
+ 	}
+ 
+--- a/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt
++++ b/core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt
+@@ -25,6 +25,7 @@
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+ import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
++import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
+ import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+@@ -34,6 +35,9 @@
+ import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionScopeProofEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
++import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
++import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
++import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
+ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+ import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+ import java.io.ByteArrayInputStream
+@@ -809,6 +813,7 @@
+ 				authenticateCellCaptureDeletionBarrier(
+ 					registration = registration,
+ 					expectedCollectedDataEpoch = expectedCollectedDataEpoch,
++					currentPolicy = policy,
+ 					limits = limits,
+ 				)
+ 			}
+@@ -1734,6 +1739,7 @@
+ private suspend fun AppDatabase.authenticateCellCaptureDeletionBarrier(
+ 	registration: ProviderRegistrationGenerationEntity,
+ 	expectedCollectedDataEpoch: Long,
++	currentPolicy: SourcePolicyEntity,
+ 	limits: CellCapturedMaintenanceLimits,
+ ) {
+ 	val activeShape = registration.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE &&
+@@ -1771,7 +1777,7 @@
+ 	if (activeDemands.size > limits.maximumDirectDemands) {
+ 		throw CellCapturedMaintenanceLimitExceeded()
+ 	}
+-	authenticateCurrentCellDemands(activeDemands)
++	authenticateCurrentCellDemands(activeDemands, currentPolicy, authorization)
+ 	val expectedRows = SourceBrokerAuthorization.rows(
+ 		sourceKind = CELL_SOURCE,
+ 		registrationGeneration = registration.registrationGeneration,
+@@ -1785,10 +1791,7 @@
+ 		block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 	}
+ 	if (authorization.authorizedMembers.any { member ->
+-			member.persistenceEligible && member.purpose in setOf(
+-				SourceBrokerPurpose.SESSION_CAPTURE,
+-				SourceBrokerPurpose.AMBIENT_PRODUCT,
+-			)
++			member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+ 		}) block(CellCapturedSourceDeletionBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED)
+ 
+ 	val maximumCaptureRevision = sourceBrokerDao().maximumCaptureAuthorizationRevision(
+@@ -1803,19 +1806,35 @@
+ 	}
+ }
+ 
+-/** Only policy-authenticated CONTROL may keep the shared provider resident during deletion. */
++/** Independently policy-authenticated CONTROL and Ambient may keep the shared provider resident. */
+ private suspend fun AppDatabase.authenticateCurrentCellDemands(
+ 	demands: List<SourceDemandEntity>,
++	currentPolicy: SourcePolicyEntity,
++	authorization: SourceAuthorizationSnapshot,
+ ) {
+ 	for (demand in demands) {
+ 		if (demand.sourceKind != CELL_SOURCE) {
+ 			block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+ 		}
+-		if (demand.purpose in setOf(
+-				SourceBrokerPurpose.SESSION_CAPTURE,
+-				SourceBrokerPurpose.AMBIENT_PRODUCT,
+-			)
+-		) continue
++		if (demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE) continue
++		if (demand.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT) {
++			val policy = sourcePolicyDao().policyAtRevision(demand.sourcePolicyRevision, CELL_SOURCE)
++			val consent = sourcePolicyDao().latestConsentEpoch(CELL_SOURCE, SourceBrokerPurpose.AMBIENT_PRODUCT)
++			if (policy == null || !policy.hasExactEligibleAmbientConsentReference(consent) ||
++				!currentPolicy.hasExactEligibleAmbientConsentReference(consent) || consent == null ||
++				policy.ambientConsentEpoch != demand.consentEpoch || currentPolicy.ambientConsentEpoch != demand.consentEpoch ||
++				!demand.persistenceEligible || demand.qosCode != policy.qosCode ||
++				demand.status != SourceDemandEntity.STATUS_ACTIVE || demand.logicalTrackingId != null ||
++				demand.serviceRunId != null || demand.manifestRevision != null || demand.lifecycleLeaseGeneration != null ||
++				demand.retireBootId != null || demand.retireElapsedRealtimeNanos != null || demand.retiredAtMs != null ||
++				consent.policyRevision > policy.policyRevision ||
++				!policy.isEffectiveAtOrBefore(demand.requestedBootId, demand.requestedElapsedRealtimeNanos, demand.requestedAtMs) ||
++				!consent.isEffectiveAtOrBefore(demand.requestedBootId, demand.requestedElapsedRealtimeNanos, demand.requestedAtMs) ||
++				demand.requestedBootId != authorization.effectiveBootId ||
++				demand.requestedElapsedRealtimeNanos > authorization.effectiveElapsedRealtimeNanos
++			) block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
++			continue
++		}
+ 		if (demand.purpose !in setOf(
+ 				SourceBrokerPurpose.CONTROL_AUTOSTART,
+ 				SourceBrokerPurpose.CONTROL_CONTINUATION,
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt
+@@ -72,6 +72,124 @@
+ class CellSourceRuntimeTest {
+ 
+ 	@Test
++	fun `Cell capture deletion barrier drains FIFO and preserves independent Ambient provider`() = runTest {
++		val plan = cellPlan()
++		val ambientRegistration = ambientOnlyRegistration(plan, authorizationRevision = 2L)
++		val fixture = runtimeFixture(this, plan, listOf(ambientRegistration))
++		val admissionEntered = CompletableDeferred<Unit>()
++		val releaseAdmission = CompletableDeferred<Unit>()
++		var admissions = 0
++		fixture.start(cellCandidateSink {
++			admissions++
++			if (admissions == 1) {
++				admissionEntered.complete(Unit)
++				releaseAdmission.await()
++			}
++			SourceAdmissionHandoff.Durable(admissions.toLong())
++		})
++		coEvery {
++			fixture.registrations.publishCellCaptureCallbackBarrier(ambientRegistration, 1L)
++		} returns CellCaptureCallbackBarrierPublication.Established(1L)
++		fixture.emit(freshProviderDelivery())
++		runCurrent()
++		admissionEntered.await()
++
++		val barrier = async { fixture.runtime.establishCaptureDeletionBarrier(1L) }
++		runCurrent()
++		coVerify(exactly = 0) {
++			fixture.registrations.publishCellCaptureCallbackBarrier(any(), any())
++		}
++
++		releaseAdmission.complete(Unit)
++		assertEquals(CellCaptureDeletionBarrierResult.Established(1L), barrier.await())
++		verify(exactly = 0) { fixture.backend.stop() }
++		ShadowSystemClock.advanceBy(Duration.ofMillis(1))
++		fixture.emit(freshProviderDelivery())
++		advanceUntilIdle()
++		assertEquals(2, admissions)
++		fixture.runtime.close()
++	}
++
++
++	@Test
++	fun `Cell barrier publication exception is typed and restores exact Ambient lane`() = runTest {
++		val plan = cellPlan()
++		val ambientRegistration = ambientOnlyRegistration(plan, authorizationRevision = 2L)
++		val fixture = runtimeFixture(this, plan, listOf(ambientRegistration))
++		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
++		fixture.start(cellCandidateSink { candidate ->
++			admitted += candidate
++			SourceAdmissionHandoff.Durable(admitted.size.toLong())
++		})
++		coEvery {
++			fixture.registrations.publishCellCaptureCallbackBarrier(ambientRegistration, 1L)
++		} throws IllegalStateException("barrier publication failed")
++
++		val barrier = async { fixture.runtime.establishCaptureDeletionBarrier(1L) }
++		advanceUntilIdle()
++		assertEquals(
++			CellCaptureDeletionBarrierResult.Retryable(
++				CellCaptureDeletionBarrierRetryableReason.BARRIER_PUBLICATION_FAILED,
++			),
++			barrier.await(),
++		)
++		fixture.emit(freshProviderDelivery())
++		advanceUntilIdle()
++
++		assertEquals(1, admitted.size)
++		assertEquals(
++			ambientRegistration.purposeEligibilityMask,
++			admitted.single().registrationPurposeEligibilityMask,
++		)
++		coVerify(atLeast = 3) { fixture.wakeups.cancel("cell-sparse-refresh") }
++		verify(exactly = 0) { fixture.backend.stop() }
++		fixture.runtime.close()
++	}
++
++
++	@Test
++	fun `cancelling Cell capture barrier propagates after restoring Ambient lane`() = runTest {
++		val plan = cellPlan()
++		val ambientRegistration = ambientOnlyRegistration(plan, authorizationRevision = 2L)
++		val fixture = runtimeFixture(this, plan, listOf(ambientRegistration))
++		val admissionEntered = CompletableDeferred<Unit>()
++		val releaseAdmission = CompletableDeferred<Unit>()
++		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
++		fixture.start(cellCandidateSink { candidate ->
++			admitted += candidate
++			if (admitted.size == 1) {
++				admissionEntered.complete(Unit)
++				releaseAdmission.await()
++			}
++			SourceAdmissionHandoff.Durable(admitted.size.toLong())
++		})
++		fixture.emit(freshProviderDelivery())
++		runCurrent()
++		admissionEntered.await()
++		val barrier = async { fixture.runtime.establishCaptureDeletionBarrier(1L) }
++		runCurrent()
++
++		barrier.cancel()
++		assertFailsWith<CancellationException> { barrier.await() }
++		ShadowSystemClock.advanceBy(Duration.ofMillis(1))
++		fixture.emit(freshProviderDelivery())
++		releaseAdmission.complete(Unit)
++		advanceUntilIdle()
++
++		assertEquals(2, admitted.size)
++		assertTrue(admitted.all { candidate ->
++			candidate.registrationPurposeEligibilityMask == ambientRegistration.purposeEligibilityMask
++		})
++		coVerify(exactly = 0) {
++			fixture.registrations.publishCellCaptureCallbackBarrier(any(), any())
++		}
++		coVerify(atLeast = 3) { fixture.wakeups.cancel("cell-sparse-refresh") }
++		verify(exactly = 0) { fixture.backend.stop() }
++		fixture.runtime.close()
++	}
++
++
++	@Test
+ 	fun `Room-qualified Cell ambient-only reading cannot satisfy a stricter capture request`() = runTest {
+ 		ShadowSystemClock.advanceBy(Duration.ofSeconds(330))
+ 		val active = cellPlan(maximumAgeMs = 600_000L, mode = CellMode.OBSERVE_AND_SPARSE_REFRESH)
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepositoryTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepositoryTest.kt
+@@ -105,6 +105,44 @@
+ 	fun tearDown() = database.close()
+ 
+ 	@Test
++	fun `Cell capture callback barrier keeps exact current Ambient after capture removal`() = runTest {
++		val capture = cellDemand("cell-capture", "session:cell", SourceBrokerPurpose.SESSION_CAPTURE, "cell", 1L, true)
++		database.sourceBrokerDao().insertDemands(listOf(capture))
++		val reserved = subject.begin(SourceKind.CELL, 1L, PHYSICAL_CONFIG, 100L, 100L)
++		subject.markAccepted(reserved, 110L, 110L)
++		val ambient = cellDemand("cell-ambient", "app:ambient:cell", SourceBrokerPurpose.AMBIENT_PRODUCT, null, null, true)
++			.copy(requestedElapsedRealtimeNanos = 200L, requestedAtMs = 200L)
++		database.withTransaction {
++			database.sourceBrokerDao().insertDemands(listOf(ambient))
++			database.fenceSourcePurposesInTransaction(SourceKind.CELL.stableCode,
++				listOf(SourceBrokerPurpose.SESSION_CAPTURE), "boot-7", 200L, 200L)
++		}
++		val refreshed = requireNotNull(subject.refreshActiveAuthorization(SourceKind.CELL,
++			reserved, 2L, PHYSICAL_CONFIG, 210L, 210L))
++		subject.publishCellCaptureCallbackBarrier(refreshed, 3L) shouldBe
++			CellCaptureCallbackBarrierPublication.Established(2L)
++		database.sourceBrokerDao().demandsByIds(listOf(ambient.demandId)) shouldBe listOf(ambient)
++		database.sourceBrokerDao().registration(SourceKind.CELL.stableCode, refreshed.state.registrationGeneration)
++			?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
++	}
++
++	@Test
++	fun `Cell capture callback barrier refuses revoked Ambient without borrowing capture consent`() = runTest {
++		val ambient = cellDemand("cell-ambient", "app:ambient:cell", SourceBrokerPurpose.AMBIENT_PRODUCT, null, null, true)
++		database.sourceBrokerDao().insertDemands(listOf(ambient))
++		val reserved = subject.begin(SourceKind.CELL, 1L, PHYSICAL_CONFIG, 100L, 100L)
++		subject.markAccepted(reserved, 110L, 110L)
++		database.sourcePolicyDao().insertConsentEpochs(listOf(SourceConsentEpochEntity(
++			SourceKind.CELL.stableCode, SourceBrokerPurpose.AMBIENT_PRODUCT, 9L, false, false,
++			5L, "boot-7", 200L, 200L, "TEST_REVOKED_AMBIENT")))
++		subject.publishCellCaptureCallbackBarrier(reserved, 3L) shouldBe
++			CellCaptureCallbackBarrierPublication.Blocked(CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE)
++		database.sourceBrokerDao().registration(SourceKind.CELL.stableCode, reserved.state.registrationGeneration)
++			?.captureCallbackBarrierAuthorizationRevision shouldBe 0L
++		database.sourceBrokerDao().demandsByIds(listOf(ambient.demandId)) shouldBe listOf(ambient)
++	}
++
++	@Test
+ 	fun `registration fails closed without a durable active demand`() = runTest {
+ 		shouldThrow<IllegalArgumentException> {
+ 			subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
+--- a/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt
++++ b/core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt
+@@ -78,6 +78,34 @@
+ 
+ 	@After
+ 	fun tearDown() = database.close()
++
++	@Test
++	fun `capture consent deletion preserves independently current Ambient Cell provider and demand`() = runTest {
++		seedCapturedCell(revokedCapture = true)
++		val ambient = installActiveControlOnlyProvider(CONTROL_AUTHORIZATION_REVISION, ambient = true)
++		val provider = requireNotNull(database.sourceBrokerDao().registration(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION))
++		database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
++			DELETION_TIME_MS) shouldBe CellCapturedSourceDeletionResult.Deleted(1, 1, 1)
++		database.sourceBrokerDao().demandsByIds(listOf(ambient.demandId)) shouldBe listOf(ambient)
++		database.sourceBrokerDao().registration(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION) shouldBe provider
++		database.cellCapturedFactDao().revisionCount() shouldBe 0L
++		database.cellCapturedFactDao().deletionGeneration(LOGICAL_TRACKING_ID, SERVICE_RUN_ID)?.generation shouldBe 1L
++	}
++
++	@Test
++	fun `capture cleanup refuses stale independently revoked Ambient Cell consent`() = runTest {
++		seedCapturedCell(revokedCapture = true)
++		val ambient = installActiveControlOnlyProvider(CONTROL_AUTHORIZATION_REVISION, ambient = true)
++		database.sourcePolicyDao().insertConsentEpochs(listOf(historicalControlConsent().copy(
++			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, epoch = CONTROL_CONSENT_EPOCH + 1L,
++			eligible = false, persistenceEligible = false)))
++		database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
++			DELETION_TIME_MS) shouldBe CellCapturedSourceDeletionResult.Blocked(
++			CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
++		database.sourceBrokerDao().demandsByIds(listOf(ambient.demandId)) shouldBe listOf(ambient)
++		database.cellCapturedFactDao().revisionCount() shouldBe 1L
++		database.sourceDeletionFenceDao().countAll() shouldBe 0L
++	}
+ 
+ 	@Test
+ 	fun `Cell retention accepts original saved generation after a later End retry operation`() = runTest {
+@@ -4526,22 +4554,31 @@
+ 
+ 	private suspend fun installActiveControlOnlyProvider(
+ 		captureBarrierRevision: Long,
++		ambient: Boolean = false,
+ 	): SourceDemandEntity {
+ 		val captureHistory = demand(active = false)
+ 		val control = demand(active = true).copy(
+ 			demandId = CONTROL_DEMAND_ID,
+ 			consumerId = "app:cell-control",
+-			purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
++			purpose = if (ambient) SourceBrokerPurpose.AMBIENT_PRODUCT else SourceBrokerPurpose.CONTROL_AUTOSTART,
+ 			logicalTrackingId = null,
+ 			serviceRunId = null,
+ 			manifestRevision = null,
+ 			lifecycleLeaseGeneration = null,
+ 			sourcePolicyRevision = REVOKED_POLICY_REVISION,
+ 			consentEpoch = CONTROL_CONSENT_EPOCH,
+-			persistenceEligible = false,
++			persistenceEligible = ambient,
+ 			requestedElapsedRealtimeNanos = REVOKED_POLICY_NANOS,
+ 			requestedAtMs = REVOKED_POLICY_WALL_MS,
+ 		)
++		if (ambient) {
++			val policy = revokedPolicy().copy(ambientPersistenceEligible = true, ambientConsentEpoch = CONTROL_CONSENT_EPOCH)
++			database.openHelper.writableDatabase.execSQL(
++				"UPDATE source_policy SET ambient_persistence_eligible = 1, ambient_consent_epoch = ? WHERE policy_revision = ? AND source_kind = ?",
++				arrayOf(CONTROL_CONSENT_EPOCH, policy.policyRevision, CELL_SOURCE))
++			database.sourcePolicyDao().insertConsentEpochs(listOf(historicalControlConsent().copy(
++				purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, persistenceEligible = true)))
++		}
+ 		database.sourceBrokerDao().insertDemands(listOf(control))
+ 		database.sourceBrokerDao().insertRegistration(
+ 			registration(

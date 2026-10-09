@@ -1,0 +1,87 @@
+[
+  {
+    "path": "AGENTS.md",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "694fe135558539f94821481708982dc3880f92f72476b54e418b2eeccb8c8971"
+  },
+  {
+    "path": "settings.gradle.kts",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+  },
+  {
+    "path": "tracker/engine/build.gradle.kts",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c"
+  },
+  {
+    "path": "core/base/build.gradle.kts",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "e7d9147951041300b0b6d4613ed6b7cfd2b2edfadcc6f98fb513a2038dd46ac3"
+  },
+  {
+    "path": "tracker/engine/src/main/AndroidManifest.xml",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "03539ecdd919df33156ef5a6a2be5f605c17ba49868a2982fba11613f9b5cbef"
+  },
+  {
+    "path": "build-logic/convention/src/main/kotlin/com/adsamcik/tracker/buildlogic/AndroidConventionPlugins.kt",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "6530e14a5465d6023516b430b05e792a49b2cbc802c2b9455101272c17c36229"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourcePolicyConsentSemantics.kt",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "2e1cdb8a4baa9e41a070ed262e3aa1ed378f4b7ed48b9b7be3a5b0ebfa79fcb2"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourcePolicyEntities.kt",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "c9f315d2e1fd2d2074107036714c2eb3cc2f626ff0301a18b4aa7876bd6404eb"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceBrokerEntities.kt",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "752d4b90d523ef1543d3032b31da63e0aa2943a13462b6b79fa40f28930b7fe0"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourcePolicyDao.kt",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "688b9e0a5bb9462e943bcb4c88c6e37b07e7c598adc6112f2fad3d00bfba887c"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/CellCapturedFactDao.kt",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "9203d85a833409b0b87a1a7845ff4e252fa31ab2e439f7ae9e664f48cc785c22"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedCellSourceController.kt",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "4e32e04fe943c9d138ff6f1c36f2dc24f933eb17f2ba1d6b21836dc0a1e1c5aa"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCaptureConsentRevocationDeletionCommand.kt",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "b21f650cf1de9756b03c8462ebb05d9856635cbd8d22fc7fd704027fd6ed9533"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceBroker.kt",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "be0057395daf7109198514631bd1ea7697dbb2745e299b049405b7c7ada276a4"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceBrokerDao.kt",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "ea0b46eff0a6db27a5a691aeb4131b62d632b943cc8ffc59cf7ffe1427ddca9a"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellCapturedFactEntities.kt",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "f0c0706d6f191981b55d397184efe398130dc37d4702ae86fbf1cacbb7bcdc14"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CapturedRadioFactRetentionProofEntity.kt",
+    "commit": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "9d21a6140bc537073ed6184aac8851a3558871830776f03e425656c529572197"
+  }
+]

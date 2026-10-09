@@ -1,0 +1,37 @@
+[
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt",
+    "method": "Cell capture deletion barrier drains FIFO and preserves independent Ambient provider",
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt",
+    "method": "Cell barrier publication exception is typed and restores exact Ambient lane",
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt",
+    "method": "cancelling Cell capture barrier propagates after restoring Ambient lane",
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepositoryTest.kt",
+    "method": "Cell capture callback barrier keeps exact current Ambient after capture removal",
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepositoryTest.kt",
+    "method": "Cell capture callback barrier refuses revoked Ambient without borrowing capture consent",
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt",
+    "method": "capture consent deletion preserves independently current Ambient Cell provider and demand",
+    "status": "NOT_RUN"
+  },
+  {
+    "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt",
+    "method": "capture cleanup refuses stale independently revoked Ambient Cell consent",
+    "status": "NOT_RUN"
+  }
+]

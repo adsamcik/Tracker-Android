@@ -1,0 +1,26 @@
+{
+  "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntime.kt": {
+    "origin": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "a81e8082d05f8fd8988c8fc3444da8e225d7063d92ed14918d6633eea2aa3192"
+  },
+  "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt": {
+    "origin": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "addf61bd9e879d4e0a6d6555a1069e9dc744c592b05c71307458cf62670122c9"
+  },
+  "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt": {
+    "origin": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "3b2776506e1dced2eaa5b7b180fdeb584a06120c4481c3be96d436a94fadaa3d"
+  },
+  "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt": {
+    "origin": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "e6fe73858bc228fdea46561a233421b3c3605a98011443888a63fe1bb40e8c07"
+  },
+  "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepositoryTest.kt": {
+    "origin": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "93b07bf589a988422636827cdc89b3cda2e8de67c39c9c2d4c31325f6cc897d1"
+  },
+  "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt": {
+    "origin": "0ee63e717ec8c18fdce51d799935b477500f5266",
+    "sha256": "34aebbb4f686bdfc631537c50315fc83770689da5c6c260eb506b0c43c6ee52a"
+  }
+}

@@ -35,6 +35,7 @@ import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientCon
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
@@ -1023,13 +1024,16 @@ class SourceRegistrationRepository @Inject constructor(
 				CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
 			)
 			if (currentAuthorization.authorizedMembers.any { member ->
-					member.persistenceEligible && member.purpose in setOf(
-						SourceBrokerPurpose.SESSION_CAPTURE,
-						SourceBrokerPurpose.AMBIENT_PRODUCT,
-					)
+					member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
 				}) return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
 				CellCaptureCallbackBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
 			)
+
+			if (!authenticateCellAmbientCallbackDemands(activeDemands, currentAuthorization)) {
+				return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
+					CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
+				)
+			}
 
 			val maximumCaptureRevision = database.sourceBrokerDao()
 				.maximumCaptureAuthorizationRevision(
@@ -1060,6 +1064,38 @@ class SourceRegistrationRepository @Inject constructor(
 				)
 			}
 			CellCaptureCallbackBarrierPublication.Established(maximumCaptureRevision)
+		}
+	}
+
+	/** The surviving Cell Ambient purpose keeps its own current policy and consent authority. */
+	private suspend fun authenticateCellAmbientCallbackDemands(
+		demands: List<SourceDemandEntity>,
+		authorization: SourceAuthorizationSnapshot,
+	): Boolean {
+		val ambient = demands.filter { it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT }
+		if (ambient.isEmpty()) return true
+		val policies = database.sourcePolicyDao()
+		val authority = policies.authority()?.takeIf {
+			it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE
+		} ?: return false
+		val current = policies.policyAtRevision(authority.currentPolicyRevision, SourceKind.CELL.stableCode)
+			?: return false
+		val consent = policies.latestConsentEpoch(SourceKind.CELL.stableCode, SourceBrokerPurpose.AMBIENT_PRODUCT)
+		if (!current.hasExactEligibleAmbientConsentReference(consent)) return false
+		return ambient.all { demand ->
+			val historical = policies.policyAtRevision(demand.sourcePolicyRevision, SourceKind.CELL.stableCode)
+				?: return@all false
+			demand.sourceKind == SourceKind.CELL.stableCode && demand.status == SourceDemandEntity.STATUS_ACTIVE &&
+				demand.logicalTrackingId == null && demand.serviceRunId == null && demand.manifestRevision == null &&
+				demand.lifecycleLeaseGeneration == null && demand.retireBootId == null &&
+				demand.retireElapsedRealtimeNanos == null && demand.retiredAtMs == null &&
+				demand.persistenceEligible && historical.hasExactEligibleAmbientConsentReference(consent) &&
+				current.ambientConsentEpoch == demand.consentEpoch && historical.ambientConsentEpoch == demand.consentEpoch &&
+				consent != null && consent.policyRevision <= historical.policyRevision && historical.qosCode == demand.qosCode &&
+				historical.isEffectiveAtOrBefore(demand.requestedBootId, demand.requestedElapsedRealtimeNanos, demand.requestedAtMs) &&
+				consent.isEffectiveAtOrBefore(demand.requestedBootId, demand.requestedElapsedRealtimeNanos, demand.requestedAtMs) &&
+				demand.requestedBootId == authorization.effectiveBootId &&
+				demand.requestedElapsedRealtimeNanos <= authorization.effectiveElapsedRealtimeNanos
 		}
 	}
 

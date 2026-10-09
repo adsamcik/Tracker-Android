@@ -25,6 +25,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
@@ -34,6 +35,9 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionProofE
 import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionScopeProofEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
+import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import java.io.ByteArrayInputStream
@@ -809,6 +813,7 @@ internal suspend fun AppDatabase.deleteCapturedCellFactsAfterConsentReset(
 				authenticateCellCaptureDeletionBarrier(
 					registration = registration,
 					expectedCollectedDataEpoch = expectedCollectedDataEpoch,
+					currentPolicy = policy,
 					limits = limits,
 				)
 			}
@@ -1734,6 +1739,7 @@ private suspend fun AppDatabase.authenticateRetiringCellCaptureDemands(
 private suspend fun AppDatabase.authenticateCellCaptureDeletionBarrier(
 	registration: ProviderRegistrationGenerationEntity,
 	expectedCollectedDataEpoch: Long,
+	currentPolicy: SourcePolicyEntity,
 	limits: CellCapturedMaintenanceLimits,
 ) {
 	val activeShape = registration.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE &&
@@ -1771,7 +1777,7 @@ private suspend fun AppDatabase.authenticateCellCaptureDeletionBarrier(
 	if (activeDemands.size > limits.maximumDirectDemands) {
 		throw CellCapturedMaintenanceLimitExceeded()
 	}
-	authenticateCurrentCellDemands(activeDemands)
+	authenticateCurrentCellDemands(activeDemands, currentPolicy, authorization)
 	val expectedRows = SourceBrokerAuthorization.rows(
 		sourceKind = CELL_SOURCE,
 		registrationGeneration = registration.registrationGeneration,
@@ -1785,10 +1791,7 @@ private suspend fun AppDatabase.authenticateCellCaptureDeletionBarrier(
 		block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	}
 	if (authorization.authorizedMembers.any { member ->
-			member.persistenceEligible && member.purpose in setOf(
-				SourceBrokerPurpose.SESSION_CAPTURE,
-				SourceBrokerPurpose.AMBIENT_PRODUCT,
-			)
+			member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
 		}) block(CellCapturedSourceDeletionBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED)
 
 	val maximumCaptureRevision = sourceBrokerDao().maximumCaptureAuthorizationRevision(
@@ -1803,19 +1806,35 @@ private suspend fun AppDatabase.authenticateCellCaptureDeletionBarrier(
 	}
 }
 
-/** Only policy-authenticated CONTROL may keep the shared provider resident during deletion. */
+/** Independently policy-authenticated CONTROL and Ambient may keep the shared provider resident. */
 private suspend fun AppDatabase.authenticateCurrentCellDemands(
 	demands: List<SourceDemandEntity>,
+	currentPolicy: SourcePolicyEntity,
+	authorization: SourceAuthorizationSnapshot,
 ) {
 	for (demand in demands) {
 		if (demand.sourceKind != CELL_SOURCE) {
 			block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 		}
-		if (demand.purpose in setOf(
-				SourceBrokerPurpose.SESSION_CAPTURE,
-				SourceBrokerPurpose.AMBIENT_PRODUCT,
-			)
-		) continue
+		if (demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE) continue
+		if (demand.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT) {
+			val policy = sourcePolicyDao().policyAtRevision(demand.sourcePolicyRevision, CELL_SOURCE)
+			val consent = sourcePolicyDao().latestConsentEpoch(CELL_SOURCE, SourceBrokerPurpose.AMBIENT_PRODUCT)
+			if (policy == null || !policy.hasExactEligibleAmbientConsentReference(consent) ||
+				!currentPolicy.hasExactEligibleAmbientConsentReference(consent) || consent == null ||
+				policy.ambientConsentEpoch != demand.consentEpoch || currentPolicy.ambientConsentEpoch != demand.consentEpoch ||
+				!demand.persistenceEligible || demand.qosCode != policy.qosCode ||
+				demand.status != SourceDemandEntity.STATUS_ACTIVE || demand.logicalTrackingId != null ||
+				demand.serviceRunId != null || demand.manifestRevision != null || demand.lifecycleLeaseGeneration != null ||
+				demand.retireBootId != null || demand.retireElapsedRealtimeNanos != null || demand.retiredAtMs != null ||
+				consent.policyRevision > policy.policyRevision ||
+				!policy.isEffectiveAtOrBefore(demand.requestedBootId, demand.requestedElapsedRealtimeNanos, demand.requestedAtMs) ||
+				!consent.isEffectiveAtOrBefore(demand.requestedBootId, demand.requestedElapsedRealtimeNanos, demand.requestedAtMs) ||
+				demand.requestedBootId != authorization.effectiveBootId ||
+				demand.requestedElapsedRealtimeNanos > authorization.effectiveElapsedRealtimeNanos
+			) block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			continue
+		}
 		if (demand.purpose !in setOf(
 				SourceBrokerPurpose.CONTROL_AUTOSTART,
 				SourceBrokerPurpose.CONTROL_CONTINUATION,

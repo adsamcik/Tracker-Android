@@ -80,6 +80,34 @@ class CellCapturedFactMaintenanceTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `capture consent deletion preserves independently current Ambient Cell provider and demand`() = runTest {
+		seedCapturedCell(revokedCapture = true)
+		val ambient = installActiveControlOnlyProvider(CONTROL_AUTHORIZATION_REVISION, ambient = true)
+		val provider = requireNotNull(database.sourceBrokerDao().registration(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION))
+		database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS) shouldBe CellCapturedSourceDeletionResult.Deleted(1, 1, 1)
+		database.sourceBrokerDao().demandsByIds(listOf(ambient.demandId)) shouldBe listOf(ambient)
+		database.sourceBrokerDao().registration(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION) shouldBe provider
+		database.cellCapturedFactDao().revisionCount() shouldBe 0L
+		database.cellCapturedFactDao().deletionGeneration(LOGICAL_TRACKING_ID, SERVICE_RUN_ID)?.generation shouldBe 1L
+	}
+
+	@Test
+	fun `capture cleanup refuses stale independently revoked Ambient Cell consent`() = runTest {
+		seedCapturedCell(revokedCapture = true)
+		val ambient = installActiveControlOnlyProvider(CONTROL_AUTHORIZATION_REVISION, ambient = true)
+		database.sourcePolicyDao().insertConsentEpochs(listOf(historicalControlConsent().copy(
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, epoch = CONTROL_CONSENT_EPOCH + 1L,
+			eligible = false, persistenceEligible = false)))
+		database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS) shouldBe CellCapturedSourceDeletionResult.Blocked(
+			CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		database.sourceBrokerDao().demandsByIds(listOf(ambient.demandId)) shouldBe listOf(ambient)
+		database.cellCapturedFactDao().revisionCount() shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
 	fun `Cell retention accepts original saved generation after a later End retry operation`() = runTest {
 		seedCapturedCell(retainedFromMs = FLOOR_MS)
 		val run = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID))
@@ -4526,22 +4554,31 @@ class CellCapturedFactMaintenanceTest {
 
 	private suspend fun installActiveControlOnlyProvider(
 		captureBarrierRevision: Long,
+		ambient: Boolean = false,
 	): SourceDemandEntity {
 		val captureHistory = demand(active = false)
 		val control = demand(active = true).copy(
 			demandId = CONTROL_DEMAND_ID,
 			consumerId = "app:cell-control",
-			purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
+			purpose = if (ambient) SourceBrokerPurpose.AMBIENT_PRODUCT else SourceBrokerPurpose.CONTROL_AUTOSTART,
 			logicalTrackingId = null,
 			serviceRunId = null,
 			manifestRevision = null,
 			lifecycleLeaseGeneration = null,
 			sourcePolicyRevision = REVOKED_POLICY_REVISION,
 			consentEpoch = CONTROL_CONSENT_EPOCH,
-			persistenceEligible = false,
+			persistenceEligible = ambient,
 			requestedElapsedRealtimeNanos = REVOKED_POLICY_NANOS,
 			requestedAtMs = REVOKED_POLICY_WALL_MS,
 		)
+		if (ambient) {
+			val policy = revokedPolicy().copy(ambientPersistenceEligible = true, ambientConsentEpoch = CONTROL_CONSENT_EPOCH)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_policy SET ambient_persistence_eligible = 1, ambient_consent_epoch = ? WHERE policy_revision = ? AND source_kind = ?",
+				arrayOf(CONTROL_CONSENT_EPOCH, policy.policyRevision, CELL_SOURCE))
+			database.sourcePolicyDao().insertConsentEpochs(listOf(historicalControlConsent().copy(
+				purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, persistenceEligible = true)))
+		}
 		database.sourceBrokerDao().insertDemands(listOf(control))
 		database.sourceBrokerDao().insertRegistration(
 			registration(
