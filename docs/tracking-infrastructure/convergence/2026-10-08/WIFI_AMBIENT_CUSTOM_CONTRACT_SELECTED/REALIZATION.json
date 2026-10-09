@@ -1,0 +1,12 @@
+[
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+    "working_before_sha256": "68502a24d1b7e9882a070026ce6434232cf9a32713c039faba30a99b8ed7eeb2",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "working_before_sha256": "10eea85a5bbeeafc12952e9e8129323cfd5d27be279c9ebf88568a317c14898b",
+    "disposition": "APPLIED_SELECTED_SOURCE"
+  }
+]

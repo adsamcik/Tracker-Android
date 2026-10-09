@@ -3774,9 +3774,9 @@ private val WIFI_PROVIDER_ITEM_ORDER = compareBy<WifiAccessPointEvidence>(
 private const val MAX_CANONICAL_WIFI_PAYLOAD_BYTES = MAX_WIFI_WAL_PAYLOAD_BYTES
 private val DEFAULT_LIMITS = WifiCapturedMaintenanceLimits()
 
-/** Profile-based ambient radio keeps its independent QoS-zero callback demand, without live focus. */
+/** Ambient radio keeps its independent QoS-zero callback demand for every policy format. */
 private fun SourcePolicyEntity.historicalWifiQosCode(purpose: DirectSourceDemandPurpose): Int =
-    if (balanceProfileVersion != null && purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT) 0 else qosCode
+    if (purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT) 0 else qosCode
 
 private fun SourcePolicyEntity.historicalWifiDemandContract(purpose: DirectSourceDemandPurpose): SourceDemandContract {
     if (balanceProfileVersion != null && purpose in setOf(
@@ -3791,5 +3791,5 @@ private fun SourcePolicyEntity.historicalWifiDemandContract(purpose: DirectSourc
     if (balanceProfileVersion == null) {
         require(balanceLevel == null && overallBalanceLevel == null && sourceBalanceOverride == null)
     }
-    return SourceDemandContractFactory.forQos(SourceKind.WIFI, qosCode, purpose)
+    return SourceDemandContractFactory.forQos(SourceKind.WIFI, historicalWifiQosCode(purpose), purpose)
 }

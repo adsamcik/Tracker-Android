@@ -1,0 +1,258 @@
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt
+@@ -3783,9 +3783,9 @@
+ private const val MAX_CANONICAL_WIFI_PAYLOAD_BYTES = MAX_WIFI_WAL_PAYLOAD_BYTES
+ private val DEFAULT_LIMITS = WifiCapturedMaintenanceLimits()
+ 
+-/** Profile-based ambient radio keeps its independent QoS-zero callback demand, without live focus. */
++/** Ambient radio keeps its independent QoS-zero callback demand for every policy format. */
+ private fun SourcePolicyEntity.historicalWifiQosCode(purpose: DirectSourceDemandPurpose): Int =
+-    if (balanceProfileVersion != null && purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT) 0 else qosCode
++    if (purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT) 0 else qosCode
+ 
+ private fun SourcePolicyEntity.historicalWifiDemandContract(purpose: DirectSourceDemandPurpose): SourceDemandContract {
+     if (balanceProfileVersion != null && purpose in setOf(
+@@ -3800,7 +3800,7 @@
+     if (balanceProfileVersion == null) {
+         require(balanceLevel == null && overallBalanceLevel == null && sourceBalanceOverride == null)
+     }
+-    return SourceDemandContractFactory.forQos(SourceKind.WIFI, qosCode, purpose)
++    return SourceDemandContractFactory.forQos(SourceKind.WIFI, historicalWifiQosCode(purpose), purpose)
+ }
+ 
+ private fun Long.isKnownCapturedWriterOwnerGeneration(): Boolean =
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt
+@@ -3034,6 +3034,101 @@
+ 	}
+ 
+ 	@Test
++	fun `custom Wi-Fi policy preserves actual Ambient QoS zero during capture cleanup`() =
++		runTest {
++			installValidFixture(candidateWriter = true)
++			assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
++			revokeCaptureConsent(keepAmbientAndControl = true)
++			database.openHelper.writableDatabase.execSQL(
++				"UPDATE source_policy SET qos_code = 2 WHERE policy_revision = ? AND source_kind = ?",
++				arrayOf<Any?>(REVOKED_POLICY_REVISION, WIFI_SOURCE),
++			)
++			database.openHelper.writableDatabase.execSQL(
++				"UPDATE source_demand SET status = 'RETIRING', retire_boot_id = ?, " +
++					"retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
++				arrayOf<Any?>(
++					BOOT_ID,
++					SESSION_END_NANOS + 1L,
++					SESSION_END_WALL_MS + 1L,
++					"$DEMAND_ID-0",
++				),
++			)
++			val ambient = nonCaptureDemand(40, SourceBrokerPurpose.AMBIENT_PRODUCT)
++			val control = nonCaptureDemand(41, SourceBrokerPurpose.CONTROL_AUTOSTART, qosCode = 2)
++			assertEquals(0, ambient.qosCode)
++			assertEquals(600_000L, ambient.maximumAgeMs)
++			val unrelated = control.copy(
++				demandId = "$DEMAND_ID-unrelated-cell",
++				consumerId = "app:cell-control",
++				sourceKind = SourceKind.CELL.stableCode,
++			)
++			database.sourceBrokerDao().insertDemands(listOf(ambient, control, unrelated))
++			val activeRegistration = registration(
++				generation = REGISTRATION_GENERATION + 1L,
++				sourceInstance = "$SOURCE_INSTANCE-noncapture",
++			).copy(
++				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
++				retiredAtMs = null,
++				retiredElapsedRealtimeNanos = null,
++				captureCallbackBarrierAuthorizationRevision = AUTHORIZATION_REVISION + 1L,
++			)
++			database.sourceBrokerDao().insertRegistration(activeRegistration)
++			database.sourceBrokerDao().insertAuthorizations(
++				SourceBrokerAuthorization.rows(
++					sourceKind = WIFI_SOURCE,
++					registrationGeneration = activeRegistration.registrationGeneration,
++					authorizationRevision = AUTHORIZATION_REVISION + 1L,
++					demands = listOf(ambient, control),
++					effectiveBootId = BOOT_ID,
++					effectiveElapsedRealtimeNanos = SESSION_END_NANOS + 1L,
++					effectiveWallTimeMs = SESSION_END_WALL_MS + 1L,
++				),
++			)
++
++			assertEquals(
++				WifiCapturedSourceDeletionResult.Deleted(1, 1, 1),
++				maintenance.deleteAfterCaptureConsentReset(
++					0L,
++					0L,
++					REVOKED_POLICY_REVISION,
++					REVOKED_CONSENT_EPOCH,
++					DELETE_AT_MS,
++				),
++			)
++
++			val retainedDemands = database.sourceBrokerDao().demandsByIds(
++				listOf("$DEMAND_ID-0", ambient.demandId, control.demandId, unrelated.demandId),
++			).associateBy(SourceDemandEntity::demandId)
++			assertEquals(
++				SourceDemandEntity.STATUS_RETIRED,
++				retainedDemands.getValue("$DEMAND_ID-0").status,
++			)
++			assertEquals(
++				SourceDemandEntity.STATUS_ACTIVE,
++				retainedDemands.getValue(ambient.demandId).status,
++			)
++			assertEquals(
++				SourceDemandEntity.STATUS_ACTIVE,
++				retainedDemands.getValue(control.demandId).status,
++			)
++			assertEquals(
++				SourceDemandEntity.STATUS_ACTIVE,
++				retainedDemands.getValue(unrelated.demandId).status,
++			)
++			assertEquals(
++				ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
++				database.sourceBrokerDao().registration(
++					WIFI_SOURCE,
++					activeRegistration.registrationGeneration,
++				)?.status,
++			)
++			assertEquals(1L, database.sourceEventWalDao().countAll())
++			assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
++			assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
++		}
++
++
++	@Test
+ 	fun `source deletion retires only authenticated capture while ambient and control stay active`() =
+ 		runTest {
+ 			installValidFixture(candidateWriter = true)
+@@ -3179,6 +3274,36 @@
+ 		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+ 		assertEquals(0L, database.wifiCapturedFactDao().deletionGenerationCount())
+ 	}
++
++	@Test
++	fun `custom Wi-Fi policy preserves authentic retained Ambient QoS zero WAL`() =
++		runTest {
++			installValidFixture(
++				evidenceState = SourceEvidenceState(deletedSourceEventHighWaterOrdinal = 1L),
++			)
++			revokeCaptureConsent(keepAmbientAndControl = true)
++			database.openHelper.writableDatabase.execSQL(
++				"UPDATE source_policy SET qos_code = 2 WHERE policy_revision = ? AND source_kind = ?",
++				arrayOf<Any?>(REVOKED_POLICY_REVISION, WIFI_SOURCE),
++			)
++			val ambientBefore = insertNoncaptureWal(2, SourceBrokerPurpose.AMBIENT_PRODUCT)
++
++			assertEquals(
++				WifiCapturedSourceDeletionResult.AlreadyDeleted,
++				maintenance.deleteAfterCaptureConsentReset(
++					0L,
++					1L,
++					REVOKED_POLICY_REVISION,
++					REVOKED_CONSENT_EPOCH,
++					DELETE_AT_MS,
++				),
++			)
++
++			assertExactWal(ambientBefore)
++			assertEquals(0L, database.wifiCapturedFactDao().deletionGenerationCount())
++			assertEquals(0L, database.sourceEvidenceStateDao().get()?.revision)
++		}
++
+ 
+ 	@Test
+ 	fun `source deletion preserves real ingress control and ambient WAL without capture scope or time`() =
+@@ -3843,6 +3968,34 @@
+ 			exportPortableWithoutSink(),
+ 		)
+ 	}
++
++	@Test
++	fun `custom Wi-Fi policy exports captured data beside original Ambient QoS zero authority`() = runTest {
++		installMixedPortableExportFixture(activeContinuation = false, noncapturePolicyQosCode = 3)
++		val ambient = database.sourceBrokerDao().demandsByIds(listOf("$DEMAND_ID-ambient")).single()
++		assertEquals(0, ambient.qosCode)
++		assertEquals(600_000L, ambient.maximumAgeMs)
++		val emitted = mutableListOf<PortableCapturedWifiEntryV1>()
++
++		assertIs<ExportPortableCapturedWifiResult.Exported>(
++			portableExporter().export(ExportPortableCapturedWifiRequest(LOGICAL_ID)) { emitted += it },
++		)
++		assertEquals(1, emitted.single().runs.single().observations.size)
++		assertTrue("CONTROL" !in emitted.single().toString())
++		assertTrue("AMBIENT_PRODUCT" !in emitted.single().toString())
++
++		database.openHelper.writableDatabase.execSQL(
++			"UPDATE source_consent_epoch SET eligible = 0 WHERE source_kind = ? AND purpose = ? AND epoch = ?",
++			arrayOf<Any?>(WIFI_SOURCE, "CONTROL", CONTROL_CONSENT_EPOCH),
++		)
++		assertEquals(
++			ExportPortableCapturedWifiResult.Unverifiable(
++				PortableWifiUnverifiableReason.FACT_AUTHORITY_UNVERIFIABLE,
++			),
++			exportPortableWithoutSink(),
++		)
++	}
++
+ 
+ 	@Test
+ 	fun `portable export authenticates noncapture policy and consent without emitting it`() = runTest {
+@@ -5163,13 +5316,14 @@
+ 	private suspend fun installRetainedNoncapturePolicyAndConsent(
+ 		effectiveElapsedRealtimeNanos: Long = SESSION_END_NANOS + 1L,
+ 		effectiveWallTimeMs: Long = SESSION_END_WALL_MS + 1L,
++		qosCode: Int = QOS_OFF,
+ 	) {
+ 		database.sourcePolicyDao().insertPolicies(listOf(
+ 			SourcePolicyEntity(
+ 				policyRevision = REVOKED_POLICY_REVISION,
+ 				sourceKind = WIFI_SOURCE,
+ 				enabled = true,
+-				qosCode = QOS_OFF,
++				qosCode = qosCode,
+ 				locationMinTimeSeconds = null,
+ 				locationMinDistanceMeters = null,
+ 				locationRequiredAccuracyMeters = null,
+@@ -5213,10 +5367,13 @@
+ 		))
+ 	}
+ 
+-	private suspend fun installMixedPortableExportFixture(activeContinuation: Boolean) {
++	private suspend fun installMixedPortableExportFixture(
++		activeContinuation: Boolean,
++		noncapturePolicyQosCode: Int = QOS_OFF,
++	) {
+ 		installValidFixture(candidateWriter = true)
+-		installRetainedNoncapturePolicyAndConsent(RUN_START_NANOS, RUN_START_WALL_MS)
+-		val control = nonCaptureDemand(77, SourceBrokerPurpose.CONTROL_AUTOSTART).copy(
++		installRetainedNoncapturePolicyAndConsent(RUN_START_NANOS, RUN_START_WALL_MS, noncapturePolicyQosCode)
++		val control = nonCaptureDemand(77, SourceBrokerPurpose.CONTROL_AUTOSTART, noncapturePolicyQosCode).copy(
+ 			demandId = "$DEMAND_ID-control",
+ 			requestedElapsedRealtimeNanos = RUN_START_NANOS,
+ 			requestedAtMs = RUN_START_WALL_MS,
+@@ -5810,14 +5967,14 @@
+ 		retiredAtMs = SESSION_END_WALL_MS,
+ 	)
+ 
+-	private fun nonCaptureDemand(index: Int, purpose: String): SourceDemandEntity {
++	private fun nonCaptureDemand(index: Int, purpose: String, qosCode: Int = QOS_OFF): SourceDemandEntity {
+ 		val directPurpose = when (purpose) {
+ 			SourceBrokerPurpose.CONTROL_AUTOSTART ->
+ 				DirectSourceDemandPurpose.CONTROL_AUTOSTART
+ 			SourceBrokerPurpose.AMBIENT_PRODUCT -> DirectSourceDemandPurpose.AMBIENT_PRODUCT
+ 			else -> error("Unsupported noncapture test purpose")
+ 		}
+-		val contract = SourceDemandContractFactory.forQos(SourceKind.WIFI, QOS_OFF, directPurpose)
++		val contract = SourceDemandContractFactory.forQos(SourceKind.WIFI, qosCode, directPurpose)
+ 		val ambient = purpose == SourceBrokerPurpose.AMBIENT_PRODUCT
+ 		return demand(index).copy(
+ 			consumerId = "app:wifi-${purpose.lowercase()}",
+@@ -5829,7 +5986,7 @@
+ 			sourcePolicyRevision = REVOKED_POLICY_REVISION,
+ 			consentEpoch = if (ambient) AMBIENT_CONSENT_EPOCH else CONTROL_CONSENT_EPOCH,
+ 			persistenceEligible = ambient,
+-			qosCode = QOS_OFF,
++			qosCode = qosCode,
+ 			minimumAcquisitionSpec = contract.encodeFloor(),
+ 			adaptiveReductionAllowed = contract.adaptiveReductionAllowed,
+ 			maximumAgeMs = contract.maximumProviderItemAgeMs,

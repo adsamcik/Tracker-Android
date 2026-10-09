@@ -1,0 +1,17 @@
+[
+  {
+    "packet": "SHARED_SETUP_SOURCE_MAINTENANCE_SELECTED",
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+    "sha256": "13e8e0cc7b01febbda077903530dec9377fbca77bddac0efad16178dd9f53773"
+  },
+  {
+    "packet": "SHARED_SETUP_SOURCE_MAINTENANCE_SELECTED",
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "sha256": "069b47d5d406e7327e93667aa96b50899ad0d075e8df9d59cfb16566975a6389"
+  },
+  {
+    "packet": "ORIGINAL_CAPTURED_WRITER_AUTHORITY_SELECTED",
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+    "sha256": "43321c4b1abdc9333c702e2945d3fb48c8dfac3d692d270813b355b028be8927"
+  }
+]

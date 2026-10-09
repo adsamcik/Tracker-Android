@@ -1,0 +1,19 @@
+{
+  "base": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+  "files": [
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+      "base_sha256": "68502a24d1b7e9882a070026ce6434232cf9a32713c039faba30a99b8ed7eeb2",
+      "selected_sha256": "0c20faaa7852357acf24a252ecdcf38055969d5e0b7579cb06e8d9df86619add",
+      "working_before_sha256": "68502a24d1b7e9882a070026ce6434232cf9a32713c039faba30a99b8ed7eeb2",
+      "selected_eol": "LF"
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+      "base_sha256": "10eea85a5bbeeafc12952e9e8129323cfd5d27be279c9ebf88568a317c14898b",
+      "selected_sha256": "13b4f59aa683ab215ac0decfd953560fbb4874cb86cc107791164823605b930e",
+      "working_before_sha256": "10eea85a5bbeeafc12952e9e8129323cfd5d27be279c9ebf88568a317c14898b",
+      "selected_eol": "LF"
+    }
+  ]
+}

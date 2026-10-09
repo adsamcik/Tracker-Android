@@ -1,0 +1,57 @@
+[
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceBroker.kt",
+    "commit": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+    "sha256": "be0057395daf7109198514631bd1ea7697dbb2745e299b049405b7c7ada276a4"
+  },
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/AmbientRadioSourceBrokerTest.kt",
+    "commit": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+    "sha256": "a8801cc5fe14dd2300d938788e5613e8efdf8fad9de1098a3c2faa20cf953d4f"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/model/SourceAcquisitionFloor.kt",
+    "commit": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+    "sha256": "6b5bfde1e09166c7cdc6935ba36df79d31655be1225cd8dc63ccfb9e9e932b7f"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapter.kt",
+    "commit": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+    "sha256": "51c9af0b59ac10fb7b6f5ef52510851542d4000f88d3226906376435e980dc23"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+    "commit": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+    "sha256": "57a2afac28c2d68538f551ba1ac473ecee8dd6985dbce0af5132aedb59de7a20"
+  },
+  {
+    "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedPortableTransfer.kt",
+    "commit": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+    "sha256": "6583b15441c5f54b21f5dc3ade6f7c8d21f1415b86af08f197c6a0290ddce038"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceBrokerEntities.kt",
+    "commit": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+    "sha256": "752d4b90d523ef1543d3032b31da63e0aa2943a13462b6b79fa40f28930b7fe0"
+  },
+  {
+    "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourcePolicyEntities.kt",
+    "commit": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+    "sha256": "c9f315d2e1fd2d2074107036714c2eb3cc2f626ff0301a18b4aa7876bd6404eb"
+  },
+  {
+    "path": "tracker/engine/build.gradle.kts",
+    "commit": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+    "sha256": "389d56e44efe0a5f9e4fe98cb77f4c73603d62d7c78150e7a312a950252b732c"
+  },
+  {
+    "path": "settings.gradle.kts",
+    "commit": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+    "sha256": "cf0e96fa6c8454b79a13b79f547bf838288cfb1b8a5ddde24f71eee07039cd2a"
+  },
+  {
+    "path": "AGENTS.md",
+    "commit": "6fbd9c51b517daddc26e86987a54b1fe5c72320f",
+    "sha256": "694fe135558539f94821481708982dc3880f92f72476b54e418b2eeccb8c8971"
+  }
+]
