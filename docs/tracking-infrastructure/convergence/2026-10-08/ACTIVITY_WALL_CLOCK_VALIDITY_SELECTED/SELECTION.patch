@@ -1,0 +1,62 @@
+--- a/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapter.kt
++++ b/tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapter.kt
+@@ -821,10 +821,10 @@
+ 			run.serviceRunId == currentServiceRunId &&
+ 			state in SETTLED_STOPPING_SESSION_STATES
+ 		if ((completedAtMs != null) != terminal ||
+-			completedAtMs?.let { completed -> completed < startedAtMs } == true
++			completedAtMs?.let { completed -> completed < 0L } == true
+ 		) return false
+ 		if (terminal || state == LIFECYCLE_STOPPING) {
+-			if (cutoffAtMs?.let { it < startedAtMs } != false ||
++			if (cutoffAtMs?.let { it < 0L } != false ||
+ 				cutoffElapsedNanos?.let { it < startedElapsedNanos } != false
+ 		) return false
+ 		} else if (!stoppingRelationship && (cutoffAtMs != null || cutoffElapsedNanos != null)) {
+@@ -887,7 +887,7 @@
+ 		) return false
+ 		val terminal = state in TERMINAL_LIFECYCLE_STATES
+ 		return (completedAtMs != null) == terminal &&
+-			completedAtMs?.let { completed -> completed >= startedAtMs } != false
++			completedAtMs?.let { completed -> completed >= 0L } != false
+ 	}
+ 
+ 	private fun SourceServiceRunEntity.hasValidRelationshipTo(
+--- a/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapterTest.kt
++++ b/tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapterTest.kt
+@@ -70,6 +70,35 @@
+ 	fun tearDown() = database.close()
+ 
+ 	@Test
++	fun `Activity UTC rollback does not invalidate its original elapsed Stop and saved observations`() = runTest {
++		installFixture()
++		val original = subject().admit(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted
++		val dao = database.sourceSessionDao()
++		val session = requireNotNull(dao.session(LOGICAL_TRACKING_ID))
++		val run = requireNotNull(dao.serviceRun(SERVICE_RUN_ID))
++		dao.updateSession(session.copy(cutoffAtMs = 500L, completedAtMs = 500L)) shouldBe 1
++		dao.updateServiceRun(run.copy(completedAtMs = 500L)) shouldBe 1
++		database.advanceRetainedSourceOperations(listOf(LOGICAL_TRACKING_ID to SERVICE_RUN_ID))
++		val after = subject().admit(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted
++		assertSameAdmissionValues(after, original)
++		val saved = requireNotNull(dao.session(LOGICAL_TRACKING_ID))
++		saved.cutoffAtMs shouldBe 500L
++		saved.completedAtMs shouldBe 500L
++		val savedRun = requireNotNull(dao.serviceRun(SERVICE_RUN_ID))
++		savedRun.completedAtMs shouldBe 500L
++	}
++
++	@Test
++	fun `Activity still rejects negative lifecycle UTC metadata`() = runTest {
++		installFixture()
++		val dao = database.sourceSessionDao()
++		val run = requireNotNull(dao.serviceRun(SERVICE_RUN_ID))
++		dao.updateServiceRun(run.copy(completedAtMs = -1L)) shouldBe 1
++		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
++			ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH)
++	}
++
++	@Test
+ 	fun `retained Activity admission keeps its original finite window after later operation state`() = runTest {
+ 		installFixture()
+ 		val before = subject().admit(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted

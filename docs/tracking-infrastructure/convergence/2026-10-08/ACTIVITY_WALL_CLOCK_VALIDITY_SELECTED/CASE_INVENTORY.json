@@ -1,0 +1,10 @@
+[
+  {
+    "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapterTest.kt",
+    "new_methods": [
+      "Activity UTC rollback does not invalidate its original elapsed Stop and saved observations",
+      "Activity still rejects negative lifecycle UTC metadata"
+    ],
+    "status": "NOT_RUN"
+  }
+]

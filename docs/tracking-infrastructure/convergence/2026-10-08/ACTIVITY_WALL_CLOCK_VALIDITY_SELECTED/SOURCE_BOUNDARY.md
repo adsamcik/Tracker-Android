@@ -1,0 +1,3 @@
+# Activity UTC metadata validity
+
+Implementation only. Three existing lifecycle shape comparisons stop treating UTC as a monotonic clock. Actual times remain unchanged and nonnegative; missing/completion/state relationships remain strict. Original boot/elapsed provider interval, manifest, authorization, authenticated Stop and admission boundaries still determine what may be saved. No duration reconstruction, new data model, writer activation or permission. Two seeded Room admission methods NOT_RUN: real lifecycle wall-clock rollback with original Stop and later operation state, and invalid negative UTC metadata. Reader shape/range consequences and final source bindings remain separate open companions; this packet does not claim complete History.

@@ -70,6 +70,35 @@ class ActivityCapturedWalAdmissionAdapterTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `Activity UTC rollback does not invalidate its original elapsed Stop and saved observations`() = runTest {
+		installFixture()
+		val original = subject().admit(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(LOGICAL_TRACKING_ID))
+		val run = requireNotNull(dao.serviceRun(SERVICE_RUN_ID))
+		dao.updateSession(session.copy(cutoffAtMs = 500L, completedAtMs = 500L)) shouldBe 1
+		dao.updateServiceRun(run.copy(completedAtMs = 500L)) shouldBe 1
+		database.advanceRetainedSourceOperations(listOf(LOGICAL_TRACKING_ID to SERVICE_RUN_ID))
+		val after = subject().admit(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted
+		assertSameAdmissionValues(after, original)
+		val saved = requireNotNull(dao.session(LOGICAL_TRACKING_ID))
+		saved.cutoffAtMs shouldBe 500L
+		saved.completedAtMs shouldBe 500L
+		val savedRun = requireNotNull(dao.serviceRun(SERVICE_RUN_ID))
+		savedRun.completedAtMs shouldBe 500L
+	}
+
+	@Test
+	fun `Activity still rejects negative lifecycle UTC metadata`() = runTest {
+		installFixture()
+		val dao = database.sourceSessionDao()
+		val run = requireNotNull(dao.serviceRun(SERVICE_RUN_ID))
+		dao.updateServiceRun(run.copy(completedAtMs = -1L)) shouldBe 1
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH)
+	}
+
+	@Test
 	fun `retained Activity admission keeps its original finite window after later operation state`() = runTest {
 		installFixture()
 		val before = subject().admit(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted

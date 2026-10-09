@@ -1,0 +1,11 @@
+# Activity wall-clock metadata — bounded acceptance
+
+Independent static source review; IMPLEMENTATION_ONLY / IMPLEMENTED_UNVALIDATED. Two authored Room admission methods NOT_RUN. No compilation/tests/schema/provider activation/live production edits/Git mutation/delegation.
+
+Exact FILES 39d990788fbd2369e69c6313088a6575937dd2a847b9ca18191b268018a946fc; SELECTION.patch 9af74c41f11478432eea1c71e5c847da2b9c02831a0d29958ca583a528fe8069; ten dependency pins deeac8e1d302109a4657449a86d10cbd4a0343ffbd3013cc2318a3abf8f87335. BASE 04b60ee7061589777579f2e9f976d849d42d019e. Both BASE/WORKING_BEFORE/SELECTED hashes and selected LF bytes match. All ten committed/snapshot dependency hashes match.
+
+No scoped blocker found. The only production changes replace three UTC chronology comparisons with nonnegative metadata validity. Terminal state/completion presence, cutoff-pair presence, original elapsed chronology, finite settled tail/final ordinal, provider interval, original manifest/lease/consent and authenticated original Stop remain unchanged. Wall-clock rollback cannot turn positive saved timestamps into invalid temporal ordering. Negative/missing metadata remains rejected. Original observations and timestamps are not reconstructed or changed.
+
+The new positive reaches actual Room-backed admission before and after explicit lifecycle timestamp rollback, then the existing constructed later-operation/original-Stop fixture, and compares original admission values. The negative mutates actual stored run completion to -1 and expects session mismatch. They seed provider/session/manifest/authorization/WAL rows; they do not demonstrate actual Android or coordinator clock changes. No new API, clock conversion, storage or acquisition authority.
+
+This packet overlaps the two held SHARED_SETUP_ACTIVITY_ADMISSION_SELECTED primary paths. Future composition must retain both the three UTC validity changes and the independently accepted final binding checks; copying either complete earlier primary over the other would lose an accepted repair. Readers' separate UTC shape/range consequences, shared startup caller and full four-source assembly remain open. No full History or provider readiness acceptance. T25/all25 remain OPEN.

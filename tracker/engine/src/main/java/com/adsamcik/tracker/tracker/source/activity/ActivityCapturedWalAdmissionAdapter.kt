@@ -821,10 +821,10 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			run.serviceRunId == currentServiceRunId &&
 			state in SETTLED_STOPPING_SESSION_STATES
 		if ((completedAtMs != null) != terminal ||
-			completedAtMs?.let { completed -> completed < startedAtMs } == true
+			completedAtMs?.let { completed -> completed < 0L } == true
 		) return false
 		if (terminal || state == LIFECYCLE_STOPPING) {
-			if (cutoffAtMs?.let { it < startedAtMs } != false ||
+			if (cutoffAtMs?.let { it < 0L } != false ||
 				cutoffElapsedNanos?.let { it < startedElapsedNanos } != false
 		) return false
 		} else if (!stoppingRelationship && (cutoffAtMs != null || cutoffElapsedNanos != null)) {
@@ -887,7 +887,7 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 		) return false
 		val terminal = state in TERMINAL_LIFECYCLE_STATES
 		return (completedAtMs != null) == terminal &&
-			completedAtMs?.let { completed -> completed >= startedAtMs } != false
+			completedAtMs?.let { completed -> completed >= 0L } != false
 	}
 
 	private fun SourceServiceRunEntity.hasValidRelationshipTo(

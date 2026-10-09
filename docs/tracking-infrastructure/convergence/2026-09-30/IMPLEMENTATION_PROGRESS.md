@@ -976,3 +976,9 @@ Exact V2 selected source and independent review: `../2026-10-08/RETAINED_RADIO_B
 - [x] Retained Activity admission uses its original manifest/lease and authenticated saved Stop clock after later operation boots or quality changes. Unknown original Stop remains explicitly unavailable; the exact Stop boundary still rejects. Original provider, permission, epoch, deletion, retention and finite-window checks remain. Three seeded Room admission methods NOT_RUN. Static V1 review caught reference equality in a test; V2 compares actual original values. Shared final bindings and full-chain activation remain separate open work.
 
 Exact selected source and independent review: `../2026-10-08/ACTIVITY_ORIGINAL_CLOCK_SELECTED_V2/` and `ACTIVITY_ORIGINAL_CLOCK_REVIEW/V2_ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN. No gates, activation, integration or push.
+
+### October 9 - Activity UTC metadata validity
+
+- [x] Three Activity lifecycle shape guards treat UTC as nonnegative metadata rather than a monotonic clock. Original elapsed, manifest, provider, permission, authenticated Stop, epoch, deletion and retention checks remain. Two authored Room admission methods NOT_RUN cover actual stored RTC rollback/later operation fixtures and invalid negative completion metadata. The separate shared final binding and History reader companions remain open.
+
+Exact selected source and independent review: `../2026-10-08/ACTIVITY_WALL_CLOCK_VALIDITY_SELECTED/` and `ACTIVITY_WALL_CLOCK_VALIDITY_REVIEW/ACCEPTANCE.md`. IMPLEMENTED_UNVALIDATED; T25/all25 OPEN. No gates, activation, integration or push.
