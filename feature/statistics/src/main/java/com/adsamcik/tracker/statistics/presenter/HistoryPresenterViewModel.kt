@@ -265,14 +265,15 @@ class HistoryPresenterViewModel @Inject constructor(
                             return
                         }
                         problems += read.problems
+                        val next = read.next
                         if (read.rows.any { it.measurement != null }) {
                             days[day] = CalendarDayData(day)
                             pending.remove(day)
-                        } else if (read.next == null) pending.remove(day)
-                        else if (read.next.range != range || read.next == after) {
+                        } else if (next == null) pending.remove(day)
+                        else if (next.range != range || next == after) {
                             problems += HistoryProblem(null, HistoryProblemReason.INTEGRITY_UNAVAILABLE)
                             pending.remove(day)
-                        } else pending[day] = read.next
+                        } else pending[day] = next
                     }
                 }
                 updateCalendarMonth(month, zone, days.toMap(), problems.toSet(), pending.isNotEmpty())

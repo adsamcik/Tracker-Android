@@ -154,8 +154,12 @@ internal class LocationFileImport : FileImport {
         val expected = pointIds.expectedExisting(ids)
         val identities = database.locationFileIdentityDao().byPortableIds(ids)
             .associateBy { it.portableId }
-        val existing = database.locationSampleDao().byIds(identities.values.map { it.sampleId })
-            .associateBy { it.id }
+        val existing = if (identities.isEmpty()) {
+            emptyMap()
+        } else {
+            database.locationSampleDao().byIds(identities.values.map { it.sampleId })
+                .associateBy { it.id }
+        }
         var inserted = 0
         var skipped = 0
         val memberships = ArrayList<LocationFileArchivePointEntity>(batch.size)

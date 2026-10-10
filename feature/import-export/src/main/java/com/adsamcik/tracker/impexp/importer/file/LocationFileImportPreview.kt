@@ -99,8 +99,12 @@ internal suspend fun inspectLocationFile(
         val identities = database.locationFileIdentityDao()
             .byPortableIds(batch.map(LocationFilePointV1::pointId))
             .associateBy { it.portableId }
-        val samples = database.locationSampleDao().byIds(identities.values.map { it.sampleId })
-            .associateBy { it.id }
+        val samples = if (identities.isEmpty()) {
+            emptyMap()
+        } else {
+            database.locationSampleDao().byIds(identities.values.map { it.sampleId })
+                .associateBy { it.id }
+        }
         for (point in batch) {
             val identity = identities[point.pointId]
             if (identity == null) {

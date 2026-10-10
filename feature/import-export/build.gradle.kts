@@ -30,6 +30,7 @@ dependencies {
     implementation(libs.androidx.documentfile)
     implementation(libs.androidx.datastore.core)
     implementation(libs.protobuf.java)
+    implementation(libs.gson)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.room.paging)

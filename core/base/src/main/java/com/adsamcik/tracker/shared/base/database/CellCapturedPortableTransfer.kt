@@ -1504,7 +1504,7 @@ private fun LogicalTrackingSessionEntity.hasPortableCellShape(runs: List<SourceS
 	val terminal = state in TERMINAL_SESSION_STATES
 	if ((completedAtMs != null) != terminal || logicalTrackingId.isBlank() || lifecycleRevision <= 0L ||
 		desiredPlanRevision <= 0L || rolloutRevision <= 0L || startOrigin.isBlank() ||
-		clockDomainId.isBlank() || lifecycleBootId.isBlank() || lifecycleLeaseGeneration <= 0L ||
+		clockDomainId.isBlank() || lifecycleBootId.isNullOrBlank() || lifecycleLeaseGeneration <= 0L ||
 		startedAtMs < 0L || startedElapsedNanos < 0L
 	) return false
 	if ((cutoffAtMs == null) != (cutoffElapsedNanos == null)) return false

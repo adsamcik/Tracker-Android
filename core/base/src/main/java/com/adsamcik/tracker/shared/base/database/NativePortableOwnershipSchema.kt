@@ -46,7 +46,7 @@ private fun insertNativePortableOwners(db: SupportSQLiteDatabase, owners: List<N
 	owners.forEach { owner ->
 		db.execSQL("INSERT OR IGNORE INTO native_portable_ownership " +
 			"(source_kind, identity_kind, opaque_identity, raw_identity, logical_tracking_id, service_run_id) " +
-			"VALUES (?, ?, ?, ?, ?, ?)", arrayOf(owner.sourceKind, owner.identityKind, owner.opaqueIdentity,
+			"VALUES (?, ?, ?, ?, ?, ?)", arrayOf<Any>(owner.sourceKind, owner.identityKind, owner.opaqueIdentity,
 			owner.rawIdentity, owner.logicalTrackingId, owner.serviceRunId))
 	}
 }

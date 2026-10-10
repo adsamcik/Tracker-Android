@@ -1222,7 +1222,7 @@ abstract class AppDatabase : RoomDatabase() {
 			}
 		}
 
-		private fun deleteCollectedRows(database: AppDatabase) {
+		private suspend fun deleteCollectedRows(database: AppDatabase) {
 			// Organization metadata is collected data; a stale editor is fenced by the epoch.
 			database.openHelper.writableDatabase.execSQL("DELETE FROM organization_annotation")
 			database.legacyPreservedDataDao().deleteAllRejectedSessions()

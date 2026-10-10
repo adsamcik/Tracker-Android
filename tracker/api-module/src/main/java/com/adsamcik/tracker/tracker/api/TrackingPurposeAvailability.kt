@@ -1133,8 +1133,8 @@ class AtomicTrackingPurposeAvailabilityStore :
 
 	override fun reportAmbientForegroundHostLost(expectedIdentity: TrackingPurposeLeaseIdentity): Boolean = synchronized(lock) {
 		val source = when (expectedIdentity.source) {
-			TrackingSource.WIFI -> AmbientTrackingSource.WIFI
-			TrackingSource.CELL -> AmbientTrackingSource.CELL
+			CanonicalTrackingSource.WIFI -> AmbientTrackingSource.WIFI
+			CanonicalTrackingSource.CELL -> AmbientTrackingSource.CELL
 			else -> return@synchronized false
 		}
 		val previous = mutableAvailability.value.ambientSources.getValue(source)

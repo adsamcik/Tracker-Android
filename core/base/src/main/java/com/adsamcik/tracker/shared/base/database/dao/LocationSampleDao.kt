@@ -29,6 +29,10 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	@Query("SELECT * FROM location_sample WHERE id > :afterId ORDER BY id LIMIT :limit")
 	suspend fun retentionPage(afterId: Long, limit: Int): List<LocationSample>
 
+	/** Reads an already bounded ID batch without changing its saved purpose or origin. */
+	@Query("SELECT * FROM location_sample WHERE id IN (:ids) ORDER BY id")
+	suspend fun byIds(ids: List<Long>): List<LocationSample>
+
 	@Query("DELETE FROM location_sample WHERE id IN (:ids)")
 	suspend fun deleteExactIds(ids: List<Long>): Int
 
