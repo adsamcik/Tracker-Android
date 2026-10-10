@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Portable baggrundsskridt</string>
+    <string name="export_error_no_portable_ambient_steps">Der er ingen verificeret historik over baggrundsskridt tilgængelig til eksport.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Historikken over baggrundsskridt er ufuldstændig eller kan ikke verificeres til eksport.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Eksport af baggrundsskridt er midlertidigt utilgængelig. Prøv igen.</string>
+    <string name="export_error_portable_ambient_steps_scope">Dette udvalg af baggrundsskridt kan ikke gengives i det portable filformat.</string>
+    <string name="export_error_portable_ambient_steps_write">Filen med portable baggrundsskridt kunne ikke oprettes.</string>
+    <string name="export_ambient_steps_sensitivity_title">Eksportér historik over baggrundsskridt?</string>
+    <string name="export_ambient_steps_sensitivity_message">Denne fil indeholder skridttal, aktivitetsperioder, datoer, huller i registreringen og gemte tidszoneoplysninger, som kan afsløre daglige aktivitetsmønstre. Den indeholder ikke rutekoordinater. Fortsæt kun, hvis du stoler på destinationen.</string>
+    <string name="export_error_no_portable_steps">Der er ingen verificeret skridthistorik tilgængelig til eksport.</string>
+    <string name="export_error_portable_steps_retryable">Eksport af skridt er midlertidigt utilgængelig. Prøv igen.</string>
+    <string name="export_error_portable_steps_unverifiable">Skridthistorikken er ufuldstændig eller kan ikke verificeres til eksport.</string>
+    <string name="export_error_portable_steps_write">Filen med portable skridt kunne ikke oprettes.</string>
+    <string name="export_error_no_portable_pressure">Der er ingen verificeret trykhistorik tilgængelig til eksport.</string>
+    <string name="export_error_portable_pressure_data_pruned">Trykhistorikken er blevet beskåret eller er ikke tilgængelig til eksport.</string>
+    <string name="export_error_portable_pressure_unverifiable">Trykhistorikken er ufuldstændig eller kan ikke verificeres til eksport.</string>
+    <string name="export_error_portable_pressure_retryable">Eksport af tryk er midlertidigt utilgængelig. Prøv igen.</string>
+    <string name="export_pressure_sensitivity_title">Eksportér trykhistorik?</string>
+    <string name="export_pressure_sensitivity_message">Denne fil indeholder trykmålinger og tidsperioder, som kan afsløre oplysninger om omgivelserne. Den indeholder ikke rutekoordinater eller kalibreret højde. Fortsæt kun, hvis du stoler på destinationen.</string>
+    <string name="export_error_partial_file_remains">Eksport mislykkedes. Den ufærdige fil kunne ikke fjernes: %s</string>
+    <string name="export_json_whole_session_scope">JSON indeholder hele sessioner, der overlapper disse datoer, så nogle positioner, Wi-Fi-scanninger og mobilnetværksmålinger kan ligge uden for de valgte datoer. Andre gemte kilder er ikke medtaget.</string>
+    <string name="import_notification_error_io">Importen kunne ikke læse den valgte kilde. Prøv igen.</string>
+    <string name="import_start_error">Importen kunne ikke startes. Prøv igen.</string>
+    <string name="import_cleared_error">Importen stoppede, fordi registrerede data blev ryddet. Vælg filen igen, hvis du vil importere den.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Mobilnetværk</string>
+    <string name="format_portable_location">Position</string>
+    <string name="format_portable_steps">Portable skridt</string>
+    <string name="format_portable_activity">Portabel aktivitet</string>
+    <string name="format_portable_pressure">Portabelt tryk</string>
+</resources>

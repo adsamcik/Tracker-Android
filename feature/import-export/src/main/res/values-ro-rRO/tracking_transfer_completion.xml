@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Pași în fundal în format portabil</string>
+    <string name="export_error_no_portable_ambient_steps">Nu există un istoric verificat al pașilor în fundal disponibil pentru export.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Istoricul pașilor în fundal este incomplet sau nu poate fi verificat pentru export.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Exportul pașilor în fundal este temporar indisponibil. Încercați din nou.</string>
+    <string name="export_error_portable_ambient_steps_scope">Această selecție de pași în fundal nu poate fi reprezentată în formatul de fișier portabil.</string>
+    <string name="export_error_portable_ambient_steps_write">Fișierul cu pași în fundal în format portabil nu a putut fi creat.</string>
+    <string name="export_ambient_steps_sensitivity_title">Exportați istoricul pașilor în fundal?</string>
+    <string name="export_ambient_steps_sensitivity_message">Acest fișier conține numărul de pași, intervale de activitate, date, lacune în înregistrare și informații salvate despre fusul orar, care pot dezvălui tipare de activitate zilnică. Nu conține coordonate de traseu. Continuați doar dacă aveți încredere în destinație.</string>
+    <string name="export_error_no_portable_steps">Nu există un istoric verificat al pașilor disponibil pentru export.</string>
+    <string name="export_error_portable_steps_retryable">Exportul pașilor este temporar indisponibil. Încercați din nou.</string>
+    <string name="export_error_portable_steps_unverifiable">Istoricul pașilor este incomplet sau nu poate fi verificat pentru export.</string>
+    <string name="export_error_portable_steps_write">Fișierul cu pași în format portabil nu a putut fi creat.</string>
+    <string name="export_error_no_portable_pressure">Nu există un istoric verificat al presiunii disponibil pentru export.</string>
+    <string name="export_error_portable_pressure_data_pruned">Istoricul presiunii a fost curățat parțial sau nu este disponibil pentru export.</string>
+    <string name="export_error_portable_pressure_unverifiable">Istoricul presiunii este incomplet sau nu poate fi verificat pentru export.</string>
+    <string name="export_error_portable_pressure_retryable">Exportul presiunii este temporar indisponibil. Încercați din nou.</string>
+    <string name="export_pressure_sensitivity_title">Exportați istoricul presiunii?</string>
+    <string name="export_pressure_sensitivity_message">Acest fișier conține măsurători ale presiunii și intervale de timp, care pot dezvălui informații despre mediu. Nu conține coordonate de traseu sau altitudine calibrată. Continuați doar dacă aveți încredere în destinație.</string>
+    <string name="export_error_partial_file_remains">Exportul a eșuat. Fișierul neterminat nu a putut fi eliminat: %s</string>
+    <string name="export_json_whole_session_scope">JSON include sesiunile complete care se suprapun cu aceste date, astfel încât unele locații, scanări Wi-Fi și citiri ale rețelei mobile pot fi în afara datelor alese. Celelalte surse salvate nu sunt incluse.</string>
+    <string name="import_notification_error_io">Importul nu a putut citi sursa selectată. Încercați din nou.</string>
+    <string name="import_start_error">Importul nu a putut fi pornit. Încercați din nou.</string>
+    <string name="import_cleared_error">Importul s-a oprit deoarece datele înregistrate au fost șterse. Selectați din nou fișierul dacă doriți să îl importați.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Rețea mobilă</string>
+    <string name="format_portable_location">Locație</string>
+    <string name="format_portable_steps">Pași în format portabil</string>
+    <string name="format_portable_activity">Activitate în format portabil</string>
+    <string name="format_portable_pressure">Presiune în format portabil</string>
+</resources>

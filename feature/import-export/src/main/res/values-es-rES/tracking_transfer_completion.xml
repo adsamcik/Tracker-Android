@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Pasos en segundo plano en formato portable</string>
+    <string name="export_error_no_portable_ambient_steps">No hay un historial verificado de pasos en segundo plano disponible para exportar.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">El historial de pasos en segundo plano está incompleto o no se puede verificar para la exportación.</string>
+    <string name="export_error_portable_ambient_steps_retryable">La exportación de pasos en segundo plano no está disponible temporalmente. Inténtalo de nuevo.</string>
+    <string name="export_error_portable_ambient_steps_scope">Esta selección de pasos en segundo plano no se puede representar en el formato de archivo portable.</string>
+    <string name="export_error_portable_ambient_steps_write">No se pudo crear el archivo de pasos en segundo plano en formato portable.</string>
+    <string name="export_ambient_steps_sensitivity_title">¿Exportar el historial de pasos en segundo plano?</string>
+    <string name="export_ambient_steps_sensitivity_message">Este archivo contiene recuentos de pasos, intervalos de actividad, fechas, lagunas en el registro e información guardada de la zona horaria que pueden revelar patrones de actividad diaria. No contiene coordenadas de rutas. Continúa solo si confías en el destino.</string>
+    <string name="export_error_no_portable_steps">No hay un historial verificado de pasos disponible para exportar.</string>
+    <string name="export_error_portable_steps_retryable">La exportación de pasos no está disponible temporalmente. Inténtalo de nuevo.</string>
+    <string name="export_error_portable_steps_unverifiable">El historial de pasos está incompleto o no se puede verificar para la exportación.</string>
+    <string name="export_error_portable_steps_write">No se pudo crear el archivo de pasos en formato portable.</string>
+    <string name="export_error_no_portable_pressure">No hay un historial verificado de presión disponible para exportar.</string>
+    <string name="export_error_portable_pressure_data_pruned">El historial de presión se ha depurado o no está disponible para exportar.</string>
+    <string name="export_error_portable_pressure_unverifiable">El historial de presión está incompleto o no se puede verificar para la exportación.</string>
+    <string name="export_error_portable_pressure_retryable">La exportación de presión no está disponible temporalmente. Inténtalo de nuevo.</string>
+    <string name="export_pressure_sensitivity_title">¿Exportar el historial de presión?</string>
+    <string name="export_pressure_sensitivity_message">Este archivo contiene mediciones de presión e intervalos de tiempo que pueden revelar información sobre el entorno. No contiene coordenadas de rutas ni altitud calibrada. Continúa solo si confías en el destino.</string>
+    <string name="export_error_partial_file_remains">La exportación falló. No se pudo eliminar el archivo incompleto: %s</string>
+    <string name="export_json_whole_session_scope">JSON incluye sesiones completas que se solapan con estas fechas, por lo que algunas ubicaciones, escaneos de Wi-Fi y lecturas de la red móvil pueden quedar fuera de las fechas elegidas. No se incluyen otras fuentes guardadas.</string>
+    <string name="import_notification_error_io">La importación no pudo leer la fuente seleccionada. Inténtalo de nuevo.</string>
+    <string name="import_start_error">No se pudo iniciar la importación. Inténtalo de nuevo.</string>
+    <string name="import_cleared_error">La importación se detuvo porque se borraron los datos registrados. Selecciona el archivo de nuevo si quieres importarlo.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Red móvil</string>
+    <string name="format_portable_location">Ubicación</string>
+    <string name="format_portable_steps">Pasos en formato portable</string>
+    <string name="format_portable_activity">Actividad en formato portable</string>
+    <string name="format_portable_pressure">Presión en formato portable</string>
+</resources>

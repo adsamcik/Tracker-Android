@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Passos em segundo plano portáteis</string>
+    <string name="export_error_no_portable_ambient_steps">Não existe histórico de passos em segundo plano verificado disponível para exportar.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">O histórico de passos em segundo plano está incompleto ou não pode ser verificado para exportação.</string>
+    <string name="export_error_portable_ambient_steps_retryable">A exportação de passos em segundo plano está temporariamente indisponível. Tente novamente.</string>
+    <string name="export_error_portable_ambient_steps_scope">Esta seleção de passos em segundo plano não pode ser representada pelo formato de ficheiro portátil.</string>
+    <string name="export_error_portable_ambient_steps_write">Não foi possível criar o ficheiro de passos em segundo plano portáteis.</string>
+    <string name="export_ambient_steps_sensitivity_title">Exportar o histórico de passos em segundo plano?</string>
+    <string name="export_ambient_steps_sensitivity_message">Este ficheiro contém contagens de passos, intervalos de atividade, datas, lacunas de registo e contexto de fuso horário guardado que podem revelar padrões de atividade diária. Não contém coordenadas de percursos. Continue apenas se confiar no destino.</string>
+    <string name="export_error_no_portable_steps">Não existe histórico de passos verificado disponível para exportar.</string>
+    <string name="export_error_portable_steps_retryable">A exportação de passos está temporariamente indisponível. Tente novamente.</string>
+    <string name="export_error_portable_steps_unverifiable">O histórico de passos está incompleto ou não pode ser verificado para exportação.</string>
+    <string name="export_error_portable_steps_write">Não foi possível criar o ficheiro de passos portáteis.</string>
+    <string name="export_error_no_portable_pressure">Não existe histórico de pressão verificado disponível para exportar.</string>
+    <string name="export_error_portable_pressure_data_pruned">O histórico de pressão foi reduzido ou não está disponível para exportação.</string>
+    <string name="export_error_portable_pressure_unverifiable">O histórico de pressão está incompleto ou não pode ser verificado para exportação.</string>
+    <string name="export_error_portable_pressure_retryable">A exportação de pressão está temporariamente indisponível. Tente novamente.</string>
+    <string name="export_pressure_sensitivity_title">Exportar o histórico de pressão?</string>
+    <string name="export_pressure_sensitivity_message">Este ficheiro contém medições de pressão e intervalos de tempo que podem revelar informações sobre o ambiente. Não contém coordenadas de percursos nem altitude calibrada. Continue apenas se confiar no destino.</string>
+    <string name="export_error_partial_file_remains">A exportação falhou. Não foi possível remover o ficheiro incompleto: %s</string>
+    <string name="export_json_whole_session_scope">O JSON inclui sessões completas que se sobrepõem a estas datas, pelo que algumas localizações, pesquisas de Wi-Fi e leituras de rede móvel podem ficar fora das datas escolhidas. As outras fontes guardadas não são incluídas.</string>
+    <string name="import_notification_error_io">Não foi possível ler a origem selecionada durante a importação. Tente novamente.</string>
+    <string name="import_start_error">Não foi possível iniciar a importação. Tente novamente.</string>
+    <string name="import_cleared_error">A importação parou porque os dados registados foram apagados. Se quiser importar o ficheiro, selecione-o novamente.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Rede móvel</string>
+    <string name="format_portable_location">Localização</string>
+    <string name="format_portable_steps">Passos portáteis</string>
+    <string name="format_portable_activity">Atividade portátil</string>
+    <string name="format_portable_pressure">Pressão portátil</string>
+</resources>

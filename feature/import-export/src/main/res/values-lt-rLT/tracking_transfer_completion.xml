@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Perkeliami foniniai žingsniai</string>
+    <string name="export_error_no_portable_ambient_steps">Nėra patvirtintos foninių žingsnių istorijos, kurią būtų galima eksportuoti.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Foninių žingsnių istorija yra nepilna arba jos negalima patvirtinti eksportavimui.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Foninių žingsnių eksportavimas laikinai nepasiekiamas. Bandykite dar kartą.</string>
+    <string name="export_error_portable_ambient_steps_scope">Šio foninių žingsnių pasirinkimo negalima pateikti perkeliamu failo formatu.</string>
+    <string name="export_error_portable_ambient_steps_write">Nepavyko sukurti perkeliamų foninių žingsnių failo.</string>
+    <string name="export_ambient_steps_sensitivity_title">Eksportuoti foninių žingsnių istoriją?</string>
+    <string name="export_ambient_steps_sensitivity_message">Šiame faile yra žingsnių skaičiai, aktyvumo laiko intervalai, datos, įrašymo spragos ir išsaugota laiko juostos informacija, kuri gali atskleisti kasdienio aktyvumo įpročius. Jame nėra maršrutų koordinačių. Tęskite tik jei pasitikite paskirties vieta.</string>
+    <string name="export_error_no_portable_steps">Nėra patvirtintos žingsnių istorijos, kurią būtų galima eksportuoti.</string>
+    <string name="export_error_portable_steps_retryable">Žingsnių eksportavimas laikinai nepasiekiamas. Bandykite dar kartą.</string>
+    <string name="export_error_portable_steps_unverifiable">Žingsnių istorija yra nepilna arba jos negalima patvirtinti eksportavimui.</string>
+    <string name="export_error_portable_steps_write">Nepavyko sukurti perkeliamų žingsnių failo.</string>
+    <string name="export_error_no_portable_pressure">Nėra patvirtintos slėgio istorijos, kurią būtų galima eksportuoti.</string>
+    <string name="export_error_portable_pressure_data_pruned">Slėgio istorija buvo apvalyta arba jos negalima eksportuoti.</string>
+    <string name="export_error_portable_pressure_unverifiable">Slėgio istorija yra nepilna arba jos negalima patvirtinti eksportavimui.</string>
+    <string name="export_error_portable_pressure_retryable">Slėgio eksportavimas laikinai nepasiekiamas. Bandykite dar kartą.</string>
+    <string name="export_pressure_sensitivity_title">Eksportuoti slėgio istoriją?</string>
+    <string name="export_pressure_sensitivity_message">Šiame faile yra slėgio matavimai ir laiko intervalai, kurie gali atskleisti aplinkos informaciją. Jame nėra maršrutų koordinačių ar kalibruoto aukščio. Tęskite tik jei pasitikite paskirties vieta.</string>
+    <string name="export_error_partial_file_remains">Eksportuoti nepavyko. Nepavyko pašalinti neužbaigto failo: %s</string>
+    <string name="export_json_whole_session_scope">JSON apima visas sesijas, kurios persidengia su šiomis datomis, todėl kai kurios vietos, „Wi-Fi“ nuskaitymai ir mobiliojo ryšio rodmenys gali nepatekti į pasirinktas datas. Kiti išsaugoti šaltiniai neįtraukiami.</string>
+    <string name="import_notification_error_io">Importuojant nepavyko perskaityti pasirinkto šaltinio. Bandykite dar kartą.</string>
+    <string name="import_start_error">Nepavyko pradėti importavimo. Bandykite dar kartą.</string>
+    <string name="import_cleared_error">Importavimas sustabdytas, nes įrašyti duomenys buvo išvalyti. Jei norite importuoti failą, pasirinkite jį dar kartą.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Mobilusis ryšys</string>
+    <string name="format_portable_location">Vieta</string>
+    <string name="format_portable_steps">Perkeliami žingsniai</string>
+    <string name="format_portable_activity">Perkeliama veikla</string>
+    <string name="format_portable_pressure">Perkeliamas slėgis</string>
+</resources>

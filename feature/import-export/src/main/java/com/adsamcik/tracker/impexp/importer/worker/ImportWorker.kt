@@ -118,26 +118,26 @@ class ImportWorker @AssistedInject constructor(
 			originalDataEpoch = originalDataEpoch,
 		)
 
-        showNotification(
-            context.getString(R.string.import_notification_progress),
-            true
-        )
+		showNotification(
+			context.getString(R.string.import_notification_progress),
+			true
+		)
 
-        return try {
-            val fileName = file.name ?: throw IOException("Missing import file name")
+		return try {
+			val fileName = file.name ?: throw IOException("Missing import file name")
 			if (file.extension.equals(SessionBundleManifestCodecV1.EXTENSION, ignoreCase = true)) {
 				SessionBundleStager().stageSource(context, file).use { source ->
 					importPickedFile(source.document, fileName)
 				}
 			} else importPickedFile(file, fileName)
-        } catch (e: CancellationException) {
-            throw e
+		} catch (e: CancellationException) {
+			throw e
 		} catch (_: StartupGenerationChangedException) {
 			Result.success()
 		} catch (_: ImportDataEpochChangedException) {
 			showErrorNotification(context.getString(R.string.import_cleared_error))
 			Result.failure()
-        } catch (e: IOException) {
+		} catch (e: IOException) {
 			when (val decision = classifyImportWorkerIOException(e)) {
 				is ImportWorkerIoDecision.Terminal ->
 					finishImport(decision.result)
@@ -146,11 +146,11 @@ class ImportWorker @AssistedInject constructor(
 					Result.retry()
 				}
 			}
-        } catch (e: Exception) {
-            showErrorNotification(e.message ?: "Import failed.")
-            Result.failure()
-        }
-    }
+		} catch (e: Exception) {
+			showErrorNotification(e.message ?: "Import failed.")
+			Result.failure()
+		}
+	}
 
 	/** Session job identity and dispatch use the same owned copy; ordinary source imports retain their flow. */
 	private suspend fun importPickedFile(file: DocumentFile, fileName: String): Result {

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Taustal kogutud sammud teisaldatavas vormingus</string>
+    <string name="export_error_no_portable_ambient_steps">Ekspordiks pole saadaval kontrollitud taustal kogutud sammude ajalugu.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Taustal kogutud sammude ajalugu on puudulik või seda ei saa ekspordiks kontrollida.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Taustal kogutud sammude eksport pole ajutiselt saadaval. Proovi uuesti.</string>
+    <string name="export_error_portable_ambient_steps_scope">Seda taustal kogutud sammude valikut ei saa teisaldatavas failivormingus esitada.</string>
+    <string name="export_error_portable_ambient_steps_write">Taustal kogutud sammude faili teisaldatavas vormingus ei saanud luua.</string>
+    <string name="export_ambient_steps_sensitivity_title">Kas eksportida taustal kogutud sammude ajalugu?</string>
+    <string name="export_ambient_steps_sensitivity_message">See fail sisaldab sammude arvu, aktiivsuse ajavahemikke, kuupäevi, salvestuse lünki ja salvestatud ajavööndi teavet, mis võivad paljastada igapäevase aktiivsuse mustreid. See ei sisalda teekonna koordinaate. Jätka ainult siis, kui usaldad sihtkohta.</string>
+    <string name="export_error_no_portable_steps">Ekspordiks pole saadaval kontrollitud sammude ajalugu.</string>
+    <string name="export_error_portable_steps_retryable">Sammude eksport pole ajutiselt saadaval. Proovi uuesti.</string>
+    <string name="export_error_portable_steps_unverifiable">Sammude ajalugu on puudulik või seda ei saa ekspordiks kontrollida.</string>
+    <string name="export_error_portable_steps_write">Sammude faili teisaldatavas vormingus ei saanud luua.</string>
+    <string name="export_error_no_portable_pressure">Ekspordiks pole saadaval kontrollitud rõhuajalugu.</string>
+    <string name="export_error_portable_pressure_data_pruned">Rõhuajalugu on kärbitud või pole ekspordiks saadaval.</string>
+    <string name="export_error_portable_pressure_unverifiable">Rõhuajalugu on puudulik või seda ei saa ekspordiks kontrollida.</string>
+    <string name="export_error_portable_pressure_retryable">Rõhu eksport pole ajutiselt saadaval. Proovi uuesti.</string>
+    <string name="export_pressure_sensitivity_title">Kas eksportida rõhuajalugu?</string>
+    <string name="export_pressure_sensitivity_message">See fail sisaldab rõhumõõtmisi ja ajavahemikke, mis võivad paljastada ümbritseva keskkonna tingimusi. See ei sisalda teekonna koordinaate ega kalibreeritud kõrgust. Jätka ainult siis, kui usaldad sihtkohta.</string>
+    <string name="export_error_partial_file_remains">Eksport ebaõnnestus. Lõpetamata faili ei saanud eemaldada: %s</string>
+    <string name="export_json_whole_session_scope">JSON sisaldab nende kuupäevadega kattuvaid terveid seansse, mistõttu mõned asukohad, Wi-Fi skannid ja mobiilivõrgu näidud võivad jääda valitud kuupäevadest väljapoole. Muid salvestatud allikaid ei kaasata.</string>
+    <string name="import_notification_error_io">Import ei saanud valitud allikat lugeda. Proovi uuesti.</string>
+    <string name="import_start_error">Importi ei saanud alustada. Proovi uuesti.</string>
+    <string name="import_cleared_error">Import peatati, sest salvestatud andmed kustutati. Kui soovid faili importida, vali see uuesti.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Mobiilivõrk</string>
+    <string name="format_portable_location">Asukoht</string>
+    <string name="format_portable_steps">Sammud teisaldatavas vormingus</string>
+    <string name="format_portable_activity">Aktiivsus teisaldatavas vormingus</string>
+    <string name="format_portable_pressure">Rõhk teisaldatavas vormingus</string>
+</resources>

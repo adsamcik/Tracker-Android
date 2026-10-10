@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Passi in background in formato portabile</string>
+    <string name="export_error_no_portable_ambient_steps">Nessuna cronologia verificata dei passi in background è disponibile per l\'esportazione.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">La cronologia dei passi in background è incompleta o non può essere verificata per l\'esportazione.</string>
+    <string name="export_error_portable_ambient_steps_retryable">L\'esportazione dei passi in background è temporaneamente non disponibile. Riprova.</string>
+    <string name="export_error_portable_ambient_steps_scope">Questa selezione di passi in background non può essere rappresentata dal formato di file portabile.</string>
+    <string name="export_error_portable_ambient_steps_write">Impossibile creare il file dei passi in background in formato portabile.</string>
+    <string name="export_ambient_steps_sensitivity_title">Esportare la cronologia dei passi in background?</string>
+    <string name="export_ambient_steps_sensitivity_message">Questo file contiene conteggi dei passi, intervalli di attività, date, lacune nella registrazione e informazioni salvate sul fuso orario che potrebbero rivelare abitudini di attività quotidiane. Non contiene coordinate del percorso. Continua solo se ritieni affidabile la destinazione.</string>
+    <string name="export_error_no_portable_steps">Nessuna cronologia verificata dei passi è disponibile per l\'esportazione.</string>
+    <string name="export_error_portable_steps_retryable">L\'esportazione dei passi è temporaneamente non disponibile. Riprova.</string>
+    <string name="export_error_portable_steps_unverifiable">La cronologia dei passi è incompleta o non può essere verificata per l\'esportazione.</string>
+    <string name="export_error_portable_steps_write">Impossibile creare il file dei passi in formato portabile.</string>
+    <string name="export_error_no_portable_pressure">Nessuna cronologia verificata della pressione è disponibile per l\'esportazione.</string>
+    <string name="export_error_portable_pressure_data_pruned">La cronologia della pressione è stata ridotta o non è disponibile per l\'esportazione.</string>
+    <string name="export_error_portable_pressure_unverifiable">La cronologia della pressione è incompleta o non può essere verificata per l\'esportazione.</string>
+    <string name="export_error_portable_pressure_retryable">L\'esportazione della pressione è temporaneamente non disponibile. Riprova.</string>
+    <string name="export_pressure_sensitivity_title">Esportare la cronologia della pressione?</string>
+    <string name="export_pressure_sensitivity_message">Questo file contiene misurazioni della pressione e intervalli di tempo che potrebbero rivelare informazioni sull\'ambiente. Non contiene coordinate del percorso o altitudine calibrata. Continua solo se ritieni affidabile la destinazione.</string>
+    <string name="export_error_partial_file_remains">Esportazione non riuscita. Impossibile rimuovere il file incompleto: %s</string>
+    <string name="export_json_whole_session_scope">JSON include sessioni complete che si sovrappongono a queste date, quindi alcune posizioni, scansioni Wi-Fi e rilevazioni della rete mobile potrebbero essere al di fuori delle date scelte. Le altre fonti salvate non sono incluse.</string>
+    <string name="import_notification_error_io">Impossibile leggere la fonte selezionata durante l\'importazione. Riprova.</string>
+    <string name="import_start_error">Impossibile avviare l\'importazione. Riprova.</string>
+    <string name="import_cleared_error">L\'importazione è stata interrotta perché i dati registrati sono stati cancellati. Se vuoi importarli, seleziona nuovamente il file.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Rete mobile</string>
+    <string name="format_portable_location">Posizione</string>
+    <string name="format_portable_steps">Passi in formato portabile</string>
+    <string name="format_portable_activity">Attività in formato portabile</string>
+    <string name="format_portable_pressure">Pressione in formato portabile</string>
+</resources>

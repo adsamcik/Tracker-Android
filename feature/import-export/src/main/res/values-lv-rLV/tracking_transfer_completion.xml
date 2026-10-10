@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Pārnesamie fona soļi</string>
+    <string name="export_error_no_portable_ambient_steps">Eksportēšanai nav pieejama pārbaudīta fona soļu vēsture.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Fona soļu vēsture ir nepilnīga vai to nevar pārbaudīt eksportēšanai.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Fona soļu eksportēšana īslaicīgi nav pieejama. Mēģiniet vēlreiz.</string>
+    <string name="export_error_portable_ambient_steps_scope">Šo fona soļu atlasi nevar attēlot pārnesamajā faila formātā.</string>
+    <string name="export_error_portable_ambient_steps_write">Neizdevās izveidot pārnesamo fona soļu failu.</string>
+    <string name="export_ambient_steps_sensitivity_title">Eksportēt fona soļu vēsturi?</string>
+    <string name="export_ambient_steps_sensitivity_message">Šis fails satur soļu skaitu, aktivitātes laika intervālus, datumus, ierakstīšanas pārtraukumus un saglabātu laika joslas kontekstu, kas var atklāt ikdienas aktivitāšu paradumus. Tas nesatur maršrutu koordinātas. Turpiniet tikai tad, ja uzticaties galamērķim.</string>
+    <string name="export_error_no_portable_steps">Eksportēšanai nav pieejama pārbaudīta soļu vēsture.</string>
+    <string name="export_error_portable_steps_retryable">Soļu eksportēšana īslaicīgi nav pieejama. Mēģiniet vēlreiz.</string>
+    <string name="export_error_portable_steps_unverifiable">Soļu vēsture ir nepilnīga vai to nevar pārbaudīt eksportēšanai.</string>
+    <string name="export_error_portable_steps_write">Neizdevās izveidot pārnesamo soļu failu.</string>
+    <string name="export_error_no_portable_pressure">Eksportēšanai nav pieejama pārbaudīta spiediena vēsture.</string>
+    <string name="export_error_portable_pressure_data_pruned">Spiediena vēsture ir daļēji dzēsta vai nav pieejama eksportēšanai.</string>
+    <string name="export_error_portable_pressure_unverifiable">Spiediena vēsture ir nepilnīga vai to nevar pārbaudīt eksportēšanai.</string>
+    <string name="export_error_portable_pressure_retryable">Spiediena eksportēšana īslaicīgi nav pieejama. Mēģiniet vēlreiz.</string>
+    <string name="export_pressure_sensitivity_title">Eksportēt spiediena vēsturi?</string>
+    <string name="export_pressure_sensitivity_message">Šis fails satur spiediena mērījumus un laika intervālus, kas var atklāt informāciju par apkārtējo vidi. Tas nesatur maršrutu koordinātas vai kalibrētu augstumu. Turpiniet tikai tad, ja uzticaties galamērķim.</string>
+    <string name="export_error_partial_file_remains">Eksportēšana neizdevās. Nepabeigto failu neizdevās noņemt: %s</string>
+    <string name="export_json_whole_session_scope">JSON ietver pilnas sesijas, kas pārklājas ar šiem datumiem, tāpēc dažas atrašanās vietas, Wi-Fi skenējumi un mobilā tīkla rādījumi var būt ārpus izvēlētajiem datumiem. Citi saglabātie avoti netiek iekļauti.</string>
+    <string name="import_notification_error_io">Importējot neizdevās nolasīt izvēlēto avotu. Mēģiniet vēlreiz.</string>
+    <string name="import_start_error">Neizdevās sākt importēšanu. Mēģiniet vēlreiz.</string>
+    <string name="import_cleared_error">Importēšana tika apturēta, jo ierakstītie dati tika dzēsti. Izvēlieties failu vēlreiz, ja vēlaties to importēt.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Mobilais tīkls</string>
+    <string name="format_portable_location">Atrašanās vieta</string>
+    <string name="format_portable_steps">Pārnesamie soļi</string>
+    <string name="format_portable_activity">Pārnesamā aktivitāte</string>
+    <string name="format_portable_pressure">Pārnesamais spiediens</string>
+</resources>

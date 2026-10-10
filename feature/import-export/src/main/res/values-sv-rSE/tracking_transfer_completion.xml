@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Portabla bakgrundssteg</string>
+    <string name="export_error_no_portable_ambient_steps">Ingen verifierad historik över bakgrundssteg är tillgänglig för export.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Historiken över bakgrundssteg är ofullständig eller kan inte verifieras för export.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Export av bakgrundssteg är tillfälligt otillgänglig. Försök igen.</string>
+    <string name="export_error_portable_ambient_steps_scope">Det här urvalet av bakgrundssteg kan inte återges i det portabla filformatet.</string>
+    <string name="export_error_portable_ambient_steps_write">Filen med portabla bakgrundssteg kunde inte skapas.</string>
+    <string name="export_ambient_steps_sensitivity_title">Exportera historik över bakgrundssteg?</string>
+    <string name="export_ambient_steps_sensitivity_message">Den här filen innehåller stegräkningar, tidsintervall för aktivitet, datum, luckor i registreringen och sparad tidszonsinformation som kan avslöja dagliga aktivitetsmönster. Den innehåller inga ruttkoordinater. Fortsätt bara om du litar på destinationen.</string>
+    <string name="export_error_no_portable_steps">Ingen verifierad steghistorik är tillgänglig för export.</string>
+    <string name="export_error_portable_steps_retryable">Stegexport är tillfälligt otillgänglig. Försök igen.</string>
+    <string name="export_error_portable_steps_unverifiable">Steghistoriken är ofullständig eller kan inte verifieras för export.</string>
+    <string name="export_error_portable_steps_write">Filen med portabla steg kunde inte skapas.</string>
+    <string name="export_error_no_portable_pressure">Ingen verifierad tryckhistorik är tillgänglig för export.</string>
+    <string name="export_error_portable_pressure_data_pruned">Tryckhistoriken har rensats eller är inte tillgänglig för export.</string>
+    <string name="export_error_portable_pressure_unverifiable">Tryckhistoriken är ofullständig eller kan inte verifieras för export.</string>
+    <string name="export_error_portable_pressure_retryable">Tryckexport är tillfälligt otillgänglig. Försök igen.</string>
+    <string name="export_pressure_sensitivity_title">Exportera tryckhistorik?</string>
+    <string name="export_pressure_sensitivity_message">Den här filen innehåller tryckmätningar och tidsintervall som kan avslöja omgivningsförhållanden. Den innehåller inga ruttkoordinater eller kalibrerade höjder. Fortsätt bara om du litar på destinationen.</string>
+    <string name="export_error_partial_file_remains">Exporten misslyckades. Den ofärdiga filen kunde inte tas bort: %s</string>
+    <string name="export_json_whole_session_scope">JSON innehåller hela sessioner som överlappar dessa datum, så vissa platser, Wi-Fi-skanningar och mobilnätsmätningar kan ligga utanför dina valda datum. Andra sparade källor ingår inte.</string>
+    <string name="import_notification_error_io">Importen kunde inte läsa den valda källan. Försök igen.</string>
+    <string name="import_start_error">Importen kunde inte startas. Försök igen.</string>
+    <string name="import_cleared_error">Importen stoppades eftersom registrerade data rensades. Välj filen igen om du vill importera den.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Mobilnät</string>
+    <string name="format_portable_location">Plats</string>
+    <string name="format_portable_steps">Portabla steg</string>
+    <string name="format_portable_activity">Portabel aktivitet</string>
+    <string name="format_portable_pressure">Portabelt tryck</string>
+</resources>

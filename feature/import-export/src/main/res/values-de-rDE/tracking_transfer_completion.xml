@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Übertragbare Hintergrundschritte</string>
+    <string name="export_error_no_portable_ambient_steps">Es sind keine überprüften Hintergrund-Schrittdaten zum Exportieren verfügbar.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Die Hintergrund-Schrittdaten sind unvollständig oder können für den Export nicht überprüft werden.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Der Export von Hintergrundschritten ist vorübergehend nicht verfügbar. Versuche es erneut.</string>
+    <string name="export_error_portable_ambient_steps_scope">Diese Auswahl von Hintergrundschritten lässt sich nicht im übertragbaren Dateiformat darstellen.</string>
+    <string name="export_error_portable_ambient_steps_write">Die Datei mit übertragbaren Hintergrundschritten konnte nicht erstellt werden.</string>
+    <string name="export_ambient_steps_sensitivity_title">Hintergrund-Schrittdaten exportieren?</string>
+    <string name="export_ambient_steps_sensitivity_message">Diese Datei enthält Schrittzahlen, Aktivitätszeiträume, Datumsangaben, Erfassungslücken und gespeicherte Zeitzoneninformationen, die tägliche Aktivitätsmuster erkennen lassen können. Sie enthält keine Routenkoordinaten. Fahre nur fort, wenn du dem Ziel vertraust.</string>
+    <string name="export_error_no_portable_steps">Es sind keine überprüften Schrittdaten zum Exportieren verfügbar.</string>
+    <string name="export_error_portable_steps_retryable">Der Export von Schritten ist vorübergehend nicht verfügbar. Versuche es erneut.</string>
+    <string name="export_error_portable_steps_unverifiable">Die Schrittdaten sind unvollständig oder können für den Export nicht überprüft werden.</string>
+    <string name="export_error_portable_steps_write">Die Datei mit übertragbaren Schritten konnte nicht erstellt werden.</string>
+    <string name="export_error_no_portable_pressure">Es sind keine überprüften Druckdaten zum Exportieren verfügbar.</string>
+    <string name="export_error_portable_pressure_data_pruned">Die Druckdaten wurden bereinigt oder sind für den Export nicht verfügbar.</string>
+    <string name="export_error_portable_pressure_unverifiable">Die Druckdaten sind unvollständig oder können für den Export nicht überprüft werden.</string>
+    <string name="export_error_portable_pressure_retryable">Der Export von Druckdaten ist vorübergehend nicht verfügbar. Versuche es erneut.</string>
+    <string name="export_pressure_sensitivity_title">Druckdaten exportieren?</string>
+    <string name="export_pressure_sensitivity_message">Diese Datei enthält Druckmessungen und Zeiträume, die Informationen über die Umgebung erkennen lassen können. Sie enthält keine Routenkoordinaten oder kalibrierten Höhenangaben. Fahre nur fort, wenn du dem Ziel vertraust.</string>
+    <string name="export_error_partial_file_remains">Export fehlgeschlagen. Die unvollständige Datei konnte nicht entfernt werden: %s</string>
+    <string name="export_json_whole_session_scope">JSON enthält vollständige Sitzungen, die sich mit diesen Datumsangaben überschneiden. Einige Standorte, WLAN-Scans und Mobilfunkmessungen können daher außerhalb deiner ausgewählten Tage liegen. Andere gespeicherte Quellen sind nicht enthalten.</string>
+    <string name="import_notification_error_io">Beim Import konnte die ausgewählte Quelle nicht gelesen werden. Versuche es erneut.</string>
+    <string name="import_start_error">Der Import konnte nicht gestartet werden. Versuche es erneut.</string>
+    <string name="import_cleared_error">Der Import wurde beendet, weil die aufgezeichneten Daten gelöscht wurden. Wähle die Datei erneut aus, wenn du sie importieren möchtest.</string>
+    <string name="format_portable_wifi">WLAN</string>
+    <string name="format_portable_cell">Mobilfunk</string>
+    <string name="format_portable_location">Standort</string>
+    <string name="format_portable_steps">Übertragbare Schritte</string>
+    <string name="format_portable_activity">Übertragbare Aktivität</string>
+    <string name="format_portable_pressure">Übertragbare Druckdaten</string>
+</resources>

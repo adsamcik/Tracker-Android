@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Přenosné záznamy kroků na pozadí</string>
+    <string name="export_error_no_portable_ambient_steps">K exportu není dostupná žádná ověřená historie kroků na pozadí.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Historie kroků na pozadí je neúplná nebo ji nelze ověřit pro export.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Export kroků na pozadí je dočasně nedostupný. Zkuste to znovu.</string>
+    <string name="export_error_portable_ambient_steps_scope">Tento výběr kroků na pozadí nelze vyjádřit v přenosném formátu souboru.</string>
+    <string name="export_error_portable_ambient_steps_write">Soubor s přenosnými záznamy kroků na pozadí se nepodařilo vytvořit.</string>
+    <string name="export_ambient_steps_sensitivity_title">Exportovat historii kroků na pozadí?</string>
+    <string name="export_ambient_steps_sensitivity_message">Tento soubor obsahuje počty kroků, časová rozmezí aktivity, data, mezery v záznamu a uložené informace o časovém pásmu, které mohou odhalit vzorce každodenní aktivity. Neobsahuje souřadnice tras. Pokračujte pouze tehdy, pokud důvěřujete cílovému umístění.</string>
+    <string name="export_error_no_portable_steps">K exportu není dostupná žádná ověřená historie kroků.</string>
+    <string name="export_error_portable_steps_retryable">Export kroků je dočasně nedostupný. Zkuste to znovu.</string>
+    <string name="export_error_portable_steps_unverifiable">Historie kroků je neúplná nebo ji nelze ověřit pro export.</string>
+    <string name="export_error_portable_steps_write">Soubor s přenosnými záznamy kroků se nepodařilo vytvořit.</string>
+    <string name="export_error_no_portable_pressure">K exportu není dostupná žádná ověřená historie tlaku.</string>
+    <string name="export_error_portable_pressure_data_pruned">Historie tlaku byla promazána nebo není dostupná k exportu.</string>
+    <string name="export_error_portable_pressure_unverifiable">Historie tlaku je neúplná nebo ji nelze ověřit pro export.</string>
+    <string name="export_error_portable_pressure_retryable">Export tlaku je dočasně nedostupný. Zkuste to znovu.</string>
+    <string name="export_pressure_sensitivity_title">Exportovat historii tlaku?</string>
+    <string name="export_pressure_sensitivity_message">Tento soubor obsahuje měření tlaku a časová rozmezí, která mohou odhalit informace o okolním prostředí. Neobsahuje souřadnice tras ani kalibrovanou nadmořskou výšku. Pokračujte pouze tehdy, pokud důvěřujete cílovému umístění.</string>
+    <string name="export_error_partial_file_remains">Export selhal. Nedokončený soubor se nepodařilo odstranit: %s</string>
+    <string name="export_json_whole_session_scope">JSON obsahuje celé relace, které se překrývají s těmito daty. Některé polohy, skeny Wi-Fi a měření mobilní sítě proto mohou být mimo vybraná data. Ostatní uložené zdroje nejsou zahrnuty.</string>
+    <string name="import_notification_error_io">Import nemohl přečíst vybraný zdroj. Zkuste to znovu.</string>
+    <string name="import_start_error">Import se nepodařilo spustit. Zkuste to znovu.</string>
+    <string name="import_cleared_error">Import byl zastaven, protože zaznamenaná data byla vymazána. Pokud chcete soubor importovat, vyberte jej znovu.</string>
+    <string name="format_portable_steps">Přenosné záznamy kroků</string>
+    <string name="format_portable_activity">Přenosné záznamy aktivity</string>
+    <string name="format_portable_pressure">Přenosné záznamy tlaku</string>
+</resources>

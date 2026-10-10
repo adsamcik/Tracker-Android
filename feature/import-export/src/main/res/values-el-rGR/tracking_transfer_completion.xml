@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Φορητά δεδομένα βημάτων παρασκηνίου</string>
+    <string name="export_error_no_portable_ambient_steps">Δεν υπάρχει επαληθευμένο ιστορικό βημάτων παρασκηνίου διαθέσιμο για εξαγωγή.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Το ιστορικό βημάτων παρασκηνίου είναι ελλιπές ή δεν μπορεί να επαληθευτεί για εξαγωγή.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Η εξαγωγή βημάτων παρασκηνίου δεν είναι προσωρινά διαθέσιμη. Δοκιμάστε ξανά.</string>
+    <string name="export_error_portable_ambient_steps_scope">Αυτή η επιλογή βημάτων παρασκηνίου δεν μπορεί να αποτυπωθεί στη φορητή μορφή αρχείου.</string>
+    <string name="export_error_portable_ambient_steps_write">Δεν ήταν δυνατή η δημιουργία του αρχείου φορητών δεδομένων βημάτων παρασκηνίου.</string>
+    <string name="export_ambient_steps_sensitivity_title">Εξαγωγή ιστορικού βημάτων παρασκηνίου;</string>
+    <string name="export_ambient_steps_sensitivity_message">Αυτό το αρχείο περιέχει μετρήσεις βημάτων, χρονικά διαστήματα δραστηριότητας, ημερομηνίες, κενά καταγραφής και αποθηκευμένες πληροφορίες ζώνης ώρας που μπορεί να αποκαλύψουν καθημερινά μοτίβα δραστηριότητας. Δεν περιέχει συντεταγμένες διαδρομής. Συνεχίστε μόνο αν εμπιστεύεστε τον προορισμό.</string>
+    <string name="export_error_no_portable_steps">Δεν υπάρχει επαληθευμένο ιστορικό βημάτων διαθέσιμο για εξαγωγή.</string>
+    <string name="export_error_portable_steps_retryable">Η εξαγωγή βημάτων δεν είναι προσωρινά διαθέσιμη. Δοκιμάστε ξανά.</string>
+    <string name="export_error_portable_steps_unverifiable">Το ιστορικό βημάτων είναι ελλιπές ή δεν μπορεί να επαληθευτεί για εξαγωγή.</string>
+    <string name="export_error_portable_steps_write">Δεν ήταν δυνατή η δημιουργία του αρχείου φορητών δεδομένων βημάτων.</string>
+    <string name="export_error_no_portable_pressure">Δεν υπάρχει επαληθευμένο ιστορικό πίεσης διαθέσιμο για εξαγωγή.</string>
+    <string name="export_error_portable_pressure_data_pruned">Το ιστορικό πίεσης έχει εκκαθαριστεί ή δεν είναι διαθέσιμο για εξαγωγή.</string>
+    <string name="export_error_portable_pressure_unverifiable">Το ιστορικό πίεσης είναι ελλιπές ή δεν μπορεί να επαληθευτεί για εξαγωγή.</string>
+    <string name="export_error_portable_pressure_retryable">Η εξαγωγή πίεσης δεν είναι προσωρινά διαθέσιμη. Δοκιμάστε ξανά.</string>
+    <string name="export_pressure_sensitivity_title">Εξαγωγή ιστορικού πίεσης;</string>
+    <string name="export_pressure_sensitivity_message">Αυτό το αρχείο περιέχει μετρήσεις πίεσης και χρονικά διαστήματα που μπορεί να αποκαλύψουν συνθήκες του περιβάλλοντος. Δεν περιέχει συντεταγμένες διαδρομής ή βαθμονομημένο υψόμετρο. Συνεχίστε μόνο αν εμπιστεύεστε τον προορισμό.</string>
+    <string name="export_error_partial_file_remains">Η εξαγωγή απέτυχε. Δεν ήταν δυνατή η διαγραφή του ημιτελούς αρχείου: %s</string>
+    <string name="export_json_whole_session_scope">Το JSON περιλαμβάνει ολόκληρες συνεδρίες που επικαλύπτουν αυτές τις ημερομηνίες, οπότε ορισμένες τοποθεσίες, σαρώσεις Wi-Fi και μετρήσεις δικτύου κινητής μπορεί να βρίσκονται εκτός των επιλεγμένων ημερομηνιών. Δεν περιλαμβάνονται άλλες αποθηκευμένες πηγές.</string>
+    <string name="import_notification_error_io">Δεν ήταν δυνατή η ανάγνωση της επιλεγμένης πηγής κατά την εισαγωγή. Δοκιμάστε ξανά.</string>
+    <string name="import_start_error">Δεν ήταν δυνατή η έναρξη της εισαγωγής. Δοκιμάστε ξανά.</string>
+    <string name="import_cleared_error">Η εισαγωγή σταμάτησε επειδή διαγράφηκαν τα καταγεγραμμένα δεδομένα. Επιλέξτε ξανά το αρχείο αν θέλετε να το εισαγάγετε.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Δίκτυο κινητής</string>
+    <string name="format_portable_location">Τοποθεσία</string>
+    <string name="format_portable_steps">Φορητά δεδομένα βημάτων</string>
+    <string name="format_portable_activity">Φορητά δεδομένα δραστηριότητας</string>
+    <string name="format_portable_pressure">Φορητά δεδομένα πίεσης</string>
+</resources>

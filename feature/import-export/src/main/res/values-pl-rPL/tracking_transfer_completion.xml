@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Kroki w tle w formacie przenośnym</string>
+    <string name="export_error_no_portable_ambient_steps">Brak zweryfikowanej historii kroków w tle dostępnej do eksportu.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Historia kroków w tle jest niekompletna lub nie można jej zweryfikować do eksportu.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Eksport kroków w tle jest chwilowo niedostępny. Spróbuj ponownie.</string>
+    <string name="export_error_portable_ambient_steps_scope">Tego wyboru kroków w tle nie można przedstawić w przenośnym formacie pliku.</string>
+    <string name="export_error_portable_ambient_steps_write">Nie udało się utworzyć pliku kroków w tle w formacie przenośnym.</string>
+    <string name="export_ambient_steps_sensitivity_title">Wyeksportować historię kroków w tle?</string>
+    <string name="export_ambient_steps_sensitivity_message">Ten plik zawiera liczbę kroków, przedziały czasu aktywności, daty, luki w rejestracji i zapisane informacje o strefie czasowej, które mogą ujawnić wzorce codziennej aktywności. Nie zawiera współrzędnych trasy. Kontynuuj tylko wtedy, gdy ufasz miejscu docelowemu.</string>
+    <string name="export_error_no_portable_steps">Brak zweryfikowanej historii kroków dostępnej do eksportu.</string>
+    <string name="export_error_portable_steps_retryable">Eksport kroków jest chwilowo niedostępny. Spróbuj ponownie.</string>
+    <string name="export_error_portable_steps_unverifiable">Historia kroków jest niekompletna lub nie można jej zweryfikować do eksportu.</string>
+    <string name="export_error_portable_steps_write">Nie udało się utworzyć pliku kroków w formacie przenośnym.</string>
+    <string name="export_error_no_portable_pressure">Brak zweryfikowanej historii ciśnienia dostępnej do eksportu.</string>
+    <string name="export_error_portable_pressure_data_pruned">Historia ciśnienia została przycięta lub jest niedostępna do eksportu.</string>
+    <string name="export_error_portable_pressure_unverifiable">Historia ciśnienia jest niekompletna lub nie można jej zweryfikować do eksportu.</string>
+    <string name="export_error_portable_pressure_retryable">Eksport ciśnienia jest chwilowo niedostępny. Spróbuj ponownie.</string>
+    <string name="export_pressure_sensitivity_title">Wyeksportować historię ciśnienia?</string>
+    <string name="export_pressure_sensitivity_message">Ten plik zawiera pomiary ciśnienia i przedziały czasu, które mogą ujawnić informacje o otoczeniu. Nie zawiera współrzędnych trasy ani skalibrowanej wysokości. Kontynuuj tylko wtedy, gdy ufasz miejscu docelowemu.</string>
+    <string name="export_error_partial_file_remains">Eksport nie powiódł się. Nie udało się usunąć niedokończonego pliku: %s</string>
+    <string name="export_json_whole_session_scope">JSON zawiera całe sesje nakładające się na te daty, dlatego niektóre lokalizacje, skany Wi-Fi i odczyty sieci komórkowej mogą wykraczać poza wybrane daty. Inne zapisane źródła nie są uwzględniane.</string>
+    <string name="import_notification_error_io">Nie udało się odczytać wybranego źródła podczas importu. Spróbuj ponownie.</string>
+    <string name="import_start_error">Nie udało się rozpocząć importu. Spróbuj ponownie.</string>
+    <string name="import_cleared_error">Import został zatrzymany, ponieważ zarejestrowane dane zostały wyczyszczone. Wybierz plik ponownie, jeśli chcesz go zaimportować.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Sieć komórkowa</string>
+    <string name="format_portable_location">Lokalizacja</string>
+    <string name="format_portable_steps">Kroki w formacie przenośnym</string>
+    <string name="format_portable_activity">Aktywność w formacie przenośnym</string>
+    <string name="format_portable_pressure">Ciśnienie w formacie przenośnym</string>
+</resources>

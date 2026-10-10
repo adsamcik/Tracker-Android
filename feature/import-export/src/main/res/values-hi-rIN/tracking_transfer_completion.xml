@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">पोर्टेबल पृष्ठभूमि कदम</string>
+    <string name="export_error_no_portable_ambient_steps">निर्यात के लिए सत्यापित पृष्ठभूमि कदमों का कोई इतिहास उपलब्ध नहीं है।</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">पृष्ठभूमि कदमों का इतिहास अधूरा है या निर्यात के लिए सत्यापित नहीं किया जा सकता।</string>
+    <string name="export_error_portable_ambient_steps_retryable">पृष्ठभूमि कदमों का निर्यात फ़िलहाल उपलब्ध नहीं है। फिर से कोशिश करें।</string>
+    <string name="export_error_portable_ambient_steps_scope">पृष्ठभूमि कदमों के इस चयन को पोर्टेबल फ़ाइल प्रारूप में प्रस्तुत नहीं किया जा सकता।</string>
+    <string name="export_error_portable_ambient_steps_write">पोर्टेबल पृष्ठभूमि कदमों की फ़ाइल नहीं बनाई जा सकी।</string>
+    <string name="export_ambient_steps_sensitivity_title">पृष्ठभूमि कदमों का इतिहास निर्यात करें?</string>
+    <string name="export_ambient_steps_sensitivity_message">इस फ़ाइल में कदमों की संख्या, गतिविधि की समय अवधियाँ, तारीखें, रिकॉर्डिंग में अंतराल और सहेजे गए समय-क्षेत्र का संदर्भ शामिल है, जिनसे दैनिक गतिविधि के पैटर्न का पता चल सकता है। इसमें मार्ग के निर्देशांक नहीं हैं। केवल तभी आगे बढ़ें जब आपको गंतव्य पर भरोसा हो।</string>
+    <string name="export_error_no_portable_steps">निर्यात के लिए सत्यापित कदमों का कोई इतिहास उपलब्ध नहीं है।</string>
+    <string name="export_error_portable_steps_retryable">कदमों का निर्यात फ़िलहाल उपलब्ध नहीं है। फिर से कोशिश करें।</string>
+    <string name="export_error_portable_steps_unverifiable">कदमों का इतिहास अधूरा है या निर्यात के लिए सत्यापित नहीं किया जा सकता।</string>
+    <string name="export_error_portable_steps_write">पोर्टेबल कदमों की फ़ाइल नहीं बनाई जा सकी।</string>
+    <string name="export_error_no_portable_pressure">निर्यात के लिए सत्यापित दबाव का कोई इतिहास उपलब्ध नहीं है।</string>
+    <string name="export_error_portable_pressure_data_pruned">दबाव का इतिहास साफ़ किया जा चुका है या निर्यात के लिए उपलब्ध नहीं है।</string>
+    <string name="export_error_portable_pressure_unverifiable">दबाव का इतिहास अधूरा है या निर्यात के लिए सत्यापित नहीं किया जा सकता।</string>
+    <string name="export_error_portable_pressure_retryable">दबाव का निर्यात फ़िलहाल उपलब्ध नहीं है। फिर से कोशिश करें।</string>
+    <string name="export_pressure_sensitivity_title">दबाव का इतिहास निर्यात करें?</string>
+    <string name="export_pressure_sensitivity_message">इस फ़ाइल में दबाव के माप और समय अवधियाँ हैं जिनसे आसपास के वातावरण का पता चल सकता है। इसमें मार्ग के निर्देशांक या कैलिब्रेट की गई ऊँचाई नहीं है। केवल तभी आगे बढ़ें जब आपको गंतव्य पर भरोसा हो।</string>
+    <string name="export_error_partial_file_remains">निर्यात विफल रहा। अधूरी फ़ाइल हटाई नहीं जा सकी: %s</string>
+    <string name="export_json_whole_session_scope">JSON में इन तारीखों के साथ मेल खाने वाले पूरे सत्र शामिल हैं, इसलिए कुछ स्थान, वाई-फ़ाई स्कैन और मोबाइल नेटवर्क के माप चुनी हुई तारीखों से बाहर हो सकते हैं। अन्य सहेजे गए स्रोत शामिल नहीं हैं।</string>
+    <string name="import_notification_error_io">आयात चुने गए स्रोत को पढ़ नहीं सका। फिर से कोशिश करें।</string>
+    <string name="import_start_error">आयात शुरू नहीं किया जा सका। फिर से कोशिश करें।</string>
+    <string name="import_cleared_error">रिकॉर्ड किया गया डेटा मिटाए जाने के कारण आयात रुक गया। यदि आप फ़ाइल आयात करना चाहते हैं तो उसे फिर से चुनें।</string>
+    <string name="format_portable_wifi">वाई-फ़ाई</string>
+    <string name="format_portable_cell">मोबाइल नेटवर्क</string>
+    <string name="format_portable_location">स्थान</string>
+    <string name="format_portable_steps">पोर्टेबल कदम</string>
+    <string name="format_portable_activity">पोर्टेबल गतिविधि</string>
+    <string name="format_portable_pressure">पोर्टेबल दबाव</string>
+</resources>

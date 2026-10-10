@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Passi fl-isfond f\'format portabbli</string>
+    <string name="export_error_no_portable_ambient_steps">Ma hemm ebda storja vverifikata tal-passi fl-isfond disponibbli għall-esportazzjoni.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">L-istorja tal-passi fl-isfond mhijiex kompluta jew ma tistax tiġi vverifikata għall-esportazzjoni.</string>
+    <string name="export_error_portable_ambient_steps_retryable">L-esportazzjoni tal-passi fl-isfond bħalissa mhijiex disponibbli. Erġa\' pprova.</string>
+    <string name="export_error_portable_ambient_steps_scope">Din l-għażla tal-passi fl-isfond ma tistax tiġi rappreżentata fil-format portabbli tal-fajl.</string>
+    <string name="export_error_portable_ambient_steps_write">Il-fajl tal-passi fl-isfond f\'format portabbli ma setax jinħoloq.</string>
+    <string name="export_ambient_steps_sensitivity_title">Tesporta l-istorja tal-passi fl-isfond?</string>
+    <string name="export_ambient_steps_sensitivity_message">Dan il-fajl fih għadd ta\' passi, intervalli ta\' attività, dati, lakuni fir-reġistrazzjoni u informazzjoni maħżuna dwar iż-żona tal-ħin li jistgħu jiżvelaw xejriet tal-attività ta\' kuljum. Ma fihx koordinati tar-rotta. Kompli biss jekk tafda d-destinazzjoni.</string>
+    <string name="export_error_no_portable_steps">Ma hemm ebda storja vverifikata tal-passi disponibbli għall-esportazzjoni.</string>
+    <string name="export_error_portable_steps_retryable">L-esportazzjoni tal-passi bħalissa mhijiex disponibbli. Erġa\' pprova.</string>
+    <string name="export_error_portable_steps_unverifiable">L-istorja tal-passi mhijiex kompluta jew ma tistax tiġi vverifikata għall-esportazzjoni.</string>
+    <string name="export_error_portable_steps_write">Il-fajl tal-passi f\'format portabbli ma setax jinħoloq.</string>
+    <string name="export_error_no_portable_pressure">Ma hemm ebda storja vverifikata tal-pressjoni disponibbli għall-esportazzjoni.</string>
+    <string name="export_error_portable_pressure_data_pruned">L-istorja tal-pressjoni ġiet imnaqqsa jew mhijiex disponibbli għall-esportazzjoni.</string>
+    <string name="export_error_portable_pressure_unverifiable">L-istorja tal-pressjoni mhijiex kompluta jew ma tistax tiġi vverifikata għall-esportazzjoni.</string>
+    <string name="export_error_portable_pressure_retryable">L-esportazzjoni tal-pressjoni bħalissa mhijiex disponibbli. Erġa\' pprova.</string>
+    <string name="export_pressure_sensitivity_title">Tesporta l-istorja tal-pressjoni?</string>
+    <string name="export_pressure_sensitivity_message">Dan il-fajl fih kejl tal-pressjoni u intervalli ta\' ħin li jistgħu jiżvelaw il-kundizzjonijiet tal-ambjent. Ma fihx koordinati tar-rotta jew elevazzjoni kkalibrata. Kompli biss jekk tafda d-destinazzjoni.</string>
+    <string name="export_error_partial_file_remains">L-esportazzjoni falliet. Il-fajl mhux lest ma setax jitneħħa: %s</string>
+    <string name="export_json_whole_session_scope">JSON jinkludi sessjonijiet sħaħ li jikkoinċidu ma\' dawn id-dati, għalhekk xi postijiet, skans tal-Wi-Fi u qari tan-netwerk mobbli jistgħu jkunu barra d-dati magħżula. Sorsi oħra maħżuna mhumiex inklużi.</string>
+    <string name="import_notification_error_io">L-importazzjoni ma setgħetx taqra s-sors magħżul. Erġa\' pprova.</string>
+    <string name="import_start_error">L-importazzjoni ma setgħetx tibda. Erġa\' pprova.</string>
+    <string name="import_cleared_error">L-importazzjoni waqfet għax id-dejta rreġistrata tħassret. Agħżel il-fajl mill-ġdid jekk trid timportah.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Netwerk mobbli</string>
+    <string name="format_portable_location">Post</string>
+    <string name="format_portable_steps">Passi f\'format portabbli</string>
+    <string name="format_portable_activity">Attività f\'format portabbli</string>
+    <string name="format_portable_pressure">Pressjoni f\'format portabbli</string>
+</resources>

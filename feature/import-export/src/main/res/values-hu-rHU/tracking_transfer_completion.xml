@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Hordozható háttérlépések</string>
+    <string name="export_error_no_portable_ambient_steps">Nincs exportálható, ellenőrzött háttérlépés-előzmény.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">A háttérlépés-előzmények hiányosak, vagy nem ellenőrizhetők az exportáláshoz.</string>
+    <string name="export_error_portable_ambient_steps_retryable">A háttérlépések exportálása átmenetileg nem érhető el. Próbálja újra.</string>
+    <string name="export_error_portable_ambient_steps_scope">A háttérlépések ezen kijelölése nem ábrázolható a hordozható fájlformátumban.</string>
+    <string name="export_error_portable_ambient_steps_write">Nem sikerült létrehozni a hordozható háttérlépés-fájlt.</string>
+    <string name="export_ambient_steps_sensitivity_title">Exportálja a háttérlépés-előzményeket?</string>
+    <string name="export_ambient_steps_sensitivity_message">Ez a fájl lépésszámokat, tevékenységi időszakokat, dátumokat, rögzítési hiányokat és mentett időzóna-adatokat tartalmaz, amelyekből következtetni lehet a napi tevékenységi szokásokra. Nem tartalmaz útvonalkoordinátákat. Csak akkor folytassa, ha megbízik a célhelyben.</string>
+    <string name="export_error_no_portable_steps">Nincs exportálható, ellenőrzött lépéselőzmény.</string>
+    <string name="export_error_portable_steps_retryable">A lépések exportálása átmenetileg nem érhető el. Próbálja újra.</string>
+    <string name="export_error_portable_steps_unverifiable">A lépéselőzmények hiányosak, vagy nem ellenőrizhetők az exportáláshoz.</string>
+    <string name="export_error_portable_steps_write">Nem sikerült létrehozni a hordozható lépésfájlt.</string>
+    <string name="export_error_no_portable_pressure">Nincs exportálható, ellenőrzött nyomáselőzmény.</string>
+    <string name="export_error_portable_pressure_data_pruned">A nyomáselőzmények egy részét törölték, vagy nem érhetők el az exportáláshoz.</string>
+    <string name="export_error_portable_pressure_unverifiable">A nyomáselőzmények hiányosak, vagy nem ellenőrizhetők az exportáláshoz.</string>
+    <string name="export_error_portable_pressure_retryable">A nyomás exportálása átmenetileg nem érhető el. Próbálja újra.</string>
+    <string name="export_pressure_sensitivity_title">Exportálja a nyomáselőzményeket?</string>
+    <string name="export_pressure_sensitivity_message">Ez a fájl nyomásméréseket és időszakokat tartalmaz, amelyek információt adhatnak a környezetről. Nem tartalmaz útvonalkoordinátákat vagy kalibrált magasságot. Csak akkor folytassa, ha megbízik a célhelyben.</string>
+    <string name="export_error_partial_file_remains">Az exportálás sikertelen. A befejezetlen fájlt nem sikerült eltávolítani: %s</string>
+    <string name="export_json_whole_session_scope">A JSON az ezekkel a dátumokkal átfedő teljes munkameneteket tartalmazza, ezért egyes helyek, Wi-Fi-keresések és mobilhálózati adatok a kiválasztott dátumokon kívülre eshetnek. Más mentett források nem szerepelnek benne.</string>
+    <string name="import_notification_error_io">Az importálás nem tudta beolvasni a kiválasztott forrást. Próbálja újra.</string>
+    <string name="import_start_error">Nem sikerült elindítani az importálást. Próbálja újra.</string>
+    <string name="import_cleared_error">Az importálás leállt, mert törölték a rögzített adatokat. Válassza ki újra a fájlt, ha importálni szeretné.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Mobilhálózat</string>
+    <string name="format_portable_location">Hely</string>
+    <string name="format_portable_steps">Hordozható lépések</string>
+    <string name="format_portable_activity">Hordozható tevékenység</string>
+    <string name="format_portable_pressure">Hordozható nyomás</string>
+</resources>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">ポータブル形式のバックグラウンド歩数</string>
+    <string name="export_error_no_portable_ambient_steps">エクスポートできる検証済みのバックグラウンド歩数履歴がありません。</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">バックグラウンド歩数履歴が不完全、またはエクスポート用に検証できません。</string>
+    <string name="export_error_portable_ambient_steps_retryable">バックグラウンド歩数のエクスポートは一時的に利用できません。もう一度お試しください。</string>
+    <string name="export_error_portable_ambient_steps_scope">選択したバックグラウンド歩数はポータブル形式のファイルで表現できません。</string>
+    <string name="export_error_portable_ambient_steps_write">ポータブル形式のバックグラウンド歩数ファイルを作成できませんでした。</string>
+    <string name="export_ambient_steps_sensitivity_title">バックグラウンド歩数履歴をエクスポートしますか？</string>
+    <string name="export_ambient_steps_sensitivity_message">このファイルには歩数、活動時間帯、日付、記録の欠落、および保存されたタイムゾーン情報が含まれ、日々の活動パターンが分かる場合があります。ルートの座標は含まれません。保存先を信頼できる場合にのみ続行してください。</string>
+    <string name="export_error_no_portable_steps">エクスポートできる検証済みの歩数履歴がありません。</string>
+    <string name="export_error_portable_steps_retryable">歩数のエクスポートは一時的に利用できません。もう一度お試しください。</string>
+    <string name="export_error_portable_steps_unverifiable">歩数履歴が不完全、またはエクスポート用に検証できません。</string>
+    <string name="export_error_portable_steps_write">ポータブル形式の歩数ファイルを作成できませんでした。</string>
+    <string name="export_error_no_portable_pressure">エクスポートできる検証済みの気圧履歴がありません。</string>
+    <string name="export_error_portable_pressure_data_pruned">気圧履歴が削除されている、またはエクスポートできません。</string>
+    <string name="export_error_portable_pressure_unverifiable">気圧履歴が不完全、またはエクスポート用に検証できません。</string>
+    <string name="export_error_portable_pressure_retryable">気圧のエクスポートは一時的に利用できません。もう一度お試しください。</string>
+    <string name="export_pressure_sensitivity_title">気圧履歴をエクスポートしますか？</string>
+    <string name="export_pressure_sensitivity_message">このファイルには気圧の測定値と時間帯が含まれ、周囲の環境に関する情報が分かる場合があります。ルートの座標や校正済みの標高は含まれません。保存先を信頼できる場合にのみ続行してください。</string>
+    <string name="export_error_partial_file_remains">エクスポートに失敗しました。未完成のファイルを削除できませんでした：%s</string>
+    <string name="export_json_whole_session_scope">JSONには選択した日付と重なるセッション全体が含まれるため、一部の位置、Wi-Fiスキャン、携帯電話網の測定値が選択した日付の範囲外になる場合があります。他の保存済みデータソースは含まれません。</string>
+    <string name="import_notification_error_io">選択したソースを読み込めませんでした。もう一度お試しください。</string>
+    <string name="import_start_error">インポートを開始できませんでした。もう一度お試しください。</string>
+    <string name="import_cleared_error">記録済みデータが消去されたため、インポートを停止しました。インポートする場合は、ファイルをもう一度選択してください。</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">携帯電話網</string>
+    <string name="format_portable_location">位置情報</string>
+    <string name="format_portable_steps">ポータブル形式の歩数</string>
+    <string name="format_portable_activity">ポータブル形式の活動</string>
+    <string name="format_portable_pressure">ポータブル形式の気圧</string>
+</resources>

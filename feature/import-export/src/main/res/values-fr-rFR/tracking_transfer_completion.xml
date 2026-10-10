@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Pas en arrière-plan portables</string>
+    <string name="export_error_no_portable_ambient_steps">Aucun historique vérifié des pas en arrière-plan n\'est disponible pour l\'exportation.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">L\'historique des pas en arrière-plan est incomplet ou ne peut pas être vérifié pour l\'exportation.</string>
+    <string name="export_error_portable_ambient_steps_retryable">L\'exportation des pas en arrière-plan est temporairement indisponible. Réessayez.</string>
+    <string name="export_error_portable_ambient_steps_scope">Cette sélection de pas en arrière-plan ne peut pas être représentée dans le format de fichier portable.</string>
+    <string name="export_error_portable_ambient_steps_write">Le fichier de pas en arrière-plan portables n\'a pas pu être créé.</string>
+    <string name="export_ambient_steps_sensitivity_title">Exporter l\'historique des pas en arrière-plan ?</string>
+    <string name="export_ambient_steps_sensitivity_message">Ce fichier contient des nombres de pas, des périodes d\'activité, des dates, des lacunes d\'enregistrement et le contexte de fuseau horaire enregistré qui peuvent révéler des habitudes d\'activité quotidienne. Il ne contient pas de coordonnées d\'itinéraire. Continuez uniquement si vous faites confiance à la destination.</string>
+    <string name="export_error_no_portable_steps">Aucun historique vérifié des pas n\'est disponible pour l\'exportation.</string>
+    <string name="export_error_portable_steps_retryable">L\'exportation des pas est temporairement indisponible. Réessayez.</string>
+    <string name="export_error_portable_steps_unverifiable">L\'historique des pas est incomplet ou ne peut pas être vérifié pour l\'exportation.</string>
+    <string name="export_error_portable_steps_write">Le fichier de pas portables n\'a pas pu être créé.</string>
+    <string name="export_error_no_portable_pressure">Aucun historique vérifié de la pression n\'est disponible pour l\'exportation.</string>
+    <string name="export_error_portable_pressure_data_pruned">L\'historique de la pression a été partiellement supprimé ou n\'est pas disponible pour l\'exportation.</string>
+    <string name="export_error_portable_pressure_unverifiable">L\'historique de la pression est incomplet ou ne peut pas être vérifié pour l\'exportation.</string>
+    <string name="export_error_portable_pressure_retryable">L\'exportation de la pression est temporairement indisponible. Réessayez.</string>
+    <string name="export_pressure_sensitivity_title">Exporter l\'historique de la pression ?</string>
+    <string name="export_pressure_sensitivity_message">Ce fichier contient des mesures de pression et des périodes pouvant révéler des informations sur l\'environnement. Il ne contient ni coordonnées d\'itinéraire ni altitude étalonnée. Continuez uniquement si vous faites confiance à la destination.</string>
+    <string name="export_error_partial_file_remains">L\'exportation a échoué. Le fichier inachevé n\'a pas pu être supprimé : %s</string>
+    <string name="export_json_whole_session_scope">Le JSON inclut les sessions complètes qui chevauchent ces dates. Certains emplacements, analyses Wi-Fi et relevés du réseau mobile peuvent donc être hors des dates choisies. Les autres sources enregistrées ne sont pas incluses.</string>
+    <string name="import_notification_error_io">L\'importation n\'a pas pu lire la source sélectionnée. Réessayez.</string>
+    <string name="import_start_error">Impossible de démarrer l\'importation. Réessayez.</string>
+    <string name="import_cleared_error">L\'importation s\'est arrêtée car les données enregistrées ont été effacées. Sélectionnez à nouveau le fichier si vous souhaitez l\'importer.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Réseau mobile</string>
+    <string name="format_portable_location">Localisation</string>
+    <string name="format_portable_steps">Pas portables</string>
+    <string name="format_portable_activity">Activité portable</string>
+    <string name="format_portable_pressure">Pression portable</string>
+</resources>

@@ -198,6 +198,24 @@ to 1.11.4 under BOM 2026.06.01. Source explanations based on other cached patch
 versions are not claimed as an exact-library reproduction. The next executed test
 results remain the acceptance evidence for these fixture repairs.
 
+## Export lint repairs from rerun four
+
+The import worker's `runAdmittedImport` leading indentation is normalized; its
+whitespace-insensitive diff is empty. The independent reviewer confirmed unchanged
+notification, dispatch, cancellation, catch ordering and result behavior.
+
+All 29 missing existing export string keys are translated in 27 existing regional
+resource folders (780 new strings). Czech's three existing format labels are
+preserved. Only additive `tracking_transfer_completion.xml` files are included;
+English, old translations, baselines and lint policy are unchanged. Independent
+inspection confirms exact names, locale-wide uniqueness, valid XML, the original
+`%s` placeholder and Android apostrophe escaping. The exact generated inventory
+SHA-256 is `b4a9afee1e61eacbcf8d70a569d77f0106e589440ac35af1864255747a3b22a7`;
+the reviewer's sorted path/hash digest is
+`c5aa1924957d9f5f23fc13f9f9feb8ed5d17080d18648bab5a3f0b78fce5d9c7`.
+Spot-checking meaning is source review, not human-language or device validation.
+The subsequent frozen gate batch supplies AAPT and lint evidence.
+
 ## Limits
 
 The new app fixture checks upgrade orchestration with Location data; the existing

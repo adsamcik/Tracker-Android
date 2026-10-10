@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">可攜式背景步數資料</string>
+    <string name="export_error_no_portable_ambient_steps">沒有可供匯出的已驗證背景步數歷史紀錄。</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">背景步數歷史紀錄不完整，或無法驗證是否可匯出。</string>
+    <string name="export_error_portable_ambient_steps_retryable">背景步數匯出暫時無法使用。請再試一次。</string>
+    <string name="export_error_portable_ambient_steps_scope">所選背景步數無法以可攜式檔案格式表示。</string>
+    <string name="export_error_portable_ambient_steps_write">無法建立可攜式背景步數檔案。</string>
+    <string name="export_ambient_steps_sensitivity_title">匯出背景步數歷史紀錄？</string>
+    <string name="export_ambient_steps_sensitivity_message">此檔案包含步數、活動時間範圍、日期、記錄缺口及已儲存的時區資訊，可能透露日常活動模式。它不包含路線座標。請只在信任目的地時繼續。</string>
+    <string name="export_error_no_portable_steps">沒有可供匯出的已驗證步數歷史紀錄。</string>
+    <string name="export_error_portable_steps_retryable">步數匯出暫時無法使用。請再試一次。</string>
+    <string name="export_error_portable_steps_unverifiable">步數歷史紀錄不完整，或無法驗證是否可匯出。</string>
+    <string name="export_error_portable_steps_write">無法建立可攜式步數檔案。</string>
+    <string name="export_error_no_portable_pressure">沒有可供匯出的已驗證氣壓歷史紀錄。</string>
+    <string name="export_error_portable_pressure_data_pruned">氣壓歷史紀錄已遭清理，或無法匯出。</string>
+    <string name="export_error_portable_pressure_unverifiable">氣壓歷史紀錄不完整，或無法驗證是否可匯出。</string>
+    <string name="export_error_portable_pressure_retryable">氣壓匯出暫時無法使用。請再試一次。</string>
+    <string name="export_pressure_sensitivity_title">匯出氣壓歷史紀錄？</string>
+    <string name="export_pressure_sensitivity_message">此檔案包含氣壓測量值和時間範圍，可能透露周遭環境資訊。它不包含路線座標或經校準的海拔。請只在信任目的地時繼續。</string>
+    <string name="export_error_partial_file_remains">匯出失敗。無法刪除未完成的檔案：%s</string>
+    <string name="export_json_whole_session_scope">JSON 包含與這些日期重疊的完整記錄時段，因此部分位置、Wi-Fi 掃描及行動網路讀數可能超出所選日期。不包含其他已儲存的資料來源。</string>
+    <string name="import_notification_error_io">匯入時無法讀取所選來源。請再試一次。</string>
+    <string name="import_start_error">無法開始匯入。請再試一次。</string>
+    <string name="import_cleared_error">由於記錄的資料已清除，匯入已停止。如需匯入，請重新選取檔案。</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">行動網路</string>
+    <string name="format_portable_location">位置</string>
+    <string name="format_portable_steps">可攜式步數資料</string>
+    <string name="format_portable_activity">可攜式活動資料</string>
+    <string name="format_portable_pressure">可攜式氣壓資料</string>
+</resources>

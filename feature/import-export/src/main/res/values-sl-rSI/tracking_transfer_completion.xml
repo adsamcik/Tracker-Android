@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Prenosljivi koraki v ozadju</string>
+    <string name="export_error_no_portable_ambient_steps">Za izvoz ni na voljo preverjene zgodovine korakov v ozadju.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Zgodovina korakov v ozadju je nepopolna ali je ni mogoče preveriti za izvoz.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Izvoz korakov v ozadju začasno ni na voljo. Poskusite znova.</string>
+    <string name="export_error_portable_ambient_steps_scope">Tega izbora korakov v ozadju ni mogoče predstaviti v prenosljivi obliki datoteke.</string>
+    <string name="export_error_portable_ambient_steps_write">Datoteke prenosljivih korakov v ozadju ni bilo mogoče ustvariti.</string>
+    <string name="export_ambient_steps_sensitivity_title">Izvoziti zgodovino korakov v ozadju?</string>
+    <string name="export_ambient_steps_sensitivity_message">Ta datoteka vsebuje število korakov, časovna obdobja aktivnosti, datume, vrzeli v beleženju in shranjene podatke o časovnem pasu, ki lahko razkrijejo vzorce dnevne aktivnosti. Ne vsebuje koordinat poti. Nadaljujte le, če zaupate cilju.</string>
+    <string name="export_error_no_portable_steps">Za izvoz ni na voljo preverjene zgodovine korakov.</string>
+    <string name="export_error_portable_steps_retryable">Izvoz korakov začasno ni na voljo. Poskusite znova.</string>
+    <string name="export_error_portable_steps_unverifiable">Zgodovina korakov je nepopolna ali je ni mogoče preveriti za izvoz.</string>
+    <string name="export_error_portable_steps_write">Datoteke prenosljivih korakov ni bilo mogoče ustvariti.</string>
+    <string name="export_error_no_portable_pressure">Za izvoz ni na voljo preverjene zgodovine tlaka.</string>
+    <string name="export_error_portable_pressure_data_pruned">Zgodovina tlaka je bila delno izbrisana ali ni na voljo za izvoz.</string>
+    <string name="export_error_portable_pressure_unverifiable">Zgodovina tlaka je nepopolna ali je ni mogoče preveriti za izvoz.</string>
+    <string name="export_error_portable_pressure_retryable">Izvoz tlaka začasno ni na voljo. Poskusite znova.</string>
+    <string name="export_pressure_sensitivity_title">Izvoziti zgodovino tlaka?</string>
+    <string name="export_pressure_sensitivity_message">Ta datoteka vsebuje meritve tlaka in časovna obdobja, ki lahko razkrijejo informacije o okolju. Ne vsebuje koordinat poti ali umerjene nadmorske višine. Nadaljujte le, če zaupate cilju.</string>
+    <string name="export_error_partial_file_remains">Izvoz ni uspel. Nedokončane datoteke ni bilo mogoče odstraniti: %s</string>
+    <string name="export_json_whole_session_scope">JSON vključuje celotne seje, ki se prekrivajo s temi datumi, zato so lahko nekatere lokacije, pregledi omrežij Wi-Fi in meritve mobilnega omrežja zunaj izbranih datumov. Drugi shranjeni viri niso vključeni.</string>
+    <string name="import_notification_error_io">Pri uvozu ni bilo mogoče prebrati izbranega vira. Poskusite znova.</string>
+    <string name="import_start_error">Uvoza ni bilo mogoče začeti. Poskusite znova.</string>
+    <string name="import_cleared_error">Uvoz se je ustavil, ker so bili zabeleženi podatki izbrisani. Če želite uvoziti datoteko, jo izberite znova.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Mobilno omrežje</string>
+    <string name="format_portable_location">Lokacija</string>
+    <string name="format_portable_steps">Prenosljivi koraki</string>
+    <string name="format_portable_activity">Prenosljiva aktivnost</string>
+    <string name="format_portable_pressure">Prenosljivi tlak</string>
+</resources>

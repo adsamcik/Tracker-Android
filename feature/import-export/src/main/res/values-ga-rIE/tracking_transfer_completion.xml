@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Céimeanna cúlra iniompartha</string>
+    <string name="export_error_no_portable_ambient_steps">Níl aon stair fhíoraithe de chéimeanna cúlra ar fáil le heaspórtáil.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Tá stair na gcéimeanna cúlra neamhiomlán nó ní féidir í a fhíorú le haghaidh easpórtála.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Níl easpórtáil céimeanna cúlra ar fáil faoi láthair. Bain triail eile as.</string>
+    <string name="export_error_portable_ambient_steps_scope">Ní féidir an roghnú seo de chéimeanna cúlra a léiriú san fhormáid comhaid iniompartha.</string>
+    <string name="export_error_portable_ambient_steps_write">Níorbh fhéidir an comhad céimeanna cúlra iniompartha a chruthú.</string>
+    <string name="export_ambient_steps_sensitivity_title">Stair na gcéimeanna cúlra a easpórtáil?</string>
+    <string name="export_ambient_steps_sensitivity_message">Tá líon na gcéimeanna, tréimhsí gníomhaíochta, dátaí, bearnaí sa taifeadadh agus faisnéis chrios ama shábháilte sa chomhad seo, a d\'fhéadfadh patrúin gníomhaíochta laethúla a nochtadh. Níl comhordanáidí bealaigh ann. Ná lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
+    <string name="export_error_no_portable_steps">Níl aon stair fhíoraithe de chéimeanna ar fáil le heaspórtáil.</string>
+    <string name="export_error_portable_steps_retryable">Níl easpórtáil céimeanna ar fáil faoi láthair. Bain triail eile as.</string>
+    <string name="export_error_portable_steps_unverifiable">Tá stair na gcéimeanna neamhiomlán nó ní féidir í a fhíorú le haghaidh easpórtála.</string>
+    <string name="export_error_portable_steps_write">Níorbh fhéidir an comhad céimeanna iniompartha a chruthú.</string>
+    <string name="export_error_no_portable_pressure">Níl aon stair fhíoraithe brú ar fáil le heaspórtáil.</string>
+    <string name="export_error_portable_pressure_data_pruned">Tá cuid den stair brú bainte nó níl sí ar fáil le heaspórtáil.</string>
+    <string name="export_error_portable_pressure_unverifiable">Tá stair brú neamhiomlán nó ní féidir í a fhíorú le haghaidh easpórtála.</string>
+    <string name="export_error_portable_pressure_retryable">Níl easpórtáil brú ar fáil faoi láthair. Bain triail eile as.</string>
+    <string name="export_pressure_sensitivity_title">Stair brú a easpórtáil?</string>
+    <string name="export_pressure_sensitivity_message">Tá tomhais brú agus tréimhsí ama sa chomhad seo a d\'fhéadfadh faisnéis faoin timpeallacht a nochtadh. Níl comhordanáidí bealaigh ná airde chalabraithe ann. Ná lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
+    <string name="export_error_partial_file_remains">Theip ar an easpórtáil. Níorbh fhéidir an comhad neamhchríochnaithe a bhaint: %s</string>
+    <string name="export_json_whole_session_scope">Cuimsíonn JSON seisiúin iomlána a fhorluíonn leis na dátaí seo, mar sin d\'fhéadfadh roinnt suíomhanna, scananna Wi-Fi agus léamha líonra ceallach a bheith lasmuigh de na dátaí roghnaithe. Ní chuirtear foinsí sábháilte eile san áireamh.</string>
+    <string name="import_notification_error_io">Níorbh fhéidir leis an iompórtáil an fhoinse roghnaithe a léamh. Bain triail eile as.</string>
+    <string name="import_start_error">Níorbh fhéidir an iompórtáil a thosú. Bain triail eile as.</string>
+    <string name="import_cleared_error">Stop an iompórtáil toisc gur glanadh na sonraí taifeadta. Roghnaigh an comhad arís más mian leat é a iompórtáil.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Líonra ceallach</string>
+    <string name="format_portable_location">Suíomh</string>
+    <string name="format_portable_steps">Céimeanna iniompartha</string>
+    <string name="format_portable_activity">Gníomhaíocht iniompartha</string>
+    <string name="format_portable_pressure">Brú iniompartha</string>
+</resources>

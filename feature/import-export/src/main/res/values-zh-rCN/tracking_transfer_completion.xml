@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">可移植后台步数数据</string>
+    <string name="export_error_no_portable_ambient_steps">没有可供导出的已验证后台步数历史记录。</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">后台步数历史记录不完整，或无法验证其是否可导出。</string>
+    <string name="export_error_portable_ambient_steps_retryable">后台步数导出暂时不可用。请重试。</string>
+    <string name="export_error_portable_ambient_steps_scope">此后台步数选区无法用可移植文件格式表示。</string>
+    <string name="export_error_portable_ambient_steps_write">无法创建可移植后台步数文件。</string>
+    <string name="export_ambient_steps_sensitivity_title">导出后台步数历史记录？</string>
+    <string name="export_ambient_steps_sensitivity_message">此文件包含步数、活动时间范围、日期、记录缺口以及已保存的时区信息，可能透露日常活动模式。它不包含路线坐标。请仅在信任目标位置时继续。</string>
+    <string name="export_error_no_portable_steps">没有可供导出的已验证步数历史记录。</string>
+    <string name="export_error_portable_steps_retryable">步数导出暂时不可用。请重试。</string>
+    <string name="export_error_portable_steps_unverifiable">步数历史记录不完整，或无法验证其是否可导出。</string>
+    <string name="export_error_portable_steps_write">无法创建可移植步数文件。</string>
+    <string name="export_error_no_portable_pressure">没有可供导出的已验证气压历史记录。</string>
+    <string name="export_error_portable_pressure_data_pruned">气压历史记录已被清理，或无法导出。</string>
+    <string name="export_error_portable_pressure_unverifiable">气压历史记录不完整，或无法验证其是否可导出。</string>
+    <string name="export_error_portable_pressure_retryable">气压导出暂时不可用。请重试。</string>
+    <string name="export_pressure_sensitivity_title">导出气压历史记录？</string>
+    <string name="export_pressure_sensitivity_message">此文件包含气压测量值和时间范围，可能透露周围环境信息。它不包含路线坐标或校准后的海拔。请仅在信任目标位置时继续。</string>
+    <string name="export_error_partial_file_remains">导出失败。无法删除未完成的文件：%s</string>
+    <string name="export_json_whole_session_scope">JSON 包含与这些日期重叠的完整记录时段，因此某些位置、Wi-Fi 扫描和蜂窝网络读数可能超出所选日期。不包含其他已保存的数据源。</string>
+    <string name="import_notification_error_io">导入时无法读取所选来源。请重试。</string>
+    <string name="import_start_error">无法开始导入。请重试。</string>
+    <string name="import_cleared_error">由于记录的数据已被清除，导入已停止。如需导入，请重新选择文件。</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">蜂窝网络</string>
+    <string name="format_portable_location">位置</string>
+    <string name="format_portable_steps">可移植步数数据</string>
+    <string name="format_portable_activity">可移植活动数据</string>
+    <string name="format_portable_pressure">可移植气压数据</string>
+</resources>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Draagbare achtergrondstappen</string>
+    <string name="export_error_no_portable_ambient_steps">Er is geen geverifieerde geschiedenis van achtergrondstappen beschikbaar om te exporteren.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">De geschiedenis van achtergrondstappen is onvolledig of kan niet worden geverifieerd voor export.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Export van achtergrondstappen is tijdelijk niet beschikbaar. Probeer het opnieuw.</string>
+    <string name="export_error_portable_ambient_steps_scope">Deze selectie van achtergrondstappen kan niet worden weergegeven in de draagbare bestandsindeling.</string>
+    <string name="export_error_portable_ambient_steps_write">Het bestand met draagbare achtergrondstappen kon niet worden gemaakt.</string>
+    <string name="export_ambient_steps_sensitivity_title">Geschiedenis van achtergrondstappen exporteren?</string>
+    <string name="export_ambient_steps_sensitivity_message">Dit bestand bevat aantallen stappen, activiteitsperioden, datums, hiaten in de registratie en opgeslagen tijdzonegegevens die dagelijkse activiteitspatronen kunnen onthullen. Het bevat geen routecoördinaten. Ga alleen verder als je de bestemming vertrouwt.</string>
+    <string name="export_error_no_portable_steps">Er is geen geverifieerde stappengeschiedenis beschikbaar om te exporteren.</string>
+    <string name="export_error_portable_steps_retryable">Export van stappen is tijdelijk niet beschikbaar. Probeer het opnieuw.</string>
+    <string name="export_error_portable_steps_unverifiable">De stappengeschiedenis is onvolledig of kan niet worden geverifieerd voor export.</string>
+    <string name="export_error_portable_steps_write">Het bestand met draagbare stappen kon niet worden gemaakt.</string>
+    <string name="export_error_no_portable_pressure">Er is geen geverifieerde drukgeschiedenis beschikbaar om te exporteren.</string>
+    <string name="export_error_portable_pressure_data_pruned">De drukgeschiedenis is gedeeltelijk verwijderd of niet beschikbaar voor export.</string>
+    <string name="export_error_portable_pressure_unverifiable">De drukgeschiedenis is onvolledig of kan niet worden geverifieerd voor export.</string>
+    <string name="export_error_portable_pressure_retryable">Export van druk is tijdelijk niet beschikbaar. Probeer het opnieuw.</string>
+    <string name="export_pressure_sensitivity_title">Drukgeschiedenis exporteren?</string>
+    <string name="export_pressure_sensitivity_message">Dit bestand bevat drukmetingen en tijdsperioden die informatie over de omgeving kunnen onthullen. Het bevat geen routecoördinaten of gekalibreerde hoogte. Ga alleen verder als je de bestemming vertrouwt.</string>
+    <string name="export_error_partial_file_remains">Export mislukt. Het onvoltooide bestand kon niet worden verwijderd: %s</string>
+    <string name="export_json_whole_session_scope">JSON bevat volledige sessies die deze datums overlappen. Daardoor kunnen sommige locaties, Wi-Fi-scans en metingen van het mobiele netwerk buiten de gekozen datums vallen. Andere opgeslagen bronnen zijn niet inbegrepen.</string>
+    <string name="import_notification_error_io">De geselecteerde bron kon niet worden gelezen tijdens het importeren. Probeer het opnieuw.</string>
+    <string name="import_start_error">Het importeren kon niet worden gestart. Probeer het opnieuw.</string>
+    <string name="import_cleared_error">Het importeren is gestopt omdat de geregistreerde gegevens zijn gewist. Kies het bestand opnieuw als je het wilt importeren.</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Mobiel netwerk</string>
+    <string name="format_portable_location">Locatie</string>
+    <string name="format_portable_steps">Draagbare stappen</string>
+    <string name="format_portable_activity">Draagbare activiteit</string>
+    <string name="format_portable_pressure">Draagbare druk</string>
+</resources>
