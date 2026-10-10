@@ -2392,3 +2392,23 @@ IMPLEMENTATION_ONLY; the following authored sources are IMPLEMENTED_UNVALIDATED.
 
 These checks record source authorship and static review only; compilation, execution, schema,
 device proof, final integration and push remain deferred.
+
+## 2026-10-10 scoped storage and compilation verification
+
+The user's new request authorizes host verification of the committed candidate on
+`codex/tracking-verification-1010`. It does not declare the complete assembly gate
+closed. Earlier dated entries retain their historical evidence limits.
+
+- [x] Identify released `main` and its actual version-12 observation schema.
+- [x] Generate and independently review Room schema 29 for the verification input.
+- [x] Execute application build, `ciUnitTest` and `ciCheck` attempts; retain failures
+  and repair the reviewed concrete compiler, storage and host-fixture defects.
+- [x] Independently review the bounded repairs without weakening assertions or gates.
+- [ ] Pass the final released-data, file-backed, UI and lint rerun on one committed input.
+- [ ] Obtain the pinned Tracebox package and finish application/Hilt and schema-drift checks.
+- [ ] Resolve full quality failures and pass complete `ciUnitTest` and `ciCheck`.
+- [ ] Collect device evidence and integrate the fully verified result into local `dev/v10`.
+
+See [the verification results](convergence/2026-10-10/STORAGE_COMPILATION_VERIFICATION_RESULTS.md)
+for exact inputs, commands, repairs and current blockers. All 25 full-chain
+prerequisites remain open; individual host results do not close them.
