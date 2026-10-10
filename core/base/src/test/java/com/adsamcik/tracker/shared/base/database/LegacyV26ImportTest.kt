@@ -784,7 +784,7 @@ class LegacyV26ImportTest {
 		}
 		val database = buildActive()
 		val raw = database.openHelper.writableDatabase
-		val cutoff = 1_700_100_100_000L
+		val cutoff = 1_700_100_100_001L
 		database.withTransaction {
 			database.organizationAnnotationDao().suppressExpiredOverrides(cutoff, cutoff)
 			database.sessionSegmentDao().deleteOlderThan(cutoff)

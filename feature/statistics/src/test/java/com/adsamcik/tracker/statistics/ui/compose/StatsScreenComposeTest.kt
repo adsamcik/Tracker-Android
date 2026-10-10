@@ -10,9 +10,8 @@ import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.assertHasClickAction
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasAncestor
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
@@ -80,7 +79,7 @@ class StatsScreenComposeTest {
 			}
 		}
 		scrollToWeeklyStepsSummary()
-		composeTestRule.onNode(hasText("16 recorded") and hasAncestor(hasTestTag("stats_summary_steps"))).assertIsDisplayed()
+		composeTestRule.onNode(hasText("16 recorded") and hasAnyAncestor(hasTestTag("stats_summary_steps"))).assertIsDisplayed()
 		composeTestRule.onNodeWithContentDescription("Yesterday, 5").assertIsDisplayed()
 		composeTestRule.onNodeWithContentDescription("Today, 11 recorded").assertIsDisplayed()
 	}
@@ -104,8 +103,8 @@ class StatsScreenComposeTest {
 		scrollToWeeklyStepsSummary()
 		composeTestRule.onNodeWithContentDescription("Yesterday, 8").assertIsDisplayed()
 		composeTestRule.onNodeWithContentDescription("Today, Unavailable").assertIsDisplayed()
-		composeTestRule.onNode(hasText("8 recorded") and hasAncestor(hasTestTag("stats_summary_steps"))).assertIsDisplayed()
-		composeTestRule.onNode(hasText("N/A") and hasAncestor(hasTestTag("stats_summary_active_days"))).assertIsDisplayed()
+		composeTestRule.onNode(hasText("8 recorded") and hasAnyAncestor(hasTestTag("stats_summary_steps"))).assertIsDisplayed()
+		composeTestRule.onNode(hasText("N/A") and hasAnyAncestor(hasTestTag("stats_summary_active_days"))).assertIsDisplayed()
 	}
 
 	// ─── Loading state ──────────────────────────────────────────────────
@@ -311,7 +310,7 @@ class StatsScreenComposeTest {
 		composeTestRule.onNodeWithContentDescription("Yesterday, 304 m").performScrollTo().assertIsDisplayed()
 		composeTestRule.onNodeWithContentDescription("Today, 57 s").performScrollTo().assertIsDisplayed()
 		composeTestRule.onNodeWithContentDescription("Today, Not captured").assertDoesNotExist()
-		composeTestRule.onNode(hasText("N/A") and hasAncestor(hasTestTag("stats_summary_steps"))).assertIsDisplayed()
+		composeTestRule.onNode(hasText("N/A") and hasAnyAncestor(hasTestTag("stats_summary_steps"))).assertIsDisplayed()
 	}
 
 	@Test
@@ -327,7 +326,7 @@ class StatsScreenComposeTest {
 		}
 		composeTestRule.onNodeWithContentDescription("Today, Not captured").performScrollTo().assertIsDisplayed()
 		composeTestRule.onNodeWithContentDescription("Today, 304 m").assertDoesNotExist()
-		composeTestRule.onNode(hasText("Not captured") and hasAncestor(hasTestTag("stats_summary_steps"))).assertIsDisplayed()
+		composeTestRule.onNode(hasText("Not captured") and hasAnyAncestor(hasTestTag("stats_summary_steps"))).assertIsDisplayed()
 	}
 
 	@Test
@@ -478,9 +477,9 @@ class StatsScreenComposeTest {
 		}
 		composeTestRule.waitForIdle()
 		summaries.subscriptionCount.value shouldBe 1
-		composeTestRule.onNode(hasText("42") and hasAncestor(hasTestTag("stats_summary_steps")))
+		composeTestRule.onNode(hasText("42") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.assertIsDisplayed()
-		composeTestRule.onNode(hasText("1") and hasAncestor(hasTestTag("stats_summary_active_days")))
+		composeTestRule.onNode(hasText("1") and hasAnyAncestor(hasTestTag("stats_summary_active_days")))
 			.assertIsDisplayed()
 		composeTestRule.onNodeWithContentDescription("Today, 42").assertIsDisplayed()
 		composeTestRule.onNodeWithText("Distance").assertDoesNotExist()
@@ -508,9 +507,9 @@ class StatsScreenComposeTest {
 			}
 		}
 		composeTestRule.waitForIdle()
-		composeTestRule.onNode(hasText("0") and hasAncestor(hasTestTag("stats_summary_steps")))
+		composeTestRule.onNode(hasText("0") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.assertIsDisplayed()
-		composeTestRule.onNode(hasText("0") and hasAncestor(hasTestTag("stats_summary_active_days")))
+		composeTestRule.onNode(hasText("0") and hasAnyAncestor(hasTestTag("stats_summary_active_days")))
 			.assertIsDisplayed()
 		composeTestRule.onNodeWithContentDescription("Today, 0").assertIsDisplayed()
 		composeTestRule.onNodeWithText("Distance").assertDoesNotExist()
@@ -532,14 +531,14 @@ class StatsScreenComposeTest {
 		composeTestRule.waitForIdle()
 		composeTestRule.onNodeWithText("Updating…").assertIsDisplayed()
 		composeTestRule.onNodeWithText("Start Tracking").assertDoesNotExist()
-		composeTestRule.onNode(hasText("N/A") and hasAncestor(hasTestTag("stats_summary_active_days")))
+		composeTestRule.onNode(hasText("N/A") and hasAnyAncestor(hasTestTag("stats_summary_active_days")))
 			.assertIsDisplayed()
 
 		composeTestRule.runOnIdle {
 			summaries.value = testDisplayReady(listOf(StepsNumericDay(today, 53L)))
 		}
 		composeTestRule.waitForIdle()
-		composeTestRule.onNode(hasText("53") and hasAncestor(hasTestTag("stats_summary_steps")))
+		composeTestRule.onNode(hasText("53") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.assertIsDisplayed()
 
 		listOf(
@@ -550,11 +549,11 @@ class StatsScreenComposeTest {
 		).forEach { (reason, text) ->
 			composeTestRule.runOnIdle { summaries.value = testDisplayUnavailable(reason) }
 			composeTestRule.waitForIdle()
-			composeTestRule.onNode(hasText(text) and hasAncestor(hasTestTag("stats_summary_steps"))).assertIsDisplayed()
-			composeTestRule.onNode(hasText("53") and hasAncestor(hasTestTag("stats_summary_steps")))
+			composeTestRule.onNode(hasText(text) and hasAnyAncestor(hasTestTag("stats_summary_steps"))).assertIsDisplayed()
+			composeTestRule.onNode(hasText("53") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 				.assertDoesNotExist()
 			composeTestRule.onNodeWithText("Start Tracking").assertDoesNotExist()
-			composeTestRule.onNode(hasText("N/A") and hasAncestor(hasTestTag("stats_summary_active_days")))
+			composeTestRule.onNode(hasText("N/A") and hasAnyAncestor(hasTestTag("stats_summary_active_days")))
 				.assertIsDisplayed()
 			if (reason == StepsNumericUnverifiableReason.PARTIAL_CAPTURE) {
 				composeTestRule.onNodeWithContentDescription("Today, $text").assertIsDisplayed()
@@ -630,7 +629,7 @@ class StatsScreenComposeTest {
 				)
 			}
 		}
-		composeTestRule.onNode(hasText("19") and hasAncestor(hasTestTag("stats_summary_steps")))
+		composeTestRule.onNode(hasText("19") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.assertIsDisplayed()
 		composeTestRule.onNodeWithText("session").assertDoesNotExist()
 		composeTestRule.onNodeWithText("Distance").assertDoesNotExist()
@@ -668,9 +667,9 @@ class StatsScreenComposeTest {
 		composeTestRule.waitForIdle()
 		summaries.subscriptionCount.value shouldBe 1
 		composeTestRule.onNodeWithText("Loading sessions…").assertIsDisplayed()
-		composeTestRule.onNode(hasText("32") and hasAncestor(hasTestTag("stats_summary_steps")))
+		composeTestRule.onNode(hasText("32") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.performScrollTo().assertIsDisplayed()
-		composeTestRule.onNode(hasText("1") and hasAncestor(hasTestTag("stats_summary_active_days")))
+		composeTestRule.onNode(hasText("1") and hasAnyAncestor(hasTestTag("stats_summary_active_days")))
 			.assertIsDisplayed()
 		composeTestRule.onNodeWithText("Distance").assertDoesNotExist()
 		composeTestRule.onNodeWithText("Start Tracking").assertDoesNotExist()
@@ -695,9 +694,9 @@ class StatsScreenComposeTest {
 		composeTestRule.waitForIdle()
 		composeTestRule.onNodeWithText("Something went wrong").assertIsDisplayed()
 		composeTestRule.onNodeWithText("Retry").performClick()
-		composeTestRule.onNode(hasText("44") and hasAncestor(hasTestTag("stats_summary_steps")))
+		composeTestRule.onNode(hasText("44") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.performScrollTo().assertIsDisplayed()
-		composeTestRule.onNode(hasText("1") and hasAncestor(hasTestTag("stats_summary_active_days")))
+		composeTestRule.onNode(hasText("1") and hasAnyAncestor(hasTestTag("stats_summary_active_days")))
 			.assertIsDisplayed()
 		composeTestRule.onNodeWithText("Distance").assertDoesNotExist()
 		composeTestRule.onNodeWithText("Start Tracking").assertDoesNotExist()
@@ -720,9 +719,9 @@ class StatsScreenComposeTest {
 			}
 		}
 		composeTestRule.waitForIdle()
-		composeTestRule.onNode(hasText("17") and hasAncestor(hasTestTag("stats_summary_steps")))
+		composeTestRule.onNode(hasText("17") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.assertIsDisplayed()
-		composeTestRule.onNode(hasText("2") and hasAncestor(hasTestTag("stats_summary_active_days")))
+		composeTestRule.onNode(hasText("2") and hasAnyAncestor(hasTestTag("stats_summary_active_days")))
 			.assertIsDisplayed()
 		composeTestRule.onNodeWithContentDescription("Fri, 6").assertIsDisplayed()
 		composeTestRule.onNodeWithContentDescription("Sat, 11").assertIsDisplayed()
@@ -732,7 +731,7 @@ class StatsScreenComposeTest {
 		composeTestRule.waitForIdle()
 		composeTestRule.onNodeWithContentDescription("Fri, 6").assertIsDisplayed()
 		composeTestRule.onNodeWithContentDescription("Today, 11").assertIsDisplayed()
-		composeTestRule.onNode(hasText("2") and hasAncestor(hasTestTag("stats_summary_active_days")))
+		composeTestRule.onNode(hasText("2") and hasAnyAncestor(hasTestTag("stats_summary_active_days")))
 			.assertIsDisplayed()
 	}
 
@@ -816,9 +815,9 @@ class StatsScreenComposeTest {
 		composeTestRule.onAllNodesWithTag("stats_session_row")[0].performClick()
 		openedTrip shouldBe 1L
 		scrollToWeeklyStepsSummary()
-		composeTestRule.onNode(hasText(largeCount.formatReadable()) and hasAncestor(hasTestTag("stats_summary_steps")))
+		composeTestRule.onNode(hasText(largeCount.formatReadable()) and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.assertIsDisplayed()
-		composeTestRule.onNode(hasText("1") and hasAncestor(hasTestTag("stats_summary_active_days")))
+		composeTestRule.onNode(hasText("1") and hasAnyAncestor(hasTestTag("stats_summary_active_days")))
 			.assertIsDisplayed()
 		composeTestRule.onNodeWithContentDescription("Day 0, 0").assertIsDisplayed()
 		composeTestRule.onNodeWithContentDescription("Day 6, ${largeCount.formatReadable()}").assertIsDisplayed()
@@ -851,7 +850,7 @@ class StatsScreenComposeTest {
 		loadedSessionCount shouldBe 50
 		composeTestRule.onNodeWithText("History").assertIsDisplayed()
 		composeTestRule.onNodeWithTag("stats_summary_steps").assertIsDisplayed()
-		composeTestRule.onNode(hasText("123") and hasAncestor(hasTestTag("stats_summary_steps")))
+		composeTestRule.onNode(hasText("123") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.assertIsDisplayed()
 		summaries.subscriptionCount.value shouldBe 1
 	}
@@ -879,16 +878,16 @@ class StatsScreenComposeTest {
 			composeTestRule.runOnIdle { summaries.value = state }
 			composeTestRule.waitForIdle()
 			scrollToWeeklyStepsSummary()
-			composeTestRule.onNode(hasText(label) and hasAncestor(hasTestTag("stats_summary_steps")))
+			composeTestRule.onNode(hasText(label) and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 				.assertIsDisplayed()
 			if (state is StepsDailyDisplay.Snapshot) {
 				val day = state.days.single().epochDay
 				val dayLabel = LocalDate.ofEpochDay(day).format(java.time.format.DateTimeFormatter.ofPattern("EEE"))
 				composeTestRule.onNodeWithContentDescription("$dayLabel, $label").assertIsDisplayed()
 			}
-			composeTestRule.onNode(hasText("0") and hasAncestor(hasTestTag("stats_summary_steps")))
+			composeTestRule.onNode(hasText("0") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 				.assertDoesNotExist()
-			composeTestRule.onNode(hasText("N/A") and hasAncestor(hasTestTag("stats_summary_active_days")))
+			composeTestRule.onNode(hasText("N/A") and hasAnyAncestor(hasTestTag("stats_summary_active_days")))
 				.assertIsDisplayed()
 			composeTestRule.onNodeWithText("Distance").assertDoesNotExist()
 			scrollToStatisticsHeader()
@@ -912,9 +911,9 @@ class StatsScreenComposeTest {
 		composeTestRule.runOnIdle { selected.value = false }
 		composeTestRule.waitForIdle()
 		scrollToWeeklyStepsSummary()
-		composeTestRule.onNode(hasText("Incomplete") and hasAncestor(hasTestTag("stats_summary_steps")))
+		composeTestRule.onNode(hasText("Incomplete") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.assertIsDisplayed()
-		composeTestRule.onNode(hasText("0") and hasAncestor(hasTestTag("stats_summary_steps")))
+		composeTestRule.onNode(hasText("0") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.assertDoesNotExist()
 		scrollToStatisticsHeader()
 		composeTestRule.onNodeWithText("History").assertHasClickAction()
@@ -978,7 +977,7 @@ class StatsScreenComposeTest {
 		composeTestRule.waitForIdle()
 		loadedSessionCount shouldBe 2
 		scrollToWeeklyStepsSummary()
-		composeTestRule.onNode(hasText("61") and hasAncestor(hasTestTag("stats_summary_steps")))
+		composeTestRule.onNode(hasText("61") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.assertIsDisplayed()
 		composeTestRule.runOnIdle { sessions.value = PagingData.from(denseSummaryTrips()) }
 		composeTestRule.waitForIdle()
@@ -989,9 +988,9 @@ class StatsScreenComposeTest {
 		}
 		composeTestRule.waitForIdle()
 		scrollToWeeklyStepsSummary()
-		composeTestRule.onNode(hasText("77") and hasAncestor(hasTestTag("stats_summary_steps")))
+		composeTestRule.onNode(hasText("77") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.assertIsDisplayed()
-		composeTestRule.onNode(hasText("61") and hasAncestor(hasTestTag("stats_summary_steps")))
+		composeTestRule.onNode(hasText("61") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.assertDoesNotExist()
 		composeTestRule.onNodeWithText("Distance").assertDoesNotExist()
 		scrollToStatisticsHeader()

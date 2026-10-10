@@ -34,7 +34,7 @@ import org.junit.Test
 class RadioSourceFileJsonV2CodecTest {
 	private val codec = RadioSourceFileJsonV2Codec()
 
-	@Test fun `Wi-Fi file round trips session inline identities and raw network detail`() = runBlocking {
+	@Test fun `Wi-Fi file round trips session inline identities and raw network detail`(): Unit = runBlocking {
 		val entryId = PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.LOGICAL_ENTRY, "entry")
 		val runId = PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.PHYSICAL_RUN, "run")
 		val observationId = PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.OBSERVATION, "fact")

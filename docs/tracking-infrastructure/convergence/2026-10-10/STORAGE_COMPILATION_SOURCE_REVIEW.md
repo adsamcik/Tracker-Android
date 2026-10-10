@@ -171,6 +171,33 @@ and test SHA-256
 `de61443b40d3440d704c64fdf02b442ecd781572e8ab4db59e0769efe473d904`.
 Executed results for this repair still require the next rerun.
 
+## Remaining host-fixture repairs from rerun four
+
+The independent reviewer accepted the following changes with existing assertion
+bodies and time limits retained:
+
+- The v28 radio migration fixture supplies the missing `session_segment` parent
+  that the real migration extends. Two file-backed test names are shorter to avoid
+  Windows native SQLite path limits. One observed containment path's journal
+  reached 260 characters; the full-clear XML reports journal-opening failure but
+  omits its path, so that case's path-limit explanation remains provisional.
+- The released retention fixture cutoff is one millisecond after the session end.
+- The notification dialog test configures the actual host's Czech locale, retaining
+  displayed text and both action assertions. Its prior failure alone did not prove
+  a production dialog bug.
+- The codec's expression-bodied public test explicitly returns `Unit`, instead of
+  exposing its final `assertThrows` result's internal exception type.
+- Statistics assertions use the available `hasAnyAncestor` matcher and retain the
+  member `assertDoesNotExist` calls without the invalid extension import.
+- Manual Start's effect fixture drains the host queue after four state mutations,
+  before asserting collector disposal. Original generation, serial retry,
+  cancellation and screen-scope assertions remain intact.
+
+Executed dependency insight resolves the Tracker host-test Compose UI libraries
+to 1.11.4 under BOM 2026.06.01. Source explanations based on other cached patch
+versions are not claimed as an exact-library reproduction. The next executed test
+results remain the acceptance evidence for these fixture repairs.
+
 ## Limits
 
 The new app fixture checks upgrade orchestration with Location data; the existing

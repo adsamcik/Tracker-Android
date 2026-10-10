@@ -45,6 +45,7 @@ class RadioObservationChildMigrationTest {
 						createEarlierRadioRetentionEventIndex(db)
 						db.execSQL("INSERT INTO wifi_captured_fact_revision VALUES ('older-writer',1,'older-fact',1)")
 						db.execSQL("CREATE TABLE location_sample (id INTEGER NOT NULL PRIMARY KEY)")
+						db.execSQL("CREATE TABLE session_segment (id INTEGER NOT NULL PRIMARY KEY)")
 						db.execSQL("CREATE TABLE location_accepted_receipt (sample_id INTEGER NOT NULL PRIMARY KEY)")
 						db.execSQL("CREATE TABLE location_sample_purpose_authority (sample_id INTEGER NOT NULL, " +
 							"purpose TEXT NOT NULL, authority_id TEXT NOT NULL, PRIMARY KEY(sample_id, purpose, authority_id))")

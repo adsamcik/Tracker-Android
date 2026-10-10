@@ -105,7 +105,7 @@ class TrackingSourceFullClearAssemblyTest {
 
 	@Test
 	@Suppress("LongMethod")
-	fun `file backed full clear publishes once and preserves source authority across repeated reopen`() =
+	fun `file clear preserves source authority after repeated reopen`() =
 		runTest {
 			database.sourceEvidenceStateDao().ensure(
 				SourceEvidenceState(revision = 5L, collectedDataEpoch = EPOCH),

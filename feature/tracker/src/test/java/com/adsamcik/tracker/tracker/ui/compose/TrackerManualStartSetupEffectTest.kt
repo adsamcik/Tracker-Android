@@ -62,6 +62,7 @@ class TrackerManualStartSetupEffectTest {
             state.pending = false
             state.generation = null
         }
+        composeRule.waitForIdle()
         composeRule.waitUntil(5_000) { changes.subscriptionCount.value == 0 }
     }
 
@@ -82,6 +83,7 @@ class TrackerManualStartSetupEffectTest {
             assertEquals(listOf(17L, 17L), state.requests.toList())
             state.pending = false
         }
+        composeRule.waitForIdle()
         composeRule.waitUntil(5_000) { changes.subscriptionCount.value == 0 }
     }
 
@@ -97,6 +99,7 @@ class TrackerManualStartSetupEffectTest {
             state.pending = false
             state.generation = null
         }
+        composeRule.waitForIdle()
         composeRule.waitUntil(5_000) { changes.subscriptionCount.value == 0 }
         composeRule.runOnIdle { initialTail.complete(Unit) }
         signal()
@@ -134,6 +137,7 @@ class TrackerManualStartSetupEffectTest {
             retry = state.scope.coroutineContext[Job]
             state.visible = false
         }
+        composeRule.waitForIdle()
         composeRule.waitUntil(5_000) { changes.subscriptionCount.value == 0 }
         composeRule.waitUntil(5_000) { retry?.isCancelled == true }
         signal()

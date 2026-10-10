@@ -32,6 +32,7 @@ class NotificationManagementAccessibilityTest {
     val composeRule = createComposeRule()
 
     @Test
+    @Config(qualifiers = "cs-rCZ")
     fun failedSaveDialogOffersBothLocalizedActions() {
         val application = ApplicationProvider.getApplicationContext<Context>()
         val context = application.createConfigurationContext(

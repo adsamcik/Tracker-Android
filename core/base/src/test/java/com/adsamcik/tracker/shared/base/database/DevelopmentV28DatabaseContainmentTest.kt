@@ -999,7 +999,7 @@ class DevelopmentV28DatabaseContainmentTest {
 	}
 
 	@Test
-	fun `v29 database with a nonzero background hosting default is blocked before Room opens`() {
+	fun `v29 blocks a nonzero background host default`() {
 		val database = AppDatabase.fileBuilder(context, DATABASE_NAME)
 			.allowMainThreadQueries()
 			.build()
