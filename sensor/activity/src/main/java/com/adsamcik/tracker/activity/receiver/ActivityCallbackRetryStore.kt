@@ -130,7 +130,8 @@ internal class ActivityCallbackRetryStore internal constructor(
 		require(batch.eventCount in 1..MAX_EVENTS_PER_CALLBACK) {
 			"Activity callback member count is outside the durable retry bound"
 		}
-		val encoded = encodeV2(batch)
+		val durableBatch = batch.copy(liveStartCommandGeneration = null)
+		val encoded = encodeV2(durableBatch)
 		if (encoded.size > maxCallbackBytes) {
 			throw ActivityCallbackRetryStoreException(
 				"Activity callback exceeds the durable retry record bound",
@@ -143,7 +144,7 @@ internal class ActivityCallbackRetryStore internal constructor(
 		val target = callbackFile(id)
 		if (target.exists() || backupFile(target).exists()) {
 			val existing = load(id)
-			if (existing != batch) {
+			if (existing != durableBatch) {
 				throw ActivityCallbackRetryStoreException(
 					"Activity retry identity resolved to different callback bytes",
 					code = ActivityCallbackGapCode.RETRY_RECORD_CORRUPT,
@@ -165,7 +166,7 @@ internal class ActivityCallbackRetryStore internal constructor(
 		}
 
 		writeAtomic(target, encoded, "Unable to persist Activity callback retry")
-		if (load(id) != batch) {
+		if (load(id) != durableBatch) {
 			throw ActivityCallbackRetryStoreException(
 				"Activity callback retry did not read back exactly",
 				code = ActivityCallbackGapCode.RETRY_RECORD_CORRUPT,

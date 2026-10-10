@@ -195,10 +195,10 @@ committed rerun. The Cell imported-record lookup interface decision is still pen
 ## Dependency and quality blockers
 
 Tracebox, Tracebox native and Compose UI diagnostics are pinned to
-`0.1.0-alpha.7`. That version is not cached. GitHub Packages responds 401 even with
+`0.1.0-alpha.7`. Earlier batches could not resolve that version. GitHub Packages responded 401 even with
 the existing GitHub sign-in; its scopes do not include `read:packages`. Adding
-that permission requires the user's GitHub authorization. The pending question
-requests that authorization. Cached alpha.8 is not substituted.
+that permission requires the user's GitHub authorization. The authorization question is unnecessary for this local batch now that the exact
+reviewed mirror is available. Cached alpha.8 is not substituted.
 
 This blocked application Debug/Dev assembly, application Hilt composition,
 diagnostics and dependent engine/statistics modules, aggregate schema drift,
@@ -262,3 +262,17 @@ SARIF SHA-256 is
   visible as separate outstanding work. They are not completed by these repairs.
 - Obtain the required Android device evidence before claiming practical provider
   acceptance. No APK or integration readiness is claimed here.
+
+## Next bounded rerun
+
+After batch nine, the compiler slice was committed as
+`f53fa305c584ec73c2a07fe334b7d858870596a9`. The reviewed callback comparison and
+fixture repairs form the next frozen input. The bounded rerun compiles tracking
+engine Debug/Release and executes the complete Diagnostics and Activity sensor
+suites. Application/Stats-data validation remains held by the pending Cell lookup
+interface decision; full quality findings and the copied-input source-selection
+proposal are also unresolved. No gate or test is weakened to bypass them.
+
+Only inactive Gradle 9.5.1/9.8.0 caches and the regeneratable local build cache were
+subsequently cleared, with checked target paths and inventory retained, raising
+free space above 2 GB for that rerun. No test reports or package artifacts were deleted.

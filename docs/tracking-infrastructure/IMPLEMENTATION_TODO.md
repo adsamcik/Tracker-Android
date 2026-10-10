@@ -2405,7 +2405,9 @@ closed. Earlier dated entries retain their historical evidence limits.
   and repair the reviewed concrete compiler, storage and host-fixture defects.
 - [x] Independently review the bounded repairs without weakening assertions or gates.
 - [ ] Pass the final released-data, file-backed, UI and lint rerun on one committed input.
-- [ ] Obtain the pinned Tracebox package and finish application/Hilt and schema-drift checks.
+- [x] Resolve the exact pinned Tracebox artifacts through the existing local validation hook
+  and pass repository Room schema drift. Authenticated clean-CI package access is separate.
+- [ ] Finish application Debug/Dev compilation and Hilt composition.
 - [ ] Resolve full quality failures and pass complete `ciUnitTest` and `ciCheck`.
 - [ ] Collect device evidence and integrate the fully verified result into local `dev/v10`.
 

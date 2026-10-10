@@ -340,3 +340,23 @@ This is NOT_RUN evidence until the affected rerun executes.
 Frozen batch nine executed all 580 Statistics UI tests successfully, including
 the previously repaired calendar selector. That executed result supersedes the
 earlier test-source-only calendar note. It does not prove native UI behavior.
+
+The same reviewer accepted all 15 Stats/data compiler repairs, inventory digest
+`ab44beed20431d09822316466fa87d06a2e863fc70bc8b0870139e54e3f4ce6a`.
+All 39 triple-quoted query literals are unchanged after source newline normalization;
+scalar binding order is retained. Explicit array and sequence types change no
+values. Stable nullable locals retain all guards; a Steps row without a logical
+session ID retains its count with no session name. The inlined Pressure overflow
+predicate exactly matches the existing private extension. The pending Cell lookup
+interface and its repository are excluded from this slice.
+
+The reviewer also accepted the four callback/fixture paths. Activity durable retry
+already omits the live Start generation; encoding and both read-back comparisons
+now use that same durable copy. A repeated-retain assertion covers the existing
+record path while the replayed generation remains null. The Diagnostics fixture
+first successfully reads its empty DAO, then closes the genuinely opened database;
+its retryable-write assertion stays intact. The one explicit Activity rollback test
+cancels and joins its separate application invalidation observer before the mutations,
+retaining FAILED generation 1, null pointer/binding and exactly one application/removal.
+Other observer tests remain unchanged. No production observer or diagnostic storage
+behavior was modified. These fixture timing diagnoses still need executed confirmation.

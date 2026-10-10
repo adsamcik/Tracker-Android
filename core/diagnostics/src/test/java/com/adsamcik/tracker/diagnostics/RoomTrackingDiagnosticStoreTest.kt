@@ -287,6 +287,7 @@ class RoomTrackingDiagnosticStoreTest {
 	@Test
 	fun `closed database is retryable and does not escape`() = runTest {
 		val store = store()
+		store.querySource(TrackingDiagnosticSource.WIFI).page().events shouldBe emptyList()
 		database.close()
 
 		store.append(recordedEvent()) shouldBe
