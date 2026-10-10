@@ -56,6 +56,7 @@ Preferences, Statistics and Export XML reports are preserved under `pass6`.
 | 4 | Affected host modules plus tracking API, Tracker, Statistics and Export release lint | Exit 1; 22m44s, 729 tasks. Core/base 2061 tests/4 failures; Tracker 142/5. Preferences 492 and tracking API 129 pass. Statistics and Export test source compilation failed. Three requested lint gates pass; Export lint fails. |
 | 5 | Full app Debug/Dev, core Android-test compilation, `ciUnitTest` and `ciCheck` | Frozen input `074782e1ae94c077918f47c86778972fd605fc40`; exit 1, 27m20s, 2080 tasks. Core/base 2062/0 failures, Tracker 142/0; Preferences 492/1, Export 768/8 with one skip. Statistics test compilation failed. All four affected release lint tasks pass. App/package and full quality gates remain blocked or failed. |
 | 6 | Preferences, Statistics and Export host tests; Export release lint | Frozen input `63bee1c761f796e15f825b85b04b2f0c50b8a79d`; exit 1, 6m49s, 475 tasks. Preferences 492/1, Statistics 580/8, Export 774/1 with one skip. Statistics test compilation and Export release lint pass. |
+| 7 | Focused authoritative settings, Statistics screen/History and radio codec host tests | Frozen input `d30badadcb95ee71515fc8603a78318c064b0ce8`; exit 0, 2m9s, 262 tasks. All 81 selected tests pass; the date-picker and full affected suites are outside this subset. |
 
 The pass-four command was:
 
@@ -75,12 +76,18 @@ later repairs. The next batch must use one committed input with no concurrent ed
 | `affected-gates-rerun-4.log` | `724bb86deb9547f841ec77ae10c4c75c787fdaece8d66f071555e35bfe992361` |
 | `frozen-convergence-pass-5.log` | `607f328cfa2bffe27a19d3086b3c4331d32fa3fd85e3c9fcbe2545af127583a9` |
 | `affected-host-pass-6.log` | `d73f728d878b1bd32fe37b7f15259900fe129f70b8b441ff2a13d7d51b414a0e` |
+| `focused-host-pass-7.log` | `58f94d22601c07c2a7ca36163ecf7b2751e72f7637b481762be70be0ad7244c8` |
 
 Pass five used the complete pass-two command plus the short-temp init script.
 Pass six requested `:data:preferences:testDebugUnitTest
 :feature:statistics:testDebugUnitTest :feature:import-export:testDebugUnitTest
 :feature:import-export:lintRelease` with the same init script and batch flags.
-Neither frozen batch had concurrent source edits.
+Neither frozen batch had concurrent source edits. Pass seven used the same flags
+and init script with task-local `--tests` selectors for
+`AuthoritativeTrackingParamsRepositoryTest` (18), `StatsScreenComposeTest` (36),
+`MeasuredHistoryContentComposeTest` (20) and `RadioSourceFileJsonV2CodecTest` (7).
+Its XML reports are preserved under `pass7`. The count is selected host executions,
+not complete-module or unique full-repository coverage.
 
 ## Recorded passing host coverage
 
@@ -127,6 +134,8 @@ The source-review record lists each repair and its scope. Committed slices:
 - `074782e1ae`: provisional evidence record and fifth-batch frozen input.
 - `63bee1c761`: radio generic decoding, Compose imports, historical export and
   transfer/scheduler fixture repairs.
+- `d30badadcb`: exact malformed-JSON classification, queued bootstrap fixture,
+  existing Statistics control interactions and sixth-batch evidence.
 
 Commits remain labelled `IMPLEMENTED_UNVALIDATED` while full convergence is open.
 Passing individual host suites does not make the complete tracking implementation
@@ -141,9 +150,28 @@ the existing GitHub sign-in; its scopes do not include `read:packages`. Adding
 that permission requires the user's GitHub authorization. The pending question
 requests that authorization. Cached alpha.8 is not substituted.
 
-This blocks application Debug/Dev assembly, application Hilt composition,
+This blocked application Debug/Dev assembly, application Hilt composition,
 diagnostics and dependent engine/statistics modules, aggregate schema drift,
-release linkage and completion of `ciUnitTest`/`ciCheck`.
+release linkage and completion of `ciUnitTest`/`ciCheck` in the earlier batches.
+
+After pass seven, bounded inspection found existing alpha.7 publications in the
+local Tracebox workspace. Tracker already supports the local-only
+`-PtraceboxLocalRepository` validation seam; it is forbidden in CI. All ten AARs
+and ten module files match the existing reviewed dependency-verification hashes.
+The ten POMs match those hashes after restoring LF from their local CRLF checkout.
+An isolated mirror under `build/verification-20261010/tracebox-alpha7-reviewed`
+contains only the 30 exact reviewed artifact bytes; any mismatch was rejected
+before resolution. No dependency pin, production repository, verification metadata
+or SDK source is changed. Its inventory SHA-256 is
+`e9ca95f4ac57f3f1e16f57366dcab2956f4e2a645ca3827321bd883f190dc79c`.
+
+The preserved source archive identifies tagged commit
+`b49e8fda94e0bd65859eb080cacd624d9b72a7f5` (`v0.1.0-alpha.7`), matching local
+read-only Git metadata and version declarations. Archive SHA-256 is
+`ba43c819f6bad859bc7c8bbdfc8ab6236eb2b0122f1dc5694df54d2d48aefbe5`.
+The existing local seam can unblock the next host batch without the pending
+GitHub authorization. Actual authenticated GitHub package consumption and a clean
+CI checkout remain separate evidence; this local mirror does not prove them.
 
 Dependency insight itself passed (32s), resolving Tracker host-test Compose UI to
 1.11.4 under BOM 2026.06.01. Its retained log SHA-256 is
@@ -172,8 +200,9 @@ SARIF SHA-256 is
 
 - Rerun the repaired storage, released import, file-backed, UI and lint gates on
   one final committed input.
-- Obtain package access and complete app compilation/Hilt, schema drift and the
-  repository `ciUnitTest` and `ciCheck` aggregates.
+- Use the exact reviewed local artifacts to rerun app compilation/Hilt, schema
+  drift and the repository `ciUnitTest` and `ciCheck` aggregates. GitHub package
+  access remains a separate clean-CI check.
 - Repair the outstanding full quality gate failures.
 - Execute the app's three released-upgrade coordinator cases, currently blocked
   by its dependency graph. Released Points and observation-import host fixtures

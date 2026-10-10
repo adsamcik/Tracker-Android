@@ -275,12 +275,40 @@ invented zero. The measured-history Retry fixture keeps its real Pager and sourc
 reveals the Retry button, waits for host idle, and retains its bounded second-load,
 healthy sibling and eventual Retry-absence assertions. No layout, production
 pager, duration or source acceptance rule is changed. The separate date-picker
-day-selector failure remains under investigation.
+day-selector failure is addressed by the test-only selector repair below.
 
 The sixth batch's 774 Export tests have one failure and one existing symlink
 assumption skip. Preferences has one failure among 492 tests; Statistics has eight
 among 580. Export release lint passes. This record does not convert these failures
 into passing evidence; the repaired slice requires the next committed rerun.
+
+The focused seventh batch passed all 81 selected tests: authoritative preferences
+18, Statistics screen 36, measured History 20 and radio codec 7. It used frozen
+input `d30badadcb95ee71515fc8603a78318c064b0ce8`, exit 0, 2m9s, 262 tasks.
+This is subset evidence; it does not replace the complete affected suites or the
+repository gates. The previous date-picker failure was outside that run.
+
+The pinned Material3 1.4.0 AAR exposes full formatted dates on each clickable day
+surface, while clearing the numeric child text's semantics. The date-picker test
+now selects the actual full-date semantics for June 17 and 18 using the default
+formatter and its current configuration locale. Its actual calendar clicks,
+confirmation, local-range values and zero-clear assertion remain. No dialog
+layout, screen-size qualifier or production date calculation is changed. This
+selector repair still needs its executed result.
+
+## Existing exact-version dependency mirror
+
+Tracker's existing `traceboxLocalRepository` property is a local validation seam
+restricted to `io.github.tracebox` and forbidden in CI. The local SDK workspace
+contains all 30 reviewed alpha.7 AAR/module/POM artifacts. The isolated validation
+mirror rejects checksum mismatches and restores only POM CRLF bytes to LF, after
+which each file equals its already checked-in reviewed SHA-256. It introduces no
+alpha.8 substitution, dependency change, repository policy, verification weakening
+or SDK edit. The source archive and local tag agree on alpha.7 commit
+`b49e8fda94e0bd65859eb080cacd624d9b72a7f5`.
+
+This supplies a legitimate input for the next local host batch. It does not prove
+authenticated GitHub package consumption or satisfy a clean external CI run.
 
 ## Limits
 

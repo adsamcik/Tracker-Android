@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.statistics.ui.compose
 
 import android.R as AndroidR
+import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.test.assertIsDisplayed
@@ -102,6 +104,7 @@ class StatsDateRangeDialogComposeTest {
 	}
 
 	@Test
+	@OptIn(ExperimentalMaterial3Api::class)
 	fun `choosing calendar dates after All time confirms the chosen range`() {
 		val zone = useZone("Europe/Prague")
 		val start = LocalDate.of(2026, 6, 15).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -110,8 +113,18 @@ class StatsDateRangeDialogComposeTest {
 		var cleared = 0
 		showRange(start, end, { first, last -> confirmed = first to last }, { cleared++ })
 		composeTestRule.onNode(hasText(allTimeText()) and hasClickAction()).performScrollTo().performClick()
-		composeTestRule.onAllNodesWithText("17").onFirst().performClick()
-		composeTestRule.onAllNodesWithText("18").onFirst().performClick()
+		val pickerLocale = RuntimeEnvironment.getApplication().resources.configuration.locales[0]
+		val dateFormatter = DatePickerDefaults.dateFormatter()
+		val firstDayLabel = requireNotNull(dateFormatter.formatDate(
+			millisAtUtcStartOfDay(2026, 6, 17), pickerLocale, forContentDescription = true,
+		))
+		val lastDayLabel = requireNotNull(dateFormatter.formatDate(
+			millisAtUtcStartOfDay(2026, 6, 18), pickerLocale, forContentDescription = true,
+		))
+		composeTestRule.onNode(hasText(firstDayLabel, substring = true) and hasClickAction())
+			.performScrollTo().performClick()
+		composeTestRule.onNode(hasText(lastDayLabel, substring = true) and hasClickAction())
+			.performScrollTo().performClick()
 		composeTestRule.onNodeWithText(okText()).performClick()
 		assertEquals(0, cleared)
 		assertEquals(
