@@ -98,7 +98,6 @@ class TrackerServiceLaunchArchitectureTest {
 			"feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt",
 			"feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt",
 			"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/shortcut/ShortcutActivity.kt",
-			"app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetActions.kt",
 		)
 		entryPoints.forEach { relativePath ->
 			val source = projectRoot.resolve(relativePath).readText()
@@ -115,10 +114,9 @@ class TrackerServiceLaunchArchitectureTest {
 			source shouldContain "ManualTrackingStartRepairNavigation"
 			source shouldContain ".openLocationServicesSettings(context)"
 		}
-		entryPoints.takeLast(2).forEach { relativePath ->
-			projectRoot.resolve(relativePath).readText() shouldContain
-				"ManualTrackingStartRepairNavigation.createDashboardIntent("
-		}
+		projectRoot.resolve(
+			"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/shortcut/ShortcutActivity.kt",
+		).readText() shouldContain "ManualTrackingStartRepairNavigation.createDashboardIntent("
 		projectRoot.resolve(entryPoints.first()).readText() shouldContain
 			"ManualTrackingStartRepairNavigation.consumeDashboardStartContinuation(intent)"
 		val navigation = projectRoot.resolve(

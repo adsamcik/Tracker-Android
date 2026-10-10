@@ -3,6 +3,7 @@ package com.adsamcik.tracker.app.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import androidx.work.WorkManager
 import com.adsamcik.tracker.shared.base.extension.appVersion
 import com.adsamcik.tracker.shared.preferences.MutablePreferences
 import com.adsamcik.tracker.shared.preferences.Preferences
@@ -68,9 +69,12 @@ class OnAppUpdateReceiverTest {
 		private val receiver = spyk(OnAppUpdateReceiver())
 		private val recoveryScheduler = mockk<BootTrackingRecoveryScheduler>(relaxed = true)
 		private val entryPoint = mockk<OnAppUpdateReceiver.AppUpdateEntryPoint>()
+		private val workManager = mockk<WorkManager>(relaxed = true)
 
 		@BeforeEach
 		fun setUp() {
+			mockkStatic(WorkManager::class)
+			every { WorkManager.getInstance(context) } returns workManager
 			every { receiver.goAsync() } returns pendingResult
 			every { context.getString(any<Int>()) } returns "key_last_app_version"
 			every { context.applicationContext } returns context
@@ -138,6 +142,15 @@ class OnAppUpdateReceiverTest {
 			receiver.onReceive(context, updateIntent())
 
 			verify(timeout = 2000) { pendingResult.finish() }
+		}
+
+		@Test
+		fun `upgrade cancels removed launcher widget updates without cancelling other work`() {
+			coEvery { anyConstructed<Preferences>().fetchLong(any(), any()) } returns 400L
+			receiver.onReceive(context, updateIntent())
+			verify(timeout = 2000, exactly = 1) { workManager.cancelUniqueWork("tracker_widget_update") }
+			verify(timeout = 2000) { pendingResult.finish() }
+			verify(exactly = 0) { workManager.cancelAllWork() }
 		}
 
 		@Test

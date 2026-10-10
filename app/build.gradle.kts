@@ -214,10 +214,6 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
     implementation(libs.hilt.work)
 
-    // Glance (App Widgets)
-    implementation(libs.androidx.glance.appwidget)
-    implementation(libs.androidx.glance.material3)
-
     // App Startup
     implementation(libs.androidx.startup.runtime)
 

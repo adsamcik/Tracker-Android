@@ -3,6 +3,7 @@ package com.adsamcik.tracker.app.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import androidx.work.WorkManager
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.extension.appVersion
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
@@ -49,6 +50,8 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
 	}
 	
 	private suspend fun handleAppUpdate(context: Context) {
+		// Launcher widgets have been removed; also stop work left by an earlier local build.
+		WorkManager.getInstance(context).cancelUniqueWork("tracker_widget_update")
 		val prefs = Preferences(context)
 		val keyLastVersion = context.getString(R.string.key_last_app_version)
 		val lastVersion = prefs.fetchLong(keyLastVersion, 0L)
