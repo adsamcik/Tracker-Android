@@ -151,6 +151,26 @@ results must come from a subsequent run:
 The generated Room schema is unchanged by these mapper/query repairs. All these
 source acceptances still require executed results from the subsequent rerun.
 
+## Retention boundary repair from rerun four
+
+The released-data retention fixture reached its real assertion after the missing
+index-array fixture repair. Its cutoff had equalled the imported session end,
+although the existing segment deletion rule is strictly before the cutoff. The
+test-only cutoff is advanced by one millisecond; all preservation and deletion
+assertions remain.
+
+Tracing that failure also found a production mismatch: linked annotation overrides
+expired at or before the cutoff, while their recording segment survived at the
+exact cutoff. The hidden override then hid the fallback session row. The DAO now
+uses the existing strict segment cutoff for linked overrides. Free retrospective
+annotations retain their existing rule. A real Room regression exercises the
+retention transaction and checks visible boundary metadata and deletion of the
+earlier sibling. The independent reviewer accepted production SHA-256
+`24c44a06e5ee782b8ab980a67d1f1395c0bfb2ed663073e84d9913847ed36777`
+and test SHA-256
+`de61443b40d3440d704c64fdf02b442ecd781572e8ab4db59e0769efe473d904`.
+Executed results for this repair still require the next rerun.
+
 ## Limits
 
 The new app fixture checks upgrade orchestration with Location data; the existing

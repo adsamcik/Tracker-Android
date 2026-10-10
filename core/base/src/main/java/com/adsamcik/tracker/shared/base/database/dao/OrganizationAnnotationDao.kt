@@ -82,6 +82,7 @@ interface OrganizationAnnotationDao {
 	/** Called only inside the existing approved trip-retention transaction. */
 	@Query("DELETE FROM organization_annotation WHERE recording_adapter_key IS NULL AND end_time_ms <= :cutoff")
 	suspend fun purgeFreeBefore(cutoff: Long)
+	/** Linked metadata follows the recording segment's strictly-before retention cutoff. */
 	@Query("""
 		UPDATE organization_annotation SET hidden = 1, name = NULL, activity_label_id = NULL,
 			start_time_ms = NULL, end_time_ms = NULL, display_zone_id = NULL,
@@ -89,7 +90,7 @@ interface OrganizationAnnotationDao {
 			revision = revision + 1, updated_at_ms = :now
 		WHERE hidden = 0 AND recording_adapter_key IS NOT NULL AND COALESCE(end_time_ms,
 			(SELECT cutoff_at_ms FROM logical_tracking_session WHERE 'logical:' || logical_tracking_id = recording_adapter_key),
-			(SELECT end_time_ms FROM session_segment WHERE 'segment:' || id = recording_adapter_key)) <= :cutoff
+			(SELECT end_time_ms FROM session_segment WHERE 'segment:' || id = recording_adapter_key)) < :cutoff
 	""")
 	suspend fun suppressExpiredOverrides(cutoff: Long, now: Long)
 	@Query("""

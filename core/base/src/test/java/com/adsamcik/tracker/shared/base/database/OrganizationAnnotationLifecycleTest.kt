@@ -6,7 +6,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.model.SegmentSource
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -37,6 +39,42 @@ class OrganizationAnnotationLifecycleTest {
 		dao.byId("expired") shouldBe null
 		dao.byId("crossing")?.startTimeMs shouldBe 100L
 		dao.byId("crossing")?.endTimeMs shouldBe 300L
+	}
+	@Test fun `linked retention keeps exact-boundary metadata visible and removes earlier recordings`() = runTest {
+		val dao = db.organizationAnnotationDao()
+		val segments = db.sessionSegmentDao()
+		val segment = SessionSegment(
+			startTimeMs = 100L, endTimeMs = 200L, distanceM = 0f, steps = null,
+			primaryActivity = null, activityConfidence = null, sampleCount = 0,
+			source = SegmentSource.USER_CREATED, inferenceVersion = null, createdAt = 200L,
+		)
+		val boundaryId = segments.insert(segment)
+		val expiredId = segments.insert(segment.copy(endTimeMs = 199L))
+		val boundary = annotation("boundary", 100L, 200L).copy(
+			recordingAdapterKey = "segment:$boundaryId",
+			startTimeMs = null, endTimeMs = null, activityLabelId = -2L,
+		)
+		dao.insert(boundary)
+		dao.insert(boundary.copy(localId = "expired-linked", recordingAdapterKey = "segment:$expiredId"))
+
+		db.withTransaction {
+			dao.purgeFreeBefore(200L)
+			dao.suppressExpiredOverrides(200L, 1_000L)
+			segments.deleteOlderThan(200L)
+			dao.pruneUnusedSuppression()
+		}
+
+		segments.getById(boundaryId) shouldBe segment.copy(id = boundaryId)
+		dao.byId("boundary") shouldBe boundary
+		segments.getById(expiredId) shouldBe null
+		dao.byId("expired-linked") shouldBe null
+		val visible = dao.visible(null, null, limit = 10).single()
+		visible.adapterKey shouldBe "segment:$boundaryId"
+		visible.name shouldBe boundary.name
+		visible.activityLabelId shouldBe -2L
+		visible.displayZoneId shouldBe "UTC"
+		visible.fromMs shouldBe 100L
+		visible.toMs shouldBe 200L
 	}
 	@Test fun `organization selection distinguishes finished sessions from failed and active ones`() = runTest {
 		val dao = db.organizationAnnotationDao()
