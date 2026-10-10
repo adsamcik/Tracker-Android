@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -123,17 +124,11 @@ class StatsPresenterViewModel @Inject constructor(
 	private val _heatmapData = MutableStateFlow<Map<LocalDate, Float>>(emptyMap())
 	val heatmapData: StateFlow<Map<LocalDate, Float>> = _heatmapData.asStateFlow()
 
-	private val todayEpochDay = MutableStateFlow(currentLocalDate().toEpochDay())
+	private val currentStepsWeek = MutableStateFlow(currentStepsWeekRequest())
 	@OptIn(ExperimentalCoroutinesApi::class)
-	val weeklyStepsSummary: StateFlow<StepsDailyDisplay> = todayEpochDay
-		.flatMapLatest { currentTodayEpochDay ->
-			stepsNumericSummaryRepository.observeDisplay(
-				StepsNumericSummaryRequest(
-					firstEpochDay = currentTodayEpochDay - WEEKLY_SUMMARY_DAY_COUNT + 1,
-					lastEpochDayInclusive = currentTodayEpochDay,
-					fallbackCalendarZoneId = ZoneId.systemDefault().id,
-				),
-			).onStart {
+	val weeklyStepsSummary: StateFlow<StepsDailyDisplay> = currentStepsWeek
+		.flatMapLatest { request ->
+			stepsNumericSummaryRepository.observeDisplay(request).onStart {
 				emit(StepsDailyDisplay.Materializing)
 			}
 		}
@@ -154,11 +149,12 @@ class StatsPresenterViewModel @Inject constructor(
 
 	private fun observeStructuralSummaryWindow() {
 		viewModelScope.launch {
-			todayEpochDay.flatMapLatest { currentTodayEpochDay ->
-				val fromDay = currentTodayEpochDay - HEATMAP_DAYS + 1
-				dailySummaryRepository.observeBetween(fromDay, currentTodayEpochDay)
-					.map { summaries -> currentTodayEpochDay to summaries }
-			}.collect { (currentTodayEpochDay, summaries) ->
+			currentStepsWeek.map { it.lastEpochDayInclusive }.distinctUntilChanged()
+				.flatMapLatest { currentTodayEpochDay ->
+					val fromDay = currentTodayEpochDay - HEATMAP_DAYS + 1
+					dailySummaryRepository.observeBetween(fromDay, currentTodayEpochDay)
+						.map { summaries -> currentTodayEpochDay to summaries }
+				}.collect { (currentTodayEpochDay, summaries) ->
 				_weeklyBars.value = buildWeeklyBars(
 					summaries = summaries,
 					todayEpochDay = currentTodayEpochDay,
@@ -168,32 +164,40 @@ class StatsPresenterViewModel @Inject constructor(
 		}
 	}
 
-	private fun observeDayRollovers() = viewModelScope.launch(dispatchers.default) {
+	private fun observeDayRollovers() = viewModelScope.launch {
 		while (true) {
 			val nowMs = clock.currentTimeMillis()
-			val currentDate = localDateAt(nowMs)
+			val zone = ZoneId.systemDefault()
+			val currentDate = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
 			val nextDayStartMs = currentDate.plusDays(1)
-				.atStartOfDay(ZoneId.systemDefault())
+				.atStartOfDay(zone)
 				.toInstant()
 				.toEpochMilli()
 			delay((nextDayStartMs - nowMs).coerceAtLeast(1L))
-			refreshToday()
+			currentStepsWeek.value = currentStepsWeekRequest()
 		}
 	}
 
 	internal fun refreshToday() {
-		todayEpochDay.value = currentLocalDate().toEpochDay()
+		currentStepsWeek.value = currentStepsWeekRequest()
+		// A resumed screen may have a different clock or zone. Recalculate its next midnight.
+		dayRolloverJob.cancel()
+		dayRolloverJob = observeDayRollovers()
 	}
 
 	internal fun cancelDayRolloverObservation() {
 		dayRolloverJob.cancel()
 	}
 
-	private fun currentLocalDate(): LocalDate = localDateAt(clock.currentTimeMillis())
-
-	private fun localDateAt(epochMs: Long): LocalDate = Instant.ofEpochMilli(epochMs)
-		.atZone(ZoneId.systemDefault())
-		.toLocalDate()
+	private fun currentStepsWeekRequest(): StepsNumericSummaryRequest {
+		val zone = ZoneId.systemDefault()
+		val today = Instant.ofEpochMilli(clock.currentTimeMillis()).atZone(zone).toLocalDate().toEpochDay()
+		return StepsNumericSummaryRequest(
+			firstEpochDay = today - WEEKLY_SUMMARY_DAY_COUNT + 1,
+			lastEpochDayInclusive = today,
+			fallbackCalendarZoneId = zone.id,
+		)
+	}
 
 	private fun buildWeeklyBars(
 		summaries: List<com.adsamcik.tracker.stats.api.repository.DailySummary>,

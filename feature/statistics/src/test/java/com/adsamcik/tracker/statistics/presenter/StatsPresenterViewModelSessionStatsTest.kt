@@ -61,6 +61,8 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.Instant
+import java.util.TimeZone
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class StatsPresenterViewModelSessionStatsTest {
@@ -379,6 +381,66 @@ class StatsPresenterViewModelSessionStatsTest {
 		viewModel.weeklyStepsSummary.value shouldBe StepsDailyDisplay.Materializing
 		viewModel.cancelDayRolloverObservation()
 		runCurrent()
+	}
+
+	@Test
+	fun `resume refreshes a changed zone even when the calendar date is unchanged`() = runTest {
+		val originalZone = TimeZone.getDefault()
+		TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+		val clock = FixedClock(Instant.parse("2026-01-01T20:00:00Z").toEpochMilli())
+		val viewModel = createViewModel(clock = clock, dispatchers = TestDispatchersProvider(testDispatcher))
+		val collector = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+			viewModel.weeklyStepsSummary.collect()
+		}
+		try {
+			runCurrent()
+			val original = stepsNumericSummaryRepository.displayRequests.single()
+			TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+			viewModel.refreshToday()
+			runCurrent()
+			val refreshed = stepsNumericSummaryRepository.displayRequests.last()
+			refreshed.lastEpochDayInclusive shouldBe original.lastEpochDayInclusive
+			refreshed.fallbackCalendarZoneId shouldBe "America/New_York"
+			stepsNumericSummaryRepository.cancelledRequests shouldBe listOf(original)
+			viewModel.refreshToday()
+			runCurrent()
+			stepsNumericSummaryRepository.displayRequests.size shouldBe 2
+		} finally {
+			collector.cancelAndJoin()
+			viewModel.cancelDayRolloverObservation()
+			TimeZone.setDefault(originalZone)
+		}
+	}
+
+	@Test
+	fun `resume refreshes the displayed day and schedules midnight in the new zone`() = runTest {
+		val originalZone = TimeZone.getDefault()
+		TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+		val clock = FixedClock(Instant.parse("2026-01-01T00:30:00Z").toEpochMilli())
+		val viewModel = createViewModel(clock = clock, dispatchers = TestDispatchersProvider(testDispatcher))
+		val collector = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+			viewModel.weeklyStepsSummary.collect()
+		}
+		try {
+			runCurrent()
+			TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+			viewModel.refreshToday()
+			runCurrent()
+			val previousDay = LocalDate.of(2025, 12, 31).toEpochDay()
+			stepsNumericSummaryRepository.displayRequests.last().lastEpochDayInclusive shouldBe previousDay
+			viewModel.weeklyBars.value.last().epochDay shouldBe previousDay
+			val untilLocalMidnightMs = 4L * 60L * 60L * 1000L + 30L * 60L * 1000L
+			clock.advance(untilLocalMidnightMs)
+			advanceTimeBy(untilLocalMidnightMs)
+			runCurrent()
+			stepsNumericSummaryRepository.displayRequests.last().lastEpochDayInclusive shouldBe previousDay + 1L
+			viewModel.weeklyBars.value.last().epochDay shouldBe previousDay + 1L
+			stepsNumericSummaryRepository.displayRequests.size shouldBe 3
+		} finally {
+			collector.cancelAndJoin()
+			viewModel.cancelDayRolloverObservation()
+			TimeZone.setDefault(originalZone)
+		}
 	}
 
 	private fun createViewModel(
