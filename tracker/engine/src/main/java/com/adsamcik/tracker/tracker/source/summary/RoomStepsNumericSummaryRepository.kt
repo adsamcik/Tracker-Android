@@ -82,7 +82,7 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 		withContext(ioDispatcher) {
 			try {
 				database.useReaderConnection { connection ->
-					connection.deferredTransaction { readDisplayInCurrentTransaction(request) }
+					connection.deferredTransaction<StepsDailyDisplay> { readDisplayInCurrentTransaction(request) }
 				}
 			} catch (cancellation: CancellationException) {
 				currentCoroutineContext().ensureActive()

@@ -1009,7 +1009,8 @@ internal class SourceWriterTransitionEngine(
 		) return false
 		// Later ordinary retention may tighten the floor; it cannot weaken the original clear.
 		val clearFloor = receipt.retainedFromMs
-		if (clearFloor != null && (evidence.retainedFromMs == null || evidence.retainedFromMs < clearFloor)) {
+		val retainedFromMs = evidence.retainedFromMs
+		if (clearFloor != null && (retainedFromMs == null || retainedFromMs < clearFloor)) {
 			return false
 		}
 		if (database.sourceProjectionStateDao().productLane(
@@ -1047,11 +1048,12 @@ internal class SourceWriterTransitionEngine(
 		predecessor: SourceProductProjectionLaneEntity,
 		owner: SourceDestinationOwnerEntity?,
 	) {
+		val terminalAtMs = predecessor.terminalAtMs
 		if (!predecessor.matchesSourceBinding(spec.binding) ||
 			predecessor.status != SourceProductProjectionLaneEntity.STATUS_RETIRED ||
 			predecessor.retentionRequired || predecessor.activationOrdinal <= 0L ||
-			predecessor.activatedRolloutRevision <= 0L || predecessor.terminalAtMs == null ||
-			predecessor.terminalAtMs < 0L ||
+			predecessor.activatedRolloutRevision <= 0L || terminalAtMs == null ||
+			terminalAtMs < 0L ||
 			predecessor.terminalDisposition != SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN
 		) block(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
 		val cutoff = predecessor.captureAdmissionCutoffOrdinal

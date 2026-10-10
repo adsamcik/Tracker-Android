@@ -246,9 +246,10 @@ internal class SavedTripDistanceAccumulator(state: SavedTripDistanceState = Save
 	private fun continuous(old: LocationPathSampleRow, current: LocationPathSampleRow): Boolean {
 		val before = old.sample
 		val after = current.sample
+		val beforeSequence = old.continuitySequence
 		return if (old.continuityId != null || current.continuityId != null) {
-			old.continuityId == current.continuityId && old.continuitySequence != null &&
-				old.continuitySequence != Long.MAX_VALUE && current.continuitySequence == old.continuitySequence + 1 &&
+			old.continuityId == current.continuityId && beforeSequence != null &&
+				beforeSequence != Long.MAX_VALUE && current.continuitySequence == beforeSequence + 1 &&
 				before.clockDomainId == after.clockDomainId && before.elapsedRealtimeNanos > 0L &&
 				after.elapsedRealtimeNanos > before.elapsedRealtimeNanos &&
 				after.elapsedRealtimeNanos - before.elapsedRealtimeNanos <= MAX_GAP_NANOS

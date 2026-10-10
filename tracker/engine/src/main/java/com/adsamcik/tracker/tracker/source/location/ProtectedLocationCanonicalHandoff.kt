@@ -2815,7 +2815,7 @@ private sealed interface ProtectedLocationCandidateEffect {
 	data class AuthorityChanged(val reason: String) : ProtectedLocationCandidateEffect
 }
 
-private data class ProtectedLocationQualifiedCandidate(
+internal data class ProtectedLocationQualifiedCandidate(
 	val command: LocationCapturedFactCommand,
 	val acquisitionMetadata: LocationWalAcquisitionMetadata,
 )

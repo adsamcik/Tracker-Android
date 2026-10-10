@@ -72,6 +72,7 @@ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomaticStartActi
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomaticStartServiceValidation
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainSignal
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
+import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.activity.ActivityCapturedFactProjectionLane
 import com.adsamcik.tracker.tracker.source.cell.CellSessionFactProjectionLane

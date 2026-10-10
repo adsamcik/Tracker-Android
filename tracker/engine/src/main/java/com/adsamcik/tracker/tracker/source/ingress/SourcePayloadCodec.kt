@@ -5,6 +5,7 @@ import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.CellObservationEvidence
 import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
+import com.adsamcik.tracker.tracker.source.cell.toCellWalPayload
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION
@@ -25,10 +26,8 @@ import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.ACTIVITY_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.ActivityWalPayload
 import com.adsamcik.tracker.shared.base.database.data.ActivityWalPayloadCodec
-import com.adsamcik.tracker.shared.base.database.data.CellWalPayload
 import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadCodec
 import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadDecodeResult
-import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadObservation
 import com.adsamcik.tracker.shared.base.database.data.PRESSURE_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.shared.base.database.data.PressureWalClosureKind
 import com.adsamcik.tracker.shared.base.database.data.PressureWalPayload
@@ -71,20 +70,7 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 			payloadVersion in 5..CELL_WAL_PAYLOAD_VERSION
 		) {
 			val encoded = CellWalPayloadCodec.encode(
-				CellWalPayload(
-					subscriptionId = payload.subscriptionId,
-					observations = payload.observations.map { observation ->
-						CellWalPayloadObservation(
-							identifierToken = observation.identifierToken,
-							radioType = observation.radioType,
-							registered = observation.registered,
-							signalLevelDbm = observation.signalLevelDbm,
-							providerTimestampNanos = observation.providerTimestampNanos,
-						)
-					},
-					refreshOutcomeCode = payload.refreshOutcome.ordinal,
-					observationZoneId = requireNotNull(payload.observationZoneId),
-				),
+				payload.toCellWalPayload(),
 				payloadVersion,
 			)
 			return EncodedSourcePayload(encoded.toByteArray(), encoded.checksum)

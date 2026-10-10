@@ -247,7 +247,7 @@ internal class PressureHistoryPageReader @Inject constructor(
 		if (this is ImportedPressureHistoryEvaluation.Unverifiable) {
 			return toSharedHistoryEligibility(emptyMap())
 		}
-		val keys = when (this) {
+		val keys: Sequence<String> = when (this) {
 			is ImportedPressureHistoryEvaluation.Readable -> sequence {
 				yield(latest.entry.identity.value)
 				for (run in latest.entry.runs) {

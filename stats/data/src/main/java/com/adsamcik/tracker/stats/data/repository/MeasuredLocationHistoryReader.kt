@@ -14,7 +14,6 @@ import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
 import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
 import com.adsamcik.tracker.stats.api.repository.HistoryRange
 import com.adsamcik.tracker.stats.api.repository.HistorySource
-import com.adsamcik.tracker.stats.api.repository.RadioContextScope
 import com.adsamcik.tracker.stats.api.repository.RadioLocationContextGap
 import com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow
 import kotlinx.coroutines.CancellationException
@@ -41,8 +40,8 @@ internal class MeasuredLocationHistoryReader @Inject constructor(
         val seek = if (after == null) "" else """AND (startTimeMs < ? OR (startTimeMs = ? AND
             (sortTag > ? OR (sortTag = ? AND identity > ?))))"""
         val bindings = mutableListOf<Any?>(range.fromInclusiveMs, range.toExclusiveMs)
-        if (after != null) bindings += listOf(after.startTimeMs, after.startTimeMs,
-            after.originTag, after.originTag, after.stableId)
+        if (after != null) bindings.addAll(listOf(after.startTimeMs, after.startTimeMs,
+            after.originTag, after.originTag, after.stableId))
         val query = SimpleSQLiteQuery("""SELECT kind, origin, purpose, identity, startTimeMs, endTimeMs,
             rowId, writerId, writerVersion, factId, factRevision, itemIndex, NULL AS physicalEventId, NULL AS physicalIdentity FROM (
             SELECT 'location' AS kind, ${LocationReadScope.HISTORY_ORIGIN} AS origin,

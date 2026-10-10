@@ -26,8 +26,8 @@ internal class MeasuredLegacySensorHistoryReader(private val database: AppDataba
         val seek = if (after == null) "" else """AND (startTimeMs < ? OR (startTimeMs = ? AND
             (? > ? OR (? = ? AND identity > ?))))"""
         val args = mutableListOf<Any?>(range.fromInclusiveMs, range.toExclusiveMs)
-        if (after != null) args += listOf(after.startTimeMs, after.startTimeMs, tag, after.originTag,
-            tag, after.originTag, after.stableId)
+        if (after != null) args.addAll(listOf(after.startTimeMs, after.startTimeMs, tag, after.originTag,
+            tag, after.originTag, after.stableId))
         return database.trackingHistoryReadDao().measuredHistoryCandidates(SimpleSQLiteQuery("""
             SELECT kind, origin, purpose, identity, startTimeMs, endTimeMs, rowId,
                 writerId, writerVersion, factId, factRevision, itemIndex, NULL AS physicalEventId, NULL AS physicalIdentity FROM (

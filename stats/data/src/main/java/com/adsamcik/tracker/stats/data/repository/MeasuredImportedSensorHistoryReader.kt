@@ -55,8 +55,8 @@ internal class MeasuredImportedSensorHistoryReader(private val database: AppData
                 (? > ? OR (? = ? AND identity > ?))))
         """.trimIndent()
         val arguments = mutableListOf<Any>(range.toExclusiveMs, range.fromInclusiveMs, range.fromInclusiveMs)
-        if (after != null) arguments += listOf(after.startTimeMs, after.startTimeMs,
-            tag, after.originTag, tag, after.originTag, after.stableId)
+        if (after != null) arguments.addAll(listOf(after.startTimeMs, after.startTimeMs,
+            tag, after.originTag, tag, after.originTag, after.stableId))
         return database.trackingHistoryReadDao().measuredHistoryCandidates(SimpleSQLiteQuery("""
             SELECT * FROM ($leaf)
             WHERE startTimeMs < ? AND $overlap

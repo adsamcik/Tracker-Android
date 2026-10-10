@@ -180,10 +180,11 @@ internal class ProtectedLocationWriterSetupCoordinator @Inject constructor(
 		if (evidence.collectedDataEpoch == 0L) return
 		val clear = database.collectedDataDeletionOperationDao().completedFullDeletionAfter(evidence.collectedDataEpoch - 1L)
 			?: boundary.refuse(SourceWriterTransitionBlocker.FULL_DELETION_PROOF_UNAVAILABLE)
+		val retainedFromMs = evidence.retainedFromMs
 		if (clear.targetCollectedDataEpoch != evidence.collectedDataEpoch ||
 			clear.phase != CollectedDataDeletionOperationEntity.PHASE_WRITERS_REARMED ||
 			clear.retentionWorkExecutionId != null || clear.retentionDestructivePlan != null ||
-			clear.retainedFromMs?.let { evidence.retainedFromMs == null || evidence.retainedFromMs < it } == true) {
+			clear.retainedFromMs?.let { retainedFromMs == null || retainedFromMs < it } == true) {
 			boundary.refuse(SourceWriterTransitionBlocker.FULL_DELETION_PROOF_UNAVAILABLE)
 		}
 	}

@@ -95,7 +95,7 @@ internal object UnifiedHistoryCandidateQueries {
                 (endTimeMs <= startTimeMs AND startTimeMs >= ?))
             ORDER BY startTimeMs DESC, identity ASC LIMIT 101""",
             (logicalIds.map { "logical:$it" } + listOf(range.toExclusiveMs, range.fromInclusiveMs,
-                range.fromInclusiveMs)).toTypedArray())
+                range.fromInclusiveMs)).toTypedArray<Any>())
     }
 
     fun organization(range: HistoryRange, after: HistoryPosition?) = page("""
@@ -125,7 +125,7 @@ internal object UnifiedHistoryCandidateQueries {
             FROM ($relation) WHERE zoneId = ? AND epochDay BETWEEN ? AND ?
                 AND (? IS NULL OR epochDay <= ?) GROUP BY epochDay, zoneId
             ORDER BY epochDay DESC LIMIT 101""",
-            arrayOf(zoneId, firstEpochDay, lastEpochDay, afterEpochDay, afterEpochDay))
+            arrayOf<Any?>(zoneId, firstEpochDay, lastEpochDay, afterEpochDay, afterEpochDay))
     }
 
     private fun backgroundRelation(source: String, origins: Set<HistoryOrigin>): String {

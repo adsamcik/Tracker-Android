@@ -1,6 +1,10 @@
 package com.adsamcik.tracker.tracker.source.ingress
 
 import com.adsamcik.tracker.shared.base.database.data.CELL_WAL_PAYLOAD_VERSION
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadCodec
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadDecodeResult
+import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadObservation
+import com.adsamcik.tracker.tracker.source.cell.toCellWalPayload
 import com.adsamcik.tracker.shared.base.database.data.WIFI_WAL_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
@@ -29,6 +33,35 @@ import org.junit.Test
 
 class SourcePayloadCodecTest {
 	private val codec = DefaultSourcePayloadCodec()
+
+	@Test
+	fun `shared Cell mapping preserves every observed field and the canonical bytes`() {
+		val payload = CellSnapshotPayload(
+			subscriptionId = 2,
+			observations = listOf(
+				CellObservationEvidence("first", "LTE", true, -91, 123L),
+				CellObservationEvidence("second", "NR", false, null, 456L),
+			),
+			refreshOutcome = CellRefreshOutcome.CALLBACK,
+			observationZoneId = "Europe/Prague",
+		)
+		val mapped = payload.toCellWalPayload()
+		mapped.subscriptionId shouldBe 2
+		mapped.observations shouldBe listOf(
+			CellWalPayloadObservation("first", "LTE", true, -91, 123L),
+			CellWalPayloadObservation("second", "NR", false, null, 456L),
+		)
+		mapped.refreshOutcomeCode shouldBe CellRefreshOutcome.CALLBACK.ordinal
+		mapped.observationZoneId shouldBe "Europe/Prague"
+		listOf(5, CELL_WAL_PAYLOAD_VERSION).forEach { version ->
+			val source = codec.encode(payload, version)
+			val canonical = CellWalPayloadCodec.encode(mapped, version)
+			source.bytes.contentEquals(canonical.toByteArray()) shouldBe true
+			source.checksum shouldBe canonical.checksum
+			CellWalPayloadCodec.decodeCanonical(version, source.bytes) shouldBe
+				CellWalPayloadDecodeResult.Decoded(mapped)
+		}
+	}
 
 
     @Test

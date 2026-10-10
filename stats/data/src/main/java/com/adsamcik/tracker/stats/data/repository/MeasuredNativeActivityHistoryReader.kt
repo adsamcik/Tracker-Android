@@ -27,7 +27,7 @@ internal class MeasuredNativeActivityHistoryReader(
         val seek = if (after == null) "" else """AND (startTimeMs < ? OR (startTimeMs = ? AND
             ('local:activity' > ? OR ('local:activity' = ? AND identity > ?))))"""
         val args = mutableListOf<Any?>(range.toExclusiveMs, range.fromInclusiveMs, range.fromInclusiveMs)
-        if (after != null) args += listOf(after.startTimeMs, after.startTimeMs, after.originTag, after.originTag, after.stableId)
+        if (after != null) args.addAll(listOf(after.startTimeMs, after.startTimeMs, after.originTag, after.originTag, after.stableId))
         return database.trackingHistoryReadDao().measuredHistoryCandidates(SimpleSQLiteQuery("""
             SELECT kind, origin, purpose, identity, startTimeMs, endTimeMs, rowId,
                 writerId, writerVersion, factId, factRevision, itemIndex, NULL AS physicalEventId, NULL AS physicalIdentity FROM (

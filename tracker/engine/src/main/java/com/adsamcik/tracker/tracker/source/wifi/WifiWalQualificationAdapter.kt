@@ -944,6 +944,7 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 
 	private companion object {
 		const val PLAN_PAYLOAD_VERSION = 1
+		const val NANOS_PER_MILLISECOND = 1_000_000L
 		const val MAX_MANIFESTS_PER_RUN = 256
 		const val MAX_MANIFEST_SOURCE_ROWS = 4_096
 		const val MAX_EXPECTED_DELIVERY_UNITS = 1
@@ -993,6 +994,7 @@ private fun WifiWalCarrierFailure.toAdapterRejection(): WifiWalAdapterRejection 
 	WifiWalCarrierFailure.NON_CANONICAL_CHILD_ORDER,
 	WifiWalCarrierFailure.PROVIDER_TIMELINE_MISMATCH,
 	WifiWalCarrierFailure.CAPTURE_AUTHORITY_MISMATCH,
+	WifiWalCarrierFailure.CHILD_EVIDENCE_MISMATCH,
 	WifiWalCarrierFailure.FACT_LINKAGE_MISMATCH,
 	WifiWalCarrierFailure.FACT_SEMANTICS_MISMATCH,
 	WifiWalCarrierFailure.FACT_INTEGRITY_MISMATCH,

@@ -42,8 +42,8 @@ internal class MeasuredBackgroundStepsHistoryReader(private val database: AppDat
             AND (startTimeMs < ? OR (startTimeMs = ? AND
                 (lower(origin) || ':' || kind > ? OR (lower(origin) || ':' || kind = ? AND identity > ?))))
         """.trimIndent()
-        if (after != null) arguments += listOf(after.startTimeMs, after.startTimeMs,
-            after.originTag, after.originTag, after.stableId)
+        if (after != null) arguments.addAll(listOf(after.startTimeMs, after.startTimeMs,
+            after.originTag, after.originTag, after.stableId))
         val sql = """
             SELECT * FROM (${nativeFactsSql()} UNION ALL ${nativeGapsSql()}
                 UNION ALL ${importedSql(gaps = false)} UNION ALL ${importedSql(gaps = true)})
@@ -193,7 +193,7 @@ internal class MeasuredBackgroundStepsHistoryReader(private val database: AppDat
         val ids = keys.map { requireNotNull(it.factId) }.distinct()
         val arguments = mutableListOf<Any>().apply { addAll(ids) }
         val exact = keys.joinToString(" OR ") { key ->
-            arguments += listOf(requireNotNull(key.factId), key.startTimeMs, requireNotNull(key.endTimeMs))
+            arguments.addAll(listOf(requireNotNull(key.factId), key.startTimeMs, requireNotNull(key.endTimeMs)))
             "(gap_id = ? AND gap_start_time_ms = ? AND gap_end_time_ms = ?)"
         }
         return database.ambientStepsImportStateDao().selectedEffectiveGapIntervals(SimpleSQLiteQuery("""

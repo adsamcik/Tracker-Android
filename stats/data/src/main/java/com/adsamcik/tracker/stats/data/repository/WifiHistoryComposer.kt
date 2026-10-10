@@ -95,10 +95,11 @@ internal object WifiHistoryComposer {
 		val manifest = requireNotNull(manifests.singleOrNull { it.manifestRevision == fact.manifestRevision })
 		val lane = requireNotNull(snapshot.lanes.singleOrNull { isWifiLane(it) && it.bindingGeneration == fact.writerBindingGeneration })
 		val mode = when (manifest.sessionMode) { "MANUAL" -> MANUAL_CAPTURE_MASK; "AUTOMATIC" -> AUTOMATIC_CAPTURE_MASK; else -> 0L }
+		val captureCutoff = lane.captureAdmissionCutoffOrdinal
 		check(laneExecutionAuthority.owns(lane) && isValidLane(lane) && mode != 0L &&
 			lane.captureModeMask and mode == mode && lane.activatedRolloutRevision <= manifest.rolloutRevision &&
 			lane.activationOrdinal <= fact.sourceAdmissionOrdinal &&
-			(lane.captureAdmissionCutoffOrdinal == null || fact.sourceAdmissionOrdinal <= lane.captureAdmissionCutoffOrdinal))
+			(captureCutoff == null || fact.sourceAdmissionOrdinal <= captureCutoff))
 		val session = requireNotNull(snapshot.sessions[logicalId])
 		check(hasConsistentCompletion(session.state, session.completedAtMs) &&
 			session.lifecycleLeaseGeneration >= fact.lifecycleLeaseGeneration)

@@ -104,7 +104,11 @@ internal class UnifiedHistoryNativeReader @Inject constructor(
                 HistoryProblemReason.DEPENDENCY_OVERFLOW,
             )
             val page = pressure.selectLogicalBySegmentIdsInTransaction(ids)
-            if (page.hasDependencyOverflow) throw NativeHistorySourceUnavailable(
+            if (page.any { entry ->
+                entry.physicalMembers.any { member ->
+                    PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW in member.reasons
+                }
+            }) throw NativeHistorySourceUnavailable(
                 HistoryProblemReason.DEPENDENCY_OVERFLOW,
             )
             page.mapNotNull { entry ->
@@ -168,7 +172,9 @@ internal class UnifiedHistoryNativeReader @Inject constructor(
             if (candidate.temporalUncertain) problems.add(HistoryProblem(null, HistoryProblemReason.TIME_UNCERTAIN))
             val position = HistoryPosition(candidate.startTimeMs, "local", candidate.identity)
             val annotation = annotations[candidate.identity]
-            val narrowed = if (annotation?.startTimeMs != null && annotation.endTimeMs != null && rowMembers.isNotEmpty()) {
+            val annotationStart = annotation?.startTimeMs
+            val annotationEnd = annotation?.endTimeMs
+            val narrowed = if (annotationStart != null && annotationEnd != null && rowMembers.isNotEmpty()) {
                 val originalStart = rowMembers.minOf { it.segment.startTimeMs }
                 val originalEnd = rowMembers.maxOf { it.segment.endTimeMs }
                 val original = UnifiedHistoryRow(
@@ -177,7 +183,7 @@ internal class UnifiedHistoryNativeReader @Inject constructor(
                     sections = sections,
                 )
                 // Organization edits select retained evidence; they cannot clip or prorate a count.
-                selectOrganizationInterval(listOf(original), annotation.startTimeMs, annotation.endTimeMs,
+                selectOrganizationInterval(listOf(original), annotationStart, annotationEnd,
                     rowMembers.associate { it.segment.id to (it.segment.startTimeMs to it.segment.endTimeMs) })
             } else OrganizationIntervalSections(sections, emptySet())
             problems += narrowed.problems

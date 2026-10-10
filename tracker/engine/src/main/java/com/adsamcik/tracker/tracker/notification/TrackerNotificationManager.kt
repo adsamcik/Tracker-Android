@@ -59,7 +59,7 @@ class TrackerNotificationManager(
 		if (isUserInitiatedSession) {
 			addAction(
 				com.adsamcik.tracker.shared.base.R.drawable.ic_pause_circle_filled_black_24dp,
-				resources.getString(R.string.notification_end_session),
+				resources.getString(R.string.shortcut_end_session),
 				stop
 			)
 		} else {
@@ -291,7 +291,7 @@ private fun NotificationCompat.Builder.addTurnOffAction(context: Context): Notif
 	)
 	return addAction(
 		com.adsamcik.tracker.shared.base.R.drawable.ic_stop_black_24dp,
-		context.getString(R.string.notification_turn_off_tracking),
+		context.getString(R.string.shortcut_turn_off_tracking),
 		pendingIntent,
 	)
 }

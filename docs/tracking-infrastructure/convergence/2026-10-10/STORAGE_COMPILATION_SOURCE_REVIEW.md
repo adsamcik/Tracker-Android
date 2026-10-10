@@ -320,3 +320,23 @@ Replacing conflicting Location points is still explicitly unsupported in this
 snapshot. The approved current-correction feature and the two pending Location gap
 repairs are not completed by these compilation fixes. Full assembly, native/device
 evidence, integration and release remain open.
+
+## Batch-nine compiler completion review
+
+The fresh independent reviewer accepted the 14-file engine/core repair slice by
+static inspection, inventory digest
+`4fa13999c0a53a2b4cebbcc3641d12d096241bcb02ed88281c9de9197491d8ca`.
+The extracted internal Cell conversion preserves the original codec mapping and
+observation order, and is shared with the already-written ambient qualifier.
+Its regression checks two distinct observations and v5/v6 canonical bytes,
+checksum and decode. The Location candidate is module-internal; only the
+already-used Location payload cap is exposed to its coordinator. Radio caps
+remain 64 and 256. Missing child evidence remains an explicit rejection.
+Notification actions reuse the existing localized End session/Turn off tracking
+resources and retain their intents. Nullable locals and the explicit Steps
+transaction result type preserve existing guards and cancellation behavior.
+This is NOT_RUN evidence until the affected rerun executes.
+
+Frozen batch nine executed all 580 Statistics UI tests successfully, including
+the previously repaired calendar selector. That executed result supersedes the
+earlier test-source-only calendar note. It does not prove native UI behavior.

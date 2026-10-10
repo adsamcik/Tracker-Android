@@ -25,7 +25,7 @@ internal class MeasuredNativeStepsHistoryReader(
         val seek = if (after == null) "" else """AND (startTimeMs < ? OR (startTimeMs = ? AND
             ('local:steps' > ? OR ('local:steps' = ? AND identity > ?))))"""
         val args = mutableListOf<Any?>(range.toExclusiveMs, range.fromInclusiveMs)
-        if (after != null) args += listOf(after.startTimeMs, after.startTimeMs, after.originTag, after.originTag, after.stableId)
+        if (after != null) args.addAll(listOf(after.startTimeMs, after.startTimeMs, after.originTag, after.originTag, after.stableId))
         return database.trackingHistoryReadDao().measuredHistoryCandidates(SimpleSQLiteQuery("""
             SELECT kind, origin, purpose, identity, startTimeMs, endTimeMs, rowId,
                 writerId, writerVersion, factId, factRevision, itemIndex, NULL AS physicalEventId, NULL AS physicalIdentity FROM (
@@ -77,7 +77,7 @@ internal class MeasuredNativeStepsHistoryReader(
                 }
                 val position = measuredHistoryPosition(key)
                 rows[position] = UnifiedHistoryRow(position, end, setOf(HistoryOrigin.LOCAL), HistoryPurpose.CAPTURE,
-                    name = names.window(fact.logicalTrackingId, start, end), sections = emptyList(),
+                    name = fact.logicalTrackingId?.let { names.window(it, start, end) }, sections = emptyList(),
                     measurement = HistoryMeasurement.Steps(owned.steps.toPublicHistory()))
             }
         }

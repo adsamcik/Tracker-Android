@@ -24,8 +24,8 @@ at `13f1a99871b59d29b3d059f374fc415490da6943`; nothing was merged or pushed.
 - Independent review compared the 28-to-29 tables, columns, defaults, keys,
   indexes and migration SQL. The mapper, query and cutoff repairs add no schema
   changes. This review is distinct from the repository schema-drift gate.
-- `checkRoomSchemaDrift` depends on KSP throughout the repository and remains
-  blocked by the missing pinned diagnostics dependency.
+- `checkRoomSchemaDrift` passed in frozen batch nine after the exact reviewed
+  diagnostics artifacts resolved. The complete build and quality aggregates still fail.
 
 ## Host environment
 
@@ -141,6 +141,56 @@ Commits remain labelled `IMPLEMENTED_UNVALIDATED` while full convergence is open
 Passing individual host suites does not make the complete tracking implementation
 verified. No broad baseline expansion, suppressed failure or dependency substitution
 has been used.
+
+## Frozen batches eight and nine
+
+Both used committed input `12735255e37cb34424bf3b48b988a6cef67d2dfa`
+and the exact reviewed alpha.7 local mirror. No source was edited during either run.
+
+Batch eight was **interrupted**, not passed: the Windows system drive ran out of
+space while redirecting Gradle output. Its wrapper returned an unreliable zero,
+which is rejected because the log has no build completion marker. Log SHA-256:
+`622e6ac39788788cbad04154d0c7076741720f640d858caafea5868396b00da7`.
+After confirming no Java build remained, only the inactive Gradle 9.5.1 and 9.8.0
+`transforms` cache directories were removed. Checked absolute targets and before/
+after inventories are preserved; sources, drafts, reviewed dependencies and test
+evidence were retained. This recovered about 3.7 GB. Batch nine used a guarded
+wrapper that checks native launch, logging and completion failures.
+
+Batch nine completed **exit 1**, 22m20s, 2,300 tasks (305 executed, 8 from cache,
+1,987 up to date). Its complete log SHA-256 is
+`f99544d77403211d8233afa4697bcf8b562f4c2975e5c90189a76b2eb7223a48`.
+The reports were archived under `build/verification-20261010/pass9` before repairs.
+
+Freshly executed full suites:
+
+| Module | Tests | Failures | Skips |
+| --- | ---: | ---: | ---: |
+| Preferences | 492 | 0 | 0 |
+| Statistics UI | 580 | 0 | 0 |
+| Import/export | 774 | 0 | 1 |
+| Map | 877 | 0 | 3 |
+| Diagnostics | 51 | 1 | 0 |
+| Activity sensor | 335 | 2 | 0 |
+
+The skips remain existing platform assumptions. Statistics includes the repaired
+calendar date-picker case. Previously passing core/base 2,062, Tracker UI 142,
+released import/Points and API results were up to date in this batch and are not
+reported as newly executed. Room schema drift, Activity API dependency checks,
+vendored/release SQLite linkage and release dependency-metadata checks passed.
+This does not prove application Hilt or an APK: production Stats/data and tracking
+engine compilation failed, blocking application Debug/Dev assembly and upgrade
+orchestration tests. The aggregate `ciUnitTest` and `ciCheck` did not pass.
+Detekt still reports 14,695 findings; rules and baseline remain unchanged.
+
+The next slice repairs explicit SQL binding types, stable nullable locals and
+same-module type references, plus the engine's missing imports/internal visibility,
+shared Cell field conversion and exhaustive Wi-Fi rejection mapping. It changes
+no schema, queries, caps, permission rule or tracking activation. A new bridge
+regression covers unchanged Cell fields and canonical bytes for both supported
+versions. Activity's persisted callback comparison also needs to ignore the
+intentionally non-persisted live Start generation. These repairs require a reviewed,
+committed rerun. The Cell imported-record lookup interface decision is still pending.
 
 ## Dependency and quality blockers
 

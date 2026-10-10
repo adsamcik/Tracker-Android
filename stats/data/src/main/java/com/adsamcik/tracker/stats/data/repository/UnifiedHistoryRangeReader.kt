@@ -208,7 +208,9 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
             if (loadedOrganizationContents) return localOrganizationContents
             loadedOrganizationContents = true
             val intervals = organizationSnapshot().values.filter {
-                it.importedSourceSelection == null && it.startTimeMs != null && it.endTimeMs != null && it.endTimeMs > it.startTimeMs }
+                val start = it.startTimeMs
+                val end = it.endTimeMs
+                it.importedSourceSelection == null && start != null && end != null && end > start }
             if (intervals.isEmpty()) return null
             val contentsRange = range.copy(fromInclusiveMs = intervals.minOf { requireNotNull(it.startTimeMs) },
                 toExclusiveMs = intervals.maxOf { requireNotNull(it.endTimeMs) },
@@ -277,13 +279,14 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
                 val contents = if (row.importedSourceSelection == null) {
                     localOrganizationSnapshot()
                 } else null
+                val annotationEnd = row.endTimeMs
                 val members = (contents as? HistoryRangeRead.Page)?.rows.orEmpty().filter { member ->
-                    val end = row.endTimeMs
-                    end != null && member.position.startTimeMs < end &&
-                        (member.toExclusiveMs == null || member.toExclusiveMs > position.startTimeMs ||
-                            member.toExclusiveMs == member.position.startTimeMs && member.position.startTimeMs >= position.startTimeMs) }
-                val intervalSelection = if (row.importedSourceSelection == null && row.endTimeMs != null) {
-                    selectOrganizationInterval(members, position.startTimeMs, row.endTimeMs,
+                    val memberEnd = member.toExclusiveMs
+                    annotationEnd != null && member.position.startTimeMs < annotationEnd &&
+                        (memberEnd == null || memberEnd > position.startTimeMs ||
+                            memberEnd == member.position.startTimeMs && member.position.startTimeMs >= position.startTimeMs) }
+                val intervalSelection = if (row.importedSourceSelection == null && annotationEnd != null) {
+                    selectOrganizationInterval(members, position.startTimeMs, annotationEnd,
                         organizationStepBounds(contents), localOrganizationStepsProblem)
                 } else OrganizationIntervalSections(emptyList(), emptySet())
                 val sourceSections = intervalSelection.sections.toMutableList()
@@ -296,8 +299,9 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
                     if (contents.next != null) {
                         groupProblems += HistoryProblem(null, HistoryProblemReason.DEPENDENCY_OVERFLOW) }
                 } else if (contents is HistoryRangeRead.Unavailable) groupProblems += HistoryProblem(null, contents.reason)
-                if (row.importedSourceSelection != null && group.importedSourceSelection?.isNotEmpty() == true) {
-                    val selected = group.importedSourceSelection.filter { it.source in range.sources }
+                val importedSelection = group.importedSourceSelection
+                if (row.importedSourceSelection != null && importedSelection?.isNotEmpty() == true) {
+                    val selected = importedSelection.filter { it.source in range.sources }
                     if (selected.size > remainingOrganizationSelectors) {
                         selected.map { it.source }.distinct().forEach {
                             groupProblems += HistoryProblem(it, HistoryProblemReason.DEPENDENCY_OVERFLOW) }
@@ -483,7 +487,7 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
                     qualificationProblem = HistoryProblemReason.INTEGRITY_UNAVAILABLE
                     RetainedLocationSavedSnapshot(emptyList())
                 }
-                val qualifiedBySample = qualified.samples.filter { it.scope is com.adsamcik.tracker.stats.api.repository.RadioContextScope.Ambient }
+                val qualifiedBySample = qualified.samples.filter { it.scope is RadioContextScope.Ambient }
                     .groupBy { it.sample.id }
                 fun hasQualifiedAmbient(row: LocationHistoryDayRow): Boolean {
                     val sample = row.point.sample
@@ -815,7 +819,8 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
         if (database.sourceEvidenceStateDao().get() != state) {
             return HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
         }
-        val next = if (planned.hasMore && planned.consumed != null) HistoryContinuation(range, planned.consumed) else null
+        val consumed = planned.consumed
+        val next = if (planned.hasMore && consumed != null) HistoryContinuation(range, consumed) else null
         return HistoryRangeRead.Page(named.rows, snapshot, next, problems)
     }
 
@@ -896,9 +901,11 @@ private fun OrganizationAnnotationEntity.toOrganizedSession(snapshot: TrackingHi
     viewZoneId: String, labels: Map<Long, String>): OrganizedSession {
     val zone = displayZoneId ?: viewZoneId
     ZoneId.of(zone)
+    val start = startTimeMs
+    val end = endTimeMs
     return OrganizedSession(OrganizationSessionId.Annotation(localId), revision, snapshot.collectedDataEpoch,
-        name, activityLabelId, labels[activityLabelId] ?: importedActivityLabel, zone, startTimeMs, endTimeMs,
-        false, startTimeMs == null || endTimeMs == null || endTimeMs <= startTimeMs,
+        name, activityLabelId, labels[activityLabelId] ?: importedActivityLabel, zone, start, end,
+        false, start == null || end == null || end <= start,
         importedSourceSelection = importedSourceSelection?.let(OrganizationSourceSelectionCodec::decode))
 }
 private fun unavailableRow(position: HistoryPosition, end: Long?, origin: HistoryOrigin,

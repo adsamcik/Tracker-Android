@@ -984,21 +984,21 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		val payload: LocationFixPayload,
 	)
 
-	private companion object {
-		const val LOCATION_SOURCE = 1
-		const val PLAN_PAYLOAD_VERSION = 1
-		const val MAX_LOCATION_DELIVERY_UNITS = 256
+	companion object {
+		private const val LOCATION_SOURCE = 1
+		private const val PLAN_PAYLOAD_VERSION = 1
+		private const val MAX_LOCATION_DELIVERY_UNITS = 256
 		// DataOutputStream.writeUTF permits 65,535 provider bytes; nullable accuracy adds one flag.
-		const val MAX_LOCATION_PAYLOAD_BYTES = 65_535 + 52
-		const val MAX_DURABLE_SOURCE_SEQUENCE = Long.MAX_VALUE - 1L
-		const val MAX_MANIFESTS_PER_RUN = 256
-		const val MAX_MANIFEST_SOURCE_ROWS = 4_096
-		const val LOCATION_DELIVERY_MAGIC = 0x4c4f4342
-		const val LOCATION_LEGACY_DELIVERY_VERSION = 1
-		const val LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION = 2
-		const val LOCATION_OPTIONAL_ACCURACY_DELIVERY_VERSION = 3
-		const val DERIVED_WALL_UNCERTAINTY_MS = 1L
-		val SUPPORTED_LOCATION_PAYLOAD_VERSIONS =
+		internal const val MAX_LOCATION_PAYLOAD_BYTES = 65_535 + 52
+		private const val MAX_DURABLE_SOURCE_SEQUENCE = Long.MAX_VALUE - 1L
+		private const val MAX_MANIFESTS_PER_RUN = 256
+		private const val MAX_MANIFEST_SOURCE_ROWS = 4_096
+		private const val LOCATION_DELIVERY_MAGIC = 0x4c4f4342
+		private const val LOCATION_LEGACY_DELIVERY_VERSION = 1
+		private const val LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION = 2
+		private const val LOCATION_OPTIONAL_ACCURACY_DELIVERY_VERSION = 3
+		private const val DERIVED_WALL_UNCERTAINTY_MS = 1L
+		private val SUPPORTED_LOCATION_PAYLOAD_VERSIONS =
 			setOf(LOCATION_LEGACY_DELIVERY_VERSION, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
                 LOCATION_OPTIONAL_ACCURACY_PAYLOAD_VERSION)
 	}

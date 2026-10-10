@@ -72,8 +72,11 @@ internal class SavedLocationLiveSummaryReader(
 
     private suspend fun refresh(segmentId: Long, old: Progress?, pointTablesChanged: Boolean, rebuild: Boolean): Next {
         val evidence = database.sourceEvidenceStateDao().get()
-            ?.takeIf { it.revision >= 0L && it.collectedDataEpoch >= 0L &&
-                it.deletedSourceEventHighWaterOrdinal >= 0L && (it.retainedFromMs == null || it.retainedFromMs >= 0L) }
+            ?.takeIf {
+                val retainedFrom = it.retainedFromMs
+                it.revision >= 0L && it.collectedDataEpoch >= 0L &&
+                    it.deletedSourceEventHighWaterOrdinal >= 0L && (retainedFrom == null || retainedFrom >= 0L)
+            }
             ?: return Next(SavedLocationSummaryRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE), null)
         val snapshot = TrackingHistoryReadSnapshot(evidence.collectedDataEpoch, evidence.revision)
         val segment = database.trackingHistoryReadDao().segments(listOf(segmentId)).singleOrNull()

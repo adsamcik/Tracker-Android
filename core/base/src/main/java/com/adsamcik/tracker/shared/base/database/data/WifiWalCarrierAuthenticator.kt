@@ -844,7 +844,7 @@ private fun rejected(reason: WifiWalCarrierFailure) =
 private enum class WifiBand { TWO_POINT_FOUR_GHZ, FIVE_GHZ, SIX_GHZ, OTHER }
 
 private const val TYPE_WIFI_RESULTS = 7
-internal const val MAX_WIFI_WAL_CHILDREN = 64
+const val MAX_WIFI_WAL_CHILDREN = 64
 private const val MAX_WIFI_ZONE_ID_LENGTH = 64
 private const val NANOS_PER_MILLISECOND = 1_000_000L
 private const val CAPTURED_REGISTRATION_PLAN_ATTRIBUTION = 0

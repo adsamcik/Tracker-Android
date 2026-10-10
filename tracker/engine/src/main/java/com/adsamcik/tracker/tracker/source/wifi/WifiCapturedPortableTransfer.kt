@@ -687,7 +687,7 @@ private fun LogicalTrackingSessionEntity.hasPortableShape(runs: List<SourceServi
 	val terminal = state in TERMINAL_STATES
 	if ((completedAtMs != null) != terminal || logicalTrackingId.isBlank() || lifecycleRevision <= 0L ||
 		desiredPlanRevision <= 0L || rolloutRevision <= 0L || startOrigin.isBlank() ||
-		clockDomainId.isBlank() || lifecycleBootId.isBlank() || lifecycleLeaseGeneration <= 0L ||
+		clockDomainId.isBlank() || lifecycleBootId.isNullOrBlank() || lifecycleLeaseGeneration <= 0L ||
 		startedAtMs < 0L || startedElapsedNanos < 0L ||
 		(cutoffAtMs == null) != (cutoffElapsedNanos == null)
 	) return false

@@ -165,6 +165,6 @@ private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")
 
 private const val TYPE_CELL_SNAPSHOT = 8
 const val MAX_CELL_WAL_PAYLOAD_BYTES = 65_536
-internal const val MAX_CELL_WAL_CHILDREN = 256
+const val MAX_CELL_WAL_CHILDREN = 256
 const val CELL_REFRESH_OUTCOME_CALLBACK = 0
 private val CELL_REFRESH_OUTCOME_CODES = 0..7
