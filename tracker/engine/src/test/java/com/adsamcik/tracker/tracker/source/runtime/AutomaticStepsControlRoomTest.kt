@@ -145,7 +145,7 @@ class AutomaticStepsControlRoomTest {
 		f.runtime.reconcileCurrentSettings()
 		val old = requireNotNull(f.issuer.currentAutomaticControlLease())
 		val disabled = f.params.value.copy(autoTrackingMode = 0)
-		val updated = f.policies.replaceCaptureSettings(f.params.value.sourcePolicyRevision, disabled, "DISABLE_AUTO")
+		val updated = f.policies.replaceCaptureSettings(requireNotNull(f.params.value.sourcePolicyRevision), disabled, "DISABLE_AUTO")
 		f.params.value = disabled.copy(sourcePolicyRevision = updated.revision)
 		f.runtime.reconcileCurrentSettings()
 		f.issuer.currentAutomaticControlLease() shouldBe null

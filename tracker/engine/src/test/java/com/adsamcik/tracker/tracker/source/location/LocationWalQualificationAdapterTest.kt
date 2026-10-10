@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.location
 import android.app.Application
 import androidx.room.withTransaction
 import com.adsamcik.tracker.tracker.source.coordinator.toEntity
+import com.adsamcik.tracker.tracker.source.coordinator.toModel
 import com.adsamcik.tracker.shared.base.database.AmbientRadioRetentionAuthorityResult
 import com.adsamcik.tracker.shared.base.database.AmbientRadioRetentionDecision
 import com.adsamcik.tracker.shared.base.database.applyAmbientLocationRetentionDecision

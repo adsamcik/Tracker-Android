@@ -173,7 +173,9 @@ Freshly executed full suites:
 | Diagnostics | 51 | 1 | 0 |
 | Activity sensor | 335 | 2 | 0 |
 
-The skips remain existing platform assumptions. Statistics includes the repaired
+Export retains one existing symlink host assumption skip; Map retains three
+pre-existing disabled Android-framework cases. No test was disabled by these
+repairs. Statistics includes the repaired
 calendar date-picker case. Previously passing core/base 2,062, Tracker UI 142,
 released import/Points and API results were up to date in this batch and are not
 reported as newly executed. Room schema drift, Activity API dependency checks,
@@ -276,3 +278,50 @@ proposal are also unresolved. No gate or test is weakened to bypass them.
 Only inactive Gradle 9.5.1/9.8.0 caches and the regeneratable local build cache were
 subsequently cleared, with checked target paths and inventory retained, raising
 free space above 2 GB for that rerun. No test reports or package artifacts were deleted.
+
+## Frozen batch ten
+
+Input `fb4019009cff30737e7e2717003e92b57008d004` was clean and unchanged while
+running. Engine Debug/Release KSP and Kotlin compilation plus complete Diagnostics
+and Activity sensor suites passed: **exit 0**, 6m49s, 355 tasks (37 executed,
+318 up to date). Diagnostics: 5 suites, 51 tests; Activity: 49 suites, 335 tests.
+All 386 have zero failures, errors or skips. The three failing batch-nine cases
+are present and pass, including duplicate durable callback retry with the live
+Start generation excluded. The fresh independent reviewer verified every one of
+54 archived XML hashes and the log. Log SHA-256:
+`5c47dadb67b6578fbb572ff82ce6a27cde552384dc36933ba63149f6a6a4c397`.
+Inventory SHA-256:
+`544e0bcd4e6310b7b1e7b1e802508d9a589a78138a0131ab1e88d727aa1c45a5`.
+
+This is scoped passing evidence. It does not replace engine unit execution,
+Stats/data, application/Hilt/upgrade orchestration or full aggregate gates.
+
+## Frozen batch eleven
+
+The same clean input was used to compile Stats/data Debug/Release and the authored
+engine unit tests. **Exit 1**, 2m59s, 297 tasks (16 executed, 281 up to date).
+Log SHA-256:
+`947b4bf1f654a70afb0b774d38473f7f096137def54e95b0a16a786ffd9be1a1`.
+Stats/data now has exactly one distinct compiler error, repeated for Debug/Release:
+its existing Cell history reader needs the internal saved record ID, covered by
+the pending user interface decision. All other prior Stats/data compiler diagnostics
+are gone. The API and reader remain unchanged pending that decision.
+
+Engine test compilation reached the authored fixtures and found stale imports,
+old type/enum references, mixed reified SQL array types and a private pure model
+conversion call. Their repairs retain the original assertions, SQL values and
+query literals. The pure existing conversion is made visible only within the
+engine module so the raw before/after fixture can use it without invoking a
+mutating repository load. No public API or stored-data change follows. The next
+reviewed compile rerun is required; the tests themselves remain NOT_RUN.
+
+## Current limits
+
+The latest full quality run remains failed with 14,695 findings; subsequent bounded
+compiler runs do not remeasure or waive that count. The proposed copied-input
+exclusion is still unapproved and unapplied, and would not resolve live findings.
+Final `ciUnitTest`/`ciCheck`, application Debug/Dev, application Hilt and the three
+released-data orchestration cases require completion after the pending interface
+choice and remaining quality work. The original two Location gaps, complete
+tracking assembly, device evidence and integration are still separate open work.
+Local `dev/v10` is verified clean at `13f1a99871b59d29b3d059f374fc415490da6943`.

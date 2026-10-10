@@ -10,7 +10,6 @@ import com.adsamcik.tracker.tracker.source.model.RetryBackoff
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
-import io.mockk.capture
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk

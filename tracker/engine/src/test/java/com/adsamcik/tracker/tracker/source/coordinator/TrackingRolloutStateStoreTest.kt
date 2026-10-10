@@ -1012,7 +1012,7 @@ class TrackingRolloutStateStoreTest {
 			database.sourceProjectionStateDao().deleteAllRegistrations()
 			database.openHelper.writableDatabase.execSQL(
 				"DELETE FROM source_destination_owner WHERE source_kind = ? AND destination = ?",
-				arrayOf(binding.source.stableCode, destination),
+				arrayOf<Any>(binding.source.stableCode, destination),
 			)
 			val revision = 10L + index
 			database.sourceProjectionStateDao().installProductLane(productLane(binding, revision).copy(
@@ -1049,7 +1049,7 @@ class TrackingRolloutStateStoreTest {
 			database.sourceProjectionStateDao().deleteAllRegistrations()
 			database.openHelper.writableDatabase.execSQL(
 				"DELETE FROM source_destination_owner WHERE source_kind = ? AND destination = ?",
-				arrayOf(SourceDestinationOwnerEntity.SOURCE_LOCATION, SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION),
+				arrayOf<Any>(SourceDestinationOwnerEntity.SOURCE_LOCATION, SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION),
 			)
 			val revision = 20L + index * 2L
 			database.sourceProjectionStateDao().installProductLane(productLane(binding, revision).copy(

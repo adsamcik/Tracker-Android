@@ -264,8 +264,8 @@ class AuthoritativeSessionCoordinatorTest {
 		val originalActions = database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
 			.filter { it.desiredState == "STARTED" }
 		originalActions.isNotEmpty() shouldBe true
-		stopOnIo(SessionStopRequest("test-owner", "manual", 2_000L, 2_000_000L,
-			"boot-1", perSourceTimeoutMs = 5_000L)).shouldBeInstanceOf<SessionStopResult.Stopped>()
+		withContext(Dispatchers.IO) { subject.stop(SessionStopRequest("test-owner", "manual", 2_000L, 2_000_000L,
+			"boot-1", perSourceTimeoutMs = 5_000L)) }.shouldBeInstanceOf<SessionStopResult.Stopped>()
 		val closed = requireNotNull(database.sourceSessionDao().session(started.logicalTrackingId))
 		val stoppedRun = requireNotNull(database.sourceSessionDao().serviceRun(runId))
 		stoppedRun.leaseGeneration shouldBeGreaterThan originalRun.leaseGeneration
@@ -4238,7 +4238,7 @@ class AuthoritativeSessionCoordinatorTest {
 			SourceWriterTransitionSpec.WIFI.binding.copy(bindingGeneration = 2L, captureModes = setOf(
 				CaptureReachabilityMode.MANUAL_SESSION_CAPTURE, CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE)))
 		database.openHelper.writableDatabase.execSQL("UPDATE source_destination_owner SET owner_generation = 2 " +
-			"WHERE source_kind = ? AND destination = ?", arrayOf(SourceKind.WIFI.stableCode,
+			"WHERE source_kind = ? AND destination = ?", arrayOf<Any>(SourceKind.WIFI.stableCode,
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI))
 		kotlin.test.assertFailsWith<IllegalStateException> { subject.prepareAndroidStart(
 			manualSourceStartRequest(SourceKind.WIFI, "wrong-wifi-owner", "wrong-wifi-run", policyRevision),

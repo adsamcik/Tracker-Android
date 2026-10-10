@@ -360,3 +360,30 @@ cancels and joins its separate application invalidation observer before the muta
 retaining FAILED generation 1, null pointer/binding and exactly one application/removal.
 Other observer tests remain unchanged. No production observer or diagnostic storage
 behavior was modified. These fixture timing diagnoses still need executed confirmation.
+
+## Batch-ten executed confirmation
+
+The reviewer independently verified clean input
+`fb4019009cff30737e7e2717003e92b57008d004`, successful engine Debug/Release
+KSP/compilation and all 386 Diagnostics/Activity tests. All 54 archived XML hashes
+match, and each of the three prior failing cases now passes without a skip.
+This confirms the bounded compiler and callback/fixture slice. App/Hilt, full
+aggregates and engine unit execution remain unproven; no assembly/device or
+integration readiness is implied.
+
+## Engine test compilation repair review
+
+The independent reviewer accepted the 15-path slice against `fb4019009c`, inventory
+digest `3f5319fa7fb5f363e426181bdf051d6b5ed3fd9be78b0e4624d86665d4a67a13`.
+Fourteen paths are fixtures; the sole production change makes the existing pure
+rollout-row conversion module-internal. All raw SQL literals, binding values/order
+and assertion call counts are preserved. The real manual capture enum and distinct
+policy/caller source enums replace stale names; no source selection changes.
+Cell checks still assert each observation's count, measured date and coverage,
+now reading the existing run structure. Actual nonnull policy revisions and stable
+cutoff locals retain failure conditions. Test-only shared preference naming matches
+the existing private literal. MockK matcher calls remain; the IO stop uses the
+adjacent established fixture pattern. The Location before/after check keeps raw
+model conversion and avoids the mutating store load. No public API, permission,
+cap, data, format or activation rule changes. This slice still needs compilation;
+engine test execution remains blocked by the pending Stats/data interface choice.

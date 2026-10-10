@@ -1071,11 +1071,11 @@ class WifiWalQualificationAdapterTest {
 		val acceptedWall = retirement.cutoffWallTimeMs + 1L
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET accepted_at_ms = ? WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(acceptedWall, WIFI_SOURCE, REGISTRATION_GENERATION))
+			arrayOf<Any?>(acceptedWall, WIFI_SOURCE, REGISTRATION_GENERATION))
 		// Keep accepted <= START acknowledgement valid; the independently acknowledged End is earlier.
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE lifecycle_desired_action SET acknowledged_at_ms = ? WHERE action_id = ?",
-			arrayOf(acceptedWall + 1L, "wifi-start-action"))
+			arrayOf<Any?>(acceptedWall + 1L, "wifi-start-action"))
 		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
 	}
 
@@ -1087,10 +1087,10 @@ class WifiWalQualificationAdapterTest {
 		val acceptedElapsed = retirement.cutoffElapsedRealtimeNanos + 1L
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET accepted_elapsed_realtime_nanos = ? WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(acceptedElapsed, WIFI_SOURCE, REGISTRATION_GENERATION))
+			arrayOf<Any?>(acceptedElapsed, WIFI_SOURCE, REGISTRATION_GENERATION))
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE lifecycle_desired_action SET acknowledged_elapsed_realtime_nanos = ? WHERE action_id = ?",
-			arrayOf(acceptedElapsed + 1L, "wifi-start-action"))
+			arrayOf<Any?>(acceptedElapsed + 1L, "wifi-start-action"))
 		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
 	}
 
@@ -1160,13 +1160,13 @@ class WifiWalQualificationAdapterTest {
 		val sibling = database.sourceBrokerDao().demandsByIds(listOf("historical-second-wifi-demand")).single()
 		database.openHelper.writableDatabase.execSQL(
 			"DELETE FROM source_authorization WHERE source_kind = ? AND registration_generation = ? AND authorization_revision = 2",
-			arrayOf(WIFI_SOURCE, REGISTRATION_GENERATION))
+			arrayOf<Any?>(WIFI_SOURCE, REGISTRATION_GENERATION))
 		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(WIFI_SOURCE, REGISTRATION_GENERATION,
 			3L, listOf(sibling), BOOT_ID, 1_650_000_000L, OBSERVED_WALL_MS + 50L))
 		// Both demand retirement and the immutable replacement closing agree with each other, but miss the acknowledged cutoff.
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_demand SET retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
-			arrayOf(1_650_000_000L, OBSERVED_WALL_MS + 50L, "$DEMAND_ID-0"))
+			arrayOf<Any?>(1_650_000_000L, OBSERVED_WALL_MS + 50L, "$DEMAND_ID-0"))
 		assertEquals(sharedWifiSettlementUnverifiable(), exportPortableWithoutSink())
 	}
 
@@ -1206,7 +1206,7 @@ class WifiWalQualificationAdapterTest {
 		sessionDao.updateSession(requireNotNull(sessionDao.session(LOGICAL_ID)).copy(currentManifestRevision = 2L))
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_demand SET retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
-			arrayOf(changeElapsed, changeWall, "$DEMAND_ID-0"))
+			arrayOf<Any?>(changeElapsed, changeWall, "$DEMAND_ID-0"))
 		val finalDemand = demand().copy(demandId = "shared-final-policy-wifi", manifestRevision = 2L,
 			requestedElapsedRealtimeNanos = changeElapsed, requestedAtMs = changeWall,
 			retireElapsedRealtimeNanos = 1_550_000_000L, retiredAtMs = OBSERVED_WALL_MS - 50L)
@@ -1214,7 +1214,7 @@ class WifiWalQualificationAdapterTest {
 		val sibling = database.sourceBrokerDao().demandsByIds(listOf("historical-second-wifi-demand")).single()
 		database.openHelper.writableDatabase.execSQL(
 			"DELETE FROM source_authorization WHERE source_kind = ? AND registration_generation = ? AND authorization_revision = 2",
-			arrayOf(WIFI_SOURCE, REGISTRATION_GENERATION))
+			arrayOf<Any?>(WIFI_SOURCE, REGISTRATION_GENERATION))
 		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(WIFI_SOURCE, REGISTRATION_GENERATION,
 			2L, listOf(finalDemand), BOOT_ID, changeElapsed, changeWall))
 		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(WIFI_SOURCE, REGISTRATION_GENERATION,
@@ -1253,7 +1253,7 @@ class WifiWalQualificationAdapterTest {
 			database.sourceBrokerDao().insertDemands(listOf(ambient))
 			database.openHelper.writableDatabase.execSQL(
 				"DELETE FROM source_authorization WHERE source_kind = ? AND registration_generation = ? AND authorization_revision = 2",
-				arrayOf(WIFI_SOURCE, REGISTRATION_GENERATION))
+				arrayOf<Any?>(WIFI_SOURCE, REGISTRATION_GENERATION))
 			database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(WIFI_SOURCE, REGISTRATION_GENERATION,
 				2L, listOf(ambient), BOOT_ID, 1_550_000_000L, OBSERVED_WALL_MS - 50L))
 		} else {
@@ -1272,7 +1272,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET status = 'ACTIVE', retired_at_ms = NULL, " +
 				"retired_elapsed_realtime_nanos = NULL, failure_code = NULL WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(WIFI_SOURCE, REGISTRATION_GENERATION))
+			arrayOf<Any?>(WIFI_SOURCE, REGISTRATION_GENERATION))
 		val completeness = SourceSessionCompletenessEntity(LOGICAL_ID, RUN_ID, WIFI_SOURCE, SOURCE_INSTANCE,
 			REGISTRATION_GENERATION, 1L.takeIf { withObservation }, 0L.takeIf { withObservation }, true,
 			"PROVIDER_COMPLETENESS_UNOBSERVABLE", "COMPLETE", null, null, OBSERVED_WALL_MS + 1_000L)
@@ -1376,7 +1376,7 @@ class WifiWalQualificationAdapterTest {
 		database.sourceBrokerDao().insertDemands(listOf(reconciledDemand))
 		database.openHelper.writableDatabase.execSQL(
 			"DELETE FROM source_authorization WHERE source_kind = ? AND registration_generation = ? AND authorization_revision = 2",
-			arrayOf(WIFI_SOURCE, REGISTRATION_GENERATION))
+			arrayOf<Any?>(WIFI_SOURCE, REGISTRATION_GENERATION))
 		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(WIFI_SOURCE, REGISTRATION_GENERATION,
 			2L, listOf(reconciledDemand), BOOT_ID, split, OBSERVED_WALL_MS - 50L))
 		// The generic two-session fixture's unused second demand is replaced by this same-run manifest.
@@ -1444,7 +1444,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL("UPDATE session_segment SET end_time_ms = ? WHERE id = ?",
 			arrayOf(OBSERVED_WALL_MS - 50L, SEGMENT_ID))
 		database.openHelper.writableDatabase.execSQL("UPDATE source_demand SET retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
-			arrayOf(split, OBSERVED_WALL_MS - 50L, "$DEMAND_ID-0"))
+			arrayOf<Any?>(split, OBSERVED_WALL_MS - 50L, "$DEMAND_ID-0"))
 		val secondLogical = "historical-wifi-second"
 		val secondRun = "historical-wifi-second-run"
 		val secondSegment = database.sessionSegmentDao().insert(segment(secondRun).copy(id = 0L,
@@ -1480,7 +1480,7 @@ class WifiWalQualificationAdapterTest {
 		else {
 			// Callback precedes the second session's End; the first session already ended.
 			database.openHelper.writableDatabase.execSQL("UPDATE source_demand SET retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
-				arrayOf(SESSION_END_NANOS, SESSION_END_WALL_MS, secondDemand.demandId))
+				arrayOf<Any?>(SESSION_END_NANOS, SESSION_END_WALL_MS, secondDemand.demandId))
 			sessionDao.updateSession(requireNotNull(sessionDao.session(secondLogical)).copy(cutoffAtMs = SESSION_END_WALL_MS,
 				cutoffElapsedNanos = SESSION_END_NANOS, completedAtMs = SESSION_END_WALL_MS))
 			sessionDao.updateServiceRun(requireNotNull(sessionDao.serviceRun(secondRun)).copy(
@@ -1495,7 +1495,7 @@ class WifiWalQualificationAdapterTest {
 		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 		val catalog = ExecutableSourceLaneCatalog.explicit(ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS)
 		RoomTrackingRolloutStateStore(database, catalog).save(TrackingRolloutState.eventCanonical(sources = setOf(SourceKind.WIFI),
-			captureModes = mapOf(SourceKind.WIFI to setOf(CaptureReachabilityMode.MANUAL))), updatedAtMs = OBSERVED_WALL_MS)
+			captureModes = mapOf(SourceKind.WIFI to setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE))), updatedAtMs = OBSERVED_WALL_MS)
 		val registration = requireNotNull(database.sourceBrokerDao().registration(WIFI_SOURCE, REGISTRATION_GENERATION))
 		database.sourceRegistrationStateDao().insertIfAbsent(SourceRegistrationStateEntity(WIFI_SOURCE, registration.ownerScope,
 			SOURCE_INSTANCE, BOOT_ID, REGISTRATION_GENERATION, 0L, PLAN_REVISION, 0L, OBSERVED_WALL_MS))
@@ -1704,7 +1704,7 @@ class WifiWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_wal SET authorization_revision = ?, authorization_purpose_eligibility_mask = ?, " +
 				"authorization_fingerprint = ?, integrity_identity = ? WHERE event_id = ?",
-			arrayOf(2L, unsigned.authorizationPurposeEligibilityMask, unsigned.authorizationFingerprint,
+			arrayOf<Any?>(2L, unsigned.authorizationPurposeEligibilityMask, unsigned.authorizationFingerprint,
 				unsigned.calculatedIntegrityIdentity(), EVENT_ID.value),
 		)
 	}

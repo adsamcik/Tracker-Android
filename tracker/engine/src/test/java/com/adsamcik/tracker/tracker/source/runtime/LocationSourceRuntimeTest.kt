@@ -266,7 +266,7 @@ class LocationSourceRuntimeTest {
 		Dispatchers.setMain(dispatcher)
 		val context = ApplicationProvider.getApplicationContext<Application>()
 		val preferences = context.getSharedPreferences(
-			SharedPreferencesTrackingLifecycleCommandAuthority.PREFERENCES_NAME, Context.MODE_PRIVATE)
+			"tracking_lifecycle_commands", Context.MODE_PRIVATE)
 		assertTrue(preferences.edit().clear().commit())
 		val database = AppDatabase.testDatabase(context)
 		mockkObject(BackgroundTrackingApi)

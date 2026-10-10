@@ -206,7 +206,7 @@ class ChosenSourceWriterSetupRoomTest {
 				val ordinal = appendWal("ready-shape", SourceKind.STEPS)
 				database.openHelper.writableDatabase.execSQL(
 					"UPDATE source_product_projection_lane SET contiguous_admission_ordinal = ?, updated_at_ms = 1100 WHERE source_kind = ?",
-					arrayOf(ordinal, SourceKind.STEPS.stableCode))
+					arrayOf<Any>(ordinal, SourceKind.STEPS.stableCode))
 			}
 			// Reached lightweight Room lane query; the cursor shape stays unchanged.
 			withTimeout(5_000L) { requireNotNull(laneShapeRead).await() }
@@ -244,7 +244,7 @@ class ChosenSourceWriterSetupRoomTest {
 			// Existing projection completion is the explicit fixture boundary; no fabricated provider or product is claimed.
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE source_product_projection_lane SET contiguous_admission_ordinal = ?, updated_at_ms = 1100 WHERE source_kind = ?",
-				arrayOf(ordinal, SourceKind.STEPS.stableCode))
+				arrayOf<Any>(ordinal, SourceKind.STEPS.stableCode))
 			withTimeout(5_000L) { progressed.await() }
 			setup.ensure(setOf(SourceKind.STEPS)).readySources shouldBe setOf(SourceKind.STEPS)
 			database.sourceEventWalDao().getByAdmissionOrdinal(ordinal)?.eventId shouldBe "pending-drain"

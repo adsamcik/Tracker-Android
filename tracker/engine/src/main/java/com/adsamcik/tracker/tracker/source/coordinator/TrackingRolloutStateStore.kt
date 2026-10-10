@@ -1204,7 +1204,7 @@ internal fun TrackingRolloutState.toEntity(updatedAtMs: Long) = TrackingRolloutS
 	updatedAtMs = updatedAtMs,
 )
 
-private fun TrackingRolloutStateEntity.toModel(): TrackingRolloutState {
+internal fun TrackingRolloutStateEntity.toModel(): TrackingRolloutState {
 	val owners = sourceOwners.split(',')
 		.filter(String::isNotBlank)
 		.associate { encoded ->

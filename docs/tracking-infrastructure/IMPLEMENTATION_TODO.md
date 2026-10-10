@@ -2407,6 +2407,8 @@ closed. Earlier dated entries retain their historical evidence limits.
 - [ ] Pass the final released-data, file-backed, UI and lint rerun on one committed input.
 - [x] Resolve the exact pinned Tracebox artifacts through the existing local validation hook
   and pass repository Room schema drift. Authenticated clean-CI package access is separate.
+- [x] Pass tracking-engine Debug/Release compilation and the complete repaired Activity
+  and Diagnostics suites (386 tests) on frozen batch ten.
 - [ ] Finish application Debug/Dev compilation and Hilt composition.
 - [ ] Resolve full quality failures and pass complete `ciUnitTest` and `ciCheck`.
 - [ ] Collect device evidence and integrate the fully verified result into local `dev/v10`.

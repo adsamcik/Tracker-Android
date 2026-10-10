@@ -96,7 +96,7 @@ class SharedSourceWriterDeletionRearmTest {
 				database.openHelper.writableDatabase.execSQL(
 					"UPDATE source_destination_owner SET owner = ?, owner_generation = ? " +
 						"WHERE source_kind = ? AND destination = ?",
-					arrayOf(name, generation, spec.source.stableCode, spec.destination),
+					arrayOf<Any>(name, generation, spec.source.stableCode, spec.destination),
 				)
 			}
 			clear("clear-$epoch", epoch, epoch * 100L)

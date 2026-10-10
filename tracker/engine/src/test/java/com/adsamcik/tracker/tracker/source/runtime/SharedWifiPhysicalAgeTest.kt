@@ -10,7 +10,6 @@ import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.WifiMode
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
-import io.mockk.capture
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk

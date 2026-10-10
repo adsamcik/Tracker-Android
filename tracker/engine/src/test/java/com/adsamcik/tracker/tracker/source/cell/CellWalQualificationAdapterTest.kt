@@ -105,6 +105,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.Dispatchers
 import org.junit.After
@@ -654,7 +655,7 @@ class CellWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_wal SET authorization_revision = ?, " +
 				"authorization_fingerprint = ?, integrity_identity = ? WHERE event_id = ?",
-			arrayOf(2L, updated.authorizationFingerprint, updated.integrityIdentity, EVENT_ID.value),
+			arrayOf<Any?>(2L, updated.authorizationFingerprint, updated.integrityIdentity, EVENT_ID.value),
 		)
 
 		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
@@ -715,7 +716,7 @@ class CellWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET retired_elapsed_realtime_nanos = ?, " +
 				"retired_at_ms = ? WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf(retiredAt, OBSERVED_WALL_MS - 50L, CELL_SOURCE, REGISTRATION_GENERATION))
+			arrayOf<Any?>(retiredAt, OBSERVED_WALL_MS - 50L, CELL_SOURCE, REGISTRATION_GENERATION))
 
 		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
 		val saved = fact(applied.logicalFactId, applied.semanticRevision)
@@ -794,7 +795,7 @@ class CellWalQualificationAdapterTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_event_wal SET authorization_revision = ?, authorization_fingerprint = ?, " +
 				"authorization_purpose_eligibility_mask = ?, integrity_identity = ? WHERE event_id = ?",
-			arrayOf(2L, unsigned.authorizationFingerprint, unsigned.authorizationPurposeEligibilityMask,
+			arrayOf<Any?>(2L, unsigned.authorizationFingerprint, unsigned.authorizationPurposeEligibilityMask,
 				unsigned.calculatedIntegrityIdentity(), EVENT_ID.value))
 	}
 
@@ -1900,11 +1901,12 @@ class CellWalQualificationAdapterTest {
 		facts.forEach { fact ->
 			val result = database.withTransaction { reader.readInTransaction(fact.logicalTrackingId) }
 			val entry = assertIs<ReadLocalPortableCapturedCellResult.Ready>(result, result.toString()).entry
-			assertEquals(1, entry.observations.size)
-			assertEquals(fact.observedWallTimeMs, entry.observations.single().observedTimeMs)
+			val observations = entry.runs.flatMap { it.observations }
+			assertEquals(1, observations.size)
+			assertEquals(fact.observedWallTimeMs, observations.single().observedTimeMs)
 			assertEquals(fact.observedWallTimeMs - WALL_UNCERTAINTY_MS,
-				entry.observations.single().coverageStartTimeMs)
-			assertEquals(1, entry.observations.single().observationCount)
+				observations.single().coverageStartTimeMs)
+			assertEquals(1, observations.single().observationCount)
 		}
 		assertEquals(event.value, facts.first().sourceEventId)
 		assertEquals(event.value, facts.last().sourceEventId)
@@ -2111,7 +2113,7 @@ class CellWalQualificationAdapterTest {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE provider_registration_generation SET reserved_at_ms = ?, accepted_at_ms = ?, retired_at_ms = ? " +
 					"WHERE source_kind = ? AND registration_generation = ?",
-				arrayOf(observedWallMs - 1_000L, observedWallMs - 900L, observedWallMs + 1_000L,
+				arrayOf<Any?>(observedWallMs - 1_000L, observedWallMs - 900L, observedWallMs + 1_000L,
 					CELL_SOURCE, REGISTRATION_GENERATION))
 		}
 		val split = 1_550_000_000L
@@ -2150,7 +2152,7 @@ class CellWalQualificationAdapterTest {
 			"UPDATE session_segment SET end_time_ms = ? WHERE id = ?", arrayOf(firstEndWall, SEGMENT_ID))
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_demand SET retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
-			arrayOf(split, splitWall, DEMAND_ID))
+			arrayOf<Any?>(split, splitWall, DEMAND_ID))
 		if (!sameRunPolicyRotation) {
 			val secondSegment = database.sessionSegmentDao().insert(segment(secondRun).copy(
 				id = 0L, logicalTrackingId = HISTORICAL_SECOND_LOGICAL, startTimeMs = splitWall, endTimeMs = endWall))
@@ -2189,7 +2191,7 @@ class CellWalQualificationAdapterTest {
 		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 		val catalog = ExecutableSourceLaneCatalog.explicit(ExecutableSourceLaneCatalog.CELL_SESSION_FACTS)
 		RoomTrackingRolloutStateStore(database, catalog).save(TrackingRolloutState.eventCanonical(
-			sources = setOf(SourceKind.CELL), captureModes = mapOf(SourceKind.CELL to setOf(CaptureReachabilityMode.MANUAL))),
+			sources = setOf(SourceKind.CELL), captureModes = mapOf(SourceKind.CELL to setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE))),
 			updatedAtMs = observedWallMs)
 		val registration = requireNotNull(database.sourceBrokerDao().registration(CELL_SOURCE, REGISTRATION_GENERATION))
 		database.sourceRegistrationStateDao().insertIfAbsent(SourceRegistrationStateEntity(CELL_SOURCE,

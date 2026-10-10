@@ -19,7 +19,6 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.mockkObject
-import io.mockk.isNull
 import io.mockk.unmockkObject
 import kotlinx.coroutines.test.runTest
 import org.junit.After

@@ -34,6 +34,7 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
 import com.adsamcik.tracker.shared.preferences.tracking.*
+import com.adsamcik.tracker.shared.model.tracking.TrackingSource as CollectionSource
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.api.*
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
@@ -46,6 +47,7 @@ import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
 import com.adsamcik.tracker.tracker.source.coordinator.*
 import com.adsamcik.tracker.tracker.source.ingress.*
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.projection.*
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecovery
@@ -225,7 +227,7 @@ class AutomaticCaptureChainRoomTest {
         val exactAuthority = CurrentTrackingPurposeAuthorityReader(policies, lifecycle, rollout,
             mockk<RetentionAuthorityProducer>(), Provider { gate })
         controlIdentity = TrackingPurposeLeaseIdentity(source = TrackingSource.ACTIVITY, purpose = TrackingPurpose.CONTROL,
-            policyRevision = policy.revision, consentEpoch = requireNotNull(policy[TrackingSource.ACTIVITY].controlConsentEpoch),
+            policyRevision = policy.revision, consentEpoch = requireNotNull(policy[CollectionSource.ACTIVITY].controlConsentEpoch),
             collectedDataEpoch = 0L, rolloutRevision = 2L, executionRevision = 1L, ownerCasToken = "fixture-control")
         purposeRegistry = TrackingPurposeExecutionRevisionRegistry()
         purposeRegistry.update(controlIdentity.sourcePurpose, controlIdentity.executionRevision)
@@ -483,7 +485,7 @@ class AutomaticCaptureChainRoomTest {
         val latest = RoomSourceCallerAcceptedAuthorityRepository(database).load(
             SourceCallerReplayReference(requireNotNull(latestIntent.sourceCallerAuthorityReference)))
             .shouldBeInstanceOf<StoredSourceCallerAuthorityLoadResult.Available>()
-        latest.authority.permittedDemandIdentities.single { it.purposeLeaseIdentity.source == TrackingSource.STEPS }
+        latest.authority.permittedDemandIdentities.single { it.purposeLeaseIdentity.source == CollectionSource.STEPS }
             .purposeLeaseIdentity.executionRevision shouldBe run.leaseGeneration
         val stop = endCommand()
         withTimeout(5_000L) {
