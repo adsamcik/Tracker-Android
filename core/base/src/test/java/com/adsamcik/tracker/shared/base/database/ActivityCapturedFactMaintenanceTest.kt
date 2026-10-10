@@ -14,6 +14,7 @@ import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEnti
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
@@ -288,6 +289,21 @@ class ActivityCapturedFactMaintenanceTest {
 		val sessionDao = database.sourceSessionDao()
 		val session = requireNotNull(sessionDao.session(LOGICAL_TRACKING_ID))
 		sessionDao.updateSession(session.copy(cutoffElapsedNanos = 501L)) shouldBe 1
+		val changedStop = requireNotNull(sessionDao.firstStopIntent(LOGICAL_TRACKING_ID)).copy(
+			requestedElapsedRealtimeNanos = 501L,
+			stopDeadlineElapsedRealtimeNanos = 501L,
+		)
+		val changedStopChecksum = SessionLifecycleIntegrity.checksum(
+			changedStop.logicalTrackingId, changedStop.intentRevision, changedStop.manifestRevision,
+			changedStop.desiredState, changedStop.stopReason, changedStop.requestBootId,
+			changedStop.requestedElapsedRealtimeNanos, changedStop.stopDeadlineElapsedRealtimeNanos,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_lifecycle_intent_version SET requested_elapsed_realtime_nanos = ?, " +
+				"stop_deadline_elapsed_realtime_nanos = ?, intent_checksum = ? " +
+				"WHERE logical_tracking_id = ? AND intent_revision = ?",
+			arrayOf<Any>(501L, 501L, changedStopChecksum, LOGICAL_TRACKING_ID, changedStop.intentRevision),
+		)
 		database.pruneCapturedActivityFactsAffectedByRetentionFloor(
 			beforeMs = 1_000L,
 			expectedCollectedDataEpoch = 0L,

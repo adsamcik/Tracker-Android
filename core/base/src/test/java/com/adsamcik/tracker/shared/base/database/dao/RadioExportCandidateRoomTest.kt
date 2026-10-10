@@ -67,8 +67,8 @@ class RadioExportCandidateRoomTest {
 				"UPDATE session_segment SET start_time_ms = 'unknown' WHERE logical_tracking_id = ?",
 				arrayOf("$prefix:malformed"))
 			database.openHelper.writableDatabase.execSQL(
-				"UPDATE session_segment SET service_run_id = 'another-owner' WHERE logical_tracking_id = ?",
-				arrayOf("$prefix:foreign-segment"))
+				"UPDATE session_segment SET service_run_id = ? WHERE logical_tracking_id = ?",
+				arrayOf("$prefix:another-owner", "$prefix:foreign-segment"))
 			page(source, 1_000, 2_000) shouldBe listOf(
 				"$prefix:foreign-segment", "$prefix:malformed", "$prefix:missing", "$prefix:reversed")
 		}

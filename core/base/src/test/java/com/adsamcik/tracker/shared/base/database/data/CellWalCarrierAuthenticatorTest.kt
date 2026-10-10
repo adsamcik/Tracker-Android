@@ -89,7 +89,7 @@ class CellWalCarrierAuthenticatorTest {
 
 		val wrongPurpose = assertIs<CellWalCarrierAuthentication.Rejected>(
 			CellWalCarrierAuthenticator.authenticate(
-				validWal().resigned(
+				validWal(payloadVersion = LEGACY_CELL_WAL_PAYLOAD_VERSION).resigned(
 					authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
 				),
 			),

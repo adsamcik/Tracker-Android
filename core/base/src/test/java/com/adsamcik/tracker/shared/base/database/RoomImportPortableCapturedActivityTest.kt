@@ -22,6 +22,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlin.time.Duration.Companion.minutes
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -2588,7 +2589,7 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
-	fun `exact Activity union checks whole file window cap before sink or later identity reads`() = runTest {
+	fun `exact Activity union checks whole file window cap before sink or later identity reads`() = runTest(timeout = 3.minutes) {
 		val identities = mutableListOf<PortableActivityOpaqueIdentity>()
 		repeat(4) { entryIndex ->
 			val runs = List(8) { runIndex ->

@@ -104,6 +104,53 @@ reviewer accepted the exact test SHA-256
 The existing seven real-service cancellation/successor cases remain blocked by
 package access; this architecture fixture needs its own executed rerun.
 
+## Repairs from the executed storage rerun
+
+Independent source review accepted these existing-contract corrections; executed
+results must come from a subsequent run:
+
+- Source-policy reconciliation refreshes the current active snapshot under its
+  existing mutation lock before reconciling an unreconciled observation. A delayed
+  older Room emission no longer rolls provider reconciliation backward. The
+  already-reconciled publication path remains independent of the compatibility
+  mirror. Reviewed SHA-256:
+  `06ef3387c9abeb761156386c220f909903566274ac6feb557885625f960b0670`.
+- The raw lifecycle mapper now carries all 21 columns already projected by its
+  DAO, including the existing nullable caller reference. Existing strict SQLite
+  types and nonblank reference checks remain; real DAO tests retain nonnull/BLOB
+  coverage and add null, malformed signatures, INTEGER and blank reference cases.
+  Reviewed mapper SHA-256:
+  `ed46cf4c24a8325e1b6aaa6ff6ffbb302c2003cfeaab697e9c1b523a76cb4df6`.
+- Released-schema fixtures accept a missing index array as empty. The actual
+  released version-12 `network_operator` table has no index array. Present arrays,
+  source schema/hash checks and migration/preservation assertions remain intact.
+- Activity's changed-cutoff negative fixture updates its original Stop timestamp,
+  deadline and checksum consistently. Cell fixtures acknowledge a retired owner
+  at its actual retirement, or seed a genuinely continuing owner with an open
+  provider lifetime before a later capture. Positive, corruption and rejection
+  assertions are retained; no production interval checks are relaxed.
+- The wrong-purpose Cell carrier fixture targets legacy v5, whose capture-only
+  semantics it asserts. The current v6 independent background behavior remains.
+  Radio export malformed-owner fixtures use distinct source-prefixed run IDs.
+
+- Three radio DAO queries now use the existing Wi-Fi/Cell source constants (5/6),
+  correcting the stale Pressure/Wi-Fi pair (4/5). Their other predicates remain.
+  The real Room test covers both radios, Pressure exclusion and the existing
+  active-owner, source identity, current revision and no-capture guards. The
+  independent reviewer accepted exact DAO SHA-256
+  `efa7b13b5da0fcd3ec8241035e68826c7753bb483e8476584118592498294e37`
+  and test SHA-256
+  `b43d0b0cd6d45a268edae58528d8fc6ac755a01be97cd3e846eee4b06a595345`.
+- The partial schema fixture applies exactly four relevant v29 additions before
+  comparing its historical helpers with fresh Room. History invalidation awaits
+  real Room work with the same five-second deadline on a real-clock dispatcher.
+  Only the deliberately maximal 65,536-window real-Room case uses a three-minute
+  test-body deadline, retaining full boundary, overflow and no-sink assertions.
+  The independent reviewer accepted these exact test changes.
+
+The generated Room schema is unchanged by these mapper/query repairs. All these
+source acceptances still require executed results from the subsequent rerun.
+
 ## Limits
 
 The new app fixture checks upgrade orchestration with Location data; the existing

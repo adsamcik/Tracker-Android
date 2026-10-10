@@ -1042,7 +1042,7 @@ class LegacyV26ImportTest {
 				val entity = entities.getJSONObject(index)
 				val table = entity.getString("tableName")
 				released.execSQL(entity.getString("createSql").replace("${'$'}{TABLE_NAME}", table))
-				val indices = entity.getJSONArray("indices")
+				val indices = entity.optJSONArray("indices") ?: org.json.JSONArray()
 				for (indexOfIndex in 0 until indices.length()) {
 					released.execSQL(
 						indices.getJSONObject(indexOfIndex).getString("createSql")

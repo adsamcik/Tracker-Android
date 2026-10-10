@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenera
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -31,6 +32,65 @@ class SourceBrokerDaoTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `radio boundaries read and acknowledge Wi-Fi and Cell but exclude Pressure`() = runTest {
+		val dao = database.sourceBrokerDao()
+		for (sourceKind in listOf(
+			SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			SourceDestinationOwnerEntity.SOURCE_WIFI,
+			SourceDestinationOwnerEntity.SOURCE_CELL,
+		)) {
+			val isRadio = sourceKind != SourceDestinationOwnerEntity.SOURCE_PRESSURE
+			val expectedCaptureRevision = if (isRadio) 1L else 0L
+			val registration = providerRegistration(sourceKind = sourceKind)
+			val capture = captureDemand().copy(
+				demandId = "capture-$sourceKind",
+				sourceKind = sourceKind,
+				minimumAcquisitionSpec = "unspecified:v1:source=$sourceKind",
+			)
+			dao.insertRegistration(registration)
+			dao.insertDemands(listOf(capture))
+			val captureRows = SourceBrokerAuthorization.rows(
+				sourceKind, 1L, 1L, listOf(capture), BOOT_ID, 100L, 100L,
+			)
+			dao.insertAuthorizations(captureRows)
+			dao.maximumRadioSessionCaptureAuthorizationRevision(sourceKind, 1L) shouldBe expectedCaptureRevision
+			dao.latestRadioAuthorizationBounded(sourceKind, 1L, 2) shouldBe
+				if (isRadio) captureRows else emptyList()
+			// A current CAPTURE envelope cannot become a no-CAP callback boundary.
+			dao.acknowledgeRadioSessionCaptureCallbackBarrier(sourceKind, 1L, registration.sourceInstanceId, 1L) shouldBe 0
+
+			val noCaptureRows = SourceBrokerAuthorization.rows(
+				sourceKind, 1L, 2L, emptyList(), BOOT_ID, 200L, 200L,
+			)
+			dao.insertAuthorizations(noCaptureRows)
+			dao.maximumRadioSessionCaptureAuthorizationRevision(sourceKind, 1L) shouldBe expectedCaptureRevision
+			dao.latestRadioAuthorizationBounded(sourceKind, 1L, 2) shouldBe
+				if (isRadio) noCaptureRows else emptyList()
+			dao.acknowledgeRadioSessionCaptureCallbackBarrier(sourceKind, 1L, "different-provider", 2L) shouldBe 0
+			dao.acknowledgeRadioSessionCaptureCallbackBarrier(sourceKind, 2L, registration.sourceInstanceId, 2L) shouldBe 0
+			dao.acknowledgeRadioSessionCaptureCallbackBarrier(sourceKind, 1L, registration.sourceInstanceId, 1L) shouldBe 0
+			dao.acknowledgeRadioSessionCaptureCallbackBarrier(sourceKind, 1L, registration.sourceInstanceId, 3L) shouldBe 0
+			dao.acknowledgeRadioSessionCaptureCallbackBarrier(sourceKind, 1L, registration.sourceInstanceId, 2L) shouldBe
+				if (isRadio) 1 else 0
+			requireNotNull(dao.registration(sourceKind, 1L)).captureCallbackBarrierAuthorizationRevision shouldBe
+				if (isRadio) 2L else 0L
+
+			val retired = providerRegistration(
+				sourceKind = sourceKind,
+				registrationGeneration = 2L,
+				status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+				retiredAtMs = 200L,
+				retiredElapsedRealtimeNanos = 200L,
+			)
+			dao.insertRegistration(retired)
+			dao.insertAuthorizations(SourceBrokerAuthorization.rows(
+				sourceKind, 2L, 2L, emptyList(), BOOT_ID, 200L, 200L,
+			))
+			dao.acknowledgeRadioSessionCaptureCallbackBarrier(sourceKind, 2L, retired.sourceInstanceId, 2L) shouldBe 0
+		}
+	}
 
 	@Test
 	fun `authorization fingerprint binds the lifecycle generation directly`() {

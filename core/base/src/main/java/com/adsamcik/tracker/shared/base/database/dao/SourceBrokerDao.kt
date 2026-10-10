@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceCaptureAdmissionBarrierEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
@@ -492,14 +493,16 @@ interface SourceBrokerDao {
 	/** Fixed shared radio session boundary; Ambient products keep their independent lifetime. */
 	@Query(
 		"SELECT COALESCE(MAX(authorization_revision), 0) FROM source_authorization " +
-			"WHERE source_kind = :sourceKind AND source_kind IN (4, 5) " +
+			"WHERE source_kind = :sourceKind AND source_kind IN " +
+			"(${SourceDestinationOwnerEntity.SOURCE_WIFI}, ${SourceDestinationOwnerEntity.SOURCE_CELL}) " +
 			"AND registration_generation = :registrationGeneration " +
 			"AND purpose = 'SESSION_CAPTURE' AND persistence_eligible = 1",
 	)
 	suspend fun maximumRadioSessionCaptureAuthorizationRevision(sourceKind: Int, registrationGeneration: Long): Long
 
 	@Query(
-		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind AND source_kind IN (4, 5) " +
+		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind AND source_kind IN " +
+			"(${SourceDestinationOwnerEntity.SOURCE_WIFI}, ${SourceDestinationOwnerEntity.SOURCE_CELL}) " +
 			"AND registration_generation = :registrationGeneration AND authorization_revision = " +
 			"(SELECT MAX(authorization_revision) FROM source_authorization WHERE source_kind = :sourceKind " +
 			"AND registration_generation = :registrationGeneration) ORDER BY member_id LIMIT :limit",
@@ -511,7 +514,9 @@ interface SourceBrokerDao {
 		"UPDATE provider_registration_generation SET capture_callback_barrier_authorization_revision = " +
 			"CASE WHEN capture_callback_barrier_authorization_revision < :throughAuthorizationRevision " +
 			"THEN :throughAuthorizationRevision ELSE capture_callback_barrier_authorization_revision END " +
-			"WHERE source_kind = :sourceKind AND source_kind IN (4, 5) AND registration_generation = :registrationGeneration " +
+			"WHERE source_kind = :sourceKind AND source_kind IN " +
+			"(${SourceDestinationOwnerEntity.SOURCE_WIFI}, ${SourceDestinationOwnerEntity.SOURCE_CELL}) " +
+			"AND registration_generation = :registrationGeneration " +
 			"AND source_instance_id = :sourceInstanceId AND status = 'ACTIVE' AND :throughAuthorizationRevision > 0 " +
 			"AND :throughAuthorizationRevision = (SELECT MAX(authorization_revision) FROM source_authorization " +
 			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration) " +

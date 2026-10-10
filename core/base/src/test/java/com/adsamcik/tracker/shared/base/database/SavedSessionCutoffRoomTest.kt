@@ -115,12 +115,16 @@ class SavedSessionCutoffRoomTest {
                 emitInitialState = true).map { tables -> initial.complete(Unit); tables }.take(2).toList()
         }
         try {
-            kotlinx.coroutines.withTimeout(5_000L) { initial.await() }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                kotlinx.coroutines.withTimeout(5_000L) { initial.await() }
+            }
             database.openHelper.writableDatabase.execSQL(
                 "UPDATE session_lifecycle_intent_version SET intent_checksum = ? WHERE logical_tracking_id = ? AND intent_revision = 2",
                 arrayOf<Any>("0".repeat(64), session.logicalTrackingId))
             database.invalidationTracker.refreshAsync()
-            val emissions = kotlinx.coroutines.withTimeout(5_000L) { observer.await() }
+            val emissions = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                kotlinx.coroutines.withTimeout(5_000L) { observer.await() }
+            }
             assertTrue("session_lifecycle_intent_version" in emissions.last())
         } finally { observer.cancel() }
     }

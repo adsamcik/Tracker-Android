@@ -54,6 +54,11 @@ class ImportedSourceSchemaAssemblyTest {
 	@Test
 	fun `additive tracking DDL matches Room columns foreign keys and named indexes`() {
 		val migrated = migrationSchema.writableDatabase
+		// These helpers preserve the v28 layout; compare its relevant v29 additions with Room.
+		migrated.execSQL("ALTER TABLE organization_annotation ADD COLUMN imported_source_selection TEXT")
+		migrated.execSQL("ALTER TABLE organization_annotation ADD COLUMN imported_activity_label TEXT")
+		migrated.execSQL("ALTER TABLE ambient_wifi_fact_revision ADD COLUMN purpose_demand_id TEXT DEFAULT NULL")
+		migrated.execSQL("ALTER TABLE ambient_cell_fact_revision ADD COLUMN purpose_demand_id TEXT DEFAULT NULL")
 		val fresh = room.openHelper.writableDatabase
 
 		TABLES.forEach { table ->

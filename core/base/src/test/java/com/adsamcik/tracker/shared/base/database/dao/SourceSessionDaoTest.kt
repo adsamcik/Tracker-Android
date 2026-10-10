@@ -499,6 +499,34 @@ class SourceSessionDaoTest {
 	}
 
 	@Test
+	fun `raw lifecycle intent accepts absent caller authority and rejects malformed projection fields`() = runTest {
+		val intent = finalizedIntent().copy(
+			desiredState = "ACTIVE",
+			stopReason = null,
+			intentChecksum = "a".repeat(64),
+		)
+		dao.insertLifecycleIntent(intent)
+		val raw = dao.rawLifecycleIntentsForManifestBounded(LOGICAL_ID, 1L, 2).single()
+		raw.validatedOrNull() shouldBe intent
+		val signature = requireNotNull(raw.storageClassSignature)
+		raw.copy(storageClassSignature = signature.substringBeforeLast('|'))
+			.validatedOrNull() shouldBe null
+		raw.copy(storageClassSignature = "$signature|null").validatedOrNull() shouldBe null
+		raw.copy(storageClassSignature = signature.substringBeforeLast('|') + "|integer")
+			.validatedOrNull() shouldBe null
+
+		for (blankReference in listOf("", "   ")) {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE session_lifecycle_intent_version SET source_caller_authority_reference = ? " +
+					"WHERE logical_tracking_id = ? AND intent_revision = ?",
+				arrayOf<Any>(blankReference, LOGICAL_ID, 1L),
+			)
+			dao.rawLifecycleIntentsForManifestBounded(LOGICAL_ID, 1L, 2)
+				.single().validatedOrNull() shouldBe null
+		}
+	}
+
+	@Test
 	fun `native lookup requires that exact source capture intent and prunes erased run ownership`() = runTest {
 		val run = serviceRun("portable-run")
 		dao.insertServiceRun(run)

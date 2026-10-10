@@ -145,6 +145,8 @@ data class RawSessionLifecycleIntentVersion(
 	val stopDeadlineElapsedRealtimeNanos: Long?,
 	@ColumnInfo(name = "intent_checksum") val intentChecksum: String?,
 	@ColumnInfo(name = "trigger_collected_data_epoch") val triggerCollectedDataEpoch: Long?,
+	@ColumnInfo(name = "source_caller_authority_reference")
+	val sourceCallerAuthorityReference: String? = null,
 ) {
 	@Suppress("ComplexCondition", "LongMethod", "ReturnCount")
 	fun validatedOrNull(): SessionLifecycleIntentVersionEntity? {
@@ -172,6 +174,7 @@ data class RawSessionLifecycleIntentVersion(
 			stopDeadlineElapsedRealtimeNanos,
 			intentChecksum,
 			triggerCollectedDataEpoch,
+			sourceCallerAuthorityReference,
 		)
 		val expectedClasses = listOf(
 			SQLITE_TEXT,
@@ -193,6 +196,7 @@ data class RawSessionLifecycleIntentVersion(
 			null,
 			null,
 			SQLITE_TEXT,
+			null,
 			null,
 		)
 		if (storageClasses.indices.any { index ->
@@ -227,6 +231,7 @@ data class RawSessionLifecycleIntentVersion(
 				triggerBootId,
 				stopReason,
 				stopDeadlineBootId,
+				sourceCallerAuthorityReference,
 			).any { it?.isBlank() == true } ||
 			(triggerObservedElapsedRealtimeNanos == null) !=
 			(triggerReceivedElapsedRealtimeNanos == null) ||
@@ -258,6 +263,7 @@ data class RawSessionLifecycleIntentVersion(
 			stopDeadlineElapsedRealtimeNanos = stopDeadlineElapsedRealtimeNanos,
 			intentChecksum = checksum,
 			triggerCollectedDataEpoch = triggerCollectedDataEpoch,
+			sourceCallerAuthorityReference = sourceCallerAuthorityReference,
 		)
 	}
 
@@ -274,7 +280,7 @@ data class RawSessionLifecycleIntentVersion(
 
 	private companion object {
 		const val STORAGE_CLASS_SEPARATOR = '|'
-		const val STORAGE_CLASS_COUNT = 20
+		const val STORAGE_CLASS_COUNT = 21
 		const val AUTOMATION_EPOCH_INDEX = 8
 		const val TRIGGER_OBSERVED_INDEX = 12
 		const val TRIGGER_RECEIVED_INDEX = 13

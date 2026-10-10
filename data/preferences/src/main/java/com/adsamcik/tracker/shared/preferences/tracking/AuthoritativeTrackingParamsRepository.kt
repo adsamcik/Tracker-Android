@@ -125,7 +125,15 @@ class AuthoritativeTrackingParamsRepository(
 					val result = if (alreadyReconciled) {
 						SourcePolicyRevisionReconciliationResult.Complete(effectiveSnapshot)
 					} else {
-						mutationMutex.withLock { reconcilePolicyRevision(effectiveSnapshot) }
+						mutationMutex.withLock {
+							val current = sourcePolicyRepository.currentState()
+							if (current is SourcePolicyAuthorityState.Active) {
+								effectiveSnapshot = current.snapshot
+								reconcilePolicyRevision(effectiveSnapshot)
+							} else {
+								sourcePolicyUnavailable()
+							}
+						}
 					}
 					when (result) {
 						is SourcePolicyRevisionReconciliationResult.Complete -> {

@@ -140,17 +140,14 @@ class CellCapturedFactMaintenanceTest {
 
 	@Test
 	fun `later Cell CAPTURE does not revoke an older acknowledged original fact`() = runTest {
-		seedCapturedCell(retainedFromMs = FLOOR_MS)
-		installOriginalCellNoCaptureAcknowledgement()
+		seedCapturedCell(retainedFromMs = FLOOR_MS, continuingOriginalProvider = true)
+		installOriginalCellNoCaptureAcknowledgement(SESSION_END_NANOS, SESSION_END_WALL_MS)
 		val later = demand(active = true).copy(demandId = "later-independent-capture", consumerId = "session:later",
 			logicalTrackingId = "later", serviceRunId = "later-run", requestedElapsedRealtimeNanos = SESSION_END_NANOS + 1L,
 			requestedAtMs = SESSION_END_WALL_MS + 1L)
 		database.sourceBrokerDao().insertDemands(listOf(later))
 		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(CELL_SOURCE, REGISTRATION_GENERATION,
 			AUTHORIZATION_REVISION + 2L, listOf(later), BOOT_ID, SESSION_END_NANOS + 1L, SESSION_END_WALL_MS + 1L))
-		database.openHelper.writableDatabase.execSQL("UPDATE provider_registration_generation SET status = 'ACTIVE', " +
-			"retired_at_ms = NULL, retired_elapsed_realtime_nanos = NULL, failure_code = NULL WHERE source_kind = ? AND registration_generation = ?",
-			arrayOf<Any?>(CELL_SOURCE, REGISTRATION_GENERATION))
 		val registration = requireNotNull(database.sourceBrokerDao().registration(CELL_SOURCE, REGISTRATION_GENERATION))
 		val current = requireNotNull(database.sourceBrokerDao().latestAuthorization(CELL_SOURCE, REGISTRATION_GENERATION).toAuthorizationSnapshotOrNull())
 		database.hasExactRadioSessionCaptureCallbackBarrier(registration, current, AUTHORIZATION_REVISION) shouldBe false
@@ -3320,7 +3317,8 @@ class CellCapturedFactMaintenanceTest {
 		staleChildCount: Int = 0,
 		observedWallTimeMs: Long = OBSERVED_WALL_MS,
 		providerNanos: Long = OBSERVED_NANOS,
-		sessionRunEffectEndNanos: Long = REGISTRATION_END_NANOS,
+		continuingOriginalProvider: Boolean = false,
+		sessionRunEffectEndNanos: Long = if (continuingOriginalProvider) SESSION_END_NANOS else REGISTRATION_END_NANOS,
 		coverageSpanNanos: Long = 0L,
 		acceptedChildCount: Int? = null,
 		revokedCapture: Boolean = false,
@@ -3348,7 +3346,14 @@ class CellCapturedFactMaintenanceTest {
 		installSession(segmentId)
 		val demand = demand(directDemandActive)
 		database.sourceBrokerDao().insertDemands(listOf(demand))
-		database.sourceBrokerDao().insertRegistration(registration())
+		database.sourceBrokerDao().insertRegistration(
+			if (continuingOriginalProvider) registration().copy(
+				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+				retiredAtMs = null,
+				retiredElapsedRealtimeNanos = null,
+				failureCode = null,
+			) else registration(),
+		)
 		val authorization = SourceBrokerAuthorization.rows(
 			sourceKind = CELL_SOURCE,
 			registrationGeneration = REGISTRATION_GENERATION,
@@ -3363,6 +3368,9 @@ class CellCapturedFactMaintenanceTest {
 			deliveryIndex = 0,
 			observedWallTimeMs = observedWallTimeMs,
 			providerNanos = providerNanos,
+			providerAcceptanceEndNanos = if (continuingOriginalProvider) Long.MAX_VALUE else REGISTRATION_END_NANOS,
+			authorizationEffectEndNanos = if (continuingOriginalProvider) SESSION_END_NANOS else REGISTRATION_END_NANOS,
+			consentEffectEndNanos = if (continuingOriginalProvider) SESSION_END_NANOS else REGISTRATION_END_NANOS,
 			sessionRunEffectEndNanos = sessionRunEffectEndNanos,
 			coverageSpanNanos = coverageSpanNanos,
 			acceptedChildCount = acceptedChildCount ?: if (coverageSpanNanos == 0L) 1 else 2,
@@ -4116,6 +4124,7 @@ class CellCapturedFactMaintenanceTest {
 		registrationGeneration: Long = REGISTRATION_GENERATION,
 		authorizationRevision: Long = AUTHORIZATION_REVISION,
 		authorizationEffectStartNanos: Long = AUTHORIZATION_START_NANOS,
+		providerAcceptanceEndNanos: Long = REGISTRATION_END_NANOS,
 		authorizationEffectEndNanos: Long = REGISTRATION_END_NANOS,
 		consentEffectEndNanos: Long = REGISTRATION_END_NANOS,
 		sessionRunEffectEndNanos: Long = REGISTRATION_END_NANOS,
@@ -4267,7 +4276,7 @@ class CellCapturedFactMaintenanceTest {
 				observedWallTimeMs - coverageSpanNanos / NANOS_PER_MILLISECOND - WALL_UNCERTAINTY_MS,
 			),
 			providerAcceptanceStartNanos = REGISTRATION_START_NANOS,
-			providerAcceptanceEndNanos = REGISTRATION_END_NANOS,
+			providerAcceptanceEndNanos = providerAcceptanceEndNanos,
 			authorizationEffectStartNanos = authorizationEffectStartNanos,
 			authorizationEffectEndNanos = authorizationEffectEndNanos,
 			consentEffectStartNanos = POLICY_START_NANOS,
@@ -4718,9 +4727,12 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	/** Constructed original provider acknowledgement; physical FIFO is covered by runtime fixtures. */
-	private suspend fun installOriginalCellNoCaptureAcknowledgement() {
+	private suspend fun installOriginalCellNoCaptureAcknowledgement(
+		acknowledgedElapsedNanos: Long = REGISTRATION_END_NANOS,
+		acknowledgedWallTimeMs: Long = REPLACEMENT_RUN_START_WALL_MS,
+	) {
 		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(CELL_SOURCE, REGISTRATION_GENERATION,
-			AUTHORIZATION_REVISION + 1L, emptyList(), BOOT_ID, SESSION_END_NANOS, SESSION_END_WALL_MS))
+			AUTHORIZATION_REVISION + 1L, emptyList(), BOOT_ID, acknowledgedElapsedNanos, acknowledgedWallTimeMs))
 		database.openHelper.writableDatabase.execSQL("UPDATE provider_registration_generation " +
 			"SET capture_callback_barrier_authorization_revision = ? WHERE source_kind = ? AND registration_generation = ?",
 			arrayOf<Any?>(AUTHORIZATION_REVISION + 1L, CELL_SOURCE, REGISTRATION_GENERATION))
