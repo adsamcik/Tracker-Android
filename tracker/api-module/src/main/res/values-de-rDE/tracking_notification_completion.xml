@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Ganztägige Standorterfassung</string>
+    <string name="notification_background_location_text">Die adaptive Standorterfassung ist aktiviert. Öffne Tracker, um sie zu verwalten.</string>
+</resources>

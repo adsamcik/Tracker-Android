@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Localização o dia todo</string>
+    <string name="notification_background_location_text">A coleta adaptativa de localização está ativada. Abra o Tracker para gerenciá-la.</string>
+</resources>

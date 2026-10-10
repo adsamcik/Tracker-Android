@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Lokalizacja przez cały dzień</string>
+    <string name="notification_background_location_text">Adaptacyjne zbieranie lokalizacji jest włączone. Otwórz Tracker, aby nim zarządzać.</string>
+</resources>

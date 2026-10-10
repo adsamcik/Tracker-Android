@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Heeldagligging</string>
+    <string name="notification_background_location_text">Aanpasbare liggingversameling is aangeskakel. Maak Tracker oop om dit te bestuur.</string>
+    <string name="settings_notification_unsaved_exit">Probeer weer om jou veranderinge te stoor, of verlaat sonder om te stoor.</string>
+    <string name="settings_notification_leave_without_saving">Verlaat sonder om te stoor</string>
+    <string name="notification_background_collection_title">Agtergrondnasporing</string>
+    <string name="notification_background_collection_text">Aangeskakel: %1$s. Maak Tracker oop om nasporing te bestuur.</string>
+    <string name="notification_background_source_location">Ligging</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Selfoonnetwerk</string>
+    <string name="notification_background_source_other">Nasporing</string>
+    <string name="settings_notification_move_up">Skuif op</string>
+    <string name="settings_notification_move_down">Skuif af</string>
+    <string name="settings_notification_load_failed">Kon nie kennisgewinginstellings laai nie.</string>
+    <string name="settings_notification_save_failed">Veranderinge is nie gestoor nie.</string>
+    <string name="settings_notification_retry">Probeer weer</string>
+    <string name="tracker_measurement_partial">Gedeeltelik</string>
+</resources>

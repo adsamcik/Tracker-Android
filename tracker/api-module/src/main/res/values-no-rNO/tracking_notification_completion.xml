@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Posisjon hele dagen</string>
+    <string name="notification_background_location_text">Tilpasset innsamling av posisjon er aktivert. Åpne Tracker for å administrere den.</string>
+    <string name="settings_notification_unsaved_exit">Prøv igjen for å lagre endringene, eller forlat uten å lagre.</string>
+    <string name="settings_notification_leave_without_saving">Forlat uten å lagre</string>
+    <string name="notification_background_collection_title">Sporing i bakgrunnen</string>
+    <string name="notification_background_collection_text">Aktivert: %1$s. Åpne Tracker for å administrere sporingen.</string>
+    <string name="notification_background_source_location">Posisjon</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Mobilnett</string>
+    <string name="notification_background_source_other">Sporing</string>
+    <string name="settings_notification_move_up">Flytt opp</string>
+    <string name="settings_notification_move_down">Flytt ned</string>
+    <string name="settings_notification_load_failed">Kunne ikke laste varselinnstillinger.</string>
+    <string name="settings_notification_save_failed">Endringene ble ikke lagret.</string>
+    <string name="settings_notification_retry">Prøv igjen</string>
+</resources>

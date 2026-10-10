@@ -63,6 +63,18 @@ from that pass predate the repairs.
   adaptive and passive degradation, retaining the same missing/wrong identity,
   zero execution and invalid reason rejection checks.
 
+## Notification localization repair
+
+The independent reviewer accepted 39 additive files named
+`tracking_notification_completion.xml` under the existing regional resource
+folders: 224 translations of 16 existing English resource keys. XML, duplicate
+names, English-key membership, apostrophe escaping and all eleven `%1$s`
+placeholders were checked by source inspection. Existing English and translated
+resources, baseline and lint rules are unchanged. The sorted path-and-SHA-256
+inventory digest is
+`11bcddf2e448e3fbb6be7198253700a7e457ec06a78f6515be4fb14e213262af`.
+This is source review; AAPT/lint results and device presentation are separate.
+
 ## Limits
 
 The new app fixture checks upgrade orchestration with Location data; the existing

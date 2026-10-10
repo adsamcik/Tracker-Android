@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">終日の位置情報</string>
+    <string name="notification_background_location_text">位置情報の適応的な収集が有効です。管理するにはTrackerを開いてください。</string>
+</resources>

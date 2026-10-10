@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Placering hele dagen</string>
+    <string name="notification_background_location_text">Adaptiv indsamling af placering er aktiveret. Åbn Tracker for at administrere den.</string>
+</resources>

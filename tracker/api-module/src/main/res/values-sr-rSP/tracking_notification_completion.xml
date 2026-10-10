@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Локација током целог дана</string>
+    <string name="notification_background_location_text">Прилагодљиво прикупљање локације је укључено. Отворите Tracker да бисте њиме управљали.</string>
+    <string name="settings_notification_unsaved_exit">Покушајте поново да сачувате измене или изађите без чувања.</string>
+    <string name="settings_notification_leave_without_saving">Изађи без чувања</string>
+    <string name="notification_background_collection_title">Праћење у позадини</string>
+    <string name="notification_background_collection_text">Укључено: %1$s. Отворите Tracker да бисте управљали праћењем.</string>
+    <string name="notification_background_source_location">Локација</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Мобилна мрежа</string>
+    <string name="notification_background_source_other">Праћење</string>
+    <string name="settings_notification_move_up">Помери нагоре</string>
+    <string name="settings_notification_move_down">Помери надоле</string>
+    <string name="settings_notification_load_failed">Није могуће учитати подешавања обавештења.</string>
+    <string name="settings_notification_save_failed">Измене нису сачуване.</string>
+    <string name="settings_notification_retry">Покушај поново</string>
+</resources>

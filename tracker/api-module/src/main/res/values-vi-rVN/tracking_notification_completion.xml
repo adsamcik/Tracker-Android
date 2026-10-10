@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Vị trí cả ngày</string>
+    <string name="notification_background_location_text">Tính năng thu thập vị trí thích ứng đã bật. Mở Tracker để quản lý.</string>
+    <string name="settings_notification_unsaved_exit">Thử lại để lưu thay đổi hoặc thoát mà không lưu.</string>
+    <string name="settings_notification_leave_without_saving">Thoát mà không lưu</string>
+    <string name="notification_background_collection_title">Theo dõi nền</string>
+    <string name="notification_background_collection_text">Đã bật: %1$s. Mở Tracker để quản lý việc theo dõi.</string>
+    <string name="notification_background_source_location">Vị trí</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Mạng di động</string>
+    <string name="notification_background_source_other">Theo dõi</string>
+    <string name="settings_notification_move_up">Di chuyển lên</string>
+    <string name="settings_notification_move_down">Di chuyển xuống</string>
+    <string name="settings_notification_load_failed">Không thể tải cài đặt thông báo.</string>
+    <string name="settings_notification_save_failed">Chưa lưu thay đổi.</string>
+    <string name="settings_notification_retry">Thử lại</string>
+</resources>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Місцеположення протягом усього дня</string>
+    <string name="notification_background_location_text">Адаптивний збір місцеположення ввімкнено. Відкрийте Tracker, щоб керувати ним.</string>
+    <string name="settings_notification_unsaved_exit">Спробуйте знову зберегти зміни або вийдіть без збереження.</string>
+    <string name="settings_notification_leave_without_saving">Вийти без збереження</string>
+    <string name="notification_background_collection_title">Відстеження у фоні</string>
+    <string name="notification_background_collection_text">Увімкнено: %1$s. Відкрийте Tracker для керування відстеженням.</string>
+    <string name="notification_background_source_location">Місцеположення</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Стільникова мережа</string>
+    <string name="notification_background_source_other">Відстеження</string>
+    <string name="settings_notification_move_up">Перемістити вгору</string>
+    <string name="settings_notification_move_down">Перемістити вниз</string>
+    <string name="settings_notification_load_failed">Не вдалося завантажити налаштування сповіщень.</string>
+    <string name="settings_notification_save_failed">Зміни не збережено.</string>
+    <string name="settings_notification_retry">Повторити</string>
+</resources>

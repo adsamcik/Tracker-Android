@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Asukoht kogu päeva jooksul</string>
+    <string name="notification_background_location_text">Kohanduv asukoha kogumine on lubatud. Selle haldamiseks ava Tracker.</string>
+</resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Suíomh ar feadh an lae</string>
+    <string name="notification_background_location_text">Tá bailiú oiriúnaitheach suímh cumasaithe. Oscail Tracker chun é a bhainistiú.</string>
+</resources>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">하루 종일 위치 수집</string>
+    <string name="notification_background_location_text">상황에 맞춘 위치 수집이 켜져 있습니다. 관리하려면 Tracker를 여세요.</string>
+    <string name="settings_notification_unsaved_exit">변경 사항을 저장하려면 다시 시도하거나 저장하지 않고 나가세요.</string>
+    <string name="settings_notification_leave_without_saving">저장하지 않고 나가기</string>
+    <string name="notification_background_collection_title">백그라운드 추적</string>
+    <string name="notification_background_collection_text">켜짐: %1$s. 추적을 관리하려면 Tracker를 여세요.</string>
+    <string name="notification_background_source_location">위치</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">이동통신</string>
+    <string name="notification_background_source_other">추적</string>
+    <string name="settings_notification_move_up">위로 이동</string>
+    <string name="settings_notification_move_down">아래로 이동</string>
+    <string name="settings_notification_load_failed">알림 설정을 불러오지 못했습니다.</string>
+    <string name="settings_notification_save_failed">변경 사항이 저장되지 않았습니다.</string>
+    <string name="settings_notification_retry">다시 시도</string>
+</resources>

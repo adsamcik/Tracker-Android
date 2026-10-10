@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Atrašanās vieta visu dienu</string>
+    <string name="notification_background_location_text">Pielāgojama atrašanās vietas datu vākšana ir ieslēgta. Atveriet Tracker, lai to pārvaldītu.</string>
+</resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Celodenní poloha</string>
+    <string name="notification_background_location_text">Adaptivní sběr polohy je zapnutý. Otevřete Tracker a spravujte jej.</string>
+</resources>

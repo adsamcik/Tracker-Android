@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">מיקום לאורך כל היום</string>
+    <string name="notification_background_location_text">איסוף מיקום מותאם פעיל. יש לפתוח את Tracker כדי לנהל אותו.</string>
+    <string name="settings_notification_unsaved_exit">יש לנסות שוב לשמור את השינויים, או לצאת ללא שמירה.</string>
+    <string name="settings_notification_leave_without_saving">יציאה ללא שמירה</string>
+    <string name="notification_background_collection_title">מעקב ברקע</string>
+    <string name="notification_background_collection_text">פעיל: %1$s. יש לפתוח את Tracker כדי לנהל את המעקב.</string>
+    <string name="notification_background_source_location">מיקום</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">רשת סלולרית</string>
+    <string name="notification_background_source_other">מעקב</string>
+    <string name="settings_notification_move_up">העברה למעלה</string>
+    <string name="settings_notification_move_down">העברה למטה</string>
+    <string name="settings_notification_load_failed">לא ניתן לטעון את הגדרות ההתראות.</string>
+    <string name="settings_notification_save_failed">השינויים לא נשמרו.</string>
+    <string name="settings_notification_retry">ניסיון חוזר</string>
+</resources>

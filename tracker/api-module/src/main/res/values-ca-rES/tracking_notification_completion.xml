@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Ubicació durant tot el dia</string>
+    <string name="notification_background_location_text">La recollida adaptativa d’ubicació està activada. Obriu Tracker per gestionar-la.</string>
+    <string name="settings_notification_unsaved_exit">Torneu-ho a provar per desar els canvis, o sortiu sense desar.</string>
+    <string name="settings_notification_leave_without_saving">Surt sense desar</string>
+    <string name="notification_background_collection_title">Seguiment en segon pla</string>
+    <string name="notification_background_collection_text">Activat: %1$s. Obriu Tracker per gestionar el seguiment.</string>
+    <string name="notification_background_source_location">Ubicació</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Xarxa mòbil</string>
+    <string name="notification_background_source_other">Seguiment</string>
+    <string name="settings_notification_move_up">Mou amunt</string>
+    <string name="settings_notification_move_down">Mou avall</string>
+    <string name="settings_notification_load_failed">No s’han pogut carregar els ajustos de notificació.</string>
+    <string name="settings_notification_save_failed">No s’han desat els canvis.</string>
+    <string name="settings_notification_retry">Torna-ho a provar</string>
+    <string name="tracker_measurement_partial">Parcial</string>
+</resources>

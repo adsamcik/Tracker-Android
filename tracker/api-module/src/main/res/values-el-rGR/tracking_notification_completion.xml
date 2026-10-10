@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Τοποθεσία όλη την ημέρα</string>
+    <string name="notification_background_location_text">Η προσαρμοστική συλλογή τοποθεσίας είναι ενεργή. Ανοίξτε το Tracker για να τη διαχειριστείτε.</string>
+</resources>

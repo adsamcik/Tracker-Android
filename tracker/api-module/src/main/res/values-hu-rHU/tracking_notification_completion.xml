@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Egész napos helyadatgyűjtés</string>
+    <string name="notification_background_location_text">Az adaptív helyadatgyűjtés engedélyezve van. A kezeléséhez nyissa meg a Trackert.</string>
+</resources>

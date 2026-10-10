@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">全天位置</string>
+    <string name="notification_background_location_text">自适应位置收集已启用。打开 Tracker 进行管理。</string>
+</resources>

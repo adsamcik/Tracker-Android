@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">पूरे दिन का स्थान</string>
+    <string name="notification_background_location_text">अनुकूल स्थान संग्रह चालू है। इसे प्रबंधित करने के लिए Tracker खोलें।</string>
+</resources>

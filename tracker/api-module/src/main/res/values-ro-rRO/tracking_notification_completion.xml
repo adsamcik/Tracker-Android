@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Locație pe tot parcursul zilei</string>
+    <string name="notification_background_location_text">Colectarea adaptivă a locației este activată. Deschideți Tracker pentru a o gestiona.</string>
+</resources>

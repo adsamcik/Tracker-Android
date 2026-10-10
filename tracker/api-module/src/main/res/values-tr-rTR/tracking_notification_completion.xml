@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Gün boyu konum</string>
+    <string name="notification_background_location_text">Uyarlanabilir konum toplama etkin. Yönetmek için Tracker uygulamasını açın.</string>
+    <string name="settings_notification_unsaved_exit">Değişikliklerinizi kaydetmek için tekrar deneyin veya kaydetmeden çıkın.</string>
+    <string name="settings_notification_leave_without_saving">Kaydetmeden çık</string>
+    <string name="notification_background_collection_title">Arka planda izleme</string>
+    <string name="notification_background_collection_text">Etkin: %1$s. İzlemeyi yönetmek için Tracker uygulamasını açın.</string>
+    <string name="notification_background_source_location">Konum</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">Mobil şebeke</string>
+    <string name="notification_background_source_other">İzleme</string>
+    <string name="settings_notification_move_up">Yukarı taşı</string>
+    <string name="settings_notification_move_down">Aşağı taşı</string>
+    <string name="settings_notification_load_failed">Bildirim ayarları yüklenemedi.</string>
+    <string name="settings_notification_save_failed">Değişiklikler kaydedilmedi.</string>
+    <string name="settings_notification_retry">Tekrar dene</string>
+</resources>

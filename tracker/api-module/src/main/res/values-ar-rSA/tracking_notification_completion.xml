@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">الموقع طوال اليوم</string>
+    <string name="notification_background_location_text">جمع الموقع التكيفي مفعّل. افتح Tracker لإدارته.</string>
+    <string name="settings_notification_unsaved_exit">أعِد المحاولة لحفظ تغييراتك، أو غادر دون حفظ.</string>
+    <string name="settings_notification_leave_without_saving">المغادرة دون حفظ</string>
+    <string name="notification_background_collection_title">التتبع في الخلفية</string>
+    <string name="notification_background_collection_text">مفعّل: %1$s. افتح Tracker لإدارة التتبع.</string>
+    <string name="notification_background_source_location">الموقع</string>
+    <string name="notification_background_source_wifi">Wi-Fi</string>
+    <string name="notification_background_source_cell">الشبكة الخلوية</string>
+    <string name="notification_background_source_other">التتبع</string>
+    <string name="settings_notification_move_up">نقل لأعلى</string>
+    <string name="settings_notification_move_down">نقل لأسفل</string>
+    <string name="settings_notification_load_failed">تعذّر تحميل إعدادات الإشعارات.</string>
+    <string name="settings_notification_save_failed">لم تُحفظ التغييرات.</string>
+    <string name="settings_notification_retry">إعادة المحاولة</string>
+    <string name="tracker_measurement_partial">جزئي</string>
+</resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_background_location_title">Plats hela dagen</string>
+    <string name="notification_background_location_text">Anpassad insamling av plats är aktiverad. Öppna Tracker för att hantera den.</string>
+</resources>
