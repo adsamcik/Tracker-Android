@@ -56,6 +56,63 @@ class ManualTrackingStartContinuationTest {
 	private val ready = ManualTrackingStartReadiness.Ready(1L)
 
 	@Test
+	fun `approximate Location can complete the same Start while selected Wi-Fi still needs precise permission`() = runTest {
+		val authority = ManualStartTestAuthority()
+		val sources = setOf(TrackingCaptureSource.LOCATION, TrackingCaptureSource.WIFI)
+		val selection = ManualTrackingStartSelection(sources.associateWith { 7L })
+		var available = emptySet<TrackingCaptureSource>()
+		var deliveries = 0
+		suspend fun request(generation: Long?) = executeManualTrackingStartContinuation(generation, authority, {
+			testManualStartPreflight(resolveManualTrackingStartReadiness(
+				rolloutRevision = 1L, enabledSources = sources, reachableSources = sources,
+				supportedSources = sources, availableSources = available,
+				sourcesMissingPreciseLocationPermission = sources - available,
+				sourcesMissingActivityRecognitionPermission = emptySet(),
+				sourcesMissingReadPhoneStatePermission = emptySet(), sourcesBlockedByLocationServices = emptySet(),
+			), selection)
+		}) {
+			it.selection shouldBe selection
+			it.command.generation shouldBe 1L
+			deliveries++
+			testManualStartEnqueue(authority, it)
+		}
+
+		request(null) shouldBe ManualTrackingStartResult.RepairRequired(
+			ManualTrackingStartPrerequisite.PRECISE_LOCATION_PERMISSION, 1L)
+		// Approximate foreground Location is usable; Wi-Fi has not received its precise grant.
+		available = setOf(TrackingCaptureSource.LOCATION)
+		request(1L) shouldBe ManualTrackingStartResult.ENQUEUED
+		authority.reservations shouldBe 1
+		deliveries shouldBe 1
+		request(1L) shouldBe ManualTrackingStartResult.TRACKING_UNAVAILABLE
+		deliveries shouldBe 1
+	}
+
+	@Test
+	fun `approximate permission does not make a Wi-Fi-only original Start ready`() = runTest {
+		val authority = ManualStartTestAuthority()
+		val sources = setOf(TrackingCaptureSource.WIFI)
+		val selection = ManualTrackingStartSelection(mapOf(TrackingCaptureSource.WIFI to 7L))
+		val preflight = testManualStartPreflight(resolveManualTrackingStartReadiness(
+			rolloutRevision = 1L, enabledSources = sources, reachableSources = sources,
+			supportedSources = sources, availableSources = emptySet(),
+			sourcesMissingPreciseLocationPermission = sources,
+			sourcesMissingActivityRecognitionPermission = emptySet(),
+			sourcesMissingReadPhoneStatePermission = emptySet(), sourcesBlockedByLocationServices = emptySet(),
+		), selection)
+		suspend fun request(generation: Long?) = executeManualTrackingStartContinuation(generation, authority, { preflight }) {
+			error("A radio permission repair must never enqueue without its required grant")
+		}
+		val expected = ManualTrackingStartResult.RepairRequired(ManualTrackingStartPrerequisite.PRECISE_LOCATION_PERMISSION, 1L)
+		request(null) shouldBe expected
+		request(1L) shouldBe expected
+		authority.reservations shouldBe 1
+		// The route's unchanged-repair branch cancels this generation after the system result.
+		authority.cancelManualStart(1L)
+		request(1L) shouldBe ManualTrackingStartResult.TRACKING_UNAVAILABLE
+	}
+
+	@Test
 	fun `two permissions continue the original Start and dispatch it once`() = runTest {
 		val authority = ManualStartTestAuthority()
 		var enqueued: ManualTrackingStartContinuation? = null

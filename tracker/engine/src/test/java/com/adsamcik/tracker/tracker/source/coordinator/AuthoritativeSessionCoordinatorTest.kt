@@ -531,7 +531,7 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
-	fun `mixed startup catalog retry defers every source before durable authority`() = runTest {
+	fun `available location starts while steps catalog read fails`() = runTest {
 		val catalog = mockk<SourceImplementationCatalog>()
 		coEvery { catalog.availability(any()) } answers {
 			when (firstArg<SourceAvailabilityRequest>().source) {
@@ -566,33 +566,180 @@ class AuthoritativeSessionCoordinatorTest {
 			plan = stepsAndLocationPlan(1L, stepsEnabled = true),
 		)
 
-		subject.prepareAndroidStart(
-			request,
-			AndroidStartDeliveryMetadata(
-				PreparedTrackingStartToken("mixed-retryable-token"),
-				1L,
-				true,
-				false,
-			),
-		) shouldBe SessionStartPreparationResult.Rejected(
-			"SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
-			TrackingStartFailureDisposition.RETRYABLE,
-		)
-		subject.start(
-			request.copy(
-				logicalTrackingId = "mixed-retryable-direct",
-				serviceRunId = "mixed-retryable-direct-run",
-			),
-		) shouldBe SessionStartResult.InvalidIntent(
-			"SOURCE_CATALOG_STEPS_AVAILABILITY_READ_FAILED",
-			TrackingStartFailureDisposition.RETRYABLE,
-		)
+		val started = subject.start(request).shouldBeInstanceOf<SessionStartResult.Started>()
 
-		database.sourceSessionDao().activeSession() shouldBe null
-		database.sourcePlanStateDao().latestRevision() shouldBe null
-		database.sourceBrokerDao().currentDemands("session:mixed-retryable-start") shouldBe emptyList()
-		locationProviderCalls shouldBe 0
+		started.planStatus shouldBe DesiredPlanStatus.DEGRADED
+		started.applied.associateBy(AppliedSourcePlan::source).let { outcomes ->
+			outcomes.getValue(SourceKind.LOCATION).status shouldBe SourceApplyStatus.APPLIED
+			outcomes.getValue(SourceKind.STEPS).let { blocked ->
+				blocked.status shouldBe SourceApplyStatus.BLOCKED
+				blocked.degradedReasons shouldBe setOf(SourceDegradedReason.AVAILABILITY_READ_FAILED)
+			}
+		}
+		database.sourceSessionDao().activeSession()?.logicalTrackingId shouldBe request.logicalTrackingId
+		database.sourceBrokerDao().currentDemands("session:${started.logicalTrackingId}")
+			.map(SourceDemandEntity::sourceKind).toSet() shouldBe setOf(SourceKind.LOCATION.stableCode)
+		locationProviderCalls shouldBe 1
 		stepsProviderCalls shouldBe 0
+		runtime.startCount shouldBe 0
+		locationRuntime.isActive shouldBe true
+	}
+
+	@Test
+	fun `available steps start while location is OS limited`() = runTest {
+		val catalog = mockk<SourceImplementationCatalog>()
+		coEvery { catalog.availability(any()) } answers {
+			when (firstArg<SourceAvailabilityRequest>().source) {
+				SourceKind.STEPS -> SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
+				SourceKind.LOCATION -> SourceCatalogAvailability.Executable(
+					SourceProviderAvailability.OsLimited(SourceProviderAvailabilityEvidence.Runtime(
+						SourceKind.LOCATION, setOf(SourceDegradedReason.BACKGROUND_START_ILLEGAL),
+					)),
+				)
+				else -> error("Unexpected source")
+			}
+		}
+		replaceRuntimeRegistry(SourceRuntimeRegistry(
+			mapOf<SourceKind, Provider<ClaimedSourceRuntime<out SourcePlan>>>(
+				SourceKind.STEPS to Provider { runtime },
+				SourceKind.LOCATION to Provider { error("Unavailable Location must stay unresolved") },
+			), catalog, requireAllSources = false,
+		))
+
+		val started = subject.start(startRequest().copy(
+			logicalTrackingId = "steps-with-limited-location",
+			serviceRunId = "steps-with-limited-location-run",
+			plan = stepsAndLocationPlan(1L, stepsEnabled = true),
+		)).shouldBeInstanceOf<SessionStartResult.Started>()
+
+		started.planStatus shouldBe DesiredPlanStatus.DEGRADED
+		started.applied.associateBy(AppliedSourcePlan::source).let { outcomes ->
+			outcomes.getValue(SourceKind.STEPS).status shouldBe SourceApplyStatus.APPLIED
+			outcomes.getValue(SourceKind.LOCATION).let { blocked ->
+				blocked.status shouldBe SourceApplyStatus.BLOCKED
+				blocked.degradedReasons shouldBe setOf(SourceDegradedReason.BACKGROUND_START_ILLEGAL)
+			}
+		}
+		database.sourceBrokerDao().currentDemands("session:${started.logicalTrackingId}")
+			.map(SourceDemandEntity::sourceKind).toSet() shouldBe setOf(SourceKind.STEPS.stableCode)
+		runtime.startCount shouldBe 1
+		runtime.isActive shouldBe true
+		locationRuntime.isActive shouldBe false
+	}
+
+	@Test
+	fun `prepared steps start keeps unavailable location out of capture authority`() = runTest {
+		val catalog = mockk<SourceImplementationCatalog>()
+		coEvery { catalog.availability(any()) } answers {
+			when (firstArg<SourceAvailabilityRequest>().source) {
+				SourceKind.STEPS -> SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
+				SourceKind.LOCATION -> SourceCatalogAvailability.Executable(
+					SourceProviderAvailability.ProviderUnavailable(SourceProviderAvailabilityEvidence.Runtime(
+						SourceKind.LOCATION, setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE),
+					)),
+				)
+				else -> error("Unexpected source")
+			}
+		}
+		replaceRuntimeRegistry(SourceRuntimeRegistry(
+			mapOf<SourceKind, Provider<ClaimedSourceRuntime<out SourcePlan>>>(
+				SourceKind.STEPS to Provider { runtime },
+				SourceKind.LOCATION to Provider { error("Unavailable Location must stay unresolved") },
+			), catalog, requireAllSources = false,
+		))
+		val token = PreparedTrackingStartToken("steps-with-unavailable-location-token")
+		val prepared = subject.prepareAndroidStart(startRequest().copy(
+			logicalTrackingId = "steps-with-unavailable-location",
+			serviceRunId = "steps-with-unavailable-location-run",
+			plan = stepsAndLocationPlan(1L, stepsEnabled = true),
+		), AndroidStartDeliveryMetadata(token, 1L, true, false))
+			.shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+
+		database.sourceSessionDao().manifestSources(prepared.logicalTrackingId, prepared.manifestRevision)
+			.filter { it.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
+			.map(SessionManifestSourceEntity::sourceKind).toSet() shouldBe setOf(SourceKind.STEPS.stableCode)
+		runtime.startCount shouldBe 0
+		subject.markAndroidStartEnqueued(token, 1L, 1_050L) shouldBe true
+		subject.claimAndroidStart(token, 1L, "boot-1", 1_100_000L, 1_100L)
+			.shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>().start.acceptedSources shouldBe setOf(SourceKind.STEPS)
+		subject.markPreparedForegroundAccepted(token, 1L, "boot-1", 1_200_000L, 1_200L) shouldBe true
+		val started = subject.applyPreparedAndroidStart(token, 1L, "boot-1", 1_300_000L, 1_300L)
+			.shouldBeInstanceOf<SessionStartResult.Started>()
+
+		started.planStatus shouldBe DesiredPlanStatus.DEGRADED
+		started.applied.associateBy(AppliedSourcePlan::source).let { outcomes ->
+			outcomes.getValue(SourceKind.STEPS).status shouldBe SourceApplyStatus.APPLIED
+			outcomes.getValue(SourceKind.LOCATION).let { blocked ->
+				blocked.status shouldBe SourceApplyStatus.BLOCKED
+				blocked.degradedReasons shouldBe setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE)
+			}
+		}
+		database.sourceBrokerDao().currentDemands("session:${started.logicalTrackingId}")
+			.map(SourceDemandEntity::sourceKind).toSet() shouldBe setOf(SourceKind.STEPS.stableCode)
+		runtime.startCount shouldBe 1
+		runtime.isActive shouldBe true
+		locationRuntime.isActive shouldBe false
+	}
+
+	@Test
+	fun `recovery resumes steps when previously recorded location is unavailable`() = runTest {
+		val catalog = mockk<SourceImplementationCatalog>()
+		var locationUnavailable = false
+		coEvery { catalog.availability(any()) } answers {
+			if (firstArg<SourceAvailabilityRequest>().source == SourceKind.LOCATION && locationUnavailable) {
+				SourceCatalogAvailability.Executable(SourceProviderAvailability.ProviderUnavailable(
+					SourceProviderAvailabilityEvidence.Runtime(
+						SourceKind.LOCATION, setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE),
+					),
+				))
+			} else SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
+		}
+		var locationProviderCalls = 0
+		replaceRuntimeRegistry(SourceRuntimeRegistry(
+			mapOf<SourceKind, Provider<ClaimedSourceRuntime<out SourcePlan>>>(
+				SourceKind.STEPS to Provider { runtime },
+				SourceKind.LOCATION to Provider {
+					locationProviderCalls++
+					locationRuntime
+				},
+			), catalog, requireAllSources = false,
+		))
+		val request = startRequest().copy(
+			logicalTrackingId = "partial-recovery-logical",
+			serviceRunId = "partial-recovery-first-run",
+			plan = stepsAndLocationPlan(1L, stepsEnabled = true),
+		)
+		val first = subject.start(request).shouldBeInstanceOf<SessionStartResult.Started>()
+		subject.suspendForRestart(SessionSuspendRequest(
+			"test-owner", "ANDROID_RESTART", 2_000L, 2_000_000L, "boot-1", perSourceTimeoutMs = 100L,
+		)).shouldBeInstanceOf<SessionSuspendResult.Suspended>()
+		val locationCallsBeforeRecovery = locationProviderCalls
+		locationUnavailable = true
+
+		val resumed = subject.start(request.copy(
+			origin = SessionStartOrigin.RECOVERY,
+			serviceRunId = "partial-recovery-next-run",
+			plan = stepsAndLocationPlan(2L, stepsEnabled = true),
+			wallTimeMs = 3_000L,
+			elapsedRealtimeNanos = 3_000_000L,
+			continuationAuthority = ServiceRunContinuationAuthority(first.serviceRunId),
+		)).shouldBeInstanceOf<SessionStartResult.Started>()
+
+		resumed.logicalTrackingId shouldBe first.logicalTrackingId
+		resumed.serviceRunId shouldBe "partial-recovery-next-run"
+		resumed.planStatus shouldBe DesiredPlanStatus.DEGRADED
+		resumed.applied.associateBy(AppliedSourcePlan::source).let { outcomes ->
+			outcomes.getValue(SourceKind.STEPS).status shouldBe SourceApplyStatus.APPLIED
+			outcomes.getValue(SourceKind.LOCATION).status shouldBe SourceApplyStatus.BLOCKED
+		}
+		database.sourceSessionDao().serviceRun(first.serviceRunId)?.state shouldBe SessionLifecycleState.FINALIZED.name
+		database.sourceSessionDao().session(first.logicalTrackingId)?.currentServiceRunId shouldBe resumed.serviceRunId
+		database.sourceBrokerDao().currentDemands("session:${resumed.logicalTrackingId}")
+			.map(SourceDemandEntity::sourceKind).toSet() shouldBe setOf(SourceKind.STEPS.stableCode)
+		locationProviderCalls shouldBe locationCallsBeforeRecovery
+		runtime.startCount shouldBe 2
+		runtime.isActive shouldBe true
+		locationRuntime.isActive shouldBe false
 	}
 
 	@Test
@@ -1456,14 +1603,12 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	@Test
-	fun `prepared apply waits on mixed retryable catalog without partial activation`() = runTest {
+	fun `prepared location starts without waiting for unavailable steps`() = runTest {
 		val catalog = mockk<SourceImplementationCatalog>()
 		var stepsReadFails = false
-		val retryObserved = CompletableDeferred<Unit>()
 		coEvery { catalog.availability(any()) } answers {
 			val request = firstArg<SourceAvailabilityRequest>()
 			if (request.source == SourceKind.STEPS && stepsReadFails) {
-				retryObserved.complete(Unit)
 				throw SQLiteException("storage unavailable")
 			}
 			SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
@@ -1506,35 +1651,94 @@ class AuthoritativeSessionCoordinatorTest {
 		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
 		stepsReadFails = true
 
-		val accepting = async {
-			subject.markPreparedForegroundAccepted(
-				token,
-				1L,
-				"boot-1",
-				1_200_000L,
-				1_200L,
-			)
-		}
-		retryObserved.await()
-
+		subject.markPreparedForegroundAccepted(
+			token,
+			1L,
+			"boot-1",
+			1_200_000L,
+			1_200L,
+		) shouldBe true
 		database.sourceSessionDao().serviceRun(requireNotNull(request.serviceRunId))?.androidDeliveryState shouldBe
-			AndroidStartDeliveryState.DELIVERED.name
+			AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name
+		database.sourceBrokerDao().currentDemands("session:${request.logicalTrackingId}")
+			.map(SourceDemandEntity::sourceKind).toSet() shouldBe setOf(SourceKind.LOCATION.stableCode)
 		locationProviderCalls shouldBe 0
 		stepsProviderCalls shouldBe 0
-		stepsReadFails = false
-		testScheduler.advanceTimeBy(250L)
-		testScheduler.runCurrent()
-
-		accepting.await() shouldBe true
-		subject.applyPreparedAndroidStart(
+		val started = subject.applyPreparedAndroidStart(
 			token,
 			1L,
 			"boot-1",
 			1_300_000L,
 			1_300L,
 		).shouldBeInstanceOf<SessionStartResult.Started>()
+		started.planStatus shouldBe DesiredPlanStatus.DEGRADED
+		started.applied.associateBy(AppliedSourcePlan::source).let { outcomes ->
+			outcomes.getValue(SourceKind.LOCATION).status shouldBe SourceApplyStatus.APPLIED
+			outcomes.getValue(SourceKind.STEPS).let { blocked ->
+				blocked.status shouldBe SourceApplyStatus.BLOCKED
+				blocked.degradedReasons shouldBe setOf(SourceDegradedReason.AVAILABILITY_READ_FAILED)
+			}
+		}
 		locationProviderCalls shouldBe 1
-		stepsProviderCalls shouldBe 1
+		stepsProviderCalls shouldBe 0
+		runtime.startCount shouldBe 0
+		locationRuntime.isActive shouldBe true
+	}
+
+	@Test
+	fun `prepared steps continue when location becomes unavailable after foreground acceptance`() = runTest {
+		val catalog = mockk<SourceImplementationCatalog>()
+		var locationReadFails = false
+		coEvery { catalog.availability(any()) } answers {
+			if (firstArg<SourceAvailabilityRequest>().source == SourceKind.LOCATION && locationReadFails) {
+				throw SQLiteException("Location availability unavailable")
+			}
+			SourceCatalogAvailability.Executable(SourceProviderAvailability.Available())
+		}
+		var locationProviderCalls = 0
+		replaceRuntimeRegistry(SourceRuntimeRegistry(
+			mapOf<SourceKind, Provider<ClaimedSourceRuntime<out SourcePlan>>>(
+				SourceKind.STEPS to Provider { runtime },
+				SourceKind.LOCATION to Provider {
+					locationProviderCalls++
+					locationRuntime
+				},
+			), catalog, requireAllSources = false,
+		))
+		val token = PreparedTrackingStartToken("location-lost-after-foreground-token")
+		val request = startRequest().copy(
+			logicalTrackingId = "location-lost-after-foreground",
+			serviceRunId = "location-lost-after-foreground-run",
+			plan = stepsAndLocationPlan(1L, stepsEnabled = true),
+		)
+		subject.prepareAndroidStart(request, AndroidStartDeliveryMetadata(token, 1L, true, false))
+			.shouldBeInstanceOf<SessionStartPreparationResult.Prepared>()
+		subject.markAndroidStartEnqueued(token, 1L, 1_050L) shouldBe true
+		subject.claimAndroidStart(token, 1L, "boot-1", 1_100_000L, 1_100L)
+			.shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		subject.markPreparedForegroundAccepted(token, 1L, "boot-1", 1_200_000L, 1_200L) shouldBe true
+		database.sourceBrokerDao().currentDemands("session:${request.logicalTrackingId}")
+			.map(SourceDemandEntity::sourceKind).toSet() shouldBe
+			setOf(SourceKind.STEPS.stableCode, SourceKind.LOCATION.stableCode)
+		locationReadFails = true
+
+		val started = subject.applyPreparedAndroidStart(token, 1L, "boot-1", 1_300_000L, 1_300L)
+			.shouldBeInstanceOf<SessionStartResult.Started>()
+
+		started.planStatus shouldBe DesiredPlanStatus.DEGRADED
+		started.applied.associateBy(AppliedSourcePlan::source).let { outcomes ->
+			outcomes.getValue(SourceKind.STEPS).status shouldBe SourceApplyStatus.APPLIED
+			outcomes.getValue(SourceKind.LOCATION).let { blocked ->
+				blocked.status shouldBe SourceApplyStatus.BLOCKED
+				blocked.degradedReasons shouldBe setOf(SourceDegradedReason.AVAILABILITY_READ_FAILED)
+			}
+		}
+		database.sourceBrokerDao().currentDemands("session:${started.logicalTrackingId}")
+			.map(SourceDemandEntity::sourceKind).toSet() shouldBe setOf(SourceKind.STEPS.stableCode)
+		locationProviderCalls shouldBe 0
+		runtime.startCount shouldBe 1
+		runtime.isActive shouldBe true
+		locationRuntime.isActive shouldBe false
 	}
 
 	@Test

@@ -304,7 +304,7 @@ fun TrackerRoute(
     // Contextual permission request dialog (Apple-style: rationale before system prompt)
     val permissionRequest = manualStartPermissionRequest?.toTrackerPermissionRequest()
     if (permissionRequest != null) {
-        val onPermissionResult: (Boolean) -> Unit = { granted ->
+        val onPermissionResult: (Boolean) -> Unit = { _ ->
             val generation = pendingManualStartGeneration
             val requestVersion = manualStartRequestVersion
             manualStartPermissionRequest = null
@@ -315,7 +315,7 @@ fun TrackerRoute(
                 hasLocationPermission = checkLocationPermission(context)
                 val sameRepair = (updated as? ManualTrackingStartReadiness.RepairRequired)
                     ?.prerequisite == permissionRequest.prerequisite
-                if (!granted || sameRepair) {
+                if (sameRepair) {
                     permissionDenied = true
                     cancelPendingManualStart(generation)
                 } else if (generation != null) {

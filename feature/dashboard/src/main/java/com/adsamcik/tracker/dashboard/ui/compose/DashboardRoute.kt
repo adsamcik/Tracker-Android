@@ -423,7 +423,7 @@ fun DashboardRoute(
 	// Contextual permission request dialog. Only an explicit start attempt reaches this state.
 	val permissionRequest = manualStartPermissionRequest?.toDashboardPermissionRequest()
 	if (permissionRequest != null) {
-		val onPermissionResult: (Boolean) -> Unit = { granted ->
+		val onPermissionResult: (Boolean) -> Unit = { _ ->
 			val generation = pendingManualStartGeneration
 			val requestVersion = manualStartRequestVersion
 			val repairedPrerequisite = permissionRequest.prerequisite
@@ -434,7 +434,7 @@ fun DashboardRoute(
 				manualStartReadiness = updated
 				val sameRepair = (updated as? ManualTrackingStartReadiness.RepairRequired)
 					?.prerequisite == repairedPrerequisite
-				if (!granted || sameRepair) {
+				if (sameRepair) {
 					manualStartPermissionDenied = true
 					cancelPendingManualStart(generation)
 				} else if (generation != null) {

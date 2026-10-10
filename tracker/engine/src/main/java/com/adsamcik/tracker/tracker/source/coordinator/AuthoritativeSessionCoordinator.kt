@@ -312,7 +312,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			request.plan,
 			request.origin.toSourceAvailabilityTier(),
 		)
-		catalogDecisions.retryableFailure()?.let { failure ->
+		catalogDecisions.retryableFailure()
+			?.takeIf { catalogDecisions.acceptedSources.isEmpty() }?.let { failure ->
 			return SessionStartPreparationResult.Rejected(
 				failure.failure.code,
 				failure.failure.disposition,
@@ -1044,7 +1045,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 					plan,
 					SourceAvailabilityTier.SESSION_ALREADY_FOREGROUND,
 				).constrainedToAcceptedSources(acceptedAtPrepare)
-				if (decisions.retryableFailure() == null) {
+				if (decisions.acceptedSources.isNotEmpty() || decisions.retryableFailure() == null) {
 					acceptedAtForeground = decisions.acceptedSources
 					break
 				}
@@ -1202,7 +1203,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				plan,
 				SourceAvailabilityTier.SESSION_ALREADY_FOREGROUND,
 			).constrainedToAcceptedSources(persisted.activeCaptureSources())
-			catalogDecisions.retryableFailure()?.let { failure ->
+			catalogDecisions.retryableFailure()
+				?.takeIf { catalogDecisions.acceptedSources.isEmpty() }?.let { failure ->
 				keepLease = true
 				return SessionStartResult.InvalidIntent(
 					failure.failure.code,
@@ -1584,7 +1586,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			request.plan,
 			request.origin.toSourceAvailabilityTier(),
 		)
-		catalogDecisions.retryableFailure()?.let {
+		catalogDecisions.retryableFailure()
+			?.takeIf { catalogDecisions.acceptedSources.isEmpty() }?.let {
 			return SessionStartResult.InvalidIntent(it.failure.code, it.failure.disposition)
 		}
 		catalogDecisions.failureIfNoAcceptedSource()?.let {
