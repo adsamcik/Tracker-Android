@@ -39,7 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -138,7 +138,7 @@ private fun MonthHeader(
 	onNextMonth: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
-	val locale = LocalContext.current.resources.configuration.locales[0]
+	val locale = LocalConfiguration.current.locales[0]
 	Row(
 		modifier = modifier
 			.fillMaxWidth()
@@ -174,7 +174,7 @@ private fun CalendarGrid(
 	onDayClick: (LocalDate) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
-	val locale = LocalContext.current.resources.configuration.locales[0]
+	val locale = LocalConfiguration.current.locales[0]
 	Column(modifier = modifier.padding(horizontal = 16.dp)) {
 		// Day of week headers
 		Row(modifier = Modifier.fillMaxWidth()) {
@@ -244,7 +244,7 @@ private fun CalendarCell(
 		else -> MaterialTheme.colorScheme.onSurface
 	}
 
-	val locale = LocalContext.current.resources.configuration.locales[0]
+	val locale = LocalConfiguration.current.locales[0]
 	val description = stringResource(when {
         hasSavedData -> R.string.history_calendar_recorded_day
         hasOrganization -> R.string.organization_calendar_day

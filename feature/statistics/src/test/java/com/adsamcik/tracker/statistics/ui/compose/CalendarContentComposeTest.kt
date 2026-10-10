@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.LocaleList
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsNotSelected
@@ -82,7 +84,10 @@ class CalendarContentComposeTest {
 		val month = YearMonth.of(2024, 6)
 		var clickedDay: LocalDate? = null
 		composeTestRule.setContent {
-			CompositionLocalProvider(LocalContext provides context) {
+			CompositionLocalProvider(
+				LocalContext provides context,
+				LocalConfiguration provides context.resources.configuration,
+			) {
 				MaterialTheme(colorScheme = lightColorScheme()) {
 					CalendarContent(
 						state = CalendarState(currentMonth = month, selectedDay = month.atDay(15)),
@@ -99,6 +104,40 @@ class CalendarContentComposeTest {
 		composeTestRule.onNodeWithText("١٥").assertIsSelected()
 		composeTestRule.onNodeWithText("١٦").assertIsNotSelected().performClick()
 		clickedDay shouldBe month.atDay(16)
+	}
+
+	@Test
+	fun `calendar updates its month label when the displayed locale changes`() {
+		val application = ApplicationProvider.getApplicationContext<Context>()
+		val configuration = mutableStateOf(
+			Configuration(application.resources.configuration).apply {
+				setLocales(LocaleList(Locale.US))
+			},
+		)
+		val month = YearMonth.of(2024, 6)
+		composeTestRule.setContent {
+			CompositionLocalProvider(LocalConfiguration provides configuration.value) {
+				MaterialTheme(colorScheme = lightColorScheme()) {
+					CalendarContent(
+						state = CalendarState(currentMonth = month, selectedDay = month.atDay(15)),
+						onDayClick = {},
+						onNavigateToTripDetail = {},
+					)
+				}
+			}
+		}
+		composeTestRule.onNodeWithText("June 2024").assertIsDisplayed()
+		composeTestRule.onNodeWithText("15").assertIsSelected()
+
+		composeTestRule.runOnIdle {
+			configuration.value = Configuration(configuration.value).apply {
+				setLocales(LocaleList(Locale.GERMANY))
+			}
+		}
+
+		composeTestRule.onNodeWithText("Juni 2024").assertIsDisplayed()
+		composeTestRule.onNodeWithText("June 2024").assertDoesNotExist()
+		composeTestRule.onNodeWithText("15").assertIsSelected()
 	}
 
 	// ─── Basic rendering ─────────────────────────────────────────────────

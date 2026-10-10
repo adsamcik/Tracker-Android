@@ -75,6 +75,35 @@ inventory digest is
 `11bcddf2e448e3fbb6be7198253700a7e457ec06a78f6515be4fb14e213262af`.
 This is source review; AAPT/lint results and device presentation are separate.
 
+## Compose resource observation repair
+
+The independent reviewer accepted the three exact production diffs:
+`TrackerDashboardSessionCards`, `CalendarContent` and `MeasuredHistoryContent`.
+The session accessibility label resolves the same resource IDs and arguments
+through `stringResource` during composition, retaining order and separator before
+assignment to the semantics lambda. Four locale reads now use
+`LocalConfiguration.current.locales[0]`, retaining the same formatters, first
+configured locale, labels, layout, navigation and callbacks. This repairs the
+seven blocking Compose resource/configuration lint findings without changing copy
+or suppressing a rule. The existing Arabic Calendar fixture now also provides its
+matching configuration. A focused test changes the displayed locale after
+composition and checks the month label changes while the selected day remains.
+The independent reviewer accepted both test changes. Actual compilation, tests
+and lint are required separately.
+
+## Prepared-start architecture fixture repair
+
+The executed rerun exposed two more stale rollback assertions. The service already
+uses an exact token/command/start ID and synchronized ownership checks to avoid
+retiring a successor or a start that owns physical providers. The architecture
+fixture now checks that exact finally call and the bounded rollback method body:
+ownership guards, coupled session/flight clearing, and preservation of independent
+background foreground hosting. No service behavior was changed. The independent
+reviewer accepted the exact test SHA-256
+`198a93e10f311c3ccd2470d0e47a6deca7ac4546a845299ebf3a9e34918c414a`.
+The existing seven real-service cancellation/successor cases remain blocked by
+package access; this architecture fixture needs its own executed rerun.
+
 ## Limits
 
 The new app fixture checks upgrade orchestration with Location data; the existing

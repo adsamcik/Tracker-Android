@@ -64,14 +64,28 @@ class TrackerServiceLaunchArchitectureTest {
 		service shouldContain "intent.preparedForegroundHintOrNull()"
 		service shouldNotContain "toAutomaticTrackingStartTrigger()"
 		service shouldContain Regex(
-			"finally\\s*\\{\\s*rollbackRejectedPreparedStartRuntime\\(\\)\\s*" +
-				"startSingleFlight\\.set\\(false\\)",
+			"finally\\s*\\{\\s*rollbackRejectedPreparedStartRuntime" +
+				"\\(effectiveToken, effectiveCommand, startId\\)\\s*\\}",
 		)
-		service shouldContain Regex(
-			"private fun rollbackRejectedPreparedStartRuntime\\(\\).*?" +
-				"this\\.sessionInfo = null.*?activeSessionDescriptor = null.*?" +
-				"sessionStartOrigin = null.*?foregroundStarted = false",
+		val rollback = service.substringAfter(
+			"private fun rollbackRejectedPreparedStartRuntime(",
+			missingDelimiterValue = "",
+		).substringBefore("private suspend fun retireCancelledPreparedStart(")
+		rollback shouldContain "synchronized(preparedStartOwnershipMonitor)"
+		rollback shouldContain
+			"if (!current.matches(token, command) || current.platformOwned || current.applyStarted || current.applied)"
+		rollback shouldContain "return@synchronized false"
+		rollback shouldContain Regex(
+			"this\\.sessionInfo = null\\s*activeSessionDescriptor = null\\s*" +
+				"sessionStartOrigin = null\\s*preparedStartRuntime = PreparedStartRuntimeState\\(\\)\\s*" +
+				"startSingleFlight\\.set\\(false\\)",
 			RegexOption.DOT_MATCHES_ALL,
+		)
+		rollback shouldContain "if (backgroundLocationHost.hasActiveSources)"
+		rollback shouldContain "ensureForegroundStarted(backgroundLocationHost.hostedSources"
+		rollback shouldContain Regex(
+			"else\\s*\\{\\s*if \\(foregroundStarted\\) stopForeground\\(STOP_FOREGROUND_REMOVE\\)\\s*" +
+				"foregroundStarted = false",
 		)
 		authority shouldContain "private val commandGate = Mutex()"
 		authority shouldContain "withContext(NonCancellable + ioDispatcher)"

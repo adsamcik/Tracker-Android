@@ -21,7 +21,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -53,7 +53,7 @@ internal fun MeasuredHistoryContent(
 	viewZone: ZoneId,
 	modifier: Modifier = Modifier,
 ) {
-	val locale = LocalContext.current.resources.configuration.locales[0]
+	val locale = LocalConfiguration.current.locales[0]
     val refresh = pages.loadState.refresh
     val append = pages.loadState.append
     val emptyComplete = refresh is LoadState.NotLoading && append is LoadState.NotLoading && append.endOfPaginationReached

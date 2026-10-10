@@ -91,6 +91,11 @@ internal fun SessionOverviewCard(
         DateUtils.MINUTE_IN_MILLIS,
         DateUtils.FORMAT_ABBREV_RELATIVE
     ).toString()
+    val sessionContentDescription = listOf(
+        stringResource(R.string.tracker_session_card_title),
+        stringResource(R.string.duration_value, durationText),
+        stringResource(R.string.distance_value, distanceText),
+    ).joinToString(separator = ". ")
 
     val generateSummary = remember(session, settings, durationText, distanceText, sessionAge, context) {
         {
@@ -128,11 +133,7 @@ internal fun SessionOverviewCard(
                 }
             )
             .semantics {
-                contentDescription = listOf(
-                    context.getString(R.string.tracker_session_card_title),
-                    context.getString(R.string.duration_value, durationText),
-                    context.getString(R.string.distance_value, distanceText),
-                ).joinToString(separator = ". ")
+                contentDescription = sessionContentDescription
             },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
