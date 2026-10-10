@@ -105,7 +105,7 @@ class RadioObservationChildDaoQueryTest {
 				"scope_deletion_generation,latest_semantic_revision,latest_mutation_id," +
 				"latest_effect_checksum,latest_source_admission_ordinal,cursor_revision,updated_at_ms) " +
 				"VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-			arrayOf(SESSION_WRITER, SESSION_VERSION, factId, trackingId, "run-a", 1L, 1L,
+			arrayOf<Any>(SESSION_WRITER, SESSION_VERSION, factId, trackingId, "run-a", 1L, 1L,
 				0L, 0L, latestRevision, "mutation", CHECKSUM, 1L, 1L, 1_000L),
 		)
 	}
@@ -121,7 +121,7 @@ class RadioObservationChildDaoQueryTest {
 				"latest_mutation_id,latest_effect_checksum,latest_source_admission_ordinal," +
 				"collected_data_epoch,scope_deletion_generation,cursor_revision,updated_at_ms) " +
 				"VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-			arrayOf(BACKGROUND_WRITER, BACKGROUND_VERSION, factId, latestRevision, CHECKSUM,
+			arrayOf<Any>(BACKGROUND_WRITER, BACKGROUND_VERSION, factId, latestRevision, CHECKSUM,
 				CHECKSUM, 1L, 0L, 0L, 1L, 1_000L),
 		)
 	}

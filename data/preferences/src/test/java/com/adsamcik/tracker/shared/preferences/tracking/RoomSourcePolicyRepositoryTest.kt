@@ -917,7 +917,7 @@ class RoomSourcePolicyRepositoryTest {
 		val settings = readySettings()
 		val before = repository.bootstrapFromLegacy(settings)
 		// Golden canonical input from the preceding policy format, before host choices existed.
-		val canonical = "1:true:2|2:true:2|3:true:2|4:true:2|5:false:0|6:false:0|location:10:2:50|" +
+		val canonical = "1:true:2|2:true:2|3:true:2|4:true:2|5:false:0|6:false:0|location:2:10:50|" +
 			"automatic-control:true:mode:1:transitions:true|ambient-location:false|ambient-steps:true|ambient-wifi:false|ambient-cell:false"
 		val oldFingerprint = java.security.MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(Charsets.UTF_8))
 			.joinToString("") { "%02x".format(it) }

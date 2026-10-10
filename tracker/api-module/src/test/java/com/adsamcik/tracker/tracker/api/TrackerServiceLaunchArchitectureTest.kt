@@ -42,7 +42,10 @@ class TrackerServiceLaunchArchitectureTest {
 
 		api shouldContain Regex(
 			"entryPoint\\.applicationScope\\(\\)\\.launch\\s*\\{\\s*" +
-				"val command = entryPoint\\.trackingLifecycleCommandAuthority\\(\\)\\.reserveStart",
+				"val commands = entryPoint\\.trackingLifecycleCommandAuthority\\(\\)\\s*" +
+				"val command = if \\(automaticTrigger != null\\) \\{\\s*" +
+				"commands\\.reserveStartIfGeneration\\(requireNotNull\\(expectedCommandGeneration\\), automaticTrigger\\)\\s*" +
+				"\\} else commands\\.reserveStart\\(\\)",
 		)
 		api shouldContain Regex(
 			"entryPoint\\.applicationScope\\(\\)\\.launch\\s*\\{\\s*" +

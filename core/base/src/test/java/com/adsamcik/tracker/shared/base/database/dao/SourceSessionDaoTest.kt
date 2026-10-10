@@ -535,7 +535,7 @@ class SourceSessionDaoTest {
 		val expected = com.adsamcik.tracker.shared.base.database.data.NativePortableOwnership.run("logical-rebuild-0", "portable-rebuild-0")
 		for (owner in expected) {
 			db.query("SELECT raw_identity FROM native_portable_ownership WHERE source_kind = ? AND identity_kind = ? AND opaque_identity = ?",
-				arrayOf(owner.sourceKind, owner.identityKind, owner.opaqueIdentity)).use {
+				arrayOf<Any>(owner.sourceKind, owner.identityKind, owner.opaqueIdentity)).use {
 				it.moveToFirst() shouldBe true
 				it.getString(0) shouldBe owner.rawIdentity
 				it.moveToNext() shouldBe false
@@ -975,7 +975,7 @@ class SourceSessionDaoTest {
 	fun `protected Location manifest round trips both original and final writer contracts`() = runTest {
 		for (generation in listOf(1L, 2L)) {
 			val source = protectedLocationSource(generation).copy(manifestRevision = generation)
-			val unsigned = manifest(revision = generation).copy(
+			val unsigned = manifest(revision = generation, serviceRunId = "run-a").copy(
 				sessionMode = if (generation == 1L) "MANUAL" else "AUTOMATIC", manifestChecksum = "")
 			val header = unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source)))
 			dao.insertManifest(header)
@@ -993,7 +993,7 @@ class SourceSessionDaoTest {
 	fun `unstamped Location keeps original binding without changing its checksum`() = runTest {
 		val source = SessionManifestSourceEntity(LOGICAL_ID, 1L,
 			SourceDestinationOwnerEntity.SOURCE_LOCATION, SourceBrokerPurpose.SESSION_CAPTURE, 1L, true, 1)
-		val unsigned = manifest(revision = 1L)
+		val unsigned = manifest(revision = 1L, serviceRunId = "run-a")
 		val header = unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source)))
 		dao.insertManifest(header)
 		dao.insertManifestSources(listOf(source))
@@ -1007,7 +1007,7 @@ class SourceSessionDaoTest {
 		shouldThrow<IllegalArgumentException> { protectedLocationSource(3L) }
 		shouldThrow<IllegalArgumentException> { protectedLocationSource(2L).copy(writerOwnerGeneration = 4L) }
 		val source = protectedLocationSource(2L)
-		dao.insertManifest(manifest(revision = 1L))
+		dao.insertManifest(manifest(revision = 1L, serviceRunId = "run-a"))
 		dao.insertManifestSources(listOf(source))
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE session_manifest_source SET writer_binding_generation = 3 WHERE source_kind = 1")

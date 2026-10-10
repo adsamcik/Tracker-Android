@@ -1309,6 +1309,7 @@ class RetentionAuthorityProducerRoomTest {
 	) {
 		policies.bootstrapFromLegacy(
 			TrackingParamsState(
+				stepsEnabled = ambientSteps,
 				ambientStepsEnabled = ambientSteps,
 				ambientLocationEnabled = ambientLocation,
 				ambientWifiEnabled = ambientWifi,

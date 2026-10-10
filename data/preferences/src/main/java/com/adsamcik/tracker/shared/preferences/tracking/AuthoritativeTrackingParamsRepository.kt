@@ -109,9 +109,7 @@ class AuthoritativeTrackingParamsRepository(
 				var effectiveSnapshot = authority.snapshot
 				while (true) {
 					try {
-						effectiveSnapshot = mutationMutex.withLock {
-							convergeSetupChoices(effectiveSnapshot, legacyState, isSetupComplete)
-						}
+						effectiveSnapshot = convergeSetupChoices(effectiveSnapshot, legacyState, isSetupComplete)
 					} catch (_: Exception) {
 						currentCoroutineContext().ensureActive()
 						if (!failurePublished) {
@@ -378,9 +376,7 @@ class AuthoritativeTrackingParamsRepository(
 		val authority = sourcePolicyRepository.currentState()
 		val snapshot = when (authority) {
 			is SourcePolicyAuthorityState.Active -> try {
-				mutationMutex.withLock {
-					convergeSetupChoices(authority.snapshot, legacy.data.first(), setupCompleted.first())
-				}
+				convergeSetupChoices(authority.snapshot, legacy.data.first(), setupCompleted.first())
 			} catch (cancelled: kotlin.coroutines.cancellation.CancellationException) {
 				throw cancelled
 			} catch (_: Exception) {
@@ -431,14 +427,16 @@ class AuthoritativeTrackingParamsRepository(
 		if (!controlNeedsReconciliation &&
 			(!stepsNeedReconciliation || (steps.enabled && !isSetupComplete))
 		) return observed
-		val current = (sourcePolicyRepository.currentState() as? SourcePolicyAuthorityState.Active)
-			?.snapshot ?: return observed
-		if (current.revision != observed.revision) return current
-		return sourcePolicyRepository.replaceCaptureSettings(
-			expectedPolicyRevision = current.revision,
-			settings = legacyState.withPolicy(current).copy(ambientStepsEnabled = steps.enabled),
-			reason = REASON_SETUP_CHOICE_RECONCILIATION,
-		)
+		return mutationMutex.withLock {
+			val current = (sourcePolicyRepository.currentState() as? SourcePolicyAuthorityState.Active)
+				?.snapshot ?: return@withLock observed
+			if (current.revision != observed.revision) return@withLock current
+			sourcePolicyRepository.replaceCaptureSettings(
+				expectedPolicyRevision = current.revision,
+				settings = legacyState.withPolicy(current).copy(ambientStepsEnabled = steps.enabled),
+				reason = REASON_SETUP_CHOICE_RECONCILIATION,
+			)
+		}
 	}
 
 	private fun sourcePolicyUnavailable(): SourcePolicyRevisionReconciliationResult.Retryable =

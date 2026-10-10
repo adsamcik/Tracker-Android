@@ -11,7 +11,7 @@ class PortableCountDomainGraphV2Test {
 
 		graph.receipts.single().domainIdentity shouldBe opaque('d')
 		graph.ownerRevisions.single().receiptIdentity shouldBe graph.receipts.single().identity
-		graph.roots.single().ownerIdentity shouldBe opaque('o')
+		graph.roots.single().ownerIdentity shouldBe opaque('2')
 		PortableCountDomainGraphV2(
 			graph.identity,
 			graph.contentChecksum,
@@ -140,7 +140,7 @@ class PortableCountDomainGraphV2Test {
 			val firstOwner = firstGraph.ownerRevisions.single()
 			val firstReceipt = firstGraph.receipts.single()
 			listOf(
-				receipt(2L, ownerKind = ownerKind, domainIdentity = opaque('x')),
+				receipt(2L, ownerKind = ownerKind, domainIdentity = opaque('3')),
 				receipt(2L, ownerKind = ownerKind, collectedDataEpoch = 99L),
 				receipt(2L, ownerKind = ownerKind, countDomainVersion = 2),
 			).forEach { changed ->
@@ -170,7 +170,7 @@ class PortableCountDomainGraphV2Test {
 				value.receipts,
 				value.ownerRevisions,
 				value.completenessMarkers,
-				value.roots.map { it.copy(containerIdentity = opaque('x')) },
+				value.roots.map { it.copy(containerIdentity = opaque('3')) },
 			)
 		}
 
@@ -186,8 +186,8 @@ class PortableCountDomainGraphV2Test {
 		val receipt = receipt(1L, ownerKind)
 		val owner = PortableCountDomainOwnerRevisionV2(
 			ownerKind = ownerKind,
-			scopeIdentity = opaque('s'),
-			ownerIdentity = opaque('o'),
+			scopeIdentity = opaque('1'),
+			ownerIdentity = opaque('2'),
 			ownerRevision = 1L,
 			operation = PortableCountDomainOperation.BIND,
 			receiptIdentity = receipt.identity,
@@ -220,8 +220,8 @@ class PortableCountDomainGraphV2Test {
 		PortableCountDomainReceiptV2.create(
 			domainIdentity = domainIdentity,
 			ownerKind = ownerKind,
-			scopeIdentity = opaque('s'),
-			ownerIdentity = opaque('o'),
+			scopeIdentity = opaque('1'),
+			ownerIdentity = opaque('2'),
 			ownerRevision = revision,
 			registrationGeneration = 3L,
 			collectedDataEpoch = collectedDataEpoch,

@@ -193,6 +193,7 @@ class TrackingHistoryRepositoryTest {
 	fun `source-aware page keeps Pressure identities opaque and physical echoes explicit`() {
 		val pressure = PressureOnlyHistoryEntry(
 			key = TrackingHistoryEntryKey("pressure:logical:one"),
+			origin = PressureHistoryOrigin.Local,
 			startTime = EpochMs(100L),
 			endTime = EpochMs(200L),
 			pressure = unavailablePressureHistory(),

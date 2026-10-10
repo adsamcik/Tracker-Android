@@ -288,7 +288,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		retention.reset()
 		ambientSteps.reset()
 
-		repository.setWifiEnabled(false)
+		repository.setWifiEnabled(true)
 
 		val revised = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
 		revised.revision shouldBe enabled.revision + 1L
@@ -315,7 +315,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			unavailable,
 		)
 
-		repository.setWifiEnabled(false)
+		repository.setWifiEnabled(true)
 
 		val debt = repository.reconciliationState.value
 			.shouldBeInstanceOf<SourcePolicyRevisionReconciliationState.Debt>()
@@ -327,7 +327,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		ambientSteps.events.all { it == "retire" }.shouldBeTrue()
 		val strandedRevision = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
 		strandedRevision[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe consentEpoch
-		legacy.current.wifiEnabled.shouldBeFalse()
+		legacy.current.wifiEnabled.shouldBeTrue()
 
 		retention.overrideResults = null
 		ambientSteps.reset()
@@ -579,7 +579,9 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			}
 			val flakyPolicy = FailingBootstrapPolicyRepository(roomPolicy)
 			val failClosedRepository = AuthoritativeTrackingParamsRepository(
-				FakeTrackingParamsRepository(TrackingParamsState(legacySettingsMigrationCompleted = true)),
+				FakeTrackingParamsRepository(
+					TrackingParamsState(stepsEnabled = false, legacySettingsMigrationCompleted = true),
+				),
 				flakyPolicy,
 				applicationScope,
 				startupGate,

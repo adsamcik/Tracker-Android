@@ -12,7 +12,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.tracker.R
@@ -102,7 +102,7 @@ class NotificationManagementAccessibilityTest {
         ).performClick()
         assertEquals(1, edits)
         val actions = composeRule.onNodeWithTag("notification_item_duration")
-            .fetchSemanticsNode().config[SemanticsProperties.CustomActions]
+            .fetchSemanticsNode().config[SemanticsActions.CustomActions]
         assertEquals(listOf(context.getString(R.string.settings_notification_move_down)), actions.map { it.label })
         composeRule.runOnIdle { actions.single().action() }
         assertEquals(1, movesDown)

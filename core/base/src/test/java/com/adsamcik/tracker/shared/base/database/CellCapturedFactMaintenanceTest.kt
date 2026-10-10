@@ -191,7 +191,7 @@ class CellCapturedFactMaintenanceTest {
 		ambient.qosCode shouldBe 0
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_policy SET balance_profile_version = 1, balance_level = 3, overall_balance_level = 3 " +
-				"WHERE policy_revision = ? AND source_kind = ?", arrayOf(REVOKED_POLICY_REVISION, CELL_SOURCE))
+				"WHERE policy_revision = ? AND source_kind = ?", arrayOf<Any>(REVOKED_POLICY_REVISION, CELL_SOURCE))
 		val provider = requireNotNull(database.sourceBrokerDao().registration(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION))
 		database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
 			DELETION_TIME_MS) shouldBe CellCapturedSourceDeletionResult.Deleted(1, 1, 1)
@@ -4750,7 +4750,7 @@ class CellCapturedFactMaintenanceTest {
 			val policy = revokedPolicy().copy(ambientPersistenceEligible = true, ambientConsentEpoch = CONTROL_CONSENT_EPOCH)
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE source_policy SET ambient_persistence_eligible = 1, ambient_consent_epoch = ? WHERE policy_revision = ? AND source_kind = ?",
-				arrayOf(CONTROL_CONSENT_EPOCH, policy.policyRevision, CELL_SOURCE))
+				arrayOf<Any>(CONTROL_CONSENT_EPOCH, policy.policyRevision, CELL_SOURCE))
 			database.sourcePolicyDao().insertConsentEpochs(listOf(historicalControlConsent().copy(
 				purpose = SourceBrokerPurpose.AMBIENT_PRODUCT, persistenceEligible = true)))
 		}

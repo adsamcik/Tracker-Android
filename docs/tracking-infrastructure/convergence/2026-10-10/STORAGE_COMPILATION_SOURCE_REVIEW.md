@@ -32,6 +32,37 @@ delegation or reviewer-executed gates. Source acceptance does not mean tests pas
   Room-29 importer; completion, unchanged original data, reopening and explicit retry
   are checked. It uses Framework SQLite, not the production native SQLiteX runtime.
 
+## Repairs from the second executed pass
+
+The same independent reviewer accepted the exact additional production and test
+diff before commitment. These changes require an actual rerun; the first results
+from that pass predate the repairs.
+
+- `AuthoritativeTrackingParamsRepository`: an already-aligned source-policy snapshot
+  no longer waits for the mutation lock held by a blocked compatibility mirror.
+  The lock now surrounds only the existing current-state/revision check and setup
+  mutation. Both callers delegate locking to the helper. Existing revision,
+  reconciliation and Ready-generation checks remain; the existing blocked-mirror
+  regression test exercises the publication contract. Reviewed file SHA-256:
+  `4f709fa242d937dff9c430011c92ce60d890219527de16c868a8c24a142de6f5`.
+- Core database test bindings use explicit `Any`, and session manifest fixtures
+  provide their existing run identity. Legacy migration preservation assertions
+  are unchanged.
+- Portable Steps graph fixtures use valid, distinct hexadecimal identity strings;
+  production identity validation and graph assertions are unchanged.
+- Retention fixtures select the approved unified Steps choice. Policy-change
+  fixtures enable default-off Wi-Fi so a real change occurs. The isolated bootstrap
+  storage-failure fixture turns Steps off to match its fake revoked retention.
+- The legacy fingerprint fixture follows the actual canonical ordering of Location
+  minimum time and distance. This changes the erroneous fixture, not production
+  fingerprints.
+- Notification accessibility reads custom actions from `SemanticsActions`; the
+  Pressure history fixture supplies its required local origin.
+- Tracker launch assertions match the precise current reservation branches inside
+  the application-scope launch. Location availability exercises both acknowledged
+  adaptive and passive degradation, retaining the same missing/wrong identity,
+  zero execution and invalid reason rejection checks.
+
 ## Limits
 
 The new app fixture checks upgrade orchestration with Location data; the existing
