@@ -3,6 +3,7 @@ package com.adsamcik.tracker.statistics.presenter
 import arrow.core.left
 import arrow.core.right
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModelStore
 import androidx.paging.PagingSource
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -50,6 +51,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -68,6 +70,8 @@ import java.util.TimeZone
 class StatsPresenterViewModelSessionStatsTest {
 
 	private val testDispatcher = StandardTestDispatcher()
+	private val viewModelStore = ViewModelStore()
+	private var nextViewModelId = 0
 	private val sessionStatsUiFormatter: SessionStatsUiFormatter = mockk()
 	private val dailySummaryRepository: DailySummaryRepository = mockk()
 	private val stepsNumericSummaryRepository = FakeStepsNumericSummaryRepository()
@@ -99,7 +103,7 @@ class StatsPresenterViewModelSessionStatsTest {
 	}
 
 	@Test
-	fun `loadSummaryStats maps snapshot through formatter`() = runTest {
+	fun `loadSummaryStats maps snapshot through formatter`() = runManagedTest {
 		val snapshot = sampleSnapshot()
 		val sessionStatsRepository = FakeSessionStatsRepository(
 			allTimeResult = snapshot.right(),
@@ -127,7 +131,7 @@ class StatsPresenterViewModelSessionStatsTest {
 	}
 
 	@Test
-	fun `loadWeeklyStats maps repository error and requests a week window`() = runTest {
+	fun `loadWeeklyStats maps repository error and requests a week window`() = runManagedTest {
 		val sessionStatsRepository = FakeSessionStatsRepository(
 			allTimeResult = sampleSnapshot().right(),
 			betweenResult = StatsError.DatabaseError("weekly failure").left(),
@@ -155,7 +159,7 @@ class StatsPresenterViewModelSessionStatsTest {
 	}
 
 	@Test
-	fun `weekly display preserves each saved day and never polls a strict total`() = runTest {
+	fun `weekly display preserves each saved day and never polls a strict total`() = runManagedTest {
 		val today = LocalDate.of(2026, 9, 3)
 		val expected = StepsDailyDisplay.Snapshot(8L, (today.toEpochDay() - 6L..today.toEpochDay()).map { day ->
 			StepsDailyDisplayDay(day, when (day) {
@@ -178,7 +182,7 @@ class StatsPresenterViewModelSessionStatsTest {
 	}
 
 	@Test
-	fun `Location-only daily summaries keep saved distance and duration beside missing Steps`() = runTest {
+	fun `Location-only daily summaries keep saved distance and duration beside missing Steps`() = runManagedTest {
 		val today = LocalDate.now().toEpochDay()
 		val expected = StepsDailyDisplay.Snapshot(3L, (today - 6L..today).map {
 			StepsDailyDisplayDay(it, StepsDailyDisplayValue.Unavailable(StepsNumericUnverifiableReason.NOT_CAPTURED))
@@ -200,7 +204,7 @@ class StatsPresenterViewModelSessionStatsTest {
 	}
 
 	@Test
-	fun `weekly bars react when daily summaries arrive after init`() = runTest {
+	fun `weekly bars react when daily summaries arrive after init`() = runManagedTest {
 		val todayEpochDay = java.time.LocalDate.now().toEpochDay()
 		val viewModel = createViewModel()
 		val summaryCollector = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -230,7 +234,7 @@ class StatsPresenterViewModelSessionStatsTest {
 	}
 
 	@Test
-	fun `weekly Steps observes one exact seven day qualified window`() = runTest {
+	fun `weekly Steps observes one exact seven day qualified window`() = runManagedTest {
 		val today = LocalDate.of(2026, 9, 3)
 		val expected = StepsNumericSummary.Ready(
 			days = (today.toEpochDay() - 6L..today.toEpochDay()).map { epochDay ->
@@ -265,7 +269,7 @@ class StatsPresenterViewModelSessionStatsTest {
 	}
 
 	@Test
-	fun `weekly Steps settles without a daily summary emission`() = runTest {
+	fun `weekly Steps settles without a daily summary emission`() = runManagedTest {
 		val today = LocalDate.of(2026, 9, 3)
 		val clock = FixedClock(
 			today.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
@@ -297,7 +301,7 @@ class StatsPresenterViewModelSessionStatsTest {
 	}
 
 	@Test
-	fun `distance-only today summary still produces visible daily activity state`() = runTest {
+	fun `distance-only today summary still produces visible daily activity state`() = runManagedTest {
 		val todayEpochDay = java.time.LocalDate.now().toEpochDay()
 		val viewModel = createViewModel()
 		runCurrent()
@@ -321,7 +325,7 @@ class StatsPresenterViewModelSessionStatsTest {
 	}
 
 	@Test
-	fun `date filter survives ViewModel recreation`() = runTest {
+	fun `date filter survives ViewModel recreation`() = runManagedTest {
 		val savedStateHandle = SavedStateHandle()
 		val firstViewModel = createViewModel(savedStateHandle = savedStateHandle)
 		runCurrent()
@@ -337,7 +341,7 @@ class StatsPresenterViewModelSessionStatsTest {
 	}
 
 	@Test
-	fun `today window advances across midnight without recreating ViewModel`() = runTest {
+	fun `today window advances across midnight without recreating ViewModel`() = runManagedTest {
 		val initialDate = LocalDate.of(2026, 7, 21)
 		val initialTimeMs = initialDate.atTime(23, 59, 59)
 			.atZone(ZoneId.systemDefault())
@@ -384,7 +388,7 @@ class StatsPresenterViewModelSessionStatsTest {
 	}
 
 	@Test
-	fun `resume refreshes a changed zone even when the calendar date is unchanged`() = runTest {
+	fun `resume refreshes a changed zone even when the calendar date is unchanged`() = runManagedTest {
 		val originalZone = TimeZone.getDefault()
 		TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
 		val clock = FixedClock(Instant.parse("2026-01-01T20:00:00Z").toEpochMilli())
@@ -413,7 +417,7 @@ class StatsPresenterViewModelSessionStatsTest {
 	}
 
 	@Test
-	fun `resume refreshes the displayed day and schedules midnight in the new zone`() = runTest {
+	fun `resume refreshes the displayed day and schedules midnight in the new zone`() = runManagedTest {
 		val originalZone = TimeZone.getDefault()
 		TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
 		val clock = FixedClock(Instant.parse("2026-01-01T00:30:00Z").toEpochMilli())
@@ -443,6 +447,14 @@ class StatsPresenterViewModelSessionStatsTest {
 		}
 	}
 
+	private fun runManagedTest(testBody: suspend TestScope.() -> Unit) = runTest {
+		try {
+			testBody()
+		} finally {
+			viewModelStore.clear()
+		}
+	}
+
 	private fun createViewModel(
 		sessionStatsRepository: SessionStatsRepository = FakeSessionStatsRepository(
 			allTimeResult = sampleSnapshot().right(),
@@ -464,7 +476,7 @@ class StatsPresenterViewModelSessionStatsTest {
 			savedStateHandle = savedStateHandle,
 			clock = clock,
 			dispatchers = dispatchers,
-		)
+		).also { viewModelStore.put("stats-${nextViewModelId++}", it) }
 	}
 
 	private fun sampleSnapshot(): SessionStatsSnapshot {

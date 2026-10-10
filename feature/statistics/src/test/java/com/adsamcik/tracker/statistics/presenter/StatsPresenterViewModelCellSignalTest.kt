@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.statistics.presenter
 
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModelStore
 import androidx.paging.PagingSource
 import arrow.core.Either
 import arrow.core.left
@@ -28,6 +29,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -40,6 +42,8 @@ import org.junit.jupiter.api.Test
 class StatsPresenterViewModelCellSignalTest {
 
 	private val testDispatcher = StandardTestDispatcher()
+	private val viewModelStore = ViewModelStore()
+	private var nextViewModelId = 0
 	private val sessionStatsRepository: SessionStatsRepository = mockk()
 	private val sessionStatsUiFormatter: SessionStatsUiFormatter = mockk(relaxed = true)
 	private val dailySummaryRepository: DailySummaryRepository = mockk()
@@ -69,7 +73,7 @@ class StatsPresenterViewModelCellSignalTest {
 	}
 
 	@Test
-	fun `loadCellSignalReport maps repository report into success state`() = runTest {
+	fun `loadCellSignalReport maps repository report into success state`() = runManagedTest {
 		val report = CellSignalReport(
 			totalSamples = 100L,
 			distinctTowers = 3L,
@@ -86,7 +90,7 @@ class StatsPresenterViewModelCellSignalTest {
 	}
 
 	@Test
-	fun `loadCellSignalReport maps zero-sample report to empty`() = runTest {
+	fun `loadCellSignalReport maps zero-sample report to empty`() = runManagedTest {
 		val emptyReport = CellSignalReport(0L, 0L, emptyList(), emptyList())
 		val viewModel = createViewModel(FakeCellSignalRepository(emptyReport.right()))
 		runCurrent()
@@ -98,7 +102,7 @@ class StatsPresenterViewModelCellSignalTest {
 	}
 
 	@Test
-	fun `loadCellSignalReport maps repository failure to error`() = runTest {
+	fun `loadCellSignalReport maps repository failure to error`() = runManagedTest {
 		val viewModel = createViewModel(
 			FakeCellSignalRepository(StatsError.DatabaseError("cell failed").left()),
 		)
@@ -108,6 +112,14 @@ class StatsPresenterViewModelCellSignalTest {
 		runCurrent()
 
 		viewModel.cellSignalReportState.value shouldBe CellSignalReportLoadState.Error("cell failed")
+	}
+
+	private fun runManagedTest(testBody: suspend TestScope.() -> Unit) = runTest {
+		try {
+			testBody()
+		} finally {
+			viewModelStore.clear()
+		}
 	}
 
 	private fun createViewModel(
@@ -125,7 +137,7 @@ class StatsPresenterViewModelCellSignalTest {
 			savedStateHandle = SavedStateHandle(),
 			clock = FixedClock(System.currentTimeMillis()),
 			dispatchers = DefaultDispatchersProvider,
-		)
+		).also { viewModelStore.put("stats-${nextViewModelId++}", it) }
 	}
 
 	private class FakeCellSignalRepository(

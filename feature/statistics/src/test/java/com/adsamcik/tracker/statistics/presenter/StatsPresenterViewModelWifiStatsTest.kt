@@ -3,6 +3,7 @@ package com.adsamcik.tracker.statistics.presenter
 import arrow.core.left
 import arrow.core.right
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModelStore
 import androidx.paging.PagingSource
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.time.FixedClock
@@ -26,6 +27,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -38,6 +40,8 @@ import org.junit.jupiter.api.Test
 class StatsPresenterViewModelWifiStatsTest {
 
 	private val testDispatcher = StandardTestDispatcher()
+	private val viewModelStore = ViewModelStore()
+	private var nextViewModelId = 0
 	private val sessionStatsRepository: SessionStatsRepository = mockk()
 	private val sessionStatsUiFormatter: SessionStatsUiFormatter = mockk(relaxed = true)
 	private val dailySummaryRepository: DailySummaryRepository = mockk()
@@ -66,7 +70,7 @@ class StatsPresenterViewModelWifiStatsTest {
 	}
 
 	@Test
-	fun `loadWifiStats maps repository summary into success state`() = runTest {
+	fun `loadWifiStats maps repository summary into success state`() = runManagedTest {
 		val wifiObservationRepository = FakeWifiObservationRepository(
 			statsSummaryResult = WifiObservationStatsSummary(
 				uniqueNetworks = 4L,
@@ -91,7 +95,7 @@ class StatsPresenterViewModelWifiStatsTest {
 	}
 
 	@Test
-	fun `loadWifiStats maps empty and error states`() = runTest {
+	fun `loadWifiStats maps empty and error states`() = runManagedTest {
 		val emptyRepository = FakeWifiObservationRepository(
 			statsSummaryResult = WifiObservationStatsSummary(
 				uniqueNetworks = 0L,
@@ -120,6 +124,14 @@ class StatsPresenterViewModelWifiStatsTest {
 		errorViewModel.wifiStatsState.value shouldBe WifiStatsLoadState.Error("wifi failed")
 	}
 
+	private fun runManagedTest(testBody: suspend TestScope.() -> Unit) = runTest {
+		try {
+			testBody()
+		} finally {
+			viewModelStore.clear()
+		}
+	}
+
 	private fun createViewModel(
 		wifiObservationRepository: WifiObservationRepository,
 	): StatsPresenterViewModel {
@@ -135,7 +147,7 @@ class StatsPresenterViewModelWifiStatsTest {
 			savedStateHandle = SavedStateHandle(),
 			clock = FixedClock(System.currentTimeMillis()),
 			dispatchers = DefaultDispatchersProvider,
-		)
+		).also { viewModelStore.put("stats-${nextViewModelId++}", it) }
 	}
 
 	private class FakeWifiObservationRepository(
