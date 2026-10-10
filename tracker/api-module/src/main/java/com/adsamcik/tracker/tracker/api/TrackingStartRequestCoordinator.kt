@@ -51,6 +51,9 @@ sealed interface TrackingStartPreparationResult {
 	/** An equal or newer durable lifecycle already owns the requested work. */
 	data object AlreadyActive : TrackingStartPreparationResult
 
+	/** Unchanged intent awaits existing source setup or settings-to-policy reconciliation. */
+	data object SetupPending : TrackingStartPreparationResult
+
 	data class Rejected(
 		val failureCode: String,
 		val disposition: TrackingStartFailureDisposition = TrackingStartFailureDisposition.TERMINAL,
@@ -65,6 +68,7 @@ enum class TrackingStartFailureDisposition {
 sealed interface TrackingStartDispatchResult {
 	data object Enqueued : TrackingStartDispatchResult
 	data object AlreadyActive : TrackingStartDispatchResult
+	data object SetupPending : TrackingStartDispatchResult
 	data class Retryable(val failureCode: String) : TrackingStartDispatchResult
 	data class Terminal(val failureCode: String) : TrackingStartDispatchResult
 }

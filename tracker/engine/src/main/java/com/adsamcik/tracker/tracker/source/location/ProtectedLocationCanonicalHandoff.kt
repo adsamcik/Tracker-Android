@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.ProtectedLocationCanonical
 import com.adsamcik.tracker.shared.base.database.data.ProtectedLocationCanonicalReceiptPayload
 import com.adsamcik.tracker.shared.base.database.data.LocationSample as StoredLocationSample
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionJoinStateEntity
@@ -874,6 +875,12 @@ internal class ProtectedLocationCanonicalHandoff(
 				accepted = beforeWrite.acceptedSample != null,
 			)
 		}
+		if (ambient is LocationAmbientQualification.Qualified && database.withTransaction {
+			requireExactLane(initialLane, expectedCursor)
+			canRecoverRetiredAmbientSibling(initialLane, command, beforeWrite, ambient.command)
+		}) {
+			return processAmbientCandidate(initialLane, expectedCursor, candidate, ambient.command)
+		}
 		if (beforeWrite is ProtectedLocationCanonicalReceipt.Invalid) {
 			saveFailure(
 				initialLane,
@@ -958,6 +965,32 @@ internal class ProtectedLocationCanonicalHandoff(
 				ProtectedLocationCandidateEffect.Failed(receipt.reason, terminal = true)
 			}
 		}
+	}
+
+	/** A late original session member cannot borrow the final binding's capture support. */
+	private suspend fun canRecoverRetiredAmbientSibling(
+		current: SourceProductProjectionLaneEntity,
+		command: LocationCapturedFactCommand,
+		receipt: ProtectedLocationCanonicalReceipt,
+		ambient: LocationAmbientFactCommand,
+	): Boolean {
+		val final = com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V2
+		val original = com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V1
+		if (current.bindingGeneration != final.bindingGeneration || current.captureModeMask != final.captureModeMask ||
+			command.authority.writerBindingGeneration != original.bindingGeneration ||
+			command.mutation.identity.sourceEventId.value != ambient.wal.eventId) return false
+		val retired = database.sourceProjectionStateDao().productLane(SOURCE_LOCATION,
+			original.bindingGeneration, original.projectionId, original.projectionVersion) ?: return false
+		val cutoff = retired.captureAdmissionCutoffOrdinal ?: return false
+		if (retired.captureModeMask != original.captureModeMask ||
+			retired.productStage != SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL ||
+			retired.status != SourceProductProjectionLaneEntity.STATUS_RETIRED || retired.retentionRequired ||
+			retired.terminalDisposition != SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN ||
+			retired.terminalAtMs == null || retired.contiguousAdmissionOrdinal != cutoff ||
+			command.mutation.identity.sourceAdmissionOrdinal <= cutoff) return false
+		return receipt is ProtectedLocationCanonicalReceipt.Incomplete &&
+			receipt.reason == "LOCATION_CANONICAL_OBSERVATION_PENDING" ||
+			database.readLocationAmbientReceipt(ambient) != null
 	}
 
 	private suspend fun processAmbientCandidate(
@@ -1113,10 +1146,11 @@ internal class ProtectedLocationCanonicalHandoff(
 		}
 		val lane = active.single()
 		val inactiveReason = when {
-			lane.bindingGeneration != BINDING_GENERATION ||
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(lane.bindingGeneration) == null ||
 				lane.projectionId != WRITER_ID ||
 				lane.projectionVersion != WRITER_VERSION ||
-				lane.captureModeMask != MANUAL_CAPTURE_MODE_MASK ||
+				lane.captureModeMask != SourceWriterGenerationContract.captureModeMaskForKnownBinding(
+				lane.bindingGeneration) ||
 				lane.activatedRolloutRevision <= 0L ||
 				lane.activationOrdinal <= 0L ||
 				lane.contiguousAdmissionOrdinal < lane.activationOrdinal - 1L ||
@@ -1262,12 +1296,11 @@ internal class ProtectedLocationCanonicalPersistenceGuard private constructor(
 		@Suppress("UNUSED_PARAMETER") testMarker: Unit,
 	) : this(database, qualifier)
 
-	suspend fun verifyInCurrentWriterTransaction(
-		write: ProtectedLocationCanonicalPendingWrite,
-	): ProtectedLocationVerifiedWrite {
+	/** Reused only within the caller's current Room destination transaction. */
+	suspend fun qualifyInCurrentWriterTransaction(sourceEventId: String): ProtectedLocationQualifiedCandidate {
 		val db = database ?: error("Protected Location persistence guard is not configured")
 		val adapter = qualifier ?: error("Protected Location qualifier is not configured")
-		val qualified = when (val adapted = adapter.qualify(SourceEventId(write.sourceEventId))) {
+		val qualified = when (val adapted = adapter.qualify(SourceEventId(sourceEventId))) {
 			is LocationWalAdapterResult.Rejected ->
 				error("Protected Location WAL authority rejected: ${adapted.reason.name}")
 			is LocationWalAdapterResult.Evaluated -> when (val result = adapted.qualification) {
@@ -1294,8 +1327,26 @@ internal class ProtectedLocationCanonicalPersistenceGuard private constructor(
 		check(acquisitionMetadata.isQualified) {
 			"Protected Location historical acquisition metadata is unavailable"
 		}
+		require(command.mutation.identity.sourceEventId.value == sourceEventId)
+		db.requireProtectedLocationWriterAuthority(command.authority.writerBindingGeneration)
+		return qualified
+	}
+
+	suspend fun verifyInCurrentWriterTransaction(
+		write: ProtectedLocationCanonicalPendingWrite,
+	): ProtectedLocationVerifiedWrite = verifyInCurrentWriterTransaction(write,
+		qualifyInCurrentWriterTransaction(write.sourceEventId))
+
+	suspend fun verifyInCurrentWriterTransaction(
+		write: ProtectedLocationCanonicalPendingWrite,
+		qualified: ProtectedLocationQualifiedCandidate,
+	): ProtectedLocationVerifiedWrite {
+		val db = database ?: error("Protected Location persistence guard is not configured")
+		val command = qualified.command
+		val acquisitionMetadata = qualified.acquisitionMetadata
+		check(acquisitionMetadata.isQualified)
 		require(command.mutation.identity.sourceEventId.value == write.sourceEventId)
-		db.requireProtectedLocationWriterAuthority()
+		db.requireProtectedLocationWriterAuthority(command.authority.writerBindingGeneration)
 
 		val observation = write.observation
 			?: db.locationObservationDao().getBySourceEventId(write.sourceEventId)
@@ -1325,7 +1376,7 @@ internal class ProtectedLocationCanonicalPersistenceGuard private constructor(
 				"Protected Location buffered destination differs from prepared canonical output"
 			}
 		}
-		db.requireProtectedLocationWriterAuthority()
+		db.requireProtectedLocationWriterAuthority(command.authority.writerBindingGeneration)
 		return ProtectedLocationVerifiedWrite(
 			command,
 			acquisitionMetadata,
@@ -2015,7 +2066,7 @@ internal suspend fun AppDatabase.prepareProtectedLocationCanonicalCurationState(
 	stateAfter: LocationCanonicalCurationState,
 	expectedOutput: ProtectedLocationPreparedCanonicalOutput,
 ) {
-	requireProtectedLocationWriterAuthority()
+	requireProtectedLocationWriterAuthority(command.authority.writerBindingGeneration)
 	val entity = SourceProjectionJoinStateEntity(
 		projectionId = ProtectedLocationCanonicalHandoff.WRITER_ID,
 		projectionVersion = ProtectedLocationCanonicalHandoff.WRITER_VERSION,
@@ -2054,7 +2105,7 @@ internal suspend fun AppDatabase.prepareProtectedLocationCanonicalCurationState(
 			"Protected Location prepared event cannot be replaced with different output"
 		}
 	}
-	requireProtectedLocationWriterAuthority()
+	requireProtectedLocationWriterAuthority(command.authority.writerBindingGeneration)
 }
 
 internal suspend fun AppDatabase.loadPreparedProtectedLocationCanonicalCurationState(
@@ -2299,7 +2350,7 @@ internal data class ProtectedLocationPreparedCanonicalOutput(
 				reason = decisionSignal.reason,
 				writerProjectionId = ProtectedLocationCanonicalHandoff.WRITER_ID,
 				writerProjectionVersion = ProtectedLocationCanonicalHandoff.WRITER_VERSION,
-				writerBindingGeneration = ProtectedLocationCanonicalHandoff.BINDING_GENERATION,
+				writerBindingGeneration = command.authority.writerBindingGeneration,
 				writerOwnerGeneration =
 					SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
 				acceptedSampleSourceSignalId = signalId.takeIf { accepted },
@@ -2504,19 +2555,20 @@ internal fun LocationCapturedFactCommand.toProtectedLocationMockRejectionSignal(
 	)
 }
 
-internal suspend fun AppDatabase.requireProtectedLocationWriterAuthority() {
+internal suspend fun AppDatabase.requireProtectedLocationWriterAuthority(expectedBindingGeneration: Long? = null) {
 	val lanes = sourceProjectionStateDao().allActiveProductLanes()
 		.filter { it.sourceKind == SourceDestinationOwnerEntity.SOURCE_LOCATION }
 	check(lanes.size == 1) { "Protected Location requires exactly one active product lane" }
 	val lane = lanes.single()
 	check(
-		lane.bindingGeneration ==
-			SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_BINDING_GENERATION &&
+		SourceWriterGenerationContract.captureModeMaskForKnownBinding(lane.bindingGeneration) != null &&
+			(expectedBindingGeneration == null || lane.bindingGeneration == expectedBindingGeneration) &&
 			lane.projectionId ==
 			SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID &&
 			lane.projectionVersion ==
 			SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION &&
-			lane.captureModeMask == ProtectedLocationCanonicalHandoff.MANUAL_CAPTURE_MODE_MASK &&
+			lane.captureModeMask == SourceWriterGenerationContract.captureModeMaskForKnownBinding(
+				lane.bindingGeneration) &&
 			lane.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL &&
 			lane.activatedRolloutRevision > 0L &&
 			lane.activationOrdinal > 0L &&
@@ -2607,7 +2659,7 @@ private fun ProtectedLocationCanonicalPendingDecision.matches(
 		decisionVersion != LocationObservationDecision.CURRENT_DECISION_VERSION ||
 		writerProjectionId != ProtectedLocationCanonicalHandoff.WRITER_ID ||
 		writerProjectionVersion != ProtectedLocationCanonicalHandoff.WRITER_VERSION ||
-		writerBindingGeneration != ProtectedLocationCanonicalHandoff.BINDING_GENERATION ||
+		writerBindingGeneration != command.authority.writerBindingGeneration ||
 		writerOwnerGeneration != SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION ||
 		decidedAtMs != command.productEffect.durableEvidence.clockAuthority.observedWallTimeMs
 	) {

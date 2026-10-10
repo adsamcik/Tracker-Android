@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.base.database
 
+import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
@@ -66,10 +67,16 @@ class CellCapturedFactMaintenanceTest {
     private var captureProfileLevel: Int? = null
     private var fixtureQosCode = QOS_CODE
     private val fixtureMaximumAgeMs get() = if (captureProfileLevel == null) MAXIMUM_ACCEPTABLE_CACHED_AGE_MS else 600_000L
+	private var fixtureWriterGeneration = 1L
+	private var fixtureSessionMode = "MANUAL"
+	private val fixtureStartOrigin get() = if (fixtureSessionMode == "AUTOMATIC")
+		"AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START"
 	private lateinit var database: AppDatabase
 
 	@Before
 	fun setUp() {
+		fixtureWriterGeneration = 1L
+		fixtureSessionMode = "MANUAL"
         captureProfileLevel = null
         fixtureQosCode = QOS_CODE
 		val context: Application = ApplicationProvider.getApplicationContext()
@@ -78,6 +85,104 @@ class CellCapturedFactMaintenanceTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `exact no-CAP successor lets later Cell cleanup preserve current CONTROL`() = runTest {
+		seedCapturedCell(revokedCapture = true)
+		val control = installActiveControlOnlyProvider(CONTROL_AUTHORIZATION_REVISION)
+		val original = requireNotNull(database.sourceBrokerDao().registration(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION))
+		database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS) shouldBe CellCapturedSourceDeletionResult.Deleted(1, 1, 1)
+		database.sourceBrokerDao().demandsByIds(listOf(control.demandId)) shouldBe listOf(control)
+		database.sourceBrokerDao().registration(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION) shouldBe original
+	}
+
+	@Test
+	fun `missing no-CAP acknowledgement envelope cannot lend a later CONTROL revision`() = runTest {
+		seedCapturedCell(revokedCapture = true)
+		val control = installActiveControlOnlyProvider(CONTROL_AUTHORIZATION_REVISION)
+		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(CELL_SOURCE,
+			REPLACEMENT_REGISTRATION_GENERATION, CONTROL_AUTHORIZATION_REVISION + 1L, listOf(control), BOOT_ID,
+			REVOKED_POLICY_NANOS + 1L, REVOKED_POLICY_WALL_MS + 1L))
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_authorization WHERE source_kind = ? " +
+			"AND registration_generation = ? AND authorization_revision = ?",
+			arrayOf<Any?>(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION, CONTROL_AUTHORIZATION_REVISION))
+		database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS) shouldBe CellCapturedSourceDeletionResult.Blocked(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		database.cellCapturedFactDao().revisionCount() shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `forged no-CAP acknowledgement fingerprint cannot borrow later valid CONTROL`() = runTest {
+		seedCapturedCell(revokedCapture = true)
+		val control = installActiveControlOnlyProvider(CONTROL_AUTHORIZATION_REVISION)
+		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(CELL_SOURCE,
+			REPLACEMENT_REGISTRATION_GENERATION, CONTROL_AUTHORIZATION_REVISION + 1L, listOf(control), BOOT_ID,
+			REVOKED_POLICY_NANOS + 1L, REVOKED_POLICY_WALL_MS + 1L))
+		database.openHelper.writableDatabase.execSQL("UPDATE source_authorization SET authorization_fingerprint = 'forged' " +
+			"WHERE source_kind = ? AND registration_generation = ? AND authorization_revision = ?",
+			arrayOf<Any?>(CELL_SOURCE, REPLACEMENT_REGISTRATION_GENERATION, CONTROL_AUTHORIZATION_REVISION))
+		database.deleteCapturedCellFactsAfterConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS) shouldBe CellCapturedSourceDeletionResult.Blocked(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		database.cellCapturedFactDao().revisionCount() shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `terminal original Cell provider retains its exact no-CAP acknowledged history`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+		installOriginalCellNoCaptureAcknowledgement()
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(FLOOR_MS, 0L, 0L,
+			MAINTENANCE_TIME_MS) shouldBe CellCapturedRetentionResult.Pruned(1, 1)
+		database.cellCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `later Cell CAPTURE does not revoke an older acknowledged original fact`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+		installOriginalCellNoCaptureAcknowledgement()
+		val later = demand(active = true).copy(demandId = "later-independent-capture", consumerId = "session:later",
+			logicalTrackingId = "later", serviceRunId = "later-run", requestedElapsedRealtimeNanos = SESSION_END_NANOS + 1L,
+			requestedAtMs = SESSION_END_WALL_MS + 1L)
+		database.sourceBrokerDao().insertDemands(listOf(later))
+		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(CELL_SOURCE, REGISTRATION_GENERATION,
+			AUTHORIZATION_REVISION + 2L, listOf(later), BOOT_ID, SESSION_END_NANOS + 1L, SESSION_END_WALL_MS + 1L))
+		database.openHelper.writableDatabase.execSQL("UPDATE provider_registration_generation SET status = 'ACTIVE', " +
+			"retired_at_ms = NULL, retired_elapsed_realtime_nanos = NULL, failure_code = NULL WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf<Any?>(CELL_SOURCE, REGISTRATION_GENERATION))
+		val registration = requireNotNull(database.sourceBrokerDao().registration(CELL_SOURCE, REGISTRATION_GENERATION))
+		val current = requireNotNull(database.sourceBrokerDao().latestAuthorization(CELL_SOURCE, REGISTRATION_GENERATION).toAuthorizationSnapshotOrNull())
+		database.hasExactRadioSessionCaptureCallbackBarrier(registration, current, AUTHORIZATION_REVISION) shouldBe false
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(FLOOR_MS, 0L, 0L,
+			MAINTENANCE_TIME_MS) shouldBe CellCapturedRetentionResult.Pruned(1, 1)
+	}
+
+	@Test
+	fun `corrupt original no-CAP acknowledgement blocks Cell retained audit`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+		installOriginalCellNoCaptureAcknowledgement()
+		database.openHelper.writableDatabase.execSQL("UPDATE source_authorization SET authorization_fingerprint = 'forged' " +
+			"WHERE source_kind = ? AND registration_generation = ? AND authorization_revision = ?",
+			arrayOf<Any?>(CELL_SOURCE, REGISTRATION_GENERATION, AUTHORIZATION_REVISION + 1L))
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(FLOOR_MS, 0L, 0L,
+			MAINTENANCE_TIME_MS) shouldBe CellCapturedRetentionResult.Blocked(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		database.cellCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `missing original no-CAP acknowledgement cannot borrow a later denial in Cell retained audit`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+		installOriginalCellNoCaptureAcknowledgement()
+		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(CELL_SOURCE, REGISTRATION_GENERATION,
+			AUTHORIZATION_REVISION + 2L, emptyList(), BOOT_ID, SESSION_END_NANOS + 1L, SESSION_END_WALL_MS + 1L))
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_authorization WHERE source_kind = ? " +
+			"AND registration_generation = ? AND authorization_revision = ?",
+			arrayOf<Any?>(CELL_SOURCE, REGISTRATION_GENERATION, AUTHORIZATION_REVISION + 1L))
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(FLOOR_MS, 0L, 0L,
+			MAINTENANCE_TIME_MS) shouldBe CellCapturedRetentionResult.Blocked(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		database.cellCapturedFactDao().revisionCount() shouldBe 1L
+	}
 
 	@Test
 	fun `capture consent deletion preserves independently current Ambient Cell provider and demand`() = runTest {
@@ -109,6 +214,62 @@ class CellCapturedFactMaintenanceTest {
 		database.sourceBrokerDao().demandsByIds(listOf(ambient.demandId)) shouldBe listOf(ambient)
 		database.cellCapturedFactDao().revisionCount() shouldBe 1L
 		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `final automatic Cell maintenance authenticates its original binding before pruning`() = runTest {
+		fixtureWriterGeneration = 2L
+		fixtureSessionMode = "AUTOMATIC"
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(FLOOR_MS, 0L, 0L, MAINTENANCE_TIME_MS) shouldBe CellCapturedRetentionResult.Pruned(1, 1)
+		database.cellCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `original Cell maintenance remains valid under the exact final current owner`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+		database.sourceDestinationOwnerDao().compareAndSetOwner(
+			SourceDestinationOwnerEntity.SOURCE_CELL, SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+			SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS, 2L,
+			SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS, 4L, 4_000L) shouldBe 1
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(FLOOR_MS, 0L, 0L, MAINTENANCE_TIME_MS) shouldBe CellCapturedRetentionResult.Pruned(1, 1)
+		database.cellCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `original Cell maintenance cannot borrow automatic capture mode`() = runTest {
+		fixtureSessionMode = "AUTOMATIC"
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(FLOOR_MS, 0L, 0L, MAINTENANCE_TIME_MS) shouldBe CellCapturedRetentionResult.Blocked(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		database.cellCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `Cell maintenance rejects a contained current owner before mutation`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+		database.sourceDestinationOwnerDao().compareAndSetOwner(
+			SourceDestinationOwnerEntity.SOURCE_CELL, SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+			SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS, 2L,
+			SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS, 5L, 4_000L) shouldBe 1
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(FLOOR_MS, 0L, 0L, MAINTENANCE_TIME_MS) shouldBe CellCapturedRetentionResult.Blocked(CellCapturedRetentionBlockedReason.DESTINATION_OWNER_CHANGED)
+		database.cellCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `Cell fact and cursor preserve the original pair and recognize only exact final owner four`() = runTest {
+		val original = seedCapturedCell()
+		val dao = database.cellCapturedFactDao()
+		val cursor = requireNotNull(dao.cursor(original.writerProjectionId, original.writerProjectionVersion, original.logicalFactId))
+		original.writerBindingGeneration shouldBe 1L
+		original.writerOwnerGeneration shouldBe 2L
+		original.copy(writerBindingGeneration = 2L, writerOwnerGeneration = 4L).writerOwnerGeneration shouldBe 4L
+		cursor.copy(writerOwnerGeneration = 4L).writerOwnerGeneration shouldBe 4L
+		shouldThrow<IllegalArgumentException> { original.copy(writerBindingGeneration = 2L, writerOwnerGeneration = 2L) }
+		shouldThrow<IllegalArgumentException> { original.copy(writerBindingGeneration = 1L, writerOwnerGeneration = 4L) }
+		shouldThrow<IllegalArgumentException> { original.copy(writerBindingGeneration = 3L, writerOwnerGeneration = 6L) }
+		shouldThrow<IllegalArgumentException> { cursor.copy(writerOwnerGeneration = 3L) }
+		shouldThrow<IllegalArgumentException> { cursor.copy(writerOwnerGeneration = 6L) }
+		dao.revisionsForFact(original.writerProjectionId, original.writerProjectionVersion, original.logicalFactId, 2).single() shouldBe original
 	}
 
 	@Test
@@ -1280,9 +1441,9 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
-	fun `callback barrier beyond Cell capture history is unverifiable`() = runTest {
+	fun `callback barrier without a matching Cell authorization is unverifiable`() = runTest {
 		seedCapturedCell(revokedCapture = true)
-		installActiveControlOnlyProvider(captureBarrierRevision = CONTROL_AUTHORIZATION_REVISION)
+		installActiveControlOnlyProvider(captureBarrierRevision = CONTROL_AUTHORIZATION_REVISION + 1L)
 
 		database.deleteCapturedCellFactsAfterConsentReset(
 			0L,
@@ -3177,7 +3338,7 @@ class CellCapturedFactMaintenanceTest {
 				sourceKind = CELL_SOURCE,
 				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
 				owner = SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS,
-				ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				ownerGeneration = fixtureWriterGeneration * 2L,
 				updatedAtMs = RUN_START_WALL_MS,
 			),
 		)
@@ -3396,7 +3557,7 @@ class CellCapturedFactMaintenanceTest {
 				completionReason = "USER_STOP",
 				bootId = BOOT_ID,
 				leaseGeneration = LEASE_GENERATION,
-				startOrigin = "MANUAL_FOREGROUND_START",
+				startOrigin = fixtureStartOrigin,
 				desiredForegroundCapabilityFlags = 0L,
 				appliedForegroundCapabilityFlags = 0L,
 				runtimeAcknowledgement = "STOP_ACCEPTED",
@@ -3427,11 +3588,11 @@ class CellCapturedFactMaintenanceTest {
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			manifestRevision = REPLACEMENT_MANIFEST_REVISION,
 			serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
-			sessionMode = "MANUAL",
+			sessionMode = fixtureSessionMode,
 			sourcePolicyRevision = POLICY_REVISION,
 			acquisitionPlanRevision = PLAN_REVISION,
 			rolloutRevision = 1L,
-			startOrigin = "MANUAL_FOREGROUND_START",
+			startOrigin = fixtureStartOrigin,
 			effectiveBootId = BOOT_ID,
 			effectiveElapsedRealtimeNanos = REPLACEMENT_RUN_START_NANOS,
 			effectiveWallTimeMs = REPLACEMENT_RUN_START_WALL_MS,
@@ -3485,7 +3646,7 @@ class CellCapturedFactMaintenanceTest {
 				completionReason = "USER_STOP",
 				bootId = BOOT_ID,
 				leaseGeneration = LEASE_GENERATION,
-				startOrigin = "MANUAL_FOREGROUND_START",
+				startOrigin = fixtureStartOrigin,
 				desiredForegroundCapabilityFlags = 0L,
 				appliedForegroundCapabilityFlags = 0L,
 				runtimeAcknowledgement = "STOP_ACCEPTED",
@@ -3508,11 +3669,11 @@ class CellCapturedFactMaintenanceTest {
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			manifestRevision = REPLACEMENT_MANIFEST_REVISION,
 			serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
-			sessionMode = "MANUAL",
+			sessionMode = fixtureSessionMode,
 			sourcePolicyRevision = POLICY_REVISION,
 			acquisitionPlanRevision = PLAN_REVISION,
 			rolloutRevision = 1L,
-			startOrigin = "MANUAL_FOREGROUND_START",
+			startOrigin = fixtureStartOrigin,
 			effectiveBootId = BOOT_ID,
 			effectiveElapsedRealtimeNanos = REPLACEMENT_RUN_START_NANOS,
 			effectiveWallTimeMs = REPLACEMENT_RUN_START_WALL_MS,
@@ -3868,7 +4029,7 @@ class CellCapturedFactMaintenanceTest {
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			manifestRevision = REPLACEMENT_MANIFEST_REVISION,
 			serviceRunId = SERVICE_RUN_ID,
-			sessionMode = "MANUAL",
+			sessionMode = fixtureSessionMode,
 			sourcePolicyRevision = POLICY_REVISION,
 			acquisitionPlanRevision = PLAN_REVISION,
 			rolloutRevision = 1L,
@@ -3917,7 +4078,7 @@ class CellCapturedFactMaintenanceTest {
 				completionReason = "USER_STOP",
 				bootId = BOOT_ID,
 				leaseGeneration = LEASE_GENERATION,
-				startOrigin = "MANUAL_FOREGROUND_START",
+				startOrigin = fixtureStartOrigin,
 				desiredForegroundCapabilityFlags = 0L,
 				appliedForegroundCapabilityFlags = 0L,
 				runtimeAcknowledgement = "STOP_ACCEPTED",
@@ -4059,8 +4220,8 @@ class CellCapturedFactMaintenanceTest {
 		val firstUnsigned = CellCapturedFactRevisionEntity(
 			writerProjectionId = WRITER_ID,
 			writerProjectionVersion = WRITER_VERSION,
-			writerBindingGeneration = SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION,
-			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			writerBindingGeneration = fixtureWriterGeneration,
+			writerOwnerGeneration = fixtureWriterGeneration * 2L,
 			logicalFactId = logicalFactId,
 			semanticRevision = 1L,
 			supersedesSemanticRevision = null,
@@ -4283,7 +4444,7 @@ class CellCapturedFactMaintenanceTest {
 				lifecycleRevision = 2L,
 				desiredPlanRevision = PLAN_REVISION,
 				rolloutRevision = 1L,
-				startOrigin = "MANUAL_FOREGROUND_START",
+				startOrigin = fixtureStartOrigin,
 				clockDomainId = BOOT_ID,
 				startedAtMs = RUN_START_WALL_MS,
 				startedElapsedNanos = RUN_START_NANOS,
@@ -4292,7 +4453,7 @@ class CellCapturedFactMaintenanceTest {
 				completedAtMs = SESSION_END_WALL_MS,
 				finalAdmissionOrdinal = 100L,
 				failureCode = null,
-				sessionMode = "MANUAL",
+				sessionMode = fixtureSessionMode,
 				currentManifestRevision = MANIFEST_REVISION,
 				currentIntentRevision = 1L,
 				currentServiceRunId = null,
@@ -4315,7 +4476,7 @@ class CellCapturedFactMaintenanceTest {
 				completionReason = "USER_STOP",
 				bootId = BOOT_ID,
 				leaseGeneration = LEASE_GENERATION,
-				startOrigin = "MANUAL_FOREGROUND_START",
+				startOrigin = fixtureStartOrigin,
 				desiredForegroundCapabilityFlags = 0L,
 				appliedForegroundCapabilityFlags = 0L,
 				runtimeAcknowledgement = "STOP_ACCEPTED",
@@ -4339,11 +4500,11 @@ class CellCapturedFactMaintenanceTest {
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			manifestRevision = MANIFEST_REVISION,
 			serviceRunId = SERVICE_RUN_ID,
-			sessionMode = "MANUAL",
+			sessionMode = fixtureSessionMode,
 			sourcePolicyRevision = POLICY_REVISION,
 			acquisitionPlanRevision = PLAN_REVISION,
 			rolloutRevision = 1L,
-			startOrigin = "MANUAL_FOREGROUND_START",
+			startOrigin = fixtureStartOrigin,
 			effectiveBootId = BOOT_ID,
 			effectiveElapsedRealtimeNanos = RUN_START_NANOS,
 			effectiveWallTimeMs = RUN_START_WALL_MS,
@@ -4369,10 +4530,10 @@ class CellCapturedFactMaintenanceTest {
 		qosCode = fixtureQosCode,
 		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
 		writerOwner = SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS,
-		writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+		writerOwnerGeneration = fixtureWriterGeneration * 2L,
 		writerProjectionId = WRITER_ID,
 		writerProjectionVersion = WRITER_VERSION,
-		writerBindingGeneration = SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION,
+		writerBindingGeneration = fixtureWriterGeneration,
 	)
 
 	private fun historicalPolicy() = SourcePolicyEntity(
@@ -4554,6 +4715,15 @@ class CellCapturedFactMaintenanceTest {
 				failureCode = "ORDERLY_STOP",
 			),
 		)
+	}
+
+	/** Constructed original provider acknowledgement; physical FIFO is covered by runtime fixtures. */
+	private suspend fun installOriginalCellNoCaptureAcknowledgement() {
+		database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(CELL_SOURCE, REGISTRATION_GENERATION,
+			AUTHORIZATION_REVISION + 1L, emptyList(), BOOT_ID, SESSION_END_NANOS, SESSION_END_WALL_MS))
+		database.openHelper.writableDatabase.execSQL("UPDATE provider_registration_generation " +
+			"SET capture_callback_barrier_authorization_revision = ? WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf<Any?>(AUTHORIZATION_REVISION + 1L, CELL_SOURCE, REGISTRATION_GENERATION))
 	}
 
 	private suspend fun installActiveControlOnlyProvider(

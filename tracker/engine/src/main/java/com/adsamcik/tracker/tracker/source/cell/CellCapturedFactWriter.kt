@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.cell
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.CellPurposeItems
 import com.adsamcik.tracker.shared.base.database.qualifyCellPurposeItems
 import com.adsamcik.tracker.shared.base.database.qualifyCellCapturePurposeItems
@@ -26,6 +27,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -219,16 +221,23 @@ internal class CellCapturedFactWriter @Inject constructor(
 		val logicalTrackingId = authority.logicalTrackingId.value
 		val serviceRunId = authority.serviceRunId.value
 		val owner = database.sourceDestinationOwnerDao().get(SOURCE_KIND, DESTINATION)
-		if (owner?.owner != OWNER || owner.ownerGeneration != OWNER_GENERATION) {
+		if (owner?.owner != OWNER || SourceWriterGenerationContract.bindingGenerationForCanonicalOwner(owner.ownerGeneration)
+				?.let(SourceWriterGenerationContract::captureModeMaskForKnownBinding) == null) {
 			reject(CellCapturedWriteRejection.DESTINATION_OWNER_CHANGED)
 		}
-		val binding = database.sourceSessionDao().manifestSource(
+		val sessionDao = database.sourceSessionDao()
+		val manifest = sessionDao.manifest(logicalTrackingId, authority.sessionManifestRevision)
+		val session = sessionDao.session(logicalTrackingId)
+		val binding = sessionDao.manifestSource(
 			logicalTrackingId,
 			authority.sessionManifestRevision,
 			SOURCE_KIND,
 			PURPOSE,
 		)
-		if (binding == null || !binding.isExactCellWriter(authority.captureConsentEpoch)) {
+		if (binding == null || manifest == null || session == null ||
+			manifest.sessionMode != session.sessionMode ||
+			!binding.isExactCellWriter(authority.captureConsentEpoch, manifest.sessionMode) ||
+			binding.writerOwnerGeneration != owner.ownerGeneration) {
 			reject(CellCapturedWriteRejection.MANIFEST_WRITER_AUTHORITY_MISMATCH)
 		}
 		val state = database.sourceEvidenceStateDao().get()
@@ -236,7 +245,7 @@ internal class CellCapturedFactWriter @Inject constructor(
 		if (state.collectedDataEpoch != authority.collectedDataEpoch ||
 			fact.evidenceBinding.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal
 		) reject(CellCapturedWriteRejection.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
-		val mapped = CellCapturedPersistence.map(fact, owner.ownerGeneration)
+		val mapped = CellCapturedPersistence.map(fact, owner.ownerGeneration, requireNotNull(binding.writerBindingGeneration))
 		requireNoRetainedFactProof(mapped, state.retainedFromMs)
 		if (state.retainedFromMs?.let { retainedFrom ->
 			CanonicalRetentionBounds.cellCoverage(
@@ -430,13 +439,20 @@ internal class CellCapturedFactWriter @Inject constructor(
 		if (owner?.owner != OWNER || owner.ownerGeneration != fact.writerOwnerGeneration) {
 			reject(CellCapturedWriteRejection.DESTINATION_OWNER_CHANGED)
 		}
-		val binding = database.sourceSessionDao().manifestSource(
+		val sessionDao = database.sourceSessionDao()
+		val manifest = sessionDao.manifest(fact.logicalTrackingId, fact.manifestRevision)
+		val session = sessionDao.session(fact.logicalTrackingId)
+		val binding = sessionDao.manifestSource(
 			fact.logicalTrackingId,
 			fact.manifestRevision,
 			SOURCE_KIND,
 			PURPOSE,
 		)
-		if (binding == null || !binding.isExactCellWriter(fact.captureConsentEpoch)) {
+		if (binding == null || manifest == null || session == null ||
+			manifest.sessionMode != session.sessionMode ||
+			!binding.isExactCellWriter(fact.captureConsentEpoch, manifest.sessionMode) ||
+			binding.writerBindingGeneration != fact.writerBindingGeneration ||
+			binding.writerOwnerGeneration != fact.writerOwnerGeneration) {
 			reject(CellCapturedWriteRejection.MANIFEST_WRITER_AUTHORITY_MISMATCH)
 		}
 		val state = database.sourceEvidenceStateDao().get()
@@ -594,11 +610,12 @@ internal class CellCapturedFactWriter @Inject constructor(
 		val run = sessionDao.serviceRun(row.serviceRunId)
 		val session = sessionDao.session(row.logicalTrackingId)
 		if (run == null || session == null || run.logicalTrackingId != row.logicalTrackingId ||
-			run.bootId != row.clockDomainId || run.leaseGeneration != row.lifecycleLeaseGeneration ||
+			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, row.lifecycleLeaseGeneration) ||
 			run.sessionSegmentId != row.sessionSegmentId ||
 			session.logicalTrackingId != row.logicalTrackingId ||
-			session.clockDomainId != row.clockDomainId ||
 			session.lifecycleLeaseGeneration < row.lifecycleLeaseGeneration ||
+			(session.currentServiceRunId == row.serviceRunId &&
+				(run.leaseGeneration != session.lifecycleLeaseGeneration || run.bootId != session.lifecycleBootId)) ||
 			(session.cutoffAtMs == null) != (session.cutoffElapsedNanos == null) ||
 			(session.completedAtMs != null && session.cutoffElapsedNanos == null)
 		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
@@ -609,7 +626,7 @@ internal class CellCapturedFactWriter @Inject constructor(
 		)
 		if (manifests.size > MAX_MANIFESTS_PER_RUN ||
 			allSources.size > MAX_MANIFEST_SOURCES_PER_RUN ||
-			!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) ||
+			!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, manifests) ||
 			manifests.any { manifest ->
 				!SessionManifestIntegrity.verify(
 					manifest,
@@ -636,7 +653,10 @@ internal class CellCapturedFactWriter @Inject constructor(
 		val binding = sources.singleOrNull { source ->
 			source.sourceKind == SOURCE_KIND && source.purpose == PURPOSE
 		} ?: reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
-		if (!binding.isExactCellWriter(row.captureConsentEpoch) ||
+		if (manifest.sessionMode != session.sessionMode ||
+			!binding.isExactCellWriter(row.captureConsentEpoch, manifest.sessionMode) ||
+			binding.writerBindingGeneration != row.writerBindingGeneration ||
+			binding.writerOwnerGeneration != row.writerOwnerGeneration ||
 			manifest.serviceRunId != row.serviceRunId ||
 			manifest.sourcePolicyRevision != row.sourcePolicyRevision ||
 			manifest.acquisitionPlanRevision != row.configurationRevision ||
@@ -784,7 +804,8 @@ internal class CellCapturedFactWriter @Inject constructor(
 			consent.effectiveElapsedRealtimeNanos > row.coverageIntervalStartNanos
 		) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 
-		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
+		val sessionEnd = database.savedSessionCutoff(session)
+			.retainedEnd(row.clockDomainId, row.deletionEffectEndNanos)
 		val manifestEnd = manifests.getOrNull(manifestIndex + 1)?.effectiveElapsedRealtimeNanos
 			?: minOf(sessionEnd, registrationEnd, authorizationEnd)
 		if (run.startedElapsedNanos > row.coverageIntervalStartNanos ||
@@ -993,7 +1014,6 @@ internal class CellCapturedFactWriter @Inject constructor(
 		const val SOURCE_KIND = SourceDestinationOwnerEntity.SOURCE_CELL
 		const val DESTINATION = SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL
 		const val OWNER = SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS
-		const val OWNER_GENERATION = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
 		const val PURPOSE = SourceBrokerPurpose.SESSION_CAPTURE
 		const val WRITER_ID = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID
 		const val WRITER_VERSION = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION
@@ -1011,16 +1031,21 @@ internal class CellCapturedFactWriter @Inject constructor(
 	}
 }
 
-private fun SessionManifestSourceEntity.isExactCellWriter(consentEpoch: Long): Boolean =
+private fun SessionManifestSourceEntity.isExactCellWriter(consentEpoch: Long, sessionMode: String?): Boolean =
 	sourceKind == SourceDestinationOwnerEntity.SOURCE_CELL &&
 		purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible &&
 		this.consentEpoch == consentEpoch &&
 		outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL &&
 		writerOwner == SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS &&
-		writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION &&
+		SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration ?: -1L) != null &&
+		writerOwnerGeneration == writerBindingGeneration?.let(SourceWriterGenerationContract::canonicalOwnerGeneration) &&
 		writerProjectionId == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID &&
 		writerProjectionVersion == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION &&
-		writerBindingGeneration == SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION
+		when (sessionMode) {
+			"MANUAL" -> true
+			"AUTOMATIC" -> writerBindingGeneration == SourceWriterGenerationContract.FINAL_CAPTURE_BINDING_GENERATION
+			else -> false
+		}
 
 private fun CellCapturedFactCursorEntity.matchesScope(fact: CellCapturedFactRevisionEntity): Boolean =
 	logicalFactId == fact.logicalFactId && logicalTrackingId == fact.logicalTrackingId &&
@@ -1214,7 +1239,7 @@ private fun MutableMap<CellRadioTechnology, Int>.putIfPositive(
 
 private object CellCapturedPersistence {
 	@Suppress("LongMethod")
-	fun map(fact: CellCapturedFact, ownerGeneration: Long): CellCapturedFactRevisionEntity {
+	fun map(fact: CellCapturedFact, ownerGeneration: Long, writerBindingGeneration: Long): CellCapturedFactRevisionEntity {
 		val mutation = fact.mutation
 		val identity = mutation.identity
 		val authority = fact.authority
@@ -1234,7 +1259,7 @@ private object CellCapturedPersistence {
 		val unsigned = CellCapturedFactRevisionEntity(
 			writerProjectionId = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
 			writerProjectionVersion = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
-			writerBindingGeneration = SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION,
+			writerBindingGeneration = writerBindingGeneration,
 			writerOwnerGeneration = ownerGeneration,
 			logicalFactId = logicalFactId,
 			semanticRevision = mutation.semanticRevision,

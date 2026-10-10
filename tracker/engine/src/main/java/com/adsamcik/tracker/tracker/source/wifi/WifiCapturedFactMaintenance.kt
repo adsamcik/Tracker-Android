@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.source.wifi
 
+import com.adsamcik.tracker.shared.base.database.hasExactRadioSessionCaptureCallbackBarrier
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.RadioPurposeItems
@@ -29,6 +30,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -412,7 +414,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				val audit = audit(evidence, limits, checkpoint)
 				if (audit.wal.scopes.isNotEmpty() || audit.lineages.isNotEmpty()) {
 					val owner = database.sourceDestinationOwnerDao().get(WIFI_SOURCE, DESTINATION)
-					if (owner?.owner != OWNER || owner.ownerGeneration != OWNER_GENERATION) {
+					if (owner?.owner != OWNER || !owner.ownerGeneration.isKnownCapturedWriterOwnerGeneration()) {
 						block(WifiCapturedSourceDeletionBlockedReason.DESTINATION_OWNER_CHANGED)
 					}
 				}
@@ -714,7 +716,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 		}
 
 		val owner = database.sourceDestinationOwnerDao().get(WIFI_SOURCE, DESTINATION)
-		if (owner == null || owner.owner != OWNER || owner.ownerGeneration != OWNER_GENERATION) {
+		if (owner == null || owner.owner != OWNER || !owner.ownerGeneration.isKnownCapturedWriterOwnerGeneration()) {
 			block(WifiCapturedRetentionBlockedReason.DESTINATION_OWNER_CHANGED)
 		}
 
@@ -1216,7 +1218,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 
 		val owner = database.sourceDestinationOwnerDao().get(WIFI_SOURCE, DESTINATION)
 		if (lineages.isNotEmpty() &&
-			(owner?.owner != OWNER || owner.ownerGeneration != OWNER_GENERATION)
+			(owner?.owner != OWNER || !owner.ownerGeneration.isKnownCapturedWriterOwnerGeneration())
 		) block(WifiCapturedRetentionBlockedReason.DESTINATION_OWNER_CHANGED)
 
 		val cursors = loadCursors(limits)
@@ -2189,7 +2191,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 		val segment = segmentId?.let { id ->
 			if (portable != null) portable.segmentsById[id] else database.sessionSegmentDao().getById(id)
 		}
-		if (wifiBinding == null || !wifiBinding.isExactWifiWriter(consentEpoch) ||
+		if (wifiBinding == null || !wifiBinding.isExactWifiWriter(consentEpoch, manifest.sessionMode) ||
 			manifest.logicalTrackingId != logicalTrackingId || manifest.serviceRunId != serviceRunId ||
 			manifest.sourcePolicyRevision != policyRevision ||
 			manifest.acquisitionPlanRevision != configurationRevision ||
@@ -2350,6 +2352,8 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			authority = authority,
 			evidence = walEvidence,
 			derivedAggregate = derivedAggregate,
+			writerBindingGeneration = requireNotNull(wifiBinding.writerBindingGeneration),
+			writerOwnerGeneration = requireNotNull(wifiBinding.writerOwnerGeneration),
 		)
 	}
 
@@ -2486,7 +2490,8 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 		when {
 			registration.captureCallbackBarrierAuthorizationRevision < maximumProductRevision ->
 				block(WifiCapturedSourceDeletionBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED)
-			registration.captureCallbackBarrierAuthorizationRevision > maximumProductRevision ->
+			registration.captureCallbackBarrierAuthorizationRevision > maximumProductRevision &&
+				!database.hasExactRadioSessionCaptureCallbackBarrier(registration, authorization, maximumProductRevision) ->
 				block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 		}
 	}
@@ -2903,7 +2908,9 @@ private fun WifiCapturedFactRevisionEntity.matchesAuthenticatedWal(
 	val derived = authenticated.derivedAggregate ?: return false
 	val coverage = derived.coverage
 	val aggregate = derived.aggregate
-	val immutableMatches = logicalTrackingId == authority.logicalTrackingId.value &&
+	val immutableMatches = writerBindingGeneration == authenticated.writerBindingGeneration &&
+		writerOwnerGeneration == authenticated.writerOwnerGeneration &&
+		logicalTrackingId == authority.logicalTrackingId.value &&
 		serviceRunId == authority.serviceRunId.value && sessionSegmentId == authority.sessionSegmentId &&
 		capturedSourceCodes == authority.capturedSources.toStableCodes() &&
 		controlSourceCodes == authority.controlSources.toStableCodes() &&
@@ -3254,12 +3261,15 @@ private fun LifecycleDesiredActionEntity.authenticatesCurrentReplacement(
 		acknowledgedWall >= requestedAtMs && acknowledgedElapsed >= requestedElapsedRealtimeNanos
 }
 
-private fun SessionManifestSourceEntity.isExactWifiWriter(consentEpoch: Long): Boolean =
+private fun SessionManifestSourceEntity.isExactWifiWriter(consentEpoch: Long, sessionMode: String): Boolean =
 	sourceKind == WIFI_SOURCE && purpose == CAPTURE_PURPOSE && persistenceEligible &&
 	this.consentEpoch == consentEpoch && outputDestination == DESTINATION && writerOwner == OWNER &&
-	writerOwnerGeneration == OWNER_GENERATION && writerProjectionId == WRITER_ID &&
+	SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration ?: -1L) != null &&
+	writerOwnerGeneration == writerBindingGeneration?.let(SourceWriterGenerationContract::canonicalOwnerGeneration) &&
+	writerProjectionId == WRITER_ID &&
 	writerProjectionVersion == WRITER_VERSION &&
-	writerBindingGeneration == SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION
+	(sessionMode == "MANUAL" || sessionMode == "AUTOMATIC" &&
+		writerBindingGeneration == SourceWriterGenerationContract.FINAL_CAPTURE_BINDING_GENERATION)
 
 private fun Set<SourceKind>.toStableCodes(): String = map(SourceKind::stableCode).sorted().joinToString(",")
 
@@ -3408,6 +3418,8 @@ internal data class AuthenticatedWifiWal(
 	val authority: WifiCaptureAuthority,
 	val evidence: WifiWalObservationEvidence,
 	val derivedAggregate: WifiCapturedFact.Aggregate?,
+	val writerBindingGeneration: Long,
+	val writerOwnerGeneration: Long,
 ) {
 	val reuseAuthority = WifiAggregateReuseAuthority(
 		authority.logicalTrackingId.value,
@@ -3728,7 +3740,6 @@ private const val CAPTURE_PURPOSE = SourceBrokerPurpose.SESSION_CAPTURE
 private const val CONTROL_PURPOSE = SessionManifestPurposeCode.CONTROL
 private const val DESTINATION = SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI
 private const val OWNER = SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS
-private const val OWNER_GENERATION = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
 private const val WRITER_ID = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID
 private const val WRITER_VERSION = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION
 private const val CAPTURED_PLAN_ATTRIBUTION = 0
@@ -3793,3 +3804,7 @@ private fun SourcePolicyEntity.historicalWifiDemandContract(purpose: DirectSourc
     }
     return SourceDemandContractFactory.forQos(SourceKind.WIFI, historicalWifiQosCode(purpose), purpose)
 }
+
+private fun Long.isKnownCapturedWriterOwnerGeneration(): Boolean =
+	SourceWriterGenerationContract.bindingGenerationForCanonicalOwner(this)
+		?.let(SourceWriterGenerationContract::captureModeMaskForKnownBinding) != null

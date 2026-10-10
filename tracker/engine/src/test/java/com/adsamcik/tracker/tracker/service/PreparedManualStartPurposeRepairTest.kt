@@ -221,6 +221,13 @@ class PreparedManualStartPurposeRepairTest {
             context = ApplicationProvider.getApplicationContext<Context>(), database = database,
             trackingStartupGate = gate, trackingParamsRepository = mockk(), activeTrackingSessionStore = store,
             sourceSession = mockk(), authoritativeSessionCoordinator = sessionCoordinator, trackingRolloutStateStore = mockk(),
+            chosenSourceWriterSetup = mockk {
+                coEvery { ensure(any()) } coAnswers {
+                    val chosen = firstArg<Set<com.adsamcik.tracker.tracker.source.model.SourceKind>>()
+                    com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetupResult(chosen.associateWith {
+                        com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterStatus.READY })
+                }
+            },
             bootClockDomainProvider = BootClockDomainProvider { "boot" }, collectionMotionController = mockk(),
             activityAutomationEpochAuthority = mockk(), trackingLifecycleCommandAuthority = authority,
             sourceCallerDemandDispatcher = mockk(), purposeSettingsReconciler = reconciler,

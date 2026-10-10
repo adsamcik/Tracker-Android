@@ -13,6 +13,30 @@ import org.junit.Test
 
 class TrackingPersistenceLifecycleLeaseTest {
 	@Test
+	fun `finite offline setup does not wait behind retained cleanup and can retry after release`() = runTest {
+		val lease = ExclusiveTrackingPersistenceLifecycleLease()
+		val cleanup = lease.acquireOfflineLocationRecovery()
+		var entered = false
+		lease.tryWithOfflineLocationRecovery { entered = true; "ready" } shouldBe null
+		entered.shouldBeFalse()
+		cleanup.release()
+		lease.tryWithOfflineLocationRecovery { "ready" } shouldBe "ready"
+		lease.acquireLivePipeline().release()
+	}
+
+	@Test
+	fun `cancelled finite offline setup releases the same permit for the next caller`() = runTest {
+		val lease = ExclusiveTrackingPersistenceLifecycleLease()
+		val entered = CompletableDeferred<Unit>()
+		val setup = launch { lease.tryWithOfflineLocationRecovery {
+			entered.complete(Unit); kotlinx.coroutines.awaitCancellation()
+		} }
+		entered.await(); setup.cancelAndJoin()
+		lease.tryWithOfflineLocationRecovery { "released" } shouldBe "released"
+		lease.acquireLivePipeline().release()
+	}
+
+	@Test
 	fun `live pipeline excludes offline Location and Pressure transition`() = runTest {
 		val lease = ExclusiveTrackingPersistenceLifecycleLease()
 		val live = lease.acquireLivePipeline()

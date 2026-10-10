@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
@@ -63,6 +64,84 @@ class ActivityCapturedFactWriterTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `Activity writer cannot use the current session mode instead of its named manifest mode`() = runTest {
+		seedAuthority()
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(LOGICAL_TRACKING_ID))
+		dao.updateSession(session.copy(sessionMode = "AUTOMATIC", automationEpoch = 1L)) shouldBe 1
+		ActivityCapturedFactWriter(database).write(ActivityCapturedWriteCommand.Captured(capturedWindow())) shouldBe
+			ActivityCapturedWriteResult.Rejected(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+		database.activityCapturedFactDao().cursorCount() shouldBe 0L
+	}
+
+	@Test
+	fun `Activity writer does not invent an original finite Stop after a later operation boot`() = runTest {
+		seedAuthority()
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(LOGICAL_TRACKING_ID))
+		val run = requireNotNull(dao.serviceRun(SERVICE_RUN_ID))
+		// No original Stop receipt is installed: a later operation cannot supply its clock.
+		dao.updateServiceRun(run.copy(bootId = "later-operation", leaseGeneration = run.leaseGeneration + 2L,
+			runRevision = run.runRevision + 1L)) shouldBe 1
+		dao.updateSession(session.copy(lifecycleBootId = "later-operation",
+			lifecycleLeaseGeneration = session.lifecycleLeaseGeneration + 2L,
+			lifecycleRevision = session.lifecycleRevision + 1L)) shouldBe 1
+		ActivityCapturedFactWriter(database).write(ActivityCapturedWriteCommand.Captured(capturedWindow())) shouldBe
+			ActivityCapturedWriteResult.Rejected(ActivityCapturedWriteRejection.SERVICE_RUN_MISMATCH)
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `final manual Activity writer stamps its original binding and owner`() = runTest {
+		seedAuthority(writerBindingGeneration = 2L)
+		val result = ActivityCapturedFactWriter(database).write(ActivityCapturedWriteCommand.Captured(capturedWindow()))
+			as ActivityCapturedWriteResult.Applied
+		val saved = requireNotNull(database.activityCapturedFactDao().revision(WRITER_ID, WRITER_VERSION,
+			result.logicalWindowId, 1L))
+		saved.writerBindingGeneration shouldBe 2L
+		saved.writerOwnerGeneration shouldBe 4L
+		database.activityCapturedFactDao().cursor(WRITER_ID, WRITER_VERSION, result.logicalWindowId)?.writerOwnerGeneration shouldBe 4L
+	}
+
+	@Test
+	fun `final automatic Activity writer persists replay and correction without changing original evidence`() = runTest {
+		seedAuthority(writerBindingGeneration = 2L, sessionMode = "AUTOMATIC")
+		val subject = ActivityCapturedFactWriter(database)
+		val first = subject.write(ActivityCapturedWriteCommand.Captured(capturedWindow())) as ActivityCapturedWriteResult.Applied
+		subject.write(ActivityCapturedWriteCommand.Captured(capturedWindow())) shouldBe
+			ActivityCapturedWriteResult.Unchanged(first.logicalWindowId, 1L, 1L)
+		subject.write(ActivityCapturedWriteCommand.Captured(capturedWindow(semanticRevision = 2L, supersedes = 1L, withGap = false))) shouldBe
+			ActivityCapturedWriteResult.Applied(first.logicalWindowId, 2L, 2L)
+		val dao = database.activityCapturedFactDao()
+		for (revision in listOf(1L, 2L)) {
+			val saved = requireNotNull(dao.revision(WRITER_ID, WRITER_VERSION, first.logicalWindowId, revision))
+			saved.writerBindingGeneration shouldBe 2L
+			saved.writerOwnerGeneration shouldBe 4L
+			dao.evidence(WRITER_ID, WRITER_VERSION, first.logicalWindowId, revision).single().sourceEventId shouldBe "activity-event-1"
+		}
+		dao.revisionCount() shouldBe 2L
+	}
+
+	@Test
+	fun `original Activity binding cannot borrow automatic mode or final binding original ownership`() = runTest {
+		seedAuthority(sessionMode = "AUTOMATIC")
+		ActivityCapturedFactWriter(database).write(ActivityCapturedWriteCommand.Captured(capturedWindow())) shouldBe
+			ActivityCapturedWriteResult.Rejected(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+		// A final binding with owner2 is independently invalid, even for a chosen source.
+		val source = database.sourceSessionDao().manifestSources(LOGICAL_TRACKING_ID, 1L).single()
+		val finalSource = source.copy(writerBindingGeneration = 2L, writerOwnerGeneration = 4L)
+		val manifest = requireNotNull(database.sourceSessionDao().manifest(LOGICAL_TRACKING_ID, 1L))
+		val checksum = SessionManifestIntegrity.compute(manifest, listOf(finalSource))
+		database.openHelper.writableDatabase.execSQL("UPDATE session_manifest_source SET writer_binding_generation = 2, writer_owner_generation = 4 WHERE logical_tracking_id = ? AND manifest_revision = 1", arrayOf(LOGICAL_TRACKING_ID))
+		database.openHelper.writableDatabase.execSQL("UPDATE session_manifest_version SET manifest_checksum = ? WHERE logical_tracking_id = ? AND manifest_revision = 1", arrayOf(checksum, LOGICAL_TRACKING_ID))
+		ActivityCapturedFactWriter(database).write(ActivityCapturedWriteCommand.Captured(capturedWindow())) shouldBe
+			ActivityCapturedWriteResult.Rejected(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
 
 	@Test
 	fun `control-only command is rejected without creating captured state`() = runTest {
@@ -700,6 +779,8 @@ class ActivityCapturedFactWriterTest {
 		walWallTimeMs: Long = 2_000L,
 		walPayload: SourcePayload? = null,
 		walPayloadBytesOverride: ByteArray? = null,
+		writerBindingGeneration: Long = 1L,
+		sessionMode: String = "MANUAL",
 	) {
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
 		database.sourceDestinationOwnerDao().insertIfAbsent(
@@ -707,7 +788,7 @@ class ActivityCapturedFactWriterTest {
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
 				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
 				owner = SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS,
-				ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				ownerGeneration = SourceWriterGenerationContract.canonicalOwnerGeneration(writerBindingGeneration),
 				updatedAtMs = 1_000L,
 			),
 		)
@@ -734,7 +815,7 @@ class ActivityCapturedFactWriterTest {
 				lifecycleRevision = 2L,
 				desiredPlanRevision = runDesiredPlanRevision,
 				rolloutRevision = 1L,
-				startOrigin = "MANUAL_FOREGROUND_START",
+				startOrigin = if (sessionMode == "AUTOMATIC") "AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START",
 				clockDomainId = BOOT_ID,
 				startedAtMs = 1_000L,
 				startedElapsedNanos = RUN_START_NANOS,
@@ -743,7 +824,7 @@ class ActivityCapturedFactWriterTest {
 				completedAtMs = 2_000L,
 				finalAdmissionOrdinal = 1L,
 				failureCode = null,
-				sessionMode = "MANUAL",
+				sessionMode = sessionMode,
 				currentManifestRevision = 1L,
 				currentIntentRevision = 2L,
 				currentServiceRunId = null,
@@ -766,7 +847,7 @@ class ActivityCapturedFactWriterTest {
 				completionReason = "TEST",
 				bootId = BOOT_ID,
 				leaseGeneration = 1L,
-				startOrigin = "MANUAL_FOREGROUND_START",
+				startOrigin = if (sessionMode == "AUTOMATIC") "AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START",
 				desiredForegroundCapabilityFlags = 0L,
 				appliedForegroundCapabilityFlags = 0L,
 				runtimeAcknowledgement = "STOPPED",
@@ -785,7 +866,7 @@ class ActivityCapturedFactWriterTest {
 				presentationAcknowledgedAtMs = 2_000L,
 			),
 		)
-		insertManifest(sourcePolicyRevision, manifestZoneId)
+		insertManifest(sourcePolicyRevision, manifestZoneId, writerBindingGeneration, sessionMode)
 		database.sourcePolicyDao().insertPolicies(listOf(activityPolicy(sourcePolicyRevision)))
 		database.sourcePolicyDao().insertConsentEpochs(listOf(activityConsent(consentPolicyRevision)))
 		database.sourcePlanStateDao().insertRevision(
@@ -851,17 +932,18 @@ class ActivityCapturedFactWriterTest {
 		}
 	}
 
-	private suspend fun insertManifest(sourcePolicyRevision: Long, zoneId: String) {
-		val source = activityManifestSource(manifestRevision = 1L)
+	private suspend fun insertManifest(sourcePolicyRevision: Long, zoneId: String,
+		writerBindingGeneration: Long = 1L, sessionMode: String = "MANUAL") {
+		val source = activityManifestSource(manifestRevision = 1L, writerBindingGeneration = writerBindingGeneration)
 		val unsigned = SessionManifestVersionEntity(
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			manifestRevision = 1L,
 			serviceRunId = SERVICE_RUN_ID,
-			sessionMode = "MANUAL",
+			sessionMode = sessionMode,
 			sourcePolicyRevision = sourcePolicyRevision,
 			acquisitionPlanRevision = 1L,
 			rolloutRevision = 1L,
-			startOrigin = "MANUAL_FOREGROUND_START",
+			startOrigin = if (sessionMode == "AUTOMATIC") "AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START",
 			effectiveBootId = BOOT_ID,
 			effectiveElapsedRealtimeNanos = RUN_START_NANOS,
 			effectiveWallTimeMs = 1_000L,
@@ -876,7 +958,7 @@ class ActivityCapturedFactWriterTest {
 		database.sourceSessionDao().insertManifestSources(listOf(source))
 	}
 
-	private fun activityManifestSource(manifestRevision: Long) = SessionManifestSourceEntity(
+	private fun activityManifestSource(manifestRevision: Long, writerBindingGeneration: Long = 1L) = SessionManifestSourceEntity(
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			manifestRevision = manifestRevision,
 			sourceKind = SourceKind.ACTIVITY.stableCode,
@@ -886,10 +968,10 @@ class ActivityCapturedFactWriterTest {
 			qosCode = 1,
 			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
 			writerOwner = SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS,
-			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			writerOwnerGeneration = SourceWriterGenerationContract.canonicalOwnerGeneration(writerBindingGeneration),
 			writerProjectionId = WRITER_ID,
 			writerProjectionVersion = WRITER_VERSION,
-			writerBindingGeneration = SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION,
+			writerBindingGeneration = writerBindingGeneration,
 		)
 
 	private suspend fun insertReplacementRunManifest(effectiveElapsedRealtimeNanos: Long) {

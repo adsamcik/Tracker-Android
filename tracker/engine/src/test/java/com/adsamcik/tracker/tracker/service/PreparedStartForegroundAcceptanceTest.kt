@@ -177,7 +177,14 @@ class PreparedStartForegroundAcceptanceTest {
             context = context, database = mockk(), trackingStartupGate = gate,
             trackingParamsRepository = mockk(), activeTrackingSessionStore = mockk(),
             sourceSession = mockk(), authoritativeSessionCoordinator = room,
-            trackingRolloutStateStore = mockk(), bootClockDomainProvider = BootClockDomainProvider { "boot" },
+            trackingRolloutStateStore = mockk(),
+            chosenSourceWriterSetup = mockk {
+                coEvery { ensure(any()) } coAnswers {
+                    val chosen = firstArg<Set<com.adsamcik.tracker.tracker.source.model.SourceKind>>()
+                    com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetupResult(chosen.associateWith {
+                        com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterStatus.READY })
+                }
+            }, bootClockDomainProvider = BootClockDomainProvider { "boot" },
             collectionMotionController = mockk(), activityAutomationEpochAuthority = mockk(),
             trackingLifecycleCommandAuthority = commands, sourceCallerDemandDispatcher = mockk(),
             activeTrackingSessionCallerAuthorityReconciler = mockk(), sourcePolicyRepository = mockk(),

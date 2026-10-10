@@ -206,8 +206,8 @@ data class ActivityCapturedWindowRevisionEntity(
 	init {
 		require(writerProjectionId == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID)
 		require(writerProjectionVersion == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION)
-		require(writerBindingGeneration == SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION)
-		require(writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
+		require(SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration) != null)
+		require(writerOwnerGeneration == SourceWriterGenerationContract.canonicalOwnerGeneration(writerBindingGeneration))
 		require(logicalWindowId.isNotBlank() && mutationId.isNotBlank())
 		require(semanticRevision > 0L)
 		require(
@@ -499,7 +499,9 @@ data class ActivityCapturedWindowCursorEntity(
 		require(writerProjectionVersion == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION)
 		require(logicalWindowId.isNotBlank() && logicalTrackingId.isNotBlank() && serviceRunId.isNotBlank())
 		require(sessionSegmentId > 0L)
-		require(writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
+		require(SourceWriterGenerationContract.bindingGenerationForCanonicalOwner(writerOwnerGeneration)?.let {
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(it) != null
+		} == true)
 		require(latestSemanticRevision > 0L)
 		require(latestMutationId.isNotBlank() && latestEffectChecksum.isNotBlank())
 		require(cursorRevision > 0L && collectedDataEpoch >= 0L && updatedAtMs >= 0L)

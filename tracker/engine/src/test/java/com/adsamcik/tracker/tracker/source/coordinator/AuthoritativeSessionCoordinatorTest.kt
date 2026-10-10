@@ -4212,6 +4212,74 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `final Activity binding prepares an automatic manifest with its exact owner and recorded mode`() = runTest {
+		assertFinalAutomaticManifest(SourceWriterTransitionSpec.ACTIVITY)
+	}
+
+	@Test
+	fun `final Pressure binding prepares an automatic manifest with its exact owner and recorded mode`() = runTest {
+		assertFinalAutomaticManifest(SourceWriterTransitionSpec.PRESSURE)
+	}
+
+	@Test
+	fun `final Wifi binding prepares an automatic manifest with its exact owner and recorded mode`() = runTest {
+		assertFinalAutomaticManifest(SourceWriterTransitionSpec.WIFI)
+	}
+
+	@Test
+	fun `final Cell binding prepares an automatic manifest with its exact owner and recorded mode`() = runTest {
+		assertFinalAutomaticManifest(SourceWriterTransitionSpec.CELL)
+	}
+
+	@Test
+	fun `final Wi-Fi binding cannot borrow the original owner generation to prepare a session`() = runTest {
+		val policyRevision = enableRadioPolicy(wifi = true, cell = false)
+		installExactCandidateRollout(SourceWriterTransitionSpec.WIFI,
+			SourceWriterTransitionSpec.WIFI.binding.copy(bindingGeneration = 2L, captureModes = setOf(
+				CaptureReachabilityMode.MANUAL_SESSION_CAPTURE, CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE)))
+		database.openHelper.writableDatabase.execSQL("UPDATE source_destination_owner SET owner_generation = 2 " +
+			"WHERE source_kind = ? AND destination = ?", arrayOf(SourceKind.WIFI.stableCode,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI))
+		kotlin.test.assertFailsWith<IllegalStateException> { subject.prepareAndroidStart(
+			manualSourceStartRequest(SourceKind.WIFI, "wrong-wifi-owner", "wrong-wifi-run", policyRevision),
+			AndroidStartDeliveryMetadata(PreparedTrackingStartToken("wrong-wifi-token"), commandGeneration = 1L,
+				isUserInitiated = true, isAmbient = false)) }
+		database.sourceSessionDao().session("wrong-wifi-owner") shouldBe null
+		database.sourceBrokerDao().currentDemands("session:wrong-wifi-owner") shouldBe emptyList()
+	}
+
+	/** Real preparation/Room manifest; already-ready final setup and Android/provider availability are fixtures. */
+	private suspend fun assertFinalAutomaticManifest(spec: SourceWriterTransitionSpec) {
+		val policyRevision = when (spec.source) {
+			SourceKind.WIFI -> enableRadioPolicy(wifi = true, cell = false)
+			SourceKind.CELL -> enableRadioPolicy(wifi = false, cell = true)
+			else -> 1L
+		}
+		val expected = installExactCandidateRollout(spec, spec.binding.copy(bindingGeneration = 2L,
+			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE, CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE)))
+		val mask = 1L shl (spec.source.stableCode - 1)
+		val trigger = automaticTrigger(sourcePolicyRevision = policyRevision).copy(
+			requestedCaptureSourceMask = mask, intendedCaptureSourceMask = mask)
+		seedAutomaticStartAction(trigger)
+		val logicalId = "final-automatic-${spec.source.name.lowercase()}"
+		val manual = if (spec.source == SourceKind.PRESSURE) pressureStartRequest(logicalId, "$logicalId-run", rolloutSnapshot.revision)
+		else manualSourceStartRequest(spec.source, logicalId, "$logicalId-run", policyRevision)
+		val prepared = subject.prepareAndroidStart(manual.copy(origin = SessionStartOrigin.AUTOMATIC_BACKGROUND_START,
+			controlDependencies = setOf(SourceKind.ACTIVITY), automaticTrigger = trigger), AndroidStartDeliveryMetadata(
+			PreparedTrackingStartToken("$logicalId-token"), commandGeneration = 1L, isUserInitiated = false, isAmbient = false))
+			.shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+		assertExactCandidateManifestSource(prepared, spec, expected)
+		val manifest = requireNotNull(database.sourceSessionDao().manifest(logicalId, prepared.manifestRevision))
+		manifest.sessionMode shouldBe SessionMode.AUTOMATIC.name
+		val rows = database.sourceSessionDao().manifestSources(logicalId, prepared.manifestRevision)
+		SessionManifestIntegrity.verify(manifest, rows) shouldBe true
+		rows.single { it.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }.sourceKind shouldBe spec.source.stableCode
+		val control = rows.single { it.purpose == SessionManifestPurpose.CONTROL.name }
+		control.sourceKind shouldBe SourceKind.ACTIVITY.stableCode
+		control.writerProjectionId shouldBe null
+	}
+
+	@Test
 	fun `manual Activity candidate manifest records exact writer provenance`() = runTest {
 		val expected = installExactCandidateRollout(SourceWriterTransitionSpec.ACTIVITY)
 		val prepared = subject.prepareAndroidStart(
@@ -10108,6 +10176,74 @@ class AuthoritativeSessionCoordinatorTest {
 			bytes.toByteArray()
 		}
 
+
+	@Test
+	fun `manual protected Location preparation stamps the exact final binding and permanent owner`() = runTest {
+		val unchanged = advancePolicyForUnrelatedWifiQos()
+		installProtectedLocationCandidateRollout(ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V2)
+		val prepared = subject.prepareAndroidStart(startRequest().copy(
+			plan = locationOnlyPlan(unchanged.policyRevision), rolloutRevision = rolloutSnapshot.revision,
+			logicalTrackingId = "location-final-manual", serviceRunId = "location-final-manual-run",
+			wallTimeMs = 2_000L, elapsedRealtimeNanos = 2_000_000L),
+			AndroidStartDeliveryMetadata(PreparedTrackingStartToken("location-final-manual-token"), 1L, true, false))
+			.shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+		val header = requireNotNull(database.sourceSessionDao().manifest(prepared.logicalTrackingId, prepared.manifestRevision))
+		val sources = database.sourceSessionDao().manifestSources(prepared.logicalTrackingId, prepared.manifestRevision)
+		header.sessionMode shouldBe "MANUAL"
+		sources.single().locationCaptureBindingGenerationOrNull() shouldBe 2L
+		sources.single().writerOwnerGeneration shouldBe 1L
+		sources.single().consentEpoch shouldBe unchanged.locationCaptureEpoch
+		SessionManifestIntegrity.verify(header, sources) shouldBe true
+	}
+
+	@Test
+	fun `automatic protected Location preparation stamps final binding with independent Activity control`() = runTest {
+		val unchanged = advancePolicyForUnrelatedWifiQos()
+		installProtectedLocationCandidateRollout(ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V2)
+		val mask = 1L shl (SourceKind.LOCATION.stableCode - 1)
+		val trigger = automaticTrigger(sourcePolicyRevision = unchanged.policyRevision).copy(
+			requestedCaptureSourceMask = mask, intendedCaptureSourceMask = mask)
+		seedAutomaticStartAction(trigger)
+		val prepared = subject.prepareAndroidStart(startRequest().copy(
+			origin = SessionStartOrigin.AUTOMATIC_BACKGROUND_START,
+			plan = locationOnlyPlan(unchanged.policyRevision), rolloutRevision = rolloutSnapshot.revision,
+			controlDependencies = setOf(SourceKind.ACTIVITY), automaticTrigger = trigger,
+			logicalTrackingId = "location-final-auto", serviceRunId = "location-final-auto-run"),
+			AndroidStartDeliveryMetadata(PreparedTrackingStartToken("location-final-auto-token"), 1L, false, false))
+			.shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+		val header = requireNotNull(database.sourceSessionDao().manifest(prepared.logicalTrackingId, prepared.manifestRevision))
+		val sources = database.sourceSessionDao().manifestSources(prepared.logicalTrackingId, prepared.manifestRevision)
+		header.sessionMode shouldBe "AUTOMATIC"
+		val capture = sources.single { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+		capture.locationCaptureBindingGenerationOrNull() shouldBe 2L
+		capture.writerOwnerGeneration shouldBe 1L
+		capture.writerProjectionId shouldBe SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID
+		capture.consentEpoch shouldBe unchanged.locationCaptureEpoch
+		val control = sources.single { it.purpose == SessionManifestPurpose.CONTROL.name }
+		control.sourceKind shouldBe SourceKind.ACTIVITY.stableCode
+		control.writerProjectionId shouldBe null
+		control.consentEpoch shouldBe unchanged.activityControlEpoch
+		SessionManifestIntegrity.verify(header, sources) shouldBe true
+	}
+
+	private suspend fun installProtectedLocationCandidateRollout(binding: ExecutableSourceLaneBinding) {
+		database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
+			SourceKind.LOCATION.stableCode, SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+			SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE, 1L, 1L))
+		rolloutSnapshot = TrackingRolloutState.eventCanonical(sources = setOf(SourceKind.LOCATION),
+			controlSources = setOf(SourceKind.ACTIVITY), revision = 2L,
+			captureModes = mapOf(SourceKind.LOCATION to binding.captureModes))
+		database.sourceProjectionStateDao().installProductLane(SourceProductProjectionLaneEntity(
+			sourceKind = SourceKind.LOCATION.stableCode, bindingGeneration = binding.bindingGeneration,
+			projectionId = binding.projectionId, projectionVersion = binding.projectionVersion,
+			captureModeMask = binding.captureModeMask,
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			activatedRolloutRevision = rolloutSnapshot.revision, activationOrdinal = 1L,
+			contiguousAdmissionOrdinal = 0L, retentionRequired = true,
+			status = SourceProductProjectionLaneEntity.STATUS_ACTIVE, installedAtMs = 1L, updatedAtMs = 1L))
+		database.trackingRolloutStateDao().save(rolloutSnapshot.toEntity(updatedAtMs = 1L))
+	}
+
 	private suspend fun installStepsCandidateRollout(
 		binding: ExecutableSourceLaneBinding,
 	): ExecutableSourceLaneBinding {
@@ -10208,6 +10344,7 @@ class AuthoritativeSessionCoordinatorTest {
 
 	private suspend fun installExactCandidateRollout(
 		spec: SourceWriterTransitionSpec,
+		binding: ExecutableSourceLaneBinding = spec.binding,
 	): ExecutableSourceLaneBinding {
 		if (spec.initialOwner == null) {
 			database.sourceDestinationOwnerDao().insertIfAbsent(
@@ -10215,7 +10352,7 @@ class AuthoritativeSessionCoordinatorTest {
 					sourceKind = spec.source.stableCode,
 					destination = spec.destination,
 					owner = spec.candidateOwner,
-					ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+					ownerGeneration = com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract.canonicalOwnerGeneration(binding.bindingGeneration),
 					updatedAtMs = 1L,
 				),
 			)
@@ -10239,22 +10376,22 @@ class AuthoritativeSessionCoordinatorTest {
 				expectedOwner = initialOwner,
 				expectedOwnerGeneration = owner.ownerGeneration,
 				newOwner = spec.candidateOwner,
-				newOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				newOwnerGeneration = com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract.canonicalOwnerGeneration(binding.bindingGeneration),
 				updatedAtMs = 1L,
 			) == 1)
 		}
 		rolloutSnapshot = TrackingRolloutState.eventCanonical(
 			sources = setOf(spec.source),
 			revision = 2L,
-			captureModes = mapOf(spec.source to spec.binding.captureModes),
+			captureModes = mapOf(spec.source to binding.captureModes),
 		)
 		database.sourceProjectionStateDao().installProductLane(
 			SourceProductProjectionLaneEntity(
 				sourceKind = spec.source.stableCode,
-				bindingGeneration = spec.binding.bindingGeneration,
-				projectionId = spec.binding.projectionId,
-				projectionVersion = spec.binding.projectionVersion,
-				captureModeMask = spec.binding.captureModeMask,
+				bindingGeneration = binding.bindingGeneration,
+				projectionId = binding.projectionId,
+				projectionVersion = binding.projectionVersion,
+				captureModeMask = binding.captureModeMask,
 				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
 				activatedRolloutRevision = rolloutSnapshot.revision,
 				activationOrdinal = 1L,
@@ -10266,7 +10403,7 @@ class AuthoritativeSessionCoordinatorTest {
 			),
 		)
 		database.trackingRolloutStateDao().save(rolloutSnapshot.toEntity(updatedAtMs = 1L))
-		return spec.binding
+		return binding
 	}
 
 	private suspend fun assertExactCandidateManifestSource(
@@ -10276,12 +10413,12 @@ class AuthoritativeSessionCoordinatorTest {
 	) {
 		val source = database.sourceSessionDao()
 			.manifestSources(prepared.logicalTrackingId, prepared.manifestRevision)
-			.single()
+			.single { it.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
 		source.sourceKind shouldBe spec.source.stableCode
 		source.purpose shouldBe SessionManifestPurpose.SESSION_CAPTURE.name
 		source.outputDestination shouldBe spec.destination
 		source.writerOwner shouldBe spec.candidateOwner
-		source.writerOwnerGeneration shouldBe SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+		source.writerOwnerGeneration shouldBe com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract.canonicalOwnerGeneration(binding.bindingGeneration)
 		source.writerProjectionId shouldBe binding.projectionId
 		source.writerProjectionVersion shouldBe binding.projectionVersion
 		source.writerBindingGeneration shouldBe binding.bindingGeneration

@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
@@ -974,7 +975,7 @@ internal class PressureHistorySelector private constructor(
 	@Suppress("ComplexCondition")
 	private fun isValidHistoricalLane(lane: SourceProductProjectionLaneEntity): Boolean {
 		if (lane.sourceKind != SourceDestinationOwnerEntity.SOURCE_PRESSURE ||
-			lane.captureModeMask <= 0L || lane.productStage !in VALID_PRODUCT_STAGES ||
+			lane.captureModeMask != SourceWriterGenerationContract.captureModeMaskForKnownBinding(lane.bindingGeneration) || lane.productStage !in VALID_PRODUCT_STAGES ||
 			lane.activatedRolloutRevision <= 0L || lane.activationOrdinal <= 0L ||
 			lane.installedAtMs < 0L || lane.updatedAtMs < lane.installedAtMs
 		) return false
@@ -1199,10 +1200,10 @@ internal class PressureHistorySelector private constructor(
 	) {
 		val isPressureFactWriter: Boolean
 			get() = owner == SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS &&
-				ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION &&
+				SourceWriterGenerationContract.captureModeMaskForKnownBinding(bindingGeneration) != null &&
+				ownerGeneration == SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration) &&
 				projectionId == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID &&
-				projectionVersion == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION &&
-				bindingGeneration == SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION
+				projectionVersion == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION
 	}
 
 	private companion object {

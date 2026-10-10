@@ -72,6 +72,8 @@ data class SourceDestinationOwnerEntity(
 			"protected-location-canonical-handoff"
 		const val LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION = 1
 		const val LOCATION_CANONICAL_HANDOFF_BINDING_GENERATION = 1L
+		/** Prospective manual and automatic contract; the original binding remains immutable. */
+		const val LOCATION_CANONICAL_HANDOFF_AUTOMATIC_BINDING_GENERATION = 2L
 		const val STEPS_FACT_PROJECTION_ID = "steps-session-facts"
 		const val STEPS_FACT_PROJECTION_VERSION = 1
 		/** Immutable manual-session binding retained for already attributed v28 facts. */
@@ -81,14 +83,22 @@ data class SourceDestinationOwnerEntity(
 		const val PRESSURE_FACT_PROJECTION_ID = "pressure-session-facts"
 		const val PRESSURE_FACT_PROJECTION_VERSION = 1
 		const val PRESSURE_FACT_BINDING_GENERATION = 1L
+		/** Prospective manual and automatic contract; the original binding remains immutable. */
+		const val PRESSURE_FACT_AUTOMATIC_BINDING_GENERATION = 2L
 		const val ACTIVITY_FACT_PROJECTION_ID = "activity-session-facts"
 		const val ACTIVITY_FACT_PROJECTION_VERSION = 1
 		const val ACTIVITY_FACT_BINDING_GENERATION = 1L
+		/** Prospective manual and automatic contract; the original binding remains immutable. */
+		const val ACTIVITY_FACT_AUTOMATIC_BINDING_GENERATION = 2L
 		const val CELL_FACT_PROJECTION_ID = "cell-session-facts"
 		const val CELL_FACT_PROJECTION_VERSION = 1
 		const val CELL_FACT_BINDING_GENERATION = 1L
+		/** Prospective manual and automatic contract; the original binding remains immutable. */
+		const val CELL_FACT_AUTOMATIC_BINDING_GENERATION = 2L
 		const val WIFI_FACT_PROJECTION_ID = "wifi-session-facts"
 		const val WIFI_FACT_PROJECTION_VERSION = 1
 		const val WIFI_FACT_BINDING_GENERATION = 1L
+		/** Prospective manual and automatic contract; the original binding remains immutable. */
+		const val WIFI_FACT_AUTOMATIC_BINDING_GENERATION = 2L
 	}
 }

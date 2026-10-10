@@ -584,7 +584,10 @@ class DefaultSourceImplementationCatalogTest {
 			key(TrackingSource.LOCATION, TrackingPurpose.SESSION_CAPTURE) to locationProjection,
 			key(TrackingSource.ACTIVITY, TrackingPurpose.SESSION_CAPTURE) to
 				SourceProjectionContract.ExecutableLanes(
-					setOf(ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS),
+					setOf(
+						ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS_V1,
+						ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS_V2,
+					),
 				),
 			key(TrackingSource.STEPS, TrackingPurpose.SESSION_CAPTURE) to
 				SourceProjectionContract.ExecutableLanes(
@@ -595,15 +598,24 @@ class DefaultSourceImplementationCatalogTest {
 				),
 			key(TrackingSource.PRESSURE, TrackingPurpose.SESSION_CAPTURE) to
 				SourceProjectionContract.ExecutableLanes(
-					setOf(ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS),
+					setOf(
+						ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS_V1,
+						ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS_V2,
+					),
 				),
 			key(TrackingSource.WIFI, TrackingPurpose.SESSION_CAPTURE) to
 				SourceProjectionContract.ExecutableLanes(
-					setOf(ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS),
+					setOf(
+						ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS_V1,
+						ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS_V2,
+					),
 				),
 			key(TrackingSource.CELL, TrackingPurpose.SESSION_CAPTURE) to
 				SourceProjectionContract.ExecutableLanes(
-					setOf(ExecutableSourceLaneCatalog.CELL_SESSION_FACTS),
+					setOf(
+						ExecutableSourceLaneCatalog.CELL_SESSION_FACTS_V1,
+						ExecutableSourceLaneCatalog.CELL_SESSION_FACTS_V2,
+					),
 				),
 			key(TrackingSource.ACTIVITY, TrackingPurpose.CONTROL) to
 				SourceProjectionContract.ActivityControl(
@@ -674,10 +686,14 @@ class DefaultSourceImplementationCatalogTest {
 		actual shouldBe setOf(
 			ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1,
 			ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2,
-			ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS,
-			ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS,
-			ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS,
-			ExecutableSourceLaneCatalog.CELL_SESSION_FACTS,
+			ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS_V1,
+			ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS_V2,
+			ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS_V1,
+			ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS_V2,
+			ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS_V1,
+			ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS_V2,
+			ExecutableSourceLaneCatalog.CELL_SESSION_FACTS_V1,
+			ExecutableSourceLaneCatalog.CELL_SESSION_FACTS_V2,
 		)
 
 		sessionOwnership(catalog, TrackingSource.LOCATION) shouldBe SourceWriterOwnership(
@@ -705,6 +721,21 @@ class DefaultSourceImplementationCatalogTest {
 			SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
 			SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS,
 		)
+	}
+
+	@Test
+	fun `source product descriptors retain original lanes alongside final automatic contracts`() {
+		val fixture = fixture()
+		listOf(TrackingSource.ACTIVITY, TrackingSource.PRESSURE, TrackingSource.WIFI, TrackingSource.CELL).forEach { source ->
+			val binding = fixture.catalog.binding(source, TrackingPurpose.SESSION_CAPTURE) as SourcePurposeBinding.Executable
+			val writer = binding.products.writer as SourceWriterContract.SourceLocalLane
+			writer.lanes.map { it.bindingGeneration to it.captureModeMask }.toSet() shouldBe setOf(1L to 1L, 2L to 3L)
+			writer.lanes.map { it.projectionId to it.projectionVersion }.distinct().size shouldBe 1
+			binding.products.capability shouldBe SourceProductCapability.Dormant
+		}
+		fixture.providerCreations().values.sum() shouldBe 0
+		(fixture.catalog.binding(TrackingSource.ACTIVITY, TrackingPurpose.CONTROL) as SourcePurposeBinding.Executable)
+			.products.writer shouldBe SourceWriterContract.NotApplicable(SourceWriterUnsupportedReason.CONTROL_HAS_NO_PRODUCT_WRITER)
 	}
 
 	private fun runtimeAvailability(reason: SourceDegradedReason): SourceProviderAvailability =

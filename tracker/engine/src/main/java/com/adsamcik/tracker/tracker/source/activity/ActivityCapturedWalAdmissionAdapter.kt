@@ -19,6 +19,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
@@ -275,13 +276,18 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				}
 			} == true) return@transaction rejected(ActivityCapturedWalAdmissionRejection.RETAINED_EVIDENCE)
 
-			if (requireCurrentDestinationOwner) {
-				val owner = database.sourceDestinationOwnerDao().get(
+			val currentOwner = if (requireCurrentDestinationOwner) {
+				database.sourceDestinationOwnerDao().get(
 					SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
 					SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
 				)
-				if (owner?.owner != SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS ||
-					owner.ownerGeneration != SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+			} else null
+			if (requireCurrentDestinationOwner) {
+				val currentBinding = currentOwner?.ownerGeneration
+					?.let(SourceWriterGenerationContract::bindingGenerationForCanonicalOwner)
+				if (currentOwner?.owner != SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS ||
+					currentBinding == null ||
+					SourceWriterGenerationContract.captureModeMaskForKnownBinding(currentBinding) == null
 				) return@transaction rejected(
 					ActivityCapturedWalAdmissionRejection.DESTINATION_OWNER_MISMATCH,
 				)
@@ -517,13 +523,19 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			} ?: return@transaction rejected(ActivityCapturedWalAdmissionRejection.MANIFEST_MISMATCH)
 			if (manifest.logicalTrackingId != logicalTrackingId ||
 				manifest.serviceRunId != serviceRunId ||
+				manifest.sessionMode != session.sessionMode ||
 				manifest.sourcePolicyRevision != sourcePolicyRevision ||
 				manifest.acquisitionPlanRevision != configurationRevision ||
 				manifest.effectiveBootId != selected.clockDomainId ||
 				manifest.effectiveElapsedRealtimeNanos > selected.observedElapsedNanos ||
-				!activityBinding.isExactCapturedActivityBinding(captureConsentEpoch) ||
+				!activityBinding.isExactCapturedActivityBinding(captureConsentEpoch, manifest.sessionMode) ||
 				activityBinding.qosCode != policy.qosCode
 			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.MANIFEST_MISMATCH)
+			if (requireCurrentDestinationOwner &&
+				currentOwner?.ownerGeneration != activityBinding.writerOwnerGeneration
+			) return@transaction rejected(
+				ActivityCapturedWalAdmissionRejection.DESTINATION_OWNER_MISMATCH,
+			)
 			val nextManifestStart = manifests.getOrNull(manifestIndex + 1)
 				?.effectiveElapsedRealtimeNanos ?: sessionEnd
 			if (selected.observedElapsedNanos >= nextManifestStart) {
@@ -932,13 +944,24 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 
 	private fun SessionManifestSourceEntity.isExactCapturedActivityBinding(
 		consentEpoch: Long,
-	): Boolean = persistenceEligible && this.consentEpoch == consentEpoch &&
-		outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY &&
-		writerOwner == SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS &&
-		writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION &&
-		writerProjectionId == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID &&
-		writerProjectionVersion == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION &&
-		writerBindingGeneration == SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION
+		sessionMode: String,
+	): Boolean {
+		val binding = writerBindingGeneration ?: return false
+		val supportedModes = SourceWriterGenerationContract.captureModeMaskForKnownBinding(binding)
+			?: return false
+		val requestedMode = when (sessionMode) {
+			"MANUAL" -> 1L
+			"AUTOMATIC" -> 2L
+			else -> return false
+		}
+		return persistenceEligible && this.consentEpoch == consentEpoch &&
+			outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY &&
+			writerOwner == SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS &&
+			writerOwnerGeneration == SourceWriterGenerationContract.canonicalOwnerGeneration(binding) &&
+			writerProjectionId == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID &&
+			writerProjectionVersion == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION &&
+			supportedModes and requestedMode != 0L
+	}
 
 	private fun com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot.sameAuthorityAs(
 		other: com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot,

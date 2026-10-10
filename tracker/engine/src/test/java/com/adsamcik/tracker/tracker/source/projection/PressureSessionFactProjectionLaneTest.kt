@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
@@ -69,6 +70,23 @@ class PressureSessionFactProjectionLaneTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `final automatic Pressure manifest writes its original qualified window using binding two`() = runTest {
+		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			sessionMode = "AUTOMATIC", bindingGeneration = 2L)
+		val event = pressureEvent(1L)
+		PressureSessionFactProjectionLane(database, sourceIngress(0L, 1L, listOf(event))).drainThrough(1L) shouldBe
+			PressureSessionFactDrainResult.Complete(1L, factsInserted = 1, eventsValidated = 1)
+		val saved = requireNotNull(fact(1L))
+		saved.writerBindingGeneration shouldBe 2L
+		saved.sourceEventId shouldBe event.eventId.value
+		saved.windowStartElapsedRealtimeNanos shouldBe event.evidence.payload.windowStartElapsedRealtimeNanos
+		saved.windowEndElapsedRealtimeNanos shouldBe event.evidence.payload.windowEndElapsedRealtimeNanos
+		val binding = database.sourceSessionDao().manifestSources(LOGICAL_TRACKING_ID, MANIFEST_REVISION).single()
+		binding.writerOwnerGeneration shouldBe 4L
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 1L
+	}
 
 	@Test
 	fun `canonical lane preserves complete and partial v4 facts and publishes once`() = runTest {
@@ -765,6 +783,7 @@ class PressureSessionFactProjectionLaneTest {
 		} else {
 			SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE
 		},
+		bindingGeneration: Long = PressureSessionFactProjectionLane.BINDING_GENERATION,
 	) {
 		if (stage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL) {
 			val owner = requireNotNull(database.sourceDestinationOwnerDao().get(
@@ -778,14 +797,15 @@ class PressureSessionFactProjectionLaneTest {
 					expectedOwner = owner.owner,
 					expectedOwnerGeneration = owner.ownerGeneration,
 					newOwner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
-					newOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+					newOwnerGeneration = SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration),
 					updatedAtMs = 1_000L,
 				) == 1)
 			}
 		}
-		installManifestBinding(manifestOwner, sessionMode, validManifestChecksum)
+		installManifestBinding(manifestOwner, sessionMode, validManifestChecksum, bindingGeneration)
 		database.sourceProjectionStateDao().installProductLane(
-			productLane(stage = stage, cutoffOrdinal = cutoffOrdinal),
+			productLane(stage = stage, cutoffOrdinal = cutoffOrdinal, bindingGeneration = bindingGeneration).copy(
+				captureModeMask = requireNotNull(SourceWriterGenerationContract.captureModeMaskForKnownBinding(bindingGeneration))),
 		)
 	}
 
@@ -793,6 +813,7 @@ class PressureSessionFactProjectionLaneTest {
 		writerOwner: String,
 		sessionMode: String,
 		validManifestChecksum: Boolean,
+		bindingGeneration: Long = PressureSessionFactProjectionLane.BINDING_GENERATION,
 	) {
 		if (database.sourceSessionDao().manifest(LOGICAL_TRACKING_ID, MANIFEST_REVISION) != null) {
 			return
@@ -809,14 +830,14 @@ class PressureSessionFactProjectionLaneTest {
 			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
 			writerOwner = writerOwner,
 			writerOwnerGeneration = if (candidate) {
-				SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+				SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration)
 			} else {
 				SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
 			},
 			writerProjectionId = PressureSessionFactProjectionLane.WRITER_ID.takeIf { candidate },
 			writerProjectionVersion = PressureSessionFactProjectionLane.WRITER_VERSION
 				.takeIf { candidate },
-			writerBindingGeneration = PressureSessionFactProjectionLane.BINDING_GENERATION
+			writerBindingGeneration = bindingGeneration
 				.takeIf { candidate },
 		)
 		val unsigned = SessionManifestVersionEntity(

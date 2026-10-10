@@ -136,8 +136,8 @@ data class CellCapturedFactRevisionEntity(
 	init {
 		require(writerProjectionId == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID)
 		require(writerProjectionVersion == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION)
-		require(writerBindingGeneration == SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION)
-		require(writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
+		require(SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration) != null)
+		require(writerOwnerGeneration == SourceWriterGenerationContract.canonicalOwnerGeneration(writerBindingGeneration))
 		require(semanticRevision > 0L)
 		require(if (semanticRevision == 1L) supersedesSemanticRevision == null else
 			supersedesSemanticRevision == semanticRevision - 1L)
@@ -292,7 +292,9 @@ data class CellCapturedFactCursorEntity(
 		require(writerProjectionVersion == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION)
 		require(logicalFactId.isNotBlank() && logicalTrackingId.isNotBlank() && serviceRunId.isNotBlank())
 		require(sessionSegmentId > 0L)
-		require(writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
+		require(SourceWriterGenerationContract.bindingGenerationForCanonicalOwner(writerOwnerGeneration)?.let {
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(it) != null
+		} == true)
 		require(collectedDataEpoch >= 0L && scopeDeletionGeneration >= 0L)
 		require(latestSemanticRevision > 0L && latestMutationId.isNotBlank())
 		require(LOWERCASE_SHA_256.matches(latestEffectChecksum))

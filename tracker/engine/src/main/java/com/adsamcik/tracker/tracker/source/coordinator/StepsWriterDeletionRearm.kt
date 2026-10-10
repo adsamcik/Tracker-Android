@@ -54,7 +54,7 @@ internal class StepsWriterDeletionRearm @Inject constructor(
 		}
 	}
 
-	private suspend fun applyInCurrentTransaction(updatedAtMs: Long) {
+	internal suspend fun applyInCurrentTransaction(updatedAtMs: Long) {
 		if (deletionRowsRemain()) {
 			blocked(StepsWriterTransitionBlocker.DELETION_ROWS_REMAIN)
 		}
@@ -153,7 +153,13 @@ internal class StepsWriterDeletionRearm @Inject constructor(
 		)
 		val outputMatches = current.productProjectionStages.getValue(SourceKind.STEPS) ==
 			ProductProjectionStage.EVENT_CANONICAL && previousBinding != null
-		return previousBinding?.takeIf { authorityMatches && outputMatches }
+		return ExecutableSourceLaneCatalog.PREFERRED_STEPS_SESSION_FACTS.takeIf {
+			authorityMatches && outputMatches &&
+				previousBinding in setOf(
+					ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1,
+					ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2,
+				)
+		}
 	}
 
 	private suspend fun installCandidateLane(

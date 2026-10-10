@@ -25,6 +25,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
@@ -105,6 +106,126 @@ class ActivityCapturedWalAdmissionAdapterTest {
 			?.contiguousAdmissionOrdinal shouldBe 2L
 		projection.drainAvailable() shouldBe ActivityCapturedFactDrainResult.Complete(2L, 0, 0)
 		dao.revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `actual Activity lane persists original WAL after constructed later quality and End operations`() = runTest {
+		installFixture(bindingGeneration = 2L, sessionMode = "AUTOMATIC")
+		val before = subject().admit(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted
+		val originalWal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		database.advanceRetainedSourceOperations(listOf(LOGICAL_TRACKING_ID to SERVICE_RUN_ID))
+		database.sourceProjectionStateDao().installProductLane(
+			SourceProductProjectionLaneEntity(
+				sourceKind = ACTIVITY_SOURCE,
+				bindingGeneration = 2L,
+				projectionId = ActivityCapturedFactProjectionLane.WRITER_ID,
+				projectionVersion = ActivityCapturedFactProjectionLane.WRITER_VERSION,
+				captureModeMask = 3,
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+				activatedRolloutRevision = 1L,
+				activationOrdinal = 1L,
+				contiguousAdmissionOrdinal = 0L,
+				captureAdmissionCutoffOrdinal = null,
+				retentionRequired = true,
+				status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+				installedAtMs = 1_000L,
+				updatedAtMs = 1_000L,
+			),
+		)
+		// The Android/provider and lifecycle transitions above are constructed. The complete
+		// retained Room WAL -> adapter -> reducer -> writer -> product cursor below is real.
+		val result = ActivityCapturedFactProjectionLane(database, subject()).drainAvailable()
+			as ActivityCapturedFactDrainResult.Complete
+		result.lastCompletedOrdinal shouldBe 2L
+		result.windowsApplied shouldBe 1
+		result.eventsValidated shouldBe 2
+		database.sourceProjectionStateDao().activeProductLane(ACTIVITY_SOURCE)
+			?.contiguousAdmissionOrdinal shouldBe 2L
+		val dao = database.activityCapturedFactDao()
+		val saved = dao.currentRevisionsForWriterAdmission(
+			ActivityCapturedFactProjectionLane.WRITER_ID,
+			ActivityCapturedFactProjectionLane.WRITER_VERSION,
+			originalWal.admissionOrdinal,
+			2,
+		).single()
+		saved.clockDomainId shouldBe BOOT_ID
+		saved.lifecycleLeaseGeneration shouldBe LEASE_GENERATION
+		saved.writerBindingGeneration shouldBe 2L
+		saved.writerOwnerGeneration shouldBe 4L
+		saved.sessionRunEffectEndNanos shouldBe SESSION_END_NANOS
+		dao.evidence(saved.writerProjectionId, saved.writerProjectionVersion,
+			saved.logicalWindowId, saved.semanticRevision).map { it.sourceEventId }.toSet() shouldBe
+			setOf(EVENT_ID.value, "activity-event-2")
+		dao.cursor(saved.writerProjectionId, saved.writerProjectionVersion, saved.logicalWindowId)
+			?.latestEffectChecksum shouldBe saved.effectChecksum
+		assertSameAdmissionValues(subject().admit(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted, before)
+		val retainedWal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		retainedWal.copy(payload = originalWal.payload) shouldBe originalWal
+		retainedWal.payload.contentEquals(originalWal.payload) shouldBe true
+	}
+
+	@Test
+	fun `final manual Activity binding admits original delivery without changing its evidence`() = runTest {
+		installFixture(bindingGeneration = 2L)
+		val saved = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val result = subject().admit(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted
+		result.observation.reference.sourceEventId shouldBe EVENT_ID
+		result.observation.authority.sessionManifestRevision shouldBe MANIFEST_REVISION
+		val after = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		after.payload.contentEquals(saved.payload) shouldBe true
+		after.copy(payload = saved.payload) shouldBe saved
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `final automatic Activity binding admits original transition delivery`() = runTest {
+		installFixture(bindingGeneration = 2L, sessionMode = "AUTOMATIC")
+		val result = subject().admit(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted
+		(result.observation as ActivityCapturedObservation.Transition).activity shouldBe CapturedActivityType.WALKING
+		result.acquisitionAuthority.captureAuthority.logicalTrackingId.value shouldBe LOGICAL_TRACKING_ID
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `final automatic Activity binding admits its actual sampled plan`() = runTest {
+		installFixture(bindingGeneration = 2L, sessionMode = "AUTOMATIC", sampled = true)
+		val result = subject().admit(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted
+		(result.observation as ActivityCapturedObservation.SampledClassification).confidencePercent shouldBe 90
+		result.acquisitionAuthority.historicalConfiguration.activityPlan shouldBe SAMPLED_ACTIVITY_PLAN
+	}
+
+	@Test
+	fun `original manual-only Activity binding cannot claim automatic capture`() = runTest {
+		installFixture(sessionMode = "AUTOMATIC")
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.MANIFEST_MISMATCH)
+		subject().admitHistorical(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.MANIFEST_MISMATCH)
+	}
+
+	@Test
+	fun `final Activity manifest cannot borrow the original current owner`() = runTest {
+		installFixture(bindingGeneration = 2L, ownerGeneration = 2L)
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.DESTINATION_OWNER_MISMATCH)
+	}
+
+	@Test
+	fun `original Activity manifest remains historical after final owner replaces it`() = runTest {
+		installFixture(ownerGeneration = 4L)
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.DESTINATION_OWNER_MISMATCH)
+		val historical = subject().admitHistorical(EVENT_ID) as ActivityCapturedWalAdmissionResult.Admitted
+		historical.observation.reference.sourceEventId shouldBe EVENT_ID
+	}
+
+	@Test
+	fun `unknown Activity binding cannot become current or historical capture`() = runTest {
+		installFixture(bindingGeneration = 3L)
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.DESTINATION_OWNER_MISMATCH)
+		subject().admitHistorical(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.MANIFEST_MISMATCH)
 	}
 
 	@Test
@@ -519,6 +640,9 @@ class ActivityCapturedWalAdmissionAdapterTest {
 		insertRegistrationPlan: Boolean = true,
 		settled: Boolean = true,
 		sampled: Boolean = false,
+		bindingGeneration: Long = 1L,
+		ownerGeneration: Long = SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration),
+		sessionMode: String = "MANUAL",
 	) {
 		val activityPlan = if (sampled) SAMPLED_ACTIVITY_PLAN else ACTIVITY_PLAN
 		val physicalFingerprint = activityPlan.physicalConfigurationFingerprint()
@@ -528,7 +652,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
 				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
 				owner = SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS,
-				ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				ownerGeneration = ownerGeneration,
 				updatedAtMs = 1_000L,
 			),
 		)
@@ -586,8 +710,8 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				serviceRunId = SERVICE_RUN_ID,
 			),
 		)
-		installSession(segmentId, settled, if (sampled) 1L else 2L)
-		installManifest()
+		installSession(segmentId, settled, if (sampled) 1L else 2L, sessionMode)
+		installManifest(bindingGeneration, sessionMode)
 
 		val demand = if (controlOnly) controlDemand() else captureDemand()
 		database.sourceBrokerDao().insertDemands(listOf(demand))
@@ -747,7 +871,10 @@ class ActivityCapturedWalAdmissionAdapterTest {
 		segmentId: Long,
 		settled: Boolean,
 		finalAdmissionOrdinal: Long,
+		sessionMode: String,
 	) {
+		val automatic = sessionMode == "AUTOMATIC"
+		val origin = if (automatic) "AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START"
 		database.sourceSessionDao().insertSession(
 			LogicalTrackingSessionEntity(
 				logicalTrackingId = LOGICAL_TRACKING_ID,
@@ -755,7 +882,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				lifecycleRevision = if (settled) 2L else 1L,
 				desiredPlanRevision = PLAN_REVISION,
 				rolloutRevision = 1L,
-				startOrigin = "MANUAL_FOREGROUND_START",
+				startOrigin = origin,
 				clockDomainId = BOOT_ID,
 				startedAtMs = 1_000L,
 				startedElapsedNanos = RUN_START_NANOS,
@@ -764,13 +891,13 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				completedAtMs = if (settled) 2_000L else null,
 				finalAdmissionOrdinal = finalAdmissionOrdinal.takeIf { settled },
 				failureCode = null,
-				sessionMode = "MANUAL",
+				sessionMode = sessionMode,
 				currentManifestRevision = MANIFEST_REVISION,
 				currentIntentRevision = 1L,
 				currentServiceRunId = if (settled) null else SERVICE_RUN_ID,
 				lifecycleLeaseGeneration = LEASE_GENERATION,
 				lifecycleBootId = BOOT_ID,
-				automationEpoch = null,
+				automationEpoch = 1L.takeIf { automatic },
 			),
 		)
 		database.sourceSessionDao().insertServiceRun(
@@ -787,7 +914,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				completionReason = if (settled) "USER_STOP" else null,
 				bootId = BOOT_ID,
 				leaseGeneration = LEASE_GENERATION,
-				startOrigin = "MANUAL_FOREGROUND_START",
+				startOrigin = origin,
 				desiredForegroundCapabilityFlags = 0L,
 				appliedForegroundCapabilityFlags = 0L,
 				runtimeAcknowledgement = if (settled) "STOPPED" else "RUNNING",
@@ -799,7 +926,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				preparedIntentRevision = 1L,
 				androidDeliveryState = "FOREGROUND_ACCEPTED",
 				androidDeliveryUpdatedAtMs = 1_000L,
-				startIsUserInitiated = true,
+				startIsUserInitiated = !automatic,
 				startIsAmbient = false,
 				sessionSegmentId = segmentId,
 				presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
@@ -877,7 +1004,8 @@ class ActivityCapturedWalAdmissionAdapterTest {
 		) shouldBe 1
 	}
 
-	private suspend fun installManifest() {
+	private suspend fun installManifest(bindingGeneration: Long, sessionMode: String) {
+		val automatic = sessionMode == "AUTOMATIC"
 		val source = SessionManifestSourceEntity(
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			manifestRevision = MANIFEST_REVISION,
@@ -888,26 +1016,26 @@ class ActivityCapturedWalAdmissionAdapterTest {
 			qosCode = QOS_CODE,
 			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
 			writerOwner = SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS,
-			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			writerOwnerGeneration = SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration),
 			writerProjectionId = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
 			writerProjectionVersion = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION,
-			writerBindingGeneration = SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION,
+			writerBindingGeneration = bindingGeneration,
 		)
 		val unsigned = SessionManifestVersionEntity(
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			manifestRevision = MANIFEST_REVISION,
 			serviceRunId = SERVICE_RUN_ID,
-			sessionMode = "MANUAL",
+			sessionMode = sessionMode,
 			sourcePolicyRevision = POLICY_REVISION,
 			acquisitionPlanRevision = PLAN_REVISION,
 			rolloutRevision = 1L,
-			startOrigin = "MANUAL_FOREGROUND_START",
+			startOrigin = if (automatic) "AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START",
 			effectiveBootId = BOOT_ID,
 			effectiveElapsedRealtimeNanos = RUN_START_NANOS,
 			effectiveWallTimeMs = 1_000L,
 			zoneId = "Europe/Prague",
-			automationEpoch = null,
-			changeReason = "MANUAL_START",
+			automationEpoch = 1L.takeIf { automatic },
+			changeReason = if (automatic) "AUTOMATIC_START" else "MANUAL_START",
 			manifestChecksum = "",
 		)
 		database.sourceSessionDao().insertManifest(

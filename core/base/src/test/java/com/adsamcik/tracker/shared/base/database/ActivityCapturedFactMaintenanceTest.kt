@@ -53,10 +53,16 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ActivityCapturedFactMaintenanceTest {
+	private var fixtureWriterGeneration = 1L
+	private var fixtureSessionMode = "MANUAL"
+	private val fixtureStartOrigin get() = if (fixtureSessionMode == "AUTOMATIC")
+		"AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START"
 	private lateinit var database: AppDatabase
 
 	@Before
 	fun setUp() {
+		fixtureWriterGeneration = 1L
+		fixtureSessionMode = "MANUAL"
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 	}
@@ -78,6 +84,64 @@ class ActivityCapturedFactMaintenanceTest {
 			laneExecutionAuthority = ACTIVITY_LANE_AUTHORITY,
 			ioDispatcher = Dispatchers.Unconfined,
 		)
+
+	@Test
+	fun `final automatic Activity maintenance authenticates its original binding before pruning`() = runTest {
+		fixtureWriterGeneration = 2L
+		fixtureSessionMode = "AUTOMATIC"
+		seedCapturedActivity(retainedFromMs = 1_990L)
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(1_990L, 0L, 5_000L) shouldBe ActivityCapturedRetentionResult.Pruned(1, 1)
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `original Activity maintenance remains valid under the exact final current owner`() = runTest {
+		seedCapturedActivity(retainedFromMs = 1_990L)
+		database.sourceDestinationOwnerDao().compareAndSetOwner(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY, SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+			SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS, 2L,
+			SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS, 4L, 4_000L) shouldBe 1
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(1_990L, 0L, 5_000L) shouldBe ActivityCapturedRetentionResult.Pruned(1, 1)
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `original Activity maintenance cannot borrow automatic capture mode`() = runTest {
+		fixtureSessionMode = "AUTOMATIC"
+		seedCapturedActivity(retainedFromMs = 1_990L)
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(1_990L, 0L, 5_000L) shouldBe ActivityCapturedRetentionResult.Blocked(ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `Activity maintenance rejects a contained current owner before mutation`() = runTest {
+		seedCapturedActivity(retainedFromMs = 1_990L)
+		database.sourceDestinationOwnerDao().compareAndSetOwner(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY, SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+			SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS, 2L,
+			SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS, 5L, 4_000L) shouldBe 1
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(1_990L, 0L, 5_000L) shouldBe ActivityCapturedRetentionResult.Blocked(ActivityCapturedRetentionBlockedReason.DESTINATION_OWNER_CHANGED)
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `Activity fact and cursor accept only the original and final immutable writer pairs`() = runTest {
+		seedCapturedActivity()
+		val dao = database.activityCapturedFactDao()
+		val original = dao.currentRevisionsForWriterAdmission(WRITER_ID, WRITER_VERSION, 1L, 2).single()
+		val cursor = requireNotNull(dao.cursor(WRITER_ID, WRITER_VERSION, original.logicalWindowId))
+		original.writerBindingGeneration shouldBe 1L
+		original.writerOwnerGeneration shouldBe 2L
+		val final = original.copy(writerBindingGeneration = 2L, writerOwnerGeneration = 4L)
+		final.writerBindingGeneration shouldBe 2L
+		cursor.copy(writerOwnerGeneration = 4L).writerOwnerGeneration shouldBe 4L
+		shouldThrow<IllegalArgumentException> { original.copy(writerBindingGeneration = 2L, writerOwnerGeneration = 2L) }
+		shouldThrow<IllegalArgumentException> { original.copy(writerBindingGeneration = 1L, writerOwnerGeneration = 4L) }
+		shouldThrow<IllegalArgumentException> { original.copy(writerBindingGeneration = 3L, writerOwnerGeneration = 6L) }
+		shouldThrow<IllegalArgumentException> { cursor.copy(writerOwnerGeneration = 3L) }
+		shouldThrow<IllegalArgumentException> { cursor.copy(writerOwnerGeneration = 6L) }
+		dao.currentRevisionsForWriterAdmission(WRITER_ID, WRITER_VERSION, 1L, 2).single() shouldBe original
+	}
 
 	@Test
 	fun `Activity retention accepts original saved generation after a later End retry operation`() = runTest {
@@ -1925,7 +1989,7 @@ class ActivityCapturedFactMaintenanceTest {
 				sourceKind = ACTIVITY_SOURCE,
 				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
 				owner = SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS,
-				ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				ownerGeneration = fixtureWriterGeneration * 2L,
 				updatedAtMs = 1_000L,
 			),
 		)
@@ -2341,7 +2405,7 @@ class ActivityCapturedFactMaintenanceTest {
 				logicalTrackingId = LOGICAL_TRACKING_ID,
 				serviceRunId = SERVICE_RUN_ID,
 				sessionSegmentId = segmentId,
-				writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				writerOwnerGeneration = fixtureWriterGeneration * 2L,
 				latestSemanticRevision = latest.semanticRevision,
 				latestMutationId = latest.mutationId,
 				latestEffectChecksum = latest.effectChecksum,
@@ -2382,8 +2446,8 @@ class ActivityCapturedFactMaintenanceTest {
 		val unsigned = ActivityCapturedWindowRevisionEntity(
 			writerProjectionId = WRITER_ID,
 			writerProjectionVersion = WRITER_VERSION,
-			writerBindingGeneration = 1L,
-			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			writerBindingGeneration = fixtureWriterGeneration,
+			writerOwnerGeneration = fixtureWriterGeneration * 2L,
 			logicalWindowId = logicalWindowId,
 			semanticRevision = semanticRevision,
 			supersedesSemanticRevision = semanticRevision.takeIf { it > 1L }?.minus(1L),
@@ -2530,7 +2594,7 @@ class ActivityCapturedFactMaintenanceTest {
 		lifecycleRevision = 2L,
 		desiredPlanRevision = 1L,
 		rolloutRevision = 1L,
-		startOrigin = "MANUAL_FOREGROUND_START",
+		startOrigin = fixtureStartOrigin,
 		clockDomainId = BOOT_ID,
 		startedAtMs = 1_000L,
 		startedElapsedNanos = 100L,
@@ -2539,7 +2603,7 @@ class ActivityCapturedFactMaintenanceTest {
 		completedAtMs = 3_000L,
 		finalAdmissionOrdinal = 1L,
 		failureCode = null,
-		sessionMode = "MANUAL",
+		sessionMode = fixtureSessionMode,
 		currentManifestRevision = 1L,
 		currentIntentRevision = 1L,
 		currentServiceRunId = null,
@@ -2561,7 +2625,7 @@ class ActivityCapturedFactMaintenanceTest {
 		completionReason = "TEST",
 		bootId = BOOT_ID,
 		leaseGeneration = 1L,
-		startOrigin = "MANUAL_FOREGROUND_START",
+		startOrigin = fixtureStartOrigin,
 		desiredForegroundCapabilityFlags = 0L,
 		appliedForegroundCapabilityFlags = 0L,
 		runtimeAcknowledgement = "STOPPED",
@@ -2584,11 +2648,11 @@ class ActivityCapturedFactMaintenanceTest {
 		logicalTrackingId = LOGICAL_TRACKING_ID,
 		manifestRevision = 1L,
 		serviceRunId = SERVICE_RUN_ID,
-		sessionMode = "MANUAL",
+		sessionMode = fixtureSessionMode,
 		sourcePolicyRevision = 1L,
 		acquisitionPlanRevision = 1L,
 		rolloutRevision = 1L,
-		startOrigin = "MANUAL_FOREGROUND_START",
+		startOrigin = fixtureStartOrigin,
 		effectiveBootId = BOOT_ID,
 		effectiveElapsedRealtimeNanos = 100L,
 		effectiveWallTimeMs = 1_000L,
@@ -2608,10 +2672,10 @@ class ActivityCapturedFactMaintenanceTest {
 		qosCode = 1,
 		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
 		writerOwner = SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS,
-		writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+		writerOwnerGeneration = fixtureWriterGeneration * 2L,
 		writerProjectionId = WRITER_ID,
 		writerProjectionVersion = WRITER_VERSION,
-		writerBindingGeneration = 1L,
+		writerBindingGeneration = fixtureWriterGeneration,
 	)
 
 	private fun historicalPolicy() = policy(1L, enabled = true, captureEligible = true, consent = 0L)
@@ -2719,7 +2783,7 @@ class ActivityCapturedFactMaintenanceTest {
 		desiredPlanRevision = 1L,
 		sourcePolicyRevision = 1L,
 		consentEpoch = 0L,
-		startOrigin = "MANUAL_FOREGROUND_START",
+		startOrigin = fixtureStartOrigin,
 		bootId = BOOT_ID,
 		leaseGeneration = leaseGeneration,
 		requestedAtMs = requestedAtMs,

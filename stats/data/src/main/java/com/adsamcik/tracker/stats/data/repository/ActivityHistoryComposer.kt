@@ -24,6 +24,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
@@ -185,7 +186,8 @@ internal object ActivityHistoryComposer {
 		if (!hasValidCaptureAuthority(manifests, bindings, snapshot)) {
 			return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 		}
-		val lane = snapshot.lanes.singleOrNull(::isActivityLane)
+		val originalBinding = bindings.values.map(SessionManifestSourceEntity::writerBindingGeneration).distinct().singleOrNull()
+		val lane = snapshot.lanes.singleOrNull { isActivityLane(it) && it.bindingGeneration == originalBinding }
 		val captureModeMask = manifests.values.fold(0L) { mask, manifest ->
 			mask or when (manifest.sessionMode) {
 				"MANUAL" -> MANUAL_SESSION_CAPTURE_MASK
@@ -501,10 +503,11 @@ internal object ActivityHistoryComposer {
 			binding.persistenceEligible &&
 			binding.outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY &&
 			binding.writerOwner == SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS &&
-			binding.writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION &&
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(binding.writerBindingGeneration ?: -1L) != null &&
+			binding.writerOwnerGeneration == binding.writerBindingGeneration?.let(SourceWriterGenerationContract::canonicalOwnerGeneration) &&
 			binding.writerProjectionId == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID &&
 			binding.writerProjectionVersion == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION &&
-			binding.writerBindingGeneration == SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION
+			binding.writerBindingGeneration != null
 
 	private fun validateLineage(
 		ordered: List<ActivityCapturedWindowRevisionEntity>,
@@ -576,7 +579,11 @@ internal object ActivityHistoryComposer {
 			currentClockDomainId = snapshot.currentClockDomainId,
 			currentProviderRegistrations = snapshot.currentProviderRegistrations,
 		) as? ProviderRegistrationIntervalAuthentication.Authenticated ?: return false
-		return fact.sessionSegmentId == run.sessionSegmentId && fact.logicalTrackingId == run.logicalTrackingId &&
+		return fact.writerProjectionId == binding.writerProjectionId &&
+		fact.writerProjectionVersion == binding.writerProjectionVersion &&
+		fact.writerBindingGeneration == binding.writerBindingGeneration &&
+		fact.writerOwnerGeneration == binding.writerOwnerGeneration &&
+		fact.sessionSegmentId == run.sessionSegmentId && fact.logicalTrackingId == run.logicalTrackingId &&
 		fact.serviceRunId == run.serviceRunId && fact.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
 		fact.manifestRevision == manifest.manifestRevision && fact.sourcePolicyRevision == manifest.sourcePolicyRevision &&
 		fact.captureConsentEpoch == binding.consentEpoch && SessionManifestIntegrity.hasRetainedLeaseGeneration(run, fact.lifecycleLeaseGeneration) &&
@@ -856,12 +863,12 @@ internal object ActivityHistoryComposer {
 		lane.sourceKind == ACTIVITY_SOURCE &&
 			lane.projectionId == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID &&
 			lane.projectionVersion == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION &&
-			lane.bindingGeneration == SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION &&
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(lane.bindingGeneration) != null &&
 			lane.productStage in setOf(SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
 				SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 
 	private fun isValidHistoricalLane(lane: SourceProductProjectionLaneEntity): Boolean {
-		if (lane.captureModeMask <= 0L || lane.activatedRolloutRevision <= 0L ||
+		if (lane.captureModeMask != SourceWriterGenerationContract.captureModeMaskForKnownBinding(lane.bindingGeneration) || lane.activatedRolloutRevision <= 0L ||
 			lane.activationOrdinal <= 0L || lane.installedAtMs < 0L ||
 			lane.updatedAtMs < lane.installedAtMs
 		) return false

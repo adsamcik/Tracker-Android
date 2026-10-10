@@ -329,7 +329,15 @@ object PressureFactProofAuthenticator {
 				source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
 				source.persistenceEligible
 		} ?: return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
-		if (!binding.isExactPressureFactWriter()) {
+		val originalModeMask = when (manifest.sessionMode) {
+			"MANUAL" -> 1L
+			"AUTOMATIC" -> 2L
+			else -> 0L
+		}
+		val supportedModeMask = binding.writerBindingGeneration
+			?.let(SourceWriterGenerationContract::captureModeMaskForKnownBinding)
+		if (!binding.isExactPressureFactWriter() || originalModeMask == 0L ||
+			supportedModeMask == null || supportedModeMask and originalModeMask != originalModeMask) {
 			return rejectedWal(PressureFactProofFailure.INTEGRITY_MISMATCH)
 		}
 
@@ -899,7 +907,7 @@ private fun SessionManifestSourceEntity.isExactPressureFactWriter(): Boolean =
 		) == writerBindingGeneration &&
 		writerProjectionId == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID &&
 		writerProjectionVersion == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION &&
-		writerBindingGeneration != null
+		SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration ?: -1L) != null
 
 @Suppress("ComplexCondition")
 private fun ProviderRegistrationGenerationEntity.authenticates(

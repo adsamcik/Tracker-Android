@@ -2826,6 +2826,27 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		null
 	}
 
+	private suspend fun exactCandidateLocationBinding(
+		rolloutRevision: Long,
+		sessionMode: SessionMode,
+	): ExecutableSourceLaneBinding? {
+		// No lane is the existing legacy path; it never claims a protected binding.
+		val lane = database.sourceProjectionStateDao().activeProductLane(SourceKind.LOCATION.stableCode)
+			?: return null
+		val rollout = requireNotNull(database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull())
+		check(rollout.revision == rolloutRevision) { "Location rollout revision changed" }
+		val binding = requireNotNull(executableLaneCatalog.bindingFor(lane))
+		check(binding == ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V1 ||
+			binding == ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V2
+		) { "Location protected writer identity is unsupported" }
+		val mode = requireNotNull(sessionMode.captureReachabilityModeOrNull())
+		check(mode in binding.captureModes) { "Location binding does not authorize ${mode.name}" }
+		check(lane.isCanonicalCaptureAuthorizedBy(database, rollout, executableLaneCatalog)) {
+			"Location product lane is not canonical capture authority"
+		}
+		return binding
+	}
+
 	private suspend fun exactCandidateStepsBinding(
 		rolloutRevision: Long,
 		sessionMode: SessionMode,
@@ -2859,9 +2880,6 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		rolloutRevision: Long,
 		sessionMode: SessionMode,
 	): ExecutableSourceLaneBinding {
-		check(sessionMode == SessionMode.MANUAL) {
-			"Pressure candidate binding is manual-session-only"
-		}
 		val rollout = requireNotNull(
 			database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull(),
 		) { "Pressure rollout state is missing or unreadable" }
@@ -2872,10 +2890,17 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val binding = requireNotNull(executableLaneCatalog.bindingFor(lane)) {
 			"Pressure candidate product lane is not executable"
 		}
-		check(binding.hasSameWriterSemanticsAs(
-			ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS,
-		)) {
-			"Pressure candidate writer binding is unsupported"
+		check(binding.source == SourceKind.PRESSURE &&
+			binding.projectionId == PressureSessionFactProjectionLane.WRITER_ID &&
+			binding.projectionVersion == PressureSessionFactProjectionLane.WRITER_VERSION &&
+			com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+				.captureModeMaskForKnownBinding(binding.bindingGeneration) == binding.captureModeMask
+		) { "Pressure candidate writer binding is unsupported" }
+		val captureMode = requireNotNull(sessionMode.captureReachabilityModeOrNull()) {
+			"Pressure candidate session mode is not attributable"
+		}
+		check(captureMode in binding.captureModes) {
+			"Pressure candidate binding does not authorize ${captureMode.name}"
 		}
 		check(lane.isCanonicalCaptureAuthorizedBy(database, rollout, executableLaneCatalog)) {
 			"Pressure candidate product lane is not canonical capture authority"
@@ -2897,20 +2922,18 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val binding = requireNotNull(executableLaneCatalog.bindingFor(lane)) {
 			"Activity candidate product lane is not executable"
 		}
-		check(binding.hasSameWriterSemanticsAs(
-			ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS,
-		)) {
-			"Activity candidate writer binding is unsupported"
-		}
+		check(binding.source == SourceKind.ACTIVITY &&
+			binding.projectionId == ActivityCapturedFactProjectionLane.WRITER_ID &&
+			binding.projectionVersion == ActivityCapturedFactProjectionLane.WRITER_VERSION &&
+			com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+				.captureModeMaskForKnownBinding(binding.bindingGeneration) == binding.captureModeMask
+		) { "Activity candidate writer binding is unsupported" }
 		val captureMode = requireNotNull(sessionMode.captureReachabilityModeOrNull()) {
 			"Activity candidate session mode is not attributable"
 		}
 		check(captureMode in binding.captureModes) {
 			"Activity candidate binding does not authorize ${captureMode.name}"
 		}
-		check(binding.projectionId == ActivityCapturedFactProjectionLane.WRITER_ID &&
-			binding.projectionVersion == ActivityCapturedFactProjectionLane.WRITER_VERSION
-		) { "Activity candidate writer identity is unsupported" }
 		check(lane.isCanonicalCaptureAuthorizedBy(database, rollout, executableLaneCatalog)) {
 			"Activity candidate product lane is not canonical capture authority"
 		}
@@ -2921,9 +2944,6 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		rolloutRevision: Long,
 		sessionMode: SessionMode,
 	): ExecutableSourceLaneBinding {
-		check(sessionMode == SessionMode.MANUAL) {
-			"Wi-Fi candidate binding is manual-session-only"
-		}
 		val rollout = requireNotNull(
 			database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull(),
 		) { "Wi-Fi rollout state is missing or unreadable" }
@@ -2934,10 +2954,18 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val binding = requireNotNull(executableLaneCatalog.bindingFor(lane)) {
 			"Wi-Fi candidate product lane is not executable"
 		}
-		check(binding.hasSameWriterSemanticsAs(ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS) &&
+		check(binding.source == SourceKind.WIFI &&
 			binding.projectionId == WifiSessionFactProjectionLane.WRITER_ID &&
-			binding.projectionVersion == WifiSessionFactProjectionLane.WRITER_VERSION
+			binding.projectionVersion == WifiSessionFactProjectionLane.WRITER_VERSION &&
+			com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+				.captureModeMaskForKnownBinding(binding.bindingGeneration) == binding.captureModeMask
 		) { "Wi-Fi candidate writer binding is unsupported" }
+		val captureMode = requireNotNull(sessionMode.captureReachabilityModeOrNull()) {
+			"Wi-Fi candidate session mode is not attributable"
+		}
+		check(captureMode in binding.captureModes) {
+			"Wi-Fi candidate binding does not authorize ${captureMode.name}"
+		}
 		check(lane.isCanonicalCaptureAuthorizedBy(database, rollout, executableLaneCatalog)) {
 			"Wi-Fi candidate product lane is not canonical capture authority"
 		}
@@ -2948,9 +2976,6 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		rolloutRevision: Long,
 		sessionMode: SessionMode,
 	): ExecutableSourceLaneBinding {
-		check(sessionMode == SessionMode.MANUAL) {
-			"Cell candidate binding is manual-session-only"
-		}
 		val rollout = requireNotNull(
 			database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull(),
 		) { "Cell rollout state is missing or unreadable" }
@@ -2961,10 +2986,18 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 		val binding = requireNotNull(executableLaneCatalog.bindingFor(lane)) {
 			"Cell candidate product lane is not executable"
 		}
-		check(binding.hasSameWriterSemanticsAs(ExecutableSourceLaneCatalog.CELL_SESSION_FACTS) &&
+		check(binding.source == SourceKind.CELL &&
 			binding.projectionId == CellSessionFactProjectionLane.WRITER_ID &&
-			binding.projectionVersion == CellSessionFactProjectionLane.WRITER_VERSION
+			binding.projectionVersion == CellSessionFactProjectionLane.WRITER_VERSION &&
+			com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+				.captureModeMaskForKnownBinding(binding.bindingGeneration) == binding.captureModeMask
 		) { "Cell candidate writer binding is unsupported" }
+		val captureMode = requireNotNull(sessionMode.captureReachabilityModeOrNull()) {
+			"Cell candidate session mode is not attributable"
+		}
+		check(captureMode in binding.captureModes) {
+			"Cell candidate binding does not authorize ${captureMode.name}"
+		}
 		check(lane.isCanonicalCaptureAuthorizedBy(database, rollout, executableLaneCatalog)) {
 			"Cell candidate product lane is not canonical capture authority"
 		}
@@ -3144,6 +3177,14 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 			com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 				.bindingGenerationForCanonicalOwner(cellOwner.ownerGeneration) != null
 		) { "Unsupported Cell destination owner ${cellOwner?.owner}" }
+		val candidateLocationBinding = plan.plans[SourceKind.LOCATION]
+			?.takeIf { it.enabled && SourceKind.LOCATION in acceptedCaptureSources }
+			?.let { exactCandidateLocationBinding(rolloutRevision, sessionMode) }
+		val locationOwner = candidateLocationBinding?.let {
+			requireNotNull(database.sourceDestinationOwnerDao().get(
+				SourceDestinationOwnerEntity.SOURCE_LOCATION,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION))
+		}
 		val candidateStepsBinding = stepsOwner
 			?.takeIf { owner ->
 				owner.owner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
@@ -3178,6 +3219,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				),
 			)
 			val writerOwner = when (sourcePlan.source) {
+				SourceKind.LOCATION -> locationOwner
 				SourceKind.STEPS -> stepsOwner
 				SourceKind.PRESSURE -> pressureOwner
 				SourceKind.ACTIVITY -> activityOwner
@@ -3186,6 +3228,7 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				else -> null
 			}
 			val candidateWriter = when (sourcePlan.source) {
+				SourceKind.LOCATION -> candidateLocationBinding
 				SourceKind.STEPS -> candidateStepsBinding
 				SourceKind.PRESSURE -> candidatePressureBinding
 				SourceKind.ACTIVITY -> candidateActivityBinding
@@ -9211,9 +9254,3 @@ private fun SourceProductDrainResult.pendingReason(): String = when (this) {
 	is SourceProductDrainResult.Unavailable -> reason
 }
 
-private fun ExecutableSourceLaneBinding.hasSameWriterSemanticsAs(
-	base: ExecutableSourceLaneBinding,
-): Boolean = source == base.source &&
-	projectionId == base.projectionId &&
-	projectionVersion == base.projectionVersion &&
-	captureModes == base.captureModes

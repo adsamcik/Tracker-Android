@@ -126,6 +126,13 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
             sourceSession = mockk(),
             authoritativeSessionCoordinator = mockk(),
             trackingRolloutStateStore = mockk(),
+            chosenSourceWriterSetup = mockk {
+                coEvery { ensure(any()) } coAnswers {
+                    val chosen = firstArg<Set<com.adsamcik.tracker.tracker.source.model.SourceKind>>()
+                    com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetupResult(chosen.associateWith {
+                        com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterStatus.READY })
+                }
+            },
             bootClockDomainProvider = BootClockDomainProvider { "boot" },
             collectionMotionController = mockk(),
             activityAutomationEpochAuthority = mockk(),

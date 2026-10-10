@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
@@ -509,6 +510,16 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		) {
 			return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
 		}
+		val writerBindingGeneration = locationManifestSource.locationCaptureBindingGenerationOrNull()
+			?: return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
+		val sessionModeMask = when (manifest.sessionMode) {
+			"MANUAL" -> 1L
+			"AUTOMATIC" -> 2L
+			else -> return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
+		}
+		if (requireNotNull(SourceWriterGenerationContract.captureModeMaskForKnownBinding(
+				writerBindingGeneration)) and sessionModeMask == 0L
+		) return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
 		if (runCatching { ZoneId.of(manifest.zoneId) }.isFailure) {
 			return@withTransaction rejected(LocationWalAdapterRejection.INVALID_STORED_ZONE)
 		}
@@ -558,6 +569,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 				sourcePolicyRevision = policyRevision,
 				captureConsentEpoch = consentEpoch,
 				sessionManifestRevision = manifestRevision,
+				writerBindingGeneration = writerBindingGeneration,
 				lifecycleLeaseGeneration = leaseGeneration,
 				capturedCollectedDataEpoch = wal.capturedCollectedDataEpoch,
 				clockDomainId = wal.clockDomainId,

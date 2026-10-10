@@ -332,6 +332,7 @@ object TrackerServiceApi {
 				}
 				TrackingStartPreparationResult.AlreadyActive ->
 					return TrackingStartDispatchResult.AlreadyActive
+				TrackingStartPreparationResult.SetupPending -> return TrackingStartDispatchResult.SetupPending
 				is TrackingStartPreparationResult.Rejected -> return when (result.disposition) {
 					TrackingStartFailureDisposition.RETRYABLE ->
 						TrackingStartDispatchResult.Retryable(result.failureCode)
@@ -353,6 +354,14 @@ object TrackerServiceApi {
 				return TrackingStartDispatchResult.Terminal(
 					"LIVE_CALLBACK_DEADLINE_EXPIRED_BEFORE_ENQUEUE",
 				)
+			}
+			// The existing one-use claim happens only after actual Room preparation, so a late setup lag preserves intent.
+			request.manualSourceSelection?.let { selection ->
+				if (lifecycleAuthority.consumeManualStart(request.command.generation, selection) != request.command) {
+					compensatePreparedStartWithinBudget(request, token, coordinator,
+						"MANUAL_START_CONTINUATION_SUPERSEDED", elapsedRealtimeNanos)
+					return TrackingStartDispatchResult.Terminal("MANUAL_START_CONTINUATION_SUPERSEDED")
+				}
 			}
 			val dispatchContext = currentCoroutineContext()
 			when (val result = lifecycleAuthority.withCurrentStart(request.command) {
@@ -623,9 +632,9 @@ object TrackerServiceApi {
 		executeManualTrackingStartContinuation(
 			continuationGeneration = continuationGeneration,
 			authority = authority,
-			readPreflight = { entryPoint.manualTrackingStartReadinessReader().readPreflight() },
+			readPreflight = { entryPoint.manualTrackingStartReadinessReader().preparePreflight() },
 			enqueue = { continuation ->
-				dispatchPreparedStart(
+				dispatchPreparedStartResult(
 					TrackingStartRequest(continuation.command, isUserInitiated = true,
 						isAmbient = false, manualSourceSelection = continuation.selection),
 					entryPoint.trackingStartRequestCoordinator(), authority,
@@ -638,6 +647,10 @@ object TrackerServiceApi {
 	} catch (_: RuntimeException) {
 		ManualTrackingStartResult.TRACKING_UNAVAILABLE
 	}
+
+	/** Cold source/policy completion signals; observing them never prepares or starts tracking. */
+	fun manualTrackingStartChanges(context: Context): kotlinx.coroutines.flow.Flow<Unit> =
+		getEntryPoint(context.applicationContext).manualTrackingStartReadinessReader().changes()
 
 	/** A dismissed/denied repair cannot turn a later permission change into a new Start. */
 	suspend fun cancelManualTrackingStart(context: Context, generation: Long) {

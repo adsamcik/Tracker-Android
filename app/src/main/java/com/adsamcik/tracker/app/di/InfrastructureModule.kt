@@ -70,7 +70,7 @@ import com.adsamcik.tracker.shared.base.time.SystemClock
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryScheduler
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
-import com.adsamcik.tracker.tracker.source.coordinator.StepsSessionFactWriterTransitionCoordinator
+import com.adsamcik.tracker.tracker.source.coordinator.SharedSourceWriterDeletionRearm
 import com.adsamcik.tracker.shared.base.location.UiLocationProvider
 import com.adsamcik.tracker.tracker.source.runtime.SharedUiLocationProvider
 import com.adsamcik.tracker.tracker.source.runtime.SharedLocationSourceController
@@ -222,7 +222,7 @@ object InfrastructureModule {
 		retentionAuthorityProducer: RetentionAuthorityProducer,
 		sourcePolicyAuthorityBootstrapCoordinator:
 			Provider<SourcePolicyAuthorityBootstrapCoordinator>,
-		stepsWriterTransitionCoordinator: Provider<StepsSessionFactWriterTransitionCoordinator>,
+		sourceWriterDeletionRearm: Provider<SharedSourceWriterDeletionRearm>,
 		@ApplicationScope providerFenceScope: CoroutineScope,
         dispatchersProvider: DispatchersProvider,
         traceboxHandleProvider: TrackerTraceboxHandleProvider,
@@ -241,7 +241,7 @@ object InfrastructureModule {
 		sourcePolicyAuthorityBootstrapCoordinatorProvider =
 			sourcePolicyAuthorityBootstrapCoordinator,
 		postDatabaseDeletion = { operation ->
-			stepsWriterTransitionCoordinator.get().rearmAfterFullDeletion(
+			sourceWriterDeletionRearm.get().rearmAfterFullDeletion(
 				operationId = operation.operationId,
 				targetCollectedDataEpoch = operation.targetCollectedDataEpoch,
 				updatedAtMs = operation.deletedAtMs,

@@ -50,6 +50,9 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterNotNull
@@ -324,6 +327,12 @@ class DefaultTrackingStartupGate @Inject constructor(
 
 	override val currentCommandGeneration: Long
 		get() = lifecycleCommandAuthority.latestCommandGeneration()
+
+	override val runtimeReadyChanges: Flow<Unit>
+		get() = readySignals.filterNotNull().filter { signal ->
+			!deletionBarrier.isClosed && signal.generation == deletionBarrier.currentGeneration &&
+				signal.stopGeneration == currentHandledStopGenerationOrNull()
+		}.map { Unit }
 
 	override val permitsNewCollection: Boolean
 		get() = isReady && lifecycleCommandAuthority.pendingCollectionResumeExitId == null

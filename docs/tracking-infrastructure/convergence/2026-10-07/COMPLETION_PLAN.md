@@ -1,6 +1,6 @@
 # Tracking completion plan
 
-Updated: 2026-10-08. Initial inspected candidate: `5b19ca833596b602643e99d291c4ceae0d3b5cc6`.
+Updated: 2026-10-10. Initial inspected candidate: `5b19ca833596b602643e99d291c4ceae0d3b5cc6`.
 
 ## Outcome and current boundary
 
@@ -57,6 +57,20 @@ product or changing activation gates implicitly.
   source choices and rejecting superseding Start/End/Off or stale process requests.
   Keep Off saved until that exact Start is accepted. Check every external action
   and cleanup acknowledgment; End releases the session, Off stops collection.
+  The combined startup/Start/radio candidate now includes shared chosen-source
+  writer preparation, Tracker/Dashboard pending continuation, Start-after-End
+  reconciliation and cancellation-safe readiness observation recovery. See the
+  [assembly input](../2026-10-10/TRACKING_FLOW_ASSEMBLY.md). Static source review
+  and candidate selection are not passing tests or complete-chain acceptance.
+
+  - [x] Author the shared startup/new-Start writer setup and compose its writers/readers.
+  - [x] Repair Tracker/Dashboard pending continuation and explicit Start after End.
+  - [x] Author cancellation-safe recovery of the same readiness observer.
+  - [x] Preserve independent radio callback intake through finite setup/settled-End drains.
+  - [ ] Complete independent all-day readiness and the remaining full-chain proof.
+
+  These checked subitems describe authored source in the bounded candidate assembly;
+  all associated tests are NOT_RUN.
 
 - [ ] **T03 — Preserve Steps through quality changes.** Independently review and
   approve the smallest connected continuity design, then implement it through
@@ -71,6 +85,10 @@ product or changing activation gates implicitly.
   projection and product query for each supported source/purpose. Finish the caller
   inventory across UI, workers, legacy routes and temporary features. Prove stale
   callbacks and late revocation cannot borrow newer permission or revive erased data.
+  Combined review found that sessionless Location/Steps/Wi-Fi/Cell execution still
+  asks for the session rollout's Ambient mode. The final session bindings advertise
+  only manual/automatic capture. Independent all-day writer readiness is awaiting
+  approval; publication, broker and actual registration must agree on that rule.
 
 - [ ] **T05 — Close shared provider and foreground-host lifetimes.** Compose each
   existing physical owner with independent session/background/control/feature
@@ -99,6 +117,10 @@ product or changing activation gates implicitly.
   midnight cursor from hiding trustworthy saved subtotals; keep independently valid
   days visible and preserve strict game/achievement completeness. Optional first-enable
   permission-prompt synchronization is authorized; the clicked repair already works.
+  An older internal session-writer upgrade can also be blocked by the independently
+  running system Steps recorder. Resolve its narrowly owned setup boundary together
+  with all-day readiness; preserve generic privacy/clear fences and native-counter
+  retirement. Only `main` was released; preserve these unreleased older inputs honestly.
 
 - [ ] **T09 — Finish automatic tracking composition.** Connect real trigger receipt
   to accepted Start, chosen capture owners, saved products and End/Off. Preserve

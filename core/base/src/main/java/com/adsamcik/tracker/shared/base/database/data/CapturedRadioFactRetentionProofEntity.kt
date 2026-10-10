@@ -77,8 +77,8 @@ data class CapturedRadioFactRetentionProofEntity(
 		require(sourceKind in SUPPORTED_SOURCE_KINDS)
 		require(writerProjectionId == expectedProjectionId(sourceKind))
 		require(writerProjectionVersion == expectedProjectionVersion(sourceKind))
-		require(writerBindingGeneration == expectedBindingGeneration(sourceKind))
-		require(writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
+		require(SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration) != null)
+		require(writerOwnerGeneration == SourceWriterGenerationContract.canonicalOwnerGeneration(writerBindingGeneration))
 		require(SHA_256_HEX.matches(logicalFactId))
 		require(semanticRevision > 0L && SHA_256_HEX.matches(mutationId))
 		require(SHA_256_HEX.matches(factEffectChecksum))
@@ -135,8 +135,8 @@ data class CapturedRadioFactRetentionProofEntity(
 		sourceKind == expectedSourceKind &&
 		writerProjectionId == expectedProjectionId(expectedSourceKind) &&
 		writerProjectionVersion == expectedProjectionVersion(expectedSourceKind) &&
-		writerBindingGeneration == expectedBindingGeneration(expectedSourceKind) &&
-		writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION &&
+		SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration) != null &&
+		writerOwnerGeneration == SourceWriterGenerationContract.canonicalOwnerGeneration(writerBindingGeneration) &&
 		mutationId == expectedMutationId(sourceKind, logicalFactId, semanticRevision) &&
 		cursorRevision == semanticRevision &&
 		cursorMutationId == mutationId &&
@@ -398,14 +398,6 @@ data class CapturedRadioFactRetentionProofEntity(
 				SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION
 			SourceDestinationOwnerEntity.SOURCE_CELL ->
 				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION
-			else -> error("Unsupported captured radio source $sourceKind")
-		}
-
-		private fun expectedBindingGeneration(sourceKind: Int): Long = when (sourceKind) {
-			SourceDestinationOwnerEntity.SOURCE_WIFI ->
-				SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION
-			SourceDestinationOwnerEntity.SOURCE_CELL ->
-				SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION
 			else -> error("Unsupported captured radio source $sourceKind")
 		}
 

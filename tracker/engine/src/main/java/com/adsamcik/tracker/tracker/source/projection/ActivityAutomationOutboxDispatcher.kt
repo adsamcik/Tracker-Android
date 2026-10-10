@@ -617,6 +617,7 @@ internal class BackgroundTrackingActivityAutomationEffectConsumer @Inject constr
 					com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.Enqueued,
 					com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.AlreadyActive,
 					-> dispatch.toAutomationDeliveryResult()
+					com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.SetupPending,
 					is com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.Retryable -> {
 						automaticStartActions.markExternalStartRetryable(trigger)
 						dispatch.toAutomationDeliveryResult()
@@ -640,6 +641,7 @@ internal fun com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult
 	com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.Enqueued,
 	com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.AlreadyActive,
 	-> ActivityAutomationDeliveryResult.START_REQUESTED
+	com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.SetupPending,
 	is com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.Retryable ->
 		ActivityAutomationDeliveryResult.RETRY
 	is com.adsamcik.tracker.tracker.api.TrackingStartDispatchResult.Terminal ->

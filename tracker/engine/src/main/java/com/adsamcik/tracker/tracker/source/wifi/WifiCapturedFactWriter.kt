@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIntegrity
@@ -201,16 +202,23 @@ internal class WifiCapturedFactWriter @Inject constructor(
 	): WifiCapturedWriteResult {
 		val authority = fact.authority
 		val owner = database.sourceDestinationOwnerDao().get(SOURCE_KIND, DESTINATION)
-		if (owner?.owner != OWNER || owner.ownerGeneration != OWNER_GENERATION) {
+		if (owner?.owner != OWNER || SourceWriterGenerationContract.bindingGenerationForCanonicalOwner(owner.ownerGeneration)
+				?.let(SourceWriterGenerationContract::captureModeMaskForKnownBinding) == null) {
 			reject(WifiCapturedWriteRejection.DESTINATION_OWNER_CHANGED)
 		}
-		val binding = database.sourceSessionDao().manifestSource(
+		val sessionDao = database.sourceSessionDao()
+		val manifest = sessionDao.manifest(authority.logicalTrackingId.value, authority.sessionManifestRevision)
+		val session = sessionDao.session(authority.logicalTrackingId.value)
+		val binding = sessionDao.manifestSource(
 			authority.logicalTrackingId.value,
 			authority.sessionManifestRevision,
 			SOURCE_KIND,
 			PURPOSE,
 		)
-		if (binding == null || !binding.isExactWifiWriter(authority.captureConsentEpoch)) {
+		if (binding == null || manifest == null || session == null ||
+			manifest.sessionMode != session.sessionMode ||
+			!binding.isExactWifiWriter(authority.captureConsentEpoch, manifest.sessionMode) ||
+			binding.writerOwnerGeneration != owner.ownerGeneration) {
 			reject(WifiCapturedWriteRejection.MANIFEST_WRITER_AUTHORITY_MISMATCH)
 		}
 		val state = database.sourceEvidenceStateDao().get()
@@ -233,7 +241,7 @@ internal class WifiCapturedFactWriter @Inject constructor(
 			previous.payloadVersion
 		}
 		val mapped = WifiCapturedPersistence.map(fact, owner.ownerGeneration, ownerCursorRevision,
-			payloadVersion)
+			payloadVersion, requireNotNull(binding.writerBindingGeneration))
 		val children = if (wal.payloadVersion == WIFI_WAL_PAYLOAD_VERSION) {
 			WifiPurposeChildren.session(mapped, wal, acceptedIndexes)
 				?: reject(WifiCapturedWriteRejection.CHILD_EVIDENCE_MISMATCH)
@@ -531,13 +539,20 @@ internal class WifiCapturedFactWriter @Inject constructor(
 		if (owner?.owner != OWNER || owner.ownerGeneration != row.writerOwnerGeneration) {
 			reject(WifiCapturedWriteRejection.DESTINATION_OWNER_CHANGED)
 		}
-		val binding = database.sourceSessionDao().manifestSource(
+		val sessionDao = database.sourceSessionDao()
+		val manifest = sessionDao.manifest(row.logicalTrackingId, row.manifestRevision)
+		val session = sessionDao.session(row.logicalTrackingId)
+		val binding = sessionDao.manifestSource(
 			row.logicalTrackingId,
 			row.manifestRevision,
 			SOURCE_KIND,
 			PURPOSE,
 		)
-		if (binding == null || !binding.isExactWifiWriter(row.captureConsentEpoch)) {
+		if (binding == null || manifest == null || session == null ||
+			manifest.sessionMode != session.sessionMode ||
+			!binding.isExactWifiWriter(row.captureConsentEpoch, manifest.sessionMode) ||
+			binding.writerBindingGeneration != row.writerBindingGeneration ||
+			binding.writerOwnerGeneration != row.writerOwnerGeneration) {
 			reject(WifiCapturedWriteRejection.MANIFEST_WRITER_AUTHORITY_MISMATCH)
 		}
 		val state = database.sourceEvidenceStateDao().get()
@@ -593,7 +608,6 @@ internal class WifiCapturedFactWriter @Inject constructor(
 		const val SOURCE_KIND = SourceDestinationOwnerEntity.SOURCE_WIFI
 		const val DESTINATION = SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI
 		const val OWNER = SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS
-		const val OWNER_GENERATION = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
 		const val PURPOSE = SourceBrokerPurpose.SESSION_CAPTURE
 		const val WRITER_ID = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID
 		const val WRITER_VERSION = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION
@@ -603,16 +617,21 @@ internal class WifiCapturedFactWriter @Inject constructor(
 	}
 }
 
-private fun SessionManifestSourceEntity.isExactWifiWriter(consentEpoch: Long): Boolean =
+private fun SessionManifestSourceEntity.isExactWifiWriter(consentEpoch: Long, sessionMode: String?): Boolean =
 	sourceKind == SourceDestinationOwnerEntity.SOURCE_WIFI &&
 		purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible &&
 		this.consentEpoch == consentEpoch &&
 		outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI &&
 		writerOwner == SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS &&
-		writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION &&
+		SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration ?: -1L) != null &&
+		writerOwnerGeneration == writerBindingGeneration?.let(SourceWriterGenerationContract::canonicalOwnerGeneration) &&
 		writerProjectionId == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID &&
 		writerProjectionVersion == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION &&
-		writerBindingGeneration == SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION
+		when (sessionMode) {
+			"MANUAL" -> true
+			"AUTOMATIC" -> writerBindingGeneration == SourceWriterGenerationContract.FINAL_CAPTURE_BINDING_GENERATION
+			else -> false
+		}
 
 private fun WifiAggregateFactReference.logicalFactId(): String =
 	WifiCapturedFactRevisionIntegrity.logicalFactId(
@@ -785,6 +804,7 @@ private object WifiCapturedPersistence {
 		ownerGeneration: Long,
 		aggregateOwnerCursorRevision: Long?,
 		payloadVersion: Int?,
+		writerBindingGeneration: Long,
 	): WifiCapturedFactRevisionEntity {
 		val mutation = fact.mutation
 		val identity = mutation.identity
@@ -801,7 +821,7 @@ private object WifiCapturedPersistence {
 		val unsigned = WifiCapturedFactRevisionEntity(
 			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
 			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,
-			SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION,
+			writerBindingGeneration,
 			ownerGeneration,
 			logicalId,
 			mutation.semanticRevision,

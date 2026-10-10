@@ -47,4 +47,17 @@ class SourceWriterGenerationContractTest {
 		SourceWriterGenerationContract.bindingGenerationForContainedOwner(2L) shouldBe null
 		SourceWriterGenerationContract.nextBindingGenerationForContainedOwner(2L) shouldBe null
 	}
+
+	@Test
+	fun `known capture contracts preserve manual originals and reject invented mode generations`() {
+		SourceWriterGenerationContract.captureModeMaskForKnownBinding(1L) shouldBe 1L
+		SourceWriterGenerationContract.captureModeMaskForKnownBinding(2L) shouldBe 3L
+		listOf(-1L, 0L, 3L, Long.MAX_VALUE).forEach { generation ->
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(generation) shouldBe null
+		}
+		SourceWriterGenerationContract.canonicalOwnerGeneration(1L) shouldBe 2L
+		SourceWriterGenerationContract.containedOwnerGeneration(1L) shouldBe 3L
+		SourceWriterGenerationContract.canonicalOwnerGeneration(2L) shouldBe 4L
+		SourceWriterGenerationContract.containedOwnerGeneration(2L) shouldBe 5L
+	}
 }

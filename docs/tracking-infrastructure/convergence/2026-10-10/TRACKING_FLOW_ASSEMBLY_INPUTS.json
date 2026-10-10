@@ -1,0 +1,745 @@
+{
+  "base_commit": "196824d6a605a97cd1c4775d0c697e421d995a58",
+  "phase": "IMPLEMENTATION_ONLY",
+  "status": "IMPLEMENTED_UNVALIDATED",
+  "tests": "NOT_RUN",
+  "review_view_manifest_sha256": "f5726d228e0ed5d93495dfe013b52f91bad5b62f5d744dd8b2bd8c62c388f98f",
+  "review_receipt_sha256": "cb78bf520ded0d2464d774cfb2595feff1a4ea3fac8b5f7a734ebaec8f825ba7",
+  "files": [
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/di/InfrastructureModule.kt",
+      "selected_sha256": "e1b506967ce50df035efd3ba596b2a5d4f4b3894fa7c1292c9c149ef10996397",
+      "base_sha256": "f40f2a90ac013126bd60e9d3b5f8d50d5fdc8121ecf2d1870997b50d17993296",
+      "supplier": "SHARED_SETUP_CLEAR_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGate.kt",
+      "selected_sha256": "395761b2dcedfe351830760031b5bd8632650c4f04006179593999c6a1e43039",
+      "base_sha256": "8b00aa8978647e4e8fd20fa50582da123bd6d4efa23c0e12664cd008283031ad",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": true
+    },
+    {
+      "path": "app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetActions.kt",
+      "selected_sha256": "29b0890b0e8ab97b2ffec4814aa90c774f578666acc11e5c48dd5cef6dc65818",
+      "base_sha256": "daa06c607ee4085e6ab358fff7dcd54868d0b02a70c3db9c694b7f310cc57090",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/startup/DefaultTrackingStartupGateTest.kt",
+      "selected_sha256": "b6de7dd886e739f06039e520f445fc7f9a2b063767a0cb88dc7d03046023a3e0",
+      "base_sha256": "bca995828bb0d8fc2f2a1fe10590fc98f73c08851aa2ebba4cae85291e59957b",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "app/src/test/java/com/adsamcik/tracker/app/startup/ManualStartStartupRecoveryTest.kt",
+      "selected_sha256": "d8709cf1e27e5ac2891cecb66e454a680bb624482c91a801dd00b6f77b511e1f",
+      "base_sha256": null,
+      "supplier": "MANUAL_START_GATE_RECOVERY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedFactMaintenance.kt",
+      "selected_sha256": "54c6ee6099e7723fe62c3a61bdf1f5b572f64f6a6ef10af9e34d599488daf3f1",
+      "base_sha256": "c2b971c1f3afa3d56a55f3e960b5f95016354cd73b8c3393e31ecacec1f9627b",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenance.kt",
+      "selected_sha256": "985a64445110ea11250ebf371d115bc6f03a0656f4bbaeaeb11eebafbcca0e55",
+      "base_sha256": "32b19900e026c6b27851e65628a687573ad5d1ab4aa94bf2fe24e9a43c27f5d6",
+      "supplier": "SHARED_RADIO_SESSION_BOUNDARY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/PressureFactProofAuthenticator.kt",
+      "selected_sha256": "72a0b54a140bdb8d494ce2c5774bafcca9b974a36ef4a61c541dd58e9f627919",
+      "base_sha256": "fab2684d7eebc8eef8889ce3792bf9a3ea81b34dd4ab8b6dad8f2e28853082f0",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/RadioSessionCaptureCallbackBarrier.kt",
+      "selected_sha256": "a082bd3fad842e6c5a27b6064be74aa9a37f766a5a8dfbe303686591e959188f",
+      "base_sha256": null,
+      "supplier": "SHARED_RADIO_SESSION_BOUNDARY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceBrokerDao.kt",
+      "selected_sha256": "2eb40fe571326ed2c5de2d76fd62c34f2bdc1e10b564351ba1fead6f99362af8",
+      "base_sha256": "ea0b46eff0a6db27a5a691aeb4131b62d632b943cc8ffc59cf7ffe1427ddca9a",
+      "supplier": "SHARED_RADIO_SESSION_BOUNDARY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/SourceDestinationOwnerDao.kt",
+      "selected_sha256": "7dab9da9376414d9526495ed0c029e40859c5a55ada2e6f490102197dc7cdb98",
+      "base_sha256": "ebf08cbdeb441b20c64ee229c3224de141e75a7ba194d555cb075ebf832d6845",
+      "supplier": "SHARED_SETUP_CLEAR_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/ActivityCapturedFactEntities.kt",
+      "selected_sha256": "e81364d1535321d971a36451f6076611ad9b681260d1c430c1454b239312920f",
+      "base_sha256": "d5a893fb5edc8dd5c9c64c08fd2ace29e6b75135ab1fa5e1f1c09142b629f089",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CapturedRadioFactRetentionProofEntity.kt",
+      "selected_sha256": "c4c912c08727f22ec992feab8b416d66681fa9ba4c89b6d3bba0106b225f0387",
+      "base_sha256": "9d21a6140bc537073ed6184aac8851a3558871830776f03e425656c529572197",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/CellCapturedFactEntities.kt",
+      "selected_sha256": "c67a6e9ed88957c0a2fec81a75266e4e5be67a9a06f7d6c0d73f37ad830a8979",
+      "base_sha256": "f0c0706d6f191981b55d397184efe398130dc37d4702ae86fbf1cacbb7bcdc14",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceDestinationOwnerEntity.kt",
+      "selected_sha256": "c9a2796853f6b7a0c2dea918e717af762fb17799388971a36cb71dc4c6e4ae5f",
+      "base_sha256": "7557415377ece33928fc9530ee4ae3dba4d2db44a23d4ba08d1aa634523cd88c",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceSessionEntities.kt",
+      "selected_sha256": "658b430977c4d04624c5d0fbde78d25fe2602e4dc5c2b1c93971cc804f24aafb",
+      "base_sha256": "9e30418fe4663e86e39adae3cabb763342c9959dc54a06d6c39dab0fa4685e21",
+      "supplier": "SHARED_SETUP_LOCATION_PROVENANCE_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/SourceWriterGenerationContract.kt",
+      "selected_sha256": "0e073fec984e173412276504868e9c6007e6585dcb4c78de2bd5da9f3aa40a76",
+      "base_sha256": "afe5e2a5cf74f4fefe3812bae33aa8f1c368e369cf960e45a1200e00a38fb61a",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/WifiCapturedFactEntities.kt",
+      "selected_sha256": "52dbd0f5edbc08f119e491a03cec92fd0ca1bf18a8e3e501b2521c1a28d3450f",
+      "base_sha256": "27a5accc7c94e0be0b4f6670c390abee973a6e4765379f9f37ffb11ac6d235b9",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/ActivityCapturedFactMaintenanceTest.kt",
+      "selected_sha256": "86ed5d305716a50b11777a20add74bf710ec1882e0ca935552d95cf581b97455",
+      "base_sha256": "11e07e3208526b486dca14d4949d241027c5aa9667c237ec987091f22e65e257",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CapturedRadioFactRetentionProofRoomTest.kt",
+      "selected_sha256": "4f15593c91e7d021ef1d76c858964daa3cd1dc563119522d01648acb2b96796b",
+      "base_sha256": "46cbe88093b6ab50b0e18520230e2072ad37c55e8baef947ab6be0651d4787c8",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/CellCapturedFactMaintenanceTest.kt",
+      "selected_sha256": "5b54f99e839546b51f2af37c68b0098751d4d36d7a77b2084fef4b760078441f",
+      "base_sha256": "7542fc0471d8c87ea258dae8143f2d2099b5de7a4128fc997dd1585acee41cf6",
+      "supplier": "SHARED_RADIO_SESSION_BOUNDARY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/SourceSessionDaoTest.kt",
+      "selected_sha256": "f82950ace2e7a2ac50a9f2c4c59fa802aadc81e1bb19bd30ed9b53ed74843888",
+      "base_sha256": "f986bb6ff8306ac0ddb1060d8b6f3199603b405ceb4f37924a3ffb37d9a7feeb",
+      "supplier": "SHARED_SETUP_LOCATION_PROVENANCE_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/SourceWriterGenerationContractTest.kt",
+      "selected_sha256": "26eeb6b1d206679c2d83e406f1fc779f52909d4b201f90df6378cacbb144f2cd",
+      "base_sha256": "4e6dafcd399a3b8818e6448307b2f5825b33308c2e27a131ebee4885e7b16203",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/WifiWalCarrierAuthenticatorTest.kt",
+      "selected_sha256": "7dc4448505244c1e9b3b3f1f32ec14165ff972bb374edecdaddbb963da157939",
+      "base_sha256": "73d1f561f68abca5f0c76e55e563b1f5b79e466b2d72d0f2ee7613c55bc5aa7a",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "core/common/src/main/java/com/adsamcik/tracker/shared/base/startup/TrackingStartupGate.kt",
+      "selected_sha256": "98f077a17c3079bc9f5fed53b661bd38e37863777d80b275f22c7e0ad1028ba1",
+      "base_sha256": "01fea727a9896f5db6d5ebc0d939c6d420cfa59f05cc76e3161e87b7a6929e4e",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": true
+    },
+    {
+      "path": "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt",
+      "selected_sha256": "90c9f42c5723cb14df9916ccff1cbeb505dcd964e6b5fdd16f5676f941bcb024",
+      "base_sha256": "5893a86cf141d5611ae5296aeaceebd43de4382edda30206d51f9930dc118902",
+      "supplier": "TRACKER_PENDING_START_CALLER_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardManualStartSetupEffectTest.kt",
+      "selected_sha256": "780198c09abdc6bc2e85d7dd0eb8023c66abebb3602526c436972f2526d1e3a5",
+      "base_sha256": null,
+      "supplier": "TRACKER_PENDING_START_CALLER_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt",
+      "selected_sha256": "0482f48a5a7b68168666da651600a517fe821faa530c7ae2fc4869ca00521541",
+      "base_sha256": "5c3891fb5d8acafcf059afddaab74a757313b68d6d0451c73c9329e4cbf9908a",
+      "supplier": "TRACKER_PENDING_START_CALLER_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "feature/tracker/src/test/java/com/adsamcik/tracker/tracker/ui/compose/TrackerManualStartSetupEffectTest.kt",
+      "selected_sha256": "32bd6f2f9c5cf39128db14b1be1dad43e57e4a148b143c8b8adcdd5ec8579987",
+      "base_sha256": null,
+      "supplier": "TRACKER_PENDING_START_CALLER_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposer.kt",
+      "selected_sha256": "a92a53035cdf085e108bc182629c224f895aad80362ff24f1b3809c294d3b4fb",
+      "base_sha256": "744b740c9dc674baf83690bda884cd45f2323948cd6cc8cf8ee83f7a293e5fd1",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/CellHistoryComposer.kt",
+      "selected_sha256": "da36c18a93c1dbd6cd7bbd6e3c4b74b5b268d88740dc6ebe18eb9a913c7c1d06",
+      "base_sha256": "a9cc723090082450138a26efc017d567a269154853cb111aa8926d8dd8a4b2c2",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelector.kt",
+      "selected_sha256": "c9aa33195747a1d79115898632eed796fc0dcf5709dd963695ae7b8ed0e1fe7b",
+      "base_sha256": "22a686f6b9ccd6f290f06ac7914da3b20d7dae89c24274527cc2a6c6c4ff8815",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": true
+    },
+    {
+      "path": "stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryComposer.kt",
+      "selected_sha256": "5f1b2b6ad5ca63d38ff46a39d79a0d7ba34a0d77f492d2f81a34e97b666cb42f",
+      "base_sha256": "01511581d72578e5c95278ae16246315209866a4efea361ec30e77ebf41980f1",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/ActivityHistoryComposerTest.kt",
+      "selected_sha256": "2d1287821f60b09717ad0005429ccf9303ce1f616af290d26e01bb00f3a66b2e",
+      "base_sha256": "251e73a81f303f36b5203823eaa2c6c81eb07a90809757210c3be73fed2777a1",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/CellHistoryRepositoryRoomTest.kt",
+      "selected_sha256": "a0f1a1aded00412094f71268efcd4ed4ffef9220b9412a3d93fe8670f86fd3ee",
+      "base_sha256": "5d09af93a93c4cdf8c113ebd316a1e208a9ecc274ca058d6de924e9804dc68c0",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/PressureHistorySelectorTest.kt",
+      "selected_sha256": "853383eee43470b39dcbe46725efbd7988d2c4d28f2d845c36dbe88842b59845",
+      "base_sha256": "6d93fbc71397c2262914a2b1b912dbb28c8c26c83698cef45d798fe482a1e8d7",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "stats/data/src/test/java/com/adsamcik/tracker/stats/data/repository/WifiHistoryRepositoryRoomTest.kt",
+      "selected_sha256": "e09fe9bea872deec0e481e1dd0ef8a3edba773feaddcdce6343c1ab8290233fc",
+      "base_sha256": "a607087c64945816aeb552f142665706f9e525d7f6b4225ddbc7fa65d0a6e965",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/ManualTrackingStart.kt",
+      "selected_sha256": "c6b34ad3c12f3fdcd15ebe5f84811e076f288f68478cbba6ed2e5a5d272951e6",
+      "base_sha256": "7f16aebab6faa1c5fddeb44f6e110c1d510e80643ad9b3851960352f0d2fcabe",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackerServiceApi.kt",
+      "selected_sha256": "ddcacb3e09468a9a2c313b1e1ad033f93dc7a2066c91d7f6ac5acbce22ec6b90",
+      "base_sha256": "c1dffaa3a602ce35fd245850fe3aaf7ca2f2dcb2ab47e79c220d077440ba07af",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/TrackingStartRequestCoordinator.kt",
+      "selected_sha256": "83809ee410ad63784085ce773959e4a7bce815dee22f3c77de8f3851ad080f59",
+      "base_sha256": "8e9a5473694ce4e11b0b22d4b2e243be7f1efad19ffef67dce12a2676ebe27d5",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/api/ManualTrackingStartContinuationTest.kt",
+      "selected_sha256": "dfc25175d8df2a1592a7910f1266af280667cb70298f3e9a1c411d5f4e1277ae",
+      "base_sha256": "edff885703c46e0824032419be3d644333c88d156c37e998f16fac15cde71a45",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/api/ManualTrackingStartTest.kt",
+      "selected_sha256": "f948a90abeb06c241bc90657661ddace3be5917ede6acac065366f1158252c8e",
+      "base_sha256": "18e95da960d2955e50ad1cdd13701d5e8f776760d59340374703d5f74fc9beb4",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/api-module/src/test/java/com/adsamcik/tracker/tracker/api/TrackerServiceApiTest.kt",
+      "selected_sha256": "8ef524b21d5d208641ea2ff908f5a9d323f0df597ef358f75cce70d388bb5a68",
+      "base_sha256": "cf07912ce6771188f715512c6848c754b3579f7b065ea8f70ce311b91c0ad97c",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt",
+      "selected_sha256": "084c58a1fab71f0872f41a81a4e33e66e7489c1777c00f4a5451a29f43dc2bea",
+      "base_sha256": "1b500c2c83dc65b767594382f923532c323230a25a83844d88989c5c87c9c8ba",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/api/DefaultManualTrackingStartReadinessReader.kt",
+      "selected_sha256": "32f57f0c31d220fa5bdad3e0ba78b00cc87282ebe921a66f57b3f42d1455444c",
+      "base_sha256": "a2bea7e408f671b30a2062bab7afe86d9b34aa42d8e89be7e6cf811cb43a9074",
+      "supplier": "MANUAL_START_GATE_RECOVERY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/module/TrackerModuleInitializer.kt",
+      "selected_sha256": "5ce761f57a8cb41424f5ac4eb3f54691f6aa99349b6d5bec5a70c53e23b45d57",
+      "base_sha256": "a690079ea9d86212ea420749b66a3a99f8f9187cbf0f1b3f25bac91b81e9d976",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/persistence/PersistenceProcessor.kt",
+      "selected_sha256": "d24ae38cbfaa4d9b0c3e32213b32bb908b00862431a9da8bb76e8b50794d5f5a",
+      "base_sha256": "bd104a2f51d7206353c0972abf6294406641c7ff35d25c7897ee14c970a78aaf",
+      "supplier": "SHARED_SETUP_LOCATION_ATOMIC_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/pipeline/persistence/TrackingPersistenceLifecycleLease.kt",
+      "selected_sha256": "33040fcc8e484899ea46d13248fd6bdd6757217e93b8d73f1399d582bad24ae0",
+      "base_sha256": "4eab4aac0c5695a285deb01e78aa0bfbcace7e2754340b6687fa686341675591",
+      "supplier": "SHARED_SETUP_LOCATION_ATOMIC_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinator.kt",
+      "selected_sha256": "415af5a05b4f70791f3c992d4371d91389e5acce2d63edeb3bd609efb192808f",
+      "base_sha256": "d0a28afa454d12689c7ac3f6d564434797db74bba5852080923c0b822139e331",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/shortcut/ShortcutActivity.kt",
+      "selected_sha256": "35cb229825a6df8d744f2104695076f11f7eb95d94b4c8b8a8f5d68a4e245f51",
+      "base_sha256": "aa2291e5a9958ece32438211effcad8445341aac9762c713d7b58c899414b415",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactProjectionLane.kt",
+      "selected_sha256": "941ecdbc9d69852dbc1b3a8e85b570f770cbbc6fcf1bea95f8ed40af267aaf44",
+      "base_sha256": "010107e6fd9ad9af72aaefc80b784cdb68b93a9f6d74f8363066d60aad99ac48",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactWriter.kt",
+      "selected_sha256": "abd3e8eee0237c262759beedd07bc45459124bc5a41bbed192d2cb28f6242a70",
+      "base_sha256": "cbb04a14dedd3ecef25bbc950a4afe3bd0265f274848a9ea502ca7931487f39e",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapter.kt",
+      "selected_sha256": "fd4866c43c93d354c403e7e0b00fe8a578354f80d830cdbde293ac9f637e049c",
+      "base_sha256": "015f725ed43e555e28c4c78d0c991d2ff9abeb81ee67af01ea29256978fe863a",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/catalog/SourceProductFactories.kt",
+      "selected_sha256": "2d07ada56cfc42050f69890de467cd4ba73fc4b0d25427b8bbb0eaa9fb364a44",
+      "base_sha256": "86d4d6a2541afcdd32c9b8ceb5b3571050b77528baed5d9da5bb75e425743816",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellCapturedFactWriter.kt",
+      "selected_sha256": "57d80b694b6ead2b6840ce7a50b74b44c7d2064a2acb74e5a175c02a33f92133",
+      "base_sha256": "35900a883e36a7037df82a1d49b73721c1b7f9bcd4cc2350e8805a48337e02da",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/cell/CellSessionFactProjectionLane.kt",
+      "selected_sha256": "3465cc29d96785e69ec0fd8134b6f762076f083a9ae8c063970d3653a1101327",
+      "base_sha256": "f395349ab14a2c264940ce45ad6c6a5f2e796520651178d30b67dadcdd60e2b8",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinator.kt",
+      "selected_sha256": "fb31c78a8539a998001145348d86740d86b291e08d80985e08ae38660846fe25",
+      "base_sha256": "13e9919eebc06e8fbdee15540b04540bb0c00bc62cdf670e3c94273ac4af2f2c",
+      "supplier": "SHARED_SETUP_LOCATION_PROVENANCE_SELECTED",
+      "mixed_working_draft_preserved": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/ChosenSourceWriterSetup.kt",
+      "selected_sha256": "cf884c4308e51dbc47eae12952adc0052404b89046e48eebeb99314e49367b80",
+      "base_sha256": null,
+      "supplier": "CHOSEN_SETUP_OBSERVATION_RECOVERY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/ProtectedLocationWriterSetupCoordinator.kt",
+      "selected_sha256": "acfed53a3541b003f2e18dd7f7a4ce7738e285529a516d013c56a508e14c9298",
+      "base_sha256": null,
+      "supplier": "SHARED_SETUP_LOCATION_ATOMIC_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SharedSourceWriterDeletionRearm.kt",
+      "selected_sha256": "16172b77a2b73ad2628817519a9764b61acd49c50d3ef574592d34b381ce88ad",
+      "base_sha256": null,
+      "supplier": "SHARED_SETUP_CLEAR_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SourceSpecificWriterTransitionCoordinators.kt",
+      "selected_sha256": "e408c6e99de45ca24d4f86d876727a311088f28efb101e643d765842e30a0e98",
+      "base_sha256": "d27ad50507913ae81e4a47d40e8675259a2f9fa357f77ca43199ae09c6ac81a5",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/StepsWriterDeletionRearm.kt",
+      "selected_sha256": "e22fdcfdd63db22b3426eabced21d4a313b2db0bc234768abf933df6f5b240dd",
+      "base_sha256": "4b53a7de68c8641915d347a0711aed982847fa476d6e46d4242bd9d6f6f83395",
+      "supplier": "SHARED_SETUP_CLEAR_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/StepsWriterTransitionEngine.kt",
+      "selected_sha256": "875dcd6049bb32af983d26b502dfb4e81762f7a8261420881532283a00399cfa",
+      "base_sha256": "d4aa264e5ae48200baadd930135bf0ffd2ef5cffcc1a1539283b09ab9383dfb2",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStore.kt",
+      "selected_sha256": "8a5d5e206ba79e1ee989ca5dc027f67d39a635727a39b35c95054e107d1e3ada",
+      "base_sha256": "cbd732f0fedc2969c5dc7726cee0f9469888c077a9119684ae931ed3f39a684a",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/lifecycle/DefaultSourceLifecycleProofAdapter.kt",
+      "selected_sha256": "8fb5d607786e499937d678e722a807d176b46303483f204cfff156a9549c8cfc",
+      "base_sha256": "1ecb3accc88af00e00d9511805af46d2166b7b7d236113787b668caabb5df91c",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationQualifiedObservation.kt",
+      "selected_sha256": "4204c09787a8ad11875f8f34f086a9e940d8bb9f3632fd78dc959c99b1d161bc",
+      "base_sha256": "ea0faab2b5742e0df12a537de71a20efe337aa7acc6ddd5625745b0c2b24cb89",
+      "supplier": "SHARED_SETUP_LOCATION_PROVENANCE_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapter.kt",
+      "selected_sha256": "6728268db3d293ee9cdb7d660ae65decc7539d809d3ba0340e16ae14daed7e07",
+      "base_sha256": "3bbbac651aa386664bd6307b7091c8e32f9af476107c6747af62a6258283366c",
+      "supplier": "SHARED_SETUP_LOCATION_PROVENANCE_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/location/ProtectedLocationCanonicalHandoff.kt",
+      "selected_sha256": "0aa8e2be5010d26c9e9f711112163a879b32f1b05b711e468b5122ae44fccada",
+      "base_sha256": "6ff943fccad5c953c4cd03b50710677c96d90ecd747d1871a25f4209f15c2fd0",
+      "supplier": "SHARED_SETUP_LOCATION_ATOMIC_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/ActivityAutomationOutboxDispatcher.kt",
+      "selected_sha256": "30da66b1c746d02e41ed2ce1d71ad0d04df4175a66fcb3ad02c7f2ce741b449d",
+      "base_sha256": "97295af0b34dbf7cde2c415c05f9cd51219d83f96121a2c1fdb1468f025192d4",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": true
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/PressureSessionFactProjectionLane.kt",
+      "selected_sha256": "4872c451485bb62364184162072eea212f8c0a2f2628daf5059a5ba6a82b5493",
+      "base_sha256": "f7224530da1bb5fec98dc868e7f60866c10c839218910cffa074a4cab509d3bc",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntime.kt",
+      "selected_sha256": "299b3c42129f8ede4f893d6c77fb6a4082ea1bf73896a3542da0b4a400974b00",
+      "base_sha256": "97fccd8a82560c3c61782830a78b3741ec0c807e0a931beb06c44d70cba97a59",
+      "supplier": "RADIO_AMBIENT_INTAKE_CONTINUITY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntime.kt",
+      "selected_sha256": "6b92495cfc8573ff752f7f7ea77a5ef7d5bf3e5a38f9a26f9a394b7be8c6be23",
+      "base_sha256": "beb25d2736d7d4d02717b331db3fb0485c608b8f17686877cd2da678b8e54f9b",
+      "supplier": "SHARED_SETUP_LOCATION_CALLBACK_BOUNDARY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedCellSourceController.kt",
+      "selected_sha256": "93b6d0dfbc5a160f98db00d964584afae1622e8659f2cd1f06140911796c2b8e",
+      "base_sha256": "4e32e04fe943c9d138ff6f1c36f2dc24f933eb17f2ba1d6b21836dc0a1e1c5aa",
+      "supplier": "RADIO_RESIDENT_SETUP_BOUNDARY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SharedWifiSourceController.kt",
+      "selected_sha256": "34c222a7b95321877cede2f07c0aad6c9287869512c55d57aba31a51789e37ca",
+      "base_sha256": "57ed0d1121a950b4a73ffbac4c6019530b5bec3cbf3169d445d24c406db0771e",
+      "supplier": "RADIO_RESIDENT_SETUP_BOUNDARY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepository.kt",
+      "selected_sha256": "ca487b602546852b683abe2fd9c1024e4eda3cdb46ed4c707250a93745219949",
+      "base_sha256": "f184c7b9cd9fce74340b34ee040da8295b4552f518000e37eb27ef6b1e3f44ab",
+      "supplier": "RADIO_RESIDENT_SETUP_BOUNDARY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntime.kt",
+      "selected_sha256": "61551f24372e51b90fac4310fc21120ff9c5955f7d48720b998d97c70b6f088d",
+      "base_sha256": "c35bfd84930508d2f62d4b7c324c293e253c91599d214ad70bf49240bcc3ebd3",
+      "supplier": "RADIO_AMBIENT_INTAKE_CONTINUITY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactMaintenance.kt",
+      "selected_sha256": "2f966ff557cc783cf550215acbac2596ffef3ef60d5e576c5a0d0c88df48e1d0",
+      "base_sha256": "0c20faaa7852357acf24a252ecdcf38055969d5e0b7579cb06e8d9df86619add",
+      "supplier": "SHARED_RADIO_SESSION_BOUNDARY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiCapturedFactWriter.kt",
+      "selected_sha256": "55ecb15f39a3b3116e0210f2128da71a4e2166956fe4014e41be57a11251a59a",
+      "base_sha256": "57a2afac28c2d68538f551ba1ac473ecee8dd6985dbce0af5132aedb59de7a20",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/wifi/WifiSessionFactProjectionLane.kt",
+      "selected_sha256": "21aa067e458b772243f35d36839cfd97b5c766f9880428350c7bf444661ce95f",
+      "base_sha256": "6b7163b981bc490b63f645b949f378cde724eea64e5bb220d42a924a8aaedf60",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/pipeline/persistence/TrackingPersistenceLifecycleLeaseTest.kt",
+      "selected_sha256": "427e14eed1263b0ebe01d26aa0db954023c39c04a405e2cfe5ebd0a94f1009e3",
+      "base_sha256": "082b3c3995e5356daa637365571b5456d25254161c41d2433a61fd25e40d463a",
+      "supplier": "SHARED_SETUP_LOCATION_ATOMIC_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/AutomaticCaptureChainRoomTest.kt",
+      "selected_sha256": "22cf98bb0e649b7a3c61b94b185811616818d1178693637a334c974522808988",
+      "base_sha256": "e81cd07095dcf51c617e491dfa0db1ebb1575f6866e69c2d24843a9c0e8baf74",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/DefaultTrackingStartRequestCoordinatorResumeTest.kt",
+      "selected_sha256": "486a63a65a0a2748675631fcaf4d752c96ac6c4c191b118e8594cfadd16061e9",
+      "base_sha256": "d829182edd65d84b3b7a307c16698ce7a70b0d7aafbc7e4362a67a151b88e13c",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/PreparedManualStartPurposeRepairTest.kt",
+      "selected_sha256": "44d518e3370363c63fa385959ab2f1a7f0185ea264fec1b6b6439399649d5c4f",
+      "base_sha256": "fe93a73bbbafadca72192328161dbe90289fe1d352358ff79b16a02980842aae",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/service/PreparedStartForegroundAcceptanceTest.kt",
+      "selected_sha256": "b655d1a8f86911de6aa0fe41afd11580ff935e7ca51a3144ab815b6c3296f9f4",
+      "base_sha256": "d6d53907da9195f60b7acf7e0b6946c5d9ebd52f2c57dd87df6037f9418523a9",
+      "supplier": "SHARED_CHOSEN_SOURCE_WRITER_SETUP_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactProjectionLaneTest.kt",
+      "selected_sha256": "2ac617680b36a2d138e1844b87b74a1225648ecffe0a40e78cdc0d39a01eeef8",
+      "base_sha256": "961b8644a4130e2cbee0e08d20d5e6efad349297403624a48d4fb1612b3a1ce5",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedFactWriterTest.kt",
+      "selected_sha256": "62801509448b0d2901754a19a3c478742b6897e33d935c433075abf2c72fad8f",
+      "base_sha256": "83a533df7302bcc7a65183a7ab25966f1cff411f1392ea5f0d2889888bdaaee9",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/activity/ActivityCapturedWalAdmissionAdapterTest.kt",
+      "selected_sha256": "c786748ed80860ece6f9546d925704feddcf0cd1c7c358a5411eebfba628c553",
+      "base_sha256": "c489080e57717047539c94878339f365c63cf55e401b29f4d1374ce301da1d27",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/catalog/DefaultSourceImplementationCatalogTest.kt",
+      "selected_sha256": "7b8eef5b9754fa8e8159cd4aeeddc5ccbc1458e5c3a3f4dfd9c89fa86b18a8d2",
+      "base_sha256": "8a2f0570e43030c9b23410be52ce107d0dbde2c59a19a6b88c1233c58c582154",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/cell/CellWalQualificationAdapterTest.kt",
+      "selected_sha256": "de3209164b676879f4ba12214288cc61d6427ca2dc080435730fbe24726f37e8",
+      "base_sha256": "41a35ae2a661417a7f630709d0b9452408a449bb9d3dca2472941644d1aacf49",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/AuthoritativeSessionCoordinatorTest.kt",
+      "selected_sha256": "fd5713fbe73b93b30ba858efc16b91ba4517a3650bce3e318b0339317633dea4",
+      "base_sha256": "a407028538e4132104074b97a6683d3e40ec8c568e0045d4ba3cfaa432347697",
+      "supplier": "SHARED_SETUP_LOCATION_PROVENANCE_SELECTED",
+      "mixed_working_draft_preserved": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/ChosenSourceWriterSetupRoomTest.kt",
+      "selected_sha256": "b7b58572092cb82d5711c911422d19e089269435656799d1e9f5a3fa696218d7",
+      "base_sha256": null,
+      "supplier": "CHOSEN_SETUP_OBSERVATION_RECOVERY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SharedSourceWriterDeletionRearmTest.kt",
+      "selected_sha256": "e488a5ee5a942a5150977444cece9e4d3601f8e8735399e46a48ae5695867e2d",
+      "base_sha256": null,
+      "supplier": "SHARED_SETUP_CLEAR_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/SourceSpecificWriterTransitionCoordinatorsTest.kt",
+      "selected_sha256": "4cb40d8e8d6383646be5d72b3451de026827c3346b28443fd3f34b341ef37a22",
+      "base_sha256": "2cd449d9550d53c1c62e2a7fc38537ab254bcebeb700a3583515163fa90638c9",
+      "supplier": "SHARED_SETUP_POST_CLEAR_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/StepsSessionFactWriterDeletionRearmTest.kt",
+      "selected_sha256": "a4e7ec71b0f955c8e22b6560ece9087e3dbe67201272b5a40291c8e771814a08",
+      "base_sha256": "4507529084ab1f96b434d51e49555ebc2dea946daa6b537520ed6d12c0237c76",
+      "supplier": "SHARED_SETUP_CLEAR_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/coordinator/TrackingRolloutStateStoreTest.kt",
+      "selected_sha256": "a53c7a9f6a2e1a889a5885295da9c1e43b051973286367e926fb4a7e3b1f2987",
+      "base_sha256": "f86f8fd808fbd15effd74b505ff1a92732dea4049bfd84640f53677f3265fcad",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/lifecycle/SourceEventRetentionProofLifecycleTest.kt",
+      "selected_sha256": "38da218bba96dffb0a141f660f75482a78ace08af1a21dcbc0c390194ed57f05",
+      "base_sha256": "487c71dd6e00964fad59faf757c35aaf6383b3ef5709950c507ec77c60102eb8",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/location/LocationWalQualificationAdapterTest.kt",
+      "selected_sha256": "7e58072ae8fc3d503e46da3969b9054ca6d78e5d40e0112789dea352da23e0bc",
+      "base_sha256": "f8713b8a4d9416aca8e8f38ee7f52c0292e624c6a872db6fb0470d27d49fc486",
+      "supplier": "SHARED_SETUP_LOCATION_ATOMIC_SELECTED",
+      "mixed_working_draft_preserved": true
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/CapturedSourceLaneBindingRoomTest.kt",
+      "selected_sha256": "e0fa0ddd8e3f69ed011e501328d59b4e36c862ccee2d9ddbcc4ae645275b0189",
+      "base_sha256": null,
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/projection/PressureSessionFactProjectionLaneTest.kt",
+      "selected_sha256": "f30afa0930d4cdfcc83f7113fd8d1dfa831ee8675ac0b096e83380ac409b4557",
+      "base_sha256": "44e6a477b64bfaa16df596af71785589cbb36fd9cc81193d3fddfd8077113b4e",
+      "supplier": "SHARED_SETUP_FOUR_SOURCE_CONSUMER_REVIEW_INPUT_V2",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/CellSourceRuntimeTest.kt",
+      "selected_sha256": "cccf717a86ec801766b90707e9295f97ea0fb0d10c775f10472e1939885f1219",
+      "base_sha256": "9eafb0b041a58d45ed7bf3ac640ee4f8a5893386493c883a8fe9aec68fa2a210",
+      "supplier": "RADIO_AMBIENT_INTAKE_CONTINUITY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/LocationSourceRuntimeTest.kt",
+      "selected_sha256": "6139482dc7735b1dc28d7686202790a98992ea4e5933c5ffab2092222ecfb330",
+      "base_sha256": "51b9857e603e12d806b0c361b727f605414ac88e42797a65f93c4b59d950f20a",
+      "supplier": "SHARED_SETUP_LOCATION_CALLBACK_BOUNDARY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedAmbientRadioSourceControllerTest.kt",
+      "selected_sha256": "e429028cb20efa9d68ed4fa27500974a0bfb89896fc514f63a2491cf6b2cdfda",
+      "base_sha256": "1325718a6bf0fdf0e2ed40b04c64851211a5cc3c8f8ff38b685800cdb01086f1",
+      "supplier": "RADIO_RESIDENT_SETUP_BOUNDARY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SourceRegistrationRepositoryTest.kt",
+      "selected_sha256": "212b4fd25bb8b5648bfe2f1be492a7143da0a43fd502b9c93b6ec9f025bf7d78",
+      "base_sha256": "5a62ab35f6d09368de0a046c294323075bb32606ea749d64a9028d89e4f1354c",
+      "supplier": "RADIO_RESIDENT_SETUP_BOUNDARY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/WifiSourceRuntimeTest.kt",
+      "selected_sha256": "5c706c5b60c758d3980c1490bfef819fc3486dc93a06542cf64e171eebd4a169",
+      "base_sha256": "1f2c7a6e8e374c3dbf3b2dcfa23750eb3353bf0f4969ca9a6dde614260ee7357",
+      "supplier": "RADIO_AMBIENT_INTAKE_CONTINUITY_SELECTED",
+      "mixed_working_draft_preserved": false
+    },
+    {
+      "path": "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/wifi/WifiWalQualificationAdapterTest.kt",
+      "selected_sha256": "8e262f36f21333417f372c384ae6698a82e31502be04d71065db0d46bba96015",
+      "base_sha256": "13b4f59aa683ab215ac0decfd953560fbb4874cb86cc107791164823605b930e",
+      "supplier": "SHARED_RADIO_SESSION_BOUNDARY_SELECTED",
+      "mixed_working_draft_preserved": false
+    }
+  ]
+}

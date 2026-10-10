@@ -695,6 +695,84 @@ class LocationSourceRuntimeTest {
 		fixture.runtime.close()
 	}
 
+
+	@Test
+	fun `shared Location callback boundary is published only after the frozen prefix drains`() = runTest {
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		val sink = RecordingLocationSink { _, count ->
+			if (count == 1) { entered.complete(Unit); release.await() }
+			SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong()), lastSourceSequence = count.toLong())
+		}
+		val fixture = locationRuntimeFixture(backgroundScope, sink = sink)
+		fixture.runtime.start(fixture.plan, sink)
+		fixture.providerCallback()(listOf(location(50.0, SystemClock.elapsedRealtimeNanos())))
+		runCurrent(); entered.await()
+		val ending = async { fixture.runtime.sharedSessionCutoff(sessionCutoff(SystemClock.elapsedRealtimeNanos())) }
+		runCurrent()
+		coVerify(exactly = 0) { fixture.registrations.publishLocationSessionCaptureCallbackBarrier(any()) }
+		fixture.providerCallback()(listOf(location(51.0, SystemClock.elapsedRealtimeNanos())))
+		release.complete(Unit); runCurrent()
+		assertEquals(SourceStopStatus.COMPLETE, ending.await().status)
+		coVerify(exactly = 1) { fixture.registrations.publishLocationSessionCaptureCallbackBarrier(any()) }
+		coVerify(exactly = 0) { fixture.fusedBackend.stop() }
+		assertEquals(2, sink.deliveries.size)
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `a rejected shared Location boundary cannot become a complete stop and preserves background callbacks`() = runTest {
+		val fixture = locationRuntimeFixture(backgroundScope)
+		coEvery { fixture.registrations.publishLocationSessionCaptureCallbackBarrier(any()) } returns false
+		fixture.runtime.start(fixture.plan, fixture.sink)
+		val result = fixture.runtime.sharedSessionCutoff(sessionCutoff(SystemClock.elapsedRealtimeNanos()))
+		assertTrue(result.appDrainComplete)
+		assertEquals(SourceStopStatus.PARTIAL_UNOBSERVABLE, result.status)
+		fixture.providerCallback()(listOf(location(50.0, SystemClock.elapsedRealtimeNanos())))
+		runCurrent(); assertEquals(1, fixture.sink.deliveries.size)
+		coVerify(exactly = 0) { fixture.fusedBackend.stop() }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `cancelled shared Location prefix drain does not publish and later retry can settle`() = runTest {
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		val sink = RecordingLocationSink { _, count ->
+			if (count == 1) { entered.complete(Unit); release.await() }
+			SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong()), lastSourceSequence = count.toLong())
+		}
+		val fixture = locationRuntimeFixture(backgroundScope, sink = sink)
+		fixture.runtime.start(fixture.plan, sink)
+		fixture.providerCallback()(listOf(location(50.0, SystemClock.elapsedRealtimeNanos())))
+		runCurrent(); entered.await()
+		val ending = async { fixture.runtime.sharedSessionCutoff(sessionCutoff(SystemClock.elapsedRealtimeNanos())) }
+		runCurrent(); ending.cancel(); runCurrent()
+		coVerify(exactly = 0) { fixture.registrations.publishLocationSessionCaptureCallbackBarrier(any()) }
+		release.complete(Unit); runCurrent()
+		assertEquals(SourceStopStatus.COMPLETE,
+			fixture.runtime.sharedSessionCutoff(sessionCutoff(SystemClock.elapsedRealtimeNanos())).status)
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `timeout before shared Location prefix admission never publishes a boundary`() = runTest {
+		val release = CompletableDeferred<Unit>()
+		val sink = RecordingLocationSink { _, count ->
+			release.await()
+			SourceDeliveryAdmissionHandoff.Durable(listOf(count.toLong()), lastSourceSequence = count.toLong())
+		}
+		val fixture = locationRuntimeFixture(backgroundScope, sink = sink)
+		fixture.runtime.start(fixture.plan, sink)
+		fixture.providerCallback()(listOf(location(50.0, SystemClock.elapsedRealtimeNanos())))
+		runCurrent()
+		val result = fixture.runtime.sharedSessionCutoff(immediateSessionCutoff())
+		assertEquals(SourceStopStatus.TIMED_OUT, result.status)
+		assertTrue(!result.appDrainComplete)
+		coVerify(exactly = 0) { fixture.registrations.publishLocationSessionCaptureCallbackBarrier(any()) }
+		release.complete(Unit); runCurrent(); fixture.runtime.close()
+	}
+
 	@Test
 	fun `no-op refresh does not discard a delayed fix or restart the provider`() = runTest {
 		val fixture = locationRuntimeFixture(backgroundScope)
@@ -2043,6 +2121,7 @@ class LocationSourceRuntimeTest {
 			requiresProviderAcceptance = requiresProviderAcceptance,
 		)
 		stubRetirementRepository(registrations)
+		coEvery { registrations.publishLocationSessionCaptureCallbackBarrier(any()) } returns true
 		coEvery { registrations.markAccepted(any(), any(), any()) } answers {
 			providerAcceptanceElapsedNanos = thirdArg()
 			null

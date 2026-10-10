@@ -42,6 +42,35 @@ class TrackerServiceApiTest {
 	}
 
 	@Test
+	fun `actual dispatch keeps pending manual claim until Room prepare is complete`() = runTest {
+		val events = mutableListOf<String>()
+		val selection = ManualTrackingStartSelection(mapOf(TrackingCaptureSource.CELL to 1L))
+		val model = ManualStartTestAuthority()
+		val continuation = requireNotNull(model.reserveManualStartIfGeneration(0L, selection))
+		val authority = object : TrackingLifecycleCommandAuthority by model {
+			override suspend fun consumeManualStart(generation: Long, selection: ManualTrackingStartSelection): TrackingStartCommand? {
+				events += "claim"
+				return model.consumeManualStart(generation, selection)
+			}
+			override suspend fun <T> withCurrentStart(command: TrackingStartCommand, action: suspend () -> T) =
+				com.adsamcik.tracker.tracker.resilience.LockedTrackingStartResult.Executed(action())
+		}
+		val request = TrackingStartRequest(continuation.command, true, false, manualSourceSelection = selection)
+		TrackerServiceApi.dispatchPreparedStartResult(request,
+			RecordingStartCoordinator(TrackingStartPreparationResult.SetupPending, events), authority,
+			platformEnqueue = { _, _ -> error("Pending setup cannot enqueue") }) shouldBe TrackingStartDispatchResult.SetupPending
+		model.pendingManualStart shouldBe continuation
+		TrackerServiceApi.dispatchPreparedStartResult(request,
+			RecordingStartCoordinator(TrackingStartPreparationResult.Prepared(PreparedTrackingStartToken("same-start")), events), authority,
+			platformEnqueue = { _, command ->
+				command shouldBe continuation.command; model.pendingManualStart shouldBe null
+				events += "enqueue"; true
+			}) shouldBe TrackingStartDispatchResult.Enqueued
+		events shouldBe listOf("prepare", "prepare", "claim", "enqueue", "mark-enqueued")
+		model.reservations shouldBe 1
+	}
+
+	@Test
 	fun `typed start dispatch preserves retryable versus terminal preparation failure`() = runTest {
 		val command = TrackingStartCommand(1L)
 		val request = TrackingStartRequest(command, isUserInitiated = false, isAmbient = false)
@@ -567,6 +596,8 @@ class TrackerServiceApiTest {
 		private val beforeAction: suspend () -> Unit = {},
 		private val currentGeneration: () -> Long = { 1L },
 	) : TrackingLifecycleCommandAuthority {
+		override suspend fun consumeManualStart(generation: Long, selection: ManualTrackingStartSelection) =
+			TrackingStartCommand(generation)
 		override fun latestCommandGeneration(): Long = currentGeneration()
 		override suspend fun reserveStart(): TrackingStartCommand? = null
 		override suspend fun reserveRedeliveryRecoveryStart(

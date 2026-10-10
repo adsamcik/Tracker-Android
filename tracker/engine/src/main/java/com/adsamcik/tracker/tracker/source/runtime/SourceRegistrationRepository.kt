@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import com.adsamcik.tracker.shared.base.database.hasExactRadioSessionCaptureCallbackBarrier
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadCodec
 import com.adsamcik.tracker.shared.base.database.data.CellWalPayloadDecodeResult
@@ -931,6 +932,132 @@ class SourceRegistrationRepository @Inject constructor(
 		}
 	}
 
+
+
+	/** Read-only reuse of publication checks; it grants no callback acknowledgement. */
+	internal suspend fun isCurrentRadioSessionCaptureCallbackOwner(expectedRegistration: SourceRegistration): Boolean =
+		radioSessionCaptureCallbackBarrier(expectedRegistration, publish = false)
+
+	/** Called after the shared runtime drains the finite callback prefix following session removal. */
+	internal suspend fun publishRadioSessionCaptureCallbackBarrier(expectedRegistration: SourceRegistration): Boolean =
+		radioSessionCaptureCallbackBarrier(expectedRegistration, publish = true)
+
+	private suspend fun radioSessionCaptureCallbackBarrier(
+		expectedRegistration: SourceRegistration,
+		publish: Boolean,
+	): Boolean {
+		val source = expectedRegistration.state.sourceKind
+		require(source in setOf(SourceKind.WIFI.stableCode, SourceKind.CELL.stableCode))
+		val epoch = expectedRegistration.state.collectedDataEpoch
+		if (lifecycleStore.snapshot().epoch != epoch) return false
+		val process = processIncarnationIdProvider.current()
+		val boot = clockDomainProvider.current()
+		return database.withTransaction {
+			val broker = database.sourceBrokerDao()
+			val state = database.sourceRegistrationStateDao().get(source, expectedRegistration.ownerScope)
+				?: return@withTransaction false
+			val physical = broker.registration(source, state.registrationGeneration) ?: return@withTransaction false
+			if (database.sourceEvidenceStateDao().get()?.collectedDataEpoch != epoch ||
+				state.registrationGeneration != expectedRegistration.state.registrationGeneration ||
+				state.sourceInstanceId != expectedRegistration.state.sourceInstanceId ||
+				state.clockDomainId != expectedRegistration.state.clockDomainId || state.clockDomainId != boot ||
+				state.collectedDataEpoch != epoch || physical.collectedDataEpoch != epoch ||
+				physical.sourceInstanceId != state.sourceInstanceId || physical.clockDomainId != boot ||
+				physical.ownerScope != expectedRegistration.ownerScope ||
+				physical.physicalConfigurationFingerprint != expectedRegistration.physicalConfigurationFingerprint ||
+				physical.providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
+				physical.providerProcessIncarnationId != process || physical.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+			) return@withTransaction false
+			val rows = broker.latestRadioAuthorizationBounded(source, state.registrationGeneration, 65)
+			if (rows.size > 64) return@withTransaction false
+			val authorization = try { rows.toAuthorizationSnapshotOrNull() }
+			catch (@Suppress("SwallowedException") _: IllegalArgumentException) { null } ?: return@withTransaction false
+			if (!authorization.sameAuthorizationAs(expectedRegistration.authorization) || authorization.effectiveBootId != boot ||
+				authorization.authorizedMembers.any { it.persistenceEligible && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+			) return@withTransaction false
+			val demands = if (source == SourceKind.WIFI.stableCode) {
+				database.wifiCapturedFactDao().activeDemandsForDeletion(source, 257)
+			} else database.cellCapturedFactDao().activeCellDemandsForDeletion(source, 257)
+			if (demands.size > 256 || !authenticateRadioAmbientCallbackDemands(source, demands, authorization)) {
+				return@withTransaction false
+			}
+			val expected = try {
+				SourceBrokerAuthorization.rows(source, state.registrationGeneration, authorization.authorizationRevision,
+					demands, boot, authorization.effectiveElapsedRealtimeNanos, rows.first().effectiveWallTimeMs)
+			} catch (@Suppress("SwallowedException") _: IllegalArgumentException) { null }
+			if (rows.sortedBy { it.memberId } != expected?.sortedBy { it.memberId }) return@withTransaction false
+			if (physical.captureCallbackBarrierAuthorizationRevision > authorization.authorizationRevision) return@withTransaction false
+			val lastCapture = broker.maximumRadioSessionCaptureAuthorizationRevision(source, state.registrationGeneration)
+			val proposed = physical.copy(captureCallbackBarrierAuthorizationRevision = authorization.authorizationRevision)
+			if (!database.hasExactRadioSessionCaptureCallbackBarrier(proposed, authorization, lastCapture)) return@withTransaction false
+			if (!publish) return@withTransaction true
+			if (broker.acknowledgeRadioSessionCaptureCallbackBarrier(source, state.registrationGeneration,
+					state.sourceInstanceId, authorization.authorizationRevision) != 1) return@withTransaction false
+			val acknowledged = broker.registration(source, state.registrationGeneration) ?: return@withTransaction false
+			acknowledged.captureCallbackBarrierAuthorizationRevision == authorization.authorizationRevision
+		}
+	}
+
+	/**
+	 * Called only after Location's FIFO has settled the prefix captured before session removal.
+	 * The complete current authorization and exact physical owner are checked in one transaction;
+	 * all-day members remain active and no admission or retention authority is changed.
+	 */
+	internal suspend fun publishLocationSessionCaptureCallbackBarrier(
+		expectedRegistration: SourceRegistration,
+	): Boolean {
+		require(expectedRegistration.state.sourceKind == SourceKind.LOCATION.stableCode)
+		val expectedEpoch = expectedRegistration.state.collectedDataEpoch
+		if (lifecycleStore.snapshot().epoch != expectedEpoch) return false
+		val currentProcess = processIncarnationIdProvider.current()
+		val currentBoot = clockDomainProvider.current()
+		return database.withTransaction {
+			val broker = database.sourceBrokerDao()
+			val state = database.sourceRegistrationStateDao().get(
+				SourceKind.LOCATION.stableCode, expectedRegistration.ownerScope,
+			) ?: return@withTransaction false
+			val physical = broker.registration(SourceKind.LOCATION.stableCode,
+				expectedRegistration.state.registrationGeneration) ?: return@withTransaction false
+			if (database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch ||
+				state.sourceInstanceId != expectedRegistration.state.sourceInstanceId ||
+				state.registrationGeneration != expectedRegistration.state.registrationGeneration ||
+				state.clockDomainId != expectedRegistration.state.clockDomainId ||
+				state.collectedDataEpoch != expectedEpoch || state.clockDomainId != currentBoot ||
+				physical.sourceInstanceId != state.sourceInstanceId ||
+				physical.ownerScope != expectedRegistration.ownerScope ||
+				physical.clockDomainId != state.clockDomainId ||
+				physical.collectedDataEpoch != expectedEpoch ||
+				physical.physicalConfigurationFingerprint != expectedRegistration.physicalConfigurationFingerprint ||
+				physical.providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
+				physical.providerProcessIncarnationId != currentProcess ||
+				physical.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+			) return@withTransaction false
+			val rows = broker.latestAuthorization(SourceKind.LOCATION.stableCode, state.registrationGeneration)
+			val authorization = try {
+				rows.toAuthorizationSnapshotOrNull()
+			} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
+				null
+			} ?: return@withTransaction false
+			if (!authorization.sameAuthorizationAs(expectedRegistration.authorization) ||
+				authorization.effectiveBootId != currentBoot ||
+				authorization.authorizedMembers.any { member ->
+					member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+				}
+			) return@withTransaction false
+			val demands = SourceProviderPurposeScope.selectDemands(SourceKind.LOCATION.stableCode,
+				expectedRegistration.ownerScope, broker.authorizationDemands(SourceKind.LOCATION.stableCode))
+			val expectedRows = SourceBrokerAuthorization.rows(SourceKind.LOCATION.stableCode,
+				state.registrationGeneration, authorization.authorizationRevision, demands,
+				authorization.effectiveBootId, authorization.effectiveElapsedRealtimeNanos,
+				rows.first().effectiveWallTimeMs)
+			if (rows.sortedBy { it.memberId } != expectedRows.sortedBy { it.memberId }) {
+				return@withTransaction false
+			}
+			broker.acknowledgeLocationSessionCaptureCallbackBarrier(state.registrationGeneration,
+				state.sourceInstanceId, authorization.authorizationRevision) == 1
+		}
+	}
+
 	/**
 	 * Publishes Cell's source-local callback barrier only for the exact current process generation.
 	 * The runtime calls this after closing callback entry and draining every earlier FIFO item.
@@ -1029,7 +1156,7 @@ class SourceRegistrationRepository @Inject constructor(
 				CellCaptureCallbackBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
 			)
 
-			if (!authenticateCellAmbientCallbackDemands(activeDemands, currentAuthorization)) {
+			if (!authenticateRadioAmbientCallbackDemands(SourceKind.CELL.stableCode, activeDemands, currentAuthorization)) {
 				return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
 					CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
 				)
@@ -1040,7 +1167,9 @@ class SourceRegistrationRepository @Inject constructor(
 					SourceKind.CELL.stableCode,
 					expectedRegistration.state.registrationGeneration,
 				)
-			if (physical.captureCallbackBarrierAuthorizationRevision > maximumCaptureRevision) {
+			if (physical.captureCallbackBarrierAuthorizationRevision > maximumCaptureRevision &&
+				!database.hasExactRadioSessionCaptureCallbackBarrier(physical, currentAuthorization, maximumCaptureRevision)
+			) {
 				return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
 					CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
 				)
@@ -1058,17 +1187,19 @@ class SourceRegistrationRepository @Inject constructor(
 				SourceKind.CELL.stableCode,
 				expectedRegistration.state.registrationGeneration,
 			)
-			if (acknowledged?.captureCallbackBarrierAuthorizationRevision != maximumCaptureRevision) {
+			val publishedRevision = maxOf(physical.captureCallbackBarrierAuthorizationRevision, maximumCaptureRevision)
+			if (acknowledged?.captureCallbackBarrierAuthorizationRevision != publishedRevision) {
 				return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
 					CellCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
 				)
 			}
-			CellCaptureCallbackBarrierPublication.Established(maximumCaptureRevision)
+			CellCaptureCallbackBarrierPublication.Established(publishedRevision)
 		}
 	}
 
 	/** The surviving Cell Ambient purpose keeps its own current policy and consent authority. */
-	private suspend fun authenticateCellAmbientCallbackDemands(
+	private suspend fun authenticateRadioAmbientCallbackDemands(
+		sourceKind: Int,
 		demands: List<SourceDemandEntity>,
 		authorization: SourceAuthorizationSnapshot,
 	): Boolean {
@@ -1078,14 +1209,14 @@ class SourceRegistrationRepository @Inject constructor(
 		val authority = policies.authority()?.takeIf {
 			it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE
 		} ?: return false
-		val current = policies.policyAtRevision(authority.currentPolicyRevision, SourceKind.CELL.stableCode)
+		val current = policies.policyAtRevision(authority.currentPolicyRevision, sourceKind)
 			?: return false
-		val consent = policies.latestConsentEpoch(SourceKind.CELL.stableCode, SourceBrokerPurpose.AMBIENT_PRODUCT)
+		val consent = policies.latestConsentEpoch(sourceKind, SourceBrokerPurpose.AMBIENT_PRODUCT)
 		if (!current.hasExactEligibleAmbientConsentReference(consent)) return false
 		return ambient.all { demand ->
-			val historical = policies.policyAtRevision(demand.sourcePolicyRevision, SourceKind.CELL.stableCode)
+			val historical = policies.policyAtRevision(demand.sourcePolicyRevision, sourceKind)
 				?: return@all false
-			demand.sourceKind == SourceKind.CELL.stableCode && demand.status == SourceDemandEntity.STATUS_ACTIVE &&
+			demand.sourceKind == sourceKind && demand.status == SourceDemandEntity.STATUS_ACTIVE &&
 				demand.logicalTrackingId == null && demand.serviceRunId == null && demand.manifestRevision == null &&
 				demand.lifecycleLeaseGeneration == null && demand.retireBootId == null &&
 				demand.retireElapsedRealtimeNanos == null && demand.retiredAtMs == null &&
@@ -1207,7 +1338,9 @@ class SourceRegistrationRepository @Inject constructor(
 					SourceKind.WIFI.stableCode,
 					expectedRegistration.state.registrationGeneration,
 				)
-			if (physical.captureCallbackBarrierAuthorizationRevision > maximumProductRevision) {
+			if (physical.captureCallbackBarrierAuthorizationRevision > maximumProductRevision &&
+				!database.hasExactRadioSessionCaptureCallbackBarrier(physical, currentAuthorization, maximumProductRevision)
+			) {
 				return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
 					WifiCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
 				)
@@ -1225,12 +1358,11 @@ class SourceRegistrationRepository @Inject constructor(
 				SourceKind.WIFI.stableCode,
 				expectedRegistration.state.registrationGeneration,
 			)
-			if (acknowledged?.captureCallbackBarrierAuthorizationRevision !=
-				maximumProductRevision
-			) return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
+			val publishedRevision = maxOf(physical.captureCallbackBarrierAuthorizationRevision, maximumProductRevision)
+			if (acknowledged?.captureCallbackBarrierAuthorizationRevision != publishedRevision) return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
 				WifiCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
 			)
-			WifiCaptureCallbackBarrierPublication.Established(maximumProductRevision)
+			WifiCaptureCallbackBarrierPublication.Established(publishedRevision)
 		}
 	}
 

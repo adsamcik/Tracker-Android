@@ -1,5 +1,21 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import com.adsamcik.tracker.tracker.source.coordinator.isSourceCaptureAdmissionFenced
+import com.adsamcik.tracker.tracker.source.coordinator.isSharedRadioSessionCaptureAdmissionFenced
+import com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetup
+import com.adsamcik.tracker.tracker.source.coordinator.SourceWriterTransitionSpec
+import com.adsamcik.tracker.tracker.source.coordinator.SourceWriterTransitionEngineFactory
+import com.adsamcik.tracker.tracker.source.coordinator.SourceWriterTransitionTestDependencies
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
+import com.adsamcik.tracker.shared.base.time.FixedClock
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
+import com.adsamcik.tracker.tracker.source.model.WifiPlan
+import com.adsamcik.tracker.tracker.source.model.WifiMode
+import com.adsamcik.tracker.tracker.source.model.CellPlan
+import com.adsamcik.tracker.tracker.source.model.CellMode
+import com.adsamcik.tracker.tracker.source.model.RetryBackoff
 import android.app.Application
 import android.location.Location
 import androidx.room.withTransaction
@@ -32,6 +48,7 @@ import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthori
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityReader
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
+import com.adsamcik.tracker.tracker.source.coordinator.isLocationSessionCaptureAdmissionFenced
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
@@ -103,6 +120,125 @@ class SourceRegistrationRepositoryTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `radio session successor stays monotonic through later CONTROL capture cleanup`() = runTest {
+		for (kind in listOf(SourceKind.WIFI, SourceKind.CELL)) {
+			val capture = demand("session-prefix-${kind.name}", "session:${kind.name}",
+				SourceBrokerPurpose.SESSION_CAPTURE, "prefix-${kind.name}", 1L, true, kind)
+			database.sourceBrokerDao().insertDemands(listOf(capture))
+			val initial = subject.begin(kind, 1L, PHYSICAL_CONFIG, 100L, 100L)
+			subject.markAccepted(initial, 110L, 110L)
+			val control = demand("session-control-${kind.name}", "control:${kind.name}",
+				SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false, kind).copy(
+				requestedElapsedRealtimeNanos = 200L, requestedAtMs = 200L)
+			database.withTransaction {
+				database.sourceBrokerDao().insertDemands(listOf(control))
+				database.fenceSourcePurposesInTransaction(kind.stableCode, listOf(SourceBrokerPurpose.SESSION_CAPTURE),
+					"boot-7", 200L, 200L)
+			}
+			val current = requireNotNull(subject.refreshActiveAuthorization(kind, initial, 2L, PHYSICAL_CONFIG, 210L, 210L))
+			subject.publishRadioSessionCaptureCallbackBarrier(current) shouldBe true
+			val acknowledged = current.authorization.authorizationRevision
+			if (kind == SourceKind.CELL) {
+				subject.publishCellCaptureCallbackBarrier(current, 3L) shouldBe CellCaptureCallbackBarrierPublication.Established(acknowledged)
+			} else subject.publishWifiCaptureCallbackBarrier(current, 3L) shouldBe WifiCaptureCallbackBarrierPublication.Established(acknowledged)
+			database.sourceBrokerDao().registration(kind.stableCode, current.state.registrationGeneration)
+				?.captureCallbackBarrierAuthorizationRevision shouldBe acknowledged
+			database.sourceBrokerDao().demandsByIds(listOf(control.demandId)) shouldBe listOf(control)
+		}
+	}
+
+	@Test
+	fun `radio session setup fence preserves Ambient while generic product fence stays strict`() = runTest {
+		for (kind in listOf(SourceKind.WIFI, SourceKind.CELL)) {
+			val capture = demand("ambient-prefix-${kind.name}", "session:${kind.name}",
+				SourceBrokerPurpose.SESSION_CAPTURE, "ambient-prefix-${kind.name}", 1L, true, kind)
+			database.sourceBrokerDao().insertDemands(listOf(capture))
+			val initial = subject.begin(kind, 1L, PHYSICAL_CONFIG, 100L, 100L)
+			subject.markAccepted(initial, 110L, 110L)
+			val ambient = demand("ambient-survivor-${kind.name}", "app:ambient:${kind.name.lowercase()}",
+				SourceBrokerPurpose.AMBIENT_PRODUCT, null, null, true, kind).copy(qosCode = 0,
+				requestedElapsedRealtimeNanos = 200L, requestedAtMs = 200L)
+			database.withTransaction {
+				database.sourceBrokerDao().insertDemands(listOf(ambient))
+				database.fenceSourcePurposesInTransaction(kind.stableCode, listOf(SourceBrokerPurpose.SESSION_CAPTURE),
+					"boot-7", 200L, 200L)
+			}
+			val current = requireNotNull(subject.refreshActiveAuthorization(kind, initial, 2L, PHYSICAL_CONFIG, 210L, 210L))
+			subject.publishRadioSessionCaptureCallbackBarrier(current) shouldBe true
+			// This source-only fixture finishes the already fenced demand after its real publication.
+			database.openHelper.writableDatabase.execSQL("UPDATE source_demand SET status = 'RETIRED' WHERE demand_id = ?",
+				arrayOf(capture.demandId))
+			database.isSharedRadioSessionCaptureAdmissionFenced(kind.stableCode) shouldBe true
+			database.isSourceCaptureAdmissionFenced(kind.stableCode) shouldBe false
+			database.sourceBrokerDao().demandsByIds(listOf(ambient.demandId)) shouldBe listOf(ambient)
+		}
+	}
+
+	@Test
+	fun `renewed radio CAPTURE refuses the old session boundary without stopping Ambient`() = runTest {
+		val kind = SourceKind.CELL
+		val capture = cellDemand("first-radio-capture", "session:first", SourceBrokerPurpose.SESSION_CAPTURE, "first", 1L, true)
+		database.sourceBrokerDao().insertDemands(listOf(capture))
+		val initial = subject.begin(kind, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(initial, 110L, 110L)
+		val ambient = cellDemand("radio-ambient", "app:ambient:cell", SourceBrokerPurpose.AMBIENT_PRODUCT, null, null, true)
+			.copy(qosCode = 0, requestedElapsedRealtimeNanos = 200L, requestedAtMs = 200L)
+		database.withTransaction {
+			database.sourceBrokerDao().insertDemands(listOf(ambient))
+			database.fenceSourcePurposesInTransaction(kind.stableCode, listOf(SourceBrokerPurpose.SESSION_CAPTURE), "boot-7", 200L, 200L)
+		}
+		val stopped = requireNotNull(subject.refreshActiveAuthorization(kind, initial, 2L, PHYSICAL_CONFIG, 210L, 210L))
+		subject.publishRadioSessionCaptureCallbackBarrier(stopped) shouldBe true
+		val next = capture.copy(demandId = "new-radio-capture", consumerId = "session:new",
+			logicalTrackingId = "new", serviceRunId = "run-new", requestedElapsedRealtimeNanos = 300L, requestedAtMs = 300L)
+		database.sourceBrokerDao().insertDemands(listOf(next))
+		val renewed = requireNotNull(subject.refreshActiveAuthorization(kind, stopped, 3L, PHYSICAL_CONFIG, 310L, 310L))
+		subject.publishRadioSessionCaptureCallbackBarrier(renewed) shouldBe false
+		database.isSharedRadioSessionCaptureAdmissionFenced(kind.stableCode) shouldBe false
+		database.sourceBrokerDao().registration(kind.stableCode, renewed.state.registrationGeneration)
+			?.captureCallbackBarrierAuthorizationRevision shouldBe stopped.authorization.authorizationRevision
+		database.sourceBrokerDao().demandsByIds(listOf(ambient.demandId)) shouldBe listOf(ambient)
+	}
+
+	@Test
+	fun `radio setup refuses forged missing and out-of-range no-CAP acknowledgements`() = runTest {
+		for (kind in listOf(SourceKind.WIFI, SourceKind.CELL)) {
+			val capture = demand("checked-prefix-${kind.name}", "session:${kind.name}",
+				SourceBrokerPurpose.SESSION_CAPTURE, "checked-${kind.name}", 1L, true, kind)
+			database.sourceBrokerDao().insertDemands(listOf(capture))
+			val initial = subject.begin(kind, 1L, PHYSICAL_CONFIG, 100L, 100L)
+			subject.markAccepted(initial, 110L, 110L)
+			val control = demand("checked-control-${kind.name}", "control:${kind.name}",
+				SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false, kind).copy(
+				requestedElapsedRealtimeNanos = 200L, requestedAtMs = 200L)
+			database.withTransaction {
+				database.sourceBrokerDao().insertDemands(listOf(control))
+				database.fenceSourcePurposesInTransaction(kind.stableCode, listOf(SourceBrokerPurpose.SESSION_CAPTURE), "boot-7", 200L, 200L)
+			}
+			val current = requireNotNull(subject.refreshActiveAuthorization(kind, initial, 2L, PHYSICAL_CONFIG, 210L, 210L))
+			subject.publishRadioSessionCaptureCallbackBarrier(current) shouldBe true
+			database.openHelper.writableDatabase.execSQL("UPDATE source_demand SET status = 'RETIRED' WHERE demand_id = ?", arrayOf(capture.demandId))
+			val generation = current.state.registrationGeneration
+			val ack = current.authorization.authorizationRevision
+			database.openHelper.writableDatabase.execSQL("UPDATE provider_registration_generation SET capture_callback_barrier_authorization_revision = ? " +
+				"WHERE source_kind = ? AND registration_generation = ?", arrayOf<Any?>(ack + 1L, kind.stableCode, generation))
+			database.isSharedRadioSessionCaptureAdmissionFenced(kind.stableCode) shouldBe false
+			database.openHelper.writableDatabase.execSQL("UPDATE provider_registration_generation SET capture_callback_barrier_authorization_revision = ? " +
+				"WHERE source_kind = ? AND registration_generation = ?", arrayOf<Any?>(ack, kind.stableCode, generation))
+			database.openHelper.writableDatabase.execSQL("DELETE FROM source_authorization WHERE source_kind = ? AND registration_generation = ? " +
+				"AND authorization_revision = ?", arrayOf<Any?>(kind.stableCode, generation, ack))
+			database.isSharedRadioSessionCaptureAdmissionFenced(kind.stableCode) shouldBe false
+			database.sourceBrokerDao().insertAuthorizations(current.authorization.members)
+			database.openHelper.writableDatabase.execSQL("UPDATE source_authorization SET authorization_fingerprint = 'forged' " +
+				"WHERE source_kind = ? AND registration_generation = ? AND authorization_revision = ?",
+				arrayOf<Any?>(kind.stableCode, generation, ack))
+			database.isSharedRadioSessionCaptureAdmissionFenced(kind.stableCode) shouldBe false
+			subject.publishRadioSessionCaptureCallbackBarrier(current) shouldBe false
+			database.sourceBrokerDao().demandsByIds(listOf(control.demandId)) shouldBe listOf(control)
+		}
+	}
 
 	@Test
 	fun `Cell capture callback barrier keeps exact current Ambient after capture removal`() = runTest {
@@ -1974,6 +2110,253 @@ class SourceRegistrationRepositoryTest {
 		return LocationPlan(6L, LocationBackend.FRAMEWORK, LocationMode.PASSIVE,
 			30_000L, 0L, 0f, 0L, null, true, passiveSystemDelivery = true)
 	}
+
+
+	@Test
+	fun `Location session fence requires the complete removal revision while all-day demand stays active`() = runTest {
+		val (capture, ambient, before, after) = locationSessionRemovalFixture(acknowledgeBeforeRemoval = true)
+		val dao = database.sourceBrokerDao()
+		dao.maximumLocationSessionCaptureAuthorizationRevision(after.state.registrationGeneration) shouldBe
+			before.authorization.authorizationRevision
+		dao.acknowledgeCaptureCallbackBarrier(SourceKind.LOCATION.stableCode, after.state.registrationGeneration,
+			after.state.sourceInstanceId, before.authorization.authorizationRevision) shouldBe 0
+		database.withTransaction { database.isLocationSessionCaptureAdmissionFenced() } shouldBe false
+		subject.publishLocationSessionCaptureCallbackBarrier(before) shouldBe false
+		subject.publishLocationSessionCaptureCallbackBarrier(after) shouldBe true
+		dao.registration(SourceKind.LOCATION.stableCode, after.state.registrationGeneration)
+			?.captureCallbackBarrierAuthorizationRevision shouldBe after.authorization.authorizationRevision
+		database.withTransaction { database.isLocationSessionCaptureAdmissionFenced() } shouldBe true
+		val retained = dao.demandsByIds(listOf(capture.demandId, ambient.demandId)).associateBy { it.demandId }
+		retained.getValue(capture.demandId).status shouldBe SourceDemandEntity.STATUS_RETIRING
+		retained.getValue(ambient.demandId).status shouldBe SourceDemandEntity.STATUS_ACTIVE
+		dao.registration(SourceKind.LOCATION.stableCode, after.state.registrationGeneration)
+			?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+	}
+
+	@Test
+	fun `later ambient-only Location refresh keeps a proven session fence but renewed capture invalidates it`() = runTest {
+		val (_, ambient, _, after) = locationSessionRemovalFixture()
+		subject.publishLocationSessionCaptureCallbackBarrier(after) shouldBe true
+		val dao = database.sourceBrokerDao()
+		val changedAmbient = ambient.copy(demandId = "location-ambient-quality", consumerId = "app:location-quality",
+			requestedAtMs = 300L, requestedElapsedRealtimeNanos = 300L)
+		dao.insertDemands(listOf(changedAmbient))
+		val later = requireNotNull(subject.refreshActiveAuthorization(SourceKind.LOCATION, after, 3L,
+			PHYSICAL_CONFIG, 310L, 310L))
+		later.authorization.authorizationRevision shouldBe after.authorization.authorizationRevision + 1L
+		database.withTransaction { database.isLocationSessionCaptureAdmissionFenced() } shouldBe true
+		val renewed = demand("location-renewed", "session:renewed", SourceBrokerPurpose.SESSION_CAPTURE,
+			"renewed", 1L, true, SourceKind.LOCATION).copy(requestedAtMs = 400L,
+			requestedElapsedRealtimeNanos = 400L)
+		dao.insertDemands(listOf(renewed))
+		val resumed = requireNotNull(subject.refreshActiveAuthorization(SourceKind.LOCATION, later, 4L,
+			PHYSICAL_CONFIG, 410L, 410L))
+		database.withTransaction { database.isLocationSessionCaptureAdmissionFenced() } shouldBe false
+		database.withTransaction { database.fenceSourcePurposesInTransaction(SourceKind.LOCATION.stableCode,
+			listOf(SourceBrokerPurpose.SESSION_CAPTURE), "boot-7", 500L, 500L) }
+		val endedAgain = requireNotNull(subject.refreshActiveAuthorization(SourceKind.LOCATION, resumed, 5L,
+			PHYSICAL_CONFIG, 510L, 510L))
+		database.withTransaction { database.isLocationSessionCaptureAdmissionFenced() } shouldBe false
+		subject.publishLocationSessionCaptureCallbackBarrier(endedAgain) shouldBe true
+		database.withTransaction { database.isLocationSessionCaptureAdmissionFenced() } shouldBe true
+	}
+
+	@Test
+	fun `Location callback publication rejects stale owner epoch and incomplete current authorization`() = runTest {
+		val (_, ambient, _, after) = locationSessionRemovalFixture()
+		subject.publishLocationSessionCaptureCallbackBarrier(after.copy(
+			state = after.state.copy(sourceInstanceId = "wrong-owner"))) shouldBe false
+		val staleEpochRepository = SourceRegistrationRepository(database,
+			FakeCollectedDataLifecycleStore(CollectedDataLifecycleSnapshot(4L, null)),
+			object : BootClockDomainProvider { override fun current(): String = "boot-7" },
+			processIncarnationIdProvider, rolloutStore, retentionBroker())
+		staleEpochRepository.publishLocationSessionCaptureCallbackBarrier(after) shouldBe false
+		database.sourceBrokerDao().insertDemands(listOf(ambient.copy(demandId = "unrepresented",
+			consumerId = "app:unrepresented", requestedAtMs = 300L, requestedElapsedRealtimeNanos = 300L)))
+		subject.publishLocationSessionCaptureCallbackBarrier(after) shouldBe false
+		database.sourceBrokerDao().registration(SourceKind.LOCATION.stableCode, after.state.registrationGeneration)
+			?.captureCallbackBarrierAuthorizationRevision shouldBe 0L
+	}
+
+	@Test
+	fun `actual Wi-Fi resident prefix publication unblocks chosen final writer while Ambient stays alive`() = runBlocking {
+		withTimeout(10_000L) { exerciseResidentRadioChosenSetup(SourceKind.WIFI) }
+	}
+
+	@Test
+	fun `actual Cell resident prefix publication unblocks chosen final writer while Ambient stays alive`() = runBlocking {
+		withTimeout(10_000L) { exerciseResidentRadioChosenSetup(SourceKind.CELL) }
+	}
+
+	@Test
+	fun `radio setup read-only preflight leaves acknowledgement zero and rejects new CAP or stale owner`() = runTest {
+		for (kind in listOf(SourceKind.WIFI, SourceKind.CELL)) {
+			val capture = demand("preflight-capture-${kind.name}", "session:${kind.name}",
+				SourceBrokerPurpose.SESSION_CAPTURE, "preflight-${kind.name}", 1L, true, kind)
+			val ambient = demand("preflight-ambient-${kind.name}", "app:ambient:${kind.name.lowercase()}",
+				SourceBrokerPurpose.AMBIENT_PRODUCT, null, null, true, kind).copy(qosCode = 0,
+					desiredLatencyMs = Long.MAX_VALUE)
+			database.sourceBrokerDao().insertDemands(listOf(capture, ambient))
+			val initial = subject.begin(kind, 1L, PHYSICAL_CONFIG, 100L, 100L)
+			subject.markAccepted(initial, 110L, 110L)
+			subject.isCurrentRadioSessionCaptureCallbackOwner(initial) shouldBe false
+			database.withTransaction {
+				database.fenceSourcePurposesInTransaction(kind.stableCode,
+					listOf(SourceBrokerPurpose.SESSION_CAPTURE), "boot-7", 200L, 200L)
+			}
+			val current = requireNotNull(subject.refreshActiveAuthorization(kind, initial, 2L,
+				PHYSICAL_CONFIG, 210L, 210L))
+			subject.isCurrentRadioSessionCaptureCallbackOwner(current) shouldBe true
+			database.sourceBrokerDao().registration(kind.stableCode, current.state.registrationGeneration)
+				?.captureCallbackBarrierAuthorizationRevision shouldBe 0L
+			subject.isCurrentRadioSessionCaptureCallbackOwner(current.copy(state =
+				current.state.copy(sourceInstanceId = "other-owner"))) shouldBe false
+			database.sourceBrokerDao().insertDemands(listOf(capture.copy(demandId = "preflight-renewed-${kind.name}",
+				consumerId = "session:renewed-${kind.name}", requestedElapsedRealtimeNanos = 300L,
+				requestedAtMs = 300L)))
+			subject.isCurrentRadioSessionCaptureCallbackOwner(current) shouldBe false
+			database.sourceBrokerDao().registration(kind.stableCode, current.state.registrationGeneration)
+				?.captureCallbackBarrierAuthorizationRevision shouldBe 0L
+		}
+	}
+
+	/** Constructed policy/demands and Android edges; real broker/owner/FIFO/Room/setup transitions. */
+	private suspend fun exerciseResidentRadioChosenSetup(kind: SourceKind) {
+		org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofSeconds(1))
+		val spec = SourceWriterTransitionSpec.entries.single { it.source == kind }
+		val catalog = ExecutableSourceLaneCatalog()
+		database.sourceProjectionStateDao().deleteAllProductLanes()
+		installCanonicalProductLanesForTest(database, listOf(spec.binding), 200L)
+		rolloutStore = RoomTrackingRolloutStateStore(database, catalog)
+		rolloutStore.load()
+		database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(kind.stableCode,
+			spec.destination, spec.candidateOwner, 2L, 200L))
+		subject = SourceRegistrationRepository(database, lifecycleStore,
+			object : BootClockDomainProvider { override fun current(): String = "boot-7" },
+			processIncarnationIdProvider, rolloutStore, retentionBroker())
+		val capture = demand("resident-capture-${kind.name}", "session:resident-${kind.name}",
+			SourceBrokerPurpose.SESSION_CAPTURE, "resident-${kind.name}", 1L, true, kind)
+		val ambient = demand("resident-ambient-${kind.name}", "app:ambient:${kind.name.lowercase()}",
+			SourceBrokerPurpose.AMBIENT_PRODUCT, null, null, true, kind).copy(qosCode = 0,
+			desiredLatencyMs = Long.MAX_VALUE)
+		database.sourceBrokerDao().insertDemands(listOf(capture, ambient))
+		// No source point is fabricated: this Room composition drains the real empty callback prefix.
+		// The existing runtime cases separately block a real callback's fixture storage admission.
+		val sink = SourceEventSink { throw AssertionError("This empty-prefix fixture must not admit a point") }
+		val sinkFactory = io.mockk.mockk<DurableSourceEventSinkFactory>()
+		io.mockk.every { sinkFactory.unbound } returns sink
+		val devices = io.mockk.mockk<AndroidConnectivityDeviceStateProvider>()
+		io.mockk.every { devices.wifi() } returns WifiDeviceState(true, true, true, false)
+		io.mockk.every { devices.cell() } returns CellDeviceState(true, true, true, true)
+		val wakeups = io.mockk.mockk<CoalescingSourceWakeupScheduler>(relaxed = true)
+		val allowance = io.mockk.mockk<RadioActiveRequestAllowance>(relaxed = true)
+		val wifiBackend = io.mockk.mockk<AndroidWifiSourceBackend>(relaxed = true)
+		val cellBackend = io.mockk.mockk<AndroidCellSourceBackend>(relaxed = true)
+		io.mockk.every { wifiBackend.start(any()) } returns true
+		io.mockk.every { wifiBackend.stop() } returns true
+		io.mockk.every { cellBackend.start(any(), any()) } returns true
+		io.mockk.every { cellBackend.stop() } returns true
+		val wifiPlan = WifiPlan(5L, WifiMode.BROADCAST_DRIVEN, Long.MAX_VALUE, 30_000L, 30_000L,
+			RetryBackoff(0L, 0L))
+		val cellPlan = CellPlan(5L, CellMode.OBSERVE_CHANGES, Long.MAX_VALUE, 30_000L,
+			emptySet(), RetryBackoff(0L, 0L))
+		val runtimeJob = kotlinx.coroutines.SupervisorJob()
+		val runtimeScope = kotlinx.coroutines.CoroutineScope(runtimeJob + kotlinx.coroutines.Dispatchers.Default)
+		val wifiRuntime = if (kind == SourceKind.WIFI) WifiSourceRuntime(runtimeScope, subject, wifiBackend,
+			devices, wakeups, allowance) else null
+		val cellRuntime = if (kind == SourceKind.CELL) CellSourceRuntime(runtimeScope, subject, cellBackend,
+			devices, wakeups, allowance) else null
+		val wifi = wifiRuntime?.let { SharedWifiSourceController(it, retentionBroker(), sinkFactory) }
+		val cell = cellRuntime?.let { SharedCellSourceController(it, retentionBroker(), sinkFactory) }
+		try {
+			if (wifiRuntime != null) assertIs<SourceStartResult.Started>(wifiRuntime.start(wifiPlan, sink))
+			else assertIs<SourceStartResult.Started>(requireNotNull(cellRuntime).start(cellPlan, sink))
+			val original = requireNotNull(database.sourceBrokerDao().currentPhysicalRegistration(kind.stableCode))
+			val cutoffNanos = android.os.SystemClock.elapsedRealtimeNanos()
+			database.withTransaction {
+				database.fenceSourcePurposesInTransaction(kind.stableCode,
+					listOf(SourceBrokerPurpose.SESSION_CAPTURE), "boot-7", cutoffNanos,
+					System.currentTimeMillis())
+				// Finish the already fenced old demand; no callback acknowledgement is seeded.
+				database.openHelper.writableDatabase.execSQL("UPDATE source_demand SET status = 'RETIRED' WHERE demand_id = ?",
+					arrayOf(capture.demandId))
+			}
+			val refreshed = if (wifiRuntime != null) wifiRuntime.refreshShared(wifiPlan, sink)
+				else requireNotNull(cellRuntime).refreshShared(cellPlan, sink)
+			assertIs<SourceApplyResult.Applied>(refreshed)
+			val noCapture = requireNotNull(database.sourceBrokerDao().registration(kind.stableCode,
+				original.registrationGeneration))
+			noCapture.captureCallbackBarrierAuthorizationRevision shouldBe 0L
+			database.withTransaction { database.isSharedRadioSessionCaptureAdmissionFenced(kind.stableCode) } shouldBe false
+			val gate = object : TrackingStartupGate {
+				override val isReady = true
+				override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
+			}
+			val clock = FixedClock(1_000L, 1_000L)
+			val setup = ChosenSourceWriterSetup(database, catalog, rolloutStore,
+				SourceWriterTransitionEngineFactory.forTest(database, catalog,
+					SourceWriterTransitionTestDependencies(gate, clock = clock)),
+				io.mockk.mockk(), io.mockk.mockk(), io.mockk.mockk(), Provider { gate }, clock,
+				TestDispatchersProvider(kotlinx.coroutines.Dispatchers.IO),
+				Provider { requireNotNull(wifi) { "Unchosen Wi-Fi must stay lazy" } },
+				Provider { requireNotNull(cell) { "Unchosen Cell must stay lazy" } })
+			val result = withTimeout(5_000L) { setup.ensure(setOf(kind)) }
+			result.readySources shouldBe setOf(kind)
+			val final = requireNotNull(database.sourceProjectionStateDao().activeProductLane(kind.stableCode))
+			final.bindingGeneration shouldBe 2L
+			final.captureModeMask shouldBe 3L
+			database.sourceDestinationOwnerDao().get(kind.stableCode, spec.destination)?.ownerGeneration shouldBe 4L
+			val after = requireNotNull(database.sourceBrokerDao().registration(kind.stableCode,
+				original.registrationGeneration))
+			after.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+			after.sourceInstanceId shouldBe original.sourceInstanceId
+			after.captureCallbackBarrierAuthorizationRevision shouldBe database.sourceBrokerDao()
+				.maximumAuthorizationRevision(kind.stableCode)
+			database.sourceBrokerDao().demandsByIds(listOf(ambient.demandId)) shouldBe listOf(ambient)
+			database.isSourceCaptureAdmissionFenced(kind.stableCode) shouldBe false
+			io.mockk.verify(exactly = if (kind == SourceKind.WIFI) 1 else 0) { wifiBackend.start(any()) }
+			io.mockk.verify(exactly = if (kind == SourceKind.CELL) 1 else 0) { cellBackend.start(any(), any()) }
+			io.mockk.verify(exactly = 0) { wifiBackend.stop() }
+			io.mockk.verify(exactly = 0) { cellBackend.stop() }
+		} finally {
+			kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+				try { withTimeout(3_000L) { wifiRuntime?.close(); cellRuntime?.close() } }
+				finally { runtimeJob.cancel(); withTimeout(3_000L) { runtimeJob.join() } }
+			}
+		}
+	}
+
+	private suspend fun locationSessionRemovalFixture(acknowledgeBeforeRemoval: Boolean = false): LocationSessionRemovalFixture {
+		// This fixture is prepared before any Location demand/authorization is published. The
+		// common fixture intentionally omits Location ambient; production policy remains immutable.
+		database.withTransaction {
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_policy SET ambient_persistence_eligible = 1, ambient_consent_epoch = 8 " +
+					"WHERE policy_revision = 5 AND source_kind = 1")
+			database.sourcePolicyDao().insertConsentEpochs(listOf(SourceConsentEpochEntity(
+				SourceKind.LOCATION.stableCode, SourceBrokerPurpose.AMBIENT_PRODUCT, 8L, true,
+				true, 5L, "boot-7", 1L, 1L, "TEST_LOCATION_CALLBACK_BOUNDARY")))
+		}
+		retentionReader.installCurrent(database, TrackingSourceComponent.LOCATION, 5L, 8L, 3L, "boot-7")
+		val capture = demand("location-capture", "session:location", SourceBrokerPurpose.SESSION_CAPTURE,
+			"location", 1L, true, SourceKind.LOCATION)
+		val ambient = demand("location-ambient", "app:location-ambient", SourceBrokerPurpose.AMBIENT_PRODUCT,
+			null, null, true, SourceKind.LOCATION)
+		database.sourceBrokerDao().insertDemands(listOf(capture, ambient))
+		val before = subject.begin(SourceKind.LOCATION, 1L, PHYSICAL_CONFIG, 110L, 110L)
+		subject.markAccepted(before, 120L, 120L)
+		if (acknowledgeBeforeRemoval) database.sourceBrokerDao().acknowledgeCaptureCallbackBarrier(
+			SourceKind.LOCATION.stableCode, before.state.registrationGeneration,
+			before.state.sourceInstanceId, before.authorization.authorizationRevision) shouldBe 1
+		database.withTransaction { database.fenceSourcePurposesInTransaction(SourceKind.LOCATION.stableCode,
+			listOf(SourceBrokerPurpose.SESSION_CAPTURE), "boot-7", 200L, 200L) }
+		val after = requireNotNull(subject.refreshActiveAuthorization(SourceKind.LOCATION, before, 2L,
+			PHYSICAL_CONFIG, 210L, 210L))
+		return LocationSessionRemovalFixture(capture, ambient, before, after)
+	}
+
+	private data class LocationSessionRemovalFixture(val capture: SourceDemandEntity, val ambient: SourceDemandEntity,
+		val before: SourceRegistration, val after: SourceRegistration)
 
 	private fun demand(
 		id: String,

@@ -2,14 +2,19 @@ package com.adsamcik.tracker.tracker.api
 
 import android.content.Context
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicySnapshot
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.service.manualTrackingSourceCapabilities
-import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
-import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetup
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Provider
@@ -20,16 +25,32 @@ import javax.inject.Singleton
 class DefaultManualTrackingStartReadinessReader @Inject constructor(
 	@ApplicationContext private val context: Context,
 	private val startupGateProvider: Provider<TrackingStartupGate>,
-	private val rolloutStateStoreProvider: Provider<TrackingRolloutStateStore>,
 	private val sourcePolicyRepositoryProvider: Provider<SourcePolicyRepository>,
+	private val chosenSourceWriterSetupProvider: Provider<ChosenSourceWriterSetup>,
+	private val trackingParamsRepositoryProvider: Provider<TrackingParamsRepository>,
 ) : ManualTrackingStartReadinessReader {
 	override suspend fun read(): ManualTrackingStartReadiness = readPreflight().readiness
+
+	override fun changes(): Flow<Unit> = combine(sourcePolicyRepositoryProvider.get().states,
+		chosenSourceWriterSetupProvider.get().stateChanges(),
+		trackingParamsRepositoryProvider.get().data.map { it.sourcePolicyRevision }.distinctUntilChanged()) { _, _, _ -> Unit }
+
+	override suspend fun preparePreflight(): ManualTrackingStartPreflight {
+		// An explicit Start may follow a fully handled End whose Ready publication is still stale.
+		// Reconcile before setup and outside any Ready-generation operation or persistence lease.
+		if (startupGateProvider.get().reconcile() !is TrackingStartupResult.Ready) {
+			return ManualTrackingStartPreflight(ManualTrackingStartReadiness.TrackingUnavailable, null)
+		}
+		val policy = sourcePolicyRepositoryProvider.get().currentState() as? SourcePolicyAuthorityState.Active
+		if (policy != null) chosenSourceWriterSetupProvider.get().ensure(policy.snapshot.policies.values
+			.filter { it.capturePersistenceEligible }.mapTo(linkedSetOf()) { it.source.toSourceKind() })
+		return readPreflight()
+	}
 
 	override suspend fun readPreflight(): ManualTrackingStartPreflight {
 		val startupGate = startupGateProvider.get()
 		val startupGeneration = startupGate.currentGeneration
 		return startupGate.withReadyGenerationOperation(startupGeneration) {
-			val rollout = rolloutStateStoreProvider.get().load()
 			val policyState = sourcePolicyRepositoryProvider.get().currentState()
 			if (policyState !is SourcePolicyAuthorityState.Active) {
 				return@withReadyGenerationOperation ManualTrackingStartPreflight(
@@ -39,15 +60,15 @@ class DefaultManualTrackingStartReadinessReader @Inject constructor(
 			val enabledSources = policyState.snapshot.policies.values
 				.filter { policy -> policy.enabled && policy.capturePersistenceEligible }
 				.mapTo(linkedSetOf()) { policy -> policy.source.toSourceKind() }
-			val reachableSources = SourceKind.entries.filterTo(linkedSetOf()) { source ->
-				rollout.isCaptureReachable(
-					source,
-					CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
-				)
-			}
+			val setup = chosenSourceWriterSetupProvider.get().readReadiness(enabledSources)
+			val rolloutRevision = setup.rolloutRevision ?: return@withReadyGenerationOperation ManualTrackingStartPreflight(
+				if (enabledSources.isEmpty()) ManualTrackingStartReadiness.NoAvailableCaptureSource
+				else ManualTrackingStartReadiness.SetupPending, policyState.snapshot.manualStartSelection())
+			// READY already proves the exact canonical binding, both prospective capture modes and owner in that snapshot.
+			val reachableSources = setup.readySources
 			val capabilities = context.manualTrackingSourceCapabilities()
 			val readiness = resolveManualTrackingStartReadiness(
-				rolloutRevision = rollout.revision,
+				rolloutRevision = rolloutRevision,
 				enabledSources = enabledSources.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
 				reachableSources = reachableSources.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
 				supportedSources = capabilities.supportedSources
@@ -66,7 +87,10 @@ class DefaultManualTrackingStartReadinessReader @Inject constructor(
 				sourcesBlockedByLocationServices = capabilities.sourcesBlockedByLocationServices
 					.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
 			)
-			ManualTrackingStartPreflight(readiness, policyState.snapshot.manualStartSelection())
+			val pending = setup.pendingSources.any(capabilities.supportedSources::contains) &&
+				(readiness == ManualTrackingStartReadiness.TrackingUnavailable || readiness == ManualTrackingStartReadiness.NoAvailableCaptureSource)
+			ManualTrackingStartPreflight(if (pending) ManualTrackingStartReadiness.SetupPending else readiness,
+				policyState.snapshot.manualStartSelection())
 		} ?: ManualTrackingStartPreflight(ManualTrackingStartReadiness.TrackingUnavailable, null)
 	}
 }

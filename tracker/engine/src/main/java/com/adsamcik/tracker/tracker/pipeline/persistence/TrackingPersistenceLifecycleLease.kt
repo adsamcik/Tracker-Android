@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.pipeline.persistence
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 
@@ -26,6 +27,9 @@ internal interface TrackingPersistenceLifecycleLease {
 
 	suspend fun <T> withOfflineLocationRecovery(block: suspend () -> T): T
 
+	/** Setup must not wait behind an offline cleanup permit retained for a later recovery attempt. */
+	suspend fun <T : Any> tryWithOfflineLocationRecovery(block: suspend () -> T): T?
+
 	suspend fun <T> withPressureWriterTransition(block: suspend () -> T): T
 
 	suspend fun <T> withLegacySourceWriterTransition(block: suspend () -> T): T
@@ -44,6 +48,16 @@ internal class ExclusiveTrackingPersistenceLifecycleLease @Inject constructor() 
 
 	override suspend fun <T> withOfflineLocationRecovery(block: suspend () -> T): T =
 		withPermit(TrackingPersistenceLifecycleMode.OFFLINE_LOCATION_RECOVERY, block)
+
+	override suspend fun <T : Any> tryWithOfflineLocationRecovery(block: suspend () -> T): T? {
+		kotlinx.coroutines.currentCoroutineContext().ensureActive()
+		val owner = Any()
+		if (!mutex.tryLock(owner)) return null
+		val permit = Permit(TrackingPersistenceLifecycleMode.OFFLINE_LOCATION_RECOVERY, mutex, owner)
+		return try { block() } finally {
+			withContext(NonCancellable) { permit.release() }
+		}
+	}
 
 	override suspend fun <T> withPressureWriterTransition(block: suspend () -> T): T =
 		withPermit(TrackingPersistenceLifecycleMode.PRESSURE_WRITER_TRANSITION, block)

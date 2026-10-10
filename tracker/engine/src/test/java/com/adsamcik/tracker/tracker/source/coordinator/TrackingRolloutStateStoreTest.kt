@@ -46,7 +46,7 @@ class TrackingRolloutStateStoreTest {
 	fun tearDown() = database.close()
 
 	@Test
-	fun `unassembled automatic location and radio contracts are not executable`() {
+	fun `missing writer identity and repurposed radio generation masks are not executable`() {
 		val catalog = ExecutableSourceLaneCatalog()
 		catalog.bindingFor(SourceKind.LOCATION, 1L, null, null) shouldBe null
 		listOf(
@@ -957,6 +957,120 @@ class TrackingRolloutStateStoreTest {
 				zoneId = "Europe/Prague",
 			),
 		).shouldBeInstanceOf<SessionStartResult.InvalidRollout>()
+	}
+
+	@Test
+	fun `final catalog recognizes exact manual and automatic bindings without repurposing originals`() {
+		val catalog = ExecutableSourceLaneCatalog()
+		val originals = listOf(
+			ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V1,
+			ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS_V1,
+			ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS_V1,
+			ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS_V1,
+			ExecutableSourceLaneCatalog.CELL_SESSION_FACTS_V1,
+		)
+		val finals = listOf(
+			ExecutableSourceLaneCatalog.PREFERRED_LOCATION_CANONICAL_HANDOFF,
+			ExecutableSourceLaneCatalog.PREFERRED_ACTIVITY_SESSION_FACTS,
+			ExecutableSourceLaneCatalog.PREFERRED_PRESSURE_SESSION_FACTS,
+			ExecutableSourceLaneCatalog.PREFERRED_WIFI_SESSION_FACTS,
+			ExecutableSourceLaneCatalog.PREFERRED_CELL_SESSION_FACTS,
+		)
+		originals.zip(finals).forEach { (original, final) ->
+			catalog.owns(original) shouldBe true
+			catalog.owns(final) shouldBe true
+			original.bindingGeneration shouldBe 1L
+			original.captureModeMask shouldBe 1L
+			final.bindingGeneration shouldBe 2L
+			final.captureModeMask shouldBe 3L
+			final.projectionId shouldBe original.projectionId
+			final.projectionVersion shouldBe original.projectionVersion
+			catalog.bindingForCaptureModeMask(original.source, 1L) shouldBe original
+			catalog.bindingForCaptureModeMask(original.source, 3L) shouldBe final
+			catalog.owns(original.copy(captureModes = final.captureModes)) shouldBe false
+			catalog.owns(final.copy(captureModes = original.captureModes)) shouldBe false
+			catalog.owns(final.copy(bindingGeneration = 3L)) shouldBe false
+			catalog.owns(final.copy(projectionId = "other-writer")) shouldBe false
+		}
+	}
+
+	@Test
+	fun `final source-local lanes require owner four before Room accepts either session mode`() = runTest {
+		val productionStore = RoomTrackingRolloutStateStore(database, ExecutableSourceLaneCatalog())
+		val sources = listOf(
+			Triple(ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS_V2,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY, SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS),
+			Triple(ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS_V2,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE, SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS),
+			Triple(ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS_V2,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI, SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS),
+			Triple(ExecutableSourceLaneCatalog.CELL_SESSION_FACTS_V2,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL, SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS),
+		)
+		sources.forEachIndexed { index, (binding, destination, ownerName) ->
+			database.sourceProjectionStateDao().deleteAllProductLanes()
+			database.sourceProjectionStateDao().deleteAllRegistrations()
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM source_destination_owner WHERE source_kind = ? AND destination = ?",
+				arrayOf(binding.source.stableCode, destination),
+			)
+			val revision = 10L + index
+			database.sourceProjectionStateDao().installProductLane(productLane(binding, revision).copy(
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			))
+			val desired = TrackingRolloutState.eventCanonical(setOf(binding.source), revision = revision,
+				captureModes = mapOf(binding.source to binding.captureModes))
+			shouldThrow<IllegalArgumentException> { productionStore.save(desired, 1_000L) }
+			database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
+				binding.source.stableCode, destination, ownerName, 2L, 1_000L,
+			))
+			shouldThrow<IllegalArgumentException> { productionStore.save(desired, 1_000L) }
+			database.sourceDestinationOwnerDao().compareAndSetOwner(binding.source.stableCode, destination,
+				ownerName, 2L, ownerName, 4L, 1_000L) shouldBe 1
+
+			productionStore.save(desired, 1_000L)
+
+			val accepted = productionStore.load()
+			accepted shouldBe desired
+			accepted.isCaptureReachable(binding.source, CaptureReachabilityMode.MANUAL_SESSION_CAPTURE) shouldBe true
+			accepted.isCaptureReachable(binding.source, CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE) shouldBe true
+			SourceKind.entries.filter { it != binding.source }.forEach { sibling ->
+				accepted.isAcquisitionReachable(sibling) shouldBe false
+			}
+		}
+	}
+
+	@Test
+	fun `both protected Location contracts require the existing owner one`() = runTest {
+		val productionStore = RoomTrackingRolloutStateStore(database, ExecutableSourceLaneCatalog())
+		listOf(ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V1,
+			ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V2).forEachIndexed { index, binding ->
+			database.sourceProjectionStateDao().deleteAllProductLanes()
+			database.sourceProjectionStateDao().deleteAllRegistrations()
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM source_destination_owner WHERE source_kind = ? AND destination = ?",
+				arrayOf(SourceDestinationOwnerEntity.SOURCE_LOCATION, SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION),
+			)
+			val revision = 20L + index * 2L
+			database.sourceProjectionStateDao().installProductLane(productLane(binding, revision).copy(
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			))
+			val desired = TrackingRolloutState.eventCanonical(setOf(SourceKind.LOCATION), revision = revision,
+				captureModes = mapOf(SourceKind.LOCATION to binding.captureModes))
+			shouldThrow<IllegalArgumentException> { productionStore.save(desired, 1_000L) }
+			database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
+				SourceDestinationOwnerEntity.SOURCE_LOCATION, SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+				SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE, 1L, 1_000L,
+			))
+			productionStore.save(desired, 1_000L)
+			productionStore.load() shouldBe desired
+			database.sourceDestinationOwnerDao().compareAndSetOwner(SourceDestinationOwnerEntity.SOURCE_LOCATION,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+				SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE, 1L,
+				SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE, 4L, 1_000L) shouldBe 1
+
+			productionStore.load() shouldBe TrackingRolloutState.contained(revision + 1L)
+		}
 	}
 
 	private suspend fun installSteps(): SourceProductLaneActivation =

@@ -377,12 +377,16 @@ class LocationSourceRuntime @Inject internal constructor(
 		run {
 			val remainingMs = ((cutoff.deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) /
 				LOCATION_NANOS_PER_MILLISECOND).coerceAtLeast(1L)
-			val drained = withTimeoutOrNull(remainingMs) {
+			var drained = false
+			val boundaryPublished = withTimeoutOrNull(remainingMs) {
 				processedCallbackSequence.first { processed ->
 					callbackOfferFailureCoverage.unaccountedRanges(processed, barrier).isEmpty()
 				}
-				true
-			} == true
+				drained = true
+				runCatchingNonCancellation {
+					registrations.publishLocationSessionCaptureCallbackBarrier(activeRegistration)
+				}.getOrDefault(false)
+			}
 			val admission = metrics.snapshot()
 			SourceStopAck(
 				source = source,
@@ -399,7 +403,11 @@ class LocationSourceRuntime @Inject internal constructor(
 				providerFlushOutcome = ProviderFlushOutcome.NOT_REQUESTED,
 				providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
 				appDrainComplete = drained,
-				status = if (drained) SourceStopStatus.COMPLETE else SourceStopStatus.TIMED_OUT,
+				status = when (boundaryPublished) {
+					true -> SourceStopStatus.COMPLETE
+					null -> SourceStopStatus.TIMED_OUT
+					false -> SourceStopStatus.PARTIAL_UNOBSERVABLE
+				},
 			)
 		}
 	}

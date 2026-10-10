@@ -44,6 +44,13 @@ internal class ManualStartTestAuthority : TrackingLifecycleCommandAuthority by m
 	}
 }
 
+internal suspend fun testManualStartEnqueue(
+	authority: TrackingLifecycleCommandAuthority,
+	continuation: ManualTrackingStartContinuation,
+): TrackingStartDispatchResult = if (authority.consumeManualStart(continuation.command.generation,
+	continuation.selection) == continuation.command) TrackingStartDispatchResult.Enqueued
+	else TrackingStartDispatchResult.Terminal("MANUAL_START_CONTINUATION_SUPERSEDED")
+
 class ManualTrackingStartContinuationTest {
 	private val repair = ManualTrackingStartReadiness.RepairRequired(ManualTrackingStartPrerequisite.READ_PHONE_STATE_PERMISSION)
 	private val ready = ManualTrackingStartReadiness.Ready(1L)
@@ -54,7 +61,7 @@ class ManualTrackingStartContinuationTest {
 		var enqueued: ManualTrackingStartContinuation? = null
 		suspend fun request(generation: Long?, readiness: ManualTrackingStartReadiness) =
 			executeManualTrackingStartContinuation(generation, authority, { testManualStartPreflight(readiness) }) {
-				enqueued = it; true
+				enqueued = it; testManualStartEnqueue(authority, it)
 			}
 		request(null, repair) shouldBe ManualTrackingStartResult.RepairRequired(repair.prerequisite, 1L)
 		request(1L, ManualTrackingStartReadiness.RepairRequired(ManualTrackingStartPrerequisite.PRECISE_LOCATION_PERMISSION))
@@ -107,7 +114,7 @@ class ManualTrackingStartContinuationTest {
 				reading.complete(Unit)
 				release.await()
 				testManualStartPreflight(ready)
-			}) { enqueued = true; true }
+			}) { enqueued = true; testManualStartEnqueue(authority, it) }
 		}
 		reading.await()
 		// A screen invalidates/cancels its Start immediately, before asynchronous Stop dispatch.
@@ -147,7 +154,8 @@ class ManualTrackingStartContinuationTest {
 		val release = CompletableDeferred<Unit>()
 		val first = async {
 			executeManualTrackingStartContinuation(1L, authority, { testManualStartPreflight(ready) }) {
-				entered.complete(Unit); release.await(); true
+				val delivered = testManualStartEnqueue(authority, it)
+				entered.complete(Unit); release.await(); delivered
 			}
 		}
 		entered.await()
@@ -167,9 +175,80 @@ class ManualTrackingStartContinuationTest {
 			val authority = ManualStartTestAuthority()
 			executeManualTrackingStartContinuation(null, authority, { testManualStartPreflight(repair, selection) }) { error("repair") }
 			executeManualTrackingStartContinuation(1L, authority, { testManualStartPreflight(ready, selection) }) {
-				it.selection shouldBe selection; true
+				it.selection shouldBe selection; testManualStartEnqueue(authority, it)
 			} shouldBe ManualTrackingStartResult.ENQUEUED
 		}
+	}
+
+	@Test
+	fun `setup completion keeps the original Start and unchanged source consent`() = runTest {
+		val authority = ManualStartTestAuthority()
+		executeManualTrackingStartContinuation(null, authority, { testManualStartPreflight(ManualTrackingStartReadiness.SetupPending) }) {
+			error("Pending setup must not prepare Android delivery")
+		} shouldBe ManualTrackingStartResult.SetupPending(1L)
+		executeManualTrackingStartContinuation(1L, authority, { testManualStartPreflight(ready) }) {
+			it.command.generation shouldBe 1L
+			testManualStartEnqueue(authority, it)
+		} shouldBe ManualTrackingStartResult.ENQUEUED
+		authority.reservations shouldBe 1
+		authority.pendingManualStart shouldBe null
+	}
+
+	@Test
+	fun `late preparation quality lag keeps original Start for the next real completion event`() = runTest {
+		val authority = ManualStartTestAuthority()
+		executeManualTrackingStartContinuation(null, authority, { testManualStartPreflight(ready) }) {
+			TrackingStartDispatchResult.SetupPending
+		} shouldBe ManualTrackingStartResult.SetupPending(1L)
+		authority.pendingManualStart?.command?.generation shouldBe 1L
+		executeManualTrackingStartContinuation(1L, authority, { testManualStartPreflight(ready) }) {
+			testManualStartEnqueue(authority, it)
+		} shouldBe ManualTrackingStartResult.ENQUEUED
+		authority.reservations shouldBe 1
+	}
+
+	@Test
+	fun `pending setup cannot survive source consent End Off or user exit changes`() = runTest {
+		val fences: List<(TrackingLifecycleCommandState) -> TrackingLifecycleCommandState> = listOf(
+			{ it.issueStop(TrackingStopCandidateReason.EXPLICIT_REQUEST, 1L).first },
+			{ it.observeUserExit(TRACKING_TURN_OFF_EXIT_PREFIX + "pending-off") },
+			{ it.observeUserExit("pending-user-exit") },
+		)
+		for (fence in fences) {
+			val authority = ManualStartTestAuthority()
+			executeManualTrackingStartContinuation(null, authority, { testManualStartPreflight(ManualTrackingStartReadiness.SetupPending) }) {
+				error("Pending")
+			} shouldBe ManualTrackingStartResult.SetupPending(1L)
+			authority.state = fence(authority.state)
+			executeManualTrackingStartContinuation(1L, authority, { testManualStartPreflight(ready) }) { error("Fenced") }
+				.shouldBe(ManualTrackingStartResult.TRACKING_UNAVAILABLE)
+		}
+		val changed = ManualStartTestAuthority()
+		executeManualTrackingStartContinuation(null, changed, { testManualStartPreflight(ManualTrackingStartReadiness.SetupPending) }) { error("Pending") }
+		executeManualTrackingStartContinuation(1L, changed, { testManualStartPreflight(ready,
+			ManualTrackingStartSelection(mapOf(TrackingCaptureSource.CELL to 2L))) }) { error("Different consent") }
+			.shouldBe(ManualTrackingStartResult.TRACKING_UNAVAILABLE)
+		changed.pendingManualStart shouldBe null
+	}
+
+	@Test
+	fun `concurrent prepared sibling result does not cancel first one-use delivery`() = runTest {
+		val authority = ManualStartTestAuthority()
+		executeManualTrackingStartContinuation(null, authority, { testManualStartPreflight(ManualTrackingStartReadiness.SetupPending) }) { error("Pending") }
+		val prepared = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		val first = async {
+			executeManualTrackingStartContinuation(1L, authority, { testManualStartPreflight(ready) }) {
+				prepared.complete(Unit); release.await(); testManualStartEnqueue(authority, it)
+			}
+		}
+		prepared.await()
+		executeManualTrackingStartContinuation(1L, authority, { testManualStartPreflight(ready) }) {
+			TrackingStartDispatchResult.AlreadyActive
+		} shouldBe ManualTrackingStartResult.TRACKING_UNAVAILABLE
+		authority.pendingManualStart?.command?.generation shouldBe 1L
+		release.complete(Unit)
+		first.await() shouldBe ManualTrackingStartResult.ENQUEUED
 	}
 
 	@Test

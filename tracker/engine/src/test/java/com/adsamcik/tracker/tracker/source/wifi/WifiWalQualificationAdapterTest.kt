@@ -158,6 +158,153 @@ class WifiWalQualificationAdapterTest {
 
 
 	@Test
+	fun `Wi-Fi writer retains named mode agreement when session changes after actual qualification`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val result = writer.write(EVENT_ID) { checkpoint ->
+			if (checkpoint == WifiCapturedWriteCheckpoint.QUALIFIED) {
+				val dao = database.sourceSessionDao()
+				val session = requireNotNull(dao.session(LOGICAL_ID))
+				assertEquals(1, dao.updateSession(session.copy(sessionMode = "AUTOMATIC", automationEpoch = 1L)))
+			}
+		}
+		assertEquals(WifiCapturedWriteResult.Rejected(WifiCapturedWriteRejection.MANIFEST_WRITER_AUTHORITY_MISMATCH), result)
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
+		assertEquals("MANUAL", database.sourceSessionDao().session(LOGICAL_ID)?.sessionMode)
+	}
+
+	@Test
+	fun `final manual Wi-Fi writer keeps original saved details and binding`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		val qualified = assertIs<WifiWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		// Real original qualification; this writer-only case constructs the new named binding.
+		// The g2 adapter/producer chain is tested separately by the shared-setup companion.
+		installWriterContractFixture(2L, "MANUAL", advanceOwner = true)
+		val qualifier = mockk<WifiWalQualificationAdapter>()
+		coEvery { qualifier.qualify(EVENT_ID, any()) } returns qualified
+		val finalWriter = WifiCapturedFactWriter(database, qualifier)
+		val applied = assertIs<WifiCapturedWriteResult.Applied>(finalWriter.write(EVENT_ID))
+		val saved = requireNotNull(database.wifiCapturedFactDao().revision(
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION, applied.logicalFactId, 1L))
+		assertEquals(2L, saved.writerBindingGeneration)
+		assertEquals(4L, saved.writerOwnerGeneration)
+		val children = database.radioObservationChildDao().wifiSessionChildren(
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION, applied.logicalFactId, 1L, 65)
+		assertEquals(2, children.size)
+		assertEquals(EVENT_ID.value, saved.sourceEventId)
+		assertIs<WifiCapturedWriteResult.Unchanged>(finalWriter.write(EVENT_ID))
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `final automatic Wi-Fi writer keeps original saved details and binding`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		val qualified = assertIs<WifiWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		// Real original qualification; this writer-only case constructs the new named binding.
+		// The g2 adapter/producer chain is tested separately by the shared-setup companion.
+		installWriterContractFixture(2L, "AUTOMATIC", advanceOwner = true)
+		val qualifier = mockk<WifiWalQualificationAdapter>()
+		coEvery { qualifier.qualify(EVENT_ID, any()) } returns qualified
+		val finalWriter = WifiCapturedFactWriter(database, qualifier)
+		val applied = assertIs<WifiCapturedWriteResult.Applied>(finalWriter.write(EVENT_ID))
+		val saved = requireNotNull(database.wifiCapturedFactDao().revision(
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION, applied.logicalFactId, 1L))
+		assertEquals(2L, saved.writerBindingGeneration)
+		assertEquals(4L, saved.writerOwnerGeneration)
+		val children = database.radioObservationChildDao().wifiSessionChildren(
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION, applied.logicalFactId, 1L, 65)
+		assertEquals(2, children.size)
+		assertEquals(EVENT_ID.value, saved.sourceEventId)
+		assertIs<WifiCapturedWriteResult.Unchanged>(finalWriter.write(EVENT_ID))
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `original Wi-Fi writer cannot borrow automatic mode or final binding original ownership`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val qualified = assertIs<WifiWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		val qualifier = mockk<WifiWalQualificationAdapter>()
+		coEvery { qualifier.qualify(EVENT_ID, any()) } returns qualified
+		val finalWriter = WifiCapturedFactWriter(database, qualifier)
+		installWriterContractFixture(1L, "AUTOMATIC", advanceOwner = false)
+		assertEquals(WifiCapturedWriteResult.Rejected(WifiCapturedWriteRejection.MANIFEST_WRITER_AUTHORITY_MISMATCH), finalWriter.write(EVENT_ID))
+		installWriterContractFixture(2L, "AUTOMATIC", advanceOwner = false)
+		assertEquals(WifiCapturedWriteResult.Rejected(WifiCapturedWriteRejection.MANIFEST_WRITER_AUTHORITY_MISMATCH), finalWriter.write(EVENT_ID))
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
+	}
+
+	@Test
+	fun `final manual Wi-Fi maintenance authenticates its exact original named writer`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = WIFI_WAL_PAYLOAD_VERSION)
+		val qualified = assertIs<WifiWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		installWriterContractFixture(2L, "MANUAL", advanceOwner = true)
+		val qualifier = mockk<WifiWalQualificationAdapter>()
+		coEvery { qualifier.qualify(EVENT_ID, any()) } returns qualified
+		assertIs<WifiCapturedWriteResult.Applied>(WifiCapturedFactWriter(database, qualifier).write(EVENT_ID))
+		val markedAt = OBSERVED_WALL_MS + 100L
+		database.sourceEvidenceStateDao().synchronizeLifecycle(0L, OBSERVED_WALL_MS, markedAt)
+		assertEquals(WifiCapturedRetentionResult.Pruned(1, 1),
+			maintenance.pruneAffectedByRetentionFloor(OBSERVED_WALL_MS, 0L, 0L, markedAt))
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		val proof = database.capturedRadioFactRetentionProofDao().allForSource(WIFI_SOURCE).single()
+		assertEquals(2L, proof.writerBindingGeneration)
+		assertEquals(4L, proof.writerOwnerGeneration)
+	}
+
+
+	@Test
+	fun `original Wi-Fi maintenance remains valid after the current owner advances to final`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		assertEquals(1, database.sourceDestinationOwnerDao().compareAndSetOwner(WIFI_SOURCE,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
+			SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS, 2L,
+			SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS, 4L, OBSERVED_WALL_MS + 50L))
+		val markedAt = OBSERVED_WALL_MS + 100L
+		database.sourceEvidenceStateDao().synchronizeLifecycle(0L, OBSERVED_WALL_MS, markedAt)
+		assertEquals(WifiCapturedRetentionResult.Pruned(1, 1),
+			maintenance.pruneAffectedByRetentionFloor(OBSERVED_WALL_MS, 0L, 0L, markedAt))
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(1L, database.capturedRadioFactRetentionProofDao().allForSource(WIFI_SOURCE).single().writerBindingGeneration)
+	}
+
+
+	@Test
+	fun `Wi-Fi maintenance does not lend a final named manifest to an original saved fact`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		installWriterContractFixture(2L, "MANUAL", advanceOwner = true)
+		val markedAt = OBSERVED_WALL_MS + 100L
+		database.sourceEvidenceStateDao().synchronizeLifecycle(0L, OBSERVED_WALL_MS, markedAt)
+		assertEquals(WifiCapturedRetentionResult.Blocked(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE),
+			maintenance.pruneAffectedByRetentionFloor(OBSERVED_WALL_MS, 0L, 0L, markedAt))
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(0, database.capturedRadioFactRetentionProofDao().allForSource(WIFI_SOURCE).size)
+	}
+
+
+	@Test
+	fun `Wi-Fi maintenance rejects a contained current owner before mutation`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		assertEquals(1, database.sourceDestinationOwnerDao().compareAndSetOwner(WIFI_SOURCE,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
+			SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS, 2L,
+			SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS, 5L, OBSERVED_WALL_MS + 50L))
+		val markedAt = OBSERVED_WALL_MS + 100L
+		database.sourceEvidenceStateDao().synchronizeLifecycle(0L, OBSERVED_WALL_MS, markedAt)
+		assertEquals(WifiCapturedRetentionResult.Blocked(WifiCapturedRetentionBlockedReason.DESTINATION_OWNER_CHANGED),
+			maintenance.pruneAffectedByRetentionFloor(OBSERVED_WALL_MS, 0L, 0L, markedAt))
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+
+	@Test
 	fun `native Wi-Fi export retains original authority after constructed quality and End operations`() = runTest {
 		installPortableExportFixture()
 		val before = mutableListOf<PortableCapturedWifiEntryV1>()
@@ -2887,6 +3034,99 @@ class WifiWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `exact no-CAP successor lets Wi-Fi cleanup preserve current CONTROL`() =
+		runTest {
+			installValidFixture(candidateWriter = true)
+			assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+			revokeCaptureConsent(keepAmbientAndControl = true)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_policy SET qos_code = 2 WHERE policy_revision = ? AND source_kind = ?",
+				arrayOf<Any?>(REVOKED_POLICY_REVISION, WIFI_SOURCE),
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_demand SET status = 'RETIRING', retire_boot_id = ?, " +
+					"retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
+				arrayOf<Any?>(
+					BOOT_ID,
+					SESSION_END_NANOS + 1L,
+					SESSION_END_WALL_MS + 1L,
+					"$DEMAND_ID-0",
+				),
+			)
+			val control = nonCaptureDemand(41, SourceBrokerPurpose.CONTROL_AUTOSTART, qosCode = 2)
+			val unrelated = control.copy(
+				demandId = "$DEMAND_ID-unrelated-cell",
+				consumerId = "app:cell-control",
+				sourceKind = SourceKind.CELL.stableCode,
+			)
+			database.sourceBrokerDao().insertDemands(listOf(control, unrelated))
+			val activeRegistration = registration(
+				generation = REGISTRATION_GENERATION + 1L,
+				sourceInstance = "$SOURCE_INSTANCE-noncapture",
+			).copy(
+				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+				retiredAtMs = null,
+				retiredElapsedRealtimeNanos = null,
+				captureCallbackBarrierAuthorizationRevision = AUTHORIZATION_REVISION + 2L,
+			)
+			database.sourceBrokerDao().insertRegistration(activeRegistration)
+			val priorCapture = database.sourceBrokerDao().demandsByIds(listOf("$DEMAND_ID-0")).single()
+			database.sourceBrokerDao().insertAuthorizations(SourceBrokerAuthorization.rows(WIFI_SOURCE,
+				activeRegistration.registrationGeneration, AUTHORIZATION_REVISION + 1L, listOf(priorCapture),
+				BOOT_ID, AUTHORIZATION_START_NANOS, RUN_START_WALL_MS))
+			database.sourceBrokerDao().insertAuthorizations(
+				SourceBrokerAuthorization.rows(
+					sourceKind = WIFI_SOURCE,
+					registrationGeneration = activeRegistration.registrationGeneration,
+					authorizationRevision = AUTHORIZATION_REVISION + 2L,
+					demands = listOf(control),
+					effectiveBootId = BOOT_ID,
+					effectiveElapsedRealtimeNanos = SESSION_END_NANOS + 1L,
+					effectiveWallTimeMs = SESSION_END_WALL_MS + 1L,
+				),
+			)
+
+			assertEquals(
+				WifiCapturedSourceDeletionResult.Deleted(1, 1, 1),
+				maintenance.deleteAfterCaptureConsentReset(
+					0L,
+					0L,
+					REVOKED_POLICY_REVISION,
+					REVOKED_CONSENT_EPOCH,
+					DELETE_AT_MS,
+				),
+			)
+
+			val retainedDemands = database.sourceBrokerDao().demandsByIds(
+				listOf("$DEMAND_ID-0", control.demandId, unrelated.demandId),
+			).associateBy(SourceDemandEntity::demandId)
+			assertEquals(
+				SourceDemandEntity.STATUS_RETIRED,
+				retainedDemands.getValue("$DEMAND_ID-0").status,
+			)
+			assertEquals(
+				SourceDemandEntity.STATUS_ACTIVE,
+				retainedDemands.getValue(control.demandId).status,
+			)
+			assertEquals(
+				SourceDemandEntity.STATUS_ACTIVE,
+				retainedDemands.getValue(unrelated.demandId).status,
+			)
+			assertEquals(
+				ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+				database.sourceBrokerDao().registration(
+					WIFI_SOURCE,
+					activeRegistration.registrationGeneration,
+				)?.status,
+			)
+			assertEquals(1L, database.sourceEventWalDao().countAll())
+			assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+			assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
+		}
+
+
+
+	@Test
 	fun `custom Wi-Fi policy preserves actual Ambient QoS zero during capture cleanup`() =
 		runTest {
 			installValidFixture(candidateWriter = true)
@@ -5422,6 +5662,28 @@ class WifiWalQualificationAdapterTest {
 				SESSION_END_WALL_MS + 1L,
 			),
 		)
+	}
+
+
+	/** Constructed immutable writer binding only; actual setup/callback authority is outside this fixture. */
+	private suspend fun installWriterContractFixture(generation: Long, mode: String, advanceOwner: Boolean) {
+		database.withTransaction {
+			val dao = database.sourceSessionDao()
+			val source = dao.manifestSources(LOGICAL_ID, MANIFEST_REVISION).single()
+			val changed = source.copy(writerBindingGeneration = generation, writerOwnerGeneration = generation * 2L)
+			val origin = if (mode == "AUTOMATIC") "AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START"
+			val manifest = requireNotNull(dao.manifest(LOGICAL_ID, MANIFEST_REVISION)).copy(sessionMode = mode, startOrigin = origin)
+			val checksum = SessionManifestIntegrity.compute(manifest, listOf(changed))
+			database.openHelper.writableDatabase.execSQL("UPDATE session_manifest_source SET writer_binding_generation = ?, writer_owner_generation = ? WHERE logical_tracking_id = ? AND manifest_revision = ? AND source_kind = ? AND purpose = ?",
+				arrayOf<Any?>(generation, generation * 2L, LOGICAL_ID, MANIFEST_REVISION, WIFI_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE))
+			database.openHelper.writableDatabase.execSQL("UPDATE session_manifest_version SET session_mode = ?, start_origin = ?, manifest_checksum = ? WHERE logical_tracking_id = ? AND manifest_revision = ?", arrayOf<Any?>(mode, origin, checksum, LOGICAL_ID, MANIFEST_REVISION))
+			dao.updateSession(requireNotNull(dao.session(LOGICAL_ID)).copy(sessionMode = mode, startOrigin = origin))
+			dao.updateServiceRun(requireNotNull(dao.serviceRun(RUN_ID)).copy(startOrigin = origin))
+			if (advanceOwner) assertEquals(1, database.sourceDestinationOwnerDao().compareAndSetOwner(
+				WIFI_SOURCE, SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
+				SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS, 2L,
+				SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS, 4L, OBSERVED_WALL_MS))
+		}
 	}
 
 	private suspend fun installValidFixture(

@@ -59,7 +59,7 @@ class ActivityCapturedFactProjectionLaneTest {
 	fun tearDown() = database.close()
 
 	@Test
-	fun `production catalog keeps the captured Activity writer dormant`() = runTest {
+	fun `production catalog recognizes the original Activity lane without starting its writer`() = runTest {
 		installLane()
 		val adapter = mockk<ActivityCapturedWalAdmissionAdapter>()
 		val writer = mockk<ActivityCapturedFactWriter>()
@@ -68,9 +68,7 @@ class ActivityCapturedFactProjectionLaneTest {
 			database,
 			adapter,
 			writer,
-		).drainThrough(1L) shouldBe ActivityCapturedFactDrainResult.Inactive(
-			ActivityCapturedLaneInactiveReason.BINARY_BINDING_NOT_ENABLED,
-		)
+		).drainAvailable() shouldBe ActivityCapturedFactDrainResult.Complete(0L, windowsApplied = 0, eventsValidated = 0)
 
 		coVerify(exactly = 0) { adapter.admit(any()) }
 		coVerify(exactly = 0) { writer.write(any()) }

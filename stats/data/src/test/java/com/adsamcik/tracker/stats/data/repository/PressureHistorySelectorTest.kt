@@ -11,6 +11,9 @@ import com.adsamcik.tracker.stats.api.repository.HistoryProblem
 import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.loadPressureFactProofSnapshot
+import com.adsamcik.tracker.shared.base.database.PressureFactProofAuthenticator
+import com.adsamcik.tracker.shared.base.database.PressureWalCaptureProof
 import com.adsamcik.tracker.shared.base.database.persistPressureFactRetentionAuthority
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
@@ -34,6 +37,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
@@ -122,6 +126,32 @@ class PressureHistorySelectorTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `final automatic Pressure original contract authenticates actual Room proof and saved windows`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L, writerBindingGeneration = 2L, sessionMode = "AUTOMATIC")
+		val selected = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		selected.windows.single().intervalEndTimeMs shouldBe PRESSURE_END_MS
+		val fact = database.pressureFactRevisionDao().revisionsForWriterAdmission(
+			SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID, SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION, 1L, 2).single()
+		fact.writerBindingGeneration shouldBe 2L
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(fact.sourceEventId))
+		val proof = database.withTransaction { PressureFactProofAuthenticator.authenticateWal(wal,
+			database.loadPressureFactProofSnapshot(listOf(fact), mapOf(fact.sourceEventId to wal), currentClockDomainId = BOOT_ID)) }
+		(proof is PressureWalCaptureProof.Authenticated) shouldBe true
+	}
+
+	@Test
+	fun `original Pressure binding cannot acquire automatic mode from valid carrier and original clocks`() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L, writerBindingGeneration = 1L, sessionMode = "AUTOMATIC")
+		val fact = database.pressureFactRevisionDao().revisionsForWriterAdmission(
+			SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID, SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION, 1L, 2).single()
+		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(fact.sourceEventId))
+		val proof = database.withTransaction { PressureFactProofAuthenticator.authenticateWal(wal,
+			database.loadPressureFactProofSnapshot(listOf(fact), mapOf(fact.sourceEventId to wal), currentClockDomainId = BOOT_ID)) }
+		(proof is PressureWalCaptureProof.Rejected) shouldBe true
+		requireNotNull(selector.selectBySegmentId(fixture.segmentId)).windows shouldBe emptyList()
+	}
 
 	@Test
 	fun `saved Pressure remains readable when UTC moves back after source authorization`() = runTest {
@@ -2635,22 +2665,26 @@ class PressureHistorySelectorTest {
 		factClosureKind: String = PressureFactRevisionEntity.CLOSURE_TARGET_ELAPSED,
 		factQualification: String = PressureFactRevisionEntity.QUALIFICATION_COMPLETE,
 		unavailablePressure: Boolean = false,
+		writerBindingGeneration: Long = 1L,
+		sessionMode: String = MANUAL_SESSION_MODE,
 	): PressureFixture {
 		val segment = segment()
 		database.sessionSegmentDao().insert(segment)
-		val run = serviceRun()
-		database.sourceSessionDao().insertSession(logicalSession())
+		val origin = if (sessionMode == "AUTOMATIC") "AUTOMATIC_BACKGROUND_START" else MANUAL_START_ORIGIN
+		val run = serviceRun().copy(startOrigin = origin)
+		database.sourceSessionDao().insertSession(logicalSession().copy(sessionMode = sessionMode, startOrigin = origin))
 		database.sourceSessionDao().insertServiceRun(run)
-		val binding = pressureBinding()
+		val binding = pressureBinding().copy(writerBindingGeneration = writerBindingGeneration,
+			writerOwnerGeneration = SourceWriterGenerationContract.canonicalOwnerGeneration(writerBindingGeneration))
 		val unsignedManifest = SessionManifestVersionEntity(
 			logicalTrackingId = LOGICAL_ID,
 			manifestRevision = 1L,
 			serviceRunId = RUN_ID,
-			sessionMode = MANUAL_SESSION_MODE,
+			sessionMode = sessionMode,
 			sourcePolicyRevision = 1L,
 			acquisitionPlanRevision = 1L,
 			rolloutRevision = ROLLOUT_REVISION,
-			startOrigin = MANUAL_START_ORIGIN,
+			startOrigin = origin,
 			effectiveBootId = BOOT_ID,
 			effectiveElapsedRealtimeNanos = RUN_START_ELAPSED_NANOS,
 			effectiveWallTimeMs = RUN_START_MS,
@@ -2674,7 +2708,8 @@ class PressureHistorySelectorTest {
 				captureAdmissionCutoffOrdinal = laneCutoffOrdinal,
 				retentionRequired = laneRetentionRequired,
 				status = laneStatus,
-			),
+			).copy(bindingGeneration = writerBindingGeneration,
+				captureModeMask = requireNotNull(SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration))),
 		)
 		database.sourceSessionDao().saveCompleteness(
 			SourceSessionCompletenessEntity(
@@ -3437,7 +3472,7 @@ class PressureHistorySelectorTest {
 			sourceAdmissionOrdinal = admissionOrdinal,
 			writerProjectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
 			writerProjectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
-			writerBindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+			writerBindingGeneration = requireNotNull(binding.writerBindingGeneration),
 			payloadVersion = PressureFactRevisionEntity.QUALIFIED_PRESSURE_PAYLOAD_VERSION,
 			intervalStartTimeMs = intervalStartTimeMs,
 			intervalEndTimeMs = intervalEndTimeMs,
@@ -3729,10 +3764,10 @@ class PressureHistorySelectorTest {
 
 	private fun executableLaneAuthority() = SourceProductLaneExecutionAuthority { lane ->
 		lane.sourceKind == SourceDestinationOwnerEntity.SOURCE_PRESSURE &&
-			lane.bindingGeneration == SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION &&
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(lane.bindingGeneration) != null &&
 			lane.projectionId == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID &&
 			lane.projectionVersion == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION &&
-			lane.captureModeMask == MANUAL_CAPTURE_MASK
+			lane.captureModeMask == SourceWriterGenerationContract.captureModeMaskForKnownBinding(lane.bindingGeneration)
 	}
 
 	private fun pressureAwareRepository(): DefaultTrackingHistoryRepository {

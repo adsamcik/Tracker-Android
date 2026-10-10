@@ -32,8 +32,11 @@ class ToggleTrackingAction : ActionCallback {
             } else {
                 val result = TrackerServiceApi.requestManualTrackingStart(context)
                 if (result != ManualTrackingStartResult.ENQUEUED) {
-                    openDashboard(context, (result as? ManualTrackingStartResult.RepairRequired)
-                        ?.continuationGeneration)
+                    openDashboard(context, when (result) {
+                        is ManualTrackingStartResult.RepairRequired -> result.continuationGeneration
+                        is ManualTrackingStartResult.SetupPending -> result.continuationGeneration
+                        else -> null
+                    })
                 }
             }
             // Allow state to propagate before refreshing widgets.

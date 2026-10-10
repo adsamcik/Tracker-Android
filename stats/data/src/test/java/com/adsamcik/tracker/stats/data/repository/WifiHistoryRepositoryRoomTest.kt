@@ -21,6 +21,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
@@ -131,6 +132,38 @@ class WifiHistoryRepositoryRoomTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `final automatic Wi-Fi saved history uses its named binding in organized and measured views`() = runTest {
+		val group = withWriterContract(v6RotatedGroup(buildGroup(995, 1, setOf(0)), excludeFirst = false), 2L, "AUTOMATIC")
+		persist(listOf(group), writerBindingGeneration = 2L)
+		persistV6Children(group)
+		val entry = (repository { true }.session(group.runs.single().segment.id) as WifiHistoryQuery.Found).entry
+		entry.observations.isNotEmpty() shouldBe true
+		entry.observations.map { it.observedTime.raw } shouldBe group.runs.single().facts.map { it.observedWallTimeMs }.distinct()
+		val fact = group.runs.single().facts.first()
+		val selected = database.withTransaction { repository { true }.measuredFactInTransaction(fact.logicalFactId, fact.semanticRevision) }
+		selected?.observation shouldBe entry.observations.first()
+		selected?.children?.isNotEmpty() shouldBe true
+
+	}
+
+	@Test
+	fun `saved Wi-Fi cannot borrow a final manifest for original facts or a manual mask for automatic capture`() = runTest {
+		val group = withWriterContract(v6RotatedGroup(buildGroup(995, 1, setOf(0)), excludeFirst = false), 2L, "AUTOMATIC")
+		persist(listOf(group), writerBindingGeneration = 2L)
+		persistV6Children(group)
+		database.openHelper.writableDatabase.execSQL("UPDATE source_product_projection_lane SET capture_mode_mask = 1 WHERE source_kind = ? AND binding_generation = 2", arrayOf(WIFI_SOURCE))
+		val invalidMask = (repository { true }.session(group.runs.single().segment.id) as WifiHistoryQuery.Found).entry
+		invalidMask.observations shouldBe emptyList()
+		database.openHelper.writableDatabase.execSQL("UPDATE source_product_projection_lane SET capture_mode_mask = 3 WHERE source_kind = ? AND binding_generation = 2", arrayOf(WIFI_SOURCE))
+		val fact = group.runs.single().facts.first()
+		val changed = fact.copy(writerBindingGeneration = 1L, writerOwnerGeneration = 2L)
+		val checksum = WifiCapturedFactRevisionIntegrity.effectChecksum(changed)
+		database.openHelper.writableDatabase.execSQL("UPDATE wifi_captured_fact_revision SET writer_binding_generation = 1, writer_owner_generation = 2, effect_checksum = ? WHERE logical_fact_id = ? AND semantic_revision = ?", arrayOf<Any?>(checksum, fact.logicalFactId, fact.semanticRevision))
+		database.openHelper.writableDatabase.execSQL("UPDATE wifi_captured_fact_cursor SET writer_owner_generation = 2, latest_effect_checksum = ? WHERE logical_fact_id = ?", arrayOf<Any?>(checksum, fact.logicalFactId))
+		(repository { true }.session(group.runs.single().segment.id) as WifiHistoryQuery.Found).entry.observations shouldBe emptyList()
+	}
 
 	@Test
 	fun `measured Wi-Fi preserves original nonconsecutive item index without claiming a whole session`() = runTest {
@@ -1565,9 +1598,30 @@ class WifiHistoryRepositoryRoomTest {
 		entry.selection shouldBe null
 	}
 
+	/** Source-only original/final contract fixture; no Android or setup activation. */
+	private fun withWriterContract(group: Group, generation: Long, mode: String): Group {
+		val origin = if (mode == "AUTOMATIC") "AUTOMATIC_BACKGROUND_START" else START_ORIGIN
+		return group.copy(session = group.session.copy(sessionMode = mode, startOrigin = origin),
+			runs = group.runs.map { run ->
+				val source = run.source.copy(writerBindingGeneration = generation, writerOwnerGeneration = generation * 2L)
+				val unsignedManifest = run.manifest.copy(sessionMode = mode, startOrigin = origin)
+				val manifest = unsignedManifest.copy(manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, listOf(source)))
+				val facts = run.facts.map { original ->
+					val changed = original.copy(writerBindingGeneration = generation, writerOwnerGeneration = generation * 2L)
+					changed.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(changed))
+				}
+				val cursors = run.cursors.map { cursor ->
+					val current = facts.single { it.logicalFactId == cursor.logicalFactId && it.semanticRevision == cursor.latestSemanticRevision }
+					cursor.copy(writerOwnerGeneration = generation * 2L, latestEffectChecksum = current.effectChecksum)
+				}
+				run.copy(run = run.run.copy(startOrigin = origin), source = source, manifest = manifest, facts = facts, cursors = cursors)
+			})
+	}
+
 	private suspend fun persist(
 		groups: List<Group>,
 		evidence: SourceEvidenceState = SourceEvidenceState(collectedDataEpoch = 0L),
+		writerBindingGeneration: Long = 1L,
 	) {
 		val runs = groups.flatMap(Group::runs)
 		val sessionDao = database.sourceSessionDao()
@@ -1592,7 +1646,8 @@ class WifiHistoryRepositoryRoomTest {
 		brokerDao.insertAuthorizations(runs.flatMap(BuiltRun::authorizations))
 		sessionDao.insertLifecycleActions(runs.flatMap(BuiltRun::actions))
 		database.sourceProjectionStateDao().installProductLane(lane(runs.flatMap(BuiltRun::facts)
-			.maxOfOrNull(WifiCapturedFactRevisionEntity::sourceAdmissionOrdinal) ?: 1L))
+			.maxOfOrNull(WifiCapturedFactRevisionEntity::sourceAdmissionOrdinal) ?: 1L).copy(
+			bindingGeneration = writerBindingGeneration, captureModeMask = requireNotNull(SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration))))
 		runs.mapNotNull(BuiltRun::completeness).forEach { sessionDao.saveCompleteness(it) }
 		runs.flatMap(BuiltRun::admissions).forEach { database.sourceEventWalDao().insertIgnoringDuplicate(it) }
 		runs.flatMap(BuiltRun::facts).sortedWith(compareBy(

@@ -12,6 +12,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -234,6 +235,20 @@ class SharedCellSourceController @Inject constructor(
 		quiesceLocked(cutoff).toOwnedShutdown().also { shutdown ->
 			if (shutdown is OwnedSourceShutdown.Released) sessionClaim = null
 		}
+	}
+
+	/** Finishes only a resident no-CAP callback prefix; setup never starts a provider. */
+	internal suspend fun prepareSessionCaptureBoundary(deadlineElapsedRealtimeNanos: Long): Boolean {
+		val remainingMs = (deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) / 1_000_000L
+		if (remainingMs <= 0L) return false
+		return withTimeoutOrNull(remainingMs) {
+			mutex.withLock {
+				if (sessionPlan != null || sessionClaim != null || sourceBroker.authorizationDemands(source).any {
+					it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+				}) return@withLock false
+				physicalRuntime.prepareSessionCaptureBoundary(deadlineElapsedRealtimeNanos)
+			}
+		} == true
 	}
 
 	internal suspend fun reconcileAmbientJoin(): AmbientCellRuntimeJoinResult = mutex.withLock {

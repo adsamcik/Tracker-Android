@@ -21,6 +21,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
@@ -92,7 +93,7 @@ internal object WifiHistoryComposer {
 		}
 		check(hasValidCaptureAuthority(manifests, bindings, snapshot))
 		val manifest = requireNotNull(manifests.singleOrNull { it.manifestRevision == fact.manifestRevision })
-		val lane = requireNotNull(snapshot.lanes.singleOrNull(::isWifiLane))
+		val lane = requireNotNull(snapshot.lanes.singleOrNull { isWifiLane(it) && it.bindingGeneration == fact.writerBindingGeneration })
 		val mode = when (manifest.sessionMode) { "MANUAL" -> MANUAL_CAPTURE_MASK; "AUTOMATIC" -> AUTOMATIC_CAPTURE_MASK; else -> 0L }
 		check(laneExecutionAuthority.owns(lane) && isValidLane(lane) && mode != 0L &&
 			lane.captureModeMask and mode == mode && lane.activatedRolloutRevision <= manifest.rolloutRevision &&
@@ -279,7 +280,8 @@ internal object WifiHistoryComposer {
 			return failed(logicalId, segments, WifiHistoryCause.PLAN_INTEGRITY_FAILED)
 		}
 
-		val lane = snapshot.lanes.singleOrNull(::isWifiLane)
+		val originalBinding = bindings.values.map(SessionManifestSourceEntity::writerBindingGeneration).distinct().singleOrNull()
+		val lane = snapshot.lanes.singleOrNull { isWifiLane(it) && it.bindingGeneration == originalBinding }
 		val modeMask = manifests.fold(0L) { mask, manifest -> mask or when (manifest.sessionMode) {
 			"MANUAL" -> MANUAL_CAPTURE_MASK
 			"AUTOMATIC" -> AUTOMATIC_CAPTURE_MASK
@@ -888,8 +890,8 @@ internal object WifiHistoryComposer {
 			else fact.authorizationEffectStartNanos)
 		return fact.writerProjectionId == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID &&
 			fact.writerProjectionVersion == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION &&
-			fact.writerBindingGeneration == SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION &&
-			fact.writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION &&
+			fact.writerBindingGeneration == binding.writerBindingGeneration &&
+			fact.writerOwnerGeneration == binding.writerOwnerGeneration &&
 			fact.purpose == SourceBrokerPurpose.SESSION_CAPTURE && isExactWifiWriter(binding) &&
 			fact.sessionSegmentId == run.sessionSegmentId && fact.logicalTrackingId == run.logicalTrackingId &&
 			fact.manifestRevision == manifest.manifestRevision &&
@@ -1238,18 +1240,19 @@ internal object WifiHistoryComposer {
 			source.persistenceEligible &&
 			source.outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI &&
 			source.writerOwner == SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS &&
-			source.writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION &&
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(source.writerBindingGeneration ?: -1L) != null &&
+			source.writerOwnerGeneration == source.writerBindingGeneration?.let(SourceWriterGenerationContract::canonicalOwnerGeneration) &&
 			source.writerProjectionId == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID &&
 			source.writerProjectionVersion == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION &&
-			source.writerBindingGeneration == SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION
+			source.writerBindingGeneration != null
 
 	private fun isWifiLane(lane: SourceProductProjectionLaneEntity): Boolean = lane.sourceKind == WIFI_SOURCE &&
-		lane.bindingGeneration == SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION &&
+		SourceWriterGenerationContract.captureModeMaskForKnownBinding(lane.bindingGeneration) != null &&
 		lane.projectionId == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID &&
 		lane.projectionVersion == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION
 
 	private fun isValidLane(lane: SourceProductProjectionLaneEntity): Boolean {
-		if (lane.captureModeMask <= 0L || lane.captureModeMask and ALL_CAPTURE_MASK.inv() != 0L ||
+		if (lane.captureModeMask != SourceWriterGenerationContract.captureModeMaskForKnownBinding(lane.bindingGeneration) ||
 			lane.productStage !in PRODUCT_STAGES || lane.activatedRolloutRevision <= 0L ||
 			lane.activationOrdinal <= 0L || lane.contiguousAdmissionOrdinal < lane.activationOrdinal - 1L ||
 			lane.installedAtMs < 0L || lane.updatedAtMs < lane.installedAtMs ||
@@ -1355,7 +1358,6 @@ internal object WifiHistoryComposer {
 	private const val CAPTURED_PLAN_ORDINAL = 0
 	private const val MANUAL_CAPTURE_MASK = 1L
 	private const val AUTOMATIC_CAPTURE_MASK = 2L
-	private const val ALL_CAPTURE_MASK = MANUAL_CAPTURE_MASK or AUTOMATIC_CAPTURE_MASK
 	private const val NANOS_PER_MILLISECOND = 1_000_000L
 	private val PRODUCT_STAGES = setOf(
 		SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,

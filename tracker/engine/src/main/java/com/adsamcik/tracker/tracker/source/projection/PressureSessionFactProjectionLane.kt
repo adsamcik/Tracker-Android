@@ -14,6 +14,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
@@ -43,7 +44,7 @@ import kotlinx.coroutines.sync.withLock
  * Dormant bounded source-local writer for qualified session Pressure facts.
  *
  * An installed shadow lane validates retained source evidence and advances only its own cursor. It
- * never writes facts or publishes evidence. Canonical writes require the exact immutable manual
+ * never writes facts or publishes evidence. Canonical writes require the exact immutable
  * Pressure binding, candidate destination ownership, and agreeing manifest provenance. The legacy
  * PressureSample writer and all readers remain untouched until a separate explicit cutover.
  */
@@ -453,7 +454,7 @@ class PressureSessionFactProjectionLane private constructor(
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
 			)
 			if (owner?.owner != SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS ||
-				owner.ownerGeneration != SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+				owner.ownerGeneration != SourceWriterGenerationContract.canonicalOwnerGeneration(current.bindingGeneration)
 			) {
 				throw PressureLaneAuthorityChangedException("PRESSURE_DESTINATION_OWNER_CHANGED")
 			}
@@ -464,7 +465,9 @@ class PressureSessionFactProjectionLane private constructor(
 	@Suppress("CyclomaticComplexMethod") // The complete immutable execution binding is a single guard.
 	private fun isExecutableLane(lane: SourceProductProjectionLaneEntity): Boolean {
 		val binding = executableLaneCatalog.bindingFor(lane) ?: return false
-		return binding == ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS &&
+		return binding.source == SourceKind.PRESSURE && binding.projectionId == WRITER_ID &&
+			binding.projectionVersion == WRITER_VERSION &&
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(binding.bindingGeneration) == binding.captureModeMask &&
 			lane.productStage in EXECUTABLE_STAGES &&
 			lane.activatedRolloutRevision > 0L &&
 			lane.activationOrdinal > 0L &&
@@ -698,7 +701,7 @@ class PressureSessionFactProjectionLane private constructor(
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
 			) ?: poison("PRESSURE_DESTINATION_OWNER_MISSING")
 			if (owner.owner != SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS ||
-				owner.ownerGeneration != SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION ||
+				owner.ownerGeneration != SourceWriterGenerationContract.canonicalOwnerGeneration(lane.bindingGeneration) ||
 				manifestBinding.outputDestination != owner.destination ||
 				manifestBinding.writerOwner != owner.owner ||
 				manifestBinding.writerOwnerGeneration != owner.ownerGeneration
@@ -853,12 +856,18 @@ class PressureSessionFactProjectionLane private constructor(
 				projectionVersion = binding.writerProjectionVersion,
 			)
 		} ?: poison("PRESSURE_MANIFEST_PROJECTION_MISMATCH")
-		if (executableBinding != ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS) {
+		if (executableBinding.source != SourceKind.PRESSURE || executableBinding.projectionId != WRITER_ID ||
+			executableBinding.projectionVersion != WRITER_VERSION ||
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(executableBinding.bindingGeneration) != executableBinding.captureModeMask
+		) {
 			poison("PRESSURE_MANIFEST_PROJECTION_MISMATCH")
 		}
-		if (sessionMode != "MANUAL" ||
-			CaptureReachabilityMode.MANUAL_SESSION_CAPTURE !in executableBinding.captureModes
-		) {
+		val mode = when (sessionMode) {
+			"MANUAL" -> CaptureReachabilityMode.MANUAL_SESSION_CAPTURE
+			"AUTOMATIC" -> CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE
+			else -> null
+		}
+		if (mode == null || mode !in executableBinding.captureModes) {
 			poison("PRESSURE_MANIFEST_CAPTURE_MODE_MISMATCH")
 		}
 	}

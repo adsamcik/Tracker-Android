@@ -68,6 +68,7 @@ import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalPe
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalPersistenceGuard
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalSignalIdentity
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationVerifiedWrite
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationQualifiedCandidate
 import com.adsamcik.tracker.tracker.source.location.recordProtectedLocationCanonicalReceiptInCurrentTransaction
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.MotionState
@@ -275,6 +276,16 @@ class PersistenceProcessor @Inject internal constructor(
 		} finally {
 			recoveryMutex.unlock()
 		}
+	}
+
+	/** Caller owns the offline Location lease and coordinator lease until the metadata transaction ends. */
+	internal suspend fun <T : Any> withLocationWriterSetupQuiesced(operation: suspend () -> T): T? {
+		if (!recoveryMutex.tryLock()) return null
+		return try {
+			if (hasUnsettledPersistenceStateForPressureFence() ||
+				appDatabaseProvider.get().pendingSignalDao().countAll() != 0
+			) null else operation()
+		} finally { recoveryMutex.unlock() }
 	}
 
 	private data class BufferedLocationDecision(
@@ -1095,11 +1106,13 @@ class PersistenceProcessor @Inject internal constructor(
 			val revised = if (sourceRevision == null) sample else sample.copy(sourceRevision = sourceRevision)
 			revised.toEntity()
 		}
-		val revisedDecisions = buildLocationDecisions(decisions, sourceRevision)
+		val preparedDecisions = buildLocationDecisions(decisions, sourceRevision)
+		val revisedDecisions = preparedDecisions.decisions
 		val protectedWrites = verifyProtectedLocationCanonicalWrites(
 			revisedObservations,
 			revisedLocations,
 			revisedDecisions,
+			preparedDecisions.qualifiedByEvent,
 		)
 		// Raw evidence must exist before an accepted sample or decision is committed. This makes a
 		// missing raw source a retryable transaction failure instead of silently weakening replay.
@@ -1177,6 +1190,7 @@ class PersistenceProcessor @Inject internal constructor(
 		observations: List<LocationObservation>,
 		locations: List<StoredLocationSample>,
 		decisions: List<LocationObservationDecision>,
+		qualifiedByEvent: Map<String, ProtectedLocationQualifiedCandidate>,
 	): List<ProtectedLocationVerifiedWrite> {
 		observations.forEach { observation ->
 			ProtectedLocationCanonicalSignalIdentity.rawEventId(observation.sourceSignalId)
@@ -1236,6 +1250,8 @@ class PersistenceProcessor @Inject internal constructor(
 						candidate.sourceSignalId,
 					) == eventId
 			}
+			val qualified = qualifiedByEvent[eventId]
+				?: guard.qualifyInCurrentWriterTransaction(eventId)
 			guard.verifyInCurrentWriterTransaction(
 				ProtectedLocationCanonicalPendingWrite(
 					sourceEventId = eventId,
@@ -1258,6 +1274,7 @@ class PersistenceProcessor @Inject internal constructor(
 					},
 					sample = sample,
 				),
+				qualified,
 			)
 		}
 	}
@@ -1358,32 +1375,47 @@ class PersistenceProcessor @Inject internal constructor(
 		return requireNotNull(stateDao.get()) { "Source-evidence state disappeared inside transaction" }.revision
 	}
 
+	private data class PreparedLocationDecisions(
+		val decisions: List<LocationObservationDecision>,
+		val qualifiedByEvent: Map<String, ProtectedLocationQualifiedCandidate>,
+	)
+
 	private suspend fun buildLocationDecisions(
 		bufferedDecisions: List<BufferedLocationDecision>,
 		sourceRevision: Long?,
-	): List<LocationObservationDecision> = bufferedDecisions.map { buffered ->
-		LocationObservationDecision(
-			observationSourceEventId = buffered.signal.sourceEventId,
-			decision = buffered.signal.decision.name,
-			reason = buffered.signal.reason,
-			writerProjectionId = SourceDestinationOwnerEntity
-				.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID
-				.takeIf { buffered.canonicalWriterProvenance },
-			writerProjectionVersion = SourceDestinationOwnerEntity
-				.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION
-				.takeIf { buffered.canonicalWriterProvenance },
-			writerBindingGeneration = SourceDestinationOwnerEntity
-				.LOCATION_CANONICAL_HANDOFF_BINDING_GENERATION
-				.takeIf { buffered.canonicalWriterProvenance },
-			writerOwnerGeneration = SourceDestinationOwnerEntity
-				.INITIAL_EXISTING_LOCATION_GENERATION
-				.takeIf { buffered.canonicalWriterProvenance },
-			acceptedSampleSourceSignalId = buffered.acceptedSampleSourceSignalId,
-			sourceSignalId = buffered.sourceSignalId,
-			clockDomainId = buffered.clockDomainId,
-			decidedAtMs = buffered.decidedAtMs,
-			sourceRevision = sourceRevision ?: 0L,
-		)
+	): PreparedLocationDecisions {
+		val qualifiedByEvent = linkedMapOf<String, ProtectedLocationQualifiedCandidate>()
+		for (eventId in bufferedDecisions.filter { it.canonicalWriterProvenance }
+			.map { it.signal.sourceEventId }.distinct()
+		) {
+			qualifiedByEvent[eventId] = protectedLocationCanonicalPersistenceGuardProvider.get()
+				.qualifyInCurrentWriterTransaction(eventId)
+		}
+		val decisions = bufferedDecisions.map { buffered ->
+			LocationObservationDecision(
+				observationSourceEventId = buffered.signal.sourceEventId,
+				decision = buffered.signal.decision.name,
+				reason = buffered.signal.reason,
+				writerProjectionId = SourceDestinationOwnerEntity
+					.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID
+					.takeIf { buffered.canonicalWriterProvenance },
+				writerProjectionVersion = SourceDestinationOwnerEntity
+					.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION
+					.takeIf { buffered.canonicalWriterProvenance },
+				writerBindingGeneration = qualifiedByEvent[buffered.signal.sourceEventId]
+					?.command?.authority?.writerBindingGeneration
+					.takeIf { buffered.canonicalWriterProvenance },
+				writerOwnerGeneration = SourceDestinationOwnerEntity
+					.INITIAL_EXISTING_LOCATION_GENERATION
+					.takeIf { buffered.canonicalWriterProvenance },
+				acceptedSampleSourceSignalId = buffered.acceptedSampleSourceSignalId,
+				sourceSignalId = buffered.sourceSignalId,
+				clockDomainId = buffered.clockDomainId,
+				decidedAtMs = buffered.decidedAtMs,
+				sourceRevision = sourceRevision ?: 0L,
+			)
+		}
+		return PreparedLocationDecisions(decisions, qualifiedByEvent)
 	}
 
 	private suspend fun insertLocationDecisions(

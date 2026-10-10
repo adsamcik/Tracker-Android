@@ -11,6 +11,17 @@ package com.adsamcik.tracker.shared.base.database.data
  * this arithmetic.
  */
 object SourceWriterGenerationContract {
+	/** Only these immutable session-mode contracts are built into the final source pipeline. */
+	const val ORIGINAL_CAPTURE_BINDING_GENERATION = 1L
+	const val FINAL_CAPTURE_BINDING_GENERATION = 2L
+
+	/** Stable wire masks: original manual-only data is never relabelled as automatic. */
+	fun captureModeMaskForKnownBinding(bindingGeneration: Long): Long? = when (bindingGeneration) {
+		ORIGINAL_CAPTURE_BINDING_GENERATION -> 1L
+		FINAL_CAPTURE_BINDING_GENERATION -> 3L
+		else -> null
+	}
+
 	fun canonicalOwnerGeneration(bindingGeneration: Long): Long {
 		require(bindingGeneration > 0L)
 		return Math.multiplyExact(bindingGeneration, 2L)

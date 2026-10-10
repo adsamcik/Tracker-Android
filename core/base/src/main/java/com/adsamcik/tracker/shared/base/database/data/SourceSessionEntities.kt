@@ -256,6 +256,11 @@ data class SessionManifestSourceEntity(
 		val isPersistenceEligibleCapture =
 			purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible
 		when {
+			isPersistenceEligibleCapture &&
+				sourceKind == SourceDestinationOwnerEntity.SOURCE_LOCATION ->
+				require(locationCaptureBindingGenerationOrNull() != null) {
+					"Location capture has an unknown protected writer contract"
+				}
 			isPersistenceEligibleCapture && outputDestination != null &&
 				sourceKind == SourceDestinationOwnerEntity.SOURCE_ACTIVITY -> requireActivityWriter()
 			isPersistenceEligibleCapture &&
@@ -274,6 +279,15 @@ data class SessionManifestSourceEntity(
 				"Only supported persistence-eligible capture sources may carry writer provenance"
 			}
 		}
+	}
+
+	/** Original protected Location binding; older unstamped captures retain binding 1. */
+	fun locationCaptureBindingGenerationOrNull(): Long? {
+		if (sourceKind != SourceDestinationOwnerEntity.SOURCE_LOCATION ||
+			purpose != SourceBrokerPurpose.SESSION_CAPTURE || !persistenceEligible
+		) return null
+		return knownProtectedLocationBinding(outputDestination, writerOwner, writerOwnerGeneration,
+			writerProjectionId, writerProjectionVersion, writerBindingGeneration)
 	}
 
 	/**
@@ -456,6 +470,9 @@ data class SessionManifestSourceEntity(
 				return outputDestination == null && writerProjectionId == null
 			}
 			return when (sourceKind) {
+				SourceDestinationOwnerEntity.SOURCE_LOCATION ->
+					knownProtectedLocationBinding(outputDestination, writerOwner, writerOwnerGeneration,
+						writerProjectionId, writerProjectionVersion, writerBindingGeneration) != null
 				SourceDestinationOwnerEntity.SOURCE_ACTIVITY -> outputDestination == null ||
 					(outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY &&
 						when (writerOwner) {
@@ -664,6 +681,25 @@ data class SessionManifestSourceEntity(
 		require(writerOwnerGeneration ==
 			SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration))
 	}
+}
+
+@Suppress("LongParameterList")
+private fun knownProtectedLocationBinding(
+	destination: String?, owner: String?, ownerGeneration: Long?,
+	projectionId: String?, projectionVersion: Int?, bindingGeneration: Long?,
+): Long? {
+	if (listOf(destination, owner, ownerGeneration, projectionId, projectionVersion,
+		bindingGeneration).all { it == null }
+	) return SourceWriterGenerationContract.ORIGINAL_CAPTURE_BINDING_GENERATION
+	if (destination != SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION ||
+		owner != SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE ||
+		ownerGeneration != SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION ||
+		projectionId != SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID ||
+		projectionVersion != SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION ||
+		bindingGeneration == null ||
+		SourceWriterGenerationContract.captureModeMaskForKnownBinding(bindingGeneration) == null
+	) return null
+	return bindingGeneration
 }
 
 /** Append-only logical lifecycle intent; execution progress lives in desired-action rows. */

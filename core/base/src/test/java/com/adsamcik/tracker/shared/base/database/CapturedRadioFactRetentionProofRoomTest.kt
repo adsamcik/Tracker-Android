@@ -31,6 +31,34 @@ class CapturedRadioFactRetentionProofRoomTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `both radio sources persist final retention receipts without lending their original contract`() = runTest {
+		for (source in listOf(SourceDestinationOwnerEntity.SOURCE_CELL, SourceDestinationOwnerEntity.SOURCE_WIFI)) {
+			val original = proof(source, "original-$source", "1")
+			val unsigned = proof(source, "final-$source", "2").copy(writerBindingGeneration = 2L, writerOwnerGeneration = 4L)
+			val final = unsigned.copy(effectChecksum = unsigned.calculatedEffectChecksum())
+			database.persistCapturedRadioFactRetentionProofs(listOf(original, final))
+			val saved = database.capturedRadioFactRetentionProofDao().allForSource(source)
+			saved shouldBe listOf(original, final)
+			authenticates(saved.first()) shouldBe true
+			authenticates(saved.last()) shouldBe true
+			authenticates(saved.last(), bindingGeneration = 1L, ownerGeneration = 2L) shouldBe false
+			final.authenticatesSourceErase(source, 0L, final.retainedFromMs, final.retainedAtMs) shouldBe true
+			final.authenticatesSourceErase(source, 1L, final.retainedFromMs, final.retainedAtMs) shouldBe false
+		}
+	}
+
+	@Test
+	fun `retained radio receipts reject mixed contained and unknown writer contracts`() {
+		for (source in listOf(SourceDestinationOwnerEntity.SOURCE_CELL, SourceDestinationOwnerEntity.SOURCE_WIFI)) {
+			val original = proof(source, "event-$source", "1")
+			kotlin.test.assertFailsWith<IllegalArgumentException> { original.copy(writerBindingGeneration = 2L, writerOwnerGeneration = 2L) }
+			kotlin.test.assertFailsWith<IllegalArgumentException> { original.copy(writerBindingGeneration = 1L, writerOwnerGeneration = 4L) }
+			kotlin.test.assertFailsWith<IllegalArgumentException> { original.copy(writerBindingGeneration = 2L, writerOwnerGeneration = 5L) }
+			kotlin.test.assertFailsWith<IllegalArgumentException> { original.copy(writerBindingGeneration = 3L, writerOwnerGeneration = 6L) }
+		}
+	}
+
+	@Test
 	fun `source erase is isolated and full clear removes every captured radio proof`() = runTest {
 		val cell = proof(SourceDestinationOwnerEntity.SOURCE_CELL, "cell-event", "1")
 		val wifi = proof(SourceDestinationOwnerEntity.SOURCE_WIFI, "wifi-event", "8")

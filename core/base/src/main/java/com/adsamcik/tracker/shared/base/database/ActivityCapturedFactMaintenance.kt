@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import java.security.MessageDigest
@@ -600,7 +601,8 @@ internal suspend fun AppDatabase.auditCapturedActivityFacts(
 	)
 	val ownerValid = owner != null &&
 		owner.owner == SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS &&
-		owner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+		owner.ownerGeneration.let(SourceWriterGenerationContract::bindingGenerationForCanonicalOwner)
+			?.let(SourceWriterGenerationContract::captureModeMaskForKnownBinding) != null
 	val lineages = mutableListOf<ActivityCapturedLineage>()
 	var afterWindowId: String? = null
 	var afterRevision: Long? = null
@@ -848,7 +850,7 @@ private suspend fun AppDatabase.authenticateActivityCapturedAuthority(
 		source.sourceKind == ACTIVITY_SOURCE && source.purpose == CAPTURE_PURPOSE
 	}
 	val nextManifestStart = manifests.getOrNull(manifestIndex + 1)?.effectiveElapsedRealtimeNanos
-	if (binding == null || !binding.isCapturedActivityBinding(revision) ||
+	if (binding == null || !binding.isCapturedActivityBinding(revision, manifest.sessionMode) ||
 		manifest.logicalTrackingId != revision.logicalTrackingId ||
 		manifest.serviceRunId != revision.serviceRunId ||
 		manifest.sourcePolicyRevision != revision.sourcePolicyRevision ||
@@ -1226,13 +1228,18 @@ private fun evidenceIntegrityParts(evidence: ActivityCapturedEvidenceEntity): Li
 
 private fun SessionManifestSourceEntity.isCapturedActivityBinding(
 	revision: ActivityCapturedWindowRevisionEntity,
+	sessionMode: String,
 ): Boolean = sourceKind == ACTIVITY_SOURCE && purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
 	persistenceEligible && consentEpoch == revision.captureConsentEpoch &&
 	outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY &&
 	writerOwner == SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS &&
 	writerOwnerGeneration == revision.writerOwnerGeneration &&
 	writerProjectionId == WRITER_ID && writerProjectionVersion == WRITER_VERSION &&
-	writerBindingGeneration == SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION
+	writerBindingGeneration == revision.writerBindingGeneration &&
+	SourceWriterGenerationContract.captureModeMaskForKnownBinding(revision.writerBindingGeneration) != null &&
+	writerOwnerGeneration == SourceWriterGenerationContract.canonicalOwnerGeneration(revision.writerBindingGeneration) &&
+	(sessionMode == "MANUAL" || sessionMode == "AUTOMATIC" &&
+		revision.writerBindingGeneration == SourceWriterGenerationContract.FINAL_CAPTURE_BINDING_GENERATION)
 
 private fun hasValidZone(zoneId: String): Boolean = try {
 	ZoneId.of(zoneId)

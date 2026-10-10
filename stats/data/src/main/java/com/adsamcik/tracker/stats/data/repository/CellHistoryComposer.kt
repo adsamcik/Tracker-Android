@@ -32,6 +32,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
@@ -93,7 +94,7 @@ internal object CellHistoryComposer {
 		}
 		check(hasValidCaptureAuthority(manifests, bindings, snapshot))
 		val manifest = requireNotNull(manifests.singleOrNull { it.manifestRevision == fact.manifestRevision })
-		val lane = requireNotNull(snapshot.lanes.singleOrNull(::isCellLane))
+		val lane = requireNotNull(snapshot.lanes.singleOrNull { isCellLane(it) && it.bindingGeneration == fact.writerBindingGeneration })
 		val mode = when (manifest.sessionMode) { "MANUAL" -> MANUAL_CAPTURE_MASK; "AUTOMATIC" -> AUTOMATIC_CAPTURE_MASK; else -> 0L }
 		check(laneExecutionAuthority.owns(lane) && isValidLane(lane) && mode != 0L &&
 			lane.captureModeMask and mode == mode && lane.activatedRolloutRevision <= manifest.rolloutRevision &&
@@ -278,7 +279,8 @@ internal object CellHistoryComposer {
 			return failed(logicalId, segments, CellHistoryCause.PLAN_INTEGRITY_FAILED)
 		}
 
-		val lane = snapshot.lanes.singleOrNull(::isCellLane)
+		val originalBinding = bindings.values.map(SessionManifestSourceEntity::writerBindingGeneration).distinct().singleOrNull()
+		val lane = snapshot.lanes.singleOrNull { isCellLane(it) && it.bindingGeneration == originalBinding }
 		val requiredModeMask = manifests.fold(0L) { mask, manifest ->
 			mask or when (manifest.sessionMode) {
 				"MANUAL" -> MANUAL_CAPTURE_MASK
@@ -646,8 +648,8 @@ internal object CellHistoryComposer {
 		}.getOrNull() ?: return false
 		return fact.writerProjectionId == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID &&
 			fact.writerProjectionVersion == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION &&
-			fact.writerBindingGeneration == SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION &&
-			fact.writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION &&
+			fact.writerBindingGeneration == binding.writerBindingGeneration &&
+			fact.writerOwnerGeneration == binding.writerOwnerGeneration &&
 			fact.purpose == SourceBrokerPurpose.SESSION_CAPTURE && isExactCellWriter(binding) &&
 			fact.sessionSegmentId == run.sessionSegmentId && fact.logicalTrackingId == run.logicalTrackingId &&
 			fact.manifestRevision == manifest.manifestRevision &&
@@ -1000,23 +1002,23 @@ internal object CellHistoryComposer {
 			source.persistenceEligible &&
 			source.outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL &&
 			source.writerOwner == SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS &&
-			source.writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION &&
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(source.writerBindingGeneration ?: -1L) != null &&
+			source.writerOwnerGeneration == source.writerBindingGeneration?.let(SourceWriterGenerationContract::canonicalOwnerGeneration) &&
 			source.writerProjectionId == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID &&
 			source.writerProjectionVersion == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION &&
-			source.writerBindingGeneration == SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION
+			source.writerBindingGeneration != null
 
 	private fun isCellCaptureMembership(source: SessionManifestSourceEntity): Boolean =
 		source.sourceKind == CELL_SOURCE && source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
 			source.persistenceEligible
 
 	private fun isCellLane(lane: SourceProductProjectionLaneEntity): Boolean =
-		lane.sourceKind == CELL_SOURCE && lane.bindingGeneration ==
-			SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION &&
+		lane.sourceKind == CELL_SOURCE && SourceWriterGenerationContract.captureModeMaskForKnownBinding(lane.bindingGeneration) != null &&
 			lane.projectionId == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID &&
 			lane.projectionVersion == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION
 
 	private fun isValidLane(lane: SourceProductProjectionLaneEntity): Boolean =
-		lane.captureModeMask > 0L && lane.captureModeMask and ALL_CAPTURE_MASK.inv() == 0L &&
+		lane.captureModeMask == SourceWriterGenerationContract.captureModeMaskForKnownBinding(lane.bindingGeneration) &&
 		lane.activationOrdinal > 0L && lane.contiguousAdmissionOrdinal >= lane.activationOrdinal - 1L &&
 		when (lane.status) {
 			SourceProductProjectionLaneEntity.STATUS_ACTIVE -> lane.captureAdmissionCutoffOrdinal == null &&
@@ -1103,7 +1105,6 @@ internal object CellHistoryComposer {
 	private const val COMPLETE_STOP_STATUS = "COMPLETE"
 	private const val MANUAL_CAPTURE_MASK = 1L
 	private const val AUTOMATIC_CAPTURE_MASK = 2L
-	private const val ALL_CAPTURE_MASK = MANUAL_CAPTURE_MASK or AUTOMATIC_CAPTURE_MASK
 }
 
 /** Canonical v1 Cell desired-plan verifier kept local to the read model. */

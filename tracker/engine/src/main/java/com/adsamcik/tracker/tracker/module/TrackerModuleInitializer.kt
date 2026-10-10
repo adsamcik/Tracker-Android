@@ -29,6 +29,7 @@ import com.adsamcik.tracker.tracker.resilience.TrackingAutoRecoveryAuthorization
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProviderRegistrationResult
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
+import com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetup
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
 import com.adsamcik.tracker.tracker.worker.AmbientStepsImportWorkScheduler
@@ -55,6 +56,7 @@ class TrackerModuleInitializer @Inject constructor(
 	private val trackingStartupGuard: TrackingStartupGuard,
 	private val trackingStartupGate: TrackingStartupGate,
 	private val sourcePipelineRecovery: SourcePipelineRecovery,
+	private val chosenSourceWriterSetup: ChosenSourceWriterSetup,
 	private val activityAutomationEpochAuthority: ActivityAutomationEpochAuthority,
 	private val automaticControlRecoveryScheduler: AutomaticControlRecoveryScheduler,
 	private val trackingPurposeSettingsReconciler: TrackingPurposeSettingsReconciler,
@@ -107,8 +109,11 @@ class TrackerModuleInitializer @Inject constructor(
 											readyGeneration,
 										)
 								},
-								reconcilePurposes =
-									trackingPurposeSettingsReconciler::reconcileCurrentSettings,
+								reconcilePurposes = {
+								// Source-local setup debt never blocks a healthy purpose or saved-data readiness.
+								chosenSourceWriterSetup.ensureCurrentChosenSources()
+								trackingPurposeSettingsReconciler.reconcileCurrentSettings()
+							},
 							)) {
 								TrackerStartupAuthorityResult.Complete -> Unit
 								else -> throw TrackerStartupAuthorityPendingException(authority)

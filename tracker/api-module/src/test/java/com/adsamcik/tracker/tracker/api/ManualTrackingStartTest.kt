@@ -184,14 +184,15 @@ class ManualTrackingStartTest {
 			continuationGeneration = null,
 			authority = ManualStartTestAuthority(),
 			readPreflight = { testManualStartPreflight(ManualTrackingStartReadiness.Ready(1L)) },
-			enqueue = { false },
+			enqueue = { TrackingStartDispatchResult.Terminal("NOT_ENQUEUED") },
 		) shouldBe ManualTrackingStartResult.TRACKING_UNAVAILABLE
 
+		val successAuthority = ManualStartTestAuthority()
 		executeManualTrackingStartContinuation(
 			continuationGeneration = null,
-			authority = ManualStartTestAuthority(),
+			authority = successAuthority,
 			readPreflight = { testManualStartPreflight(ManualTrackingStartReadiness.Ready(1L)) },
-			enqueue = { true },
+			enqueue = { testManualStartEnqueue(successAuthority, it) },
 		) shouldBe ManualTrackingStartResult.ENQUEUED
 	}
 
@@ -205,7 +206,7 @@ class ManualTrackingStartTest {
 			readPreflight = { testManualStartPreflight(ManualTrackingStartReadiness.RepairRequired(prerequisite)) },
 			enqueue = {
 				enqueueCalls += 1
-				true
+				TrackingStartDispatchResult.Enqueued
 			},
 		)
 

@@ -26,6 +26,8 @@ import com.adsamcik.tracker.shared.base.database.data.CanonicalRetentionBounds
 import com.adsamcik.tracker.shared.base.database.data.ActivityWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.CellAggregateReuseAuthority
+import com.adsamcik.tracker.shared.base.database.data.CapturedRadioFactRetentionProofEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
@@ -1731,8 +1733,8 @@ private class DefaultSourceLifecycleProofAdapter(
 		}
 		if (!CellCapturedFactRevisionIntegrity.cursorAuthenticatesCurrent(cursor, fact) ||
 			!CellCapturedFactRevisionIntegrity.hasValidEffectChecksum(aggregate) ||
-			aggregate.writerBindingGeneration != CELL_WRITER.bindingGeneration ||
-			aggregate.writerOwnerGeneration != CELL_WRITER.ownerGeneration ||
+			aggregate.writerBindingGeneration != fact.writerBindingGeneration ||
+			aggregate.writerOwnerGeneration != fact.writerOwnerGeneration ||
 			!(if (fact.factKind == CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY) {
 				CellWalCarrierAuthenticator.authenticatesAggregate(
 					aggregate,
@@ -1845,6 +1847,13 @@ private class DefaultSourceLifecycleProofAdapter(
 		) ?: return MaterializationAuthority.Blocked(
 			failed(SourceProofStage.MATERIALIZED, SourceProofReason.WRITER_MISMATCH),
 		)
+		if (expectation.sourceKind in setOf(
+				SourceDestinationOwnerEntity.SOURCE_ACTIVITY, SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				SourceDestinationOwnerEntity.SOURCE_WIFI, SourceDestinationOwnerEntity.SOURCE_CELL,
+			) && lane.captureModeMask !=
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(expectation.bindingGeneration)
+		) return MaterializationAuthority.Blocked(
+			failed(SourceProofStage.MATERIALIZED, SourceProofReason.WRITER_MISMATCH))
 		val requiredAdmissionOrdinals =
 			listOf(wal.admissionOrdinal) + additionalAdmissionOrdinals
 		when (lane.materializationAdmissionFailure(requiredAdmissionOrdinals)) {
@@ -2403,8 +2412,9 @@ private class DefaultSourceLifecycleProofAdapter(
 		if (projectionId != SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID ||
 			projectionVersion !=
 			SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION ||
-			bindingGeneration !=
-			SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_BINDING_GENERATION
+			com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+				.captureModeMaskForKnownBinding(bindingGeneration) == null ||
+			ownerGeneration != SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION
 		) return null
 		return WriterExpectation(
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION,
@@ -2651,9 +2661,9 @@ private class DefaultSourceLifecycleProofAdapter(
 				key.sourcePolicyRevision, key.captureConsentEpoch,
 			)
 			if (candidates.isNotEmpty()) {
-				val expectation = if (key.source == TrackingSource.WIFI) WIFI_WRITER else CELL_WRITER
 				val proof = candidates.singleOrNull()
-				if (proof == null || !proof.authenticatesRequest(
+				val expectation = proof?.originalRadioWriterExpectation(key.source)
+				if (proof == null || expectation == null || !proof.authenticatesRequest(
 						expectedSourceKind = key.source.stableCode,
 						expectedWriterProjectionId = expectation.projectionId,
 						expectedWriterProjectionVersion = expectation.projectionVersion,
@@ -2818,16 +2828,28 @@ private class DefaultSourceLifecycleProofAdapter(
 		}
 	}
 
+	private fun CapturedRadioFactRetentionProofEntity.originalRadioWriterExpectation(
+		source: TrackingSource,
+	): WriterExpectation? {
+		val original = when (source) {
+			TrackingSource.WIFI -> WIFI_WRITER
+			TrackingSource.CELL -> CELL_WRITER
+			else -> return null
+		}
+		if (sourceKind != original.sourceKind || writerProjectionId != original.projectionId ||
+			writerProjectionVersion != original.projectionVersion ||
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration) == null ||
+			writerOwnerGeneration != SourceWriterGenerationContract.canonicalOwnerGeneration(writerBindingGeneration)
+		) return null
+		return original.copy(bindingGeneration = writerBindingGeneration, ownerGeneration = writerOwnerGeneration)
+	}
+
 	private suspend fun capturedRadioRetentionMaterialization(
 		key: SourceProofKey,
 		recording: RecordingProofState,
 		currentRetainedFromMs: Long?,
 	): SourceProofResult<MaterializedProofState>? {
-		val expectation = when (key.source) {
-			TrackingSource.WIFI -> WIFI_WRITER
-			TrackingSource.CELL -> CELL_WRITER
-			else -> return null
-		}
+		if (key.source !in setOf(TrackingSource.WIFI, TrackingSource.CELL)) return null
 		val scope = key.scope as SourceProofScope.Run
 		val candidates = database.capturedRadioFactRetentionProofDao().eventCandidatesForRun(
 			key.source.stableCode,
@@ -2843,6 +2865,8 @@ private class DefaultSourceLifecycleProofAdapter(
 			SourceProofReason.INTEGRITY_FAILURE,
 			recording.lineage,
 		)
+		val expectation = proof.originalRadioWriterExpectation(key.source) ?: return failed(
+			SourceProofStage.MATERIALIZED, SourceProofReason.INTEGRITY_FAILURE, recording.lineage)
 		return if (proof.authenticatesRequest(
 				expectedSourceKind = key.source.stableCode,
 				expectedWriterProjectionId = expectation.projectionId,

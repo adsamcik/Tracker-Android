@@ -47,8 +47,11 @@ class ShortcutActivity : ComponentActivity() {
 			ShortcutAction.START_COLLECTION -> {
 				val result = TrackerServiceApi.requestManualTrackingStart(this)
 				if (result != ManualTrackingStartResult.ENQUEUED) {
-					openDashboardForRepair((result as? ManualTrackingStartResult.RepairRequired)
-						?.continuationGeneration)
+					openDashboardForRepair(when (result) {
+						is ManualTrackingStartResult.RepairRequired -> result.continuationGeneration
+						is ManualTrackingStartResult.SetupPending -> result.continuationGeneration
+						else -> null
+					})
 				}
 			}
 			ShortcutAction.STOP_COLLECTION -> {

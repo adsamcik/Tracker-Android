@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.coordinator
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
@@ -21,6 +22,8 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 
 sealed interface SourceWriterTransitionResult {
 	val source: SourceKind
@@ -313,9 +316,93 @@ internal class SourceWriterTransitionEngine(
 	private val requestDrain: (SourceKind) -> Unit,
 	private val spec: SourceWriterTransitionSpec,
 ) {
+	/** A finite ordinary handoff; no unknown or later contract is upgraded implicitly. */
+	internal suspend fun prepareFinalKnownWriter(updatedAtMs: Long): SourceWriterTransitionResult {
+		require(updatedAtMs >= 0L)
+		val initial = database.withTransaction {
+			val rollout = currentRollout(); val lane = exactActiveLane(); val owner = currentOwner()
+			val ready = if (isCanonicalState(rollout, lane, owner, spec.finalBinding) &&
+				lane?.captureAdmissionCutoffOrdinal == null) SourceWriterTransitionResult.AlreadyApplied(
+					spec.source, SourceWriterTransitionPhase.ACTIVATE_CANDIDATE, rollout.revision, owner?.ownerGeneration, null) else null
+			ready to lane
+		}
+		initial.first?.let { return it }
+		val original = initial.second
+		if (original != null && catalog.bindingFor(original) == spec.binding) {
+			val result = when (original.productStage) {
+				SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL -> settleOriginalCanonicalForFinalWriter(original, updatedAtMs)
+				SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW -> settleOriginalShadowForFinalWriter(updatedAtMs)
+				else -> SourceWriterTransitionResult.Blocked(spec.source, SourceWriterTransitionPhase.INSTALL_INERT_CANDIDATE,
+					SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+			}
+			if (result !is SourceWriterTransitionResult.Applied && result !is SourceWriterTransitionResult.AlreadyApplied) return result
+		}
+		val active = database.sourceProjectionStateDao().activeProductLane(spec.source.stableCode)
+		if (active == null) {
+			val installed = install(currentRollout().revision, updatedAtMs, spec.finalBinding, finalSetup = true)
+			if (installed !is SourceWriterTransitionResult.Applied && installed !is SourceWriterTransitionResult.AlreadyApplied) return installed
+		} else if (catalog.bindingFor(active) != spec.finalBinding ||
+			active.productStage != SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW) return SourceWriterTransitionResult.Blocked(
+				spec.source, SourceWriterTransitionPhase.INSTALL_INERT_CANDIDATE, SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+		return activate(currentRollout().revision, updatedAtMs, finalSetup = true)
+	}
+
+	private suspend fun settleOriginalCanonicalForFinalWriter(
+		original: SourceProductProjectionLaneEntity,
+		updatedAtMs: Long,
+	): SourceWriterTransitionResult {
+		if (original.captureAdmissionCutoffOrdinal == null) {
+			val result = beginRollback(currentRollout().revision, updatedAtMs, finalSetup = true)
+			if (result !is SourceWriterTransitionResult.Applied && result !is SourceWriterTransitionResult.AlreadyApplied) return result
+		}
+		val current = database.sourceProjectionStateDao().activeProductLane(spec.source.stableCode)
+		val cutoff = current?.captureAdmissionCutoffOrdinal ?: return SourceWriterTransitionResult.Blocked(spec.source,
+			SourceWriterTransitionPhase.COMPLETE_CANDIDATE_ROLLBACK, SourceWriterTransitionBlocker.ACTIVE_LANE_CHANGED)
+		if (current.contiguousAdmissionOrdinal != cutoff) return SourceWriterTransitionResult.Blocked(spec.source,
+			SourceWriterTransitionPhase.COMPLETE_CANDIDATE_ROLLBACK, SourceWriterTransitionBlocker.ROLLBACK_CURSOR_BEHIND)
+		return completeRollback(currentRollout().revision, cutoff, updatedAtMs, finalSetup = true)
+	}
+
+	private suspend fun settleOriginalShadowForFinalWriter(updatedAtMs: Long): SourceWriterTransitionResult {
+		var needsDrain = false
+		val result = boundary.run(spec.source, SourceWriterTransitionPhase.BEGIN_CANDIDATE_ROLLBACK) { lease ->
+			database.withTransaction {
+				boundary.requireLease(lease); requireFinalWriterSetupBoundary()
+				var rollout = currentRollout(); var shadow = exactActiveLane() ?: block(SourceWriterTransitionBlocker.ACTIVE_LANE_CHANGED)
+				if (catalog.bindingFor(shadow) != spec.binding || shadow.productStage != SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW)
+					block(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+				requireLegacyOwner(currentOwner())
+				if (shadow.captureAdmissionCutoffOrdinal == null) {
+					val contained = RoomTrackingRolloutStateStore(database, catalog).beginOriginalWriterSetupContainment(
+						spec.binding, nextRevision(rollout.revision), updatedAtMs)
+					rollout = contained.rollout; shadow = contained.lane
+				}
+				val cutoff = requireNotNull(shadow.captureAdmissionCutoffOrdinal)
+				if (shadow.contiguousAdmissionOrdinal != cutoff) {
+					needsDrain = true
+					return@withTransaction SourceWriterTransitionResult.Blocked(spec.source,
+						SourceWriterTransitionPhase.BEGIN_CANDIDATE_ROLLBACK, SourceWriterTransitionBlocker.SHADOW_CURSOR_BEHIND)
+				}
+				RoomTrackingRolloutStateStore(database, catalog).finishLaneRetirement(spec.binding, cutoff, updatedAtMs)
+				SourceWriterTransitionResult.Applied(spec.source, SourceWriterTransitionPhase.COMPLETE_CANDIDATE_ROLLBACK,
+					rollout.revision, currentOwner()?.ownerGeneration, cutoff)
+			}
+		}
+		if (needsDrain) requestDrain(spec.source)
+		return result
+	}
+
 	suspend fun installInertCandidate(
 		expectedRolloutRevision: Long,
 		updatedAtMs: Long,
+		requestedBinding: ExecutableSourceLaneBinding = spec.binding,
+	): SourceWriterTransitionResult = install(expectedRolloutRevision, updatedAtMs, requestedBinding, finalSetup = false)
+
+	private suspend fun install(
+		expectedRolloutRevision: Long,
+		updatedAtMs: Long,
+		requestedBinding: ExecutableSourceLaneBinding,
+		finalSetup: Boolean,
 	): SourceWriterTransitionResult {
 		require(expectedRolloutRevision >= 0L)
 		require(updatedAtMs >= 0L)
@@ -325,9 +412,12 @@ internal class SourceWriterTransitionEngine(
 		) { lease ->
 			database.withTransaction {
 				boundary.requireLease(lease)
+				if ((requestedBinding != spec.binding && requestedBinding != spec.finalBinding) ||
+					!catalog.ownsStaticBinding(requestedBinding)
+				) block(SourceWriterTransitionBlocker.BINDING_NOT_EXECUTABLE)
 				val rollout = currentRollout()
 				val active = exactActiveLane()
-				if (active?.matches(spec.binding, ProductProjectionStage.EVENT_SHADOW, rollout.revision) == true &&
+				if (active?.matches(requestedBinding, ProductProjectionStage.EVENT_SHADOW, rollout.revision) == true &&
 					active?.activatedRolloutRevision == rollout.revision &&
 					rollout.revision == successfulRevisionAfter(expectedRolloutRevision)
 				) {
@@ -341,30 +431,42 @@ internal class SourceWriterTransitionEngine(
 				}
 				requireExpectedRevision(rollout, expectedRolloutRevision)
 				requireContained(rollout)
-				requireRunBoundary()
-				if (!catalog.owns(spec.binding)) block(SourceWriterTransitionBlocker.BINDING_NOT_EXECUTABLE)
+				if (finalSetup) {
+					if (requestedBinding != spec.finalBinding) block(SourceWriterTransitionBlocker.BINDING_NOT_EXECUTABLE)
+					requireFinalWriterSetupBoundary()
+				} else requireRunBoundary()
 				if (active != null) {
 					block(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
 				}
-				if (database.sourceProjectionStateDao().latestProductLane(spec.source.stableCode) != null) {
-					block(SourceWriterTransitionBlocker.REARM_BINDING_CONTRACT_UNAVAILABLE)
+				val predecessor = database.sourceProjectionStateDao().latestProductLane(spec.source.stableCode)
+				val owner = currentOwner()
+				if (predecessor == null && requestedBinding == spec.finalBinding &&
+					owner.isExactCandidate(spec, requestedBinding.bindingGeneration) &&
+					!hasCompletedClearFinalSetup(owner, requestedBinding)
+				) block(SourceWriterTransitionBlocker.FULL_DELETION_PROOF_UNAVAILABLE)
+				if (predecessor != null) {
+					if (requestedBinding != spec.finalBinding) {
+						block(SourceWriterTransitionBlocker.REARM_BINDING_CONTRACT_UNAVAILABLE)
+					}
+					requireSettledOriginalPredecessor(predecessor, currentOwner())
 				}
 				if (database.sourceProjectionStateDao().registration(
-						spec.binding.projectionId,
-						spec.binding.projectionVersion,
+						requestedBinding.projectionId,
+						requestedBinding.projectionVersion,
 					) != null
 				) block(SourceWriterTransitionBlocker.GLOBAL_WRITER_COLLISION)
 				if (database.sourceProjectionStateDao().productLanesByProjection(
-						spec.binding.projectionId,
-						spec.binding.projectionVersion,
+						requestedBinding.projectionId,
+						requestedBinding.projectionVersion,
 					).any { lane -> lane.sourceKind != spec.source.stableCode }
 				) block(SourceWriterTransitionBlocker.GLOBAL_WRITER_COLLISION)
 				val revision = nextRevision(expectedRolloutRevision)
-				val activation = RoomTrackingRolloutStateStore(database, catalog).installInertShadowLane(
-					spec.binding,
-					revision,
-					updatedAtMs,
-				)
+				val store = RoomTrackingRolloutStateStore(database, catalog)
+				val activation = if (predecessor == null) {
+					store.installInertShadowLane(requestedBinding, revision, updatedAtMs)
+				} else {
+					store.rearmInertShadowLane(requestedBinding, revision, updatedAtMs)
+				}
 				SourceWriterTransitionResult.Applied(
 					spec.source,
 					SourceWriterTransitionPhase.INSTALL_INERT_CANDIDATE,
@@ -379,6 +481,12 @@ internal class SourceWriterTransitionEngine(
 	suspend fun activateCandidate(
 		expectedRolloutRevision: Long,
 		updatedAtMs: Long,
+	): SourceWriterTransitionResult = activate(expectedRolloutRevision, updatedAtMs, finalSetup = false)
+
+	private suspend fun activate(
+		expectedRolloutRevision: Long,
+		updatedAtMs: Long,
+		finalSetup: Boolean,
 	): SourceWriterTransitionResult {
 		require(expectedRolloutRevision >= 0L)
 		require(updatedAtMs >= 0L)
@@ -412,7 +520,10 @@ internal class SourceWriterTransitionEngine(
 					}
 					requireExpectedRevision(rollout, expectedRolloutRevision)
 					requireContained(rollout)
-					requireRunBoundary()
+					if (finalSetup) {
+						if (binding != spec.finalBinding) block(SourceWriterTransitionBlocker.BINDING_NOT_EXECUTABLE)
+						requireFinalWriterSetupBoundary()
+					} else requireRunBoundary()
 					requireInitialOwner(owner, binding)
 					val shadow = lane ?: block(SourceWriterTransitionBlocker.ACTIVE_LANE_MISSING)
 					if (!shadow.matches(binding, ProductProjectionStage.EVENT_SHADOW, rollout.revision)) {
@@ -467,6 +578,12 @@ internal class SourceWriterTransitionEngine(
 	suspend fun beginCandidateRollback(
 		expectedRolloutRevision: Long,
 		updatedAtMs: Long,
+	): SourceWriterTransitionResult = beginRollback(expectedRolloutRevision, updatedAtMs, finalSetup = false)
+
+	private suspend fun beginRollback(
+		expectedRolloutRevision: Long,
+		updatedAtMs: Long,
+		finalSetup: Boolean,
 	): SourceWriterTransitionResult {
 		require(expectedRolloutRevision >= 0L)
 		require(updatedAtMs >= 0L)
@@ -499,7 +616,10 @@ internal class SourceWriterTransitionEngine(
 					)
 				}
 				requireExpectedRevision(rollout, expectedRolloutRevision)
-				requireRunBoundary()
+				if (finalSetup) {
+					if (binding != spec.binding) block(SourceWriterTransitionBlocker.BINDING_NOT_EXECUTABLE)
+					requireFinalWriterSetupBoundary()
+				} else requireRunBoundary()
 				if (!isCanonicalState(rollout, lane, owner, binding)) {
 					block(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
 				}
@@ -544,6 +664,14 @@ internal class SourceWriterTransitionEngine(
 		expectedContainedRolloutRevision: Long,
 		expectedCutoffAdmissionOrdinal: Long,
 		updatedAtMs: Long,
+	): SourceWriterTransitionResult = completeRollback(expectedContainedRolloutRevision,
+		expectedCutoffAdmissionOrdinal, updatedAtMs, finalSetup = false)
+
+	private suspend fun completeRollback(
+		expectedContainedRolloutRevision: Long,
+		expectedCutoffAdmissionOrdinal: Long,
+		updatedAtMs: Long,
+		finalSetup: Boolean,
 	): SourceWriterTransitionResult {
 		require(expectedContainedRolloutRevision >= 0L)
 		require(expectedCutoffAdmissionOrdinal >= 0L)
@@ -589,7 +717,10 @@ internal class SourceWriterTransitionEngine(
 				}
 				requireExpectedRevision(rollout, expectedContainedRolloutRevision)
 				requireContained(rollout)
-				requireRunBoundary()
+				if (finalSetup) {
+					if (binding != spec.binding) block(SourceWriterTransitionBlocker.BINDING_NOT_EXECUTABLE)
+					requireFinalWriterSetupBoundary()
+				} else requireRunBoundary()
 				if (!owner.isExactCandidate(spec, binding.bindingGeneration)) {
 					block(SourceWriterTransitionBlocker.DESTINATION_OWNER_CONFLICT)
 				}
@@ -797,6 +928,20 @@ internal class SourceWriterTransitionEngine(
 			?: block(SourceWriterTransitionBlocker.BINDING_NOT_EXECUTABLE)
 	}
 
+	/** Exact known setup keeps independently allowed all-day radio work alive. */
+	private suspend fun requireFinalWriterSetupBoundary() {
+		val sessions = database.sourceSessionDao()
+		when {
+			sessions.hasLifecycleBoundaryBlocker() -> block(SourceWriterTransitionBlocker.LIFECYCLE_NOT_IDLE)
+			sessions.hasIncompleteServiceRun() -> block(SourceWriterTransitionBlocker.SERVICE_RUN_NOT_FINALIZED)
+			sessions.hasNonterminalLatestLifecycleAction() -> block(SourceWriterTransitionBlocker.LIFECYCLE_ACTION_NOT_TERMINAL)
+			!(if (spec.source == SourceKind.WIFI || spec.source == SourceKind.CELL)
+				database.isSharedRadioSessionCaptureAdmissionFenced(spec.source.stableCode)
+				else database.isSourceCaptureAdmissionFenced(spec.source.stableCode)) ->
+				block(SourceWriterTransitionBlocker.CAPTURE_CALLBACK_BARRIER_OPEN)
+		}
+	}
+
 	private suspend fun requireRunBoundary() {
 		val sessionDao = database.sourceSessionDao()
 		when {
@@ -821,28 +966,109 @@ internal class SourceWriterTransitionEngine(
 		}
 	}
 
-	private fun requireInitialOwner(
+	private suspend fun requireInitialOwner(
 		owner: SourceDestinationOwnerEntity?,
 		binding: ExecutableSourceLaneBinding,
 	) {
-		val bindingGeneration = binding.bindingGeneration
-		if (bindingGeneration == 1L) {
-			val expected = spec.initialOwner
-			if (expected == null) {
-				if (owner != null) block(SourceWriterTransitionBlocker.DESTINATION_OWNER_CONFLICT)
-				return
-			}
-			if (owner == null) block(SourceWriterTransitionBlocker.DESTINATION_OWNER_MISSING)
-			if (owner?.owner != expected ||
-				owner.ownerGeneration != SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
-			) block(SourceWriterTransitionBlocker.DESTINATION_OWNER_CONFLICT)
+		if (binding == spec.binding) {
+			requireLegacyOwner(owner)
 			return
 		}
-		val previousBinding = bindingGeneration - 1L
+		if (binding == spec.finalBinding) {
+			if (hasCompletedClearFinalSetup(owner, binding)) return
+			val predecessor = database.sourceProjectionStateDao().productLane(
+				spec.source.stableCode, spec.binding.bindingGeneration,
+				spec.binding.projectionId, spec.binding.projectionVersion,
+			)
+			if (predecessor == null) requireLegacyOwner(owner)
+			else requireSettledOriginalPredecessor(predecessor, owner)
+			return
+		}
+		// Preserve the separate, existing fully declared dynamic-rearm authority path.
+		val previousBinding = binding.bindingGeneration - 1L
 		if (owner?.owner != spec.containedOwner ||
-			owner.ownerGeneration !=
-			SourceWriterGenerationContract.containedOwnerGeneration(previousBinding)
+			owner.ownerGeneration != SourceWriterGenerationContract.containedOwnerGeneration(previousBinding)
 		) block(SourceWriterTransitionBlocker.DESTINATION_OWNER_CONFLICT)
+	}
+
+	/** Current-epoch clear authority is distinct from ordinary same-epoch owner transitions. */
+	private suspend fun hasCompletedClearFinalSetup(
+		owner: SourceDestinationOwnerEntity?,
+		binding: ExecutableSourceLaneBinding,
+	): Boolean {
+		if (binding != spec.finalBinding || !owner.isExactCandidate(spec, binding.bindingGeneration)) {
+			return false
+		}
+		val evidence = database.sourceEvidenceStateDao().get() ?: return false
+		if (evidence.collectedDataEpoch <= 0L) return false
+		val receipt = database.collectedDataDeletionOperationDao()
+			.completedFullDeletionAfter(evidence.collectedDataEpoch - 1L) ?: return false
+		if (receipt.targetCollectedDataEpoch != evidence.collectedDataEpoch ||
+			receipt.phase != CollectedDataDeletionOperationEntity.PHASE_WRITERS_REARMED ||
+			receipt.retentionWorkExecutionId != null || receipt.retentionDestructivePlan != null
+		) return false
+		// Later ordinary retention may tighten the floor; it cannot weaken the original clear.
+		val clearFloor = receipt.retainedFromMs
+		if (clearFloor != null && (evidence.retainedFromMs == null || evidence.retainedFromMs < clearFloor)) {
+			return false
+		}
+		if (database.sourceProjectionStateDao().productLane(
+				spec.source.stableCode, spec.binding.bindingGeneration,
+				spec.binding.projectionId, spec.binding.projectionVersion,
+			) != null
+		) return false
+		val table = when (spec) {
+			SourceWriterTransitionSpec.ACTIVITY -> "activity_captured_window_revision"
+			SourceWriterTransitionSpec.PRESSURE -> "pressure_fact_revision"
+			SourceWriterTransitionSpec.WIFI -> "wifi_captured_fact_revision"
+			SourceWriterTransitionSpec.CELL -> "cell_captured_fact_revision"
+		}
+		return database.openHelper.writableDatabase.query(
+			"SELECT EXISTS(SELECT 1 FROM $table LIMIT 1)",
+		).use { cursor ->
+			check(cursor.moveToFirst())
+			cursor.getInt(0) == 0
+		}
+	}
+
+	private fun requireLegacyOwner(owner: SourceDestinationOwnerEntity?) {
+		val expected = spec.initialOwner
+		if (expected == null) {
+			if (owner != null) block(SourceWriterTransitionBlocker.DESTINATION_OWNER_CONFLICT)
+			return
+		}
+		if (owner == null) block(SourceWriterTransitionBlocker.DESTINATION_OWNER_MISSING)
+		if (owner?.owner != expected ||
+			owner.ownerGeneration != SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+		) block(SourceWriterTransitionBlocker.DESTINATION_OWNER_CONFLICT)
+	}
+
+	private fun requireSettledOriginalPredecessor(
+		predecessor: SourceProductProjectionLaneEntity,
+		owner: SourceDestinationOwnerEntity?,
+	) {
+		if (!predecessor.matchesSourceBinding(spec.binding) ||
+			predecessor.status != SourceProductProjectionLaneEntity.STATUS_RETIRED ||
+			predecessor.retentionRequired || predecessor.activationOrdinal <= 0L ||
+			predecessor.activatedRolloutRevision <= 0L || predecessor.terminalAtMs == null ||
+			predecessor.terminalAtMs < 0L ||
+			predecessor.terminalDisposition != SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN
+		) block(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+		val cutoff = predecessor.captureAdmissionCutoffOrdinal
+			?: block(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+		if (cutoff < predecessor.activationOrdinal - 1L || predecessor.contiguousAdmissionOrdinal != cutoff) {
+			block(SourceWriterTransitionBlocker.ROLLBACK_CURSOR_BEHIND)
+		}
+		when (predecessor.productStage) {
+			SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW -> requireLegacyOwner(owner)
+			SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL -> {
+				if (!predecessor.isExactRetiredCanonical(spec, spec.binding,
+						predecessor.activatedRolloutRevision, cutoff) || owner?.owner != spec.containedOwner ||
+					owner.ownerGeneration != SourceWriterGenerationContract.containedOwnerGeneration(spec.binding.bindingGeneration)
+				) block(SourceWriterTransitionBlocker.DESTINATION_OWNER_CONFLICT)
+			}
+			else -> block(SourceWriterTransitionBlocker.ACTIVE_LANE_CONFLICT)
+		}
 	}
 
 	private suspend fun promoteLane(
@@ -872,8 +1098,13 @@ internal class SourceWriterTransitionEngine(
 	) {
 		val canonicalGeneration =
 			SourceWriterGenerationContract.canonicalOwnerGeneration(binding.bindingGeneration)
+		// requireInitialOwner authenticated the completed-clear epoch in this same transaction.
+		// Its exact final owner is already installed; same-epoch monotonic CAS must stay unchanged.
+		if (binding == spec.finalBinding && owner.isExactCandidate(spec, binding.bindingGeneration)) {
+			return
+		}
 		val initialOwnerName = spec.initialOwner
-		if (binding.bindingGeneration == 1L && initialOwnerName == null) {
+		if (owner == null && initialOwnerName == null) {
 			val inserted = database.sourceDestinationOwnerDao().insertIfAbsent(
 				SourceDestinationOwnerEntity(
 					sourceKind = spec.source.stableCode,
@@ -887,11 +1118,8 @@ internal class SourceWriterTransitionEngine(
 			return
 		}
 		val initial = owner ?: block(SourceWriterTransitionBlocker.DESTINATION_OWNER_MISSING)
-		val expectedOwner = if (binding.bindingGeneration == 1L) {
-			requireNotNull(initialOwnerName)
-		} else {
-			spec.containedOwner
-		}
+		// requireInitialOwner authenticated this exact first-use or settled-predecessor row above.
+		val expectedOwner = initial.owner
 		if (database.sourceDestinationOwnerDao().compareAndSetOwner(
 				sourceKind = spec.source.stableCode,
 				destination = spec.destination,
@@ -974,6 +1202,19 @@ internal class SourceWriterTransitionBoundary @Inject constructor(
 		) block(SourceWriterTransitionBlocker.SESSION_LEASE_LOST)
 	}
 
+	/** Shared idle checks; Location alone preserves its independently active all-day purpose. */
+	suspend fun requireLocationSetupIdle() {
+		val sessions = database.sourceSessionDao()
+		when {
+			sessions.hasLifecycleBoundaryBlocker() -> block(SourceWriterTransitionBlocker.LIFECYCLE_NOT_IDLE)
+			sessions.hasIncompleteServiceRun() -> block(SourceWriterTransitionBlocker.SERVICE_RUN_NOT_FINALIZED)
+			sessions.hasNonterminalLatestLifecycleAction() -> block(SourceWriterTransitionBlocker.LIFECYCLE_ACTION_NOT_TERMINAL)
+			!database.isLocationSessionCaptureAdmissionFenced() -> block(SourceWriterTransitionBlocker.CAPTURE_CALLBACK_BARRIER_OPEN)
+		}
+	}
+
+	fun refuse(blocker: SourceWriterTransitionBlocker): Nothing = block(blocker)
+
 	private suspend fun withLease(
 		source: SourceKind,
 		phase: SourceWriterTransitionPhase,
@@ -988,7 +1229,7 @@ internal class SourceWriterTransitionBoundary @Inject constructor(
 				SourceWriterTransitionResult.Blocked(source, phase, blocked.blocker)
 			}
 		} finally {
-			releaseLease(lease)
+			withContext(NonCancellable) { releaseLease(lease) }
 		}
 	}
 
@@ -1140,7 +1381,15 @@ internal enum class SourceWriterTransitionSpec(
 		SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS,
 		CONTAINED_CELL_SESSION_OWNER,
 		true,
-	),
+	);
+
+	val finalBinding: ExecutableSourceLaneBinding
+		get() = when (this) {
+			ACTIVITY -> ExecutableSourceLaneCatalog.PREFERRED_ACTIVITY_SESSION_FACTS
+			PRESSURE -> ExecutableSourceLaneCatalog.PREFERRED_PRESSURE_SESSION_FACTS
+			WIFI -> ExecutableSourceLaneCatalog.PREFERRED_WIFI_SESSION_FACTS
+			CELL -> ExecutableSourceLaneCatalog.PREFERRED_CELL_SESSION_FACTS
+		}
 }
 
 private fun TrackingRolloutState.isSourceContained(source: SourceKind): Boolean =

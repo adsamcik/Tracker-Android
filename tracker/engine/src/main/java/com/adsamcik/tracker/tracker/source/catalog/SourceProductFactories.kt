@@ -252,7 +252,10 @@ sealed interface SourceProductBinding {
 		override val writer = sourceLocalWriter(
 			SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
 			SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS,
-			setOf(ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS),
+			setOf(
+				ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS_V1,
+				ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS_V2,
+			),
 		)
 		override val drain = SourceDrainContract.SourceLocalProductRouter
 		override val projection = executableProjection(writer)
@@ -287,7 +290,10 @@ sealed interface SourceProductBinding {
 		override val writer = sourceLocalWriter(
 			SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
 			SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
-			setOf(ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS),
+			setOf(
+				ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS_V1,
+				ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS_V2,
+			),
 		)
 		override val drain = SourceDrainContract.SourceLocalProductRouter
 		override val projection = executableProjection(writer)
@@ -303,7 +309,10 @@ sealed interface SourceProductBinding {
 		override val writer = sourceLocalWriter(
 			SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
 			SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS,
-			setOf(ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS),
+			setOf(
+				ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS_V1,
+				ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS_V2,
+			),
 		)
 		override val drain = SourceDrainContract.SourceLocalProductRouter
 		override val projection = executableProjection(writer)
@@ -319,7 +328,10 @@ sealed interface SourceProductBinding {
 		override val writer = sourceLocalWriter(
 			SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
 			SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS,
-			setOf(ExecutableSourceLaneCatalog.CELL_SESSION_FACTS),
+			setOf(
+				ExecutableSourceLaneCatalog.CELL_SESSION_FACTS_V1,
+				ExecutableSourceLaneCatalog.CELL_SESSION_FACTS_V2,
+			),
 		)
 		override val drain = SourceDrainContract.SourceLocalProductRouter
 		override val projection = executableProjection(writer)

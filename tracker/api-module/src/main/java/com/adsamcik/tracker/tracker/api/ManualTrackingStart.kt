@@ -5,6 +5,8 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.resilience.TrackingStartCommand
 
@@ -30,6 +32,11 @@ sealed interface ManualTrackingStartResult {
 		init { require(continuationGeneration > 0L) }
 	}
 
+	/** Keeps the exact one-use Start while existing source setup finishes. */
+	data class SetupPending(val continuationGeneration: Long) : ManualTrackingStartResult {
+		init { require(continuationGeneration > 0L) }
+	}
+
 	/** Settings are enabled, but no enabled and reachable source can run on this device right now. */
 	data object NO_AVAILABLE_CAPTURE_SOURCE : ManualTrackingStartResult
 
@@ -49,6 +56,7 @@ sealed interface ManualTrackingStartReadiness {
 		val prerequisite: ManualTrackingStartPrerequisite,
 	) : ManualTrackingStartReadiness
 
+	data object SetupPending : ManualTrackingStartReadiness
 	data object NoAvailableCaptureSource : ManualTrackingStartReadiness
 	data object TrackingUnavailable : ManualTrackingStartReadiness
 }
@@ -56,6 +64,12 @@ sealed interface ManualTrackingStartReadiness {
 /** Engine boundary that evaluates current policy, rollout, permission, and hardware state. */
 fun interface ManualTrackingStartReadinessReader {
 	suspend fun read(): ManualTrackingStartReadiness
+
+	/** Only an explicit Start asks existing setup to prepare chosen writers. */
+	suspend fun preparePreflight(): ManualTrackingStartPreflight = readPreflight()
+
+	/** Cold existing authority changes, used only while an explicit Start is pending. */
+	fun changes(): Flow<Unit> = emptyFlow()
 
 	/** The readiness and chosen sources are read from the same policy snapshot. */
 	suspend fun readPreflight(): ManualTrackingStartPreflight =
@@ -104,7 +118,7 @@ internal suspend fun executeManualTrackingStartContinuation(
 	continuationGeneration: Long?,
 	authority: TrackingLifecycleCommandAuthority,
 	readPreflight: suspend () -> ManualTrackingStartPreflight,
-	enqueue: suspend (ManualTrackingStartContinuation) -> Boolean,
+	enqueue: suspend (ManualTrackingStartContinuation) -> TrackingStartDispatchResult,
 ): ManualTrackingStartResult {
 	val generationBeforeRead = authority.latestCommandGeneration()
 	val original = if (continuationGeneration == null) {
@@ -140,11 +154,27 @@ internal suspend fun executeManualTrackingStartContinuation(
 			) ManualTrackingStartResult.TRACKING_UNAVAILABLE else
 				ManualTrackingStartResult.RepairRequired(readiness.prerequisite, request.command.generation)
 		}
-		is ManualTrackingStartReadiness.Ready -> {
-			val command = authority.consumeManualStart(request.command.generation, selection)
-				?: return ManualTrackingStartResult.TRACKING_UNAVAILABLE
-			if (enqueue(request.copy(command = command))) ManualTrackingStartResult.ENQUEUED
+		ManualTrackingStartReadiness.SetupPending -> {
+			if (authority.pendingManualStart == request && authority.latestCommandGeneration() == request.command.generation)
+				ManualTrackingStartResult.SetupPending(request.command.generation)
 			else ManualTrackingStartResult.TRACKING_UNAVAILABLE
+		}
+		is ManualTrackingStartReadiness.Ready -> {
+			if (authority.pendingManualStart != request || authority.latestCommandGeneration() != request.command.generation)
+				return ManualTrackingStartResult.TRACKING_UNAVAILABLE
+			when (val result = enqueue(request)) {
+				TrackingStartDispatchResult.Enqueued -> ManualTrackingStartResult.ENQUEUED
+				TrackingStartDispatchResult.SetupPending -> if (authority.pendingManualStart == request &&
+					authority.latestCommandGeneration() == request.command.generation)
+					ManualTrackingStartResult.SetupPending(request.command.generation)
+					else ManualTrackingStartResult.TRACKING_UNAVAILABLE
+				// Another prepare can see the first one's STARTING row. It must not revoke that same pending delivery.
+				TrackingStartDispatchResult.AlreadyActive -> ManualTrackingStartResult.TRACKING_UNAVAILABLE
+				is TrackingStartDispatchResult.Retryable, is TrackingStartDispatchResult.Terminal -> {
+					authority.cancelManualStart(request.command.generation)
+					ManualTrackingStartResult.TRACKING_UNAVAILABLE
+				}
+			}
 		}
 		else -> error("Unavailable preflight cannot reserve a Start")
 	}

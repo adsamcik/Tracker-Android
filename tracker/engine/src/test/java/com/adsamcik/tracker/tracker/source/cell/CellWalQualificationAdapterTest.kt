@@ -141,6 +141,189 @@ class CellWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `Cell exact saved replay survives constructed later quality and End operations`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val original = fact(first.logicalFactId, first.semanticRevision)
+		database.advanceRetainedSourceOperations(listOf(LOGICAL_ID to RUN_ID))
+		assertIs<CellWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		val replay = assertIs<CellCapturedWriteResult.Unchanged>(writer.write(EVENT_ID))
+		assertEquals(first.logicalFactId, replay.logicalFactId)
+		assertEquals(1L, replay.semanticRevision)
+		assertEquals(original, fact(first.logicalFactId, first.semanticRevision))
+		assertEquals(1L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(1L, database.cellCapturedFactDao().cursorCount())
+	}
+
+	@Test
+	fun `Cell open saved fact settles after constructed later quality and End operations`() = runTest {
+		installValidFixture(candidateWriter = true, openAuthority = true)
+		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		settleFixtureAuthority()
+		database.advanceRetainedSourceOperations(listOf(LOGICAL_ID to RUN_ID))
+		val corrected = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val saved = fact(corrected.logicalFactId, corrected.semanticRevision)
+		assertEquals(first.logicalFactId, corrected.logicalFactId)
+		assertEquals(2L, saved.semanticRevision)
+		assertEquals(1L, saved.supersedesSemanticRevision)
+		assertEquals(BOOT_ID, saved.clockDomainId)
+		assertEquals(LEASE_GENERATION, saved.lifecycleLeaseGeneration)
+		assertEquals(SESSION_END_NANOS, saved.deletionEffectEndNanos)
+		assertEquals(REGISTRATION_END_NANOS, saved.providerAcceptanceEndNanos)
+		assertIs<CellCapturedWriteResult.Unchanged>(writer.write(EVENT_ID))
+		assertEquals(2L, database.cellCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `Cell aggregate owner reuse keeps its original authority after later operations`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val shifted = observations().map { it.copy(providerTimestampNanos =
+			requireNotNull(it.providerTimestampNanos) + SECOND_DELIVERY_SHIFT_NANOS) }
+		insertAdditionalWal(SECOND_EVENT_ID, shifted, SOURCE_SEQUENCE + 1L)
+		database.advanceRetainedSourceOperations(listOf(LOGICAL_ID to RUN_ID))
+		val second = assertIs<CellCapturedWriteResult.Applied>(writer.write(SECOND_EVENT_ID))
+		val saved = fact(second.logicalFactId, second.semanticRevision)
+		assertEquals(CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY, saved.factKind)
+		assertEquals(first.logicalFactId, saved.aggregateOwnerLogicalFactId)
+		assertEquals(1L, saved.aggregateOwnerSemanticRevision)
+		assertEquals(BOOT_ID, saved.clockDomainId)
+		assertEquals(LEASE_GENERATION, saved.lifecycleLeaseGeneration)
+		assertIs<CellCapturedWriteResult.Unchanged>(writer.write(SECOND_EVENT_ID))
+		assertEquals(2L, database.cellCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `Cell saved replay still rejects a changed current operation pair`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		database.advanceRetainedSourceOperations(listOf(LOGICAL_ID to RUN_ID))
+		val result = writer.write(EVENT_ID) { checkpoint ->
+			if (checkpoint == CellCapturedWriteCheckpoint.QUALIFIED) {
+				val dao = database.sourceSessionDao()
+				val session = requireNotNull(dao.session(LOGICAL_ID))
+				assertEquals(1, dao.updateSession(session.copy(currentServiceRunId = RUN_ID,
+					lifecycleLeaseGeneration = session.lifecycleLeaseGeneration + 1L)))
+			}
+		}
+		assertEquals(CellCapturedWriteResult.Rejected(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH), result)
+		assertEquals(1L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(1L, database.cellCapturedFactDao().cursor(
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION, first.logicalFactId)?.cursorRevision)
+	}
+
+	@Test
+	fun `actual Cell qualifier cannot lend manual mode to an original automatic binding`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installWriterContractFixture(1L, "AUTOMATIC", advanceOwner = false)
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(LOGICAL_ID))
+		assertEquals(1, dao.updateSession(session.copy(sessionMode = "MANUAL")))
+		// The actual Cell qualifier authenticates the named immutable proof but does not own
+		// writer capture-mode applicability. The real writer must reject this mismatch.
+		assertIs<CellWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		assertEquals(CellCapturedWriteResult.Rejected(CellCapturedWriteRejection.MANIFEST_WRITER_AUTHORITY_MISMATCH),
+			writer.write(EVENT_ID))
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
+	}
+
+	@Test
+	fun `final Cell materialization reports the original fact writer instead of the legacy alias`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val qualified = assertIs<CellWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		installWriterContractFixture(2L, "MANUAL", advanceOwner = true)
+		// The actual writer consumes a reached qualification result; final shared setup is
+		// constructed here. The lifecycle adapter subsequently reads the real Room product.
+		val qualifier = mockk<CellWalQualificationAdapter>()
+		coEvery { qualifier.qualify(EVENT_ID, any()) } returns qualified
+		val applied = assertIs<CellCapturedWriteResult.Applied>(CellCapturedFactWriter(database, qualifier).write(EVENT_ID))
+		val saved = fact(applied.logicalFactId, applied.semanticRevision)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL, 2L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_product_projection_lane SET contiguous_admission_ordinal = ? WHERE source_kind = ? AND binding_generation = 2",
+			arrayOf<Any>(saved.sourceAdmissionOrdinal, CELL_SOURCE))
+		val key = historicalCellKey(EVENT_ID, LOGICAL_ID, RUN_ID)
+		val adapter = lifecycleFactory().create(TrackingSource.CELL)
+		val recording = assertIs<SourceProofResult.Proven<RecordingProofState>>(adapter.recording(key)).state
+		val result = assertIs<SourceProofResult.Proven<*>>(adapter.materialized(key, recording))
+		val state = assertIs<com.adsamcik.tracker.stats.api.repository.MaterializedProofState>(result.state)
+		assertEquals(2L, state.lineage.writer?.bindingGeneration)
+		assertEquals(4L, state.lineage.writer?.ownerGeneration)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_product_projection_lane SET capture_mode_mask = 1 WHERE source_kind = ? AND binding_generation = 2",
+			arrayOf<Any>(CELL_SOURCE))
+		assertEquals(SourceProofReason.WRITER_MISMATCH,
+			assertIs<SourceProofResult.Failed>(adapter.materialized(key, recording)).reason)
+	}
+
+	@Test
+	fun `final manual Cell writer keeps original saved details and binding`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = CELL_WAL_PAYLOAD_VERSION)
+		val qualified = assertIs<CellWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		// Real original qualification; this writer-only case constructs the new named binding.
+		// Full setup/provider acquisition is outside this writer fixture; the radio adapter has no writer-binding predicate.
+		installWriterContractFixture(2L, "MANUAL", advanceOwner = true)
+		val qualifier = mockk<CellWalQualificationAdapter>()
+		coEvery { qualifier.qualify(EVENT_ID, any()) } returns qualified
+		val finalWriter = CellCapturedFactWriter(database, qualifier)
+		val applied = assertIs<CellCapturedWriteResult.Applied>(finalWriter.write(EVENT_ID))
+		val saved = requireNotNull(database.cellCapturedFactDao().revision(
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION, applied.logicalFactId, 1L))
+		assertEquals(2L, saved.writerBindingGeneration)
+		assertEquals(4L, saved.writerOwnerGeneration)
+		val children = database.radioObservationChildDao().cellSessionChildren(
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION, applied.logicalFactId, 1L, 65)
+		assertEquals(2, children.size)
+		assertEquals(EVENT_ID.value, saved.sourceEventId)
+		assertIs<CellCapturedWriteResult.Unchanged>(finalWriter.write(EVENT_ID))
+		assertEquals(1L, database.cellCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `final automatic Cell writer keeps original saved details and binding`() = runTest {
+		installValidFixture(candidateWriter = true, payloadVersion = CELL_WAL_PAYLOAD_VERSION)
+		val qualified = assertIs<CellWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		// Real original qualification; this writer-only case constructs the new named binding.
+		// Full setup/provider acquisition is outside this writer fixture; the radio adapter has no writer-binding predicate.
+		installWriterContractFixture(2L, "AUTOMATIC", advanceOwner = true)
+		val qualifier = mockk<CellWalQualificationAdapter>()
+		coEvery { qualifier.qualify(EVENT_ID, any()) } returns qualified
+		val finalWriter = CellCapturedFactWriter(database, qualifier)
+		val applied = assertIs<CellCapturedWriteResult.Applied>(finalWriter.write(EVENT_ID))
+		val saved = requireNotNull(database.cellCapturedFactDao().revision(
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION, applied.logicalFactId, 1L))
+		assertEquals(2L, saved.writerBindingGeneration)
+		assertEquals(4L, saved.writerOwnerGeneration)
+		val children = database.radioObservationChildDao().cellSessionChildren(
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION, applied.logicalFactId, 1L, 65)
+		assertEquals(2, children.size)
+		assertEquals(EVENT_ID.value, saved.sourceEventId)
+		assertIs<CellCapturedWriteResult.Unchanged>(finalWriter.write(EVENT_ID))
+		assertEquals(1L, database.cellCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `original Cell writer cannot borrow automatic mode or final binding original ownership`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val qualified = assertIs<CellWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		val qualifier = mockk<CellWalQualificationAdapter>()
+		coEvery { qualifier.qualify(EVENT_ID, any()) } returns qualified
+		val finalWriter = CellCapturedFactWriter(database, qualifier)
+		installWriterContractFixture(1L, "AUTOMATIC", advanceOwner = false)
+		assertEquals(CellCapturedWriteResult.Rejected(CellCapturedWriteRejection.MANIFEST_WRITER_AUTHORITY_MISMATCH), finalWriter.write(EVENT_ID))
+		installWriterContractFixture(2L, "AUTOMATIC", advanceOwner = false)
+		assertEquals(CellCapturedWriteResult.Rejected(CellCapturedWriteRejection.MANIFEST_WRITER_AUTHORITY_MISMATCH), finalWriter.write(EVENT_ID))
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
+	}
+
+	@Test
 	fun `exact first Cell WAL sequence zero and durable authority produce identity-free fact`() = runTest {
 		installValidFixture()
 
@@ -2045,6 +2228,28 @@ class CellWalQualificationAdapterTest {
 		return event
 	}
 
+
+	/** Constructed immutable writer binding only; actual setup/callback authority is outside this fixture. */
+	private suspend fun installWriterContractFixture(generation: Long, mode: String, advanceOwner: Boolean) {
+		database.withTransaction {
+			val dao = database.sourceSessionDao()
+			val source = dao.manifestSources(LOGICAL_ID, MANIFEST_REVISION).single()
+			val changed = source.copy(writerBindingGeneration = generation, writerOwnerGeneration = generation * 2L)
+			val origin = if (mode == "AUTOMATIC") "AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START"
+			val manifest = requireNotNull(dao.manifest(LOGICAL_ID, MANIFEST_REVISION)).copy(sessionMode = mode, startOrigin = origin)
+			val checksum = SessionManifestIntegrity.compute(manifest, listOf(changed))
+			database.openHelper.writableDatabase.execSQL("UPDATE session_manifest_source SET writer_binding_generation = ?, writer_owner_generation = ? WHERE logical_tracking_id = ? AND manifest_revision = ? AND source_kind = ? AND purpose = ?",
+				arrayOf<Any?>(generation, generation * 2L, LOGICAL_ID, MANIFEST_REVISION, CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE))
+			database.openHelper.writableDatabase.execSQL("UPDATE session_manifest_version SET session_mode = ?, start_origin = ?, manifest_checksum = ? WHERE logical_tracking_id = ? AND manifest_revision = ?", arrayOf<Any?>(mode, origin, checksum, LOGICAL_ID, MANIFEST_REVISION))
+			dao.updateSession(requireNotNull(dao.session(LOGICAL_ID)).copy(sessionMode = mode, startOrigin = origin))
+			dao.updateServiceRun(requireNotNull(dao.serviceRun(RUN_ID)).copy(startOrigin = origin))
+			if (advanceOwner) assertEquals(1, database.sourceDestinationOwnerDao().compareAndSetOwner(
+				CELL_SOURCE, SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+				SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS, 2L,
+				SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS, 4L, OBSERVED_WALL_MS))
+		}
+	}
+
 	private suspend fun installValidFixture(
 		sourceSequence: Long = SOURCE_SEQUENCE,
 		deliveryIdentityOverride: String? = null,
@@ -2209,8 +2414,12 @@ class CellWalQualificationAdapterTest {
 		)
 	}
 
-	private suspend fun installCellLane(stage: String) {
-		val binding = ExecutableSourceLaneCatalog.CELL_SESSION_FACTS
+	private suspend fun installCellLane(stage: String, generation: Long = 1L) {
+		val binding = when (generation) {
+			1L -> ExecutableSourceLaneCatalog.CELL_SESSION_FACTS_V1
+			2L -> ExecutableSourceLaneCatalog.CELL_SESSION_FACTS_V2
+			else -> error("Unsupported fixture writer binding")
+		}
 		database.sourceProjectionStateDao().installProductLane(
 			SourceProductProjectionLaneEntity(
 				sourceKind = binding.source.stableCode,

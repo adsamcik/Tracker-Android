@@ -2027,21 +2027,157 @@ class WifiSourceRuntimeTest {
 		coEvery {
 			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
 		} returns ambient
-		val sink = wifiCandidateSink { SourceAdmissionHandoff.Durable(1L) }
+		coEvery { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(ambient) } returns true
+		val firstEntered = CompletableDeferred<Unit>()
+		val releaseFirst = CompletableDeferred<Unit>()
+		var admitted = 0
+		val sink = wifiCandidateSink {
+			admitted++
+			if (admitted == 1) {
+				firstEntered.complete(Unit)
+				releaseFirst.await()
+			}
+			SourceAdmissionHandoff.Durable(admitted.toLong())
+		}
 		fixture.start(sink)
 
 		assertTrue(fixture.runtime.refreshShared(ambientPlan, sink, claim = null) is
 			SourceApplyResult.Applied)
+		fixture.emit(resultEvent(frequencyMhz = 2_412, receivedNanos = 10_000_000L))
+		runCurrent()
+		firstEntered.await()
 		val cutoff = wifiCutoff()
 		val stopping = async { fixture.runtime.sharedSessionCutoff(cutoff) }
+		runCurrent()
+		coVerify(exactly = 0) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(ambient) }
+		releaseFirst.complete(Unit)
 		runCurrent()
 		val acknowledgement = stopping.await()
 
 		assertEquals(RegistrationRemovalOutcome.NOT_REGISTERED,
 			acknowledgement.registrationRemovalOutcome)
 		assertTrue(acknowledgement.appDrainComplete)
+		assertEquals(SourceStopStatus.COMPLETE, acknowledgement.status)
+		coVerify(exactly = 1) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(ambient) }
 		verify(exactly = 1) { fixture.backend.start(any()) }
 		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.emit(resultEvent(frequencyMhz = 5_500, receivedNanos = 30_000_000L))
+		runCurrent()
+		assertEquals(2, admitted)
+		fixture.runtime.close()
+	}
+
+
+	@Test
+	fun `shared Wi-Fi session cutoff reports failed publication without retiring Ambient`() = runTest {
+		val initialPlan = plan(1L).copy(mode = WifiMode.BROADCAST_DRIVEN)
+		val ambientPlan = initialPlan.copy(revision = 2L)
+		val initial = registration(initialPlan, authorizationRevision = 1L)
+		val ambient = registration(
+			ambientPlan,
+			authorizationRevision = 2L,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial))
+		coEvery {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} returns ambient
+		coEvery { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(ambient) } throws IllegalStateException("storage unavailable")
+		val firstEntered = CompletableDeferred<Unit>()
+		val releaseFirst = CompletableDeferred<Unit>()
+		var admitted = 0
+		val sink = wifiCandidateSink {
+			admitted++
+			if (admitted == 1) {
+				firstEntered.complete(Unit)
+				releaseFirst.await()
+			}
+			SourceAdmissionHandoff.Durable(admitted.toLong())
+		}
+		fixture.start(sink)
+
+		assertTrue(fixture.runtime.refreshShared(ambientPlan, sink, claim = null) is
+			SourceApplyResult.Applied)
+		fixture.emit(resultEvent(frequencyMhz = 2_412, receivedNanos = 10_000_000L))
+		runCurrent()
+		firstEntered.await()
+		val cutoff = wifiCutoff()
+		val stopping = async { fixture.runtime.sharedSessionCutoff(cutoff) }
+		runCurrent()
+		coVerify(exactly = 0) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(ambient) }
+		releaseFirst.complete(Unit)
+		runCurrent()
+		val acknowledgement = stopping.await()
+
+		assertEquals(RegistrationRemovalOutcome.NOT_REGISTERED,
+			acknowledgement.registrationRemovalOutcome)
+		assertTrue(acknowledgement.appDrainComplete)
+		assertEquals(SourceStopStatus.PARTIAL_UNOBSERVABLE, acknowledgement.status)
+		coVerify(exactly = 1) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(ambient) }
+		verify(exactly = 1) { fixture.backend.start(any()) }
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.emit(resultEvent(frequencyMhz = 5_500, receivedNanos = 30_000_000L))
+		runCurrent()
+		assertEquals(2, admitted)
+		fixture.runtime.close()
+	}
+
+
+	@Test
+	fun `shared Wi-Fi session cutoff cancellation leaves Ambient receiver registered`() = runTest {
+		val initialPlan = plan(1L).copy(mode = WifiMode.BROADCAST_DRIVEN)
+		val ambientPlan = initialPlan.copy(revision = 2L)
+		val initial = registration(initialPlan, authorizationRevision = 1L)
+		val ambient = registration(
+			ambientPlan,
+			authorizationRevision = 2L,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial))
+		coEvery {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} returns ambient
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		coEvery { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(ambient) } coAnswers {
+			entered.complete(Unit)
+			release.await()
+			true
+		}
+		val firstEntered = CompletableDeferred<Unit>()
+		val releaseFirst = CompletableDeferred<Unit>()
+		var admitted = 0
+		val sink = wifiCandidateSink {
+			admitted++
+			if (admitted == 1) {
+				firstEntered.complete(Unit)
+				releaseFirst.await()
+			}
+			SourceAdmissionHandoff.Durable(admitted.toLong())
+		}
+		fixture.start(sink)
+
+		assertTrue(fixture.runtime.refreshShared(ambientPlan, sink, claim = null) is
+			SourceApplyResult.Applied)
+		fixture.emit(resultEvent(frequencyMhz = 2_412, receivedNanos = 10_000_000L))
+		runCurrent()
+		firstEntered.await()
+		val cutoff = wifiCutoff()
+		val stopping = async { fixture.runtime.sharedSessionCutoff(cutoff) }
+		runCurrent()
+		coVerify(exactly = 0) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(ambient) }
+		releaseFirst.complete(Unit)
+		runCurrent()
+		entered.await()
+		stopping.cancel()
+		stopping.join()
+		assertTrue(stopping.isCancelled)
+		coVerify(exactly = 1) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(ambient) }
+		verify(exactly = 1) { fixture.backend.start(any()) }
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.emit(resultEvent(frequencyMhz = 5_500, receivedNanos = 30_000_000L))
+		runCurrent()
+		assertEquals(2, admitted)
 		fixture.runtime.close()
 	}
 
@@ -2239,6 +2375,341 @@ class WifiSourceRuntimeTest {
 		assertEquals(listOf(2_412, 5_500), admitted)
 		verify(exactly = 0) { fixture.backend.stop() }
 		fixture.runtime.close()
+	}
+
+
+	@Test
+	fun `resident Wifi setup waits for actual callback prefix before publishing and keeps Ambient`() = runTest {
+		val residentPlan = plan(1L).copy(mode = WifiMode.BROADCAST_DRIVEN)
+		val resident = registration(residentPlan, 1L, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)
+		val fixture = runtimeFixture(this, residentPlan, listOf(resident))
+		coEvery { fixture.registrations.isCurrentRadioSessionCaptureCallbackOwner(resident) } returns true
+		coEvery { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(resident) } returns true
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		var admitted = 0
+		fixture.start(wifiCandidateSink {
+			admitted++
+			if (admitted == 1) { entered.complete(Unit); release.await() }
+			SourceAdmissionHandoff.Durable(admitted.toLong())
+		})
+		try {
+			fixture.emit(resultEvent(frequencyMhz = 2_412, receivedNanos = 10_000_000L))
+			runCurrent()
+			assertTrue(entered.isCompleted)
+			val setup = async { fixture.runtime.prepareSessionCaptureBoundary(
+				android.os.SystemClock.elapsedRealtimeNanos() + 1_000_000_000L) }
+			runCurrent()
+			assertFalse(setup.isCompleted)
+			coVerify(exactly = 0) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(any()) }
+			release.complete(Unit)
+			runCurrent()
+			assertTrue(setup.await())
+			coVerify(exactly = 1) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(resident) }
+			fixture.emit(resultEvent(frequencyMhz = 5_500, receivedNanos = 30_000_000L))
+			runCurrent()
+			assertEquals(2, admitted)
+			verify(exactly = 1) { fixture.backend.start(any()) }
+			verify(exactly = 0) { fixture.backend.stop() }
+			coVerify(exactly = 0) { fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any()) }
+		} finally { release.complete(Unit); fixture.runtime.close() }
+	}
+
+	@Test
+	fun `resident Wifi setup rejects stale noCAP owner before closing callback entry`() = runTest {
+		val residentPlan = plan(1L).copy(mode = WifiMode.BROADCAST_DRIVEN)
+		val resident = registration(residentPlan, 1L, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)
+		val fixture = runtimeFixture(this, residentPlan, listOf(resident))
+		coEvery { fixture.registrations.isCurrentRadioSessionCaptureCallbackOwner(resident) } returns false
+		var admitted = 0
+		fixture.start(wifiCandidateSink { admitted++; SourceAdmissionHandoff.Durable(admitted.toLong()) })
+		try {
+			assertFalse(fixture.runtime.prepareSessionCaptureBoundary(
+				android.os.SystemClock.elapsedRealtimeNanos() + 1_000_000_000L))
+			coVerify(exactly = 0) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(any()) }
+			fixture.emit(resultEvent(frequencyMhz = 2_412, receivedNanos = 10_000_000L))
+			runCurrent()
+			assertEquals(1, admitted)
+			verify(exactly = 0) { fixture.backend.stop() }
+		} finally { fixture.runtime.close() }
+	}
+
+	@Test
+	fun `resident Wifi setup times out an unsettled prefix without publishing or retiring Ambient`() = runTest {
+		val residentPlan = plan(1L).copy(mode = WifiMode.BROADCAST_DRIVEN)
+		val resident = registration(residentPlan, 1L, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)
+		val fixture = runtimeFixture(this, residentPlan, listOf(resident))
+		coEvery { fixture.registrations.isCurrentRadioSessionCaptureCallbackOwner(resident) } returns true
+		val release = CompletableDeferred<Unit>()
+		var admitted = 0
+		fixture.start(wifiCandidateSink {
+			admitted++
+			if (admitted == 1) release.await()
+			SourceAdmissionHandoff.Durable(admitted.toLong())
+		})
+		try {
+			fixture.emit(resultEvent(frequencyMhz = 2_412, receivedNanos = 10_000_000L))
+			runCurrent()
+			val setup = async { fixture.runtime.prepareSessionCaptureBoundary(
+				android.os.SystemClock.elapsedRealtimeNanos() + 100_000_000L) }
+			runCurrent()
+			advanceTimeBy(101L)
+			runCurrent()
+			assertFalse(setup.await())
+			coVerify(exactly = 0) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(any()) }
+			release.complete(Unit)
+			runCurrent()
+			fixture.emit(resultEvent(frequencyMhz = 5_500, receivedNanos = 30_000_000L))
+			runCurrent()
+			assertEquals(2, admitted)
+			verify(exactly = 0) { fixture.backend.stop() }
+		} finally { release.complete(Unit); fixture.runtime.close() }
+	}
+
+	@Test
+	fun `resident Wifi setup cancellation during publication keeps exact Ambient callback owner`() = runTest {
+		val residentPlan = plan(1L).copy(mode = WifiMode.BROADCAST_DRIVEN)
+		val resident = registration(residentPlan, 1L, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)
+		val fixture = runtimeFixture(this, residentPlan, listOf(resident))
+		coEvery { fixture.registrations.isCurrentRadioSessionCaptureCallbackOwner(resident) } returns true
+		val publishing = CompletableDeferred<Unit>()
+		val hold = CompletableDeferred<Unit>()
+		coEvery { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(resident) } coAnswers {
+			publishing.complete(Unit); hold.await(); true
+		}
+		var admitted = 0
+		fixture.start(wifiCandidateSink { admitted++; SourceAdmissionHandoff.Durable(admitted.toLong()) })
+		try {
+			val setup = async { fixture.runtime.prepareSessionCaptureBoundary(
+				android.os.SystemClock.elapsedRealtimeNanos() + 1_000_000_000L) }
+			runCurrent()
+			assertTrue(publishing.isCompleted)
+			setup.cancel()
+			setup.join()
+			assertTrue(setup.isCancelled)
+			fixture.emit(resultEvent(frequencyMhz = 2_412, receivedNanos = 10_000_000L))
+			runCurrent()
+			assertEquals(1, admitted)
+			verify(exactly = 0) { fixture.backend.stop() }
+		} finally { hold.complete(Unit); fixture.runtime.close() }
+	}
+
+	@Test
+	fun `resident Wifi setup bounds a full FIFO enqueue and restores Ambient entry`() = runTest {
+		val residentPlan = plan(1L).copy(mode = WifiMode.BROADCAST_DRIVEN)
+		val resident = registration(residentPlan, 1L, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)
+		val fixture = runtimeFixture(this, residentPlan, listOf(resident))
+		coEvery { fixture.registrations.isCurrentRadioSessionCaptureCallbackOwner(resident) } returns true
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		var admitted = 0
+		fixture.start(wifiCandidateSink {
+			admitted++
+			if (admitted == 1) { entered.complete(Unit); release.await() }
+			SourceAdmissionHandoff.Durable(admitted.toLong())
+		})
+		try {
+			fixture.emit(resultEvent(frequencyMhz = 2_412, receivedNanos = 10_000_000L))
+			runCurrent()
+			assertTrue(entered.isCompleted)
+			// Both actual source lanes have 64 slots; the actor is held at the first callback.
+			repeat(64) { index -> fixture.emit(resultEvent(frequencyMhz = 2_412 + index * 5, receivedNanos = 11_000_000L + index * 1_000_000L)) }
+			val setup = async { fixture.runtime.prepareSessionCaptureBoundary(
+				android.os.SystemClock.elapsedRealtimeNanos() + 100_000_000L) }
+			runCurrent()
+			assertFalse(setup.isCompleted)
+			advanceTimeBy(101L)
+			runCurrent()
+			assertTrue(setup.isCompleted)
+			assertFalse(setup.await())
+			coVerify(exactly = 0) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(any()) }
+			release.complete(Unit)
+			runCurrent()
+			val completedPrefix = admitted
+			assertTrue(completedPrefix > 1)
+			fixture.emit(resultEvent(frequencyMhz = 5_500, receivedNanos = 100_000_000L))
+			runCurrent()
+			assertEquals(completedPrefix + 1, admitted)
+			verify(exactly = 0) { fixture.backend.stop() }
+		} finally { release.complete(Unit); fixture.runtime.close() }
+	}
+
+	@Test
+	fun `Wifi setup keeps full-queue Ambient callback loss visible and completes a finite prefix`() = runTest {
+		val residentPlan = plan(1L).copy(mode = WifiMode.BROADCAST_DRIVEN)
+		val resident = registration(residentPlan, 1L, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)
+		val fixture = runtimeFixture(this, residentPlan, listOf(resident))
+		coEvery { fixture.registrations.isCurrentRadioSessionCaptureCallbackOwner(resident) } returns true
+		coEvery { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(resident) } returns true
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		var admitted = 0
+		fixture.start(wifiCandidateSink {
+			admitted++
+			if (admitted == 1) { entered.complete(Unit); release.await() }
+			SourceAdmissionHandoff.Durable(admitted.toLong())
+		})
+		fun emitArrival(index: Int) { fixture.emit(resultEvent(frequencyMhz = 2_412 + index * 5, receivedNanos = 10_000_000L + index * 1_000_000L)) }
+		try {
+			emitArrival(0)
+			runCurrent()
+			assertTrue(entered.isCompleted)
+			repeat(64) { emitArrival(it + 1) }
+			val boundary = async { fixture.runtime.prepareSessionCaptureBoundary(android.os.SystemClock.elapsedRealtimeNanos() + 1_000_000_000L) }
+			runCurrent()
+			assertFalse(boundary.isCompleted)
+			// Arrives after the captured sequence65 while the actual marker send is suspended.
+			emitArrival(65)
+			release.complete(Unit)
+			runCurrent()
+			assertTrue(boundary.await())
+			coVerify(exactly = 1) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(resident) }
+			verify(exactly = 0) { fixture.backend.stop() }
+			emitArrival(66)
+			runCurrent()
+			val ack = fixture.quiesce()
+			assertTrue(ack.appDrainComplete)
+			assertEquals(67L, ack.callbackEntryBarrierSequence)
+			assertEquals(1L, ack.failedAdmissionCount)
+			assertEquals(66L, ack.unresolvedSequenceStart)
+			assertEquals(66L, ack.unresolvedSequenceEndInclusive)
+		} finally { release.complete(Unit); fixture.runtime.close() }
+	}
+
+	@Test
+	fun `Wifi settled noCAP End keeps full-queue Ambient callback loss visible without retiring it`() = runTest {
+		val residentPlan = plan(1L).copy(mode = WifiMode.BROADCAST_DRIVEN)
+		val resident = registration(residentPlan, 1L, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)
+		val fixture = runtimeFixture(this, residentPlan, listOf(resident))
+		coEvery { fixture.registrations.isCurrentRadioSessionCaptureCallbackOwner(resident) } returns true
+		coEvery { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(resident) } returns true
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		var admitted = 0
+		fixture.start(wifiCandidateSink {
+			admitted++
+			if (admitted == 1) { entered.complete(Unit); release.await() }
+			SourceAdmissionHandoff.Durable(admitted.toLong())
+		})
+		fun emitArrival(index: Int) { fixture.emit(resultEvent(frequencyMhz = 2_412 + index * 5, receivedNanos = 10_000_000L + index * 1_000_000L)) }
+		try {
+			emitArrival(0)
+			runCurrent()
+			assertTrue(entered.isCompleted)
+			repeat(64) { emitArrival(it + 1) }
+			val boundary = async { fixture.runtime.sharedSessionCutoff(wifiCutoff()) }
+			runCurrent()
+			assertFalse(boundary.isCompleted)
+			// Arrives after the captured sequence65 while the actual marker send is suspended.
+			emitArrival(65)
+			release.complete(Unit)
+			runCurrent()
+			val prefix = boundary.await()
+			assertTrue(prefix.appDrainComplete)
+			assertEquals(65L, prefix.callbackEntryBarrierSequence)
+			assertEquals(SourceStopStatus.COMPLETE, prefix.status)
+			// Conservative cumulative failures may extend past the captured prefix, never hidden.
+			assertEquals(1L, prefix.failedAdmissionCount)
+			assertEquals(66L, prefix.unresolvedSequenceStart)
+			assertEquals(66L, prefix.unresolvedSequenceEndInclusive)
+			coVerify(exactly = 1) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(resident) }
+			verify(exactly = 0) { fixture.backend.stop() }
+			emitArrival(66)
+			runCurrent()
+			val ack = fixture.quiesce()
+			assertTrue(ack.appDrainComplete)
+			assertEquals(67L, ack.callbackEntryBarrierSequence)
+			assertEquals(1L, ack.failedAdmissionCount)
+			assertEquals(66L, ack.unresolvedSequenceStart)
+			assertEquals(66L, ack.unresolvedSequenceEndInclusive)
+		} finally { release.complete(Unit); fixture.runtime.close() }
+	}
+
+	@Test
+	fun `Wifi CAP-present End retains the strict callback-entry fence`() = runTest {
+		val residentPlan = plan(1L).copy(mode = WifiMode.BROADCAST_DRIVEN)
+		val resident = registration(residentPlan, 1L)
+		val fixture = runtimeFixture(this, residentPlan, listOf(resident))
+		coEvery { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(resident) } returns false
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		var admitted = 0
+		fixture.start(wifiCandidateSink {
+			admitted++
+			if (admitted == 1) { entered.complete(Unit); release.await() }
+			SourceAdmissionHandoff.Durable(admitted.toLong())
+		})
+		fun emitArrival(index: Int) { fixture.emit(resultEvent(frequencyMhz = 2_412 + index * 5, receivedNanos = 10_000_000L + index * 1_000_000L)) }
+		try {
+			emitArrival(0)
+			runCurrent()
+			assertTrue(entered.isCompleted)
+			repeat(64) { emitArrival(it + 1) }
+			val boundary = async { fixture.runtime.sharedSessionCutoff(wifiCutoff()) }
+			runCurrent()
+			assertFalse(boundary.isCompleted)
+			// Arrives after the captured sequence65 while the actual marker send is suspended.
+			emitArrival(65)
+			release.complete(Unit)
+			runCurrent()
+			val prefix = boundary.await()
+			assertTrue(prefix.appDrainComplete)
+			assertEquals(65L, prefix.callbackEntryBarrierSequence)
+			assertEquals(SourceStopStatus.PARTIAL_UNOBSERVABLE, prefix.status)
+			assertEquals(0L, prefix.failedAdmissionCount)
+			coVerify(exactly = 0) { fixture.registrations.isCurrentRadioSessionCaptureCallbackOwner(any()) }
+			verify(exactly = 0) { fixture.backend.stop() }
+			emitArrival(66)
+			runCurrent()
+			val ack = fixture.quiesce()
+			assertTrue(ack.appDrainComplete)
+			assertEquals(66L, ack.callbackEntryBarrierSequence)
+			assertEquals(0L, ack.failedAdmissionCount)
+		} finally { release.complete(Unit); fixture.runtime.close() }
+	}
+
+	@Test
+	fun `Wifi cancelled full-queue setup retains Ambient overflow accounting and never publishes`() = runTest {
+		val residentPlan = plan(1L).copy(mode = WifiMode.BROADCAST_DRIVEN)
+		val resident = registration(residentPlan, 1L, purpose = SourceBrokerPurpose.AMBIENT_PRODUCT)
+		val fixture = runtimeFixture(this, residentPlan, listOf(resident))
+		coEvery { fixture.registrations.isCurrentRadioSessionCaptureCallbackOwner(resident) } returns true
+		coEvery { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(resident) } returns true
+		val entered = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		var admitted = 0
+		fixture.start(wifiCandidateSink {
+			admitted++
+			if (admitted == 1) { entered.complete(Unit); release.await() }
+			SourceAdmissionHandoff.Durable(admitted.toLong())
+		})
+		fun emitArrival(index: Int) { fixture.emit(resultEvent(frequencyMhz = 2_412 + index * 5, receivedNanos = 10_000_000L + index * 1_000_000L)) }
+		try {
+			emitArrival(0)
+			runCurrent()
+			assertTrue(entered.isCompleted)
+			repeat(64) { emitArrival(it + 1) }
+			val boundary = async { fixture.runtime.prepareSessionCaptureBoundary(android.os.SystemClock.elapsedRealtimeNanos() + 1_000_000_000L) }
+			runCurrent()
+			assertFalse(boundary.isCompleted)
+			// Arrives after the captured sequence65 while the actual marker send is suspended.
+			emitArrival(65)
+			boundary.cancel()
+			boundary.join()
+			assertTrue(boundary.isCancelled)
+			coVerify(exactly = 0) { fixture.registrations.publishRadioSessionCaptureCallbackBarrier(any()) }
+			release.complete(Unit)
+			runCurrent()
+			verify(exactly = 0) { fixture.backend.stop() }
+			emitArrival(66)
+			runCurrent()
+			val ack = fixture.quiesce()
+			assertTrue(ack.appDrainComplete)
+			assertEquals(67L, ack.callbackEntryBarrierSequence)
+			assertEquals(1L, ack.failedAdmissionCount)
+			assertEquals(66L, ack.unresolvedSequenceStart)
+			assertEquals(66L, ack.unresolvedSequenceEndInclusive)
+		} finally { release.complete(Unit); fixture.runtime.close() }
 	}
 
 	private suspend fun RuntimeFixture.start(sink: SourceEventSink) {

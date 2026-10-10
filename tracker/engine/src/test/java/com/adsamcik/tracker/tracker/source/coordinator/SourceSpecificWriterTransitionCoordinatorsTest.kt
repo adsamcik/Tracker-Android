@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.source.coordinator
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.CollectedDataDeletionOperationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
@@ -24,6 +26,8 @@ import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.tracker.pipeline.persistence.ExclusiveTrackingPersistenceLifecycleLease
 import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -31,6 +35,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
@@ -640,6 +645,123 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 		rollout().isAcquisitionReachable(SourceKind.ACTIVITY) shouldBe false
 	}
 
+	@Test
+	fun `fresh final source setup preserves ready siblings and uses the same writer for both modes`() = runTest {
+		seedContainedRollout()
+		val prepared = mutableSetOf<SourceKind>()
+		for (spec in SourceWriterTransitionSpec.entries) {
+			if (spec.initialOwner != null) seedInitialOwner(spec)
+			val engine = SourceWriterTransitionEngineFactory.forTest(database, catalog, dependencies()).create(spec)
+			val originalRevision = rollout().revision
+			engine.installInertCandidate(originalRevision, 10L, spec.finalBinding)
+				.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+			rollout().isAcquisitionReachable(spec.source) shouldBe false
+
+			engine.activateCandidate(originalRevision + 1L, 11L)
+				.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>().ownerGeneration shouldBe 4L
+
+			prepared += spec.source
+			val lane = requireNotNull(database.sourceProjectionStateDao().activeProductLane(spec.source.stableCode))
+			lane.bindingGeneration shouldBe 2L
+			lane.captureModeMask shouldBe 3L
+			lane.projectionId shouldBe spec.binding.projectionId
+			lane.projectionVersion shouldBe spec.binding.projectionVersion
+			prepared.forEach { source ->
+				rollout().isCaptureReachable(source, CaptureReachabilityMode.MANUAL_SESSION_CAPTURE) shouldBe true
+				rollout().isCaptureReachable(source, CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE) shouldBe true
+			}
+		}
+	}
+
+	@Test
+	fun `settled original Cell rollback prepares final contract without deleting the original lane`() = runTest {
+		val old = prepareCellRollback(catalog)
+		val original = requireNotNull(database.sourceProjectionStateDao().productLane(
+			SourceKind.CELL.stableCode, 1L, SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+		))
+		val engine = SourceWriterTransitionEngineFactory.forTest(database, catalog, dependencies())
+			.create(SourceWriterTransitionSpec.CELL)
+
+		engine.installInertCandidate(4L, 14L, SourceWriterTransitionSpec.CELL.finalBinding)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+		engine.installInertCandidate(4L, 14L, SourceWriterTransitionSpec.CELL.finalBinding)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.AlreadyApplied>()
+		engine.activateCandidate(5L, 15L).shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+
+		database.sourceProjectionStateDao().productLane(SourceKind.CELL.stableCode, 1L,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID, SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION) shouldBe original
+		original.captureModeMask shouldBe 1L
+		original.status shouldBe SourceProductProjectionLaneEntity.STATUS_RETIRED
+		database.sourceDestinationOwnerDao().get(SourceKind.CELL.stableCode,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL)?.ownerGeneration shouldBe 4L
+		rollout().isCaptureReachable(SourceKind.CELL, CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE) shouldBe true
+		// A repeat of the old completed operation may not return or mutate the final generation.
+		old.completeCandidateRollback(4L, 0L, 16L).shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+		database.sourceProjectionStateDao().activeProductLane(SourceKind.CELL.stableCode)?.bindingGeneration shouldBe 2L
+	}
+
+	@Test
+	fun `settled original Pressure shadow prepares final contract while preserving its legacy owner until activation`() = runTest {
+		seedContainedRollout()
+		val spec = SourceWriterTransitionSpec.PRESSURE
+		seedInitialOwner(spec)
+		val old = PressureSessionFactWriterTransitionCoordinator(database, catalog, dependencies())
+		old.installInertCandidate(1L, 10L).shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+		val store = RoomTrackingRolloutStateStore(database, catalog)
+		val cutoff = store.beginLaneContainment(spec.binding, 3L, 11L)
+		store.finishLaneRetirement(spec.binding, cutoff.cutoffOrdinal, 12L)
+		val original = requireNotNull(database.sourceProjectionStateDao().productLane(spec.source.stableCode,
+			spec.binding.bindingGeneration, spec.binding.projectionId, spec.binding.projectionVersion))
+		val engine = SourceWriterTransitionEngineFactory.forTest(database, catalog, dependencies()).create(spec)
+
+		engine.installInertCandidate(3L, 13L, spec.finalBinding).shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+
+		database.sourceDestinationOwnerDao().get(spec.source.stableCode, spec.destination)?.owner shouldBe spec.initialOwner
+		engine.activateCandidate(4L, 14L).shouldBeInstanceOf<SourceWriterTransitionResult.Applied>().ownerGeneration shouldBe 4L
+		database.sourceProjectionStateDao().productLane(spec.source.stableCode, spec.binding.bindingGeneration,
+			spec.binding.projectionId, spec.binding.projectionVersion) shouldBe original
+		original.productStage shouldBe SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW
+	}
+
+	@Test
+	fun `unsettled original predecessor blocks final setup without rewriting its saved state`() = runTest {
+		seedRetiredCellGeneration(bindingGeneration = 1L, containedOwnerGeneration = 3L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_product_projection_lane SET capture_admission_cutoff_ordinal = 1 WHERE source_kind = ?",
+			arrayOf(SourceKind.CELL.stableCode),
+		)
+		val before = database.sourceProjectionStateDao().latestProductLane(SourceKind.CELL.stableCode)
+		val owner = database.sourceDestinationOwnerDao().get(SourceKind.CELL.stableCode,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL)
+		val engine = SourceWriterTransitionEngineFactory.forTest(database, catalog, dependencies())
+			.create(SourceWriterTransitionSpec.CELL)
+
+		val blocked = engine.installInertCandidate(19L, 20L, SourceWriterTransitionSpec.CELL.finalBinding)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+
+		blocked.blocker shouldBe SourceWriterTransitionBlocker.ROLLBACK_CURSOR_BEHIND
+		database.sourceProjectionStateDao().latestProductLane(SourceKind.CELL.stableCode) shouldBe before
+		database.sourceDestinationOwnerDao().get(SourceKind.CELL.stableCode,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL) shouldBe owner
+		rollout() shouldBe TrackingRolloutState.contained(19L)
+	}
+
+	@Test
+	fun `an altered final contract cannot install or acquire a destination owner`() = runTest {
+		seedContainedRollout()
+		val spec = SourceWriterTransitionSpec.CELL
+		val engine = SourceWriterTransitionEngineFactory.forTest(database, catalog, dependencies()).create(spec)
+
+		val blocked = engine.installInertCandidate(1L, 10L, spec.finalBinding.copy(projectionVersion = 99))
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+
+		blocked.blocker shouldBe SourceWriterTransitionBlocker.BINDING_NOT_EXECUTABLE
+		database.sourceProjectionStateDao().latestProductLane(spec.source.stableCode) shouldBe null
+		database.sourceDestinationOwnerDao().get(spec.source.stableCode, spec.destination) shouldBe null
+		rollout() shouldBe TrackingRolloutState.contained(1L)
+	}
+
 	private suspend fun seedContainedRollout() {
 		RoomTrackingRolloutStateStore(database, catalog).load() shouldBe
 			TrackingRolloutState.contained(revision = 1L)
@@ -761,6 +883,164 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 
 	private suspend fun rollout(): TrackingRolloutState =
 		requireNotNull(database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull())
+
+	@Test
+	fun `actual completed clear prepares each final source without increasing its owner4 again`() = runTest {
+		for (spec in SourceWriterTransitionSpec.entries.filter { it.initialOwner != null }) seedInitialOwner(spec)
+		completeSharedClear("four-source-clear", 1L, 100L)
+
+		for (spec in SourceWriterTransitionSpec.entries) {
+			val revision = rollout().revision
+			val engine = postClearEngine(spec)
+			engine.installInertCandidate(revision, 200L, spec.finalBinding)
+				.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+			val activated = engine.activateCandidate(revision + 1L, 201L)
+				.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+			activated.ownerGeneration shouldBe 4L
+			val owner = requireNotNull(database.sourceDestinationOwnerDao().get(spec.source.stableCode, spec.destination))
+			owner.owner shouldBe spec.candidateOwner
+			owner.ownerGeneration shouldBe 4L
+			val lane = requireNotNull(database.sourceProjectionStateDao().activeProductLane(spec.source.stableCode))
+			lane.bindingGeneration shouldBe 2L
+			lane.captureModeMask shouldBe 3L
+			rollout().isCaptureReachable(spec.source, CaptureReachabilityMode.MANUAL_SESSION_CAPTURE) shouldBe true
+			rollout().isCaptureReachable(spec.source, CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE) shouldBe true
+			engine.activateCandidate(revision + 1L, 202L)
+				.shouldBeInstanceOf<SourceWriterTransitionResult.AlreadyApplied>()
+		}
+		database.collectedDataDeletionOperationDao().get("four-source-clear")?.phase shouldBe
+			CollectedDataDeletionOperationEntity.PHASE_WRITERS_REARMED
+	}
+
+	@Test
+	fun `completed clear remains usable after tighter retention and independent new-epoch WAL`() = runTest {
+		seedInitialOwner(SourceWriterTransitionSpec.PRESSURE)
+		completeSharedClear("retained-clear", 1L, 100L)
+		database.sourceEvidenceStateDao().updateLifecycle(1L, 200L, 200L)
+		val event = SourceEventWalEntity(
+			eventId = "independent-current-epoch-allocation", providerDedupKey = null,
+			logicalTrackingId = null, serviceRunId = null, sourceKind = SourceKind.CELL.stableCode,
+			sourceInstanceId = "cell-allocation-fixture", registrationGeneration = 1L, sourceSequence = 1L,
+			configRevision = 1L, planAttribution = 0, clockDomainId = BOOT_ID,
+			observedElapsedNanos = 1L, receivedElapsedNanos = 1L, wallTimeMs = 201L,
+			wallTimeUncertaintyMs = 0L, capturedCollectedDataEpoch = 1L, acquiredAtMs = 201L,
+			qualityFlags = 0L, qualityConfidence = null, payloadVersion = 1,
+			payload = byteArrayOf(1), payloadChecksum = "checksum", createdAtMs = 201L,
+		)
+		database.sourceEventWalDao().insertIgnoringDuplicate(event)
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(event.eventId))
+		val revision = rollout().revision
+		val engine = postClearEngine(SourceWriterTransitionSpec.PRESSURE)
+
+		engine.installInertCandidate(revision, 300L, SourceWriterTransitionSpec.PRESSURE.finalBinding)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+		engine.activateCandidate(revision + 1L, 301L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+
+		val retained = requireNotNull(database.sourceEventWalDao().getByEventId(event.eventId))
+		retained.eventId shouldBe original.eventId
+		retained.admissionOrdinal shouldBe original.admissionOrdinal
+		retained.capturedCollectedDataEpoch shouldBe 1L
+		retained.payloadChecksum shouldBe original.payloadChecksum
+		retained.payload.toList() shouldBe original.payload.toList()
+		database.sourceProjectionStateDao().activeProductLane(SourceKind.PRESSURE.stableCode)?.let {
+			it.activationOrdinal shouldBe original.admissionOrdinal + 1L
+			it.contiguousAdmissionOrdinal shouldBe original.admissionOrdinal
+		}
+		database.sourceEvidenceStateDao().get()?.retainedFromMs shouldBe 200L
+	}
+
+	@Test
+	fun `final owner with empty tables cannot manufacture a completed clear`() = runTest {
+		seedContainedRollout()
+		val spec = SourceWriterTransitionSpec.CELL
+		database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
+			spec.source.stableCode, spec.destination, spec.candidateOwner, 4L, 0L,
+		))
+
+		postClearEngine(spec).installInertCandidate(1L, 10L, spec.finalBinding)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+			.blocker shouldBe SourceWriterTransitionBlocker.FULL_DELETION_PROOF_UNAVAILABLE
+
+		database.sourceProjectionStateDao().latestProductLane(spec.source.stableCode) shouldBe null
+		rollout().isAcquisitionReachable(spec.source) shouldBe false
+	}
+
+	@Test
+	fun `unfinished clear stale epoch and weaker floor refuse final shadow before any installation`() = runTest {
+		val spec = SourceWriterTransitionSpec.CELL
+		database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
+			spec.source.stableCode, spec.destination, spec.candidateOwner, 4L, 0L,
+		))
+		AppDatabase.deleteAllCollectedDataForTesting(database, "unfinished-clear", 1L, 100L, 100L)
+		val store = RoomTrackingRolloutStateStore(database, catalog)
+		val revision = store.load().revision
+		postClearEngine(spec).installInertCandidate(revision, 200L, spec.finalBinding)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+			.blocker shouldBe SourceWriterTransitionBlocker.FULL_DELETION_PROOF_UNAVAILABLE
+		completeSharedClear("unfinished-clear", 1L, 100L)
+		val clearRevision = rollout().revision
+		database.sourceEvidenceStateDao().updateLifecycle(2L, 100L, 201L)
+		postClearEngine(spec).installInertCandidate(clearRevision, 202L, spec.finalBinding)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+			.blocker shouldBe SourceWriterTransitionBlocker.FULL_DELETION_PROOF_UNAVAILABLE
+		database.sourceEvidenceStateDao().updateLifecycle(1L, 99L, 203L)
+		postClearEngine(spec).installInertCandidate(clearRevision, 204L, spec.finalBinding)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+			.blocker shouldBe SourceWriterTransitionBlocker.FULL_DELETION_PROOF_UNAVAILABLE
+		database.sourceProjectionStateDao().latestProductLane(spec.source.stableCode) shouldBe null
+		database.sourceDestinationOwnerDao().get(spec.source.stableCode, spec.destination)?.ownerGeneration shouldBe 4L
+	}
+
+	@Test
+	fun `original lane restored after clear is not new-epoch setup authority`() = runTest {
+		val spec = SourceWriterTransitionSpec.PRESSURE
+		seedContainedRollout()
+		seedInitialOwner(spec)
+		val engine = postClearEngine(spec)
+		engine.installInertCandidate(1L, 10L).shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+		engine.activateCandidate(2L, 20L).shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+		val original = requireNotNull(database.sourceProjectionStateDao().activeProductLane(spec.source.stableCode))
+		completeSharedClear("original-lane-clear", 1L, 100L)
+		val retiredOriginal = original.copy(
+			status = SourceProductProjectionLaneEntity.STATUS_RETIRED,
+			retentionRequired = false, captureAdmissionCutoffOrdinal = 0L,
+			terminalAtMs = 100L,
+			terminalDisposition = SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN,
+		)
+		database.sourceProjectionStateDao().installProductLane(retiredOriginal)
+		val revision = rollout().revision
+
+		engine.installInertCandidate(revision, 200L, spec.finalBinding)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+			.blocker shouldBe SourceWriterTransitionBlocker.DESTINATION_OWNER_CONFLICT
+
+		database.sourceProjectionStateDao().latestProductLane(spec.source.stableCode) shouldBe retiredOriginal
+		database.sourceDestinationOwnerDao().get(spec.source.stableCode, spec.destination)?.ownerGeneration shouldBe 4L
+		rollout().isAcquisitionReachable(spec.source) shouldBe false
+	}
+
+	private fun postClearEngine(spec: SourceWriterTransitionSpec) =
+		SourceWriterTransitionEngineFactory.forTest(database, catalog, dependencies()).create(spec)
+
+	private suspend fun completeSharedClear(operationId: String, epoch: Long, time: Long) {
+		AppDatabase.deleteAllCollectedDataForTesting(database, operationId, epoch, time, time)
+		val snapshot = CollectedDataLifecycleSnapshot(epoch, time)
+		val lifecycle = object : CollectedDataLifecycleStore {
+			override val snapshots = flowOf(snapshot)
+			override suspend fun snapshot() = snapshot
+			override suspend fun beginFullDeletion(deletedAtMs: Long): CollectedDataLifecycleSnapshot =
+				error("The acknowledged lifecycle is a fixture")
+			override suspend fun advanceRetainedFrom(retainedFromMs: Long): CollectedDataLifecycleSnapshot =
+				error("Source setup does not modify retention")
+		}
+		SharedSourceWriterDeletionRearm(database, lifecycle,
+			StepsWriterDeletionRearm(StepsWriterTransitionState(database, catalog),
+				StepsWriterTransitionRuntimeHooks.forTest(StepsWriterTransitionTestDependencies(
+					startupGate = ReadyTrackingStartupGate,
+				))),
+		).rearmAfterFullDeletion(operationId, epoch, time)
+	}
 
 	private fun dependencies(
 		legacyWriterQuiescence: LegacySourceWriterTransitionBoundary =

@@ -487,6 +487,73 @@ interface SourceBrokerDao {
 		registrationGeneration: Long,
 	): Long
 
+
+
+	/** Fixed shared radio session boundary; Ambient products keep their independent lifetime. */
+	@Query(
+		"SELECT COALESCE(MAX(authorization_revision), 0) FROM source_authorization " +
+			"WHERE source_kind = :sourceKind AND source_kind IN (4, 5) " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND purpose = 'SESSION_CAPTURE' AND persistence_eligible = 1",
+	)
+	suspend fun maximumRadioSessionCaptureAuthorizationRevision(sourceKind: Int, registrationGeneration: Long): Long
+
+	@Query(
+		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind AND source_kind IN (4, 5) " +
+			"AND registration_generation = :registrationGeneration AND authorization_revision = " +
+			"(SELECT MAX(authorization_revision) FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration) ORDER BY member_id LIMIT :limit",
+	)
+	suspend fun latestRadioAuthorizationBounded(sourceKind: Int, registrationGeneration: Long, limit: Int): List<SourceAuthorizationEntity>
+
+	/** Published only after the runtime has drained the finite prefix before this no-CAP snapshot. */
+	@Query(
+		"UPDATE provider_registration_generation SET capture_callback_barrier_authorization_revision = " +
+			"CASE WHEN capture_callback_barrier_authorization_revision < :throughAuthorizationRevision " +
+			"THEN :throughAuthorizationRevision ELSE capture_callback_barrier_authorization_revision END " +
+			"WHERE source_kind = :sourceKind AND source_kind IN (4, 5) AND registration_generation = :registrationGeneration " +
+			"AND source_instance_id = :sourceInstanceId AND status = 'ACTIVE' AND :throughAuthorizationRevision > 0 " +
+			"AND :throughAuthorizationRevision = (SELECT MAX(authorization_revision) FROM source_authorization " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration) " +
+			"AND NOT EXISTS(SELECT 1 FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration AND authorization_revision = :throughAuthorizationRevision " +
+			"AND purpose = 'SESSION_CAPTURE' AND persistence_eligible = 1)",
+	)
+	suspend fun acknowledgeRadioSessionCaptureCallbackBarrier(
+		sourceKind: Int, registrationGeneration: Long, sourceInstanceId: String, throughAuthorizationRevision: Long,
+	): Int
+
+	/** Location setup changes session capture while independently authorized all-day work remains. */
+	@Query(
+		"SELECT COALESCE(MAX(authorization_revision), 0) FROM source_authorization " +
+			"WHERE source_kind = 1 AND registration_generation = :registrationGeneration " +
+			"AND purpose = 'SESSION_CAPTURE' AND persistence_eligible = 1",
+	)
+	suspend fun maximumLocationSessionCaptureAuthorizationRevision(registrationGeneration: Long): Long
+
+	/** The runtime has drained the finite callback prefix preceding this complete no-session snapshot. */
+	@Query(
+		"UPDATE provider_registration_generation SET " +
+			"capture_callback_barrier_authorization_revision = CASE " +
+			"WHEN capture_callback_barrier_authorization_revision < :throughAuthorizationRevision " +
+			"THEN :throughAuthorizationRevision ELSE capture_callback_barrier_authorization_revision END " +
+			"WHERE source_kind = 1 AND registration_generation = :registrationGeneration " +
+			"AND source_instance_id = :sourceInstanceId AND status = 'ACTIVE' " +
+			"AND :throughAuthorizationRevision > 0 " +
+			"AND :throughAuthorizationRevision = (SELECT MAX(authorization_revision) " +
+			"FROM source_authorization WHERE source_kind = 1 " +
+			"AND registration_generation = :registrationGeneration) " +
+			"AND NOT EXISTS(SELECT 1 FROM source_authorization WHERE source_kind = 1 " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND authorization_revision = :throughAuthorizationRevision " +
+			"AND purpose = 'SESSION_CAPTURE' AND persistence_eligible = 1)",
+	)
+	suspend fun acknowledgeLocationSessionCaptureCallbackBarrier(
+		registrationGeneration: Long,
+		sourceInstanceId: String,
+		throughAuthorizationRevision: Long,
+	): Int
+
 	/**
 	 * A provider owner may publish this acknowledgement only after it has fenced new callback
 	 * entries and every earlier entry reached durable admission or a permanent rejection.

@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.tracker.source.coordinator
 
+import com.adsamcik.tracker.shared.base.database.hasExactRadioSessionCaptureCallbackBarrier
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
@@ -241,7 +243,7 @@ class ExecutableSourceLaneCatalog internal constructor(
 		val PREFERRED_STEPS_SESSION_FACTS = STEPS_SESSION_FACTS_V2
 
 		/** Dormant source-local captured Activity writer; CONTROL remains a separate non-product lane. */
-		val ACTIVITY_SESSION_FACTS = ExecutableSourceLaneBinding(
+		val ACTIVITY_SESSION_FACTS_V1 = ExecutableSourceLaneBinding(
 			source = SourceKind.ACTIVITY,
 			bindingGeneration = SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION,
 			projectionId = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
@@ -249,8 +251,20 @@ class ExecutableSourceLaneCatalog internal constructor(
 			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
 		)
 
+		val ACTIVITY_SESSION_FACTS_V2 = ACTIVITY_SESSION_FACTS_V1.copy(
+			bindingGeneration = SourceDestinationOwnerEntity.ACTIVITY_FACT_AUTOMATIC_BINDING_GENERATION,
+			captureModes = setOf(
+				CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+				CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
+			),
+		)
+
+		/** Original compatibility name; setup selects the explicit final binding below. */
+		val ACTIVITY_SESSION_FACTS = ACTIVITY_SESSION_FACTS_V1
+		val PREFERRED_ACTIVITY_SESSION_FACTS = ACTIVITY_SESSION_FACTS_V2
+
 		/** Dormant source-local Pressure writer contract; executable does not imply activation. */
-		val PRESSURE_SESSION_FACTS = ExecutableSourceLaneBinding(
+		val PRESSURE_SESSION_FACTS_V1 = ExecutableSourceLaneBinding(
 			source = SourceKind.PRESSURE,
 			bindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
 			projectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
@@ -258,8 +272,20 @@ class ExecutableSourceLaneCatalog internal constructor(
 			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
 		)
 
+		val PRESSURE_SESSION_FACTS_V2 = PRESSURE_SESSION_FACTS_V1.copy(
+			bindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_AUTOMATIC_BINDING_GENERATION,
+			captureModes = setOf(
+				CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+				CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
+			),
+		)
+
+		/** Original compatibility name; setup selects the explicit final binding below. */
+		val PRESSURE_SESSION_FACTS = PRESSURE_SESSION_FACTS_V1
+		val PREFERRED_PRESSURE_SESSION_FACTS = PRESSURE_SESSION_FACTS_V2
+
 		/** Dormant source-local Cell writer contract; executable does not imply activation. */
-		val CELL_SESSION_FACTS = ExecutableSourceLaneBinding(
+		val CELL_SESSION_FACTS_V1 = ExecutableSourceLaneBinding(
 			source = SourceKind.CELL,
 			bindingGeneration = SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION,
 			projectionId = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
@@ -267,8 +293,20 @@ class ExecutableSourceLaneCatalog internal constructor(
 			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
 		)
 
+		val CELL_SESSION_FACTS_V2 = CELL_SESSION_FACTS_V1.copy(
+			bindingGeneration = SourceDestinationOwnerEntity.CELL_FACT_AUTOMATIC_BINDING_GENERATION,
+			captureModes = setOf(
+				CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+				CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
+			),
+		)
+
+		/** Original compatibility name; setup selects the explicit final binding below. */
+		val CELL_SESSION_FACTS = CELL_SESSION_FACTS_V1
+		val PREFERRED_CELL_SESSION_FACTS = CELL_SESSION_FACTS_V2
+
 		/** Dormant source-local Wi-Fi writer contract; executable does not imply activation. */
-		val WIFI_SESSION_FACTS = ExecutableSourceLaneBinding(
+		val WIFI_SESSION_FACTS_V1 = ExecutableSourceLaneBinding(
 			source = SourceKind.WIFI,
 			bindingGeneration = SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION,
 			projectionId = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
@@ -276,16 +314,52 @@ class ExecutableSourceLaneCatalog internal constructor(
 			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
 		)
 
+		val WIFI_SESSION_FACTS_V2 = WIFI_SESSION_FACTS_V1.copy(
+			bindingGeneration = SourceDestinationOwnerEntity.WIFI_FACT_AUTOMATIC_BINDING_GENERATION,
+			captureModes = setOf(
+				CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+				CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
+			),
+		)
+
+		/** Original compatibility name; setup selects the explicit final binding below. */
+		val WIFI_SESSION_FACTS = WIFI_SESSION_FACTS_V1
+		val PREFERRED_WIFI_SESSION_FACTS = WIFI_SESSION_FACTS_V2
+
+		val LOCATION_CANONICAL_HANDOFF_V1 = ExecutableSourceLaneBinding(
+			source = SourceKind.LOCATION,
+			bindingGeneration = SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_BINDING_GENERATION,
+			projectionId = SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID,
+			projectionVersion = SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION,
+			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
+		)
+
+		val LOCATION_CANONICAL_HANDOFF_V2 = LOCATION_CANONICAL_HANDOFF_V1.copy(
+			bindingGeneration = SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_AUTOMATIC_BINDING_GENERATION,
+			captureModes = setOf(
+				CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+				CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
+			),
+		)
+
+		val PREFERRED_LOCATION_CANONICAL_HANDOFF = LOCATION_CANONICAL_HANDOFF_V2
+
 		fun explicit(vararg bindings: ExecutableSourceLaneBinding) =
 			ExecutableSourceLaneCatalog(bindings.toSet(), emptyList())
 
 		private fun defaultBindings() = setOf(
+			LOCATION_CANONICAL_HANDOFF_V1,
+			LOCATION_CANONICAL_HANDOFF_V2,
 			STEPS_SESSION_FACTS_V1,
 			STEPS_SESSION_FACTS_V2,
-			ACTIVITY_SESSION_FACTS,
-			PRESSURE_SESSION_FACTS,
-			CELL_SESSION_FACTS,
-			WIFI_SESSION_FACTS,
+			ACTIVITY_SESSION_FACTS_V1,
+			ACTIVITY_SESSION_FACTS_V2,
+			PRESSURE_SESSION_FACTS_V1,
+			PRESSURE_SESSION_FACTS_V2,
+			CELL_SESSION_FACTS_V1,
+			CELL_SESSION_FACTS_V2,
+			WIFI_SESSION_FACTS_V1,
+			WIFI_SESSION_FACTS_V2,
 		)
 	}
 }
@@ -560,6 +634,23 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 		binding: ExecutableSourceLaneBinding,
 		rolloutRevision: Long,
 		updatedAtMs: Long,
+	): SourceProductLaneRetirementFence = beginContainment(binding, rolloutRevision, updatedAtMs, finalSetup = false)
+
+	/** Exact original shadow setup only; generic containment keeps its full-purpose boundary. */
+	internal suspend fun beginOriginalWriterSetupContainment(
+		binding: ExecutableSourceLaneBinding,
+		rolloutRevision: Long,
+		updatedAtMs: Long,
+	): SourceProductLaneRetirementFence {
+		require(SourceWriterTransitionSpec.entries.any { it.binding == binding })
+		return beginContainment(binding, rolloutRevision, updatedAtMs, finalSetup = true)
+	}
+
+	private suspend fun beginContainment(
+		binding: ExecutableSourceLaneBinding,
+		rolloutRevision: Long,
+		updatedAtMs: Long,
+		finalSetup: Boolean,
 	): SourceProductLaneRetirementFence {
 		require(executableLaneCatalog.owns(binding))
 		require(updatedAtMs >= 0L)
@@ -569,8 +660,23 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 			require(rolloutRevision > current.revision)
 			val projectionDao = database.sourceProjectionStateDao()
 			val lane = requireNotNull(projectionDao.activeProductLane(binding.source.stableCode))
-			require(lane.matches(binding, ProductProjectionStage.EVENT_SHADOW, current.revision))
-			database.requireSourceCaptureAdmissionFenced(binding.source.stableCode)
+			val protectedLocation = binding.source == SourceKind.LOCATION &&
+				binding in setOf(ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V1,
+					ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V2)
+			if (protectedLocation) {
+				require(lane.matches(binding, ProductProjectionStage.EVENT_SHADOW, current.revision) ||
+					lane.matches(binding, ProductProjectionStage.EVENT_CANONICAL, current.revision))
+				require(database.sourceDestinationOwnerDao().isExactOwner(binding.source.stableCode,
+					SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+					SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE,
+					SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION))
+				require(database.isLocationSessionCaptureAdmissionFenced())
+			} else {
+				require(lane.matches(binding, ProductProjectionStage.EVENT_SHADOW, current.revision))
+				if (finalSetup && (binding.source == SourceKind.WIFI || binding.source == SourceKind.CELL))
+					require(database.isSharedRadioSessionCaptureAdmissionFenced(binding.source.stableCode))
+				else database.requireSourceCaptureAdmissionFenced(binding.source.stableCode)
+			}
 			check(lane.captureAdmissionCutoffOrdinal == null) {
 				"Source product lane capture admission is already fenced"
 			}
@@ -724,6 +830,67 @@ internal suspend fun AppDatabase.requireSourceCaptureAdmissionFenced(sourceKind:
 	require(isSourceCaptureAdmissionFenced(sourceKind)) {
 		"Source capture must cross its demand and callback-authorization retirement barrier first"
 	}
+}
+
+/** Location has one physical owner whose all-day purpose can outlive session capture. */
+internal suspend fun AppDatabase.isLocationSessionCaptureAdmissionFenced(): Boolean {
+	val broker = sourceBrokerDao()
+	val source = SourceKind.LOCATION.stableCode
+	if (broker.activeDemands(source).any { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) return false
+	val epoch = sourceEvidenceStateDao().get()?.collectedDataEpoch ?: return false
+	val registrations = (broker.currentPhysicalRegistrations(source) + broker.pendingProviderRemovals(source))
+		.distinctBy { it.registrationGeneration }
+	return registrations.all { registration ->
+		if (registration.collectedDataEpoch != epoch) return@all false
+		val current = try {
+			broker.latestAuthorization(source, registration.registrationGeneration).toAuthorizationSnapshotOrNull()
+		} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
+			null
+		} ?: return@all false
+		if (current.effectiveBootId != registration.clockDomainId || current.authorizedMembers.any {
+				it.persistenceEligible && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+			}) return@all false
+		val lastCaptureRevision = broker.maximumLocationSessionCaptureAuthorizationRevision(
+			registration.registrationGeneration)
+		if (lastCaptureRevision == 0L) return@all true
+		val removal = try {
+			broker.nextAuthorizationRevision(source, registration.registrationGeneration, lastCaptureRevision)
+				.toAuthorizationSnapshotOrNull()
+		} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
+			null
+		} ?: return@all false
+		removal.effectiveBootId == registration.clockDomainId &&
+			removal.authorizationRevision <= current.authorizationRevision &&
+			removal.authorizedMembers.none {
+				it.persistenceEligible && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+			} && registration.captureCallbackBarrierAuthorizationRevision >= removal.authorizationRevision &&
+			registration.captureCallbackBarrierAuthorizationRevision <= current.authorizationRevision
+	}
+}
+
+/** Session setup retires only shared radio CAPTURE; generic/privacy fencing remains full-purpose. */
+internal suspend fun AppDatabase.isSharedRadioSessionCaptureAdmissionFenced(sourceKind: Int): Boolean {
+	require(sourceKind in setOf(SourceKind.WIFI.stableCode, SourceKind.CELL.stableCode))
+	val broker = sourceBrokerDao()
+	val demands = broker.activeDemandsBounded(sourceKind, 257)
+	if (demands.size > 256 || demands.any { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) return false
+	val epoch = sourceEvidenceStateDao().get()?.collectedDataEpoch ?: return false
+	val active = broker.currentPhysicalRegistrationsBounded(sourceKind, 65)
+	val retiring = broker.pendingProviderRemovalsBounded(sourceKind, 65)
+	if (active.size > 64 || retiring.size > 64) return false
+	for (registration in (active + retiring).distinctBy { it.registrationGeneration }) {
+		if (registration.collectedDataEpoch != epoch) return false
+		val rows = broker.latestRadioAuthorizationBounded(sourceKind, registration.registrationGeneration, 65)
+		if (rows.size > 64) return false
+		val current = try { rows.toAuthorizationSnapshotOrNull() }
+		catch (@Suppress("SwallowedException") _: IllegalArgumentException) { null } ?: return false
+		if (current.effectiveBootId != registration.clockDomainId || current.authorizedMembers.any {
+				it.persistenceEligible && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+			}) return false
+		val lastCapture = broker.maximumRadioSessionCaptureAuthorizationRevision(sourceKind, registration.registrationGeneration)
+		if (lastCapture > 0L && !hasExactRadioSessionCaptureCallbackBarrier(registration, current, lastCapture)) return false
+	}
+	return true
 }
 
 internal suspend fun AppDatabase.isSourceCaptureAdmissionFenced(sourceKind: Int): Boolean {
@@ -935,7 +1102,17 @@ private suspend fun AppDatabase.hasExactCanonicalDestinationOwner(
 				com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 					.canonicalOwnerGeneration(binding.bindingGeneration)
 		}
-		else -> true
+		SourceKind.LOCATION -> {
+			if (binding != ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V1 &&
+				binding != ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V2
+			) return false
+			val owner = sourceDestinationOwnerDao().get(
+				SourceDestinationOwnerEntity.SOURCE_LOCATION,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+			) ?: return false
+			owner.owner == SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE &&
+				owner.ownerGeneration == SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION
+		}
 	}
 }
 
@@ -944,7 +1121,8 @@ private fun ExecutableSourceLaneBinding.hasSameWriterSemanticsAs(
 ): Boolean = source == base.source &&
 	projectionId == base.projectionId &&
 	projectionVersion == base.projectionVersion &&
-	captureModes == base.captureModes
+	(captureModes == base.captureModes || captureModeMask ==
+		SourceWriterGenerationContract.captureModeMaskForKnownBinding(bindingGeneration))
 
 /**
  * Transaction-local defense for durable capture admission. An executable lane alone is not

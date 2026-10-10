@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.location
 
 import com.adsamcik.tracker.shared.base.data.LocationPermissionPrecision
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
@@ -103,9 +104,11 @@ internal data class LocationCaptureAuthority(
 	val permissionPrecision: LocationPermissionPrecision,
 	val temporalAuthority: LocationCaptureTemporalAuthority,
 	val acquisitionConfiguration: LocationHistoricalAcquisitionConfiguration,
+	val writerBindingGeneration: Long = SourceWriterGenerationContract.ORIGINAL_CAPTURE_BINDING_GENERATION,
 ) {
 	init {
 		require(sessionSegmentId > 0L)
+		require(SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration) != null)
 		require(SourceKind.LOCATION in capturedSources) {
 			"Captured Location authority requires Location in the immutable capture set"
 		}

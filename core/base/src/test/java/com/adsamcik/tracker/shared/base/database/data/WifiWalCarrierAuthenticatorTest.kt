@@ -1,11 +1,31 @@
 package com.adsamcik.tracker.shared.base.database.data
 
+import kotlin.test.assertFailsWith
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import org.junit.Test
 
 class WifiWalCarrierAuthenticatorTest {
+	@Test
+	fun `Wi-Fi fact storage recognizes exact original and final binding owner pairs without changing its carrier`() {
+		for (version in listOf(LEGACY_WIFI_WAL_PAYLOAD_VERSION, WIFI_WAL_PAYLOAD_VERSION)) {
+			val wal = validWal(version)
+			val original = validFact(wal)
+			assertEquals(1L, original.writerBindingGeneration)
+			assertEquals(2L, original.writerOwnerGeneration)
+			val unsigned = original.copy(writerBindingGeneration = 2L, writerOwnerGeneration = 4L)
+			val final = unsigned.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsigned))
+			assertIs<WifiWalCarrierAuthentication.Authenticated>(WifiWalCarrierAuthenticator.authenticate(final, wal,
+				if (version == WIFI_WAL_PAYLOAD_VERSION) validChildren(final, wal) else null))
+			assertEquals(original.sourceEventId, final.sourceEventId)
+			assertEquals(original.payloadChecksum, final.payloadChecksum)
+			assertFailsWith<IllegalArgumentException> { original.copy(writerBindingGeneration = 2L, writerOwnerGeneration = 2L) }
+			assertFailsWith<IllegalArgumentException> { original.copy(writerBindingGeneration = 1L, writerOwnerGeneration = 4L) }
+			assertFailsWith<IllegalArgumentException> { original.copy(writerBindingGeneration = 3L, writerOwnerGeneration = 6L) }
+		}
+	}
+
 	@Test
 	fun `one malformed Wi-Fi child does not discard its valid sibling in either version`() {
 		for (version in listOf(LEGACY_WIFI_WAL_PAYLOAD_VERSION, WIFI_WAL_PAYLOAD_VERSION)) {

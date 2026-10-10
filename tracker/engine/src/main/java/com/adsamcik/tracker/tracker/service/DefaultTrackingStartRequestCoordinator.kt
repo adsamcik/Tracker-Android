@@ -26,6 +26,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
 import com.adsamcik.tracker.tracker.api.manualStartSelection
+import com.adsamcik.tracker.tracker.api.toApiCaptureSource
 import com.adsamcik.tracker.tracker.api.SourceCallerGuardResult
 import com.adsamcik.tracker.tracker.api.SourceCallerManifestIdentity
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayKind
@@ -66,6 +67,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.PlanResolutionContext
 import com.adsamcik.tracker.tracker.source.coordinator.PreparedCallerAuthorityRebind
 import com.adsamcik.tracker.tracker.source.coordinator.PreparedSessionClaimResult
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
+import com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetup
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartOrigin
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartPreparationResult
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartResult
@@ -103,6 +105,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 	private val sourceSession: TrackerServiceSourceSession,
 	private val authoritativeSessionCoordinator: AuthoritativeSessionCoordinator,
 	private val trackingRolloutStateStore: RoomTrackingRolloutStateStore,
+	private val chosenSourceWriterSetup: ChosenSourceWriterSetup,
 	private val bootClockDomainProvider: BootClockDomainProvider,
 	private val collectionMotionController: CollectionMotionController,
 	private val activityAutomationEpochAuthority: ActivityAutomationEpochAuthority,
@@ -255,11 +258,14 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		) return TrackingStartPreparationResult.Rejected("REDELIVERY_DESCRIPTOR_CHANGED")
 		val settings = trackingParamsRepository.data.first()
 		request.manualSourceSelection?.let { originalSelection ->
+			if (configuredForegroundSources(settings).mapTo(linkedSetOf(), SourceKind::toApiCaptureSource) !=
+				originalSelection.captureConsentEpochs.keys) return TrackingStartPreparationResult.Rejected("MANUAL_START_SELECTION_CHANGED")
 			val policy = sourcePolicyRepository.currentState() as? SourcePolicyAuthorityState.Active
 				?: return TrackingStartPreparationResult.Rejected("MANUAL_START_SELECTION_UNAVAILABLE")
-			if (settings.sourcePolicyRevision != policy.snapshot.revision ||
-				policy.snapshot.manualStartSelection() != originalSelection
-			) return TrackingStartPreparationResult.Rejected("MANUAL_START_SELECTION_CHANGED")
+			if (policy.snapshot.manualStartSelection() != originalSelection)
+				return TrackingStartPreparationResult.Rejected("MANUAL_START_SELECTION_CHANGED")
+			if (settings.sourcePolicyRevision != policy.snapshot.revision)
+				return TrackingStartPreparationResult.SetupPending
 		}
 		if (!trackingStartupGate.isReady ||
 			trackingStartupGate.currentGeneration != startupGeneration ||
@@ -294,6 +300,16 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		if (automaticExpected && requestedSources != configuredSources) {
 			return TrackingStartPreparationResult.Rejected("AUTOMATIC_START_REQUESTED_MASK_STALE")
 		}
+		// Original admitted recovery retains its saved binding; only a new session prepares final writers.
+		val writerSetup = if (continuationAuthority == null) chosenSourceWriterSetup.ensure(requestedSources) else null
+		if (!trackingStartupGate.isReady || trackingStartupGate.currentGeneration != startupGeneration ||
+			bootClockDomainProvider.current() != bootId) return retryableStartRejection("TRACKING_STARTUP_GENERATION_CLOSED")
+		validateAutomaticStartAtRuntime(
+			automaticStartExpected = automaticExpected, trigger = request.automaticTrigger,
+			currentBootId = bootId, currentElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
+			currentPolicyRevision = settings.sourcePolicyRevision, currentAutomationEpoch = currentAutomationEpoch,
+			hasActivityPermission = context.hasActivityPermission,
+		)?.let(TrackingStartPreparationResult::Rejected)?.let { return it }
 		val rollout = try {
 			trackingRolloutStateStore.load()
 		} catch (cancelled: CancellationException) {
@@ -306,10 +322,11 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			resolved.descriptor.isAmbient,
 		)
 		val reachableRequestedSources = requestedSources.filterTo(linkedSetOf()) { source ->
-			rollout.isCaptureReachable(source, captureMode)
+			rollout.isCaptureReachable(source, captureMode) && (writerSetup == null || source in writerSetup.readySources)
 		}
 		val acceptedSources = resolveAcceptedSources(reachableRequestedSources, resolved.origin)
 		if (acceptedSources.isEmpty()) {
+			if (writerSetup?.pendingSources?.isNotEmpty() == true) return TrackingStartPreparationResult.SetupPending
 			return TrackingStartPreparationResult.Rejected("TRACKING_CAPTURE_UNAVAILABLE")
 		}
 		val foregroundMask = foregroundServiceTypeMask(Build.VERSION.SDK_INT, acceptedSources)
@@ -558,6 +575,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			startupGeneration = startupGeneration,
 		)
 		return when (preparation) {
+			TrackingStartPreparationResult.SetupPending -> AndroidRedeliveryStartResolution.Deferred
 			is TrackingStartPreparationResult.Prepared -> AndroidRedeliveryStartResolution.Prepared(
 				preparation = preparation,
 				command = recoveryCommand,

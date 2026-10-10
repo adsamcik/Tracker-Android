@@ -53,6 +53,7 @@ import com.adsamcik.tracker.tracker.service.configuredForegroundSources
 import com.adsamcik.tracker.tracker.service.foregroundServiceTypeCandidates
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
+import com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetup
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartOrigin
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationFailureCode
@@ -70,6 +71,8 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
@@ -97,6 +100,7 @@ interface BackgroundTrackingApiEntryPoint {
 	fun automaticControlRecoveryScheduler(): AutomaticControlRecoveryScheduler
 	fun trackingStartupGate(): TrackingStartupGate
 	fun trackingRolloutStateStore(): RoomTrackingRolloutStateStore
+	fun chosenSourceWriterSetup(): ChosenSourceWriterSetup
 	fun currentTrackingPurposeAvailabilityReader(): CurrentTrackingPurposeAvailabilityReader
 	fun trackingPurposeSettingsReconciler(): TrackingPurposeSettingsReconciler
 	fun trackingPurposeAvailabilityReader(): TrackingPurposeAvailabilityReader
@@ -370,6 +374,20 @@ object BackgroundTrackingApi {
 			currentAutomationEpoch = currentAutomationEpoch,
 			effectAutomationEpoch = evidence.automationEpoch,
 		)?.let { return it }
+		var setupPending = false
+		if (startContext == ActivityAutomationStartContext.FRESH_TRANSITION_CALLBACK && !TrackerServiceApi.hasLiveCapture(context)) {
+			val deadline = activityTransitionCallbackEnqueueDeadlineElapsedRealtimeNanos(
+				evidence.observedElapsedRealtimeNanos, evidence.receivedElapsedRealtimeNanos)
+			val remaining = deadline - android.os.SystemClock.elapsedRealtimeNanos()
+			if (remaining <= 0L) return ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
+			val setup = withTimeoutOrNull(remaining / 1_000_000L) {
+				getEntryPoint(context).chosenSourceWriterSetup().ensure(configuredForegroundSources(params))
+			} ?: return ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
+			setupPending = setup.pendingSources.isNotEmpty()
+			if (android.os.SystemClock.elapsedRealtimeNanos() >= deadline) return ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
+			// Setup cannot extend the original callback, CONTROL lease, policy or epoch authority.
+			if (!availabilityReader.isCurrent(publishedControl.identity)) return ActivityAutomationDeliveryResult.RETRY
+		}
 		val rollout = getEntryPoint(context).trackingRolloutStateStore().load()
 		val startPlan = activityAutomaticStartPlan(
 			context.applicationContext,
@@ -377,7 +395,7 @@ object BackgroundTrackingApi {
 			rollout,
 		)
 		if (startPlan.captureSourceMask == 0L) {
-			return ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
+			return if (setupPending) ActivityAutomationDeliveryResult.RETRY else ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
 		}
 		val automaticTrigger = evidence.toAutomaticTrackingStartTrigger(
 			startContext = startContext,
@@ -589,8 +607,10 @@ object BackgroundTrackingApi {
 				applyAutomaticControlAvailability(availability)
 			}
 			.launchIn(scope)
-		purposeAuthorityJob = currentPurposeReader.authorityRevision
+		purposeAuthorityJob = combine(currentPurposeReader.authorityRevision,
+			entryPoint.chosenSourceWriterSetup().stateChanges()) { authority, setup -> authority to setup }
 			.onEach {
+				entryPoint.chosenSourceWriterSetup().ensureCurrentChosenSources()
 				entryPoint.trackingPurposeSettingsReconciler()
 					.reconcileCurrentSettings()
 					.requireCompletePurposeReconciliation()
@@ -661,6 +681,7 @@ object BackgroundTrackingApi {
 				}
 				paramsInitialized = params.sourcePolicyRevision != null
 				publishActivityAutomationAuthority()
+				entryPoint.chosenSourceWriterSetup().ensureCurrentChosenSources()
 				entryPoint.trackingPurposeSettingsReconciler()
 					.reconcileCurrentSettings()
 					.requireCompletePurposeReconciliation()

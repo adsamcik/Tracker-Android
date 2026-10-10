@@ -82,7 +82,7 @@ import org.robolectric.shadows.ShadowSystemClock
 /**
  * Composed production control/capture chain with real Room and durable command reservation.
  * Android receiver delivery, CONTROL provider registration/Ready publication, sensor hardware,
- * startup readiness and foreground enqueue/promotion are controlled fixtures, not device proof.
+ * startup readiness, protected Location setup (unselected in these cases), legacy setup quiescence and foreground enqueue/promotion are controlled fixtures, not device proof.
  * No Start API, preparation/claim/acceptance, source runtime, writer or saved product is mocked.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -93,6 +93,8 @@ class AutomaticCaptureChainRoomTest {
     private lateinit var commands: SharedPreferencesTrackingLifecycleCommandAuthority
     private lateinit var gate: TrackingStartupGate
     private lateinit var starts: DefaultTrackingStartRequestCoordinator
+    private lateinit var writerSetup: ChosenSourceWriterSetup
+    private lateinit var locationWriterSetup: ProtectedLocationWriterSetupCoordinator
     private lateinit var sourceSession: TrackerServiceSourceSession
     private lateinit var activityIngress: RoomActivityRecognitionEventIngress
     private lateinit var stepsLane: StepsSessionFactProjectionLane
@@ -183,6 +185,7 @@ class AutomaticCaptureChainRoomTest {
             override val isReady = true
             override val currentGeneration = 1L
             override val permitsNewCollection: Boolean get() = commands.pendingCollectionResumeExitId == null
+            override fun permitsPendingManualStart(commandGeneration: Long) = commands.isPendingCollectionStart(TrackingStartCommand(commandGeneration))
             override val currentCommandGeneration: Long get() = commands.latestCommandGeneration()
             override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
         }
@@ -307,8 +310,16 @@ class AutomaticCaptureChainRoomTest {
         turnOff = DefaultTrackingTurnOffController(context, commands, database, boot, mockk())
         val motion = CollectionMotionController()
         val battery = mockk<BatteryAwarePolicy> { every { currentPressure() } returns BatteryPressure.NONE }
+        locationWriterSetup = mockk()
+        writerSetup = ChosenSourceWriterSetup(database, ExecutableSourceLaneCatalog(), rollout,
+            SourceWriterTransitionEngineFactory.forTest(database, ExecutableSourceLaneCatalog(), SourceWriterTransitionTestDependencies(gate)),
+            StepsWriterTransitionEngine.forTest(database, ExecutableSourceLaneCatalog(), StepsWriterTransitionTestDependencies(gate)),
+            locationWriterSetup, policies, Provider { gate }, com.adsamcik.tracker.shared.base.time.SystemClock,
+            TestDispatchersProvider(Dispatchers.IO), Provider { mockk() }, Provider { mockk() })
+        val manualReadiness = DefaultManualTrackingStartReadinessReader(context, Provider { gate },
+            Provider { policies }, Provider { writerSetup }, Provider { params })
         starts = DefaultTrackingStartRequestCoordinator(context, database, gate, params, activeStore,
-            sourceSession, sessionCoordinator, rollout, boot, motion, epoch, commands, callers,
+            sourceSession, sessionCoordinator, rollout, writerSetup, boot, motion, epoch, commands, callers,
             activeTrackingSessionCallerAuthorityReconciler = mockk(), sourcePolicyRepository = policies,
             batteryAwarePolicy = battery)
         previousApiEntryPoint = apiEntryPointField.get(TrackerServiceApi)
@@ -317,6 +328,7 @@ class AutomaticCaptureChainRoomTest {
             arrayOf(apiEntryPointField.type)) { _, method, _ -> when (method.name) {
                 "trackingLifecycleCommandAuthority" -> commands
                 "trackingStartRequestCoordinator" -> starts
+                "manualTrackingStartReadinessReader" -> manualReadiness
                 "trackerStateReader" -> state
                 else -> error("Unexpected Start API dependency: ${method.name}")
             } })
@@ -324,6 +336,7 @@ class AutomaticCaptureChainRoomTest {
             every { currentTrackingPurposeAvailabilityReader() } returns reader
             every { lockManager() } returns locks
             every { trackerStateReader() } returns state
+            every { chosenSourceWriterSetup() } returns writerSetup
             every { trackingRolloutStateStore() } returns rollout
             every { trackingStartupGate() } returns gate
         }
@@ -582,6 +595,128 @@ class AutomaticCaptureChainRoomTest {
         savedSteps(capture) shouldBe 6L
         removedListeners shouldBe listOf(listener)
         assertNoActivityCapture()
+    }
+
+    @Test
+    fun `unchanged manual Start survives actual quality policy lag and Off until service accepts it`() = runBlocking {
+        commands.recordUserRequestedExit(TRACKING_TURN_OFF_EXIT_PREFIX + "quality-pending") shouldBe true
+        val original = paramsState.value
+        val selection = requireNotNull((policies.currentState() as? SourcePolicyAuthorityState.Active)).snapshot.manualStartSelection()
+        val continuation = requireNotNull(commands.reserveManualStartIfGeneration(commands.latestCommandGeneration(), selection))
+        val quality = policies.replaceCaptureSettings(requireNotNull(original.sourcePolicyRevision),
+            original.copy(overallBalanceLevel = 4, locationBalanceLevel = 4), "QUALITY_PENDING_TEST")
+        withTimeout(5_000L) { TrackerServiceApi.requestManualTrackingStart(context, continuation.command.generation) }
+            .shouldBe(ManualTrackingStartResult.SetupPending(continuation.command.generation))
+        commands.pendingManualStart shouldBe continuation
+        commands.pendingCollectionResumeExitId shouldBe TRACKING_TURN_OFF_EXIT_PREFIX + "quality-pending"
+        enqueued shouldBe emptyList()
+        database.sourceSessionDao().hasLifecycleBoundaryBlocker() shouldBe false
+        listeners shouldBe emptyList()
+        paramsState.value = original.copy(overallBalanceLevel = 4, locationBalanceLevel = 4, sourcePolicyRevision = quality.revision)
+        withTimeout(5_000L) { TrackerServiceApi.requestManualTrackingStart(context, continuation.command.generation) }
+            .shouldBe(ManualTrackingStartResult.ENQUEUED)
+        commands.latestCommandGeneration() shouldBe continuation.command.generation
+        commands.pendingManualStart shouldBe null
+        commands.pendingCollectionResumeExitId shouldBe TRACKING_TURN_OFF_EXIT_PREFIX + "quality-pending"
+        val token = PreparedTrackingStartToken(requireNotNull(enqueued.single().getStringExtra(TrackerServiceContract.ARG_PREPARED_START_TOKEN)))
+        val claim = starts.claimForService(token, continuation.command.generation).shouldBeInstanceOf<TrackingServicePreparedStartClaim.Claimed>()
+        starts.acceptForeground(claim, continuation.command) { true } shouldBe claim
+        val capture = withTimeout(5_000L) { requireNotNull(starts.apply(claim, continuation.command.generation)) }
+            .shouldBeInstanceOf<SessionStartResult.Started>()
+        commands.pendingCollectionResumeExitId shouldBe null
+        capture.applied.map { it.source }.toSet() shouldBe setOf(SourceKind.STEPS)
+        val before = database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L
+        listeners.single().onSensorChanged(stepEvent(100f))
+        listeners.single().onSensorChanged(stepEvent(105f))
+        withTimeout(5_000L) { while ((database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L) < before + 2L) delay(5L) }
+        stepsLane.drainThrough(requireNotNull(database.sourceEventWalDao().maximumAdmissionOrdinal()))
+            .shouldBeInstanceOf<StepsSessionFactDrainResult.Complete>()
+        savedSteps(capture) shouldBe 5L
+        assertNoActivityCapture()
+    }
+
+    @Test
+    fun `actual source consent change while quality setup is pending cancels original manual Start`() = runBlocking {
+        val original = paramsState.value
+        val snapshot = (policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
+        val continuation = requireNotNull(commands.reserveManualStartIfGeneration(commands.latestCommandGeneration(), snapshot.manualStartSelection()))
+        val quality = policies.replaceCaptureSettings(requireNotNull(original.sourcePolicyRevision),
+            original.copy(overallBalanceLevel = 4, locationBalanceLevel = 4), "QUALITY_PENDING_TEST")
+        withTimeout(5_000L) { TrackerServiceApi.requestManualTrackingStart(context, continuation.command.generation) }
+            .shouldBe(ManualTrackingStartResult.SetupPending(continuation.command.generation))
+        val changed = original.copy(stepsEnabled = false, ambientStepsEnabled = false, overallBalanceLevel = 4,
+            locationBalanceLevel = 4, sourcePolicyRevision = quality.revision)
+        val stopped = policies.replaceCaptureSettings(quality.revision, changed, "SOURCE_CHANGED_PENDING_TEST")
+        paramsState.value = changed.copy(sourcePolicyRevision = stopped.revision)
+        withTimeout(5_000L) { TrackerServiceApi.requestManualTrackingStart(context, continuation.command.generation) }
+            .shouldBe(ManualTrackingStartResult.TRACKING_UNAVAILABLE)
+        commands.pendingManualStart shouldBe null
+        enqueued shouldBe emptyList()
+        listeners shouldBe emptyList()
+    }
+
+    @Test
+    fun `raw source choices changing before Room policy cannot continue an old Start`() = runBlocking {
+        val original = paramsState.value
+        val snapshot = (policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
+        val continuation = requireNotNull(commands.reserveManualStartIfGeneration(commands.latestCommandGeneration(), snapshot.manualStartSelection()))
+        val quality = policies.replaceCaptureSettings(requireNotNull(original.sourcePolicyRevision),
+            original.copy(overallBalanceLevel = 4, locationBalanceLevel = 4), "QUALITY_PENDING_TEST")
+        withTimeout(5_000L) { TrackerServiceApi.requestManualTrackingStart(context, continuation.command.generation) }
+            .shouldBe(ManualTrackingStartResult.SetupPending(continuation.command.generation))
+        // A saved source choice has changed; its Room consent update has not happened yet.
+        paramsState.value = original.copy(wifiEnabled = true, overallBalanceLevel = 4,
+            locationBalanceLevel = 4, sourcePolicyRevision = quality.revision)
+        withTimeout(5_000L) { TrackerServiceApi.requestManualTrackingStart(context, continuation.command.generation) }
+            .shouldBe(ManualTrackingStartResult.TRACKING_UNAVAILABLE)
+        commands.pendingManualStart shouldBe null
+        enqueued shouldBe emptyList()
+        listeners shouldBe emptyList()
+    }
+
+    @Test
+    fun `real End supersedes quality pending manual Start without new command or provider work`() = runBlocking {
+        val original = paramsState.value
+        val snapshot = (policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
+        val continuation = requireNotNull(commands.reserveManualStartIfGeneration(commands.latestCommandGeneration(), snapshot.manualStartSelection()))
+        val quality = policies.replaceCaptureSettings(requireNotNull(original.sourcePolicyRevision),
+            original.copy(overallBalanceLevel = 4, locationBalanceLevel = 4), "QUALITY_PENDING_TEST")
+        withTimeout(5_000L) { TrackerServiceApi.requestManualTrackingStart(context, continuation.command.generation) }
+            .shouldBe(ManualTrackingStartResult.SetupPending(continuation.command.generation))
+        val end = endCommand()
+        paramsState.value = original.copy(overallBalanceLevel = 4, locationBalanceLevel = 4, sourcePolicyRevision = quality.revision)
+        withTimeout(5_000L) { TrackerServiceApi.requestManualTrackingStart(context, continuation.command.generation) }
+            .shouldBe(ManualTrackingStartResult.TRACKING_UNAVAILABLE)
+        commands.latestCommandGeneration() shouldBe end.generation
+        commands.pendingManualStart shouldBe null
+        enqueued shouldBe emptyList()
+        listeners shouldBe emptyList()
+    }
+
+    @Test
+    fun `new manual Start keeps a real healthy Steps sibling when Location setup has repair debt`() = runBlocking {
+        val original = paramsState.value
+        val selected = original.copy(locationEnabled = true,
+            sourceCollectionSettings = original.sourceCollectionSettings.copy(location = SourceCollectionFrequency.BALANCED))
+        val updated = policies.replaceCaptureSettings(requireNotNull(original.sourcePolicyRevision), selected, "LOCATION_DEBT_TEST")
+        paramsState.value = selected.copy(sourcePolicyRevision = updated.revision)
+        // The protected Location setup debt is the explicit fixture; Steps preparation, Room, claims and runtime are real.
+        coEvery { locationWriterSetup.ensureFinalWriter(any()) } returns SourceWriterTransitionResult.Blocked(
+            SourceKind.LOCATION, SourceWriterTransitionPhase.ACTIVATE_CANDIDATE,
+            SourceWriterTransitionBlocker.DESTINATION_OWNER_CONFLICT)
+        withTimeout(5_000L) { TrackerServiceApi.requestManualTrackingStart(context) } shouldBe ManualTrackingStartResult.ENQUEUED
+        val intent = enqueued.single()
+        val token = PreparedTrackingStartToken(requireNotNull(intent.getStringExtra(TrackerServiceContract.ARG_PREPARED_START_TOKEN)))
+        val command = TrackingStartCommand(intent.getLongExtra(TrackerServiceContract.ARG_LIFECYCLE_COMMAND_GENERATION, -1L))
+        val claim = starts.claimForService(token, command.generation).shouldBeInstanceOf<TrackingServicePreparedStartClaim.Claimed>()
+        claim.claim.acceptedSources shouldBe setOf(SourceKind.STEPS)
+        starts.acceptForeground(claim, command) { true } shouldBe claim
+        val capture = withTimeout(5_000L) { requireNotNull(starts.apply(claim, command.generation)) }
+            .shouldBeInstanceOf<SessionStartResult.Started>()
+        capture.applied.map { it.source }.toSet() shouldBe setOf(SourceKind.STEPS)
+        database.sourceProjectionStateDao().activeProductLane(SourceKind.LOCATION.stableCode) shouldBe null
+        database.sourceBrokerDao().activeDemands(SourceKind.LOCATION.stableCode) shouldBe emptyList()
+        listeners.size shouldBe 1
     }
 
     private suspend fun reconfigureQuality(level: Int): SourceSessionReconfigureOutcome.Applied {

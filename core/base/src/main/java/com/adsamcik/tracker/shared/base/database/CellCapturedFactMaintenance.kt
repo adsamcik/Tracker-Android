@@ -30,6 +30,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionProofEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventRetentionScopeProofEntity
@@ -254,7 +255,7 @@ suspend fun AppDatabase.deleteSelectedCapturedCellFactsInTransaction(
 		)
 		if (lineages.isNotEmpty() && (owner == null ||
 			owner.owner != SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS ||
-			owner.ownerGeneration != SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
+			!owner.ownerGeneration.isKnownCapturedWriterOwnerGeneration())
 		) selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 		val reuseAuthority = mutableMapOf<String, CellAggregateReuseAuthority>()
 		val aggregates = mutableMapOf<String, CellHistoricalIdentityFreeAggregate>()
@@ -523,19 +524,7 @@ suspend fun AppDatabase.authenticateDeletedCapturedCellSelectionInTransaction(
 						membership.filter {
 							it.purpose == SessionManifestPurposeCode.SESSION_CAPTURE
 						}.singleOrNull()?.let {
-							it.sourceKind == CELL_SOURCE && it.persistenceEligible &&
-								it.outputDestination ==
-								SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL &&
-								it.writerOwner ==
-								SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS &&
-								it.writerOwnerGeneration ==
-								SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION &&
-								it.writerProjectionId ==
-								SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID &&
-								it.writerProjectionVersion ==
-								SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION &&
-								it.writerBindingGeneration ==
-								SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION
+							it.isExactCapturedCellWalBinding(it.consentEpoch, manifest.sessionMode)
 						} != true
 				}
 		}
@@ -836,7 +825,7 @@ internal suspend fun AppDatabase.deleteCapturedCellFactsAfterConsentReset(
 				)
 				if (owner == null || owner.owner !=
 					SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS ||
-					owner.ownerGeneration != SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+					!owner.ownerGeneration.isKnownCapturedWriterOwnerGeneration()
 				) block(CellCapturedSourceDeletionBlockedReason.DESTINATION_OWNER_CHANGED)
 			}
 			if (deletedAtMs < maxOf(audit.latestDurableTimeMs, walAudit.latestDurableTimeMs)) {
@@ -1155,7 +1144,7 @@ internal suspend fun AppDatabase.auditCapturedCellFacts(
 	)
 	if (lineages.isNotEmpty() && (owner == null ||
 		owner.owner != SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS ||
-		owner.ownerGeneration != SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
+		!owner.ownerGeneration.isKnownCapturedWriterOwnerGeneration())
 	) block(CellCapturedRetentionBlockedReason.DESTINATION_OWNER_CHANGED)
 
 	val cursors = loadCellCapturedCursors(limits)
@@ -1265,7 +1254,7 @@ internal suspend fun AppDatabase.auditPortableCapturedCellFacts(
 	)
 	if (lineages.isNotEmpty() && (owner == null ||
 		owner.owner != SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS ||
-		owner.ownerGeneration != SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
+		!owner.ownerGeneration.isKnownCapturedWriterOwnerGeneration())
 	) block(CellCapturedRetentionBlockedReason.DESTINATION_OWNER_CHANGED)
 
 	val cursorRows = dao.portableCursorClosure(
@@ -1468,7 +1457,7 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 			revision.providerAcceptanceEndNanos,
 			revision.authorizationEffectEndNanos,
 		)
-	if (binding == null || !binding.isExactCapturedCellBinding(revision) ||
+	if (binding == null || !binding.isExactCapturedCellBinding(revision, manifest.sessionMode) ||
 		manifest.serviceRunId != revision.serviceRunId ||
 		manifest.sourcePolicyRevision != revision.sourcePolicyRevision ||
 		manifest.acquisitionPlanRevision != revision.configurationRevision ||
@@ -1801,7 +1790,8 @@ private suspend fun AppDatabase.authenticateCellCaptureDeletionBarrier(
 	when {
 		registration.captureCallbackBarrierAuthorizationRevision < maximumCaptureRevision ->
 			block(CellCapturedSourceDeletionBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED)
-		registration.captureCallbackBarrierAuthorizationRevision > maximumCaptureRevision ->
+		registration.captureCallbackBarrierAuthorizationRevision > maximumCaptureRevision &&
+			!hasExactRadioSessionCaptureCallbackBarrier(registration, authorization, maximumCaptureRevision) ->
 			block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	}
 }
@@ -2038,8 +2028,8 @@ private suspend fun AppDatabase.authenticateCellRegistration(
 		registration.registrationGeneration,
 	)
 	// The barrier is monotonic provider-owner evidence. Historical facts need only reject an
-	// impossible value beyond retained capture authorization; consent deletion separately requires
-	// exact equality after the live Cell callback lane is drained.
+	// impossible acknowledgement without its exact original no-CAP envelope. Consent deletion
+	// separately checks the current purpose and finite callback barrier; later capture cannot revoke old facts.
 	val acceptedShape = when (registration.status) {
 		ProviderRegistrationGenerationEntity.STATUS_ACTIVE ->
 			retiredAtMs == null && retiredElapsedNanos == null && registration.failureCode == null
@@ -2063,7 +2053,8 @@ private suspend fun AppDatabase.authenticateCellRegistration(
 		(retiredElapsedNanos != null && acceptedElapsedNanos > retiredElapsedNanos) ||
 		expectedAuthorizationRevision <= 0L ||
 		expectedAuthorizationRevision > maximumCaptureAuthorizationRevision ||
-		registration.captureCallbackBarrierAuthorizationRevision > maximumCaptureAuthorizationRevision
+		(registration.captureCallbackBarrierAuthorizationRevision > maximumCaptureAuthorizationRevision &&
+			!hasExactRetainedRadioSessionCaptureCallbackBarrier(registration, expectedAuthorizationRevision))
 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	return acceptedElapsedNanos..(retiredElapsedNanos ?: Long.MAX_VALUE)
 }
@@ -2692,7 +2683,7 @@ private suspend fun AppDatabase.authenticateCapturedCellWalScopeForDeletion(
 	val segment = segmentId?.let { sessionSegmentDao().getById(it) }
 	val wallInterval = capturePointWallInterval(wal, selectedStartNanos, selectedEndNanos)
 		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-	if (binding == null || !binding.isExactCapturedCellWalBinding(consentEpoch) ||
+	if (binding == null || !binding.isExactCapturedCellWalBinding(consentEpoch, manifest.sessionMode) ||
 		manifest.serviceRunId != serviceRunId || manifest.sourcePolicyRevision != policyRevision ||
 		manifest.acquisitionPlanRevision != configurationRevision ||
 		manifest.effectiveBootId != wal.clockDomainId ||
@@ -2830,23 +2821,23 @@ private fun CellCapturedFactRevisionEntity.stableCorrectionParts(): List<Any?> =
 
 private fun SessionManifestSourceEntity.isExactCapturedCellBinding(
 	revision: CellCapturedFactRevisionEntity,
-): Boolean = sourceKind == CELL_SOURCE && purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
-	persistenceEligible && consentEpoch == revision.captureConsentEpoch &&
-	outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL &&
-	writerOwner == SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS &&
-	writerOwnerGeneration == revision.writerOwnerGeneration &&
-	writerProjectionId == WRITER_ID && writerProjectionVersion == WRITER_VERSION &&
-	writerBindingGeneration == SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION
+	sessionMode: String,
+): Boolean = writerOwnerGeneration == revision.writerOwnerGeneration &&
+	writerBindingGeneration == revision.writerBindingGeneration &&
+	isExactCapturedCellWalBinding(revision.captureConsentEpoch, sessionMode)
 
 private fun SessionManifestSourceEntity.isExactCapturedCellWalBinding(
 	captureConsentEpoch: Long,
+	sessionMode: String,
 ): Boolean = sourceKind == CELL_SOURCE && purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
 	persistenceEligible && consentEpoch == captureConsentEpoch &&
 	outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL &&
 	writerOwner == SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS &&
-	writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION &&
+	SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration ?: -1L) != null &&
+	writerOwnerGeneration == writerBindingGeneration?.let(SourceWriterGenerationContract::canonicalOwnerGeneration) &&
 	writerProjectionId == WRITER_ID && writerProjectionVersion == WRITER_VERSION &&
-	writerBindingGeneration == SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION
+	(sessionMode == "MANUAL" || sessionMode == "AUTOMATIC" &&
+		writerBindingGeneration == SourceWriterGenerationContract.FINAL_CAPTURE_BINDING_GENERATION)
 
 private fun earliestCoveredWallTime(
 	walObservedWallTimeMs: Long,
@@ -3216,3 +3207,7 @@ private val ACTIVE_ADMISSION_SESSION_STATES = setOf("STARTING", "ACTIVE", "RECON
 private val ACTIVE_ADMISSION_RUN_STATES = setOf("STARTING", "ACTIVE")
 
 private val DEFAULT_CELL_CAPTURED_MAINTENANCE_LIMITS = CellCapturedMaintenanceLimits()
+
+private fun Long.isKnownCapturedWriterOwnerGeneration(): Boolean =
+	SourceWriterGenerationContract.bindingGenerationForCanonicalOwner(this)
+		?.let(SourceWriterGenerationContract::captureModeMaskForKnownBinding) != null

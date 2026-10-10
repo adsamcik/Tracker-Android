@@ -79,6 +79,55 @@ class SourceEventRetentionProofLifecycleTest {
 	}
 
 	@Test
+	fun `final radio retention uses its original writer identity at recording and materialization`() = runTest {
+		database.sourceEvidenceStateDao().updateLifecycle(7L, 100L, 200L)
+		for (source in listOf(TrackingSource.WIFI, TrackingSource.CELL)) {
+			val original = capturedRadioRetentionProof(source.stableCode())
+			val proof = original.copy(writerBindingGeneration = 2L, writerOwnerGeneration = 4L)
+				.let { it.copy(effectChecksum = it.calculatedEffectChecksum()) }
+			database.capturedRadioFactRetentionProofDao().insert(proof)
+			val adapter = factory.create(source)
+			adapter.recording(key(source)) shouldBe SourceProofResult.Deleted(
+				SourceProofStage.RECORDING, SourceProofReason.RETENTION_EXPIRED)
+			adapter.materialized(key(source), recording()) shouldBe SourceProofResult.Deleted(
+				SourceProofStage.MATERIALIZED, SourceProofReason.RETENTION_EXPIRED, recording().lineage)
+		}
+	}
+
+	@Test
+	fun `a corrupt final radio retention receipt cannot become a terminal retained result`() = runTest {
+		database.sourceEvidenceStateDao().updateLifecycle(7L, 100L, 200L)
+		for (source in listOf(TrackingSource.WIFI, TrackingSource.CELL)) {
+			val proof = capturedRadioRetentionProof(source.stableCode()).copy(
+				writerBindingGeneration = 2L, writerOwnerGeneration = 4L, effectChecksum = "corrupt")
+			database.capturedRadioFactRetentionProofDao().insert(proof)
+			val adapter = factory.create(source)
+			adapter.recording(key(source)) shouldBe SourceProofResult.Failed(
+				SourceProofStage.RECORDING, SourceProofReason.INTEGRITY_FAILURE)
+			adapter.materialized(key(source), recording()) shouldBe SourceProofResult.Failed(
+				SourceProofStage.MATERIALIZED, SourceProofReason.INTEGRITY_FAILURE, recording().lineage)
+		}
+	}
+
+	@Test
+	fun `exact run deletion remains stronger than a final radio retention receipt`() = runTest {
+		database.sourceEvidenceStateDao().updateLifecycle(7L, 100L, 200L)
+		for (source in listOf(TrackingSource.WIFI, TrackingSource.CELL)) {
+			val proof = capturedRadioRetentionProof(source.stableCode()).copy(
+				writerBindingGeneration = 2L, writerOwnerGeneration = 4L)
+				.let { it.copy(effectChecksum = it.calculatedEffectChecksum()) }
+			database.capturedRadioFactRetentionProofDao().insert(proof)
+			database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+				source.stableCode(), SourceBrokerPurpose.SESSION_CAPTURE, "logical", "run", 1L, 7L, 300L))
+			val adapter = factory.create(source)
+			adapter.recording(key(source)) shouldBe SourceProofResult.Deleted(
+				SourceProofStage.RECORDING, SourceProofReason.DELETED)
+			adapter.materialized(key(source), recording()) shouldBe SourceProofResult.Deleted(
+				SourceProofStage.MATERIALIZED, SourceProofReason.DELETED, recording().lineage)
+		}
+	}
+
+	@Test
 	fun `Cell selected deletion fence is terminal before missing segment authority is rebuilt`() =
 		runTest {
 			database.sourceDeletionFenceDao().insertIfAbsent(

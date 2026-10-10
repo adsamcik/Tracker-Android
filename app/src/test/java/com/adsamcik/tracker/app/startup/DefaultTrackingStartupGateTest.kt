@@ -48,6 +48,8 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.sync.Mutex
@@ -122,6 +124,30 @@ class DefaultTrackingStartupGateTest {
 		Provider { sourceRecovery },
 		deletionBarrier,
 	)
+
+	@Test
+	fun `runtime ready publications wake cold setup and same generation handled Stop recovery`() = runTest {
+		var stopGeneration = 0L
+		every { lifecycleAuthority.latestStopGeneration() } answers { stopGeneration }
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+		coEvery { resolver.apply(ApplicationStartupRecoveryAction.None, 0L) } just Runs
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+		val publications = async { gate.runtimeReadyChanges.take(2).toList() }
+		runCurrent()
+		publications.isCompleted shouldBe false
+		coVerify(exactly = 0) { storage.ensureReady(any()) }
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		runCurrent()
+		publications.isCompleted shouldBe false
+		val originalGeneration = gate.currentGeneration
+		stopGeneration = 2L
+		gate.isReady shouldBe false
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		gate.currentGeneration shouldBe originalGeneration
+		publications.await() shouldBe listOf(Unit, Unit)
+		coVerify(exactly = 2) { sourceRecovery.recoverStartupAuthority() }
+	}
 
 	@Test
 	fun `concurrent callers share one retryable startup flight`() = runTest {

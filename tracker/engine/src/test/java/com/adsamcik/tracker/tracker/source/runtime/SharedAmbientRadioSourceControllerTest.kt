@@ -429,6 +429,92 @@ class SharedAmbientRadioSourceControllerTest {
 		retiredAtMs = null,
 	)
 
+
+	@Test
+	fun `radio setup rejects live CAP demand before invoking the resident physical owner`() = runTest {
+		for (source in listOf(SourceKind.WIFI, SourceKind.CELL)) {
+			val broker = mockk<SourceBroker>()
+			val factory = mockk<DurableSourceEventSinkFactory>()
+			every { factory.unbound } returns unboundSink
+			coEvery { broker.authorizationDemands(source) } returns listOf(demand(source, SourceBrokerPurpose.SESSION_CAPTURE))
+			val deadline = android.os.SystemClock.elapsedRealtimeNanos() + 1_000_000_000L
+			if (source == SourceKind.WIFI) {
+				val physical = mockk<WifiSourceRuntime>()
+				every { physical.capabilities } returns MutableStateFlow(capabilities())
+				assertTrue(!SharedWifiSourceController(physical, broker, factory).prepareSessionCaptureBoundary(deadline))
+				coVerify(exactly = 0) { physical.prepareSessionCaptureBoundary(any()) }
+				coVerify(exactly = 0) { physical.refreshShared(any(), any(), any()) }
+			} else {
+				val physical = mockk<CellSourceRuntime>()
+				every { physical.capabilities } returns MutableStateFlow(capabilities())
+				assertTrue(!SharedCellSourceController(physical, broker, factory).prepareSessionCaptureBoundary(deadline))
+				coVerify(exactly = 0) { physical.prepareSessionCaptureBoundary(any()) }
+				coVerify(exactly = 0) { physical.refreshShared(any(), any(), any()) }
+			}
+		}
+	}
+
+	@Test
+	fun `radio setup missing resident owner never starts or reconfigures a provider`() = runTest {
+		for (source in listOf(SourceKind.WIFI, SourceKind.CELL)) {
+			val broker = mockk<SourceBroker>()
+			val factory = mockk<DurableSourceEventSinkFactory>()
+			every { factory.unbound } returns unboundSink
+			coEvery { broker.authorizationDemands(source) } returns listOf(demand(source, SourceBrokerPurpose.AMBIENT_PRODUCT))
+			val deadline = android.os.SystemClock.elapsedRealtimeNanos() + 1_000_000_000L
+			if (source == SourceKind.WIFI) {
+				val physical = mockk<WifiSourceRuntime>()
+				every { physical.capabilities } returns MutableStateFlow(capabilities())
+				coEvery { physical.prepareSessionCaptureBoundary(deadline) } returns false
+				assertTrue(!SharedWifiSourceController(physical, broker, factory).prepareSessionCaptureBoundary(deadline))
+				coVerify(exactly = 1) { physical.prepareSessionCaptureBoundary(deadline) }
+				coVerify(exactly = 0) { physical.reconfigure(any<WifiPlan>(), any()) }
+				coVerify(exactly = 0) { physical.start(any<WifiPlan>(), any()) }
+			} else {
+				val physical = mockk<CellSourceRuntime>()
+				every { physical.capabilities } returns MutableStateFlow(capabilities())
+				coEvery { physical.prepareSessionCaptureBoundary(deadline) } returns false
+				assertTrue(!SharedCellSourceController(physical, broker, factory).prepareSessionCaptureBoundary(deadline))
+				coVerify(exactly = 1) { physical.prepareSessionCaptureBoundary(deadline) }
+				coVerify(exactly = 0) { physical.reconfigure(any<CellPlan>(), any()) }
+				coVerify(exactly = 0) { physical.start(any<CellPlan>(), any()) }
+			}
+		}
+	}
+
+	@Test
+	fun `radio setup keeps a live local session claim even after its broker CAP demand disappears`() = runTest {
+		for (source in listOf(SourceKind.WIFI, SourceKind.CELL)) {
+			val broker = mockk<SourceBroker>()
+			val factory = mockk<DurableSourceEventSinkFactory>()
+			every { factory.unbound } returns unboundSink
+			coEvery { broker.authorizationDemands(source) } returnsMany listOf(
+				listOf(demand(source, SourceBrokerPurpose.SESSION_CAPTURE)),
+				listOf(demand(source, SourceBrokerPurpose.AMBIENT_PRODUCT)))
+			val owner = claim(source)
+			val deadline = android.os.SystemClock.elapsedRealtimeNanos() + 1_000_000_000L
+			if (source == SourceKind.WIFI) {
+				val physical = mockk<WifiSourceRuntime>()
+				every { physical.capabilities } returns MutableStateFlow(capabilities())
+				coEvery { physical.refreshShared(any(), unboundSink, owner) } returns null
+				coEvery { physical.reconfigure(owner, any(), unboundSink) } returns SourceApplyResult.Applied(applied(source, 2L, 7L))
+				val controller = SharedWifiSourceController(physical, broker, factory)
+				assertIs<SourceStartResult.Started>(controller.start(owner, wifiPlan(), mockk()))
+				assertTrue(!controller.prepareSessionCaptureBoundary(deadline))
+				coVerify(exactly = 0) { physical.prepareSessionCaptureBoundary(any()) }
+			} else {
+				val physical = mockk<CellSourceRuntime>()
+				every { physical.capabilities } returns MutableStateFlow(capabilities())
+				coEvery { physical.refreshShared(any(), unboundSink, owner) } returns null
+				coEvery { physical.reconfigure(owner, any(), unboundSink) } returns SourceApplyResult.Applied(applied(source, 2L, 7L))
+				val controller = SharedCellSourceController(physical, broker, factory)
+				assertIs<SourceStartResult.Started>(controller.start(owner, cellPlan(), mockk()))
+				assertTrue(!controller.prepareSessionCaptureBoundary(deadline))
+				coVerify(exactly = 0) { physical.prepareSessionCaptureBoundary(any()) }
+			}
+		}
+	}
+
 	private fun wifiPlan() = WifiPlan(
 		revision = 9L,
 		mode = WifiMode.BROADCAST_DRIVEN,

@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.shared.base.startup
 
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 /**
  * Process-wide boundary between storage/recovery work and live tracking work.
@@ -23,6 +25,10 @@ interface TrackingStartupGate {
 
 	/** Captured once for a fresh Start callback; negative means no command authority is available. */
 	val currentCommandGeneration: Long get() = -1L
+
+	/** Existing runtime Ready publications; collecting does not reconcile, poll or acquire a provider. */
+	val runtimeReadyChanges: Flow<Unit>
+		get() = flow { awaitReady(); emit(Unit) }
 
 	/** User-requested system stopping suppresses acquisition while allowing cleanup and history. */
 	val permitsNewCollection: Boolean get() = isReady

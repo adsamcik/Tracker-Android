@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.activity
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.savedSessionCutoff
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedPlanIntegrity
@@ -17,6 +18,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
@@ -125,16 +127,22 @@ internal class ActivityCapturedFactWriter(
 			SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
 		)
 		if (owner?.owner != SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS ||
-			owner.ownerGeneration != SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+			SourceWriterGenerationContract.bindingGenerationForCanonicalOwner(owner.ownerGeneration)
+				?.let(SourceWriterGenerationContract::captureModeMaskForKnownBinding) == null
 		) reject(ActivityCapturedWriteRejection.DESTINATION_OWNER_CHANGED)
 
 		val sessionDao = database.sourceSessionDao()
+		val session = sessionDao.session(logicalTrackingId)
+			?: reject(ActivityCapturedWriteRejection.SERVICE_RUN_MISMATCH)
 		val run = sessionDao.serviceRun(serviceRunId)
 			?: reject(ActivityCapturedWriteRejection.SERVICE_RUN_MISMATCH)
 		val segmentId = run.sessionSegmentId
 			?: reject(ActivityCapturedWriteRejection.SEGMENT_REVERSE_BINDING_MISMATCH)
-		if (run.logicalTrackingId != logicalTrackingId || run.bootId != authority.clockDomainId ||
-			run.leaseGeneration != authority.lifecycleLeaseGeneration ||
+		if (run.logicalTrackingId != logicalTrackingId ||
+			!SessionManifestIntegrity.hasRetainedLeaseGeneration(run, authority.lifecycleLeaseGeneration) ||
+			session.lifecycleLeaseGeneration < authority.lifecycleLeaseGeneration ||
+			(session.currentServiceRunId == serviceRunId &&
+				(run.leaseGeneration != session.lifecycleLeaseGeneration || run.bootId != session.lifecycleBootId)) ||
 			run.startedElapsedNanos != authority.temporalAuthority.sessionRunEffect.startInclusiveNanos
 		) reject(ActivityCapturedWriteRejection.SERVICE_RUN_MISMATCH)
 		val segment = database.sessionSegmentDao().getById(segmentId)
@@ -143,7 +151,7 @@ internal class ActivityCapturedFactWriter(
 		}
 
 		val runManifests = sessionDao.manifestsForServiceRun(serviceRunId)
-		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, runManifests)) {
+		if (!SessionManifestIntegrity.hasValidRetainedServiceRunTimeline(run, runManifests)) {
 			reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
 		}
 		val manifestSourcesByRevision = mutableMapOf<Long, List<SessionManifestSourceEntity>>()
@@ -182,7 +190,9 @@ internal class ActivityCapturedFactWriter(
 		val binding = sources.singleOrNull { source ->
 			source.sourceKind == SOURCE_KIND && source.purpose == PURPOSE
 		} ?: reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
-		if (!binding.isExactCandidate(authority.captureConsentEpoch, owner.ownerGeneration)) {
+		if (manifest.sessionMode != session.sessionMode ||
+			!binding.isExactCandidate(authority.captureConsentEpoch, owner.ownerGeneration, manifest.sessionMode)
+		) {
 			reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
 		}
 
@@ -284,11 +294,13 @@ internal class ActivityCapturedFactWriter(
 			nextAuthorizationBoundary != authority.temporalAuthority.authorizationEffect.endExclusiveNanos
 		) reject(ActivityCapturedWriteRejection.AUTHORIZATION_AUTHORITY_MISMATCH)
 
-		val session = sessionDao.session(logicalTrackingId)
-			?: reject(ActivityCapturedWriteRejection.SERVICE_RUN_MISMATCH)
-		val sameClockCutoff = session.cutoffElapsedNanos
-			.takeIf { session.lifecycleBootId == authority.clockDomainId }
-		val expectedRunEnd = sameClockCutoff ?: Long.MAX_VALUE
+		val originalCutoff = database.savedSessionCutoff(session)
+		val expectedRunEnd = when {
+			originalCutoff.bootId == authority.clockDomainId -> originalCutoff.elapsedNanos
+			originalCutoff.bootId == null && session.lifecycleBootId == authority.clockDomainId ->
+				session.cutoffElapsedNanos
+			else -> null
+		} ?: Long.MAX_VALUE
 		if (expectedRunEnd != authority.temporalAuthority.sessionRunEffect.endExclusiveNanos
 		) reject(ActivityCapturedWriteRejection.SERVICE_RUN_MISMATCH)
 
@@ -299,6 +311,8 @@ internal class ActivityCapturedFactWriter(
 			segmentId,
 			manifest.zoneId,
 			manifest.effectiveWallTimeMs,
+			requireNotNull(binding.writerBindingGeneration),
+			owner.ownerGeneration,
 		)
 		val dao = database.activityCapturedFactDao()
 		if (state.retainedFromMs?.let { retainedFrom ->
@@ -596,13 +610,20 @@ private fun ActivityDerivedWallTimeBoundary.matchesWalAnchor(
 private fun SessionManifestSourceEntity.isExactCandidate(
 	consentEpoch: Long,
 	ownerGeneration: Long,
+	sessionMode: String,
 ): Boolean = persistenceEligible && this.consentEpoch == consentEpoch &&
 	outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY &&
 	writerOwner == SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS &&
 	writerOwnerGeneration == ownerGeneration &&
 	writerProjectionId == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID &&
 	writerProjectionVersion == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION &&
-	writerBindingGeneration == SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION
+	SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration ?: -1L) != null &&
+	writerOwnerGeneration == writerBindingGeneration?.let(SourceWriterGenerationContract::canonicalOwnerGeneration) &&
+	when (sessionMode) {
+			"MANUAL" -> true
+			"AUTOMATIC" -> writerBindingGeneration == SourceWriterGenerationContract.FINAL_CAPTURE_BINDING_GENERATION
+			else -> false
+		}
 
 private data class ActivityCapturedPersistedMutation(
 	val revision: ActivityCapturedWindowRevisionEntity,
@@ -618,6 +639,8 @@ private object ActivityCapturedPersistence {
 		sessionSegmentId: Long,
 		storedZoneId: String,
 		fallbackAppliedAtMs: Long,
+		writerBindingGeneration: Long,
+		writerOwnerGeneration: Long,
 	): ActivityCapturedPersistedMutation {
 		val logicalWindowId = digest("activity-captured-window-v1", identityParts(window))
 		val semanticRevision = window.mutation.semanticRevision
@@ -634,8 +657,8 @@ private object ActivityCapturedPersistence {
 		val unsigned = ActivityCapturedWindowRevisionEntity(
 			writerProjectionId = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
 			writerProjectionVersion = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION,
-			writerBindingGeneration = SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION,
-			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			writerBindingGeneration = writerBindingGeneration,
+			writerOwnerGeneration = writerOwnerGeneration,
 			logicalWindowId = logicalWindowId,
 			semanticRevision = semanticRevision,
 			supersedesSemanticRevision = window.mutation.supersedesSemanticRevision,

@@ -221,74 +221,122 @@ class CellSourceRuntime @Inject internal constructor(
 	/** Drains the retired session prefix without unregistering an ambient Cell callback join. */
 	internal suspend fun sharedSessionCutoff(cutoff: SessionCutoff): SourceStopAck =
 		lifecycleMutex.withLock {
-			val activeRegistration = registration ?: return@withLock unavailableAck(cutoff)
-			val activeToken = callbackToken
-			val activeQueue = queue
-			val activeActor = actor
-			if (activeToken == null || activeQueue == null || activeActor == null ||
-				!activeActor.isActive
-			) {
-				return@withLock sharedCutoffUnavailable(activeRegistration)
-			}
-			val completion = CompletableDeferred<RuntimeAdmissionSnapshot>()
-			val barrier = providerOperationMutex.withLock {
-				synchronized(callbackLock) {
-					if (!accepting || registration !== activeRegistration ||
-						callbackToken !== activeToken || queue !== activeQueue
-					) {
-						return@synchronized null
-					}
-					accepting = false
-					callbackSequence
-				}
-			} ?: return@withLock sharedCutoffUnavailable(activeRegistration)
-			try {
-				activeQueue.submit(CellRuntimeInput.SharedCutoff(completion))
-			} finally {
-				synchronized(callbackLock) {
-					if (registration === activeRegistration && callbackToken === activeToken &&
-						queue === activeQueue && activeActor.isActive &&
-						cutoffElapsedNanos == null && retirementIntent == null
-					) {
-						accepting = true
-					}
-				}
-			}
-			val remainingMs =
-				((cutoff.deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) /
-					NANOS_PER_MILLISECOND).coerceAtLeast(1L)
-			val admission = withTimeoutOrNull(remainingMs) { completion.await() }
-			if (admission == null) {
-				val firstUnresolved = processedCallbackSequence.value + 1L
-				if (firstUnresolved <= barrier) {
-					metrics.recordFailure(
-						firstUnresolved,
-						barrier,
-						RuntimeGapClassification.DRAIN_TIMED_OUT,
-					)
-				}
-			}
-			val settled = admission ?: metrics.snapshot()
-			SourceStopAck(
-				source = source,
-				sourceInstanceId = SourceInstanceId(activeRegistration.state.sourceInstanceId),
-				registrationGeneration = activeRegistration.state.registrationGeneration,
-				appliedRevision = currentPlan?.revision,
-				callbackEntryBarrierSequence = barrier,
-				lastDurablyAdmittedSequence = settled.lastDurablyAdmittedSequence
-					?.takeIf { it <= barrier },
-				lastAdmissionOrdinal = settled.lastAdmissionOrdinal
-					.takeIf { settled.lastDurablyAdmittedSequence?.let { it <= barrier } == true },
-				failedAdmissionCount = settled.failedAdmissionCount,
-				unresolvedSequenceStart = settled.unresolvedSequenceStart,
-				unresolvedSequenceEndInclusive = settled.unresolvedSequenceEndInclusive,
-				registrationRemovalOutcome = RegistrationRemovalOutcome.NOT_REGISTERED,
-				providerFlushOutcome = ProviderFlushOutcome.NOT_SUPPORTED,
-				providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
-				appDrainComplete = admission != null,
-				status = if (admission != null) SourceStopStatus.COMPLETE else SourceStopStatus.TIMED_OUT,
-			)
+			val active = registration ?: return@withLock unavailableAck(cutoff)
+			val preserveAmbientIntake = try { canPreserveIndependentCallbackIntake(active) }
+			catch (cancelled: CancellationException) { throw cancelled }
+			catch (@Suppress("SwallowedException") _: Exception) { false }
+			drainSharedSessionPrefixLocked(active, cutoff.deadlineElapsedRealtimeNanos,
+				freezeCallbackIntake = !preserveAmbientIntake)
 		}
+
+	/** Setup may drain only this exact live no-CAP owner, without refresh or retirement. */
+	internal suspend fun prepareSessionCaptureBoundary(deadlineElapsedRealtimeNanos: Long): Boolean {
+		val remainingMs = (deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) / NANOS_PER_MILLISECOND
+		if (remainingMs <= 0L) return false
+		return withTimeoutOrNull(remainingMs) {
+			lifecycleMutex.withLock {
+				val active = registration ?: return@withLock false
+				if (!canPreserveIndependentCallbackIntake(active)) return@withLock false
+				val ack = drainSharedSessionPrefixLocked(active, deadlineElapsedRealtimeNanos,
+					freezeCallbackIntake = false)
+				ack.status == SourceStopStatus.COMPLETE && ack.appDrainComplete
+			}
+		} == true
+	}
+
+	/** Exact no-CAP sibling only; stale/capture/physical-retirement paths keep the strict fence. */
+	private suspend fun canPreserveIndependentCallbackIntake(active: SourceRegistration): Boolean =
+		ownerClaim == null && currentPlan != null && cutoffElapsedNanos == null && retirementIntent == null &&
+			active.authorization.authorizedMembers.none { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE } &&
+			registrations.isCurrentRadioSessionCaptureCallbackOwner(active)
+
+	private suspend fun drainSharedSessionPrefixLocked(
+		activeRegistration: SourceRegistration,
+		deadlineElapsedRealtimeNanos: Long,
+		freezeCallbackIntake: Boolean = true,
+	): SourceStopAck {
+		val activeToken = callbackToken
+		val activeQueue = queue
+		val activeActor = actor
+		if (activeToken == null || activeQueue == null || activeActor == null ||
+			!activeActor.isActive
+		) {
+			return sharedCutoffUnavailable(activeRegistration)
+		}
+		val completion = CompletableDeferred<RuntimeAdmissionSnapshot>()
+		val barrier = providerOperationMutex.withLock {
+			synchronized(callbackLock) {
+				if (!accepting || registration !== activeRegistration ||
+					callbackToken !== activeToken || queue !== activeQueue
+				) {
+					return@synchronized null
+				}
+				// Setup/settled End captures a finite prefix without pausing independently allowed Ambient.
+				if (freezeCallbackIntake) accepting = false
+				callbackSequence
+			}
+		} ?: return sharedCutoffUnavailable(activeRegistration)
+		try {
+			activeQueue.submit(CellRuntimeInput.SharedCutoff(completion))
+		} finally {
+			if (freezeCallbackIntake) synchronized(callbackLock) {
+				if (registration === activeRegistration && callbackToken === activeToken &&
+					queue === activeQueue && activeActor.isActive &&
+					cutoffElapsedNanos == null && retirementIntent == null
+				) {
+					accepting = true
+				}
+			}
+		}
+		val remainingMs =
+			((deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) /
+				NANOS_PER_MILLISECOND).coerceAtLeast(1L)
+		val admission = withTimeoutOrNull(remainingMs) { completion.await() }
+		if (admission == null) {
+			val firstUnresolved = processedCallbackSequence.value + 1L
+			if (firstUnresolved <= barrier) {
+				metrics.recordFailure(
+					firstUnresolved,
+					barrier,
+					RuntimeGapClassification.DRAIN_TIMED_OUT,
+				)
+			}
+		}
+		val publication = if (admission != null) {
+			val publicationMs = ((deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) /
+				NANOS_PER_MILLISECOND).coerceAtLeast(1L)
+			withTimeoutOrNull(publicationMs) {
+				try { registrations.publishRadioSessionCaptureCallbackBarrier(activeRegistration) }
+				catch (cancelled: CancellationException) { throw cancelled }
+				catch (@Suppress("SwallowedException") _: Exception) { false }
+			}
+		} else null
+		val settled = admission ?: metrics.snapshot()
+		return SourceStopAck(
+			source = source,
+			sourceInstanceId = SourceInstanceId(activeRegistration.state.sourceInstanceId),
+			registrationGeneration = activeRegistration.state.registrationGeneration,
+			appliedRevision = currentPlan?.revision,
+			callbackEntryBarrierSequence = barrier,
+			lastDurablyAdmittedSequence = settled.lastDurablyAdmittedSequence
+				?.takeIf { it <= barrier },
+			lastAdmissionOrdinal = settled.lastAdmissionOrdinal
+				.takeIf { settled.lastDurablyAdmittedSequence?.let { it <= barrier } == true },
+			failedAdmissionCount = settled.failedAdmissionCount,
+			unresolvedSequenceStart = settled.unresolvedSequenceStart,
+			unresolvedSequenceEndInclusive = settled.unresolvedSequenceEndInclusive,
+			registrationRemovalOutcome = RegistrationRemovalOutcome.NOT_REGISTERED,
+			providerFlushOutcome = ProviderFlushOutcome.NOT_SUPPORTED,
+			providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+			appDrainComplete = admission != null,
+			status = when (publication) {
+				true -> SourceStopStatus.COMPLETE
+				false -> SourceStopStatus.PARTIAL_UNOBSERVABLE
+				null -> SourceStopStatus.TIMED_OUT
+			},
+		)
+	}
+
 
 	private fun sharedCutoffUnavailable(activeRegistration: SourceRegistration) = SourceStopAck(
 		source = source,

@@ -970,6 +970,61 @@ class SourceSessionDaoTest {
 		writerBindingGeneration = writerBindingGeneration,
 	)
 
+
+	@Test
+	fun `protected Location manifest round trips both original and final writer contracts`() = runTest {
+		for (generation in listOf(1L, 2L)) {
+			val source = protectedLocationSource(generation).copy(manifestRevision = generation)
+			val unsigned = manifest(revision = generation).copy(
+				sessionMode = if (generation == 1L) "MANUAL" else "AUTOMATIC", manifestChecksum = "")
+			val header = unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source)))
+			dao.insertManifest(header)
+			dao.insertManifestSources(listOf(source))
+			val read = requireNotNull(dao.manifestSource(LOGICAL_ID, generation,
+				SourceDestinationOwnerEntity.SOURCE_LOCATION, SourceBrokerPurpose.SESSION_CAPTURE))
+			read shouldBe source
+			read.locationCaptureBindingGenerationOrNull() shouldBe generation
+			dao.rawManifestSources(LOGICAL_ID, generation, 10).single().validatedOrNull() shouldBe source
+			SessionManifestIntegrity.verify(header, listOf(read)) shouldBe true
+		}
+	}
+
+	@Test
+	fun `unstamped Location keeps original binding without changing its checksum`() = runTest {
+		val source = SessionManifestSourceEntity(LOGICAL_ID, 1L,
+			SourceDestinationOwnerEntity.SOURCE_LOCATION, SourceBrokerPurpose.SESSION_CAPTURE, 1L, true, 1)
+		val unsigned = manifest(revision = 1L)
+		val header = unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source)))
+		dao.insertManifest(header)
+		dao.insertManifestSources(listOf(source))
+		source.locationCaptureBindingGenerationOrNull() shouldBe 1L
+		dao.rawManifestSources(LOGICAL_ID, 1L, 10).single().validatedOrNull() shouldBe source
+		SessionManifestIntegrity.verify(header, dao.manifestSources(LOGICAL_ID, 1L)) shouldBe true
+	}
+
+	@Test
+	fun `protected Location rejects unknown binding and changed permanent owner`() = runTest {
+		shouldThrow<IllegalArgumentException> { protectedLocationSource(3L) }
+		shouldThrow<IllegalArgumentException> { protectedLocationSource(2L).copy(writerOwnerGeneration = 4L) }
+		val source = protectedLocationSource(2L)
+		dao.insertManifest(manifest(revision = 1L))
+		dao.insertManifestSources(listOf(source))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_source SET writer_binding_generation = 3 WHERE source_kind = 1")
+		dao.rawManifestSources(LOGICAL_ID, 1L, 10).single().validatedOrNull() shouldBe null
+	}
+
+	private fun protectedLocationSource(generation: Long) = SessionManifestSourceEntity(
+		LOGICAL_ID, 1L, SourceDestinationOwnerEntity.SOURCE_LOCATION,
+		SourceBrokerPurpose.SESSION_CAPTURE, 1L, true, 1,
+		SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+		SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE,
+		SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
+		SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID,
+		SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION,
+		generation,
+	)
+
 	private companion object {
 		const val LOGICAL_ID = "logical-session"
 	}

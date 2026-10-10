@@ -107,6 +107,7 @@ fun DashboardRoute(
 	var manualStartPermissionDenied by remember { mutableStateOf(false) }
 	var pendingLocationServicesRepair by remember { mutableStateOf(false) }
 	var pendingManualStartGeneration by rememberSaveable { mutableStateOf<Long?>(null) }
+	var pendingManualStartSetup by remember { mutableStateOf(false) }
 	val restoredManualStartGeneration = remember { pendingManualStartGeneration }
 	var manualStartRequestVersion by remember { mutableStateOf(0L) }
 	val manualStartRequests = remember { mutableSetOf<Job>() }
@@ -115,6 +116,7 @@ fun DashboardRoute(
 		if (pendingManualStartGeneration == generation) {
 			manualStartRequestVersion++
 			pendingManualStartGeneration = null
+			pendingManualStartSetup = false
 		}
 		if (generation != null) coroutineScope.launch {
 			TrackerServiceApi.cancelManualTrackingStart(context, generation)
@@ -184,13 +186,18 @@ fun DashboardRoute(
 		)
 	}
 
-	fun requestManualStart(continuationGeneration: Long? = null) {
+	fun requestManualStart(continuationGeneration: Long? = null): Job {
 		val requestVersion = ++manualStartRequestVersion
 		val request = coroutineScope.launch {
 			val result = TrackerServiceApi.requestManualTrackingStart(context, continuationGeneration)
 			if (requestVersion != manualStartRequestVersion) return@launch
+			pendingManualStartSetup = false
 			when (result) {
 				ManualTrackingStartResult.ENQUEUED -> pendingManualStartGeneration = null
+				is ManualTrackingStartResult.SetupPending -> {
+					pendingManualStartGeneration = result.continuationGeneration
+					pendingManualStartSetup = true
+				}
 				is ManualTrackingStartResult.RepairRequired -> {
 					pendingManualStartGeneration = result.continuationGeneration
 					when (result.prerequisite) {
@@ -236,7 +243,16 @@ fun DashboardRoute(
 		}
 		manualStartRequests += request
 		request.invokeOnCompletion { manualStartRequests -= request }
+		return request
 	}
+
+	DashboardManualStartSetupEffect(
+		context = context,
+		pendingSetup = pendingManualStartSetup,
+		pendingGeneration = pendingManualStartGeneration,
+		awaitRequests = { manualStartRequests.toList().forEach { it.join() } },
+		onContinue = { requestManualStart(it) },
+	)
 
 	val manualStartPermissionSatisfied =
 		(manualStartReadiness as? ManualTrackingStartReadiness.RepairRequired)?.prerequisite !=
@@ -611,6 +627,35 @@ internal fun ManualTrackingStartPrerequisite.toDashboardPermissionRequest(
 			requiredPermissions = setOf(Manifest.permission.READ_PHONE_STATE),
 		)
 	ManualTrackingStartPrerequisite.LOCATION_SERVICES -> null
+}
+
+/** Continues only the unchanged explicit Start; observation never reserves a new Start. */
+@Composable
+internal fun DashboardManualStartSetupEffect(
+	context: android.content.Context,
+	pendingSetup: Boolean,
+	pendingGeneration: Long?,
+	awaitRequests: suspend () -> Unit,
+	onContinue: (Long) -> Job,
+) {
+	val currentPendingSetup by rememberUpdatedState(pendingSetup)
+	val currentGeneration by rememberUpdatedState(pendingGeneration)
+	val currentAwaitRequests by rememberUpdatedState(awaitRequests)
+	val currentOnContinue by rememberUpdatedState(onContinue)
+
+	LaunchedEffect(context, pendingSetup, pendingGeneration) {
+		val generation = pendingGeneration
+		if (!pendingSetup || generation == null) return@LaunchedEffect
+		TrackerServiceApi.manualTrackingStartChanges(context).collect {
+			if (!currentPendingSetup || currentGeneration != generation) return@collect
+			// A Ready signal can arrive while the first request is finishing its read-only tail.
+			// Wait for that request instead of dropping the only signal that can resume it.
+			currentAwaitRequests()
+			if (currentPendingSetup && currentGeneration == generation) {
+				currentOnContinue(generation).join()
+			}
+		}
+	}
 }
 
 /** Re-reads readiness on resume without opening a system prompt from a lifecycle event alone. */

@@ -135,8 +135,8 @@ data class WifiCapturedFactRevisionEntity(
 	init {
 		require(writerProjectionId == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID)
 		require(writerProjectionVersion == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION)
-		require(writerBindingGeneration == SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION)
-		require(writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
+		require(SourceWriterGenerationContract.captureModeMaskForKnownBinding(writerBindingGeneration) != null)
+		require(writerOwnerGeneration == SourceWriterGenerationContract.canonicalOwnerGeneration(writerBindingGeneration))
 		require(semanticRevision > 0L)
 		require(if (semanticRevision == 1L) supersedesSemanticRevision == null else
 			supersedesSemanticRevision == semanticRevision - 1L)

@@ -7,11 +7,11 @@ import com.adsamcik.tracker.shared.base.database.dao.SourceProjectionEventIdenti
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
-import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -544,9 +544,8 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		val lane = active.single()
 		val binding = executableLaneCatalog.bindingFor(lane)
 		if (binding == null || binding.source != SourceKind.ACTIVITY ||
-			binding.bindingGeneration != BINDING_GENERATION ||
-			binding.projectionId != WRITER_ID || binding.projectionVersion != WRITER_VERSION ||
-			binding.captureModes != setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(binding.bindingGeneration) != binding.captureModeMask ||
+			binding.projectionId != WRITER_ID || binding.projectionVersion != WRITER_VERSION
 		) return ActivityLaneResolution.Inactive(
 			ActivityCapturedLaneInactiveReason.BINARY_BINDING_NOT_ENABLED,
 		)
@@ -561,7 +560,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 			SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
 		)
 		if (owner?.owner != SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS ||
-			owner.ownerGeneration != SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+			owner.ownerGeneration != SourceWriterGenerationContract.canonicalOwnerGeneration(lane.bindingGeneration)
 		) return ActivityLaneResolution.Inactive(
 			ActivityCapturedLaneInactiveReason.DESTINATION_NOT_OWNED,
 		)
@@ -757,10 +756,10 @@ private fun ActivityCapturedWalAdmissionRejection.failureCode(): String =
 
 private fun SourceProductProjectionLaneEntity.hasExecutableActivityShape(): Boolean =
 	sourceKind == SourceKind.ACTIVITY.stableCode &&
-		bindingGeneration == ActivityCapturedFactProjectionLane.BINDING_GENERATION &&
+		SourceWriterGenerationContract.captureModeMaskForKnownBinding(bindingGeneration) != null &&
 		projectionId == ActivityCapturedFactProjectionLane.WRITER_ID &&
 		projectionVersion == ActivityCapturedFactProjectionLane.WRITER_VERSION &&
-		captureModeMask == ActivityCapturedFactProjectionLane.MANUAL_CAPTURE_MODE_MASK &&
+		captureModeMask == SourceWriterGenerationContract.captureModeMaskForKnownBinding(bindingGeneration) &&
 		productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL &&
 		activatedRolloutRevision > 0L && activationOrdinal > 0L &&
 		contiguousAdmissionOrdinal >= activationOrdinal - 1L &&

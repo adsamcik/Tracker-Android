@@ -55,6 +55,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
@@ -130,6 +131,36 @@ class ActivityHistoryComposerTest {
 	@After
 	fun tearDown() = database.close()
 
+
+	@Test
+	fun `final automatic Activity original binding remains usable in organized and measured Room history`() = runTest {
+		val original = withActivityWriterContract(fixture(listOf(RunSpec(1L, "run-a", "UTC"))), 2L, "AUTOMATIC")
+		persistFixture(original)
+		val entry = (activityRepository(testScheduler).session(original.expansion.segments.single().id) as ActivityHistoryQuery.Found).entry
+		entry.fragments.isNotEmpty() shouldBe true
+		val revision = original.revisions.single()
+		val measured = database.withTransaction { activityRepository(testScheduler)
+			.selectMeasuredWindowsInTransaction(listOf(revisionKey(revision))) }
+		measured.windows.keys shouldBe setOf(revisionKey(revision))
+		measured.windows.getValue(revisionKey(revision)).fragments.values.toList() shouldBe entry.fragments
+		measured.causes shouldBe emptySet()
+	}
+
+	@Test
+	fun `Activity history cannot borrow automatic capture from an original binding or a final manifest for original facts`() = runTest {
+		val automaticOriginal = withActivityWriterContract(fixture(listOf(RunSpec(1L, "run-a", "UTC"))), 1L, "AUTOMATIC")
+		ActivityHistoryComposer.composeRecent(automaticOriginal, EXECUTION_AUTHORITY).single().entry.fragments shouldBe emptyList()
+		val original = withActivityWriterContract(fixture(listOf(RunSpec(1L, "run-a", "UTC"))), 2L, "AUTOMATIC")
+		val revisions = original.revisions.map { old ->
+			val changed = old.copy(writerBindingGeneration = 1L, writerOwnerGeneration = 2L)
+			changed.copy(effectChecksum = ActivityCapturedFactIntegrity.effectChecksum(changed,
+				original.fragmentsByRevision.getValue(revisionKey(old)), original.evidenceByRevision.getValue(revisionKey(old))))
+		}
+		val malformed = original.copy(revisions = revisions, cursors = original.cursors.map { cursor ->
+			cursor.copy(writerOwnerGeneration = 2L, latestEffectChecksum = revisions.single().effectChecksum) })
+		persistFixture(malformed)
+		(activityRepository(testScheduler).session(original.expansion.segments.single().id) as ActivityHistoryQuery.Found).entry.fragments shouldBe emptyList()
+	}
 
 	@Test
 	fun `native Activity export retains original authority after constructed quality and End operations`() = runTest {
@@ -2484,6 +2515,28 @@ class ActivityHistoryComposerTest {
             lifecycleLeaseGeneration = current.leaseGeneration, lifecycleBootId = current.bootId)
         return original.copy(sessions = mapOf(LOGICAL_ID to session), runs = original.runs + (current.serviceRunId to current))
     }
+
+	/** Only the named immutable writer contract changes; original provider/WAL rows stay intact. */
+	private fun withActivityWriterContract(original: ActivityHistorySnapshot, generation: Long, mode: String): ActivityHistorySnapshot {
+		val origin = if (mode == "AUTOMATIC") "AUTOMATIC_BACKGROUND_START" else "MANUAL_FOREGROUND_START"
+		val sources = original.sourcesByManifest.mapValues { (_, rows) -> rows.map { row ->
+			row.copy(writerBindingGeneration = generation, writerOwnerGeneration = generation * 2L) } }
+		val manifests = original.manifestsByRun.mapValues { (_, rows) -> rows.map { row ->
+			val changed = row.copy(sessionMode = mode, startOrigin = origin)
+			changed.copy(manifestChecksum = SessionManifestIntegrity.compute(changed,
+				sources.getValue(ActivityManifestKey(row.logicalTrackingId, row.manifestRevision)))) } }
+		val revisions = original.revisions.map { row ->
+			val changed = row.copy(writerBindingGeneration = generation, writerOwnerGeneration = generation * 2L)
+			changed.copy(effectChecksum = ActivityCapturedFactIntegrity.effectChecksum(changed,
+				original.fragmentsByRevision.getValue(revisionKey(row)), original.evidenceByRevision.getValue(revisionKey(row)))) }
+		return original.copy(sourcesByManifest = sources, manifestsByRun = manifests, revisions = revisions,
+			sessions = original.sessions.mapValues { (_, row) -> row.copy(sessionMode = mode, startOrigin = origin) },
+			runs = original.runs.mapValues { (_, row) -> row.copy(startOrigin = origin) },
+			cursors = original.cursors.map { cursor -> cursor.copy(writerOwnerGeneration = generation * 2L,
+				latestEffectChecksum = revisions.single { it.logicalWindowId == cursor.logicalWindowId && it.semanticRevision == cursor.latestSemanticRevision }.effectChecksum) },
+			lanes = original.lanes.map { lane -> lane.copy(bindingGeneration = generation,
+				captureModeMask = requireNotNull(SourceWriterGenerationContract.captureModeMaskForKnownBinding(generation))) })
+	}
 
 	private fun fixture(specs: List<RunSpec>, logicalId: String = LOGICAL_ID): ActivityHistorySnapshot {
 		val initialRuns = specs.map { buildRun(it, logicalId) }

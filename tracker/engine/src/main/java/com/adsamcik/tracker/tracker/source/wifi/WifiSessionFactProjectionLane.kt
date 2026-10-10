@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.dao.SourceEventProjectionCandid
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
@@ -446,20 +447,24 @@ class WifiSessionFactProjectionLane private constructor(
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
 			)
 			if (owner?.owner != SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS ||
-				owner.ownerGeneration != SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+				owner.ownerGeneration != SourceWriterGenerationContract.canonicalOwnerGeneration(current.bindingGeneration)
 			) throw WifiLaneAuthorityChangedException("WIFI_DESTINATION_OWNER_CHANGED")
 		}
 		return current
 	}
 
-	private fun isExecutableLane(lane: SourceProductProjectionLaneEntity): Boolean =
-		executableLaneCatalog.bindingFor(lane) == ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS &&
+	private fun isExecutableLane(lane: SourceProductProjectionLaneEntity): Boolean {
+		val binding = executableLaneCatalog.bindingFor(lane) ?: return false
+		return binding.source == SourceKind.WIFI && binding.projectionId == WRITER_ID &&
+			binding.projectionVersion == WRITER_VERSION &&
+			SourceWriterGenerationContract.captureModeMaskForKnownBinding(binding.bindingGeneration) == binding.captureModeMask &&
 			lane.productStage in EXECUTABLE_STAGES && lane.activatedRolloutRevision > 0L &&
 			lane.activationOrdinal > 0L &&
 			lane.contiguousAdmissionOrdinal >= lane.activationOrdinal - 1L &&
 			lane.captureAdmissionCutoffOrdinal?.let { lane.contiguousAdmissionOrdinal <= it } != false &&
 			lane.retentionRequired && lane.status == SourceProductProjectionLaneEntity.STATUS_ACTIVE &&
 			lane.terminalDisposition == null && lane.terminalAtMs == null
+	}
 
 	private suspend fun evidenceState(): SourceEvidenceState =
 		database.sourceEvidenceStateDao().get()
