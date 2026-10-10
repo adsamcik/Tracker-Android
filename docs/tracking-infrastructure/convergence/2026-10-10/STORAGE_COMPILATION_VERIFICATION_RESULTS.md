@@ -325,3 +325,53 @@ released-data orchestration cases require completion after the pending interface
 choice and remaining quality work. The original two Location gaps, complete
 tracking assembly, device evidence and integration are still separate open work.
 Local `dev/v10` is verified clean at `13f1a99871b59d29b3d059f374fc415490da6943`.
+
+## Frozen batch twelve
+
+Input `2da7d9f58eb4dc8194b61d540790edc9f9862e3c` was clean and unchanged.
+Engine Debug/Release KSP and Kotlin compilation and `compileDebugUnitTestKotlin`
+passed: **exit 0**, 6m1s, 331 tasks (14 executed, 317 up to date). This confirms
+compilation of every authored engine unit-test source, including the repaired
+fixtures and new Cell bridge regression. It does **not** execute those tests.
+The core schema 29 SHA-256 remains unchanged after KSP.
+Log SHA-256:
+`8db6fc715831e3ac30360db5b98ac787fc24f2948dda145a818ac9b56d6f4c2a`.
+
+The verified production/test-source input ends at that commit. Subsequent commits
+only record this evidence and checklist status. Full app/Hilt/upgrade orchestration
+and engine unit execution remain held by the Cell matching reader's pending
+interface approval. The full quality findings remain open; no baseline, rule or
+source-selection change is made. The bounded passing checks are not assembly or
+integration approval, and no runnable application APK is claimed.
+
+## Exact later-batch invocations
+
+The shell ran in `C:/Users/adam-/GitHub/Tracker-Android/.worktrees/tv1010`.
+`JAVA_HOME` was `C:/Users/adam-/.gradle/jdks/jetbrains_s_r_o_-21-amd64-windows.2`,
+with its `bin` prepended to `PATH`. Each command below used this actual common
+argument vector, in the displayed order:
+
+```powershell
+$verificationArgs = @(
+  '-PtraceboxLocalRepository=C:/Users/adam-/GitHub/Tracker-Android/.worktrees/tv1010/build/verification-20261010/tracebox-alpha7-reviewed',
+  '--init-script', 'build/verification-20261010/short-temp.init.gradle',
+  '--continue', '--no-daemon', '--no-parallel', '--max-workers=2',
+  '--no-configuration-cache', '--console=plain'
+)
+# Batch 9: input 12735255e37cb34424bf3b48b988a6cef67d2dfa
+.\gradlew.bat :app:assembleDebug :app:assembleDev :core:base:compileDebugAndroidTestKotlin ciUnitTest ciCheck @verificationArgs
+# Batch 10: input fb4019009cff30737e7e2717003e92b57008d004
+.\gradlew.bat :tracker:engine:compileDebugKotlin :tracker:engine:compileReleaseKotlin :sensor:activity:testDebugUnitTest :core:diagnostics:testDebugUnitTest @verificationArgs
+# Batch 11: input fb4019009cff30737e7e2717003e92b57008d004
+.\gradlew.bat :stats:data:compileDebugKotlin :stats:data:compileReleaseKotlin :tracker:engine:compileDebugUnitTestKotlin @verificationArgs
+# Batch 12: input 2da7d9f58eb4dc8194b61d540790edc9f9862e3c
+.\gradlew.bat :tracker:engine:compileDebugUnitTestKotlin :tracker:engine:compileReleaseKotlin @verificationArgs
+```
+
+The array above documents the executed argument vectors; shell calls passed those
+arguments directly. Output was redirected to the named per-batch log. Guarded
+wrappers checked clean source, free disk space, native launch/redirection failures,
+Gradle exit code and a build completion marker. No `--tests` filter, excluded task,
+rule suppression or baseline expansion was used in these four batches. Batch
+12's test KSP task is skipped by its existing configuration; test Kotlin compiles.
+The injected init script only sets the short host temporary directory.

@@ -2409,6 +2409,8 @@ closed. Earlier dated entries retain their historical evidence limits.
   and pass repository Room schema drift. Authenticated clean-CI package access is separate.
 - [x] Pass tracking-engine Debug/Release compilation and the complete repaired Activity
   and Diagnostics suites (386 tests) on frozen batch ten.
+- [x] Compile all authored engine unit-test sources and recheck engine Debug/Release
+  compilation on frozen batch twelve; test execution is still pending.
 - [ ] Finish application Debug/Dev compilation and Hilt composition.
 - [ ] Resolve full quality failures and pass complete `ciUnitTest` and `ciCheck`.
 - [ ] Collect device evidence and integrate the fully verified result into local `dev/v10`.

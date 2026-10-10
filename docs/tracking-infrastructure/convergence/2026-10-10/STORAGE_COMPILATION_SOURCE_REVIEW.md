@@ -387,3 +387,15 @@ adjacent established fixture pattern. The Location before/after check keeps raw
 model conversion and avoids the mutating store load. No public API, permission,
 cap, data, format or activation rule changes. This slice still needs compilation;
 engine test execution remains blocked by the pending Stats/data interface choice.
+
+## Final scoped compilation evidence review
+
+The independent reviewer verified batch twelve on clean source commit
+`2da7d9f58eb4dc8194b61d540790edc9f9862e3c`: engine Debug/Release KSP and Kotlin
+and all engine unit-test source compilation executed successfully. The log SHA-256
+is `8db6fc715831e3ac30360db5b98ac787fc24f2948dda145a818ac9b56d6f4c2a`.
+No test task executed in this pass. The existing test KSP skip is distinguished
+from successful test Kotlin compilation. Schema 29 remains byte-identical.
+Exact invocation arguments are recorded in the results document because stdout
+alone cannot independently prove shell flags. Full aggregate, app/Hilt/upgrade,
+physical-device, assembly and integration limits remain unchanged.
