@@ -97,7 +97,7 @@ internal class RadioSourceFileJsonV2Codec {
 		))
 		val reader = JsonReader(InputStreamReader(lexical, Charsets.UTF_8)).apply { isLenient = false }
 		return try {
-			val decoded = gson.fromJson(reader, type)
+			val decoded: T = gson.fromJson(reader, type)
 				?: throw RadioSourceFileFormatException("Empty radio source file")
 			if (reader.peek() != JsonToken.END_DOCUMENT) {
 				throw RadioSourceFileFormatException("Trailing radio source file content")

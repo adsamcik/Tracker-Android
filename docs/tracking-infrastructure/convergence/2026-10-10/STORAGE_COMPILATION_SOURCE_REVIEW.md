@@ -216,6 +216,43 @@ the reviewer's sorted path/hash digest is
 Spot-checking meaning is source review, not human-language or device validation.
 The subsequent frozen gate batch supplies AAPT and lint evidence.
 
+## Repairs from the fifth frozen batch
+
+The independent reviewer accepted all nine files in this slice:
+
+- The radio JSON decoder now declares its Gson result as `T`. Without that
+  annotation Kotlin inferred `Void`, so valid Wi-Fi and Cell files failed before
+  import. Lexical, size, trailing-content, validation and import authority checks
+  are unchanged. Production SHA-256:
+  `66339722214d67b3e6f47b50b91cafb551b8d4ec4af8bb2605e6a5d3a6f7924b`.
+- Two codec tests explicitly return `Unit`, retaining their exception assertions.
+  Four invalid Compose imports are removed; all 23 receiver assertions remain.
+- The JSON export test retains its mid-page authority-change rejection, then
+  checks that a fresh retry includes the original saved background point. This
+  matches the approved rule that stopping collection keeps previously recorded
+  data. The neighboring retention-preparation rejection test is unchanged.
+- One startup generation fixture gives its real Room query context and isolated
+  application scope the same test scheduler, and drains initial setup before
+  resetting counters. All retry, exact generation, zero pre-Ready effects and
+  single rearm assertions remain. The earlier intermittent failure is consistent
+  with uncontrolled real/virtual scheduling; its exact interleaving was not logged.
+  Test SHA-256:
+  `a84ff144c938150f616a764eba7166f4aa1d96461b4d05ce7145a3a666b53df7`.
+- The manual transfer fixture uses an unregistered test MIME type. Android had
+  appended `.bin` for its former `application/octet-stream`, while its assertions
+  read `.dat`. Filenames, write content and all concurrent-directory and cleanup
+  assertions remain. No production cleanup change was needed. Test SHA-256:
+  `21a48d361ba8d2339c1183a28be58a0e96395d2bb667c190d311ac74606348d2`.
+
+The fifth batch used committed input `074782e1ae94c077918f47c86778972fd605fc40`
+without concurrent edits. It passed all 2062 core/base tests and 142 Tracker tests,
+including the released observation import and reviewed retention boundary. All
+four requested release lint tasks passed. Preferences had one failure, Export had
+eight failures, and Statistics test compilation failed; the repairs above require
+their own frozen rerun. App assembly and aggregate schema drift remain blocked by
+the unavailable pinned diagnostics package. This source review does not close
+those gates, the full assembly or device evidence.
+
 ## Limits
 
 The new app fixture checks upgrade orchestration with Location data; the existing

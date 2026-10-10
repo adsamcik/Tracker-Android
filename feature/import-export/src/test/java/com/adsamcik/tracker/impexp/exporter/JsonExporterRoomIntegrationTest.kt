@@ -416,8 +416,8 @@ class JsonExporterRoomIntegrationTest {
 	}
 
 	@Test
-	fun `JSON export rejects an ambient page buffered before consent revocation`() = runTest {
-		insertAmbientSample()
+	fun `JSON export retries an authority change without hiding earlier ambient history`() = runTest {
+		val sample = insertAmbientSample()
 		val exporter = JsonExporter(TestDispatchersProvider(StandardTestDispatcher(testScheduler)))
 		val guardedDatabase = databaseAfterAmbientPage {
 			database.sourcePolicyDao().insertConsentEpochs(listOf(SourceConsentEpochEntity(
@@ -431,7 +431,20 @@ class JsonExporterRoomIntegrationTest {
 			exporter.exportAfter(context, emptySequence(), stream, 35_000L..45_000L,
 				null, null, guardedDatabase, {}).shouldBeInstanceOf<ExportResult.Error>()
 		}
-		database.locationPurposeDao().visiblePathChunk(35_000L, 45_000L, null, null, 10) shouldBe emptyList()
+		val saved = database.locationPurposeDao().visiblePathChunk(35_000L, 45_000L, null, null, 10).single()
+		saved.sample shouldBe sample
+		saved.hasVisibleBackgroundPurpose shouldBe true
+		saved.hasSessionPurpose shouldBe false
+		val retryFile = createTempExportFile()
+		val retry = retryFile.outputStream().use { stream ->
+			exporter.export(context, emptySequence(), stream, 35_000L..45_000L)
+				.shouldBeInstanceOf<ExportResult.Success>()
+		}
+		retry.recordCount shouldBe 1
+		val records = JSONArray(retryFile.readText(Charsets.UTF_8))
+		records.length() shouldBe 1
+		val point = records.getJSONObject(0).getJSONArray("locations").getJSONObject(0)
+		point.getLong("timeMs") shouldBe sample.timeMs
 	}
 
 	@Test

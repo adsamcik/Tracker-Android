@@ -28,6 +28,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -433,9 +434,11 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	@Test
 	fun `provider free Active bootstrap stays closed and rearms once for the new Ready generation`() =
 		runTest {
+			val isolatedDispatcher = UnconfinedTestDispatcher(testScheduler)
 			val context = ApplicationProvider.getApplicationContext<Application>()
 			val isolatedDatabase = AppDatabase.inMemoryBuilder(context)
 				.allowMainThreadQueries()
+				.setQueryCoroutineContext(isolatedDispatcher)
 				.build()
 			val isolatedPolicy = RoomSourcePolicyRepository(isolatedDatabase) {
 				SourcePolicyEffectiveTime("generation-boot", 10L, 20L)
@@ -443,7 +446,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			val gate = MutableGenerationStartupGate()
 			val isolatedRetention = RecordingRetentionAuthorityProducer { true }
 			val isolatedAmbient = RecordingAmbientStepsPolicyRevisionReconciler()
-			val isolatedScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+			val isolatedScope = CoroutineScope(SupervisorJob() + isolatedDispatcher)
 			val isolated = AuthoritativeTrackingParamsRepository(
 				legacy = FakeTrackingParamsRepository(
 					TrackingParamsState(
@@ -459,6 +462,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			)
 			try {
 				isolated.data.first { it.sourcePolicyRevision == 1L }
+				runCurrent()
 				isolatedRetention.reset()
 				isolatedAmbient.reset()
 				gate.closeForNextGeneration()

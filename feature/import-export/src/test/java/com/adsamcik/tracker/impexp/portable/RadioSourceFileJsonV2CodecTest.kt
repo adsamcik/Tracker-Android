@@ -97,7 +97,7 @@ class RadioSourceFileJsonV2CodecTest {
 		}
 	}
 
-	@Test fun `Wi-Fi background keeps a real network child separate from session`() = runBlocking {
+	@Test fun `Wi-Fi background keeps a real network child separate from session`(): Unit = runBlocking {
 		val fact = AmbientWifiPortableIntegrity.createFact(AmbientWifiFact(
 			identity = "b".repeat(64), origin = AmbientWifiOrigin.LOCAL_DEVICE,
 			coverageStartTimeMs = 1_000L, observedTimeMs = 1_000L,
@@ -129,7 +129,7 @@ class RadioSourceFileJsonV2CodecTest {
 		}
 	}
 
-	@Test fun `Cell background child time and uncertainty stay inside exact parent coverage`() = runBlocking {
+	@Test fun `Cell background child time and uncertainty stay inside exact parent coverage`(): Unit = runBlocking {
 		val fact = AmbientCellPortableIntegrity.createFact(AmbientCellFact(
 			identity = "f".repeat(64), origin = AmbientCellOrigin.LOCAL_DEVICE,
 			coverageStartTimeMs = 900L, observedTimeMs = 1_000L, latestPossibleTimeMs = 1_100L,
