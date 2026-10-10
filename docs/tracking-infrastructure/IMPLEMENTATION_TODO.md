@@ -1,11 +1,12 @@
 # Tracking Infrastructure Completion TODO
 
-Last updated: 2026-10-07
+Last updated: 2026-10-10
 
 [Current completion plan](convergence/2026-10-07/COMPLETION_PLAN.md) (2026-10-07) consolidates all outstanding work and is the
 current execution order. Complete tracking/everyday surfaces first; defer file
 and backup completion. Preserve this ledger and its historical source receipts.
-All 25 full-chain prerequisites remain open; validation and integration are deferred.
+All 25 full-chain prerequisites remain open; full convergence and integration are
+deferred. Scoped host verification is recorded in the dated sections below.
 
 ## Current continuation
 
@@ -38,7 +39,8 @@ The current source-assembly progress is maintained in
 `convergence/2026-09-30/IMPLEMENTATION_PROGRESS.md`; the dated sections below are
 historical checkpoints. Their pending-question text does not supersede later user
 answers. The complete 25 prerequisite chains and final convergence/integration
-remain open. No validation or provider activation has begun.
+remain open. Scoped host verification has run; provider activation and the full
+assembly convergence gate have not begun.
 
 Settled on September 30: hourly background Steps copies plus enable/open, each
 bounded to 30 seconds; failed notification-save exit offers Retry or Leave without
@@ -2418,3 +2420,29 @@ closed. Earlier dated entries retain their historical evidence limits.
 See [the verification results](convergence/2026-10-10/STORAGE_COMPILATION_VERIFICATION_RESULTS.md)
 for exact inputs, commands, repairs and current blockers. All 25 full-chain
 prerequisites remain open; individual host results do not close them.
+
+## 2026-10-10 everyday experience review and repairs
+
+- [x] Trace source choice, permission repair, Start/End/Off, retained History and
+  independent daily Steps together; complete a fresh independent diff review.
+- [x] Repair Start's four unavailable-sibling gates; author six coordinator
+  scenarios with unresolved-provider assertions and compile their sources.
+  Their execution remains pending.
+- [x] Preserve useful approximate Location during original Start continuation;
+  pass the two new shared API cases with the existing continuation fences.
+- [x] Refresh Statistics on resume with one local day/zone request and a serialized
+  midnight timer; pass both new zone-change regressions.
+- [x] Remove Android launcher widgets and their exact old update work; pass app
+  manifest/resource merging. App-level removal fixtures remain unexecuted.
+- [x] Repair fixed-clock ViewModel test cleanup and pass 17 affected Statistics
+  cases; preserve the failed first batch and exact rerun evidence.
+- [ ] Finish chosen-source permission repair, separate Tracker/automatic-notification
+  controls, provider-only Steps sessions and malformed-native-day recovery.
+- [ ] Keep healthy live source data visible after a sibling reader failure and
+  show Steps today during sessions using the existing display reader.
+- [ ] Resolve the pending interface/Location/quality decisions, full app and
+  coordinator execution, final convergence, device evidence and integration.
+
+See [the everyday review](convergence/2026-10-10/EVERYDAY_EXPERIENCE_REVIEW.md)
+for the six remaining everyday work items, unanswered proposals, exact frozen
+inputs and 35 selected host-case results. This does not close the all-25 gate.
