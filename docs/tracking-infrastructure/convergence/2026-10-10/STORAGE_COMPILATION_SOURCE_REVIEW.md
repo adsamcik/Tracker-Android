@@ -253,6 +253,35 @@ their own frozen rerun. App assembly and aggregate schema drift remain blocked b
 the unavailable pinned diagnostics package. This source review does not close
 those gates, the full assembly or device evidence.
 
+## Repairs following the sixth batch
+
+Strict Gson trailing-content inspection throws `MalformedJsonException`, which
+extends `IOException` and bypassed the decoder's existing runtime-format catch.
+The decoder now wraps that exact parse exception in the existing format exception.
+Cancellation and ordinary `peek` I/O retain their previous behavior. This does
+not redesign Gson's separate decode-time wrapping of transport failures.
+
+The isolated bootstrap fixture uses `StandardTestDispatcher` instead of its new
+Unconfined dispatcher. The sixth-batch failure was a continuation-release cast,
+not a policy assertion. Shared Room/test scheduler ownership and all generation,
+zero-effect, retry, timing and rearm assertions remain. This minimal fixture
+candidate needs execution before its scheduling explanation is considered proven.
+
+Statistics fixture repairs reveal the existing horizontally scrollable History
+action and lazy Loading/Retry controls before interaction. The long-history case
+still asserts the saved Steps card and count before scrolling. Partial Steps uses
+the current `Incomplete` label, scoped to its summary, and explicitly rejects an
+invented zero. The measured-history Retry fixture keeps its real Pager and source,
+reveals the Retry button, waits for host idle, and retains its bounded second-load,
+healthy sibling and eventual Retry-absence assertions. No layout, production
+pager, duration or source acceptance rule is changed. The separate date-picker
+day-selector failure remains under investigation.
+
+The sixth batch's 774 Export tests have one failure and one existing symlink
+assumption skip. Preferences has one failure among 492 tests; Statistics has eight
+among 580. Export release lint passes. This record does not convert these failures
+into passing evidence; the repaired slice requires the next committed rerun.
+
 ## Limits
 
 The new app fixture checks upgrade orchestration with Location data; the existing

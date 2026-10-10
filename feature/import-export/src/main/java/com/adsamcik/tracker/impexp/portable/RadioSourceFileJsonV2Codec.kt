@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonToken
 import com.google.gson.stream.JsonWriter
+import com.google.gson.stream.MalformedJsonException
 import java.io.FilterInputStream
 import java.io.FilterOutputStream
 import java.io.IOException
@@ -107,6 +108,8 @@ internal class RadioSourceFileJsonV2Codec {
 			throw cancelled
 		} catch (format: RadioSourceFileFormatException) {
 			throw format
+		} catch (failure: MalformedJsonException) {
+			throw RadioSourceFileFormatException("Invalid radio source file", failure)
 		} catch (failure: RuntimeException) {
 			throw RadioSourceFileFormatException("Invalid radio source file", failure)
 		}

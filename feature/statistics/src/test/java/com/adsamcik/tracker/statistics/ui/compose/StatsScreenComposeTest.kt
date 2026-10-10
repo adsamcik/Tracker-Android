@@ -398,7 +398,10 @@ class StatsScreenComposeTest {
 		}
 
 		composeTestRule.waitForIdle()
-		composeTestRule.onNodeWithText("N/A").assertIsDisplayed()
+		composeTestRule.onNode(hasText("Incomplete") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
+			.assertIsDisplayed()
+		composeTestRule.onNode(hasText("0") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
+			.assertDoesNotExist()
 	}
 
 	@Test
@@ -666,7 +669,7 @@ class StatsScreenComposeTest {
 		}
 		composeTestRule.waitForIdle()
 		summaries.subscriptionCount.value shouldBe 1
-		composeTestRule.onNodeWithText("Loading sessions…").assertIsDisplayed()
+		composeTestRule.onNodeWithText("Loading sessions…").performScrollTo().assertIsDisplayed()
 		composeTestRule.onNode(hasText("32") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.performScrollTo().assertIsDisplayed()
 		composeTestRule.onNode(hasText("1") and hasAnyAncestor(hasTestTag("stats_summary_active_days")))
@@ -693,7 +696,7 @@ class StatsScreenComposeTest {
 		}
 		composeTestRule.waitForIdle()
 		composeTestRule.onNodeWithText("Something went wrong").assertIsDisplayed()
-		composeTestRule.onNodeWithText("Retry").performClick()
+		composeTestRule.onNodeWithText("Retry").performScrollTo().assertIsDisplayed().performClick()
 		composeTestRule.onNode(hasText("44") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.performScrollTo().assertIsDisplayed()
 		composeTestRule.onNode(hasText("1") and hasAnyAncestor(hasTestTag("stats_summary_active_days")))
@@ -824,7 +827,7 @@ class StatsScreenComposeTest {
 		composeTestRule.onNodeWithText("Distance").assertDoesNotExist()
 		composeTestRule.onNodeWithText("Only 3 sessions are visible", substring = true).assertDoesNotExist()
 		scrollToStatisticsHeader()
-		composeTestRule.onNodeWithText("History").performClick()
+		composeTestRule.onNodeWithText("History").performScrollTo().performClick()
 		historyOpened shouldBe true
 	}
 
@@ -848,10 +851,10 @@ class StatsScreenComposeTest {
 		}
 		composeTestRule.waitForIdle()
 		loadedSessionCount shouldBe 50
-		composeTestRule.onNodeWithText("History").assertIsDisplayed()
 		composeTestRule.onNodeWithTag("stats_summary_steps").assertIsDisplayed()
 		composeTestRule.onNode(hasText("123") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
 			.assertIsDisplayed()
+		composeTestRule.onNodeWithText("History").performScrollTo().assertIsDisplayed()
 		summaries.subscriptionCount.value shouldBe 1
 	}
 
@@ -951,7 +954,7 @@ class StatsScreenComposeTest {
 			loadedSessionCount shouldBe 3
 			composeTestRule.onAllNodesWithTag("stats_session_row")[0].assertIsDisplayed()
 		}
-		composeTestRule.onNodeWithText("History").performClick()
+		composeTestRule.onNodeWithText("History").performScrollTo().performClick()
 		historyOpened shouldBe true
 		summaries.subscriptionCount.value shouldBe 1
 	}

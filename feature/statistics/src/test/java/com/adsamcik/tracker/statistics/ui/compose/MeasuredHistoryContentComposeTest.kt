@@ -13,6 +13,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
@@ -136,7 +137,9 @@ class MeasuredHistoryContentComposeTest {
 		show(flow)
 		rule.waitUntil(5_000L) { loads.get() == 1 }
 		rule.onNodeWithText("Kept Wi-Fi").assertIsDisplayed()
-		rule.onNodeWithText(context.getString(R.string.action_retry)).performClick()
+		rule.onNodeWithText(context.getString(R.string.action_retry))
+			.performScrollTo().assertIsDisplayed().performClick()
+		rule.waitForIdle()
 		rule.waitUntil(5_000L) { loads.get() >= 2 }
 		rule.onNodeWithText("Kept Wi-Fi").assertIsDisplayed()
 		rule.onNodeWithText(context.getString(R.string.action_retry)).assertDoesNotExist()

@@ -28,7 +28,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -434,7 +434,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	@Test
 	fun `provider free Active bootstrap stays closed and rearms once for the new Ready generation`() =
 		runTest {
-			val isolatedDispatcher = UnconfinedTestDispatcher(testScheduler)
+			val isolatedDispatcher = StandardTestDispatcher(testScheduler)
 			val context = ApplicationProvider.getApplicationContext<Application>()
 			val isolatedDatabase = AppDatabase.inMemoryBuilder(context)
 				.allowMainThreadQueries()
