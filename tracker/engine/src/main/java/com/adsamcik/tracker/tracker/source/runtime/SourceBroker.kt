@@ -161,6 +161,10 @@ class SourceBroker @Inject internal constructor(
 	)
 	fun sessionConsumerId(logicalTrackingId: String): String = "session:$logicalTrackingId"
 
+	/** Reuses the store's actual lane/catalog/owner checks for callers inside a Room transaction. */
+	internal suspend fun isAmbientProductReady(source: SourceKind): Boolean =
+		trackingRolloutStateStore.load().isAmbientProductReachable(source)
+
 	private data class LiveStepsRecording(
 		val demand: SourceDemandEntity,
 		val origin: SessionManifestVersionEntity,
@@ -352,7 +356,7 @@ class SourceBroker @Inject internal constructor(
 		}
 		val rollout = trackingRolloutStateStore.load()
 		if (rollout.revision != leaseIdentity.rolloutRevision ||
-			!rollout.isCaptureReachable(source, CaptureReachabilityMode.AMBIENT)
+			!rollout.isAmbientProductReachable(source)
 		) return@withTransaction AmbientLocationDemandResult.Inactive("LOCATION_BACKGROUND_CONTAINED")
 		val retention = retentionSnapshot.takeIf { it.matchesActiveSettlementInTransaction() }
 			?.grants?.get(source)?.takeIf { grant ->
@@ -1878,7 +1882,7 @@ class SourceBroker @Inject internal constructor(
 		val rollout = trackingRolloutStateStore.load()
 		if (
 			rollout.revision != leaseIdentity.rolloutRevision ||
-			!rollout.isCaptureReachable(source, CaptureReachabilityMode.AMBIENT)
+			!rollout.isAmbientProductReachable(source)
 		) {
 			return@withTransaction inactive(AmbientStepsDemandInactiveReason.ROLLOUT_CONTAINED)
 		}
@@ -3445,11 +3449,7 @@ class SourceBroker @Inject internal constructor(
 				wallTimeMs,
 			)
 		) return revoke(AmbientRadioDemandInactiveReason.RETENTION_APPROVAL_MISMATCH)
-		if (!rollout.isCaptureReachable(
-				source,
-				CaptureReachabilityMode.AMBIENT,
-			)
-		) {
+		if (!rollout.isAmbientProductReachable(source)) {
 			return revoke(AmbientRadioDemandInactiveReason.ROLLOUT_CONTAINED)
 		}
 		val deletionGeneration = currentDeletionGeneration(leaseIdentity.collectedDataEpoch)

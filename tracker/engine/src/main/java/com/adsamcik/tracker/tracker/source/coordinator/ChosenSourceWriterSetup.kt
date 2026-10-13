@@ -125,7 +125,7 @@ class ChosenSourceWriterSetup @Inject internal constructor(
 			if (selected.size > 1) ChosenSourceWriterStatus.REPAIR_REQUIRED else {
 				val lane = selected.singleOrNull()
 				val binding = lane?.let(catalog::bindingFor)
-				if (lane != null && binding != null && binding.captureModeMask == 3L &&
+				if (lane != null && binding != null &&
 					lane.captureAdmissionCutoffOrdinal == null && lane.terminalDisposition == null && lane.terminalAtMs == null &&
 					lane.isCanonicalCaptureAuthorizedBy(database, rollout, catalog)) ChosenSourceWriterStatus.READY
 				else if (lane != null && binding == null) ChosenSourceWriterStatus.REPAIR_REQUIRED

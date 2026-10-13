@@ -16,8 +16,6 @@ import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientCon
 import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
-import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
-import com.adsamcik.tracker.tracker.source.coordinator.decodeCurrentModelOrNull
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionFloor
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -429,8 +427,7 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 		expectedDemandId: String,
 		boundary: AmbientStepsDemandBoundary,
 	): List<SourceDemandEntity> {
-		val rollout = database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull()
-		check(rollout?.isCaptureReachable(SourceKind.STEPS, CaptureReachabilityMode.AMBIENT) == true) {
+		check(sourceBroker.isAmbientProductReady(SourceKind.STEPS)) {
 			"Ambient Steps acquisition is contained"
 		}
 		val policyDao = database.sourcePolicyDao()

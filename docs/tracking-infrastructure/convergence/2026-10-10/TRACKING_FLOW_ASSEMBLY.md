@@ -10,8 +10,12 @@ The input manifest records exact source hashes and the independent review receip
 
 ## Remaining assembly blockers
 
-- All-day Location/Steps/Wi-Fi/Cell still use a session-mode reachability check. The independent source-writer readiness proposal is awaiting approval.
-- Known older internal Steps capture-writer upgrades need to preserve the separate supported system recorder without relaxing privacy/full-clear fences.
+- All-day source readiness was repaired in the 2026-10-13 continuation: publication,
+  demand creation and Steps registration use backed canonical source readiness
+  independently of session modes. Production/test source is IMPLEMENTED_UNVALIDATED.
+- Existing canonical Steps readiness no longer depends on upgrading its session
+  capture binding first. Preferred-writer transitions and independent system
+  recorder/privacy/full-clear boundaries are unchanged; their execution is pending.
 - The interrupted passive Location callback tail before durable admission and independently valid all-day Location rejected by the session remain open.
 - Full six-source product/organization/data-effects composition and final convergence gates remain in the completion plan.
 

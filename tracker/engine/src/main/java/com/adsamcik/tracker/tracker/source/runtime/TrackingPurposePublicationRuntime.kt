@@ -51,7 +51,6 @@ import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellActivationReq
 import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellDemandReconciler
 import com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiActivationRequest
 import com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiDemandReconciler
-import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -2078,7 +2077,7 @@ internal fun TrackingRolloutState.supportsExecution(
 			sourcePurpose.source == TrackingSource.ACTIVITY &&
 				isControlAcquisitionReachable(sourceKind)
 		TrackingPurpose.AMBIENT_PRODUCT ->
-			isCaptureReachable(sourceKind, CaptureReachabilityMode.AMBIENT)
+			isAmbientProductReachable(sourceKind)
 		TrackingPurpose.SESSION_CAPTURE -> false
 	}
 }

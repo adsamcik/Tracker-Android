@@ -85,10 +85,11 @@ product or changing activation gates implicitly.
   projection and product query for each supported source/purpose. Finish the caller
   inventory across UI, workers, legacy routes and temporary features. Prove stale
   callbacks and late revocation cannot borrow newer permission or revive erased data.
-  Combined review found that sessionless Location/Steps/Wi-Fi/Cell execution still
-  asks for the session rollout's Ambient mode. The final session bindings advertise
-  only manual/automatic capture. Independent all-day writer readiness is awaiting
-  approval; publication, broker and actual registration must agree on that rule.
+  The 2026-10-13 continuation removes the Ambient session-mode requirement from
+  all-day Location/Steps/Wi-Fi/Cell publication, broker demands and Steps registration.
+  It reuses backed canonical source readiness and preserves session capture modes.
+  Production and focused regression sources are IMPLEMENTED_UNVALIDATED; actual
+  registration, admission and product execution still need convergence evidence.
 
 - [ ] **T05 — Close shared provider and foreground-host lifetimes.** Compose each
   existing physical owner with independent session/background/control/feature

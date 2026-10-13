@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
@@ -12,8 +13,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyReposito
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
-import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
-import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -55,17 +55,12 @@ class AmbientStepsProviderRegistrationRepositoryTest {
 				updatedAtMs = 1L,
 			),
 		)
+		database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
+			SourceKind.STEPS.stableCode, SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS, 4L, 1L))
 		val rollout = installCanonicalProductLanesForTest(
 			database = database,
-			bindings = listOf(
-				ExecutableSourceLaneBinding(
-					source = SourceKind.STEPS,
-					bindingGeneration = 1L,
-					projectionId = "ambient-steps-registration-test",
-					projectionVersion = 1,
-					captureModes = setOf(CaptureReachabilityMode.AMBIENT),
-				),
-			),
+			bindings = listOf(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2),
 			rolloutRevision = 1L,
 		)
 		retentionReader = TestLiveAmbientRetentionAuthorityReader()
@@ -103,8 +98,23 @@ class AmbientStepsProviderRegistrationRepositoryTest {
 	fun tearDown() = database.close()
 
 	@Test
+	fun `registration requires the actual canonical writer after a demand was selected`() = runTest {
+		val demand = select(AmbientStepsProvider.LOCAL_RECORDING_STEPS, boundary(100L))
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_destination_owner WHERE source_kind = ? AND destination = ?",
+			arrayOf(SourceKind.STEPS.stableCode,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS))
+		shouldThrow<IllegalStateException> {
+			subject.reserve(AmbientStepsProvider.LOCAL_RECORDING_STEPS, demand.demandId, boundary(110L))
+		}
+		database.sourceBrokerDao().registration(SourceKind.STEPS.stableCode, 1L) shouldBe null
+	}
+
+	@Test
 	fun `reservation is exact system rearmable ambient authority before provider work`() = runTest {
 		val demand = select(AmbientStepsProvider.LOCAL_RECORDING_STEPS, boundary(100L))
+		database.sourceSessionDao().activeSession() shouldBe null
+		database.sourceProjectionStateDao().activeProductLane(SourceKind.STEPS.stableCode)?.captureModeMask shouldBe 3L
 
 		val reservation = subject.reserve(
 			provider = AmbientStepsProvider.LOCAL_RECORDING_STEPS,

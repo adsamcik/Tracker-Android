@@ -1,6 +1,6 @@
 # Tracking Infrastructure Completion TODO
 
-Last updated: 2026-10-10
+Last updated: 2026-10-13
 
 [Current completion plan](convergence/2026-10-07/COMPLETION_PLAN.md) (2026-10-07) consolidates all outstanding work and is the
 current execution order. Complete tracking/everyday surfaces first; defer file
@@ -2479,3 +2479,26 @@ See [the dated implementation and review record](convergence/2026-10-13/EVERYDAY
 for the six exact commits, recovery behavior and authored coverage. All 25
 full-chain prerequisites remain open. Main `dev/v10`, preserved candidates and
 drafts remain unchanged; no validation, integration, push or cleanup ran here.
+
+## 2026-10-13 all-day source readiness
+
+Status: **IMPLEMENTED_UNVALIDATED**; production and regression sources only.
+
+- [x] Make supported all-day Location, Steps, Wi-Fi and Cell use their canonical
+  source readiness instead of requiring an Ambient session capture-mode bit.
+  Reuse this rule in purpose publication, demand creation and Steps reconciliation.
+- [x] Check the actual backed writer during Steps provider registration, using
+  the existing sanitized rollout store through its broker.
+- [x] Recognize an existing backed canonical writer without requiring both
+  manual and automatic session modes; keep preferred-writer preparation and
+  session-specific Start gates unchanged. An independent system Steps recorder
+  need not wait for a session-writer upgrade.
+- [x] Author production-binding Room regressions for sessionless demands,
+  registration, writer loss and source-local consent, plus shared authority and
+  unchanged session-mode coverage. No cases executed.
+- [x] Complete an independent review-only pass on the combined change against
+  `c7280de778`; correct and recheck the two missing native Steps fixture owners.
+  No remaining actionable static finding; this is not provider acceptance.
+- [ ] Execute these regressions during final convergence and collect provider
+  evidence. Complete assembly, all 25 acceptance chains and `dev/v10` integration
+  remain open; the two separately recorded Location data-loss gaps remain.

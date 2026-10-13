@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
@@ -12,8 +13,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicySnapshot
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
-import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
-import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
@@ -69,13 +69,11 @@ class AmbientStepsDemandReconcilerTest {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(collectedDataEpoch = 3L, updatedAtMs = 1L),
 		)
-		val binding = ExecutableSourceLaneBinding(
-			source = SourceKind.STEPS,
-			bindingGeneration = 1L,
-			projectionId = "ambient-steps-demand-test",
-			projectionVersion = 1,
-			captureModes = setOf(CaptureReachabilityMode.AMBIENT),
-		)
+		val binding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2
+		// Match the real native writer; installing a lane alone cannot authorize its destination.
+		database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
+			SourceKind.STEPS.stableCode, SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS, 4L, 1L))
 		rolloutStore = installCanonicalProductLanesForTest(
 			database = database,
 			bindings = listOf(binding),

@@ -9,7 +9,6 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
-import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -295,10 +294,7 @@ class AmbientStepsDemandReconciler internal constructor(
 							AmbientStepsDemandBlockReason.PERSISTENCE_INELIGIBLE,
 						)
 					rollout.revision != lease.identity.rolloutRevision ||
-						!rollout.isCaptureReachable(
-						SourceKind.STEPS,
-						CaptureReachabilityMode.AMBIENT,
-					) -> AmbientStepsPolicyAuthority.Blocked(
+						!rollout.isAmbientProductReachable(SourceKind.STEPS) -> AmbientStepsPolicyAuthority.Blocked(
 						AmbientStepsDemandBlockReason.ROLLOUT_CONTAINED,
 					)
 					else -> when (val retention = if (settlementOperationId == null) {

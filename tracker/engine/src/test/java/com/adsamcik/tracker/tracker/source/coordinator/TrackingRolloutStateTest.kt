@@ -16,6 +16,7 @@ class TrackingRolloutStateTest {
 			setOf(ProductProjectionStage.LEGACY_CANONICAL)
 		SourceKind.entries.forEach { source ->
 			state.isAcquisitionReachable(source) shouldBe false
+			state.isAmbientProductReachable(source) shouldBe false
 			state.isControlAcquisitionReachable(source) shouldBe false
 		}
 	}
@@ -172,5 +173,29 @@ class TrackingRolloutStateTest {
 				productProjectionStages = stages,
 			)
 		}
+	}
+
+	@Test
+	fun `all-day products are independent of manual and automatic session reachability`() {
+		val sources = setOf(SourceKind.LOCATION, SourceKind.STEPS, SourceKind.WIFI, SourceKind.CELL)
+		for (mode in setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE, CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE)) {
+			val state = TrackingRolloutState.eventCanonical(sources,
+				captureModes = sources.associateWith { setOf(mode) })
+			for (source in sources) {
+				state.isAmbientProductReachable(source) shouldBe true
+				state.isCaptureReachable(source, CaptureReachabilityMode.AMBIENT) shouldBe false
+				state.isCaptureReachable(source, mode) shouldBe true
+				val other = if (mode == CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)
+					CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE else CaptureReachabilityMode.MANUAL_SESSION_CAPTURE
+				state.isCaptureReachable(source, other) shouldBe false
+			}
+		}
+	}
+
+	@Test
+	fun `canonical Activity and Pressure do not gain unsupported all-day products`() {
+		val state = TrackingRolloutState.eventCanonical(SourceKind.entries.toSet())
+		state.isAmbientProductReachable(SourceKind.ACTIVITY) shouldBe false
+		state.isAmbientProductReachable(SourceKind.PRESSURE) shouldBe false
 	}
 }

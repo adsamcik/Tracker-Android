@@ -138,6 +138,23 @@ class ChosenSourceWriterSetupRoomTest {
 	}
 
 	@Test
+	fun `backed canonical Steps stays ready independently of automatic session writer upgrade`() = runBlocking {
+		gate.ready = true
+		seedOwners()
+		val store = RoomTrackingRolloutStateStore(database, catalog)
+		store.load()
+		store.installInertShadowLane(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1, revision() + 1L, 10L)
+		steps().activateCandidate(revision(), 11L).shouldBeInstanceOf<StepsWriterTransitionResult.Applied>()
+		val lane = requireNotNull(database.sourceProjectionStateDao().activeProductLane(SourceKind.STEPS.stableCode))
+		lane.captureModeMask shouldBe CaptureReachabilityMode.MANUAL_SESSION_CAPTURE.mask
+		setup().readReadiness(setOf(SourceKind.STEPS, SourceKind.WIFI)).sources shouldBe mapOf(
+			SourceKind.STEPS to ChosenSourceWriterStatus.READY, SourceKind.WIFI to ChosenSourceWriterStatus.PENDING)
+		database.sourceProjectionStateDao().activeProductLane(SourceKind.STEPS.stableCode) shouldBe lane
+		database.sourceSessionDao().activeSession() shouldBe null
+		database.sourceBrokerDao().activeDemands(SourceKind.STEPS.stableCode) shouldBe emptyList()
+	}
+
+	@Test
 	fun `cold not ready preparation returns Pending without trying to reconcile itself`() = runBlocking {
 		gate.ready = false
 		setup().ensure(setOf(SourceKind.STEPS)).sources shouldBe mapOf(SourceKind.STEPS to ChosenSourceWriterStatus.PENDING)

@@ -260,6 +260,35 @@ class TrackingPurposePublicationRuntimeTest {
 	}
 
 	@Test
+	fun `all-day authority uses each canonical source without session capture consent or ambient mode`() = runTest {
+		val sources = setOf(TrackingSource.LOCATION, TrackingSource.STEPS, TrackingSource.WIFI, TrackingSource.CELL)
+		val original = policySnapshot(revision = 12L)
+		val policy = original.copy(policies = original.policies.mapValues { (source, entry) ->
+			entry.copy(ambientConsentEpoch = 5L.takeIf { source in sources },
+				ambientPersistenceEligible = source in sources)
+		})
+		val rollout = TrackingRolloutState.eventCanonical(
+			sources = sources.mapTo(linkedSetOf(), TrackingSource::toSourceKind), revision = 9L,
+			captureModes = sources.associate { it.toSourceKind() to setOf(
+				CaptureReachabilityMode.MANUAL_SESSION_CAPTURE, CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE) })
+		val lifecycle = MutableLifecycleStore(CollectedDataLifecycleSnapshot(3L, null))
+		val reader = CurrentTrackingPurposeAuthorityReader(FixedSourcePolicyRepository(policy),
+			lifecycle, FixedRolloutStateStore(rollout), AlwaysApprovedRetentionAuthorityProducer)
+		for (source in sources) {
+			policy[source].capturePersistenceEligible shouldBe false
+			rollout.isCaptureReachable(source.toSourceKind(), CaptureReachabilityMode.AMBIENT) shouldBe false
+			reader.read(source.forPurpose(TrackingPurpose.AMBIENT_PRODUCT), 7L)?.executionRevision shouldBe 7L
+		}
+		// Source-local revocation never borrows eligibility from another independently ready source.
+		val revoked = policy.copy(policies = policy.policies + (TrackingSource.WIFI to
+			policy[TrackingSource.WIFI].copy(ambientConsentEpoch = null, ambientPersistenceEligible = false)))
+		val revokedReader = CurrentTrackingPurposeAuthorityReader(FixedSourcePolicyRepository(revoked),
+			lifecycle, FixedRolloutStateStore(rollout), AlwaysApprovedRetentionAuthorityProducer)
+		revokedReader.read(TrackingSource.WIFI.forPurpose(TrackingPurpose.AMBIENT_PRODUCT), 7L) shouldBe null
+		revokedReader.read(TrackingSource.CELL.forPurpose(TrackingPurpose.AMBIENT_PRODUCT), 7L)?.executionRevision shouldBe 7L
+	}
+
+	@Test
 	fun `automatic containment callback publishes exact identity without readiness`() = runTest {
 		val fixture = fixture(
 			authority(

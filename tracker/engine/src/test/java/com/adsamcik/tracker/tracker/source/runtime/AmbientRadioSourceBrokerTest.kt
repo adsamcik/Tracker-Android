@@ -13,7 +13,9 @@ import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenera
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource as CanonicalTrackingSource
@@ -24,7 +26,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
-import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
 import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
@@ -61,26 +63,23 @@ class AmbientRadioSourceBrokerTest {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(collectedDataEpoch = 3L, updatedAtMs = 1L),
 		)
-		rolloutStore = installCanonicalProductLanesForTest(
-			database,
-			listOf(
-				ExecutableSourceLaneBinding(
-					SourceKind.WIFI,
-					1L,
-					"ambient-wifi-test",
-					1,
-					setOf(CaptureReachabilityMode.AMBIENT),
+		val bindings = listOf(ExecutableSourceLaneCatalog.PREFERRED_WIFI_SESSION_FACTS,
+			ExecutableSourceLaneCatalog.PREFERRED_CELL_SESSION_FACTS)
+		bindings.forEach { binding ->
+			val wifi = binding.source == SourceKind.WIFI
+			database.sourceDestinationOwnerDao().insertIfAbsent(
+				SourceDestinationOwnerEntity(
+					sourceKind = binding.source.stableCode,
+					destination = if (wifi) SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI
+						else SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+					owner = if (wifi) SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS
+						else SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS,
+					ownerGeneration = SourceWriterGenerationContract.canonicalOwnerGeneration(binding.bindingGeneration),
+					updatedAtMs = 1L,
 				),
-				ExecutableSourceLaneBinding(
-					SourceKind.CELL,
-					1L,
-					"ambient-cell-test",
-					1,
-					setOf(CaptureReachabilityMode.AMBIENT),
-				),
-			),
-			1L,
-		)
+			)
+		}
+		rolloutStore = installCanonicalProductLanesForTest(database, bindings, 1L)
 		policyRepository = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
 		}
@@ -102,7 +101,7 @@ class AmbientRadioSourceBrokerTest {
 	}
 
 	@Test
-	fun `adopted Wi-Fi ambient grant stays sessionless and binds baseline callback contract atomically`() = runTest {
+	fun `all-day Wi-Fi admits its exact authority without an ambient capture mode or session`() = runTest {
         policyRepository.replaceCaptureSettings(1, TrackingParamsState(legacySettingsMigrationCompleted = true,
             balanceProfileVersion = 1, overallBalanceLevel = 5, locationProfileVersion = 1, locationBalanceLevel = 5,
             wifiEnabled = true), "ADOPT_ALL")
@@ -120,11 +119,18 @@ class AmbientRadioSourceBrokerTest {
 			),
 		)
 
+		val identity = lease(AmbientTrackingSource.WIFI, policy.revision, consentEpoch, "wifi-owner-1")
+		val reference = SourceCallerReplayReference("all-day-wifi-caller")
+		val prepared = preparedPurposeOwnerAuthority(identity, reference)
+		assertEquals(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE.mask or
+			CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE.mask,
+			rolloutStore.load().captureModeMasks.getValue(SourceKind.WIFI))
+		assertEquals(null, database.sourceSessionDao().activeSession())
 		val result = assertIs<AmbientRadioDemandResult.Active>(
 			broker.replaceAmbientWifiDemand(
 				"app:ambient:wifi",
 				true,
-				lease(AmbientTrackingSource.WIFI, policy.revision, consentEpoch, "wifi-owner-1"),
+				identity,
 				1L,
 				"boot-1",
 				100L,
@@ -135,6 +141,7 @@ class AmbientRadioSourceBrokerTest {
 					consentEpoch,
 					100L,
 				),
+				preparedCallerAcceptance = prepared,
 			),
 		)
 
@@ -163,6 +170,22 @@ class AmbientRadioSourceBrokerTest {
 		assertEquals(3L, authority?.collectedDataEpoch)
 		assertEquals("wifi-owner-1", authority?.ownerCasToken)
 		assertEquals(result.demand.demandId, authority?.demandId)
+		assertEquals(null, demand.serviceRunId)
+		assertEquals(null, demand.manifestRevision)
+		assertEquals(StoredSourceCallerAuthorityLoadResult.Available(prepared.authority),
+			RoomSourceCallerAcceptedAuthorityRepository(database).load(reference))
+		authorizeProvider(SourceKind.WIFI, demand)
+		val authorization = requireNotNull(database.sourceBrokerDao()
+			.latestAuthorization(SourceKind.WIFI.stableCode, 1L).toAuthorizationSnapshotOrNull())
+		assertEquals(false, authorization.isDenied)
+		assertEquals(listOf(demand), broker.authorizationDemands(SourceKind.WIFI))
+		assertIs<AmbientRadioDemandResult.Inactive>(broker.replaceAmbientCellDemand(
+			"app:ambient:cell", true,
+			lease(AmbientTrackingSource.CELL, policy.revision, 1L, "cell-without-consent"),
+			1L, "boot-1", 101L, 101L,
+		))
+		assertTrue(broker.authorizationDemands(SourceKind.CELL).isEmpty())
+		assertEquals(listOf(demand), broker.authorizationDemands(SourceKind.WIFI))
 	}
 
 	@Test
@@ -180,7 +203,7 @@ class AmbientRadioSourceBrokerTest {
 				effectiveWallTimeMs = 90L,
 			),
 		)
-		broker.replaceAmbientCellDemand(
+		val active = assertIs<AmbientRadioDemandResult.Active>(broker.replaceAmbientCellDemand(
 			"app:ambient:cell",
 			true,
 			lease(AmbientTrackingSource.CELL, policy.revision, consentEpoch, "cell-owner-1"),
@@ -194,7 +217,14 @@ class AmbientRadioSourceBrokerTest {
 				consentEpoch,
 				100L,
 			),
-		)
+		))
+		assertEquals(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE.mask or
+			CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE.mask,
+			rolloutStore.load().captureModeMasks.getValue(SourceKind.CELL))
+		assertEquals(null, database.sourceSessionDao().activeSession())
+		assertEquals(null, active.demand.logicalTrackingId)
+		assertEquals(null, active.demand.serviceRunId)
+		assertEquals(listOf(active.demand), broker.authorizationDemands(SourceKind.CELL))
 
 		assertIs<AmbientRadioDemandResult.Inactive>(
 			broker.replaceAmbientCellDemand(
