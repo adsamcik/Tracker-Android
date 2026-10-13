@@ -549,6 +549,7 @@
     <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s is selected but cannot collect until permission is granted.</string>
 
     <string name="settings_wifi_permission_required">Requires Wi-Fi/location permission. Toggle on to grant — no Wi-Fi data is recorded until then, and recorded data stays on this device.</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">Access is still needed. Your choices are kept.</string>
     <string name="settings_cell_permission_required">Requires phone state and precise location permission. Toggle on to grant — no cell data is recorded until then, and recorded data stays on this device.</string>
     <string name="settings_barometer_unavailable">Pressure sensor is not available on this device.</string>
     <string name="settings_activity_permission_required">Requires activity recognition permission. Toggle on to grant.</string>

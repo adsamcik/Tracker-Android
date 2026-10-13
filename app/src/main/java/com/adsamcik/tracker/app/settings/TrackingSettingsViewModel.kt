@@ -142,7 +142,7 @@ data class TrackingSettingsUiState(
     val runtimeTelemetry: TrackingCoordinatorMetrics = TrackingCoordinatorMetrics.ZERO,
 )
 
-enum class LocationSettingsPermissionKind { LOCATION, MOTION }
+enum class LocationSettingsPermissionKind { FOREGROUND_LOCATION, LOCATION, MOTION }
 
 data class LocationSettingsPermissionRequest(
 	val kind: LocationSettingsPermissionKind,
@@ -462,6 +462,7 @@ class TrackingSettingsViewModel internal constructor(
 	fun requestSavedLocationPermission(kind: LocationSettingsPermissionKind) {
 		val state = latestParams ?: return
 		val eligible = when (kind) {
+			LocationSettingsPermissionKind.FOREGROUND_LOCATION -> state.locationEnabled
 			LocationSettingsPermissionKind.LOCATION -> state.ambientLocationEnabled
 			LocationSettingsPermissionKind.MOTION -> state.locationProfileVersion == 1 &&
 				state.locationMotionAssistanceEnabled
@@ -470,7 +471,23 @@ class TrackingSettingsViewModel internal constructor(
 	}
 
 	fun isCurrentLocationPermissionRequest(request: LocationSettingsPermissionRequest): Boolean =
-		request.intentGeneration == locationIntentGeneration
+		request.intentGeneration == locationIntentGeneration && when (request.kind) {
+			LocationSettingsPermissionKind.FOREGROUND_LOCATION -> latestParams?.locationEnabled == true
+			LocationSettingsPermissionKind.LOCATION -> latestParams?.ambientLocationEnabled == true
+			LocationSettingsPermissionKind.MOTION -> latestParams?.locationMotionAssistanceEnabled == true
+		}
+
+	/** Permission repair uses committed choices and never writes settings or resumes Off. */
+	fun isSavedSourceSelected(source: TrackingSourceComponent): Boolean = latestParams?.let { params ->
+		when (source) {
+			TrackingSourceComponent.LOCATION -> params.locationEnabled || params.ambientLocationEnabled
+			TrackingSourceComponent.ACTIVITY -> params.activityEnabled || params.autoTrackingMode > 0
+			TrackingSourceComponent.STEPS -> params.stepsEnabled
+			TrackingSourceComponent.PRESSURE -> params.barometerEnabled
+			TrackingSourceComponent.WIFI -> params.wifiEnabled || params.ambientWifiEnabled
+			TrackingSourceComponent.CELL -> params.cellEnabled || params.ambientCellEnabled
+		}
+	} == true
 
 	private fun mutateLocationSettings(
 		key: String,
@@ -486,6 +503,7 @@ class TrackingSettingsViewModel internal constructor(
 		launchSourcePolicyMutation(key, preview, runAfterCommittedWhenDebt = true, afterCommittedMutation = {
 			val saved = latestParams
 			val eligible = when (permission) {
+				LocationSettingsPermissionKind.FOREGROUND_LOCATION -> saved?.locationEnabled == true
 				LocationSettingsPermissionKind.LOCATION -> saved?.ambientLocationEnabled == true
 				LocationSettingsPermissionKind.MOTION -> saved?.locationMotionAssistanceEnabled == true
 				null -> false
@@ -560,6 +578,8 @@ class TrackingSettingsViewModel internal constructor(
     fun onStepsPermissionResult(granted: Boolean) = onActivityPermissionResult(granted)
 
     fun onWifiPermissionResult(@Suppress("UNUSED_PARAMETER") granted: Boolean) = refreshSourcePermissions()
+
+	fun onLocationPermissionResult() = refreshSourcePermissions()
 
     fun onCellPermissionResult(@Suppress("UNUSED_PARAMETER") granted: Boolean) = refreshSourcePermissions()
 

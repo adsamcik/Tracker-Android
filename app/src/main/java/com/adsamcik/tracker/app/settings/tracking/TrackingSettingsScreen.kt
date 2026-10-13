@@ -15,6 +15,7 @@ import androidx.health.connect.client.records.StepsRecord
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,6 +45,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -70,6 +73,7 @@ import com.adsamcik.tracker.app.settings.TrackingSettingsUiState
 import com.adsamcik.tracker.app.settings.TrackingSettingsViewModel
 import com.adsamcik.tracker.app.settings.LocationSettingsPermissionKind
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
+import com.adsamcik.tracker.shared.utils.compose.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
 import com.adsamcik.tracker.app.settings.components.SectionHeader
@@ -92,28 +96,38 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
     val trackingVm: TrackingSettingsViewModel = hiltViewModel()
     val lifecycleOwner = LocalLifecycleOwner.current
 	val context = LocalContext.current
+	var permissionDenied by remember { mutableStateOf(false) }
+	val permissionSnackbar = remember { SnackbarHostState() }
 	val locationAccessLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-		trackingVm.refreshPermissionState()
+		trackingVm.onLocationPermissionResult()
+		permissionDenied = !trackingVm.uiState.value.permissionCapabilities.hasForegroundLocation
 	}
 	val backgroundAccessLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-		trackingVm.refreshPermissionState()
+		trackingVm.onLocationPermissionResult()
+		permissionDenied = !trackingVm.uiState.value.permissionCapabilities.hasBackgroundLocation
 	}
 	val locationSettingsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-		trackingVm.refreshPermissionState()
+		trackingVm.onLocationPermissionResult()
 	}
 	val motionAssistanceLauncher = rememberLauncherForActivityResult(
 		ActivityResultContracts.RequestPermission(),
-		trackingVm::onActivityPermissionResult,
+		{ granted ->
+			trackingVm.onActivityPermissionResult(granted)
+			permissionDenied = !trackingVm.uiState.value.activityPermissionGranted
+		},
 	)
 	LaunchedEffect(trackingVm, context) {
 		trackingVm.locationPermissionEvents.collect { request ->
-			if (!trackingVm.isCurrentLocationPermissionRequest(request)) return@collect
+			if (!trackingVm.isCurrentLocationPermissionRequest(request) ||
+				!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+			) return@collect
 			when (request.kind) {
 				LocationSettingsPermissionKind.MOTION -> {
 					if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
 						!trackingVm.uiState.value.activityPermissionGranted
 					) motionAssistanceLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
 				}
+				LocationSettingsPermissionKind.FOREGROUND_LOCATION,
 				LocationSettingsPermissionKind.LOCATION -> {
 					val capability = trackingVm.uiState.value.permissionCapabilities
 					when {
@@ -124,9 +138,11 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
 							))
 						!capability.locationServicesEnabled ->
 							locationSettingsLauncher.launch(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-						Build.VERSION.SDK_INT == Build.VERSION_CODES.Q && !capability.backgroundLocationGranted ->
+						request.kind == LocationSettingsPermissionKind.LOCATION &&
+							Build.VERSION.SDK_INT == Build.VERSION_CODES.Q && !capability.backgroundLocationGranted ->
 							backgroundAccessLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-						Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !capability.backgroundLocationGranted ->
+						request.kind == LocationSettingsPermissionKind.LOCATION &&
+							Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !capability.backgroundLocationGranted ->
 							locationSettingsLauncher.launch(Intent(
 								Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
 								Uri.parse("package:${context.packageName}"),
@@ -154,6 +170,7 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { results ->
         trackingVm.onWifiPermissionResult(results[Manifest.permission.ACCESS_FINE_LOCATION] == true)
+		permissionDenied = !trackingVm.uiState.value.wifiPermissionGranted
     }
     val cellPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -161,14 +178,21 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
         val fineLocationGranted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
         val phoneStateGranted = results[Manifest.permission.READ_PHONE_STATE] == true
         trackingVm.onCellPermissionResult(fineLocationGranted && phoneStateGranted)
+		permissionDenied = !trackingVm.uiState.value.cellPermissionGranted
     }
     val activityPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-        trackingVm::onActivityPermissionResult,
+        { granted ->
+			trackingVm.onActivityPermissionResult(granted)
+			permissionDenied = !trackingVm.uiState.value.activityPermissionGranted
+		},
     )
     val stepsPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-        trackingVm::onStepsPermissionResult,
+        { granted ->
+			trackingVm.onStepsPermissionResult(granted)
+			permissionDenied = !trackingVm.uiState.value.activityPermissionGranted
+		},
     )
 	val healthConnectStepsLauncher = rememberLauncherForActivityResult(
 		PermissionController.createRequestPermissionResultContract(),
@@ -181,9 +205,36 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
         pendingAutoTrackingMode = null
         if (requestedMode != null) {
             trackingVm.onAutoTrackingPermissionResult(requestedMode, granted)
+			permissionDenied = !trackingVm.uiState.value.activityPermissionGranted
         }
     }
+	val requestSourcePermission: (TrackingSourceComponent) -> Unit = { source ->
+		if (trackingVm.isSavedSourceSelected(source) &&
+			lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+		) {
+			when (source) {
+				TrackingSourceComponent.LOCATION -> trackingVm.requestSavedLocationPermission(
+					LocationSettingsPermissionKind.FOREGROUND_LOCATION,
+				)
+				TrackingSourceComponent.ACTIVITY -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+					activityPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+				}
+				TrackingSourceComponent.STEPS -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+					stepsPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+				}
+				TrackingSourceComponent.WIFI -> wifiPermissionLauncher.launch(arrayOf(
+					Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION,
+				))
+				TrackingSourceComponent.CELL -> cellPermissionLauncher.launch(arrayOf(
+					Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION,
+					Manifest.permission.READ_PHONE_STATE,
+				))
+				TrackingSourceComponent.PRESSURE -> Unit
+			}
+		}
+	}
 
+	Box(Modifier.fillMaxSize()) {
     TrackingSettingsContent(
         uiState = uiState,
         onTurnOffTracking = trackingVm::turnOffTracking,
@@ -210,6 +261,8 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
         onMinTimeChanged = { trackingVm.setMinTime(it) },
         onRequiredAccuracyChanged = { trackingVm.setRequiredAccuracy(it) },
         onLocationEnabledChanged = { trackingVm.setLocationEnabled(it) },
+		onSourcePermission = requestSourcePermission,
+		onAutomaticPermission = { requestSourcePermission(TrackingSourceComponent.ACTIVITY) },
         onActivityEnabledChanged = { enabled ->
             trackingVm.setActivityEnabled(enabled) {
                 if (enabled && !trackingVm.uiState.value.activityPermissionGranted &&
@@ -233,16 +286,13 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
             }
         },
 		onStepsProviderPermission = {
+			if (trackingVm.isSavedSourceSelected(TrackingSourceComponent.STEPS)) {
 			val current = trackingVm.uiState.value
 			val reason = current.ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).reason
-			if (reason == AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED) {
-				if (current.shouldRequestStepsMotionPermission(
-						Build.VERSION.SDK_INT,
-						lifecycleOwner.lifecycle.currentState,
-						context.hasActivityPermission,
-					)) {
-					stepsPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
-				}
+			if (current.shouldRequestStepsMotionPermission(
+					Build.VERSION.SDK_INT, lifecycleOwner.lifecycle.currentState, context.hasActivityPermission,
+				)) {
+				stepsPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
 			} else if (current.stepsEnabled && reason in setOf(
 					AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED,
 					AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL,
@@ -274,6 +324,7 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
 						trackingVm.refreshStepsProviderPermissionState()
 					}
 				} else trackingVm.refreshStepsProviderPermissionState()
+			}
 			}
 		},
         onBarometerEnabledChanged = { trackingVm.setBarometerEnabled(it) },
@@ -316,6 +367,15 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
         },
         onNotificationCustomize = onNavigateToNotificationManagement,
     )
+	if (permissionDenied) {
+		PermissionDeniedSnackbar(
+			permissionSnackbar,
+			stringResource(com.adsamcik.tracker.R.string.settings_permission_still_needed),
+			onDismissed = { permissionDenied = false },
+		)
+		SnackbarHost(permissionSnackbar, Modifier.align(Alignment.BottomCenter))
+	}
+	}
 }
 
 @Composable
@@ -333,6 +393,8 @@ internal fun TrackingSettingsContent(
     onMinTimeChanged: (Int) -> Unit = {},
     onRequiredAccuracyChanged: (Int) -> Unit = {},
     onLocationEnabledChanged: (Boolean) -> Unit = {},
+	onSourcePermission: (TrackingSourceComponent) -> Unit = {},
+	onAutomaticPermission: () -> Unit = {},
     onActivityEnabledChanged: (Boolean) -> Unit = {},
     onStepsEnabledChanged: (Boolean) -> Unit = {},
 	onStepsProviderPermission: () -> Unit = {},
@@ -494,7 +556,7 @@ internal fun TrackingSettingsContent(
             )
         }
 		item {
-			AutomaticTrackingAvailabilityCard(uiState, onEnableTransitions = {
+			AutomaticTrackingAvailabilityCard(uiState, onPermission = onAutomaticPermission, onEnableTransitions = {
 				onTransitionDetectionChanged(true)
 			})
 		}
@@ -591,6 +653,7 @@ internal fun TrackingSettingsContent(
                     onSourceFrequencyChanged = onSourceFrequencyChanged,
 					onLocationEnabledChanged = onLocationEnabledChanged,
 					onStepsProviderPermission = onStepsProviderPermission,
+					onSourcePermission = onSourcePermission,
                 )
             }
         } else {
@@ -601,6 +664,7 @@ internal fun TrackingSettingsContent(
                     onActivityEnabledChanged = onActivityEnabledChanged,
                     onStepsEnabledChanged = onStepsEnabledChanged,
 					onStepsProviderPermission = onStepsProviderPermission,
+					onSourcePermission = onSourcePermission,
                     onBarometerEnabledChanged = onBarometerEnabledChanged,
                     onWifiEnabledChanged = onWifiEnabledChanged,
                     onCellEnabledChanged = onCellEnabledChanged,
@@ -682,6 +746,7 @@ internal fun TrackingSettingsContent(
 				onLocationAssistanceChanged = onLocationAssistanceChanged,
 				onLocationPermission = onLocationPermission,
 				onMotionPermission = onMotionPermission,
+				onSourcePermission = onSourcePermission,
 				onWifiEnabledChanged = onAmbientWifiEnabledChanged,
 				onCellEnabledChanged = onAmbientCellEnabledChanged,
 				onWifiNotificationChanged = onWifiNotificationChanged,
@@ -754,6 +819,7 @@ private fun SimpleDataSourceSettings(
     onWifiEnabledChanged: (Boolean) -> Unit,
     onCellEnabledChanged: (Boolean) -> Unit,
 	onSourceBalanceSelected: (TrackingSourceComponent, Int?) -> Unit,
+	onSourcePermission: (TrackingSourceComponent) -> Unit,
 ) {
     SettingsGroupCard {
         SwitchSettingsItem(
@@ -765,6 +831,9 @@ private fun SimpleDataSourceSettings(
         )
 
 		SourceBalanceOverrideItem(TrackingSourceComponent.LOCATION, uiState, onSourceBalanceSelected)
+		SourcePermissionRepair(TrackingSourceComponent.LOCATION,
+			uiState.locationEnabled && (!uiState.permissionCapabilities.hasForegroundLocation ||
+				!uiState.permissionCapabilities.locationServicesEnabled), onSourcePermission)
         SettingsRowDivider()
         SwitchSettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),
@@ -780,6 +849,8 @@ private fun SimpleDataSourceSettings(
         )
 
 		SourceBalanceOverrideItem(TrackingSourceComponent.ACTIVITY, uiState, onSourceBalanceSelected)
+		SourcePermissionRepair(TrackingSourceComponent.ACTIVITY,
+			uiState.activityEnabled && !uiState.activityPermissionGranted, onSourcePermission)
         SettingsRowDivider()
         SwitchSettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_steps_enabled_title),
@@ -829,6 +900,8 @@ private fun SimpleDataSourceSettings(
         )
 
 		SourceBalanceOverrideItem(TrackingSourceComponent.WIFI, uiState, onSourceBalanceSelected)
+		SourcePermissionRepair(TrackingSourceComponent.WIFI,
+			uiState.wifiEnabled && !uiState.wifiPermissionGranted, onSourcePermission)
         SettingsRowDivider()
         SwitchSettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_cell_enabled_title),
@@ -843,7 +916,22 @@ private fun SimpleDataSourceSettings(
             onCheckedChange = onCellEnabledChanged,
         )
 		SourceBalanceOverrideItem(TrackingSourceComponent.CELL, uiState, onSourceBalanceSelected)
+		SourcePermissionRepair(TrackingSourceComponent.CELL,
+			uiState.cellEnabled && !uiState.cellPermissionGranted, onSourcePermission)
     }
+}
+
+@Composable
+internal fun SourcePermissionRepair(
+	source: TrackingSourceComponent,
+	required: Boolean,
+	onPermission: (TrackingSourceComponent) -> Unit,
+	testTag: String = "sourcePermission-${source.name.lowercase()}",
+) {
+	if (!required) return
+	TextButton(onClick = { onPermission(source) }, modifier = Modifier.testTag(testTag)) {
+		Text(stringResource(com.adsamcik.tracker.R.string.settings_location_allow_access))
+	}
 }
 
 @Composable
@@ -852,16 +940,17 @@ private fun StepsProviderPermissionRepair(
 	onClick: () -> Unit,
 ) {
 	val reason = uiState.ambientSourceAvailability.getValue(AmbientTrackingSource.STEPS).reason
-	if (!uiState.stepsEnabled || reason !in setOf(
+	val motionRepair = !uiState.activityPermissionGranted && (uiState.stepCounterAvailable ||
+		reason == AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED)
+	if (!uiState.stepsEnabled || (!motionRepair && reason !in setOf(
 		AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED,
 		AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED,
 		AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL,
-	)) return
-	val motionRepair = reason == AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED
-	val label = stringResource(when (reason) {
-		AmbientSourceUnavailableReason.LOCAL_RECORDING_ACTIVITY_PERMISSION_REQUIRED ->
+	))) return
+	val label = stringResource(when {
+		motionRepair ->
 			com.adsamcik.tracker.R.string.setup_perm_grant_steps_content_description
-		AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL ->
+		reason == AmbientSourceUnavailableReason.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL ->
 			com.adsamcik.tracker.R.string.settings_steps_allow_background_updates
 		else -> com.adsamcik.tracker.R.string.settings_steps_allow_health_connect
 	})
@@ -945,6 +1034,7 @@ private fun AdvancedDataSourceSettings(
     onSourceFrequencyChanged: (TrackingSourceComponent, SourceCollectionFrequency) -> Unit,
 	onLocationEnabledChanged: (Boolean) -> Unit,
 	onStepsProviderPermission: () -> Unit,
+	onSourcePermission: (TrackingSourceComponent) -> Unit,
 ) {
     SettingsGroupCard {
 		if (uiState.locationProfileVersion != null) {
@@ -967,6 +1057,9 @@ private fun AdvancedDataSourceSettings(
 				onFrequencySelected = { onSourceFrequencyChanged(TrackingSourceComponent.LOCATION, it) },
 			)
 		}
+        SourcePermissionRepair(TrackingSourceComponent.LOCATION,
+            uiState.locationEnabled && (!uiState.permissionCapabilities.hasForegroundLocation ||
+                !uiState.permissionCapabilities.locationServicesEnabled), onSourcePermission)
         SettingsRowDivider()
         SourceFrequencySettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),
@@ -978,6 +1071,8 @@ private fun AdvancedDataSourceSettings(
             optionPlans = uiState.sourceFrequencyOptions[SourceKind.ACTIVITY].orEmpty(),
             onFrequencySelected = { onSourceFrequencyChanged(TrackingSourceComponent.ACTIVITY, it) },
         )
+        SourcePermissionRepair(TrackingSourceComponent.ACTIVITY,
+            uiState.activityEnabled && !uiState.activityPermissionGranted, onSourcePermission)
         SettingsRowDivider()
         SourceFrequencySettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_steps_enabled_title),
@@ -1012,6 +1107,8 @@ private fun AdvancedDataSourceSettings(
             optionPlans = uiState.sourceFrequencyOptions[SourceKind.WIFI].orEmpty(),
             onFrequencySelected = { onSourceFrequencyChanged(TrackingSourceComponent.WIFI, it) },
         )
+        SourcePermissionRepair(TrackingSourceComponent.WIFI,
+            uiState.wifiEnabled && !uiState.wifiPermissionGranted, onSourcePermission)
         SettingsRowDivider()
         SourceFrequencySettingsItem(
             title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_cell_enabled_title),
@@ -1023,6 +1120,8 @@ private fun AdvancedDataSourceSettings(
             optionPlans = uiState.sourceFrequencyOptions[SourceKind.CELL].orEmpty(),
             onFrequencySelected = { onSourceFrequencyChanged(TrackingSourceComponent.CELL, it) },
         )
+        SourcePermissionRepair(TrackingSourceComponent.CELL,
+            uiState.cellEnabled && !uiState.cellPermissionGranted, onSourcePermission)
     }
 }
 

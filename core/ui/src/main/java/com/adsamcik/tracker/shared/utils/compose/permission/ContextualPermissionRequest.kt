@@ -186,7 +186,8 @@ private fun PermissionRationaleDialog(
 @Composable
 fun PermissionDeniedSnackbar(
     snackbarHostState: SnackbarHostState,
-    message: String
+    message: String,
+    onDismissed: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val actionLabel = stringResource(R.string.permission_denied_settings_action)
@@ -205,5 +206,6 @@ fun PermissionDeniedSnackbar(
             }
             context.startActivity(intent)
         }
+        onDismissed()
     }
 }

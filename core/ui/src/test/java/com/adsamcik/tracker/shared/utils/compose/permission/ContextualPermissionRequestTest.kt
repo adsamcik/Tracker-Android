@@ -2,6 +2,8 @@ package com.adsamcik.tracker.shared.utils.compose.permission
 
 import android.app.Application
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -33,6 +35,27 @@ class ContextualPermissionRequestTest {
 
 		assertFalse(mapOf(fine to false, coarse to true).hasRequiredPermissionGrants(setOf(fine)))
 		assertTrue(mapOf(fine to true, coarse to true).hasRequiredPermissionGrants(setOf(fine)))
+	}
+
+	@Test
+	fun `permission repair snackbar invokes completion after dismissal`() {
+		val visible = mutableStateOf(true)
+		val snackbar = SnackbarHostState()
+		var dismissed = 0
+		composeRule.setContent {
+			MaterialTheme {
+				SnackbarHost(snackbar)
+				if (visible.value) PermissionDeniedSnackbar(snackbar, "Access is still needed.", onDismissed = {
+					dismissed++
+					visible.value = false
+				})
+			}
+		}
+		composeRule.onNodeWithText("Access is still needed.").assertIsDisplayed()
+		composeRule.onNodeWithText("Open Settings").assertIsDisplayed()
+		composeRule.runOnIdle { snackbar.currentSnackbarData?.dismiss() }
+		composeRule.waitUntil { dismissed == 1 }
+		assertFalse(visible.value)
 	}
 
 	@Test

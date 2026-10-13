@@ -32,6 +32,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.settings.TrackingSettingsUiState
 import com.adsamcik.tracker.shared.preferences.tracking.LocationBackgroundMode
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
@@ -44,6 +45,7 @@ internal fun AutomaticTrackingAvailabilityCard(
 	uiState: TrackingSettingsUiState,
 	modifier: Modifier = Modifier,
 	onEnableTransitions: () -> Unit = {},
+	onPermission: () -> Unit = {},
 ) {
 	if (!uiState.autoTrackingEnabled || uiState.automaticTrackingOperational) return
 	val unavailable = uiState.automaticControlAvailability as?
@@ -91,6 +93,11 @@ internal fun AutomaticTrackingAvailabilityCard(
 						Text(stringResource(com.adsamcik.tracker.R.string.automatic_control_enable_transitions))
 					}
 				}
+				if (uiState.automaticTrackingPermissionRequired) {
+					TextButton(onClick = onPermission, modifier = Modifier.testTag("automaticAllowAccess")) {
+						Text(stringResource(com.adsamcik.tracker.R.string.settings_location_allow_access))
+					}
+				}
 			}
 		}
 	}
@@ -107,6 +114,7 @@ internal fun AmbientSourcePurposeSettings(
 	onLocationAssistanceChanged: (Boolean) -> Unit = {},
 	onLocationPermission: () -> Unit = {},
 	onMotionPermission: () -> Unit = {},
+	onSourcePermission: (TrackingSourceComponent) -> Unit = {},
 	onWifiNotificationChanged: (Boolean) -> Unit = {},
 	onCellNotificationChanged: (Boolean) -> Unit = {},
 	modifier: Modifier = Modifier,
@@ -150,6 +158,9 @@ internal fun AmbientSourcePurposeSettings(
 			)
 			if (uiState.ambientWifiEnabled) BackgroundRadioNotificationSetting(
 				AmbientTrackingSource.WIFI, uiState.backgroundWifiNotificationEnabled, onWifiNotificationChanged)
+			SourcePermissionRepair(TrackingSourceComponent.WIFI,
+				uiState.ambientWifiEnabled && !uiState.wifiPermissionGranted, onSourcePermission,
+				"ambientSourcePermission-wifi")
 			HorizontalDivider()
 			AmbientSourceSettingItem(
 				source = AmbientTrackingSource.CELL,
@@ -164,6 +175,9 @@ internal fun AmbientSourcePurposeSettings(
 			)
 			if (uiState.ambientCellEnabled) BackgroundRadioNotificationSetting(
 				AmbientTrackingSource.CELL, uiState.backgroundCellNotificationEnabled, onCellNotificationChanged)
+			SourcePermissionRepair(TrackingSourceComponent.CELL,
+				uiState.ambientCellEnabled && !uiState.cellPermissionGranted, onSourcePermission,
+				"ambientSourcePermission-cell")
 		}
 		Text(
 			text = stringResource(com.adsamcik.tracker.R.string.settings_ambient_retention_summary),

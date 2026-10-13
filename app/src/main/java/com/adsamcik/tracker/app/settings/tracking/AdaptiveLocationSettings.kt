@@ -85,7 +85,7 @@ internal fun AdaptiveLocationSettings(
 				} else ambientOperationalSummary(state.ambientSourceAvailability.getValue(AmbientTrackingSource.LOCATION)),
 				style = MaterialTheme.typography.bodySmall,
 			)
-			if (!state.permissionCapabilities.hasBackgroundLocation) {
+			if (!state.permissionCapabilities.hasBackgroundLocation || !state.permissionCapabilities.locationServicesEnabled) {
 				TextButton(onClick = onLocationPermission, modifier = Modifier.testTag("locationGrantAccess")) {
 					Text(stringResource(R.string.settings_location_allow_access))
 				}

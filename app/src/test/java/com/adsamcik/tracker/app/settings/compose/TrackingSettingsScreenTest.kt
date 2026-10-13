@@ -1203,4 +1203,90 @@ class TrackingSettingsScreenTest {
         composeTestRule.onNodeWithText("Battery-efficient motion detection", substring = true)
             .assertDoesNotExist()
     }
+
+	@Test
+	fun chosenSourcesHaveIndependentPermissionRepairsInSimpleSettings() {
+		assertSourcePermissionRepairs(advanced = false)
+	}
+
+	@Test
+	fun chosenSourcesHaveIndependentPermissionRepairsInAdvancedSettings() {
+		assertSourcePermissionRepairs(advanced = true)
+	}
+
+	private fun assertSourcePermissionRepairs(advanced: Boolean) {
+		val repairs = mutableListOf<TrackingSourceComponent>()
+		var changes = 0
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(defaultUiState.copy(
+					advancedSourceControlsEnabled = advanced, balanceProfileVersion = null,
+					locationEnabled = true, activityEnabled = true, wifiEnabled = true, cellEnabled = true,
+					activityPermissionGranted = false, wifiPermissionGranted = false, cellPermissionGranted = false,
+					trackingTurnedOff = true,
+				), onSourcePermission = { repairs += it },
+					onLocationEnabledChanged = { changes++ }, onActivityEnabledChanged = { changes++ },
+					onWifiEnabledChanged = { changes++ }, onCellEnabledChanged = { changes++ },
+					onTurnOffTracking = { changes++ })
+			}
+		}
+		val sources = listOf(TrackingSourceComponent.LOCATION, TrackingSourceComponent.ACTIVITY,
+			TrackingSourceComponent.WIFI, TrackingSourceComponent.CELL)
+		sources.forEach { source ->
+			val tag = "sourcePermission-${source.name.lowercase()}"
+			composeTestRule.onNodeWithTag("trackingSettingsList").performScrollToNode(hasTestTag(tag))
+			composeTestRule.onNodeWithTag(tag).performClick()
+		}
+		repairs shouldBe sources
+		changes shouldBe 0
+	}
+
+	@Test
+	fun automaticPermissionRepairDoesNotEnableActivityRecording() {
+		var repairs = 0
+		var changes = 0
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(defaultUiState.copy(activityEnabled = false,
+					automaticTrackingOperational = false, automaticTrackingPermissionRequired = true,
+					activityPermissionGranted = false),
+					onAutomaticPermission = { repairs++ }, onActivityEnabledChanged = { changes++ },
+					onAutoTrackingModeChanged = { changes++ })
+			}
+		}
+		composeTestRule.onNodeWithTag("automaticAllowAccess").performScrollTo().performClick()
+		repairs shouldBe 1
+		changes shouldBe 0
+	}
+
+	@Test
+	fun directStepsMotionRepairStaysAvailableWhileTrackingIsOff() {
+		var repairs = 0
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(defaultUiState.copy(stepsEnabled = true,
+					stepCounterAvailable = true, activityPermissionGranted = false, trackingTurnedOff = true),
+					onStepsProviderPermission = { repairs++ })
+			}
+		}
+		composeTestRule.onNodeWithTag("stepsMotionRepair").performScrollTo().performClick()
+		repairs shouldBe 1
+	}
+
+	@Test
+	fun independentlySelectedBackgroundRadiosHavePermissionRepair() {
+		val repairs = mutableListOf<TrackingSourceComponent>()
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(defaultUiState.copy(wifiEnabled = false, cellEnabled = false,
+					ambientWifiEnabled = true, ambientCellEnabled = true,
+					wifiPermissionGranted = false, cellPermissionGranted = false),
+					onSourcePermission = { repairs += it })
+			}
+		}
+		listOf("wifi", "cell").forEach { source ->
+			composeTestRule.onNodeWithTag("ambientSourcePermission-$source").performScrollTo().performClick()
+		}
+		repairs shouldBe listOf(TrackingSourceComponent.WIFI, TrackingSourceComponent.CELL)
+	}
 }

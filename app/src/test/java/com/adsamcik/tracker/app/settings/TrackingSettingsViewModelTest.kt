@@ -504,6 +504,59 @@ class TrackingSettingsViewModelTest {
 		coVerify(exactly = 1) { trackingParamsRepository.setNotificationStyled(false) }
 	}
 
+	@Test
+	fun `session Location repair has foreground scope and keeps all-day Off`() = runTest(testDispatcher) {
+		paramsFlow.value = paramsFlow.value.copy(locationEnabled = true, ambientLocationEnabled = false)
+		val lifecycle = mockk<TrackingLifecycleCommandAuthority>(relaxed = true)
+		every { lifecycle.pendingCollectionResumeExitId } returns "turn-off:permission-repair"
+		val vm = TrackingSettingsViewModel(context, trackingParamsRepository, trackingStatusProvider,
+			activityWatcherController, purposeAvailabilityReader, lifecycleCommandAuthority = lifecycle,
+			activityPermissionProbe = { permissionsGranted })
+		val before = paramsFlow.value
+		val prompt = backgroundScope.async(testDispatcher) { vm.locationPermissionEvents.first() }
+		vm.requestSavedLocationPermission(LocationSettingsPermissionKind.FOREGROUND_LOCATION)
+		advanceUntilIdle()
+		val request = prompt.await()
+		request.kind shouldBe LocationSettingsPermissionKind.FOREGROUND_LOCATION
+		vm.isCurrentLocationPermissionRequest(request) shouldBe true
+		paramsFlow.value shouldBe before
+		coVerify(exactly = 0) { lifecycle.resumeCollectionAfterUserExit(any()) }
+		vm.setLocationEnabled(false)
+		advanceUntilIdle()
+		vm.isCurrentLocationPermissionRequest(request) shouldBe false
+	}
+
+	@Test
+	fun `permission repair eligibility uses committed choices instead of failed previews`() = runTest(testDispatcher) {
+		paramsFlow.value = paramsFlow.value.copy(wifiEnabled = false, ambientWifiEnabled = false)
+		val vm = createViewModel()
+		coEvery { trackingParamsRepository.setWifiEnabled(true) } throws IllegalStateException("write failed")
+		vm.setWifiEnabled(true)
+		advanceUntilIdle()
+		vm.uiState.value.wifiEnabled shouldBe true
+		vm.isSavedSourceSelected(TrackingSourceComponent.WIFI) shouldBe false
+	}
+
+	@Test
+	fun `automatic permission repair remains eligible without Activity recording`() = runTest(testDispatcher) {
+		paramsFlow.value = paramsFlow.value.copy(activityEnabled = false, autoTrackingMode = 1)
+		val vm = createViewModel()
+		val before = paramsFlow.value
+		vm.isSavedSourceSelected(TrackingSourceComponent.ACTIVITY) shouldBe true
+		paramsFlow.value shouldBe before
+		paramsFlow.value = paramsFlow.value.copy(autoTrackingMode = 0)
+		vm.isSavedSourceSelected(TrackingSourceComponent.ACTIVITY) shouldBe false
+	}
+
+	@Test
+	fun `permission repair accepts independent saved background radio choices`() = runTest(testDispatcher) {
+		paramsFlow.value = paramsFlow.value.copy(wifiEnabled = false, cellEnabled = false,
+			ambientWifiEnabled = true, ambientCellEnabled = true)
+		val vm = createViewModel()
+		vm.isSavedSourceSelected(TrackingSourceComponent.WIFI) shouldBe true
+		vm.isSavedSourceSelected(TrackingSourceComponent.CELL) shouldBe true
+	}
+
     private fun createViewModel(
         nearbyWifiGranted: Boolean = true,
 		sourcePolicyReconciliationCoordinator:
