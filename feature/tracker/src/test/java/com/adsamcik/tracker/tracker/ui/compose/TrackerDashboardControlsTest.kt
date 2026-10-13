@@ -56,7 +56,22 @@ class TrackerDashboardControlsTest {
 		}
 
 		composeRule.onNodeWithTag("tracking_fab").assertIsDisplayed()
-		composeRule.onNodeWithContentDescription("Stop tracking button").assertIsDisplayed()
+		composeRule.onNodeWithContentDescription("End session").assertIsDisplayed()
+	}
+
+	@Test
+	fun trackingFAB_canEndAfterPermissionIsLost() {
+		var ends = 0
+		var repairs = 0
+		composeRule.setContent {
+			AppTheme {
+				TrackingFAB(isTracking = true, hasPermission = false,
+					onToggleTracking = { ends++ }, onRequestPermission = { repairs++ })
+			}
+		}
+		composeRule.onNodeWithContentDescription("End session").performClick()
+		org.junit.Assert.assertEquals(1, ends)
+		org.junit.Assert.assertEquals(0, repairs)
 	}
 
 	@Test

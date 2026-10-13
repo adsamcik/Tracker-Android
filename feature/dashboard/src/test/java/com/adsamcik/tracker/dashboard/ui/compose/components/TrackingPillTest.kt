@@ -33,7 +33,7 @@ class TrackingPillTest {
 		setContent(visible = true, isTracking = true, hasPermission = true)
 
 		composeRule.onNodeWithTag("tracking_pill").assertIsDisplayed()
-		composeRule.onNodeWithText("Stop").assertIsDisplayed()
+		composeRule.onNodeWithText("End session").assertIsDisplayed()
 	}
 
 	@Test
@@ -86,7 +86,7 @@ class TrackingPillTest {
 			}
 		}
 
-		composeRule.onNodeWithText("Stop").assertIsDisplayed()
+		composeRule.onNodeWithText("End session").assertIsDisplayed()
 		composeRule.onNodeWithTag("tracking_pill").performClick()
 		toggleCalled shouldBe true
 		permissionRequested shouldBe false

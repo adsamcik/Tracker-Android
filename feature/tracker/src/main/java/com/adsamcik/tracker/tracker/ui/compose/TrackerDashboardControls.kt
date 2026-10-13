@@ -121,18 +121,18 @@ internal fun TrackingFAB(
     val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
 
     val fabStartDesc = stringResource(R.string.description_tracking_start)
-    val fabStopDesc = stringResource(R.string.description_tracking_stop)
+    val fabStopDesc = stringResource(R.string.shortcut_end_session)
     val fabNoPermissionDesc = stringResource(R.string.description_tracking_start_no_permission)
     
     val containerColor = when {
-        !hasPermission -> surfaceVariant
         isTracking -> errorColor
+        !hasPermission -> surfaceVariant
         else -> primaryColor
     }
     
     val contentColor = when {
-        !hasPermission -> MaterialTheme.colorScheme.onSurfaceVariant
         isTracking -> MaterialTheme.colorScheme.onError
+        !hasPermission -> MaterialTheme.colorScheme.onSurfaceVariant
         else -> MaterialTheme.colorScheme.onPrimary
     }
     
@@ -167,7 +167,7 @@ internal fun TrackingFAB(
         // Main button with morphing shape
         Surface(
             onClick = {
-                if (!hasPermission) onRequestPermission() else onToggleTracking()
+                if (isTracking || hasPermission) onToggleTracking() else onRequestPermission()
             },
             shape = androidx.compose.foundation.shape.RoundedCornerShape(cornerRadius.dp),
             color = containerColor,
@@ -182,8 +182,8 @@ internal fun TrackingFAB(
                 .testTag("tracking_fab")
                 .semantics {
                     contentDescription = when {
-                        !hasPermission -> fabNoPermissionDesc
                         isTracking -> fabStopDesc
+                        !hasPermission -> fabNoPermissionDesc
                         else -> fabStartDesc
                     }
                 }
@@ -194,13 +194,13 @@ internal fun TrackingFAB(
             ) {
                 // Icon with animated transitions
                 val icon: ImageVector = when {
-                    !hasPermission -> Icons.Default.LocationOff
                     isTracking -> Icons.Default.Stop
+                    !hasPermission -> Icons.Default.LocationOff
                     else -> Icons.Default.PlayArrow
                 }
                 val description = when {
+                    isTracking -> stringResource(R.string.shortcut_end_session)
                     !hasPermission -> stringResource(R.string.description_tracking_start)
-                    isTracking -> stringResource(R.string.description_tracking_stop)
                     else -> stringResource(R.string.description_tracking_start)
                 }
                 

@@ -33,7 +33,7 @@ class TrackingActionRingTest {
 	fun tracking_showsStopTrackingText() {
 		setContent(isTracking = true, hasPermission = true)
 
-		composeRule.onNodeWithText("Stop tracking").assertIsDisplayed()
+		composeRule.onNodeWithText("End session").assertIsDisplayed()
 	}
 
 	@Test
@@ -88,7 +88,7 @@ class TrackingActionRingTest {
 			onRequestPermission = { permissionRequested = true },
 		)
 
-		composeRule.onNodeWithText("Stop tracking").assertIsDisplayed()
+		composeRule.onNodeWithText("End session").assertIsDisplayed()
 		composeRule.onNodeWithTag("tracking_action_ring").performClick()
 		stopRequested shouldBe true
 		permissionRequested shouldBe false
@@ -110,7 +110,7 @@ class TrackingActionRingTest {
 			onRequestPermission = { permissionRequested = true },
 		)
 
-		composeRule.onNodeWithText("Stop tracking").assertIsDisplayed()
+		composeRule.onNodeWithText("End session").assertIsDisplayed()
 		composeRule.onNodeWithTag("tracking_action_ring").performClick()
 		stopRequested shouldBe true
 		permissionRequested shouldBe false

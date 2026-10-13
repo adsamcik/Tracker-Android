@@ -124,25 +124,25 @@ internal fun TrackingFAB(
 	val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
 
 	val containerColor = when {
-		!hasPermission -> surfaceVariant
 		isTracking -> errorColor
+        !hasPermission -> surfaceVariant
 		else -> primaryColor
 	}
 
 	val contentColor = when {
-		!hasPermission -> MaterialTheme.colorScheme.onSurfaceVariant
 		isTracking -> MaterialTheme.colorScheme.onError
+        !hasPermission -> MaterialTheme.colorScheme.onSurfaceVariant
 		else -> MaterialTheme.colorScheme.onPrimary
 	}
 
 	val fabContentDescription = when {
-		!hasPermission -> stringResource(DashboardR.string.dashboard_cd_start_tracking_permission)
-		isTracking -> stringResource(DashboardR.string.dashboard_cd_stop_tracking)
+        isTracking -> stringResource(com.adsamcik.tracker.tracker.R.string.shortcut_end_session)
+        !hasPermission -> stringResource(DashboardR.string.dashboard_cd_start_tracking_permission)
 		else -> stringResource(DashboardR.string.dashboard_cd_start_tracking)
 	}
 	val fabClickLabel = when {
-		!hasPermission -> stringResource(DashboardR.string.dashboard_action_enable_location)
-		isTracking -> stringResource(DashboardR.string.dashboard_cd_stop_tracking)
+        isTracking -> stringResource(com.adsamcik.tracker.tracker.R.string.shortcut_end_session)
+        !hasPermission -> stringResource(DashboardR.string.dashboard_action_enable_location)
 		else -> stringResource(DashboardR.string.dashboard_cd_start_tracking)
 	}
 
@@ -178,7 +178,7 @@ internal fun TrackingFAB(
 		// Main button with morphing shape
 		Surface(
 			onClick = {
-				if (!hasPermission) onRequestPermission() else onToggleTracking()
+                if (isTracking || hasPermission) onToggleTracking() else onRequestPermission()
 			},
 			shape = RoundedCornerShape(cornerRadius.dp),
 			color = containerColor,
@@ -201,8 +201,8 @@ internal fun TrackingFAB(
 				modifier = Modifier.fillMaxSize(),
 			) {
 				val icon: ImageVector = when {
-					!hasPermission -> Icons.Default.LocationOff
 					isTracking -> Icons.Default.Stop
+                    !hasPermission -> Icons.Default.LocationOff
 					else -> Icons.Default.PlayArrow
 				}
 

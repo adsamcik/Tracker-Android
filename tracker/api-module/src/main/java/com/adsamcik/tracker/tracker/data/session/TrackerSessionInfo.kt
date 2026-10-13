@@ -6,11 +6,15 @@ import android.os.Parcelable
 /**
  * Contains information about the session.
  */
-data class TrackerSessionInfo(val isInitiatedByUser: Boolean) : Parcelable {
-	constructor(parcel: Parcel) : this(parcel.readByte() != 0.toByte())
+data class TrackerSessionInfo(
+	val isInitiatedByUser: Boolean,
+	val isProviderStepsSession: Boolean = false,
+) : Parcelable {
+	constructor(parcel: Parcel) : this(parcel.readByte() != 0.toByte(), parcel.readByte() != 0.toByte())
 
 	override fun writeToParcel(parcel: Parcel, flags: Int) {
 		parcel.writeByte(if (isInitiatedByUser) 1 else 0)
+		parcel.writeByte(if (isProviderStepsSession) 1 else 0)
 	}
 
 	override fun describeContents(): Int {

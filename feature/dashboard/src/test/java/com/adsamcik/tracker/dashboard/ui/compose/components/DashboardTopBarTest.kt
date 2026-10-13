@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
@@ -84,6 +85,21 @@ class DashboardTopBarTest {
 		composeRule.onNodeWithContentDescription("Customize Dashboard").assertIsDisplayed()
 	}
 
+	@Test
+	fun trackingMenuSeparatesOffFromAutomaticPauseWithoutALiveSession() {
+		var off = 0
+		var pause = 0
+		setContent(isTracking = false, onTurnOffTracking = { off++ }, onPauseAutomaticTracking = { pause++ })
+		composeRule.onNodeWithTag("trackingActionsMenu").performClick()
+		composeRule.onNodeWithTag("pauseAutomaticTracking").performClick()
+		pause shouldBe 1
+		off shouldBe 0
+		composeRule.onNodeWithTag("trackingActionsMenu").performClick()
+		composeRule.onNodeWithTag("turnOffTracking").performClick()
+		off shouldBe 1
+		pause shouldBe 1
+	}
+
 	private fun setContent(
 		isTracking: Boolean,
 		isLocked: Boolean = false,
@@ -92,6 +108,8 @@ class DashboardTopBarTest {
 		onSettingsClick: () -> Unit = {},
 		onGameClick: (() -> Unit)? = null,
 		onCustomizeClick: (() -> Unit)? = null,
+		onTurnOffTracking: (() -> Unit)? = null,
+		onPauseAutomaticTracking: (() -> Unit)? = null,
 	) {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
@@ -103,6 +121,8 @@ class DashboardTopBarTest {
 					onSettingsClick = onSettingsClick,
 					onGameClick = onGameClick,
 					onCustomizeClick = onCustomizeClick,
+					onTurnOffTracking = onTurnOffTracking,
+					onPauseAutomaticTracking = onPauseAutomaticTracking,
 				)
 			}
 		}

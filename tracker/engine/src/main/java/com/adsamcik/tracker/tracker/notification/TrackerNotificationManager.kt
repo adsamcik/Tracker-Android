@@ -11,7 +11,6 @@ import androidx.core.app.TaskStackBuilder
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver
 
 /**
@@ -19,7 +18,7 @@ import com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver
  */
 class TrackerNotificationManager(
     private val context: Context,
-    private val isUserInitiatedSession: Boolean,
+    @Suppress("UNUSED_PARAMETER") isUserInitiatedSession: Boolean,
     notificationStyled: Boolean = true,
 ) {
 	private var notificationManager: NotificationManager = context.notificationManager
@@ -43,56 +42,18 @@ class TrackerNotificationManager(
 		val resources = context.resources
 		val stopIntent = Intent(context, TrackerNotificationReceiver::class.java)
 
-		val notificationAction = if (isUserInitiatedSession) {
-			TrackerNotificationReceiver.STOP_TRACKING_ACTION
-		} else {
-			TrackerNotificationReceiver.LOCK_RECHARGE_ACTION
-		}
-
-		stopIntent.putExtra(TrackerNotificationReceiver.ACTION_STRING, notificationAction)
+		stopIntent.putExtra(TrackerNotificationReceiver.ACTION_STRING, TrackerNotificationReceiver.STOP_TRACKING_ACTION)
 		val stop = PendingIntent.getBroadcast(
 			context,
 			0,
 			stopIntent,
 			PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_IMMUTABLE)
 		)
-		if (isUserInitiatedSession) {
-			addAction(
-				com.adsamcik.tracker.shared.base.R.drawable.ic_pause_circle_filled_black_24dp,
-				resources.getString(R.string.shortcut_end_session),
-				stop
-			)
-		} else {
-			addAction(
-				com.adsamcik.tracker.shared.base.R.drawable.ic_battery_alert_black,
-				resources.getString(R.string.notification_stop_til_recharge),
-				stop
-			)
-
-			val stopForMinutesIntent = Intent(context, TrackerNotificationReceiver::class.java)
-			stopForMinutesIntent.putExtra(
-				TrackerNotificationReceiver.ACTION_STRING,
-				TrackerNotificationReceiver.LOCK_TIME_ACTION
-			)
-			stopForMinutesIntent.putExtra(
-				TrackerNotificationReceiver.STOP_MINUTES_EXTRA,
-				NotificationComponent.stopForMinutes
-			)
-			val stopForMinutesAction = PendingIntent.getBroadcast(
-				context,
-				1,
-				stopForMinutesIntent,
-				PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_IMMUTABLE)
-			)
-			addAction(
-				com.adsamcik.tracker.shared.base.R.drawable.ic_stop_black_24dp,
-				resources.getString(
-					R.string.notification_stop_for_minutes,
-					NotificationComponent.stopForMinutes
-				),
-				stopForMinutesAction
-			)
-		}
+		addAction(
+			com.adsamcik.tracker.shared.base.R.drawable.ic_pause_circle_filled_black_24dp,
+			resources.getString(R.string.shortcut_end_session),
+			stop,
+		)
 		return addTurnOffAction(context)
 	}
 

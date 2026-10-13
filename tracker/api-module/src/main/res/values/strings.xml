@@ -117,6 +117,8 @@
     <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">End the current session</string>
     <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Turn off tracking</string>
     <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Stop all tracking and automatic starts</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Tracking actions</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Pause automatic starts</string>
 
     <string name="speed_title">Speed</string>
     <string name="speed_value">speed %s</string>

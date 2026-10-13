@@ -3,6 +3,7 @@ package com.adsamcik.tracker.dashboard.ui.compose
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -52,11 +53,14 @@ import com.adsamcik.tracker.dashboard.ui.compose.tracking.CellOnlyTrackingConten
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.PressureOnlyTrackingContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.SourceSetTrackingContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.StepsOnlyTrackingContent
+import com.adsamcik.tracker.dashboard.ui.compose.tracking.StepsTodayCard
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.TrackingContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.TrackingHistoryResolutionContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.WifiOnlyTrackingContent
 import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailSelection
 import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLayout
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
+import com.adsamcik.tracker.tracker.controller.showTodaySteps
 
 /**
  * Main scaffold composable orchestrating the dashboard layout.
@@ -80,6 +84,8 @@ internal fun DashboardScreen(
 	onMapClick: () -> Unit,
 	onToggleTracking: (Boolean) -> Unit,
 	onRequestPermission: () -> Unit,
+	onTurnOffTracking: (() -> Unit)? = null,
+	onPauseAutomaticTracking: (() -> Unit)? = null,
 	onGameClick: (() -> Unit)?,
 	onSessionDetailClick: ((Long) -> Unit)?,
 	onSourceHistoryDetailClick: ((SourceHistoryDetailSelection) -> Unit)? = null,
@@ -194,6 +200,8 @@ internal fun DashboardScreen(
 					onSettingsClick = onSettingsClick,
 					onGameClick = onGameClick,
 					onCustomizeClick = if (state.dashboardMode == DashboardMode.IDLE) onCustomizeClick else null,
+					onTurnOffTracking = onTurnOffTracking,
+					onPauseAutomaticTracking = onPauseAutomaticTracking,
 				)
 			},
 		) { paddingValues ->
@@ -225,7 +233,14 @@ internal fun DashboardScreen(
 						onToggleTracking = wrappedToggle,
 						onRequestPermission = wrappedPermission,
 					)
-					DashboardMode.TRACKING -> when (
+					DashboardMode.TRACKING -> Column(Modifier.fillMaxSize()) {
+						if (state.stepsToday.showTodaySteps(state.stepsSelected)) {
+							StepsTodayCard(state.stepsToday,
+								Modifier.padding(horizontal = RidgelineSpacing.Lg, vertical = RidgelineSpacing.Sm))
+						}
+						// A provider-backed organization session has no physical segment to resolve.
+						if (!state.isProviderStepsSession) Box(Modifier.weight(1f)) {
+						when (
 						val presentation = state.liveSessionPresentation
 					) {
 						is DashboardLiveSessionPresentation.PressureOnly -> {
@@ -343,6 +358,8 @@ internal fun DashboardScreen(
 								historyUnavailable = false,
 								bottomClearance = bottomClearance,
 							)
+					}
+						}
 					}
 				}
 			}

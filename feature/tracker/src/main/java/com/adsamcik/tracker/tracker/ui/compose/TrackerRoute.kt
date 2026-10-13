@@ -86,6 +86,7 @@ fun TrackerRoute(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentContext by rememberUpdatedState(context)
+    val currentViewModel by rememberUpdatedState(viewModel)
     val scope = rememberCoroutineScope()
     
     // Access dependencies via Hilt ViewModel
@@ -104,9 +105,11 @@ fun TrackerRoute(
     }
 
     DisposableEffect(lifecycleOwner) {
+        currentViewModel.refreshStepsToday()
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 hasLocationPermission = checkLocationPermission(currentContext)
+                currentViewModel.refreshStepsToday()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -137,14 +140,22 @@ fun TrackerRoute(
             TrackerServiceApi.cancelManualTrackingStart(context, generation)
         }
     }
-    fun endTracking() {
+    fun fencePendingManualStart() {
         // Fence callbacks immediately; the durable Stop follows on the application scope.
         manualStartRequestVersion++
         manualStartPermissionRequest = null
         pendingLocationServicesRepair = false
         manualStartRequests.toList().forEach { it.cancel() }
         cancelPendingManualStart()
+    }
+    fun endTracking() {
+        fencePendingManualStart()
         TrackerServiceApi.stopService(context)
+    }
+    fun turnOffTracking() {
+        fencePendingManualStart()
+        showStopOptions = false
+        TrackerServiceApi.turnOffTracking(context)
     }
     var manualStartReadiness by remember { mutableStateOf<ManualTrackingStartReadiness?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -167,6 +178,7 @@ fun TrackerRoute(
     val savedLocation by controller.savedLocationSummaryFlow.collectAsStateWithLifecycle()
     val pathPoints by controller.pathPointsFlow.collectAsStateWithLifecycle()
     val recentTrips by viewModel.recentTrips.collectAsStateWithLifecycle()
+    val stepsToday by viewModel.stepsToday.collectAsStateWithLifecycle()
     val trackingParams by trackingParamsRepository.data.collectAsStateWithLifecycle(initialValue = TrackingParamsState())
 
     val noAvailableCaptureSourceMessage = stringResource(R.string.error_nothing_to_track)
@@ -373,6 +385,8 @@ fun TrackerRoute(
             precisionModePreset = precisionModePreset,
             trackingParams = trackingParams,
             recentTrips = recentTrips,
+            stepsToday = stepsToday,
+            isProviderStepsSession = sessionInfo?.isProviderStepsSession == true,
         ),
         dailyPointsProvider = viewModel.dailyPointsProvider,
         dailySummaryProvider = viewModel.dailySummaryProvider,
@@ -380,15 +394,13 @@ fun TrackerRoute(
         onSettingsClick = onOpenSettings,
         onMapClick = onOpenMap,
         onRequestPermission = { requestManualStart() },
+        onTurnOffTracking = { turnOffTracking() },
+        onPauseAutomaticTracking = if (trackingParams.autoTrackingMode != GroupedActivity.STILL.ordinal) {
+            { showStopOptions = true }
+        } else null,
         onToggleTracking = { shouldStart ->
             if (shouldStart) {
                 requestManualStart()
-            } else if (trackingParams.autoTrackingMode != GroupedActivity.STILL.ordinal) {
-                // Auto-tracking is enabled and would likely restart the session moments after a
-                // plain stop (see BackgroundTrackingApi's activity callbacks). Let the user pick
-                // how long tracking should actually stay off, mirroring the tracking notification's
-                // "stop for N minutes" / "stop until charging" actions.
-                showStopOptions = true
             } else {
                 endTracking()
             }
@@ -418,11 +430,11 @@ fun TrackerRoute(
 
     StopTrackingOptionsDialog(
         visible = showStopOptions,
-        title = stringResource(R.string.stop_tracking_dialog_title),
+        title = stringResource(R.string.tracking_pause_automatic),
         message = stringResource(R.string.stop_tracking_dialog_message),
         stopForMinutesLabel = stringResource(R.string.notification_stop_for_minutes, STOP_LOCK_MINUTES),
         stopUntilChargingLabel = stringResource(R.string.notification_stop_til_recharge),
-        justStopLabel = stringResource(R.string.notification_stop),
+        justStopLabel = stringResource(R.string.shortcut_end_session),
         cancelLabel = stringResource(com.adsamcik.tracker.shared.base.R.string.generic_cancel),
         onStopForMinutes = {
             lockManager.lockTimeLock(context, STOP_LOCK_MINUTES * Time.MINUTE_IN_MILLISECONDS)

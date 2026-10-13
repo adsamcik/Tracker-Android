@@ -123,14 +123,23 @@ fun DashboardRoute(
 		}
 	}
 
-	fun endTracking() {
+	fun fencePendingManualStart() {
 		// Fence callbacks immediately; the durable Stop follows on the application scope.
 		manualStartRequestVersion++
 		manualStartPermissionRequest = null
 		pendingLocationServicesRepair = false
 		manualStartRequests.toList().forEach { it.cancel() }
 		cancelPendingManualStart()
+	}
+	fun endTracking() {
+		fencePendingManualStart()
 		TrackerServiceApi.stopService(context)
+	}
+	fun turnOffTracking() {
+		userRequestedStop = true
+		fencePendingManualStart()
+		showStopOptions = false
+		TrackerServiceApi.turnOffTracking(context)
 	}
 
 	DashboardPermissionResumeEffect(viewModel, context)
@@ -152,6 +161,7 @@ fun DashboardRoute(
 	val lastSessionData by trackerState.lastSessionFlow.collectAsState()
 	val lastPathPoints by trackerState.lastPathPointsFlow.collectAsState()
 	val liveSessionPresentation by viewModel.liveSessionPresentation.collectAsStateWithLifecycle()
+	val stepsToday by viewModel.stepsToday.collectAsStateWithLifecycle()
 	val trackingParams by viewModel.trackingParams.collectAsState()
 	val trackingUnavailableMessage = stringResource(
 		com.adsamcik.tracker.tracker.R.string.notification_tracking_start_failed_title,
@@ -406,6 +416,9 @@ fun DashboardRoute(
 		collectionSnapshot = collectionSnapshot,
 		pathPoints = relevantPathPoints,
 		liveSessionPresentation = liveSessionPresentation,
+		stepsToday = stepsToday,
+		stepsSelected = trackingParams.stepsEnabled,
+		isProviderStepsSession = sessionInfo?.isProviderStepsSession == true,
 		todaySummary = unifiedTodaySummary,
 		pointsToday = pointsToday,
 		goalProgress = GoalProgressState(
@@ -497,18 +510,16 @@ fun DashboardRoute(
 			if (shouldStart) {
 				userRequestedStop = false
 				requestManualStart()
-			} else if (trackingParams.autoTrackingMode != GroupedActivity.STILL.ordinal) {
-				// Auto-tracking is enabled and would likely restart the session moments after a
-				// plain stop (see BackgroundTrackingApi's activity callbacks). Let the user pick
-				// how long tracking should actually stay off, mirroring the tracking notification's
-				// "stop for N minutes" / "stop until charging" actions.
-				showStopOptions = true
 			} else {
 				userRequestedStop = true
 				endTracking()
 			}
 		},
 		onRequestPermission = { requestManualStart() },
+		onTurnOffTracking = { turnOffTracking() },
+		onPauseAutomaticTracking = if (trackingParams.autoTrackingMode != GroupedActivity.STILL.ordinal) {
+			{ showStopOptions = true }
+		} else null,
 		onGameClick = onOpenGame,
 		onSessionDetailClick = onSessionDetailClick,
 		onSourceHistoryDetailClick = onSourceHistoryDetailClick,
@@ -523,14 +534,14 @@ fun DashboardRoute(
 
 	StopTrackingOptionsDialog(
 		visible = showStopOptions,
-		title = stringResource(com.adsamcik.tracker.tracker.R.string.stop_tracking_dialog_title),
+		title = stringResource(com.adsamcik.tracker.tracker.R.string.tracking_pause_automatic),
 		message = stringResource(com.adsamcik.tracker.tracker.R.string.stop_tracking_dialog_message),
 		stopForMinutesLabel = stringResource(
 			com.adsamcik.tracker.tracker.R.string.notification_stop_for_minutes,
 			STOP_LOCK_MINUTES,
 		),
 		stopUntilChargingLabel = stringResource(com.adsamcik.tracker.tracker.R.string.notification_stop_til_recharge),
-		justStopLabel = stringResource(com.adsamcik.tracker.tracker.R.string.notification_stop),
+		justStopLabel = stringResource(com.adsamcik.tracker.tracker.R.string.shortcut_end_session),
 		cancelLabel = stringResource(com.adsamcik.tracker.shared.base.R.string.generic_cancel),
 		onStopForMinutes = {
 			userRequestedStop = true
@@ -577,9 +588,11 @@ internal fun DashboardPermissionResumeEffect(
 	val currentContext by rememberUpdatedState(context)
 
 	DisposableEffect(lifecycleOwner) {
+		currentViewModel.refreshStepsToday()
 		val observer = LifecycleEventObserver { _, event ->
 			if (event == Lifecycle.Event.ON_RESUME) {
 				currentViewModel.checkPermission(currentContext)
+				currentViewModel.refreshStepsToday()
 			}
 		}
 		lifecycleOwner.lifecycle.addObserver(observer)

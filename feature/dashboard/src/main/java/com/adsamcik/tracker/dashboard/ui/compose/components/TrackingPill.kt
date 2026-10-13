@@ -106,7 +106,7 @@ private fun PillContent(
 	}
 
 	val label = when {
-		isTracking -> stringResource(R.string.dashboard_pill_stop)
+		isTracking -> stringResource(com.adsamcik.tracker.tracker.R.string.shortcut_end_session)
 		!hasPermission -> stringResource(R.string.dashboard_pill_enable_location)
 		else -> stringResource(R.string.dashboard_pill_start)
 	}

@@ -57,6 +57,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import com.adsamcik.tracker.shared.utils.compose.TrackingActionsMenu
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -93,6 +94,8 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
+import com.adsamcik.tracker.tracker.controller.showTodaySteps
 import com.adsamcik.tracker.tracker.controller.forLiveSegment
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.R
@@ -117,6 +120,8 @@ internal data class TrackerDashboardUiState(
     val precisionModePreset: TrackingPreset = TrackingPreset.BALANCED,
     val trackingParams: TrackingParamsState = TrackingParamsState(),
     val recentTrips: List<Trip> = emptyList(),
+    val stepsToday: StepsDailyDisplay = StepsDailyDisplay.Materializing,
+    val isProviderStepsSession: Boolean = false,
 )
 
 @Composable
@@ -129,6 +134,8 @@ internal fun TrackerDashboard(
     onMapClick: () -> Unit,
     onRequestPermission: () -> Unit,
     onToggleTracking: (Boolean) -> Unit,
+    onTurnOffTracking: (() -> Unit)? = null,
+    onPauseAutomaticTracking: (() -> Unit)? = null,
     onGameClick: (() -> Unit)? = null,
     onPrecisionModeToggle: () -> Unit,
     onSessionDetailClick: ((Long) -> Unit)? = null,
@@ -163,7 +170,9 @@ internal fun TrackerDashboard(
                 dailyPointsProvider = dailyPointsProvider,
                 onSettingsClick = onSettingsClick,
                 onGameClick = onGameClick,
-                onPrecisionModeToggle = onPrecisionModeToggle
+                onPrecisionModeToggle = onPrecisionModeToggle,
+                onTurnOffTracking = onTurnOffTracking,
+                onPauseAutomaticTracking = onPauseAutomaticTracking,
             )
         },
         floatingActionButton = {
@@ -204,6 +213,8 @@ internal fun TrackerDashboard(
                 pathPoints = state.pathPoints,
                 trackingParams = state.trackingParams,
                 recentTrips = state.recentTrips,
+                stepsToday = state.stepsToday,
+                isProviderStepsSession = state.isProviderStepsSession,
             )
         }
     }
@@ -263,6 +274,8 @@ internal fun TrackerTopBar(
     onSettingsClick: () -> Unit,
     onGameClick: (() -> Unit)? = null,
     onPrecisionModeToggle: () -> Unit,
+    onTurnOffTracking: (() -> Unit)? = null,
+    onPauseAutomaticTracking: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -335,6 +348,15 @@ internal fun TrackerTopBar(
                             contentDescription = stringResource(R.string.description_settings)
                         )
                     }
+                    if (onTurnOffTracking != null) {
+                        TrackingActionsMenu(
+                            menuLabel = stringResource(R.string.tracking_actions_menu),
+                            turnOffLabel = stringResource(R.string.shortcut_turn_off_tracking),
+                            onTurnOffTracking = onTurnOffTracking,
+                            pauseLabel = stringResource(R.string.tracking_pause_automatic),
+                            onPauseAutomaticTracking = onPauseAutomaticTracking,
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent
@@ -397,6 +419,8 @@ private fun TrackingContent(
     pathPoints: List<Location>? = null,
     trackingParams: TrackingParamsState,
     recentTrips: List<Trip>,
+    stepsToday: StepsDailyDisplay,
+    isProviderStepsSession: Boolean,
     modifier: Modifier = Modifier
 ) {
     val configuration = LocalConfiguration.current
@@ -407,11 +431,11 @@ private fun TrackingContent(
     }
 
     val context = LocalContext.current
-    val locationEnabled = trackingParams.locationEnabled
+    val locationEnabled = trackingParams.locationEnabled && !isProviderStepsSession
     val liveLocation = savedLocation.forLiveSegment(sessionData?.id, isTracking && locationEnabled)
-    val cellEnabled = trackingParams.cellEnabled
-    val wifiEnabled = trackingParams.wifiEnabled
-    val activityEnabled = trackingParams.activityEnabled
+    val cellEnabled = trackingParams.cellEnabled && !isProviderStepsSession
+    val wifiEnabled = trackingParams.wifiEnabled && !isProviderStepsSession
+    val activityEnabled = trackingParams.activityEnabled && !isProviderStepsSession
     val trackerSettings = TrackerSettingsQuick.snapshot(context)
 
     var useDecimalDegrees by remember { mutableStateOf(false) }
@@ -437,11 +461,16 @@ private fun TrackingContent(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.fillMaxSize()
         ) {
+            if (isTracking && stepsToday.showTodaySteps(trackingParams.stepsEnabled)) {
+                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }, key = "steps_today") {
+                    TrackerStepsTodayCard(stepsToday)
+                }
+            }
             // Status and quick stats card - only visible when tracking (shows live data)
             // Uses AnimatedVisibility for smooth entrance/exit
             item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }, key = "status") {
                 AnimatedVisibility(
-                    visible = isTracking,
+                    visible = isTracking && !isProviderStepsSession,
                     enter = expandVertically(
                         animationSpec = spring(
                             dampingRatio = Spring.DampingRatioMediumBouncy,

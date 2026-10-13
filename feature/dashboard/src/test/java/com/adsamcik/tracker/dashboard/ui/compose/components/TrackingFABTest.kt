@@ -62,7 +62,18 @@ class TrackingFABTest {
 			onRequestPermission = {},
 		)
 
-		composeRule.onNodeWithContentDescription("Stop tracking").assertIsDisplayed()
+		composeRule.onNodeWithContentDescription("End session").assertIsDisplayed()
+	}
+
+	@Test
+	fun trackingState_canEndWithoutPermission() {
+		var ends = 0
+		var repairs = 0
+		setFabContent(isTracking = true, hasPermission = false,
+			onToggleTracking = { ends++ }, onRequestPermission = { repairs++ })
+		composeRule.onNodeWithContentDescription("End session").performClick()
+		ends shouldBe 1
+		repairs shouldBe 0
 	}
 
 	private fun setFabContent(

@@ -36,6 +36,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import com.adsamcik.tracker.shared.utils.compose.TrackingActionsMenu
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
@@ -72,6 +73,8 @@ internal fun DashboardTopBar(
 	onSettingsClick: () -> Unit,
 	onGameClick: (() -> Unit)?,
 	onCustomizeClick: (() -> Unit)? = null,
+	onTurnOffTracking: (() -> Unit)? = null,
+	onPauseAutomaticTracking: (() -> Unit)? = null,
 	modifier: Modifier = Modifier,
 ){
 	val context = LocalContext.current
@@ -170,6 +173,15 @@ internal fun DashboardTopBar(
 						Icon(
 							Icons.Default.Settings,
 							contentDescription = settingsContentDescription,
+						)
+					}
+					if (onTurnOffTracking != null) {
+						TrackingActionsMenu(
+							menuLabel = stringResource(TrackerR.string.tracking_actions_menu),
+							turnOffLabel = stringResource(TrackerR.string.shortcut_turn_off_tracking),
+							onTurnOffTracking = onTurnOffTracking,
+							pauseLabel = stringResource(TrackerR.string.tracking_pause_automatic),
+							onPauseAutomaticTracking = onPauseAutomaticTracking,
 						)
 					}
 				},

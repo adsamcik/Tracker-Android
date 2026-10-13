@@ -127,7 +127,7 @@ class DashboardScreenTest {
 			.assertCountEquals(0)
 		composeRule.onAllNodesWithText("Enable location", substring = true)
 			.assertCountEquals(0)
-		composeRule.onNodeWithText("Stop").assertIsDisplayed()
+		composeRule.onNodeWithText("End session").assertIsDisplayed()
 	}
 
 	@Test

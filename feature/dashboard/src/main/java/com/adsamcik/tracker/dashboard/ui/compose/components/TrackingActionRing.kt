@@ -78,12 +78,12 @@ internal fun TrackingActionRing(
 		goalProgress.dailySteps is QualifiedStepCount.Ready
 
 	val fabContentDescription = when {
-		isTracking -> stringResource(R.string.dashboard_cd_stop_tracking)
+		isTracking -> stringResource(com.adsamcik.tracker.tracker.R.string.shortcut_end_session)
 		!hasPermission -> stringResource(R.string.dashboard_cd_start_tracking_permission)
 		else -> stringResource(R.string.dashboard_cd_start_tracking)
 	}
 	val fabClickLabel = when {
-		isTracking -> stringResource(R.string.dashboard_cd_stop_tracking)
+		isTracking -> stringResource(com.adsamcik.tracker.tracker.R.string.shortcut_end_session)
 		!hasPermission -> stringResource(R.string.dashboard_action_enable_location)
 		else -> stringResource(R.string.dashboard_cd_start_tracking)
 	}
@@ -119,7 +119,7 @@ internal fun TrackingActionRing(
 
 		// Status badge
 		val statusText = when {
-			isTracking -> stringResource(R.string.dashboard_cd_stop_tracking)
+			isTracking -> stringResource(com.adsamcik.tracker.tracker.R.string.shortcut_end_session)
 			!hasPermission -> stringResource(R.string.dashboard_ring_enable_location)
 			else -> stringResource(R.string.dashboard_ring_start_tracking)
 		}

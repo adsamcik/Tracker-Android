@@ -107,7 +107,7 @@ class TrackerDashboardTest {
 			}
 		}
 
-		composeRule.onNodeWithContentDescription("Stop tracking button").assertIsDisplayed()
+		composeRule.onNodeWithContentDescription("End session").assertIsDisplayed()
 	}
 
 	@Test
@@ -218,6 +218,24 @@ class TrackerDashboardTest {
 	// endregion
 
 	// region Points chip (verified in UI via TrackerTopBar)
+
+	@Test
+	fun trackingMenuCanTurnOffAllDaySourcesWithoutASession() {
+		var off = 0
+		val provider = object : DailyPointsProvider {
+			override val pointsTodayFlow = MutableStateFlow(0)
+		}
+		composeRule.setContent {
+			AppTheme {
+				TrackerTopBar(isTracking = false, isLocked = false, precisionModePreset = TrackingPreset.BALANCED,
+					dailyPointsProvider = provider, onSettingsClick = {}, onPrecisionModeToggle = {},
+					onTurnOffTracking = { off++ })
+			}
+		}
+		composeRule.onNodeWithTag("trackingActionsMenu").performClick()
+		composeRule.onNodeWithTag("turnOffTracking").performClick()
+		org.junit.Assert.assertEquals(1, off)
+	}
 
 	@Test
 	fun pointsChip_zeroPoints_notDisplayed() {
