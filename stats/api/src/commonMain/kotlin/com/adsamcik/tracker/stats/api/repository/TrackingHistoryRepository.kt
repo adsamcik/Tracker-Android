@@ -115,10 +115,8 @@ data class LiveSessionHistorySnapshot(
 		val foundPressure = (pressure as? PressureSessionHistoryQuery.Found)?.history
 		val foundWifi = (wifi as? WifiHistoryQuery.Found)?.entry
 		val foundCell = (cell as? CellHistoryQuery.Found)?.entry
-		require(listOf(foundSession, foundActivity, foundPressure).all { it == null } ||
-			listOf(foundSession, foundActivity, foundPressure).all { it != null }
-		) {
-			"Live session products must resolve the segment in the same snapshot"
+		require(foundSession != null || listOf(foundActivity, foundPressure).all { it == null }) {
+			"Found live products require a resolved session in the same snapshot"
 		}
 		require(foundSession == null || foundSession.segmentId == segmentId) {
 			"Session history does not belong to the live snapshot segment"
@@ -287,17 +285,21 @@ data class SessionHistory(
 				val wifi = (products.wifi as? WifiHistoryQuery.Found)?.entry
 				if (
 					HistorySource.WIFI in capturedSources &&
+					wifi?.state != WifiHistoryProductState.FAILED &&
 					wifi?.observations?.isNotEmpty() == true
 				) add(HistorySource.WIFI)
 				val cell = (products.cell as? CellHistoryQuery.Found)?.entry
 				if (
 					HistorySource.CELL in capturedSources &&
+					cell?.state != CellHistoryProductState.FAILED &&
+					cell?.state != CellHistoryProductState.UNVERIFIABLE &&
 					cell?.observations?.isNotEmpty() == true
 				) add(HistorySource.CELL)
 				val activity = (products.activity as? ActivityHistoryQuery.Found)?.entry
 				if (
 					HistorySource.ACTIVITY in capturedSources &&
 					activity?.origin == ActivityHistoryOrigin.LOCAL &&
+					activity?.state != ActivityHistoryProductState.FAILED &&
 					activity?.fragments?.any { it is ActivityHistoryFragment.Band } == true
 				) add(HistorySource.ACTIVITY)
 				val pressure = (products.pressure as? PressureSessionHistoryQuery.Found)?.history

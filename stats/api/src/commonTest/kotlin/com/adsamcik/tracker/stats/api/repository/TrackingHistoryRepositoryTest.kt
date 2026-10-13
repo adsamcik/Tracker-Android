@@ -711,7 +711,7 @@ class TrackingHistoryRepositoryTest {
 	}
 
 	@Test
-	fun `combined live snapshot rejects mixed found and missing source reads`() {
+	fun `combined live snapshot keeps a resolved session when one source is missing`() {
 		val session = SessionHistoryQuery.Found(
 			SessionHistory(
 				segmentId = 7L,
@@ -730,14 +730,61 @@ class TrackingHistoryRepositoryTest {
 			),
 		)
 
+		val snapshot = LiveSessionHistorySnapshot(
+			segmentId = 7L,
+			session = session,
+			activity = ActivityHistoryQuery.NotFound,
+			pressure = pressureQueryFor(session.history),
+		)
+		assertEquals(session, snapshot.session)
+		assertEquals(ActivityHistoryQuery.NotFound, snapshot.activity)
+		assertEquals(pressureQueryFor(session.history), snapshot.pressure)
+	}
+
+	@Test
+	fun `found live source still requires a resolved common session`() {
 		assertFailsWith<IllegalArgumentException> {
 			LiveSessionHistorySnapshot(
-				segmentId = 7L,
-				session = session,
-				activity = ActivityHistoryQuery.NotFound,
-				pressure = pressureQueryFor(session.history),
+				segmentId = 7L, session = SessionHistoryQuery.NotFound,
+				activity = ActivityHistoryQuery.Found(unavailableActivityHistory()),
+				pressure = PressureSessionHistoryQuery.NotFound,
 			)
 		}
+	}
+
+	@Test
+	fun `source-local failures do not remove qualified Steps from a live snapshot`() {
+		val capture = HistoryCapture.Exact(listOf(HistoryCaptureRevision(
+			revision = 1L, effectiveAt = EpochMs(100L), capturedSources = setOf(
+				HistorySource.STEPS, HistorySource.WIFI, HistorySource.CELL,
+				HistorySource.ACTIVITY, HistorySource.PRESSURE,
+			), controlSources = emptySet(),
+		)))
+		val steps = completeSteps(12L)
+		val wifi = WifiHistoryQuery.Failed(WifiHistoryCause.FACT_INTEGRITY_FAILED)
+		val cell = CellHistoryQuery.Found(unavailableCellHistory().copy(
+			state = CellHistoryProductState.UNVERIFIABLE, causes = setOf(CellHistoryCause.FACT_INTEGRITY_FAILED),
+		))
+		val activity = ActivityHistoryQuery.Found(unavailableActivityHistory().copy(
+			state = ActivityHistoryProductState.FAILED, causes = setOf(ActivityHistoryCause.FACT_INTEGRITY_FAILED),
+		))
+		val products = SessionHistoryProducts(7L, wifi, cell, activity, PressureSessionHistoryQuery.NotFound)
+		val session = SessionHistory(
+			segmentId = 7L, capture = capture,
+			qualifiedSources = SessionHistory.deriveQualifiedSources(capture, steps, products),
+			steps = steps, sourceProducts = products, readSnapshot = TrackingHistoryReadSnapshot(3L, 9L),
+		)
+		val snapshot = LiveSessionHistorySnapshot(
+			segmentId = 7L, session = SessionHistoryQuery.Found(session),
+			activity = activity, pressure = products.pressure, wifi = wifi, cell = cell,
+			readSnapshot = session.readSnapshot,
+		)
+		assertEquals(setOf(HistorySource.STEPS), session.qualifiedSources)
+		assertEquals(12L, (snapshot.session as SessionHistoryQuery.Found).history.steps.count)
+		assertEquals(wifi, snapshot.wifi)
+		assertEquals(cell, snapshot.cell)
+		assertEquals(activity, snapshot.activity)
+		assertEquals(PressureSessionHistoryQuery.NotFound, snapshot.pressure)
 	}
 
 	@Test

@@ -3,14 +3,11 @@ package com.adsamcik.tracker.stats.data.repository
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
-import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
-import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.CellHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
-import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
-import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryProducts
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
@@ -18,7 +15,7 @@ import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailab
 import com.adsamcik.tracker.stats.api.repository.SourceOnlyHistoryIntent
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
-import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryQuery
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -184,35 +181,29 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 	override suspend fun sessionInTransaction(
 		segment: SessionSegment,
 	): HistoricalSessionSourceRead {
-		val wifiQuery = wifi.sessionInTransaction(segment.id)
-		wifiQuery.failureOrNull()?.let { return it }
-		val cellQuery = cell.sessionInTransaction(segment.id)
-		cellQuery.failureOrNull()?.let { return it }
-		val activityQuery = activity.sessionInTransaction(segment.id)
-		activityQuery.failureOrNull()?.let { return it }
-		val activityEntry = when (activityQuery) {
-			is ActivityHistoryQuery.Found -> activityQuery.entry
-			ActivityHistoryQuery.NotFound -> return HistoricalSessionSourceRead.Unavailable(
-				TrackingHistoryUnavailableReason.PHYSICAL_MEMBERSHIP_INVALID,
-				HistorySource.ACTIVITY,
-			)
+		// Source-owned failure results stay attached to that source. A damaged radio/sensor
+		// product cannot discard the other products selected in this same Room transaction.
+		val wifiQuery = wifi.sessionInTransaction(segment.id).let { query ->
+			if (query is WifiHistoryQuery.Found && query.entry.origin != WifiHistoryOrigin.LOCAL) {
+				WifiHistoryQuery.NotFound
+			} else query
 		}
-		if (activityEntry.origin != ActivityHistoryOrigin.LOCAL) {
-			return HistoricalSessionSourceRead.Unavailable(
-				TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-				HistorySource.ACTIVITY,
-			)
+		val cellQuery = cell.sessionInTransaction(segment.id).let { query ->
+			if (query is CellHistoryQuery.Found && query.entry.origin != CellHistoryOrigin.Local) {
+				CellHistoryQuery.NotFound
+			} else query
+		}
+		val activityQuery = activity.sessionInTransaction(segment.id).let { query ->
+			if (query is ActivityHistoryQuery.Found && query.entry.origin != ActivityHistoryOrigin.LOCAL) {
+				ActivityHistoryQuery.NotFound
+			} else query
 		}
 		val pressureQuery = pressureSelector.selectManyInTransaction(listOf(segment))
 			.singleOrNull { selected -> selected.segment.id == segment.id }
 			?.let { selected ->
 				PressureSessionHistoryQuery.Found(selected.toPublicPressureSessionHistory())
 			}
-			?: return HistoricalSessionSourceRead.Unavailable(
-				TrackingHistoryUnavailableReason.PHYSICAL_MEMBERSHIP_INVALID,
-				HistorySource.PRESSURE,
-			)
-		pressureQuery.failureOrNull()?.let { return it }
+			?: PressureSessionHistoryQuery.NotFound
 		return HistoricalSessionSourceRead.Available(
 			segmentId = segment.id,
 			wifi = wifiQuery,
@@ -421,97 +412,6 @@ internal class LegacyTrackingHistorySourceUnionReader(
 		})
 	}
 }
-
-private fun WifiHistoryQuery.failureOrNull(): HistoricalSessionSourceRead.Unavailable? = when (this) {
-	WifiHistoryQuery.NotFound -> HistoricalSessionSourceRead.Unavailable(
-		TrackingHistoryUnavailableReason.PHYSICAL_MEMBERSHIP_INVALID,
-		HistorySource.WIFI,
-	)
-	is WifiHistoryQuery.Failed -> HistoricalSessionSourceRead.Unavailable(
-		if (cause == WifiHistoryCause.READ_BUDGET_EXCEEDED) {
-			TrackingHistoryUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
-		} else {
-			TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE
-		},
-		HistorySource.WIFI,
-	)
-	is WifiHistoryQuery.Found -> if (entry.state == WifiHistoryProductState.FAILED) {
-		HistoricalSessionSourceRead.Unavailable(
-			if (WifiHistoryCause.READ_BUDGET_EXCEEDED in entry.causes) {
-				TrackingHistoryUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
-			} else {
-				TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE
-			},
-			HistorySource.WIFI,
-		)
-	} else {
-		null
-	}
-}
-
-private fun CellHistoryQuery.failureOrNull(): HistoricalSessionSourceRead.Unavailable? = when (this) {
-	CellHistoryQuery.NotFound -> HistoricalSessionSourceRead.Unavailable(
-		TrackingHistoryUnavailableReason.PHYSICAL_MEMBERSHIP_INVALID,
-		HistorySource.CELL,
-	)
-	is CellHistoryQuery.Found -> when (entry.state) {
-		CellHistoryProductState.FAILED,
-		CellHistoryProductState.UNVERIFIABLE,
-		-> HistoricalSessionSourceRead.Unavailable(
-			if (CellHistoryCause.READ_BUDGET_EXCEEDED in entry.causes) {
-				TrackingHistoryUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
-			} else {
-				TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE
-			},
-			HistorySource.CELL,
-		)
-		else -> null
-	}
-}
-
-private fun ActivityHistoryQuery.failureOrNull(): HistoricalSessionSourceRead.Unavailable? =
-	when (this) {
-		ActivityHistoryQuery.NotFound -> HistoricalSessionSourceRead.Unavailable(
-			TrackingHistoryUnavailableReason.PHYSICAL_MEMBERSHIP_INVALID,
-			HistorySource.ACTIVITY,
-		)
-		is ActivityHistoryQuery.Found -> if (entry.state == ActivityHistoryProductState.FAILED) {
-			HistoricalSessionSourceRead.Unavailable(
-				if (ActivityHistoryCause.READ_BUDGET_EXCEEDED in entry.causes) {
-					TrackingHistoryUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
-				} else {
-					TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE
-				},
-				HistorySource.ACTIVITY,
-			)
-		} else {
-			null
-		}
-	}
-
-private fun PressureSessionHistoryQuery.failureOrNull(): HistoricalSessionSourceRead.Unavailable? =
-	when (this) {
-		PressureSessionHistoryQuery.NotFound -> HistoricalSessionSourceRead.Unavailable(
-			TrackingHistoryUnavailableReason.PHYSICAL_MEMBERSHIP_INVALID,
-			HistorySource.PRESSURE,
-		)
-		is PressureSessionHistoryQuery.Found ->
-			if (history.pressure.productState == HistoryProductState.FAILED) {
-				HistoricalSessionSourceRead.Unavailable(
-					if (
-						PressureHistoryCause.BATCH_DEPENDENCY_OVERFLOW in
-						history.pressure.causes
-					) {
-						TrackingHistoryUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
-					} else {
-						TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE
-					},
-					HistorySource.PRESSURE,
-				)
-			} else {
-				null
-			}
-	}
 
 private fun WifiHistoryCause.toUnionFailure(
 	source: HistorySource,

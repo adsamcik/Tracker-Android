@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
@@ -487,7 +488,62 @@ class TrackingHistorySourceUnionRepositoryTest {
 	}
 
 	@Test
-	fun `selected source integrity failure is a shared unavailable result`() = runTest {
+	fun `live snapshot keeps typed source failures and missing siblings in one Room read`() = runTest {
+		database.sessionSegmentDao().insert(legacySegment(id = 41L, sampleCount = 5))
+		val failedWifi = WifiHistoryQuery.Failed(WifiHistoryCause.FACT_INTEGRITY_FAILED)
+		val activity = ActivityHistoryQuery.Found(localUnavailableActivity())
+		sourceReader.session = HistoricalSessionSourceRead.Available(
+			segmentId = 41L, wifi = failedWifi, cell = CellHistoryQuery.NotFound,
+			activity = activity, pressure = PressureSessionHistoryQuery.NotFound,
+		)
+
+		val snapshot = repository.observeLiveSession(41L).first()
+		val session = snapshot.session as SessionHistoryQuery.Found
+		snapshot.wifi shouldBe failedWifi
+		snapshot.cell shouldBe CellHistoryQuery.NotFound
+		snapshot.activity shouldBe activity
+		snapshot.pressure shouldBe PressureSessionHistoryQuery.NotFound
+		session.history.sourceProducts?.wifi shouldBe failedWifi
+		session.history.qualifiedSources shouldBe emptySet()
+		snapshot.readSnapshot?.collectedDataEpoch shouldBe 3L
+		snapshot.readSnapshot?.sourceEvidenceRevision shouldBe 4L
+	}
+
+	@Test
+	fun `production union retains other products after a native radio membership failure`() = runTest {
+		val segment = legacySegment(id = 41L, sampleCount = 0).copy(
+			logicalTrackingId = "missing-logical", serviceRunId = "missing-run",
+		)
+		database.sessionSegmentDao().insert(segment)
+		val lane = SourceProductLaneExecutionAuthority { false }
+		val dispatcher = UnconfinedTestDispatcher(testScheduler)
+		val pressure = PressureHistorySelector(database, lane)
+		val activity = DefaultActivityHistoryRepository(database, lane, dispatcher)
+		val cell = DefaultCellHistoryRepository(database, lane, dispatcher)
+		val union = DefaultTrackingHistorySourceUnionReader(
+			wifi = emptyWifiRepository(lane, dispatcher), cell = cell, activity = activity,
+			pressureSelector = pressure, wifiImported = emptyWifiEligibleReader(),
+			cellImported = cell, activityImported = activity,
+			pressureImported = PressureHistoryPageReader(
+				database, pressure, ImportedPressureHistoryEvaluator(database), PortablePressureRoomReader(database, pressure),
+			),
+		)
+
+		val result = database.withTransaction { union.sessionInTransaction(segment) } as
+			HistoricalSessionSourceRead.Available
+		(result.wifi as WifiHistoryQuery.Found).entry.state shouldBe WifiHistoryProductState.FAILED
+		result.cell shouldBe cell.session(segment.id)
+		result.activity shouldBe activity.session(segment.id)
+		result.pressure shouldBe PressureSessionHistoryQuery.Found(
+			database.withTransaction {
+				pressure.selectManyInTransaction(listOf(segment)).single().toPublicPressureSessionHistory()
+			},
+		)
+		result.segmentId shouldBe segment.id
+	}
+
+	@Test
+	fun `union unable to resolve coherent products remains a shared unavailable result`() = runTest {
 		database.sessionSegmentDao().insert(legacySegment(id = 41L, sampleCount = 5))
 		sourceReader.session = HistoricalSessionSourceRead.Unavailable(
 			com.adsamcik.tracker.stats.api.repository.TrackingHistoryUnavailableReason
