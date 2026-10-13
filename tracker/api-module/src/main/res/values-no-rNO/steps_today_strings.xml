@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Skritt i dag</string>
+    <string name="tracker_steps_today_recorded">%1$s registrert</string>
+    <string name="tracker_steps_today_waiting">Venter</string>
+    <string name="tracker_steps_today_missing">Ingen lagrede skritt</string>
+</resources>

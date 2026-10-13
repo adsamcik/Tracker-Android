@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Stappe vandag</string>
+    <string name="tracker_steps_today_recorded">%1$s aangeteken</string>
+    <string name="tracker_steps_today_waiting">Wag</string>
+    <string name="tracker_steps_today_missing">Geen gestoorde stappe</string>
+</resources>

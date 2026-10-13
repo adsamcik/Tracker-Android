@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Βήματα σήμερα</string>
+    <string name="tracker_steps_today_recorded">Καταγράφηκαν %1$s</string>
+    <string name="tracker_steps_today_waiting">Αναμονή</string>
+    <string name="tracker_steps_today_missing">Δεν υπάρχουν αποθηκευμένα βήματα</string>
+</resources>

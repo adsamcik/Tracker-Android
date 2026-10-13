@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Bước hôm nay</string>
+    <string name="tracker_steps_today_recorded">Đã ghi %1$s</string>
+    <string name="tracker_steps_today_waiting">Đang chờ</string>
+    <string name="tracker_steps_today_missing">Không có bước đã lưu</string>
+</resources>

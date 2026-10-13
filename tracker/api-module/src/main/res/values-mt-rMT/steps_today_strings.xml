@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Passi llum</string>
+    <string name="tracker_steps_today_recorded">%1$s irreġistrati</string>
+    <string name="tracker_steps_today_waiting">Qed jistenna</string>
+    <string name="tracker_steps_today_missing">Ebda passi ssejvjati</string>
+</resources>

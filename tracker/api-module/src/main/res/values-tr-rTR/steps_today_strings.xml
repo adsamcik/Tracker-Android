@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Bugünkü adımlar</string>
+    <string name="tracker_steps_today_recorded">%1$s kaydedildi</string>
+    <string name="tracker_steps_today_waiting">Bekleniyor</string>
+    <string name="tracker_steps_today_missing">Kayıtlı adım yok</string>
+</resources>

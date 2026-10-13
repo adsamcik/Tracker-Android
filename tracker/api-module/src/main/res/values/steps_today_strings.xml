@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Steps today</string>
+    <string name="tracker_steps_today_recorded">%1$s recorded</string>
+    <string name="tracker_steps_today_waiting">Waiting</string>
+    <string name="tracker_steps_today_missing">No saved steps</string>
+</resources>

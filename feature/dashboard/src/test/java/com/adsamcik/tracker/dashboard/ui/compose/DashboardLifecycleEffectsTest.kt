@@ -60,6 +60,8 @@ class DashboardLifecycleEffectsTest {
         verify(exactly = 1) {
             viewModel.checkPermission(context)
         }
+        // Initial composition and resume both recalculate the daily read's local midnight.
+        verify(exactly = 2) { viewModel.refreshStepsToday() }
     }
 
     @Test

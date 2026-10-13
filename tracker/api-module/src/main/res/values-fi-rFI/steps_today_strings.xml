@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Askeleet tänään</string>
+    <string name="tracker_steps_today_recorded">%1$s tallennettu</string>
+    <string name="tracker_steps_today_waiting">Odotetaan</string>
+    <string name="tracker_steps_today_missing">Ei tallennettuja askelia</string>
+</resources>

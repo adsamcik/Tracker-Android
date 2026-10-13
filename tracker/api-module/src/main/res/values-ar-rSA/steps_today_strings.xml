@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">خطوات اليوم</string>
+    <string name="tracker_steps_today_recorded">تم تسجيل %1$s</string>
+    <string name="tracker_steps_today_waiting">بانتظار البيانات</string>
+    <string name="tracker_steps_today_missing">لا توجد خطوات محفوظة</string>
+</resources>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Kroky dnes</string>
+    <string name="tracker_steps_today_recorded">Zaznamenaných %1$s</string>
+    <string name="tracker_steps_today_waiting">Čakanie</string>
+    <string name="tracker_steps_today_missing">Žiadne uložené kroky</string>
+</resources>

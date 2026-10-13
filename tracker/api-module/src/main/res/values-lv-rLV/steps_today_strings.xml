@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Šodienas soļi</string>
+    <string name="tracker_steps_today_recorded">Reģistrēti %1$s</string>
+    <string name="tracker_steps_today_waiting">Gaida</string>
+    <string name="tracker_steps_today_missing">Nav saglabātu soļu</string>
+</resources>

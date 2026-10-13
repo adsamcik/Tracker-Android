@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">今日の歩数</string>
+    <string name="tracker_steps_today_recorded">%1$s を記録</string>
+    <string name="tracker_steps_today_waiting">待機中</string>
+    <string name="tracker_steps_today_missing">保存された歩数なし</string>
+</resources>

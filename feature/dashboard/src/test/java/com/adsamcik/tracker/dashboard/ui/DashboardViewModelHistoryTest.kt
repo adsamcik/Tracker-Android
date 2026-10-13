@@ -403,6 +403,8 @@ class DashboardViewModelHistoryTest {
 			dailyPointsProviderFactory = mockk(),
 			goalProgressProviderFactory = mockk(),
 			trackingParamsRepository = trackingParamsRepository,
+			stepsNumericSummaryRepository = mockk(),
+			clock = com.adsamcik.tracker.shared.base.time.FixedClock(),
 		)
 	}
 }

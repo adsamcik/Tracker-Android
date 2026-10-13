@@ -5,8 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
+import com.adsamcik.tracker.shared.base.time.Clock
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
+import com.adsamcik.tracker.tracker.controller.TodayStepsDisplay
 import com.adsamcik.tracker.tracker.data.RecentTripsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -22,7 +26,15 @@ class TrackerRouteViewModel @Inject constructor(
     val dailyPointsProvider: DailyPointsProvider,
     val goalProgressProvider: GoalProgressProvider,
     recentTripsRepository: RecentTripsRepository,
+    stepsNumericSummaryRepository: StepsNumericSummaryRepository,
+    clock: Clock,
 ) : ViewModel() {
+    private val todayStepsDisplay = TodayStepsDisplay(stepsNumericSummaryRepository, clock)
+    val stepsToday = todayStepsDisplay.observe()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0L, 0L), StepsDailyDisplay.Materializing)
+
+    fun refreshStepsToday() = todayStepsDisplay.refresh()
+
     val recentTrips = recentTripsRepository.observeRecentTrips(RECENT_TRIP_LIMIT)
         .catch { emit(emptyList()) }
         .stateIn(

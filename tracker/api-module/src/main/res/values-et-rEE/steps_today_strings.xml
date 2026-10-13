@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Tänased sammud</string>
+    <string name="tracker_steps_today_recorded">%1$s salvestatud</string>
+    <string name="tracker_steps_today_waiting">Ootel</string>
+    <string name="tracker_steps_today_missing">Salvestatud sammud puuduvad</string>
+</resources>

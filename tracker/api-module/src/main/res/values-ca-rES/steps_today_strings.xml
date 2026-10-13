@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Passos d’avui</string>
+    <string name="tracker_steps_today_recorded">%1$s registrats</string>
+    <string name="tracker_steps_today_waiting">Esperant</string>
+    <string name="tracker_steps_today_missing">Cap pas desat</string>
+</resources>

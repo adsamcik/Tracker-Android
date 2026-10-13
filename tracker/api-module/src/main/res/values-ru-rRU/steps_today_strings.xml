@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Шаги сегодня</string>
+    <string name="tracker_steps_today_recorded">Записано %1$s</string>
+    <string name="tracker_steps_today_waiting">Ожидание</string>
+    <string name="tracker_steps_today_missing">Нет сохранённых шагов</string>
+</resources>

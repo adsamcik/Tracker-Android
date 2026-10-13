@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">आज के कदम</string>
+    <string name="tracker_steps_today_recorded">%1$s रिकॉर्ड किए गए</string>
+    <string name="tracker_steps_today_waiting">प्रतीक्षा में</string>
+    <string name="tracker_steps_today_missing">कोई सहेजे गए कदम नहीं</string>
+</resources>

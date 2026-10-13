@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.AchievementTier
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.insights.SessionInsight
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
@@ -39,6 +40,9 @@ data class DashboardUiState(
 	val pathPoints: List<Location>? = null,
 	val liveSessionPresentation: DashboardLiveSessionPresentation =
 		DashboardLiveSessionPresentation.Inactive,
+	val stepsToday: StepsDailyDisplay = StepsDailyDisplay.Materializing,
+	val stepsSelected: Boolean = false,
+	val isProviderStepsSession: Boolean = false,
 
 	// ─── Daily summary (idle mode) ───────────────────────────────────
 	val todaySummary: DailySummary? = null,

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Pasos de hoy</string>
+    <string name="tracker_steps_today_recorded">%1$s registrados</string>
+    <string name="tracker_steps_today_waiting">Esperando</string>
+    <string name="tracker_steps_today_missing">No hay pasos guardados</string>
+</resources>

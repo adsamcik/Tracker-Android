@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Pași astăzi</string>
+    <string name="tracker_steps_today_recorded">%1$s înregistrați</string>
+    <string name="tracker_steps_today_waiting">În așteptare</string>
+    <string name="tracker_steps_today_missing">Nu există pași salvați</string>
+</resources>

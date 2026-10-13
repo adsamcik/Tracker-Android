@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">오늘의 걸음 수</string>
+    <string name="tracker_steps_today_recorded">%1$s 기록됨</string>
+    <string name="tracker_steps_today_waiting">대기 중</string>
+    <string name="tracker_steps_today_missing">저장된 걸음 수 없음</string>
+</resources>

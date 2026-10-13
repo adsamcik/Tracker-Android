@@ -30,6 +30,7 @@ import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
+import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
@@ -48,6 +49,8 @@ import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.StepsDailyDisplay
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
@@ -58,6 +61,7 @@ import com.adsamcik.tracker.tracker.insights.SessionInsight
 import com.adsamcik.tracker.tracker.insights.SessionInsightsGenerator
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
+import com.adsamcik.tracker.tracker.controller.TodayStepsDisplay
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -103,7 +107,14 @@ class DashboardViewModel @Inject constructor(
 	private val dailyPointsProviderFactory: Provider<DailyPointsProvider>,
 	private val goalProgressProviderFactory: Provider<GoalProgressProvider>,
 	trackingParamsRepository: TrackingParamsRepository,
+	stepsNumericSummaryRepository: StepsNumericSummaryRepository,
+	clock: Clock,
 ) : ViewModel() {
+	private val todayStepsDisplay = TodayStepsDisplay(stepsNumericSummaryRepository, clock)
+	val stepsToday: StateFlow<StepsDailyDisplay> = todayStepsDisplay.observe()
+		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(0L, 0L), StepsDailyDisplay.Materializing)
+
+	fun refreshStepsToday() = todayStepsDisplay.refresh()
 
 	private val dailyPointsProvider by lazy(LazyThreadSafetyMode.NONE) {
 		dailyPointsProviderFactory.get()

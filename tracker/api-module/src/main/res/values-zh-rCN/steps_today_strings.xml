@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">今日步数</string>
+    <string name="tracker_steps_today_recorded">已记录 %1$s</string>
+    <string name="tracker_steps_today_waiting">等待中</string>
+    <string name="tracker_steps_today_missing">没有保存的步数</string>
+</resources>

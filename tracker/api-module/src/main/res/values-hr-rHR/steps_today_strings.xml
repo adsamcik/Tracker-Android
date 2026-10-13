@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Koraci danas</string>
+    <string name="tracker_steps_today_recorded">Zabilježeno %1$s</string>
+    <string name="tracker_steps_today_waiting">Čekanje</string>
+    <string name="tracker_steps_today_missing">Nema spremljenih koraka</string>
+</resources>

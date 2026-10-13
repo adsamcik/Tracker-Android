@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Mai lépések</string>
+    <string name="tracker_steps_today_recorded">%1$s rögzítve</string>
+    <string name="tracker_steps_today_waiting">Várakozás</string>
+    <string name="tracker_steps_today_missing">Nincsenek mentett lépések</string>
+</resources>

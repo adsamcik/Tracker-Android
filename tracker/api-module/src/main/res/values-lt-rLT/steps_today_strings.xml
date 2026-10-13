@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracker_steps_today_title">Šiandienos žingsniai</string>
+    <string name="tracker_steps_today_recorded">Užregistruota %1$s</string>
+    <string name="tracker_steps_today_waiting">Laukiama</string>
+    <string name="tracker_steps_today_missing">Nėra išsaugotų žingsnių</string>
+</resources>
