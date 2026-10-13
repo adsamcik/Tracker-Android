@@ -2436,13 +2436,46 @@ prerequisites remain open; individual host results do not close them.
   manifest/resource merging. App-level removal fixtures remain unexecuted.
 - [x] Repair fixed-clock ViewModel test cleanup and pass 17 affected Statistics
   cases; preserve the failed first batch and exact rerun evidence.
-- [ ] Finish chosen-source permission repair, separate Tracker/automatic-notification
+- [x] Finish chosen-source permission repair, separate Tracker/automatic-notification
   controls, provider-only Steps sessions and malformed-native-day recovery.
-- [ ] Keep healthy live source data visible after a sibling reader failure and
+  Production and focused test sources completed 2026-10-13; execution is pending.
+- [x] Keep healthy live source data visible after a sibling reader failure and
   show Steps today during sessions using the existing display reader.
+  Production and focused test sources completed 2026-10-13; execution is pending.
 - [ ] Resolve the pending interface/Location/quality decisions, full app and
   coordinator execution, final convergence, device evidence and integration.
 
 See [the everyday review](convergence/2026-10-10/EVERYDAY_EXPERIENCE_REVIEW.md)
 for the six remaining everyday work items, unanswered proposals, exact frozen
 inputs and 35 selected host-case results. This does not close the all-25 gate.
+
+## 2026-10-13 approved everyday-gap implementation
+
+Status: **IMPLEMENTED_UNVALIDATED**. The user approved all six recommendations;
+the following checkmarks mean production and test-source authorship plus static
+review, not passing tests or device readiness.
+
+- [x] Reuse existing permission prompts from Settings for chosen sources, preserve
+  choices and avoid requiring all-day Location for session-only recording.
+- [x] Keep End session distinct from Turn off tracking in live screens and
+  running-session notifications, including after permission loss.
+- [x] Support manual sessions over supported all-day provider Steps without a
+  direct counter; reuse real count windows, shared commands and session metadata.
+  Attach subsequently available physical sources to that same session through
+  existing Start machinery; preserve data and recover unpublished failed joins.
+- [x] Recover healthy native Steps days independently after a failed shared read,
+  retaining strict numeric qualification and unavailable shared-authority damage.
+- [x] Preserve healthy live source results after a sibling failure while keeping
+  identity/snapshot checks and failed-source qualification intact.
+- [x] Show Steps today in both live screens through the existing per-day display
+  reader, separate daily counts from session counts and keep goals strict.
+- [x] Complete fresh review-only Astra review with all original user messages,
+  exact approvals and combined changes; repair and recheck concrete findings.
+- [ ] Execute compilation, Hilt/Room, released-data upgrades, complete host/quality
+  gates and required device/provider evidence on a frozen convergence input.
+- [ ] Integrate the fully reviewed and verified result into local `dev/v10`.
+
+See [the dated implementation and review record](convergence/2026-10-13/EVERYDAY_GAPS_IMPLEMENTATION.md)
+for the six exact commits, recovery behavior and authored coverage. All 25
+full-chain prerequisites remain open. Main `dev/v10`, preserved candidates and
+drafts remain unchanged; no validation, integration, push or cleanup ran here.
