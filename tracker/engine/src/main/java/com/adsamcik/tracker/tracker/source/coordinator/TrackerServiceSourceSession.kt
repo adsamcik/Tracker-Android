@@ -93,6 +93,7 @@ data class SourceSessionStartRequest(
 	val origin: SessionStartOrigin,
 	val captureMode: CaptureReachabilityMode = origin.defaultCaptureMode(),
 	val continuationAuthority: ServiceRunContinuationAuthority? = null,
+	val providerStepsContinuation: com.adsamcik.tracker.tracker.api.ProviderStepsSessionContinuation? = null,
 	val automaticTrigger: AutomaticTrackingStartTrigger? = null,
 	val foregroundCapabilityFlags: Long,
 	val planInputs: SourceSessionPlanInputs,
@@ -226,6 +227,7 @@ class TrackerServiceSourceSession @Inject constructor(
 				logicalTrackingId = request.logicalTrackingId,
 				serviceRunId = request.serviceRunId,
 				continuationAuthority = request.continuationAuthority,
+				providerStepsContinuation = request.providerStepsContinuation,
 			),
 			delivery,
 		)) {

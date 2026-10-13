@@ -76,8 +76,9 @@ class TrackerModuleInitializer @Inject constructor(
 			// Register independently of another source's repair debt. The worker checks startup,
 			// user-stop and Steps authority before any provider access.
 			withContext(dispatchers.main) {
-				registerAmbientStepsForegroundImports(
+				registerTrackingForegroundWork(
 					ProcessLifecycleOwner.get().lifecycle, applicationScope, ambientStepsImportScheduler,
+					reconcileSession = { TrackerServiceApi.reconcileProviderStepsSession(context) },
 				)
 			}
 			while (true) {
@@ -138,6 +139,12 @@ class TrackerModuleInitializer @Inject constructor(
 					delay(STARTUP_AUTHORITY_RETRY_DELAY_MS)
 				} catch (_: TrackerTurnOffRecoveryPendingException) {
 					delay(STARTUP_AUTHORITY_RETRY_DELAY_MS)
+				}
+			}
+			withContext(dispatchers.main) {
+				// The first foreground callback may have arrived before startup was ready.
+				reconcileForegroundSession(ProcessLifecycleOwner.get().lifecycle) {
+					TrackerServiceApi.reconcileProviderStepsSession(context)
 				}
 			}
 			driveActivityAutomationEffectDrain(
@@ -224,11 +231,12 @@ internal suspend fun reconcileStartupAndPendingTurnOff(
 	return startup
 }
 
-/** An open/reopen requests a bounded copy; the worker retains all collection authority checks. */
-internal fun registerAmbientStepsForegroundImports(
+/** Reuses foreground opportunities for bounded copies and source repair; neither changes intent. */
+internal fun registerTrackingForegroundWork(
 	lifecycle: Lifecycle,
 	scope: CoroutineScope,
 	scheduler: AmbientStepsImportWorkScheduler,
+	reconcileSession: () -> Unit = {},
 ) {
 	lifecycle.addObserver(object : DefaultLifecycleObserver {
 		override fun onStart(owner: LifecycleOwner) {
@@ -242,7 +250,22 @@ internal fun registerAmbientStepsForegroundImports(
 				}
 			}
 		}
+		override fun onResume(owner: LifecycleOwner) {
+			reconcileForegroundSession(lifecycle, reconcileSession)
+		}
 	})
+}
+
+/** Both initial startup readiness and later resume reuse the same foreground opportunity. */
+internal fun reconcileForegroundSession(lifecycle: Lifecycle, reconcile: () -> Unit) {
+	if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
+	try {
+		reconcile()
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		// A later foreground or permission repair retries the same accepted session.
+	}
 }
 
 private const val STARTUP_AUTHORITY_RETRY_DELAY_MS = 1_000L

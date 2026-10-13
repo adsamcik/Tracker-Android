@@ -56,6 +56,7 @@ import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.verify
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.mockkObject
@@ -952,6 +953,43 @@ class TrackingSettingsViewModelTest {
             ),
         )
     }
+
+	@Test
+	fun `saved edits and permission repair reuse the existing session join without new source intent`() =
+		runTest(testDispatcher) {
+			mockkObject(TrackerServiceApi)
+			try {
+				val observedChoices = mutableListOf<Boolean>()
+				every { TrackerServiceApi.reconcileProviderStepsSession(context) } answers {
+					observedChoices += paramsFlow.value.locationEnabled
+				}
+				val vm = createViewModel()
+				advanceUntilIdle()
+				vm.setLocationEnabled(false)
+				advanceUntilIdle()
+				observedChoices shouldBe listOf(false)
+				vm.onLocationPermissionResult()
+				advanceUntilIdle()
+				observedChoices shouldBe listOf(false, false)
+				paramsFlow.value.locationEnabled shouldBe false
+				coVerify(exactly = 1) { trackingParamsRepository.setLocationEnabled(false) }
+			} finally { unmockkObject(TrackerServiceApi) }
+		}
+
+	@Test
+	fun `failed settings save does not request a session source join`() = runTest(testDispatcher) {
+		mockkObject(TrackerServiceApi)
+		try {
+			every { TrackerServiceApi.reconcileProviderStepsSession(context) } returns Unit
+			coEvery { trackingParamsRepository.setLocationEnabled(false) } throws IllegalStateException("Full storage")
+			val vm = createViewModel()
+			advanceUntilIdle()
+			vm.setLocationEnabled(false)
+			advanceUntilIdle()
+			verify(exactly = 0) { TrackerServiceApi.reconcileProviderStepsSession(context) }
+			paramsFlow.value.locationEnabled shouldBe true
+		} finally { unmockkObject(TrackerServiceApi) }
+	}
 
     private fun providerOnlyStepsPermission() = AmbientSourceOperationalAvailability(
         source = AmbientTrackingSource.STEPS,

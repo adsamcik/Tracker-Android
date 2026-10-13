@@ -36,7 +36,10 @@ data class LogicalTrackingSessionEntity(
 	val lifecycleLeaseGeneration: Long = 0L,
 	@ColumnInfo(name = "lifecycle_boot_id") val lifecycleBootId: String? = null,
 	@ColumnInfo(name = "automation_epoch") val automationEpoch: Long? = null,
-)
+) {
+	/** Organization only: no source-service run, manifest, acquisition or counter is implied. */
+	companion object { const val MODE_PROVIDER_STEPS = "PROVIDER_STEPS" }
+}
 
 @Entity(
 	tableName = "source_service_run",

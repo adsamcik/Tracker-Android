@@ -86,6 +86,25 @@ class DefaultTrackerServiceController : TrackerServiceController {
     
     private val _sessionInfoFlow = MutableStateFlow<TrackerSessionInfo?>(null)
     override val sessionInfoFlow: StateFlow<TrackerSessionInfo?> get() = _sessionInfoFlow
+    private var physicalSessionInfo: TrackerSessionInfo? = null
+    private var providerStepsSessionInfo: TrackerSessionInfo? = null
+    private var providerStepsObservation: Job? = null
+
+    /** The same published session state also hosts metadata-only sessions, without a service. */
+    @Synchronized
+    fun bindProviderStepsSessions(information: kotlinx.coroutines.flow.Flow<TrackerSessionInfo?>,
+        applicationScope: CoroutineScope): Job {
+        check(providerStepsObservation == null) { "Provider Steps sessions are already bound" }
+        return applicationScope.launch {
+            information.collect { publishProviderStepsSession(it) }
+        }.also { providerStepsObservation = it }
+    }
+
+    @Synchronized
+    private fun publishProviderStepsSession(info: TrackerSessionInfo?) {
+        providerStepsSessionInfo = info
+        _sessionInfoFlow.value = physicalSessionInfo ?: providerStepsSessionInfo
+    }
     
     private val _sessionFlow = MutableStateFlow<TrackerSessionSnapshot?>(null)
     override val sessionFlow: StateFlow<TrackerSessionSnapshot?> get() = _sessionFlow
@@ -126,7 +145,8 @@ class DefaultTrackerServiceController : TrackerServiceController {
     @Synchronized
     override fun updateSessionInfo(info: TrackerSessionInfo?) {
         if (info == null) _savedLocationSummary.value = SavedLocationSummaryRead.NotFound
-        _sessionInfoFlow.value = info
+        physicalSessionInfo = info
+        _sessionInfoFlow.value = physicalSessionInfo ?: providerStepsSessionInfo
     }
     
     @Synchronized

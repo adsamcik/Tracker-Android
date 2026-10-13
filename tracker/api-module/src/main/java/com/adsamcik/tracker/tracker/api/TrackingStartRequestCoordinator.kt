@@ -22,8 +22,13 @@ data class TrackingStartRequest(
 	val recoveryDescriptor: ActiveTrackingSessionDescriptor? = null,
 	/** A repaired Start must retain the original selected sources through Room PREPARE. */
 	val manualSourceSelection: ManualTrackingStartSelection? = null,
+	/** Existing accepted organization; attaches its first physical run. */
+	val providerStepsContinuation: ProviderStepsSessionContinuation? = null,
 ) {
 	init {
+		require(providerStepsContinuation == null || (isUserInitiated && !isAmbient &&
+			automaticTrigger == null && recoveryDescriptor == null && manualSourceSelection == null &&
+			providerStepsContinuation.commandGeneration == command.generation))
 		require(manualSourceSelection == null || (isUserInitiated && !isAmbient &&
 			automaticTrigger == null && recoveryDescriptor == null))
 		require(!isUserInitiated || automaticTrigger == null) {
@@ -34,6 +39,14 @@ data class TrackingStartRequest(
 		}
 	}
 }
+
+/** Exact metadata lifetime observed before attaching the first Android service run. */
+data class ProviderStepsSessionContinuation(
+	val logicalTrackingId: String,
+	val lifecycleRevision: Long,
+	val commandGeneration: Long,
+	val bootId: String,
+)
 
 sealed interface TrackingStartPreparationResult {
 	data class Prepared(
@@ -46,6 +59,8 @@ sealed interface TrackingStartPreparationResult {
 		 */
 		val preparedSourceMaskHint: Long = 0L,
 		val preparedStartIsUserInitiatedHint: Boolean = false,
+		/** Organization over system-owned Steps needs no Android foreground service. */
+		val requiresForegroundService: Boolean = true,
 	) : TrackingStartPreparationResult
 
 	/** An equal or newer durable lifecycle already owns the requested work. */
@@ -82,6 +97,17 @@ sealed interface TrackingStartDispatchResult {
  */
 interface TrackingStartRequestCoordinator {
 	suspend fun prepare(request: TrackingStartRequest): TrackingStartPreparationResult
+
+	suspend fun providerStepsContinuationRequest(): TrackingStartRequest? = null
+
+	/** Same durable Start fence, without creating a physical acquisition run. */
+	suspend fun acceptWithoutForegroundService(
+		prepared: TrackingStartPreparationResult.Prepared,
+		request: TrackingStartRequest,
+	): Boolean = false
+
+	/** Reuses existing all-day owner reconciliation after the exact Start is durably accepted. */
+	suspend fun reconcileAcceptedSessionWithoutService(command: TrackingStartCommand) = Unit
 
 	/** Linearizes the platform enqueue with the startup/deletion generation captured at prepare. */
 	fun <T> withStartupEnqueuePermit(

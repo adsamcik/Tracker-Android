@@ -20,7 +20,17 @@ class DefaultInactiveTrackingSessionStopHandler @Inject constructor(
 	private val sourceSessionFinalizer: ExplicitStopSourceSessionFinalizer,
 	private val clock: Clock,
 	private val bootClockDomainProvider: BootClockDomainProvider,
+	private val providerStepsSessions: com.adsamcik.tracker.tracker.service.ProviderStepsSessionLifecycle? = null,
 ) : InactiveTrackingSessionStopHandler {
+	override suspend fun finalizeWithoutService(command: TrackingStopCommand): Boolean =
+		when (val result = commandAuthority.completeActionableStop(command) {
+			if (providerStepsSessions?.close(command) == true) TrackingStopActionResult.Terminal(true)
+			else TrackingStopActionResult.StillActionable(false)
+		}) {
+			is LockedTrackingStopResult.Handled -> result.value
+			else -> false
+		}
+
 	override suspend fun finalizeStoredSession(
 		command: TrackingStopCommand,
 	): InactiveTrackingSessionStopOutcome = when (
@@ -36,6 +46,9 @@ class DefaultInactiveTrackingSessionStopHandler @Inject constructor(
 	private suspend fun finalizeActionableStop(
 		command: TrackingStopCommand,
 	): TrackingStopActionResult<InactiveTrackingSessionStopOutcome> {
+		if (providerStepsSessions?.close(command) == true) {
+			return TrackingStopActionResult.Terminal(InactiveTrackingSessionStopOutcome.FINALIZED)
+		}
 		val descriptor = when (val stored = activeSessionStore.read()) {
 			is ActiveTrackingSessionStoreResult.Failure -> throw stored.cause
 			is ActiveTrackingSessionStoreResult.Success -> stored.descriptor

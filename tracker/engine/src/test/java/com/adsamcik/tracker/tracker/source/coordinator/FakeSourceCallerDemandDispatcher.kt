@@ -69,7 +69,8 @@ internal class FakeSourceCallerDemandDispatcher(
 		}
 		val receipt = SourceCallerAcceptanceReceipt(
 			reference = SourceCallerReplayReference(
-				if (request.mutation == SessionDemandMutation.AUTHORITY_ONLY) {
+				if (request.mutation == SessionDemandMutation.AUTHORITY_ONLY ||
+					request.manifest.changeReason == "PROVIDER_STEPS_JOIN") {
 					"test:${request.manifest.logicalTrackingId}:" +
 						"${request.manifest.manifestRevision}:authority:${java.util.UUID.randomUUID()}"
 				} else {

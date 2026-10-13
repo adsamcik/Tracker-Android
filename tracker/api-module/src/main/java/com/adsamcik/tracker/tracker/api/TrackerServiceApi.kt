@@ -294,6 +294,33 @@ object TrackerServiceApi {
 		false
 	}
 
+	/** Foreground repair attaches sources to the existing session using its accepted Start. */
+	fun reconcileProviderStepsSession(context: Context) {
+		val appContext = context.applicationContext
+		val entryPoint = EntryPointAccessors.fromApplication(appContext, TrackerServiceApiEntryPoint::class.java)
+		entryPoint.applicationScope().launch {
+			try {
+				reconcileProviderStepsSession(entryPoint.trackingStartRequestCoordinator(),
+					entryPoint.trackingLifecycleCommandAuthority()) { prepared, command ->
+					enqueuePreparedStart(appContext, prepared, command)
+				}
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				// Keep the accepted organization. The next foreground repair retries the exact lifetime.
+			}
+		}
+	}
+
+	internal suspend fun reconcileProviderStepsSession(
+		coordinator: TrackingStartRequestCoordinator,
+		lifecycleAuthority: TrackingLifecycleCommandAuthority,
+		platformEnqueue: (TrackingStartPreparationResult.Prepared, TrackingStartCommand) -> Boolean,
+	): TrackingStartDispatchResult? {
+		val request = coordinator.providerStepsContinuationRequest() ?: return null
+		return dispatchPreparedStartResult(request, coordinator, lifecycleAuthority, platformEnqueue)
+	}
+
 	internal suspend fun dispatchPreparedStart(
 		request: TrackingStartRequest,
 		coordinator: TrackingStartRequestCoordinator,
@@ -362,6 +389,26 @@ object TrackerServiceApi {
 						"MANUAL_START_CONTINUATION_SUPERSEDED", elapsedRealtimeNanos)
 					return TrackingStartDispatchResult.Terminal("MANUAL_START_CONTINUATION_SUPERSEDED")
 				}
+			}
+			if (!prepared.requiresForegroundService) {
+				val accepted = lifecycleAuthority.withCurrentStart(request.command,
+					acceptWhen = { it }) {
+					currentCoroutineContext().ensureActive()
+					if (request.manualSourceSelection != null &&
+						lifecycleAuthority.latestCommandGeneration() != request.command.generation) {
+						return@withCurrentStart false
+					}
+					if (enqueueDeadline != null && elapsedRealtimeNanos() >= enqueueDeadline) false
+					else coordinator.acceptWithoutForegroundService(prepared, request)
+				}
+				if (accepted is LockedTrackingStartResult.Executed && accepted.value) {
+					enqueueOutcome = PlatformEnqueueOutcome.ENQUEUED
+					coordinator.reconcileAcceptedSessionWithoutService(request.command)
+					return TrackingStartDispatchResult.Enqueued
+				}
+				compensatePreparedStartWithinBudget(request, token, coordinator,
+					"START_WITHOUT_SERVICE_NOT_ACCEPTED", elapsedRealtimeNanos)
+				return TrackingStartDispatchResult.Terminal("START_WITHOUT_SERVICE_NOT_ACCEPTED")
 			}
 			val dispatchContext = currentCoroutineContext()
 			when (val result = lifecycleAuthority.withCurrentStart(request.command) {
@@ -685,6 +732,7 @@ object TrackerServiceApi {
 				requestedAtEpochMs = System.currentTimeMillis(),
 				requestedElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
 			) ?: return@launch
+			if (entryPoint.inactiveTrackingSessionStopHandler().finalizeWithoutService(command)) return@launch
 			routeDurableStop(
 				command = command,
 				deliverToRunningService = TrackerRuntimeStopDispatcher::dispatch,
@@ -775,6 +823,9 @@ object TrackerServiceApi {
 						reserveRouteAndAwaitDurableStop(
 							reserve = { pendingStop },
 							deliverToRunningService = TrackerRuntimeStopDispatcher::dispatch,
+							finalizeWithoutService = { command ->
+								entryPoint.inactiveTrackingSessionStopHandler().finalizeWithoutService(command)
+							},
 							finalizeInactiveService = { command ->
 								entryPoint.inactiveTrackingSessionStopHandler()
 									.finalizeStoredSession(command)
@@ -861,6 +912,9 @@ object TrackerServiceApi {
 				)
 			},
 			deliverToRunningService = TrackerRuntimeStopDispatcher::dispatch,
+			finalizeWithoutService = { command ->
+				entryPoint.inactiveTrackingSessionStopHandler().finalizeWithoutService(command)
+			},
 			finalizeInactiveService = { command ->
 				entryPoint.inactiveTrackingSessionStopHandler().finalizeStoredSession(command)
 			},
@@ -904,11 +958,13 @@ internal suspend fun reserveRouteAndAwaitDurableStop(
 		(TrackingStopCommand) -> Unit,
 	) -> Boolean,
 	finalizeInactiveService: suspend (TrackingStopCommand) -> Unit,
+	finalizeWithoutService: suspend (TrackingStopCommand) -> Boolean = { false },
 	isCurrent: (TrackingStopCommand) -> Boolean,
 	isActionable: (TrackingStopCommand) -> Boolean,
 	pauseBeforeRetry: suspend () -> Unit = { delay(STOP_QUIESCENCE_POLL_MILLIS) },
 ): TrackingStopQuiescenceResult {
 	val command = reserve() ?: return TrackingStopQuiescenceResult.RESERVATION_FAILED
+	if (finalizeWithoutService(command)) return TrackingStopQuiescenceResult.HANDLED
 	val undelivered = Channel<TrackingStopCommand>(Channel.UNLIMITED)
 	try {
 		if (!deliverToRunningService(command) { candidate -> undelivered.trySend(candidate) }) {

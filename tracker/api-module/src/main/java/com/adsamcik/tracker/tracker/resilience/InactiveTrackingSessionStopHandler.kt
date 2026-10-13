@@ -8,6 +8,9 @@ package com.adsamcik.tracker.tracker.resilience
  * finalize a different active Room lifecycle.
  */
 interface InactiveTrackingSessionStopHandler {
+	/** Complete a session with no physical service while leaving independent all-day owners alone. */
+	suspend fun finalizeWithoutService(command: TrackingStopCommand): Boolean = false
+
 	suspend fun finalizeStoredSession(
 		command: TrackingStopCommand,
 	): InactiveTrackingSessionStopOutcome

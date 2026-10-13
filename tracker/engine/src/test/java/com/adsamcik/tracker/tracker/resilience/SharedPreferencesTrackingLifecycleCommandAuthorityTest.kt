@@ -599,6 +599,20 @@ class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
 	}
 
 	@Test
+	fun `accepted Start signal follows durable acceptance rather than reservation`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		authority.acceptedStartGeneration.value shouldBe 0L
+		val start = requireNotNull(authority.reserveStart())
+		authority.acceptedStartGeneration.value shouldBe 0L
+		authority.withCurrentStart(start, acceptWhen = { it }) { false }
+		authority.acceptedStartGeneration.value shouldBe 0L
+		authority.withCurrentStart(start, acceptWhen = { it }) { true }
+		authority.acceptedStartGeneration.value shouldBe start.generation
+		SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+			.acceptedStartGeneration.value shouldBe start.generation
+	}
+
+	@Test
 	fun `failed acceptance preference publication restores stopped cache and revokes exact delivery`(): Unit = runBlocking {
 		for (throwing in listOf(false, true)) {
 			clearStore()
@@ -635,6 +649,7 @@ class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
 			shouldThrow<IllegalStateException> { authority.withCurrentStart(start, acceptWhen = { it }) { true } }
 			authority.pendingCollectionResumeExitId shouldBe "exit-1"
 			authority.isPendingCollectionStart(start) shouldBe false
+			authority.acceptedStartGeneration.value shouldBe 0L
 			val reopened = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
 			reopened.pendingCollectionResumeExitId shouldBe "exit-1"
 			reopened.collectionResumeBoundary shouldBe null

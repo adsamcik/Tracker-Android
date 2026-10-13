@@ -153,7 +153,7 @@ interface SourceSessionDao {
 	 */
 	@Query(
 		"SELECT EXISTS(SELECT 1 FROM logical_tracking_session session WHERE " +
-			"session.state NOT IN ('FINALIZED', 'CLOSED', 'FAILED') " +
+			"(session.state NOT IN ('FINALIZED', 'CLOSED', 'FAILED') AND session.session_mode != 'PROVIDER_STEPS') " +
 			"OR session.current_service_run_id IS NOT NULL " +
 			"OR (session.state IN ('FINALIZED', 'CLOSED') " +
 			"AND session.current_intent_revision IS NOT NULL AND NOT EXISTS (" +
@@ -641,6 +641,60 @@ interface SourceSessionDao {
 
 	@Query("DELETE FROM session_manifest_version")
 	fun deleteAllManifests()
+
+	/** Conservative rollback proof: a published physical membership or capture lineage is never removed. */
+	@Query("""SELECT EXISTS (SELECT 1 FROM session_segment WHERE logical_tracking_id = :logicalTrackingId)
+		OR EXISTS (SELECT 1 FROM source_event_wal WHERE logical_tracking_id = :logicalTrackingId)
+		OR EXISTS (SELECT 1 FROM source_event_retention_proof WHERE logical_tracking_id = :logicalTrackingId)
+		OR EXISTS (SELECT 1 FROM source_event_retention_scope_proof WHERE logical_tracking_id = :logicalTrackingId)
+		OR EXISTS (SELECT 1 FROM source_event_wal wal JOIN source_authorization authority
+			ON authority.source_kind = wal.source_kind AND authority.registration_generation = wal.registration_generation
+			AND authority.authorization_revision = wal.authorization_revision
+			WHERE authority.logical_tracking_id = :logicalTrackingId AND authority.service_run_id = :serviceRunId)
+		OR EXISTS (SELECT 1 FROM location_sample_purpose_authority WHERE logical_tracking_id = :logicalTrackingId)
+		OR EXISTS (SELECT 1 FROM step_fact_revision WHERE logical_tracking_id = :logicalTrackingId)
+		OR EXISTS (SELECT 1 FROM pressure_fact_revision WHERE logical_tracking_id = :logicalTrackingId)
+		OR EXISTS (SELECT 1 FROM pressure_fact_retention_authority WHERE logical_tracking_id = :logicalTrackingId)
+		OR EXISTS (SELECT 1 FROM activity_captured_window_revision WHERE logical_tracking_id = :logicalTrackingId)
+		OR EXISTS (SELECT 1 FROM activity_captured_window_cursor WHERE logical_tracking_id = :logicalTrackingId)
+		OR EXISTS (SELECT 1 FROM wifi_captured_fact_revision WHERE logical_tracking_id = :logicalTrackingId)
+		OR EXISTS (SELECT 1 FROM wifi_captured_fact_cursor WHERE logical_tracking_id = :logicalTrackingId)
+		OR EXISTS (SELECT 1 FROM cell_captured_fact_revision WHERE logical_tracking_id = :logicalTrackingId)
+		OR EXISTS (SELECT 1 FROM cell_captured_fact_cursor WHERE logical_tracking_id = :logicalTrackingId)
+		OR EXISTS (SELECT 1 FROM captured_radio_fact_retention_proof WHERE logical_tracking_id = :logicalTrackingId)
+		OR EXISTS (SELECT 1 FROM cell_captured_deleted_run WHERE logical_tracking_id = :logicalTrackingId)
+		OR EXISTS (SELECT 1 FROM source_session_completeness WHERE logical_tracking_id = :logicalTrackingId AND
+			(source_kind = 3 OR last_admission_ordinal IS NOT NULL OR last_source_sequence IS NOT NULL OR
+			app_drain_complete != 1 OR stop_status != 'COMPLETE' OR unresolved_sequence_start IS NOT NULL OR unresolved_sequence_end IS NOT NULL))
+		OR EXISTS (SELECT 1 FROM source_service_run WHERE logical_tracking_id = :logicalTrackingId AND service_run_id != :serviceRunId)
+		OR EXISTS (SELECT 1 FROM source_run_retirement WHERE logical_tracking_id = :logicalTrackingId AND
+			(state = 'REQUESTED' OR last_admission_ordinal IS NOT NULL OR last_source_sequence IS NOT NULL))
+		""")
+	suspend fun hasProviderJoinPublishedEvidence(logicalTrackingId: String, serviceRunId: String): Boolean
+
+	@Query("DELETE FROM source_session_completeness WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId")
+	suspend fun deleteUnpublishedJoinCompleteness(logicalTrackingId: String, serviceRunId: String): Int
+
+	@Query("DELETE FROM lifecycle_desired_action WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId")
+	suspend fun deleteUnpublishedJoinActions(logicalTrackingId: String, serviceRunId: String): Int
+
+	@Query("DELETE FROM source_run_retirement WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId")
+	suspend fun deleteUnpublishedJoinRetirements(logicalTrackingId: String, serviceRunId: String): Int
+
+	@Query("DELETE FROM native_portable_ownership WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId")
+	suspend fun deleteUnpublishedJoinOwnership(logicalTrackingId: String, serviceRunId: String): Int
+
+	@Query("DELETE FROM source_service_run WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId")
+	suspend fun deleteUnpublishedJoinRun(logicalTrackingId: String, serviceRunId: String): Int
+
+	@Query("DELETE FROM session_lifecycle_intent_version WHERE logical_tracking_id = :logicalTrackingId AND manifest_revision = :manifestRevision")
+	suspend fun deleteUnpublishedJoinIntents(logicalTrackingId: String, manifestRevision: Long): Int
+
+	@Query("DELETE FROM session_manifest_source WHERE logical_tracking_id = :logicalTrackingId AND manifest_revision = :manifestRevision")
+	suspend fun deleteUnpublishedJoinBindings(logicalTrackingId: String, manifestRevision: Long): Int
+
+	@Query("DELETE FROM session_manifest_version WHERE logical_tracking_id = :logicalTrackingId AND manifest_revision = :manifestRevision")
+	suspend fun deleteUnpublishedJoinManifest(logicalTrackingId: String, manifestRevision: Long): Int
 
 	@Query("DELETE FROM source_service_run")
 	fun deleteAllServiceRuns()

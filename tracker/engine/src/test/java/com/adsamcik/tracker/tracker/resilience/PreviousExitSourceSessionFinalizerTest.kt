@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -18,9 +19,11 @@ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.dao.PriorProcessRegistrationReconciliationResult
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
 import com.adsamcik.tracker.tracker.api.SourceCallerReplayReference
 import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
 import com.adsamcik.tracker.tracker.source.coordinator.AndroidStartDeliveryState
+import com.adsamcik.tracker.tracker.source.coordinator.AuthoritativeSessionCoordinator
 import com.adsamcik.tracker.tracker.source.coordinator.LifecycleActionStatus
 import com.adsamcik.tracker.tracker.source.coordinator.LifecycleDesiredState
 import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
@@ -34,6 +37,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -57,6 +61,221 @@ class PreviousExitSourceSessionFinalizerTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `same boot provider organization survives process exit only after durable Start acceptance`() = runTest {
+		insertSession(MANUAL_ID, SessionMode.MANUAL, CURRENT_BOOT_ID)
+		val dao = database.sourceSessionDao()
+		val original = requireNotNull(dao.session(MANUAL_ID))
+		dao.updateSession(original.copy(sessionMode = LogicalTrackingSessionEntity.MODE_PROVIDER_STEPS,
+			startOrigin = "MANUAL_FOREGROUND_START"))
+		val commands = mockk<TrackingLifecycleCommandAuthority>()
+		every { commands.isAcceptedStart(TrackingStartCommand(original.lifecycleLeaseGeneration)) } returns true
+		val result = PreviousExitSourceSessionFinalizer(Provider { database },
+			FixedClock(RECOVERY_AT_MS, RECOVERY_ELAPSED_NANOS), CurrentBootClockDomainProvider,
+			mockk(), commands).finalizeStaleSessions()
+		result.finalizedLogicalTrackingIds shouldBe emptySet()
+		dao.activeSession()?.logicalTrackingId shouldBe MANUAL_ID
+		dao.incompleteServiceRuns(MANUAL_ID) shouldBe emptyList()
+	}
+
+	@Test
+	fun `provider Start interrupted after prepare hides provisional organization`() = runTest {
+		assertAbandonedProviderStartHidden(SessionLifecycleState.STARTING)
+	}
+
+	@Test
+	fun `provider Start interrupted after Room activation hides provisional organization`() = runTest {
+		assertAbandonedProviderStartHidden(SessionLifecycleState.ACTIVE)
+	}
+
+	private suspend fun assertAbandonedProviderStartHidden(state: SessionLifecycleState) {
+		seedAutomationEpoch()
+		insertSession(MANUAL_ID, SessionMode.MANUAL, CURRENT_BOOT_ID, state)
+		val dao = database.sourceSessionDao()
+		val original = requireNotNull(dao.session(MANUAL_ID))
+		dao.updateSession(original.copy(sessionMode = LogicalTrackingSessionEntity.MODE_PROVIDER_STEPS,
+			startOrigin = "MANUAL_FOREGROUND_START"))
+		insertProviderAnnotation()
+		val commands = mockk<TrackingLifecycleCommandAuthority>()
+		every { commands.isAcceptedStart(any()) } returns false
+		val result = PreviousExitSourceSessionFinalizer(Provider { database },
+			FixedClock(RECOVERY_AT_MS, RECOVERY_ELAPSED_NANOS), CurrentBootClockDomainProvider,
+			mockk(), commands).finalizeStaleSessions()
+		result.finalizedLogicalTrackingIds shouldBe setOf(MANUAL_ID)
+		dao.activeSession() shouldBe null
+		val failed = requireNotNull(dao.session(MANUAL_ID))
+		failed.state shouldBe SessionLifecycleState.FAILED.name
+		failed.cutoffAtMs shouldBe STARTED_AT_MS
+		failed.cutoffElapsedNanos shouldBe original.startedElapsedNanos
+		failed.completedAtMs shouldBe RECOVERY_AT_MS
+		failed.failureCode shouldBe PreviousExitSourceSessionFinalizer.COMPLETION_REASON
+		failed.currentServiceRunId shouldBe null
+		dao.incompleteServiceRuns(MANUAL_ID) shouldBe emptyList()
+		dao.lifecycleActions(MANUAL_ID) shouldBe emptyList()
+		database.sourceBrokerDao().demandHistory(sessionConsumerId(MANUAL_ID)) shouldBe emptyList()
+		val annotation = requireNotNull(database.organizationAnnotationDao().byAdapter("logical:$MANUAL_ID"))
+		annotation.hidden shouldBe true
+		annotation.revision shouldBe 2L
+		database.organizationAnnotationDao().visible(null, null, 10) shouldBe emptyList()
+	}
+
+	@Test
+	fun `accepted prior boot provider organization remains visible after ordinary closure`() = runTest {
+		insertSession(MANUAL_ID, SessionMode.MANUAL, OLD_BOOT_ID)
+		val dao = database.sourceSessionDao()
+		val original = requireNotNull(dao.session(MANUAL_ID))
+		dao.updateSession(original.copy(sessionMode = LogicalTrackingSessionEntity.MODE_PROVIDER_STEPS,
+			startOrigin = "MANUAL_FOREGROUND_START"))
+		insertProviderAnnotation()
+		val commands = mockk<TrackingLifecycleCommandAuthority>()
+		every { commands.isAcceptedStart(TrackingStartCommand(original.lifecycleLeaseGeneration)) } returns true
+		PreviousExitSourceSessionFinalizer(Provider { database },
+			FixedClock(RECOVERY_AT_MS, RECOVERY_ELAPSED_NANOS), CurrentBootClockDomainProvider,
+			mockk(), commands).finalizeStaleSessions()
+		dao.session(MANUAL_ID)?.state shouldBe SessionLifecycleState.FINALIZED.name
+		dao.activeSession() shouldBe null
+		database.organizationAnnotationDao().byAdapter("logical:$MANUAL_ID")?.hidden shouldBe false
+		database.organizationAnnotationDao().visible(null, null, 10).single().adapterKey shouldBe "logical:$MANUAL_ID"
+	}
+
+	private suspend fun insertProviderAnnotation() {
+		database.organizationAnnotationDao().insert(OrganizationAnnotationEntity(
+			localId = "provider-annotation", revision = 1L, createdAtMs = STARTED_AT_MS,
+			updatedAtMs = STARTED_AT_MS, recordingAdapterKey = "logical:$MANUAL_ID",
+			startTimeMs = null, endTimeMs = null, displayZoneId = "UTC", name = null,
+			activityLabelId = null, hidden = false,
+		))
+	}
+
+	@Test
+	fun `interrupted provider source join compensates before descriptor recovery and preserves session`() = runTest {
+		assertInterruptedProviderJoinPreserved(AndroidStartDeliveryState.PREPARED)
+	}
+
+	@Test
+	fun `provider join interrupted after foreground acceptance before apply survives without descriptor`() = runTest {
+		assertInterruptedProviderJoinPreserved(AndroidStartDeliveryState.FOREGROUND_ACCEPTED, withDescriptor = false)
+	}
+
+	private suspend fun assertInterruptedProviderJoinPreserved(
+		deliveryState: AndroidStartDeliveryState,
+		withDescriptor: Boolean = true,
+	) {
+		insertInterruptedProviderJoin(deliveryState)
+		val dao = database.sourceSessionDao()
+		val coordinator = mockk<AuthoritativeSessionCoordinator>()
+		coEvery { coordinator.compensatePreparedAndroidStart(
+			PreparedTrackingStartToken("delivery-token"), 1L, PreviousExitSourceSessionFinalizer.COMPLETION_REASON,
+			CURRENT_BOOT_ID, RECOVERY_ELAPSED_NANOS, RECOVERY_AT_MS,
+		) } coAnswers {
+			// Model the coordinator's separately covered exact-envelope compensation result.
+			val session = requireNotNull(dao.session(MANUAL_ID))
+			val run = requireNotNull(dao.serviceRun(runId(MANUAL_ID)))
+			dao.updateSession(session.copy(state = SessionLifecycleState.ACTIVE.name,
+				sessionMode = LogicalTrackingSessionEntity.MODE_PROVIDER_STEPS, currentServiceRunId = null,
+				currentManifestRevision = null, currentIntentRevision = null, desiredPlanRevision = 0L,
+				lifecycleLeaseGeneration = run.startCommandGeneration))
+			dao.deleteUnpublishedJoinIntents(MANUAL_ID, MANIFEST_REVISION)
+			dao.deleteUnpublishedJoinActions(MANUAL_ID, run.serviceRunId)
+			dao.deleteUnpublishedJoinBindings(MANUAL_ID, MANIFEST_REVISION)
+			dao.deleteUnpublishedJoinManifest(MANUAL_ID, MANIFEST_REVISION)
+			dao.deleteUnpublishedJoinRun(MANUAL_ID, run.serviceRunId)
+			true
+		}
+		val descriptor = manualDescriptor(CURRENT_BOOT_ID)
+		val reconciler = mockk<ActiveTrackingSessionCallerAuthorityReconciler>()
+		coEvery { reconciler.reconcile(descriptor) } coAnswers {
+			dao.session(MANUAL_ID)?.sessionMode shouldBe LogicalTrackingSessionEntity.MODE_PROVIDER_STEPS
+			ActiveTrackingCallerAuthorityReconciliation.Blocked("STALE_JOIN_DESCRIPTOR",
+				TrackingStartFailureDisposition.TERMINAL, descriptor)
+		}
+		val commands = mockk<TrackingLifecycleCommandAuthority>()
+		every { commands.isAcceptedStart(TrackingStartCommand(1L)) } returns true
+		val result = PreviousExitSourceSessionFinalizer(Provider { database },
+			FixedClock(RECOVERY_AT_MS, RECOVERY_ELAPSED_NANOS), CurrentBootClockDomainProvider,
+			reconciler, commands, Provider { coordinator }).finalizeStaleSessions(
+				recoveryDescriptor = descriptor.takeIf { withDescriptor })
+		result.finalizedLogicalTrackingIds shouldBe emptySet()
+		result.descriptorDisposition shouldBe if (withDescriptor) {
+			PreviousExitRecoveryDescriptorDisposition.Clear(descriptor)
+		} else {
+			PreviousExitRecoveryDescriptorDisposition.NoDescriptor
+		}
+		val preserved = requireNotNull(dao.activeSession())
+		preserved.logicalTrackingId shouldBe MANUAL_ID
+		preserved.startedAtMs shouldBe STARTED_AT_MS
+		preserved.startedElapsedNanos shouldBe 1_000L
+		preserved.currentServiceRunId shouldBe null
+		preserved.cutoffAtMs shouldBe null
+		preserved.completedAtMs shouldBe null
+		dao.serviceRun(runId(MANUAL_ID)) shouldBe null
+		dao.incompleteServiceRuns(MANUAL_ID) shouldBe emptyList()
+		database.organizationAnnotationDao().byAdapter("logical:$MANUAL_ID")?.hidden shouldBe false
+		database.organizationAnnotationDao().visible(null, null, 10).single().adapterKey shouldBe "logical:$MANUAL_ID"
+	}
+
+	@Test
+	fun `foreground accepted join with started source follows ordinary closure without rollback retry`() = runTest {
+		assertStartedProviderJoinUsesOrdinaryClosure(LifecycleActionStatus.START_ACCEPTED, attemptCount = 0)
+	}
+
+	@Test
+	fun `foreground accepted join with attempted pending source follows ordinary closure without rollback retry`() = runTest {
+		assertStartedProviderJoinUsesOrdinaryClosure(LifecycleActionStatus.PENDING, attemptCount = 1)
+	}
+
+	private suspend fun assertStartedProviderJoinUsesOrdinaryClosure(
+		status: LifecycleActionStatus,
+		attemptCount: Int,
+	) {
+		insertInterruptedProviderJoin(AndroidStartDeliveryState.FOREGROUND_ACCEPTED)
+		val dao = database.sourceSessionDao()
+		val action = dao.lifecycleActions(MANUAL_ID).single()
+		dao.updateLifecycleAction(action.copy(status = status.name, attemptCount = attemptCount))
+		val commands = mockk<TrackingLifecycleCommandAuthority>()
+		every { commands.isAcceptedStart(TrackingStartCommand(1L)) } returns true
+		val coordinator = mockk<AuthoritativeSessionCoordinator>()
+		val result = PreviousExitSourceSessionFinalizer(Provider { database },
+			FixedClock(RECOVERY_AT_MS, RECOVERY_ELAPSED_NANOS), CurrentBootClockDomainProvider,
+			mockk(), commands, Provider { coordinator }).finalizeStaleSessions()
+		result.finalizedLogicalTrackingIds shouldBe setOf(MANUAL_ID)
+		dao.session(MANUAL_ID)?.state shouldBe SessionLifecycleState.FINALIZED.name
+		dao.serviceRun(runId(MANUAL_ID))?.state shouldBe SessionLifecycleState.FINALIZED.name
+		database.organizationAnnotationDao().byAdapter("logical:$MANUAL_ID")?.hidden shouldBe false
+	}
+
+	@Test
+	fun `pending provider join compensation defers finalization without discarding accepted session`() = runTest {
+		insertInterruptedProviderJoin()
+		val coordinator = mockk<AuthoritativeSessionCoordinator>()
+		coEvery { coordinator.compensatePreparedAndroidStart(any(), any(), any(), any(), any(), any()) } returns false
+		val commands = mockk<TrackingLifecycleCommandAuthority>()
+		every { commands.isAcceptedStart(TrackingStartCommand(1L)) } returns true
+		shouldThrow<PreviousExitCallerAuthorityUnavailableException> {
+			PreviousExitSourceSessionFinalizer(Provider { database },
+				FixedClock(RECOVERY_AT_MS, RECOVERY_ELAPSED_NANOS), CurrentBootClockDomainProvider,
+				mockk(), commands, Provider { coordinator }).finalizeStaleSessions()
+		}
+		database.sourceSessionDao().session(MANUAL_ID)?.state shouldBe SessionLifecycleState.STARTING.name
+		database.organizationAnnotationDao().byAdapter("logical:$MANUAL_ID")?.hidden shouldBe false
+	}
+
+	private suspend fun insertInterruptedProviderJoin(
+		deliveryState: AndroidStartDeliveryState = AndroidStartDeliveryState.PREPARED,
+	) {
+		insertSession(MANUAL_ID, SessionMode.MANUAL, CURRENT_BOOT_ID, SessionLifecycleState.STARTING)
+		insertRun(MANUAL_ID, CURRENT_BOOT_ID, state = SessionLifecycleState.STARTING)
+		insertRecoveryAuthorityEnvelope(MANUAL_ID, changeReason = "PROVIDER_STEPS_JOIN")
+		insertPendingAction(MANUAL_ID, CURRENT_BOOT_ID)
+		insertProviderAnnotation()
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(MANUAL_ID))
+		dao.updateSession(session.copy(startOrigin = "MANUAL_FOREGROUND_START"))
+		val run = requireNotNull(dao.serviceRun(runId(MANUAL_ID)))
+		dao.updateServiceRun(run.copy(androidDeliveryState = deliveryState.name,
+			runtimeAcknowledgement = LifecycleActionStatus.PENDING.name))
+	}
 
 	@Test
 	fun `startup finalizes old boot manual authority and clears its exact descriptor`() = runTest {
@@ -639,6 +858,7 @@ class PreviousExitSourceSessionFinalizerTest {
 		serviceRunId: String = runId(logicalTrackingId),
 		completedSuspensionReason: String? = null,
 		runCompletionReason: String? = completedSuspensionReason,
+		changeReason: String = "SESSION_START",
 	) {
 		val dao = database.sourceSessionDao()
 		val session = requireNotNull(dao.session(logicalTrackingId))
@@ -668,7 +888,7 @@ class PreviousExitSourceSessionFinalizerTest {
 			effectiveWallTimeMs = STARTED_AT_MS,
 			zoneId = "UTC",
 			automationEpoch = null,
-			changeReason = "SESSION_START",
+			changeReason = changeReason,
 			manifestChecksum = "",
 		)
 		dao.insertManifest(

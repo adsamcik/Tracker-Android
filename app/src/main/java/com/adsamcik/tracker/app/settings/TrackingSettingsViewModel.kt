@@ -304,6 +304,11 @@ class TrackingSettingsViewModel internal constructor(
 				true
 			}
 			_uiState.update { it.copy(stepsProviderRepairFailed = failed) }
+			try {
+				TrackerServiceApi.reconcileProviderStepsSession(context)
+			} catch (_: Exception) {
+				// The existing foreground/permission opportunity retries without changing choices.
+			}
 			refreshPermissionState()
 		}
 	}
@@ -681,6 +686,7 @@ class TrackingSettingsViewModel internal constructor(
 		viewModelScope.launch {
 			try {
 				sourcePolicyReconciliationCoordinator.reconcileCurrentPolicyRevision()
+				TrackerServiceApi.reconcileProviderStepsSession(context)
 			} catch (cancelled: CancellationException) {
 				throw cancelled
 			} catch (_: Exception) {
@@ -873,6 +879,7 @@ class TrackingSettingsViewModel internal constructor(
 		) return
 		try {
 			edit.afterCommittedMutation()
+			TrackerServiceApi.reconcileProviderStepsSession(context)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {

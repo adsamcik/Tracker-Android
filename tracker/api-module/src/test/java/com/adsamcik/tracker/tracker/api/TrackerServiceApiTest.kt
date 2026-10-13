@@ -24,6 +24,84 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrackerServiceApiTest {
 	@Test
+	fun providerSourceJoinUsesOriginalCommandAndSharedEnqueue() = runTest {
+		val events = mutableListOf<String>()
+		val original = TrackingStartCommand(7L)
+		val request = TrackingStartRequest(original, true, false,
+			providerStepsContinuation = ProviderStepsSessionContinuation("existing", 2L, 7L, "boot"))
+		val coordinator = RecordingStartCoordinator(TrackingStartPreparationResult.Prepared(
+			PreparedTrackingStartToken("join")), events, continuationRequest = request)
+		TrackerServiceApi.reconcileProviderStepsSession(coordinator,
+			DispositionAuthority(TrackingStartCommandDisposition.Allowed, events),
+			platformEnqueue = { _, command -> command shouldBe original; events += "enqueue"; true }) shouldBe
+			TrackingStartDispatchResult.Enqueued
+		events shouldBe listOf("prepare", "resolve", "enqueue", "mark-enqueued")
+	}
+
+	@Test
+	fun stopAfterProviderJoinPreparationPreventsAndroidDelivery() = runTest {
+		val events = mutableListOf<String>()
+		val request = TrackingStartRequest(TrackingStartCommand(1L), true, false,
+			providerStepsContinuation = ProviderStepsSessionContinuation("existing", 2L, 1L, "boot"))
+		val coordinator = RecordingStartCoordinator(TrackingStartPreparationResult.Prepared(
+			PreparedTrackingStartToken("join")), events, continuationRequest = request)
+		TrackerServiceApi.reconcileProviderStepsSession(coordinator,
+			DispositionAuthority(TrackingStartCommandDisposition.Stale, events),
+			platformEnqueue = { _, _ -> error("A stopped organization cannot acquire sources") }) shouldBe
+			TrackingStartDispatchResult.Terminal("START_COMMAND_STALE_BEFORE_ENQUEUE")
+	}
+
+	@Test
+	fun foregroundRepairWithoutProviderOrganizationDoesNothing() = runTest {
+		val events = mutableListOf<String>()
+		TrackerServiceApi.reconcileProviderStepsSession(RecordingStartCoordinator(
+			TrackingStartPreparationResult.AlreadyActive, events),
+			DispositionAuthority(TrackingStartCommandDisposition.Allowed, events),
+			platformEnqueue = { _, _ -> error("No session") }) shouldBe null
+		events shouldBe emptyList()
+	}
+
+	@Test
+	fun `provider Steps session accepts through the shared Start gate without Android enqueue`() = runTest {
+		val events = mutableListOf<String>()
+		val prepared = TrackingStartPreparationResult.Prepared(PreparedTrackingStartToken("provider-session"),
+			requiresForegroundService = false)
+		val coordinator = RecordingStartCoordinator(prepared, events, providerAcceptance = { true })
+		val request = TrackingStartRequest(TrackingStartCommand(1L), true, false)
+		TrackerServiceApi.dispatchPreparedStartResult(request, coordinator,
+			DispositionAuthority(TrackingStartCommandDisposition.Allowed, events),
+			platformEnqueue = { _, _ -> error("Organization cannot start a foreground service") }) shouldBe
+			TrackingStartDispatchResult.Enqueued
+		events shouldBe listOf("prepare", "resolve", "accept-provider", "reconcile-provider")
+	}
+
+	@Test
+	fun `user exit after provider preparation prevents acceptance of the original manual tap`() = runTest {
+		val events = mutableListOf<String>()
+		var generation = 1L
+		val request = TrackingStartRequest(TrackingStartCommand(1L), true, false,
+			manualSourceSelection = ManualTrackingStartSelection(mapOf(TrackingCaptureSource.STEPS to 1L)))
+		val coordinator = RecordingStartCoordinator(TrackingStartPreparationResult.Prepared(
+			PreparedTrackingStartToken("provider-session"), requiresForegroundService = false), events,
+			providerAcceptance = { error("A later exit forbids session acceptance") })
+		val authority = DispositionAuthority(TrackingStartCommandDisposition.Allowed, events,
+			beforeAction = { generation = 2L }, currentGeneration = { generation })
+		TrackerServiceApi.dispatchPreparedStartResult(request, coordinator, authority,
+			platformEnqueue = { _, _ -> error("Organization cannot enqueue") }) shouldBe
+			TrackingStartDispatchResult.Terminal("START_WITHOUT_SERVICE_NOT_ACCEPTED")
+		events shouldBe listOf("prepare", "resolve", "compensate:START_WITHOUT_SERVICE_NOT_ACCEPTED")
+	}
+
+	@Test
+	fun `no-service End bypasses an independent background service stop dispatcher`() = runTest {
+		reserveRouteAndAwaitDurableStop(reserve = { stopCommand() },
+			finalizeWithoutService = { it shouldBe stopCommand(); true },
+			deliverToRunningService = { _, _ -> error("All-day host must remain running") },
+			finalizeInactiveService = { error("Provider session was already closed") },
+			isCurrent = { true }, isActionable = { false }) shouldBe TrackingStopQuiescenceResult.HANDLED
+	}
+
+	@Test
 	fun `user exit after manual preparation prevents Android delivery of the original command`() = runTest {
 		val events = mutableListOf<String>()
 		var currentGeneration = 1L
@@ -558,8 +636,19 @@ class TrackerServiceApiTest {
 		private val prepareDelayMs: Long = 0L,
 		private val markEnqueued: suspend () -> Boolean = { true },
 		private val compensation: suspend (String) -> Unit = {},
+		private val providerAcceptance: suspend () -> Boolean = { false },
+		private val continuationRequest: TrackingStartRequest? = null,
 	) : TrackingStartRequestCoordinator {
+		override suspend fun providerStepsContinuationRequest() = continuationRequest
 		var allowEnqueue = true
+		override suspend fun acceptWithoutForegroundService(prepared: TrackingStartPreparationResult.Prepared,
+			request: TrackingStartRequest): Boolean {
+			events += "accept-provider"
+			return providerAcceptance()
+		}
+		override suspend fun reconcileAcceptedSessionWithoutService(command: TrackingStartCommand) {
+			events += "reconcile-provider"
+		}
 
 		override suspend fun prepare(request: TrackingStartRequest): TrackingStartPreparationResult {
 			events += "prepare"

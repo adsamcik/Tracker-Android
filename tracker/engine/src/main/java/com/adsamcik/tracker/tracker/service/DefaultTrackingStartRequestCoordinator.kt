@@ -121,8 +121,14 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		ActiveTrackingSessionCallerAuthorityReconciler,
 	private val sourcePolicyRepository: SourcePolicyRepository,
 	private val batteryAwarePolicy: BatteryAwarePolicy = BatteryAwarePolicy(context),
+	private val providerStepsSessions: ProviderStepsSessionLifecycle? = null,
 ) : TrackingStartRequestCoordinator {
 	private val powerManager: PowerManager = context.getSystemServiceTyped(Context.POWER_SERVICE)
+
+	override suspend fun providerStepsContinuationRequest(): TrackingStartRequest? =
+		trackingStartupGate.withReadyGenerationOperation(trackingStartupGate.currentGeneration) {
+			if (!trackingStartupGate.permitsNewCollection) null else providerStepsSessions?.continuationRequest()
+		}
 
 	override suspend fun prepare(request: TrackingStartRequest): TrackingStartPreparationResult =
 		prepareInternal(request)
@@ -166,7 +172,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 
 	private fun isFreshManualStart(request: TrackingStartRequest): Boolean =
 		request.isUserInitiated && !request.isAmbient && request.automaticTrigger == null &&
-			request.recoveryDescriptor == null
+			request.recoveryDescriptor == null && request.providerStepsContinuation == null
 
 	/** Called after durable service/Room acceptance, outside the lifecycle mutex. */
 	suspend fun reconcileAcceptedManualStart(command: TrackingStartCommand) {
@@ -239,7 +245,19 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			return TrackingStartPreparationResult.Rejected("TRACKING_EXPLICIT_RESUME_REQUIRED")
 		}
 		val bootId = bootClockDomainProvider.current()
-		val descriptorResolution = resolveDescriptor(request, bootId)
+		val continuation = request.providerStepsContinuation
+		if (continuation != null && (continuation.bootId != bootId ||
+			continuation.commandGeneration != request.command.generation ||
+			!trackingLifecycleCommandAuthority.isAcceptedStart(request.command) ||
+			trackingLifecycleCommandAuthority.resolveStart(request.command) !=
+				com.adsamcik.tracker.tracker.resilience.TrackingStartCommandDisposition.Allowed)) {
+			return TrackingStartPreparationResult.Rejected("PROVIDER_STEPS_CONTINUATION_STALE")
+		}
+		val descriptorResolution = if (continuation == null) resolveDescriptor(request, bootId) else
+			TrackingStartDescriptorResolution.Resolved(
+				ActiveTrackingSessionDescriptor(isUserInitiated = true, isAmbient = false, policyTier = PolicyTier.OFF,
+					logicalTrackingId = continuation.logicalTrackingId, restartBootId = bootId,
+					restartToken = UUID.randomUUID().toString()), SessionStartOrigin.MANUAL_FOREGROUND_START)
 		val resolved = when (descriptorResolution) {
 			is TrackingStartDescriptorResolution.Failure ->
 				return if (descriptorResolution.disposition == TrackingStartFailureDisposition.RETRYABLE) {
@@ -326,6 +344,11 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		}
 		val acceptedSources = resolveAcceptedSources(reachableRequestedSources, resolved.origin)
 		if (acceptedSources.isEmpty()) {
+			if (isFreshManualStart(request) && continuationAuthority == null && SourceKind.STEPS in requestedSources &&
+				providerStepsSessions?.isAvailable() == true) {
+				return providerStepsSessions.prepare(request.command.generation, resolved.origin,
+					startupGeneration, rollout.revision)
+			}
 			if (writerSetup?.pendingSources?.isNotEmpty() == true) return TrackingStartPreparationResult.SetupPending
 			return TrackingStartPreparationResult.Rejected("TRACKING_CAPTURE_UNAVAILABLE")
 		}
@@ -356,6 +379,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 					origin = resolved.origin,
 					captureMode = captureMode,
 					continuationAuthority = continuationAuthority,
+					providerStepsContinuation = continuation,
 					automaticTrigger = request.automaticTrigger,
 					foregroundCapabilityFlags = foregroundMask,
 					planInputs = planInputs,
@@ -663,6 +687,26 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		operation: () -> T,
 	): T? = trackingStartupGate.withReadyGeneration(startupGeneration, operation)
 
+	override suspend fun acceptWithoutForegroundService(
+		prepared: TrackingStartPreparationResult.Prepared,
+		request: TrackingStartRequest,
+	): Boolean {
+		if (prepared.requiresForegroundService || !isFreshManualStart(request)) return false
+		return trackingStartupGate.withReadyGenerationOperation(prepared.startupGeneration) {
+			val policy = sourcePolicyRepository.currentState() as? SourcePolicyAuthorityState.Active
+				?: return@withReadyGenerationOperation false
+			val settings = trackingParamsRepository.data.first()
+			if (settings.sourcePolicyRevision != policy.snapshot.revision ||
+				(request.manualSourceSelection != null && policy.snapshot.manualStartSelection() !=
+					request.manualSourceSelection)) return@withReadyGenerationOperation false
+			providerStepsSessions?.accept(prepared.token, request.command.generation) == true
+		} == true
+	}
+
+	override suspend fun reconcileAcceptedSessionWithoutService(command: TrackingStartCommand) {
+		reconcileAcceptedManualStart(command)
+	}
+
 	override suspend fun compensate(
 		token: PreparedTrackingStartToken,
 		command: com.adsamcik.tracker.tracker.resilience.TrackingStartCommand,
@@ -671,6 +715,9 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		val startupGeneration = trackingStartupGate.currentGeneration
 		try {
 			trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+				if (providerStepsSessions?.compensate(token, command.generation, failureCode) == true) {
+					return@withReadyGenerationOperation
+				}
 				val run = database.sourceSessionDao().serviceRunByDeliveryToken(token.value)
 				val descriptor = when (val stored = activeTrackingSessionStore.read()) {
 					is ActiveTrackingSessionStoreResult.Success -> stored.descriptor?.takeIf { current ->
@@ -902,7 +949,9 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			command,
 			acceptWhen = { it is TrackingServicePreparedStartClaim.Claimed },
 		) {
-			if (trackingLifecycleCommandAuthority.latestCommandGeneration() != command.generation) {
+			if (trackingLifecycleCommandAuthority.latestCommandGeneration() != command.generation &&
+				(!prepared.claim.isProviderStepsJoin || !trackingLifecycleCommandAuthority.isAcceptedStart(command) ||
+					trackingLifecycleCommandAuthority.pendingCollectionResumeExitId != null)) {
 				TrackingServicePreparedStartClaim.Rejected("START_COMMAND_STALE_BEFORE_FOREGROUND_ACCEPTANCE")
 			} else if (!trackingStartupGate.isReadyGeneration(prepared.startupGeneration)) {
 				TrackingServicePreparedStartClaim.Rejected("TRACKING_STARTUP_GENERATION_CLOSED")

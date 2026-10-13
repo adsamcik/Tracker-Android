@@ -985,7 +985,14 @@ internal class TrackerService : CoreService() {
 		startCommandGeneration: Long,
 	) {
 		withPreparedStartOwnership(preparedTrackingStart.claim.token, TrackingStartCommand(startCommandGeneration)) {
-			if (gracefulStopRequested || trackingLifecycleCommandAuthority.latestCommandGeneration() != startCommandGeneration) {
+			val startCommand = TrackingStartCommand(startCommandGeneration)
+			val acceptedContinuation = preparedTrackingStart.claim.isProviderStepsJoin &&
+				trackingLifecycleCommandAuthority.isAcceptedStart(startCommand) &&
+				trackingLifecycleCommandAuthority.pendingCollectionResumeExitId == null &&
+				trackingLifecycleCommandAuthority.resolveStart(startCommand) ==
+					com.adsamcik.tracker.tracker.resilience.TrackingStartCommandDisposition.Allowed
+			if (gracefulStopRequested ||
+				(trackingLifecycleCommandAuthority.latestCommandGeneration() != startCommandGeneration && !acceptedContinuation)) {
 				return@withPreparedStartOwnership
 			}
 			TrackerDiagnosticLog.info(

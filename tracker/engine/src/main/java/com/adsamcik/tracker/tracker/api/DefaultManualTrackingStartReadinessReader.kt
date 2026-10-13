@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicySnapshot
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.service.manualTrackingSourceCapabilities
+import com.adsamcik.tracker.tracker.service.ProviderStepsSessionLifecycle
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.coordinator.ChosenSourceWriterSetup
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
@@ -28,6 +29,7 @@ class DefaultManualTrackingStartReadinessReader @Inject constructor(
 	private val sourcePolicyRepositoryProvider: Provider<SourcePolicyRepository>,
 	private val chosenSourceWriterSetupProvider: Provider<ChosenSourceWriterSetup>,
 	private val trackingParamsRepositoryProvider: Provider<TrackingParamsRepository>,
+	private val providerStepsSessions: ProviderStepsSessionLifecycle? = null,
 ) : ManualTrackingStartReadinessReader {
 	override suspend fun read(): ManualTrackingStartReadiness = readPreflight().readiness
 
@@ -67,13 +69,17 @@ class DefaultManualTrackingStartReadinessReader @Inject constructor(
 			// READY already proves the exact canonical binding, both prospective capture modes and owner in that snapshot.
 			val reachableSources = setup.readySources
 			val capabilities = context.manualTrackingSourceCapabilities()
+			val providerSteps = SourceKind.STEPS in enabledSources && providerStepsSessions?.isAvailable() == true
+			val available = capabilities.availableSources + if (providerSteps) setOf(SourceKind.STEPS) else emptySet()
+			val supported = capabilities.supportedSources + if (providerSteps) setOf(SourceKind.STEPS) else emptySet()
+			val reachable = reachableSources + if (providerSteps) setOf(SourceKind.STEPS) else emptySet()
 			val readiness = resolveManualTrackingStartReadiness(
 				rolloutRevision = rolloutRevision,
 				enabledSources = enabledSources.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
-				reachableSources = reachableSources.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
-				supportedSources = capabilities.supportedSources
+				reachableSources = reachable.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
+				supportedSources = supported
 					.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
-				availableSources = capabilities.availableSources
+				availableSources = available
 					.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
 				sourcesMissingPreciseLocationPermission =
 					capabilities.sourcesMissingPreciseLocationPermission

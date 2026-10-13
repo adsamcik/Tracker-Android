@@ -9111,6 +9111,226 @@ class AuthoritativeSessionCoordinatorTest {
 		)
 	}
 
+	@Test
+	fun providerOrganizationAttachesFirstPhysicalRunWithoutReplacingItsBounds() = runTest {
+		val original = insertProviderOrganization()
+		val prepared = prepareProviderJoin(original, "join-one")
+		val dao = database.sourceSessionDao()
+		val joined = requireNotNull(dao.session(original.logicalTrackingId))
+		joined.startedAtMs shouldBe original.startedAtMs
+		joined.startedElapsedNanos shouldBe original.startedElapsedNanos
+		joined.state shouldBe "STARTING"
+		joined.sessionMode shouldBe "MANUAL"
+		val run = requireNotNull(dao.serviceRun(prepared.serviceRunId))
+		run.startedAtMs shouldBe 1_000L
+		run.startCommandGeneration shouldBe 7L
+		dao.manifest(original.logicalTrackingId, prepared.manifestRevision)?.changeReason shouldBe "PROVIDER_STEPS_JOIN"
+	}
+
+	@Test
+	fun failedProviderJoinPreservesOriginalOrganizationAndRetryGetsNewAuthority() = runTest {
+		val original = insertProviderOrganization()
+		val first = prepareProviderJoin(original, "join-failed")
+		subject.compensatePreparedAndroidStart(first.token, 7L, "PLATFORM_REJECTED", "boot-1",
+			1_100_000L, 1_100L) shouldBe true
+		val restored = requireNotNull(database.sourceSessionDao().session(original.logicalTrackingId))
+		restored.state shouldBe "ACTIVE"
+		restored.sessionMode shouldBe "PROVIDER_STEPS"
+		restored.lifecycleLeaseGeneration shouldBe 7L
+		restored.currentServiceRunId shouldBe null
+		restored.startedAtMs shouldBe original.startedAtMs
+		database.sourceSessionDao().serviceRun(first.serviceRunId) shouldBe null
+		database.sourceSessionDao().manifests(original.logicalTrackingId) shouldBe emptyList()
+		database.sourceSessionDao().firstStopIntent(original.logicalTrackingId) shouldBe null
+		val retry = prepareProviderJoin(restored, "join-retry")
+		retry.manifestRevision shouldBe 1L
+		retry.intentRevision shouldBe 1L
+		(retry.sourceCallerAuthorityReference != first.sourceCallerAuthorityReference) shouldBe true
+		database.sourceCallerAuthorityDao().rows(first.sourceCallerAuthorityReference.value)
+			.map { it.status }.distinct() shouldBe listOf("RETIRED")
+		subject.claimAndroidStart(first.token, 7L, "boot-1", 1_100_000L, 1_100L)
+			.shouldBeInstanceOf<PreparedSessionClaimResult.Rejected>()
+		// Delayed compensation of the old attempt cannot erase its successor.
+		subject.compensatePreparedAndroidStart(first.token, 7L, "LATE_FAILURE", "boot-1",
+			1_200_000L, 1_200L) shouldBe true
+		database.sourceSessionDao().session(original.logicalTrackingId)?.currentServiceRunId shouldBe retry.serviceRunId
+	}
+
+	@Test
+	fun endedProviderOrganizationCannotBePromotedByStaleForegroundRepair() = runTest {
+		val original = insertProviderOrganization()
+		database.sourceSessionDao().updateSession(original.copy(state = "FINALIZED", lifecycleRevision = 9L,
+			cutoffAtMs = 800L, completedAtMs = 800L)) shouldBe 1
+		subject.prepareAndroidStart(providerJoinRequest(original, "stale-join"), AndroidStartDeliveryMetadata(
+			PreparedTrackingStartToken("stale-join"), 7L, true, false))
+			.shouldBeInstanceOf<SessionStartPreparationResult.Rejected>()
+		database.sourceSessionDao().incompleteServiceRuns(original.logicalTrackingId) shouldBe emptyList()
+	}
+
+	@Test
+	fun stopAfterJoinPreparationCannotBeUndoneByLateCompensation() = runTest {
+		val original = insertProviderOrganization()
+		val prepared = prepareProviderJoin(original, "join-stopped")
+		val current = requireNotNull(database.sourceSessionDao().session(original.logicalTrackingId))
+		database.sourceSessionDao().updateSession(current.copy(state = "FINALIZED",
+			lifecycleRevision = current.lifecycleRevision + 1L, cutoffAtMs = 1_050L, completedAtMs = 1_050L)) shouldBe 1
+		subject.compensatePreparedAndroidStart(prepared.token, 7L, "LATE_PLATFORM_REJECTION", "boot-1",
+			1_100_000L, 1_100L) shouldBe false
+		database.sourceSessionDao().session(original.logicalTrackingId)?.state shouldBe "FINALIZED"
+	}
+
+	@Test
+	fun joinRollbackRetainsAnyPublishedCaptureLineage() = runTest {
+		val original = insertProviderOrganization()
+		val prepared = prepareProviderJoin(original, "join-evidence")
+		database.sourceSessionDao().saveCompleteness(SourceSessionCompletenessEntity(
+			logicalTrackingId = original.logicalTrackingId, serviceRunId = prepared.serviceRunId,
+			sourceKind = SourceKind.PRESSURE.stableCode, sourceInstanceId = "observed", registrationGeneration = 1L,
+			lastAdmissionOrdinal = 1L, lastSourceSequence = 1L, appDrainComplete = true,
+			providerCoverage = "UNKNOWN", stopStatus = "STOPPED", unresolvedSequenceStart = null,
+			unresolvedSequenceEnd = null, updatedAtMs = 1_050L))
+		subject.compensatePreparedAndroidStart(prepared.token, 7L, "PLATFORM_REJECTED", "boot-1",
+			1_100_000L, 1_100L) shouldBe true
+		database.sourceSessionDao().serviceRun(prepared.serviceRunId)?.state shouldBe "FAILED"
+		database.sourceSessionDao().manifests(original.logicalTrackingId).size shouldBe 1
+		database.sourceSessionDao().session(original.logicalTrackingId)?.state shouldBe "FAILED"
+	}
+
+	@Test
+	fun foregroundAcceptedUnappliedJoinRestoresOriginalOrganization() = runTest {
+		val original = insertProviderOrganization()
+		val prepared = prepareProviderJoin(original, "join-before-apply")
+		subject.claimAndroidStart(prepared.token, 7L, "boot-1", 1_100_000L, 1_100L)
+			.shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		subject.markPreparedForegroundAccepted(prepared.token, 7L, "boot-1", 1_200_000L, 1_200L) shouldBe true
+		subject.compensatePreparedAndroidStart(prepared.token, 7L, "PREVIOUS_PROCESS_INTERRUPTED",
+			"boot-1", 1_300_000L, 1_300L) shouldBe true
+		val restored = requireNotNull(database.sourceSessionDao().session(original.logicalTrackingId))
+		restored.state shouldBe "ACTIVE"
+		restored.sessionMode shouldBe "PROVIDER_STEPS"
+		restored.startedAtMs shouldBe original.startedAtMs
+		restored.startedElapsedNanos shouldBe original.startedElapsedNanos
+		restored.lifecycleLeaseGeneration shouldBe 7L
+		database.sourceSessionDao().serviceRun(prepared.serviceRunId) shouldBe null
+		database.sourceSessionDao().manifests(original.logicalTrackingId).size shouldBe 0
+	}
+
+	@Test
+	fun foregroundAcceptedJoinWithRuntimeAttemptCannotBeCompensated() = runTest {
+		val original = insertProviderOrganization()
+		val prepared = prepareProviderJoin(original, "join-runtime-attempt")
+		subject.claimAndroidStart(prepared.token, 7L, "boot-1", 1_100_000L, 1_100L)
+			.shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		subject.markPreparedForegroundAccepted(prepared.token, 7L, "boot-1", 1_200_000L, 1_200L) shouldBe true
+		val dao = database.sourceSessionDao()
+		val action = dao.lifecycleActions(original.logicalTrackingId).first()
+		dao.updateLifecycleAction(action.copy(status = "APPLYING", attemptCount = 1)) shouldBe 1
+		subject.compensatePreparedAndroidStart(prepared.token, 7L, "PREVIOUS_PROCESS_INTERRUPTED",
+			"boot-1", 1_300_000L, 1_300L) shouldBe false
+		dao.serviceRun(prepared.serviceRunId)?.state shouldBe "STARTING"
+		dao.lifecycleActions(original.logicalTrackingId).first().status shouldBe "APPLYING"
+		dao.manifests(original.logicalTrackingId).size shouldBe 1
+	}
+
+	@Test
+	fun foregroundAcceptedJoinWithCaptureCannotBeCompensated() = runTest {
+		val original = insertProviderOrganization()
+		val prepared = prepareProviderJoin(original, "join-foreground-capture")
+		subject.claimAndroidStart(prepared.token, 7L, "boot-1", 1_100_000L, 1_100L)
+			.shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		subject.markPreparedForegroundAccepted(prepared.token, 7L, "boot-1", 1_200_000L, 1_200L) shouldBe true
+		val dao = database.sourceSessionDao()
+		dao.saveCompleteness(SourceSessionCompletenessEntity(
+			logicalTrackingId = original.logicalTrackingId, serviceRunId = prepared.serviceRunId,
+			sourceKind = SourceKind.PRESSURE.stableCode, sourceInstanceId = "observed", registrationGeneration = 1L,
+			lastAdmissionOrdinal = 1L, lastSourceSequence = 1L, appDrainComplete = true,
+			providerCoverage = "UNKNOWN", stopStatus = "STOPPED", unresolvedSequenceStart = null,
+			unresolvedSequenceEnd = null, updatedAtMs = 1_250L))
+		subject.compensatePreparedAndroidStart(prepared.token, 7L, "PREVIOUS_PROCESS_INTERRUPTED",
+			"boot-1", 1_300_000L, 1_300L) shouldBe false
+		dao.serviceRun(prepared.serviceRunId)?.state shouldBe "STARTING"
+		dao.manifests(original.logicalTrackingId).size shouldBe 1
+		dao.hasProviderJoinPublishedEvidence(original.logicalTrackingId, prepared.serviceRunId) shouldBe true
+	}
+
+	@Test
+	fun foregroundAcceptedJoinWithUnavailableRuntimeRestoresOrganization() = runTest {
+		val original = insertProviderOrganization()
+		val prepared = prepareProviderJoin(original, "join-runtime-unavailable")
+		subject.claimAndroidStart(prepared.token, 7L, "boot-1", 1_100_000L, 1_100L)
+			.shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		subject.markPreparedForegroundAccepted(prepared.token, 7L, "boot-1", 1_200_000L, 1_200L) shouldBe true
+		// This fixture has no Pressure runtime. Foreground acceptance grants no fabricated observation.
+		subject.applyPreparedAndroidStart(prepared.token, 7L, "boot-1", 1_300_000L, 1_300L)
+			.shouldBeInstanceOf<SessionStartResult.Failed>()
+		val restored = requireNotNull(database.sourceSessionDao().session(original.logicalTrackingId))
+		restored.state shouldBe "ACTIVE"
+		restored.sessionMode shouldBe "PROVIDER_STEPS"
+		restored.startedAtMs shouldBe original.startedAtMs
+		database.sourceSessionDao().serviceRun(prepared.serviceRunId) shouldBe null
+		database.sourceSessionDao().firstStopIntent(original.logicalTrackingId) shouldBe null
+	}
+
+	@Test
+	fun unpublishedJoinProofFindsSharedWalThroughItsAuthorizationMember() = runTest {
+		val original = insertProviderOrganization()
+		val prepared = prepareProviderJoin(original, "join-shared-wal")
+		installPendingBackgroundRadioCoordinator()
+		val wal = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(1L))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_revision = 99 WHERE admission_ordinal = 1")
+		database.sourceBrokerDao().insertAuthorizations(listOf(SourceAuthorizationEntity(
+			sourceKind = wal.sourceKind, registrationGeneration = wal.registrationGeneration, authorizationRevision = 99L,
+			memberId = "join-member", authorizationFingerprint = "join-fingerprint", purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			demandId = "join-demand", consumerId = "session:" + original.logicalTrackingId,
+			purpose = SourceBrokerPurpose.SESSION_CAPTURE, sourcePolicyRevision = 1L, consentEpoch = 1L,
+			persistenceEligible = true, effectiveBootId = "boot-1", effectiveElapsedRealtimeNanos = 1_000_000L,
+			effectiveWallTimeMs = 1_000L, logicalTrackingId = original.logicalTrackingId,
+			serviceRunId = prepared.serviceRunId, manifestRevision = 1L, lifecycleLeaseGeneration = 1L)))
+		wal.logicalTrackingId shouldBe null
+		wal.serviceRunId shouldBe null
+		database.sourceSessionDao().hasProviderJoinPublishedEvidence(original.logicalTrackingId, prepared.serviceRunId) shouldBe true
+		subject.compensatePreparedAndroidStart(prepared.token, 7L, "PLATFORM_REJECTED", "boot-1",
+			1_600_000L, 1_600L) shouldBe true
+		database.sourceSessionDao().serviceRun(prepared.serviceRunId)?.state shouldBe "FAILED"
+		database.sourceEventWalDao().getByAdmissionOrdinal(1L)?.eventId shouldBe wal.eventId
+	}
+
+	@Test
+	fun unpublishedJoinProofRetainsTrimmedRadioCaptureScope() = runTest {
+		val original = insertProviderOrganization()
+		val prepared = prepareProviderJoin(original, "join-retained-scope")
+		database.openHelper.writableDatabase.execSQL(
+			"INSERT INTO source_event_retention_scope_proof (source_kind, purpose, logical_tracking_id, service_run_id, " +
+				"source_policy_revision, capture_consent_epoch, collected_data_epoch, scope_deletion_generation, " +
+				"logical_run_scope_digest, retained_event_high_water_ordinal, retained_event_authority_checksum, effect_checksum) " +
+				"VALUES (5, 'SESSION_CAPTURE', ?, ?, 1, 1, 0, 0, 'retained', 1, 'retained', 'retained')",
+			arrayOf(original.logicalTrackingId, prepared.serviceRunId))
+		// Even an unknown or malformed retained scope cannot be silently removed as an unpublished attempt.
+		database.sourceSessionDao().hasProviderJoinPublishedEvidence(original.logicalTrackingId, prepared.serviceRunId) shouldBe true
+	}
+
+	private suspend fun insertProviderOrganization(): com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity {
+		val row = com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity(
+			logicalTrackingId = "provider-logical", state = "ACTIVE", lifecycleRevision = 2L,
+			desiredPlanRevision = 0L, rolloutRevision = 1L, startOrigin = "MANUAL_FOREGROUND_START",
+			clockDomainId = "boot-1", startedAtMs = 100L, startedElapsedNanos = 100_000L,
+			cutoffAtMs = null, cutoffElapsedNanos = null, completedAtMs = null, finalAdmissionOrdinal = null,
+			failureCode = null, sessionMode = "PROVIDER_STEPS", lifecycleLeaseGeneration = 7L, lifecycleBootId = "boot-1")
+		database.sourceSessionDao().insertSession(row)
+		return row
+	}
+
+	private fun providerJoinRequest(row: com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity,
+		runId: String) = pressureStartRequest(row.logicalTrackingId, runId).copy(
+			providerStepsContinuation = com.adsamcik.tracker.tracker.api.ProviderStepsSessionContinuation(
+				row.logicalTrackingId, row.lifecycleRevision, 7L, "boot-1"))
+
+	private suspend fun prepareProviderJoin(row: com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity,
+		runId: String): PreparedSessionStart = subject.prepareAndroidStart(providerJoinRequest(row, runId),
+			AndroidStartDeliveryMetadata(PreparedTrackingStartToken(runId), 7L, true, false))
+		.shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+
 	private suspend fun prepareAndroidStart(
 		tokenValue: String,
 		commandGeneration: Long,

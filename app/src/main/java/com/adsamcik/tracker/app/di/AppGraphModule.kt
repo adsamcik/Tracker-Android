@@ -56,9 +56,11 @@ object AppGraphModule {
     @Singleton
     fun provideTrackerServiceController(
         history: TrackingHistoryRepository,
+        providerStepsSessions: com.adsamcik.tracker.tracker.service.ProviderStepsSessionLifecycle,
         @ApplicationScope applicationScope: CoroutineScope,
     ): TrackerServiceController = DefaultTrackerServiceController().also {
         it.bindSavedLocationSummaries(history, applicationScope)
+        it.bindProviderStepsSessions(providerStepsSessions.observeSessionInfo(), applicationScope)
     }
 
     @Provides

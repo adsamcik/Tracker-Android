@@ -16,12 +16,36 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class DefaultTrackerServiceControllerTest {
+	@Test
+	fun `provider session uses shared live controls without claiming a service or fake segment`() = runTest {
+		val state = kotlinx.coroutines.flow.MutableStateFlow<TrackerSessionInfo?>(null)
+		val model = DefaultTrackerServiceController()
+		val observation = model.bindProviderStepsSessions(state, backgroundScope)
+		runCurrent()
+		state.value = TrackerSessionInfo(true, isProviderStepsSession = true)
+		runCurrent()
+		model.hasLiveCapture shouldBe true
+		model.isServiceRunning shouldBe false
+		model.sessionFlow.value shouldBe null
+		model.collectionDataFlow.value shouldBe null
+		model.sessionInfoFlow.value?.isProviderStepsSession shouldBe true
+		// Independent background host shutdown cannot erase the organization session.
+		model.updateServiceRunning(false)
+		model.updateSessionInfo(null)
+		model.hasLiveCapture shouldBe true
+		state.value = null
+		runCurrent()
+		model.hasLiveCapture shouldBe false
+		observation.cancel()
+	}
 
 	private lateinit var controller: DefaultTrackerServiceController
 

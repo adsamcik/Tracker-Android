@@ -5,9 +5,13 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.rotateActivityAutomationEpochInTransaction
 import com.adsamcik.tracker.shared.base.database.dao.SourceSessionDao
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.time.Clock
+import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
 import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
+import com.adsamcik.tracker.tracker.source.coordinator.AndroidStartDeliveryState
+import com.adsamcik.tracker.tracker.source.coordinator.AuthoritativeSessionCoordinator
 import com.adsamcik.tracker.tracker.source.coordinator.LifecycleActionStatus
 import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
 import com.adsamcik.tracker.tracker.source.coordinator.currentRecoverySourceCallerAuthorityCandidate
@@ -35,6 +39,8 @@ class PreviousExitSourceSessionFinalizer @Inject internal constructor(
 	private val clock: Clock,
 	private val bootClockDomainProvider: BootClockDomainProvider,
 	private val callerAuthorityReconciler: ActiveTrackingSessionCallerAuthorityReconciler,
+	private val commandAuthority: TrackingLifecycleCommandAuthority? = null,
+	private val coordinatorProvider: Provider<AuthoritativeSessionCoordinator>? = null,
 ) {
 	suspend fun finalizeStaleSessions(
 		factualCompletedAtMs: Long? = null,
@@ -47,6 +53,7 @@ class PreviousExitSourceSessionFinalizer @Inject internal constructor(
 		val recoveryAtMs = clock.currentTimeMillis()
 		val elapsedRealtimeNanos = clock.elapsedRealtimeNanos()
 		val bootId = bootClockDomainProvider.current()
+		compensateInterruptedProviderJoins(database, bootId, elapsedRealtimeNanos, recoveryAtMs)
 		val eligibleRecoveryDescriptor = recoveryDescriptor
 			?.takeIf { descriptor ->
 				descriptor.isUserInitiated && descriptor.isRestartEligibleForBoot(bootId)
@@ -114,10 +121,16 @@ class PreviousExitSourceSessionFinalizer @Inject internal constructor(
 				)
 			}
 			val stale = incompleteSessions.filter { session ->
+				// Manual organization has no process-bound provider or descriptor to recover.
+				val survivingProviderSteps = session.sessionMode ==
+					LogicalTrackingSessionEntity.MODE_PROVIDER_STEPS &&
+					session.state == SessionLifecycleState.ACTIVE.name && session.clockDomainId == bootId &&
+					session.startOrigin == "MANUAL_FOREGROUND_START" && session.lifecycleLeaseGeneration > 0L &&
+					commandAuthority?.isAcceptedStart(TrackingStartCommand(session.lifecycleLeaseGeneration)) == true
 				val isRecoverableManual = recoveryCandidate != null &&
 					session.logicalTrackingId == recoveryCandidate.logicalTrackingId &&
 					authenticatedRecoveryAuthority != null
-				!isRecoverableManual
+				!isRecoverableManual && !survivingProviderSteps
 			}
 			val pendingAutomaticAction = database.activityAutomaticStartActionDao().current()
 				?.status in PENDING_AUTOMATIC_ACTION_STATES
@@ -144,6 +157,22 @@ class PreviousExitSourceSessionFinalizer @Inject internal constructor(
 				}
 			stale.forEach { session ->
 				val incompleteRuns = authorities.getValue(session.logicalTrackingId).incompleteRuns
+				// Room activation can precede durable command acceptance; neither crash window is a saved session.
+				val abandonedProviderStart = session.sessionMode == LogicalTrackingSessionEntity.MODE_PROVIDER_STEPS &&
+					session.currentServiceRunId == null && incompleteRuns.isEmpty() &&
+					session.state in setOf(SessionLifecycleState.STARTING.name, SessionLifecycleState.ACTIVE.name) &&
+					(session.lifecycleLeaseGeneration <= 0L ||
+						commandAuthority?.isAcceptedStart(TrackingStartCommand(session.lifecycleLeaseGeneration)) != true)
+				if (abandonedProviderStart) {
+					val annotations = database.organizationAnnotationDao()
+					annotations.byAdapter("logical:${session.logicalTrackingId}")?.let { annotation ->
+						check(annotations.update(annotation.copy(
+							hidden = true,
+							revision = annotation.revision + 1L,
+							updatedAtMs = recoveryAtMs,
+						)) == 1) { "Previous-exit provisional annotation changed during finalization" }
+					}
+				}
 				val factualCutoffAtMs = factualCompletedAtMs?.let { factualAtMs ->
 					clampCompletionWallTime(
 						requestedAtMs = factualAtMs,
@@ -177,10 +206,12 @@ class PreviousExitSourceSessionFinalizer @Inject internal constructor(
 				check(
 					dao.updateSession(
 						session.copy(
-							state = SessionLifecycleState.FINALIZED.name,
+							state = if (abandonedProviderStart) SessionLifecycleState.FAILED.name
+								else SessionLifecycleState.FINALIZED.name,
 							lifecycleRevision = session.lifecycleRevision + 1L,
-							cutoffAtMs = cutoffAtMs,
-							cutoffElapsedNanos = cutoffElapsedNanos,
+							cutoffAtMs = if (abandonedProviderStart) session.startedAtMs else cutoffAtMs,
+							cutoffElapsedNanos = if (abandonedProviderStart) session.startedElapsedNanos
+								else cutoffElapsedNanos,
 							completedAtMs = completedAtMs,
 							failureCode = COMPLETION_REASON,
 							currentServiceRunId = null,
@@ -192,6 +223,49 @@ class PreviousExitSourceSessionFinalizer @Inject internal constructor(
 				finalizedLogicalTrackingIds = stale.mapTo(linkedSetOf()) { it.logicalTrackingId },
 				descriptorDisposition = descriptorDisposition,
 			)
+		}
+	}
+
+	private suspend fun compensateInterruptedProviderJoins(
+		database: AppDatabase,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		recoveryAtMs: Long,
+	) {
+		val provider = coordinatorProvider ?: return
+		val dao = database.sourceSessionDao()
+		for (session in dao.incompleteSessions()) {
+			if (session.state != SessionLifecycleState.STARTING.name || session.clockDomainId != bootId) continue
+			val run = session.currentServiceRunId?.let { dao.serviceRun(it) } ?: continue
+			if (run.logicalTrackingId != session.logicalTrackingId || run.bootId != bootId ||
+				run.state != SessionLifecycleState.STARTING.name || run.completedAtMs != null ||
+				run.androidDeliveryState !in setOf(AndroidStartDeliveryState.PREPARED.name,
+					AndroidStartDeliveryState.ENQUEUED.name, AndroidStartDeliveryState.DELIVERED.name,
+					AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name) ||
+				run.startCommandGeneration <= 0L ||
+				commandAuthority?.isAcceptedStart(TrackingStartCommand(run.startCommandGeneration)) != true
+			) continue
+			val manifest = dao.manifest(session.logicalTrackingId, run.preparedManifestRevision) ?: continue
+			if (manifest.serviceRunId != run.serviceRunId || manifest.changeReason != "PROVIDER_STEPS_JOIN") continue
+			if (run.androidDeliveryState == AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name &&
+				(run.preparedManifestRevision != 1L || run.sessionSegmentId != null ||
+					run.runtimeAcknowledgement != LifecycleActionStatus.PENDING.name ||
+					dao.hasProviderJoinPublishedEvidence(session.logicalTrackingId, run.serviceRunId) ||
+					dao.lifecycleActions(session.logicalTrackingId).filter { it.serviceRunId == run.serviceRunId }.any {
+						it.status !in setOf(LifecycleActionStatus.PENDING.name, LifecycleActionStatus.AWAITING_FOREGROUND.name) ||
+							it.attemptCount != 0 || it.sourceInstanceId != null || it.registrationGeneration != null
+					})
+			) continue
+			val token = run.startDeliveryToken?.takeIf(String::isNotBlank) ?: continue
+			// The coordinator rechecks the exact authenticated envelope under its existing lease and transaction.
+			if (!provider.get().compensatePreparedAndroidStart(
+				token = PreparedTrackingStartToken(token),
+				commandGeneration = run.startCommandGeneration,
+				failureCode = COMPLETION_REASON,
+				currentBootId = bootId,
+				elapsedRealtimeNanos = elapsedRealtimeNanos,
+				wallTimeMs = recoveryAtMs,
+			)) throw PreviousExitCallerAuthorityUnavailableException("PROVIDER_STEPS_JOIN_COMPENSATION_PENDING")
 		}
 	}
 

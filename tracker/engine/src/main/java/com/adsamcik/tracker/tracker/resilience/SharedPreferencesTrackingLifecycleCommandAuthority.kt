@@ -15,6 +15,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -33,6 +35,8 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 	private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 	private val commandGate = Mutex()
 	@Volatile private var commandState = readPersistedState()
+	private val acceptedStarts = MutableStateFlow(commandState.latestAcceptedStartGeneration)
+	override val acceptedStartGeneration = acceptedStarts.asStateFlow()
 
 	override val pendingCollectionResumeExitId: String?
 		get() = commandState.handledUserExitId.takeIf { commandState.collectionResumeRequired }
@@ -225,6 +229,9 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 	override fun resolveStart(command: TrackingStartCommand): TrackingStartCommandDisposition =
 		commandState.resolveStart(command)
 
+	override fun isAcceptedStart(command: TrackingStartCommand): Boolean =
+		commandState.latestAcceptedStartGeneration == command.generation
+
 	override suspend fun <T> withCurrentStart(
 		command: TrackingStartCommand,
 		action: suspend () -> T,
@@ -415,7 +422,10 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 				)
 			}
 			val committed = editor.commit()
-			if (committed) commandState = state
+			if (committed) {
+				commandState = state
+				acceptedStarts.value = state.latestAcceptedStartGeneration
+			}
 			committed
 		}
 

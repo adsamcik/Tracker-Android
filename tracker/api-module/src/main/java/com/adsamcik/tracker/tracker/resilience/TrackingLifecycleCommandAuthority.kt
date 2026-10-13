@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.resilience
 import com.adsamcik.tracker.shared.base.startup.TrackingCollectionResumeBoundary
 import com.adsamcik.tracker.tracker.api.ManualTrackingStartContinuation
 import com.adsamcik.tracker.tracker.api.ManualTrackingStartSelection
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 /** One durably ordered request to enter the tracker foreground runtime. */
 data class TrackingStartCommand(
@@ -330,6 +332,12 @@ interface TrackingLifecycleCommandAuthority {
 
 	/** Snapshot for a delayed user Start; negative means this authority cannot issue a ticket. */
 	fun latestCommandGeneration(): Long = -1L
+
+	/** Read-only publication proof from the existing durable Start receipt. */
+	fun isAcceptedStart(command: TrackingStartCommand): Boolean = false
+
+	/** Read-only signal from the existing receipt; Room session visibility follows durable acceptance. */
+	val acceptedStartGeneration: Flow<Long> get() = flowOf(0L)
 
 	/**
 	 * Reserves a delayed user Start only if no START, STOP or user-exit command appeared since
