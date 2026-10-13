@@ -104,7 +104,20 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 		val sessionDiscovery = composer.discoverRetainedDayAuthorities(
 			request.firstEpochDay, request.lastEpochDayInclusive, evidence.retainedFromMs,
 		)
-		val sessionZones = (sessionDiscovery as? StepsRetainedDayAuthorityDiscovery.Ready)?.zoneByDay.orEmpty()
+		val sessionZones = (sessionDiscovery as? StepsRetainedDayAuthorityDiscovery.Ready)
+			?.zoneByDay.orEmpty().toMutableMap()
+		val unverifiableSessionDays = linkedSetOf<Long>()
+		// An unrelated damaged run must not hide independent days. Retry only after the shared
+		// discovery fails, retaining its full qualifiers and this same Room snapshot. A damaged
+		// multi-day run still blocks every day that depends on its authority.
+		if (sessionDiscovery is StepsRetainedDayAuthorityDiscovery.Unverifiable) {
+			for (day in request.firstEpochDay..request.lastEpochDayInclusive) {
+				when (val discovered = composer.discoverRetainedDayAuthorities(day, day, evidence.retainedFromMs)) {
+					is StepsRetainedDayAuthorityDiscovery.Ready -> sessionZones.putAll(discovered.zoneByDay)
+					StepsRetainedDayAuthorityDiscovery.Unverifiable -> unverifiableSessionDays += day
+				}
+			}
+		}
 		val invalidDays = linkedMapOf<Long, StepsDailyDisplayValue.Unavailable>()
 		val storedCandidates = mutableListOf<AmbientStepsStructuralDay>()
 		for (epochDay in request.firstEpochDay..request.lastEpochDayInclusive) {
@@ -183,19 +196,27 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 		val sessionBase = if (sessionReadZones.isEmpty() || sessionDiscovery is StepsRetainedDayAuthorityDiscovery.Unverifiable) {
 			null
 		} else composer.composeForDisplayRead(sessionReadZones)
-		val basePlans = (sessionBase as? StepsDayRepairPreflight.Ready)?.plans.orEmpty().associateBy(StepsDayRepairPlan::epochDay)
+		val sessionBasesByDay = if (sessionDiscovery is StepsRetainedDayAuthorityDiscovery.Unverifiable ||
+			sessionBase is StepsDayRepairPreflight.Unsupported
+		) {
+			sessionReadZones.mapValues { (day, zone) ->
+				if (day in unverifiableSessionDays) null else composer.composeForDisplayRead(mapOf(day to zone))
+			}
+		} else sessionReadZones.mapValues { sessionBase }
 		val days = (request.firstEpochDay..request.lastEpochDayInclusive).map { day ->
 			val zone = zoneByDay[day]
 			val value = invalidDays[day] ?: if (zone == null) displayCalendarUnavailable() else {
 				val source = ambientByDay[AmbientStepsStructuralDay(day, zone.id)]?.total
-				val base = basePlans[day]?.takeIf { it.zoneId == zone }?.numericSteps
+				val sessionDayBase = sessionBasesByDay[day]
+				val base = (sessionDayBase as? StepsDayRepairPreflight.Ready)?.plans
+					?.singleOrNull { it.epochDay == day && it.zoneId == zone }?.numericSteps
 				if (source is AmbientStepsHistoryValue.Unavailable &&
 					source.causes == setOf(AmbientStepsHistoryCause.NO_EVIDENCE) &&
 					evidence.retainedFromMs?.let { floor -> boundsByDay.getValue(day).first < floor } == true
 				) StepsDailyDisplayValue.Unavailable(StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
 					setOf(AmbientStepsHistoryCause.RETAINED))
-				else displayDayValue(source, ambient, base, sessionBase,
-					day in (sessionBase as? StepsDayRepairPreflight.Ready)?.materializingEpochDays.orEmpty())
+				else displayDayValue(source, ambient, base, sessionDayBase,
+					day in (sessionDayBase as? StepsDayRepairPreflight.Ready)?.materializingEpochDays.orEmpty())
 			}
 			StepsDailyDisplayDay(day, value)
 		}

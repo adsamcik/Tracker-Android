@@ -97,6 +97,91 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 	}
 
 	@Test
+	fun `display recovers an independent native day beside a malformed recording`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 5L, laneThroughOrdinal = ADMISSION_ORDINAL + 1L)
+		val damagedDay = DAY + 3L
+		val damagedRun = "damaged-independent-run"
+		insertCoveredCandidate(
+			stepsPerFact = 7L, epochDay = damagedDay, logicalTrackingId = "damaged-independent-logical",
+			runId = damagedRun, firstAdmissionOrdinal = ADMISSION_ORDINAL + 1L,
+		)
+		val range = request(lastEpochDay = damagedDay)
+		val before = repository.readDisplay(range) as StepsDailyDisplay.Snapshot
+		before.days.first().value shouldBe StepsDailyDisplayValue.Complete(5L)
+		before.days.last().value shouldBe StepsDailyDisplayValue.Complete(7L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET effect_checksum = ? WHERE service_run_id = ?",
+			arrayOf<Any>("malformed", damagedRun),
+		)
+
+		val display = repository.readDisplay(range) as StepsDailyDisplay.Snapshot
+		display.days.first().value shouldBe StepsDailyDisplayValue.Complete(5L)
+		display.days.last().value shouldBe StepsDailyDisplayValue.Unavailable(
+			StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+		)
+		// Completeness-sensitive decisions keep their existing all-range contract.
+		repository.read(range) shouldBe StepsNumericSummary.Unverifiable(
+			StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+		)
+	}
+
+	@Test
+	fun `display withholds days dependent on a damaged multi-day native run`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 5L)
+		val laterDay = DAY + 3L
+		val laterStart = LocalDate.ofEpochDay(laterDay).atStartOfDay(ZONE).toInstant().toEpochMilli()
+		val cutoff = laterStart + HOUR_MS
+		val nextOrdinal = ADMISSION_ORDINAL + 2L
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE logical_tracking_session SET cutoff_at_ms = ?, cutoff_elapsed_nanos = ?, " +
+				"completed_at_ms = ?, final_admission_ordinal = ? WHERE logical_tracking_id = ?",
+			arrayOf<Any>(cutoff, elapsedAt(cutoff), cutoff, nextOrdinal, LOGICAL_ID),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_service_run SET completed_at_ms = ?, presentation_acknowledged_at_ms = ? " +
+				"WHERE service_run_id = ?", arrayOf<Any>(cutoff, cutoff, RUN_ID),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_segment SET end_time_ms = ? WHERE service_run_id = ?",
+			arrayOf<Any>(cutoff, RUN_ID),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_session_completeness SET last_admission_ordinal = ?, last_source_sequence = ? " +
+				"WHERE service_run_id = ?", arrayOf<Any>(nextOrdinal, 3L, RUN_ID),
+		)
+		database.stepFactRevisionDao().insert(coveredFact(
+			runId = RUN_ID, manifestRevision = 1L, factIndex = 1, admissionOrdinal = ADMISSION_ORDINAL + 1L,
+			startMs = DAY_START + HOUR_MS, endMs = laterStart, cumulativeStart = 105L,
+			steps = 0L, wallTimeUncertaintyMs = 0L,
+		))
+		database.stepFactRevisionDao().insert(coveredFact(
+			runId = RUN_ID, manifestRevision = 1L, factIndex = 2, admissionOrdinal = nextOrdinal,
+			startMs = laterStart, endMs = cutoff, cumulativeStart = 105L, steps = 7L, wallTimeUncertaintyMs = 0L,
+		))
+		database.sourceProjectionStateDao().advanceProductLaneCursor(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			bindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+			projectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			projectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+			expectedCurrentOrdinal = ADMISSION_ORDINAL, throughOrdinal = nextOrdinal, updatedAtMs = cutoff,
+		) shouldBe 1
+		val range = request(lastEpochDay = laterDay)
+		val before = repository.readDisplay(range) as StepsDailyDisplay.Snapshot
+		before.days.first().value shouldBe StepsDailyDisplayValue.Complete(5L)
+		before.days.last().value shouldBe StepsDailyDisplayValue.Complete(7L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET effect_checksum = ? WHERE source_event_id = ?",
+			arrayOf<Any>("malformed", "$RUN_ID-event-2"),
+		)
+
+		val display = repository.readDisplay(range) as StepsDailyDisplay.Snapshot
+		display.days.first().value shouldBe StepsDailyDisplayValue.Unavailable(
+			StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+		)
+		display.days.last().value shouldBe display.days.first().value
+	}
+
+	@Test
 	fun `display isolates an invalid neighbouring saved zone without guessing its replacement`() = runBlocking<Unit> {
 		insertCoveredCandidate(stepsPerFact = 5L)
 		database.dailySummaryDao().upsert(DAY + 1L, 0f, 999, 0L, 0, 0L, 1L, "not-a-zone")
@@ -738,11 +823,15 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		stepsPerFact: Long = 0L,
 		presentationAcknowledgement: String = SourceServiceRunEntity.PRESENTATION_QUIESCED,
 		epochDay: Long = DAY,
+		logicalTrackingId: String = LOGICAL_ID,
+		runId: String = RUN_ID,
+		firstAdmissionOrdinal: Long = ADMISSION_ORDINAL,
+		laneThroughOrdinal: Long? = null,
 	) {
 		val startMs = LocalDate.ofEpochDay(epochDay).atStartOfDay(ZONE).toInstant().toEpochMilli()
 		require(factCount > 0)
 		require(stepsPerFact >= 0L)
-		val finalAdmissionOrdinal = ADMISSION_ORDINAL + factCount - 1L
+		val finalAdmissionOrdinal = firstAdmissionOrdinal + factCount - 1L
 		val totalSteps = Math.multiplyExact(factCount.toLong(), stepsPerFact)
 		require(totalSteps <= Int.MAX_VALUE)
 		database.dailySummaryDao().upsert(
@@ -755,27 +844,29 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			lastUpdatedMs = 1L,
 			calendarZoneId = ZONE.id,
 		)
-		database.sourceProjectionStateDao().installProductLane(
-			SourceProductProjectionLaneEntity(
-				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-				bindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
-				projectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
-				projectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
-				captureModeMask = 1L,
-				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
-				activatedRolloutRevision = 1L,
-				activationOrdinal = 1L,
-				contiguousAdmissionOrdinal = finalAdmissionOrdinal,
-				captureAdmissionCutoffOrdinal = null,
-				retentionRequired = true,
-				status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
-				installedAtMs = 1L,
-				updatedAtMs = 2L,
-			),
-		)
+		if (database.sourceProjectionStateDao().activeProductLane(SourceDestinationOwnerEntity.SOURCE_STEPS) == null) {
+			database.sourceProjectionStateDao().installProductLane(
+				SourceProductProjectionLaneEntity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					bindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+					projectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+					projectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+					captureModeMask = 1L,
+					productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+					activatedRolloutRevision = 1L,
+					activationOrdinal = 1L,
+					contiguousAdmissionOrdinal = laneThroughOrdinal ?: finalAdmissionOrdinal,
+					captureAdmissionCutoffOrdinal = null,
+					retentionRequired = true,
+					status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+					installedAtMs = 1L,
+					updatedAtMs = 2L,
+				),
+			)
+		}
 		database.sourceSessionDao().insertSession(
 			LogicalTrackingSessionEntity(
-				logicalTrackingId = LOGICAL_ID,
+				logicalTrackingId = logicalTrackingId,
 				state = "FINALIZED",
 				lifecycleRevision = 2L,
 				desiredPlanRevision = 1L,
@@ -809,14 +900,14 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 				source = SegmentSource.USER_CREATED,
 				inferenceVersion = null,
 				createdAt = startMs + HOUR_MS,
-				logicalTrackingId = LOGICAL_ID,
-				serviceRunId = RUN_ID,
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = runId,
 			),
 		)
 		database.sourceSessionDao().insertServiceRun(
 			SourceServiceRunEntity(
-				serviceRunId = RUN_ID,
-				logicalTrackingId = LOGICAL_ID,
+				serviceRunId = runId,
+				logicalTrackingId = logicalTrackingId,
 				state = "FINALIZED",
 				desiredPlanRevision = 1L,
 				rolloutRevision = 1L,
@@ -833,7 +924,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 				runtimeAcknowledgement = "STOP_ACCEPTED",
 				runtimeFailureCode = null,
 				runRevision = 2L,
-				startDeliveryToken = "delivery",
+				startDeliveryToken = "delivery:$runId",
 				startCommandGeneration = 1L,
 				preparedManifestRevision = 1L,
 				preparedIntentRevision = 1L,
@@ -853,7 +944,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			),
 		)
 		val source = SessionManifestSourceEntity(
-			logicalTrackingId = LOGICAL_ID,
+			logicalTrackingId = logicalTrackingId,
 			manifestRevision = 1L,
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
@@ -868,9 +959,9 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			writerBindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
 		)
 		val unsigned = SessionManifestVersionEntity(
-			logicalTrackingId = LOGICAL_ID,
+			logicalTrackingId = logicalTrackingId,
 			manifestRevision = 1L,
-			serviceRunId = RUN_ID,
+			serviceRunId = runId,
 			sessionMode = "MANUAL",
 			sourcePolicyRevision = SOURCE_POLICY_REVISION,
 			acquisitionPlanRevision = 1L,
@@ -890,8 +981,8 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		database.sourceSessionDao().insertManifestSources(listOf(source))
 		database.sourceSessionDao().saveCompleteness(
 			SourceSessionCompletenessEntity(
-				logicalTrackingId = LOGICAL_ID,
-				serviceRunId = RUN_ID,
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = runId,
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 				sourceInstanceId = "steps-instance",
 				registrationGeneration = 1L,
@@ -906,9 +997,10 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			),
 		)
 		insertCoveredFacts(
-			runId = RUN_ID,
+			runId = runId,
+			logicalTrackingId = logicalTrackingId,
 			manifestRevision = 1L,
-			firstAdmissionOrdinal = ADMISSION_ORDINAL,
+			firstAdmissionOrdinal = firstAdmissionOrdinal,
 			intervalStartMs = startMs,
 			factCount = factCount,
 			stepsPerFact = stepsPerFact,
@@ -1048,6 +1140,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		factCount: Int,
 		stepsPerFact: Long,
 		wallTimeUncertaintyMs: Long = 0L,
+		logicalTrackingId: String = LOGICAL_ID,
 	) = database.withTransaction {
 		require(factCount > 0)
 		require(HOUR_MS >= factCount)
@@ -1060,6 +1153,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			database.stepFactRevisionDao().insert(
 				coveredFact(
 					runId = runId,
+					logicalTrackingId = logicalTrackingId,
 					manifestRevision = manifestRevision,
 					factIndex = index,
 					admissionOrdinal = firstAdmissionOrdinal + indexLong,
@@ -1084,6 +1178,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		cumulativeStart: Long,
 		steps: Long,
 		wallTimeUncertaintyMs: Long,
+		logicalTrackingId: String = LOGICAL_ID,
 	): StepFactRevisionEntity {
 		val writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID
 		val sourceEventId = "$runId-event-$factIndex"
@@ -1112,7 +1207,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			wallTimeUncertaintyMs = wallTimeUncertaintyMs,
 			coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
 			effectiveStepCount = steps,
-			logicalTrackingId = LOGICAL_ID,
+			logicalTrackingId = logicalTrackingId,
 			serviceRunId = runId,
 			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 			manifestRevision = manifestRevision,
