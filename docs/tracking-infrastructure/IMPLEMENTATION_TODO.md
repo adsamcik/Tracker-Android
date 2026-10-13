@@ -2501,4 +2501,32 @@ Status: **IMPLEMENTED_UNVALIDATED**; production and regression sources only.
   No remaining actionable static finding; this is not provider acceptance.
 - [ ] Execute these regressions during final convergence and collect provider
   evidence. Complete assembly, all 25 acceptance chains and `dev/v10` integration
-  remain open; the two separately recorded Location data-loss gaps remain.
+  remain open. The two Location fixes are recorded below.
+
+## 2026-10-13 Location data-loss repairs
+
+Status: **IMPLEMENTED_UNVALIDATED**; checkmarks mean authored source and static
+review. Tests, compilation and provider/device checks are **NOT_RUN**.
+
+- [x] Preserve independently qualified all-day Location when session admission,
+  manifest, cutoff or curation rejects it. Reuse the existing Location writer and
+  point identity; keep the session rejected and grant only the valid purpose.
+- [x] Retry both purpose receipts before advancing the Location cursor, including
+  interruption after the all-day write. Retained all-day readers and session
+  diagnostics keep their separate meanings.
+- [x] Commit a received passive delivery through the existing WAL transaction,
+  retaining the original per-fix identities. Parent cancellation cannot leave a
+  saved prefix and unsaved tail; recovery hints are published only after commit.
+  Retryable failures roll back the handoff, while permanent rejection, permission
+  loss and Off still fence individual readings without discarding valid siblings.
+- [x] Author five real Room session/all-day regressions, three Room atomic handoff
+  regressions, and passive-delivery interruption, retry, identity and fence cases.
+- [x] Complete independent review-only inspection of the combined production and
+  regression source; no remaining actionable static finding.
+- [ ] Execute these cases in the final convergence batch and collect real-provider
+  evidence. All 25 complete chains, convergence and local integration remain open.
+
+The receiver's five-second timeout cannot interrupt an in-progress finite WAL
+commit; it is not a hard completion guarantee. Process death or storage failure
+before the first durable commit still cannot guarantee preservation or Android
+redelivery. This slice adds no schema, inbox, provider or parallel Location writer.

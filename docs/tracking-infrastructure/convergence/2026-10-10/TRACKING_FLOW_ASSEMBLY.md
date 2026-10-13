@@ -16,7 +16,14 @@ The input manifest records exact source hashes and the independent review receip
 - Existing canonical Steps readiness no longer depends on upgrading its session
   capture binding first. Preferred-writer transitions and independent system
   recorder/privacy/full-clear boundaries are unchanged; their execution is pending.
-- The interrupted passive Location callback tail before durable admission and independently valid all-day Location rejected by the session remain open.
+- The 2026-10-13 continuation authors both Location data-loss repairs: independent
+  all-day qualification survives session rejection through the same point/writer,
+  and passive callbacks retain their original fix identities in one WAL transaction.
+  Both purpose receipts settle before cursor advancement; motion/recovery hints
+  follow the actual commit. Room and receiver regression sources have independent
+  static review and remain NOT_RUN. Process death before durable commit is still
+  not recoverable by a guarantee of Android redelivery, and the receiver timeout
+  cannot impose a hard completion bound on that finite commit.
 - Full six-source product/organization/data-effects composition and final convergence gates remain in the completion plan.
 
 No build, test, schema gate, device/provider/battery check, dev/v10 integration or push has been performed. This coherent candidate selection does not declare the complete tracking implementation ready for a phone.

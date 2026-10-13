@@ -62,6 +62,42 @@ class DurableSourceEventSinkFactory private constructor(
 	val unbound: SourceEventSink
 		get() = durableSink { it }
 
+	/** A passive callback keeps every original per-fix identity in the existing WAL commit. */
+	internal suspend fun <T> withAtomicLocationAdmission(operation: suspend (SourceEventSink) -> T): T {
+		val activeIngress = requireNotNull(deliveryIngress) { "Location delivery ingress is unavailable" }
+		val committed = mutableListOf<Pair<SourceDeliveryCandidate, DeliveryAdmissionResult>>()
+		return activeIngress.withAtomicAdmission(afterCommit = {
+			try {
+				for ((delivery, result) in committed) {
+					if (result is DeliveryAdmissionResult.Admitted) {
+						val units = delivery.units.associateBy(SourceDeliveryUnit::unitIndex)
+						result.units.forEach { admitted ->
+							units[admitted.unitIndex]?.let { onDurableMotionEvidence(it.evidence, duplicate = false) }
+						}
+					}
+				}
+			} finally {
+				if (committed.isNotEmpty()) requestSourceDrain(SourceKind.LOCATION)
+			}
+		}) { transaction ->
+			operation(object : SourceEventSink {
+				override suspend fun admit(candidate: SourceEvidenceCandidate<*>): SourceAdmissionHandoff =
+					SourceAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.INVALID_EVIDENCE)
+
+				override suspend fun admit(delivery: SourceDeliveryCandidate): SourceDeliveryAdmissionHandoff {
+					require(delivery.units.all { it.evidence.source == SourceKind.LOCATION &&
+						it.evidence.logicalTrackingId == null && it.evidence.serviceRunId == null })
+					val result = transaction.admit(delivery)
+					if (result is DeliveryAdmissionResult.RetryableFailure) {
+						throw AtomicSourceDeliveryAdmissionException(result.code)
+					}
+					if (result.isDurable) committed += delivery to result
+					return result.toHandoff()
+				}
+			})
+		}
+	}
+
 	private fun durableSink(
 		bind: (SourceEvidenceCandidate<*>) -> SourceEvidenceCandidate<*>,
 	): SourceEventSink = object : SourceEventSink {

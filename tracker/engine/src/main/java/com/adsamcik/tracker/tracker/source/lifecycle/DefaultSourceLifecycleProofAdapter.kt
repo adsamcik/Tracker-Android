@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.lifecycle
 
 import androidx.room.withTransaction
+import com.adsamcik.tracker.tracker.source.location.hasAcceptedAmbientSiblingReceipt
 import com.adsamcik.tracker.shared.base.database.qualifyWifiPurposeItems
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.CellPurposeItems
@@ -715,7 +716,9 @@ private class DefaultSourceLifecycleProofAdapter(
 		when (decision.decision) {
 			LocationObservationDecision.REJECTED -> {
 				if (decision.reason.isNullOrBlank() ||
-					decision.acceptedSampleSourceSignalId != null || samples.isNotEmpty() ||
+					decision.acceptedSampleSourceSignalId != null ||
+					(samples.isNotEmpty() && (samples.size != 1 ||
+						!database.hasAcceptedAmbientSiblingReceipt(wal.eventId))) ||
 					!receipt.authenticatesProtectedLocationCanonicalReceipt(
 						wal.eventId,
 						wal.admissionOrdinal,

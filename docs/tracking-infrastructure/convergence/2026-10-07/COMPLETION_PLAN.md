@@ -1,6 +1,6 @@
 # Tracking completion plan
 
-Updated: 2026-10-10. Initial inspected candidate: `5b19ca833596b602643e99d291c4ceae0d3b5cc6`.
+Updated: 2026-10-13. Initial inspected candidate: `5b19ca833596b602643e99d291c4ceae0d3b5cc6`.
 
 ## Outcome and current boundary
 
@@ -111,6 +111,14 @@ product or changing activation gates implicitly.
   gap-record scope before adding storage. Cover permission/provider loss, process
   death, reboot, deletion and unavailable delivery without invented coordinates.
 
+  - [x] Author atomic passive-delivery WAL handoff with original per-fix identities,
+    deferred recovery hints, whole-handoff rollback on retryable failure and
+    individual isolation for permanently invalid readings.
+  - [x] Author Room and receiver regression sources for interruption and replay;
+    complete independent static review. Tests NOT_RUN. Pre-commit process death
+    and storage failure cannot guarantee preservation or Android redelivery;
+    the receiver timeout is not a hard bound once the finite commit starts.
+
 - [ ] **T08 — Complete all-day Steps data and daily presentation.** Preserve the
   selected hourly/enable/open provider copies, 30-second attempts, real provider
   windows and bounded cursor/revision recovery. Daily totals must not add session
@@ -152,6 +160,10 @@ product or changing activation gates implicitly.
   already use retained qualification independently; the specific concern is reconciled
   in `RETAINED_LOCATION_LIFECYCLE_SELECTED/CALLER_TRACE.md`. Preserve both scopes
   without reconstructing expired acquisition authority or adding a proof store.
+  The 2026-10-13 Location continuation also preserves an independently qualified
+  all-day point after session rejection through the same writer/identity. Both
+  purpose receipts settle before cursor advancement; session proof retains the
+  rejection. Production and focused Room regression sources remain unvalidated.
 
 ## B. Complete everyday organization and product surfaces
 

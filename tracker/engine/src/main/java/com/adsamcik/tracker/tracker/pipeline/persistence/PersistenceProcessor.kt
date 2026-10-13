@@ -240,15 +240,23 @@ class PersistenceProcessor @Inject internal constructor(
 			check((write.decision.decision == LocationObservationDecision.ACCEPTED) == (write.sample != null))
 			val revision = requireNotNull(nextSourceRevisionOrNull(true))
 			val observation = write.observation.copy(sourceRevision = revision)
-			check(db.locationObservationDao().insert(observation) != -1L) {
-				"Location observation exists without exact ambient receipt"
+			val rejectedCapture = if (db.locationObservationDao().getBySourceEventId(write.command.wal.eventId) != null) {
+				protectedLocationCanonicalPersistenceGuardProvider.get()
+					.rejectedCaptureInCurrentWriterTransaction(write.command.wal.eventId)
+			} else null
+			if (rejectedCapture == null) {
+				check(db.locationObservationDao().insert(observation) != -1L) {
+					"Location observation exists without exact ambient receipt"
+				}
 			}
 			write.sample?.let { sample ->
 				check(db.locationSampleDao().insert(sample.copy(sourceRevision = revision)) != -1L) {
 					"Location sample exists without exact ambient receipt"
 				}
 			}
-			check(db.locationObservationDecisionDao().insert(listOf(write.decision.copy(sourceRevision = revision))).single() != -1L)
+			if (rejectedCapture == null) {
+				check(db.locationObservationDecisionDao().insert(listOf(write.decision.copy(sourceRevision = revision))).single() != -1L)
+			}
 			db.recordLocationAmbientReceipt(write)
 		}
 	}

@@ -57,6 +57,8 @@ import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
@@ -98,6 +100,12 @@ interface DurableSourceIngress {
 /** Batch admission contract adopted source-by-source without widening legacy ingress mocks. */
 interface DurableSourceDeliveryIngress {
 	suspend fun admit(delivery: SourceDeliveryCandidate): DeliveryAdmissionResult
+
+	/** Retain original delivery identities in one commit; publish hints only after that commit. */
+	suspend fun <T> withAtomicAdmission(
+		afterCommit: () -> Unit,
+		operation: suspend (DurableSourceDeliveryIngress) -> T,
+	): T = throw UnsupportedOperationException("Atomic delivery admission is unavailable")
 	suspend fun admit(
 		delivery: SourceDeliveryCandidate,
 		checkpoint: SensorAdmissionCheckpoint,
@@ -169,6 +177,9 @@ enum class AdmissionFailureCode {
 	COLLECTION_SUPPRESSED,
 	ATOMIC_CHECKPOINT_UNSUPPORTED,
 }
+
+internal class AtomicSourceDeliveryAdmissionException(val code: AdmissionFailureCode) :
+	IllegalStateException(code.name)
 
 @Singleton
 class RoomDurableSourceIngress @Inject constructor(
@@ -583,6 +594,38 @@ class RoomDurableSourceIngress @Inject constructor(
 	override suspend fun admit(delivery: SourceDeliveryCandidate): DeliveryAdmissionResult =
 		admitDeliveryInternal(delivery, checkpoint = null)
 
+	override suspend fun <T> withAtomicAdmission(
+		afterCommit: () -> Unit,
+		operation: suspend (DurableSourceDeliveryIngress) -> T,
+	): T {
+		val gate = trackingStartupGateProvider.get()
+		if (gate.reconcileAdmission() !is TrackingAdmissionStartupResult.Ready) {
+			throw AtomicSourceDeliveryAdmissionException(AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY)
+		}
+		val generation = gate.currentGeneration
+		return withContext(NonCancellable) {
+			val result = database.withTransaction {
+				if (!gate.isReadyGeneration(generation)) {
+					throw AtomicSourceDeliveryAdmissionException(AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY)
+				}
+				// Reconciliation can need Room. Do it before this transaction, then verify the
+				// captured generation instead of waiting for cold recovery while holding Room.
+				val transactionalIngress = object : DurableSourceDeliveryIngress {
+					override suspend fun admit(delivery: SourceDeliveryCandidate): DeliveryAdmissionResult {
+						val admission = admitDeliveryInternal(delivery, null, generation)
+						if (admission is DeliveryAdmissionResult.RetryableFailure) {
+							throw AtomicSourceDeliveryAdmissionException(admission.code)
+						}
+						return admission
+					}
+				}
+				operation(transactionalIngress)
+			}
+			afterCommit()
+			result
+		}
+	}
+
 	override suspend fun admit(
 		delivery: SourceDeliveryCandidate,
 		checkpoint: SensorAdmissionCheckpoint,
@@ -594,6 +637,7 @@ class RoomDurableSourceIngress @Inject constructor(
 	private suspend fun admitDeliveryInternal(
 		delivery: SourceDeliveryCandidate,
 		checkpoint: SensorAdmissionCheckpoint?,
+		expectedStartupGeneration: Long? = null,
 	): DeliveryAdmissionResult {
 		if (!delivery.hasValidObservedTimes()) {
 			return DeliveryAdmissionResult.PermanentFailure(
@@ -606,14 +650,14 @@ class RoomDurableSourceIngress @Inject constructor(
 			)
 		}
 		val startupGate = trackingStartupGateProvider.get()
-		if (startupGate.reconcileAdmission() !is
-			TrackingAdmissionStartupResult.Ready
-		) {
+		if (expectedStartupGeneration?.let { !startupGate.isReadyGeneration(it) } ?: (
+			startupGate.reconcileAdmission() !is TrackingAdmissionStartupResult.Ready
+		)) {
 			return DeliveryAdmissionResult.RetryableFailure(
 				AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY,
 			)
 		}
-		val startupGeneration = startupGate.currentGeneration
+		val startupGeneration = expectedStartupGeneration ?: startupGate.currentGeneration
 		if (delivery.units.any { !startupGate.permitsNewEvidence(it.evidence) }) {
 			return DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.COLLECTION_SUPPRESSED)
 		}
@@ -909,9 +953,14 @@ class RoomDurableSourceIngress @Inject constructor(
 					}
 					val hasQualifiedCaptureItems = if (perItemRadio) radioItems?.hasCaptureItems == true
 						else authorization.hasCapturePurpose()
-					// Ambient delivery has never depended on session admission. Keep that
-					// independent path when a raw callback also carries unusable capture items.
-					val requiresCaptureAdmission = !perItemRadio || radioItems?.hasAmbientItems != true
+					// Preserve independently authorized all-day observations even when capture
+					// is closed. The Location qualifier still checks capture authority separately.
+					val independentAmbientLocation = evidence.source == SourceKind.LOCATION &&
+						authorization.authorizedMembers.any { member ->
+							member.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && member.persistenceEligible
+						}
+					val requiresCaptureAdmission = !independentAmbientLocation &&
+						(!perItemRadio || radioItems?.hasAmbientItems != true)
 					if (requiresCaptureAdmission && hasQualifiedCaptureItems &&
 						!isCaptureAdmissionExecutable(evidence.source.stableCode)
 					) {

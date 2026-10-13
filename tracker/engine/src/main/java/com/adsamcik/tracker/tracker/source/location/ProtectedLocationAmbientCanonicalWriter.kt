@@ -185,16 +185,44 @@ internal suspend fun AppDatabase.loadLocationAmbientCurationState(command: Locat
 
 /** Full content comparison prevents an event-ID collision being adopted as a successful retry. */
 internal suspend fun AppDatabase.readLocationAmbientReceipt(command: LocationAmbientFactCommand): Boolean? {
+	return readLocationAmbientReceipt(command.wal.eventId, command.wal.integrityIdentity, command.authority.demandId)
+}
+
+/** Retained all-day acceptance remains separate from a rejected capture decision for the same fix. */
+internal suspend fun AppDatabase.hasAcceptedAmbientSiblingReceipt(eventId: String): Boolean {
+	val common = locationPurposeDao().receiptByEvent(eventId) ?: return false
+	if (!LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(common)) return false
+	val purposes = locationPurposeDao().purposes(common.sampleId, 17)
+	if (purposes.size > 16 || purposes.any { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) return false
+	val purpose = purposes.firstOrNull {
+		it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
+			LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(it, common)
+	} ?: return false
+	return readLocationAmbientReceipt(eventId, common.walIntegrityIdentity, purpose.authorityId) == true
+}
+
+internal suspend fun AppDatabase.hasAcceptedAmbientSibling(qualification: LocationAmbientQualification): Boolean =
+	qualification is LocationAmbientQualification.Qualified && readLocationAmbientReceipt(qualification.command) == true
+
+private suspend fun AppDatabase.readLocationAmbientReceipt(eventId: String, integrityIdentity: String, demandId: String): Boolean? {
 	val row = sourceProjectionStateDao().joinState(ProtectedLocationCanonicalHandoff.WRITER_ID,
-		ProtectedLocationCanonicalHandoff.WRITER_VERSION, ambientReceiptKey(command)) ?: return null
+		ProtectedLocationCanonicalHandoff.WRITER_VERSION, "ambient-receipt:$eventId") ?: return null
 	check(row.logicalTrackingId == null && row.payloadVersion == 1 && row.payload.size in 1..2048)
-	val observation = requireNotNull(locationObservationDao().getBySourceEventId(command.wal.eventId))
-	val decision = requireNotNull(locationObservationDecisionDao().getBySourceEventId(command.wal.eventId))
-	val sample = locationSampleDao().getBySourceSignalId(ProtectedLocationCanonicalSignalIdentity.canonicalProduct(command.wal.eventId))
-	check((decision.decision == LocationObservationDecision.ACCEPTED) == (sample != null))
+	val observation = requireNotNull(locationObservationDao().getBySourceEventId(eventId))
+	val decision = requireNotNull(locationObservationDecisionDao().getBySourceEventId(eventId))
+	val sample = locationSampleDao().getBySourceSignalId(ProtectedLocationCanonicalSignalIdentity.canonicalProduct(eventId))
+	check(decision.decision == LocationObservationDecision.REJECTED ||
+		(decision.decision == LocationObservationDecision.ACCEPTED && sample != null))
+	if (sample != null) {
+		val common = requireNotNull(locationPurposeDao().receipt(sample.id))
+		val purpose = requireNotNull(locationPurposeDao().purpose(sample.id, SourceBrokerPurpose.AMBIENT_PRODUCT, demandId))
+		check(LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(common) &&
+			common.canonicalContentChecksum == LocationAcceptedReceiptIntegrity.canonicalChecksum(sample) &&
+			LocationAcceptedReceiptIntegrity.hasRetainedIntegrity(purpose, common))
+	}
 	DataInputStream(ByteArrayInputStream(row.payload)).use { input ->
-		check(input.readUTF() == command.wal.integrityIdentity)
-		check(input.readUTF() == command.authority.demandId)
+		check(input.readUTF() == integrityIdentity)
+		check(input.readUTF() == demandId)
 		check(input.readUTF() == locationContentDigest(observation.canonicalReceiptBytes()))
 		check(input.readUTF() == locationContentDigest(decision.canonicalReceiptBytes()))
 		check(input.readUTF() == (sample?.let { locationContentDigest(it.canonicalReceiptBytes()) } ?: ""))

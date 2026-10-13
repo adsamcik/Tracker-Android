@@ -863,6 +863,10 @@ internal class ProtectedLocationCanonicalHandoff(
 			database.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
 		}
 		if (beforeWrite is ProtectedLocationCanonicalReceipt.Complete) {
+			if (beforeWrite.acceptedSample == null && ambient is LocationAmbientQualification.Qualified) {
+				val sibling = writeAmbientSibling(ambient.command)
+				if (sibling != null) return sibling
+			}
 			advanceAfterReceipt(
 				initialLane,
 				expectedCursor,
@@ -872,7 +876,7 @@ internal class ProtectedLocationCanonicalHandoff(
 			)
 			return ProtectedLocationCandidateEffect.Applied(
 				candidate.admissionOrdinal,
-				accepted = beforeWrite.acceptedSample != null,
+				accepted = beforeWrite.acceptedSample != null || database.hasAcceptedAmbientSibling(ambient),
 			)
 		}
 		if (ambient is LocationAmbientQualification.Qualified && database.withTransaction {
@@ -940,6 +944,10 @@ internal class ProtectedLocationCanonicalHandoff(
 			database.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
 		}) {
 			is ProtectedLocationCanonicalReceipt.Complete -> {
+				if (receipt.acceptedSample == null && ambient is LocationAmbientQualification.Qualified) {
+					val sibling = writeAmbientSibling(ambient.command)
+					if (sibling != null) return sibling
+				}
 				advanceAfterReceipt(
 					initialLane,
 					expectedCursor,
@@ -949,7 +957,7 @@ internal class ProtectedLocationCanonicalHandoff(
 				)
 				ProtectedLocationCandidateEffect.Applied(
 					candidate.admissionOrdinal,
-					accepted = receipt.acceptedSample != null,
+					accepted = receipt.acceptedSample != null || database.hasAcceptedAmbientSibling(ambient),
 				)
 			}
 			is ProtectedLocationCanonicalReceipt.Incomplete ->
@@ -966,6 +974,16 @@ internal class ProtectedLocationCanonicalHandoff(
 			}
 		}
 	}
+
+	/** Session curation cannot decide whether an independently authorized all-day point is useful. */
+	private suspend fun writeAmbientSibling(command: LocationAmbientFactCommand): ProtectedLocationCandidateEffect? =
+		when (val result = canonicalWriter.writeAmbient(command)) {
+			ProtectedLocationCanonicalWriteResult.Committed -> null
+			is ProtectedLocationCanonicalWriteResult.Deferred -> ProtectedLocationCandidateEffect.Deferred(result.reason)
+			is ProtectedLocationCanonicalWriteResult.Inactive -> ProtectedLocationCandidateEffect.Deferred(result.reason)
+			is ProtectedLocationCanonicalWriteResult.AuthorityChanged -> ProtectedLocationCandidateEffect.AuthorityChanged(result.reason)
+			is ProtectedLocationCanonicalWriteResult.Failed -> ProtectedLocationCandidateEffect.Failed(result.failureCode, result.terminal)
+		}
 
 	/** A late original session member cannot borrow the final binding's capture support. */
 	private suspend fun canRecoverRetiredAmbientSibling(
@@ -1068,7 +1086,9 @@ internal class ProtectedLocationCanonicalHandoff(
 					updatedAtMs = nowMs(),
 				),
 			)
-            canonicalReceipt.acceptedSample?.id
+            canonicalReceipt.acceptedSample?.id ?: if (database.hasAcceptedAmbientSibling(ambient)) {
+                database.locationPurposeDao().receiptByEvent(command.mutation.identity.sourceEventId.value)?.sampleId
+            } else null
         }.let { sampleId -> sampleId?.let(onSavedPointCommitted) }
     }
 
@@ -1394,6 +1414,18 @@ internal class ProtectedLocationCanonicalPersistenceGuard private constructor(
 		requireNotNull(database).requireProtectedLocationWriterAuthority()
 	}
 
+	/** Reuse only a complete rejected capture receipt; an unfinished or accepted write is a conflict. */
+	suspend fun rejectedCaptureInCurrentWriterTransaction(eventId: String): ProtectedLocationCanonicalReceipt.Complete {
+		val qualified = qualifyInCurrentWriterTransaction(eventId)
+		val receipt = requireNotNull(database).readProtectedLocationCanonicalReceipt(
+			qualified.command, qualified.acquisitionMetadata,
+		)
+		check(receipt is ProtectedLocationCanonicalReceipt.Complete && receipt.acceptedSample == null) {
+			"Location ambient fallback requires a complete rejected session decision"
+		}
+		return receipt
+	}
+
 	companion object {
 		fun unavailable() = ProtectedLocationCanonicalPersistenceGuard(null, null)
 	}
@@ -1522,7 +1554,8 @@ internal suspend fun AppDatabase.readProtectedLocationCanonicalReceipt(
 		}
 		LocationObservationDecision.REJECTED -> {
 			if (decision.acceptedSampleSourceSignalId != null ||
-				locationSampleDao().getBySourceSignalId(canonicalSignalId) != null
+				(locationSampleDao().getBySourceSignalId(canonicalSignalId) != null &&
+					!hasAcceptedAmbientSiblingReceipt(eventId))
 			) {
 				return ProtectedLocationCanonicalReceipt.Invalid(
 					"LOCATION_CANONICAL_REJECTED_SAMPLE_PRESENT",

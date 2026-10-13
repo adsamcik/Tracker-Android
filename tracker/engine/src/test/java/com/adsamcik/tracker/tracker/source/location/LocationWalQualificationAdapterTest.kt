@@ -2,6 +2,21 @@ package com.adsamcik.tracker.tracker.source.location
 
 import android.app.Application
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionJoinStateEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+import com.adsamcik.tracker.tracker.data.collection.LocationCanonicalCurationPoint
+import com.adsamcik.tracker.tracker.data.collection.LocationCanonicalCurationState
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
+import com.adsamcik.tracker.tracker.source.ingress.RoomDurableSourceIngress
+import com.adsamcik.tracker.tracker.source.ingress.DeliveryAdmissionResult
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
+import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.coordinator.toEntity
 import com.adsamcik.tracker.tracker.source.coordinator.toModel
 import com.adsamcik.tracker.shared.base.database.AmbientRadioRetentionAuthorityResult
@@ -93,6 +108,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.CancellationException
 import io.mockk.every
+import io.mockk.coEvery
 import io.mockk.mockk
 import javax.inject.Provider
 import org.junit.After
@@ -139,6 +155,74 @@ class LocationWalQualificationAdapterTest {
 	@After
 	fun tearDown() {
 		database.close()
+	}
+
+	@Test
+	fun `session teleport rejection preserves independently curated all-day point with one identity`() = runTest {
+		val (ordinal, writer) = rejectedSessionWriterFixture()
+		val hints = mutableListOf<Long>()
+		val handoff = ProtectedLocationCanonicalHandoff(database, subject, writer, onSavedPointCommitted = hints::add)
+		val result = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal))
+		assertEquals(1, result.acceptedSamplesCommitted)
+		val evaluated = assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		val command = assertIs<LocationObservationQualification.Qualified>(evaluated.qualification).command
+		val capture = assertIs<ProtectedLocationCanonicalReceipt.Complete>(database.readProtectedLocationCanonicalReceipt(command, evaluated.acquisitionMetadata))
+		assertEquals(LocationObservationDecision.REJECTED, capture.decision.decision)
+		assertEquals(null, capture.acceptedSample)
+		assertEquals(null, capture.decision.acceptedSampleSourceSignalId)
+		val ambient = assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(EVENT_ID)).command
+		assertEquals(true, database.readLocationAmbientReceipt(ambient))
+		val sample = database.locationPurposeDao().visiblePathChunk(0, Long.MAX_VALUE, null, null, 10).single().sample
+		assertEquals(EVENT_ID.value, sample.sourceEventId)
+		assertEquals(OBSERVED_WALL_MS, sample.timeMs)
+		assertEquals(OBSERVED_NANOS, sample.elapsedRealtimeNanos)
+		assertEquals(listOf(SourceBrokerPurpose.AMBIENT_PRODUCT), database.locationPurposeDao().purposes(sample.id, 3).map { it.purpose })
+		assertEquals(0, database.locationSampleDao().countBetween(0, Long.MAX_VALUE))
+		assertEquals(listOf(sample.id), hints)
+		assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal))
+		assertEquals(1L, database.locationSampleDao().countAll())
+		assertEquals(listOf(sample.id), hints)
+	}
+
+	@Test
+	fun `interrupted all-day sibling commit retries rejected capture without duplication`() = runTest {
+		val (ordinal, writer) = rejectedSessionWriterFixture()
+		var interrupt = true
+		val interrupted = object : ProtectedLocationCanonicalWriter {
+			override suspend fun write(command: LocationCapturedFactCommand, acquisitionMetadata: LocationWalAcquisitionMetadata) = writer.write(command, acquisitionMetadata)
+			override suspend fun writeAmbient(command: LocationAmbientFactCommand): ProtectedLocationCanonicalWriteResult {
+				val result = writer.writeAmbient(command)
+				if (interrupt && result == ProtectedLocationCanonicalWriteResult.Committed) {
+					interrupt = false
+					throw CancellationException("commit returned before cursor acknowledgement")
+				}
+				return result
+			}
+		}
+		val handoff = ProtectedLocationCanonicalHandoff(database, subject, interrupted)
+		assertFailsWith<CancellationException> { handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal) }
+		assertEquals(ordinal - 1, database.sourceProjectionStateDao().activeProductLane(LOCATION_SOURCE)?.contiguousAdmissionOrdinal)
+		assertEquals(1L, database.locationSampleDao().countAll())
+		assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal))
+		assertEquals(1L, database.locationSampleDao().countAll())
+		assertEquals(0, database.locationSampleDao().countBetween(0, Long.MAX_VALUE))
+		val receipt = requireNotNull(database.locationPurposeDao().receiptByEvent(EVENT_ID.value))
+		assertEquals(listOf(SourceBrokerPurpose.AMBIENT_PRODUCT), database.locationPurposeDao().purposes(receipt.sampleId, 3).map { it.purpose })
+	}
+
+	@Test
+	fun `all-day Location admission does not require the session capture lane`() = runTest {
+		assertAmbientLocationAdmissionWithRejectedCapture("CLOSED_LANE")
+	}
+
+	@Test
+	fun `all-day Location admission survives a missing session manifest`() = runTest {
+		assertAmbientLocationAdmissionWithRejectedCapture("MISSING_MANIFEST")
+	}
+
+	@Test
+	fun `all-day Location after session cutoff remains independently qualified`() = runTest {
+		assertAmbientLocationAdmissionWithRejectedCapture("SESSION_CUTOFF")
 	}
 
 	@Test
@@ -1954,6 +2038,76 @@ class LocationWalQualificationAdapterTest {
 			unsignedWal.copy(integrityIdentity = unsignedWal.calculatedIntegrityIdentity())
 		}
 		assertEquals(walRows.size, database.sourceEventWalDao().insertDeliveryUnits(walRows).size)
+	}
+
+	private suspend fun TestScope.rejectedSessionWriterFixture(): Pair<Long, ProtectedLocationCanonicalWriter> {
+		installValidFixture(mixedPurposes = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value)).admissionOrdinal
+		installProtectedHandoffAuthority(ordinal)
+		// The session has an existing route anchor; independent all-day curation has none yet.
+		val prior = LocationCanonicalCurationState.EMPTY.copy(lastAccepted = LocationCanonicalCurationPoint(
+			provider = "gps", timeMs = OBSERVED_WALL_MS - 1, elapsedRealtimeNanos = OBSERVED_NANOS - 1,
+			latitude = 50.087, longitude = 16.4208, accuracyM = 5f, altitudeM = null,
+			verticalAccuracyM = null, speedMps = null, speedAccuracyMps = null,
+			bearingDegrees = null, bearingAccuracyDegrees = null,
+		))
+		database.sourceProjectionStateDao().saveJoinState(SourceProjectionJoinStateEntity(
+			ProtectedLocationCanonicalHandoff.WRITER_ID, ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+			"curation-state:$LOGICAL_ID:$RUN_ID", LOGICAL_ID, ordinal,
+			ProtectedLocationCanonicalCurationStateCodec.VERSION,
+			ProtectedLocationCanonicalCurationStateCodec.encode(prior), RECEIVED_WALL_MS,
+		))
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val persistence = newLocationPersistence(dispatchers, RoomPersistenceTransactor(database))
+		return ordinal to ProtectedLocationCanonicalWriterChain({ null },
+			ProtectedLocationOfflineCanonicalWriter(context, database, dispatchers, persistence),
+			ProtectedLocationAmbientCanonicalWriter(context, database, dispatchers, persistence))
+	}
+
+	private suspend fun assertAmbientLocationAdmissionWithRejectedCapture(rejection: String) {
+		installValidFixture(mixedPurposes = true, payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(false)))
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		when (rejection) {
+			"MISSING_MANIFEST" -> database.openHelper.writableDatabase.execSQL("DELETE FROM session_manifest_version")
+			"SESSION_CUTOFF" -> {
+				database.openHelper.writableDatabase.execSQL("UPDATE logical_tracking_session SET state = 'STOPPING', cutoff_elapsed_nanos = 499, cutoff_at_ms = 1499")
+				database.openHelper.writableDatabase.execSQL("UPDATE source_service_run SET state = 'STOPPING'")
+			}
+		}
+		database.sourceRegistrationStateDao().insertIfAbsent(SourceRegistrationStateEntity(
+			LOCATION_SOURCE, "LOCATION_RUNTIME", SOURCE_INSTANCE, BOOT_ID, REGISTRATION_GENERATION,
+			1, PLAN_REVISION, 0, RECEIVED_WALL_MS,
+		))
+		val lifecycle = mockk<CollectedDataLifecycleStore>()
+		coEvery { lifecycle.snapshot() } returns CollectedDataLifecycleSnapshot(0, null)
+		val startup = object : TrackingStartupGate {
+			override val isReady = true
+			override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0)
+		}
+		val ingress = RoomDurableSourceIngress(database, lifecycle, payloadCodec,
+			ExecutableSourceLaneCatalog.explicit(ExecutableSourceLaneCatalog.LOCATION_CANONICAL_HANDOFF_V1), Provider { startup })
+		val payload = locationPayload(false)
+		val observed = OBSERVED_NANOS + 1
+		val candidate = SourceEvidenceCandidate(providerDedupKey = null, logicalTrackingId = null, serviceRunId = null,
+			source = SourceKind.LOCATION, sourceInstanceId = SourceInstanceId(SOURCE_INSTANCE), registrationGeneration = REGISTRATION_GENERATION,
+			physicalConfigurationFingerprint = original.physicalConfigurationFingerprint, authorizationRevision = AUTHORIZATION_REVISION,
+			registrationPurposeEligibilityMask = original.authorizationPurposeEligibilityMask, registrationEligibilityFingerprint = original.authorizationFingerprint,
+			sourceSequence = 0, configRevision = PLAN_REVISION, planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
+			clockDomainId = BOOT_ID, observedElapsedRealtimeNanos = observed, receivedElapsedRealtimeNanos = RECEIVED_NANOS,
+			receivedWallTimeMs = RECEIVED_WALL_MS, wallTimeMs = OBSERVED_WALL_MS, wallTimeUncertaintyMs = 0,
+			capturedCollectedDataEpoch = 0, acquiredAtMs = OBSERVED_WALL_MS, quality = SourceQuality(),
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION, payload = payload)
+		val delivery = SourceDeliveryCandidate(sourceDeliveryIdentity(canonicalLocationDelivery(listOf(payload),
+			LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION, listOf(observed))), listOf(SourceDeliveryUnit(0, candidate)))
+		val admitted = assertIs<DeliveryAdmissionResult.Admitted>(ingress.admit(delivery)).units.single()
+		assertIs<LocationAmbientQualification.Qualified>(subject.qualifyAmbient(admitted.eventId))
+		if (rejection != "CLOSED_LANE") {
+			val capture = subject.qualify(admitted.eventId)
+			assertFalse(capture is LocationWalAdapterResult.Evaluated && capture.qualification is LocationObservationQualification.Qualified)
+		}
+		assertEquals(2L, database.sourceEventWalDao().countAll())
 	}
 
 	private suspend fun insertPlan(plan: LocationPlan) {

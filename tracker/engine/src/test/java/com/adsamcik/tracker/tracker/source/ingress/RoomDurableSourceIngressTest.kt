@@ -88,6 +88,8 @@ import javax.inject.Provider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -623,6 +625,98 @@ class RoomDurableSourceIngressTest {
 
 		duplicate.eventId shouldBe admitted.eventId
 		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `parent cancellation waits for the complete WAL handoff and a recreated reader deduplicates it`() = runTest {
+		val originals = listOf(
+			delivery(candidate(sequence = 0L)).copy(identity = sourceDeliveryIdentity("first-fix".encodeToByteArray())),
+			delivery(candidate(sequence = 0L, observedElapsedNanos = 101L))
+				.copy(identity = sourceDeliveryIdentity("second-fix".encodeToByteArray())),
+		)
+		val firstStaged = CompletableDeferred<Unit>()
+		val continueHandoff = CompletableDeferred<Unit>()
+		var notifications = 0
+		val job = launch {
+			subject.withAtomicAdmission(afterCommit = { notifications++ }) { transaction ->
+				transaction.admit(originals.first()).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+				firstStaged.complete(Unit)
+				continueHandoff.await()
+				transaction.admit(originals.last()).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+			}
+		}
+		firstStaged.await()
+		notifications shouldBe 0
+		job.cancel()
+		continueHandoff.complete(Unit)
+		job.join()
+
+		job.isCancelled shouldBe true
+		notifications shouldBe 1
+		val rows = database.sourceEventWalDao().eventsAfter(0L, 10)
+		rows.map { it.deliveryIdentity } shouldBe originals.map { it.identity.value }
+		rows.map { it.sourceSequence } shouldBe listOf(0L, 1L)
+		startupGate.reconcileCalls shouldBe 1
+		val recreated = RoomDurableSourceIngress(database, lifecycle, DefaultSourcePayloadCodec(),
+			TEST_EXECUTABLE_LANE_CATALOG, Provider { startupGate })
+		originals.forEachIndexed { index, original ->
+			val duplicate = recreated.admit(original).shouldBeInstanceOf<DeliveryAdmissionResult.Duplicate>()
+			duplicate.units.single().eventId.value shouldBe rows[index].eventId
+		}
+		database.sourceEventWalDao().countAll() shouldBe 2L
+		database.sourceRegistrationStateDao().get(SourceKind.ACTIVITY.stableCode, SOURCE_OWNER_SCOPE)
+			?.nextSequence shouldBe 2L
+	}
+
+	@Test
+	fun `late storage failure rolls back the WAL handoff and its sequence allocation before retry`() = runTest {
+		val originals = listOf(
+			delivery(candidate(sequence = 0L)).copy(identity = sourceDeliveryIdentity("first-fix".encodeToByteArray())),
+			delivery(candidate(sequence = 0L, observedElapsedNanos = 101L))
+				.copy(identity = sourceDeliveryIdentity("second-fix".encodeToByteArray())),
+		)
+		val stateBefore = database.sourceEvidenceStateDao().get()
+		var notifications = 0
+		val failure = shouldThrow<AtomicSourceDeliveryAdmissionException> {
+			subject.withAtomicAdmission(afterCommit = { notifications++ }) { transaction ->
+				transaction.admit(originals.first()).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+				// Use the existing storage-failure case after one staged append. The outer
+				// rollback must restore this table as well as the original sequence and WAL.
+				database.openHelper.writableDatabase.execSQL("DROP TABLE source_authorization")
+				transaction.admit(originals.last())
+			}
+		}
+		failure.code shouldBe AdmissionFailureCode.STORAGE_UNAVAILABLE
+		notifications shouldBe 0
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get() shouldBe stateBefore
+		database.sourceRegistrationStateDao().get(SourceKind.ACTIVITY.stableCode, SOURCE_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+		subject.withAtomicAdmission(afterCommit = { notifications++ }) { transaction ->
+			originals.forEach { transaction.admit(it).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>() }
+		}
+		notifications shouldBe 1
+		database.sourceEventWalDao().eventsAfter(0L, 10).map { it.sourceSequence } shouldBe listOf(0L, 1L)
+	}
+
+	@Test
+	fun `permanent rejection within a WAL handoff preserves both valid original deliveries`() = runTest {
+		val originals = listOf(100L, 111L, 101L).map { observed ->
+			delivery(candidate(sequence = 0L, observedElapsedNanos = observed))
+				.copy(identity = sourceDeliveryIdentity("fix-$observed".encodeToByteArray()))
+		}
+		var notifications = 0
+		val results = subject.withAtomicAdmission(afterCommit = { notifications++ }) { transaction ->
+			originals.map { transaction.admit(it) }
+		}
+		results.first().shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		results[1] shouldBe DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.INVALID_OBSERVED_TIME)
+		results.last().shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		notifications shouldBe 1
+		database.sourceEventWalDao().eventsAfter(0L, 10).map { it.deliveryIdentity } shouldBe
+			listOf(originals.first().identity.value, originals.last().identity.value)
+		database.sourceRegistrationStateDao().get(SourceKind.ACTIVITY.stableCode, SOURCE_OWNER_SCOPE)
+			?.nextSequence shouldBe 2L
 	}
 
 	@Test

@@ -8,6 +8,10 @@ import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceDeliveryIngress
 import com.adsamcik.tracker.tracker.source.ingress.AdmissionResult
 import com.adsamcik.tracker.tracker.source.ingress.DeliveryAdmissionResult
+import com.adsamcik.tracker.tracker.source.ingress.AdmissionFailureCode
+import com.adsamcik.tracker.tracker.source.ingress.AtomicSourceDeliveryAdmissionException
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
+import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
@@ -20,15 +24,19 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.coVerify
+import io.mockk.verify
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -60,7 +68,9 @@ class PassiveLocationDeliveryAdmissionTest {
 		coEvery { sink.admit(any<SourceDeliveryCandidate>()) } returns
 			SourceDeliveryAdmissionHandoff.Durable(listOf(1L), 1L)
 		val factory = mockk<DurableSourceEventSinkFactory>()
-		every { factory.unbound } returns sink
+		coEvery { factory.withAtomicLocationAdmission<PassiveLocationDeliveryOutcome>(any()) } coAnswers {
+			firstArg<suspend (SourceEventSink) -> PassiveLocationDeliveryOutcome>().invoke(sink)
+		}
 		val subject = PassiveLocationDeliveryAdmission(startup, device, repository, factory)
 
 		val outcome = subject.admit(identity, listOf(fix(100), fix(200)), 300, 1_000)
@@ -78,7 +88,6 @@ class PassiveLocationDeliveryAdmissionTest {
 		every { device.snapshot() } returns state().copy(backgroundLocationPermission = false)
 		val repository = mockk<SourceRegistrationRepository>()
 		val factory = mockk<DurableSourceEventSinkFactory>()
-		every { factory.unbound } returns mockk()
 
 		val outcome = PassiveLocationDeliveryAdmission(startup, device, repository, factory)
 			.admit(identity, listOf(fix(100)), 300, 1_000)
@@ -99,7 +108,9 @@ class PassiveLocationDeliveryAdmissionTest {
 		coEvery { repository.passiveLocationAdmissionAt(identity, any()) } returns null
 		val sink = mockk<SourceEventSink>()
 		val factory = mockk<DurableSourceEventSinkFactory>()
-		every { factory.unbound } returns sink
+		coEvery { factory.withAtomicLocationAdmission<PassiveLocationDeliveryOutcome>(any()) } coAnswers {
+			firstArg<suspend (SourceEventSink) -> PassiveLocationDeliveryOutcome>().invoke(sink)
+		}
 
 		val outcome = PassiveLocationDeliveryAdmission(startup, device, repository, factory)
 			.admit(identity, (1L..65L).map(::fix), 100L, 1_000L)
@@ -122,7 +133,7 @@ class PassiveLocationDeliveryAdmissionTest {
 		val delivery = originals.asReversed() + Location(originals[64])
 
 		val first = fixture.subject.admit(identity, delivery, 1_000L, 1_000L)
-		val repeated = fixture.subject.admit(identity, originals, 2_000L, 2_000L)
+		val repeated = fixture.recreatedSubject().admit(identity, originals, 2_000L, 2_000L)
 
 		assertEquals(PassiveLocationDeliveryOutcome(129, 0), first)
 		assertEquals(PassiveLocationDeliveryOutcome(129, 0), repeated)
@@ -193,7 +204,7 @@ class PassiveLocationDeliveryAdmissionTest {
 	}
 
 	@Test
-	fun `reached ingress cancellation preserves the admitted prefix and prevents later calls`() = runTest {
+	fun `ingress cancellation rolls back the whole handoff without publishing hints`() = runTest {
 		val fixture = AdmissionFixture()
 		fixture.ingress.beforeAdmission = { _, attempt ->
 			if (attempt == 65) throw CancellationException("receiver cancelled")
@@ -207,36 +218,48 @@ class PassiveLocationDeliveryAdmissionTest {
 
 		assertTrue(job.isCancelled)
 		assertFalse(returned)
-		assertEquals(64, fixture.ingress.events.size)
+		assertEquals(0, fixture.ingress.events.size)
 		assertEquals(65, fixture.ingress.attempts.size)
+		fixture.verifyNoHints()
 		coVerify(exactly = 1) { fixture.registrations.passiveLocationAdmissionAt(identity, 65L) }
 		coVerify(exactly = 0) { fixture.registrations.passiveLocationAdmissionAt(identity, 66L) }
+		fixture.ingress.beforeAdmission = { _, _ -> }
+		val repeated = fixture.recreatedSubject().admit(identity, (1L..129L).map(::fix), 2_000L, 2_000L)
+		assertEquals(PassiveLocationDeliveryOutcome(129, 0), repeated)
+		assertEquals(129, fixture.ingress.events.size)
 	}
 
 	@Test
-	fun `cooperative cancellation at a work boundary prevents the next registration lookup`() = runTest {
+	fun `parent cancellation at a work boundary commits every valid original before acknowledgement`() = runTest {
 		val fixture = AdmissionFixture()
+		var parent: Job? = null
 		fixture.ingress.afterAdmission = { _, count ->
-			if (count == 64) currentCoroutineContext().cancel(CancellationException("receiver stopped"))
+			if (count == 64) parent?.cancel(CancellationException("receiver stopped"))
 		}
-		var returned = false
 		val job = launch {
+			parent = currentCoroutineContext().job
 			fixture.subject.admit(identity, (1L..129L).map(::fix), 1_000L, 1_000L)
-			returned = true
 		}
 		job.join()
 
 		assertTrue(job.isCancelled)
-		assertFalse(returned)
-		assertEquals(64, fixture.ingress.attempts.size)
-		assertEquals(64, fixture.ingress.events.size)
-		coVerify(exactly = 0) { fixture.registrations.passiveLocationAdmissionAt(identity, 65L) }
+		assertEquals(129, fixture.ingress.attempts.size)
+		assertEquals(129, fixture.ingress.events.size)
+		coVerify(exactly = 1) { fixture.registrations.passiveLocationAdmissionAt(identity, 65L) }
+		coVerify(exactly = 1) { fixture.registrations.passiveLocationAdmissionAt(identity, 129L) }
+		val originalIdentities = fixture.ingress.events.toMap()
+		fixture.ingress.afterAdmission = { _, _ -> }
+		val repeated = fixture.recreatedSubject().admit(identity, (1L..129L).map(::fix), 2_000L, 2_000L)
+		assertEquals(PassiveLocationDeliveryOutcome(129, 0), repeated)
+		assertEquals(originalIdentities, fixture.ingress.events)
 	}
 
 	@Test
-	fun `existing five second receiver timeout cancels unfinished later admission`() = runTest {
+	fun `receiver timeout waits for the finite handoff and recreated ingress skips its exact duplicates`() = runTest {
 		val fixture = AdmissionFixture()
 		fixture.ingress.beforeAdmission = { _, attempt ->
+			assertTrue(fixture.ingress.events.isEmpty())
+			if (attempt == 65 || attempt == 129) fixture.verifyNoHints()
 			if (attempt == 65) delay(6_000L)
 		}
 
@@ -245,9 +268,58 @@ class PassiveLocationDeliveryAdmissionTest {
 		}
 
 		assertNull(outcome)
-		assertEquals(64, fixture.ingress.events.size)
-		assertEquals(65, fixture.ingress.attempts.size)
-		coVerify(exactly = 0) { fixture.registrations.passiveLocationAdmissionAt(identity, 66L) }
+		assertEquals(129, fixture.ingress.events.size)
+		assertEquals(129, fixture.ingress.attempts.size)
+		verify(exactly = 1) { fixture.recovery.requestProtectedLocationCanonicalDrain() }
+		verify(exactly = 129) { fixture.motion.onDurableEvidence(any()) }
+		val originalIdentities = fixture.ingress.events.toMap()
+		fixture.ingress.beforeAdmission = { _, _ -> }
+		val repeated = fixture.recreatedSubject().admit(identity, (1L..129L).map(::fix), 2_000L, 2_000L)
+		assertEquals(PassiveLocationDeliveryOutcome(129, 0), repeated)
+		assertEquals(originalIdentities, fixture.ingress.events)
+		verify(exactly = 2) { fixture.recovery.requestProtectedLocationCanonicalDrain() }
+		verify(exactly = 129) { fixture.motion.onDurableEvidence(any()) }
+	}
+
+	@Test
+	fun `retryable storage failure rolls back staged fixes and leaves a complete retry possible`() = runTest {
+		val fixture = AdmissionFixture()
+		fixture.ingress.admissionResult = { attempt ->
+			if (attempt == 65) DeliveryAdmissionResult.RetryableFailure(AdmissionFailureCode.STORAGE_UNAVAILABLE)
+			else null
+		}
+		val failure = try {
+			fixture.subject.admit(identity, (1L..129L).map(::fix), 1_000L, 1_000L)
+			null
+		} catch (failure: AtomicSourceDeliveryAdmissionException) {
+			failure
+		}
+		assertEquals(AdmissionFailureCode.STORAGE_UNAVAILABLE, failure?.code)
+		assertTrue(fixture.ingress.events.isEmpty())
+		fixture.verifyNoHints()
+		fixture.ingress.admissionResult = { _ -> null }
+		val repeated = fixture.recreatedSubject().admit(identity, (1L..129L).map(::fix), 2_000L, 2_000L)
+		assertEquals(PassiveLocationDeliveryOutcome(129, 0), repeated)
+		assertEquals(129, fixture.ingress.events.size)
+	}
+
+	@Test
+	fun `permanently rejected original does not discard valid siblings in the same commit`() = runTest {
+		val fixture = AdmissionFixture()
+		fixture.ingress.admissionResult = { attempt ->
+			if (attempt == 65) DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_REGISTRATION_GENERATION)
+			else null
+		}
+		val originals = (1L..129L).map(::fix)
+		val outcome = fixture.subject.admit(identity, originals, 1_000L, 1_000L)
+		assertEquals(PassiveLocationDeliveryOutcome(128, 1), outcome)
+		val expectedIdentities = originals.filterNot { it.elapsedRealtimeNanos == 65L }.map { location ->
+			locationDeliveryCandidate(listOf(location), listOf(location.elapsedRealtimeNanos),
+				1_000L, 1_000L, fixture.allowed.attribution, false).identity.value
+		}
+		assertEquals(expectedIdentities, fixture.ingress.events.keys.toList())
+		verify(exactly = 1) { fixture.recovery.requestProtectedLocationCanonicalDrain() }
+		verify(exactly = 128) { fixture.motion.onDurableEvidence(any()) }
 	}
 
 	private inner class AdmissionFixture {
@@ -257,6 +329,8 @@ class PassiveLocationDeliveryAdmissionTest {
 		val device = mockk<LocationDeviceStateProvider>()
 		val registrations = mockk<SourceRegistrationRepository>()
 		val ingress = RecordingDeliveryIngress()
+		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)
+		val motion = mockk<CollectionMotionController>(relaxed = true)
 		val allowed = PassiveLocationAdmission(LocationDeliveryAttribution(
 			SourceInstanceId("instance"), 3, "a".repeat(64), 5,
 			8L, "b".repeat(64), 9, "boot", 7), approximate = false)
@@ -269,26 +343,53 @@ class PassiveLocationDeliveryAdmissionTest {
 			coEvery { registrations.passiveLocationAdmissionAt(identity, any()) } returns allowed
 		}
 
-		val subject = PassiveLocationDeliveryAdmission(startup, device, registrations,
-			DurableSourceEventSinkFactory(ingress))
+		val subject = recreatedSubject()
+
+		fun recreatedSubject() = PassiveLocationDeliveryAdmission(startup, device, registrations,
+			DurableSourceEventSinkFactory(ingress, recovery, motion))
+
+		fun verifyNoHints() {
+			verify(exactly = 0) { recovery.requestProtectedLocationCanonicalDrain() }
+			verify(exactly = 0) { motion.onDurableEvidence(any()) }
+		}
 	}
 
 	/** Recording ingress fixture; real adapter/sink/identity logic, no Room or provider evidence. */
 	private class RecordingDeliveryIngress : DurableSourceIngress, DurableSourceDeliveryIngress {
 		val attempts = mutableListOf<SourceDeliveryCandidate>()
 		val events = linkedMapOf<String, SourceEventId>()
+		private var admissionEvents: MutableMap<String, SourceEventId> = events
 		var beforeAdmission: suspend (SourceDeliveryCandidate, Int) -> Unit = { _, _ -> }
 		var afterAdmission: suspend (SourceDeliveryCandidate, Int) -> Unit = { _, _ -> }
+		var admissionResult: (Int) -> DeliveryAdmissionResult? = { _ -> null }
+
+		override suspend fun <T> withAtomicAdmission(
+			afterCommit: () -> Unit,
+			operation: suspend (DurableSourceDeliveryIngress) -> T,
+		): T = withContext(NonCancellable) {
+			val staged = LinkedHashMap(events)
+			admissionEvents = staged
+			try {
+				val result = operation(this@RecordingDeliveryIngress)
+				events.clear()
+				events.putAll(staged)
+				afterCommit()
+				result
+			} finally {
+				admissionEvents = events
+			}
+		}
 
 		override suspend fun admit(delivery: SourceDeliveryCandidate): DeliveryAdmissionResult {
 			attempts += delivery
 			beforeAdmission(delivery, attempts.size)
-			val existing = events[delivery.identity.value]
+			admissionResult(attempts.size)?.let { return it }
+			val existing = admissionEvents[delivery.identity.value]
 			val eventId = existing ?: SourceEventId("point:${delivery.identity.value}")
-			if (existing == null) events[delivery.identity.value] = eventId
-			val ordinal = events.keys.indexOf(delivery.identity.value).toLong() + 1L
+			if (existing == null) admissionEvents[delivery.identity.value] = eventId
+			val ordinal = admissionEvents.keys.indexOf(delivery.identity.value).toLong() + 1L
 			val unit = DeliveryAdmissionResult.AdmittedUnit(0, eventId, ordinal, ordinal)
-			afterAdmission(delivery, events.size)
+			afterAdmission(delivery, admissionEvents.size)
 			return if (existing == null) DeliveryAdmissionResult.Admitted(listOf(unit))
 				else DeliveryAdmissionResult.Duplicate(listOf(unit))
 		}
