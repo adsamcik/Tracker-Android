@@ -35,7 +35,7 @@ internal suspend fun AppDatabase.authenticateImportedActivityRetentionBatch(
 	val retainedFloor = state.retainedFromMs
 		?: return ImportedActivityRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
 	if (receipts.any {
-		it.collectedDataEpoch != state.collectedDataEpoch ||
+		!state.acceptsRetainedEpoch(it.collectedDataEpoch) ||
 			it.sourceEvidenceRevision > state.revision ||
 			it.retainedFromMs > retainedFloor ||
 			it.retainedAtMs > state.updatedAtMs ||
@@ -131,9 +131,9 @@ internal suspend fun AppDatabase.authenticateImportedActivityRetentionBatch(
 	if (runDeletions.distinctBy { it.runIdentity }.size != runDeletions.size ||
 		sourceFences.distinctBy { it.scopeIdentityDigest }.size != sourceFences.size ||
 		runDeletions.any {
-			it.collectedDataEpoch != state.collectedDataEpoch || it.generation != 1L
+			!state.acceptsRetainedEpoch(it.collectedDataEpoch) || it.generation != 1L
 		} || sourceFences.any {
-			it.collectedDataEpoch != state.collectedDataEpoch || it.fenceGeneration != 1L
+			!state.acceptsRetainedEpoch(it.collectedDataEpoch) || it.fenceGeneration != 1L
 		}
 	) return ImportedActivityRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
 

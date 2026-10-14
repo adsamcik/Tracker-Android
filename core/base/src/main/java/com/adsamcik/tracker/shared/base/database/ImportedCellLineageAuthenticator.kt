@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellObservationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellReceiptEntity
@@ -29,6 +30,7 @@ internal object ImportedCellLineageAuthenticator {
 		receipts: List<ImportedCellReceiptEntity>,
 		runs: List<ImportedCellRunEntity>,
 		observations: List<ImportedCellObservationEntity>,
+		retainedState: SourceEvidenceState? = null,
 	): AuthenticatedImportedCellLineage {
 		if (headers.size > ImportedCellDao.MAX_REVISIONS_PER_ENTRY) overflow()
 		if (receipts.size > ImportedCellDao.MAX_RECEIPTS_PER_ENTRY) overflow()
@@ -43,11 +45,11 @@ internal object ImportedCellLineageAuthenticator {
 		if (headers.map { it.importRevision } != expectedRevisions ||
 			headers.map { it.contentChecksum }.distinct().size != headers.size ||
 			headers.any {
-				it.identity != identity || it.collectedDataEpoch != expectedCollectedDataEpoch
+				it.identity != identity || !(retainedState?.acceptsRetainedEpoch(it.collectedDataEpoch) ?: (it.collectedDataEpoch == expectedCollectedDataEpoch))
 			}
 		) corrupt()
 		if (receipts.any {
-			it.entryIdentity != identity || it.collectedDataEpoch != expectedCollectedDataEpoch
+			it.entryIdentity != identity || !(retainedState?.acceptsRetainedEpoch(it.collectedDataEpoch) ?: (it.collectedDataEpoch == expectedCollectedDataEpoch))
 		}) corrupt()
 		if (receipts.distinctBy { it.importJobId to it.importEntryKey }.size != receipts.size) corrupt()
 		val headerByRevision = headers.associateBy { it.importRevision }
@@ -69,7 +71,7 @@ internal object ImportedCellLineageAuthenticator {
 		val headerKeys = headers.map { it.identity to it.importRevision }.toSet()
 		if (runs.any {
 			(it.entryIdentity to it.entryImportRevision) !in headerKeys ||
-				it.collectedDataEpoch != expectedCollectedDataEpoch || it.scopeDeletionGeneration != 0L
+				!(retainedState?.acceptsRetainedEpoch(it.collectedDataEpoch) ?: (it.collectedDataEpoch == expectedCollectedDataEpoch)) || it.scopeDeletionGeneration != 0L
 		}) corrupt()
 		val runKeys = runs.map { Triple(it.entryIdentity, it.entryImportRevision, it.identity) }.toSet()
 		if (runKeys.size != runs.size) corrupt()
@@ -273,6 +275,7 @@ internal object ImportedCellLineageAuthenticator {
 internal fun PortableCapturedCellEntryV1.isMonotonicCorrectionOf(
 	previous: PortableCapturedCellEntryV1,
 ): Boolean {
+	if (isAdditiveReadingSelectionOf(previous)) return true
 	if (this == previous || contentChecksum == previous.contentChecksum) return false
 	if (identity != previous.identity || sessionMode != previous.sessionMode ||
 		startTimeMs != previous.startTimeMs || endTimeMs != previous.endTimeMs ||

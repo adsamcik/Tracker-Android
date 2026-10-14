@@ -54,6 +54,20 @@ class TripsContentComposeTest {
 	// ─── TripCard rendering ─────────────────────────────────────────────
 
 	@Test
+	fun `missing Location distance is unavailable while a measured stationary zero is visible`() {
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				androidx.compose.foundation.layout.Column {
+					TripCard(trip = sampleTrip(id = 1, distanceM = 0f).copy(hasMeasuredDistance = false), onClick = {})
+					TripCard(trip = sampleTrip(id = 2, distanceM = 0f).copy(hasMeasuredDistance = true), onClick = {})
+				}
+			}
+		}
+		composeTestRule.onNodeWithText("Unavailable").assertIsDisplayed()
+		composeTestRule.onNodeWithText("0 m").assertIsDisplayed()
+	}
+
+	@Test
 	fun `trip card displays activity label and distance`() {
 		val trip = sampleTrip()
 		composeTestRule.setContent {

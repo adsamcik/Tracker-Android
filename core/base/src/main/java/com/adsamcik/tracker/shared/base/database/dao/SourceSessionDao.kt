@@ -114,7 +114,7 @@ interface SourceSessionDao {
 		JOIN location_sample_purpose_authority p ON p.purpose = 'SESSION_CAPTURE'
 		AND p.authority_id = run.service_run_id AND p.service_run_id = run.service_run_id
 		JOIN location_accepted_receipt r ON r.sample_id = p.sample_id
-		JOIN source_evidence_state e ON e.id = 1 AND e.collected_data_epoch = r.collected_data_epoch
+		JOIN source_evidence_state e ON e.id = 1 AND (e.collected_data_epoch = r.collected_data_epoch OR instr(',' || e.restored_data_epochs || ',', ',' || r.collected_data_epoch || ',') > 0)
 		JOIN location_sample point ON point.id = p.sample_id
 		WHERE run.logical_tracking_id = session.logical_tracking_id
 		AND p.logical_tracking_id = session.logical_tracking_id
@@ -522,6 +522,29 @@ interface SourceSessionDao {
 
 	@Query("SELECT * FROM source_service_run WHERE service_run_id = :serviceRunId")
 	suspend fun serviceRun(serviceRunId: String): SourceServiceRunEntity?
+
+	/** Original recording identity survives logical restore; this query grants no live authority. */
+	@Query("""
+		SELECT collected_data_epoch FROM (
+			SELECT r.collected_data_epoch FROM location_accepted_receipt r
+			JOIN location_sample_purpose_authority p ON p.sample_id = r.sample_id
+			WHERE p.logical_tracking_id = :logicalTrackingId AND p.service_run_id = :serviceRunId
+			AND p.purpose = 'SESSION_CAPTURE'
+			UNION SELECT collected_data_epoch FROM activity_captured_window_revision
+			WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId
+			UNION SELECT collected_data_epoch FROM step_fact_revision
+			WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId
+			UNION SELECT collected_data_epoch FROM pressure_fact_revision
+			WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId
+			UNION SELECT collected_data_epoch FROM wifi_captured_fact_revision
+			WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId
+			UNION SELECT collected_data_epoch FROM cell_captured_fact_revision
+			WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId
+			UNION SELECT captured_collected_data_epoch FROM source_event_wal
+			WHERE logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId
+		) ORDER BY collected_data_epoch LIMIT 2
+	""")
+	suspend fun recordingEpochs(logicalTrackingId: String, serviceRunId: String): List<Long>
 
 	/**
 	 * Binds the source-neutral presentation segment without changing the source-lifecycle revision.

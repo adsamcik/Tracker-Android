@@ -654,7 +654,7 @@ class ImportedActivityProductReader(
 			}.size != entryDeletionReceipts.size ||
 			runDeletions.distinctBy(ImportedActivityDeletionGenerationEntity::runIdentity).size !=
 			runDeletions.size ||
-			entryDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
+			entryDeletions.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) } ||
 			entryDeletionReceipts.any { receipt ->
 				val deletion = entryDeletions.singleOrNull {
 					it.entryIdentity == receipt.entryIdentity
@@ -664,8 +664,8 @@ class ImportedActivityProductReader(
 					receipt.deletedImportRevision != deletion.deletedImportRevision ||
 					receipt.deletedAtMs != deletion.deletedAtMs
 			} ||
-			runDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-			sourceDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch }
+			runDeletions.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) } ||
+			sourceDeletions.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) }
 		) return candidates.unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
 		val hasExactOwnership = try {
 			hasExactImportedIdentityOwnership(
@@ -701,13 +701,14 @@ class ImportedActivityProductReader(
 		val liveEvaluations = liveCandidates.map { candidate ->
 			currentCoroutineContext().ensureActive()
 			val headers = headersByIdentity[candidate.identity].orEmpty()
-			if (headers.any { it.collectedDataEpoch != state.collectedDataEpoch }) {
+			if (headers.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) }) {
 				return@map candidate.unverifiable(ImportedActivityProductFailure.STALE_COLLECTED_DATA_EPOCH)
 			}
 			try {
 				val lineage = ImportedActivityLineageAuthenticator.authenticate(
 					identity = candidate.identity,
 					expectedCollectedDataEpoch = state.collectedDataEpoch,
+					retainedState = state,
 					headers = headers,
 					receipts = receiptsByIdentity[candidate.identity].orEmpty(),
 					runs = runsByIdentity[candidate.identity].orEmpty(),

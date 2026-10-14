@@ -14,6 +14,16 @@ interface XpLedgerDao : BaseDao<XpLedgerEntity> {
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertOrIgnore(entry: XpLedgerEntity): Long
 
+	@Query("SELECT * FROM xp_ledger WHERE source = 'SESSION' AND source_id IS NOT NULL AND id > :afterId ORDER BY id LIMIT :limit")
+	suspend fun sessionEffectPage(afterId: Long, limit: Int): List<XpLedgerEntity>
+
+	@Query("SELECT * FROM xp_ledger WHERE source = 'SESSION' AND source_id = :segmentId LIMIT 1")
+	suspend fun sessionEffect(segmentId: Long): XpLedgerEntity?
+
+	@Query("UPDATE xp_ledger SET amount = :amount, source_key = :key, source_revision = :revision " +
+		"WHERE source = 'SESSION' AND source_id = :segmentId AND (source_revision IS NULL OR source_revision < :revision)")
+	suspend fun replaceSessionEffect(segmentId: Long, key: String, revision: Long, amount: Int): Int
+
 	@Query("SELECT COALESCE(SUM(amount), 0) FROM xp_ledger")
 	fun getTotalXp(): Long
 

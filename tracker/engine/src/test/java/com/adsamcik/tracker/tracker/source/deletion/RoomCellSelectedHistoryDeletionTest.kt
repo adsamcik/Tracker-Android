@@ -55,6 +55,16 @@ import org.robolectric.annotation.Config
 class RoomCellSelectedHistoryDeletionTest {
 	private lateinit var database: AppDatabase
 
+	@Test
+	fun `local deletion rejects a selection from before data replacement`() = runTest {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 8L,
+			restoredDataEpochs = "7"))
+		val selection = LocalCellHistorySelection(LocalCellHistoryIdentity("f".repeat(64)))
+		service().delete(DeleteCellHistoryRequest(selection, 900L, expectedCollectedDataEpoch = 7L)) shouldBe
+			DeleteCellHistoryResult.Blocked(CellHistoryDeletionBlockedReason.STALE_SELECTION)
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
 	@Before
 	fun setUp() {
 		database = AppDatabase.testDatabase(

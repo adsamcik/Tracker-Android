@@ -102,7 +102,7 @@ internal suspend fun inspectLocationFile(
         val samples = if (identities.isEmpty()) {
             emptyMap()
         } else {
-            database.locationSampleDao().byIds(identities.values.map { it.sampleId })
+            database.locationSampleDao().effectiveByIds(identities.values.map { it.sampleId })
                 .associateBy { it.id }
         }
         for (point in batch) {

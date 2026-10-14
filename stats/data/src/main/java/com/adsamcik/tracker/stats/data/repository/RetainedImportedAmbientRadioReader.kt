@@ -97,7 +97,7 @@ internal class RetainedImportedAmbientRadioReader(private val database: AppDatab
                     AmbientWifiReplayFootprintEntity.KIND_FACT_IDENTITY, record.identity, record.revision) in erased ||
                 Triple(if (record.revision == 0L) AmbientWifiReplayFootprintEntity.KIND_GAP_EFFECT else
                     AmbientWifiReplayFootprintEntity.KIND_FACT_EFFECT, record.effectChecksum, 0L) in erased
-            if (isErased || record.epoch != state.collectedDataEpoch ||
+            if (isErased || !state.acceptsRetainedEpoch(record.epoch) ||
                 state.retainedFromMs?.let { effective.getValue(record.identity).fromMs < it } == true) {
                 invalidIdentities += record.identity
                 readGaps += RadioContextReadGapReason.RETENTION_BOUNDARY

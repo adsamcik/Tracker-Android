@@ -523,9 +523,9 @@ internal suspend fun AppDatabase.visitAuthenticatedAmbientStepsState(
 		transitions.size <= limits.maximumAuthorityTransitions,
 		"Ambient Steps authority-transition maintenance bound exceeded",
 	)
-	check(cursors.all { it.collectedDataEpoch == evidence.collectedDataEpoch } &&
-		gaps.all { it.collectedDataEpoch == evidence.collectedDataEpoch } &&
-		transitions.all { it.collectedDataEpoch == evidence.collectedDataEpoch }
+	check(cursors.all { evidence.acceptsRetainedEpoch(it.collectedDataEpoch) } &&
+		gaps.all { evidence.acceptsRetainedEpoch(it.collectedDataEpoch) } &&
+		transitions.all { evidence.acceptsRetainedEpoch(it.collectedDataEpoch) }
 	) { "Ambient Steps import state belongs to another collected-data epoch" }
 	val cursorsByGeneration = cursors.associateBy(AmbientStepsImportCursorEntity::registrationGeneration)
 	check(cursorsByGeneration.size == cursors.size) { "Ambient Steps cursor generations collide" }
@@ -567,7 +567,7 @@ internal suspend fun AppDatabase.visitAuthenticatedAmbientStepsState(
 	) { "Ambient Steps import state has a dangling cursor reference" }
 	val authenticatedAuthorities = mutableMapOf<AmbientStepsFactAuthorityKey, Boolean>()
 	visitAmbientStepsFactLineages(limits, checkpoint) { lineage ->
-		check(lineage.latest.collectedDataEpoch == evidence.collectedDataEpoch &&
+		check(evidence.acceptsRetainedEpoch(lineage.latest.collectedDataEpoch) &&
 			lineage.latest.writerOwnerGeneration == owner.ownerGeneration
 		) { "Ambient Steps facts do not match current epoch/owner authority" }
 		if (authenticateRetractedPayloadAuthority ||

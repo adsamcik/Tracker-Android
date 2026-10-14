@@ -87,7 +87,7 @@ class AmbientStepsPortableLocalOriginReader(
 			preservedRows.any {
 				!AmbientStepsNativeReplayFootprintIntegrity.isAuthentic(it) ||
 					evidenceEpoch == null ||
-					it.collectedDataEpoch != evidenceEpoch
+					evidence?.acceptsRetainedEpoch(it.collectedDataEpoch) != true
 			}
 		) {
 			storedEvidenceUnverifiable()

@@ -32,6 +32,10 @@ class GameModuleInitializer @Inject constructor(
 	private val miniGameScoreDao: MiniGameScoreDao,
 	private val gameRepository: DefaultGameRepository,
 	private val trackingStartupGate: TrackingStartupGate,
+	private val trackingHistory: com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository,
+	private val progression: com.adsamcik.tracker.game.progression.PlayerProgressionRepository,
+	private val metricDirtyTracker: com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker,
+	private val achievementScheduler: com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler,
 ) : ModuleInitializer {
 	override val priority: Int = 30
 
@@ -52,6 +56,19 @@ class GameModuleInitializer @Inject constructor(
 			domainEventRepository.observeEvents(EpochMs(0L)).collect {
 				consumer.processUnconsumed()
 				explorationConsumer.processUnconsumed()
+			}
+		}
+		appScope.launch(dispatchers.io) {
+			kotlinx.coroutines.flow.combine(trackingHistory.observeSessionRewardChanges(),
+				trackingStartupGate.runtimeReadyChanges) { _, _ -> Unit }.collect {
+				if (trackingStartupGate.reconcile() is com.adsamcik.tracker.shared.base.startup.TrackingStartupResult.Ready) {
+					consumer.processUnconsumed()
+					explorationConsumer.processUnconsumed()
+					progression.reconcileSessionRewards(trackingStartupGate.currentGeneration)
+					metricDirtyTracker.markDirty(setOf(com.adsamcik.tracker.stats.api.metric.MetricKeys.TABLE_DAILY_SUMMARY,
+						com.adsamcik.tracker.stats.api.metric.MetricKeys.TABLE_SESSION_SEGMENT))
+					achievementScheduler.scheduleEvaluation()
+				}
 			}
 		}
 	}

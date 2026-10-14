@@ -259,6 +259,29 @@ class AchievementWorkerTest {
 	}
 
 	@Test
+	fun `corrected or deleted distance retracts a tier earned only by removed data`() = runTest {
+		val definitions = AchievementCatalog.byMetric(MetricKey.DISTANCE_TOTAL_M)
+		val registry = mockk<RuleRegistry>()
+		coEvery { registry.instancesAffectedByTables(any()) } returnsMany listOf(
+			definitions.map(::ruleInstanceFor), emptyList())
+		val metrics = mockk<AchievementMetricsProvider>()
+		coEvery { metrics.collect() } returns MetricSnapshot.of(
+			MetricKey.DISTANCE_TOTAL_M to 0L, MetricKey.ACTIVE_DAYS_TOTAL to 0L)
+		val existing = AchievementProgressEntity(MetricKey.DISTANCE_TOTAL_M.storageKey,
+			lastTierIndex = definitions.maxOf { it.tierIndex }, lastValue = 100_000.0,
+			updatedAt = 1L, lastUnlockedAt = 1L)
+		val dao = mockk<AchievementProgressDao>(relaxed = true)
+		coEvery { dao.getAll() } returns listOf(existing)
+		val written = slot<List<AchievementProgressEntity>>()
+		coEvery { dao.upsertAll(capture(written)) } returns Unit
+		val dirty = DefaultMetricDirtyTracker().apply { markDirty("daily_summary") }
+		newWorker(registry, metrics, dao, dirty).doWork() shouldBe ListenableWorker.Result.success()
+		written.captured.single().lastTierIndex shouldBe -1
+		written.captured.single().lastValue shouldBe 0.0
+		written.captured.single().lastUnlockedAt shouldBe null
+	}
+
+	@Test
 	fun `missing pacing metric withholds a paced achievement`() = runTest {
 		val pacedDefinition = AchievementCatalog.byMetric(MetricKey.DISTANCE_TOTAL_M)
 			.first { definition -> definition.minimumActiveDays > 1 }

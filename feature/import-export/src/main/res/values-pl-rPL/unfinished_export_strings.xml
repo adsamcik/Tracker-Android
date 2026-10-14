@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Usuń nieukończony plik</string>
+    <string name="export_unfinished_retry">Spróbuj ponownie</string>
+    <string name="export_unfinished_files_guidance">Tracker nie może usunąć tego pliku. Usuń go w aplikacji Pliki lub przywróć dostęp do folderu i spróbuj ponownie.</string>
+    <string name="export_unfinished_notice_update_failed">Plik usunięty. Nie udało się zaktualizować komunikatu. Spróbuj ponownie.</string>
+    <string name="export_unfinished_startup_unavailable">Dokończ odzyskiwanie danych w Trackerze i spróbuj ponownie.</string>
+    <string name="export_unfinished_load_failed">Nie udało się wczytać nieukończonych plików.</string>
+    <string name="export_unfinished_notice_save_failed">Nie udało się zapamiętać nieukończonego pliku. Usuń go w aplikacji Pliki.</string>
+    <string name="export_unfinished_not_remembered">Nie udało się usunąć ani zapamiętać pliku %s. Usuń go w aplikacji Pliki.</string>
+    <string name="export_unfinished_remove_accessibility">Usuń nieukończony plik: %s</string>
+</resources>

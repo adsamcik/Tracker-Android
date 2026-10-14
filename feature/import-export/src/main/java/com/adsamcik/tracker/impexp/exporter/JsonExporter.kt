@@ -98,6 +98,24 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		}
 	}
 
+	/** A selected session interval must not expand to other overlapping recordings. */
+	internal suspend fun exportSelectedInterval(
+		outputStream: OutputStream,
+		dateRange: LongRange,
+		database: AppDatabase,
+		verifyCollectedDataAccess: () -> Unit,
+	): ExportResult = try {
+		withContext(dispatchers.io) {
+			writeSessions(outputStream, database, dateRange, null, null,
+				verifyCollectedDataAccess, includeWholeSessions = false).toResult()
+		}
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (failure: Exception) {
+		ExportResult.Error(LocalizedString(R.string.export_error_with_reason,
+			failure.message ?: "Failed to write selected session"))
+	}
+
 	/**
 	 * Pure streaming writer used by unit tests and non-Room callers.
 	 */
@@ -130,6 +148,7 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		afterTimeMs: Long?,
 		afterId: Long?,
 		verifyCollectedDataAccess: () -> Unit,
+		includeWholeSessions: Boolean = true,
 	): LocationProgress {
 		val fromMs = dateRange?.first ?: 0L
 		val toMs = dateRange?.last ?: Long.MAX_VALUE
@@ -138,7 +157,7 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		BufferedWriter(OutputStreamWriter(outputStream, Charsets.UTF_8)).use { writer ->
 			writer.write("[")
 			var first = true
-			forEachOverlappingTrip(database, fromMs, toMs, verifyCollectedDataAccess) { trip ->
+			if (includeWholeSessions) forEachOverlappingTrip(database, fromMs, toMs, verifyCollectedDataAccess) { trip ->
 				if (hasLocationAfterCursor(database, trip, afterTimeMs, afterId, verifyCollectedDataAccess)) {
 					if (!first) writer.write(",")
 					first = false

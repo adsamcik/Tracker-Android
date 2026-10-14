@@ -33,13 +33,15 @@ class LegacyV26Importer(
 	private val publicMigrations: Array<Migration>,
 	normalizerOpenHelperFactory: SupportSQLiteOpenHelper.Factory =
 		SQLiteXSupportSQLiteOpenHelperFactory(),
+	sourceFileOverride: java.io.File? = null,
 ) {
-	private val repository = LegacyDatabaseRepository(context)
+	private val repository = LegacyDatabaseRepository(context, sourceFileOverride = sourceFileOverride)
 	private val normalizer = LegacyV26DatabaseNormalizer(
 		context,
 		repository,
 		publicMigrations,
 		normalizerOpenHelperFactory,
+		stagingFileOverride = sourceFileOverride?.let { java.io.File(it.parentFile, "legacy-normalized-staging") },
 	)
 
 	fun importIfPresent(target: SupportSQLiteDatabase) {

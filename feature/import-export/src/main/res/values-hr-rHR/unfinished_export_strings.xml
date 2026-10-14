@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Ukloni nedovršenu datoteku</string>
+    <string name="export_unfinished_retry">Pokušaj ponovno</string>
+    <string name="export_unfinished_files_guidance">Tracker ne može ukloniti datoteku. Uklonite je u aplikaciji Datoteke ili obnovite pristup mapi i pokušajte ponovno.</string>
+    <string name="export_unfinished_notice_update_failed">Datoteka je uklonjena. Obavijest nije ažurirana. Pokušajte ponovno.</string>
+    <string name="export_unfinished_startup_unavailable">Dovršite oporavak podataka u Trackeru i pokušajte ponovno.</string>
+    <string name="export_unfinished_load_failed">Nedovršene datoteke nisu učitane.</string>
+    <string name="export_unfinished_notice_save_failed">Nedovršena datoteka nije zapamćena. Uklonite je u aplikaciji Datoteke.</string>
+    <string name="export_unfinished_not_remembered">%s nije uklonjena ni zapamćena. Uklonite je u aplikaciji Datoteke.</string>
+    <string name="export_unfinished_remove_accessibility">Ukloni nedovršenu datoteku: %s</string>
+</resources>

@@ -206,7 +206,7 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 					it.runIdentity == marker.runIdentity &&
 						it.entryIdentity == marker.entryIdentity &&
 						it.deletionScopeDigest == marker.deletionScopeDigest
-				} || marker.collectedDataEpoch != state.collectedDataEpoch || marker.generation != 1L
+				} || !state.acceptsRetainedEpoch(marker.collectedDataEpoch) || marker.generation != 1L
 			}
 		) storedCorrupt()
 		val existingByRun = existingRunMarkers.associateBy(ImportedWifiDeletionGenerationEntity::runIdentity)
@@ -280,6 +280,7 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			dao.deleteRemainingObservations(identity) != expectedObservationRows - expectedDependentRows ||
 			dao.deleteEntryRevisions(identity) != lineage.revisions.size
 		) concurrentMutation()
+		database.importedRadioFileMembershipDao().deleteEntry(WIFI_SOURCE, identity)
 		authenticatePayloadAbsent(finalAuthority, imported = true)
 		checkpoint(WifiSelectedDeletionCheckpoint.PAYLOAD_REMOVED)
 		return DeleteSelectedWifiHistoryResult.Deleted(
@@ -577,6 +578,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 				dao.allRunsForAdmission(identity),
 				dao.allRunZonesForAdmission(identity),
 				dao.allObservationsForAdmission(identity),
+				retainedState = checkNotNull(database.sourceEvidenceStateDao().get()).also {
+					check(it.collectedDataEpoch == epoch)
+				},
 			)
 		} catch (failure: ImportedWifiLineageFailure) {
 			unverifiable(failure.reason.toDeletionReason())
@@ -658,7 +662,7 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			origin,
 		) ?: return null
 		if (receipt.selectionIdentity != selectionIdentity ||
-			receipt.collectedDataEpoch != state.collectedDataEpoch
+			!state.acceptsRetainedEpoch(receipt.collectedDataEpoch)
 		) storedCorrupt()
 		when (selection) {
 			is WifiHistorySelection.Imported -> if (
@@ -703,7 +707,8 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		val actual = if (receipt.origin == WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED) {
 			val entryDeletion = database.importedWifiDao().entryDeletion(receipt.selectionIdentity)
 				?: storedCorrupt()
-			if (entryDeletion.collectedDataEpoch != state.collectedDataEpoch ||
+			if (!state.acceptsRetainedEpoch(entryDeletion.collectedDataEpoch) ||
+				entryDeletion.collectedDataEpoch != receipt.collectedDataEpoch ||
 				entryDeletion.deletedImportRevision != receipt.selectedImportRevision ||
 				entryDeletion.deletedAtMs != receipt.deletedAtMs
 			) storedCorrupt()
@@ -860,7 +865,7 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			)
 			if (fences.size > identities.size ||
 				fences.any { fence ->
-					fence.collectedDataEpoch != state.collectedDataEpoch ||
+					!state.acceptsRetainedEpoch(fence.collectedDataEpoch) ||
 						fence.scopeIdentityDigest !in expectedScopes ||
 						fence.sourceKind != WIFI_SOURCE ||
 						fence.purpose != SessionManifestPurposeCode.SESSION_CAPTURE
@@ -873,7 +878,7 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		receipt: WifiSelectedDeletionReceiptEntity,
 		state: SourceEvidenceState,
 	): StoredWifiProtectedFootprint {
-		if (receipt.collectedDataEpoch != state.collectedDataEpoch ||
+		if (!state.acceptsRetainedEpoch(receipt.collectedDataEpoch) ||
 			receipt.expectedProtectedIdentityCount > limits.maximumProtectedIdentities
 		) {
 			if (receipt.expectedProtectedIdentityCount > limits.maximumProtectedIdentities) {
@@ -892,7 +897,7 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			protected.any {
 				it.selectionIdentity != receipt.selectionIdentity ||
 					it.receiptOrigin != receipt.origin ||
-					it.collectedDataEpoch != state.collectedDataEpoch
+					it.collectedDataEpoch != receipt.collectedDataEpoch
 			} ||
 			WifiSelectedDeletionReceiptEntity.checksumProtectedIdentities(protected) !=
 			receipt.protectedIdentitySetChecksum
@@ -950,7 +955,7 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		)
 		if (fences.distinctBy(SourceDeletionFenceEntity::scopeIdentityDigest).size != fences.size ||
 			fences.any {
-				it.collectedDataEpoch != state.collectedDataEpoch || it.fenceGeneration <= 0L ||
+				!state.acceptsRetainedEpoch(it.collectedDataEpoch) || it.fenceGeneration <= 0L ||
 					it.scopeIdentityDigest !in scopes
 			}
 		) storedCorrupt()

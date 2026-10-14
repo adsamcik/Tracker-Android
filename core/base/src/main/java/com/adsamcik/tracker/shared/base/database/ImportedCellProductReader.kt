@@ -41,6 +41,10 @@ class ImportedCellProductReader(
 ) {
 	private val scanContextIssuer = Any()
 
+	/** Native group resolved by this source reader, for shared history's exact duplicate check. */
+	fun localOriginLogicalTrackingId(evaluation: ImportedCellProductEvaluation.Readable): String? =
+		evaluation.localOriginHandle?.logicalTrackingId
+
 	/** Optional measured-duplicate discovery keeps the opaque local handle inside its source owner. */
 	suspend fun measuredChildOriginCandidatesInTransaction(evaluation: ImportedCellProductEvaluation.Readable,
 		observedTimeMs: Long, itemIndex: Int, limit: Int): List<CellCapturedFactRevisionEntity> {
@@ -490,7 +494,7 @@ class ImportedCellProductReader(
 		for (candidate in candidates) {
 			currentCoroutineContext().ensureActive()
 			val headers = headersByIdentity[candidate.identity].orEmpty()
-			if (headers.any { it.collectedDataEpoch != state.collectedDataEpoch }) {
+			if (headers.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) }) {
 				failures[candidate.identity] = ImportedCellProductFailure.STALE_COLLECTED_DATA_EPOCH
 				continue
 			}
@@ -498,6 +502,7 @@ class ImportedCellProductReader(
 				val lineage = ImportedCellLineageAuthenticator.authenticate(
 					identity = candidate.identity,
 					expectedCollectedDataEpoch = state.collectedDataEpoch,
+					retainedState = state,
 					headers = headers,
 					receipts = receiptsByIdentity[candidate.identity].orEmpty(),
 					runs = runsByIdentity[candidate.identity].orEmpty(),
@@ -510,7 +515,7 @@ class ImportedCellProductReader(
 				}
 				val entryDeletion = entryDeletionsByIdentity[candidate.identity]
 				if (entryDeletion != null && (
-					entryDeletion.collectedDataEpoch != state.collectedDataEpoch ||
+					!state.acceptsRetainedEpoch(entryDeletion.collectedDataEpoch) ||
 						entryDeletion.deletedImportRevision != latest.header.importRevision
 					)
 				) throw IllegalArgumentException("Imported Cell entry deletion is stale")
@@ -520,7 +525,7 @@ class ImportedCellProductReader(
 					)
 				val deletedRuns = runDeletionsByEntry[candidate.identity].orEmpty()
 				if (deletedRuns.any { marker ->
-					marker.collectedDataEpoch != state.collectedDataEpoch || marker.generation != 1L ||
+					!state.acceptsRetainedEpoch(marker.collectedDataEpoch) || marker.generation != 1L ||
 						graph.runOwners[marker.runIdentity] !=
 						(marker.entryIdentity to marker.deletionScopeDigest)
 				}) throw IllegalArgumentException("Imported Cell run deletion is stale or orphaned")
@@ -788,7 +793,7 @@ class ImportedCellProductReader(
 
 		val relevantGenerations = linkedMapOf<String, Long>()
 		generations.forEach { generation ->
-			if (generation.collectedDataEpoch != state.collectedDataEpoch ||
+			if (!state.acceptsRetainedEpoch(generation.collectedDataEpoch) ||
 				generation.logicalTrackingId.isBlank() || generation.serviceRunId.isBlank() ||
 				generation.generation <= 0L
 			) storedCorrupt()
@@ -833,7 +838,7 @@ class ImportedCellProductReader(
 		state: SourceEvidenceState,
 		sourceFences: MutableMap<String, Long>,
 	) {
-		if (row.collectedDataEpoch?.let { it != state.collectedDataEpoch } == true) storedCorrupt()
+		if (row.collectedDataEpoch?.let { !state.acceptsRetainedEpoch(it) } == true) storedCorrupt()
 		when (row.ownerKind) {
 			ImportedCellOpaqueOwnerRow.ENTRY -> {
 				if (graph.kinds[row.protectedIdentity] != PortableCellIdentityKind.LOGICAL_ENTRY ||

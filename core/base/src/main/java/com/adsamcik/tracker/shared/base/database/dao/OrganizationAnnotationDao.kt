@@ -69,7 +69,7 @@ interface OrganizationAnnotationDao {
 			WHERE s.logical_tracking_id IS NULL AND s.service_run_id IS NULL
 				AND NOT EXISTS (SELECT 1 FROM organization_annotation a
 					WHERE a.recording_adapter_key = 'segment:' || s.id)
-		) WHERE (:fromMs IS NULL OR (fromMs < :toMs AND (toMs IS NULL OR toMs > :fromMs)))
+		) WHERE (:fromMs IS NULL OR (fromMs < :toMs AND (toMs IS NULL OR toMs > :fromMs OR (toMs = fromMs AND fromMs >= :fromMs))))
 		AND (:namedOnly = 0 OR length(trim(name)) > 0)
 		AND ((:selectedLocalId IS NULL AND :selectedAdapterKey IS NULL) OR (adapterKey IS NULL AND localId = :selectedLocalId) OR adapterKey = :selectedAdapterKey)
 		ORDER BY fromMs DESC, adapterKey, localId LIMIT :limit OFFSET :offset

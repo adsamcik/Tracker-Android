@@ -13,6 +13,8 @@ data class DailySummary(
 	val totalDuration: DurationMs,
 	val tripCount: Int,
 	val activeTrackingDuration: DurationMs,
+	val hasMeasuredDistance: Boolean = true,
+	val distanceIsPartial: Boolean = false,
 )
 
 interface DailySummaryRepository {

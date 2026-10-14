@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Supprimer le fichier incomplet</string>
+    <string name="export_unfinished_retry">Réessayer</string>
+    <string name="export_unfinished_files_guidance">Tracker ne peut pas supprimer ce fichier. Supprimez-le dans Fichiers ou rétablissez l’accès au dossier et réessayez.</string>
+    <string name="export_unfinished_notice_update_failed">Fichier supprimé. Cet avis n’a pas pu être mis à jour. Réessayez.</string>
+    <string name="export_unfinished_startup_unavailable">Terminez la récupération des données dans Tracker, puis réessayez.</string>
+    <string name="export_unfinished_load_failed">Impossible de charger les fichiers incomplets.</string>
+    <string name="export_unfinished_notice_save_failed">Impossible de mémoriser un fichier incomplet. Supprimez-le dans Fichiers.</string>
+    <string name="export_unfinished_not_remembered">Impossible de supprimer ou de mémoriser %s. Supprimez-le dans Fichiers.</string>
+    <string name="export_unfinished_remove_accessibility">Supprimer le fichier incomplet: %s</string>
+</resources>

@@ -7,6 +7,7 @@ import android.net.Uri
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.documentfile.provider.DocumentFile
+import androidx.datastore.core.CorruptionException
 import androidx.hilt.work.HiltWorker
 import androidx.room.withTransaction
 import androidx.work.CoroutineWorker
@@ -16,6 +17,7 @@ import com.adsamcik.tracker.impexp.OwnedTransferFiles
 import com.adsamcik.tracker.impexp.exporter.CursorAwareExporter
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
+import com.adsamcik.tracker.impexp.exporter.JsonExporter
 import com.adsamcik.tracker.impexp.exporter.pagedLocationSequence
 import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -65,7 +67,17 @@ class ExportPlanWorker @AssistedInject constructor(
             return Result.failure()
         }
 
-        val plan = planStore.getPlan(ExportPlanId(planId))
+        val plan = try {
+            planStore.getPlan(ExportPlanId(planId))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: CorruptionException) {
+            return Result.failure(workDataOf(KEY_FAILURE_REASON to "EXPORT_PLAN_STORAGE_CORRUPT"))
+        } catch (_: IOException) {
+            return Result.retry()
+        } catch (_: Exception) {
+            return Result.failure(workDataOf(KEY_FAILURE_REASON to "EXPORT_PLAN_STORAGE_UNAVAILABLE"))
+        }
         if (plan == null) {
             return Result.success()
         }
@@ -208,11 +220,14 @@ class ExportPlanWorker @AssistedInject constructor(
 
             val outputStream = output.openOutputStream()
             if (outputStream == null) {
-                output.deletePartial()
+                cleanupPartialExportOutput(output, planStore)
                 return@withContext PlanExportResult.Failed("Unable to open export destination")
             }
 			val exportResult = outputStream.use { stream ->
-                if (exporter is CursorAwareExporter) {
+				if (plan.scope == ExportScope.LastSession && exporter is JsonExporter) {
+					exporter.exportSelectedInterval(stream,
+						requireNotNull(dateRange), appDatabase, ::requireReadyGeneration)
+				} else if (exporter is CursorAwareExporter) {
                     exporter.exportAfter(
                         applicationContext,
                         locationSequence,
@@ -231,11 +246,11 @@ class ExportPlanWorker @AssistedInject constructor(
 			exportResult
         } catch (e: CancellationException) {
             withContext(NonCancellable + ioDispatcher) {
-                runCatching { output.deletePartial() }.exceptionOrNull()?.let(e::addSuppressed)
+                runCatching { cleanupPartialExportOutput(output, planStore) }.exceptionOrNull()?.let(e::addSuppressed)
             }
             throw e
         } catch (e: Exception) {
-            output.deletePartial()
+            runCatching { cleanupPartialExportOutput(output, planStore) }.exceptionOrNull()?.let(e::addSuppressed)
             throw e
         }
 
@@ -255,7 +270,7 @@ class ExportPlanWorker @AssistedInject constructor(
             is ExportResult.Error -> {
                 val errorMessage = result.message?.localize(applicationContext)
                     ?: "Export returned error for ${plan.name}"
-                output.deletePartial()
+                cleanupPartialExportOutput(output, planStore)
                 PlanExportResult.Failed(errorMessage)
             }
         }
@@ -604,6 +619,7 @@ private sealed interface ExportOutputResolution {
 
 internal interface ExportOutput {
     val fileName: String
+    val unfinishedExternalFile: UnfinishedExportFile? get() = null
     fun openOutputStream(): OutputStream?
     fun length(): Long
     fun deletePartial()
@@ -628,6 +644,9 @@ internal data class DocumentFileExportOutput(
     private val document: DocumentFile,
     override val fileName: String,
 ) : ExportOutput {
+    override val unfinishedExternalFile: UnfinishedExportFile
+        get() = UnfinishedExportFile(document.uri.toString(), fileName)
+
     override fun openOutputStream(): OutputStream? = document.openOutputStream(context, append = false)
 
     override fun length(): Long = document.length()
@@ -638,3 +657,21 @@ internal data class DocumentFileExportOutput(
         }
     }
 }
+
+/** Keeps only the exact external file that cleanup failed to remove; private output stays private. */
+internal suspend fun cleanupPartialExportOutput(output: ExportOutput, store: ExportPlanStore) =
+    withContext(NonCancellable) {
+        try {
+            output.deletePartial()
+        } catch (failure: Exception) {
+            output.unfinishedExternalFile?.let { file ->
+                try {
+                    store.rememberUnfinishedFile(file)
+                } catch (saveFailure: Exception) {
+                    failure.addSuppressed(saveFailure)
+                    throw IOException("Unable to remove or remember unfinished export: ${file.name}", failure)
+                }
+            }
+            throw failure
+        }
+    }

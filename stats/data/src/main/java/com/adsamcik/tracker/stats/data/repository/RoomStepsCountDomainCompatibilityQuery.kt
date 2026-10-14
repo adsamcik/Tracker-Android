@@ -178,7 +178,7 @@ internal class RoomStepsCountDomainCompatibilityQuery @Inject constructor(
 					val lineage = database.importedAmbientStepsDao()
 						.loadAuthenticatedAmbientStepsLineage(
 							dayIdentity,
-							state.collectedDataEpoch,
+							state,
 						)
 					val graphLineage =
 						database.loadAuthenticatedImportedAmbientStepsGraphLineage(lineage)

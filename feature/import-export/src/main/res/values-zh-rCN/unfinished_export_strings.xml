@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">删除未完成的文件</string>
+    <string name="export_unfinished_retry">重试</string>
+    <string name="export_unfinished_files_guidance">Tracker 无法删除此文件。请在文件应用中删除它，或恢复文件夹访问权限后重试。</string>
+    <string name="export_unfinished_notice_update_failed">文件已删除，但无法更新此提示。请重试。</string>
+    <string name="export_unfinished_startup_unavailable">请先在 Tracker 中完成数据恢复，然后重试。</string>
+    <string name="export_unfinished_load_failed">无法加载未完成的文件。</string>
+    <string name="export_unfinished_notice_save_failed">无法保存未完成文件的提醒。请在文件应用中删除它。</string>
+    <string name="export_unfinished_not_remembered">无法删除或记录 %s。请在文件应用中删除它。</string>
+    <string name="export_unfinished_remove_accessibility">删除未完成的文件: %s</string>
+</resources>

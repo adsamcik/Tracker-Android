@@ -264,7 +264,7 @@ suspend fun AppDatabase.deleteSelectedCapturedCellFactsInTransaction(
 			currentCoroutineContext().ensureActive()
 			val latest = lineage.revisions.last()
 			if (cursors[lineage.logicalFactId]?.matchesCurrent(latest) != true ||
-				latest.collectedDataEpoch != expectedCollectedDataEpoch ||
+				!state.acceptsRetainedEpoch(latest.collectedDataEpoch) ||
 				latest.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal
 			) selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 			val authority = authenticateCellCapturedAuthority(latest, limits)
@@ -290,7 +290,7 @@ suspend fun AppDatabase.deleteSelectedCapturedCellFactsInTransaction(
 		if (generationsByRun.size != generations.size || generations.any {
 			it.logicalTrackingId != logicalTrackingId ||
 				it.serviceRunId !in serviceRunIds ||
-				it.collectedDataEpoch != expectedCollectedDataEpoch ||
+				!state.acceptsRetainedEpoch(it.collectedDataEpoch) ||
 				it.generation != 1L
 		}) selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 		val scopeByRun = serviceRunIds.associateWith { runId ->
@@ -310,10 +310,13 @@ suspend fun AppDatabase.deleteSelectedCapturedCellFactsInTransaction(
 		val fenceByScope = fences.associateBy(SourceDeletionFenceEntity::scopeIdentityDigest)
 		if (fenceByScope.size != fences.size || fences.any {
 			it.scopeIdentityDigest !in scopeByRun.values ||
-				it.collectedDataEpoch != expectedCollectedDataEpoch || it.fenceGeneration != 1L
+				!state.acceptsRetainedEpoch(it.collectedDataEpoch) || it.fenceGeneration != 1L
 		}) selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 		if (serviceRunIds.any { runId ->
-			(runId in generationsByRun) != (scopeByRun.getValue(runId) in fenceByScope)
+			val generation = generationsByRun[runId]
+			val fence = fenceByScope[scopeByRun.getValue(runId)]
+			(generation == null) != (fence == null) ||
+				(generation != null && generation.collectedDataEpoch != fence?.collectedDataEpoch)
 		}) selectedBlock(CellCapturedSelectedDeletionBlockedReason.DELETION_FENCE_CONFLICT)
 		latestDurableTimeMs = maxOf(
 			latestDurableTimeMs,
@@ -457,7 +460,7 @@ suspend fun AppDatabase.authenticateDeletedCapturedCellSelectionInTransaction(
 	val receipt = cellCapturedFactDao().entryDeletionReceipt(logicalTrackingId)
 		?: return DeletedCapturedCellSelectionAuthentication.Absent
 	if (receipt.entryIdentity != entryIdentity.value ||
-		receipt.collectedDataEpoch != state.collectedDataEpoch ||
+		!state.acceptsRetainedEpoch(receipt.collectedDataEpoch) ||
 		receipt.retainedFromMs != state.retainedFromMs
 	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
 	val deletedRuns = cellCapturedFactDao().deletedRuns(
@@ -1171,7 +1174,7 @@ internal suspend fun AppDatabase.auditCapturedCellFacts(
 		if (cursor == null || !cursor.matchesCurrent(latest)) {
 			block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 		}
-		if (latest.collectedDataEpoch != evidenceState.collectedDataEpoch ||
+		if (!evidenceState.acceptsRetainedEpoch(latest.collectedDataEpoch) ||
 			latest.sourceAdmissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal
 		) block(CellCapturedRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
 		val authenticated = authenticateCellCapturedAuthority(latest, limits)
@@ -1183,7 +1186,7 @@ internal suspend fun AppDatabase.auditCapturedCellFacts(
 		checkpoint(CellCapturedMaintenanceCheckpoint.LINEAGE_AUTHENTICATED)
 	}
 	authenticateAggregateDependencies(lineages, byId, reuseAuthorityById, aggregateById)
-	authenticateCellDeletionGenerations(lineages, generations, evidenceState.collectedDataEpoch)
+	authenticateCellDeletionGenerations(lineages, generations, evidenceState)
 
 	return CellCapturedFactAudit(
 		lineages = lineages,
@@ -1298,7 +1301,7 @@ internal suspend fun AppDatabase.auditPortableCapturedCellFacts(
 		if (cursor == null || !cursor.matchesCurrent(latest)) {
 			block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 		}
-		if (latest.collectedDataEpoch != evidenceState.collectedDataEpoch ||
+		if (!evidenceState.acceptsRetainedEpoch(latest.collectedDataEpoch) ||
 			latest.sourceAdmissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal
 		) block(CellCapturedRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
 		val authenticated = authenticateCellCapturedAuthority(latest, limits)
@@ -1312,7 +1315,7 @@ internal suspend fun AppDatabase.auditPortableCapturedCellFacts(
 	// Aggregate owners share the selected capture scope and are therefore included by the closure
 	// query even when only their dependent correction is a retained export observation.
 	authenticateAggregateDependencies(lineages, byId, reuseAuthorityById, aggregateById)
-	authenticateCellDeletionGenerations(lineages, generations, evidenceState.collectedDataEpoch)
+	authenticateCellDeletionGenerations(lineages, generations, evidenceState)
 
 	return CellCapturedFactAudit(
 		lineages = lineages,
@@ -1897,7 +1900,7 @@ private fun authenticateAggregateDependencies(
 private suspend fun AppDatabase.authenticateCellDeletionGenerations(
 	lineages: List<CellCapturedLineage>,
 	generations: List<CellCaptureDeletionGenerationEntity>,
-	collectedDataEpoch: Long,
+	evidenceState: SourceEvidenceState,
 ) {
 	val scopesWithFacts = lineages.groupBy(CellCapturedLineage::scope)
 	val generationByScope = generations.associateBy { generation ->
@@ -1929,7 +1932,7 @@ private suspend fun AppDatabase.authenticateCellDeletionGenerations(
 	}
 	for (generation in generations) {
 		val scope = CellCapturedRunScope(generation.logicalTrackingId, generation.serviceRunId)
-		if (generation.collectedDataEpoch != collectedDataEpoch || scope in scopesWithFacts) {
+		if (!evidenceState.acceptsRetainedEpoch(generation.collectedDataEpoch) || scope in scopesWithFacts) {
 			block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 		}
 		val expectedFence = SourceDeletionFenceEntity.createLogicalServiceRun(
@@ -2907,8 +2910,9 @@ private fun CellWalIdentityFreeAggregate.toHistoricalAggregate() =
 	)
 
 private fun LogicalTrackingSessionEntity.hasValidHistoricalCellShape(): Boolean {
-	val terminal = state in TERMINAL_SESSION_STATES
-	val nonterminal = state in NONTERMINAL_SESSION_STATES
+	val restored = state == "FAILED" && failureCode == "RESTORED_INTERRUPTED_SESSION" && completedAtMs == null
+	val terminal = state in TERMINAL_SESSION_STATES && !restored
+	val nonterminal = state in NONTERMINAL_SESSION_STATES || restored
 	if (!terminal && !nonterminal) return false
 	if (logicalTrackingId.isBlank() || lifecycleRevision <= 0L || desiredPlanRevision <= 0L ||
 		rolloutRevision <= 0L || startOrigin.isBlank() || clockDomainId.isBlank() ||
@@ -2922,7 +2926,7 @@ private fun LogicalTrackingSessionEntity.hasValidHistoricalCellShape(): Boolean 
 			currentServiceRunId == null
 	} else {
 		completedAtMs == null && finalAdmissionOrdinal == null &&
-			((state == SESSION_STATE_STOPPING) == (cutoffAtMs != null)) &&
+			(restored || (state == SESSION_STATE_STOPPING) == (cutoffAtMs != null)) &&
 			currentServiceRunId?.isNotBlank() == true
 	}
 }
@@ -2930,8 +2934,10 @@ private fun LogicalTrackingSessionEntity.hasValidHistoricalCellShape(): Boolean 
 private fun SourceServiceRunEntity.hasValidHistoricalCellShape(
 	session: LogicalTrackingSessionEntity,
 ): Boolean {
-	val terminal = state in TERMINAL_SESSION_STATES
-	val nonterminal = state in NONTERMINAL_RUN_STATES
+	val restored = state == "FAILED" && completionReason == "RESTORED_INTERRUPTED_SESSION" &&
+		session.failureCode == "RESTORED_INTERRUPTED_SESSION" && completedAtMs == null
+	val terminal = state in TERMINAL_SESSION_STATES && !restored
+	val nonterminal = state in NONTERMINAL_RUN_STATES || restored
 	if (!terminal && !nonterminal) return false
 	if (serviceRunId.isBlank() || logicalTrackingId != session.logicalTrackingId ||
 		bootId.isBlank() ||
@@ -2942,8 +2948,8 @@ private fun SourceServiceRunEntity.hasValidHistoricalCellShape(
 		startedElapsedNanos < 0L || startOrigin.isBlank() || sessionSegmentId == null ||
 		preparedManifestRevision <= 0L || preparedIntentRevision <= 0L
 	) return false
-	if (terminal != (completedAtMs != null) || terminal != !completionReason.isNullOrBlank()) return false
-	if (session.state in TERMINAL_SESSION_STATES) return terminal
+	if (terminal != (completedAtMs != null) || !restored && terminal != !completionReason.isNullOrBlank()) return false
+	if (session.state in TERMINAL_SESSION_STATES) return terminal || restored
 	if (terminal) return session.currentServiceRunId != serviceRunId
 	if (session.currentServiceRunId != serviceRunId) return false
 	return (session.state in ACTIVE_ADMISSION_SESSION_STATES && state in ACTIVE_ADMISSION_RUN_STATES) ||

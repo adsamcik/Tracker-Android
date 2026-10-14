@@ -3,6 +3,7 @@ package com.adsamcik.tracker.stats.data.repository
 import com.adsamcik.tracker.stats.api.repository.HistoryProblem
 import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
 import com.adsamcik.tracker.stats.api.repository.HistorySection
+import com.adsamcik.tracker.stats.api.repository.HistoryObservationWindow
 import com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow
 
 /** A retrospective interval selects existing evidence; it never prorates or changes its authority. */
@@ -17,9 +18,7 @@ internal fun selectOrganizationInterval(
     val problems = linkedSetOf<HistoryProblem>()
     fun contains(start: Long, end: Long) = start >= fromInclusiveMs && end >= start &&
         end <= toExclusiveMs && (end > start || start < toExclusiveMs)
-    fun containsObservation(start: Long, observed: Long, uncertainty: Long) =
-        start >= fromInclusiveMs && observed in fromInclusiveMs until toExclusiveMs &&
-            uncertainty <= observed - fromInclusiveMs && uncertainty <= toExclusiveMs - 1L - observed
+    val displayWindow = HistoryObservationWindow(fromInclusiveMs, toExclusiveMs)
     for (member in members) for (section in member.sections) {
         fun crossing() { problems += HistoryProblem(section.source, HistoryProblemReason.TIME_UNCERTAIN) }
         when (section) {
@@ -55,33 +54,41 @@ internal fun selectOrganizationInterval(
             }
             is HistorySection.Wifi -> {
                 val observations = section.history.observations.filter {
-                    containsObservation(it.intervalStartTime.raw, it.observedTime.raw, it.wallTimeUncertaintyMs) }
+                    it.networks.any { point -> displayWindow.contains(point.observedTimeMs) } ||
+                        it.networks.isEmpty() && displayWindow.contains(it.observedTime.raw) }
                 if (observations.size != section.history.observations.size) crossing()
-                if (observations.isNotEmpty()) sections += section.copy(history = section.history.copy(observations = observations))
+                if (observations.isNotEmpty()) sections += section.copy(history = section.history.copy(observations =
+                    observations.map { it.copy(networks = it.networks.filter { point -> displayWindow.contains(point.observedTimeMs) }) }))
                 else if (section.history.observations.isEmpty() && contains(section.history.startTime.raw, section.history.endTime.raw)) {
                     sections += section
                 } else crossing()
             }
             is HistorySection.Cell -> {
                 val observations = section.history.observations.filter {
-                    containsObservation(it.intervalStartTime.raw, it.observedTime.raw, it.wallTimeUncertaintyMs) }
+                    it.towers.any { point -> displayWindow.contains(point.observedTimeMs) } ||
+                        it.towers.isEmpty() && displayWindow.contains(it.observedTime.raw) }
                 if (observations.size != section.history.observations.size) crossing()
-                if (observations.isNotEmpty()) sections += section.copy(history = section.history.copy(observations = observations))
+                if (observations.isNotEmpty()) sections += section.copy(history = section.history.copy(observations =
+                    observations.map { it.copy(towers = it.towers.filter { point -> displayWindow.contains(point.observedTimeMs) }) }))
                 else if (section.history.observations.isEmpty() && contains(section.history.startTime.raw, section.history.endTime.raw)) {
                     sections += section
                 } else crossing()
             }
             is HistorySection.BackgroundWifi -> {
-                val facts = section.read.facts.filter { it.coverageStartTimeMs >= fromInclusiveMs && it.latestPossibleTimeMs < toExclusiveMs }
+                val facts = section.read.facts.filter { fact -> fact.networks.any { displayWindow.contains(it.observedTimeMs) } ||
+                    fact.networks.isEmpty() && fact.coverageStartTimeMs < toExclusiveMs && fact.latestPossibleTimeMs >= fromInclusiveMs }
                 val gaps = section.read.gaps.filter { contains(it.startTimeMs, it.endTimeMs) }
                 if (facts.size != section.read.facts.size || gaps.size != section.read.gaps.size) crossing()
-                if (facts.isNotEmpty() || gaps.isNotEmpty()) sections += section.copy(read = section.read.copy(facts = facts, gaps = gaps))
+                if (facts.isNotEmpty() || gaps.isNotEmpty()) sections += section.copy(read = section.read.copy(facts = facts, gaps = gaps),
+                    displayWindow = displayWindow)
             }
             is HistorySection.BackgroundCell -> {
-                val facts = section.read.facts.filter { it.coverageStartTimeMs >= fromInclusiveMs && it.latestPossibleTimeMs < toExclusiveMs }
+                val facts = section.read.facts.filter { fact -> fact.towers.any { displayWindow.contains(it.observedTimeMs) } ||
+                    fact.towers.isEmpty() && fact.coverageStartTimeMs < toExclusiveMs && fact.latestPossibleTimeMs >= fromInclusiveMs }
                 val gaps = section.read.gaps.filter { contains(it.startTimeMs, it.endTimeMs) }
                 if (facts.size != section.read.facts.size || gaps.size != section.read.gaps.size) crossing()
-                if (facts.isNotEmpty() || gaps.isNotEmpty()) sections += section.copy(read = section.read.copy(facts = facts, gaps = gaps))
+                if (facts.isNotEmpty() || gaps.isNotEmpty()) sections += section.copy(read = section.read.copy(facts = facts, gaps = gaps),
+                    displayWindow = displayWindow)
             }
             is HistorySection.Organization -> Unit
         }

@@ -623,12 +623,14 @@ interface SourceBrokerDao {
 
 	@Query(
 		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
+			"AND collected_data_epoch = (SELECT collected_data_epoch FROM source_evidence_state WHERE id=1) " +
 			"AND status IN ('RESERVED', 'ACTIVE') ORDER BY registration_generation DESC LIMIT 1",
 	)
 	suspend fun currentPhysicalRegistration(sourceKind: Int): ProviderRegistrationGenerationEntity?
 
 	@Query(
 		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
+			"AND collected_data_epoch = (SELECT collected_data_epoch FROM source_evidence_state WHERE id=1) " +
 			"AND status IN ('ACTIVE', 'RESERVED') ORDER BY registration_generation",
 	)
 	suspend fun currentPhysicalRegistrations(sourceKind: Int): List<ProviderRegistrationGenerationEntity>
@@ -636,6 +638,7 @@ interface SourceBrokerDao {
 	/** Bounded nonterminal registration audit; callers request one overflow row. */
 	@Query(
 		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
+			"AND collected_data_epoch = (SELECT collected_data_epoch FROM source_evidence_state WHERE id=1) " +
 			"AND status IN ('ACTIVE', 'RESERVED') ORDER BY registration_generation LIMIT :limit",
 	)
 	suspend fun currentPhysicalRegistrationsBounded(

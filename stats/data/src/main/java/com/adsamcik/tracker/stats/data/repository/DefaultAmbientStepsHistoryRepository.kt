@@ -16,10 +16,8 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayFen
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
-import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
-import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
@@ -877,7 +875,7 @@ internal class ImportedAmbientStepsRangeReader(
 	): ImportedAmbientStepsRangeRead {
         require(!selectedMeasurements || selectedDayIds != null)
 		try {
-			dao.authenticateAllAmbientStepsFences(evidence.collectedDataEpoch)
+			dao.authenticateAllAmbientStepsFences(evidence)
 		} catch (failure: ImportedAmbientStepsLineageFailure) {
 			return when (failure.reason) {
 				ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW,
@@ -901,7 +899,7 @@ internal class ImportedAmbientStepsRangeReader(
 		val matchingFences = fences.filter {
 			AmbientStepsHistoryKey(it.structuralEpochDay, it.storedZoneId) in range.keys
 		}
-		if (matchingFences.any { it.collectedDataEpoch != evidence.collectedDataEpoch } ||
+		if (matchingFences.any { !evidence.acceptsRetainedEpoch(it.collectedDataEpoch) } ||
 			matchingFences.groupBy {
 				AmbientStepsHistoryKey(it.structuralEpochDay, it.storedZoneId)
 			}.values.any { it.size != 1 }
@@ -1062,6 +1060,7 @@ internal class ImportedAmbientStepsRangeReader(
 				ImportedAmbientStepsLineageAuthenticator.authenticate(
 					dayIdentity = candidate.dayIdentity,
 					expectedCollectedDataEpoch = evidence.collectedDataEpoch,
+					retainedState = evidence,
 					headers = headersByDay[candidate.dayIdentity].orEmpty(),
 					archives = relatedArchiveIds.mapNotNull(archivesById::get),
 					archiveDays = relatedArchiveIds.flatMap {
@@ -1136,29 +1135,10 @@ internal class ImportedAmbientStepsRangeReader(
 
 	private suspend fun sourceDeletionActive(evidence: SourceEvidenceState): Boolean {
 		val fence = dao.sourceFence() ?: return false
-		if (fence.collectedDataEpoch != evidence.collectedDataEpoch) {
+		if (!evidence.acceptsRetainedEpoch(fence.collectedDataEpoch)) {
 			throw IllegalStateException("Imported Ambient Steps source fence has a stale epoch")
 		}
-		val authority = database.sourcePolicyDao().authority()
-		val policy = authority?.takeIf {
-			it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE
-		}?.let {
-			database.sourcePolicyDao().policyAtRevision(
-				it.currentPolicyRevision,
-				SourceDestinationOwnerEntity.SOURCE_STEPS,
-			)
-		}
-		val consent = database.sourcePolicyDao().latestConsentEpoch(
-			SourceDestinationOwnerEntity.SOURCE_STEPS,
-			SourceBrokerPurpose.AMBIENT_PRODUCT,
-		)
-		val reset = fence.deletionCompleted &&
-			policy != null && consent != null && policy.enabled &&
-			policy.ambientPersistenceEligible && policy.ambientConsentEpoch == consent.epoch &&
-			consent.eligible && consent.persistenceEligible &&
-			consent.policyRevision <= policy.policyRevision &&
-			consent.epoch > fence.revokedConsentEpoch &&
-			fence.reopenedConsentEpoch == consent.epoch
+		val reset = database.hasSavedAmbientStepsReopen(fence)
 		return !reset
 	}
 

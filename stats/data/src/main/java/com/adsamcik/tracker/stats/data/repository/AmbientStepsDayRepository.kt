@@ -657,7 +657,7 @@ private fun AmbientStepsFactRevisionEntity.hasValidReadAuthority(
 	val retainedFromMs = evidenceState.retainedFromMs
 	return AmbientStepsFactIntegrity.hasValidEffectChecksum(this) &&
 		writerOwnerGeneration == ownerGeneration &&
-		collectedDataEpoch == evidenceState.collectedDataEpoch &&
+		evidenceState.acceptsRetainedEpoch(collectedDataEpoch) &&
 		(retainedFromMs == null || start >= retainedFromMs) &&
 		dayKeyOrNull() == day.key && structuralDayStartTimeMs == day.startTimeMs &&
 		structuralDayEndTimeMs == day.endTimeMs && start >= day.startTimeMs && end <= day.endTimeMs &&
@@ -1053,7 +1053,7 @@ private fun AmbientStepsEffectiveGapInterval.qualifyForRead(
 			previousZoneId,
 			nextZoneId,
 			collectedDataEpoch,
-		) && collectedDataEpoch == evidenceState.collectedDataEpoch && cursor != null &&
+		) && evidenceState.acceptsRetainedEpoch(collectedDataEpoch) && cursor != null &&
 		cursor.provider == provider && cursor.sourceInstanceId == sourceInstanceId &&
 		cursor.collectedDataEpoch == collectedDataEpoch && cursor.lastGapSequence >= gapSequence &&
 		cursor.registrationAcceptedAtMs <= declaredGapStartTimeMs &&

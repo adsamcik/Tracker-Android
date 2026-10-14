@@ -6,7 +6,7 @@ object LocationReadScope {
 	const val HISTORY_CURRENT_IMPORT_COPY = """EXISTS (SELECT 1 FROM location_file_archive_point m
 		JOIN location_file_archive a ON a.identity = m.archive_identity
 		JOIN location_file_identity i ON i.portable_id = m.portable_id AND i.sample_id = m.sample_id
-		JOIN source_evidence_state e ON e.id = 1 AND e.collected_data_epoch = a.collected_data_epoch
+		JOIN source_evidence_state e ON e.id = 1 AND (e.collected_data_epoch = a.collected_data_epoch OR instr(',' || e.restored_data_epochs || ',', ',' || a.collected_data_epoch || ',') > 0)
 		WHERE m.sample_id = location_sample.id)"""
 	/** Conservative discovery; source-owned Kotlin authenticates any receipt-based erase decision. */
 	const val HISTORY_RETAINED = """(NOT EXISTS (SELECT 1 FROM source_evidence_state e WHERE e.id = 1
@@ -27,7 +27,9 @@ object LocationReadScope {
 		AND COALESCE(a.end_time_ms, s.end_time_ms) >= COALESCE(a.start_time_ms, s.start_time_ms)
 		AND location_sample.time_ms >= COALESCE(a.start_time_ms, s.start_time_ms)
 		AND location_sample.time_ms <= COALESCE(a.end_time_ms, s.end_time_ms))))"""
-	const val HISTORY_ORIGIN = """CASE WHEN $HISTORY_CURRENT_IMPORT_COPY OR EXISTS (SELECT 1 FROM location_file_identity i
+	const val HISTORY_ORIGIN = """CASE WHEN EXISTS (SELECT 1 FROM location_point_correction correction
+		JOIN source_evidence_state state ON state.id = 1 AND (state.collected_data_epoch = correction.collected_data_epoch OR instr(',' || state.restored_data_epochs || ',', ',' || correction.collected_data_epoch || ',') > 0)
+		WHERE correction.sample_id = location_sample.id) OR $HISTORY_CURRENT_IMPORT_COPY OR EXISTS (SELECT 1 FROM location_file_identity i
 		WHERE i.sample_id = location_sample.id AND i.imported = 1) THEN 'IMPORTED'
 		WHEN EXISTS (SELECT 1 FROM location_accepted_receipt r WHERE r.sample_id = location_sample.id)
 		THEN 'LOCAL' ELSE 'LEGACY' END"""
@@ -37,7 +39,7 @@ object LocationReadScope {
 	const val AMBIENT = """EXISTS (
 		SELECT 1 FROM location_accepted_receipt lr
 		JOIN location_sample_purpose_authority lp ON lp.sample_id = lr.sample_id
-		JOIN source_evidence_state e ON e.id = 1 AND e.collected_data_epoch = lr.collected_data_epoch
+		JOIN source_evidence_state e ON e.id = 1 AND (e.collected_data_epoch = lr.collected_data_epoch OR instr(',' || e.restored_data_epochs || ',', ',' || lr.collected_data_epoch || ',') > 0)
 		JOIN source_policy p ON p.policy_revision = lp.source_policy_revision AND p.source_kind = 1
 		JOIN source_consent_epoch c ON c.source_kind = 1 AND c.purpose = 'AMBIENT_PRODUCT' AND c.epoch = lp.consent_epoch
 		JOIN ambient_location_retention_authority r ON r.scope = 'LIVE_AMBIENT'

@@ -29,7 +29,17 @@ class PointsDomainEventConsumerTest {
 
 	private val domainEventRepository: DomainEventRepository = mockk(relaxed = true)
 	private val context: Context = mockk(relaxed = true)
-	private val consumer = PointsDomainEventConsumer(domainEventRepository, context)
+	private val appDatabase = mockk<com.adsamcik.tracker.shared.base.database.AppDatabase>(relaxed = true)
+	private val pointsDatabase = mockk<com.adsamcik.tracker.points.database.PointsDatabase>(relaxed = true)
+	private val consumer = PointsDomainEventConsumer(domainEventRepository, context,
+		javax.inject.Provider { appDatabase }, javax.inject.Provider { pointsDatabase },
+		object : com.adsamcik.tracker.shared.base.startup.TrackingStartupGate {
+			override val isReady = true
+			override val currentGeneration = 1L
+			override suspend fun reconcile(retryFailedStorage: Boolean) =
+				com.adsamcik.tracker.shared.base.startup.TrackingStartupResult.Ready(false, 0)
+			override suspend fun <T> withReadyGenerationOperation(expectedGeneration: Long, operation: suspend () -> T): T = operation()
+		})
 
 	@AfterEach
 	fun tearDown() {
@@ -37,6 +47,8 @@ class PointsDomainEventConsumerTest {
 	}
 
 	private fun stubWorkManager() {
+		coEvery { appDatabase.sourceEvidenceStateDao().get() } returns
+			com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState()
 		mockkObject(WorkManager)
 		every { WorkManager.getInstance(context) } returns mockk(relaxed = true)
 	}
@@ -221,6 +233,30 @@ class PointsDomainEventConsumerTest {
 			}
 		}
 	}
+
+	@Test
+    fun `restored points receipts requeue with the current job fence and clear drops old identities`() = runTest {
+        var state = com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState(
+            collectedDataEpoch = 7, restoredDataEpochs = "0")
+        coEvery { appDatabase.sourceEvidenceStateDao().get() } coAnswers { state }
+        val old = com.adsamcik.tracker.points.data.PointsAwarded(id = 1, time = 10,
+            value = com.adsamcik.tracker.points.data.Points(1.0), source = com.adsamcik.tracker.points.data.AwardSource.SESSION,
+            effectKey = "recording:0:42", effectRevision = 1, effectValueMicros = 1_000_000)
+        val unrelated = old.copy(id = 2, effectKey = "recording:4:43")
+        coEvery { pointsDatabase.pointsAwardedDao().sessionEffectPage(0, 100) } returns listOf(old, unrelated)
+        mockkObject(WorkManager)
+        val manager = mockk<WorkManager>(relaxed = true)
+        every { WorkManager.getInstance(context) } returns manager
+        val enqueued = mutableListOf<androidx.work.OneTimeWorkRequest>()
+        every { manager.enqueueUniqueWork(any(), any(), capture(enqueued)) } returns mockk(relaxed = true)
+        consumer.reconcileSessionEffects()
+        enqueued.size shouldBe 1
+        enqueued.single().workSpec.input.getLong("id", -1) shouldBe 42L
+        enqueued.single().workSpec.input.getLong(com.adsamcik.tracker.points.work.PointsWorker.ARG_EPOCH, -1) shouldBe 7L
+        state = state.copy(collectedDataEpoch = 8, restoredDataEpochs = "")
+        consumer.reconcileSessionEffects()
+        enqueued.size shouldBe 1
+    }
 
 	@Nested
 	@DisplayName("companion")

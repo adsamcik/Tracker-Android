@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Remove unfinished file</string>
+    <string name="export_unfinished_retry">Retry</string>
+    <string name="export_unfinished_files_guidance">Tracker cannot remove this file. Remove it in the Files app, or restore folder access and retry.</string>
+    <string name="export_unfinished_notice_update_failed">File removed. Could not update this notice. Retry.</string>
+    <string name="export_unfinished_startup_unavailable">Finish data recovery in Tracker, then retry.</string>
+    <string name="export_unfinished_load_failed">Unfinished files could not be loaded.</string>
+    <string name="export_unfinished_notice_save_failed">An unfinished file could not be remembered. Remove it in the Files app.</string>
+    <string name="export_unfinished_not_remembered">Could not remove or remember %s. Remove it in the Files app.</string>
+    <string name="export_unfinished_remove_accessibility">Remove unfinished file: %s</string>
+</resources>

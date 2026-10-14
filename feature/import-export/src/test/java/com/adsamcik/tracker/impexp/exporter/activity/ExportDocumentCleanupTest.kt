@@ -10,6 +10,7 @@ import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.impexp.exporter.JsonExporter
 import com.adsamcik.tracker.impexp.exporter.data.ImportExportDataRepository
+import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -35,6 +36,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
@@ -180,7 +182,7 @@ class ExportDocumentCleanupTest {
         }, object : TrackingStartupGate {
             override val isReady = true
             override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
-        })
+        }, mockk<ExportPlanStore> { every { unfinishedFiles } returns flowOf(emptyList()) })
     }
 
     private fun exporter(block: suspend (OutputStream) -> ExportResult) = object : Exporter {

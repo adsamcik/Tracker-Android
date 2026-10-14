@@ -1645,6 +1645,12 @@ private class FixedSourcePolicyRepository(
 		reason: String,
 	): SourcePolicySnapshot = error("Not used")
 
+	override suspend fun reissueAfterDataRestore(
+		localChoices: SourcePolicySnapshot,
+		legacySettingsFingerprint: String?,
+		previousConsentEpoch: Long,
+	): SourcePolicySnapshot = error("Not used")
+
 	override suspend fun setNonCaptureConsent(
 		expectedPolicyRevision: Long,
 		source: TrackingSource,
@@ -1672,6 +1678,12 @@ private class MutableSourcePolicyRepository(
 		expectedPolicyRevision: Long,
 		settings: TrackingParamsState,
 		reason: String,
+	): SourcePolicySnapshot = error("Not used")
+
+	override suspend fun reissueAfterDataRestore(
+		localChoices: SourcePolicySnapshot,
+		legacySettingsFingerprint: String?,
+		previousConsentEpoch: Long,
 	): SourcePolicySnapshot = error("Not used")
 
 	override suspend fun setNonCaptureConsent(

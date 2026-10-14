@@ -313,6 +313,7 @@ class StepsGoalRewardProjectorTest {
 			dispatchers = dispatchers,
 			metricDirtyTracker = dirtyTracker,
 			trackingStartupGate = gate,
+        trackingHistory = io.mockk.mockk(relaxed = true),
 		)
 		return StepsGoalRewardProjector(
 			database = appDatabase,

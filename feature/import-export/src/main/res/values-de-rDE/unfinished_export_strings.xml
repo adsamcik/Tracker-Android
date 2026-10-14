@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Unvollständige Datei entfernen</string>
+    <string name="export_unfinished_retry">Erneut versuchen</string>
+    <string name="export_unfinished_files_guidance">Tracker kann diese Datei nicht entfernen. Entferne sie in der Dateien-App oder erteile wieder Ordnerzugriff und versuche es erneut.</string>
+    <string name="export_unfinished_notice_update_failed">Datei entfernt. Dieser Hinweis konnte nicht aktualisiert werden. Versuche es erneut.</string>
+    <string name="export_unfinished_startup_unavailable">Schließe die Datenwiederherstellung in Tracker ab und versuche es erneut.</string>
+    <string name="export_unfinished_load_failed">Unvollständige Dateien konnten nicht geladen werden.</string>
+    <string name="export_unfinished_notice_save_failed">Eine unvollständige Datei konnte nicht vorgemerkt werden. Entferne sie in der Dateien-App.</string>
+    <string name="export_unfinished_not_remembered">%s konnte weder entfernt noch vorgemerkt werden. Entferne die Datei in der Dateien-App.</string>
+    <string name="export_unfinished_remove_accessibility">Unvollständige Datei entfernen: %s</string>
+</resources>

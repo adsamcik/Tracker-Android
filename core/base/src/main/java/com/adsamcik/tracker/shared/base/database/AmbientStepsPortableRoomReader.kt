@@ -4,20 +4,9 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
-import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
-import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
-import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
-import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
-import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
-import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
-import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
@@ -165,6 +154,8 @@ class AmbientStepsPortableRoomReader(private val database: AppDatabase) {
 				AmbientStepsPortableReadFailure.CORRUPT_RETAINED_STATE,
 			)
 		}
+		// This audit uses each saved fact's original cursor, policy and consent. Current
+		// source choices govern new collection only, including after a data-only restore.
 		val audit = database.loadAuthenticatedAmbientStepsState(
 			limits.maintenance,
 			checkpoint = { current ->
@@ -182,29 +173,6 @@ class AmbientStepsPortableRoomReader(private val database: AppDatabase) {
 			}
 		}
 		if (effectiveFacts.isEmpty()) return AmbientStepsPortableSnapshot.NoData
-		val policyAuthority = database.sourcePolicyDao().authority()
-		val currentPolicy = policyAuthority?.takeIf {
-			it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE
-		}?.let { authority ->
-			database.sourcePolicyDao().policyAtRevision(
-				authority.currentPolicyRevision,
-				SourceDestinationOwnerEntity.SOURCE_STEPS,
-			)
-		}
-		val currentConsent = database.sourcePolicyDao().latestConsentEpoch(
-			SourceDestinationOwnerEntity.SOURCE_STEPS,
-			SourceBrokerPurpose.AMBIENT_PRODUCT,
-		)
-		if (currentPolicy == null || currentConsent == null) {
-			return AmbientStepsPortableSnapshot.Unverifiable(
-				AmbientStepsPortableReadFailure.SOURCE_AUTHORITY_UNAVAILABLE,
-			)
-		}
-		if (!currentPolicy.hasExactEligibleAmbientConsentReference(currentConsent)) {
-			return AmbientStepsPortableSnapshot.Unverifiable(
-				AmbientStepsPortableReadFailure.DELETION_PENDING,
-			)
-		}
 		val retainedFromMs = evidence.retainedFromMs
 		if (retainedFromMs != null && effectiveFacts.any {
 			requireNotNull(it.windowStartTimeMs) < retainedFromMs
@@ -224,25 +192,6 @@ class AmbientStepsPortableRoomReader(private val database: AppDatabase) {
 		requirePortableBound(selectedFacts.size <= limits.maximumFacts)
 		val activeCursors = audit.cursors.filter {
 			it.status == AmbientStepsImportCursorEntity.STATUS_ACTIVE
-		}
-		if (activeCursors.any { cursor ->
-			!database.hasExactActiveAmbientCursorAuthority(
-				cursor,
-				currentPolicy,
-				currentConsent,
-				limits.maintenance.maximumAuthorizationMembersPerRevision,
-			)
-		}) {
-			return AmbientStepsPortableSnapshot.Unverifiable(
-				AmbientStepsPortableReadFailure.CORRUPT_RETAINED_STATE,
-			)
-		}
-		if (selectedKeys.any { day ->
-			activeCursors.any { cursor -> cursor.isMaterializing(day) }
-		}) {
-			return AmbientStepsPortableSnapshot.Unverifiable(
-				AmbientStepsPortableReadFailure.MATERIALIZING,
-			)
 		}
 		val effectiveGaps = mutableListOf<AmbientStepsPortableEffectiveGap>()
 		audit.gaps.forEach { gap ->
@@ -267,7 +216,8 @@ class AmbientStepsPortableRoomReader(private val database: AppDatabase) {
 				}
 			}
 			val facts = factsByDay[day].orEmpty()
-			val portableDay = day.toPortableDay(facts, gaps, retainedFromMs, limits)
+			val portableDay = day.toPortableDay(facts, gaps, retainedFromMs, limits,
+				pendingPrefix = activeCursors.any { it.isMaterializing(day) })
 			if (includeCountDomainGraph) {
 				val roots = facts.map { fact ->
 					PortableCountDomainRootSeed(
@@ -343,150 +293,6 @@ private fun AmbientStepsImportCursorEntity.isMaterializing(day: AmbientStepsPort
 	status == AmbientStepsImportCursorEntity.STATUS_ACTIVE && segmentStartTimeMs < day.endTimeMs &&
 		importedThroughTimeMs < day.endTimeMs
 
-private suspend fun AppDatabase.hasExactActiveAmbientCursorAuthority(
-	cursor: AmbientStepsImportCursorEntity,
-	policy: SourcePolicyEntity,
-	consent: SourceConsentEpochEntity,
-	maximumAuthorizationMembers: Int,
-): Boolean {
-	val registration = sourceBrokerDao().registration(
-		SourceDestinationOwnerEntity.SOURCE_STEPS,
-		cursor.registrationGeneration,
-	) ?: return false
-	if (registration.sourceKind != SourceDestinationOwnerEntity.SOURCE_STEPS ||
-		registration.registrationGeneration != cursor.registrationGeneration ||
-		registration.sourceInstanceId != cursor.sourceInstanceId ||
-		registration.ownerScope != SourceProviderPurposeScope.exactOwnerScope(
-			SourceDestinationOwnerEntity.SOURCE_STEPS,
-			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
-		) || registration.clockDomainId != cursor.registrationClockDomainId ||
-		registration.physicalConfigurationFingerprint !=
-			"ambient-steps-provider:v1:mechanism=${cursor.provider}" ||
-		registration.collectedDataEpoch != cursor.collectedDataEpoch ||
-		registration.providerResidency !=
-			ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE ||
-		registration.providerProcessIncarnationId != null ||
-		registration.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE ||
-		registration.acceptedAtMs != cursor.registrationAcceptedAtMs ||
-		registration.acceptedElapsedRealtimeNanos !=
-			cursor.registrationAcceptedElapsedRealtimeNanos ||
-		registration.retiredAtMs != null || registration.retiredElapsedRealtimeNanos != null ||
-		registration.failureCode != null ||
-		registration.captureCallbackBarrierAuthorizationRevision != 0L
-	) return false
-	if (ambientStepsImportStateDao().latestAuthorizationRevision(
-			SourceDestinationOwnerEntity.SOURCE_STEPS,
-			cursor.registrationGeneration,
-		) != cursor.authorizationRevision
-	) return false
-	val pointer = sourceRegistrationStateDao().get(
-		SourceDestinationOwnerEntity.SOURCE_STEPS,
-		registration.ownerScope,
-	) ?: return false
-	if (pointer.sourceKind != registration.sourceKind ||
-		pointer.ownerScope != registration.ownerScope ||
-		pointer.sourceInstanceId != registration.sourceInstanceId ||
-		pointer.clockDomainId != registration.clockDomainId ||
-		pointer.registrationGeneration != registration.registrationGeneration ||
-		pointer.appliedRevision != cursor.sourcePolicyRevision ||
-		pointer.collectedDataEpoch != registration.collectedDataEpoch ||
-		pointer.updatedAtMs < cursor.registrationAcceptedAtMs
-	) return false
-
-	val authorization = sourceBrokerDao().authorizationRevisionBounded(
-		SourceDestinationOwnerEntity.SOURCE_STEPS,
-		cursor.registrationGeneration,
-		cursor.authorizationRevision,
-		maximumAuthorizationMembers + 1,
-	)
-	requirePortableBound(authorization.size <= maximumAuthorizationMembers)
-	val first = authorization.firstOrNull() ?: return false
-	if (authorization.any { member -> !member.matches(cursor, first) }) return false
-	val demandIds = authorization.mapNotNull(SourceAuthorizationEntity::demandId)
-	if (demandIds.size != authorization.size || demandIds.distinct().size != demandIds.size) {
-		return false
-	}
-	val demands = sourceBrokerDao().demandsByIds(demandIds)
-	if (demands.size != demandIds.size ||
-		demands.map(SourceDemandEntity::demandId).toSet() != demandIds.toSet() ||
-		SourceBrokerAuthorization.fingerprint(demands) != cursor.authorizationFingerprint ||
-		demands.any { demand ->
-			!demand.matchesActiveAmbientCursor(cursor, policy, consent)
-		}
-	) return false
-	val expectedAuthorization = SourceBrokerAuthorization.rows(
-		SourceDestinationOwnerEntity.SOURCE_STEPS,
-		cursor.registrationGeneration,
-		cursor.authorizationRevision,
-		demands,
-		cursor.authorizationEffectiveBootId,
-		cursor.authorizationEffectiveElapsedRealtimeNanos,
-		cursor.authorizationEffectiveWallTimeMs,
-	)
-	if (authorization.toSet() != expectedAuthorization.toSet()) return false
-
-	return policy.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
-		policy.policyRevision == cursor.sourcePolicyRevision &&
-		policy.ambientConsentEpoch == cursor.ambientConsentEpoch &&
-		policy.hasExactEligibleAmbientConsentReference(consent) &&
-		policy.isEffectiveAtOrBefore(
-			cursor.authorizationEffectiveBootId,
-			cursor.authorizationEffectiveElapsedRealtimeNanos,
-			cursor.authorizationEffectiveWallTimeMs,
-		) &&
-		consent.isEffectiveAtOrBefore(
-			cursor.authorizationEffectiveBootId,
-			cursor.authorizationEffectiveElapsedRealtimeNanos,
-			cursor.authorizationEffectiveWallTimeMs,
-		)
-}
-
-private fun SourceAuthorizationEntity.matches(
-	cursor: AmbientStepsImportCursorEntity,
-	first: SourceAuthorizationEntity,
-): Boolean = sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
-	registrationGeneration == cursor.registrationGeneration &&
-	authorizationRevision == cursor.authorizationRevision && !isDenyAll &&
-	authorizationFingerprint == cursor.authorizationFingerprint &&
-	purposeEligibilityMask == SourceBrokerPurpose.MASK_AMBIENT_PRODUCT &&
-	purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && persistenceEligible &&
-	sourcePolicyRevision == cursor.sourcePolicyRevision && consentEpoch == cursor.ambientConsentEpoch &&
-	effectiveBootId == cursor.authorizationEffectiveBootId &&
-	effectiveElapsedRealtimeNanos == cursor.authorizationEffectiveElapsedRealtimeNanos &&
-	effectiveWallTimeMs == cursor.authorizationEffectiveWallTimeMs &&
-	effectiveBootId == first.effectiveBootId &&
-	effectiveElapsedRealtimeNanos == first.effectiveElapsedRealtimeNanos &&
-	effectiveWallTimeMs == first.effectiveWallTimeMs && logicalTrackingId == null &&
-	serviceRunId == null && manifestRevision == null && lifecycleLeaseGeneration == null
-
-private fun SourceDemandEntity.matchesActiveAmbientCursor(
-	cursor: AmbientStepsImportCursorEntity,
-	policy: SourcePolicyEntity,
-	consent: SourceConsentEpochEntity,
-): Boolean = sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
-	purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && persistenceEligible &&
-	sourcePolicyRevision == cursor.sourcePolicyRevision && consentEpoch == cursor.ambientConsentEpoch &&
-	logicalTrackingId == null && serviceRunId == null && manifestRevision == null &&
-	lifecycleLeaseGeneration == null && requestedBootId == cursor.authorizationEffectiveBootId &&
-	requestedElapsedRealtimeNanos <= cursor.authorizationEffectiveElapsedRealtimeNanos &&
-	requestedAtMs <= cursor.authorizationEffectiveWallTimeMs &&
-	policy.isEffectiveAtOrBefore(
-		requestedBootId,
-		requestedElapsedRealtimeNanos,
-		requestedAtMs,
-	) &&
-	consent.isEffectiveAtOrBefore(
-		requestedBootId,
-		requestedElapsedRealtimeNanos,
-		requestedAtMs,
-	) &&
-	minimumAcquisitionSpec == listOf(
-		"ambient-steps:v1:mechanism=${cursor.provider}",
-		"coverage=OPPORTUNISTIC",
-		"record_freshness=SOURCE_NATIVE_CURSOR",
-	).joinToString(";") && status == SourceDemandEntity.STATUS_ACTIVE && retireBootId == null &&
-	retireElapsedRealtimeNanos == null && retiredAtMs == null
-
 private fun AmbientStepsImportGapEntity.subtractCoveredFacts(
 	facts: List<AmbientStepsFactRevisionEntity>,
 	maximumParts: Int,
@@ -549,6 +355,7 @@ private fun AmbientStepsPortableDayKey.toPortableDay(
 	localGaps: List<PortableAmbientStepsGapV1>,
 	retainedFromMs: Long?,
 	limits: AmbientStepsPortableReadLimits,
+	pendingPrefix: Boolean,
 ): PortableAmbientStepsDayV1 {
 	requirePortableBound(localFacts.size <= limits.maximumFactsPerDay)
 	requirePortableBound(localGaps.size <= limits.maximumGapsPerDay)
@@ -571,12 +378,12 @@ private fun AmbientStepsPortableDayKey.toPortableDay(
 		gaps.forEach { add(it.intervalStartTimeMs to it.intervalEndTimeMs) }
 	}.sortedBy(Pair<Long, Long>::first)
 	val entireDayAccountedFor = coverageIntervals.covers(startTimeMs, endTimeMs)
-	val completelyCoveredByFacts = gaps.isEmpty() && retainedBoundary == null &&
+	val completelyCoveredByFacts = !pendingPrefix && gaps.isEmpty() && retainedBoundary == null &&
 		facts.map { it.intervalStartTimeMs to it.intervalEndTimeMs }.covers(startTimeMs, endTimeMs)
 	val causes = buildList {
 		if (gaps.isNotEmpty()) add(PortableAmbientStepsPartialCause.EXPLICIT_GAP)
 		if (retainedBoundary != null) add(PortableAmbientStepsPartialCause.RETENTION)
-		if (!entireDayAccountedFor) add(PortableAmbientStepsPartialCause.OUTSIDE_AUTHORITY)
+		if (!entireDayAccountedFor || pendingPrefix) add(PortableAmbientStepsPartialCause.OUTSIDE_AUTHORITY)
 	}.distinct().sortedBy { it.ordinal }
 	val total = facts.fold(0L) { sum, fact -> Math.addExact(sum, fact.stepCount) }
 	val identity = AmbientStepsPortableOpaqueIdentity.derive(

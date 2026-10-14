@@ -72,6 +72,7 @@ internal class PortableWifiSourceFileImport(
 					radioEntryKey(receipt.entryKey, product.identity.value),
 					receipt.sourceName, receipt.receivedAtMs),
 				epoch,
+				mergeSelectedReadings = file.schemaVersion >= 3,
 			))
 			when (result) {
 				is ImportPortableCapturedWifiResult.Applied -> total +=
@@ -144,6 +145,7 @@ internal class PortableCellSourceFileImport(
 					radioEntryKey(receipt.entryKey, product.identity.value),
 					receipt.sourceName, receipt.receivedAtMs),
 				epoch,
+				mergeSelectedReadings = file.schemaVersion >= 3,
 			))
 			when (result) {
 				is ImportPortableCapturedCellResult.Applied -> total +=

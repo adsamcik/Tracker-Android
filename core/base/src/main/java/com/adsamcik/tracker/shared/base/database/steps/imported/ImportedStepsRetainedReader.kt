@@ -292,7 +292,7 @@ class ImportedStepsRetainedReader(private val database: AppDatabase) {
 			SourceDestinationOwnerEntity.SOURCE_STEPS, StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
 			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN, runs.map(ImportedStepsRunEntity::deletionScopeDigest),
 		)
-		if (truncationFences.any { it.collectedDataEpoch != state.collectedDataEpoch || it.fenceGeneration != 1L }) {
+		if (truncationFences.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) || it.fenceGeneration != 1L }) {
 			return failure(ImportedStepsReadFailure.INTEGRITY)
 		}
 		val truncatedScopes = truncationFences.mapTo(hashSetOf()) { it.scopeIdentityDigest }
@@ -311,7 +311,7 @@ class ImportedStepsRetainedReader(private val database: AppDatabase) {
 				return@mapNotNull null
 			}
 			val verified = try {
-				require(entry.collectedDataEpoch == state.collectedDataEpoch)
+				require(state.acceptsRetainedEpoch(entry.collectedDataEpoch))
 				ImportedStepsRetainedValidator.validate(
 				entry, runs.filter { it.entryIdentity == entry.identity }, segments,
 				manifestsByRun, factsByRun,

@@ -111,7 +111,7 @@ internal object CellHistoryComposer {
 		check(snapshot.revisions.all { it.logicalTrackingId == logicalId && it.serviceRunId == run.serviceRunId })
 		check(snapshot.terminalFailures.none { it.admissionOrdinal == fact.sourceAdmissionOrdinal || it.admissionOrdinal == aggregate.sourceAdmissionOrdinal })
 		val generation = snapshot.deletionGenerations[logicalId to run.serviceRunId]
-		check(generation == null || generation.collectedDataEpoch == evidence.collectedDataEpoch)
+		check(generation == null || evidence.acceptsRetainedEpoch(generation.collectedDataEpoch))
 		if (!fact.hasCurrentPrivacyAuthority(logicalId, evidence, snapshot) ||
 			!aggregate.hasCurrentPrivacyAuthority(logicalId, evidence, snapshot)) return null
 		val wal = requireNotNull(snapshot.admissions.singleOrNull { it.eventId == fact.sourceEventId })
@@ -420,7 +420,7 @@ internal object CellHistoryComposer {
 
 		val deletedRuns = runIds.filter { runId ->
 			val generation = snapshot.deletionGenerations[logicalId to runId]
-			generation != null && generation.collectedDataEpoch != evidenceState.collectedDataEpoch
+			generation != null && !evidenceState.acceptsRetainedEpoch(generation.collectedDataEpoch)
 		}.toSet()
 		if (deletedRuns.isNotEmpty()) return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED)
 
@@ -893,7 +893,7 @@ internal object CellHistoryComposer {
 		logicalId: String,
 		evidenceState: SourceEvidenceState,
 		snapshot: CellHistorySnapshot,
-	): Boolean = collectedDataEpoch == evidenceState.collectedDataEpoch &&
+	): Boolean = evidenceState.acceptsRetainedEpoch(collectedDataEpoch) &&
 		sourceAdmissionOrdinal > evidenceState.deletedSourceEventHighWaterOrdinal &&
 		scopeDeletionGeneration ==
 			(snapshot.deletionGenerations[logicalId to serviceRunId]?.generation ?: 0L) &&

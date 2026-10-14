@@ -16,6 +16,8 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.Checkbox
+import com.adsamcik.tracker.impexp.exporter.RadioSourceExporter
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -149,7 +151,7 @@ fun ExportScreen(
 
     BackHandler(enabled = isExporting) {}
 
-    if (uiState.showNoDataDialog && exporter.requiresLocationData) {
+    if (uiState.showNoDataDialog && exporter.requiresLocationData && !uiState.hasUnfinishedFileRecovery) {
         AlertDialog(
             onDismissRequest = { activity.finish() },
             title = { Text(text = stringResource(id = R.string.settings_export_no_data)) },
@@ -184,6 +186,7 @@ fun ExportScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            UnfinishedExportFilesNotice(uiState, viewModel::removeUnfinishedFile, viewModel::loadUnfinishedFiles)
             // Main content in GlassCard
             GlassCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
@@ -292,6 +295,13 @@ fun ExportScreen(
                                         }
                                     }
                                 )
+                            }
+                        }
+						if (exporter is RadioSourceExporter) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = uiState.includeCompleteSessions, enabled = !isExporting,
+                                    onCheckedChange = viewModel::setIncludeCompleteSessions)
+                                Text(stringResource(R.string.export_include_complete_sessions))
                             }
                         }
 						if (exporter is JsonExporter) {

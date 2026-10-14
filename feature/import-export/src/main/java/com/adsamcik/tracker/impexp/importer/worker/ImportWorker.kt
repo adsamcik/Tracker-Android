@@ -23,6 +23,7 @@ import com.adsamcik.tracker.impexp.importer.PermanentImportInputException
 import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.impexp.importer.RoomImportReceiptStore
 import com.adsamcik.tracker.impexp.importer.computeImportJobId
+import com.adsamcik.tracker.impexp.importer.locationFileReview
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveEntryMetadata
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveClassification
@@ -370,7 +371,7 @@ class ImportWorker @AssistedInject constructor(
                         fileName = fileName,
                         receiptKey = DIRECT_ENTRY_KEY,
                         streamProvider = { inputStream },
-                    ),
+                    ).also { stream -> inputData.locationFileReview()?.let(stream::withLocationReview) },
 					transactionMode = FormatRegistry.importerForExtension(
 						fileName.substringAfterLast('.', "").lowercase(Locale.ROOT),
 					)?.transactionMode ?: ImportTransactionMode.WORKER_MANAGED,

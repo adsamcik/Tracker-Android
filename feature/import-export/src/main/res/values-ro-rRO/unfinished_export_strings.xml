@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Elimină fișierul neterminat</string>
+    <string name="export_unfinished_retry">Reîncearcă</string>
+    <string name="export_unfinished_files_guidance">Tracker nu poate elimina acest fișier. Elimină-l în aplicația Fișiere sau restabilește accesul la dosar și reîncearcă.</string>
+    <string name="export_unfinished_notice_update_failed">Fișier eliminat. Notificarea nu a putut fi actualizată. Reîncearcă.</string>
+    <string name="export_unfinished_startup_unavailable">Finalizează recuperarea datelor în Tracker, apoi reîncearcă.</string>
+    <string name="export_unfinished_load_failed">Fișierele neterminate nu au putut fi încărcate.</string>
+    <string name="export_unfinished_notice_save_failed">Un fișier neterminat nu a putut fi memorat. Elimină-l în aplicația Fișiere.</string>
+    <string name="export_unfinished_not_remembered">Nu s-a putut elimina sau memora %s. Elimină-l în aplicația Fișiere.</string>
+    <string name="export_unfinished_remove_accessibility">Elimină fișierul neterminat: %s</string>
+</resources>

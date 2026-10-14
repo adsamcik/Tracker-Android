@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import com.adsamcik.tracker.shared.base.database.ImportedPressureLineageAuthenticator as CoreAuthenticator
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
@@ -25,6 +26,7 @@ internal object ImportedPressureLineageAuthenticator {
 		receipts: List<ImportedPressureReceiptEntity>,
 		runs: List<ImportedPressureRunEntity>,
 		windows: List<ImportedPressureWindowEntity>,
+		retainedState: SourceEvidenceState? = null,
 	): AuthenticatedImportedPressureLineage = CoreAuthenticator.authenticate(
 		identity,
 		expectedCollectedDataEpoch,
@@ -32,6 +34,7 @@ internal object ImportedPressureLineageAuthenticator {
 		receipts,
 		runs,
 		windows,
+		retainedState,
 	)
 }
 

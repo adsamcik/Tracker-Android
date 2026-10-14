@@ -25,6 +25,8 @@ data class DayBar(
     val epochDay: Long,
     val sessionCount: Int = 0,
     val durationMs: Long = 0L,
+    val hasMeasuredDistance: Boolean = distanceM > 0f,
+    val distanceIsPartial: Boolean = false,
 )
 
 /** Structural activity evidence that does not treat the legacy Steps projection as authoritative. */

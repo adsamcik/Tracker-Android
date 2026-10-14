@@ -194,6 +194,24 @@ class AchievementWorker @AssistedInject constructor(
 				}
 				}
 
+				// Edits and deletion can lower current progress. Recompute the earned tier
+				// from this metric's existing rules rather than preserving an old unlock.
+				for ((metric, accum) in accumulators) {
+					val definitions = instances.asSequence().filter { it.rule.metric == metric }
+						.mapNotNull { it.attachment as? AchievementDefinition }.toList()
+					if (definitions.isEmpty()) continue
+					val currentTier = definitions.filter { definition ->
+						accum.lastValue >= definition.threshold && (definition.minimumActiveDays <= 1 ||
+							(snapshotValues[definition.pacingMetric]?.toLong()?.let(definition::isEligible) == true))
+					}.maxOfOrNull { it.tierIndex } ?: -1
+					if (currentTier < accum.lastTierIndex) {
+						accum.lastTierIndex = currentTier
+						accum.lastUnlockedAt = null
+						accum.tierAdvanced = false
+						accum.changed = true
+					}
+				}
+
 				val now = System.currentTimeMillis()
 				val updates = accumulators
 				.asSequence()
@@ -245,7 +263,7 @@ class AchievementWorker @AssistedInject constructor(
 	private class ProgressAccumulator(
 		var lastTierIndex: Int,
 		var lastValue: Double,
-		val lastUnlockedAt: Long?,
+		var lastUnlockedAt: Long?,
 		var changed: Boolean = false,
 		var tierAdvanced: Boolean = false,
 	)

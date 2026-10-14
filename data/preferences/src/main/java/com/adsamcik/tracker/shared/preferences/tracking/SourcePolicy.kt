@@ -181,6 +181,13 @@ interface SourcePolicyRepository {
 		reason: String,
 	): SourcePolicySnapshot
 
+	/** Republishes the phone's choices after data restore; archived policies remain history. */
+	suspend fun reissueAfterDataRestore(
+		localChoices: SourcePolicySnapshot,
+		legacySettingsFingerprint: String?,
+		previousConsentEpoch: Long,
+	): SourcePolicySnapshot
+
 	/** Changes non-capture consent without changing SESSION_CAPTURE eligibility. */
 	suspend fun setNonCaptureConsent(
 		expectedPolicyRevision: Long,

@@ -72,11 +72,37 @@ interface PointsAwardedDao : BaseDao<PointsAwarded> {
 		time: Long,
 		valueMicros: Long,
 	): Boolean {
+		return applyRevisionedEffect(AwardSource.GOAL, effectKey, effectRevision, time, valueMicros)
+	}
+
+	@Query("SELECT * FROM points_awarded WHERE source = 'session' AND effect_key IS NOT NULL " +
+		"AND id > :afterId ORDER BY id LIMIT :limit")
+	suspend fun sessionEffectPage(afterId: Int, limit: Int): List<PointsAwarded>
+
+	/** A recording keeps its original receipt key after logical backup restore. */
+	@Query("SELECT * FROM points_awarded WHERE source = 'session' " +
+		"AND effect_key LIKE 'recording:%:' || :segmentId ORDER BY id LIMIT 2")
+	suspend fun sessionEffects(segmentId: Long): List<PointsAwarded>
+
+	@Query("SELECT EXISTS(SELECT 1 FROM points_awarded WHERE source = 'session' " +
+		"AND effect_key IS NULL AND time = :time)")
+	suspend fun hasLegacySessionAwardAt(time: Long): Boolean
+
+	@Transaction
+	suspend fun applySessionEffect(effectKey: String, effectRevision: Long, time: Long, valueMicros: Long): Boolean {
+		// The older timestamp-only row has no safe segment association. Never grant it twice.
+		if (getRevisionedEffect(AwardSource.SESSION.value, effectKey) == null && hasLegacySessionAwardAt(time)) return false
+		return applyRevisionedEffect(AwardSource.SESSION, effectKey, effectRevision, time, valueMicros)
+	}
+
+	@Transaction
+	suspend fun applyRevisionedEffect(awardSource: AwardSource, effectKey: String, effectRevision: Long,
+		time: Long, valueMicros: Long): Boolean {
 		require(effectKey.isNotBlank()) { "Effect key must not be blank" }
 		require(effectRevision > 0L) { "Effect revision must be positive" }
 		require(valueMicros >= 0L) { "Goal points must not be negative" }
 
-		val source = AwardSource.GOAL.value
+		val source = awardSource.value
 		val current = getRevisionedEffect(source, effectKey)
 		if (current != null) {
 			val currentRevision = checkNotNull(current.effectRevision) {
@@ -107,7 +133,7 @@ interface PointsAwardedDao : BaseDao<PointsAwarded> {
 				value = Points(
 					valueMicros.toDouble() / POINT_MICROS,
 				),
-				source = AwardSource.GOAL,
+				source = awardSource,
 				effectKey = effectKey,
 				effectRevision = effectRevision,
 				effectValueMicros = valueMicros,

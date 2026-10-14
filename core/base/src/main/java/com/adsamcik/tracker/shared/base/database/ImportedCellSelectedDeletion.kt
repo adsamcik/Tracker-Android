@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionE
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellObservationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellRunEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import javax.inject.Inject
@@ -168,6 +169,7 @@ class RoomDeleteSelectedImportedCell internal constructor(
 				receipts,
 				runs,
 				observations,
+				retainedState = state,
 			)
 		} catch (failure: ImportedCellLineageFailure) {
 			unverifiable(failure.reason.toDeletionFailure())
@@ -195,7 +197,7 @@ class RoomDeleteSelectedImportedCell internal constructor(
 
 		val entryDeletion = ImportedCellEntryDeletionEntity.create(
 			request.identity.value,
-			state.collectedDataEpoch,
+			latest.header.collectedDataEpoch,
 			request.expectedImportRevision,
 			request.deletedAtMs,
 		)
@@ -207,7 +209,7 @@ class RoomDeleteSelectedImportedCell internal constructor(
 					run.identity,
 					run.entryIdentity,
 					run.deletionScopeDigest,
-					state.collectedDataEpoch,
+					latest.header.collectedDataEpoch,
 					1L,
 					request.deletedAtMs,
 				),
@@ -236,6 +238,7 @@ class RoomDeleteSelectedImportedCell internal constructor(
 		checkpoint(ImportedCellDeletionCheckpoint.MARKERS_RECORDED)
 
 		if (dao.deleteEntryRevisions(request.identity.value) != headers.size) concurrentMutation()
+		database.importedRadioFileMembershipDao().deleteEntry(SourceDestinationOwnerEntity.SOURCE_CELL, request.identity.value)
 		if (dao.boundedEntryRevisions(request.identity.value).isNotEmpty() ||
 			dao.receiptsForAdmission(request.identity.value).isNotEmpty() ||
 			dao.allRunsForAdmission(request.identity.value).isNotEmpty() ||
@@ -264,7 +267,7 @@ class RoomDeleteSelectedImportedCell internal constructor(
 			deletion.deletedImportRevision != receipt.deletedImportRevision ||
 			deletion.deletedAtMs != receipt.deletedAtMs ||
 			receipt.entryIdentity != request.identity.value ||
-			receipt.collectedDataEpoch != request.expectedCollectedDataEpoch
+			!state.acceptsRetainedEpoch(receipt.collectedDataEpoch)
 		) unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
 		if (receipt.deletedImportRevision != request.expectedImportRevision ||
 			receipt.deletedContentChecksum != request.expectedContentChecksum.value
@@ -298,7 +301,7 @@ class RoomDeleteSelectedImportedCell internal constructor(
 			protectedRuns ||
 			runMarkers.any {
 				it.entryIdentity != request.identity.value ||
-					it.collectedDataEpoch != request.expectedCollectedDataEpoch ||
+					it.collectedDataEpoch != receipt.collectedDataEpoch ||
 					it.generation != 1L
 			}
 		) unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
@@ -506,7 +509,7 @@ suspend fun AppDatabase.authenticateDeletedImportedCellSelectionInTransaction(
 		deletion.collectedDataEpoch != receipt.collectedDataEpoch ||
 		deletion.deletedImportRevision != receipt.deletedImportRevision ||
 		deletion.deletedAtMs != receipt.deletedAtMs ||
-		deletion.collectedDataEpoch != state.collectedDataEpoch ||
+		!state.acceptsRetainedEpoch(deletion.collectedDataEpoch) ||
 		receipt.retainedFromMs != state.retainedFromMs ||
 		dao.boundedEntryRevisions(identity.value).isNotEmpty() ||
 		dao.receiptsForAdmission(identity.value).isNotEmpty() ||
@@ -541,7 +544,7 @@ suspend fun AppDatabase.authenticateDeletedImportedCellSelectionInTransaction(
 		runIdentities ||
 		runMarkers.any {
 			it.entryIdentity != identity.value ||
-				it.collectedDataEpoch != state.collectedDataEpoch || it.generation != 1L
+				it.collectedDataEpoch != receipt.collectedDataEpoch || it.generation != 1L
 		}
 	) return DeletedImportedCellSelectionAuthentication.Unverifiable
 	if (!hasValidDeletedCellTopology(deletion, receipt, markers, runMarkers)) {
@@ -568,7 +571,7 @@ suspend fun AppDatabase.authenticateDeletedImportedCellSelectionInTransaction(
 				fence.scopeKind !=
 				com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 					.SCOPE_LOGICAL_SERVICE_RUN ||
-				fence.collectedDataEpoch != state.collectedDataEpoch
+				!state.acceptsRetainedEpoch(fence.collectedDataEpoch)
 		}) return DeletedImportedCellSelectionAuthentication.Unverifiable
 	}
 	val liveLimit = ImportedCellDao.MAX_LIVE_OWNER_ROWS + 1
@@ -684,7 +687,7 @@ suspend fun AppDatabase.authenticateDeletedImportedCellSelectionInTransaction(
 	}.associateBy(ImportedCellDeletedIdentityEntity::protectedIdentity)
 	val relevantLiveGenerations = linkedMapOf<String, Long>()
 	for (generation in liveGenerations) {
-		if (generation.collectedDataEpoch != state.collectedDataEpoch ||
+		if (!state.acceptsRetainedEpoch(generation.collectedDataEpoch) ||
 			generation.logicalTrackingId.isBlank() || generation.serviceRunId.isBlank() ||
 			generation.generation <= 0L
 		) return DeletedImportedCellSelectionAuthentication.Unverifiable
@@ -725,7 +728,7 @@ suspend fun AppDatabase.authenticateDeletedImportedCellSelectionInTransaction(
 				fence.scopeKind !=
 				com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 					.SCOPE_LOGICAL_SERVICE_RUN ||
-				fence.collectedDataEpoch != state.collectedDataEpoch || fence.fenceGeneration <= 0L
+				!state.acceptsRetainedEpoch(fence.collectedDataEpoch) || fence.fenceGeneration <= 0L
 		}
 	) return DeletedImportedCellSelectionAuthentication.Unverifiable
 	val fenceGenerations = sourceFences.associate {

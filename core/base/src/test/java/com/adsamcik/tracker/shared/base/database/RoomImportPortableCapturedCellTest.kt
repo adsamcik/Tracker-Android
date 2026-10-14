@@ -43,6 +43,159 @@ class RoomImportPortableCapturedCellTest {
 	private lateinit var database: AppDatabase
 
 	@Test
+	fun `restored Cell remains readable and replayable with strict fresh request authority`() = runTest {
+		seedEvidence()
+		val original = request(entry())
+		val subject = importer()
+		subject.importEntry(original) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		restoreOriginalEpoch()
+
+		val readable = database.withTransaction {
+			ImportedCellProductReader(database).selectIdentityInTransaction(original.entry.identity)
+		} as ImportedCellProductEvaluation.Readable
+		readable.entry shouldBe original.entry
+		subject.importEntry(original) shouldBe ImportPortableCapturedCellResult.Blocked(
+			PortableCellImportBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
+		subject.importEntry(original.copy(expectedCollectedDataEpoch = EPOCH + 1)) shouldBe
+			ImportPortableCapturedCellResult.Duplicate(1L)
+		val alternate = original.copy(expectedCollectedDataEpoch = EPOCH + 1,
+			receipt = original.receipt.copy(jobId = "restored-copy"))
+		subject.importEntry(alternate) shouldBe ImportPortableCapturedCellResult.Duplicate(1L)
+		database.importedCellDao().receiptsForAdmission(original.entry.identity.value)
+			.map { it.collectedDataEpoch }.distinct() shouldBe listOf(EPOCH)
+	}
+
+	@Test
+	fun `a restored partial Cell file merges with its completed range and reimports once`() = runTest {
+		seedEvidence()
+		val observations = listOf(observation("first"), observation("second"))
+		val full = entry(runDefinitions = listOf(RunDefinition("run", 10L, 200L, observations)))
+		val measured = observations.first()
+		val partial = entry(runDefinitions = listOf(RunDefinition("run", measured.coverageStartTimeMs,
+			measured.latestPossibleTimeMs, listOf(measured), coverage = PortableCellCaptureCoverage.PARTIAL_RUN,
+			completeness = PortableCellAcquisitionCompleteness.PARTIAL)))
+		val subject = importer()
+		val first = request(partial, "unfinished-file").copy(mergeSelectedReadings = true)
+		subject.importEntry(first) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		subject.importEntry(request(full, "completed-file").copy(mergeSelectedReadings = true)) shouldBe
+			ImportPortableCapturedCellResult.Applied(2L, 1, 2)
+		subject.importEntry(first.copy(receipt = first.receipt.copy(jobId = "unfinished-again"))) shouldBe
+			ImportPortableCapturedCellResult.Duplicate(2L)
+		(database.withTransaction { ImportedCellProductReader(database).selectIdentityInTransaction(full.identity) }
+			as ImportedCellProductEvaluation.Readable).entry shouldBe full
+	}
+
+	@Test
+	fun `restored Cell correction preserves original lineage epoch`() = runTest {
+		seedEvidence()
+		val original = entry()
+		val subject = importer()
+		subject.importEntry(request(original)) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		restoreOriginalEpoch()
+		val corrected = entry(observation = observation("one", semanticRevision = 2L, qualityFlags = 7L))
+		subject.importEntry(request(corrected, "restored-correction", expectedEpoch = EPOCH + 1)) shouldBe
+			ImportPortableCapturedCellResult.Applied(2L, 1, 1)
+		database.importedCellDao().boundedEntryRevisions(original.identity.value)
+			.map { it.collectedDataEpoch } shouldBe listOf(EPOCH, EPOCH)
+		database.importedCellDao().allRunsForAdmission(original.identity.value)
+			.map { it.collectedDataEpoch }.distinct() shouldBe listOf(EPOCH)
+		val readable = database.withTransaction {
+			ImportedCellProductReader(database).selectIdentityInTransaction(original.identity)
+		} as ImportedCellProductEvaluation.Readable
+		readable.entry shouldBe corrected
+	}
+
+	@Test
+	fun `restored selected Cell files merge and retain exact original membership`() = runTest {
+		seedEvidence()
+		val full = entry(runDefinitions = listOf(RunDefinition("run", 10L, 20L,
+			listOf(observation("first"), observation("second")))))
+		val firstId = full.runs.single().observations.first().identity
+		val first = requireNotNull(full.selectReadings({ it.identity == firstId }, { false }))
+		val second = requireNotNull(full.selectReadings({ it.identity != firstId }, { false }))
+		val original = request(first, "before-restore").copy(mergeSelectedReadings = true)
+		val subject = importer()
+		subject.importEntry(original) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		restoreOriginalEpoch()
+		subject.importEntry(original.copy(expectedCollectedDataEpoch = EPOCH + 1)) shouldBe
+			ImportPortableCapturedCellResult.Duplicate(1L)
+		val next = request(second, "after-restore", expectedEpoch = EPOCH + 1).copy(mergeSelectedReadings = true)
+		subject.importEntry(next) shouldBe ImportPortableCapturedCellResult.Applied(2L, 1, 2)
+		database.importedRadioFileMembershipDao().members(SourceDestinationOwnerEntity.SOURCE_CELL,
+			next.receipt.jobId, next.receipt.entryKey, 100).map { it.collectedDataEpoch }.distinct() shouldBe listOf(EPOCH)
+		readRadioFileMembers(database, SourceDestinationOwnerEntity.SOURCE_CELL, original.receipt.jobId,
+			original.receipt.entryKey, full.identity.value, EPOCH, 100).filter { it.kind == "OBSERVATION" }
+			.map { it.identity } shouldBe listOf(firstId.value)
+	}
+
+	private fun restoreOriginalEpoch() {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_evidence_state SET collected_data_epoch = ?, restored_data_epochs = ? WHERE id = 1",
+			arrayOf<Any?>(EPOCH + 1, EPOCH.toString()))
+	}
+
+	@Test
+	fun `deleting restored Cell uses fresh request and retains original deletion lineage`() = runTest {
+		seedEvidence()
+		val value = entry()
+		importer().importEntry(request(value)) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		restoreOriginalEpoch()
+		val subject = RoomDeleteSelectedImportedCell(database, Dispatchers.Unconfined)
+		val deletion = DeleteSelectedImportedCellRequest(value.identity, 1L, value.contentChecksum, EPOCH + 1, 600L)
+		subject.delete(deletion.copy(expectedCollectedDataEpoch = EPOCH)) shouldBe
+			DeleteSelectedImportedCellResult.Blocked(ImportedCellDeletionBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
+		subject.delete(deletion) shouldBe DeleteSelectedImportedCellResult.Deleted(1, 1, 1)
+		database.importedCellDao().entryDeletionReceipt(value.identity.value)?.collectedDataEpoch shouldBe EPOCH
+		subject.delete(deletion) shouldBe DeleteSelectedImportedCellResult.AlreadyDeleted
+		importer().importEntry(request(value, "after-restored-delete", expectedEpoch = EPOCH + 1)) shouldBe
+			ImportPortableCapturedCellResult.Blocked(PortableCellImportBlockedReason.DELETED_ENTRY)
+	}
+
+	@Test
+	fun `restored Cell deletion receipt still prevents replay`() = runTest {
+		seedEvidence()
+		val value = entry()
+		importer().importEntry(request(value)) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		val subject = RoomDeleteSelectedImportedCell(database, Dispatchers.Unconfined)
+		val deletion = DeleteSelectedImportedCellRequest(value.identity, 1L, value.contentChecksum, EPOCH, 600L)
+		subject.delete(deletion) shouldBe DeleteSelectedImportedCellResult.Deleted(1, 1, 1)
+		restoreOriginalEpoch()
+		subject.delete(deletion.copy(expectedCollectedDataEpoch = EPOCH + 1)) shouldBe
+			DeleteSelectedImportedCellResult.AlreadyDeleted
+		val authority = database.withTransaction {
+			database.authenticateDeletedImportedCellSelectionInTransaction(value.identity, 1L, value.contentChecksum)
+		}
+		(authority as DeletedImportedCellSelectionAuthentication.Exact).receipt.collectedDataEpoch shouldBe EPOCH
+		importer().importEntry(request(value, "restored-deleted-file", expectedEpoch = EPOCH + 1)) shouldBe
+			ImportPortableCapturedCellResult.Blocked(PortableCellImportBlockedReason.DELETED_ENTRY)
+	}
+
+	@Test
+	fun `selected Cell files union original readings and keep smaller file membership exact`() = runTest {
+		seedEvidence()
+		val full = entry(runDefinitions = listOf(RunDefinition("run", 10L, 20L,
+			listOf(observation("first"), observation("second")))))
+		val firstId = full.runs.single().observations.first().identity
+		val first = requireNotNull(full.selectReadings({ it.identity == firstId }, { false }))
+		val second = requireNotNull(full.selectReadings({ it.identity != firstId }, { false }))
+		val a = request(first, "selected-first").copy(mergeSelectedReadings = true)
+		val b = request(second, "selected-second").copy(mergeSelectedReadings = true)
+		val subject = importer()
+		subject.importEntry(a) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		subject.importEntry(b) shouldBe ImportPortableCapturedCellResult.Applied(2L, 1, 2)
+		val reader = ImportedCellProductReader(database)
+		val current = database.withTransaction { reader.selectIdentityInTransaction(full.identity) } as ImportedCellProductEvaluation.Readable
+		current.entry.runs.single().observations.map { it.identity } shouldBe full.runs.single().observations.map { it.identity }
+		readRadioFileMembers(database, SourceDestinationOwnerEntity.SOURCE_CELL, a.receipt.jobId,
+			a.receipt.entryKey, full.identity.value, EPOCH, 100).filter { it.kind == "OBSERVATION" }.map { it.identity } shouldBe listOf(firstId.value)
+		subject.importEntry(a) shouldBe ImportPortableCapturedCellResult.Duplicate(1L)
+		subject.importEntry(a.copy(receipt = a.receipt.copy(jobId = "smaller-repeat"))) shouldBe ImportPortableCapturedCellResult.Duplicate(2L)
+		subject.importEntry(request(full, "complete-file").copy(mergeSelectedReadings = true)) shouldBe
+			ImportPortableCapturedCellResult.Applied(3L, 1, 2)
+		(database.withTransaction { reader.selectIdentityInTransaction(full.identity) } as ImportedCellProductEvaluation.Readable).entry shouldBe full
+	}
+
+	@Test
 	fun `export reader qualifies uncertainty crossing headers and ignores unrelated corrupt cohorts`() = runTest {
 		seedEvidence()
 		val touching = entry(logicalLocal = "touching-export")
@@ -775,6 +928,7 @@ class RoomImportPortableCapturedCellTest {
 			ImportedCellProductReader(database).selectIdentityInTransaction(exact.identity)
 		} as ImportedCellProductEvaluation.Readable
 		readable.localOriginHandle?.toString() shouldBe "ImportedCellLocalOriginHandle"
+		ImportedCellProductReader(database).localOriginLogicalTrackingId(readable) shouldBe LOGICAL_LOCAL
 		readable.toString().contains(LOGICAL_LOCAL) shouldBe false
 
 		val foreignEntry = entry(
@@ -857,6 +1011,7 @@ class RoomImportPortableCapturedCellTest {
 			evaluation.deletedRunIdentities shouldBe emptySet()
 			evaluation.retentionLimited shouldBe false
 			evaluation.localOriginHandle shouldBe null
+			ImportedCellProductReader(database).localOriginLogicalTrackingId(evaluation) shouldBe null
 	}
 
 	@Test

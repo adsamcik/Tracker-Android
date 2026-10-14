@@ -422,12 +422,15 @@ private fun TripOverview(
 	val durationText = remember(trip.duration) {
 		trip.duration.raw.formatAsDuration(context)
 	}
-	val distanceText = remember(trip.distance, settings) {
-		resources.formatDistance(
+	val distanceText = remember(trip.distance, trip.hasMeasuredDistance, trip.distanceIsPartial, settings) {
+		if (!trip.hasMeasuredDistance) resources.getString(R.string.history_value_unavailable) else {
+		val measured = resources.formatDistance(
 			trip.distance.raw,
 			digits = if (trip.distance.raw >= 1000f) 1 else 2,
 			unit = settings.lengthSystem
 		)
+		if (trip.distanceIsPartial) resources.getString(R.string.stats_recorded_partial_value, measured) else measured
+		}
 	}
 	val averageSpeedText = remember(insights.averageSpeedMps, settings.lengthSystem) {
 		insights.averageSpeedMps.formatSpeed(settings.lengthSystem)
@@ -435,8 +438,8 @@ private fun TripOverview(
 	val maxSpeedText = remember(insights.maxSpeedMps, settings.lengthSystem) {
 		insights.maxSpeedMps.formatSpeed(settings.lengthSystem)
 	}
-	val paceText = remember(trip.distance.raw, trip.duration.raw, settings.lengthSystem) {
-		formatPace(trip.distance.raw.toDouble(), trip.duration.raw, settings.lengthSystem)
+	val paceText = remember(trip.distance.raw, trip.hasMeasuredDistance, trip.duration.raw, settings.lengthSystem) {
+		if (trip.hasMeasuredDistance) formatPace(trip.distance.raw.toDouble(), trip.duration.raw, settings.lengthSystem) else "--"
 	}
 	val elevationGainText = remember(insights.elevationGainM, settings.lengthSystem) {
 		insights.elevationGainM.formatElevation(settings.lengthSystem)
@@ -521,7 +524,7 @@ private fun TripOverview(
 		RoutePreviewCard(
 			points = insights.routePoints,
 			sourceLabel = insights.sourceLabel,
-			hasDistance = trip.distance.raw > 0f,
+			hasDistance = trip.hasMeasuredDistance && trip.distance.raw > 0f,
 			routePreviewRenderer = routePreviewRenderer,
 		)
 		TripFactsCard(

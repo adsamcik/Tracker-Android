@@ -133,7 +133,7 @@ internal class DefaultCellHistoryRepository internal constructor(
 			evaluation.candidate.identity to local.entry
 		}
 		val visible = database.nativeLogicalIdsVisibleInRange(collisions.mapTo(linkedSetOf()) {
-			requireNotNull(it.localOriginHandle).logicalTrackingId }, range)
+			requireNotNull(importedProductReader.localOriginLogicalTrackingId(it)) }, range)
 		val visibleIdentities = visible.mapTo(linkedSetOf()) { logicalId ->
 			PortableCellOpaqueIdentity.derive(PortableCellIdentityKind.LOGICAL_ENTRY, logicalId).value }
 		val composed = CellHistoryOriginComposer.compose(emptyList(), visibleIdentities,

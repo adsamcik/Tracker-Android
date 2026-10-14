@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationFileIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationFileArchiveEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationFileArchivePointEntity
+import com.adsamcik.tracker.shared.base.database.data.LocationPointCorrection
 import com.adsamcik.tracker.shared.base.mapper.toModel
 import java.io.File
 import java.io.IOException
@@ -79,10 +80,6 @@ internal class LocationFileImport : FileImport {
                 )) return@use invalid("Location file or saved points changed; review it again")
                 if (approved == null && preview.conflictCount > 0) {
                     return@use invalid("Location file changes saved points; review it before importing")
-                }
-                if (approved?.choice == LocationFileConflictChoice.REPLACE_WITH_FILE &&
-                    preview.conflictCount > 0) {
-                    return@use invalid("Replacing saved Location points is not available yet")
                 }
                 pointIds.finish()
                 importValidatedFile(database, stage, epoch, preview, pointIds,
@@ -157,7 +154,7 @@ internal class LocationFileImport : FileImport {
         val existing = if (identities.isEmpty()) {
             emptyMap()
         } else {
-            database.locationSampleDao().byIds(identities.values.map { it.sampleId })
+            database.locationSampleDao().effectiveByIds(identities.values.map { it.sampleId })
                 .associateBy { it.id }
         }
         var inserted = 0
@@ -194,10 +191,17 @@ internal class LocationFileImport : FileImport {
                     firstOrdinal + index, point.pointId, identity.sampleId)
                 skipped++
             } else {
-                throw LocationImportChangedDuringWrite()
+                val value = point.toImportedSample(System.currentTimeMillis())
+                val nextRevision = Math.addExact(evidence.revision, 1L)
+                database.locationPointCorrectionDao().replace(LocationPointCorrection.from(
+                    identity.sampleId, epoch, nextRevision, value))
+                memberships += LocationFileArchivePointEntity(archive.identity,
+                    firstOrdinal + index, point.pointId, identity.sampleId)
+                inserted++
             }
         }
         database.locationFileIdentityDao().recordArchivePoints(memberships)
+        if (inserted > 0) database.sourceEvidenceStateDao().incrementRevision(System.currentTimeMillis())
         if (database.sourceEvidenceStateDao().get()?.collectedDataEpoch != epoch) {
             throw LocationImportChangedDuringWrite()
         }

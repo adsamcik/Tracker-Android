@@ -36,7 +36,7 @@ class WindowedDiscoveryStreakRoomTest {
 		val dispatchers = TestDispatchersProvider(Dispatchers.Unconfined)
 		provider = DefaultWindowedMetricsProvider(database.dailySummaryDao(), database.explorationCellDao(),
 			database.explorationStreakDao(), database.sessionSegmentDao(), database.exportLogDao(),
-			dispatchers, SavedTripDistanceReader(database, dispatchers))
+			dispatchers, SavedTripDistanceReader(database, dispatchers), SavedLocationMetricsReader(database, dispatchers))
 	}
 
 	@After fun close() = database.close()

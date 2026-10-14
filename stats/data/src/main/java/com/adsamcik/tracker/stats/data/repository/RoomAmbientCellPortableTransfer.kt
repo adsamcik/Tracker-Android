@@ -35,6 +35,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ensureActive
 
 @Singleton
 internal class RoomAmbientCellPortableTransfer internal constructor(
@@ -82,6 +83,7 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 	private suspend fun prepareExportInTransaction(
 		request: ExportPortableAmbientCellRequest,
 	): PreparedExport {
+		request.selectedArchiveIds?.let { return prepareSelectedArchives(it) }
 		val read = repository.readInTransaction(
 			AmbientCellReadRequest(
 				request.fromInclusiveMs,
@@ -174,6 +176,53 @@ internal class RoomAmbientCellPortableTransfer internal constructor(
 			archive,
 		)
 	}
+
+	private suspend fun prepareSelectedArchives(identities: Set<String>): PreparedExport {
+		require(identities.isNotEmpty() && identities.size <= 4_096)
+		val state = database.sourceEvidenceStateDao().get()
+			?: return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
+		if (database.collectedDataDeletionOperationDao().activeRetentionFloorSettlement() != null)
+			return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
+		val dao = database.ambientCellFactDao()
+		val authority = dao.latestRetentionAuthority(AmbientCellRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT)
+		if (authority == null || !AmbientCellRetentionAuthorityIntegrity.isAuthentic(authority) ||
+			!authority.isActive || !state.acceptsRetainedEpoch(authority.collectedDataEpoch) ||
+			authority.retainedFromMs != state.retainedFromMs)
+			return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
+		val facts = mutableListOf<PortableAmbientCellFactV1>()
+		val gaps = mutableListOf<PortableAmbientCellGapV1>()
+		for (identity in identities.sorted()) {
+			kotlinx.coroutines.currentCoroutineContext().ensureActive()
+			if (dao.importTombstone(identity) != null)
+				return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
+			val rows = dao.importedForArchive(identity, AmbientCellPortableFormatV1.MAX_FACTS + 1)
+			val gapRows = dao.importedGapsForArchive(identity, AmbientCellPortableFormatV1.MAX_GAPS + 1)
+			if (rows.size > AmbientCellPortableFormatV1.MAX_FACTS || gapRows.size > AmbientCellPortableFormatV1.MAX_GAPS ||
+				rows.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) } ||
+				gapRows.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) })
+				return PreparedExport(ExportPortableAmbientCellResult.DependencyOverflow)
+			val archive = AmbientCellPortableIntegrity.createArchive(identity,
+				rows.map(ImportedAmbientCellFactEntity::toPortableFact), gapRows.map(ImportedAmbientCellGapEntity::toPortableGap))
+			val receipts = dao.retainedImportReceipts(listOf(identity), 4_097)
+			if (receipts.isEmpty() || receipts.size > 4_096 || receipts.any {
+				it.archiveChecksum != archive.contentChecksum || !state.acceptsRetainedEpoch(it.collectedDataEpoch) } ||
+				state.retainedFromMs?.let { floor -> archive.facts.any { it.coverageStartTimeMs < floor } ||
+					archive.gaps.any { it.startTimeMs < floor } } == true)
+				return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
+			facts += archive.facts; gaps += archive.gaps
+			if (facts.size > AmbientCellPortableFormatV1.MAX_FACTS || gaps.size > AmbientCellPortableFormatV1.MAX_GAPS)
+				return PreparedExport(ExportPortableAmbientCellResult.DependencyOverflow)
+		}
+		val factGroups = facts.groupBy { it.identity to it.semanticRevision }
+		val gapGroups = gaps.groupBy { it.identity }
+		if (factGroups.values.any { it.distinct().size != 1 } || gapGroups.values.any { it.distinct().size != 1 })
+			return PreparedExport(ExportPortableAmbientCellResult.StorageUnavailable)
+		val archive = AmbientCellPortableIntegrity.createArchive(
+			AmbientCellPortableIntegrity.opaqueIdentity("selected-archives", identities.sorted().joinToString("\u001f")),
+			factGroups.values.map { it.first() }, gapGroups.values.map { it.first() })
+		return PreparedExport(ExportPortableAmbientCellResult.Exported(archive.facts.size, archive.gaps.size), archive)
+	}
+
 
 	override suspend fun importArchive(
 		request: ImportPortableAmbientCellRequest,

@@ -484,7 +484,7 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			} != false
 		}
 		if (factStates.any {
-			requireNotNull(it.state).collectedDataEpoch != evidenceState.collectedDataEpoch
+			!evidenceState.acceptsRetainedEpoch(requireNotNull(it.state).collectedDataEpoch)
 		}) {
 			return failed(StepsHistoryReason.STALE_COLLECTED_DATA_EPOCH)
 		}

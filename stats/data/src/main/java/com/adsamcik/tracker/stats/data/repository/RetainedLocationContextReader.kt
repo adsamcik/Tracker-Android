@@ -41,6 +41,8 @@ internal class RetainedLocationContextReader @Inject constructor(private val dat
         val points = saved.samples.mapNotNull { row ->
             val latitude = row.sample.latE7?.takeIf { it in -900_000_000..900_000_000 } ?: return@mapNotNull null
             val longitude = row.sample.lonE7?.takeIf { it in -1_800_000_000..1_800_000_000 } ?: return@mapNotNull null
+            // An edited wall time has no new Android clock evidence for a radio join.
+            if (row.sample.timeMs != row.receipt.observedWallTimeMs) return@mapNotNull null
             val accuracy = row.sample.hAccM?.takeIf { it.isFinite() && it >= 0f } ?: return@mapNotNull null
             val receipt = row.receipt
             LocationContextInput(receipt.sourceEventId, row.scope, receipt.observedElapsedRealtimeNanos,
@@ -56,6 +58,7 @@ internal class RetainedLocationContextReader @Inject constructor(private val dat
             ?: return unavailableSaved(RadioLocationContextGap.LOCATION_AUTHORITY_UNAVAILABLE)
         val ids = receipts.map { it.sampleId }
         val samples = ids.chunked(QUERY_CHUNK).flatMap { database.locationSampleDao().byIds(it) }.associateBy { it.id }
+        val effectiveSamples = ids.chunked(QUERY_CHUNK).flatMap { database.locationSampleDao().effectiveByIds(it) }.associateBy { it.id }
         // Erase authority depends on the exact receipt/sample and dataset, never optional map-context dependencies.
         val authenticatedSampleIds = receipts.filter { receipt ->
             val sample = samples[receipt.sampleId]
@@ -65,7 +68,7 @@ internal class RetainedLocationContextReader @Inject constructor(private val dat
                 receipt.writerVersion == SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION
         }.mapTo(linkedSetOf()) { it.sampleId }
         val erasedNativeSampleIds = receipts.filter { it.sampleId in authenticatedSampleIds &&
-            (it.collectedDataEpoch != state.collectedDataEpoch ||
+            (!state.acceptsRetainedEpoch(it.collectedDataEpoch) ||
                 it.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal)
         }.mapTo(linkedSetOf()) { it.sampleId }
         var erasedNativeScopeSampleIds: Set<Long>? = null
@@ -180,7 +183,7 @@ internal class RetainedLocationContextReader @Inject constructor(private val dat
                         }
                         RadioContextScope.Ambient(AmbientContextScope(receipt.bootId, receipt.clockDomainId, receipt.collectedDataEpoch))
                     }
-                    accepted += QualifiedRetainedLocationSample(sample, receipt, scope)
+                    accepted += QualifiedRetainedLocationSample(effectiveSamples[sample.id] ?: sample, receipt, scope)
                 }
             }
             RetainedLocationSavedSnapshot(accepted.distinctBy { it.receipt.sourceEventId to it.scope }, gaps,

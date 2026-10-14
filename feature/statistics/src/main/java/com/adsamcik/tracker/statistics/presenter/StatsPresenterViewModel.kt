@@ -215,6 +215,8 @@ class StatsPresenterViewModel @Inject constructor(
 				epochDay = epochDay,
 				sessionCount = summaryMap[epochDay]?.tripCount ?: 0,
 				durationMs = summaryMap[epochDay]?.totalDuration?.raw ?: 0L,
+				hasMeasuredDistance = summaryMap[epochDay]?.hasMeasuredDistance == true,
+				distanceIsPartial = summaryMap[epochDay]?.distanceIsPartial == true,
 			)
 		}
 	}

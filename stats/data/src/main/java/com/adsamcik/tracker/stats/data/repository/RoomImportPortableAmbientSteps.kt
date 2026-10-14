@@ -209,7 +209,8 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 				blocked(PortableAmbientStepsImportBlockedReason.RETENTION_POLICY_UNAVAILABLE)
 			}
 		}
-		storedValue { dao.authenticateAllAmbientStepsFences(state.collectedDataEpoch) }
+		// Existing saved identities can belong to a confirmed restore; this does not admit an old job.
+		storedValue { dao.authenticateAllAmbientStepsFences(state) }
 		authenticateSourceDeletionFence(state)
 
 		val archive = request.archive
@@ -234,14 +235,14 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			}
 		if (nativeFootprints.any {
 				!AmbientStepsNativeReplayFootprintIntegrity.isAuthentic(it) ||
-					it.collectedDataEpoch != state.collectedDataEpoch
+					!state.acceptsRetainedEpoch(it.collectedDataEpoch)
 			}) storedCorrupt()
 		if (nativeFootprints.isNotEmpty()) {
 			blocked(PortableAmbientStepsImportBlockedReason.LOCAL_ORIGIN_OVERLAP)
 		}
 		authenticateStructuralDayOwnership(archive)
 		val fences = storedValue { dao.fences(dayIdentities) }
-		if (fences.any { it.collectedDataEpoch != state.collectedDataEpoch }) storedCorrupt()
+		if (fences.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) }) storedCorrupt()
 		if (fences.any { it.fenceKind == ImportedAmbientStepsDayFenceEntity.FENCE_RETENTION }) {
 			blocked(PortableAmbientStepsImportBlockedReason.RETAINED_DAY)
 		}
@@ -338,7 +339,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			val lineage = storedValue {
 				dao.loadAuthenticatedAmbientStepsLineage(
 					day.identity.value,
-					state.collectedDataEpoch,
+					state,
 				)
 			}
 			checkpoint(ImportedAmbientStepsWriteCheckpoint.LINEAGE_AUTHENTICATED)
@@ -571,7 +572,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 
 	private suspend fun authenticateSourceDeletionFence(state: SourceEvidenceState) {
 		val fence = storedValue { dao.sourceFence() } ?: return
-		if (fence.collectedDataEpoch != state.collectedDataEpoch) storedCorrupt()
+		if (!state.acceptsRetainedEpoch(fence.collectedDataEpoch)) storedCorrupt()
 		val authority = storedValue { database.sourcePolicyDao().authority() }
 		val policy = authority?.takeIf {
 			it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE

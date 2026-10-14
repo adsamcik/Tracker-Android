@@ -49,7 +49,7 @@ internal class MeasuredLocationHistoryReader @Inject constructor(
             location_sample.time_ms AS startTimeMs, NULL AS endTimeMs, location_sample.id AS rowId,
             NULL AS writerId, NULL AS writerVersion, NULL AS factId, NULL AS factRevision,
             NULL AS itemIndex, lower(${LocationReadScope.HISTORY_ORIGIN}) || ':location' AS sortTag
-            FROM location_sample WHERE time_ms >= ? AND time_ms < ?
+            FROM effective_location_sample AS location_sample WHERE time_ms >= ? AND time_ms < ?
             AND lat_e7 BETWEEN -900000000 AND 900000000 AND lon_e7 BETWEEN -1800000000 AND 1800000000
             AND ${LocationReadScope.HISTORY_RETAINED})
             WHERE origin IN ($names) AND (purpose != 'UNKNOWN' OR $unknown) $seek

@@ -777,5 +777,7 @@ private fun Trip.toTrackerSessionSnapshot() = TrackerSessionSnapshot(
 	isUserInitiated = false,
 	collections = sampleCount,
 	distanceInM = distanceM,
+	hasMeasuredDistance = hasMeasuredDistance,
+	distanceIsPartial = distanceIsPartial,
 	steps = steps ?: 0,
 )

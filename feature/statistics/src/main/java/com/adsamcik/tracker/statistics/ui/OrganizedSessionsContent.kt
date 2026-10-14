@@ -27,7 +27,7 @@ import java.util.Locale
 
 @Composable
 internal fun OrganizedSessionsContent(read: SessionOrganizationRead?, selectedDay: LocalDate?,
-	onEdit: (OrganizedSession) -> Unit, onShowAll: () -> Unit,
+	onOpen: (OrganizedSession) -> Unit, onShowAll: () -> Unit,
 	pages: LazyPagingItems<OrganizedSession>, modifier: Modifier = Modifier) {
 	Column(modifier.padding(horizontal = 16.dp)) {
 		if (selectedDay != null) Row {
@@ -43,7 +43,7 @@ internal fun OrganizedSessionsContent(read: SessionOrganizationRead?, selectedDa
 				items(count = pages.itemCount, key = { index -> pages.peek(index)?.id?.toString() ?: "loading:$index" }) { index ->
 					val session = pages[index] ?: return@items
 					if (session.collectedDataEpoch != read.collectedDataEpoch) return@items
-					Card(onClick = { onEdit(session) }, modifier = Modifier.fillMaxWidth()) {
+					Card(onClick = { onOpen(session) }, modifier = Modifier.fillMaxWidth()) {
 						Column(Modifier.padding(16.dp)) {
 							Text(session.name ?: stringResource(R.string.organization_unnamed))
 							Text(organizationTimeLabel(session))

@@ -15,8 +15,13 @@ data class SessionStatsSnapshot(
 	val inVehicleDistance: DistanceM,
 	val tripCount: Long,
 	val locationCount: Long,
-	val wifiCount: Long,
-	val cellCount: Long,
+	val wifiCount: Long?,
+	val cellCount: Long?,
+	val hasMeasuredDistance: Boolean = true,
+	val hasActivityDistances: Boolean = true,
+	val distanceIsPartial: Boolean = false,
+	val wifiCountIsPartial: Boolean = false,
+	val cellCountIsPartial: Boolean = false,
 )
 
 interface SessionStatsRepository {

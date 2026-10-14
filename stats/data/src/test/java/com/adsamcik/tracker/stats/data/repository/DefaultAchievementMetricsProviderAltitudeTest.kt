@@ -17,7 +17,8 @@ import org.junit.jupiter.api.Test
 
 class DefaultAchievementMetricsProviderAltitudeTest {
 
-	private val provider = DefaultAchievementMetricsProvider(
+	private val savedLocationMetrics = mockk<SavedLocationMetricsReader>(relaxed = true)
+    private val provider = DefaultAchievementMetricsProvider(
 		dailySummaryDao = mockk<DailySummaryDao>(relaxed = true),
 		explorationCellDao = mockk<ExplorationCellDao>(relaxed = true),
 		explorationStreakDao = mockk<ExplorationStreakDao>(relaxed = true),
@@ -27,6 +28,7 @@ class DefaultAchievementMetricsProviderAltitudeTest {
 		locationSampleDao = mockk<LocationSampleDao>(relaxed = true),
 		countryLookup = mockk<CountryBoundaryLookup>(relaxed = true),
 		achievementProgressDao = mockk<AchievementProgressDao>(relaxed = true),
+        savedLocationMetrics = savedLocationMetrics,
 	)
 
 	private val totalAscent = DefaultAchievementMetricsProvider::class.java

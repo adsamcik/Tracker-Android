@@ -77,12 +77,14 @@ class DefaultSkiInfrastructureManager @Inject constructor(
 			)
 		}
 
+		com.adsamcik.tracker.shared.base.data.ImportedDataFilesRevision.changed()
 		SkiInfrastructureImportResult.Success(dbFile.absolutePath)
 	}
 
 	/** Clear the imported database */
 	override fun clearDatabase() {
 		dbFile.delete()
+		com.adsamcik.tracker.shared.base.data.ImportedDataFilesRevision.changed()
 	}
 
 	/** Get metadata value from database */

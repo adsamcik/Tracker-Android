@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Eliminar archivo incompleto</string>
+    <string name="export_unfinished_retry">Reintentar</string>
+    <string name="export_unfinished_files_guidance">Tracker no puede eliminar este archivo. Elimínalo en Archivos o restablece el acceso a la carpeta y vuelve a intentarlo.</string>
+    <string name="export_unfinished_notice_update_failed">Archivo eliminado. No se pudo actualizar este aviso. Reinténtalo.</string>
+    <string name="export_unfinished_startup_unavailable">Completa la recuperación de datos en Tracker y reinténtalo.</string>
+    <string name="export_unfinished_load_failed">No se pudieron cargar los archivos incompletos.</string>
+    <string name="export_unfinished_notice_save_failed">No se pudo guardar un archivo incompleto para recordarlo. Elimínalo en Archivos.</string>
+    <string name="export_unfinished_not_remembered">No se pudo eliminar ni recordar %s. Elimínalo en Archivos.</string>
+    <string name="export_unfinished_remove_accessibility">Eliminar archivo incompleto: %s</string>
+</resources>

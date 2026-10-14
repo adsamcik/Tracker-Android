@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellChildEn
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiChildEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellChildEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiChildEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import java.io.IOException
@@ -19,7 +20,7 @@ import java.io.IOException
 /** A source importer admits the parent first; this adds only exact, epoch-bound details. */
 internal class ImportedRadioChildAttachment(private val database: AppDatabase) {
 	suspend fun wifiSession(children: List<WifiSessionChildV2>, revision: Long, epoch: Long) =
-		attachBatches(children, epoch) { batch, floor ->
+		attachBatches(children, epoch) { batch, state ->
 			val dao = database.importedRadioChildDao()
 			batch.forEach { child ->
 				val parent = dao.wifiSessionParent(child.entryIdentity, revision,
@@ -27,7 +28,7 @@ internal class ImportedRadioChildAttachment(private val database: AppDatabase) {
 					?: error("Imported Wi-Fi observation is unavailable")
 				check(parent.semanticRevision == child.semanticRevision)
 				checkCoverage(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
-					parent.coverageStartTimeMs, parent.latestPossibleTimeMs, floor)
+					parent.coverageStartTimeMs, parent.latestPossibleTimeMs, state.retainedFromMs)
 				val row = ImportedWifiChildEntity(child.entryIdentity, revision, child.runIdentity,
 					child.observationIdentity, child.itemIndex, child.providerTimestampNanos,
 					child.observedWallTimeMs, child.wallTimeUncertaintyMs, child.bssid, child.ssid,
@@ -39,7 +40,7 @@ internal class ImportedRadioChildAttachment(private val database: AppDatabase) {
 		}
 
 	suspend fun cellSession(children: List<CellSessionChildV2>, revision: Long, epoch: Long) =
-		attachBatches(children, epoch) { batch, floor ->
+		attachBatches(children, epoch) { batch, state ->
 			val dao = database.importedRadioChildDao()
 			batch.forEach { child ->
 				val parent = dao.cellSessionParent(child.entryIdentity, revision,
@@ -47,7 +48,7 @@ internal class ImportedRadioChildAttachment(private val database: AppDatabase) {
 					?: error("Imported Cell observation is unavailable")
 				check(parent.semanticRevision == child.semanticRevision)
 				checkCoverage(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
-					parent.coverageStartTimeMs, parent.latestPossibleTimeMs, floor)
+					parent.coverageStartTimeMs, parent.latestPossibleTimeMs, state.retainedFromMs)
 				val row = ImportedCellChildEntity(child.entryIdentity, revision, child.runIdentity,
 					child.observationIdentity, child.itemIndex, child.providerTimestampNanos,
 					child.observedWallTimeMs, child.wallTimeUncertaintyMs, child.towerIdentity,
@@ -59,15 +60,15 @@ internal class ImportedRadioChildAttachment(private val database: AppDatabase) {
 		}
 
 	suspend fun wifiBackground(children: List<WifiBackgroundChildV2>, epoch: Long) =
-		attachBatches(children, epoch) { batch, floor ->
+		attachBatches(children, epoch) { batch, state ->
 			val dao = database.importedRadioChildDao()
 			batch.forEach { child ->
 				// The owning archive can differ from this file after an overlapping import.
 				val parent = dao.wifiBackgroundParent(child.factIdentity, child.semanticRevision)
 					?: error("Imported Wi-Fi background fact is unavailable")
-				check(parent.collectedDataEpoch == epoch)
+				check(state.acceptsRetainedEpoch(parent.collectedDataEpoch))
 				checkCoverage(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
-					parent.coverageStartTimeMs, parent.latestPossibleTimeMs, floor)
+					parent.coverageStartTimeMs, parent.latestPossibleTimeMs, state.retainedFromMs)
 				val row = ImportedAmbientWifiChildEntity(parent.archiveId, child.factIdentity,
 					child.semanticRevision, child.itemIndex, child.providerTimestampNanos,
 					child.observedWallTimeMs, child.wallTimeUncertaintyMs, child.bssid, child.ssid,
@@ -79,14 +80,14 @@ internal class ImportedRadioChildAttachment(private val database: AppDatabase) {
 		}
 
 	suspend fun cellBackground(children: List<CellBackgroundChildV2>, epoch: Long) =
-		attachBatches(children, epoch) { batch, floor ->
+		attachBatches(children, epoch) { batch, state ->
 			val dao = database.importedRadioChildDao()
 			batch.forEach { child ->
 				val parent = dao.cellBackgroundParent(child.factIdentity, child.semanticRevision)
 					?: error("Imported Cell background fact is unavailable")
-				check(parent.collectedDataEpoch == epoch)
+				check(state.acceptsRetainedEpoch(parent.collectedDataEpoch))
 				checkCoverage(child.observedWallTimeMs, child.wallTimeUncertaintyMs,
-					parent.coverageStartTimeMs, parent.latestPossibleTimeMs, floor)
+					parent.coverageStartTimeMs, parent.latestPossibleTimeMs, state.retainedFromMs)
 				val row = ImportedAmbientCellChildEntity(parent.archiveId, child.factIdentity,
 					child.semanticRevision, child.itemIndex, child.providerTimestampNanos,
 					child.observedWallTimeMs, child.wallTimeUncertaintyMs, child.towerIdentity,
@@ -97,7 +98,7 @@ internal class ImportedRadioChildAttachment(private val database: AppDatabase) {
 			}
 		}
 
-	private suspend fun retainedFloor(expected: Long): Long? {
+	private suspend fun retainedState(expected: Long): SourceEvidenceState {
 		if (database.activeRetentionFloorSettlement() != null)
 			throw IOException("Recorded data cleanup is in progress")
 		val state = database.sourceEvidenceStateDao().get()
@@ -105,7 +106,7 @@ internal class ImportedRadioChildAttachment(private val database: AppDatabase) {
 		check(state.collectedDataEpoch == expected) {
 			"Recorded data changed during radio import"
 		}
-		return state.retainedFromMs
+		return state
 	}
 
 	private fun checkCoverage(wallMs: Long, uncertaintyMs: Long,
@@ -117,13 +118,15 @@ internal class ImportedRadioChildAttachment(private val database: AppDatabase) {
 	}
 
 	private suspend fun <T> attachBatches(
-		children: List<T>, epoch: Long, attach: suspend (List<T>, Long?) -> Unit,
+		children: List<T>, epoch: Long, attach: suspend (List<T>, SourceEvidenceState) -> Unit,
 	) {
 		forEachRadioChildBatch(children) { batch ->
 			database.withTransaction {
-				val floor = retainedFloor(epoch)
-				attach(batch, floor)
-				check(retainedFloor(epoch) == floor) { "Recorded data retention changed during radio import" }
+				val state = retainedState(epoch)
+				attach(batch, state)
+				check(retainedState(epoch).retainedFromMs == state.retainedFromMs) {
+					"Recorded data retention changed during radio import"
+				}
 			}
 		}
 	}

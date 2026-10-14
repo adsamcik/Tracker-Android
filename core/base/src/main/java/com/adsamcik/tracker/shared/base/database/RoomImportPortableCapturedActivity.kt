@@ -174,19 +174,19 @@ class RoomImportPortableCapturedActivity internal constructor(
 				dao.insertZoneEpoch(zone.toEntity(entry.identity.value, revision, run.identity.value, ordinal))
 				writeCheckpoint(PortableActivityImportWriteCheckpoint.ZONE_EPOCH_INSERTED)
 			}
-			run.windows.forEach { window ->
-				dao.insertWindow(window.toEntity(entry.identity.value, revision, run.identity.value))
+			for (windows in run.windows.chunked(WRITE_BATCH_SIZE)) {
+				dao.insertWindows(windows.map { window ->
+					window.toEntity(entry.identity.value, revision, run.identity.value)
+				})
 				writeCheckpoint(PortableActivityImportWriteCheckpoint.WINDOW_INSERTED)
-				window.fragments.forEachIndexed { ordinal, fragment ->
-					dao.insertFragment(
-						fragment.toEntity(
-							entry.identity.value,
-							revision,
-							run.identity.value,
-							window.identity.value,
-							ordinal,
-						),
-					)
+				val fragments = windows.asSequence().flatMap { window ->
+					window.fragments.asSequence().mapIndexed { ordinal, fragment ->
+						fragment.toEntity(entry.identity.value, revision, run.identity.value,
+							window.identity.value, ordinal)
+					}
+				}
+				for (batch in fragments.chunked(WRITE_BATCH_SIZE)) {
+					dao.insertFragments(batch)
 					writeCheckpoint(PortableActivityImportWriteCheckpoint.FRAGMENT_INSERTED)
 				}
 			}
@@ -398,6 +398,9 @@ class RoomImportPortableCapturedActivity internal constructor(
 			ImportedActivityLineageAuthenticator.authenticate(
 				identity = identity,
 				expectedCollectedDataEpoch = epoch,
+				retainedState = checkNotNull(database.sourceEvidenceStateDao().get()).also {
+					check(it.collectedDataEpoch == epoch)
+				},
 				headers = dao.entryRevisionsForAdmission(identity),
 				receipts = dao.receiptsForAdmission(identity),
 				runs = dao.allRunsForAdmission(identity),
@@ -524,6 +527,7 @@ class RoomImportPortableCapturedActivity internal constructor(
 
 	private companion object {
 		const val IDENTITY_QUERY_CHUNK_SIZE = 256
+		const val WRITE_BATCH_SIZE = 256
 	}
 }
 

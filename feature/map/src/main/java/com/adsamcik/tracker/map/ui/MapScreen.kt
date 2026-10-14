@@ -241,6 +241,7 @@ fun MapScreen(
     }
     val customPath by prefs.observeString(basemapPathKey, "")
         .collectAsState(initial = "")
+    val importedFilesRevision by com.adsamcik.tracker.shared.base.data.ImportedDataFilesRevision.revisions.collectAsState()
 
     var defaultBasemapPath by remember {
         // Start null and let the IO-bound LaunchedEffect below populate this via
@@ -296,6 +297,7 @@ fun MapScreen(
         mapLibreOnlineReady,
         onlineProviderId,
         onlineCustomUrl,
+        importedFilesRevision,
     ) {
         value = withContext(dispatchers.io) {
             resolveBaseStyle(
@@ -557,6 +559,7 @@ fun MapScreen(
             // map-state init (basemap path, style JSON) was already moved off the main thread.
             val priorThreadPolicy = remember { StrictMode.allowThreadDiskReads() }
             SideEffect { StrictMode.setThreadPolicy(priorThreadPolicy) }
+            key(importedFilesRevision) {
             MaplibreMap(
                 modifier = Modifier
                     .fillMaxSize()
@@ -624,6 +627,7 @@ fun MapScreen(
                     overlays = state.overlays.toList(),
                     metersPerDp = cameraState.metersPerDpAtTarget,
                 )
+            }
             }
         } else if (baseStyle == null && basemapLoadError != null) {
             Surface(

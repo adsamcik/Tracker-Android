@@ -143,7 +143,7 @@ internal class NativeAmbientStepsRangeReader(
 					cursorGaps.withIndex().any { (index, gap) ->
 						gap.gapSequence != index + 1L || gap.provider != cursor.provider ||
 							gap.sourceInstanceId != cursor.sourceInstanceId ||
-							gap.collectedDataEpoch != evidence.collectedDataEpoch ||
+							!evidence.acceptsRetainedEpoch(gap.collectedDataEpoch) ||
 							gap.recordedAtMs > cursor.updatedAtMs ||
 							gap.gapEndTimeMs > cursor.importedThroughTimeMs
 					}
@@ -450,7 +450,7 @@ private fun AmbientStepsFactRevisionEntity.hasValidNativeHistoryAuthority(
 	val end = windowEndTimeMs ?: return false
 	return AmbientStepsFactIntegrity.hasValidEffectChecksum(this) &&
 		writerOwnerGeneration == ownerGeneration &&
-		collectedDataEpoch == evidence.collectedDataEpoch &&
+		evidence.acceptsRetainedEpoch(collectedDataEpoch) &&
 		(evidence.retainedFromMs?.let { start >= it } ?: true) &&
 		historyKeyOrNull() == day.historyKey &&
 		structuralDayStartTimeMs == day.startTimeMs &&
@@ -881,7 +881,7 @@ private fun AmbientStepsEffectiveGapInterval.qualifyNativeGap(
 		previousZoneId,
 		nextZoneId,
 		collectedDataEpoch,
-	) && collectedDataEpoch == evidence.collectedDataEpoch && cursor != null &&
+	) && evidence.acceptsRetainedEpoch(collectedDataEpoch) && cursor != null &&
 		cursor.provider == provider && cursor.sourceInstanceId == sourceInstanceId &&
 		cursor.collectedDataEpoch == collectedDataEpoch && cursor.lastGapSequence >= gapSequence &&
 		cursor.registrationAcceptedAtMs <= declaredGapStartTimeMs &&

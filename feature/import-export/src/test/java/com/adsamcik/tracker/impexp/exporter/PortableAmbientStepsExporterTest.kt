@@ -44,6 +44,37 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class PortableAmbientStepsExporterTest {
 	@Test
+	fun `selected imported day keeps original count window without borrowing another day`() = runTest {
+		val selected = completeAmbientDay(LocalDate.of(2026, 1, 1), 12L)
+		val sibling = completeAmbientDay(LocalDate.of(2026, 1, 2), 50L)
+		val archive = ambientArchive(selected, sibling)
+		var requested: ExportPortableAmbientStepsRequest? = null
+		val exporter = PortableAmbientStepsExporter(origin = AmbientStepsPortableOrigin.IMPORTED,
+			backendProvider = { backend(imported = { request, sink ->
+				requested = request; sink.emit(archive); exported(archive)
+			}) })
+		val output = ByteArrayOutputStream()
+		exporter.exportSession(ApplicationProvider.getApplicationContext(),
+			ExportPortableAmbientStepsRequest(0, Long.MAX_VALUE), output, setOf(selected.identity.value)) shouldBe
+			ExportResult.Success(1)
+		requested?.selectedDayIdentities shouldBe setOf(selected.identity.value)
+		PortableAmbientStepsJsonV2Codec().decode(ByteArrayInputStream(output.toByteArray()))
+			.archive.days.map { it.product } shouldBe listOf(selected)
+	}
+
+	@Test
+	fun `missing selected imported day fails without writing destination`() = runTest {
+		val archive = ambientArchive(completeAmbientDay(LocalDate.of(2026, 1, 1), 12L))
+		val exporter = PortableAmbientStepsExporter(origin = AmbientStepsPortableOrigin.IMPORTED,
+			backendProvider = { backend(imported = { _, sink -> sink.emit(archive); exported(archive) }) })
+		val output = ByteArrayOutputStream()
+		exporter.exportSession(ApplicationProvider.getApplicationContext(),
+			ExportPortableAmbientStepsRequest(0, Long.MAX_VALUE), output, setOf("sha256:" + "a".repeat(64)))
+			.isSuccess shouldBe false
+		output.size() shouldBe 0
+	}
+
+	@Test
 	fun `native range export avoids Location and uses truthful Ambient sensitivity copy`() = runTest {
 		val archive = ambientArchive(
 			completeAmbientDay(LocalDate.of(2026, 1, 1), 12L),

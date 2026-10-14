@@ -38,7 +38,7 @@ internal suspend fun AppDatabase.importedAmbientCountDomainOwner(
 		val state = sourceEvidenceStateDao().get() ?: return null
 		val lineage = importedAmbientStepsDao().loadAuthenticatedAmbientStepsLineage(
 			dayIdentity,
-			state.collectedDataEpoch,
+			state,
 		)
 		val graph = loadAuthenticatedImportedAmbientStepsGraphLineage(lineage).lastOrNull()?.graph
 			?: return null

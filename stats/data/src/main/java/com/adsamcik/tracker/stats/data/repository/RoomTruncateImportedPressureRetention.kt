@@ -201,7 +201,7 @@ internal class RoomTruncateImportedPressureRetention internal constructor(
 		}
 		val published = stored { database.sourceEvidenceStateDao().get() }
 			?: unverifiable(ImportedPressureMaintenanceUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING)
-		if (published.collectedDataEpoch != state.collectedDataEpoch ||
+		if (!state.acceptsRetainedEpoch(published.collectedDataEpoch) ||
 			published.retainedFromMs != request.retainedFromMs ||
 			published.revision != nextStateRevision ||
 			published.updatedAtMs != request.retainedAtMs
@@ -261,6 +261,7 @@ internal class RoomTruncateImportedPressureRetention internal constructor(
 			ImportedPressureLineageAuthenticator.authenticate(
 				identity = identity,
 				expectedCollectedDataEpoch = state.collectedDataEpoch,
+				retainedState = state,
 				headers = dao.entryRevisionsForAdmission(identity),
 				receipts = dao.receiptsForAdmission(identity),
 				runs = dao.allRunsForAdmission(identity),
@@ -308,7 +309,7 @@ internal class RoomTruncateImportedPressureRetention internal constructor(
 		val runDeletions = runIds.chunked(SQLITE_BIND_BATCH).flatMap { dao.deletionGenerations(it) }
 		if (runDeletions.distinctBy { it.runIdentity }.size != runDeletions.size ||
 			runDeletions.any {
-				it.collectedDataEpoch != state.collectedDataEpoch || it.generation != 1L
+				!state.acceptsRetainedEpoch(it.collectedDataEpoch) || it.generation != 1L
 			}
 		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 		val latestDurableAtMs = maxOf(

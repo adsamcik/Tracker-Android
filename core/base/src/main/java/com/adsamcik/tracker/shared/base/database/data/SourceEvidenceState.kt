@@ -27,7 +27,14 @@ data class SourceEvidenceState(
 	val deletedSourceEventHighWaterOrdinal: Long = 0L,
 	@ColumnInfo(name = "updated_at_ms")
 	val updatedAtMs: Long = 0L,
+	/** Original epochs retained by an explicitly confirmed data restore. Never admits a writer. */
+	@ColumnInfo(name = "restored_data_epochs", defaultValue = "''")
+	val restoredDataEpochs: String = "",
 ) {
+	/** Saved data may retain its original identity; live admission still uses [collectedDataEpoch]. */
+	fun acceptsRetainedEpoch(epoch: Long): Boolean = epoch == collectedDataEpoch ||
+		restoredDataEpochs.split(',').any { it.toLongOrNull() == epoch }
+
 	companion object {
 		const val SINGLETON_ID = 1
 	}

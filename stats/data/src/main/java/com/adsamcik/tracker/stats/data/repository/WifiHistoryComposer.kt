@@ -110,7 +110,7 @@ internal object WifiHistoryComposer {
 		check(snapshot.revisions.all { it.logicalTrackingId == logicalId && it.serviceRunId == run.serviceRunId })
 		check(snapshot.terminalFailures.none { it.admissionOrdinal == fact.sourceAdmissionOrdinal || it.admissionOrdinal == aggregate.sourceAdmissionOrdinal })
 		val generation = snapshot.deletionGenerations[logicalId to run.serviceRunId]
-		check(generation == null || generation.collectedDataEpoch == evidence.collectedDataEpoch)
+		check(generation == null || evidence.acceptsRetainedEpoch(generation.collectedDataEpoch))
 		if (!fact.hasCurrentPrivacyAuthority(logicalId, evidence, snapshot) ||
 			!aggregate.hasCurrentPrivacyAuthority(logicalId, evidence, snapshot)) return null
 		val wal = requireNotNull(snapshot.admissions.singleOrNull { it.eventId == fact.sourceEventId })
@@ -308,7 +308,7 @@ internal object WifiHistoryComposer {
 		// An entirely erased or expired entry has no values to authenticate for display.
 		// Keep the strict carrier checks below for every entry that can still show data.
 		if (related.isNotEmpty() && related.all { fact ->
-				fact.collectedDataEpoch != evidence.collectedDataEpoch ||
+				!evidence.acceptsRetainedEpoch(fact.collectedDataEpoch) ||
 					fact.sourceAdmissionOrdinal <= evidence.deletedSourceEventHighWaterOrdinal
 			}) {
 			publishStructuralRuns(structuralRunShells)
@@ -418,7 +418,7 @@ internal object WifiHistoryComposer {
 
 		if (runIds.any { runId ->
 			val row = snapshot.deletionGenerations[logicalId to runId]
-			row != null && row.collectedDataEpoch != evidence.collectedDataEpoch
+			row != null && !evidence.acceptsRetainedEpoch(row.collectedDataEpoch)
 		}) return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED)
 		val currentEpoch = current.filter { (fact, aggregate) ->
 			fact.hasCurrentPrivacyAuthority(logicalId, evidence, snapshot) &&
@@ -669,7 +669,7 @@ internal object WifiHistoryComposer {
 			clockDomainId == manifest.effectiveBootId && policyRevision == manifest.sourcePolicyRevision &&
 			consentEpoch == binding.consentEpoch && snapshot.runs[ownedRun]?.let {
 				SessionManifestIntegrity.hasRetainedLeaseGeneration(it, lease) } == true &&
-			capturedCollectedDataEpoch == evidence.collectedDataEpoch &&
+			evidence.acceptsRetainedEpoch(capturedCollectedDataEpoch) &&
 			admissionOrdinal > evidence.deletedSourceEventHighWaterOrdinal && deliveryUnitIndex == 0 &&
 			deliveryUnitCount == 1 && LOWERCASE_SHA_256.matches(deliveryIdentity.orEmpty()) &&
 			isSupportedWifiWalPayloadVersion(payloadVersion) && hasQualifiedIntegrity() &&
@@ -1111,7 +1111,7 @@ internal object WifiHistoryComposer {
 		logicalId: String,
 		evidence: SourceEvidenceState,
 		snapshot: WifiHistorySnapshot,
-	): Boolean = collectedDataEpoch == evidence.collectedDataEpoch &&
+	): Boolean = evidence.acceptsRetainedEpoch(collectedDataEpoch) &&
 		sourceAdmissionOrdinal > evidence.deletedSourceEventHighWaterOrdinal &&
 		scopeDeletionGeneration == (snapshot.deletionGenerations[logicalId to serviceRunId]?.generation ?: 0L) &&
 		(logicalId to serviceRunId) !in snapshot.deletedScopes

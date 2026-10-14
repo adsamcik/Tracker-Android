@@ -29,7 +29,7 @@ internal object UnifiedHistoryCandidateQueries {
         return """SELECT * FROM (SELECT location_sample.time_ms AS startTimeMs,
             CASE WHEN location_sample.time_ms = 9223372036854775807 THEN location_sample.time_ms
                 ELSE location_sample.time_ms + 1 END AS endTimeMs
-            FROM location_sample WHERE location_sample.time_ms >= ?1 AND location_sample.time_ms < ?2
+            FROM effective_location_sample AS location_sample WHERE location_sample.time_ms >= ?1 AND location_sample.time_ms < ?2
             AND ${LocationReadScope.HISTORY_RETAINED}
             AND ${LocationReadScope.SESSIONLESS_HISTORY} AND ${LocationReadScope.HISTORY_ORIGIN} IN ($names)
             AND location_sample.lat_e7 BETWEEN -900000000 AND 900000000

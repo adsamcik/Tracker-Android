@@ -429,4 +429,12 @@
 	<string name="organization_retry" tools:ignore="MissingTranslation">Retry</string>
 	<string name="organization_browse_recordings" tools:ignore="MissingTranslation">Browse recordings</string>
 	<string name="organization_back_sessions" tools:ignore="MissingTranslation">Back to sessions</string>
+	<string name="organization_export" tools:ignore="MissingTranslation">Export session</string>
+	<string name="organization_export_failed" tools:ignore="MissingTranslation">Couldn’t save file. Try again.</string>
+	<string name="organization_export_saved" tools:ignore="MissingTranslation">Session exported</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">Session exported with complete recordings that extend beyond its dates.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">Could not finish. Try again.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">Delete this recording?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">Its saved readings will be permanently deleted.</string>
+    <string name="stats_recorded_partial_value">%1$s · partial</string>
 </resources>

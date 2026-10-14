@@ -19,6 +19,15 @@ data class CellCurrentDetailExpectation(
 	@ColumnInfo(name = "accepted_child_count") val acceptedChildCount: Int,
 )
 
+/** Current source-owned parent; export qualifies its selected identity before reading details. */
+data class NativeRadioExportOwner(
+	@ColumnInfo(name = "logical_fact_id") val logicalFactId: String,
+	@ColumnInfo(name = "semantic_revision") val semanticRevision: Long,
+	@ColumnInfo(name = "service_run_id") val serviceRunId: String,
+	@ColumnInfo(name = "payload_version") val payloadVersion: Int?,
+	@ColumnInfo(name = "accepted_child_count") val acceptedChildCount: Int,
+)
+
 /** Purpose-owned radio details. Callers authenticate the corresponding fact before presenting rows. */
 @Dao
 interface RadioObservationChildDao {
@@ -63,6 +72,40 @@ interface RadioObservationChildDao {
 	suspend fun wifiCurrentSessionChildrenForLogicalTracking(
 		logicalTrackingId: String, limit: Int,
 	): List<WifiCapturedChildEntity>
+
+	/** Parent version remains available when mandatory details are missing. */
+	@Query("SELECT fact.logical_fact_id, fact.semantic_revision, fact.service_run_id, " +
+		"fact.payload_version, fact.accepted_result_count AS accepted_child_count " +
+		"FROM wifi_captured_fact_revision AS fact INNER JOIN wifi_captured_fact_cursor AS cursor ON " +
+		"cursor.writer_projection_id = fact.writer_projection_id AND " +
+		"cursor.writer_projection_version = fact.writer_projection_version AND " +
+		"cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = fact.semantic_revision " +
+		"AND cursor.logical_tracking_id = fact.logical_tracking_id AND cursor.service_run_id = fact.service_run_id " +
+		"WHERE fact.writer_projection_id = :writerId AND fact.writer_projection_version = :writerVersion " +
+		"AND fact.logical_tracking_id = :logicalTrackingId AND fact.purpose = 'SESSION_CAPTURE' " +
+		"ORDER BY fact.logical_fact_id LIMIT :limit")
+	suspend fun wifiCurrentExportOwners(logicalTrackingId: String, writerId: String,
+		writerVersion: Int, limit: Int): List<NativeRadioExportOwner>
+
+	/** Exact current parent owners only, so excluded readings cannot crowd the export limit. */
+	@Query("SELECT child.* FROM wifi_captured_child AS child " +
+		"INNER JOIN wifi_captured_fact_revision AS fact ON " +
+		"fact.writer_projection_id = child.writer_projection_id AND " +
+		"fact.writer_projection_version = child.writer_projection_version AND " +
+		"fact.logical_fact_id = child.logical_fact_id AND fact.semantic_revision = child.semantic_revision " +
+		"INNER JOIN wifi_captured_fact_cursor AS cursor ON " +
+		"cursor.writer_projection_id = fact.writer_projection_id AND " +
+		"cursor.writer_projection_version = fact.writer_projection_version AND " +
+		"cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = fact.semantic_revision " +
+		"AND cursor.logical_tracking_id = fact.logical_tracking_id AND cursor.service_run_id = fact.service_run_id " +
+		"WHERE child.writer_projection_id = :writerId AND child.writer_projection_version = :writerVersion " +
+		"AND child.logical_fact_id IN (:factIds) AND child.semantic_revision = :revision " +
+		"AND fact.logical_tracking_id = :logicalTrackingId AND fact.service_run_id = :serviceRunId " +
+		"AND fact.purpose = 'SESSION_CAPTURE' ORDER BY child.logical_fact_id, child.item_index LIMIT :limit")
+	@Suppress("LongParameterList")
+	suspend fun wifiCurrentSessionChildrenForOwners(logicalTrackingId: String, serviceRunId: String,
+		writerId: String, writerVersion: Int, revision: Long, factIds: List<String>,
+		limit: Int): List<WifiCapturedChildEntity>
 
 	@Query("SELECT * FROM cell_captured_child WHERE writer_projection_id = :writerId AND " +
 		"writer_projection_version = :writerVersion AND logical_fact_id = :factId AND " +
@@ -111,6 +154,38 @@ interface RadioObservationChildDao {
 	suspend fun cellCurrentDetailExpectationsForLogicalTracking(
 		logicalTrackingId: String, limit: Int,
 	): List<CellCurrentDetailExpectation>
+
+	@Query("SELECT fact.logical_fact_id, fact.semantic_revision, fact.service_run_id, " +
+		"fact.payload_version, fact.accepted_child_count " +
+		"FROM cell_captured_fact_revision AS fact INNER JOIN cell_captured_fact_cursor AS cursor ON " +
+		"cursor.writer_projection_id = fact.writer_projection_id AND " +
+		"cursor.writer_projection_version = fact.writer_projection_version AND " +
+		"cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = fact.semantic_revision " +
+		"AND cursor.logical_tracking_id = fact.logical_tracking_id AND cursor.service_run_id = fact.service_run_id " +
+		"WHERE fact.writer_projection_id = :writerId AND fact.writer_projection_version = :writerVersion " +
+		"AND fact.logical_tracking_id = :logicalTrackingId AND fact.purpose = 'SESSION_CAPTURE' " +
+		"ORDER BY fact.logical_fact_id LIMIT :limit")
+	suspend fun cellCurrentExportOwners(logicalTrackingId: String, writerId: String,
+		writerVersion: Int, limit: Int): List<NativeRadioExportOwner>
+
+	@Query("SELECT child.* FROM cell_captured_child AS child " +
+		"INNER JOIN cell_captured_fact_revision AS fact ON " +
+		"fact.writer_projection_id = child.writer_projection_id AND " +
+		"fact.writer_projection_version = child.writer_projection_version AND " +
+		"fact.logical_fact_id = child.logical_fact_id AND fact.semantic_revision = child.semantic_revision " +
+		"INNER JOIN cell_captured_fact_cursor AS cursor ON " +
+		"cursor.writer_projection_id = fact.writer_projection_id AND " +
+		"cursor.writer_projection_version = fact.writer_projection_version AND " +
+		"cursor.logical_fact_id = fact.logical_fact_id AND cursor.latest_semantic_revision = fact.semantic_revision " +
+		"AND cursor.logical_tracking_id = fact.logical_tracking_id AND cursor.service_run_id = fact.service_run_id " +
+		"WHERE child.writer_projection_id = :writerId AND child.writer_projection_version = :writerVersion " +
+		"AND child.logical_fact_id IN (:factIds) AND child.semantic_revision = :revision " +
+		"AND fact.logical_tracking_id = :logicalTrackingId AND fact.service_run_id = :serviceRunId " +
+		"AND fact.purpose = 'SESSION_CAPTURE' ORDER BY child.logical_fact_id, child.item_index LIMIT :limit")
+	@Suppress("LongParameterList")
+	suspend fun cellCurrentSessionChildrenForOwners(logicalTrackingId: String, serviceRunId: String,
+		writerId: String, writerVersion: Int, revision: Long, factIds: List<String>,
+		limit: Int): List<CellCapturedChildEntity>
 
 	@Query("SELECT * FROM ambient_wifi_child WHERE writer_id = :writerId AND " +
 		"writer_version = :writerVersion AND logical_fact_id = :factId AND " +

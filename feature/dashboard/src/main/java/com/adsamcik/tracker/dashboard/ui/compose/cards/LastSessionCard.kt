@@ -52,11 +52,13 @@ internal fun LastSessionCard(
 
 	val durationMs = (session.end - session.start).coerceAtLeast(0L)
 	val durationText = durationMs.formatAsDuration(context)
-	val distanceText = resources.formatDistance(
+	val measuredDistanceText = resources.formatDistance(
 		session.distanceInM,
 		digits = if (session.distanceInM >= 1000f) 1 else 2,
 		unit = settings.lengthSystem,
 	)
+	val distanceText = if (!session.hasMeasuredDistance) "—" else if (session.distanceIsPartial)
+		resources.getString(R.string.dashboard_recorded_partial_value, measuredDistanceText) else measuredDistanceText
 	val sessionAge = DateUtils.getRelativeTimeSpanString(
 		session.start,
 		System.currentTimeMillis(),

@@ -45,6 +45,7 @@ class PlayerProgressionRepository @Inject constructor(
 	private val dispatchers: DispatchersProvider,
 	private val metricDirtyTracker: MetricDirtyTracker,
 	private val trackingStartupGate: TrackingStartupGate,
+    private val trackingHistory: com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository,
 ) {
 
 	/**
@@ -81,40 +82,77 @@ class PlayerProgressionRepository @Inject constructor(
 		}
 	}
 
-	private suspend fun insertSessionXp(sessionId: Long): Boolean {
-		val segment = database.sessionSegmentDao().getById(sessionId) ?: return false
-		val amount = XpCalculator.sessionXp(
-			distanceM = segment.distanceM,
-			durationMs = (segment.endTimeMs - segment.startTimeMs).coerceAtLeast(0L),
-		)
-		if (amount <= 0) return false
+    /** Current source-qualified data replaces the existing recording receipt, including zero. */
+    private suspend fun insertSessionXp(sessionId: Long): Boolean {
+        val dao = database.xpLedgerDao()
+        val old = dao.sessionEffect(sessionId)
+        val read = trackingHistory.readSavedSessionReward(sessionId)
+        val epoch: Long
+        val revision: Long
+        val awardedAt: Long
+        val amount: Int
+        when (read) {
+            is com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready -> {
+                epoch = read.value.dataEpoch
+                revision = read.value.revision
+                awardedAt = read.value.earnedAtMs
+                amount = XpCalculator.sessionXp((read.value.distanceMeters ?: 0.0).coerceAtMost(Float.MAX_VALUE.toDouble()).toFloat(),
+                    read.value.durationMs)
+            }
+            is com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Removed -> {
+                if (old == null) return false
+                epoch = read.dataEpoch
+                revision = read.revision
+                awardedAt = old.earnedAt
+                amount = 0
+            }
+            com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Legacy -> return false
+            com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Unavailable ->
+                throw IllegalStateException("Saved recording reward is unavailable")
+        }
+        if (old?.sourceRevision?.let { it >= revision } == true) return false
+        val key = old?.sourceKey ?: "recording:$epoch:$sessionId"
+        val keyParts = key.split(':')
+        val originalEpoch = keyParts.takeIf { it.size == 3 && it[0] == "recording" &&
+            it[2].toLongOrNull() == sessionId }?.get(1)?.toLongOrNull() ?: return false
+        val state = database.sourceEvidenceStateDao().get() ?: return false
+        if (!state.acceptsRetainedEpoch(originalEpoch)) return false
+        val awardDay = dayBounds(awardedAt)
+        val otherXp = (dao.getXpBetween(awardDay.startInclusive, awardDay.endExclusive) - (old?.amount ?: 0)).coerceAtLeast(0L)
+        val capped = amount.toLong().coerceAtMost((XpCalculator.DAILY_CAP - otherXp).coerceAtLeast(0L)).toInt()
+        val changed = if (old == null) {
+            dao.insertOrIgnore(XpLedgerEntity(amount = capped, source = XpSource.SESSION.name,
+                sourceId = sessionId, sourceKey = key, sourceRevision = revision, earnedAt = awardedAt)) != -1L
+        } else dao.replaceSessionEffect(sessionId, key, revision, capped) == 1
+        if (changed) recomputePlayerProfile()
+        return changed
+    }
 
-		val awardedAt = segment.endTimeMs.coerceAtLeast(0L)
-		val awardDay = dayBounds(awardedAt)
-		val todayXp = database.xpLedgerDao().getXpBetween(
-			awardDay.startInclusive,
-			awardDay.endExclusive,
-		)
-		val remaining = (XpCalculator.DAILY_CAP - todayXp).coerceAtLeast(0L)
-		val capped = amount.toLong().coerceAtMost(remaining).toInt()
-		if (capped <= 0) return false
-
-		val ledgerId = database.xpLedgerDao().insertOrIgnore(
-			XpLedgerEntity(
-				amount = capped,
-				source = XpSource.SESSION.name,
-				sourceId = sessionId,
-				earnedAt = awardedAt,
-			),
-		)
-		return if (ledgerId == -1L) {
-			false
-		} else {
-			recomputePlayerProfile()
-			true
-		}
-	}
-
+    /** Bounded crash catchup of existing receipts; edited labels and re-imports never earn again. */
+    internal suspend fun reconcileSessionRewards(expectedGeneration: Long) {
+        withContext(dispatchers.io) {
+                var after = 0L
+                var changed = false
+                while (true) {
+                    val count = trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
+                    val rows = database.xpLedgerDao().sessionEffectPage(after, 100)
+                    for (row in rows) {
+                        try {
+                            database.withTransaction { changed = insertSessionXp(requireNotNull(row.sourceId)) || changed }
+                        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            // Keep this receipt and retry on the next saved-data change or app startup.
+                        }
+                    }
+                    if (rows.isNotEmpty()) after = rows.last().id
+                    rows.size
+                    } ?: break
+                    if (count < 100) break
+                }
+                if (changed) metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
+        }
+    }
 	/**
 	 * Repairs the XP half of one mini-game reward while the caller holds the accepted startup-gate
 	 * operation. The caller owns deletion serialization so this method must not acquire a nested

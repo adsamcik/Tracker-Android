@@ -30,7 +30,7 @@ internal suspend fun AppDatabase.authenticateImportedPressureRetention(
 	}
 	val retainedFloor = state.retainedFromMs
 		?: return ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
-	if (receipt.collectedDataEpoch != state.collectedDataEpoch ||
+	if (!state.acceptsRetainedEpoch(receipt.collectedDataEpoch) ||
 		receipt.sourceEvidenceRevision > state.revision ||
 		receipt.retainedFromMs > retainedFloor ||
 		receipt.retainedAtMs > state.updatedAtMs ||
@@ -105,7 +105,7 @@ internal suspend fun AppDatabase.authenticateImportedPressureRetention(
 	}
 	if (runDeletions.distinctBy { it.runIdentity }.size != runDeletions.size ||
 		runDeletions.any {
-			it.collectedDataEpoch != state.collectedDataEpoch || it.generation != 1L ||
+			!state.acceptsRetainedEpoch(it.collectedDataEpoch) || it.generation != 1L ||
 				it.runIdentity !in runMarkers.mapTo(hashSetOf()) { marker -> marker.protectedIdentity }
 		} || runDeletions.size != receipt.runDeletionCount ||
 		ImportedPressureRetentionReceiptEntity.checksumRunDeletions(runDeletions) !=

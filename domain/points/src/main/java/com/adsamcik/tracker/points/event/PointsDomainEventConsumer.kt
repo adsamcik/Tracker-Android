@@ -23,18 +23,24 @@ import javax.inject.Singleton
 class PointsDomainEventConsumer @Inject constructor(
 	private val domainEventRepository: DomainEventRepository,
 	@ApplicationContext private val context: Context,
+	private val appDatabaseProvider: javax.inject.Provider<com.adsamcik.tracker.shared.base.database.AppDatabase>,
+	private val pointsDatabaseProvider: javax.inject.Provider<com.adsamcik.tracker.points.database.PointsDatabase>,
+	private val trackingStartupGate: com.adsamcik.tracker.shared.base.startup.TrackingStartupGate,
 ) {
 	// Single-flight guard so concurrent triggers can't double-handle the same events.
 	private val processMutex = Mutex()
 
 	/** Process any unconsumed events for the points module. */
 	suspend fun processUnconsumed() = processMutex.withLock {
+		if (trackingStartupGate.reconcile() !is com.adsamcik.tracker.shared.base.startup.TrackingStartupResult.Ready) return@withLock
 		while (true) {
-			val batch = domainEventRepository.getUnconsumedBatchWithIds(
+			val generation = trackingStartupGate.currentGeneration
+			val more = trackingStartupGate.withReadyGenerationOperation(generation) {
+				val batch = domainEventRepository.getUnconsumedBatchWithIds(
 				consumerId = CONSUMER_ID,
 				limit = DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 			)
-			if (batch.isEmpty()) return@withLock
+				if (batch.isEmpty()) return@withReadyGenerationOperation false
 
 			batch.forEach { handleEvent(it.event) }
 			val last = batch.last()
@@ -43,10 +49,37 @@ class PointsDomainEventConsumer @Inject constructor(
 				upToTimestamp = last.event.timestampMs,
 				upToEventId = last.persistedId,
 			)
+				true
+			}
+			if (more != true) return@withLock
 		}
 	}
 
-	private fun handleEvent(event: DomainEvent) {
+    /** Requeue existing revisioned receipts in finite pages without holding deletion for the full history. */
+    suspend fun reconcileSessionEffects() = processMutex.withLock {
+        if (trackingStartupGate.reconcile() !is com.adsamcik.tracker.shared.base.startup.TrackingStartupResult.Ready) return@withLock
+        val generation = trackingStartupGate.currentGeneration
+        var after = 0
+        while (true) {
+            val page = trackingStartupGate.withReadyGenerationOperation(generation) {
+                val state = appDatabaseProvider.get().sourceEvidenceStateDao().get()
+                    ?: return@withReadyGenerationOperation emptyList()
+                val rows = pointsDatabaseProvider.get().pointsAwardedDao().sessionEffectPage(after, 100)
+                for (row in rows) {
+                    val parts = row.effectKey?.split(':').orEmpty()
+                    val originalEpoch = parts.getOrNull(1)?.toLongOrNull()
+                    if (parts.size == 3 && parts[0] == "recording" && originalEpoch != null &&
+                        state.acceptsRetainedEpoch(originalEpoch)) {
+                        parts[2].toLongOrNull()?.takeIf { it > 0 }?.let { enqueue(it, state.collectedDataEpoch) }
+                    }
+                }
+                rows
+            } ?: return@withLock
+            if (page.size < 100) return@withLock
+            after = page.last().id
+        }
+    }
+	private suspend fun handleEvent(event: DomainEvent) {
 		when (event) {
 			is DomainEvent.SessionEnded -> onSessionEnded(event)
 			else -> Unit
@@ -57,13 +90,19 @@ class PointsDomainEventConsumer @Inject constructor(
 	 * Replaces PointsSessionReceiver.onSessionFinal().
 	 * Enqueues PointsWorker with the session ID for points calculation.
 	 */
-	private fun onSessionEnded(event: DomainEvent.SessionEnded) {
+	private suspend fun onSessionEnded(event: DomainEvent.SessionEnded) {
 		val sessionId = event.sessionId
 		if (sessionId <= 0L) return
+		val epoch = appDatabaseProvider.get().sourceEvidenceStateDao().get()?.collectedDataEpoch ?: return
+		enqueue(sessionId, epoch)
+	}
+
+	private fun enqueue(sessionId: Long, epoch: Long) {
 
 		val workManager = WorkManager.getInstance(context)
 		val data = Data.Builder()
 			.putLong(ARG_SESSION_ID, sessionId)
+			.putLong(PointsWorker.ARG_EPOCH, epoch)
 			.build()
 
 		val workRequest = OneTimeWorkRequestBuilder<PointsWorker>()
@@ -78,7 +117,7 @@ class PointsDomainEventConsumer @Inject constructor(
 
 		workManager.enqueueUniqueWork(
 			uniqueWorkName(sessionId),
-			ExistingWorkPolicy.KEEP,
+			ExistingWorkPolicy.APPEND_OR_REPLACE,
 			workRequest,
 		)
 

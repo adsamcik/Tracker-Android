@@ -2,10 +2,21 @@ package com.adsamcik.tracker.app.settings
 
 import android.content.Context
 import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
+import com.adsamcik.tracker.impexp.importer.DataImporter
+import com.adsamcik.tracker.impexp.importer.file.LocationFileConflictChoice
+import com.adsamcik.tracker.impexp.importer.file.LocationFileImportPreview
+import com.adsamcik.tracker.impexp.importer.file.LocationFileImportPreviewer
+import com.adsamcik.tracker.impexp.importer.file.LocationFileImportReview
+import com.adsamcik.tracker.impexp.backup.DataBackupRestore
+import com.adsamcik.tracker.impexp.backup.DataBackupInspection
+import com.adsamcik.tracker.impexp.backup.DataBackupPreview
+import com.adsamcik.tracker.impexp.backup.DataBackupRestoreResult
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
+import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanId
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
@@ -32,6 +43,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
@@ -87,6 +99,7 @@ enum class LegacyDatabaseDeleteResult {
 }
 
 data class DataSettingsUiState(
+    val databasePlansToReview: Map<ExportPlanId, String> = emptyMap(),
     val autoCleanupEnabled: Boolean = false,
     val dataRetentionYears: Int = RetentionConfigState.DEFAULT_RETENTION_YEARS,
     val incrementalBackupsEnabled: Boolean = true,
@@ -100,6 +113,14 @@ data class DataSettingsUiState(
     val legacyDatabase: LegacyDatabaseUiInfo? = null,
 )
 
+data class LocationImportChoice(val uri: Uri, val preview: LocationFileImportPreview)
+data class FileImportUiState(
+    val checking: Boolean = false,
+    val locationChoice: LocationImportChoice? = null,
+    val backupChoice: DataBackupPreview? = null,
+    val error: Boolean = false,
+)
+
 @HiltViewModel
 class DataSettingsViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
@@ -111,6 +132,7 @@ class DataSettingsViewModel @Inject constructor(
     private val dispatchers: DispatchersProvider,
     private val deletionService: CollectedDataDeletionService,
     private val startupGate: TrackingStartupGate,
+    private val dataBackupRestore: DataBackupRestore,
     private val retentionAuthorityProducer: RetentionAuthorityProducer =
         UnavailableRetentionAuthorityProducer,
     private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler =
@@ -118,6 +140,86 @@ class DataSettingsViewModel @Inject constructor(
             TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
         },
 ) : ViewModel() {
+    private val _fileImportState = MutableStateFlow(FileImportUiState())
+    val fileImportState: StateFlow<FileImportUiState> = _fileImportState.asStateFlow()
+
+    fun requestFileImport(uri: Uri) {
+        if (_fileImportState.value.checking || _fileImportState.value.locationChoice != null ||
+            _fileImportState.value.backupChoice != null) return
+        _fileImportState.value = FileImportUiState(checking = true)
+        viewModelScope.launch {
+            try {
+                when (val inspection = dataBackupRestore.inspect(uri)) {
+                    is DataBackupInspection.Ready -> {
+                        _fileImportState.value = FileImportUiState(backupChoice = inspection.preview)
+                        return@launch
+                    }
+                    DataBackupInspection.Invalid -> {
+                        _fileImportState.value = FileImportUiState(error = true)
+                        return@launch
+                    }
+                    DataBackupInspection.NotBackup -> Unit
+                }
+                val isLocation = withContext(dispatchers.io) {
+                    DocumentFile.fromSingleUri(appContext, uri)?.name
+                        ?.endsWith(".trackerlocation", ignoreCase = true) == true
+                }
+                if (isLocation) {
+                    val preview = LocationFileImportPreviewer.inspect(appContext, uri)
+                    if (preview.conflictCount > 0) {
+                        _fileImportState.value = FileImportUiState(locationChoice = LocationImportChoice(uri, preview))
+                    } else enqueueFileImport(uri, LocationFileImportReview(preview, LocationFileConflictChoice.KEEP_EXISTING))
+                } else enqueueFileImport(uri, null)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _fileImportState.value = FileImportUiState(error = true)
+            }
+        }
+    }
+
+    fun chooseLocationImport(choice: LocationFileConflictChoice) {
+        val pending = _fileImportState.value.locationChoice ?: return
+        enqueueFileImport(pending.uri, LocationFileImportReview(pending.preview, choice))
+    }
+
+    fun dismissFileImport() {
+        val token = _fileImportState.value.backupChoice?.token
+        _fileImportState.value = FileImportUiState()
+        if (token != null) viewModelScope.launch {
+            try {
+                withContext(NonCancellable + dispatchers.io) { dataBackupRestore.discardPreview(token) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // The owned preview remains available to the existing startup/Clear all cleanup.
+                _fileImportState.value = _fileImportState.value.copy(error = true)
+            }
+        }
+    }
+
+    fun restoreConfirmedBackup() {
+        val preview = _fileImportState.value.backupChoice ?: return
+        _fileImportState.value = FileImportUiState(checking = true)
+        viewModelScope.launch {
+            try {
+                _fileImportState.value = FileImportUiState(error =
+                    dataBackupRestore.restore(preview) != DataBackupRestoreResult.Restored)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _fileImportState.value = FileImportUiState(error = true)
+            }
+        }
+    }
+
+    private fun enqueueFileImport(uri: Uri, review: LocationFileImportReview?) {
+        _fileImportState.value = FileImportUiState()
+        DataImporter.import(appContext, uri, review) {
+            _fileImportState.value = FileImportUiState(error = true)
+        }
+    }
+
     private val smartGoalNotificationsKey: String
         get() = appContext.getString(R.string.settings_smart_goal_notifications_key)
 
@@ -187,6 +289,7 @@ class DataSettingsViewModel @Inject constructor(
     ) { retention, plans, smartGoalNotificationsEnabled, backup, legacy ->
         val (config, approvalStatus) = retention
         DataSettingsUiState(
+            databasePlansToReview = plans.filter { it.databaseScopeReviewRequired }.associate { it.id to it.name },
             autoCleanupEnabled = config.autoCleanupEnabled,
             dataRetentionYears = config.dataRetentionYears,
             incrementalBackupsEnabled = plans.all { it.incrementalEnabled },
@@ -217,6 +320,18 @@ class DataSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             updateRetentionConfiguration {
                 copy(autoCleanupEnabled = enabled, autoPurgeEnabled = enabled)
+            }
+        }
+    }
+
+    fun resumeReviewedDatabasePlans(ids: Set<ExportPlanId>) {
+        viewModelScope.launch {
+            try {
+                for (id in ids) exportPlanStore.reviewDatabaseScopeAndEnable(id)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _fileImportState.value = FileImportUiState(error = true)
             }
         }
     }

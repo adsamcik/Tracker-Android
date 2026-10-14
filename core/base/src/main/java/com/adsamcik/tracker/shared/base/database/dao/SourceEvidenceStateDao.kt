@@ -90,6 +90,7 @@ interface SourceEvidenceStateDao {
 		SET collected_data_epoch = :epoch,
 			retained_from_ms = :retainedFromMs,
 			deleted_source_event_high_water_ordinal = :deletedSourceEventHighWaterOrdinal,
+			restored_data_epochs = '',
 			revision = revision + 1,
 			updated_at_ms = :updatedAtMs
 		WHERE id = 1

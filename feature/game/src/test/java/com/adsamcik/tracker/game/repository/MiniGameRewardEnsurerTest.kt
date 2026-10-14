@@ -242,6 +242,7 @@ class MiniGameRewardEnsurerTest {
 		dispatchers = TestDispatchersProvider(dispatcher),
 		metricDirtyTracker = dirtyTracker,
 		trackingStartupGate = gate,
+        trackingHistory = io.mockk.mockk(relaxed = true),
 	)
 
 	private fun reward(gameId: String, points: Int, earnedAtMs: Long) = GameReward(

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Befejezetlen fájl eltávolítása</string>
+    <string name="export_unfinished_retry">Újrapróbálkozás</string>
+    <string name="export_unfinished_files_guidance">A Tracker nem tudja eltávolítani a fájlt. Törölje a Fájlok alkalmazásban, vagy állítsa vissza a mappa elérését és próbálja újra.</string>
+    <string name="export_unfinished_notice_update_failed">Fájl eltávolítva. Az értesítés nem frissült. Próbálja újra.</string>
+    <string name="export_unfinished_startup_unavailable">Fejezze be az adatok helyreállítását a Trackerben, majd próbálja újra.</string>
+    <string name="export_unfinished_load_failed">A befejezetlen fájlok nem tölthetők be.</string>
+    <string name="export_unfinished_notice_save_failed">A befejezetlen fájlt nem sikerült megjegyezni. Törölje a Fájlok alkalmazásban.</string>
+    <string name="export_unfinished_not_remembered">A(z) %s nem távolítható el és nem jegyezhető meg. Törölje a Fájlok alkalmazásban.</string>
+    <string name="export_unfinished_remove_accessibility">Befejezetlen fájl eltávolítása: %s</string>
+</resources>

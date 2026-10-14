@@ -250,11 +250,12 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 				addAll(receipts.map(ImportedWifiReceiptEntity::collectedDataEpoch))
 				addAll(runs.map(ImportedWifiRunEntity::collectedDataEpoch))
 			}
-			if (epochs.size != 1) storedCorrupt()
+			if (epochs.isEmpty()) storedCorrupt()
 			val lineage = try {
 				ImportedWifiLineageAuthenticator.authenticate(
 					identity = candidate.identity,
-					expectedCollectedDataEpoch = epochs.single(),
+					expectedCollectedDataEpoch = state.collectedDataEpoch,
+					retainedState = state,
 					headers = headers,
 					receipts = receipts,
 					runs = runs,
@@ -266,7 +267,7 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 			}
 			val latest = lineage.revisions.lastOrNull() ?: storedCorrupt()
 			if (!candidate.exactlyMatches(latest)) storedCorrupt()
-			if (epochs.single() != state.collectedDataEpoch) {
+			if (epochs.any { !state.acceptsRetainedEpoch(it) }) {
 				stale += candidate.identity
 			} else {
 				current[candidate.identity] = latest
@@ -303,8 +304,8 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 			entryDeletions.size ||
 			generations.distinctBy(ImportedWifiDeletionGenerationEntity::runIdentity).size !=
 			generations.size ||
-			entryDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-			generations.any { it.collectedDataEpoch != state.collectedDataEpoch || it.generation != 1L }
+			entryDeletions.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) } ||
+			generations.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) || it.generation != 1L }
 		) storedCorrupt()
 		val entryDeletionByIdentity = entryDeletions.associateBy(
 			ImportedWifiEntryDeletionEntity::entryIdentity,
@@ -419,7 +420,7 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 			authenticatedRows = addRowCount(authenticatedRows, owners.size.toLong())
 			if (owners.size >= limit) dependencyOverflow()
 			if (owners.any { owner ->
-					owner.collectedDataEpoch != state.collectedDataEpoch ||
+					owner.collectedDataEpoch?.let(state::acceptsRetainedEpoch) != true ||
 						!owner.matchesExpectedOwnership(ownership)
 				}
 			) originConflict()
@@ -678,7 +679,7 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 			)
 			budget.recordRows(page)
 			if (page.size > scopes.size || page.any {
-					it.collectedDataEpoch != state.collectedDataEpoch ||
+					!state.acceptsRetainedEpoch(it.collectedDataEpoch) ||
 						!it.isExactWifiDeletionFence()
 				}
 			) originConflict()

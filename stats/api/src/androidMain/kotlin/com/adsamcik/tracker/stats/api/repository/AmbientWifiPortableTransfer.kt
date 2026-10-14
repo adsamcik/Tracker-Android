@@ -353,6 +353,8 @@ data class ExportPortableAmbientWifiRequest(
 	val fromInclusiveMs: Long,
 	val toExclusiveMs: Long,
 	val origins: Set<AmbientWifiOrigin>,
+	/** Exact imported file membership for a saved bundle annotation; null keeps the date-range path. */
+	val selectedArchiveIds: Set<String>? = null,
 ) {
 	init {
 		require(fromInclusiveMs >= 0L && toExclusiveMs > fromInclusiveMs)

@@ -3282,17 +3282,18 @@ private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(
 		startedAtMs < 0L || startedElapsedNanos < 0L || lifecycleLeaseGeneration <= 0L ||
 		clockDomainId.isBlank() || lifecycleBootId.isNullOrBlank() || currentManifestRevision?.let { it <= 0L } != false
 	) return false
-	val terminal = state in TERMINAL_SESSION_STATES
+	val restored = state == "FAILED" && failureCode == "RESTORED_INTERRUPTED_SESSION" && completedAtMs == null
+	val terminal = state in TERMINAL_SESSION_STATES && !restored
 	if ((completedAtMs != null) != terminal || completedAtMs?.let { it < startedAtMs } == true ||
 		(cutoffAtMs == null) != (cutoffElapsedNanos == null)
 	) return false
-	if (terminal || state == "STOPPING") {
+	if (terminal || state == "STOPPING" || restored && cutoffAtMs != null) {
 		if (cutoffAtMs == null || cutoffElapsedNanos == null ||
 			cutoffAtMs?.let { it < startedAtMs } != false ||
 			cutoffElapsedNanos?.let { it < 0L ||
 				(cutoffClockDomainId == clockDomainId && it < startedElapsedNanos) } != false
 		) return false
-	} else if (cutoffAtMs != null || cutoffElapsedNanos != null) {
+	} else if (!restored && (cutoffAtMs != null || cutoffElapsedNanos != null)) {
 		return false
 	}
 	return if (terminal) {
@@ -3306,7 +3307,8 @@ private fun SourceServiceRunEntity.hasValidLifecycleShape(): Boolean {
 	if (state !in ALL_SESSION_STATES || desiredPlanRevision <= 0L || startedAtMs < 0L ||
 		startedElapsedNanos < 0L || leaseGeneration <= 0L || bootId.isBlank()
 	) return false
-	val terminal = state in TERMINAL_SESSION_STATES
+	val restored = state == "FAILED" && completionReason == "RESTORED_INTERRUPTED_SESSION" && completedAtMs == null
+	val terminal = state in TERMINAL_SESSION_STATES && !restored
 	return (completedAtMs != null) == terminal && completedAtMs?.let { it >= startedAtMs } != false
 }
 
@@ -3315,6 +3317,11 @@ private fun SourceServiceRunEntity.hasValidRelationshipTo(
 	currentRun: SourceServiceRunEntity?,
 ): Boolean = when {
 	logicalTrackingId != session.logicalTrackingId -> false
+	session.state == "FAILED" && session.failureCode == "RESTORED_INTERRUPTED_SESSION" ->
+		state in TERMINAL_SESSION_STATES &&
+			((completedAtMs != null && session.currentServiceRunId != serviceRunId) ||
+				(completionReason == "RESTORED_INTERRUPTED_SESSION" && session.currentServiceRunId == serviceRunId &&
+					bootId == session.lifecycleBootId && leaseGeneration == session.lifecycleLeaseGeneration))
 	state !in TERMINAL_SESSION_STATES -> hasValidCurrentRelationshipTo(session)
 	session.state in TERMINAL_SESSION_STATES -> session.currentServiceRunId == null
 	session.currentServiceRunId == serviceRunId -> false

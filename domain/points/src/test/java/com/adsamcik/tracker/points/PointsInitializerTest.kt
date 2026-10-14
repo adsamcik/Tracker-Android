@@ -37,6 +37,8 @@ class PointsInitializerTest {
 				dispatchers = dispatchers,
 				consumer = consumer,
 				domainEventRepository = domainEventRepository,
+                trackingHistory = mockk { every { observeSessionRewardChanges() } returns kotlinx.coroutines.flow.emptyFlow() },
+                trackingStartupGate = mockk { every { runtimeReadyChanges } returns kotlinx.coroutines.flow.emptyFlow() },
 			)
 			initializer.priority shouldBe 40
 		}
@@ -56,6 +58,8 @@ class PointsInitializerTest {
 				dispatchers = dispatchers,
 				consumer = consumer,
 				domainEventRepository = domainEventRepository,
+                trackingHistory = mockk { every { observeSessionRewardChanges() } returns kotlinx.coroutines.flow.emptyFlow() },
+                trackingStartupGate = mockk { every { runtimeReadyChanges } returns kotlinx.coroutines.flow.emptyFlow() },
 			)
 
 			initializer.initialize()
@@ -76,6 +80,8 @@ class PointsInitializerTest {
 				dispatchers = dispatchers,
 				consumer = consumer,
 				domainEventRepository = domainEventRepository,
+                trackingHistory = mockk { every { observeSessionRewardChanges() } returns kotlinx.coroutines.flow.emptyFlow() },
+                trackingStartupGate = mockk { every { runtimeReadyChanges } returns kotlinx.coroutines.flow.emptyFlow() },
 			)
 
 			initializer.initialize()
@@ -99,6 +105,8 @@ class PointsInitializerTest {
 				dispatchers = dispatchers,
 				consumer = consumer,
 				domainEventRepository = domainEventRepository,
+                trackingHistory = mockk { every { observeSessionRewardChanges() } returns kotlinx.coroutines.flow.emptyFlow() },
+                trackingStartupGate = mockk { every { runtimeReadyChanges } returns kotlinx.coroutines.flow.emptyFlow() },
 			)
 
 			initializer.initialize()
@@ -107,6 +115,28 @@ class PointsInitializerTest {
 			coVerify { domainEventRepository.observeEvents(EpochMs(0L)) }
 		}
 	}
+
+    @Test fun `reopening storage retries reward work even without another saved-data change`() = runTest {
+        val changes = MutableSharedFlow<Unit>(replay = 1)
+        val readiness = MutableSharedFlow<Unit>(replay = 1)
+        val events = MutableSharedFlow<List<DomainEvent>>()
+        every { domainEventRepository.observeEvents(EpochMs(0)) } returns events
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val initializer = PointsInitializer(backgroundScope, testDispatchers(dispatcher), consumer, domainEventRepository,
+            mockk { every { observeSessionRewardChanges() } returns changes },
+            mockk { every { runtimeReadyChanges } returns readiness })
+        initializer.initialize()
+        changes.emit(Unit)
+        advanceUntilIdle()
+        coVerify(exactly = 0) { consumer.reconcileSessionEffects() }
+        readiness.emit(Unit)
+        advanceUntilIdle()
+        coVerify(exactly = 1) { consumer.reconcileSessionEffects() }
+        // Restore may deliver its only invalidation while collection/storage is still closed.
+        readiness.emit(Unit)
+        advanceUntilIdle()
+        coVerify(exactly = 2) { consumer.reconcileSessionEffects() }
+    }
 
 	private fun testDispatchers(dispatcher: CoroutineDispatcher) =
 		object : DispatchersProvider {

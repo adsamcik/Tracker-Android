@@ -1,14 +1,13 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
-import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.data.SessionSegmentStats
 import com.adsamcik.tracker.stats.api.error.StatsError
 import com.adsamcik.tracker.stats.api.value.EpochMs
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
@@ -25,8 +24,7 @@ class DefaultSessionStatsRepositoryTest {
 	private val sessionSegmentDao: SessionSegmentDao = mockk()
 	private val tripDao: TripDao = mockk()
 	private val locationSampleDao: LocationSampleDao = mockk()
-	private val wifiObservationDao: WifiObservationDao = mockk()
-	private val cellSampleDao: CellSampleDao = mockk()
+	private val savedRadioCounts: SavedRadioCountsReader = mockk()
 	private val testDispatcher = StandardTestDispatcher()
 	private val dispatchers = object : DispatchersProvider {
 		override val io: CoroutineDispatcher = testDispatcher
@@ -34,13 +32,17 @@ class DefaultSessionStatsRepositoryTest {
 		override val main: CoroutineDispatcher = testDispatcher
 		override val unconfined: CoroutineDispatcher = testDispatcher
 	}
-	private val repository = DefaultSessionStatsRepository(
+	private val savedLocationMetrics = mockk<SavedLocationMetricsReader> {
+        coEvery { read(0L, Long.MAX_VALUE) } returns SavedLocationMetrics(1234.5, 77, 400.0, 0.0, 800.0, null, null, null, null)
+        coEvery { read(1_000L, 5_000L) } returns SavedLocationMetrics(900.0, 19, 250.0, 0.0, 500.0, null, null, null, null)
+    }
+    private val repository = DefaultSessionStatsRepository(
 		sessionSegmentDao = sessionSegmentDao,
 		tripDao = tripDao,
 		locationSampleDao = locationSampleDao,
-		wifiObservationDao = wifiObservationDao,
-		cellSampleDao = cellSampleDao,
 		dispatchers = dispatchers,
+        savedLocationMetrics = savedLocationMetrics,
+		savedRadioCounts = savedRadioCounts,
 	)
 
 	@Test
@@ -56,8 +58,8 @@ class DefaultSessionStatsRepositoryTest {
 		)
 		every { tripDao.countAllTrips() } returns 9L
 		coEvery { locationSampleDao.countAll() } returns 77L
-		every { wifiObservationDao.countDistinctBssid() } returns 4L
-		every { cellSampleDao.uniqueCount() } returns 5L
+		coEvery { savedRadioCounts.read(HistorySource.WIFI, 0L, Long.MAX_VALUE) } returns SavedRadioCount(4L, false)
+		coEvery { savedRadioCounts.read(HistorySource.CELL, 0L, Long.MAX_VALUE) } returns SavedRadioCount(5L, false)
 
 		val snapshot = repository.getAllTime().fold(
 			ifLeft = { error("Expected Right but was $it") },
@@ -95,8 +97,8 @@ class DefaultSessionStatsRepositoryTest {
 		)
 		every { tripDao.countTripsBetween(from.raw, to.raw) } returns 2L
 		coEvery { locationSampleDao.countBetween(from.raw, to.raw) } returns 11
-		every { wifiObservationDao.countDistinctBssid(from.raw, to.raw) } returns 3L
-		every { cellSampleDao.uniqueCount(from.raw, to.raw) } returns 6L
+		coEvery { savedRadioCounts.read(HistorySource.WIFI, from.raw, to.raw) } returns SavedRadioCount(3L, false)
+		coEvery { savedRadioCounts.read(HistorySource.CELL, from.raw, to.raw) } returns SavedRadioCount(6L, false)
 
 		val snapshot = repository.getBetween(from, to).fold(
 			ifLeft = { error("Expected Right but was $it") },
@@ -111,6 +113,21 @@ class DefaultSessionStatsRepositoryTest {
 		snapshot.locationCount shouldBe 11L
 		snapshot.wifiCount shouldBe 3L
 		snapshot.cellCount shouldBe 6L
+	}
+
+	@Test
+	fun `one missing radio count keeps the sibling and measured Location summary`() = runTest(testDispatcher) {
+		coEvery { sessionSegmentDao.getSummary(any<List<Int>>(), any<List<Int>>()) } returns
+			SessionSegmentStats(12_000L, 42L, 999_999f, 0f, 0f)
+		every { tripDao.countAllTrips() } returns 1L
+		coEvery { locationSampleDao.countAll() } returns 77L
+		coEvery { savedRadioCounts.read(HistorySource.WIFI, 0L, Long.MAX_VALUE) } returns SavedRadioCount(null, true)
+		coEvery { savedRadioCounts.read(HistorySource.CELL, 0L, Long.MAX_VALUE) } returns SavedRadioCount(5L, false)
+		val value = repository.getAllTime().getOrNull()!!
+		value.wifiCount shouldBe null
+		value.cellCount shouldBe 5L
+		value.totalDistance.raw shouldBe 1234.5f
+		value.hasMeasuredDistance shouldBe true
 	}
 
 	@Test

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Αφαίρεση ημιτελούς αρχείου</string>
+    <string name="export_unfinished_retry">Επανάληψη</string>
+    <string name="export_unfinished_files_guidance">Το Tracker δεν μπορεί να αφαιρέσει το αρχείο. Αφαιρέστε το στην εφαρμογή Αρχεία ή επαναφέρετε την πρόσβαση στον φάκελο και δοκιμάστε ξανά.</string>
+    <string name="export_unfinished_notice_update_failed">Το αρχείο αφαιρέθηκε. Η ειδοποίηση δεν ενημερώθηκε. Δοκιμάστε ξανά.</string>
+    <string name="export_unfinished_startup_unavailable">Ολοκληρώστε την ανάκτηση δεδομένων στο Tracker και δοκιμάστε ξανά.</string>
+    <string name="export_unfinished_load_failed">Δεν φορτώθηκαν τα ημιτελή αρχεία.</string>
+    <string name="export_unfinished_notice_save_failed">Δεν αποθηκεύτηκε η υπενθύμιση για ένα ημιτελές αρχείο. Αφαιρέστε το στην εφαρμογή Αρχεία.</string>
+    <string name="export_unfinished_not_remembered">Δεν αφαιρέθηκε ούτε αποθηκεύτηκε υπενθύμιση για το %s. Αφαιρέστε το στην εφαρμογή Αρχεία.</string>
+    <string name="export_unfinished_remove_accessibility">Αφαίρεση ημιτελούς αρχείου: %s</string>
+</resources>

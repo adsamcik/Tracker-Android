@@ -70,6 +70,23 @@ class ImportedRadioChildAttachmentRoomTest {
 		db.importedRadioChildDao().cellBackgroundChild(ARCHIVE, FACT, 1, 0)?.archiveId shouldBe ARCHIVE
 	}
 
+	@Test fun `restored background details attach with fresh request without changing their owner`() = runTest {
+		seedBackground("wifi")
+		seedBackground("cell")
+		db.openHelper.writableDatabase.execSQL(
+			"UPDATE source_evidence_state SET collected_data_epoch = 1, restored_data_epochs = '0' WHERE id = 1")
+		assertFailsWith<IllegalStateException> { attachment.wifiBackground(listOf(wifiBackground()), 0) }
+		assertFailsWith<IllegalStateException> { attachment.cellBackground(listOf(cellBackground()), 0) }
+		repeat(2) {
+			attachment.wifiBackground(listOf(wifiBackground()), 1)
+			attachment.cellBackground(listOf(cellBackground()), 1)
+		}
+		count("imported_ambient_wifi_child") shouldBe 1L
+		count("imported_ambient_cell_child") shouldBe 1L
+		db.importedRadioChildDao().wifiBackgroundChild(ARCHIVE, FACT, 1, 0)?.archiveId shouldBe ARCHIVE
+		db.importedRadioChildDao().cellBackgroundChild(ARCHIVE, FACT, 1, 0)?.archiveId shouldBe ARCHIVE
+	}
+
 	@Test fun `missing later parent rolls back earlier details in the same batch`() = runTest {
 		seedBackground("wifi")
 		seedBackground("cell")

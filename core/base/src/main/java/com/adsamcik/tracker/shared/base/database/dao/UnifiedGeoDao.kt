@@ -30,7 +30,7 @@ interface UnifiedGeoDao {
      * Execute a raw query that must project columns as: time (Long), lat (Double), lon (Double).
      * Observes the location_sample table for invalidation.
      */
-    @RawQuery(observedEntities = [LocationSample::class, LocationAcceptedReceiptEntity::class, LocationSamplePurposeAuthorityEntity::class, SourceEvidenceState::class, SourcePolicyAuthorityEntity::class, SourcePolicyEntity::class, SourceConsentEpochEntity::class, AmbientLocationRetentionAuthorityEntity::class, CollectedDataDeletionOperationEntity::class])
+    @RawQuery(observedEntities = [LocationSample::class, com.adsamcik.tracker.shared.base.database.data.LocationPointCorrection::class, LocationAcceptedReceiptEntity::class, LocationSamplePurposeAuthorityEntity::class, SourceEvidenceState::class, SourcePolicyAuthorityEntity::class, SourcePolicyEntity::class, SourceConsentEpochEntity::class, AmbientLocationRetentionAuthorityEntity::class, CollectedDataDeletionOperationEntity::class])
     fun queryLocations(query: SupportSQLiteQuery): Flow<List<GeoFeatureEntity>>
 
     /**
@@ -45,7 +45,7 @@ interface UnifiedGeoDao {
     @RawQuery(observedEntities = [CellSample::class])
     fun queryCells(query: SupportSQLiteQuery): Flow<List<GeoFeatureEntity>>
 
-    @RawQuery(observedEntities = [LocationSample::class, LocationAcceptedReceiptEntity::class, LocationSamplePurposeAuthorityEntity::class, SourceEvidenceState::class, SourcePolicyAuthorityEntity::class, SourcePolicyEntity::class, SourceConsentEpochEntity::class, AmbientLocationRetentionAuthorityEntity::class, CollectedDataDeletionOperationEntity::class])
+    @RawQuery(observedEntities = [LocationSample::class, com.adsamcik.tracker.shared.base.database.data.LocationPointCorrection::class, LocationAcceptedReceiptEntity::class, LocationSamplePurposeAuthorityEntity::class, SourceEvidenceState::class, SourcePolicyAuthorityEntity::class, SourcePolicyEntity::class, SourceConsentEpochEntity::class, AmbientLocationRetentionAuthorityEntity::class, CollectedDataDeletionOperationEntity::class])
     fun queryLocationsWeighted(query: SupportSQLiteQuery): Flow<List<GeoWeightedFeatureEntity>>
     @RawQuery(observedEntities = [WifiObservation::class])
     fun queryWifiWeighted(query: SupportSQLiteQuery): Flow<List<GeoWeightedFeatureEntity>>

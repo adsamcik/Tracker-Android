@@ -67,6 +67,19 @@ class RoomActivitySelectionDeletionTest {
 	@After
 	fun tearDown() = database.close()
 
+	@Test fun `cleared data epoch rejects old Activity action before either deletion owner`() = runTest {
+		var calls = 0
+		val subject = RoomActivitySelectionDeletion(database,
+			localDeletion { calls++; ActivitySessionDeletionResult.Deleted },
+			importedDeletion { calls++; DeleteSelectedImportedActivityResult.Deleted(1, 1) },
+			UnconfinedTestDispatcher(testScheduler))
+		subject.delete(ActivitySelectionDeletionRequest(
+			ActivityHistorySelection.Local(com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey("old")),
+			100L, EPOCH + 1L)) shouldBe ActivitySelectionDeletionResult.Blocked(
+			com.adsamcik.tracker.stats.api.repository.ActivitySelectionDeletionBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
+		calls shouldBe 0
+	}
+
 	@Test
 	fun `imported selection forwards exact opaque hierarchy and never invokes local deletion`() = runTest {
 		val entry = entry()

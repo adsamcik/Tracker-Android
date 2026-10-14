@@ -316,7 +316,7 @@ class SafeQueryBuilder private constructor(
             sql.append(" FROM (SELECT ")
             sql.append(allCols.joinToString())
             sql.append(" FROM ")
-            sql.append(table.tableName)
+            sql.append(table.fromSql)
             if (selection.isNotEmpty()) sql.append(" WHERE ").append(selection)
             sql.append(" ORDER BY time_ms DESC LIMIT ").append(newestMax)
             sql.append(") ORDER BY time ASC")
@@ -324,9 +324,9 @@ class SafeQueryBuilder private constructor(
             sql.append("SELECT ")
             sql.append(allCols.joinToString())
             sql.append(" FROM ")
-            sql.append(table.tableName)
+            sql.append(table.fromSql)
             sql.append(" CROSS JOIN (SELECT MIN(id) AS min_id, MAX(id) AS max_id FROM ")
-            sql.append(table.tableName)
+            sql.append(table.fromSql)
             if (baseSelection.isNotEmpty()) sql.append(" WHERE ").append(baseSelection)
             sql.append(") AS sample_bounds")
             if (baseSelection.isNotEmpty()) sql.append(" WHERE ").append(baseSelection).append(" AND ")
@@ -343,7 +343,7 @@ class SafeQueryBuilder private constructor(
             sql.append("SELECT ")
             sql.append(allCols.joinToString())
             sql.append(" FROM ")
-            sql.append(table.tableName)
+            sql.append(table.fromSql)
             if (selection.isNotEmpty()) sql.append(" WHERE ").append(selection)
             sql.append(" ORDER BY time_ms ASC")
             limit?.let { sql.append(" LIMIT ").append(it) }
@@ -405,6 +405,7 @@ class SafeQueryBuilder private constructor(
         );
 
         /** Map public column name to actual DB column name. Identity if no mapping exists. */
+        val fromSql: String get() = if (this == LOCATION) "effective_location_sample AS location_sample" else tableName
         fun resolveColumn(publicName: String): String = columnMapping[publicName] ?: publicName
     }
 

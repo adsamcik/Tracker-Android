@@ -180,4 +180,29 @@ class PointsAwardedDaoTest {
 
         dao.countBetween(Long.MIN_VALUE, Long.MAX_VALUE) shouldBe 2.0
     }
+
+    @Test fun sessionCorrectionAndDeletionReplaceOneReceiptWithoutDoubleCounting(): Unit = runBlocking {
+        val key = "recording:0:42"
+        dao.applySessionEffect(key, 1, 1_000, 25_000_000) shouldBe true
+        val id = checkNotNull(dao.getRevisionedEffect(AwardSource.SESSION.value, key)).id
+        dao.applySessionEffect(key, 2, 1_000, 5_000_000) shouldBe true
+        dao.countBetween(0, 2_000) shouldBe 5.0
+        dao.applySessionEffect(key, 3, 1_000, 0) shouldBe true
+        dao.applySessionEffect(key, 1, 1_000, 25_000_000) shouldBe false
+        val removed = checkNotNull(dao.getRevisionedEffect(AwardSource.SESSION.value, key))
+        removed.id shouldBe id
+        removed.effectRevision shouldBe 3L
+        removed.effectValueMicros shouldBe 0L
+        dao.countBetween(0, 2_000) shouldBe 0.0
+    }
+
+    @Test fun timestampOnlyLegacySessionAwardIsPreservedWithoutGuessingNewOwnership(): Unit = runBlocking {
+        val original = PointsAwarded(1_000, Points(7.0), AwardSource.SESSION)
+        dao.insert(original)
+        dao.applySessionEffect("recording:0:42", 1, 1_000, 7_000_000) shouldBe false
+        dao.getRevisionedEffect(AwardSource.SESSION.value, "recording:0:42") shouldBe null
+        dao.countBetween(0, 2_000) shouldBe 7.0
+        dao.applySessionEffect("recording:0:43", 1, 1_001, 3_000_000) shouldBe true
+        dao.countBetween(0, 2_000) shouldBe 10.0
+    }
 }

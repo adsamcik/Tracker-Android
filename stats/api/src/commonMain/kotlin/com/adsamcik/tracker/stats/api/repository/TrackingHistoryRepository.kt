@@ -10,6 +10,13 @@ import kotlinx.coroutines.flow.Flow
  * writer, repairs a projection, or writes a derived summary.
  */
 interface TrackingHistoryRepository {
+	/** Resolve exact saved members in one snapshot; no source is activated. */
+	suspend fun readCapturedSourceMembers(segmentIds: List<Long>): List<LiveSessionHistorySnapshot> = emptyList()
+    suspend fun readSavedSessionReward(segmentId: Long): SavedSessionRewardRead = SavedSessionRewardRead.Unavailable
+
+    /** Saved-data changes that may alter completed recording awards. Observing starts no sensor. */
+    fun observeSessionRewardChanges(): Flow<Unit> = kotlinx.coroutines.flow.emptyFlow()
+
     /** Finite read of saved Location; no provider, writer or live total is started. */
     suspend fun readSavedLocationSummary(selection: SavedLocationSummarySelection): SavedLocationSummaryRead =
         SavedLocationSummaryRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
@@ -426,9 +433,12 @@ data class StepsOnlyHistoryEntry(
 	val startTime: EpochMs,
 	val endTime: EpochMs,
 	val state: StepsOnlyHistoryListState,
+	/** Exact original members, supplied by the qualified reader rather than a date selection. */
+	val segmentIds: List<Long> = emptyList(),
 ) {
 	init {
 		require(endTime >= startTime) { "History entry cannot end before it starts" }
+		require(segmentIds.all { it > 0L } && segmentIds.distinct().size == segmentIds.size)
 	}
 }
 
@@ -538,7 +548,9 @@ sealed interface SourceAwareHistoryPageEntry {
 	val actionTarget: TrackingHistoryActionTarget
 		get() = when (this) {
 			is Physical -> TrackingHistoryActionTarget.PhysicalSegment(segmentId)
-			is StepsOnly -> TrackingHistoryActionTarget.NonActionable(
+			is StepsOnly -> history.segmentIds.takeIf { it.isNotEmpty() }
+				?.let { TrackingHistoryActionTarget.CapturedSource(HistorySource.STEPS, it) }
+				?: TrackingHistoryActionTarget.NonActionable(
 				source = HistorySource.STEPS,
 				reason = TrackingHistoryNonActionableReason.LOCAL_STEPS_SELECTOR_UNAVAILABLE,
 			)
@@ -552,7 +564,11 @@ sealed interface SourceAwareHistoryPageEntry {
 					source = HistorySource.ACTIVITY,
 					reason = TrackingHistoryNonActionableReason.ACTIVITY_SELECTOR_UNAVAILABLE,
 				)
-			is PressureOnly -> TrackingHistoryActionTarget.NonActionable(
+			is PressureOnly -> (history.origin as? PressureHistoryOrigin.Imported)?.let { imported ->
+				history.importRevision?.let { TrackingHistoryActionTarget.ImportedPressure(imported.identity, it) }
+			} ?: history.segmentIds.takeIf { it.isNotEmpty() }
+				?.let { TrackingHistoryActionTarget.CapturedSource(HistorySource.PRESSURE, it) }
+				?: TrackingHistoryActionTarget.NonActionable(
 				source = HistorySource.PRESSURE,
 				reason = TrackingHistoryNonActionableReason.PRESSURE_SELECTOR_UNAVAILABLE,
 			)
@@ -640,6 +656,16 @@ enum class SourceOnlyHistoryIntent {
  * later optimistic actions. A non-actionable target is explicit rather than a fabricated scope.
  */
 sealed interface TrackingHistoryActionTarget {
+	data class ImportedPressure(val identity: ImportedPressureHistoryIdentity, val importRevision: Long) : TrackingHistoryActionTarget {
+		init { require(importRevision > 0L) }
+	}
+
+	data class CapturedSource(val source: HistorySource, val segmentIds: List<Long>) : TrackingHistoryActionTarget {
+		init {
+			require(source == HistorySource.STEPS || source == HistorySource.PRESSURE)
+			require(segmentIds.isNotEmpty() && segmentIds.all { it > 0L } && segmentIds.distinct().size == segmentIds.size)
+		}
+	}
 	data class PhysicalSegment(val segmentId: Long) : TrackingHistoryActionTarget {
 		init {
 			require(segmentId > 0L)

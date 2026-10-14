@@ -65,11 +65,13 @@ class LegacyDatabaseException(
 class LegacyDatabaseRepository(
 	context: Context,
 	private val nowMillis: () -> Long = System::currentTimeMillis,
+	private val sourceFileOverride: File? = null,
 ) {
 	private val appContext = context.applicationContext
 	private val preferences = appContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 	private val databaseFile: File
-		get() = appContext.getDatabasePath(LEGACY_DATABASE_NAME)
+		get() = sourceFileOverride ?: File(appContext.filesDir, "data-backup/legacy-database").takeIf(File::isFile)
+			?: appContext.getDatabasePath(LEGACY_DATABASE_NAME)
 
 	val states: Flow<LegacyDatabaseState> = generation
 		.map { currentState() }
@@ -81,6 +83,22 @@ class LegacyDatabaseRepository(
 	 * user-repair condition instead of being mistaken for a transient clean install failure.
 	 */
 	fun hasSourceDatabase(): Boolean = PROCESS_LOCK.withLock { databaseFile.isFile }
+
+	/** A logical data import can replace the preserved source without replacing live Room files. */
+	fun refreshRestoredData() = PROCESS_LOCK.withLock { notifyChanged() }
+
+	/** Called only after a confirmed replacement has preserved the previous dataset. */
+	fun removeReleasedSourceAfterConfirmedRestore() = PROCESS_LOCK.withLock {
+		val released = appContext.getDatabasePath(LEGACY_DATABASE_NAME)
+		val owner = released.parentFile!!.canonicalFile.toPath()
+		for (file in databaseFamily(released).reversed()) {
+			require(file.canonicalFile.toPath().startsWith(owner))
+			if (file.exists() && !file.delete()) {
+				throw LegacyDatabaseException("Previous legacy data could not be removed")
+			}
+		}
+		notifyChanged()
+	}
 
 	fun currentState(): LegacyDatabaseState = PROCESS_LOCK.withLock {
 		LegacyDatabaseState(
@@ -179,11 +197,12 @@ class LegacyDatabaseRepository(
 				"The legacy database must be exported before it can be deleted",
 			)
 		}
-		val files = databaseFamily(databaseFile)
+		val files = (databaseFamily(databaseFile) + databaseFamily(appContext.getDatabasePath(LEGACY_DATABASE_NAME))).distinct()
 		val bytes = files.sumOf { it.takeIf(File::isFile)?.length() ?: 0L }
 		// Remove expendable sidecars first so a failure cannot strand only WAL bytes after the
 		// authoritative main file has already disappeared.
-		(files.drop(1) + files.first()).forEach { file ->
+		(files.filter { it.name.endsWith("-wal") || it.name.endsWith("-shm") || it.name.endsWith("-journal") } +
+			files.filterNot { it.name.endsWith("-wal") || it.name.endsWith("-shm") || it.name.endsWith("-journal") }).forEach { file ->
 			if (file.exists() && !file.delete()) {
 				throw LegacyDatabaseException("Could not delete legacy database file ${file.name}")
 			}
@@ -194,6 +213,7 @@ class LegacyDatabaseRepository(
 	}
 
 	internal fun markRunning(sourceVersion: Int) = PROCESS_LOCK.withLock {
+		if (sourceFileOverride != null) return@withLock
 		preferences.edit {
 			putString(KEY_STATUS, LegacyImportStatus.RUNNING.name)
 			putInt(KEY_SOURCE_VERSION, sourceVersion)
@@ -203,6 +223,7 @@ class LegacyDatabaseRepository(
 	}
 
 	internal fun markCopied(report: LegacyImportReport) = PROCESS_LOCK.withLock {
+		if (sourceFileOverride != null) return@withLock
 		writeReport(report)
 		preferences.edit {
 			putString(KEY_STATUS, LegacyImportStatus.RUNNING.name)
@@ -212,6 +233,7 @@ class LegacyDatabaseRepository(
 	}
 
 	fun markComplete() = PROCESS_LOCK.withLock {
+		if (sourceFileOverride != null) return@withLock
 		val report = readReport()?.copy(completedAtMs = nowMillis())
 		if (report != null) writeReport(report)
 		preferences.edit {
@@ -222,6 +244,7 @@ class LegacyDatabaseRepository(
 	}
 
 	fun markFailed(error: Throwable) = PROCESS_LOCK.withLock {
+		if (sourceFileOverride != null) return@withLock
 		preferences.edit {
 			putString(KEY_STATUS, LegacyImportStatus.FAILED.name)
 			putString(KEY_LAST_ERROR, error::class.java.simpleName)

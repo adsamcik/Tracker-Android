@@ -51,7 +51,8 @@ interface CellCapturedFactDao {
 		"""
 		SELECT session.logical_tracking_id
 		FROM logical_tracking_session AS session
-		WHERE session.state IN ('FINALIZED', 'CLOSED')
+		WHERE (session.state IN ('FINALIZED', 'CLOSED') OR
+		  (session.state = 'FAILED' AND session.failure_code = 'RESTORED_INTERRUPTED_SESSION'))
 		  AND (:afterId IS NULL OR session.logical_tracking_id > :afterId)
 		  AND (
 		    EXISTS (
@@ -546,9 +547,10 @@ interface CellCapturedFactDao {
 		wallTimeMs: Long,
 	): Int
 
-	/** Every nonterminal Cell registration represents active or pending callback work. */
+	/** Only the current data lifetime can own active or pending callback work after a restore. */
 	@Query(
 		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
+			"AND collected_data_epoch = (SELECT collected_data_epoch FROM source_evidence_state WHERE id = 1) " +
 			"AND status IN ('RESERVED', 'ACTIVE', 'RETIRING') " +
 			"ORDER BY registration_generation LIMIT :limit",
 	)

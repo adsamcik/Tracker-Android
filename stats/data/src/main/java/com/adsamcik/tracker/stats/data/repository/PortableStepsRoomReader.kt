@@ -1044,7 +1044,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 		evidenceState: SourceEvidenceState,
 		dependencies: PortableRoomDependencies,
 	) {
-		if (fence.collectedDataEpoch != evidenceState.collectedDataEpoch) {
+		if (!evidenceState.acceptsRetainedEpoch(fence.collectedDataEpoch)) {
 			abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 		}
 		val writer = deletedRunWriter(run, dependencies)
@@ -1435,7 +1435,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 			authority.lane.activatedRolloutRevision > manifest.rolloutRevision ||
 			fact.sourcePolicyRevision != manifest.sourcePolicyRevision ||
 			fact.captureConsentEpoch != binding.consentEpoch ||
-			fact.collectedDataEpoch != dependencies.evidenceState.collectedDataEpoch
+			!dependencies.evidenceState.acceptsRetainedEpoch(fact.collectedDataEpoch)
 		) {
 			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
@@ -1482,7 +1482,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 			scoped.serviceRunId != run.serviceRunId || binding == null ||
 			manifests.none { it.manifestRevision == scoped.manifestRevision } ||
 			!scoped.belongsTo(authority.writer) ||
-			scoped.state.collectedDataEpoch != dependencies.evidenceState.collectedDataEpoch
+			!dependencies.evidenceState.acceptsRetainedEpoch(scoped.state.collectedDataEpoch)
 		) {
 			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}

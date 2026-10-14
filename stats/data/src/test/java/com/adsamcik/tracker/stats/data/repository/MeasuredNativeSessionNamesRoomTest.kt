@@ -23,7 +23,7 @@ class MeasuredNativeSessionNamesRoomTest {
     @Before fun setUp() { database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>()) }
     @After fun close() = database.close()
 
-    @Test fun `edited closed recording names only points and complete windows inside its actual interval`() = runTest {
+    @Test fun `edited recording names contained points and overlapping original windows`() = runTest {
         seed(annotation(from = 1_300L, to = 1_600L))
         val names = read()
         val visible = database.organizationAnnotationDao().visible(null, null, 1, selectedAdapterKey = "logical:recording").single()
@@ -33,8 +33,8 @@ class MeasuredNativeSessionNamesRoomTest {
         names.point("recording", 1_300L) shouldBe "Walk"
         names.point("recording", 1_600L) shouldBe null
         names.window("recording", 1_350L, 1_500L) shouldBe "Walk"
-        names.window("recording", 1_200L, 1_500L) shouldBe null
-        names.window("recording", 1_500L, 1_700L) shouldBe null
+        names.window("recording", 1_200L, 1_500L) shouldBe "Walk"
+        names.window("recording", 1_500L, 1_700L) shouldBe "Walk"
     }
 
     @Test fun `missing edits reuse original recorded bounds without inventing a name or end`() = runTest {
@@ -59,7 +59,7 @@ class MeasuredNativeSessionNamesRoomTest {
         val names = read()
         names.point("recording", 1_599L) shouldBe "Walk"
         names.point("recording", 1_600L) shouldBe null
-        names.window("recording", 1_500L, 1_700L) shouldBe null
+        names.window("recording", 1_500L, 1_700L) shouldBe "Walk"
     }
 
     @Test fun `hidden malformed or absent metadata supplies no recording name`() = runTest {
@@ -72,15 +72,15 @@ class MeasuredNativeSessionNamesRoomTest {
         MeasuredNativeSessionNames.load(database, listOf("missing")).point("missing", 1_500L) shouldBe null
     }
 
-    @Test fun `genuine window boundary rules and reversed original endpoints are not normalized`() = runTest {
+    @Test fun `overlapping windows retain their original endpoints and zero-length points use measured time`() = runTest {
         seed(annotation())
         val names = read()
         names.window("recording", 1_500L, 2_000L) shouldBe "Walk"
         names.window("recording", 2_000L, 2_000L) shouldBe null
         names.window("recording", 1_500L, 1_500L) shouldBe "Walk"
-        names.window("recording", 1_500L, 2_000L, strictEnd = true) shouldBe null
-        names.window("recording", 1_500L, 1_999L, strictEnd = true) shouldBe "Walk"
-        names.window("recording", 1_500L, 1_400L) shouldBe null
+        names.window("recording", 1_000L, 1_500L) shouldBe "Walk"
+        names.window("recording", 2_000L, 2_200L) shouldBe null
+        names.window("recording", 1_500L, 1_400L) shouldBe "Walk"
     }
 
     private suspend fun read() = database.withTransaction { MeasuredNativeSessionNames.load(database, listOf("recording")) }

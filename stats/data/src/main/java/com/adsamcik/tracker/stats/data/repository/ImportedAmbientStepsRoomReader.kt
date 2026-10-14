@@ -8,10 +8,11 @@ import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFail
 import com.adsamcik.tracker.shared.base.database.loadProvenGraphlessLegacyAmbientLineage
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsSourceFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
 import com.adsamcik.tracker.shared.base.database.data.ImportedPortableStepsCountDomainBindingEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
-import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.loadAuthenticatedAmbientStepsLineage
 import com.adsamcik.tracker.shared.base.database.authenticateAllAmbientStepsFences
 import com.adsamcik.tracker.shared.base.database.hasCompletePortableOwnerLineages
@@ -119,37 +120,18 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 				ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
 			)
 		}
-		dao.authenticateAllAmbientStepsFences(state.collectedDataEpoch)
+		dao.authenticateAllAmbientStepsFences(state)
 		val sourceFence = dao.sourceFence()
 		if (sourceFence != null) {
-			if (sourceFence.collectedDataEpoch != state.collectedDataEpoch) {
+			if (!state.acceptsRetainedEpoch(sourceFence.collectedDataEpoch)) {
 				return ImportedAmbientStepsSnapshot.Unverifiable(
 					ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
 				)
 			}
-			val authority = database.sourcePolicyDao().authority()
-			val policy = authority?.takeIf {
-				it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE
-			}?.let {
-				database.sourcePolicyDao().policyAtRevision(
-					it.currentPolicyRevision,
-					SourceDestinationOwnerEntity.SOURCE_STEPS,
-				)
-			}
-			val consent = database.sourcePolicyDao().latestConsentEpoch(
-				SourceDestinationOwnerEntity.SOURCE_STEPS,
-				SourceBrokerPurpose.AMBIENT_PRODUCT,
-			)
-			val reset = sourceFence.deletionCompleted &&
-				policy != null && consent != null && policy.enabled &&
-				policy.ambientPersistenceEligible && policy.ambientConsentEpoch == consent.epoch &&
-				consent.eligible && consent.persistenceEligible &&
-				consent.policyRevision == policy.policyRevision &&
-				consent.epoch > sourceFence.revokedConsentEpoch &&
-				sourceFence.reopenedConsentEpoch == consent.epoch
+			val reset = database.hasSavedAmbientStepsReopen(sourceFence)
 			if (!reset) return ImportedAmbientStepsSnapshot.Deleted
 		}
-		val fences = dao.fencesOverlapping(
+		val fences = request.selectedDayIdentities?.let { dao.fencesForIdentities(it.toList(), AmbientStepsPortableFormatV1.MAX_DAYS + 1) } ?: dao.fencesOverlapping(
 			request.fromInclusiveMs,
 			request.toExclusiveMs,
 			AmbientStepsPortableFormatV1.MAX_DAYS + 1,
@@ -159,7 +141,7 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 				ImportedAmbientStepsReadFailure.DEPENDENCY_OVERFLOW,
 			)
 		}
-		if (fences.any { it.collectedDataEpoch != state.collectedDataEpoch }) {
+		if (fences.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) }) {
 			return ImportedAmbientStepsSnapshot.Unverifiable(
 				ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
 			)
@@ -175,7 +157,7 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 		}
 		if (fenceKinds.isNotEmpty()) return ImportedAmbientStepsSnapshot.Deleted
 
-		val candidates = dao.latestDaysOverlapping(
+		val candidates = request.selectedDayIdentities?.let { dao.latestDaysForIdentities(it.toList(), AmbientStepsPortableFormatV1.MAX_DAYS + 1) } ?: dao.latestDaysOverlapping(
 			request.fromInclusiveMs,
 			request.toExclusiveMs,
 			AmbientStepsPortableFormatV1.MAX_DAYS + 1,
@@ -186,6 +168,8 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 			)
 		}
 		if (candidates.isEmpty()) return ImportedAmbientStepsSnapshot.NoData
+		if (request.selectedDayIdentities != null && candidates.map { it.dayIdentity }.toSet() != request.selectedDayIdentities)
+			return ImportedAmbientStepsSnapshot.Unverifiable(ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE)
 		state.retainedFromMs?.let { floor ->
 			if (candidates.any { candidate ->
 					candidate.structuralDayEndTimeMs <= floor ||
@@ -203,7 +187,7 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 			currentCoroutineContext().ensureActive()
 			val lineage = dao.loadAuthenticatedAmbientStepsLineage(
 				candidate.dayIdentity,
-				state.collectedDataEpoch,
+				state,
 			)
 			check(lineage.latest.header == candidate)
 			val revision = lineage.latest
@@ -447,4 +431,22 @@ private data class StructuralImportedAmbientStepsDayKey(
 		day.structuralDayStartTimeMs,
 		day.structuralDayEndTimeMs,
 	)
+}
+
+/** A completed import reopening stays valid when current collection choices later change. */
+internal suspend fun AppDatabase.hasSavedAmbientStepsReopen(
+	fence: ImportedAmbientStepsSourceFenceEntity,
+): Boolean {
+	if (!fence.deletionCompleted) return false
+	val epoch = fence.reopenedConsentEpoch ?: return false
+	val reopenedAtMs = fence.reopenedAtMs ?: return false
+	val consent = sourcePolicyDao().consentEpoch(
+		SourceDestinationOwnerEntity.SOURCE_STEPS, SourceBrokerPurpose.AMBIENT_PRODUCT, epoch,
+	) ?: return false
+	val policy = sourcePolicyDao().policyAtRevision(
+		consent.policyRevision, SourceDestinationOwnerEntity.SOURCE_STEPS,
+	) ?: return false
+	return epoch > fence.revokedConsentEpoch && policy.enabled &&
+		policy.hasExactEligibleAmbientConsentReference(consent) &&
+		policy.effectiveWallTimeMs <= reopenedAtMs && consent.effectiveWallTimeMs <= reopenedAtMs
 }

@@ -65,12 +65,20 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 	)
 
 	@Suppress("CyclomaticComplexMethod", "ReturnCount", "ThrowsCount")
-	override suspend fun deleteSelectedSession(sessionSegmentId: Long): ActivitySessionDeletionResult {
+	override suspend fun deleteSelectedSession(sessionSegmentId: Long): ActivitySessionDeletionResult =
+		deleteSelectedSessionInternal(sessionSegmentId, null)
+
+	override suspend fun deleteSelectedSession(sessionSegmentId: Long, expectedCollectedDataEpoch: Long): ActivitySessionDeletionResult =
+		deleteSelectedSessionInternal(sessionSegmentId, expectedCollectedDataEpoch)
+
+	private suspend fun deleteSelectedSessionInternal(sessionSegmentId: Long, expectedEpoch: Long?): ActivitySessionDeletionResult {
 		if (sessionSegmentId <= 0L) return unsupported(
 			ActivitySessionDeletionUnsupportedReason.INVALID_SEGMENT_ID,
 		)
 		val deletedAtMs = wallTimeMsProvider().coerceAtLeast(0L)
 		val result = try {
+			if (expectedEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch)
+				return unsupported(ActivitySessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
 			val selected = database.sessionSegmentDao().getById(sessionSegmentId)
 				?: return ActivitySessionDeletionResult.NotFound
 			if (preReadHasActiveOwner(selected)) return ActivitySessionDeletionResult.BlockedActive
@@ -87,6 +95,8 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 			).withDayLocks(expected.affectedDays) { lockedDays ->
 				afterDayLocksAcquired()
 				database.withTransaction {
+						if (expectedEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch)
+							return@withTransaction unsupported(ActivitySessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
 					val retainedSelected = database.sessionSegmentDao().getById(sessionSegmentId)
 						?: throw ConcurrentActivityDeletionStateException()
 					val actual = (selectedScope(retainedSelected) as? SelectedScopePreflight.Ready)?.scope

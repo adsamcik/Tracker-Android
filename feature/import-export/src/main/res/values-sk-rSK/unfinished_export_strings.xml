@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Odstrániť nedokončený súbor</string>
+    <string name="export_unfinished_retry">Skúsiť znova</string>
+    <string name="export_unfinished_files_guidance">Tracker nemôže súbor odstrániť. Odstráňte ho v aplikácii Súbory alebo obnovte prístup k priečinku a skúste to znova.</string>
+    <string name="export_unfinished_notice_update_failed">Súbor odstránený. Oznámenie sa nepodarilo aktualizovať. Skúste to znova.</string>
+    <string name="export_unfinished_startup_unavailable">Dokončite obnovu dát v Trackeri a skúste to znova.</string>
+    <string name="export_unfinished_load_failed">Nedokončené súbory sa nepodarilo načítať.</string>
+    <string name="export_unfinished_notice_save_failed">Nedokončený súbor sa nepodarilo zapamätať. Odstráňte ho v aplikácii Súbory.</string>
+    <string name="export_unfinished_not_remembered">Súbor %s sa nepodarilo odstrániť ani zapamätať. Odstráňte ho v aplikácii Súbory.</string>
+    <string name="export_unfinished_remove_accessibility">Odstrániť nedokončený súbor: %s</string>
+</resources>

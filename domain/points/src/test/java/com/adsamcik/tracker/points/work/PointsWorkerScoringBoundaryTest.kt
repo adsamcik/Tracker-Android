@@ -51,6 +51,7 @@ class PointsWorkerScoringBoundaryTest {
 		context = ApplicationProvider.getApplicationContext()
 		appDatabase = AppDatabase.testDatabase(context)
 		pointsDatabase = PointsDatabase.testDatabase(context)
+		kotlinx.coroutines.runBlocking { appDatabase.sourceEvidenceStateDao().ensure() }
 	}
 
 	@After
@@ -96,10 +97,10 @@ class PointsWorkerScoringBoundaryTest {
 			),
 		)
 
-		newWorker(segmentId).doWork() shouldBe ListenableWorker.Result.failure()
+		newWorker(segmentId).doWork() shouldBe ListenableWorker.Result.success()
 
 		pointsDatabase.pointsAwardedDao().countBetween(Long.MIN_VALUE, Long.MAX_VALUE) shouldBe 0.0
-		pointsDatabase.pointsAwardedDao().hasAwardAt(1_000L, AwardSource.SESSION.value) shouldBe false
+		pointsDatabase.pointsAwardedDao().hasAwardAt(1_000L, AwardSource.SESSION.value) shouldBe true
 	}
 
 	@Test
@@ -211,9 +212,11 @@ class PointsWorkerScoringBoundaryTest {
 		gate: TrackingStartupGate = ReadyStartupGate,
 		appDatabaseProvider: Provider<AppDatabase> = Provider { appDatabase },
 		pointsDatabaseProvider: Provider<PointsDatabase> = Provider { pointsDatabase },
+		trackingHistory: com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository? = null,
+		operationEpoch: Long = 0L,
 	): PointsWorker =
 		TestListenableWorkerBuilder<PointsWorker>(context)
-			.setInputData(workDataOf(TrackerSession.RECEIVER_SESSION_ID to segmentId))
+			.setInputData(workDataOf(TrackerSession.RECEIVER_SESSION_ID to segmentId, PointsWorker.ARG_EPOCH to operationEpoch))
 			.setWorkerFactory(
 				object : WorkerFactory() {
 					override fun createWorker(
@@ -226,10 +229,80 @@ class PointsWorkerScoringBoundaryTest {
 						appDatabaseProvider,
 						pointsDatabaseProvider,
 						gate,
+						trackingHistory ?: io.mockk.mockk<com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository> {
+							// Scoring fixture only. Real saved grant/point qualification is covered in stats-data Room cases.
+							io.mockk.coEvery { readSavedSessionReward(segmentId) } coAnswers {
+								val stored = appDatabase.sessionSegmentDao().getById(segmentId)
+								if (stored == null) com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Removed(0, 2)
+								else com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
+									com.adsamcik.tracker.stats.api.repository.SavedSessionReward(segmentId, 0, 1,
+										stored.endTimeMs, stored.endTimeMs - stored.startTimeMs, stored.distanceM.toDouble()))
+							}
+						},
 					)
 				},
 			)
 			.build()
+
+	@Test fun `worker replaces corrected current points and keeps a zero deletion receipt against stale replay`() = runTest {
+		val id = appDatabase.sessionSegmentDao().insert(segment(1_000, 601_000, 999_999f, 1_000_000))
+		var current: com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead =
+			com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
+				com.adsamcik.tracker.stats.api.repository.SavedSessionReward(id, 0, 1, 601_000, 600_000, 2_000.0))
+		val history = io.mockk.mockk<com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository> {
+			io.mockk.coEvery { readSavedSessionReward(id) } coAnswers { current }
+		}
+		newWorker(id, trackingHistory = history).doWork() shouldBe ListenableWorker.Result.success()
+		pointsDatabase.pointsAwardedDao().countBetween(0, Long.MAX_VALUE) shouldBe 10.0
+		current = com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
+			com.adsamcik.tracker.stats.api.repository.SavedSessionReward(id, 0, 2, 601_000, 600_000, 100.0))
+		newWorker(id, trackingHistory = history).doWork() shouldBe ListenableWorker.Result.success()
+		pointsDatabase.pointsAwardedDao().countBetween(0, Long.MAX_VALUE) shouldBe 5.0
+		current = com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Removed(0, 3)
+		newWorker(id, trackingHistory = history).doWork() shouldBe ListenableWorker.Result.success()
+		pointsDatabase.pointsAwardedDao().countBetween(0, Long.MAX_VALUE) shouldBe 0.0
+		val dao = pointsDatabase.pointsAwardedDao()
+		val receipt = checkNotNull(dao.getRevisionedEffect(AwardSource.SESSION.value, "recording:0:$id"))
+		receipt.effectRevision shouldBe 3L
+		current = com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
+			com.adsamcik.tracker.stats.api.repository.SavedSessionReward(id, 0, 1, 601_000, 600_000, 2_000.0))
+		newWorker(id, trackingHistory = history).doWork() shouldBe ListenableWorker.Result.success()
+		dao.getRevisionedEffect(AwardSource.SESSION.value, "recording:0:$id") shouldBe receipt
+	}
+
+	@Test fun `restored receipt updates under a new operation epoch without duplicate awards or stale jobs`() = runTest {
+        val id = appDatabase.sessionSegmentDao().insert(segment(1_000, 601_000, 0f, null))
+        var current: com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead =
+            com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
+                com.adsamcik.tracker.stats.api.repository.SavedSessionReward(id, 0, 1, 601_000, 600_000, 2_000.0))
+        val history = io.mockk.mockk<com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository> {
+            io.mockk.coEvery { readSavedSessionReward(id) } coAnswers { current }
+        }
+        newWorker(id, trackingHistory = history).doWork() shouldBe ListenableWorker.Result.success()
+        val originalKey = "recording:0:$id"
+        appDatabase.openHelper.writableDatabase.execSQL("UPDATE source_evidence_state SET collected_data_epoch = 7, " +
+            "restored_data_epochs = '0', revision = 100 WHERE id = 1")
+        current = com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
+            com.adsamcik.tracker.stats.api.repository.SavedSessionReward(id, 0, 102, 601_000, 600_000, 100.0))
+        newWorker(id, trackingHistory = history, operationEpoch = 7).doWork() shouldBe ListenableWorker.Result.success()
+        val dao = pointsDatabase.pointsAwardedDao()
+        dao.countBetween(0, Long.MAX_VALUE) shouldBe 5.0
+        dao.sessionEffects(id).size shouldBe 1
+        dao.getRevisionedEffect(AwardSource.SESSION.value, originalKey)?.effectRevision shouldBe 102L
+        dao.getRevisionedEffect(AwardSource.SESSION.value, "recording:7:$id") shouldBe null
+        current = com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Removed(7, 103)
+        newWorker(id, trackingHistory = history, operationEpoch = 7).doWork() shouldBe ListenableWorker.Result.success()
+        val zero = checkNotNull(dao.getRevisionedEffect(AwardSource.SESSION.value, originalKey))
+        zero.effectValueMicros shouldBe 0L
+        // A queued job from before restore is stale even though its original data remains readable.
+        current = com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
+            com.adsamcik.tracker.stats.api.repository.SavedSessionReward(id, 0, 200, 601_000, 600_000, 2_000.0))
+        newWorker(id, trackingHistory = history, operationEpoch = 0).doWork() shouldBe ListenableWorker.Result.success()
+        dao.getRevisionedEffect(AwardSource.SESSION.value, originalKey) shouldBe zero
+        appDatabase.sourceEvidenceStateDao().updateAfterFullDeletion(8, null, 0, 700_000)
+        newWorker(id, trackingHistory = history, operationEpoch = 8).doWork() shouldBe ListenableWorker.Result.success()
+        dao.getRevisionedEffect(AwardSource.SESSION.value, originalKey) shouldBe zero
+    }
 
 	private fun segment(
 		startTimeMs: Long,

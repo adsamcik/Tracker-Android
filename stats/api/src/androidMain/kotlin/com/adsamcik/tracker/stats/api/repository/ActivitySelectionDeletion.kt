@@ -10,12 +10,14 @@ package com.adsamcik.tracker.stats.api.repository
 data class ActivitySelectionDeletionRequest(
 	val selection: ActivityHistorySelection,
 	val deletedAtMs: Long,
+	val expectedCollectedDataEpoch: Long? = null,
 ) {
 	val origin: ActivityHistoryOrigin
 		get() = selection.origin
 
 	init {
 		require(deletedAtMs >= 0L)
+		require(expectedCollectedDataEpoch == null || expectedCollectedDataEpoch >= 0L)
 	}
 }
 

@@ -2787,6 +2787,68 @@ class RoomImportedAmbientStepsTransferTest {
 	}
 
 	@Test
+	fun `reopened imported Steps remain visible and exportable after Steps is turned Off`() = runTest {
+		val (deleted, saved) = seedReopenedSavedDay()
+		val originalFence = database.importedAmbientStepsDao().sourceFence()
+		seedSecondRevokedConsent(database)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_policy SET enabled=0, qos_code=0 WHERE policy_revision=4",
+		)
+
+		readReady(database, saved).archive shouldBe saved
+		reexport(database, saved) shouldBe saved
+		(history(database).readRange(historyRequest(saved)) as AmbientStepsHistoryRead.Snapshot)
+			.days.single().total shouldBe AmbientStepsHistoryValue.Exact(12L)
+		database.importedAmbientStepsDao().sourceFence() shouldBe originalFence
+		(history(database).readRange(historyRequest(deleted)) as AmbientStepsHistoryRead.Snapshot)
+			.days.single().importedDisposition shouldBe AmbientStepsImportedDisposition.DELETED
+		// New writes still need the current grant. Reading old data grants no recording permission.
+		importer(database).importArchive(request(archive(completeDay(LocalDate.of(2026, 6, 5), 7L)),
+			jobId = "off-import", archiveKey = "off-import")) shouldBe ImportPortableAmbientStepsResult.Blocked(
+			PortableAmbientStepsImportBlockedReason.SOURCE_DELETED,
+		)
+	}
+
+	@Test
+	fun `restored imported Steps use their saved reopen grant despite a newer current consent`() = runTest {
+		val (deleted, saved) = seedReopenedSavedDay()
+		val originalFence = database.importedAmbientStepsDao().sourceFence()
+		seedSecondRevokedConsent(database)
+		seedSecondEligibleConsent(database)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_evidence_state SET collected_data_epoch=?, restored_data_epochs=? WHERE id=1",
+			arrayOf(EPOCH + 1L, EPOCH.toString()),
+		)
+
+		readReady(database, saved).archive shouldBe saved
+		reexport(database, saved) shouldBe saved
+		(history(database).readRange(historyRequest(saved)) as AmbientStepsHistoryRead.Snapshot)
+			.days.single().total shouldBe AmbientStepsHistoryValue.Exact(12L)
+		database.importedAmbientStepsDao().sourceFence() shouldBe originalFence
+		database.sourcePolicyDao().latestConsentEpoch(SourceDestinationOwnerEntity.SOURCE_STEPS,
+			SourceBrokerPurpose.AMBIENT_PRODUCT)?.epoch shouldBe SECOND_ELIGIBLE_CONSENT_EPOCH
+		(history(database).readRange(historyRequest(deleted)) as AmbientStepsHistoryRead.Snapshot)
+			.days.single().importedDisposition shouldBe AmbientStepsImportedDisposition.DELETED
+	}
+
+	private suspend fun seedReopenedSavedDay(): Pair<PortableAmbientStepsArchiveV1, PortableAmbientStepsArchiveV1> {
+		val deleted = archive(completeDay(LocalDate.of(2026, 6, 1), 8L))
+		importer(database).importArchive(request(deleted)) shouldBe applied(deleted, 1)
+		seedRevokedConsent(database)
+		val deleter = RoomDeleteImportedAmbientStepsAfterConsentReset(database,
+			database.importedAmbientStepsDao(), Dispatchers.Unconfined)
+		val erase = DeleteImportedAmbientStepsAfterConsentResetRequest(EPOCH, REVOKED_CONSENT_EPOCH,
+			deleted.days.single().structuralDayEndTimeMs)
+		deleter.deleteNext(erase) shouldBe DeleteImportedAmbientStepsAfterConsentResetResult.Deleted(1)
+		deleter.deleteNext(erase) shouldBe DeleteImportedAmbientStepsAfterConsentResetResult.Complete
+		seedEligibleConsent(database)
+		val saved = archive(completeDay(LocalDate.of(2026, 6, 3), 12L))
+		importer(database).importArchive(request(saved, jobId = "reopened-day", archiveKey = "reopened-day")) shouldBe
+			applied(saved, 1)
+		return deleted to saved
+	}
+
+	@Test
 	fun `import and deletion cancellation roll back receipt fence and payload atomically`() = runTest {
 		val archive = archive(completeDay(LocalDate.of(2026, 7, 1), 8L))
 		val cancellingImporter = RoomImportPortableAmbientSteps(

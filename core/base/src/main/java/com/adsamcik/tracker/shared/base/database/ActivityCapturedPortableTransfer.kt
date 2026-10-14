@@ -1300,7 +1300,7 @@ internal class PortableCapturedActivityRoomReader(
 		val evidenceState = database.sourceEvidenceStateDao().get()
 			?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		selectedLineages.forEach { (lineage, persisted) ->
-			if (persisted.revision.collectedDataEpoch != evidenceState.collectedDataEpoch) {
+			if (!evidenceState.acceptsRetainedEpoch(persisted.revision.collectedDataEpoch)) {
 				abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 			}
 			if (evidenceState.retainedFromMs?.let { floor ->

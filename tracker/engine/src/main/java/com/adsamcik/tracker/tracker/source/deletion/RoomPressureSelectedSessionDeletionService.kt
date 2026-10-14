@@ -79,14 +79,20 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 	)
 
 	@Suppress("CyclomaticComplexMethod", "ReturnCount", "ThrowsCount")
-	override suspend fun deleteSelectedSession(
-		sessionSegmentId: Long,
-	): PressureSessionDeletionResult {
+	override suspend fun deleteSelectedSession(sessionSegmentId: Long): PressureSessionDeletionResult =
+		deleteSelectedSessionInternal(sessionSegmentId, null)
+
+	override suspend fun deleteSelectedSession(sessionSegmentId: Long, expectedCollectedDataEpoch: Long): PressureSessionDeletionResult =
+		deleteSelectedSessionInternal(sessionSegmentId, expectedCollectedDataEpoch)
+
+	private suspend fun deleteSelectedSessionInternal(sessionSegmentId: Long, expectedEpoch: Long?): PressureSessionDeletionResult {
 		if (sessionSegmentId <= 0L) {
 			return unsupported(PressureSessionDeletionUnsupportedReason.INVALID_SEGMENT_ID)
 		}
 		val deletedAtMs = wallTimeMsProvider().coerceAtLeast(0L)
 		val result = try {
+			if (expectedEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch)
+				return unsupported(PressureSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
 			val preReadSegment = database.sessionSegmentDao().getById(sessionSegmentId)
 				?: return PressureSessionDeletionResult.NotFound
 			if (preReadHasActiveOwner(preReadSegment)) {
@@ -105,6 +111,8 @@ internal class RoomPressureSelectedSessionDeletionService internal constructor(
 			).withDayLocks(expectedScope.affectedDays) { lockedDays ->
 				afterDayLocksAcquired()
 				database.withTransaction {
+						if (expectedEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch)
+							return@withTransaction unsupported(PressureSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
 					val segment = database.sessionSegmentDao().getById(sessionSegmentId)
 						?: throw ConcurrentPressureDeletionStateException()
 					val actualScope = (selectedScope(segment) as? SelectedScopePreflight.Ready)?.scope

@@ -35,6 +35,15 @@ class MeasuredSessionNamesRoomTest {
     }
     @After fun close() = database.close()
 
+    @Test fun `point session labels only the reading at its original timestamp`() = runTest {
+        annotation("point", 1_200, 1_200)
+        val keys = listOf(key("ambient_wifi", "LOCAL", "BACKGROUND", "at", 1_200),
+            key("ambient_wifi", "LOCAL", "BACKGROUND", "after", 1_201))
+        decorate(keys.map(::wifi), keys).rows.map { it.sessionNames } shouldBe
+            listOf(listOf("point"), emptyList())
+        database.organizationAnnotationDao().byId("point")?.endTimeMs shouldBe 1_200L
+    }
+
     @Test fun `overlapping retrospective sessions add both names to one background reading`() = runTest {
         annotation("morning", 900, 1_400)
         annotation("commute", 1_100, 1_600)
@@ -71,7 +80,7 @@ class MeasuredSessionNamesRoomTest {
         decorate(rows, keys).rows.map { it.sessionNames } shouldBe listOf(emptyList(), emptyList())
     }
 
-    @Test fun `a real crossing Steps window keeps its whole count and requires complete containment`() = runTest {
+    @Test fun `a real crossing Steps window keeps its whole count with both overlapping labels`() = runTest {
         annotation("complete", 900, 1_800)
         annotation("part", 1_200, 1_800)
         val key = key("ambient_steps", "LOCAL", "BACKGROUND", "steps", 1_000, 1_500)
@@ -80,17 +89,17 @@ class MeasuredSessionNamesRoomTest {
         val row = UnifiedHistoryRow(measuredHistoryPosition(key), 1_500, setOf(HistoryOrigin.LOCAL),
             HistoryPurpose.BACKGROUND, sections = emptyList(), measurement = HistoryMeasurement.Steps(count))
         val displayed = decorate(listOf(row), listOf(key)).rows.single()
-        displayed.sessionNames shouldBe listOf("complete")
+        displayed.sessionNames shouldBe listOf("part", "complete")
         displayed.toExclusiveMs shouldBe 1_500L
         displayed.measurement shouldBe HistoryMeasurement.Steps(count)
     }
 
-    @Test fun `radio uncertainty outside a session does not invent contained membership`() = runTest {
+    @Test fun `radio labels use measured time without treating uncertainty as a permission fence`() = runTest {
         annotation("bounded", 1_000, 1_500)
         val key = key("ambient_wifi", "LOCAL", "BACKGROUND", "reading", 1_010)
         val row = wifi(key).copy(measurement = HistoryMeasurement.Wifi(WifiObservedNetwork(1_010, 20,
             "ap", "Cafe", 2412, -45)))
-        decorate(listOf(row), listOf(key)).rows.single().sessionNames shouldBe emptyList()
+        decorate(listOf(row), listOf(key)).rows.single().sessionNames shouldBe listOf("bounded")
         decorate(listOf(wifi(key)), listOf(key)).rows.single().sessionNames shouldBe listOf("bounded")
     }
 
@@ -147,6 +156,77 @@ class MeasuredSessionNamesRoomTest {
         page.rows.single().sections shouldBe emptyList()
         page.next shouldBe null
         page.problems shouldBe emptySet()
+    }
+
+    @Test fun `unnamed session contents select six original measurements without changing their purpose`() = runTest {
+        database.organizationAnnotationDao().insert(OrganizationAnnotationEntity("unnamed", 1, 0, 0, null,
+            1_100, 1_400, "UTC", null, null, false))
+        val count = StepsHistory(42L, HistoryAvailability.AVAILABLE, HistoryEvidence.RECORDED,
+            HistoryProductState.READY, StepsHistoryCoverage.COMPLETE)
+        val values = listOf<HistoryMeasurement>(
+            HistoryMeasurement.Location(HistoryLocationPoint(1_200, 500_000_000, 140_000_000, null, null),
+                HistoryLocationCoverage.LEGACY_UNVERIFIABLE),
+            HistoryMeasurement.Wifi(WifiObservedNetwork(1_200, 200, "ap", "Cafe", 2412, -45)),
+            HistoryMeasurement.Cell(CellObservedTower(1_200, 200, "tower", CellHistoryTechnology.LTE, true, -70)),
+            HistoryMeasurement.LegacyActivity(0, 90, true),
+            HistoryMeasurement.LegacyPressure(1_010f, 1, null, null, null, null, null, null),
+            HistoryMeasurement.Steps(count),
+        )
+        val keys = values.map { value -> key(value.source.name.lowercase(), "LOCAL", "BACKGROUND",
+            value.source.name, if (value is HistoryMeasurement.Steps) 1_000 else 1_200,
+            if (value is HistoryMeasurement.Steps) 1_500 else null) }
+        val rows = values.zip(keys).map { (value, key) -> UnifiedHistoryRow(measuredHistoryPosition(key),
+            key.endTimeMs, setOf(HistoryOrigin.LOCAL), HistoryPurpose.BACKGROUND, sections = emptyList(), measurement = value) }
+        val result = database.withTransaction { MeasuredSessionNamesReader(database, measuredCapturedRadioFixture(database))
+            .decorate(rows, keys, HistoryRange(1_100, 1_400, "UTC", mode = HistoryBrowseMode.OBSERVATIONS,
+                organizationSessionId = OrganizationSessionId.Annotation("unnamed"))) }
+        result.rows.map { it.measurement } shouldBe values
+        result.rows.map { it.purpose }.toSet() shouldBe setOf(HistoryPurpose.BACKGROUND)
+        result.rows.last().position.startTimeMs shouldBe 1_000L
+        result.rows.last().toExclusiveMs shouldBe 1_500L
+        result.rows.map { it.sessionNames }.toSet() shouldBe setOf(emptyList())
+    }
+
+    @Test fun `imported session contents keep only exact original archive members`() = runTest {
+        val saved = point("member", 1_200)
+        val unrelated = point("other", 1_200)
+        val identity = "e".repeat(64)
+        database.locationFileIdentityDao().recordArchive(LocationFileArchiveEntity(identity,
+            LocationFileArchiveEntity.FORMAT, LocationFileArchiveEntity.VERSION, 0, 1))
+        database.locationFileIdentityDao().recordArchivePoints(listOf(LocationFileArchivePointEntity(identity, 0, "member", saved)))
+        annotation("bundle", 900, 1_600, encoded = OrganizationSourceSelectionCodec.encode(
+            listOf(OrganizationSourceSelector.LocationFile(identity))))
+        val reader = rangeReaderForRoomTest(database, context)
+        val range = HistoryRange(900, 1_600, "UTC", sources = setOf(HistorySource.LOCATION),
+            origins = setOf(HistoryOrigin.IMPORTED), purposes = setOf(HistoryPurpose.UNKNOWN), mode = HistoryBrowseMode.OBSERVATIONS,
+            organizationSessionId = OrganizationSessionId.Annotation("bundle"))
+        val page = reader.read(HistoryRangeRequest(range)).shouldBeInstanceOf<HistoryRangeRead.Page>()
+        page.rows.map { (it.measurement as HistoryMeasurement.Location).point.sampleId } shouldBe listOf(saved)
+        database.locationSampleDao().byIds(listOf(unrelated)).single().id shouldBe unrelated
+        database.organizationAnnotationDao().delete("bundle") shouldBe 1
+        reader.read(HistoryRangeRequest(range)).shouldBeInstanceOf<HistoryRangeRead.Page>().rows shouldBe emptyList()
+        database.locationSampleDao().byIds(listOf(saved)).single().id shouldBe saved
+    }
+
+    @Test fun `session contents page beyond one hundred saved points without excluding an unnamed session`() = runTest {
+        for (number in 1..205) point("point-$number", number.toLong())
+        database.organizationAnnotationDao().insert(OrganizationAnnotationEntity("many", 1, 0, 0, null,
+            0, 300, "UTC", null, null, false))
+        val reader = rangeReaderForRoomTest(database, context)
+        val range = HistoryRange(0, 300, "UTC", sources = setOf(HistorySource.LOCATION),
+            origins = setOf(HistoryOrigin.IMPORTED), purposes = setOf(HistoryPurpose.UNKNOWN), mode = HistoryBrowseMode.OBSERVATIONS,
+            organizationSessionId = OrganizationSessionId.Annotation("many"))
+        var next: HistoryContinuation? = null
+        val times = mutableListOf<Long>()
+        do {
+            val page = reader.read(HistoryRangeRequest(range, 73, next)).shouldBeInstanceOf<HistoryRangeRead.Page>()
+            times += page.rows.map { it.position.startTimeMs }
+            next = page.next
+        } while (next != null)
+        times shouldBe (205L downTo 1L).toList()
+        database.organizationAnnotationDao().delete("many") shouldBe 1
+        reader.read(HistoryRangeRequest(range.copy(organizationSessionId = null))).shouldBeInstanceOf<HistoryRangeRead.Page>()
+            .rows.size shouldBe 100
     }
 
     private suspend fun decorate(rows: List<UnifiedHistoryRow>, keys: List<MeasuredHistoryCandidate>) =

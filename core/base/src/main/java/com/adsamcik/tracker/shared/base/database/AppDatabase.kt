@@ -314,7 +314,7 @@ internal const val INITIAL_ACTIVE_DATABASE_VERSION = 27
 internal const val LAST_RELEASED_LEGACY_DATABASE_VERSION = 12
 
 /** Current development schema. Versions 28 and 29 have not shipped. */
-internal const val CURRENT_DATABASE_VERSION = 29
+internal const val CURRENT_DATABASE_VERSION = 30
 
 /**
  * Provides access to main database.
@@ -328,6 +328,7 @@ internal const val CURRENT_DATABASE_VERSION = 29
  */
 @Database(
 		version = CURRENT_DATABASE_VERSION,
+		views = [com.adsamcik.tracker.shared.base.database.data.EffectiveLocationSample::class],
 		entities = [
 			com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity::class,
 			// Core reference entities
@@ -337,6 +338,8 @@ internal const val CURRENT_DATABASE_VERSION = 29
 			LegacyLocationWifiCount::class,
 			// Sessionless architecture entities
 			LocationSample::class,
+			com.adsamcik.tracker.shared.base.database.data.LocationPointCorrection::class,
+			com.adsamcik.tracker.shared.base.database.data.ImportedRadioFileMembership::class,
 			com.adsamcik.tracker.shared.base.database.data.LocationFileIdentityEntity::class,
 			com.adsamcik.tracker.shared.base.database.data.LocationFileArchiveEntity::class,
 			com.adsamcik.tracker.shared.base.database.data.LocationFileArchivePointEntity::class,
@@ -587,6 +590,8 @@ abstract class AppDatabase : RoomDatabase() {
 	 * Provides access to raw location samples (sessionless tracking).
 	 */
 	abstract fun locationSampleDao(): LocationSampleDao
+	abstract fun locationPointCorrectionDao(): com.adsamcik.tracker.shared.base.database.dao.LocationPointCorrectionDao
+	abstract fun importedRadioFileMembershipDao(): com.adsamcik.tracker.shared.base.database.dao.ImportedRadioFileMembershipDao
 
 	abstract fun locationFileIdentityDao(): com.adsamcik.tracker.shared.base.database.dao.LocationFileIdentityDao
 
@@ -836,7 +841,7 @@ abstract class AppDatabase : RoomDatabase() {
 	companion object : ObjectBaseDatabase<AppDatabase>(AppDatabase::class.java) {
 		// This filename remains stable for v27+; "main_database" is the retained v26 vault.
 		override val databaseName: String = ACTIVE_DATABASE_NAME
-		/** Frozen released chain used only to normalize a disposable legacy copy to v26. */
+		/** Preserved chain used only to normalize a disposable copy of released v12 data to v26. */
 		internal val legacyPublicMigrationsThroughV26 = arrayOf(
 			MIGRATION_2_3,
 			MIGRATION_3_4,
@@ -864,7 +869,7 @@ abstract class AppDatabase : RoomDatabase() {
 			MIGRATION_25_26,
 		)
 		/** Normal in-place migrations for the stable v27+ active database filename. */
-		internal val activeMigrations: Array<Migration> = arrayOf(MIGRATION_27_28, MIGRATION_28_29)
+		internal val activeMigrations: Array<Migration> = arrayOf(MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30)
 
 		override fun delegateOpenHelperFactory(): SupportSQLiteOpenHelper.Factory =
 			SQLiteXSupportSQLiteOpenHelperFactory(
@@ -891,6 +896,11 @@ abstract class AppDatabase : RoomDatabase() {
 			configureBuilder(
 				Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, name),
 			)
+
+		/** Uses the same released-data importer on a staged backup, without altering live settings. */
+		fun releasedBackupCopyBuilder(context: Context, name: String, legacyFile: java.io.File): Builder<AppDatabase> =
+			fileBuilder(context, name).addCallback(LegacyImportRoomCallback(
+				context, legacyPublicMigrationsThroughV26, sourceFileOverride = legacyFile))
 
 		fun inMemoryBuilder(context: Context): Builder<AppDatabase> =
 			configureBuilder(
@@ -1141,6 +1151,7 @@ abstract class AppDatabase : RoomDatabase() {
 				newCollectedDataEpoch = newCollectedDataEpoch,
 				sourceEvidenceRevision = nextRevision,
 				clearedAtMs = updatedAtMs,
+				retainedState = oldState,
 			)
 			check(
 				clearStepsCountDomainEvidenceInCurrentTransaction(
@@ -1187,7 +1198,7 @@ abstract class AppDatabase : RoomDatabase() {
 		) {
 			database.openHelper.writableDatabase.compileStatement(
 				"UPDATE source_evidence_state SET revision = ?, collected_data_epoch = ?, " +
-					"retained_from_ms = ?, deleted_source_event_high_water_ordinal = ?, " +
+				"retained_from_ms = ?, restored_data_epochs = '', deleted_source_event_high_water_ordinal = ?, " +
 					"updated_at_ms = ? WHERE id = ? AND revision = ? " +
 					"AND collected_data_epoch = ?",
 			).use { statement ->
@@ -1264,6 +1275,7 @@ abstract class AppDatabase : RoomDatabase() {
 			// Sessionless architecture tables
 			database.locationFileIdentityDao().deleteAllArchives()
 			database.locationSampleDao().deleteAll()
+			database.importedRadioFileMembershipDao().clear()
 			database.locationObservationDao().deleteAll()
 			database.locationObservationDecisionDao().deleteAll()
 			// Payload-free source fences deliberately survive repeated full clears. Imported

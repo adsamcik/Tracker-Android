@@ -282,7 +282,7 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 		}
 		val tombstonesByRun = tombstones.associateBy(ImportedPressureDeletionGenerationEntity::runIdentity)
 		if (tombstonesByRun.size != tombstones.size || tombstones.any {
-			it.collectedDataEpoch != state.collectedDataEpoch
+			!state.acceptsRetainedEpoch(it.collectedDataEpoch)
 		}) {
 			return candidates.unverifiable(
 				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
@@ -308,7 +308,7 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 				)
 			}
 			val headers = headersByIdentity[candidate.identity].orEmpty()
-			if (headers.any { it.collectedDataEpoch != state.collectedDataEpoch }) {
+			if (headers.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) }) {
 				return@map ImportedPressureHistoryEvaluation.Unverifiable(
 					candidate,
 					ImportedPressureHistoryFailure.STALE_COLLECTED_DATA_EPOCH,
@@ -318,6 +318,7 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 				val lineage = ImportedPressureLineageAuthenticator.authenticate(
 					identity = candidate.identity,
 					expectedCollectedDataEpoch = state.collectedDataEpoch,
+					retainedState = state,
 					headers = headers,
 					receipts = receiptsByIdentity[candidate.identity].orEmpty(),
 					runs = runsByIdentity[candidate.identity].orEmpty(),

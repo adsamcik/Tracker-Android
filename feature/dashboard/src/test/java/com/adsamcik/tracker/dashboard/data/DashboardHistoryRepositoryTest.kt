@@ -87,11 +87,48 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class DashboardHistoryRepositoryTest {
 	private val tripDao = mockk<TripDao>()
-	private val trackingHistoryRepository = mockk<TrackingHistoryRepository>()
+	private val trackingHistoryRepository = mockk<TrackingHistoryRepository> {
+		every { observeSessionRewardChanges() } returns flowOf(Unit)
+		coEvery { readSavedLocationSummary(any()) } coAnswers {
+			com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead.Snapshot(firstArg(),
+				TrackingHistoryReadSnapshot(0L, 0L), mockk {
+					every { distanceMeters } returns 100.0
+					every { partial } returns false
+				})
+		}
+	}
 	private val explorationCellDao = mockk<ExplorationCellDao>()
 	private val explorationStreakDao = mockk<ExplorationStreakDao>()
 	private val dailySummaryDao = mockk<DailySummaryDao>()
 	private val achievementProgressDao = mockk<AchievementProgressDao>()
+
+	@Test
+	fun `saved Location correction refreshes recent distance without changing the cached trip`() = runTest {
+		val changed = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+		var distance = 100.0
+		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(listOf(trip(1)))
+		every { trackingHistoryRepository.observeRecentSourceAwarePage(listOf(1L), RECENT_HISTORY_LIMIT) } returns
+			flowOf(SourceAwareHistoryPageQuery.Content(listOf(SourceAwareHistoryPageEntry.Physical(1L))))
+		every { trackingHistoryRepository.observeSessionRewardChanges() } returns changed
+		coEvery { trackingHistoryRepository.readSavedLocationSummary(any()) } coAnswers {
+			com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead.Snapshot(firstArg(),
+				TrackingHistoryReadSnapshot(0L, 0L), mockk {
+					every { distanceMeters } returns distance
+					every { partial } returns false
+				})
+		}
+		val received = mutableListOf<List<DashboardRecentHistoryEntry>>()
+		val collecting = launch { repository(testScheduler).observeRecentHistory().take(2).toList(received) }
+		advanceUntilIdle()
+		distance = 0.0
+		changed.emit(Unit)
+		advanceUntilIdle()
+		collecting.join()
+		(received.first().single() as DashboardRecentHistoryEntry.Physical).trip.distanceM shouldBe 100f
+		val stationary = (received.last().single() as DashboardRecentHistoryEntry.Physical).trip
+		stationary.distanceM shouldBe 0f
+		stationary.hasMeasuredDistance shouldBe true
+	}
 
 	@Test
 	fun `imported Steps is discoverable without a raw physical candidate or fake sample count`() = runTest {

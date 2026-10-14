@@ -10,6 +10,10 @@ package com.adsamcik.tracker.stats.api.repository
 interface ActivitySessionDeletion {
 	/** Applies a permanent Activity deletion for the logical entry owning [sessionSegmentId]. */
 	suspend fun deleteSelectedSession(sessionSegmentId: Long): ActivitySessionDeletionResult
+
+	/** Current user selection epoch is rechecked inside the existing mutation transaction. */
+	suspend fun deleteSelectedSession(sessionSegmentId: Long, expectedCollectedDataEpoch: Long): ActivitySessionDeletionResult =
+		ActivitySessionDeletionResult.UnsupportedScope(ActivitySessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
 }
 
 /** Typed outcome for one selected Activity-only logical-session deletion. */

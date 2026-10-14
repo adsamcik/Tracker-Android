@@ -361,6 +361,63 @@ class RoomSourcePolicyRepository(
 		}
 	}
 
+	override suspend fun reissueAfterDataRestore(
+		localChoices: SourcePolicySnapshot,
+		legacySettingsFingerprint: String?,
+		previousConsentEpoch: Long,
+	): SourcePolicySnapshot = database.withTransaction {
+		ensureAuthority()
+		val authority = requireNotNull(dao.authority())
+		val revision = checkedNextRevision(maxOf(localChoices.revision,
+			authority.currentPolicyRevision, dao.maximumPolicyRevision() ?: 0L))
+		val effectiveTime = effectiveTimeProvider.now()
+		val policies = TrackingSourceComponent.entries.map { source ->
+			val local = localChoices[source]
+			val epochs = SourcePurpose.entries.associateWith { purpose ->
+				// Keep new references newer than both datasets, including local denial fences.
+				val epoch = nextConsentEpoch(source, purpose, previousConsentEpoch)
+				val eligible = local.consentEpoch(purpose) != null
+				dao.insertConsentEpochs(listOf(consentEntity(
+					source = source, purpose = purpose, epoch = epoch, eligible = eligible,
+					persistenceEligible = local.persistenceEligible(purpose), policyRevision = revision,
+					effectiveTime = effectiveTime, reason = REASON_DATA_RESTORE,
+				)))
+				epoch.takeIf { eligible }
+			}
+			policyEntity(
+				revision = revision,
+				desired = DesiredCapturePolicy(
+					source = source, enabled = local.enabled, qos = local.qos,
+					locationMinTimeSeconds = local.locationMinTimeSeconds,
+					locationMinDistanceMeters = local.locationMinDistanceMeters,
+					locationRequiredAccuracyMeters = local.locationRequiredAccuracyMeters,
+					balanceProfileVersion = local.balanceProfileVersion, balanceLevel = local.balanceLevel,
+					locationBackgroundMode = local.locationBackgroundMode,
+					locationMotionAssistanceEnabled = local.locationMotionAssistanceEnabled,
+					overallBalanceLevel = local.overallBalanceLevel,
+					sourceBalanceOverride = local.sourceBalanceOverride,
+					backgroundNotificationHostEnabled = local.backgroundNotificationHostEnabled,
+				),
+				captureConsentEpoch = epochs[SourcePurpose.SESSION_CAPTURE],
+				controlConsentEpoch = epochs[SourcePurpose.CONTROL],
+				ambientConsentEpoch = epochs[SourcePurpose.AMBIENT_PRODUCT],
+				capturePersistenceEligible = local.capturePersistenceEligible,
+				controlPersistenceEligible = local.controlPersistenceEligible,
+				ambientPersistenceEligible = local.ambientPersistenceEligible,
+				effectiveTime = effectiveTime, reason = REASON_DATA_RESTORE,
+			)
+		}
+		dao.insertPolicies(policies)
+		check(dao.compareAndSetAuthority(
+			expectedBootstrapState = authority.bootstrapState,
+			expectedRevision = authority.currentPolicyRevision,
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			newRevision = revision, legacySettingsFingerprint = legacySettingsFingerprint,
+			updatedAtMs = effectiveTime.wallTimeMs,
+		) == 1) { "Restored source-policy publication failed" }
+		requireActiveSnapshot(requireNotNull(dao.authority()), dao.currentPolicies())
+	}
+
 	override suspend fun setNonCaptureConsent(
 		expectedPolicyRevision: Long,
 		source: TrackingSourceComponent,
@@ -531,8 +588,10 @@ class RoomSourcePolicyRepository(
 	private suspend fun nextConsentEpoch(
 		source: TrackingSourceComponent,
 		purpose: SourcePurpose,
+		minimumPreviousEpoch: Long = -1L,
 	): Long {
-		val current = dao.latestConsentEpoch(source.stableCode, purpose.stableName)?.epoch ?: -1L
+		val current = maxOf(dao.latestConsentEpoch(source.stableCode, purpose.stableName)?.epoch ?: -1L,
+			minimumPreviousEpoch)
 		check(current < Long.MAX_VALUE) { "Consent epoch exhausted for $source/$purpose" }
 		return current + 1L
 	}
@@ -789,6 +848,7 @@ class RoomSourcePolicyRepository(
 	)
 
 	private companion object {
+		const val REASON_DATA_RESTORE = "DATA_RESTORED_LOCAL_CHOICES"
 		const val REASON_BOOTSTRAP_DENY = "LEGACY_BOOTSTRAP_DEFAULT_DENY"
 		const val REASON_LEGACY_CAPTURE_IMPORT = "MIGRATED_LEGACY_CAPTURE"
 		const val REASON_LEGACY_AUTOMATIC_CONTROL_IMPORT = "MIGRATED_LEGACY_AUTOMATIC_CONTROL"

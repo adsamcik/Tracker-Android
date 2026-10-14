@@ -37,7 +37,9 @@ class DefaultWindowedMetricsProviderTest {
 	private val exportLogDao: ExportLogDao = mockk()
 	private val savedTripDistanceReader: SavedTripDistanceReader = mockk()
 
-	private lateinit var provider: DefaultWindowedMetricsProvider
+	private val savedLocationMetrics = mockk<SavedLocationMetricsReader>()
+
+    private lateinit var provider: DefaultWindowedMetricsProvider
 
 	@BeforeEach
 	fun setUp() {
@@ -49,6 +51,7 @@ class DefaultWindowedMetricsProviderTest {
 			exportLogDao = exportLogDao,
 			dispatchers = TestDispatchersProvider(Dispatchers.Unconfined),
 			savedTripDistanceReader = savedTripDistanceReader,
+            savedLocationMetrics = savedLocationMetrics,
 		)
 	}
 
@@ -109,7 +112,7 @@ class DefaultWindowedMetricsProviderTest {
 		// Provider now converts the window's ms → epoch-day before calling the DAO so
 		// the SQLite index on date_epoch_day is usable. The test asserts the result;
 		// exact day-conversion math is covered by dedicated tests.
-		coEvery { dailySummaryDao.sumTotalDistanceBetween(any(), any()) } returns 15_500L
+		coEvery { savedLocationMetrics.read(1_000L, 5_000L) } returns measured(15_500.0)
 
 		val result = provider.collect(
 			metric = MetricKeys.DISTANCE_TOTAL_M,
@@ -121,7 +124,7 @@ class DefaultWindowedMetricsProviderTest {
 
 	@Test
 	fun `collect returns canonical cumulative total distance in meters`() = runTest {
-		coEvery { dailySummaryDao.sumTotalDistance() } returns 42_125L
+		coEvery { savedLocationMetrics.read(0L, Long.MAX_VALUE) } returns measured(42_125.0)
 
 		val result = provider.collect(
 			metric = MetricKeys.DISTANCE_TOTAL_M,
@@ -157,7 +160,7 @@ class DefaultWindowedMetricsProviderTest {
 
 	@Test
 	fun `collect returns interval on foot distance`() = runTest {
-		coEvery { sessionSegmentDao.sumDistanceByActivitiesBetween(100L, 200L, any()) } returns 1_250L
+		coEvery { savedLocationMetrics.read(100L, 200L) } returns measured(1_250.0)
 
 		val result = provider.collect(
 			metric = MetricKeys.DISTANCE_ON_FOOT_M,
@@ -193,7 +196,7 @@ class DefaultWindowedMetricsProviderTest {
 
 	@Test
 	fun `collect rolling delegates to interval query`() = runTest {
-		coEvery { dailySummaryDao.sumTotalDistanceBetween(any(), any()) } returns 999L
+		coEvery { savedLocationMetrics.read(any(), any()) } returns measured(999.0)
 
 		val result = provider.collect(
 			metric = MetricKeys.DISTANCE_TOTAL_M,
@@ -201,7 +204,8 @@ class DefaultWindowedMetricsProviderTest {
 		)
 
 		result shouldBe 999L.right()
-		coVerify(exactly = 1) { dailySummaryDao.sumTotalDistanceBetween(any(), any()) }
+		coVerify(exactly = 1) { savedLocationMetrics.read(any(), any()) }
+        coVerify(exactly = 0) { dailySummaryDao.sumTotalDistanceBetween(any(), any()) }
 	}
 
 	@Test
@@ -421,4 +425,5 @@ class DefaultWindowedMetricsProviderTest {
 			dailySummaryDao.countActiveDaysBetween(any(), any(), MetricKeys.MIN_DAILY_TRIPS)
 		}
 	}
+    private fun measured(distance: Double) = SavedLocationMetrics(distance, 2L, distance, 0.0, 0.0, distance, null, null, distance)
 }

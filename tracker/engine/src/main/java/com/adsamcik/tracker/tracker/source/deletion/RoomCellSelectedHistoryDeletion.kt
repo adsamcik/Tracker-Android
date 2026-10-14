@@ -79,14 +79,15 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 
 	override suspend fun delete(request: DeleteCellHistoryRequest): DeleteCellHistoryResult =
 		when (val selection = request.selection) {
-			is ImportedCellHistorySelection -> deleteImported(selection, request.requestedAtMs)
-			is LocalCellHistorySelection -> deleteLocal(selection, request.requestedAtMs)
+			is ImportedCellHistorySelection -> deleteImported(selection, request.requestedAtMs, request.expectedCollectedDataEpoch)
+			is LocalCellHistorySelection -> deleteLocal(selection, request.requestedAtMs, request.expectedCollectedDataEpoch)
 			else -> DeleteCellHistoryResult.NotFound
 		}
 
 	private suspend fun deleteImported(
 		selection: ImportedCellHistorySelection,
 		requestedAtMs: Long,
+		expectedEpoch: Long?,
 	): DeleteCellHistoryResult {
 		val state = try {
 			withContext(ioDispatcher) { database.sourceEvidenceStateDao().get() }
@@ -95,12 +96,13 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 		} catch (_: SQLiteException) {
 			return retryable(CellHistoryDeletionRetryableReason.STORAGE_UNAVAILABLE)
 		} ?: return unverifiable(CellHistoryDeletionUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING)
+		if (expectedEpoch != null && state.collectedDataEpoch != expectedEpoch) return blocked(CellHistoryDeletionBlockedReason.STALE_SELECTION)
 		return when (val result = importedDeletion.delete(
 			DeleteSelectedImportedCellRequest(
 				identity = PortableCellOpaqueIdentity(selection.identity.value),
 				expectedImportRevision = selection.importRevision,
 				expectedContentChecksum = PortableCellDigest(selection.contentChecksum.value),
-				expectedCollectedDataEpoch = state.collectedDataEpoch,
+				expectedCollectedDataEpoch = expectedEpoch ?: state.collectedDataEpoch,
 				deletedAtMs = requestedAtMs,
 			),
 		)) {
@@ -141,9 +143,10 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 	private suspend fun deleteLocal(
 		selection: LocalCellHistorySelection,
 		requestedAtMs: Long,
+		expectedEpoch: Long?,
 	): DeleteCellHistoryResult = withContext(ioDispatcher) {
 		try {
-			when (val preflight = selectedLocalScope(selection, requestedAtMs)) {
+			when (val preflight = selectedLocalScope(selection, requestedAtMs, expectedEpoch)) {
 				is LocalSelectionPreflight.Outcome -> preflight.result
 				is LocalSelectionPreflight.Ready -> {
 					DailySummaryAggregator(
@@ -152,7 +155,9 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 						zoneId = preflight.scope.lockZone,
 					).withDayLocks(preflight.scope.affectedDays) { lockedDays ->
 						database.withTransaction {
-							val current = selectedLocalScope(selection, requestedAtMs)
+							if (expectedEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch)
+								return@withTransaction blocked(CellHistoryDeletionBlockedReason.STALE_SELECTION)
+							val current = selectedLocalScope(selection, requestedAtMs, expectedEpoch)
 							val scope = (current as? LocalSelectionPreflight.Ready)?.scope
 								?: concurrentMutation()
 							if (scope != preflight.scope) concurrentMutation()
@@ -371,7 +376,14 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 	private suspend fun selectedLocalScope(
 		selection: LocalCellHistorySelection,
 		requestedAtMs: Long,
+		expectedEpoch: Long?,
 	): LocalSelectionPreflight {
+		val state = database.sourceEvidenceStateDao().get() ?: return outcome(unverifiable(
+			CellHistoryDeletionUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING,
+		))
+		if (expectedEpoch != null && state.collectedDataEpoch != expectedEpoch) {
+			return outcome(blocked(CellHistoryDeletionBlockedReason.STALE_SELECTION))
+		}
 		val logicalIds = database.importedCellDao().liveLogicalTrackingIds(
 			ImportedCellDao.MAX_LIVE_OWNER_ROWS + 1,
 		)
@@ -410,9 +422,6 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 			runs.any { it.logicalTrackingId != logicalTrackingId || it.sessionSegmentId == null }
 		) return outcome(unverifiable(
 			CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID,
-		))
-		val state = database.sourceEvidenceStateDao().get() ?: return outcome(unverifiable(
-			CellHistoryDeletionUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING,
 		))
 		val segmentIds = runs.map { requireNotNull(it.sessionSegmentId) }
 		val segmentsById = database.trackingHistoryReadDao().segments(segmentIds).associateBy(SessionSegment::id)

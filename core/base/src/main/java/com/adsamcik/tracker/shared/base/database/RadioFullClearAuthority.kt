@@ -136,7 +136,7 @@ private fun reepochSourceDeletionFences(
 		arrayOf<Any?>(sourceKind, SessionManifestPurposeCode.SESSION_CAPTURE),
 	) { cursor ->
 		val current = cursor.sourceDeletionFence()
-		check(current.collectedDataEpoch == oldEpoch)
+		check(sqlite.acceptsRetainedEpoch(current.collectedDataEpoch, oldEpoch))
 		val replacement = SourceDeletionFenceEntity.createForOriginalRunDigest(
 			sourceKind = current.sourceKind,
 			purpose = current.purpose,
@@ -238,7 +238,7 @@ private fun reepochImportedWifiRunDeletions(
 		"SELECT * FROM imported_wifi_deletion_generation ORDER BY run_identity",
 	) { cursor ->
 		val current = cursor.importedWifiRunDeletion()
-		check(current.collectedDataEpoch == oldEpoch)
+		check(sqlite.acceptsRetainedEpoch(current.collectedDataEpoch, oldEpoch))
 		val replacement = ImportedWifiDeletionGenerationEntity.create(
 			current.runIdentity,
 			current.entryIdentity,
@@ -268,7 +268,7 @@ private fun reepochWifiCaptureDeletionGenerations(
 			"ORDER BY logical_tracking_id, service_run_id",
 	) { cursor ->
 		val current = cursor.wifiCaptureDeletionGeneration()
-		check(current.collectedDataEpoch == oldEpoch)
+		check(sqlite.acceptsRetainedEpoch(current.collectedDataEpoch, oldEpoch))
 		sqlite.executeUpdateExact(
 			"UPDATE wifi_capture_deletion_generation SET collected_data_epoch = ? " +
 				"WHERE logical_tracking_id = ? AND service_run_id = ? " +
@@ -276,7 +276,7 @@ private fun reepochWifiCaptureDeletionGenerations(
 			newEpoch,
 			current.logicalTrackingId,
 			current.serviceRunId,
-			oldEpoch,
+			current.collectedDataEpoch,
 		)
 	}
 }
@@ -290,7 +290,7 @@ private fun reepochImportedWifiEntryDeletions(
 		"SELECT * FROM imported_wifi_entry_deletion ORDER BY entry_identity",
 	) { cursor ->
 		val current = cursor.importedWifiEntryDeletion()
-		check(current.collectedDataEpoch == oldEpoch)
+		check(sqlite.acceptsRetainedEpoch(current.collectedDataEpoch, oldEpoch))
 		val replacement = ImportedWifiEntryDeletionEntity.create(
 			current.entryIdentity,
 			newEpoch,
@@ -327,7 +327,7 @@ private fun fenceLiveImportedWifi(
 		""".trimIndent(),
 	) { cursor ->
 		val entry = cursor.importedWifiEntry()
-		check(entry.collectedDataEpoch == oldEpoch)
+		check(sqlite.acceptsRetainedEpoch(entry.collectedDataEpoch, oldEpoch))
 		check(importedWifiEntryDeletion(sqlite, entry.identity) == null)
 		val runDeletions = mutableListOf<ImportedWifiDeletionGenerationEntity>()
 		sqlite.forEachBounded(
@@ -336,7 +336,7 @@ private fun fenceLiveImportedWifi(
 			arrayOf<Any?>(entry.identity, entry.importRevision),
 		) { runCursor ->
 			val run = runCursor.importedWifiRun()
-			check(run.collectedDataEpoch == oldEpoch)
+			check(sqlite.acceptsRetainedEpoch(run.collectedDataEpoch, oldEpoch))
 			val deletion = ImportedWifiDeletionGenerationEntity.create(
 				run.identity,
 				entry.identity,
@@ -402,7 +402,7 @@ private fun reepochSelectedWifiDeletionReceipts(
 			"ORDER BY selection_identity, origin",
 	) { cursor ->
 		val current = cursor.wifiSelectedDeletionReceipt()
-		check(current.collectedDataEpoch == oldEpoch)
+		check(sqlite.acceptsRetainedEpoch(current.collectedDataEpoch, oldEpoch))
 		val protected = mutableListOf<WifiSelectedDeletionProtectedIdentityEntity>()
 		sqlite.forEachBounded(
 			"SELECT * FROM wifi_selected_deletion_protected_identity " +
@@ -411,7 +411,7 @@ private fun reepochSelectedWifiDeletionReceipts(
 			arrayOf(current.selectionIdentity, current.origin),
 		) { protectedCursor ->
 			val value = protectedCursor.wifiSelectedProtectedIdentity()
-			check(value.collectedDataEpoch == oldEpoch)
+			check(sqlite.acceptsRetainedEpoch(value.collectedDataEpoch, oldEpoch))
 			val replacement = WifiSelectedDeletionProtectedIdentityEntity.create(
 				selectionIdentity = value.selectionIdentity,
 				receiptOrigin = value.receiptOrigin,
@@ -525,7 +525,7 @@ private fun reepochImportedCellRunDeletions(
 		"SELECT * FROM imported_cell_deletion_generation ORDER BY run_identity",
 	) { cursor ->
 		val current = cursor.importedCellRunDeletion()
-		check(current.collectedDataEpoch == oldEpoch)
+		check(sqlite.acceptsRetainedEpoch(current.collectedDataEpoch, oldEpoch))
 		val replacement = ImportedCellDeletionGenerationEntity.create(
 			current.runIdentity,
 			current.entryIdentity,
@@ -555,7 +555,7 @@ private fun reepochCellCaptureDeletionGenerations(
 			"ORDER BY logical_tracking_id, service_run_id",
 	) { cursor ->
 		val current = cursor.cellCaptureDeletionGeneration()
-		check(current.collectedDataEpoch == oldEpoch)
+		check(sqlite.acceptsRetainedEpoch(current.collectedDataEpoch, oldEpoch))
 		sqlite.executeUpdateExact(
 			"UPDATE cell_capture_deletion_generation SET collected_data_epoch = ? " +
 				"WHERE logical_tracking_id = ? AND service_run_id = ? " +
@@ -563,7 +563,7 @@ private fun reepochCellCaptureDeletionGenerations(
 			newEpoch,
 			current.logicalTrackingId,
 			current.serviceRunId,
-			oldEpoch,
+			current.collectedDataEpoch,
 		)
 	}
 }
@@ -577,7 +577,7 @@ private fun reepochImportedCellEntryDeletions(
 		"SELECT * FROM imported_cell_entry_deletion ORDER BY entry_identity",
 	) { cursor ->
 		val current = cursor.importedCellEntryDeletion()
-		check(current.collectedDataEpoch == oldEpoch)
+		check(sqlite.acceptsRetainedEpoch(current.collectedDataEpoch, oldEpoch))
 		val replacement = ImportedCellEntryDeletionEntity.create(
 			current.entryIdentity,
 			newEpoch,
@@ -616,7 +616,7 @@ private fun AppDatabase.fenceLiveImportedCell(
 		""".trimIndent(),
 	) { cursor ->
 		val entry = cursor.importedCellEntry()
-		check(entry.collectedDataEpoch == oldEpoch)
+		check(sqlite.acceptsRetainedEpoch(entry.collectedDataEpoch, oldEpoch))
 		check(importedCellEntryDeletion(sqlite, entry.identity) == null)
 		val headers = dao.entryRevisionsForFullClear(
 			entry.identity,
@@ -638,6 +638,7 @@ private fun AppDatabase.fenceLiveImportedCell(
 		val lineage = ImportedCellLineageAuthenticator.authenticate(
 			identity = entry.identity,
 			expectedCollectedDataEpoch = oldEpoch,
+			retainedState = sqlite.retainedEvidenceState(oldEpoch),
 			headers = headers,
 			receipts = receipts,
 			runs = runs,
@@ -803,7 +804,7 @@ private fun reepochImportedCellDeletionReceipts(
 		"SELECT * FROM imported_cell_entry_deletion_receipt ORDER BY entry_identity",
 	) { cursor ->
 		val current = cursor.importedCellDeletionReceipt()
-		check(current.collectedDataEpoch == oldEpoch)
+		check(sqlite.acceptsRetainedEpoch(current.collectedDataEpoch, oldEpoch))
 		val deletion = requireNotNull(importedCellEntryDeletion(sqlite, current.entryIdentity))
 		check(deletion.collectedDataEpoch == newEpoch)
 		val protected = mutableListOf<ImportedCellDeletedIdentityEntity>()
@@ -861,7 +862,7 @@ private fun reepochCapturedCellDeletionReceipts(
 		"SELECT * FROM cell_captured_entry_deletion_receipt ORDER BY logical_tracking_id",
 	) { cursor ->
 		val current = cursor.cellCapturedDeletionReceipt()
-		check(current.collectedDataEpoch == oldEpoch)
+		check(sqlite.acceptsRetainedEpoch(current.collectedDataEpoch, oldEpoch))
 		val runs = mutableListOf<CellCapturedDeletedRunEntity>()
 		sqlite.forEachBounded(
 			"SELECT * FROM cell_captured_deleted_run WHERE logical_tracking_id = ? " +
@@ -869,7 +870,7 @@ private fun reepochCapturedCellDeletionReceipts(
 			arrayOf(current.logicalTrackingId),
 		) { runCursor ->
 			val oldRun = runCursor.cellCapturedDeletedRun()
-			check(oldRun.collectedDataEpoch == oldEpoch)
+			check(sqlite.acceptsRetainedEpoch(oldRun.collectedDataEpoch, oldEpoch))
 			val replacement = CellCapturedDeletedRunEntity.create(
 				logicalTrackingId = oldRun.logicalTrackingId,
 				serviceRunId = oldRun.serviceRunId,

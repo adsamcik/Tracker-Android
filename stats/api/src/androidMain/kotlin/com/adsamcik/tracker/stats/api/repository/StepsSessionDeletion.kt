@@ -10,6 +10,10 @@ package com.adsamcik.tracker.stats.api.repository
 interface StepsSessionDeletion {
 	/** Applies a permanent Steps deletion for the exact selected presentation row. */
 	suspend fun deleteSelectedSession(sessionSegmentId: Long): StepsSessionDeletionResult
+
+	/** Current user selection epoch is rechecked inside the existing mutation transaction. */
+	suspend fun deleteSelectedSession(sessionSegmentId: Long, expectedCollectedDataEpoch: Long): StepsSessionDeletionResult =
+		StepsSessionDeletionResult.UnsupportedScope(StepsSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
 }
 
 /** Typed outcome for a user-selected Steps session deletion request. */

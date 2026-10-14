@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
@@ -35,6 +36,7 @@ object ImportedPressureLineageAuthenticator {
 		receipts: List<ImportedPressureReceiptEntity>,
 		runs: List<ImportedPressureRunEntity>,
 		windows: List<ImportedPressureWindowEntity>,
+		retainedState: SourceEvidenceState? = null,
 	): AuthenticatedImportedPressureLineage = storedValue {
 		if (headers.size > ImportedPressureDao.MAX_REVISIONS_PER_ENTRY) {
 			fail(ImportedPressureLineageFailureReason.REVISION_OVERFLOW)
@@ -56,7 +58,7 @@ object ImportedPressureLineageAuthenticator {
 			require(header.identity == identity)
 			require(header.importRevision == revision)
 			require(header.supersedesImportRevision == if (revision == 1L) null else revision - 1L)
-			require(header.collectedDataEpoch == expectedCollectedDataEpoch)
+			require((retainedState?.acceptsRetainedEpoch(header.collectedDataEpoch) ?: (header.collectedDataEpoch == expectedCollectedDataEpoch)))
 			require(header.sourceFormat == PressurePortableFormatV1.FORMAT)
 			require(header.sourceSchemaVersion == PressurePortableFormatV1.SCHEMA_VERSION)
 		}

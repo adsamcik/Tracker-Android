@@ -36,7 +36,7 @@ class RoomLocationFileArchiveRepository @Inject constructor(
 		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch) return LocationFileArchiveRead.DataChanged
 		val dao = database.locationFileIdentityDao()
 		val archive = dao.archive(request.archiveIdentity) ?: return LocationFileArchiveRead.NotFound
-		if (archive.collectedDataEpoch != state.collectedDataEpoch) return LocationFileArchiveRead.DataChanged
+		if (!state.acceptsRetainedEpoch(archive.collectedDataEpoch)) return LocationFileArchiveRead.DataChanged
 		val counts = dao.archivePointCounts(archive.identity, state.retainedFromMs)
 		if (counts.membershipCount != archive.pointCount) return LocationFileArchiveRead.IncompleteMembership
 		return LocationFileArchiveRead.Found(archive.identity, archive.pointCount, counts.availableCount)

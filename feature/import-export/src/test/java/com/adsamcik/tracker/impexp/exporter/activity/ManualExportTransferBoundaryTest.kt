@@ -8,6 +8,7 @@ import com.adsamcik.tracker.impexp.OwnedTransferCleanupException
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.impexp.exporter.data.ImportExportDataRepository
+import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
@@ -16,6 +17,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import java.io.File
 import java.io.OutputStream
@@ -25,6 +27,7 @@ import java.time.ZoneOffset
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
@@ -350,13 +353,14 @@ class ManualExportTransferBoundaryTest {
 
     private fun viewModel(gate: TrackingStartupGate) = ImportExportViewModel(
         context, repository, TestDispatchersProvider(dispatcher), gate,
+        mockk<ExportPlanStore> { every { unfinishedFiles } returns flowOf(emptyList()) },
     )
 
     private fun exporter(write: suspend (OutputStream) -> ExportResult) = object : Exporter {
         override val requiresLocationData = false
         override val containsSensitiveLocationData = false
         override val canSelectDateRange = false
-        override val mimeType = "application/x-tracker-transfer-test"
+        override val mimeType = "application/octet-stream"
         override val extension = "dat"
         override suspend fun export(context: Context, locationData: Sequence<LocationSample>,
             outputStream: OutputStream, dateRange: LongRange?) = write(outputStream)

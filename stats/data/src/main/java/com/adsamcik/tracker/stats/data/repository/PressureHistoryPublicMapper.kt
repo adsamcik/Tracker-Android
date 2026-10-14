@@ -37,6 +37,7 @@ internal fun PressureLogicalHistoryEntry.toPublicPressureOnlyEntryOrNull(): Pres
 		endTime = EpochMs(originalClosedBounds?.endTimeMs
 			?: physicalMembers.maxOf { it.segment.endTimeMs }),
 		pressure = physicalMembers.toPublicPressureHistory(),
+		segmentIds = physicalMembers.map { it.segment.id },
 	)
 }
 

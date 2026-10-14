@@ -127,6 +127,7 @@ private fun ImportedPressureHistoryEvaluation.Readable.toPublicReadableEntry():
 	return PressureOnlyHistoryEntry(
 		key = importedHistoryKey(entry.identity.value),
 		origin = importedOrigin(entry.identity.value),
+		importRevision = latest.header.importRevision,
 		startTime = EpochMs(entry.startTimeMs),
 		endTime = EpochMs(entry.endTimeMs),
 		pressure = PressureHistory(

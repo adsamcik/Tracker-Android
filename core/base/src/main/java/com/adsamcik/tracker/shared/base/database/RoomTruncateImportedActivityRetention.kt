@@ -282,6 +282,7 @@ class RoomTruncateImportedActivityRetention internal constructor(
 				zones,
 				windows,
 				fragments,
+				retainedState = state,
 			)
 		} catch (failure: ImportedActivityLineageFailure) {
 			unverifiable(failure.reason.toRetentionProductFailure())

@@ -42,6 +42,10 @@ interface CollectedDataLifecycleStore {
 
 	suspend fun snapshot(): CollectedDataLifecycleSnapshot
 
+	/** A confirmed replacement imports a new dataset; previous deletion floors do not erase it. */
+	suspend fun beginDataRestore(operationId: String, targetEpoch: Long, retainedFromMs: Long?): CollectedDataLifecycleSnapshot =
+		throw UnsupportedOperationException("Data restore is unavailable")
+
 	/**
 	 * Invalidates all work captured before this call and rejects records acquired
 	 * before [deletedAtMs] in the new epoch.
@@ -122,6 +126,30 @@ class DefaultCollectedDataLifecycleStore(
 
 	override suspend fun snapshot(): CollectedDataLifecycleSnapshot =
 		dataStore.data.first().toSnapshot()
+
+	override suspend fun beginDataRestore(operationId: String, targetEpoch: Long,
+		retainedFromMs: Long?): CollectedDataLifecycleSnapshot {
+		require(operationId.isNotBlank() && targetEpoch > 0L && (retainedFromMs == null || retainedFromMs >= 0L))
+		return retentionAuthorityOperationLease.withPermit { permit ->
+			permit.commitDataStoreMutation(retentionAuthorityOperationLease, "data-restore:$operationId") {
+				var restored: CollectedDataLifecycleSnapshot? = null
+				dataStore.edit { preferences ->
+					val current = preferences.toSnapshot()
+					if (preferences[LAST_RESTORE_OPERATION_ID_KEY] == operationId) {
+						check(current.epoch == targetEpoch && current.retainedFromMs == retainedFromMs)
+						restored = current
+					} else {
+						check(targetEpoch > current.epoch) { "Restore no longer owns the current data" }
+						val next = CollectedDataLifecycleSnapshot(targetEpoch, retainedFromMs)
+						preferences.writeSnapshot(next)
+						preferences[LAST_RESTORE_OPERATION_ID_KEY] = operationId
+						restored = next
+					}
+				}
+				checkNotNull(restored)
+			}
+		}
+	}
 
 	override suspend fun beginFullDeletion(
 		deletedAtMs: Long,
@@ -275,6 +303,7 @@ class DefaultCollectedDataLifecycleStore(
 			stringPreferencesKey("last_retention_floor_operation_id")
 		val LAST_RETENTION_FLOOR_VALUE_KEY =
 			longPreferencesKey("last_retention_floor_value_ms")
+		val LAST_RESTORE_OPERATION_ID_KEY = stringPreferencesKey("last_data_restore_operation_id")
 	}
 }
 

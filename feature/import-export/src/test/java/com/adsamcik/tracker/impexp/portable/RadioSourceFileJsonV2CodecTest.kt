@@ -71,6 +71,9 @@ class RadioSourceFileJsonV2CodecTest {
 		val bytes = ByteArrayOutputStream().also { codec.writeWifi(it, file) }.toByteArray()
 		val decoded = codec.readWifi(ByteArrayInputStream(bytes))
 		assertEquals(file, decoded)
+		val older = file.copy(schemaVersion = 2)
+		val olderBytes = ByteArrayOutputStream().also { codec.writeWifi(it, older) }.toByteArray()
+		assertEquals(older, codec.readWifi(ByteArrayInputStream(olderBytes)))
 		val streamed = ByteArrayOutputStream()
 		codec.wifiStreamWriter(streamed, null, null, true).apply {
 			session(file.sessions.single())

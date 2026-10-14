@@ -34,6 +34,7 @@ internal class LegacyV26DatabaseNormalizer(
 	private val publicMigrations: Array<Migration>,
 	private val openHelperFactory: SupportSQLiteOpenHelper.Factory =
 		SQLiteXSupportSQLiteOpenHelperFactory(),
+	private val stagingFileOverride: File? = null,
 	// This is only an early, side-effect-free preflight. The copy remains authoritative and reports
 	// allocation/I/O failures without asking Android to evict caches or reserve storage for us.
 	private val usableSpaceBytes: (File) -> Long = ::bestEffortUsableSpace,
@@ -51,7 +52,7 @@ internal class LegacyV26DatabaseNormalizer(
 			)
 		}
 
-		val staging = appContext.getDatabasePath(STAGING_DATABASE_NAME)
+		val staging = stagingFileOverride ?: appContext.getDatabasePath(STAGING_DATABASE_NAME)
 		val family = databaseFamily(staging)
 		family.forEach { file ->
 			if (file.exists() && !file.delete()) {
@@ -75,7 +76,7 @@ internal class LegacyV26DatabaseNormalizer(
 		}
 
 		try {
-			migrateStagingDatabase(info.sourceVersion)
+			migrateStagingDatabase(info.sourceVersion, staging)
 			validate(staging)
 		} catch (error: Throwable) {
 			family.forEach { file -> runCatching { file.delete() } }
@@ -85,7 +86,7 @@ internal class LegacyV26DatabaseNormalizer(
 		return PreparedLegacyDatabase(staging, info.sourceVersion, family)
 	}
 
-	private fun migrateStagingDatabase(sourceVersion: Int) {
+	private fun migrateStagingDatabase(sourceVersion: Int, staging: File) {
 		val callback = object : SupportSQLiteOpenHelper.Callback(RELEASED_DATABASE_VERSION) {
 			override fun onCreate(db: SupportSQLiteDatabase) {
 				throw LegacyDatabaseException("The temporary legacy database was unexpectedly empty")
@@ -111,7 +112,7 @@ internal class LegacyV26DatabaseNormalizer(
 		}
 		val helper = openHelperFactory.create(
 			SupportSQLiteOpenHelper.Configuration.builder(appContext)
-				.name(STAGING_DATABASE_NAME)
+				.name(staging.absolutePath)
 				.callback(callback)
 				.build(),
 		)

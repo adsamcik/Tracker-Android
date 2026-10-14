@@ -20,8 +20,8 @@ class SessionStatsUiFormatter @Inject constructor(
 		return buildList {
 			addAll(sessionSummaryStats(snapshot))
 			add(countStat(R.string.stats_location_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_location_on_24px, snapshot.locationCount))
-			add(countStat(R.string.stats_wifi_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_wifi_24px, snapshot.wifiCount))
-			add(countStat(R.string.stats_cell_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_cell_24px, snapshot.cellCount))
+			add(countStat(R.string.stats_wifi_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_wifi_24px, snapshot.wifiCount, snapshot.wifiCountIsPartial))
+			add(countStat(R.string.stats_cell_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_cell_24px, snapshot.cellCount, snapshot.cellCountIsPartial))
 			add(countStat(R.string.stats_session_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_map_24dp, snapshot.tripCount))
 		}
 	}
@@ -31,8 +31,8 @@ class SessionStatsUiFormatter @Inject constructor(
 			addAll(sessionSummaryStats(snapshot))
 			add(countStat(R.string.stats_session_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_map_24dp, snapshot.tripCount))
 			add(countStat(R.string.stats_location_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_location_on_24px, snapshot.locationCount))
-			add(countStat(R.string.stats_wifi_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_wifi_24px, snapshot.wifiCount))
-			add(countStat(R.string.stats_cell_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_cell_24px, snapshot.cellCount))
+			add(countStat(R.string.stats_wifi_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_wifi_24px, snapshot.wifiCount, snapshot.wifiCountIsPartial))
+			add(countStat(R.string.stats_cell_count, com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_cell_24px, snapshot.cellCount, snapshot.cellCountIsPartial))
 		}
 	}
 
@@ -70,15 +70,28 @@ class SessionStatsUiFormatter @Inject constructor(
 				StatisticDisplayType.INFORMATION,
 				snapshot.collections.formatReadable(),
 			),
-		)
+		).filter { stat -> when (stat.nameRes) {
+			R.string.stats_distance_total -> snapshot.hasMeasuredDistance
+			R.string.stats_distance_on_foot, R.string.stats_distance_in_vehicle ->
+				snapshot.hasMeasuredDistance && snapshot.hasActivityDistances
+			else -> true
+		} }.map { stat ->
+			if (snapshot.distanceIsPartial && stat.nameRes in setOf(R.string.stats_distance_total,
+				R.string.stats_distance_on_foot, R.string.stats_distance_in_vehicle)) {
+				stat.copy(data = resources.getString(R.string.stats_recorded_partial_value, stat.data.toString()))
+			} else stat
+		}
 	}
 
-	private fun countStat(nameRes: Int, iconRes: Int, value: Long): Stat {
+	private fun countStat(nameRes: Int, iconRes: Int, value: Long?, partial: Boolean = false): Stat {
+		val text = value?.formatReadable()?.let {
+			if (partial) context.getString(R.string.stats_recorded_partial_value, it) else it
+		} ?: context.getString(R.string.history_value_unavailable)
 		return Stat(
 			nameRes = nameRes,
 			iconRes = iconRes,
 			displayType = StatisticDisplayType.INFORMATION,
-			data = value.formatReadable(),
+			data = text,
 		)
 	}
 

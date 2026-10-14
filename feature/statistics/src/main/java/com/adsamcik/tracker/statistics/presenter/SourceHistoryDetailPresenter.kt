@@ -7,6 +7,10 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.CellHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.HistoryCapture
+import com.adsamcik.tracker.stats.api.repository.LiveSessionHistorySnapshot
+import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryActionTarget
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
@@ -19,6 +23,7 @@ sealed interface SourceHistoryDetailState {
 	data object Loading : SourceHistoryDetailState
 	data class Loaded(
 		val selection: SourceHistoryDetailSelection,
+		val members: List<LiveSessionHistorySnapshot> = emptyList(),
 	) : SourceHistoryDetailState
 	data class Unavailable(
 		val reason: SourceHistoryDetailUnavailableReason,
@@ -41,21 +46,40 @@ enum class SourceHistoryDetailUnavailableReason {
 class SourceHistoryDetailPresenter @Inject constructor(
 	private val wifiHistoryRepository: WifiHistoryRepository,
 	private val cellHistoryRepository: CellHistoryRepository,
+	private val trackingHistoryRepository: TrackingHistoryRepository,
 ) {
 	suspend fun load(selection: SourceHistoryDetailSelection): SourceHistoryDetailState =
 		when (val entry = selection.entry) {
 			is SourceAwareHistoryPageEntry.ActivityOnly -> loadActivity(selection)
 			is SourceAwareHistoryPageEntry.WifiOnly -> loadWifi(selection)
 			is SourceAwareHistoryPageEntry.CellOnly -> loadCell(selection)
-			is SourceAwareHistoryPageEntry.Physical,
 			is SourceAwareHistoryPageEntry.StepsOnly,
-			is SourceAwareHistoryPageEntry.ImportedSteps,
-			is SourceAwareHistoryPageEntry.PressureOnly ->
+			is SourceAwareHistoryPageEntry.PressureOnly -> loadCaptured(selection)
+			is SourceAwareHistoryPageEntry.Physical,
+			is SourceAwareHistoryPageEntry.ImportedSteps ->
 				SourceHistoryDetailState.Unavailable(
 					reason = SourceHistoryDetailUnavailableReason.SELECTION_CHANGED,
 					source = entry.source,
 				)
 		}
+
+	private suspend fun loadCaptured(selection: SourceHistoryDetailSelection): SourceHistoryDetailState {
+		if (selection.actionTarget is TrackingHistoryActionTarget.ImportedPressure)
+			return SourceHistoryDetailState.Loaded(selection)
+		val target = selection.actionTarget as? TrackingHistoryActionTarget.CapturedSource
+			?: return selectionChanged(requireNotNull(selection.entry.source))
+		val members = trackingHistoryRepository.readCapturedSourceMembers(target.segmentIds)
+		if (members.map { it.segmentId } != target.segmentIds) return selectionChanged(target.source)
+		val epoch = selection.readSnapshot?.collectedDataEpoch ?: return SourceHistoryDetailState.Unavailable(
+			SourceHistoryDetailUnavailableReason.SNAPSHOT_UNAVAILABLE, target.source)
+		if (members.any { member ->
+			val session = (member.session as? SessionHistoryQuery.Found)?.history
+			val capture = session?.capture as? HistoryCapture.Exact
+			capture == null || member.readSnapshot?.collectedDataEpoch != epoch ||
+				capture.revisions.any { it.capturedSources != setOf(target.source) }
+		}) return selectionChanged(target.source)
+		return SourceHistoryDetailState.Loaded(selection.copy(readSnapshot = members.first().readSnapshot), members)
+	}
 
 	private fun loadActivity(
 		selection: SourceHistoryDetailSelection,

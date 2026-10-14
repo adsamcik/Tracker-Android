@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityDao
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityReceiptEntity
@@ -20,6 +21,7 @@ internal object ImportedActivityLineageAuthenticator {
 		zoneEpochs: List<ImportedActivityZoneEpochEntity>,
 		windows: List<ImportedActivityWindowEntity>,
 		fragments: List<ImportedActivityFragmentEntity>,
+		retainedState: SourceEvidenceState? = null,
 	): AuthenticatedImportedActivityLineage = storedValue {
 		if (headers.size > ImportedActivityDao.MAX_REVISIONS_PER_ENTRY) fail(Reason.REVISION_OVERFLOW)
 		if (receipts.size > ImportedActivityDao.MAX_RECEIPTS_PER_ENTRY) fail(Reason.DEPENDENCY_OVERFLOW)
@@ -45,7 +47,7 @@ internal object ImportedActivityLineageAuthenticator {
 			require(header.identity == identity)
 			require(header.importRevision == revision)
 			require(header.supersedesImportRevision == if (revision == 1L) null else revision - 1L)
-			require(header.collectedDataEpoch == expectedCollectedDataEpoch)
+			require((retainedState?.acceptsRetainedEpoch(header.collectedDataEpoch) ?: (header.collectedDataEpoch == expectedCollectedDataEpoch)))
 			require(header.sourceFormat == ActivityCapturedPortableFormatV1.FORMAT)
 			require(header.sourceSchemaVersion == ActivityCapturedPortableFormatV1.SCHEMA_VERSION)
 		}

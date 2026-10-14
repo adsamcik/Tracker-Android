@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Onvolledig bestand verwijderen</string>
+    <string name="export_unfinished_retry">Opnieuw proberen</string>
+    <string name="export_unfinished_files_guidance">Tracker kan dit bestand niet verwijderen. Verwijder het in Bestanden of herstel de maptoegang en probeer opnieuw.</string>
+    <string name="export_unfinished_notice_update_failed">Bestand verwijderd. Deze melding kon niet worden bijgewerkt. Probeer opnieuw.</string>
+    <string name="export_unfinished_startup_unavailable">Voltooi het gegevensherstel in Tracker en probeer opnieuw.</string>
+    <string name="export_unfinished_load_failed">Onvolledige bestanden konden niet worden geladen.</string>
+    <string name="export_unfinished_notice_save_failed">Een onvolledig bestand kon niet worden onthouden. Verwijder het in Bestanden.</string>
+    <string name="export_unfinished_not_remembered">%s kon niet worden verwijderd of onthouden. Verwijder het in Bestanden.</string>
+    <string name="export_unfinished_remove_accessibility">Onvolledig bestand verwijderen: %s</string>
+</resources>

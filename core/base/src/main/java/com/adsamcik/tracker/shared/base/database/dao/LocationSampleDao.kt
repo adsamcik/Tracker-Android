@@ -33,6 +33,10 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	@Query("SELECT * FROM location_sample WHERE id IN (:ids) ORDER BY id")
 	suspend fun byIds(ids: List<Long>): List<LocationSample>
 
+	/** Current user measurements; recording/replay code keeps using the original byIds. */
+	@Query("SELECT * FROM effective_location_sample WHERE id IN (:ids) ORDER BY id")
+	suspend fun effectiveByIds(ids: List<Long>): List<LocationSample>
+
 	@Query("DELETE FROM location_sample WHERE id IN (:ids)")
 	suspend fun deleteExactIds(ids: List<Long>): Int
 
@@ -66,7 +70,7 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	 * at datum or clock-domain boundaries rather than treating this as an untyped MSL list.
 	 */
 	@Query(
-		"SELECT alt_m, alt_datum, clock_domain_id FROM location_sample " +
+		"SELECT alt_m, alt_datum, clock_domain_id FROM effective_location_sample AS location_sample " +
 			"WHERE (NOT EXISTS (SELECT 1 FROM location_accepted_receipt lr WHERE lr.sample_id = location_sample.id) OR EXISTS (SELECT 1 FROM location_sample_purpose_authority lp WHERE lp.sample_id = location_sample.id AND lp.purpose = 'SESSION_CAPTURE')) AND alt_m IS NOT NULL ORDER BY time_ms ASC, id ASC",
 	)
 	suspend fun getAltitudeSamplesOrdered(): List<OrderedAltitudeSampleRow>
@@ -78,7 +82,7 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	@Query(
 		"""
 		SELECT *
-		FROM location_sample
+		FROM effective_location_sample AS location_sample
 		WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs
 			AND time_ms <= :toMs
 			AND (
@@ -101,7 +105,7 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 
 	@Query(
 		"""
-		SELECT * FROM location_sample
+		SELECT * FROM effective_location_sample AS location_sample
 		WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs AND time_ms <= :toMs
 		ORDER BY time_ms DESC, id DESC
 		LIMIT 1
@@ -115,7 +119,7 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	 */
 	@Query(
 		"""
-		SELECT * FROM location_sample
+		SELECT * FROM effective_location_sample AS location_sample
 		WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs AND time_ms <= :toMs
 			AND lat_e7 IS NOT NULL AND lon_e7 IS NOT NULL
 		ORDER BY time_ms DESC, id DESC
@@ -136,7 +140,7 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	@Query(
 		"""
 		SELECT *
-		FROM location_sample
+		FROM effective_location_sample AS location_sample
 		WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs
 			AND time_ms <= :toMs
 			AND lat_e7 IS NOT NULL
@@ -171,7 +175,7 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 
 	@Query(
 		"""
-		SELECT * FROM location_sample
+		SELECT * FROM effective_location_sample AS location_sample
 		WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs
 			AND time_ms <= :toMs
 			AND lat_e7 IS NOT NULL
@@ -202,7 +206,7 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	@Query(
 		"""
 		SELECT *
-		FROM location_sample
+		FROM effective_location_sample AS location_sample
 		WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs AND time_ms <= :toMs
 		ORDER BY time_ms ASC, id ASC
 		LIMIT :limit
@@ -214,7 +218,7 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	 * Get nearest location sample to a given timestamp (within tolerance).
 	 */
 	@Query("""
-		SELECT * FROM location_sample 
+		SELECT * FROM effective_location_sample AS location_sample
 		WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms BETWEEN :timeMs - :toleranceMs AND :timeMs + :toleranceMs
 		AND lat_e7 IS NOT NULL AND lon_e7 IS NOT NULL
 		ORDER BY ABS(time_ms - :timeMs) ASC 
@@ -225,7 +229,7 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	/**
 	 * Count samples in time range.
 	 */
-	@Query("SELECT COUNT(*) FROM location_sample WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs AND time_ms <= :toMs")
+	@Query("SELECT COUNT(*) FROM effective_location_sample AS location_sample WHERE ${LocationReadScope.WITH_OPTIONAL_AMBIENT} AND time_ms >= :fromMs AND time_ms <= :toMs")
 	suspend fun countBetween(fromMs: Long, toMs: Long, includeAmbient: Boolean = false): Int
 
 	/**
@@ -243,6 +247,6 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	/**
 	 * Get count of samples without coordinates.
 	 */
-	@Query("SELECT COUNT(*) FROM location_sample WHERE lat_e7 IS NULL OR lon_e7 IS NULL")
+	@Query("SELECT COUNT(*) FROM effective_location_sample AS location_sample WHERE lat_e7 IS NULL OR lon_e7 IS NULL")
 	suspend fun countWithoutCoordinates(): Int
 }

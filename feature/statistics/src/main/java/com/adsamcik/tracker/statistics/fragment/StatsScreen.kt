@@ -666,12 +666,16 @@ private fun SparseStatsSummaryCard(
     val activeDays = remember(summaryBars, weeklyStepsSummary) {
         sparseSummaryActiveDayCount(summaryBars, weeklyStepsSummary)
     }
-    val distanceText = remember(totalDistanceM, settings) {
-        resources.formatDistance(
+    val distanceText = remember(totalDistanceM, weeklyBars, settings) {
+        if (weeklyBars.none { it.hasMeasuredDistance }) "—" else {
+        val measured = resources.formatDistance(
             totalDistanceM,
             digits = if (totalDistanceM >= 1000f) 1 else 2,
             unit = settings.lengthSystem,
         )
+        if (weeklyBars.any { it.distanceIsPartial || !it.hasMeasuredDistance && it.hasNonStepTrackedActivity })
+            resources.getString(R.string.stats_recorded_partial_value, measured) else measured
+        }
     }
 
     GlassCard(
@@ -897,11 +901,11 @@ internal fun weeklySummaryDayValueText(
 ): String {
     return when {
         qualifiedSteps != null -> qualifiedSteps.formatReadable()
-        dayBar.distanceM > 0f -> context.resources.formatDistance(
+        dayBar.hasMeasuredDistance -> context.resources.formatDistance(
             dayBar.distanceM,
             digits = if (dayBar.distanceM >= 1000f) 1 else 2,
             unit = lengthSystem,
-        )
+        ).let { if (dayBar.distanceIsPartial) context.getString(R.string.stats_recorded_partial_value, it) else it }
         dayBar.durationMs > 0L -> dayBar.durationMs.formatAsDuration(context)
         dayBar.sessionCount > 0 -> dayBar.sessionCount.formatReadable()
         else -> "—"
@@ -990,13 +994,14 @@ internal fun TripRow(
         if (durationMs > 0) durationMs.formatAsDuration(context) else null
     }
     
-    val distanceText = remember(trip.distanceM, settings) {
-        if (trip.distanceM > 0) {
-            resources.formatDistance(
+    val distanceText = remember(trip.distanceM, trip.hasMeasuredDistance, trip.distanceIsPartial, settings) {
+        if (trip.hasMeasuredDistance) {
+            val measured = resources.formatDistance(
                 trip.distanceM,
                 digits = if (trip.distanceM >= 1000f) 1 else 2,
                 unit = settings.lengthSystem
             )
+            if (trip.distanceIsPartial) resources.getString(R.string.stats_recorded_partial_value, measured) else measured
         } else null
     }
     

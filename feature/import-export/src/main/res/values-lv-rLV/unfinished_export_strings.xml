@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Noņemt nepabeigto failu</string>
+    <string name="export_unfinished_retry">Mēģināt vēlreiz</string>
+    <string name="export_unfinished_files_guidance">Tracker nevar noņemt šo failu. Noņemiet to lietotnē Faili vai atjaunojiet piekļuvi mapei un mēģiniet vēlreiz.</string>
+    <string name="export_unfinished_notice_update_failed">Fails noņemts. Paziņojumu neizdevās atjaunināt. Mēģiniet vēlreiz.</string>
+    <string name="export_unfinished_startup_unavailable">Pabeidziet datu atkopšanu Tracker un mēģiniet vēlreiz.</string>
+    <string name="export_unfinished_load_failed">Nepabeigtos failus neizdevās ielādēt.</string>
+    <string name="export_unfinished_notice_save_failed">Nepabeigto failu neizdevās iegaumēt. Noņemiet to lietotnē Faili.</string>
+    <string name="export_unfinished_not_remembered">Neizdevās noņemt vai iegaumēt %s. Noņemiet to lietotnē Faili.</string>
+    <string name="export_unfinished_remove_accessibility">Noņemt nepabeigto failu: %s</string>
+</resources>

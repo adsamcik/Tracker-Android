@@ -2,9 +2,11 @@ package com.adsamcik.tracker.impexp.exporter
 
 import com.adsamcik.tracker.impexp.portable.RadioSourceFileV2
 import com.adsamcik.tracker.shared.base.database.PortableCapturedCellEntryV1
+import com.adsamcik.tracker.shared.base.database.selectReadings
 import com.adsamcik.tracker.shared.base.database.PortableCellCaptureCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableWifiCaptureCoverage
+import com.adsamcik.tracker.stats.api.repository.selectReadings
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
@@ -99,17 +101,31 @@ internal fun decideCapturedRadioEntry(
 	recordedGaps: List<Pair<Long, Long>>,
 ): CapturedRadioDateDecision {
 	if (dates == null) return CapturedRadioDateDecision(true, 0, false)
+	require(entryStartMs >= 0L && entryEndMs >= entryStartMs)
 	val sourceTouchesDates = observations.any { observation ->
 		dates.touches(observation.firstPossibleMs, observation.lastPossibleMs)
 	} || recordedGaps.any { (start, end) -> dates.overlaps(start, end) }
-	val crossesDates = !dates.containsWholeInterval(entryStartMs, entryEndMs) ||
-		observations.any { observation ->
-			!dates.containsWholePossibleTime(observation.firstPossibleMs, observation.lastPossibleMs)
-		} || recordedGaps.any { (start, end) -> !dates.containsWholeInterval(start, end) }
-	val include = sourceTouchesDates && (includeSessionsAcrossDates || !crossesDates)
+	val include = sourceTouchesDates
 	return CapturedRadioDateDecision(
 		include = include,
-		observationsOutsideDates = if (include) observations.count { !dates.contains(it.observedMs) } else 0,
-		excludedAcrossDates = sourceTouchesDates && crossesDates && !includeSessionsAcrossDates,
+		observationsOutsideDates = if (include) observations.count { !dates.contains(it.observedMs) &&
+			(includeSessionsAcrossDates || dates.touches(it.firstPossibleMs, it.lastPossibleMs)) } else 0,
+		excludedAcrossDates = false,
 	)
+}
+
+internal fun selectedWifiReadings(entry: PortableCapturedWifiEntryV1, dates: SourceExportDates?,
+	includeCompleteSessions: Boolean): PortableCapturedWifiEntryV1? {
+	if (!selectCapturedWifiEntry(entry, dates, includeCompleteSessions).include) return null
+	if (dates == null || includeCompleteSessions) return entry
+	return entry.selectReadings({ dates.touches(it.coverageStartTimeMs, it.latestPossibleTimeMs) },
+		{ (it.retentionLoss || it.hasUnresolvedProviderRange) && dates.overlaps(it.startTimeMs, it.endTimeMs) })
+}
+
+internal fun selectedCellReadings(entry: PortableCapturedCellEntryV1, dates: SourceExportDates?,
+	includeCompleteSessions: Boolean): PortableCapturedCellEntryV1? {
+	if (!selectCapturedCellEntry(entry, dates, includeCompleteSessions).include) return null
+	if (dates == null || includeCompleteSessions) return entry
+	return entry.selectReadings({ dates.touches(it.coverageStartTimeMs, it.latestPossibleTimeMs) },
+		{ it.retentionLoss && dates.overlaps(it.startTimeMs, it.endTimeMs) })
 }

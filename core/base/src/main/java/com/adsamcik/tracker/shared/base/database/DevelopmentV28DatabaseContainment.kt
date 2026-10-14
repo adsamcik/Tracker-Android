@@ -101,7 +101,7 @@ class ActiveDatabasePreflight internal constructor(
 			return ActiveDatabasePreflightResult.Fresh
 		}
 		if (version != INITIAL_ACTIVE_DATABASE_VERSION &&
-			version != 28 && version != CURRENT_DATABASE_VERSION
+			version != 28 && version != 29 && version != CURRENT_DATABASE_VERSION
 		) {
 			return ActiveDatabasePreflightResult.Blocked(
 				ActiveDatabaseBlockReason.UNSUPPORTED_DATABASE_VERSION,

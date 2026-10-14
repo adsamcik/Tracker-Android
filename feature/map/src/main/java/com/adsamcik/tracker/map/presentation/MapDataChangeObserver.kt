@@ -57,7 +57,7 @@ class MapDataChangeObserver private constructor(databaseProvider: () -> AppDatab
 
     internal companion object {
         private val locationTables = setOf(
-            "location_sample", "location_observation", "location_observation_decision",
+            "location_sample", "location_point_correction", "location_observation", "location_observation_decision",
             "location_accepted_receipt", "location_sample_purpose_authority",
             "location_registration_plan", "ambient_location_retention_authority",
         )

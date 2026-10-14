@@ -28,6 +28,13 @@ class SavedSessionCutoffRoomTest {
     @Before fun setup() { database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>()) }
     @After fun close() = database.close()
 
+    @Test fun `unknown restored stop keeps original fact bounds without inventing an end`() {
+        val unknown = SavedSessionCutoff(null, null)
+        assertEquals(450L, unknown.retainedEnd("measurement-boot", 450L))
+        assertEquals(Long.MAX_VALUE, unknown.retainedEnd("measurement-boot", Long.MAX_VALUE))
+        assertEquals(Long.MAX_VALUE, unknown.endForBoot("measurement-boot"))
+    }
+
     @Test fun `original Stop retains its clock after a retry copied its times into a new boot`() = runBlocking {
         val session = session()
         install(session)

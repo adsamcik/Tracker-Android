@@ -24,6 +24,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlin.math.asin
 import kotlin.math.cos
 import kotlin.math.min
@@ -40,6 +41,7 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 	private val locationSampleDao: LocationSampleDao,
 	private val countryLookup: CountryBoundaryLookup,
 	private val achievementProgressDao: AchievementProgressDao,
+	private val savedLocationMetrics: SavedLocationMetricsReader,
 ) : AchievementMetricsProvider {
 	override suspend fun collect(): MetricSnapshot {
 		val zoneId = ZoneId.systemDefault()
@@ -47,6 +49,8 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 		val weekStartEpochDay = today.minusDays(6).toEpochDay()
 		val weekStartMs = today.minusDays(6).atStartOfDay(zoneId).toInstant().toEpochMilli()
 		val weekEndMs = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+		val location = readAvailableLocation()
+		val weekLocation = readAvailableLocation(weekStartMs, weekEndMs - 1L)
 		val activeDays = dailySummaryDao.getActiveEpochDays()
 		val firstActivityMs = listOfNotNull(dailySummaryDao.minCreatedAt(), sessionSegmentDao.minStartTime()).minOrNull()
 		val seasonBitmasks = explorationCellDao.getDistinctSeasonBitmasks(EXPLORATION_CELL_LEVEL)
@@ -71,13 +75,13 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 		// cannot separate raw Steps-derived awards from independently qualified XP.
 		return MetricSnapshot.from(
 			mapOf(
-				MetricKey.DISTANCE_TOTAL_M to dailySummaryDao.sumTotalDistance().toDouble(),
+				MetricKey.DISTANCE_TOTAL_M to (location?.distanceMeters ?: 0.0),
 				MetricKey.ACTIVE_DAYS_TOTAL to activeDays.size.toDouble(),
 				MetricKey.SESSIONS_TOTAL to dailySummaryDao.sumTotalTrips().toDouble(),
 				MetricKey.CELLS_DISTINCT_LIFETIME to explorationCellDao.countAtLevelLong(EXPLORATION_CELL_LEVEL).toDouble(),
-				MetricKey.MAX_SESSION_DISTANCE_M to sessionSegmentDao.maxSegmentDistance().toDouble(),
+				MetricKey.MAX_SESSION_DISTANCE_M to (location?.maxSessionDistanceMeters ?: 0.0),
 				MetricKey.MAX_SESSION_DURATION_MS to sessionSegmentDao.maxSegmentDurationMs().toDouble(),
-				MetricKey.MAX_SPEED_MPS to sessionSegmentDao.maxAverageSpeedMps(),
+				MetricKey.MAX_SPEED_MPS to (location?.maxObservedSpeedMetersPerSecond ?: 0.0),
 				MetricKey.STREAK_DAYS_CURRENT to (explorationStreakDao.getByType(DAILY_STREAK_TYPE)?.currentCount ?: 0).toDouble(),
 				MetricKey.STREAK_DAYS_MAX to (explorationStreakDao.getByType(DAILY_STREAK_TYPE)?.bestCount ?: 0).toDouble(),
 				MetricKey.COUNTRIES_VISITED to countriesVisited.toDouble(),
@@ -91,25 +95,25 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 				MetricKey.CALENDAR_LEAP_DAY to activeDays.hasMonthDay(2, 29).toFlag(),
 				MetricKey.CALENDAR_SUMMER_SOLSTICE to activeDays.hasMonthDay(6, 21).toFlag(),
 				MetricKey.CALENDAR_WINTER_SOLSTICE to activeDays.hasMonthDay(12, 21).toFlag(),
-				MetricKey.WEEK_DISTANCE_M to dailySummaryDao.sumDistanceSinceEpochDay(weekStartEpochDay).toDouble(),
+				MetricKey.WEEK_DISTANCE_M to (weekLocation?.distanceMeters ?: 0.0),
 				MetricKey.WEEK_ACTIVE_DAYS to weekActiveDays.toDouble(),
 				MetricKey.WEEK_ALL_DAYS_TRACKED to (weekActiveDays >= 7).toFlag(),
 				MetricKey.WEEK_ACTIVITY_TYPES to sessionSegmentDao.countDistinctActivitiesBetween(weekStartMs, weekEndMs).toDouble(),
 				MetricKey.LIFETIME_WALK_CYCLE_DRIVE to (hasWalk && hasCycle && hasDrive).toFlag(),
 				MetricKey.ACTIVE_MINUTES_TOTAL to (dailySummaryDao.sumTotalDurationMs() / MILLIS_PER_MINUTE).toDouble(),
-				MetricKey.DISTANCE_ON_FOOT_M to sessionSegmentDao.sumDistanceByActivities(SessionActivityIds.ON_FOOT.toList()).toDouble(),
-				MetricKey.CYCLING_DISTANCE_M to sessionSegmentDao.sumDistanceByActivities(SessionActivityIds.CYCLING.toList()).toDouble(),
-				MetricKey.VEHICLE_DISTANCE_M to sessionSegmentDao.sumDistanceByActivities(SessionActivityIds.IN_VEHICLE.toList()).toDouble(),
+				MetricKey.DISTANCE_ON_FOOT_M to (location?.onFootDistanceMeters ?: 0.0),
+				MetricKey.CYCLING_DISTANCE_M to (location?.cyclingDistanceMeters ?: 0.0),
+				MetricKey.VEHICLE_DISTANCE_M to (location?.vehicleDistanceMeters ?: 0.0),
 				MetricKey.ON_FOOT_ACTIVE_DAYS to sessionSegmentDao.countDistinctDaysByActivities(SessionActivityIds.ON_FOOT.toList()).toDouble(),
 				MetricKey.CYCLING_ACTIVE_DAYS to sessionSegmentDao.countDistinctDaysByActivities(SessionActivityIds.CYCLING.toList()).toDouble(),
 				MetricKey.VEHICLE_ACTIVE_DAYS to sessionSegmentDao.countDistinctDaysByActivities(SessionActivityIds.IN_VEHICLE.toList()).toDouble(),
-				MetricKey.BEST_DAY_DISTANCE_M to dailySummaryDao.maxDailyDistance().toDouble(),
+				MetricKey.BEST_DAY_DISTANCE_M to (location?.bestDayDistanceMeters ?: 0.0),
 				MetricKey.EXPORTS_TOTAL to exportLogDao.countTotal().toDouble(),
 				MetricKey.SEASONS_EXPLORED to Integer.bitCount(combinedSeasons).toDouble(),
 				MetricKey.NIGHT_SESSIONS_TOTAL to sessionSegmentDao.countSessionsStartingBetweenHours(NIGHT_START_HOUR, NIGHT_END_HOUR).toDouble(),
 				MetricKey.DAWN_SESSIONS_TOTAL to sessionSegmentDao.countSessionsStartingBetweenHours(DAWN_START_HOUR, DAWN_END_HOUR).toDouble(),
 				MetricKey.USER_CREATED_SESSIONS to sessionSegmentDao.countBySource(SegmentSource.USER_CREATED).toDouble(),
-				MetricKey.MAX_CYCLE_SESSION_M to sessionSegmentDao.maxDistanceByActivities(SessionActivityIds.CYCLING.toList()).toDouble(),
+				MetricKey.MAX_CYCLE_SESSION_M to (location?.maxCyclingSessionDistanceMeters ?: 0.0),
 				MetricKey.TRIATHLON_DAYS to sessionSegmentDao.countTriathlonDays(
 					SessionActivityIds.ON_FOOT.toList(),
 					SessionActivityIds.CYCLING.toList(),
@@ -127,9 +131,17 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 				MetricKey.TOTAL_ASCENT_M to totalAscent(locationSampleDao.getAltitudeSamplesOrdered()),
 				MetricKey.ACHIEVEMENTS_UNLOCKED to achievementsUnlocked.toDouble(),
 				MetricKey.CATEGORIES_COMPLETED to categoriesCompleted.toDouble(),
-			)
+			).filterKeys { key ->
+				(key !in LOCATION_METRICS || location != null) &&
+					(key != MetricKey.WEEK_DISTANCE_M || weekLocation != null)
+			}
 		)
 	}
+
+	private suspend fun readAvailableLocation(fromMs: Long = 0L, toMs: Long = Long.MAX_VALUE): SavedLocationMetrics? =
+		try { savedLocationMetrics.read(fromMs, toMs) }
+		catch (cancelled: CancellationException) { throw cancelled }
+		catch (_: Exception) { null }
 
 	private fun qualifiedProgress(
 		progressRows: List<AchievementProgressEntity>,
@@ -260,6 +272,9 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 	}
 
 	companion object {
+		private val LOCATION_METRICS = setOf(MetricKey.DISTANCE_TOTAL_M, MetricKey.MAX_SESSION_DISTANCE_M,
+			MetricKey.MAX_SPEED_MPS, MetricKey.DISTANCE_ON_FOOT_M, MetricKey.CYCLING_DISTANCE_M,
+			MetricKey.VEHICLE_DISTANCE_M, MetricKey.BEST_DAY_DISTANCE_M, MetricKey.MAX_CYCLE_SESSION_M)
 		private const val EXPLORATION_CELL_LEVEL = 14
 		private const val DAILY_STREAK_TYPE = "DAILY_DISCOVERY"
 		private const val MILLIS_PER_MINUTE = 60_000L

@@ -48,6 +48,8 @@ internal suspend fun AppDatabase.installAmbientStepsNativeReplayFootprintsInCurr
 internal suspend fun AppDatabase.authenticatedNativeReplayFootprints(
 	expectedCollectedDataEpoch: Long,
 ): List<AmbientStepsNativeReplayFootprintEntity> {
+	val state = checkNotNull(sourceEvidenceStateDao().get())
+	check(state.collectedDataEpoch == expectedCollectedDataEpoch)
 	val dao = ambientStepsFactRevisionDao()
 	val existingCount = dao.nativeReplayFootprintCount()
 	if (existingCount > MAX_NATIVE_REPLAY_FOOTPRINTS) {
@@ -59,7 +61,7 @@ internal suspend fun AppDatabase.authenticatedNativeReplayFootprints(
 	check(existing.size.toLong() == existingCount)
 	check(existing.all {
 		AmbientStepsNativeReplayFootprintIntegrity.isAuthentic(it) &&
-			it.collectedDataEpoch == expectedCollectedDataEpoch
+			state.acceptsRetainedEpoch(it.collectedDataEpoch)
 	})
 	return existing
 }

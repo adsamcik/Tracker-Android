@@ -16,6 +16,7 @@ import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.archive.SessionBundleStager
 import com.adsamcik.tracker.impexp.importer.archive.StagedSessionBundle
 import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
+import com.adsamcik.tracker.impexp.importer.file.LocationFileImportReview
 import com.adsamcik.tracker.impexp.importer.worker.ImportWorker
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -44,7 +45,8 @@ import kotlinx.coroutines.sync.withLock
 object DataImporter {
 	private val admissionFence = ImportAdmissionFence()
 
-	fun import(context: Context, fileUri: Uri, onStartFailure: (String) -> Unit = {}) {
+	fun import(context: Context, fileUri: Uri, locationReview: LocationFileImportReview? = null,
+		onStartFailure: (String) -> Unit = {}) {
 		val admissionGeneration = admissionFence.capture() ?: run {
 			onStartFailure(context.getString(R.string.import_start_error))
 			return
@@ -59,8 +61,14 @@ object DataImporter {
 		graph.applicationScope().launch(graph.dispatchersProvider().io) {
 			try {
 				val admission = graph.collectedDataLifecycleStore().snapshot()
+				if (locationReview != null && locationReview.preview.dataEpoch != admission.epoch) {
+					withContext(graph.dispatchersProvider().main) {
+						onStartFailure(context.getString(R.string.import_cleared_error))
+					}
+					return@launch
+				}
 				val workRequest = OneTimeWorkRequestBuilder<ImportWorker>()
-					.setInputData(importJobInput(fileUri.toString(), admission.epoch))
+					.setInputData(importJobInput(fileUri.toString(), admission.epoch, locationReview))
 					.build()
 				val queued = admissionFence.enqueueIfCurrent(admissionGeneration) {
 					WorkManager.getInstance(context).enqueueUniqueWork(
@@ -133,11 +141,34 @@ internal class ImportAdmissionFence {
 	@Synchronized fun resume() { paused = false }
 }
 
-internal fun importJobInput(fileUri: String, originalDataEpoch: Long) =
-	workDataOf(
+internal fun importJobInput(fileUri: String, originalDataEpoch: Long,
+	locationReview: LocationFileImportReview? = null) =
+	androidx.work.Data.Builder().putAll(workDataOf(
 		ImportWorker.ARG_FILE_URI to fileUri,
 		ImportWorker.ARG_ORIGINAL_DATA_EPOCH to originalDataEpoch,
+	)).also { builder -> locationReview?.let { review ->
+		builder.putString("location_review_choice", review.choice.name)
+			.putString("location_review_job", review.preview.fileJobId)
+			.putString("location_review_state", review.preview.existingStateHash)
+			.putLong("location_review_epoch", review.preview.dataEpoch)
+			.putInt("location_review_points", review.preview.pointCount)
+			.putInt("location_review_conflicts", review.preview.conflictCount)
+			.putInt("location_review_matching", review.preview.matchingCount)
+	} }.build()
+
+internal fun androidx.work.Data.locationFileReview(): LocationFileImportReview? {
+	val choice = getString("location_review_choice") ?: return null
+	return LocationFileImportReview(
+		com.adsamcik.tracker.impexp.importer.file.LocationFileImportPreview(
+			pointCount = getInt("location_review_points", -1),
+			conflictCount = getInt("location_review_conflicts", -1),
+			matchingCount = getInt("location_review_matching", -1),
+			fileJobId = requireNotNull(getString("location_review_job")),
+			dataEpoch = getLong("location_review_epoch", -1L),
+			existingStateHash = requireNotNull(getString("location_review_state")),
+		), com.adsamcik.tracker.impexp.importer.file.LocationFileConflictChoice.valueOf(choice),
 	)
+}
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)

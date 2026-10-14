@@ -8,10 +8,15 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArch
 data class ExportPortableAmbientStepsRequest(
 	val fromInclusiveMs: Long,
 	val toExclusiveMs: Long,
+	/** Exact imported-file membership; null selects measured dates. */
+	val selectedDayIdentities: Set<String>? = null,
 ) {
 	init {
 		require(fromInclusiveMs >= 0L)
 		require(toExclusiveMs > fromInclusiveMs)
+		require(selectedDayIdentities == null || (selectedDayIdentities.isNotEmpty() &&
+			selectedDayIdentities.size <= AmbientStepsPortableFormatV1.MAX_DAYS &&
+			selectedDayIdentities.all { it.matches(Regex("sha256:[0-9a-f]{64}")) }))
 	}
 }
 

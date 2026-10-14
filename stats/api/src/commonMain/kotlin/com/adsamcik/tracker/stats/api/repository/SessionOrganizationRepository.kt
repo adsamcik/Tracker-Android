@@ -39,8 +39,12 @@ sealed interface OrganizationSourceSelector {
 		init { requireOrganizationIdentity(archiveIdentity) }
 	}
 
-	data class CapturedEntry(override val source: HistorySource, val entryIdentity: String) : OrganizationSourceSelector {
+	data class CapturedEntry(override val source: HistorySource, val entryIdentity: String,
+		val importJobId: String? = null, val importEntryKey: String? = null) : OrganizationSourceSelector {
 		init {
+			require((importJobId == null) == (importEntryKey == null))
+			require(importJobId?.let { it.isNotBlank() && it.length <= 4_096 } != false)
+			require(importEntryKey?.let { it.isNotBlank() && it.length <= 4_096 } != false)
 			require(source != HistorySource.LOCATION)
 			if (source == HistorySource.STEPS || source == HistorySource.PRESSURE) requireOrganizationPrefixedIdentity(entryIdentity)
 			else requireOrganizationIdentity(entryIdentity)
@@ -88,6 +92,9 @@ interface SessionOrganizationRepository {
 	suspend fun read(fromMs: Long? = null, toMs: Long? = null, limit: Int = 100): SessionOrganizationRead
 	/** Exact metadata lookup for editors, independent of paging/range position. */
 	suspend fun find(id: OrganizationSessionId): SessionOrganizationRead
+	/** Exact selected session updates, including edits/removal outside the currently paged list. */
+	fun observeSession(id: OrganizationSessionId): Flow<SessionOrganizationRead> =
+		kotlinx.coroutines.flow.flow { emit(find(id)) }
 	suspend fun activityLabels(): List<OrganizationActivityLabel>
 	suspend fun create(expectedEpoch: Long, interval: OrganizationInterval,
 		displayZoneId: String, name: String?, activityLabelId: Long?): OrganizationMutationResult

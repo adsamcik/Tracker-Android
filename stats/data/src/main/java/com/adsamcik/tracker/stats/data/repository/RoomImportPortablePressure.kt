@@ -397,6 +397,9 @@ internal class RoomImportPortablePressure internal constructor(
 			ImportedPressureLineageAuthenticator.authenticate(
 				identity = identity,
 				expectedCollectedDataEpoch = expectedCollectedDataEpoch,
+				retainedState = checkNotNull(database.sourceEvidenceStateDao().get()).also {
+					check(it.collectedDataEpoch == expectedCollectedDataEpoch)
+				},
 				headers = headers,
 				receipts = receipts,
 				runs = runs,

@@ -44,9 +44,14 @@ data class PressureOnlyHistoryEntry(
 	val startTime: EpochMs,
 	val endTime: EpochMs,
 	val pressure: PressureHistory,
+	/** Exact native members supplied by the qualified reader; imported data uses its own identity. */
+	val segmentIds: List<Long> = emptyList(),
+	/** Current imported revision supplied by the qualified reader for exact actions. */
+	val importRevision: Long? = null,
 ) {
 	init {
 		require(endTime >= startTime) { "Pressure history entry cannot end before it starts" }
+		require(segmentIds.all { it > 0L } && segmentIds.distinct().size == segmentIds.size)
 	}
 
 	val state: PressureHistoryPresentationState

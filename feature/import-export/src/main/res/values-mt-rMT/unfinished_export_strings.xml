@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Neħħi l-fajl mhux lest</string>
+    <string name="export_unfinished_retry">Erġa’ pprova</string>
+    <string name="export_unfinished_files_guidance">Tracker ma jistax ineħħi dan il-fajl. Neħħih fl-app Fajls jew erġa’ agħti aċċess għall-folder u pprova mill-ġdid.</string>
+    <string name="export_unfinished_notice_update_failed">Il-fajl tneħħa. Dan l-avviż ma setax jiġi aġġornat. Erġa’ pprova.</string>
+    <string name="export_unfinished_startup_unavailable">Lesti l-irkupru tad-data fi Tracker, imbagħad erġa’ pprova.</string>
+    <string name="export_unfinished_load_failed">Il-fajls mhux lesti ma setgħux jittellgħu.</string>
+    <string name="export_unfinished_notice_save_failed">Fajl mhux lest ma setax jiġi mfakkar. Neħħih fl-app Fajls.</string>
+    <string name="export_unfinished_not_remembered">%s ma setax jitneħħa jew jiġi mfakkar. Neħħih fl-app Fajls.</string>
+    <string name="export_unfinished_remove_accessibility">Neħħi l-fajl mhux lest: %s</string>
+</resources>

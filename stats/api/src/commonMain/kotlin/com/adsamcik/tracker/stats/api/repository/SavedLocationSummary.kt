@@ -9,6 +9,9 @@ sealed interface SavedLocationSummarySelection {
         init { require(segmentId > 0L) }
     }
     data class Window(val window: HistoryObservationWindow) : SavedLocationSummarySelection
+    data class LogicalSession(val logicalTrackingId: String) : SavedLocationSummarySelection {
+        init { require(logicalTrackingId.isNotBlank()) }
+    }
 }
 
 sealed interface SavedLocationSummaryRead {

@@ -910,10 +910,10 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<SourceDemandEntity>
 
-	/** All physical registrations that could still deliver a captured callback. */
-	/** Latest immutable authorization revision identity without materializing its members. */
+	/** Current physical registrations that could still deliver a captured callback after restore. */
 	@Query(
 		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
+			"AND collected_data_epoch = (SELECT collected_data_epoch FROM source_evidence_state WHERE id = 1) " +
 			"AND status IN ('RESERVED', 'ACTIVE', 'RETIRING') " +
 			"ORDER BY registration_generation LIMIT :limit",
 	)

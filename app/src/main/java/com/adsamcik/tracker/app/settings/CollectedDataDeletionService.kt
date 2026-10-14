@@ -370,6 +370,7 @@ class DefaultCollectedDataDeletionService(
 		Provider<SourcePolicyAuthorityBootstrapCoordinator>? = null,
 	private val traceboxDataDeletion: suspend () -> Boolean,
 	private val trackingDiagnosticDataDeletion: suspend () -> Boolean = { true },
+	private val cancelDataRestore: suspend () -> Unit = { },
 	private val appDatabaseDeletion: suspend (
 		Context,
 		CollectedDataDeletionOperation,
@@ -420,8 +421,14 @@ class DefaultCollectedDataDeletionService(
 		require(providerFenceTimeoutMs > 0L)
 	}
 
-	override suspend fun deleteAll(): CollectedDataDeletionCompletion =
-		awaitDeletionStart(deletionMutex.withLock {
+	override suspend fun deleteAll(): CollectedDataDeletionCompletion {
+		try { cancelDataRestore() }
+		catch (cancelled: CancellationException) { throw cancelled }
+		catch (_: Exception) {
+			return CollectedDataDeletionCompletion.Retryable(
+				CollectedDataDeletionReconciliationFailure.TransferFiles("data-restore"))
+		}
+		return awaitDeletionStart(deletionMutex.withLock {
 			activeDeletionFlight()?.let { return@withLock DeletionStart.Await(it) }
 			if (clearingMarkerFile.exists() || markerClearPendingInProcess) {
 				return@withLock startDeletionFlight(
@@ -449,6 +456,7 @@ class DefaultCollectedDataDeletionService(
 				}
 			}
 		})
+	}
 
 	override suspend fun reconcilePendingDeletion(): CollectedDataDeletionCompletion =
 		awaitDeletionStart(deletionMutex.withLock {
@@ -556,6 +564,7 @@ class DefaultCollectedDataDeletionService(
 	private suspend fun runDeletion(
 		operation: CollectedDataDeletionOperation,
 	): CollectedDataDeletionCompletion {
+		cancelDataRestore()
 		var purposeDeletionFencer: TrackingPurposeDeletionFencer? = null
 		startupDeletionBarrier.beginCloseAdmission()
 		try {

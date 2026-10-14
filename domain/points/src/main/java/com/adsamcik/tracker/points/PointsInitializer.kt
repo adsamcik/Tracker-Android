@@ -7,7 +7,8 @@ import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -20,14 +21,22 @@ class PointsInitializer @Inject constructor(
 	private val dispatchers: DispatchersProvider,
 	private val consumer: PointsDomainEventConsumer,
 	private val domainEventRepository: DomainEventRepository,
+	private val trackingHistory: com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository,
+	private val trackingStartupGate: com.adsamcik.tracker.shared.base.startup.TrackingStartupGate,
 ) : ModuleInitializer {
 	override val priority: Int = 40
 
 	override fun initialize() {
 		appScope.launch(dispatchers.default) {
 			consumer.processUnconsumed()
-			domainEventRepository.observeEvents(EpochMs(0L)).collectLatest {
+			domainEventRepository.observeEvents(EpochMs(0L)).collect {
 				consumer.processUnconsumed()
+			}
+		}
+		appScope.launch(dispatchers.io) {
+			combine(trackingHistory.observeSessionRewardChanges(), trackingStartupGate.runtimeReadyChanges) { _, _ -> Unit }.collect {
+				consumer.processUnconsumed()
+				consumer.reconcileSessionEffects()
 			}
 		}
 	}

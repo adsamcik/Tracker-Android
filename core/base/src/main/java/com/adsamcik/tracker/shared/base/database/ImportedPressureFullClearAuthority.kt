@@ -448,7 +448,8 @@ private fun loadAndAuthenticateLiveLineage(
 		val revision = index.toLong() + 1L
 		check(header.identity == identity && header.importRevision == revision)
 		check(header.supersedesImportRevision == if (revision == 1L) null else revision - 1L)
-		check(header.collectedDataEpoch == expectedEpoch)
+		// The full-clear entry point requires the current operation epoch. These are saved rows.
+		check(sqlite.acceptsRetainedEpoch(header.collectedDataEpoch, expectedEpoch))
 	}
 	check(headers.zipWithNext().all { (previous, next) ->
 		next.receivedAtMs >= previous.receivedAtMs
@@ -496,6 +497,7 @@ private fun loadAndAuthenticateLiveLineage(
 	val lineage = ImportedPressureLineageAuthenticator.authenticate(
 		identity = identity,
 		expectedCollectedDataEpoch = expectedEpoch,
+		retainedState = sqlite.retainedEvidenceState(expectedEpoch),
 		headers = headers,
 		receipts = receipts,
 		runs = runs,
@@ -660,7 +662,7 @@ private fun loadAndAuthenticateRetainedLineage(
 			effectChecksum = cursor.getString(23),
 		)
 	}
-	check(receipt.collectedDataEpoch == expectedEpoch)
+	check(sqlite.acceptsRetainedEpoch(receipt.collectedDataEpoch, expectedEpoch))
 	check(footprint.markerCount == receipt.protectedIdentityCount.toLong())
 	val markers = sqlite.query(
 		"SELECT protected_identity, entry_identity, identity_kind " +
@@ -810,7 +812,7 @@ private fun authenticateSourceEraseReceipt(
 			effectChecksum = cursor.getString(23),
 		)
 	}
-	check(marker.collectedDataEpoch == expectedEpoch)
+	check(sqlite.acceptsRetainedEpoch(marker.collectedDataEpoch, expectedEpoch))
 	val witnessCount = sqlite.query(
 		"SELECT COUNT(*) FROM imported_pressure_source_erase_witness",
 	).use { cursor -> check(cursor.moveToFirst()); cursor.getLong(0) }

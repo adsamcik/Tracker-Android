@@ -6,6 +6,9 @@ import android.database.sqlite.SQLiteConstraintException
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.RadioSelectedFileMember
+import com.adsamcik.tracker.shared.base.database.radioFileMembership
+import com.adsamcik.tracker.shared.base.database.copyImportedRadioSelectionChildren
 import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiAuthorityOwner
 import com.adsamcik.tracker.shared.base.database.dao.WifiLocalObservationOwner
@@ -33,6 +36,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableWifiOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.PortableWifiRetryableReason
 import com.adsamcik.tracker.stats.api.repository.WifiCapturedPortableFormatV1
 import com.adsamcik.tracker.stats.api.repository.isReciprocalCorrectionOf
+import com.adsamcik.tracker.stats.api.repository.mergeReadingSelection
 import java.time.DateTimeException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -79,8 +83,9 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 
 	@Suppress("LongMethod", "ComplexCondition")
 	private suspend fun importInTransaction(
-		request: ImportPortableCapturedWifiRequest,
+		input: ImportPortableCapturedWifiRequest,
 	): ImportPortableCapturedWifiResult {
+		var request = input
 		writeCheckpoint(PortableWifiImportWriteCheckpoint.TRANSACTION_STARTED)
 		val dao = database.importedWifiDao()
 		val state = storedValue { database.sourceEvidenceStateDao().get() }
@@ -89,7 +94,7 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch) {
 			blocked(PortableCapturedWifiImportBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
 		}
-		val entry = request.entry
+		var entry = request.entry
 		if (state.retainedFromMs?.let(entry::crossesWifiRetentionFloor) == true) {
 			blocked(PortableCapturedWifiImportBlockedReason.RETENTION_BOUNDARY)
 		}
@@ -104,9 +109,38 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 		val deletionScopes = entry.runs.map { it.deletionScopeDigest.value }
 		authenticateDeletionAuthority(dao, runIdentities, deletionScopes, state)
 		authenticateOpaqueIdentityOwnership(dao, entry, state)
-		authenticateLiveOpaqueIdentityOwnership(dao, entry, state)
+		authenticateLiveOpaqueIdentityOwnership(dao, entry, state, input.mergeSelectedReadings)
 
 		val lineage = authenticateStoredLineage(dao, entry.identity.value, state.collectedDataEpoch)
+		val selectedMembership = if (input.mergeSelectedReadings) {
+			val saved = database.importedRadioFileMembershipDao().members(SourceDestinationOwnerEntity.SOURCE_WIFI,
+				input.receipt.jobId, input.receipt.entryKey, WifiCapturedPortableFormatV1.MAX_OBSERVATIONS_PER_ENTRY +
+					WifiCapturedPortableFormatV1.MAX_RUNS_PER_ENTRY + 2)
+			val members = input.entry.runs.flatMap { run ->
+				run.observations.map { RadioSelectedFileMember("OBSERVATION", it.identity.value, it.semanticRevision, it.contentChecksum.value) } +
+					listOfNotNull(RadioSelectedFileMember("GAP", run.identity.value, 1L, run.contentChecksum.value)
+						.takeIf { run.retentionLoss || run.hasUnresolvedProviderRange })
+			}
+			val original = radioFileMembership(SourceDestinationOwnerEntity.SOURCE_WIFI, input.receipt.jobId,
+				input.receipt.entryKey, input.entry.identity.value, input.entry.contentChecksum.value,
+				saved.firstOrNull()?.entryImportRevision ?: 1L, state.collectedDataEpoch, members)
+			if (saved.isNotEmpty()) {
+				if (saved != original) blocked(PortableCapturedWifiImportBlockedReason.RECEIPT_CONFLICT)
+				val receipt = dao.receipt(input.receipt.jobId, input.receipt.entryKey) ?: storedCorrupt()
+				val revision = lineage.revisions.singleOrNull { it.header.importRevision == receipt.entryImportRevision } ?: storedCorrupt()
+				if (receipt.entryImportRevision != saved.first().entryImportRevision ||
+					receipt.entryContentChecksum != revision.entry.contentChecksum.value ||
+					receipt.importSourceName != input.receipt.sourceName || receipt.receivedAtMs != input.receipt.receivedAtMs) storedCorrupt()
+				return ImportPortableCapturedWifiResult.Duplicate(receipt.entryImportRevision)
+			}
+			lineage.revisions.lastOrNull()?.entry?.let { previous ->
+				entry = try { previous.mergeReadingSelection(entry) } catch (_: IllegalArgumentException) {
+					blocked(PortableCapturedWifiImportBlockedReason.CORRECTION_CONFLICT)
+				}
+				request = input.copy(entry = entry)
+			}
+			original
+		} else null
 		if (state.retainedFromMs?.let { floor ->
 				lineage.revisions.any { it.entry.crossesWifiRetentionFloor(floor) }
 			} == true
@@ -130,6 +164,8 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 			authenticateGlobalCapacity(dao, NewWifiRows(receipts = 1L))
 			dao.insertReceipt(request.toReceiptEntity(identical.header.importRevision))
 			writeCheckpoint(PortableWifiImportWriteCheckpoint.RECEIPT_INSERTED)
+			selectedMembership?.let { rows -> database.importedRadioFileMembershipDao().insert(
+				rows.map { it.copy(entryImportRevision = identical.header.importRevision) }) }
 			return ImportPortableCapturedWifiResult.Duplicate(identical.header.importRevision)
 		}
 		if (lineage.revisions.any { it.header.contentChecksum == entry.contentChecksum.value }) {
@@ -180,6 +216,11 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 		}
 		dao.insertReceipt(request.toReceiptEntity(revision))
 		writeCheckpoint(PortableWifiImportWriteCheckpoint.RECEIPT_INSERTED)
+		if (selectedMembership != null) {
+			latest?.let { previous -> copyImportedRadioSelectionChildren(database, SourceDestinationOwnerEntity.SOURCE_WIFI,
+				entry.identity.value, previous.header.importRevision, revision) }
+			database.importedRadioFileMembershipDao().insert(selectedMembership.map { it.copy(entryImportRevision = revision) })
+		}
 		return ImportPortableCapturedWifiResult.Applied(
 			importRevision = revision,
 			physicalRunCount = entry.runs.size,
@@ -261,8 +302,11 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 		dao: ImportedWifiDao,
 		entry: PortableCapturedWifiEntryV1,
 		state: SourceEvidenceState,
+		allowMatchingNativeOwners: Boolean,
 	) {
-		val incoming = WifiPortableOpaqueOwnership(entry).allValues
+		val ownership = WifiPortableOpaqueOwnership(entry)
+		val incoming = ownership.allValues
+		val matching = ownership.takeIf { allowMatchingNativeOwners }
 		incoming.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { values ->
 			val limit = Math.toIntExact(limits.maximumGlobalAuthorityRows + 1L)
 			val fences = storedValue {
@@ -282,11 +326,13 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 			checkedAuthorityCount(total, count)
 		}
 		val loadedEntries = pageStrings(dao::localEntryOwnerPage) { localIdentity ->
-			checkLiveIdentity(PortableWifiIdentityKind.LOGICAL_ENTRY, localIdentity, incoming)
+			val opaque = PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.LOGICAL_ENTRY, localIdentity).value
+			if (opaque in incoming && matching?.identityOwners?.get(opaque)?.kind != PortableWifiIdentityKind.LOGICAL_ENTRY)
+				blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 		}
 		if (loadedEntries != entryCount) storedCorrupt()
-		if (pageRuns(dao::localRunOwnerPage, incoming) != runCount) storedCorrupt()
-		if (pageObservations(dao::localObservationOwnerPage, incoming) != observationCount) storedCorrupt()
+		if (pageRuns(dao::localRunOwnerPage, incoming, matching) != runCount) storedCorrupt()
+		if (pageObservations(dao::localObservationOwnerPage, incoming, matching) != observationCount) storedCorrupt()
 		if (pageRuns(dao::localDeletionOwnerPage, incoming) != deletionCount) storedCorrupt()
 	}
 
@@ -314,6 +360,7 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 	private suspend fun pageRuns(
 		loader: suspend (String?, Int) -> List<WifiLocalRunOwner>,
 		incoming: Set<String>,
+		matching: WifiPortableOpaqueOwnership? = null,
 	): Long {
 		var after: String? = null
 		var loaded = 0L
@@ -326,15 +373,14 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 				after?.let { page.first().serviceRunId <= it } == true
 			) storedCorrupt()
 			page.forEach { owner ->
-				checkLiveIdentity(PortableWifiIdentityKind.LOGICAL_ENTRY, owner.logicalTrackingId, incoming)
-				checkLiveIdentity(PortableWifiIdentityKind.PHYSICAL_RUN, owner.serviceRunId, incoming)
+				authenticateNativeTuple(owner.logicalTrackingId, owner.serviceRunId, incoming, matching)
 				val scope = storedValue { SourceDeletionFenceEntity.logicalServiceRunIdentity(
 					SourceDestinationOwnerEntity.SOURCE_WIFI,
 					SessionManifestPurposeCode.SESSION_CAPTURE,
 					owner.logicalTrackingId,
 					owner.serviceRunId,
 				) }
-				if (scope in incoming) blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
+				if (scope in incoming && matching == null) blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 			}
 			loaded = checkedAuthorityCount(loaded, page.size.toLong())
 			after = page.last().serviceRunId
@@ -345,6 +391,7 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 	private suspend fun pageObservations(
 		loader: suspend (String?, Int) -> List<WifiLocalObservationOwner>,
 		incoming: Set<String>,
+		matching: WifiPortableOpaqueOwnership? = null,
 	): Long {
 		var after: String? = null
 		var loaded = 0L
@@ -357,21 +404,49 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 				after?.let { page.first().logicalFactId <= it } == true
 			) storedCorrupt()
 			page.forEach { owner ->
-				checkLiveIdentity(PortableWifiIdentityKind.OBSERVATION, owner.logicalFactId, incoming)
-				checkLiveIdentity(PortableWifiIdentityKind.LOGICAL_ENTRY, owner.logicalTrackingId, incoming)
-				checkLiveIdentity(PortableWifiIdentityKind.PHYSICAL_RUN, owner.serviceRunId, incoming)
+				authenticateNativeTuple(owner.logicalTrackingId, owner.serviceRunId, incoming, matching)
+				val observation = PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.OBSERVATION, owner.logicalFactId).value
+				if (observation in incoming) {
+					val expected = matching?.identityOwners?.get(observation)
+					if (expected?.kind != PortableWifiIdentityKind.OBSERVATION ||
+						expected.entryIdentity != PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.LOGICAL_ENTRY, owner.logicalTrackingId).value ||
+						expected.runIdentity != PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.PHYSICAL_RUN, owner.serviceRunId).value)
+						blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
+				}
 				val scope = storedValue { SourceDeletionFenceEntity.logicalServiceRunIdentity(
 					SourceDestinationOwnerEntity.SOURCE_WIFI,
 					SessionManifestPurposeCode.SESSION_CAPTURE,
 					owner.logicalTrackingId,
 					owner.serviceRunId,
 				) }
-				if (scope in incoming) blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
+				if (scope in incoming && matching == null) blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 			}
 			loaded = checkedAuthorityCount(loaded, page.size.toLong())
 			after = page.last().logicalFactId
 			if (page.size < ImportedWifiDao.OWNER_PAGE_SIZE) return loaded
 		}
+	}
+
+	/** An omitted sibling run is not a collision; a reused reading/run must keep its original owner. */
+	private fun authenticateNativeTuple(logicalId: String, runId: String, incoming: Set<String>,
+		matching: WifiPortableOpaqueOwnership?) {
+		if (matching == null) {
+			checkLiveIdentity(PortableWifiIdentityKind.LOGICAL_ENTRY, logicalId, incoming)
+			checkLiveIdentity(PortableWifiIdentityKind.PHYSICAL_RUN, runId, incoming)
+			return
+		}
+		val entry = PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.LOGICAL_ENTRY, logicalId).value
+		val run = PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.PHYSICAL_RUN, runId).value
+		val scope = SourceDeletionFenceEntity.logicalServiceRunIdentity(SourceDestinationOwnerEntity.SOURCE_WIFI,
+			SessionManifestPurposeCode.SESSION_CAPTURE, logicalId, runId)
+		if (entry in incoming && matching.identityOwners[entry]?.kind != PortableWifiIdentityKind.LOGICAL_ENTRY)
+			blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
+		if (run in incoming && matching.identityOwners[run] !=
+			WifiPortableOpaqueOwner(PortableWifiIdentityKind.PHYSICAL_RUN, entry, run, scope))
+			blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
+		if (scope in incoming && matching.scopeOwners[scope] !=
+			WifiPortableOpaqueOwner(PortableWifiIdentityKind.PHYSICAL_RUN, entry, run, scope))
+			blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 	}
 
 	private fun checkLiveIdentity(kind: PortableWifiIdentityKind, local: String, incoming: Set<String>) {
@@ -432,6 +507,9 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 			ImportedWifiLineageAuthenticator.authenticate(
 				identity = identity,
 				expectedCollectedDataEpoch = epoch,
+				retainedState = checkNotNull(database.sourceEvidenceStateDao().get()).also {
+					check(it.collectedDataEpoch == epoch)
+				},
 				headers = dao.entryRevisionsForAdmission(identity),
 				receipts = dao.receiptsForAdmission(identity),
 				runs = dao.allRunsForAdmission(identity),

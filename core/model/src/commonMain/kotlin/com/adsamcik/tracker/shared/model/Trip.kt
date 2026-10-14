@@ -15,6 +15,9 @@ val sampleCount: Int,
 val source: SegmentSource,
 val createdAt: Long,
 val hasDistanceAnomaly: Boolean = false,
+/** Presentation measurement state; no durable duplicate of Location data. */
+val hasMeasuredDistance: Boolean = true,
+val distanceIsPartial: Boolean = false,
 ) {
 val durationMs: Long get() = endTimeMs - startTimeMs
 val isUserInitiated: Boolean get() = source == SegmentSource.USER_CREATED

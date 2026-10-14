@@ -20,7 +20,11 @@ internal class SessionBundleArchiveWriter {
 		manifest: SessionBundleManifestV1,
 		children: Map<String, File>,
 		output: OutputStream,
-	) {
+	) = withArchive(context, manifest, children) { it.copyTo(output) }
+
+	/** Opens the caller's destination only after the complete ZIP exists in owned staging. */
+	internal suspend fun <T> withArchive(context: Context, manifest: SessionBundleManifestV1,
+		children: Map<String, File>, consume: suspend (FileBackedExportSpool) -> T): T {
 		val caller = currentCoroutineContext()
 		caller.ensureActive()
 		val manifestBytes = SessionBundleManifestCodecV1.encode(manifest)
@@ -36,10 +40,11 @@ internal class SessionBundleArchiveWriter {
 				throw InvalidSessionBundle("Session data changed before it could be saved")
 			declared.path to checksum
 		}
-		FileBackedExportSpool(context, "session-bundle-",
-			SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES,
+		val archiveByteBound = minOf(SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES,
+			manifest.children.sumOf { it.sizeBytes } + manifestBytes.size + (manifest.children.size + 1L) * 1024L + 4096L)
+		val result = FileBackedExportSpool(context, "session-bundle-", archiveByteBound,
 			limits = FileBackedExportSpoolLimits(
-				maximumTotalBytes = SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES,
+				maximumTotalBytes = SessionBundleManifestCodecV1.MAX_ARCHIVE_BYTES * 2L,
 			)).use { spool ->
 			val stage = spool.stage { staged ->
 				ZipOutputStream(staged).use { zip ->
@@ -79,12 +84,13 @@ internal class SessionBundleArchiveWriter {
 				}
 			}
 			when (stage) {
-				is FileBackedExportStage.Complete -> spool.copyTo(output)
+				is FileBackedExportStage.Complete -> consume(spool)
 				FileBackedExportStage.EncodedSizeExceeded ->
 					throw InvalidSessionBundle("Session file exceeds the size limit")
 			}
 		}
 		caller.ensureActive()
+		return result
 	}
 
 	private data class CheckedChild(val sizeBytes: Long, val sha256: String, val crc32: Long)

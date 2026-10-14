@@ -82,6 +82,25 @@ class JsonExporterRoomIntegrationTest {
 	}
 
 	@Test
+	fun `last session interval never widens to an overlapping older recording`() = runTest {
+		val base = 1_725_000_000_000L
+		locationSampleDao.insert(listOf(20_000L, 30_000L, 40_000L).map { offset ->
+			createLocationSample(base + offset, 50.0, 14.0, 200f, 1f, 5f)
+		})
+		sessionSegmentDao.insert(createSessionSegment(base + 10_000L, base + 50_000L, 3, 100f, 0))
+		val output = java.io.ByteArrayOutputStream()
+		val result = JsonExporter(TestDispatchersProvider(StandardTestDispatcher(testScheduler)))
+			.exportSelectedInterval(output, (base + 25_000L)..(base + 35_000L), database) {}
+		result.shouldBeInstanceOf<ExportResult.Success>().recordCount shouldBe 1
+		val array = JSONArray(output.toString(Charsets.UTF_8.name()))
+		val times = (0 until array.length()).flatMap { index ->
+			val points = array.getJSONObject(index).getJSONArray("locations")
+			(0 until points.length()).map { points.getJSONObject(it).getLong("timeMs") }
+		}
+		times shouldBe listOf(base + 30_000L)
+	}
+
+	@Test
 	fun `Room json export keeps location data but omits unqualified session Steps`() = runTest {
 		val dispatcher = StandardTestDispatcher(testScheduler)
 		val exporter = JsonExporter(TestDispatchersProvider(dispatcher))

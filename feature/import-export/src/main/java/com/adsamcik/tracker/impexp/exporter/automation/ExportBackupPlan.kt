@@ -143,6 +143,7 @@ data class ExportBackupPlan(
     val lastCompletedAt: Long = 0L,
     val lastRecordCount: Int = 0,
     val incrementalEnabled: Boolean = true,
+    val databaseScopeReviewRequired: Boolean = false,
 )
 
 /**
@@ -164,14 +165,16 @@ data class ExportBackupPlanDraft(
 }
 
 internal fun ExportBackupPlanProto.toDomain(): ExportBackupPlan {
+    val decodedFormat = ExportFormat.Companion.fromProto(format)
+    val reviewRequired = decodedFormat == ExportFormat.DATABASE && !databaseScopeReviewed
     return ExportBackupPlan(
         id = ExportPlanId(id.takeIf { it != 0L } ?: 0L),
         name = name.ifBlank { "Plan $id" },
-        format = ExportFormat.Companion.fromProto(format),
+        format = decodedFormat,
         cadence = cadence?.toDomain() ?: ExportCadence.AfterSession,
         scope = scope?.toDomain() ?: ExportScope.RollingWindow(ExportScope.WindowUnit.DAY, 1),
         destination = destination?.toDomain() ?: ExportDestination.PrivateStorage(),
-        enabled = enabled,
+        enabled = enabled && !reviewRequired,
         createdAtMillis = createdAtEpochMillis,
         updatedAtMillis = updatedAtEpochMillis,
         lastWatermarkMs = lastExportWatermarkMs,
@@ -179,6 +182,7 @@ internal fun ExportBackupPlanProto.toDomain(): ExportBackupPlan {
         lastCompletedAt = lastExportCompletedAt,
         lastRecordCount = lastExportRecordCount,
         incrementalEnabled = if (hasIncrementalEnabled()) incrementalEnabled else true,
+        databaseScopeReviewRequired = reviewRequired,
     )
 }
 
@@ -201,6 +205,7 @@ internal fun ExportBackupPlan.toProto(): ExportBackupPlanProto {
         .setLastExportCompletedAt(lastCompletedAt)
         .setLastExportRecordCount(lastRecordCount)
         .setIncrementalEnabled(incrementalEnabled)
+        .setDatabaseScopeReviewed(format != ExportFormat.DATABASE || !databaseScopeReviewRequired)
         .build()
 }
 

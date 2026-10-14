@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Pašalinti nebaigtą failą</string>
+    <string name="export_unfinished_retry">Bandyti dar kartą</string>
+    <string name="export_unfinished_files_guidance">Tracker negali pašalinti šio failo. Pašalinkite jį programėlėje Failai arba atkurkite prieigą prie aplanko ir bandykite dar kartą.</string>
+    <string name="export_unfinished_notice_update_failed">Failas pašalintas. Nepavyko atnaujinti pranešimo. Bandykite dar kartą.</string>
+    <string name="export_unfinished_startup_unavailable">Užbaikite duomenų atkūrimą Tracker ir bandykite dar kartą.</string>
+    <string name="export_unfinished_load_failed">Nepavyko įkelti nebaigtų failų.</string>
+    <string name="export_unfinished_notice_save_failed">Nepavyko įsiminti nebaigto failo. Pašalinkite jį programėlėje Failai.</string>
+    <string name="export_unfinished_not_remembered">Nepavyko pašalinti ar įsiminti %s. Pašalinkite jį programėlėje Failai.</string>
+    <string name="export_unfinished_remove_accessibility">Pašalinti nebaigtą failą: %s</string>
+</resources>

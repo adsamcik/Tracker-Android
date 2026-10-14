@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · partial</string>
     <string name="dashboard_title">Dashboard</string>
     <string name="dashboard_tracking_title">Tracking</string>
     <string name="dashboard_recording">Recording</string>

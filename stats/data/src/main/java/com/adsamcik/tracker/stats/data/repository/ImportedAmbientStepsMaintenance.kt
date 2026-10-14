@@ -358,7 +358,7 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 			checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.FENCE_INSERTED)
 			return true
 		}
-		if (existing.collectedDataEpoch != state.collectedDataEpoch ||
+		if (!state.acceptsRetainedEpoch(existing.collectedDataEpoch) ||
 			existing.revokedConsentEpoch > request.expectedRevokedConsentEpoch ||
 			request.deletedAtMs < maxOf(existing.deletedAtMs, existing.reopenedAtMs ?: 0L)
 		) {
@@ -384,7 +384,7 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 	): Boolean {
 		val existing = readSourceFence(dao)
 			?: unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-		if (existing.collectedDataEpoch != state.collectedDataEpoch ||
+		if (!state.acceptsRetainedEpoch(existing.collectedDataEpoch) ||
 			existing.revokedConsentEpoch != revokedConsentEpoch
 		) {
 			unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
@@ -407,7 +407,9 @@ private suspend fun authenticateLineage(
 	dayIdentity: String,
 	state: SourceEvidenceState,
 ): AuthenticatedImportedAmbientStepsLineage = try {
-	dao.loadAuthenticatedAmbientStepsLineage(dayIdentity, state.collectedDataEpoch)
+	// The mutation's requireState guard still requires the fresh current operation epoch.
+	// Authentication reconstructs saved identities, including an explicitly restored lineage.
+	dao.loadAuthenticatedAmbientStepsLineage(dayIdentity, state)
 } catch (failure: ImportedAmbientStepsLineageFailure) {
 	when (failure.reason) {
 		ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW,
@@ -431,7 +433,7 @@ private suspend fun authenticateFenceAuthority(
 	state: SourceEvidenceState,
 ) {
 	try {
-		dao.authenticateAllAmbientStepsFences(state.collectedDataEpoch)
+		dao.authenticateAllAmbientStepsFences(state)
 	} catch (failure: ImportedAmbientStepsLineageFailure) {
 		when (failure.reason) {
 			ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW,
@@ -457,7 +459,7 @@ private suspend fun sourceDeletionActive(
 	state: SourceEvidenceState,
 ): Boolean {
 	val fence = readSourceFence(dao) ?: return false
-	if (fence.collectedDataEpoch != state.collectedDataEpoch) {
+	if (!state.acceptsRetainedEpoch(fence.collectedDataEpoch)) {
 	unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 	}
 	val authority = database.sourcePolicyDao().authority()

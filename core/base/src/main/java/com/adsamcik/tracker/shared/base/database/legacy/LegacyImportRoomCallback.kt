@@ -14,11 +14,13 @@ class LegacyImportRoomCallback(
 	publicMigrations: Array<Migration>,
 	normalizerOpenHelperFactory: SupportSQLiteOpenHelper.Factory =
 		SQLiteXSupportSQLiteOpenHelperFactory(),
+	sourceFileOverride: java.io.File? = null,
 ) : RoomDatabase.Callback() {
 	private val importer = LegacyV26Importer(
 		context.applicationContext,
 		publicMigrations,
 		normalizerOpenHelperFactory,
+		sourceFileOverride,
 	)
 
 	override fun onCreate(db: SupportSQLiteDatabase) {

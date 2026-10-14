@@ -10,6 +10,10 @@ package com.adsamcik.tracker.stats.api.repository
 interface PressureSessionDeletion {
 	/** Applies a permanent Pressure deletion for the exact selected presentation row. */
 	suspend fun deleteSelectedSession(sessionSegmentId: Long): PressureSessionDeletionResult
+
+	/** Current user selection epoch is rechecked inside the existing mutation transaction. */
+	suspend fun deleteSelectedSession(sessionSegmentId: Long, expectedCollectedDataEpoch: Long): PressureSessionDeletionResult =
+		PressureSessionDeletionResult.UnsupportedScope(PressureSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
 }
 
 /** Typed outcome for a user-selected Pressure session deletion request. */

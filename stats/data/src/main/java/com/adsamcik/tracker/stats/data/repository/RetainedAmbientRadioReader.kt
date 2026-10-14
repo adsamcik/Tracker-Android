@@ -17,7 +17,7 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
         if (rows.size > limit) return unavailable(RadioContextReadGapReason.DEPENDENCY_LIMIT)
         val state = database.sourceEvidenceStateDao().get() ?: return unavailable(RadioContextReadGapReason.SOURCE_AUTHORITY_UNAVAILABLE)
         val candidates = rows.filter { row ->
-            if (row.fact.collectedDataEpoch != state.collectedDataEpoch ||
+            if (!state.acceptsRetainedEpoch(row.fact.collectedDataEpoch) ||
                 row.fact.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal) {
                 gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
                 false
@@ -78,7 +78,7 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
                     aggregate.measuredStartTimeMs()?.let { it < floor } != false } } == true ||
                 dependencies.any { revision -> revision.logicalFactId in erased ||
                     marker?.let { revision.ambientConsentEpoch <= it.throughConsentEpoch } == true ||
-                    revision.collectedDataEpoch != state.collectedDataEpoch ||
+                    !state.acceptsRetainedEpoch(revision.collectedDataEpoch) ||
                     revision.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal }) {
                 gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
                 continue
@@ -111,7 +111,7 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
         if (rows.size > limit) return unavailable(RadioContextReadGapReason.DEPENDENCY_LIMIT)
         val state = database.sourceEvidenceStateDao().get() ?: return unavailable(RadioContextReadGapReason.SOURCE_AUTHORITY_UNAVAILABLE)
         val candidates = rows.filter { row ->
-            if (row.fact.collectedDataEpoch != state.collectedDataEpoch ||
+            if (!state.acceptsRetainedEpoch(row.fact.collectedDataEpoch) ||
                 row.fact.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal) {
                 gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
                 false
@@ -171,7 +171,7 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
                     aggregate.measuredStartTimeMs()?.let { it < floor } != false } } == true ||
                 dependencies.any { revision -> revision.logicalFactId in erased ||
                     marker?.let { revision.ambientConsentEpoch <= it.throughConsentEpoch } == true ||
-                    revision.collectedDataEpoch != state.collectedDataEpoch ||
+                    !state.acceptsRetainedEpoch(revision.collectedDataEpoch) ||
                     revision.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal }) {
                 gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
                 continue
@@ -225,7 +225,7 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
         val erased = footprints.filter { it.footprintKind == AmbientWifiReplayFootprintEntity.KIND_LOCAL_GAP }.map { it.identityDigest }.toSet()
         val gaps = mutableSetOf<RadioContextReadGapReason>()
         val qualified = rows.filter { row ->
-            if (row.collectedDataEpoch != state.collectedDataEpoch || row.gapId in erased ||
+            if (!state.acceptsRetainedEpoch(row.collectedDataEpoch) || row.gapId in erased ||
                 marker?.let { row.ambientConsentEpoch <= it.throughConsentEpoch } == true ||
                 state.retainedFromMs?.let { row.gapStartTimeMs < it } == true) {
                 gaps += RadioContextReadGapReason.RETENTION_BOUNDARY
@@ -275,7 +275,7 @@ internal class RetainedAmbientRadioReader(private val database: AppDatabase,
         val erased = footprints.filter { it.footprintKind == AmbientCellReplayFootprintEntity.KIND_LOCAL_GAP }.map { it.identityDigest }.toSet()
         val gaps = mutableSetOf<RadioContextReadGapReason>()
         val qualified = rows.filter { row ->
-            if (row.collectedDataEpoch != state.collectedDataEpoch || row.gapId in erased ||
+            if (!state.acceptsRetainedEpoch(row.collectedDataEpoch) || row.gapId in erased ||
                 marker?.let { row.ambientConsentEpoch <= it.throughConsentEpoch } == true ||
                 state.retainedFromMs?.let { row.gapStartTimeMs < it } == true) {
                 gaps += RadioContextReadGapReason.RETENTION_BOUNDARY

@@ -71,8 +71,9 @@ class RoomImportPortableCapturedCell internal constructor(
 
 	@Suppress("LongMethod")
 	private suspend fun importInTransaction(
-		request: ImportPortableCapturedCellRequest,
+		input: ImportPortableCapturedCellRequest,
 	): ImportPortableCapturedCellResult {
+		var request = input
 		writeCheckpoint(PortableCellImportWriteCheckpoint.TRANSACTION_STARTED)
 		val dao = database.importedCellDao()
 		val state = storedValue { database.sourceEvidenceStateDao().get() }
@@ -81,7 +82,7 @@ class RoomImportPortableCapturedCell internal constructor(
 		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch) {
 			blocked(PortableCellImportBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
 		}
-		val entry = request.entry
+		var entry = request.entry
 		authenticateRetention(entry, state.retainedFromMs)
 
 		val entryDeletion = storedValue { dao.entryDeletion(entry.identity.value) }
@@ -110,6 +111,36 @@ class RoomImportPortableCapturedCell internal constructor(
 		authenticateLiveOwnership(dao, candidateIdentity, state)
 
 		val lineage = authenticateStoredLineage(dao, entry.identity.value, state.collectedDataEpoch)
+		val lineageEpoch = lineage.revisions.lastOrNull()?.header?.collectedDataEpoch
+			?: state.collectedDataEpoch
+		val selectedMembership = if (input.mergeSelectedReadings) {
+			val saved = database.importedRadioFileMembershipDao().members(SourceDestinationOwnerEntity.SOURCE_CELL,
+				input.receipt.jobId, input.receipt.entryKey, CellCapturedPortableFormatV1.MAX_OBSERVATIONS_PER_ENTRY +
+					CellCapturedPortableFormatV1.MAX_RUNS_PER_ENTRY + 2)
+			val members = input.entry.runs.flatMap { run ->
+				run.observations.map { RadioSelectedFileMember("OBSERVATION", it.identity.value, it.semanticRevision, it.contentChecksum.value) } +
+					listOfNotNull(RadioSelectedFileMember("GAP", run.identity.value, 1L, run.contentChecksum.value).takeIf { run.retentionLoss })
+			}
+			val original = radioFileMembership(SourceDestinationOwnerEntity.SOURCE_CELL, input.receipt.jobId,
+				input.receipt.entryKey, input.entry.identity.value, input.entry.contentChecksum.value,
+				saved.firstOrNull()?.entryImportRevision ?: 1L, lineageEpoch, members)
+			if (saved.isNotEmpty()) {
+				if (saved != original) blocked(PortableCellImportBlockedReason.RECEIPT_CONFLICT)
+				val receipt = dao.receipt(input.receipt.jobId, input.receipt.entryKey) ?: storedCorrupt()
+				val revision = lineage.revisions.singleOrNull { it.header.importRevision == receipt.entryImportRevision } ?: storedCorrupt()
+				if (receipt.entryImportRevision != saved.first().entryImportRevision ||
+					receipt.entryContentChecksum != revision.entry.contentChecksum.value ||
+					receipt.importSourceName != input.receipt.sourceName || receipt.receivedAtMs != input.receipt.receivedAtMs) storedCorrupt()
+				return ImportPortableCapturedCellResult.Duplicate(receipt.entryImportRevision)
+			}
+			lineage.revisions.lastOrNull()?.entry?.let { previous ->
+				entry = try { previous.mergeReadingSelection(entry) } catch (_: IllegalArgumentException) {
+					blocked(PortableCellImportBlockedReason.CORRECTION_CONFLICT)
+				}
+				request = input.copy(entry = entry)
+			}
+			original
+		} else null
 		lineage.revisions.forEach { authenticateRetention(it.entry, state.retainedFromMs) }
 		val retainedRunIds = lineage.revisions.flatMap { revision ->
 			revision.entry.runs.map { it.identity.value }
@@ -122,7 +153,7 @@ class RoomImportPortableCapturedCell internal constructor(
 				)
 			}
 			if (retainedMarkers.size > retainedRunIds.size || retainedMarkers.any {
-				it.collectedDataEpoch != state.collectedDataEpoch
+				!state.acceptsRetainedEpoch(it.collectedDataEpoch)
 			}) storedCorrupt()
 			if (retainedMarkers.isNotEmpty()) blocked(PortableCellImportBlockedReason.DELETED_RUN)
 		}
@@ -135,8 +166,10 @@ class RoomImportPortableCapturedCell internal constructor(
 
 		val identical = lineage.revisions.singleOrNull { it.entry == entry }
 		if (identical != null) {
-			dao.insertReceipt(request.toReceiptEntity(identical.header.importRevision))
+			dao.insertReceipt(request.toReceiptEntity(identical.header.importRevision, identical.header.collectedDataEpoch))
 			writeCheckpoint(PortableCellImportWriteCheckpoint.RECEIPT_INSERTED)
+			selectedMembership?.let { rows -> database.importedRadioFileMembershipDao().insert(
+				rows.map { it.copy(entryImportRevision = identical.header.importRevision) }) }
 			return ImportPortableCapturedCellResult.Duplicate(identical.header.importRevision)
 		}
 		if (lineage.revisions.any { it.header.contentChecksum == entry.contentChecksum.value }) {
@@ -154,8 +187,8 @@ class RoomImportPortableCapturedCell internal constructor(
 		} catch (_: ArithmeticException) {
 			unverifiable(PortableCellImportUnverifiableReason.REVISION_OVERFLOW)
 		}
-		val epoch = request.expectedCollectedDataEpoch
-		dao.insertEntryRevision(entry.toEntity(request, revision))
+		val epoch = lineageEpoch
+		dao.insertEntryRevision(entry.toEntity(request, revision, epoch))
 		writeCheckpoint(PortableCellImportWriteCheckpoint.ENTRY_INSERTED)
 		entry.runs.forEach { run ->
 			dao.insertRun(run.toEntity(entry.identity.value, revision, epoch))
@@ -167,8 +200,13 @@ class RoomImportPortableCapturedCell internal constructor(
 				writeCheckpoint(PortableCellImportWriteCheckpoint.OBSERVATION_INSERTED)
 			}
 		}
-		dao.insertReceipt(request.toReceiptEntity(revision))
+		dao.insertReceipt(request.toReceiptEntity(revision, epoch))
 		writeCheckpoint(PortableCellImportWriteCheckpoint.RECEIPT_INSERTED)
+		if (selectedMembership != null) {
+			lineage.revisions.lastOrNull()?.let { previous -> copyImportedRadioSelectionChildren(database,
+				SourceDestinationOwnerEntity.SOURCE_CELL, entry.identity.value, previous.header.importRevision, revision) }
+			database.importedRadioFileMembershipDao().insert(selectedMembership.map { it.copy(entryImportRevision = revision) })
+		}
 		return ImportPortableCapturedCellResult.Applied(
 			importRevision = revision,
 			physicalRunCount = entry.runs.size,
@@ -182,15 +220,15 @@ class RoomImportPortableCapturedCell internal constructor(
 		lineage: AuthenticatedImportedCellLineage,
 	): ImportPortableCapturedCellResult {
 		val receipt = request.receipt
-		if (stored.importJobId != receipt.jobId || stored.importEntryKey != receipt.entryKey ||
-			stored.importSourceName != receipt.sourceName || stored.receivedAtMs != receipt.receivedAtMs ||
-			stored.collectedDataEpoch != request.expectedCollectedDataEpoch ||
-			stored.entryIdentity != request.entry.identity.value ||
-			stored.entryContentChecksum != request.entry.contentChecksum.value
-		) blocked(PortableCellImportBlockedReason.RECEIPT_CONFLICT)
 		val revision = lineage.revisions.singleOrNull {
 			it.header.importRevision == stored.entryImportRevision
 		} ?: storedCorrupt()
+		if (stored.importJobId != receipt.jobId || stored.importEntryKey != receipt.entryKey ||
+			stored.importSourceName != receipt.sourceName || stored.receivedAtMs != receipt.receivedAtMs ||
+			stored.collectedDataEpoch != revision.header.collectedDataEpoch ||
+			stored.entryIdentity != request.entry.identity.value ||
+			stored.entryContentChecksum != request.entry.contentChecksum.value
+		) blocked(PortableCellImportBlockedReason.RECEIPT_CONFLICT)
 		if (revision.entry != request.entry) storedCorrupt()
 		return ImportPortableCapturedCellResult.Duplicate(stored.entryImportRevision)
 	}
@@ -205,7 +243,7 @@ class RoomImportPortableCapturedCell internal constructor(
 			val rows = storedValue { dao.sourceFenceOwners(values, boundedLimit(values.size)) }
 			if (rows.size > values.size) dependencyOverflow()
 			rows.forEach { fence ->
-				if (fence.collectedDataEpoch != state.collectedDataEpoch) storedCorrupt()
+				if (!state.acceptsRetainedEpoch(fence.collectedDataEpoch)) storedCorrupt()
 				val expectedRun = graph.scopeOwners[fence.scopeIdentityDigest]
 				val exactCellScope = expectedRun != null &&
 					fence.sourceKind == SourceDestinationOwnerEntity.SOURCE_CELL &&
@@ -229,7 +267,7 @@ class RoomImportPortableCapturedCell internal constructor(
 		}
 		if (generations.size > ImportedCellDao.MAX_LIVE_OWNER_ROWS) dependencyOverflow()
 		val relevantGenerations = generations.filter { generation ->
-			if (generation.collectedDataEpoch != state.collectedDataEpoch ||
+			if (!state.acceptsRetainedEpoch(generation.collectedDataEpoch) ||
 				generation.logicalTrackingId.isBlank() || generation.serviceRunId.isBlank() ||
 				generation.generation <= 0L
 			) storedCorrupt()
@@ -263,7 +301,9 @@ class RoomImportPortableCapturedCell internal constructor(
 		if (fenceByScope.size != fences.size) storedCorrupt()
 		if (fenceByScope.keys != generationByScope.keys) storedCorrupt()
 		fenceByScope.forEach { (scope, fence) ->
-			if (generationByScope.getValue(scope).generation != fence.fenceGeneration) storedCorrupt()
+			val generation = generationByScope.getValue(scope)
+			if (generation.generation != fence.fenceGeneration ||
+				generation.collectedDataEpoch != fence.collectedDataEpoch) storedCorrupt()
 		}
 		if (fenceByScope.isNotEmpty()) blocked(PortableCellImportBlockedReason.DELETED_SCOPE)
 	}
@@ -290,9 +330,9 @@ class RoomImportPortableCapturedCell internal constructor(
 					entryDeletions.size, runDeletions.size, deletionReceipts.size).any { it >= limit } ||
 				deletedIdentities.size > graph.allProtectedValues.size
 			) dependencyOverflow()
-			if (entryDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				runDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				deletionReceipts.any { it.collectedDataEpoch != state.collectedDataEpoch }
+			if (entryDeletions.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) } ||
+				runDeletions.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) } ||
+				deletionReceipts.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) }
 			) storedCorrupt()
 			if (entries.any { graph.kinds[it] != PortableCellIdentityKind.LOGICAL_ENTRY } ||
 				runs.any { owner ->
@@ -453,13 +493,13 @@ class RoomImportPortableCapturedCell internal constructor(
 		runIdentity: String,
 		scope: String,
 	) {
-		listOf(entryIdentity, runIdentity, scope).forEach { candidate ->
-			if (candidate !in graph.allProtectedValues) return@forEach
-			val exact = graph.kinds[entryIdentity] == PortableCellIdentityKind.LOGICAL_ENTRY &&
-				graph.runOwners[runIdentity] == (entryIdentity to scope) &&
-				graph.scopeOwners[scope] == (entryIdentity to runIdentity)
-			if (!exact) blocked(PortableCellImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
-		}
+		// A selected file may omit other native runs under the same session identity.
+		if (entryIdentity in graph.allProtectedValues && graph.kinds[entryIdentity] != PortableCellIdentityKind.LOGICAL_ENTRY)
+			blocked(PortableCellImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
+		if (runIdentity in graph.allProtectedValues && graph.runOwners[runIdentity] != (entryIdentity to scope))
+			blocked(PortableCellImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
+		if (scope in graph.allProtectedValues && graph.scopeOwners[scope] != (entryIdentity to runIdentity))
+			blocked(PortableCellImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 	}
 
 	private suspend fun authenticateStoredLineage(
@@ -471,6 +511,9 @@ class RoomImportPortableCapturedCell internal constructor(
 			ImportedCellLineageAuthenticator.authenticate(
 				identity = identity,
 				expectedCollectedDataEpoch = epoch,
+				retainedState = checkNotNull(database.sourceEvidenceStateDao().get()).also {
+					check(it.collectedDataEpoch == epoch)
+				},
 				headers = dao.boundedEntryRevisions(identity),
 				receipts = dao.receiptsForAdmission(identity),
 				runs = dao.allRunsForAdmission(identity),
@@ -641,6 +684,7 @@ private fun ImportedCellDeletedIdentityEntity.matches(
 private fun PortableCapturedCellEntryV1.toEntity(
 	request: ImportPortableCapturedCellRequest,
 	revision: Long,
+	epoch: Long,
 ) = ImportedCellEntryRevisionEntity(
 	identity = identity.value,
 	importRevision = revision,
@@ -652,7 +696,7 @@ private fun PortableCapturedCellEntryV1.toEntity(
 	startTimeMs = startTimeMs,
 	endTimeMs = endTimeMs,
 	subscriptionGrouping = subscriptionGrouping.name,
-	collectedDataEpoch = request.expectedCollectedDataEpoch,
+	collectedDataEpoch = epoch,
 	importJobId = request.receipt.jobId,
 	importEntryKey = request.receipt.entryKey,
 	importSourceName = request.receipt.sourceName,
@@ -731,7 +775,7 @@ private fun PortableCapturedCellObservationV1.toEntity(
 	qualityConfidence = qualityConfidence,
 )
 
-private fun ImportPortableCapturedCellRequest.toReceiptEntity(revision: Long) =
+private fun ImportPortableCapturedCellRequest.toReceiptEntity(revision: Long, epoch: Long) =
 	ImportedCellReceiptEntity(
 		importJobId = receipt.jobId,
 		importEntryKey = receipt.entryKey,
@@ -740,5 +784,5 @@ private fun ImportPortableCapturedCellRequest.toReceiptEntity(revision: Long) =
 		entryIdentity = entry.identity.value,
 		entryImportRevision = revision,
 		entryContentChecksum = entry.contentChecksum.value,
-		collectedDataEpoch = expectedCollectedDataEpoch,
+		collectedDataEpoch = epoch,
 	)

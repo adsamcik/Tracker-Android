@@ -9,10 +9,16 @@ data class HistoryRange(
     val origins: Set<HistoryOrigin> = HistoryOrigin.entries.toSet(),
     val purposes: Set<HistoryPurpose> = HistoryPurpose.entries.toSet(),
     val mode: HistoryBrowseMode = HistoryBrowseMode.RECORDINGS,
+    /** Optional session grouping over the same saved measurements; never a capture authority. */
+    val organizationSessionId: OrganizationSessionId? = null,
+    /** Prevent a stale selected session from reading a reused local identity after Clear/restore. */
+    val expectedCollectedDataEpoch: Long? = null,
 ) {
     init {
         require(fromInclusiveMs >= 0 && fromInclusiveMs < toExclusiveMs)
         require(viewZoneId.isNotBlank() && viewZoneId.length <= 128)
+        require(organizationSessionId == null || mode == HistoryBrowseMode.OBSERVATIONS)
+        require(expectedCollectedDataEpoch == null || expectedCollectedDataEpoch >= 0L)
     }
 }
 

@@ -227,6 +227,7 @@ object InfrastructureModule {
         dispatchersProvider: DispatchersProvider,
         traceboxHandleProvider: TrackerTraceboxHandleProvider,
 		trackingDiagnosticDataControl: TrackingDiagnosticDataControl,
+		dataBackupRestore: Provider<com.adsamcik.tracker.impexp.backup.DataBackupRestore>,
     ): CollectedDataDeletionService = DefaultCollectedDataDeletionService(
         context = context,
         pointsAwardedDao = pointsDatabase.pointsAwardedDao(),
@@ -257,6 +258,7 @@ object InfrastructureModule {
 		trackingDiagnosticDataDeletion = {
 			trackingDiagnosticDataControl.clearAll() == TrackingDiagnosticClearResult.CLEARED
 		},
+		cancelDataRestore = { dataBackupRestore.get().cancelAndClearOwnedData() },
     )
 
     // DAO Providers - enable direct DAO injection without going through AppDatabase.

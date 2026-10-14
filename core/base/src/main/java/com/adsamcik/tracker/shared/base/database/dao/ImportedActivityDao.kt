@@ -39,7 +39,13 @@ abstract class ImportedActivityDao {
 	abstract suspend fun insertWindow(value: ImportedActivityWindowEntity)
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertWindows(values: List<ImportedActivityWindowEntity>)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertFragment(value: ImportedActivityFragmentEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertFragments(values: List<ImportedActivityFragmentEntity>)
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryDeletion(value: ImportedActivityEntryDeletionEntity)

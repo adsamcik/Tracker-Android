@@ -97,6 +97,7 @@ fun TripRouteMapPreview(
 	val prefs = remember { Preferences(context) }
 	val customPath by prefs.observeString(MapPreferenceKeys.BASEMAP_PATH, "")
 		.collectAsState(initial = "")
+	val importedFilesRevision by com.adsamcik.tracker.shared.base.data.ImportedDataFilesRevision.revisions.collectAsState()
 	var basemapPath by remember { mutableStateOf<String?>(null) }
 	var mapReady by remember { mutableStateOf(false) }
 	var preparingBasemap by remember { mutableStateOf(true) }
@@ -119,7 +120,8 @@ fun TripRouteMapPreview(
 		}
 	}
 
-	val baseStyle = remember(customPath, isDark, basemapPath) {
+	val baseStyle by androidx.compose.runtime.produceState<BaseStyle?>(null, customPath, isDark, basemapPath, importedFilesRevision) {
+		value = kotlinx.coroutines.withContext(com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider.io) {
 		when {
 			customPath.isNotBlank() -> {
 				MapStyleProvider.customStyleJson(customPath, isDark)?.let { BaseStyle.Json(it) }
@@ -129,6 +131,7 @@ fun TripRouteMapPreview(
 				BaseStyle.Json(MapStyleProvider.defaultStyleJson(requireNotNull(basemapPath), isDark))
 			}
 			else -> null
+		}
 		}
 	}
 
@@ -212,6 +215,7 @@ fun TripRouteMapPreview(
 			)
 		) {
 			TripPreviewContentState.Map -> {
+				androidx.compose.runtime.key(importedFilesRevision) {
 				MaplibreMap(
 					modifier = Modifier.fillMaxSize(),
 					baseStyle = requireNotNull(baseStyle),
@@ -233,6 +237,7 @@ fun TripRouteMapPreview(
 				) {
 					RouteLineLayer(routeCoords)
 					RouteEndpointLayers(routeCoords)
+				}
 				}
 			}
 			TripPreviewContentState.Loading -> {

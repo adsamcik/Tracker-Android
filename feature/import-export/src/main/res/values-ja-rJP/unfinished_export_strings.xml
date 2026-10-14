@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">未完了のファイルを削除</string>
+    <string name="export_unfinished_retry">再試行</string>
+    <string name="export_unfinished_files_guidance">Trackerはこのファイルを削除できません。ファイルアプリで削除するか、フォルダへのアクセスを復元して再試行してください。</string>
+    <string name="export_unfinished_notice_update_failed">ファイルを削除しました。この通知を更新できませんでした。再試行してください。</string>
+    <string name="export_unfinished_startup_unavailable">Trackerでデータの復元を完了してから再試行してください。</string>
+    <string name="export_unfinished_load_failed">未完了のファイルを読み込めませんでした。</string>
+    <string name="export_unfinished_notice_save_failed">未完了のファイルを記録できませんでした。ファイルアプリで削除してください。</string>
+    <string name="export_unfinished_not_remembered">%sを削除または記録できませんでした。ファイルアプリで削除してください。</string>
+    <string name="export_unfinished_remove_accessibility">未完了のファイルを削除: %s</string>
+</resources>

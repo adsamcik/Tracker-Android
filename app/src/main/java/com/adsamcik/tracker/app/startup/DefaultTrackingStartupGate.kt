@@ -311,6 +311,7 @@ class DefaultTrackingStartupGate @Inject constructor(
 	private val inactiveSessionStopHandler: InactiveTrackingSessionStopHandler,
 	private val sourcePipelineRecoveryProvider: Provider<SourcePipelineRecovery>,
 	private val deletionBarrier: TrackingStartupDeletionBarrier,
+	private val dataBackupRestore: Provider<com.adsamcik.tracker.impexp.backup.DataBackupRestore>? = null,
 ) : TrackingStartupGate {
 	private val flightMonitor = Any()
 	private var activeFlight: StartupFlight? = null
@@ -518,6 +519,9 @@ class DefaultTrackingStartupGate @Inject constructor(
 						TrackingStartupStage.STORAGE,
 						deletion.failure.failureCode,
 					)
+			}
+			if (dataBackupRestore?.get()?.reconcilePendingRestore() == false) {
+				return TrackingStartupResult.RetryableFailure(TrackingStartupStage.STORAGE, "DATA_RESTORE_INCOMPLETE")
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled

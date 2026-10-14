@@ -84,6 +84,7 @@ class DataSettingsViewModelTest {
     private val retentionAuthorityProducer: RetentionAuthorityProducer = mockk()
     private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler = mockk()
     private val exportGate = ExportGate()
+    private val dataBackupRestore = mockk<com.adsamcik.tracker.impexp.backup.DataBackupRestore>()
     private var configurationGeneration = 0L
     private lateinit var stagedPolicy: ApprovedRetentionPolicy
 
@@ -168,6 +169,7 @@ class DataSettingsViewModelTest {
         dispatchers = TestDispatchersProvider(testDispatcher),
         deletionService = deletionService,
         startupGate = exportGate,
+        dataBackupRestore = dataBackupRestore,
         retentionAuthorityProducer = retentionAuthorityProducer,
         purposeSettingsReconciler = purposeSettingsReconciler,
     )
@@ -175,6 +177,53 @@ class DataSettingsViewModelTest {
     // =========================================================================
     // Initial state
     // =========================================================================
+
+    @Test
+    fun `backup inspection waits for explicit confirmation before replacing data`() = runTest(testDispatcher) {
+        val uri = Uri.parse("content://files/data.zip")
+        val preview = com.adsamcik.tracker.impexp.backup.DataBackupPreview("owned-token", 0L)
+        coEvery { dataBackupRestore.inspect(uri) } returns
+            com.adsamcik.tracker.impexp.backup.DataBackupInspection.Ready(preview)
+        coEvery { dataBackupRestore.restore(preview) } returns
+            com.adsamcik.tracker.impexp.backup.DataBackupRestoreResult.Restored
+        val vm = createViewModel()
+        vm.requestFileImport(uri)
+        vm.fileImportState.value.backupChoice shouldBe preview
+        coVerify(exactly = 0) { dataBackupRestore.restore(any()) }
+        vm.restoreConfirmedBackup()
+        coVerify(exactly = 1) { dataBackupRestore.restore(preview) }
+        vm.fileImportState.value shouldBe FileImportUiState()
+    }
+
+    @Test
+    fun `canceling backup confirmation removes its staged copy without restoring`() = runTest(testDispatcher) {
+        val uri = Uri.parse("content://files/canceled.zip")
+        val preview = com.adsamcik.tracker.impexp.backup.DataBackupPreview("canceled-token", 0L)
+        coEvery { dataBackupRestore.inspect(uri) } returns
+            com.adsamcik.tracker.impexp.backup.DataBackupInspection.Ready(preview)
+        coEvery { dataBackupRestore.discardPreview(preview.token) } just Runs
+        val vm = createViewModel()
+        vm.requestFileImport(uri)
+        vm.dismissFileImport()
+        coVerify(exactly = 1) { dataBackupRestore.discardPreview(preview.token) }
+        coVerify(exactly = 0) { dataBackupRestore.restore(any()) }
+        vm.fileImportState.value shouldBe FileImportUiState()
+    }
+
+    @Test
+    fun `canceling backup confirmation reports cleanup failure without restoring`() = runTest(testDispatcher) {
+        val uri = Uri.parse("content://files/canceled.zip")
+        val preview = com.adsamcik.tracker.impexp.backup.DataBackupPreview("failed-cleanup-token", 0L)
+        coEvery { dataBackupRestore.inspect(uri) } returns
+            com.adsamcik.tracker.impexp.backup.DataBackupInspection.Ready(preview)
+        coEvery { dataBackupRestore.discardPreview(preview.token) } throws java.io.IOException("Storage unavailable")
+        val vm = createViewModel()
+        vm.requestFileImport(uri)
+        vm.dismissFileImport()
+        coVerify(exactly = 1) { dataBackupRestore.discardPreview(preview.token) }
+        coVerify(exactly = 0) { dataBackupRestore.restore(any()) }
+        vm.fileImportState.value shouldBe FileImportUiState(error = true)
+    }
 
     @Nested
     @DisplayName("Initial state")

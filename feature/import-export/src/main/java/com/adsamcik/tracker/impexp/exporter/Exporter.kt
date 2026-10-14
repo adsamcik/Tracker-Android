@@ -86,3 +86,9 @@ internal interface CursorAwareExporter : Exporter {
 		verifyCollectedDataAccess: () -> Unit = {},
 	): ExportResult
 }
+
+/** Same source file, optionally including the rest of sessions with selected measurements. */
+internal interface RadioSourceExporter : Exporter {
+	suspend fun exportWithSessionSelection(context: Context, outputStream: OutputStream,
+		dateRange: LongRange?, includeSessionsAcrossDates: Boolean): ExportResult
+}

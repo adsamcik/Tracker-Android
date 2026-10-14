@@ -46,6 +46,7 @@ class PlayerProgressionRepositoryTest {
 	fun setUp() {
 		val context = ApplicationProvider.getApplicationContext<Application>()
 		database = AppDatabase.testDatabase(context)
+		kotlinx.coroutines.runBlocking { database.sourceEvidenceStateDao().ensure() }
 	}
 
 	@After
@@ -220,7 +221,85 @@ class PlayerProgressionRepositoryTest {
 		dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
 		metricDirtyTracker = dirtyTracker,
 		trackingStartupGate = gate,
+		trackingHistory = io.mockk.mockk<com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository> {
+			// Reward economy fixture; source qualification is separately covered by real stats-data Room reads.
+			io.mockk.coEvery { readSavedSessionReward(any()) } coAnswers {
+				val id = firstArg<Long>()
+				val segment = database.sessionSegmentDao().getById(id)
+				if (segment == null) com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Removed(0, 2)
+				else com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
+					com.adsamcik.tracker.stats.api.repository.SavedSessionReward(id, 0, 1,
+						segment.endTimeMs, segment.endTimeMs - segment.startTimeMs, segment.distanceM.toDouble()))
+			}
+		},
 	)
+
+	@Test fun `saved correction and deletion retract session XP and level with one durable receipt`() = runTest {
+		val gate = TestTrackingStartupGate()
+		val dirty = RecordingMetricDirtyTracker()
+		val id = insertSegment(1_000, 601_000, 999_999f, 1_000_000)
+		var current: com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead =
+			com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
+				com.adsamcik.tracker.stats.api.repository.SavedSessionReward(id, 0, 1, 601_000, 600_000, 1_000.0))
+		val history = io.mockk.mockk<com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository> {
+			io.mockk.coEvery { readSavedSessionReward(id) } coAnswers { current }
+		}
+		val repo = PlayerProgressionRepository(database, TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+			dirty, gate, history)
+		repo.awardSessionXp(sessionEnded(id), gate.currentGeneration)
+		assertEquals(52L, database.xpLedgerDao().getTotalXp())
+		current = com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
+			com.adsamcik.tracker.stats.api.repository.SavedSessionReward(id, 0, 2, 601_000, 600_000, 100.0))
+		repo.awardSessionXp(sessionEnded(id), gate.currentGeneration)
+		assertEquals(7L, database.xpLedgerDao().getTotalXp())
+		assertEquals(7L, database.playerProfileDao().get()?.totalXp)
+		current = com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Removed(0, 3)
+		repo.reconcileSessionRewards(gate.currentGeneration)
+		assertEquals(0L, database.xpLedgerDao().getTotalXp())
+		assertEquals(0L, database.playerProfileDao().get()?.totalXp)
+		val receipt = requireNotNull(database.xpLedgerDao().sessionEffect(id))
+		assertEquals(3L, receipt.sourceRevision)
+		current = com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
+			com.adsamcik.tracker.stats.api.repository.SavedSessionReward(id, 0, 1, 601_000, 600_000, 1_000.0))
+		repo.awardSessionXp(sessionEnded(id), gate.currentGeneration)
+		assertEquals(receipt, database.xpLedgerDao().sessionEffect(id))
+		assertEquals(0L, database.xpLedgerDao().getTotalXp())
+	}
+
+	@Test fun `restored session XP keeps one original receipt when its current data changes or is removed`() = runTest {
+        val gate = TestTrackingStartupGate()
+        val dirty = RecordingMetricDirtyTracker()
+        val id = insertSegment(1_000, 601_000, 0f, 0)
+        var current: com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead =
+            com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
+                com.adsamcik.tracker.stats.api.repository.SavedSessionReward(id, 0, 1, 601_000, 600_000, 1_000.0))
+        val history = io.mockk.mockk<com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository> {
+            io.mockk.coEvery { readSavedSessionReward(id) } coAnswers { current }
+        }
+        val repo = PlayerProgressionRepository(database, TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+            dirty, gate, history)
+        repo.awardSessionXp(sessionEnded(id), gate.currentGeneration)
+        assertEquals(52L, database.xpLedgerDao().getTotalXp())
+        database.openHelper.writableDatabase.execSQL("UPDATE source_evidence_state SET collected_data_epoch = 7, " +
+            "restored_data_epochs = '0', revision = 100 WHERE id = 1")
+        current = com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
+            com.adsamcik.tracker.stats.api.repository.SavedSessionReward(id, 0, 102, 601_000, 600_000, 100.0))
+        repo.reconcileSessionRewards(gate.currentGeneration)
+        assertEquals(7L, database.xpLedgerDao().getTotalXp())
+        assertEquals("recording:0:$id", database.xpLedgerDao().sessionEffect(id)?.sourceKey)
+        assertEquals(1, database.xpLedgerDao().sessionEffectPage(0, 10).size)
+        current = com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Removed(7, 103)
+        repo.reconcileSessionRewards(gate.currentGeneration)
+        val zero = requireNotNull(database.xpLedgerDao().sessionEffect(id))
+        assertEquals("recording:0:$id", zero.sourceKey)
+        assertEquals(103L, zero.sourceRevision)
+        assertEquals(0L, database.xpLedgerDao().getTotalXp())
+        assertEquals(0L, database.playerProfileDao().get()?.totalXp)
+        current = com.adsamcik.tracker.stats.api.repository.SavedSessionRewardRead.Ready(
+            com.adsamcik.tracker.stats.api.repository.SavedSessionReward(id, 0, 1, 601_000, 600_000, 1_000.0))
+        repo.awardSessionXp(sessionEnded(id), gate.currentGeneration)
+        assertEquals(zero, database.xpLedgerDao().sessionEffect(id))
+    }
 
 	private suspend fun insertSegment(
 		startTimeMs: Long,

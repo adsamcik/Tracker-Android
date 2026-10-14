@@ -57,6 +57,10 @@ class GameModuleInitializerTest {
 			miniGameScoreDao = mockk(),
 			gameRepository = mockk(),
 			trackingStartupGate = gate,
+            trackingHistory = mockk { every { observeSessionRewardChanges() } returns kotlinx.coroutines.flow.emptyFlow() },
+            progression = mockk(relaxed = true),
+            metricDirtyTracker = mockk(relaxed = true),
+            achievementScheduler = mockk(relaxed = true),
 		).initialize()
 		runCurrent()
 		events.emit(emptyList())

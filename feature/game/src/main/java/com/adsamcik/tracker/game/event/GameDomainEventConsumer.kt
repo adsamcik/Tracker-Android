@@ -91,7 +91,7 @@ class GameDomainEventConsumer @Inject constructor(
 			// bounded authority read and notification delivery together prevents a correction from
 			// interleaving after authorization but before user-visible delivery.
 			val authority = AchievementNotificationBatchAuthority(
-				byAchievementId = achievementRepository.getAllSnapshots().associate {
+				byAchievementId = achievementRepository.getAllSnapshots().filter { it.isUnlocked }.associate {
 					it.id to AchievementNotificationAuthority(it.tier.name, it.metric)
 				},
 				qualifiedByMetric = achievementProgressDao.getQualifiedStepsAchievementRows()

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Remover ficheiro incompleto</string>
+    <string name="export_unfinished_retry">Tentar novamente</string>
+    <string name="export_unfinished_files_guidance">O Tracker não consegue remover este ficheiro. Remova-o em Ficheiros ou restaure o acesso à pasta e tente novamente.</string>
+    <string name="export_unfinished_notice_update_failed">Ficheiro removido. Não foi possível atualizar este aviso. Tente novamente.</string>
+    <string name="export_unfinished_startup_unavailable">Conclua a recuperação de dados no Tracker e tente novamente.</string>
+    <string name="export_unfinished_load_failed">Não foi possível carregar os ficheiros incompletos.</string>
+    <string name="export_unfinished_notice_save_failed">Não foi possível guardar o aviso de um ficheiro incompleto. Remova-o em Ficheiros.</string>
+    <string name="export_unfinished_not_remembered">Não foi possível remover nem recordar %s. Remova-o em Ficheiros.</string>
+    <string name="export_unfinished_remove_accessibility">Remover ficheiro incompleto: %s</string>
+</resources>

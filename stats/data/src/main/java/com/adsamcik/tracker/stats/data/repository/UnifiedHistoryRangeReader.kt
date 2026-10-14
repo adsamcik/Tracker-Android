@@ -104,6 +104,8 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
         val state = database.sourceEvidenceStateDao().get()
             ?: return HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
         if (!state.hasValidRangeShape()) return HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
+        if (request.range.expectedCollectedDataEpoch?.let { it != state.collectedDataEpoch } == true)
+            return HistoryRangeRead.Unavailable(HistoryProblemReason.INTEGRITY_UNAVAILABLE)
         try { ZoneId.of(request.range.viewZoneId) } catch (_: RuntimeException) {
             return HistoryRangeRead.Unavailable(HistoryProblemReason.TIME_UNCERTAIN)
         }
@@ -677,7 +679,7 @@ internal class UnifiedHistoryRangeReader @Inject constructor(
             currentCoroutineContext().ensureActive()
             val membership = dao.archivePointPage(identity, after, minOf(256, archive.declaredPointCount - count))
             check(membership.isNotEmpty() && membership.withIndex().all { (index, point) -> point.ordinal == count + index })
-            val samples = database.locationSampleDao().byIds(membership.mapNotNull { it.sampleId }.distinct()).associateBy { it.id }
+            val samples = database.locationSampleDao().effectiveByIds(membership.mapNotNull { it.sampleId }.distinct()).associateBy { it.id }
             val currentIds = dao.byPortableIds(membership.map { it.portableId }).associateBy { it.portableId }
             val localIds = if (unrestricted) emptyList() else currentIds.values.filter { !it.imported }.map { it.sampleId }
             val localPurposeRows = if (localIds.isEmpty()) emptyList() else {

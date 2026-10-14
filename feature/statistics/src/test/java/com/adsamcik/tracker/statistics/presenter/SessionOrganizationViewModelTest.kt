@@ -9,6 +9,20 @@ import com.adsamcik.tracker.stats.api.repository.OrganizationSessionId
 import com.adsamcik.tracker.stats.api.repository.OrganizedSession
 import com.adsamcik.tracker.stats.api.repository.PagedSessionOrganizationRepository
 import com.adsamcik.tracker.stats.api.repository.SessionOrganizationRead
+import com.adsamcik.tracker.stats.api.repository.HistoryContinuation
+import com.adsamcik.tracker.stats.api.repository.HistoryLocationCoverage
+import com.adsamcik.tracker.stats.api.repository.HistoryLocationPoint
+import com.adsamcik.tracker.stats.api.repository.HistoryMeasurement
+import com.adsamcik.tracker.stats.api.repository.HistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.HistoryPosition
+import com.adsamcik.tracker.stats.api.repository.HistoryProblemReason
+import com.adsamcik.tracker.stats.api.repository.HistoryPurpose
+import com.adsamcik.tracker.stats.api.repository.HistoryRangeRead
+import com.adsamcik.tracker.stats.api.repository.HistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
+import com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow
+import com.adsamcik.tracker.feature.statistics.api.export.SessionBundleExportResult
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import io.mockk.every
@@ -31,17 +45,20 @@ class SessionOrganizationViewModelTest {
 	private val dispatcher = StandardTestDispatcher()
 	private val repo = mockk<PagedSessionOrganizationRepository>()
 	private val lifecycle = mockk<CollectedDataLifecycleStore>()
+	private val history = mockk<com.adsamcik.tracker.stats.api.repository.PagedTrackingHistoryRepository>()
+	private val exporter = mockk<com.adsamcik.tracker.feature.statistics.api.export.SessionBundleExporter>()
 	private val snapshots = MutableStateFlow(CollectedDataLifecycleSnapshot(0, null))
 	private val content = MutableStateFlow<SessionOrganizationRead>(SessionOrganizationRead.Content(listOf(session()), false, 0))
 	@BeforeEach fun setup() {
 		Dispatchers.setMain(dispatcher)
 		every { lifecycle.snapshots } returns snapshots
 		every { repo.observe(any(), any(), any()) } returns content
+		every { repo.observeSession(any()) } returns content
 		coEvery { repo.activityLabels() } returns emptyList()
 	}
 	@AfterEach fun cleanup() = Dispatchers.resetMain()
 	@Test fun `privacy epoch removes private draft list and calendar before delayed Room refresh`() = runTest(dispatcher) {
-		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle)
+		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle, history, exporter)
 		advanceUntilIdle()
 		vm.edit(session()); advanceUntilIdle()
 		vm.editor.value?.session?.name shouldBe "Private"
@@ -59,7 +76,7 @@ class SessionOrganizationViewModelTest {
 	}
 	@Test fun `stale save keeps draft until explicit reload`() = runTest(dispatcher) {
 		coEvery { repo.edit(any(), any(), any(), any(), any(), any()) } returns OrganizationMutationResult.Rejected(OrganizationEditProblem.STALE)
-		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle)
+		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle, history, exporter)
 		advanceUntilIdle(); vm.edit(session()); advanceUntilIdle()
 		vm.save(null, "UTC", "Draft", null); advanceUntilIdle()
 		vm.editor.value?.session?.name shouldBe "Private"
@@ -73,7 +90,7 @@ class SessionOrganizationViewModelTest {
 	@Test fun `reload uses exact lookup for a group beyond visible first page`() = runTest(dispatcher) {
 		val outside = session().copy(id = OrganizationSessionId.Annotation("outside-first-page"))
 		coEvery { repo.find(outside.id) } returns SessionOrganizationRead.Content(listOf(outside.copy(name = "Fresh", revision = 2)), false, 0)
-		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle)
+		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle, history, exporter)
 		advanceUntilIdle(); vm.edit(outside); advanceUntilIdle()
 		vm.read.value?.let { (it as SessionOrganizationRead.Content).sessions.none { group -> group.id == outside.id } } shouldBe true
 		vm.reload(); advanceUntilIdle()
@@ -84,7 +101,7 @@ class SessionOrganizationViewModelTest {
 	@Test fun `name-only imported save passes the default preserve-label request`() = runTest(dispatcher) {
 		val imported = session().copy(activityLabelName = "Hike", importedSourceSelection = emptyList())
 		coEvery { repo.edit(imported, null, "UTC", "New name", null, false) } returns OrganizationMutationResult.Saved
-		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle)
+		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle, history, exporter)
 		advanceUntilIdle(); vm.edit(imported); advanceUntilIdle()
 		vm.save(null, "UTC", "New name", null); advanceUntilIdle()
 		coVerify(exactly = 1) { repo.edit(imported, null, "UTC", "New name", null, false) }
@@ -95,7 +112,7 @@ class SessionOrganizationViewModelTest {
 		val imported = session().copy(activityLabelName = "Hike", importedSourceSelection = emptyList())
 		coEvery { repo.edit(imported, null, "UTC", "Private", null, true) } returns
 			OrganizationMutationResult.Rejected(OrganizationEditProblem.STORAGE_UNAVAILABLE) andThen OrganizationMutationResult.Saved
-		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle)
+		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle, history, exporter)
 		advanceUntilIdle(); vm.edit(imported); advanceUntilIdle()
 		vm.save(null, "UTC", "Private", null, clearImportedActivityLabel = true); advanceUntilIdle()
 		vm.editor.value?.session shouldBe imported
@@ -106,6 +123,73 @@ class SessionOrganizationViewModelTest {
 		vm.editor.value shouldBe null
 		vm.problem.value shouldBe null
 	}
+
+	@Test fun `selected contents follow exact metadata edits and disappear after removal without editing readings`() = runTest(dispatcher) {
+		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle, history, exporter)
+		advanceUntilIdle(); vm.showContents(session()); advanceUntilIdle()
+		vm.contents.value shouldBe session()
+		content.value = SessionOrganizationRead.Content(listOf(session().copy(name = "Walk", fromMs = 120, revision = 2)), false, 0)
+		advanceUntilIdle()
+		vm.contents.value?.name shouldBe "Walk"
+		vm.contents.value?.fromMs shouldBe 120L
+		content.value = SessionOrganizationRead.Content(emptyList(), false, 0)
+		advanceUntilIdle()
+		vm.contents.value shouldBe null
+		coVerify(exactly = 0) { repo.remove(any()) }
+	}
+
+	@Test fun `source availability follows selected session pages and a failed sibling does not hide saved sources`() = runTest(dispatcher) {
+		coEvery { history.readRange(any()) } answers {
+			val request = firstArg<HistoryRangeRequest>()
+			request.range.organizationSessionId shouldBe session().id
+			when (request.range.sources.single()) {
+				HistorySource.LOCATION -> page(listOf(locationRow()))
+				HistorySource.STEPS -> if (request.after == null) page(emptyList(),
+					HistoryContinuation(request.range, HistoryPosition(190, "local", "steps-frontier")))
+					else page(listOf(locationRow().copy(measurement = HistoryMeasurement.Gap(HistorySource.STEPS, "provider gap"))))
+				HistorySource.WIFI -> HistoryRangeRead.Unavailable(HistoryProblemReason.STORAGE_UNAVAILABLE)
+				else -> page(emptyList())
+			}
+		}
+		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle, history, exporter)
+		advanceUntilIdle(); vm.showContents(session()); advanceUntilIdle()
+		vm.chooseExportSources(); advanceUntilIdle()
+		vm.exportChoices.value?.availableSources shouldBe setOf(HistorySource.LOCATION, HistorySource.STEPS)
+		vm.exportChoices.value?.unavailableSources shouldBe setOf(HistorySource.WIFI)
+		val uri = mockk<android.net.Uri>()
+		coEvery { exporter.export(uri, any()) } returns SessionBundleExportResult.Success()
+		vm.prepareExport(setOf(HistorySource.LOCATION)) shouldBe true
+		vm.exportTo(uri); advanceUntilIdle()
+		coVerify(exactly = 1) { exporter.export(uri, match {
+			it.sessionId == session().id && it.expectedOrganizationRevision == 1L &&
+				it.expectedCollectedDataEpoch == 0L && it.sources == setOf(HistorySource.LOCATION)
+		}) }
+		vm.exportBusy.value shouldBe false
+		vm.exportFailure.value shouldBe null
+	}
+
+	@Test fun `clear invalidates contents and a prepared file choice before an old result can write`() = runTest(dispatcher) {
+		coEvery { history.readRange(any()) } answers {
+			val request = firstArg<HistoryRangeRequest>()
+			page(if (HistorySource.LOCATION in request.range.sources) listOf(locationRow()) else emptyList())
+		}
+		val vm = SessionOrganizationViewModel(repo, FixedClock(1_000), lifecycle, history, exporter)
+		advanceUntilIdle(); vm.showContents(session()); advanceUntilIdle()
+		vm.chooseExportSources(); advanceUntilIdle()
+		vm.prepareExport(setOf(HistorySource.LOCATION)) shouldBe true
+		snapshots.value = CollectedDataLifecycleSnapshot(1, null)
+		advanceUntilIdle()
+		vm.contents.value shouldBe null
+		vm.exportChoices.value shouldBe null
+		vm.exportTo(mockk()); advanceUntilIdle()
+		coVerify(exactly = 0) { exporter.export(any(), any()) }
+	}
+
+	private fun page(rows: List<UnifiedHistoryRow>, next: HistoryContinuation? = null) =
+		HistoryRangeRead.Page(rows, TrackingHistoryReadSnapshot(0, 0), next)
+	private fun locationRow() = UnifiedHistoryRow(HistoryPosition(150, "local", "saved"), null,
+		setOf(HistoryOrigin.LOCAL), HistoryPurpose.BACKGROUND, sections = emptyList(), measurement = HistoryMeasurement.Location(
+			HistoryLocationPoint(150, 500_000_000, 140_000_000, null, null), HistoryLocationCoverage.LEGACY_UNVERIFIABLE))
 
 	private fun session() = OrganizedSession(OrganizationSessionId.Annotation("local"), 1, 0, "Private",
 		null, null, "UTC", 100, 200, false, false)

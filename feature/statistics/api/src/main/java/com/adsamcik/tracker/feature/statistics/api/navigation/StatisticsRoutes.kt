@@ -42,11 +42,15 @@ data class SourceHistoryDetailSelection(
 	init {
 		require(
 			entry is SourceAwareHistoryPageEntry.ActivityOnly ||
+				entry is SourceAwareHistoryPageEntry.StepsOnly ||
+				entry is SourceAwareHistoryPageEntry.PressureOnly ||
 				entry is SourceAwareHistoryPageEntry.WifiOnly ||
 				entry is SourceAwareHistoryPageEntry.CellOnly,
 		) { "Only source-issued actionable detail entries may cross this navigation boundary" }
 		require(
 			actionTarget is TrackingHistoryActionTarget.Activity ||
+				actionTarget is TrackingHistoryActionTarget.CapturedSource ||
+				actionTarget is TrackingHistoryActionTarget.ImportedPressure ||
 				actionTarget is TrackingHistoryActionTarget.Wifi ||
 				actionTarget is TrackingHistoryActionTarget.Cell,
 		) { "Source detail navigation requires an authenticated action target" }
@@ -63,6 +67,8 @@ data class SourceHistoryDetailSelection(
 			val actionTarget = entry.actionTarget
 			return when (actionTarget) {
 				is TrackingHistoryActionTarget.Activity,
+				is TrackingHistoryActionTarget.CapturedSource,
+				is TrackingHistoryActionTarget.ImportedPressure,
 				is TrackingHistoryActionTarget.Wifi,
 				is TrackingHistoryActionTarget.Cell,
 				-> SourceHistoryDetailSelection(

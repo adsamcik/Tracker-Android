@@ -52,7 +52,7 @@ interface LocationFileIdentityDao {
 	@Query("SELECT COUNT(*) AS membership_count, COALESCE(SUM(CASE WHEN s.id IS NOT NULL " +
 		"AND i.sample_id = p.sample_id AND (:retainedFromMs IS NULL OR s.time_ms >= :retainedFromMs) " +
 		"THEN 1 ELSE 0 END), 0) AS available_count FROM location_file_archive_point p " +
-		"LEFT JOIN location_sample s ON s.id = p.sample_id " +
+		"LEFT JOIN effective_location_sample s ON s.id = p.sample_id " +
 		"LEFT JOIN location_file_identity i ON i.portable_id = p.portable_id " +
 		"WHERE p.archive_identity = :identity")
 	suspend fun archivePointCounts(identity: String, retainedFromMs: Long?): LocationFileArchivePointCounts

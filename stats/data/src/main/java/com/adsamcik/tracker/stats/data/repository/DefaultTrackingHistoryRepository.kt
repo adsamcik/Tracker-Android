@@ -88,6 +88,16 @@ internal class DefaultTrackingHistoryRepository private constructor(
 ) : PagedTrackingHistoryRepository {
 	private val importedReader = ImportedStepsProductReader(database)
     private val savedLocationSummaries by lazy { SavedLocationSummaryReader(database, ioDispatcher) }
+    private val sessionRewards by lazy { SavedSessionRewardReader(database, ioDispatcher, savedLocationSummaries) }
+
+    override suspend fun readSavedSessionReward(segmentId: Long) = sessionRewards.read(segmentId)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeSessionRewardChanges(): Flow<Unit> = database.invalidationTracker.createFlow(
+        "location_point_correction", "source_deletion_fence", "collected_data_deletion_operation",
+        "source_service_run", "session_segment", "source_evidence_state", emitInitialState = true)
+        .mapLatest { database.sessionSegmentDao().sessionRewardChangeStamp() }
+        .distinctUntilChanged().mapLatest { Unit }.flowOn(ioDispatcher)
     private val liveLocationSummaries by lazy { SavedLocationLiveSummaryReader(database, ioDispatcher, savedLocationUpdates,
         savedLocationSummaries) }
 
@@ -97,6 +107,8 @@ internal class DefaultTrackingHistoryRepository private constructor(
                 savedLocationSummaries.readSession(selection.segmentId)
             is SavedLocationSummarySelection.Window ->
                 savedLocationSummaries.readWindow(selection.window)
+            is SavedLocationSummarySelection.LogicalSession ->
+                savedLocationSummaries.readLogicalSession(selection.logicalTrackingId)
         }
 
     override fun observeLiveSavedLocationSummary(segmentId: Long) = liveLocationSummaries.observeSession(segmentId)
@@ -247,6 +259,13 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
 	}
+
+	override suspend fun readCapturedSourceMembers(segmentIds: List<Long>): List<LiveSessionHistorySnapshot> =
+		withContext(ioDispatcher) {
+			require(segmentIds.isNotEmpty() && segmentIds.size <= 100 &&
+				segmentIds.all { it > 0L } && segmentIds.distinct().size == segmentIds.size)
+			database.withTransaction { segmentIds.map { selectLiveSessionInTransaction(it) } }
+		}
 
 	override suspend fun lookupSourceFact(
 		request: SourceFactLookupRequest,
@@ -942,6 +961,7 @@ internal fun HistoricalTrackingEntryEvidence.toPublicStepsOnlyEntry(): StepsOnly
 		startTime = EpochMs(physicalMembers.minOf { it.segment.startTimeMs }),
 		endTime = EpochMs(physicalMembers.maxOf { it.segment.endTimeMs }),
 		state = physicalMembers.map { it.steps.toPublicHistory() }.toStepsOnlyListState(),
+		segmentIds = physicalMembers.map { it.segment.id },
 	)
 }
 

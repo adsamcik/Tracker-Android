@@ -7,6 +7,10 @@ package com.adsamcik.tracker.shared.base.database
  * only their own additional source-specific tables.
  */
 val TRACKING_HISTORY_INVALIDATION_TABLES: List<String> = listOf(
+	"location_sample",
+	"location_point_correction",
+	"location_accepted_receipt",
+	"location_sample_purpose_authority",
 	"organization_annotation",
 	"session_segment",
 	"source_service_run",

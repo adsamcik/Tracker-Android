@@ -17,4 +17,6 @@ data class TrackerSessionSnapshot(
 	val distanceInVehicleInM: Float = 0f,
 	val steps: Int = 0,
 	val sessionActivityId: Long? = null,
+	val hasMeasuredDistance: Boolean = true,
+	val distanceIsPartial: Boolean = false,
 )

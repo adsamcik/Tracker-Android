@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">अधूरी फ़ाइल हटाएँ</string>
+    <string name="export_unfinished_retry">फिर कोशिश करें</string>
+    <string name="export_unfinished_files_guidance">Tracker यह फ़ाइल नहीं हटा सकता। इसे Files ऐप में हटाएँ या फ़ोल्डर की अनुमति बहाल करके फिर कोशिश करें।</string>
+    <string name="export_unfinished_notice_update_failed">फ़ाइल हट गई। यह सूचना अपडेट नहीं हो सकी। फिर कोशिश करें।</string>
+    <string name="export_unfinished_startup_unavailable">Tracker में डेटा रिकवरी पूरी करें, फिर कोशिश करें।</string>
+    <string name="export_unfinished_load_failed">अधूरी फ़ाइलें लोड नहीं हो सकीं।</string>
+    <string name="export_unfinished_notice_save_failed">अधूरी फ़ाइल याद रखने के लिए सेव नहीं हो सकी। इसे Files ऐप में हटाएँ।</string>
+    <string name="export_unfinished_not_remembered">%s को हटाया या याद रखने के लिए सेव नहीं किया जा सका। इसे Files ऐप में हटाएँ।</string>
+    <string name="export_unfinished_remove_accessibility">अधूरी फ़ाइल हटाएँ: %s</string>
+</resources>

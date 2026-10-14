@@ -22,7 +22,8 @@ import org.junit.jupiter.api.Test
 class DefaultAchievementMetricsProviderStepsTest {
 	private val dailySummaryDao = mockk<DailySummaryDao>(relaxed = true)
 	private val achievementProgressDao = mockk<AchievementProgressDao>(relaxed = true)
-	private val provider = DefaultAchievementMetricsProvider(
+	private val savedLocationMetrics = mockk<SavedLocationMetricsReader>(relaxed = true)
+    private val provider = DefaultAchievementMetricsProvider(
 		dailySummaryDao = dailySummaryDao,
 		explorationCellDao = mockk<ExplorationCellDao>(relaxed = true),
 		explorationStreakDao = mockk<ExplorationStreakDao>(relaxed = true),
@@ -32,6 +33,7 @@ class DefaultAchievementMetricsProviderStepsTest {
 		locationSampleDao = mockk<LocationSampleDao>(relaxed = true),
 		countryLookup = mockk<CountryBoundaryLookup>(relaxed = true),
 		achievementProgressDao = achievementProgressDao,
+        savedLocationMetrics = savedLocationMetrics,
 	)
 
 	@Test

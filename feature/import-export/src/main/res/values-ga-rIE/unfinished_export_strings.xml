@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Bain an comhad neamhiomlán</string>
+    <string name="export_unfinished_retry">Bain triail eile as</string>
+    <string name="export_unfinished_files_guidance">Ní féidir le Tracker an comhad seo a bhaint. Bain é san aip Comhaid, nó athchóirigh rochtain ar an bhfillteán agus bain triail eile as.</string>
+    <string name="export_unfinished_notice_update_failed">Baineadh an comhad. Níorbh fhéidir an fógra a nuashonrú. Bain triail eile as.</string>
+    <string name="export_unfinished_startup_unavailable">Críochnaigh aisghabháil sonraí in Tracker agus bain triail eile as.</string>
+    <string name="export_unfinished_load_failed">Níorbh fhéidir comhaid neamhiomlána a lódáil.</string>
+    <string name="export_unfinished_notice_save_failed">Níorbh fhéidir comhad neamhiomlán a mheabhrú. Bain é san aip Comhaid.</string>
+    <string name="export_unfinished_not_remembered">Níorbh fhéidir %s a bhaint ná a mheabhrú. Bain é san aip Comhaid.</string>
+    <string name="export_unfinished_remove_accessibility">Bain an comhad neamhiomlán: %s</string>
+</resources>

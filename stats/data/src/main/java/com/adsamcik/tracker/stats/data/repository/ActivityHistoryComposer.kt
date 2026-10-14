@@ -235,7 +235,7 @@ internal object ActivityHistoryComposer {
 			val ordered = lineage.sortedBy(ActivityCapturedWindowRevisionEntity::semanticRevision)
 			val latest = validateLineage(ordered, snapshot)
 				?: return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
-			if (latest.collectedDataEpoch != evidenceState.collectedDataEpoch) {
+			if (!evidenceState.acceptsRetainedEpoch(latest.collectedDataEpoch)) {
 				return unavailableWithIntent(ActivityHistoryCause.PRIVACY_EPOCH_MISMATCH)
 			}
 			val manifest = manifests[latest.manifestRevision]
@@ -693,7 +693,7 @@ internal object ActivityHistoryComposer {
 			provider.sourceKind == ACTIVITY_SOURCE && provider.sourceInstanceId == row.sourceInstanceId &&
 			provider.registrationGeneration == row.registrationGeneration &&
 			provider.physicalConfigurationFingerprint == plan.physicalConfigurationFingerprint &&
-			provider.collectedDataEpoch == snapshot.evidenceState?.collectedDataEpoch
+			snapshot.evidenceState?.acceptsRetainedEpoch(provider.collectedDataEpoch) == true
 	}
 
 	private fun composeCaptureTimeline(

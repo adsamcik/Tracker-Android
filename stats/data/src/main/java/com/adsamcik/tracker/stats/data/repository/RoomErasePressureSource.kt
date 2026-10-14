@@ -421,7 +421,7 @@ internal class RoomErasePressureSource internal constructor(
 		}
 		val published = database.sourceEvidenceStateDao().get()
 			?: unverifiable(ImportedPressureMaintenanceUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING)
-		if (published.collectedDataEpoch != state.collectedDataEpoch ||
+		if (!state.acceptsRetainedEpoch(published.collectedDataEpoch) ||
 			published.revision != nextRevision || published.updatedAtMs != request.erasedAtMs
 		) blocked(PressureSourceEraseBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
 		authenticateSourceEraseAuthority(sourceErase, published)
@@ -643,7 +643,7 @@ internal class RoomErasePressureSource internal constructor(
 				?: unverifiable(
 					ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE,
 				)
-			if (deletion.collectedDataEpoch != state.collectedDataEpoch ||
+			if (!state.acceptsRetainedEpoch(deletion.collectedDataEpoch) ||
 				dao.liveOwnerHeaderCount(ownerRowId) != deletion.deletedImportRevision ||
 				dao.deleteLiveOwnerByRowId(ownerRowId) != deletion.deletedImportRevision.toInt()
 			) {
@@ -677,7 +677,7 @@ internal class RoomErasePressureSource internal constructor(
 				?: unverifiable(
 					ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE,
 				)
-			if (deletion.collectedDataEpoch != state.collectedDataEpoch ||
+			if (!state.acceptsRetainedEpoch(deletion.collectedDataEpoch) ||
 				deletion.deletedImportRevision != receipt.latestImportRevision
 			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
 			if (dao.deleteRetainedOwnerMarkersByRowId(ownerRowId) !=
@@ -923,7 +923,7 @@ internal class RoomErasePressureSource internal constructor(
 		if (database.importedPressureDao().sourceErase() != marker) {
 			unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
 		}
-		if (marker.collectedDataEpoch != state.collectedDataEpoch ||
+		if (!state.acceptsRetainedEpoch(marker.collectedDataEpoch) ||
 			marker.sourceEvidenceRevision > state.revision ||
 			marker.erasedAtMs > state.updatedAtMs
 		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
@@ -1125,6 +1125,9 @@ internal class RoomErasePressureSource internal constructor(
 				dao.receiptsForAdmission(identity),
 				dao.allRunsForAdmission(identity),
 				dao.allWindowsForAdmission(identity),
+				retainedState = checkNotNull(database.sourceEvidenceStateDao().get()).also {
+					check(it.collectedDataEpoch == expectedCollectedDataEpoch)
+				},
 			)
 		} catch (failure: ImportedPressureLineageFailure) {
 			when (failure.reason) {

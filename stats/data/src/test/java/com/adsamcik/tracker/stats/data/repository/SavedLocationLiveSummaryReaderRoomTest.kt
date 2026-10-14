@@ -119,6 +119,29 @@ class SavedLocationLiveSummaryReaderRoomTest {
         }
     }
 
+    @Test fun `Room correction invalidates the shared live total and does not need a new sensor point`() = runBlocking {
+        withTimeout(10_000L) {
+            val selected = session("corrected-live")
+            database.withTransaction { point(2_000, 0, 1, capture = selected) }
+            val last = database.withTransaction { point(3_000, 100_000, 2, capture = selected) }
+            val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined,
+                SavedLocationLiveUpdateSignal(), reader)
+            live.observeSession(selected.id).test {
+                assertEquals(distance(0, 100_000), awaitCount(2).summary.distanceMeters)
+                database.withTransaction {
+                    database.locationPointCorrectionDao().replace(LocationPointCorrection.from(last.id, 0, 1,
+                        last.copy(lonE7 = 200_000)))
+                    database.sourceEvidenceStateDao().incrementRevision(6_000)
+                }
+                var corrected = awaitCount(2)
+                while (corrected.summary.distanceMeters != distance(0, 200_000)) corrected = awaitCount(2)
+                assertEquals(200_000, corrected.summary.latestFix?.longitudeE7)
+                assertEquals(last, database.locationSampleDao().byIds(listOf(last.id)).single())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+    }
+
     @Test fun `one seed is extended without reading the growing session again`() = runBlocking {
         val selected = session("live")
         database.withTransaction { point(2_000, 0, 1, capture = selected) }

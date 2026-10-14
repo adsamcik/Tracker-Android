@@ -23,6 +23,22 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	@Query("SELECT * FROM session_segment WHERE id = :id")
 	suspend fun getById(id: Long): SessionSegment?
 
+	/** Keyset pages for current saved Location metrics; cached distance is never read. */
+	@Query("""SELECT * FROM session_segment WHERE start_time_ms <= :toMs AND end_time_ms >= :fromMs
+		AND (:afterId IS NULL OR id > :afterId) ORDER BY id LIMIT :limit""")
+	suspend fun locationMetricCandidatePage(fromMs: Long, toMs: Long, afterId: Long?, limit: Int): List<SessionSegment>
+
+	/** Cheap change token: live segment updates do not requeue every completed reward. */
+	@Query("""SELECT COALESCE((SELECT MAX(revision) FROM location_point_correction), 0) || ':' ||
+		(SELECT COUNT(*) FROM source_deletion_fence) || ':' ||
+		COALESCE((SELECT MAX(deleted_at_ms) FROM source_deletion_fence), 0) || ':' ||
+		COALESCE((SELECT collected_data_epoch || ':' || COALESCE(retained_from_ms, -1)
+		FROM source_evidence_state WHERE id = 1), 'missing') || ':' ||
+		COUNT(segment.id) || ':' || COALESCE(SUM(segment.id), 0) || ':' || COALESCE(SUM(segment.end_time_ms), 0)
+		FROM session_segment segment JOIN source_service_run run ON run.session_segment_id = segment.id
+		WHERE run.completed_at_ms IS NOT NULL""")
+	suspend fun sessionRewardChangeStamp(): String
+
 	/** Bounded reverse ownership union for one immutable logical tracking entry and its exact runs. */
 	@Query(
 		"SELECT * FROM session_segment WHERE logical_tracking_id = :logicalTrackingId " +

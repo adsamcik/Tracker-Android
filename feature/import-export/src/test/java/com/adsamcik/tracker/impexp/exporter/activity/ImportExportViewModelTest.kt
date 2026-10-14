@@ -3,7 +3,9 @@ package com.adsamcik.tracker.impexp.exporter.activity
 import android.content.Context
 import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.impexp.exporter.ExportResult
+import com.adsamcik.tracker.impexp.exporter.RadioSourceExporter
 import com.adsamcik.tracker.impexp.exporter.data.ImportExportDataRepository
+import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
@@ -11,6 +13,7 @@ import com.adsamcik.tracker.shared.model.LocationSample
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import java.io.ByteArrayOutputStream
@@ -21,6 +24,7 @@ import java.time.ZonedDateTime
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -118,6 +122,24 @@ class ImportExportViewModelTest {
             )
     }
 
+    @Test
+    fun `radio date switch reaches only the source file exporter`() = runTest(dispatcher) {
+        val repository = mockk<ImportExportDataRepository>(relaxed = true)
+        val viewModel = newViewModel(repository)
+        val exporter = RadioExporter()
+        val zone = ZoneId.of("Europe/Prague")
+        val day = ZonedDateTime.of(2026, 3, 29, 12, 0, 0, 0, zone)
+
+        viewModel.setIncludeCompleteSessions(false)
+        viewModel.exportToStream(ByteArrayOutputStream(), exporter, day..day) shouldBe ExportResult.Success
+
+        exporter.includeSessionsAcrossDates shouldBe false
+        exporter.receivedRange shouldBe day.toLocalDate().atStartOfDay(zone)
+            .toInstant().toEpochMilli()..(
+                day.toLocalDate().plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1L
+            )
+        coVerify(exactly = 0) { repository.countLocationSamples(any(), any()) }
+    }
 
     @Test
     fun `calendar picker preserves the displayed day in either time zone`() {
@@ -147,6 +169,7 @@ class ImportExportViewModelTest {
             override val permitsNewCollection = false
             override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
         },
+        exportPlanStore = mockk<ExportPlanStore> { every { unfinishedFiles } returns flowOf(emptyList()) },
     )
 
     private class SourceOwnedExporter(calendarDates: Boolean = false) : Exporter {
@@ -171,4 +194,32 @@ class ImportExportViewModelTest {
         }
     }
 
+    private class RadioExporter : RadioSourceExporter {
+        override val requiresLocationData = false
+        override val containsSensitiveLocationData = false
+        override val canSelectDateRange = true
+        override val selectsCalendarDates = true
+        override val mimeType = "application/test-radio"
+        override val extension = "testradio"
+        var includeSessionsAcrossDates: Boolean? = null
+        var receivedRange: LongRange? = null
+
+        override suspend fun exportWithSessionSelection(
+            context: Context,
+            outputStream: OutputStream,
+            dateRange: LongRange?,
+            includeSessionsAcrossDates: Boolean,
+        ): ExportResult {
+            this.includeSessionsAcrossDates = includeSessionsAcrossDates
+            receivedRange = dateRange
+            return ExportResult.Success
+        }
+
+        override suspend fun export(
+            context: Context,
+            locationData: Sequence<LocationSample>,
+            outputStream: OutputStream,
+            dateRange: LongRange?,
+        ): ExportResult = exportWithSessionSelection(context, outputStream, dateRange, true)
+    }
 }

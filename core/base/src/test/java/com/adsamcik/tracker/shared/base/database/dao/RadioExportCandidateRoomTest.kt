@@ -42,6 +42,17 @@ class RadioExportCandidateRoomTest {
 		}
 	}
 
+	@Test fun `restored unfinished radio recordings are candidates while ordinary failures remain excluded`() = runTest {
+		for (source in RADIO_SOURCES) {
+			seed("$source:restored", 1_100, 1_500, source, state = "FAILED")
+			seed("$source:failed", 1_100, 1_500, source, state = "FAILED")
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE logical_tracking_session SET failure_code='RESTORED_INTERRUPTED_SESSION', completed_at_ms=NULL " +
+					"WHERE logical_tracking_id=?", arrayOf("$source:restored"))
+			page(source, 1_000, 2_000) shouldBe listOf("$source:restored")
+		}
+	}
+
 	@Test fun `gap-only source intent keeps crossing runs and zero-length boundary events`() = runTest {
 		for (source in RADIO_SOURCES) {
 			val prefix = source.toString()

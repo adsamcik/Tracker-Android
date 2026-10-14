@@ -79,6 +79,12 @@ class MapSettingsViewModel @Inject constructor(
     val onlineTiles: StateFlow<OnlineMapTilesState> = _onlineTiles.asStateFlow()
 
     init {
+        viewModelScope.launch(dispatchers.io) {
+            com.adsamcik.tracker.shared.base.data.ImportedDataFilesRevision.revisions.collect {
+                _basemapPath.value = basemapManager.customBasemapPath()
+                _skiInfraLoaded.value = skiInfrastructureManager.isAvailable()
+            }
+        }
         viewModelScope.launch {
             mapSettingsRepository.data.collect { state ->
                 _quality.value = state.quality

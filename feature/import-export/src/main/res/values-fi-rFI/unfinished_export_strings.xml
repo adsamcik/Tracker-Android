@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Poista keskeneräinen tiedosto</string>
+    <string name="export_unfinished_retry">Yritä uudelleen</string>
+    <string name="export_unfinished_files_guidance">Tracker ei voi poistaa tiedostoa. Poista se Tiedostot-sovelluksessa tai palauta kansion käyttöoikeus ja yritä uudelleen.</string>
+    <string name="export_unfinished_notice_update_failed">Tiedosto poistettu. Ilmoitusta ei voitu päivittää. Yritä uudelleen.</string>
+    <string name="export_unfinished_startup_unavailable">Viimeistele tietojen palautus Trackerissa ja yritä uudelleen.</string>
+    <string name="export_unfinished_load_failed">Keskeneräisiä tiedostoja ei voitu ladata.</string>
+    <string name="export_unfinished_notice_save_failed">Keskeneräistä tiedostoa ei voitu tallentaa muistutukseen. Poista se Tiedostot-sovelluksessa.</string>
+    <string name="export_unfinished_not_remembered">Tiedostoa %s ei voitu poistaa eikä muistaa. Poista se Tiedostot-sovelluksessa.</string>
+    <string name="export_unfinished_remove_accessibility">Poista keskeneräinen tiedosto: %s</string>
+</resources>

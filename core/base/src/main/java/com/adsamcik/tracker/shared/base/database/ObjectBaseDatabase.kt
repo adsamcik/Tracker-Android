@@ -18,6 +18,12 @@ abstract class ObjectBaseDatabase<T : RoomDatabase>(private val type: Class<T>) 
 
 	protected abstract fun setupDatabase(database: RoomDatabase.Builder<T>)
 
+	/** Opens only a staged backup copy with this database's existing migrations and schema checks. */
+	fun ownedCopyBuilder(context: Context, absolutePath: String): RoomDatabase.Builder<T> =
+		Room.databaseBuilder(context.applicationContext, type, absolutePath)
+			.openHelperFactory(delegateOpenHelperFactory())
+			.apply { setupDatabase(this) }
+
 	/** Context-aware builder hook for databases that need creation-time file coordination. */
 	protected open fun setupDatabase(context: Context, database: RoomDatabase.Builder<T>) {
 		setupDatabase(database)

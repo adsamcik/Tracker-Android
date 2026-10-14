@@ -78,7 +78,7 @@ internal class MeasuredNativePressureHistoryReader(
                 val position = measuredHistoryPosition(key)
                 rows[position] = UnifiedHistoryRow(position, window.intervalEndTimeMs, setOf(HistoryOrigin.LOCAL),
                     HistoryPurpose.CAPTURE, name = names.window(window.logicalTrackingId, window.intervalStartTimeMs,
-                        window.intervalEndTimeMs, strictEnd = true), sections = emptyList(),
+                        window.intervalEndTimeMs), sections = emptyList(),
                     measurement = HistoryMeasurement.Pressure(window.toPublicWindow()))
             }
         }

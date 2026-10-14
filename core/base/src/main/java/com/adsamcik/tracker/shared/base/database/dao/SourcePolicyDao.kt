@@ -62,6 +62,12 @@ interface SourcePolicyDao {
 		revisions: List<Long>,
 	): List<SourcePolicyEntity>
 
+	@Query("SELECT MAX(epoch) FROM source_consent_epoch")
+	suspend fun maximumConsentEpoch(): Long?
+
+	@Query("SELECT MAX(policy_revision) FROM source_policy")
+	suspend fun maximumPolicyRevision(): Long?
+
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertPolicies(entities: List<SourcePolicyEntity>)
 

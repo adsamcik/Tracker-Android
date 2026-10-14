@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Eemalda lõpetamata fail</string>
+    <string name="export_unfinished_retry">Proovi uuesti</string>
+    <string name="export_unfinished_files_guidance">Tracker ei saa faili eemaldada. Eemalda see rakenduses Failid või taasta juurdepääs kaustale ja proovi uuesti.</string>
+    <string name="export_unfinished_notice_update_failed">Fail eemaldatud. Teadet ei saanud uuendada. Proovi uuesti.</string>
+    <string name="export_unfinished_startup_unavailable">Lõpeta andmete taastamine Trackeris ja proovi uuesti.</string>
+    <string name="export_unfinished_load_failed">Lõpetamata faile ei saanud laadida.</string>
+    <string name="export_unfinished_notice_save_failed">Lõpetamata faili ei saanud meelde jätta. Eemalda see rakenduses Failid.</string>
+    <string name="export_unfinished_not_remembered">Faili %s ei saanud eemaldada ega meelde jätta. Eemalda see rakenduses Failid.</string>
+    <string name="export_unfinished_remove_accessibility">Eemalda lõpetamata fail: %s</string>
+</resources>

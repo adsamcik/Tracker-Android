@@ -3,6 +3,7 @@ package com.adsamcik.tracker.stats.data.repository
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductEvaluation
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductFailure
+import com.adsamcik.tracker.shared.base.database.readRadioFileMembers
 import com.adsamcik.tracker.shared.base.database.data.*
 import com.adsamcik.tracker.shared.base.database.dao.MeasuredHistoryCandidate
 import com.adsamcik.tracker.stats.api.repository.*
@@ -175,13 +176,21 @@ internal class MeasuredCapturedRadioHistoryReader(
 
     /** Exact aliases for a native leaf already shown instead of its identical imported copy. */
     suspend fun importedNativeMembership(source: HistorySource, entryIdentity: String,
-        candidates: List<MeasuredHistoryCandidate>, range: HistoryRange): MeasuredRadioMembershipRead {
+        candidates: List<MeasuredHistoryCandidate>, range: HistoryRange,
+        importJobId: String? = null, importEntryKey: String? = null): MeasuredRadioMembershipRead {
         require(source == HistorySource.WIFI || source == HistorySource.CELL)
         require(candidates.size <= 100)
+        require((importJobId == null) == (importEntryKey == null))
+        val originalMembers = importJobId?.let { job ->
+            val epoch = requireNotNull(database.sourceEvidenceStateDao().get()).collectedDataEpoch
+            readRadioFileMembers(database, if (source == HistorySource.WIFI) SourceDestinationOwnerEntity.SOURCE_WIFI
+                else SourceDestinationOwnerEntity.SOURCE_CELL, job, requireNotNull(importEntryKey), entryIdentity, epoch, 20_000)
+                .filter { it.kind == "OBSERVATION" }.associateBy { it.identity }
+        }
         val selected = candidates.filter { it.origin == "LOCAL" && it.physicalIdentity != null &&
             (source == HistorySource.WIFI && it.kind in setOf("captured_wifi", "ambient_wifi") ||
                 source == HistorySource.CELL && it.kind in setOf("captured_cell", "ambient_cell")) }
-        if (selected.isEmpty() || HistoryOrigin.LOCAL !in range.origins) return MeasuredRadioMembershipRead(emptySet(), emptySet())
+        if (candidates.isEmpty()) return MeasuredRadioMembershipRead(emptySet(), emptySet())
         val result = linkedSetOf<HistoryPosition>()
         val problems = linkedSetOf<HistoryProblem>()
         if (source == HistorySource.WIFI) {
@@ -195,6 +204,11 @@ internal class MeasuredCapturedRadioHistoryReader(
                 if (run.identity in readable.deletedRunIdentities) continue
                 for (observation in run.observations) {
                     currentCoroutineContext().ensureActive()
+                    if (originalMembers != null && originalMembers[observation.identity.value]?.let {
+                        it.revision == observation.semanticRevision && it.checksum == observation.contentChecksum.value } != true) continue
+                    if (observation.identity in readable.retainedObservationIdentities) result += candidates.filter {
+                        it.origin == "IMPORTED" && it.writerId == entryIdentity && it.factRevision == readable.candidate.importRevision &&
+                            it.factId == observation.identity.value }.map(::measuredHistoryPosition)
                     if (observation.identity !in readable.retainedObservationIdentities ||
                         selected.none { it.startTimeMs >= observation.coverageStartTimeMs &&
                             it.startTimeMs <= observation.latestPossibleTimeMs }) continue
@@ -221,6 +235,11 @@ internal class MeasuredCapturedRadioHistoryReader(
                 if (run.identity.value in readable.deletedRunIdentities) continue
                 for (observation in run.observations) {
                     currentCoroutineContext().ensureActive()
+                    if (originalMembers != null && originalMembers[observation.identity.value]?.let {
+                        it.revision == observation.semanticRevision && it.checksum == observation.contentChecksum.value } != true) continue
+                    if (readable.retainedFromMs?.let { observation.coverageStartTimeMs < it } != true) result += candidates.filter {
+                        it.origin == "IMPORTED" && it.writerId == entryIdentity && it.factRevision == readable.candidate.importRevision &&
+                            it.factId == observation.identity.value }.map(::measuredHistoryPosition)
                     if (readable.retainedFromMs?.let { observation.coverageStartTimeMs < it } == true ||
                         selected.none { it.startTimeMs >= observation.coverageStartTimeMs &&
                             it.startTimeMs <= observation.latestPossibleTimeMs }) continue

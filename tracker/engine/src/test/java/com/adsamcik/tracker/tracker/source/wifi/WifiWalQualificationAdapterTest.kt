@@ -22,6 +22,7 @@ import io.mockk.mockk
 import com.adsamcik.tracker.tracker.source.lifecycle.DefaultSourceLifecycleProofAdapterFactory
 import com.adsamcik.tracker.tracker.source.location.LocationWalQualificationAdapter
 import com.adsamcik.tracker.tracker.source.activity.ActivityCapturedWalAdmissionAdapter
+import com.adsamcik.tracker.stats.api.repository.mergeReadingSelection
 import com.adsamcik.tracker.stats.api.repository.SourceProofKey
 import com.adsamcik.tracker.stats.api.repository.SourceEvidenceIdentity
 import com.adsamcik.tracker.stats.api.repository.SourceProofScope
@@ -4518,6 +4519,22 @@ class WifiWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `portable Wi-Fi export omits a deleted replacement and retains surviving scans`() = runTest {
+		installPortableExportFixture()
+		finalizeZeroCallbackReplacement(withGap = false)
+		database.wifiCapturedFactDao().insertDeletionGeneration(WifiCaptureDeletionGenerationEntity(
+			logicalTrackingId = LOGICAL_ID, serviceRunId = REPLACEMENT_RUN_ID,
+			collectedDataEpoch = 0L, generation = 1L, updatedAtMs = DELETE_AT_MS))
+		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
+			WIFI_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, LOGICAL_ID, REPLACEMENT_RUN_ID, 1L, 0L, DELETE_AT_MS))
+		var emitted: com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1? = null
+		assertIs<ExportPortableCapturedWifiResult.Exported>(
+			portableExporter().export(ExportPortableCapturedWifiRequest(LOGICAL_ID)) { emitted = it })
+		assertEquals(1, requireNotNull(emitted).runs.size)
+		assertEquals(1, requireNotNull(emitted).runs.single().observations.size)
+	}
+
+	@Test
 	fun `portable export reports exact deleted Wi-Fi run while preserving WAL`() = runTest {
 		installPortableExportFixture()
 		installPortableDeletion()
@@ -4732,6 +4749,38 @@ class WifiWalQualificationAdapterTest {
 
 		assertIs<ExportPortableCapturedWifiResult.RetryableFailure>(result)
 		assertEquals(false, sinkReached)
+	}
+
+	@Test
+	fun `restored unfinished Wi-Fi keeps saved scans with measured bounds and no invented stop`() = runTest {
+		installPortableExportFixture()
+		var complete: com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1? = null
+		portableExporter().export(ExportPortableCapturedWifiRequest(LOGICAL_ID)) { complete = it }
+		val original = requireNotNull(complete)
+		val sql = database.openHelper.writableDatabase
+		sql.execSQL("UPDATE logical_tracking_session SET state='FAILED', failure_code='RESTORED_INTERRUPTED_SESSION', " +
+			"completed_at_ms=NULL, cutoff_at_ms=NULL, cutoff_elapsed_nanos=NULL, final_admission_ordinal=NULL, current_service_run_id=? " +
+			"WHERE logical_tracking_id=?", arrayOf(RUN_ID, LOGICAL_ID))
+		sql.execSQL("UPDATE source_service_run SET state='FAILED', completion_reason='RESTORED_INTERRUPTED_SESSION', " +
+			"runtime_acknowledgement='FAILED', completed_at_ms=NULL, presentation_acknowledgement='PENDING', " +
+			"presentation_acknowledged_at_ms=NULL WHERE service_run_id=?", arrayOf(RUN_ID))
+		sql.execSQL("DELETE FROM source_session_completeness WHERE logical_tracking_id=?", arrayOf(LOGICAL_ID))
+		sql.execSQL("UPDATE source_evidence_state SET collected_data_epoch=2, restored_data_epochs='0' WHERE id=1")
+		var partial: com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1? = null
+		assertIs<ExportPortableCapturedWifiResult.Exported>(
+			portableExporter().export(ExportPortableCapturedWifiRequest(LOGICAL_ID)) { partial = it })
+		val saved = requireNotNull(partial)
+		val measured = saved.runs.single()
+		assertEquals(original.runs.single().observations, measured.observations)
+		assertEquals(measured.observations.minOf { it.coverageStartTimeMs }, measured.startTimeMs)
+		assertEquals(measured.observations.maxOf { it.latestPossibleTimeMs }, measured.endTimeMs)
+		assertEquals(com.adsamcik.tracker.stats.api.repository.PortableWifiCaptureCoverage.PARTIAL_RUN, measured.captureCoverage)
+		assertEquals(com.adsamcik.tracker.stats.api.repository.PortableWifiAcquisitionCompleteness.PARTIAL, measured.acquisitionCompleteness)
+		assertEquals(null, database.sourceSessionDao().session(LOGICAL_ID)?.completedAtMs)
+		assertEquals(null, database.sourceSessionDao().serviceRun(RUN_ID)?.completedAtMs)
+		val merged = saved.mergeReadingSelection(original)
+		assertEquals(original.runs.single().observations, merged.runs.single().observations)
+		assertEquals(merged, merged.mergeReadingSelection(saved))
 	}
 
 	private fun portableExporter() = RoomExportPortableCapturedWifi(

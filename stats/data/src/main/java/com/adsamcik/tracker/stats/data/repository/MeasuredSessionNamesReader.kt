@@ -10,6 +10,7 @@ import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.HistoryRange
 import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelectionCodec
 import com.adsamcik.tracker.stats.api.repository.OrganizationSourceSelector
+import com.adsamcik.tracker.stats.api.repository.OrganizationSessionId
 import com.adsamcik.tracker.stats.api.repository.UnifiedHistoryRow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -25,6 +26,8 @@ internal class MeasuredSessionNamesReader(private val database: AppDatabase,
         if (rows.isEmpty()) return MeasuredSessionNamesRead(rows, emptySet())
         val keys = candidates.associateBy(::measuredHistoryPosition)
         val names = rows.associate { it.position to linkedSetOf<String>() }
+        val selection = range.organizationSessionId
+        val included = linkedSetOf<com.adsamcik.tracker.stats.api.repository.HistoryPosition>()
         val problems = linkedSetOf<HistoryProblem>()
         val from = rows.minOf { minOf(it.position.startTimeMs, it.toExclusiveMs ?: it.position.startTimeMs) }
         val last = rows.maxOf { maxOf(it.position.startTimeMs, it.toExclusiveMs ?: it.position.startTimeMs) }
@@ -33,9 +36,12 @@ internal class MeasuredSessionNamesReader(private val database: AppDatabase,
         try {
             while (true) {
                 currentCoroutineContext().ensureActive()
-                val annotations = database.organizationAnnotationDao().visible(from, to, PAGE_SIZE, offset, namedOnly = true)
+                val annotations = database.organizationAnnotationDao().visible(from, to, PAGE_SIZE, offset,
+                    selectedLocalId = (selection as? OrganizationSessionId.Annotation)?.localId,
+                    selectedAdapterKey = (selection as? OrganizationSessionId.Recording)?.adapterKey,
+                    namedOnly = selection == null)
                 for (annotation in annotations) {
-                    val name = annotation.name?.takeIf(String::isNotBlank) ?: continue
+                    val name = annotation.name?.takeIf(String::isNotBlank)
                     val selected = try { annotation.importedSourceSelection?.let(OrganizationSourceSelectionCodec::decode) }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) {
@@ -59,7 +65,7 @@ internal class MeasuredSessionNamesReader(private val database: AppDatabase,
                         if (selector.source != HistorySource.WIFI && selector.source != HistorySource.CELL) continue
                         try {
                             val membership = capturedRadio.importedNativeMembership(selector.source, selector.entryIdentity,
-                                eligible.mapNotNull { keys[it.position] }, range)
+                                eligible.mapNotNull { keys[it.position] }, range, selector.importJobId, selector.importEntryKey)
                             nativeRadioMembers += membership.positions
                             problems += membership.problems
                         } catch (cancelled: CancellationException) { throw cancelled }
@@ -71,8 +77,10 @@ internal class MeasuredSessionNamesReader(private val database: AppDatabase,
                     for (row in eligible) {
                         val key = keys[row.position] ?: continue
                         if (selected == null || selected.any { member(it, row, key, locationMembers) ||
-                            it is OrganizationSourceSelector.CapturedEntry && it.source == row.measurement?.source && row.position in nativeRadioMembers })
-                            names.getValue(row.position) += name
+                            it is OrganizationSourceSelector.CapturedEntry && it.source == row.measurement?.source && row.position in nativeRadioMembers }) {
+                            name?.let { names.getValue(row.position) += it }
+                            included += row.position
+                        }
                     }
                 }
                 if (annotations.size < PAGE_SIZE) break
@@ -83,36 +91,30 @@ internal class MeasuredSessionNamesReader(private val database: AppDatabase,
             problems += HistoryProblem(null, HistoryProblemReason.STORAGE_UNAVAILABLE)
             rows.forEach { row -> row.name?.takeIf(String::isNotBlank)?.let { names.getValue(row.position) += it } }
         }
-        return MeasuredSessionNamesRead(rows.map { it.copy(name = null, sessionNames = names.getValue(it.position).toList()) }, problems)
+        return MeasuredSessionNamesRead(rows.filter { selection == null || it.position in included }
+            .map { it.copy(name = null, sessionNames = names.getValue(it.position).toList()) }, problems)
     }
 
     private fun contains(annotation: OrganizationSessionRow, row: UnifiedHistoryRow): Boolean {
         val from = annotation.fromMs?.takeIf { it >= 0L } ?: return false
         val to = annotation.toMs
-        if (to == null && !annotation.isActive || to != null && to <= from) return false
+        if (to == null && !annotation.isActive || to != null && to < from) return false
         val start = row.position.startTimeMs
         val end = row.toExclusiveMs
-        if (start < from || to != null && start >= to) return false
-        if (end == null) {
-            val uncertainty = when (val value = row.measurement) {
-                is HistoryMeasurement.Wifi -> value.network.wallTimeUncertaintyMs
-                is HistoryMeasurement.Cell -> value.tower.wallTimeUncertaintyMs
-                else -> 0L
-            }
-            return uncertainty <= start - from && (to == null || uncertainty < to - start)
-        }
-        if (end < start) return false
-        val strictEnd = row.measurement is HistoryMeasurement.Pressure ||
-            row.measurement is HistoryMeasurement.WifiSummary || row.measurement is HistoryMeasurement.CellSummary ||
-            row.measurement is HistoryMeasurement.BackgroundWifiSummary || row.measurement is HistoryMeasurement.BackgroundCellSummary
-        return to == null || if (strictEnd) end < to else end <= to
+        if (end == null || end == start) return if (to == from) start == from else start >= from && (to == null || start < to)
+        // Organization is a useful label, not recording authority or a claim that a count can be
+        // divided. A crossing measured window keeps its original bounds and complete measurement.
+        val first = minOf(start, end)
+        val last = maxOf(start, end)
+        return last > from && (to == null || first < if (to == from && to < Long.MAX_VALUE) to + 1L else to)
     }
 
     private fun member(selector: OrganizationSourceSelector, row: UnifiedHistoryRow, key: MeasuredHistoryCandidate,
         locationMembers: Set<Long>): Boolean = when (selector) {
         is OrganizationSourceSelector.LocationFile -> (row.measurement as? HistoryMeasurement.Location)?.point?.sampleId in locationMembers
         is OrganizationSourceSelector.CapturedEntry -> key.origin == "IMPORTED" && key.purpose == "CAPTURE" &&
-            selector.source == row.measurement?.source && selector.entryIdentity == key.writerId
+            selector.source == row.measurement?.source && selector.entryIdentity == key.writerId &&
+            (selector.source != HistorySource.WIFI && selector.source != HistorySource.CELL || selector.importJobId == null)
         is OrganizationSourceSelector.BackgroundStepsDay -> key.origin == "IMPORTED" && key.purpose == "BACKGROUND" &&
             row.measurement?.source == HistorySource.STEPS && selector.dayIdentity == key.writerId
         is OrganizationSourceSelector.BackgroundRadioArchive -> key.origin == "IMPORTED" && key.purpose == "BACKGROUND" &&

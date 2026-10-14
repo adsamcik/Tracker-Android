@@ -56,6 +56,7 @@ class SourceHistoryDetailRouteComposeTest {
 		val selection = activitySelection()
 		val route = SourceHistoryDetailHandoff.register(selection)
 		val viewModel = SourceHistoryDetailViewModel(
+			actions = mockk(relaxed = true), exporter = mockk(relaxed = true),
 			presenter = presenter(),
 			savedStateHandle = SavedStateHandle(
 				mapOf("selectionToken" to route.selectionToken),
@@ -94,6 +95,7 @@ class SourceHistoryDetailRouteComposeTest {
 		val selection = activitySelection()
 		val route = SourceHistoryDetailHandoff.register(selection)
 		val viewModel = SourceHistoryDetailViewModel(
+			actions = mockk(relaxed = true), exporter = mockk(relaxed = true),
 			presenter = presenter(),
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
@@ -132,6 +134,7 @@ class SourceHistoryDetailRouteComposeTest {
 		val selection = activitySelection(readSnapshot = null)
 		val route = SourceHistoryDetailHandoff.register(selection)
 		val viewModel = SourceHistoryDetailViewModel(
+			actions = mockk(relaxed = true), exporter = mockk(relaxed = true),
 			presenter = presenter(),
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
@@ -165,6 +168,7 @@ class SourceHistoryDetailRouteComposeTest {
 		} returns WifiHistoryQuery.Failed(WifiHistoryCause.STALE_SELECTION)
 		val route = SourceHistoryDetailHandoff.register(selection)
 		val viewModel = SourceHistoryDetailViewModel(
+			actions = mockk(relaxed = true), exporter = mockk(relaxed = true),
 			presenter = presenter(wifiRepository),
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
@@ -192,6 +196,7 @@ class SourceHistoryDetailRouteComposeTest {
 		)
 		val route = SourceHistoryDetailHandoff.register(selection)
 		val viewModel = SourceHistoryDetailViewModel(
+			actions = mockk(relaxed = true), exporter = mockk(relaxed = true),
 			presenter = stalePresenter,
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
@@ -221,6 +226,7 @@ class SourceHistoryDetailRouteComposeTest {
 		}
 		val route = SourceHistoryDetailHandoff.register(selection)
 		val viewModel = SourceHistoryDetailViewModel(
+			actions = mockk(relaxed = true), exporter = mockk(relaxed = true),
 			presenter = retryingPresenter,
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
@@ -257,6 +263,7 @@ class SourceHistoryDetailRouteComposeTest {
 	) = SourceHistoryDetailPresenter(
 		wifiHistoryRepository = wifiHistoryRepository,
 		cellHistoryRepository = mockk<CellHistoryRepository>(),
+		trackingHistoryRepository = mockk(),
 	)
 
 	private fun wifiEntry() = WifiHistoryEntry(

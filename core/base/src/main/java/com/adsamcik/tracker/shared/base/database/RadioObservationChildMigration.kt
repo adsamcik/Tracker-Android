@@ -293,24 +293,24 @@ internal fun installLegacyRadioChildMirrors(db: SupportSQLiteDatabase) {
 }
 
 /** Nullable originals do not infer new capture authority or alter the canonical values. */
-private fun createLegacyPreservedDataSchema(db: SupportSQLiteDatabase) {
-	db.execSQL("ALTER TABLE location_sample ADD COLUMN legacy_lat REAL")
-	db.execSQL("ALTER TABLE location_sample ADD COLUMN legacy_lon REAL")
-	db.execSQL("ALTER TABLE location_sample ADD COLUMN legacy_alt_m REAL")
-	db.execSQL("ALTER TABLE wifi_observation ADD COLUMN legacy_first_seen_ms INTEGER")
-	db.execSQL("ALTER TABLE wifi_observation ADD COLUMN legacy_alt_m REAL")
-	db.execSQL("ALTER TABLE wifi_observation ADD COLUMN legacy_lat REAL")
-	db.execSQL("ALTER TABLE wifi_observation ADD COLUMN legacy_lon REAL")
-	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_source_id INTEGER")
-	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_mcc TEXT")
-	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_mnc TEXT")
-	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_alt_m REAL")
-	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_lat REAL")
-	db.execSQL("ALTER TABLE cell_sample ADD COLUMN legacy_lon REAL")
-	db.execSQL("ALTER TABLE session_segment ADD COLUMN legacy_user_initiated INTEGER")
-	db.execSQL("ALTER TABLE session_segment ADD COLUMN legacy_distance_on_foot_m REAL")
-	db.execSQL("ALTER TABLE session_segment ADD COLUMN legacy_distance_in_vehicle_m REAL")
-	db.execSQL("ALTER TABLE session_segment ADD COLUMN legacy_activity_id INTEGER")
+internal fun createLegacyPreservedDataSchema(db: SupportSQLiteDatabase) {
+	addPreservedColumnIfMissing(db, "location_sample", "legacy_lat", "REAL")
+	addPreservedColumnIfMissing(db, "location_sample", "legacy_lon", "REAL")
+	addPreservedColumnIfMissing(db, "location_sample", "legacy_alt_m", "REAL")
+	addPreservedColumnIfMissing(db, "wifi_observation", "legacy_first_seen_ms", "INTEGER")
+	addPreservedColumnIfMissing(db, "wifi_observation", "legacy_alt_m", "REAL")
+	addPreservedColumnIfMissing(db, "wifi_observation", "legacy_lat", "REAL")
+	addPreservedColumnIfMissing(db, "wifi_observation", "legacy_lon", "REAL")
+	addPreservedColumnIfMissing(db, "cell_sample", "legacy_source_id", "INTEGER")
+	addPreservedColumnIfMissing(db, "cell_sample", "legacy_mcc", "TEXT")
+	addPreservedColumnIfMissing(db, "cell_sample", "legacy_mnc", "TEXT")
+	addPreservedColumnIfMissing(db, "cell_sample", "legacy_alt_m", "REAL")
+	addPreservedColumnIfMissing(db, "cell_sample", "legacy_lat", "REAL")
+	addPreservedColumnIfMissing(db, "cell_sample", "legacy_lon", "REAL")
+	addPreservedColumnIfMissing(db, "session_segment", "legacy_user_initiated", "INTEGER")
+	addPreservedColumnIfMissing(db, "session_segment", "legacy_distance_on_foot_m", "REAL")
+	addPreservedColumnIfMissing(db, "session_segment", "legacy_distance_in_vehicle_m", "REAL")
+	addPreservedColumnIfMissing(db, "session_segment", "legacy_activity_id", "INTEGER")
 	db.execSQL("""
 		CREATE TABLE IF NOT EXISTS legacy_rejected_tracker_session (
 			id INTEGER NOT NULL, start INTEGER NOT NULL, `end` INTEGER NOT NULL,
@@ -329,4 +329,14 @@ private fun createLegacyPreservedDataSchema(db: SupportSQLiteDatabase) {
 	db.execSQL("CREATE INDEX IF NOT EXISTS idx_legacy_location_wifi_count_time ON legacy_location_wifi_count(time)")
 	db.execSQL("CREATE INDEX IF NOT EXISTS idx_legacy_location_wifi_count_coords ON legacy_location_wifi_count(lat, lon)")
 	db.execSQL("CREATE TABLE IF NOT EXISTS network_operator(mcc TEXT NOT NULL, mnc TEXT NOT NULL, name TEXT, PRIMARY KEY(mcc, mnc))")
+}
+
+private fun addPreservedColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
+    val present = db.query("PRAGMA table_info(`$table`)").use { rows ->
+        val nameIndex = rows.getColumnIndexOrThrow("name")
+        var found = false
+        while (rows.moveToNext()) if (rows.getString(nameIndex) == column) found = true
+        found
+    }
+    if (!present) db.execSQL("ALTER TABLE `$table` ADD COLUMN `$column` $type")
 }

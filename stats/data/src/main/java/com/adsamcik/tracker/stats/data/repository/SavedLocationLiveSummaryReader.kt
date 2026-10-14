@@ -195,6 +195,7 @@ internal class SavedLocationLiveSummaryReader(
         const val PAGE_SIZE = 256
         val POINT_TABLES = setOf("location_sample", "location_accepted_receipt", "location_sample_purpose_authority")
         val REBUILD_TABLES = setOf("source_deletion_fence", "collected_data_deletion_operation",
+            "location_point_correction",
             "source_policy", "source_consent_epoch", "source_service_run", "session_manifest_version",
             "session_manifest_source", "ambient_location_retention_authority", "location_file_identity",
             "location_file_archive", "location_file_archive_point")

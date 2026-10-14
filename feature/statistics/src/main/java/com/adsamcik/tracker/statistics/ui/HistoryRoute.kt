@@ -102,9 +102,22 @@ fun HistoryRoute(
 	val labels by organization.labels.collectAsState()
 	val problem by organization.problem.collectAsState()
 	val busy by organization.busy.collectAsState()
+	val contents by organization.contents.collectAsState()
+	val contentsUnavailable by organization.contentsUnavailable.collectAsState()
+	val exportChoices by organization.exportChoices.collectAsState()
+	val exportBusy by organization.exportBusy.collectAsState()
+	val exportFailure by organization.exportFailure.collectAsState()
 	LaunchedEffect(calendarState.currentMonth) { organization.showMonth(calendarState.currentMonth) }
 	val organizationDays = remember(monthSessions, calendarState.currentMonth) {
 		organizationCalendarDays(monthSessions, calendarState.currentMonth)
+	}
+	contents?.let { session ->
+		SessionContentsContent(session, organization.pagedContents.collectAsLazyPagingItems(),
+			contentsUnavailable, exportBusy, exportFailure, exportChoices, organization)
+		editor?.let { target -> SessionOrganizationEditor(target, labels, busy, problem,
+			onDismiss = organization::dismiss, onReload = organization::reload,
+			onSave = organization::save, onRemove = organization::remove, onRecording = onNavigateToTripDetail) }
+		return
 	}
 
 	BackHandler(onBack = onBack)
@@ -163,7 +176,7 @@ fun HistoryRoute(
 						if (showRecordings && sessions is SessionOrganizationRead.Content) TripsContent(recordingPages, onNavigateToTripDetail,
 							onDeleteTrip = viewModel::requestDeleteTrip, pendingDeletes = pendingDeletes,
 							onViewTripOnMap = { onNavigateToMap(it.id, it.startTimeMs, it.endTimeMs) })
-						else OrganizedSessionsContent(sessions, organizationDay, organization::edit,
+						else OrganizedSessionsContent(sessions, organizationDay, organization::showContents,
 							onShowAll = { organization.showDay(null) }, pages = sessionPages)
 					}
 					HistoryTab.CALENDAR -> CalendarContent(

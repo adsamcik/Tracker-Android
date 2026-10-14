@@ -16,6 +16,9 @@ import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsResul
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientSteps
 import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientStepsV2
+import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsRequest
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV2
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -81,17 +84,39 @@ internal class PortableAmbientStepsExporter(
 				LocalizedString(R.string.export_error_portable_ambient_steps_scope),
 			)
 		}
+		return exportSession(context, request, outputStream)
+	}
+
+	/** Exact imported day membership can narrow a bundle without splitting any real count window. */
+	internal suspend fun exportSession(context: Context, request: ExportPortableAmbientStepsRequest,
+		outputStream: OutputStream, selectedDayIdentities: Set<String>? = null): ExportResult {
+		val backend = backendProvider(context)
+		val selectedRequest = request.copy(selectedDayIdentities = selectedDayIdentities?.toSet() ?: request.selectedDayIdentities)
 		val sourceResult: ExportPortableAmbientStepsResult = try {
 			val v2Result = FileBackedExportSpool(
 				context,
 				"portable-ambient-steps-v2-",
 				v2MaximumBytes,
 			).use { spool ->
-				when (val staged = spool.stage { spoolOutput ->
+				val staged = spool.stage { spoolOutput ->
 					codec.encode(spoolOutput) { sink ->
-						backend.exportV2(origin, request, sink)
+						if (selectedDayIdentities == null) backend.exportV2(origin, selectedRequest, sink) else {
+							var selected: PortableAmbientStepsArchiveV2? = null
+							val result = backend.exportV2(origin, selectedRequest) { archive ->
+								val days = archive.days.filter { it.product.identity.value in selectedDayIdentities }
+								if (days.map { it.product.identity.value }.toSet() != selectedDayIdentities)
+									throw PortableAmbientStepsFormatException("Selected Steps data is unavailable")
+								selected = PortableAmbientStepsArchiveV2.create(days)
+								sink.emit(requireNotNull(selected))
+							}
+							if (result is ExportPortableAmbientStepsResult.Exported) requireNotNull(selected).let { archive ->
+								ExportPortableAmbientStepsResult.Exported(archive.days.size,
+									archive.days.sumOf { it.product.facts.size }, archive.days.sumOf { it.product.gaps.size })
+							} else result
+						}
 					}
-				}) {
+				}
+				when (staged) {
 					is FileBackedExportStage.Complete -> {
 						if (staged.value is ExportPortableAmbientStepsResult.Exported) {
 							if (spool.byteCount == 0L) {
@@ -117,11 +142,25 @@ internal class PortableAmbientStepsExporter(
 					"portable-ambient-steps-v1-",
 					v1MaximumBytes,
 				).use { spool ->
-					when (val staged = spool.stage { spoolOutput ->
+					val staged = spool.stage { spoolOutput ->
 						legacyCodec.encode(spoolOutput) { sink ->
-							backend.export(origin, request, sink)
+							if (selectedDayIdentities == null) backend.export(origin, selectedRequest, sink) else {
+								var selected: PortableAmbientStepsArchiveV1? = null
+								val result = backend.export(origin, selectedRequest) { archive ->
+									val days = archive.days.filter { it.identity.value in selectedDayIdentities }
+									if (days.map { it.identity.value }.toSet() != selectedDayIdentities)
+										throw PortableAmbientStepsFormatException("Selected Steps data is unavailable")
+									selected = PortableAmbientStepsArchiveV1.create(days)
+									sink.emit(requireNotNull(selected))
+								}
+								if (result is ExportPortableAmbientStepsResult.Exported) requireNotNull(selected).let { archive ->
+									ExportPortableAmbientStepsResult.Exported(archive.days.size,
+										archive.days.sumOf { it.facts.size }, archive.days.sumOf { it.gaps.size })
+								} else result
+							}
 						}
-					}) {
+					}
+					when (staged) {
 						is FileBackedExportStage.Complete -> {
 							if (staged.value is ExportPortableAmbientStepsResult.Exported) {
 								spool.copyTo(outputStream)

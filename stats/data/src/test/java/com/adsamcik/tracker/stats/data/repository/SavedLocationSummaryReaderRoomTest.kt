@@ -128,6 +128,117 @@ class SavedLocationSummaryReaderRoomTest {
         assertFalse(read.summary.partial)
     }
 
+    @Test fun `current correction changes native summaries and radio context without invalidating original grant`() = runBlocking {
+        val selected = session("correction")
+        point(2_000, 0, 1, accuracy = 5f, capture = selected)
+        val last = point(3_000, 100_000, 2, accuracy = 5f, capture = selected)
+        val original = requireNotNull(database.locationPurposeDao().receipt(last.id))
+        database.locationPointCorrectionDao().replace(LocationPointCorrection.from(last.id, 0, 1,
+            last.copy(lonE7 = 200_000, hAccM = 10f)))
+        val summary = snapshot(reader.readSession(selected.id)).summary
+        assertEquals(distance(0, 200_000), summary.distanceMeters)
+        assertEquals(10f, summary.latestFix?.horizontalAccuracyMeters)
+        val context = database.withTransaction {
+            RetainedLocationContextReader(database).qualifyInTransaction(listOf(original))
+        }
+        assertEquals(200_000, context.points.single().longitudeE7)
+        assertEquals(10f, context.points.single().horizontalAccuracyMeters)
+        assertEquals(last, database.locationSampleDao().byIds(listOf(last.id)).single())
+        assertEquals(original, database.locationPurposeDao().receipt(last.id))
+        database.locationSampleDao().deleteExactIds(listOf(last.id))
+        assertEquals(1L, snapshot(reader.readSession(selected.id)).summary.pointCount)
+        assertTrue(database.locationPointCorrectionDao().byIds(listOf(last.id)).isEmpty())
+    }
+
+    @Test fun `edited measured time moves the saved window but does not fabricate a radio clock`() = runBlocking {
+        val value = point(2_000, 0, 1, accuracy = 5f)
+        val receipt = requireNotNull(database.locationPurposeDao().receipt(value.id))
+        database.locationPointCorrectionDao().replace(LocationPointCorrection.from(value.id, 0, 1,
+            value.copy(timeMs = 12_000)))
+        assertEquals(0L, snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000))).summary.pointCount)
+        val edited = snapshot(reader.readWindow(HistoryObservationWindow(10_000, 20_000))).summary
+        assertEquals(1L, edited.pointCount)
+        assertEquals(12_000L, edited.latestFix?.measuredTimeMs)
+        assertTrue(database.withTransaction {
+            RetainedLocationContextReader(database).qualifyInTransaction(listOf(receipt)).points
+        }.isEmpty())
+    }
+
+    @Test fun `ordinary all-day and older-session totals include saved imported and released points`() = runBlocking {
+        val first = point(2_000, 0, 1)
+        val legacy = first.copy(id = 0, timeMs = 4_000, elapsedRealtimeNanos = 0, lonE7 = 300_000,
+            sourceSignalId = null, sourceEventId = null, clockDomainId = null, bootClockDomainId = null)
+        database.locationSampleDao().insert(listOf(legacy, legacy.copy(timeMs = 5_000, lonE7 = 400_000)))
+        val older = SessionSegment(startTimeMs = 4_000, endTimeMs = 5_000, distanceM = 9_999f,
+            steps = null, primaryActivity = null, activityConfidence = null, sampleCount = 2,
+            source = SegmentSource.LEGACY_MIGRATION, inferenceVersion = null, createdAt = 5_000)
+        val id = database.sessionSegmentDao().insert(older)
+        val oldSummary = snapshot(reader.readSession(id)).summary
+        assertEquals(2L, oldSummary.pointCount)
+        assertEquals(distance(300_000, 400_000), oldSummary.distanceMeters)
+        val day = snapshot(reader.readWindow(HistoryObservationWindow(0, 10_000))).summary
+        assertEquals(3L, day.pointCount)
+        assertEquals(distance(300_000, 400_000), day.distanceMeters)
+        assertTrue(day.partial) // No fabricated connection from a native clock to older wall-only points.
+    }
+
+    @Test fun `completed recording reward uses saved current distance and ignores later annotation bounds`() = runBlocking {
+        val selected = session("reward")
+        point(2_000, 0, 1, capture = selected)
+        val last = point(3_000, 100_000, 2, capture = selected)
+        val run = requireNotNull(database.sourceSessionDao().serviceRun(requireNotNull(selected.serviceRunId)))
+        database.sourceSessionDao().updateServiceRun(run.copy(state = "STOPPED", completedAtMs = 6_000,
+            completionReason = "USER_STOP"))
+        val rewards = SavedSessionRewardReader(database, Dispatchers.Unconfined, reader)
+        val before = assertIs<SavedSessionRewardRead.Ready>(rewards.read(selected.id)).value
+        assertEquals(distance(0, 100_000), before.distanceMeters)
+        assertEquals(4_000L, before.durationMs)
+        assertEquals("recording:0:${selected.id}", before.effectKey)
+        database.locationPointCorrectionDao().replace(LocationPointCorrection.from(last.id, 0, 1,
+            last.copy(lonE7 = 200_000)))
+        database.sourceEvidenceStateDao().incrementRevision(8_000)
+        val changed = assertIs<SavedSessionRewardRead.Ready>(rewards.read(selected.id)).value
+        assertEquals(distance(0, 200_000), changed.distanceMeters)
+        assertTrue(changed.revision > before.revision)
+        assertEquals(before.effectKey, changed.effectKey)
+        database.sessionSegmentDao().delete(selected)
+        assertIs<SavedSessionRewardRead.Removed>(rewards.read(selected.id))
+    }
+
+    @Test fun `restored recording keeps its original reward identity through correction and empty source data`() = runBlocking {
+        val selected = session("restored-reward")
+        point(2_000, 0, 1, capture = selected)
+        val last = point(3_000, 100_000, 2, capture = selected)
+        val run = requireNotNull(database.sourceSessionDao().serviceRun(requireNotNull(selected.serviceRunId)))
+        database.sourceSessionDao().updateServiceRun(run.copy(state = "STOPPED", completedAtMs = 6_000,
+            completionReason = "USER_STOP"))
+        val rewards = SavedSessionRewardReader(database, Dispatchers.Unconfined, reader)
+        val original = assertIs<SavedSessionRewardRead.Ready>(rewards.read(selected.id)).value
+        database.openHelper.writableDatabase.execSQL("UPDATE source_evidence_state SET collected_data_epoch = 7, " +
+            "restored_data_epochs = '0', revision = 100 WHERE id = 1")
+        val restored = assertIs<SavedSessionRewardRead.Ready>(rewards.read(selected.id)).value
+        assertEquals(original.effectKey, restored.effectKey)
+        assertEquals(original.distanceMeters, restored.distanceMeters)
+        assertTrue(restored.revision > original.revision)
+        database.xpLedgerDao().insertOrIgnore(XpLedgerEntity(amount = 5, source = "SESSION",
+            sourceId = selected.id, sourceKey = original.effectKey, sourceRevision = restored.revision,
+            earnedAt = original.earnedAtMs))
+        database.locationPointCorrectionDao().replace(LocationPointCorrection.from(last.id, 0, 1,
+            last.copy(lonE7 = 200_000)))
+        database.sourceEvidenceStateDao().incrementRevision(8_000)
+        val corrected = assertIs<SavedSessionRewardRead.Ready>(rewards.read(selected.id)).value
+        assertEquals(original.effectKey, corrected.effectKey)
+        assertEquals(distance(0, 200_000), corrected.distanceMeters)
+        database.locationSampleDao().deleteAll()
+        database.sourceEvidenceStateDao().incrementRevision(9_000)
+        val empty = assertIs<SavedSessionRewardRead.Ready>(rewards.read(selected.id)).value
+        assertEquals(original.effectKey, empty.effectKey)
+        assertNull(empty.distanceMeters)
+        assertEquals(original.durationMs, empty.durationMs)
+        database.sourceEvidenceStateDao().updateAfterFullDeletion(8, null, ordinal, 10_000)
+        assertEquals(SavedSessionRewardRead.Unavailable, rewards.read(selected.id))
+    }
+
     @Test fun `stationary coordinates without accuracy retain real zero and saved optional fields`() = runBlocking {
         point(2_000, 0, 1)
         val last = point(3_000, 0, 2, speed = 0f, altitude = -12f)

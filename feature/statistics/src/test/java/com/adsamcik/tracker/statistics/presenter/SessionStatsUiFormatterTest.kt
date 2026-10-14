@@ -61,6 +61,29 @@ class SessionStatsUiFormatterTest {
 	}
 
 	@Test
+	fun `an unavailable radio source leaves the sibling count visible`() {
+		every { context.getString(R.string.history_value_unavailable) } returns "Unavailable"
+		val stats = formatter.formatSummary(snapshot.copy(wifiCount = null, wifiCountIsPartial = true))
+		stats.single { it.nameRes == R.string.stats_wifi_count }.data shouldBe "Unavailable"
+		stats.single { it.nameRes == R.string.stats_cell_count }.data shouldBe "5"
+	}
+
+	@Test
+	fun `missing measurements keep source counts while omitting invented distance zeros`() {
+		val stats = formatter.formatSummary(snapshot.copy(hasMeasuredDistance = false))
+		stats.any { it.nameRes in setOf(R.string.stats_distance_total,
+			R.string.stats_distance_on_foot, R.string.stats_distance_in_vehicle) } shouldBe false
+		stats.any { it.nameRes == R.string.stats_wifi_count && it.data == "4" } shouldBe true
+	}
+
+	@Test
+	fun `unclassified Location still shows its measured total`() {
+		val stats = formatter.formatSummary(snapshot.copy(hasActivityDistances = false))
+		stats.any { it.nameRes == R.string.stats_distance_total && it.data == "1.2 km" } shouldBe true
+		stats.any { it.nameRes in setOf(R.string.stats_distance_on_foot, R.string.stats_distance_in_vehicle) } shouldBe false
+	}
+
+	@Test
 	fun `formatSummary withholds unqualified Steps and keeps independent rows`() {
 		val stats = formatter.formatSummary(snapshot)
 

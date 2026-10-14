@@ -70,15 +70,21 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 	)
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount", "ThrowsCount")
-	override suspend fun deleteSelectedSession(
-		sessionSegmentId: Long,
-	): StepsSessionDeletionResult {
+	override suspend fun deleteSelectedSession(sessionSegmentId: Long): StepsSessionDeletionResult =
+		deleteSelectedSessionInternal(sessionSegmentId, null)
+
+	override suspend fun deleteSelectedSession(sessionSegmentId: Long, expectedCollectedDataEpoch: Long): StepsSessionDeletionResult =
+		deleteSelectedSessionInternal(sessionSegmentId, expectedCollectedDataEpoch)
+
+	private suspend fun deleteSelectedSessionInternal(sessionSegmentId: Long, expectedEpoch: Long?): StepsSessionDeletionResult {
 		if (sessionSegmentId <= 0L) {
 			return unsupported(StepsSessionDeletionUnsupportedReason.INVALID_SEGMENT_ID)
 		}
 		val deletedAtMs = wallTimeMsProvider().coerceAtLeast(0L)
 		var requestLiveDrainAfterDelete = true
 		val result = try {
+			if (expectedEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch)
+				return unsupported(StepsSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
 			val preReadSegment = database.sessionSegmentDao().getById(sessionSegmentId)
 				?: return StepsSessionDeletionResult.NotFound
 			if (preReadSegment.source == SegmentSource.PORTABLE_STEPS_IMPORT) {
@@ -87,7 +93,7 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 					database = database,
 					afterDayLocksAcquired = afterDayLocksAcquired,
 					beforeMutation = beforeMutation,
-				).delete(sessionSegmentId, deletedAtMs)
+				).delete(sessionSegmentId, deletedAtMs, expectedEpoch)
 			} else {
 				if (preReadHasActiveOwner(preReadSegment)) {
 					return StepsSessionDeletionResult.BlockedActive
@@ -106,6 +112,8 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 				lockCoordinator.withDayLocks(expectedScope.affectedDays) { lockedDays ->
 					afterDayLocksAcquired()
 					database.withTransaction {
+						if (expectedEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch)
+							return@withTransaction unsupported(StepsSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
 						val segment = database.sessionSegmentDao().getById(sessionSegmentId)
 							?: throw ConcurrentDeletionStateException()
 						val actualScope = (selectedScope(segment) as? SelectedScopePreflight.Ready)?.scope

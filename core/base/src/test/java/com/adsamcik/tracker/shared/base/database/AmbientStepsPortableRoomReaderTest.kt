@@ -25,6 +25,7 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsCove
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsPartialCause
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -106,7 +107,7 @@ class AmbientStepsPortableRoomReaderTest {
 	}
 
 	@Test
-	fun `retention crossing and active structural day fail closed without an archive`() = runTest {
+	fun `retention crossing remains unavailable instead of exporting deleted counts`() = runTest {
 		val retained = seed(retainedFromMs = 1_500L)
 		database.ambientStepsFactRevisionDao().insert(retained.fact(1_000L, 2_000L, 4L))
 
@@ -116,20 +117,24 @@ class AmbientStepsPortableRoomReaderTest {
 			AmbientStepsPortableReadFailure.RETENTION_CROSSES_FACT,
 		)
 
-		database.close()
-		setUp()
-		val materializing = seed(cursorStatus = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
-			importedThroughMs = 2_000L)
-		database.ambientStepsFactRevisionDao().insert(materializing.fact(0L, 2_000L, 4L))
-		AmbientStepsPortableRoomReader(database).read(
-			AmbientStepsPortableReadRequest(0L, DAY_END),
-		) shouldBe AmbientStepsPortableSnapshot.Unverifiable(
-			AmbientStepsPortableReadFailure.MATERIALIZING,
-		)
 	}
 
 	@Test
-	fun `authenticated successor backlog before a retired fact day remains materializing`() = runTest {
+	fun `an active day exports its saved prefix with partial coverage`() = runTest {
+		val materializing = seed(cursorStatus = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
+			importedThroughMs = 2_000L)
+		database.ambientStepsFactRevisionDao().insert(materializing.fact(0L, 2_000L, 4L))
+		val day = AmbientStepsPortableRoomReader(database).read(
+			AmbientStepsPortableReadRequest(0L, DAY_END),
+		).shouldBeInstanceOf<AmbientStepsPortableSnapshot.Ready>().archive.days.single()
+		day.retainedStepCount shouldBe 4L
+		day.coverage shouldBe PortableAmbientStepsCoverage.PARTIAL
+		day.partialCauses shouldContainExactly listOf(PortableAmbientStepsPartialCause.OUTSIDE_AUTHORITY)
+		day.facts.single().intervalEndTimeMs shouldBe 2_000L
+	}
+
+	@Test
+	fun `a successor backlog preserves the saved fact day with partial coverage`() = runTest {
 		val retired = seed(importedThroughMs = SECOND_DAY_END)
 		database.ambientStepsFactRevisionDao().insert(
 			retired.fact(
@@ -147,15 +152,15 @@ class AmbientStepsPortableRoomReaderTest {
 			importedThroughTimeMs = 1_000L,
 		)
 
-		AmbientStepsPortableRoomReader(database).read(
+		val day = AmbientStepsPortableRoomReader(database).read(
 			AmbientStepsPortableReadRequest(DAY_END, SECOND_DAY_END),
-		) shouldBe AmbientStepsPortableSnapshot.Unverifiable(
-			AmbientStepsPortableReadFailure.MATERIALIZING,
-		)
+		).shouldBeInstanceOf<AmbientStepsPortableSnapshot.Ready>().archive.days.single()
+		day.retainedStepCount shouldBe 11L
+		day.coverage shouldBe PortableAmbientStepsCoverage.PARTIAL
 	}
 
 	@Test
-	fun `unauthenticated active backlog cursor fails closed instead of exporting retired facts`() = runTest {
+	fun `an unrelated damaged backlog does not discard independently authenticated saved facts`() = runTest {
 		val retired = seed(importedThroughMs = SECOND_DAY_END)
 		database.ambientStepsFactRevisionDao().insert(
 			retired.fact(
@@ -178,15 +183,15 @@ class AmbientStepsPortableRoomReaderTest {
 				"AND registration_generation = $SUCCESSOR_REGISTRATION",
 		)
 
-		AmbientStepsPortableRoomReader(database).read(
+		val day = AmbientStepsPortableRoomReader(database).read(
 			AmbientStepsPortableReadRequest(DAY_END, SECOND_DAY_END),
-		) shouldBe AmbientStepsPortableSnapshot.Unverifiable(
-			AmbientStepsPortableReadFailure.CORRUPT_RETAINED_STATE,
-		)
+		).shouldBeInstanceOf<AmbientStepsPortableSnapshot.Ready>().archive.days.single()
+		day.retainedStepCount shouldBe 11L
+		day.coverage shouldBe PortableAmbientStepsCoverage.PARTIAL
 	}
 
 	@Test
-	fun `later deny all invalidates an older active backlog cursor before export`() = runTest {
+	fun `later deny all stops acquisition without invalidating the original saved fact authority`() = runTest {
 		val retired = seed(importedThroughMs = SECOND_DAY_END)
 		database.ambientStepsFactRevisionDao().insert(
 			retired.fact(
@@ -215,11 +220,64 @@ class AmbientStepsPortableRoomReaderTest {
 			),
 		)
 
-		AmbientStepsPortableRoomReader(database).read(
+		val day = AmbientStepsPortableRoomReader(database).read(
 			AmbientStepsPortableReadRequest(DAY_END, SECOND_DAY_END),
-		) shouldBe AmbientStepsPortableSnapshot.Unverifiable(
-			AmbientStepsPortableReadFailure.CORRUPT_RETAINED_STATE,
+		).shouldBeInstanceOf<AmbientStepsPortableSnapshot.Ready>().archive.days.single()
+		day.retainedStepCount shouldBe 11L
+		day.coverage shouldBe PortableAmbientStepsCoverage.PARTIAL
+	}
+
+	@Test
+	fun `Steps Off preserves saved readings under their original policy and consent`() = runTest {
+		val fixture = seed(revoked = true)
+		database.ambientStepsFactRevisionDao().insert(fixture.fact(0L, DAY_END, 9L))
+
+		val day = AmbientStepsPortableRoomReader(database).read(
+			AmbientStepsPortableReadRequest(0L, DAY_END),
+		).shouldBeInstanceOf<AmbientStepsPortableSnapshot.Ready>().archive.days.single()
+
+		day.retainedStepCount shouldBe 9L
+		day.coverage shouldBe PortableAmbientStepsCoverage.COMPLETE
+		database.sourcePolicyDao().latestConsentEpoch(SourceDestinationOwnerEntity.SOURCE_STEPS,
+			SourceBrokerPurpose.AMBIENT_PRODUCT)?.eligible shouldBe false
+	}
+
+	@Test
+	fun `restored saved prefix remains exportable with Steps Off and a newer current dataset`() = runTest {
+		val fixture = seed(revoked = true, cursorStatus = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
+			importedThroughMs = 2_000L)
+		val original = fixture.fact(0L, 2_000L, 9L)
+		database.ambientStepsFactRevisionDao().insert(original)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_evidence_state SET collected_data_epoch=?, restored_data_epochs=? WHERE id=1",
+			arrayOf(EPOCH + 1L, EPOCH.toString()),
 		)
+
+		val day = AmbientStepsPortableRoomReader(database).read(
+			AmbientStepsPortableReadRequest(0L, DAY_END),
+		).shouldBeInstanceOf<AmbientStepsPortableSnapshot.Ready>().archive.days.single()
+
+		day.retainedStepCount shouldBe 9L
+		day.coverage shouldBe PortableAmbientStepsCoverage.PARTIAL
+		day.facts.single().intervalEndTimeMs shouldBe 2_000L
+		database.ambientStepsFactRevisionDao().maintenanceRevisionPage(
+			AmbientStepsFactRevisionEntity.WRITER_ID, AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			null, null, 2).single() shouldBe original
+		database.sourcePolicyDao().authority()?.currentPolicyRevision shouldBe CURRENT_POLICY
+	}
+
+	@Test
+	fun `ineligible original consent cannot be replaced by a newer current policy`() = runTest {
+		val fixture = seed(revoked = true)
+		database.ambientStepsFactRevisionDao().insert(fixture.fact(0L, DAY_END, 9L))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_consent_epoch SET eligible=0, persistence_eligible=0 WHERE source_kind=? AND purpose=? AND epoch=?",
+			arrayOf(SourceDestinationOwnerEntity.SOURCE_STEPS, SourceBrokerPurpose.AMBIENT_PRODUCT, ACTIVE_CONSENT),
+		)
+
+		AmbientStepsPortableRoomReader(database).read(
+			AmbientStepsPortableReadRequest(0L, DAY_END),
+		) shouldBe AmbientStepsPortableSnapshot.Unverifiable(AmbientStepsPortableReadFailure.CORRUPT_RETAINED_STATE)
 	}
 
 	@Test

@@ -7,7 +7,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntegrity
 data class SavedSessionCutoff(val bootId: String?, val elapsedNanos: Long?) {
     val clockUnknown: Boolean get() = elapsedNanos != null && bootId == null
     fun retainedEnd(measurementBootId: String, originalFactEnd: Long): Long =
-        if (elapsedNanos != null && bootId != measurementBootId) originalFactEnd else endForBoot(measurementBootId)
+        if (elapsedNanos == null || bootId != measurementBootId) originalFactEnd else endForBoot(measurementBootId)
     fun endForBoot(measurementBootId: String): Long =
         if (bootId == measurementBootId) elapsedNanos ?: Long.MAX_VALUE else Long.MAX_VALUE
 }

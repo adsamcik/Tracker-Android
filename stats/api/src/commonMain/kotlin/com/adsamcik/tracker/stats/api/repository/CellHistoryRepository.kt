@@ -139,9 +139,11 @@ enum class CellHistoryRangeUnavailableReason {
 data class DeleteCellHistoryRequest(
 	val selection: CellHistoryEntrySelection,
 	val requestedAtMs: Long,
+	val expectedCollectedDataEpoch: Long? = null,
 ) {
 	init {
 		require(requestedAtMs >= 0L)
+		require(expectedCollectedDataEpoch == null || expectedCollectedDataEpoch >= 0L)
 	}
 }
 

@@ -57,12 +57,14 @@ class BasemapManager(
             return@withContext BasemapImportResult.InvalidFormat(reason)
         }
 
+        com.adsamcik.tracker.shared.base.data.ImportedDataFilesRevision.changed()
         BasemapImportResult.Success(target.absolutePath)
     }
 
     /** Delete the custom basemap and revert to bundled default. */
     fun clearCustomBasemap() {
         File(basemapDir, "custom.pmtiles").delete()
+        com.adsamcik.tracker.shared.base.data.ImportedDataFilesRevision.changed()
     }
 
     /** Get custom basemap path, or null if using default. */

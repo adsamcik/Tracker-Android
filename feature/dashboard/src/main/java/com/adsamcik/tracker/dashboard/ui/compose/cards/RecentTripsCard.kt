@@ -125,11 +125,11 @@ private fun RecentHistoryRows(
 						val trip = entry.trip
 						RecentTripRow(
 							trip = trip,
-							distanceText = context.resources.formatDistance(
+							distanceText = if (!trip.hasMeasuredDistance) "—" else context.resources.formatDistance(
 								trip.distanceM,
 								1,
 								settings.lengthSystem,
-							),
+							).let { if (trip.distanceIsPartial) context.getString(R.string.dashboard_recorded_partial_value, it) else it },
 							durationText = trip.durationMs.formatAsDuration(context),
 							timeText = relativeTime(trip.startTimeMs),
 							onClick = onTripClick?.let { click -> { click(trip.id) } },

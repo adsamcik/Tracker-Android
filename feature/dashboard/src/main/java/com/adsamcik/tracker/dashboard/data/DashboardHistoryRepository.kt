@@ -34,6 +34,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
 
 data class DashboardHistory(
@@ -173,12 +176,25 @@ internal class RoomDashboardHistoryRepository @Inject constructor(
 				DashboardPhysicalCandidateGeneration(rows.map { row -> row.toModel() })
 			}
 			.flatMapLatest { generation ->
-				trackingHistoryRepository.observeRecentSourceAwarePage(
+				combine(trackingHistoryRepository.observeRecentSourceAwarePage(
 					candidateSegmentIds = generation.candidateIds,
 					limit = RECENT_HISTORY_LIMIT,
-				).map(generation::mapPage)
+				), trackingHistoryRepository.observeSessionRewardChanges().onStart { emit(Unit) }) { query, _ ->
+					generation.mapPage(query).map { entry -> measuredEntry(entry) }
+				}.distinctUntilChanged()
 			}
 			.flowOn(dispatchers.io)
+
+	private suspend fun measuredEntry(entry: DashboardRecentHistoryEntry): DashboardRecentHistoryEntry {
+		if (entry !is DashboardRecentHistoryEntry.Physical) return entry
+		val read = try { trackingHistoryRepository.readSavedLocationSummary(
+			com.adsamcik.tracker.stats.api.repository.SavedLocationSummarySelection.Session(entry.trip.id)) }
+		catch (cancelled: CancellationException) { throw cancelled }
+		catch (_: Exception) { null }
+		val summary = (read as? com.adsamcik.tracker.stats.api.repository.SavedLocationSummaryRead.Snapshot)?.summary
+		return entry.copy(trip = entry.trip.copy(distanceM = (summary?.distanceMeters ?: 0.0).toFloat(),
+			hasMeasuredDistance = summary?.distanceMeters != null, distanceIsPartial = summary == null || summary.partial))
+	}
 
 	override suspend fun load(): DashboardHistory =
 		withContext(dispatchers.io) {

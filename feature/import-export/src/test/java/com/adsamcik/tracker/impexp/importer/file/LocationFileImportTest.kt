@@ -71,6 +71,58 @@ class LocationFileImportTest {
             database.locationSampleDao().byIds(listOf(identity.sampleId)).single().latE7)
     }
 
+    @Test fun `reviewed replacement updates every saved-data read and export while original stays immutable`() = runBlocking {
+        import(pointFile(500_000_000), "original")
+        val id = requireNotNull(database.locationFileIdentityDao().byPortableId("point-a")).sampleId
+        val original = database.locationSampleDao().byIds(listOf(id)).single()
+        val edited = pointFile(501_000_000).toString(Charsets.UTF_8)
+            .replace("\"timeMs\":1000", "\"timeMs\":2000").toByteArray()
+        val reviewed = preview(edited)
+        val result = import(edited, "replace", LocationFileImportReview(reviewed,
+            LocationFileConflictChoice.REPLACE_WITH_FILE))
+        assertEquals(1, result.successCount)
+        assertEquals(original, database.locationSampleDao().byIds(listOf(id)).single())
+        val current = database.locationSampleDao().effectiveByIds(listOf(id)).single()
+        assertEquals(2_000L, current.timeMs)
+        assertEquals(501_000_000, current.latE7)
+        assertEquals(id, current.id)
+        assertEquals(emptyList<Any>(), database.locationSampleDao().getChunkBetweenOrdered(1_000, 1_000,
+            null, null, 10))
+        assertEquals(current, database.locationPurposeDao().savedFileChunk(2_000, 2_000,
+            null, null, 10).single().sample)
+        val output = ByteArrayOutputStream()
+        LocationFileExporter().exportAfter(context, emptySequence(), output, 2_000L..2_000L,
+            null, null, database, {})
+        val points = mutableListOf<LocationFilePointV1>()
+        LocationFileJsonV1().read(ByteArrayInputStream(output.toByteArray())) { points += it }
+        assertEquals("point-a", points.single().pointId)
+        assertEquals(501_000_000, points.single().measurement.latE7)
+        assertEquals(2_000L, points.single().measurement.timeMs)
+        val retry = import(edited, "repeat")
+        assertEquals(1, retry.skippedCount)
+        assertEquals(1, database.locationPointCorrectionDao().byIds(listOf(id)).size)
+    }
+
+    @Test fun `a failed replacement batch changes neither correction nor original`() = runBlocking {
+        import(pointFile(500_000_000), "original")
+        val id = requireNotNull(database.locationFileIdentityDao().byPortableId("point-a")).sampleId
+        val original = database.locationSampleDao().byIds(listOf(id)).single()
+        val bytes = pointFile(501_000_000)
+        val review = LocationFileImportReview(preview(bytes), LocationFileConflictChoice.REPLACE_WITH_FILE)
+        database.openHelper.writableDatabase.execSQL("CREATE TRIGGER fail_corrected_membership " +
+            "BEFORE INSERT ON location_file_archive_point WHEN NEW.archive_identity != 'original' " +
+            "BEGIN SELECT RAISE(ABORT, 'test membership failure'); END")
+        assertThrows(android.database.sqlite.SQLiteException::class.java) {
+            runBlocking { import(bytes, "failed-replacement", review) }
+        }
+        assertEquals(original, database.locationSampleDao().effectiveByIds(listOf(id)).single())
+        assertEquals(emptyList<Any>(), database.locationPointCorrectionDao().byIds(listOf(id)))
+        database.openHelper.writableDatabase.execSQL("DROP TRIGGER fail_corrected_membership")
+        assertEquals(1, import(bytes, "retry-replacement", review).successCount)
+        database.locationSampleDao().deleteExactIds(listOf(id))
+        assertEquals(emptyList<Any>(), database.locationPointCorrectionDao().byIds(listOf(id)))
+    }
+
     @Test fun `one file owns duplicate point membership across different outer jobs`() = runBlocking {
         val bytes = pointFile(500_000_000)
         val identity = preview(bytes).fileJobId

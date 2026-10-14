@@ -684,7 +684,7 @@ internal class PressureHistorySelector private constructor(
 					PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED,
 				)
 			}
-			if (fact.collectedDataEpoch != evidenceState.collectedDataEpoch) {
+			if (!evidenceState.acceptsRetainedEpoch(fact.collectedDataEpoch)) {
 				return failed(
 					segment,
 					captureAuthority,

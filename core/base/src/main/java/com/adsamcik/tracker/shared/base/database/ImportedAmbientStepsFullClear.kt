@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayFen
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsIdentity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsSourceFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 
 /**
  * Full-clear result for parent AppDatabase orchestration.
@@ -34,12 +35,14 @@ fun ImportedAmbientStepsDao.prepareFullClearFencesInCurrentTransaction(
 	newCollectedDataEpoch: Long,
 	sourceEvidenceRevision: Long,
 	clearedAtMs: Long,
+	retainedState: SourceEvidenceState? = null,
 ): ImportedAmbientStepsFullClearResult = try {
 	prepareFullClearFencesUnchecked(
 		oldCollectedDataEpoch,
 		newCollectedDataEpoch,
 		sourceEvidenceRevision,
 		clearedAtMs,
+		retainedState,
 	)
 } catch (failure: ImportedAmbientStepsLineageFailure) {
 	throw failure
@@ -58,11 +61,13 @@ private fun ImportedAmbientStepsDao.prepareFullClearFencesUnchecked(
 	newCollectedDataEpoch: Long,
 	sourceEvidenceRevision: Long,
 	clearedAtMs: Long,
+	retainedState: SourceEvidenceState?,
 ): ImportedAmbientStepsFullClearResult {
 	require(oldCollectedDataEpoch >= 0L)
 	require(newCollectedDataEpoch > oldCollectedDataEpoch)
 	require(sourceEvidenceRevision >= 0L)
 	require(clearedAtMs >= 0L)
+	check(retainedState == null || retainedState.collectedDataEpoch == oldCollectedDataEpoch)
 
 	val storedFenceCount = fenceCountForFullClear()
 	val storedProtectedIdentityCount = protectedIdentityCountForFullClear()
@@ -85,7 +90,8 @@ private fun ImportedAmbientStepsDao.prepareFullClearFencesUnchecked(
 			afterFenceId?.let { page.first().dayIdentity <= it } == true
 		) corruptFullClear()
 		page.forEach { fence ->
-			if (fence.collectedDataEpoch != oldCollectedDataEpoch ||
+			if (!(retainedState?.acceptsRetainedEpoch(fence.collectedDataEpoch)
+					?: (fence.collectedDataEpoch == oldCollectedDataEpoch)) ||
 				fence.fencedAtMs > clearedAtMs ||
 				fence.sourceEvidenceRevision >= sourceEvidenceRevision
 			) corruptFullClear()
@@ -109,7 +115,7 @@ private fun ImportedAmbientStepsDao.prepareFullClearFencesUnchecked(
 			)
 			if (replaceFenceForFullClear(
 					dayIdentity = fence.dayIdentity,
-					expectedCollectedDataEpoch = oldCollectedDataEpoch,
+					expectedCollectedDataEpoch = fence.collectedDataEpoch,
 					expectedEffectChecksum = fence.effectChecksum,
 					collectedDataEpoch = replacement.collectedDataEpoch,
 					sourceEvidenceRevision = replacement.sourceEvidenceRevision,
@@ -134,7 +140,8 @@ private fun ImportedAmbientStepsDao.prepareFullClearFencesUnchecked(
 	) corruptFullClear()
 
 	sourceFenceForFullClear()?.let { sourceFence ->
-		if (sourceFence.collectedDataEpoch != oldCollectedDataEpoch ||
+		if (!(retainedState?.acceptsRetainedEpoch(sourceFence.collectedDataEpoch)
+				?: (sourceFence.collectedDataEpoch == oldCollectedDataEpoch)) ||
 			maxOf(
 				sourceFence.deletedAtMs,
 				sourceFence.completedAtMs ?: 0L,
@@ -146,7 +153,7 @@ private fun ImportedAmbientStepsDao.prepareFullClearFencesUnchecked(
 			newCollectedDataEpoch,
 		)
 		if (replaceSourceFenceForFullClear(
-				expectedCollectedDataEpoch = oldCollectedDataEpoch,
+				expectedCollectedDataEpoch = sourceFence.collectedDataEpoch,
 				expectedEffectChecksum = sourceFence.effectChecksum,
 				collectedDataEpoch = replacement.collectedDataEpoch,
 				revokedConsentEpoch = replacement.revokedConsentEpoch,
@@ -170,6 +177,7 @@ private fun ImportedAmbientStepsDao.prepareFullClearFencesUnchecked(
 		val lineage = loadAuthenticatedAmbientStepsLineageForFullClear(
 			candidate,
 			oldCollectedDataEpoch,
+			retainedState,
 		)
 		val latest = lineage.latest
 		if (latest.header != candidate ||
@@ -292,6 +300,7 @@ private fun ImportedAmbientStepsDao.deleteFullClearPayloadUnchecked(
 internal fun ImportedAmbientStepsDao.loadAuthenticatedAmbientStepsLineageForFullClear(
 	candidate: ImportedAmbientStepsDayRevisionEntity,
 	oldCollectedDataEpoch: Long,
+	retainedState: SourceEvidenceState? = null,
 ): AuthenticatedImportedAmbientStepsLineage {
 	val memberships = archiveDaysForFullClear(
 		candidate.dayIdentity,
@@ -315,6 +324,7 @@ internal fun ImportedAmbientStepsDao.loadAuthenticatedAmbientStepsLineageForFull
 	return ImportedAmbientStepsLineageAuthenticator.authenticate(
 		dayIdentity = candidate.dayIdentity,
 		expectedCollectedDataEpoch = oldCollectedDataEpoch,
+		retainedState = retainedState,
 		headers = dayRevisionsForFullClear(
 			candidate.dayIdentity,
 			ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY + 1,

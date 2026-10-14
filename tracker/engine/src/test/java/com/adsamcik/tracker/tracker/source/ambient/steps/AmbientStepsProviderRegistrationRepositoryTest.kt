@@ -102,7 +102,7 @@ class AmbientStepsProviderRegistrationRepositoryTest {
 		val demand = select(AmbientStepsProvider.LOCAL_RECORDING_STEPS, boundary(100L))
 		database.openHelper.writableDatabase.execSQL(
 			"DELETE FROM source_destination_owner WHERE source_kind = ? AND destination = ?",
-			arrayOf(SourceKind.STEPS.stableCode,
+			arrayOf<Any?>(SourceKind.STEPS.stableCode,
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS))
 		shouldThrow<IllegalStateException> {
 			subject.reserve(AmbientStepsProvider.LOCAL_RECORDING_STEPS, demand.demandId, boundary(110L))

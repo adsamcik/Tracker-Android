@@ -13,7 +13,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
 internal data class FileBackedExportSpoolLimits(
-	val maximumFileCount: Int = 8,
+	val maximumFileCount: Int = 16,
 	val maximumTotalBytes: Long = 256L * 1_024L * 1_024L,
 	val maximumAgeMs: Long = 24L * 60L * 60L * 1_000L,
 ) {
@@ -97,6 +97,13 @@ internal class FileBackedExportSpool(
 		}
 		caller.ensureActive()
 		writeCompleted = true
+		// A completed file cannot grow. Retaining its entire encoding allowance would prevent a
+		// small multi-source bundle from staging the next child or its final archive.
+		synchronized(ACTIVE_LOCK) {
+			ACTIVE_FILES[backingFile.canonicalPath]?.let {
+				ACTIVE_FILES[backingFile.canonicalPath] = it.copy(reservedBytes = writtenBytes)
+			}
+		}
 		return result
 	}
 

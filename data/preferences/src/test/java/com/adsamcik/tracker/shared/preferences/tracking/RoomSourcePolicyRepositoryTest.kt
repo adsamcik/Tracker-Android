@@ -947,6 +947,8 @@ class RoomSourcePolicyRepositoryTest {
 		source: TrackingSourceComponent,
 		purpose: String,
 	) {
+		database.sourceEvidenceStateDao().ensure()
+		val collectedDataEpoch = checkNotNull(database.sourceEvidenceStateDao().get()).collectedDataEpoch
 		val policy = snapshot[source]
 		val sessionScoped = purpose == SourceBrokerPurpose.SESSION_CAPTURE
 		val consentEpoch = when (purpose) {
@@ -994,7 +996,7 @@ class RoomSourcePolicyRepositoryTest {
 				} else "test-process",
 				clockDomainId = TEST_BOOT_ID,
 				physicalConfigurationFingerprint = "physical-1",
-				collectedDataEpoch = 1L,
+				collectedDataEpoch = collectedDataEpoch,
 				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
 				reservedAtMs = 500L,
 				reservedElapsedRealtimeNanos = 50L,

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Fjern ufuldstændig fil</string>
+    <string name="export_unfinished_retry">Prøv igen</string>
+    <string name="export_unfinished_files_guidance">Tracker kan ikke fjerne filen. Fjern den i Filer, eller gendan adgangen til mappen og prøv igen.</string>
+    <string name="export_unfinished_notice_update_failed">Filen er fjernet. Beskeden kunne ikke opdateres. Prøv igen.</string>
+    <string name="export_unfinished_startup_unavailable">Afslut datagendannelse i Tracker, og prøv igen.</string>
+    <string name="export_unfinished_load_failed">Ufuldstændige filer kunne ikke indlæses.</string>
+    <string name="export_unfinished_notice_save_failed">En ufuldstændig fil kunne ikke huskes. Fjern den i Filer.</string>
+    <string name="export_unfinished_not_remembered">Kunne ikke fjerne eller huske %s. Fjern den i Filer.</string>
+    <string name="export_unfinished_remove_accessibility">Fjern ufuldstændig fil: %s</string>
+</resources>

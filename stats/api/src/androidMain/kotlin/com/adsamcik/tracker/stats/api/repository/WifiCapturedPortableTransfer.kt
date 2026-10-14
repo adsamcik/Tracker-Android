@@ -55,6 +55,8 @@ data class ImportPortableCapturedWifiRequest(
 	val entry: PortableCapturedWifiEntryV1,
 	val receipt: PortableCapturedWifiImportReceipt,
 	val expectedCollectedDataEpoch: Long,
+	/** Version-three source files contain independent readings; omitted readings remain saved. */
+	val mergeSelectedReadings: Boolean = false,
 ) {
 	init {
 		require(expectedCollectedDataEpoch >= 0L)

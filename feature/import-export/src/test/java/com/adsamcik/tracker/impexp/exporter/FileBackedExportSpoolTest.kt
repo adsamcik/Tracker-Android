@@ -207,6 +207,26 @@ class FileBackedExportSpoolTest {
 		requireNotNull(file).exists() shouldBe false
 	}
 
+
+    @Test fun `completed source children reserve actual bytes for the next child`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        val limits = FileBackedExportSpoolLimits(16, 128L, 10_000L)
+        val children = mutableListOf<FileBackedExportSpool>()
+        try {
+            repeat(8) {
+                val child = FileBackedExportSpool(context, "session-child-", 64L, limits)
+                children += child
+                child.write { output -> output.write(byteArrayOf(1, 2, 3)) }
+            }
+            FileBackedExportSpool(context, "session-bundle-", 64L, limits).use { archive ->
+                archive.write { output -> children.forEach { it.copyTo(output) } }
+                archive.byteCount shouldBe 24L
+                children.all { it.backingFile.exists() } shouldBe true
+            }
+        } finally { children.asReversed().forEach { it.close() } }
+        directory.listFiles().orEmpty().isEmpty() shouldBe true
+    }
+
 	private fun abandoned(
 		purpose: String,
 		createdAtMs: Long,

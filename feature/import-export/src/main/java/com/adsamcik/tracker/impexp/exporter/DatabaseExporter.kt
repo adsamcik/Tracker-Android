@@ -12,15 +12,11 @@ import java.io.OutputStream
 import kotlinx.coroutines.CancellationException
 
 /**
- * Exports every database owned by the application as a ZIP backup.
+ * Exports the explicitly scoped durable data stores and required imported files as one ZIP.
+ * Preferences, schedules, caches and diagnostics are not part of a data backup.
  *
- * Database discovery is deliberately based on [Context.databaseList] instead of a list of
- * module-specific database implementations. This includes independent feature databases without
- * making this module depend on their implementations, and automatically includes future ones.
- *
- * Each database is checkpointed and write-locked for its complete raw-file copy, preventing a
- * concurrent writer from tearing that individual snapshot. Files are still locked and copied one
- * at a time, so an archive containing multiple databases is not an atomic cross-database snapshot.
+ * Every database is checkpointed and locked before copying begins, so the complete database set
+ * represents one saved-data instant. Imported data files are then copied with their own checksums.
  */
 @Keep // Export activity reconstructs the selected class through its public no-argument constructor.
 class DatabaseExporter : Exporter {
@@ -35,17 +31,9 @@ class DatabaseExporter : Exporter {
 		outputStream: OutputStream,
 		dateRange: LongRange?
 	): ExportResult {
-		val databaseFiles = context.databaseList()
-			.map(context::getDatabasePath)
-			.filter { it.isFile && isDatabaseFileName(it.name) }
-
-		if (databaseFiles.isEmpty()) {
-			return ExportResult.Error(LocalizedString(R.string.export_error_no_databases))
-		}
-
 		return try {
-			DatabaseBackupArchive.write(
-				databaseFiles,
+			DatabaseBackupArchive.writeData(
+				DatabaseBackupScope.discover(context),
 				outputStream,
 				SQLiteDatabaseCopyLockProvider,
 			)
@@ -57,11 +45,6 @@ class DatabaseExporter : Exporter {
 		}
 	}
 
-	private fun isDatabaseFileName(name: String): Boolean =
-		name == File(name).name &&
-			!name.endsWith("-wal") &&
-			!name.endsWith("-shm") &&
-			!name.endsWith("-journal")
 }
 
 /**
@@ -79,12 +62,31 @@ internal object SQLiteDatabaseCopyLockProvider : DatabaseCopyLockProvider {
 			SQLiteDatabase.OPEN_READWRITE,
 		)
 		try {
-			database.rawQuery("PRAGMA wal_checkpoint(FULL)", emptyArray()).use {
-				while (it.moveToNext()) {}
+			var locked = false
+			repeat(3) {
+				if (!locked) {
+					// Compare on the same primary connection. A pooled read connection has its
+					// own data_version counter and cannot prove the checkpoint-to-lock gap.
+					database.beginTransaction()
+					val before = try {
+						database.rawQuery("PRAGMA data_version", null).use { cursor -> cursor.moveToFirst(); cursor.getLong(0) }
+					} finally { database.endTransaction() }
+					val checkpointed = database.rawQuery("PRAGMA wal_checkpoint(FULL)", emptyArray()).use { cursor ->
+						cursor.moveToFirst() && cursor.getInt(0) == 0 && cursor.getLong(1) == cursor.getLong(2)
+					}
+					if (checkpointed) {
+						database.beginTransaction()
+						val after = database.rawQuery("PRAGMA data_version", null).use { cursor -> cursor.moveToFirst(); cursor.getLong(0) }
+						locked = before == after
+						if (!locked) database.endTransaction()
+					}
+				}
 			}
-			database.beginTransaction()
+			check(locked) { "Database changed while preparing its backup snapshot" }
 		} catch (exception: Exception) {
-			database.close()
+			try { if (database.inTransaction()) database.endTransaction() }
+			catch (cleanup: Exception) { exception.addSuppressed(cleanup) }
+			finally { database.close() }
 			throw exception
 		}
 		return Closeable {

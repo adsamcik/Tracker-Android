@@ -35,6 +35,9 @@ import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEnt
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsWalCarrierAuthentication
+import com.adsamcik.tracker.shared.base.database.data.StepsWalCarrierAuthenticator
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
@@ -70,8 +73,11 @@ import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
+import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.runtime.RuntimeCheckpointLifecycle
 import com.adsamcik.tracker.tracker.source.runtime.RuntimeAdmissionSnapshot
 import com.adsamcik.tracker.tracker.source.runtime.SensorAdmissionCheckpoint
@@ -420,6 +426,82 @@ class RoomDurableSourceIngressTest {
 			read.owners shouldBe emptyMap()
 			read.latestRevisions shouldBe emptyMap()
 		}
+
+	@Test
+	fun `real Steps admission projects the original count domain once through the final writer`() = runTest {
+		val authorization = installFinalStepsAssemblyFixture()
+		val token = StepsCounterDomainToken.opaque("sha256:${"e".repeat(64)}")
+		val baseline = assembledStepCandidate(authorization, token, sequence = 0L)
+		val covered = assembledStepCandidate(authorization, token, sequence = 1L)
+		val first = subject.admit(baseline).shouldBeInstanceOf<AdmissionResult.Admitted>()
+		val last = subject.admit(covered).shouldBeInstanceOf<AdmissionResult.Admitted>()
+		database.stepFactRevisionDao().writerAdmission(StepsSessionFactProjectionLane.WRITER_ID,
+			StepsSessionFactProjectionLane.WRITER_VERSION, last.admissionOrdinal) shouldBe null
+
+		val writer = StepsSessionFactProjectionLane(database, subject)
+		writer.drainCanonicalThrough(last.admissionOrdinal) shouldBe StepsSessionFactDrainResult.Complete(
+			last.admissionOrdinal, factsInserted = 2, eventsValidated = 2)
+		val facts = listOf(first, last).map { admission ->
+			requireNotNull(database.stepFactRevisionDao().writerAdmission(StepsSessionFactProjectionLane.WRITER_ID,
+				StepsSessionFactProjectionLane.WRITER_VERSION, admission.admissionOrdinal))
+		}
+		facts.map { it.coverageKind } shouldBe listOf(StepFactRevisionEntity.COVERAGE_BASELINE,
+			StepFactRevisionEntity.COVERAGE_COVERED)
+		facts.map { it.effectiveStepCount } shouldBe listOf(0L, 3L)
+		facts.map { it.writerBindingGeneration }.distinct() shouldBe listOf(2L)
+		facts.forEach { fact ->
+			val wal = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(fact.sourceAdmissionOrdinal!!))
+			val walKey = StepsCountDomainOwnerLookupKey(StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
+				StepsCountDomainReceiptIntegrity.sessionWalOwnerIdentity(wal.admissionOrdinal, wal.eventId), 1L)
+			val factKey = StepsCountDomainOwnerLookupKey(StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
+				StepsCountDomainReceiptIntegrity.sessionFactOwnerIdentity(fact.writerProjectionId,
+					fact.writerProjectionVersion, fact.logicalFactId), fact.semanticRevision)
+			val retained = StepsCountDomainStore(database).readOwners(listOf(walKey, factKey))
+				.shouldBeInstanceOf<StepsCountDomainOwnerRead.Ready>()
+			val carrier = StepsWalCarrierAuthenticator.authenticate(fact, wal,
+				retained.owners[walKey], retained.owners[factKey])
+				.shouldBeInstanceOf<StepsWalCarrierAuthentication.Authenticated>()
+			carrier.carrier.countDomainProven shouldBe true
+			carrier.carrier.payload.counterDomainToken shouldBe token
+		}
+		val committedRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+		// Recreate both production components, as startup recovery does, over the durable Room data.
+		val reopened = RoomDurableSourceIngress(database, lifecycle, DefaultSourcePayloadCodec(),
+			ExecutableSourceLaneCatalog(), Provider { startupGate })
+		reopened.admit(baseline).shouldBeInstanceOf<AdmissionResult.Duplicate>().existingAdmissionOrdinal shouldBe first.admissionOrdinal
+		reopened.admit(covered).shouldBeInstanceOf<AdmissionResult.Duplicate>().existingAdmissionOrdinal shouldBe last.admissionOrdinal
+		StepsSessionFactProjectionLane(database, reopened).drainCanonicalThrough(last.admissionOrdinal) shouldBe
+			StepsSessionFactDrainResult.Complete(last.admissionOrdinal, factsInserted = 0, eventsValidated = 0)
+		database.sourceEventWalDao().countAll() shouldBe 2L
+		requireNotNull(database.sourceEvidenceStateDao().get()).revision shouldBe committedRevision
+		database.stepIntervalDao().getBySourceSignalId("source-event:${last.eventId.value}") shouldBe null
+	}
+
+	@Test
+	fun `deleting an actually admitted Steps run prevents later projection without consuming sibling Activity`() = runTest {
+		val activity = subject.admit(candidate(sequence = 1L)).shouldBeInstanceOf<AdmissionResult.Admitted>()
+		val authorization = installFinalStepsAssemblyFixture()
+		val steps = assembledStepCandidate(authorization,
+			StepsCounterDomainToken.opaque("sha256:${"f".repeat(64)}"), sequence = 1L)
+		val admitted = subject.admit(steps).shouldBeInstanceOf<AdmissionResult.Admitted>()
+		database.sourceDeletionFenceDao().upsert(SourceDeletionFenceEntity.createLogicalServiceRun(
+			sourceKind = SourceKind.STEPS.stableCode, purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+			logicalTrackingId = TEST_SESSION_ID, serviceRunId = TEST_RUN_ID,
+			fenceGeneration = 1L, collectedDataEpoch = 0L, deletedAtMs = 200L))
+
+		StepsSessionFactProjectionLane(database, subject).drainCanonicalThrough(admitted.admissionOrdinal) shouldBe
+			StepsSessionFactDrainResult.Complete(admitted.admissionOrdinal, factsInserted = 0, eventsValidated = 1)
+		database.stepFactRevisionDao().writerAdmission(StepsSessionFactProjectionLane.WRITER_ID,
+			StepsSessionFactProjectionLane.WRITER_VERSION, admitted.admissionOrdinal) shouldBe null
+		database.sourceEventWalDao().getByAdmissionOrdinal(activity.admissionOrdinal)?.eventId shouldBe activity.eventId.value
+		val replay = subject.admit(steps).shouldBeInstanceOf<AdmissionResult.Duplicate>()
+		replay.existingAdmissionOrdinal shouldBe admitted.admissionOrdinal
+		StepsSessionFactProjectionLane(database, subject).drainCanonicalThrough(admitted.admissionOrdinal) shouldBe
+			StepsSessionFactDrainResult.Complete(admitted.admissionOrdinal, factsInserted = 0, eventsValidated = 0)
+		database.stepFactRevisionDao().writerAdmission(StepsSessionFactProjectionLane.WRITER_ID,
+			StepsSessionFactProjectionLane.WRITER_VERSION, admitted.admissionOrdinal) shouldBe null
+		database.sourceEventWalDao().countAll() shouldBe 2L
+	}
 
 	@Test
 	fun `sensor checkpoint write failure rolls back a newly admitted WAL fact`() = runTest {
@@ -2558,7 +2640,9 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Suppress("LongMethod")
-	private suspend fun installStepSessionCaptureGeneration(): StepSessionAuthorization {
+	private suspend fun installStepSessionCaptureGeneration(
+		binding: ExecutableSourceLaneBinding? = null,
+	): StepSessionAuthorization {
 		installStepRegistrationGeneration()
 		database.sourceBrokerDao().markConsumerRetiring(
 			consumerId = "app:step-test",
@@ -2584,9 +2668,9 @@ class RoomDurableSourceIngressTest {
 			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
 			writerOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
 			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
-			writerProjectionId = "ingress-test-steps",
-			writerProjectionVersion = 1,
-			writerBindingGeneration = 1L,
+			writerProjectionId = binding?.projectionId ?: "ingress-test-steps",
+			writerProjectionVersion = binding?.projectionVersion ?: 1,
+			writerBindingGeneration = binding?.bindingGeneration ?: 1L,
 		)
 		val unsignedManifest = SessionManifestVersionEntity(
 			logicalTrackingId = TEST_SESSION_ID,
@@ -2662,6 +2746,49 @@ class RoomDurableSourceIngressTest {
 			captureConsentEpoch = requireNotNull(policy.captureConsentEpoch),
 			manifestRevision = manifestRevision,
 		)
+	}
+
+	private suspend fun installFinalStepsAssemblyFixture(): StepSessionAuthorization {
+		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
+			com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState.ValidV2
+		val owner = requireNotNull(database.sourceDestinationOwnerDao().get(SourceKind.STEPS.stableCode,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS))
+		database.sourceDestinationOwnerDao().compareAndSetOwner(owner.sourceKind, owner.destination,
+			owner.owner, owner.ownerGeneration, SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+			SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION, 60L) shouldBe 1
+		val binding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_product_projection_lane WHERE source_kind = ?",
+			arrayOf<Any>(SourceKind.STEPS.stableCode))
+		installCaptureLane(SourceKind.STEPS, binding.bindingGeneration, binding.projectionId, binding.captureModeMask)
+		val catalog = ExecutableSourceLaneCatalog()
+		RoomTrackingRolloutStateStore(database, catalog).save(TrackingRolloutState.eventCanonical(
+			sources = setOf(SourceKind.STEPS), captureModes = mapOf(SourceKind.STEPS to binding.captureModes)), 60L)
+		subject = RoomDurableSourceIngress(database, lifecycle, DefaultSourcePayloadCodec(), catalog, Provider { startupGate })
+		return installStepSessionCaptureGeneration(binding)
+	}
+
+	private fun assembledStepCandidate(
+		authorization: StepSessionAuthorization,
+		token: StepsCounterDomainToken,
+		sequence: Long,
+	): SourceEvidenceCandidate<StepCounterWindowPayload> {
+		val start = 100L
+		val end = start + sequence * 1_000_000L
+		val candidate = stepCandidate(start, end, receivedNanos = end + 10L, sourceSequence = sequence,
+			providerDedupKey = "assembled-steps-$sequence", counterDomainToken = token,
+			wallTimeMs = 100L + sequence, acquiredAtMs = 100L + sequence)
+		return candidate.copy(logicalTrackingId = LogicalTrackingId(TEST_SESSION_ID), serviceRunId = ServiceRunId(TEST_RUN_ID),
+			authorizationRevision = authorization.authorizationRevision,
+			registrationPurposeEligibilityMask = authorization.purposeMask,
+			registrationEligibilityFingerprint = authorization.fingerprint,
+			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
+			sourcePolicyRevision = authorization.policyRevision, captureConsentEpoch = authorization.captureConsentEpoch,
+			sessionManifestRevision = authorization.manifestRevision, lifecycleLeaseGeneration = 7L,
+			payloadVersion = STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION,
+			payload = candidate.payload.copy(firstCumulativeCount = 10L, lastCumulativeCount = 10L + 3L * sequence,
+				deltaCount = 3L * sequence, firstProviderSequence = 0L, lastProviderSequence = sequence,
+				boundaryKind = if (sequence == 0L) StepBoundaryKind.BASELINE else StepBoundaryKind.COVERED,
+				counterEpochGeneration = 1L))
 	}
 
 	private data class SessionAuthorization(

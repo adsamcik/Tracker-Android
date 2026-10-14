@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveDayEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayRevisionEntity
@@ -133,6 +134,7 @@ object ImportedAmbientStepsLineageAuthenticator {
 		receipts: List<ImportedAmbientStepsReceiptEntity>,
 		facts: List<ImportedAmbientStepsFactEntity>,
 		gaps: List<ImportedAmbientStepsGapEntity>,
+		retainedState: SourceEvidenceState? = null,
 	): AuthenticatedImportedAmbientStepsLineage = try {
 		authenticateUnchecked(
 			dayIdentity,
@@ -166,6 +168,7 @@ object ImportedAmbientStepsLineageAuthenticator {
 		receipts: List<ImportedAmbientStepsReceiptEntity>,
 		facts: List<ImportedAmbientStepsFactEntity>,
 		gaps: List<ImportedAmbientStepsGapEntity>,
+		retainedState: SourceEvidenceState? = null,
 	): AuthenticatedImportedAmbientStepsLineage {
 		if (headers.size > ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY) {
 			fail(ImportedAmbientStepsLineageFailureReason.REVISION_OVERFLOW)
@@ -189,7 +192,7 @@ object ImportedAmbientStepsLineageAuthenticator {
 			headers.any { it.dayIdentity != dayIdentity } ||
 			headers.map { it.importRevision } != (1L..headers.size.toLong()).toList() ||
 			headers.map { it.dayContentChecksum }.distinct().size != headers.size ||
-			headers.any { it.collectedDataEpoch != expectedCollectedDataEpoch }
+			headers.any { !(retainedState?.acceptsRetainedEpoch(it.collectedDataEpoch) ?: (it.collectedDataEpoch == expectedCollectedDataEpoch)) }
 		) corrupt()
 
 		val baseline = headers.first()
@@ -204,7 +207,7 @@ object ImportedAmbientStepsLineageAuthenticator {
 
 		val archiveById = archives.associateBy(ImportedAmbientStepsArchiveEntity::archiveIdentity)
 		if (archiveById.size != archives.size ||
-			archives.any { it.collectedDataEpoch != expectedCollectedDataEpoch }
+			archives.any { !(retainedState?.acceptsRetainedEpoch(it.collectedDataEpoch) ?: (it.collectedDataEpoch == expectedCollectedDataEpoch)) }
 		) corrupt()
 		val membersByArchive = archiveDays.groupBy(ImportedAmbientStepsArchiveDayEntity::archiveIdentity)
 		if (archiveDays.any { member -> archiveById[member.archiveIdentity] == null } ||
@@ -236,7 +239,7 @@ object ImportedAmbientStepsLineageAuthenticator {
 				val archive = archiveById[receipt.archiveIdentity]
 				archive == null ||
 					receipt.archiveContentChecksum != archive.contentChecksum ||
-					receipt.collectedDataEpoch != expectedCollectedDataEpoch
+					!(retainedState?.acceptsRetainedEpoch(receipt.collectedDataEpoch) ?: (receipt.collectedDataEpoch == expectedCollectedDataEpoch))
 			} || archiveById.keys != receiptArchiveIds ||
 			receipts.groupingBy(ImportedAmbientStepsReceiptEntity::archiveIdentity)
 				.eachCount().values.any { it > ImportedAmbientStepsDao.MAX_RECEIPTS_PER_ARCHIVE }
@@ -341,6 +344,7 @@ object ImportedAmbientStepsLineageAuthenticator {
 suspend fun ImportedAmbientStepsDao.loadAuthenticatedAmbientStepsLineage(
 	dayIdentity: String,
 	expectedCollectedDataEpoch: Long,
+	retainedState: SourceEvidenceState? = null,
 ): AuthenticatedImportedAmbientStepsLineage {
 	val headers = dayRevisionsForAdmission(dayIdentity)
 	val memberships = archiveDaysForDay(
@@ -382,6 +386,7 @@ suspend fun ImportedAmbientStepsDao.loadAuthenticatedAmbientStepsLineage(
 
 suspend fun ImportedAmbientStepsDao.authenticateAllAmbientStepsFences(
 	expectedCollectedDataEpoch: Long,
+	retainedState: SourceEvidenceState? = null,
 ) {
 	val fenceCount = fenceCount()
 	val markerCount = protectedIdentityCount()
@@ -395,7 +400,7 @@ suspend fun ImportedAmbientStepsDao.authenticateAllAmbientStepsFences(
 	}
 	val fences = allFences(Math.toIntExact(fenceCount + 1L))
 	if (fences.size.toLong() != fenceCount ||
-		fences.any { it.collectedDataEpoch != expectedCollectedDataEpoch }
+		fences.any { !(retainedState?.acceptsRetainedEpoch(it.collectedDataEpoch) ?: (it.collectedDataEpoch == expectedCollectedDataEpoch)) }
 	) {
 		throw ImportedAmbientStepsLineageFailure(
 			ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE,
@@ -485,3 +490,10 @@ suspend fun ImportedAmbientStepsDao.authenticateAllAmbientStepsFences(
 		)
 	}
 }
+
+/** Only historical saved data uses restored epochs; acquisition callers retain the strict overload. */
+suspend fun ImportedAmbientStepsDao.loadAuthenticatedAmbientStepsLineage(dayIdentity: String, state: SourceEvidenceState): AuthenticatedImportedAmbientStepsLineage =
+	loadAuthenticatedAmbientStepsLineage(dayIdentity, state.collectedDataEpoch, retainedState = state)
+
+suspend fun ImportedAmbientStepsDao.authenticateAllAmbientStepsFences(state: SourceEvidenceState) =
+	authenticateAllAmbientStepsFences(state.collectedDataEpoch, retainedState = state)

@@ -187,8 +187,12 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 			"AUTOMATIC" -> PortableWifiSessionMode.AUTOMATIC
 			else -> return outcome(unverifiableAttribution())
 		}
-		if (!session.hasPortableShape(runs)) return outcome(unverifiableAttribution())
-		val hierarchyMaterializing = session.completedAtMs != null && runs.any { run ->
+		val interrupted = session.state == "FAILED" && session.failureCode == "RESTORED_INTERRUPTED_SESSION"
+		val interruptedRunIds = runs.filter { it.state == "FAILED" &&
+			it.completionReason == "RESTORED_INTERRUPTED_SESSION" && it.completedAtMs == null }
+			.mapTo(mutableSetOf()) { it.serviceRunId }
+		if (!session.hasPortableShape(runs, interrupted)) return outcome(unverifiableAttribution())
+		val hierarchyMaterializing = !interrupted && session.completedAtMs != null && runs.any { run ->
 			run.presentationAcknowledgement == SourceServiceRunEntity.PRESENTATION_PENDING
 		}
 
@@ -272,7 +276,7 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 				PortableWifiUnavailableReason.SOURCE_NOT_CAPTURED,
 			))
 		}
-		if (session.completedAtMs == null || runs.any { it.completedAtMs == null }) {
+		if (!interrupted && (session.completedAtMs == null || runs.any { it.completedAtMs == null })) {
 			return outcome(ExportPortableCapturedWifiResult.Active)
 		}
 		val audit = maintenance.auditPortableInTransaction(
@@ -412,23 +416,18 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 			} else null
 		}.toSet()
 		if (fencedRuns != generatedRuns) return outcome(unverifiableFact())
-		if (generatedRuns.isNotEmpty()) {
-			return outcome(
-				if (generatedRuns == selectedCapturedRunIds && selectedLineages.isEmpty()) {
-					ExportPortableCapturedWifiResult.Deleted
-				} else {
-					unverifiableFact()
-				},
-			)
-		}
+		if (generatedRuns == selectedCapturedRunIds) return outcome(ExportPortableCapturedWifiResult.Deleted)
+		if (selectedLineages.any { it.scope.serviceRunId in generatedRuns }) return outcome(unverifiableFact())
 
 		val wifiCompleteness = completeness.filter { row ->
 			row.sourceKind == WIFI_SOURCE && row.serviceRunId in selectedCapturedRunIds
 		}
 		if (!wifiCompleteness.hasValidPortableWifiShape(request.logicalTrackingId, selectedCapturedRunIds) ||
-			selectedCapturedRunIds.any { runId -> wifiCompleteness.none { it.serviceRunId == runId } }
+			selectedCapturedRunIds.any { runId -> runId !in interruptedRunIds &&
+				runId !in generatedRuns && wifiCompleteness.none { it.serviceRunId == runId } }
 		) return outcome(unverifiableWriter())
-		val positiveCompleteness = wifiCompleteness.filter { it.registrationGeneration > 0L }
+		val positiveCompleteness = wifiCompleteness.filter { it.registrationGeneration > 0L &&
+			it.serviceRunId !in interruptedRunIds && it.serviceRunId !in generatedRuns }
 		var portableAuthorityQueryCount = audit.wal.portableAuthorityQueryCount
 		if (portableAuthorityQueryCount > WIFI_PORTABLE_AUTHORITY_QUERY_LIMIT) return outcome(overflow())
 		val portableAuthority = audit.wal.portableAuthority ?: return outcome(unverifiableWriter())
@@ -468,7 +467,7 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 		) return outcome(unverifiableWriter())
 		val epochRelations = positiveCompleteness.map { row ->
 			portableAuthority.registrationsByGeneration.getValue(row.registrationGeneration)
-				.collectedDataEpoch.compareTo(evidence.collectedDataEpoch)
+				.collectedDataEpoch.let { if (evidence.acceptsRetainedEpoch(it)) 0 else it.compareTo(evidence.collectedDataEpoch) }
 		}
 		if (epochRelations.any { it != 0 }) {
 			return outcome(
@@ -495,7 +494,7 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 		}
 		if (selectedLineages.any { lineage ->
 			val fact = lineage.revisions.last()
-			wifiCompleteness.none { row ->
+			fact.serviceRunId !in interruptedRunIds && wifiCompleteness.none { row ->
 				row.serviceRunId == fact.serviceRunId && row.sourceInstanceId == fact.sourceInstanceId &&
 					row.registrationGeneration == fact.registrationGeneration &&
 					(fact.payloadVersion == WIFI_WAL_PAYLOAD_VERSION ||
@@ -503,7 +502,7 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 			}
 		}) return outcome(unverifiableWriter())
 		if (selectedWal.any { wal ->
-			wifiCompleteness.none { row ->
+			wal.scope.serviceRunId !in interruptedRunIds && wal.scope.serviceRunId !in generatedRuns && wifiCompleteness.none { row ->
 				row.serviceRunId == wal.scope.serviceRunId &&
 					row.sourceInstanceId == wal.evidence.sourceInstanceId.value &&
 					row.registrationGeneration == wal.evidence.registrationGeneration &&
@@ -534,7 +533,8 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 			retainedFloor == null || wal.earliestPossibleWallTimeMs() >= retainedFloor
 		}
 		if (retainedWal.any { wal ->
-			wal.derivedAggregate != null && wal.evidence.sourceEventId.value !in factEventIds
+			wal.scope.serviceRunId !in interruptedRunIds && wal.scope.serviceRunId !in generatedRuns &&
+				wal.derivedAggregate != null && wal.evidence.sourceEventId.value !in factEventIds
 		}) {
 			return outcome(unverifiableWriter())
 		}
@@ -559,7 +559,8 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 
 		val retainedByRun = retained.groupBy { it.scope.serviceRunId }
 		val selectedFactIds = selectedLineages.mapTo(mutableSetOf(), WifiCapturedLineage::logicalFactId)
-		val runsOut = runs.map { run ->
+		val runsOut = runs.mapNotNull { run ->
+			if (run.serviceRunId in generatedRuns) return@mapNotNull null
 			val segment = requireNotNull(segmentsById[run.sessionSegmentId])
 			val runManifests = manifestsByRun.getValue(run.serviceRunId)
 			val bindings = captureByRun.getValue(run.serviceRunId)
@@ -572,6 +573,8 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 					selectedFactIds,
 				)
 			}.sortedWith(PORTABLE_WIFI_OBSERVATION_ORDER)
+			val unfinished = run.serviceRunId in interruptedRunIds
+			if (unfinished && observations.isEmpty()) return@mapNotNull null
 			val retentionLoss = captured && (
 				runLineages.size != selectedLineages.count { it.scope.serviceRunId == run.serviceRunId } ||
 				selectedWal.any { wal -> wal.scope.serviceRunId == run.serviceRunId && wal !in retainedWal }
@@ -584,11 +587,12 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 				deletionScopeDigest = PortableWifiDeletionScopeDigest(
 					scopeDigestByRun.getValue(run.serviceRunId),
 				),
-				startTimeMs = segment.startTimeMs,
-				endTimeMs = segment.endTimeMs,
+				startTimeMs = if (unfinished) observations.minOf { it.coverageStartTimeMs } else segment.startTimeMs,
+				endTimeMs = if (unfinished) observations.maxOf { it.latestPossibleTimeMs } else segment.endTimeMs,
 				storedZoneIds = runManifests.map(SessionManifestVersionEntity::zoneId).distinct().sorted(),
 				captureCoverage = when {
 					!captured -> PortableWifiCaptureCoverage.NOT_CAPTURED
+					unfinished -> PortableWifiCaptureCoverage.PARTIAL_RUN
 					bindings.size == runManifests.size -> PortableWifiCaptureCoverage.WHOLE_RUN
 					else -> PortableWifiCaptureCoverage.PARTIAL_RUN
 				},
@@ -597,9 +601,8 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 					observations.isNotEmpty() -> PortableWifiRunAvailability.RETAINED
 					else -> PortableWifiRunAvailability.NO_RETAINED_OBSERVATION
 				},
-				acquisitionCompleteness = wifiCompleteness
-					.filter { it.serviceRunId == run.serviceRunId }
-					.toPortableCompleteness(captured),
+				acquisitionCompleteness = if (unfinished) PortableWifiAcquisitionCompleteness.PARTIAL else
+					wifiCompleteness.filter { it.serviceRunId == run.serviceRunId }.toPortableCompleteness(captured),
 				hasUnresolvedProviderRange = wifiCompleteness.any {
 					it.serviceRunId == run.serviceRunId && it.unresolvedSequenceStart != null
 				},
@@ -608,6 +611,7 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 			)
 		}.sortedWith(PORTABLE_WIFI_RUN_ORDER)
 
+		if (runsOut.isEmpty()) return outcome(ExportPortableCapturedWifiResult.Unavailable(PortableWifiUnavailableReason.ENTRY_NOT_FOUND))
 		if (runsOut.all { it.observations.isEmpty() && !it.retentionLoss } &&
 			wifiCompleteness.any {
 				it.registrationGeneration == 0L || it.stopStatus in PROVIDER_UNAVAILABLE_STATUSES
@@ -682,10 +686,10 @@ private fun SourceServiceRunEntity.hasExactPortableMembership(
 		presentationAcknowledgement != SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE
 }
 
-private fun LogicalTrackingSessionEntity.hasPortableShape(runs: List<SourceServiceRunEntity>): Boolean {
+private fun LogicalTrackingSessionEntity.hasPortableShape(runs: List<SourceServiceRunEntity>, interrupted: Boolean): Boolean {
 	if (state !in ALL_SESSION_STATES) return false
-	val terminal = state in TERMINAL_STATES
-	if ((completedAtMs != null) != terminal || logicalTrackingId.isBlank() || lifecycleRevision <= 0L ||
+	val terminal = state in TERMINAL_STATES && !interrupted
+	if ((!interrupted && (completedAtMs != null) != terminal) || logicalTrackingId.isBlank() || lifecycleRevision <= 0L ||
 		desiredPlanRevision <= 0L || rolloutRevision <= 0L || startOrigin.isBlank() ||
 		clockDomainId.isBlank() || lifecycleBootId.isNullOrBlank() || lifecycleLeaseGeneration <= 0L ||
 		startedAtMs < 0L || startedElapsedNanos < 0L ||
@@ -695,10 +699,12 @@ private fun LogicalTrackingSessionEntity.hasPortableShape(runs: List<SourceServi
 		finalAdmissionOrdinal == null || requireNotNull(finalAdmissionOrdinal) < 0L ||
 		requireNotNull(completedAtMs) < requireNotNull(cutoffAtMs))
 	) return false
-	if (!terminal && (currentServiceRunId.isNullOrBlank() || finalAdmissionOrdinal != null)) return false
+	if (!terminal && !interrupted && (currentServiceRunId.isNullOrBlank() || finalAdmissionOrdinal != null)) return false
 	if (!runs.all { run ->
 		if (run.state !in ALL_RUN_STATES) return@all false
-		val runTerminal = run.state in TERMINAL_STATES
+		val restoredRun = interrupted && run.state == "FAILED" &&
+			run.completionReason == "RESTORED_INTERRUPTED_SESSION"
+		val runTerminal = run.state in TERMINAL_STATES && !restoredRun
 		run.logicalTrackingId == logicalTrackingId && run.bootId.isNotBlank() &&
 			run.leaseGeneration > 0L && run.leaseGeneration <= lifecycleLeaseGeneration &&
 			run.desiredPlanRevision > 0L && run.rolloutRevision > 0L && run.startedAtMs >= 0L &&
@@ -706,8 +712,9 @@ private fun LogicalTrackingSessionEntity.hasPortableShape(runs: List<SourceServi
 			!run.startDeliveryToken.isNullOrBlank() && run.startCommandGeneration > 0L &&
 			run.preparedManifestRevision > 0L && run.preparedIntentRevision > 0L &&
 			run.runtimeAcknowledgement.isNotBlank() && run.androidDeliveryState.isNotBlank() &&
-			run.androidDeliveryUpdatedAtMs != null && (run.completedAtMs != null) == runTerminal &&
-			(run.completedAtMs != null) == !run.completionReason.isNullOrBlank() &&
+			run.androidDeliveryUpdatedAtMs != null &&
+			(restoredRun || ((run.completedAtMs != null) == runTerminal &&
+				(run.completedAtMs != null) == !run.completionReason.isNullOrBlank())) &&
 			run.completedAtMs?.let { it >= run.startedAtMs } != false &&
 			run.presentationAcknowledgement in setOf(
 				SourceServiceRunEntity.PRESENTATION_PENDING,
@@ -715,6 +722,7 @@ private fun LogicalTrackingSessionEntity.hasPortableShape(runs: List<SourceServi
 			) && (run.presentationAcknowledgement != SourceServiceRunEntity.PRESENTATION_QUIESCED ||
 				run.presentationAcknowledgedAtMs != null)
 	}) return false
+	if (interrupted) return runs.all { it.state in TERMINAL_STATES }
 	val openRuns = runs.filter { it.completedAtMs == null }
 	if (terminal) return openRuns.isEmpty() && runs.all { it.state in TERMINAL_STATES }
 	val activeRun = openRuns.singleOrNull() ?: return false

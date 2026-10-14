@@ -39,13 +39,13 @@ class CapturedRadioDateSelectionTest {
 		decision(recordedGaps = listOf(70_000_000L to 80_000_000L)).include shouldBe false
 	}
 
-	@Test fun `turning off cross-date sessions excludes the whole entry`() {
+	@Test fun `turning off complete sessions keeps in-date readings from an overnight entry`() {
 		val excluded = decision(
 			observations = listOf(RadioObservationTime(100_000_000L, 100_000_000L, 100_000_000L)),
 			includeSessionsAcrossDates = false,
 		)
-		excluded.include shouldBe false
-		excluded.excludedAcrossDates shouldBe true
+		excluded.include shouldBe true
+		excluded.excludedAcrossDates shouldBe false
 		excluded.observationsOutsideDates shouldBe 0
 
 		val contained = decision(
@@ -74,7 +74,7 @@ class CapturedRadioDateSelectionTest {
 			entryEndMs = 100_000_000L,
 			observations = listOf(RadioObservationTime(86_399_000L, 90_000_000L, 90_000_000L)),
 			includeSessionsAcrossDates = false,
-		).excludedAcrossDates shouldBe true
+		).excludedAcrossDates shouldBe false
 	}
 
 	@Test fun `end of selected day is exclusive and zero-length gap is a point`() {

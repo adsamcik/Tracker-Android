@@ -132,7 +132,7 @@ class SafeQueryBuilderTest {
             .sample(50)
             .build() as SimpleSQLiteQuery
 
-        q.sql shouldContain "SELECT MIN(id) AS min_id, MAX(id) AS max_id FROM location_sample"
+        q.sql shouldContain "SELECT MIN(id) AS min_id, MAX(id) AS max_id FROM effective_location_sample"
         q.sql shouldContain "sample_bounds.max_id - sample_bounds.min_id"
         q.sql shouldContain "MAX(1,"
         q.sql shouldEndWith "LIMIT 50"

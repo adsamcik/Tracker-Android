@@ -17,13 +17,19 @@ import org.junit.jupiter.api.Test
 class DefaultDailySummaryRepositoryTest {
 
 	private val dao: DailySummaryDao = mockk()
-	private val repository = DefaultDailySummaryRepository(dao)
+	private val measured = mockk<SavedLocationMetricsReader> {
+		coEvery { readDays(any(), any(), any()) } returns emptyMap()
+		every { observeChanges() } returns flowOf(Unit)
+	}
+	private val repository = DefaultDailySummaryRepository(dao, measured)
 
 	@Test
 	fun `observeToday maps nullable dao result`() = runTest {
+		val day = java.time.LocalDate.now().toEpochDay()
+		coEvery { measured.readDays(day, day, any()) } returns mapOf(day to SavedLocationDayMetrics(2L, 123.4, false))
 		every { dao.getByDayFlow(any()) } returns flowOf(
 			DailySummaryEntity(
-				dateEpochDay = 20_000L,
+				dateEpochDay = day,
 				totalDistanceM = 123.4f,
 				totalSteps = 555,
 				totalDurationMs = 3_600_000L,

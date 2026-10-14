@@ -46,6 +46,7 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 	suspend fun delete(
 		selectedSegmentId: Long,
 		requestedDeletedAtMs: Long,
+		expectedEpoch: Long? = null,
 	): StepsSessionDeletionResult {
 		val expected = try {
 			database.withTransaction { selectedScope(selectedSegmentId) }
@@ -74,6 +75,8 @@ internal class RoomImportedStepsSelectedSessionDeletion(
 			lockCoordinator.withDayLocks(scope.prepared.lockDays) { lockedDays ->
 				afterDayLocksAcquired()
 				database.withTransaction {
+					if (expectedEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != expectedEpoch)
+						return@withTransaction unsupported(StepsSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
 					val actual = (selectedScope(selectedSegmentId) as? ImportedScopePreflight.Ready)?.scope
 						?: throw ImportedStepsConcurrentDeletionException()
 					if (actual != scope) {

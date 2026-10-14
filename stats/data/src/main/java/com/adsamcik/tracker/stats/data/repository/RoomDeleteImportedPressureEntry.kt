@@ -156,7 +156,7 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 			}
 			return DeleteImportedPressureEntryResult.NotFound
 		}
-		if (headers.any { it.collectedDataEpoch != request.expectedCollectedDataEpoch }) {
+		if (headers.any { !state.acceptsRetainedEpoch(it.collectedDataEpoch) }) {
 			stale(ImportedPressureEntryDeletionStaleReason.COLLECTED_DATA_EPOCH_CHANGED)
 		}
 
@@ -164,6 +164,7 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 			ImportedPressureLineageAuthenticator.authenticate(
 				identity = identity,
 				expectedCollectedDataEpoch = request.expectedCollectedDataEpoch,
+				retainedState = state,
 				headers = headers,
 				receipts = receipts,
 				runs = runs,

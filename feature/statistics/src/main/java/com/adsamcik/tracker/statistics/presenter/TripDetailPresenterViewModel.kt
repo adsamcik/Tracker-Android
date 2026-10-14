@@ -300,7 +300,7 @@ private fun buildInsights(
 		.maxOrNull()
 	val durationSeconds = (trip.duration.raw / 1000.0).takeIf { it > 0.0 }
 	val averageSpeed = durationSeconds
-		?.let { duration -> trip.distance.raw.toDouble().takeIf { it > 0.0 }?.div(duration) }
+		?.let { duration -> trip.distance.raw.toDouble().takeIf { trip.hasMeasuredDistance && it > 0.0 }?.div(duration) }
 
 	val routePoints = simplifyRoutePoints(
 		samples.mapNotNull { sample ->
@@ -329,7 +329,7 @@ private fun buildInsights(
 ): TripDetailInsights {
 	val durationSeconds = (trip.duration.raw / 1000.0).takeIf { it > 0.0 }
 	val averageSpeed = durationSeconds
-		?.let { duration -> trip.distance.raw.toDouble().takeIf { it > 0.0 }?.div(duration) }
+		?.let { duration -> trip.distance.raw.toDouble().takeIf { trip.hasMeasuredDistance && it > 0.0 }?.div(duration) }
 
 	return TripDetailInsights(
 		activityType = resolveActivityType(projection, trip),

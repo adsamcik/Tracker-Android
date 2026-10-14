@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEnt
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedChildEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.CapturedRadioFactRetentionProofEntity
 import com.adsamcik.tracker.shared.base.database.data.CellProviderDeliveryIdentityFact
@@ -1871,6 +1872,95 @@ class CellCapturedFactMaintenanceTest {
 		}
 
 	@Test
+	fun `Cell export detail query selects exact current owners and reports missing children`() = runTest {
+		val fact = seedCapturedCell(semanticRevisions = 2, withPortableExportState = true)
+		val dao = database.radioObservationChildDao()
+		val owners = dao.cellCurrentExportOwners(LOGICAL_TRACKING_ID, WRITER_ID, WRITER_VERSION, 10)
+		owners.map { it.logicalFactId to it.semanticRevision } shouldBe listOf(fact.logicalFactId to 2L)
+		owners.single().acceptedChildCount shouldBe fact.acceptedChildCount
+		owners.single().payloadVersion shouldBe fact.payloadVersion
+		dao.cellCurrentSessionChildrenForOwners(LOGICAL_TRACKING_ID, SERVICE_RUN_ID,
+			WRITER_ID, WRITER_VERSION, 2L, listOf(fact.logicalFactId), 10) shouldBe emptyList()
+		val current = CellCapturedChildEntity(WRITER_ID, WRITER_VERSION, fact.logicalFactId, 2L, 0,
+			OBSERVED_NANOS, OBSERVED_WALL_MS, 0L, "tower", "LTE", true, -75, "a".repeat(64))
+		dao.insertCellSession(listOf(current.copy(semanticRevision = 1L, towerIdentity = "old"), current))
+		dao.cellCurrentSessionChildrenForOwners(LOGICAL_TRACKING_ID, SERVICE_RUN_ID,
+			WRITER_ID, WRITER_VERSION, 2L, listOf(fact.logicalFactId), 1) shouldBe listOf(current)
+		dao.cellCurrentSessionChildrenForOwners(LOGICAL_TRACKING_ID, SERVICE_RUN_ID,
+			WRITER_ID, WRITER_VERSION, 1L, listOf(fact.logicalFactId), 1) shouldBe emptyList()
+		dao.cellCurrentSessionChildrenForOwners(LOGICAL_TRACKING_ID, "another-run",
+			WRITER_ID, WRITER_VERSION, 2L, listOf(fact.logicalFactId), 1) shouldBe emptyList()
+	}
+
+	@Test
+	fun `restored Cell audits retain a deleted run and its surviving sibling without rebinding fences`() = runTest {
+		val fact = seedCapturedCell(withPortableExportState = true)
+		installCapturedReplacementRun()
+		insertDeletionGeneration(LOGICAL_TRACKING_ID, REPLACEMENT_SERVICE_RUN_ID, includeFence = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_evidence_state SET collected_data_epoch = 1, restored_data_epochs = '0' WHERE id = 1")
+		database.withTransaction {
+			val state = requireNotNull(database.sourceEvidenceStateDao().get())
+			val retention = database.auditCapturedCellFacts(state, CellCapturedMaintenanceLimits()) {}
+			retention.lineages.map { it.logicalFactId } shouldBe listOf(fact.logicalFactId)
+			val exported = database.auditPortableCapturedCellFacts(state, LOGICAL_TRACKING_ID,
+				listOf(SERVICE_RUN_ID, REPLACEMENT_SERVICE_RUN_ID),
+				listOf(SERVICE_RUN_ID, REPLACEMENT_SERVICE_RUN_ID), 0L, fact.sourceAdmissionOrdinal,
+				CellCapturedMaintenanceLimits()) {}
+			exported.lineages.map { it.logicalFactId } shouldBe listOf(fact.logicalFactId)
+			exported.generationByScope.values.single().collectedDataEpoch shouldBe 0L
+		}
+		database.openHelper.writableDatabase.execSQL("UPDATE source_deletion_fence SET collected_data_epoch = 1")
+		database.withTransaction {
+			shouldThrow<CellCapturedRetentionBlockedException> {
+				database.auditCapturedCellFacts(requireNotNull(database.sourceEvidenceStateDao().get()),
+					CellCapturedMaintenanceLimits()) {}
+			}.reason shouldBe CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE
+		}
+	}
+
+	@Test
+	fun `physical deletion discovery excludes restored registrations and retains their history`() = runTest {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 1L, restoredDataEpochs = "0"))
+		val sources = listOf(CELL_SOURCE, SourceDestinationOwnerEntity.SOURCE_WIFI, SourceDestinationOwnerEntity.SOURCE_ACTIVITY)
+		for (source in sources) {
+			val historical = registration().copy(sourceKind = source, status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE)
+			database.sourceBrokerDao().insertRegistration(historical)
+			database.sourceBrokerDao().insertRegistration(historical.copy(registrationGeneration = REGISTRATION_GENERATION + 1,
+				collectedDataEpoch = 1L))
+			val active = when (source) {
+				CELL_SOURCE -> database.cellCapturedFactDao().cellRegistrationsForDeletion(source, 10)
+				SourceDestinationOwnerEntity.SOURCE_WIFI -> database.wifiCapturedFactDao().registrationsForDeletion(source, 10)
+				else -> database.activityCapturedFactDao().activityRegistrationsForDeletion(source, 10)
+			}
+			active.map { it.registrationGeneration } shouldBe listOf(REGISTRATION_GENERATION + 1)
+			database.sourceBrokerDao().registration(source, REGISTRATION_GENERATION) shouldBe historical
+		}
+	}
+
+	@Test
+	fun `restored captured Cell deletion accepts saved epoch but fences the current operation`() = runTest {
+		seedCapturedCell(semanticRevisions = 2, withPortableExportState = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_evidence_state SET collected_data_epoch = 1, restored_data_epochs = '0' WHERE id = 1")
+		database.withTransaction {
+			database.deleteSelectedCapturedCellFactsInTransaction(LOGICAL_TRACKING_ID,
+				listOf(SERVICE_RUN_ID), 0L, DELETION_TIME_MS)
+		} shouldBe CellCapturedSelectedDeletionResult.Blocked(
+			CellCapturedSelectedDeletionBlockedReason.STALE_COLLECTED_DATA_EPOCH)
+		database.cellCapturedFactDao().revisionCount() shouldBe 2L
+		database.withTransaction {
+			database.deleteSelectedCapturedCellFactsInTransaction(LOGICAL_TRACKING_ID,
+				listOf(SERVICE_RUN_ID), 1L, DELETION_TIME_MS)
+		} shouldBe CellCapturedSelectedDeletionResult.Deleted(1, 2, 1)
+		database.cellCapturedFactDao().revisionCount() shouldBe 0L
+		database.withTransaction {
+			database.deleteSelectedCapturedCellFactsInTransaction(LOGICAL_TRACKING_ID,
+				listOf(SERVICE_RUN_ID), 1L, DELETION_TIME_MS)
+		} shouldBe CellCapturedSelectedDeletionResult.AlreadyDeleted
+	}
+
+	@Test
 	fun `selected Cell fact deletion cancellation after fences rolls back markers and payload`() =
 		runTest {
 			seedCapturedCell(withPortableExportState = true)
@@ -3105,6 +3195,22 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `portable Cell export omits a deleted replacement and retains surviving readings`() = runTest {
+		val fact = seedCapturedCell(withPortableExportState = true)
+		installCapturedReplacementRun()
+		insertDeletionGeneration(LOGICAL_TRACKING_ID, REPLACEMENT_SERVICE_RUN_ID, includeFence = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_evidence_state SET collected_data_epoch=2, restored_data_epochs='0' WHERE id=1")
+		var emitted: PortableCapturedCellEntryV1? = null
+		(portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) { emitted = it }
+			is ExportPortableCapturedCellResult.Exported) shouldBe true
+		val runs = requireNotNull(emitted).runs
+		runs.size shouldBe 1
+		runs.single().observations.single().identity shouldBe
+			PortableCellOpaqueIdentity.derive(PortableCellIdentityKind.OBSERVATION, fact.logicalFactId)
+	}
+
+	@Test
 	fun `portable Cell ordinary sink failure propagates`() = runTest {
 		seedCapturedCell(withPortableExportState = true)
 
@@ -3387,6 +3493,38 @@ class CellCapturedFactMaintenanceTest {
 			)
 		}
 		return fact
+	}
+
+	@Test
+	fun `restored unfinished Cell keeps saved readings with measured bounds and no invented stop`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		var complete: PortableCapturedCellEntryV1? = null
+		portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) { complete = it }
+		val original = requireNotNull(complete)
+		val sql = database.openHelper.writableDatabase
+		sql.execSQL("UPDATE logical_tracking_session SET state='FAILED', failure_code='RESTORED_INTERRUPTED_SESSION', " +
+			"completed_at_ms=NULL, cutoff_at_ms=NULL, cutoff_elapsed_nanos=NULL, final_admission_ordinal=NULL, current_service_run_id=? " +
+			"WHERE logical_tracking_id=?", arrayOf(SERVICE_RUN_ID, LOGICAL_TRACKING_ID))
+		sql.execSQL("UPDATE source_service_run SET state='FAILED', completion_reason='RESTORED_INTERRUPTED_SESSION', " +
+			"runtime_acknowledgement='FAILED', completed_at_ms=NULL, presentation_acknowledgement='PENDING', " +
+			"presentation_acknowledged_at_ms=NULL WHERE service_run_id=?", arrayOf(SERVICE_RUN_ID))
+		sql.execSQL("DELETE FROM source_session_completeness WHERE logical_tracking_id=?", arrayOf(LOGICAL_TRACKING_ID))
+		sql.execSQL("UPDATE source_evidence_state SET collected_data_epoch=2, restored_data_epochs='0' WHERE id=1")
+		var partial: PortableCapturedCellEntryV1? = null
+		(portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) { partial = it }
+			is ExportPortableCapturedCellResult.Exported) shouldBe true
+		val saved = requireNotNull(partial)
+		val measured = saved.runs.single()
+		measured.observations shouldBe original.runs.single().observations
+		measured.startTimeMs shouldBe measured.observations.minOf { it.coverageStartTimeMs }
+		measured.endTimeMs shouldBe measured.observations.maxOf { it.latestPossibleTimeMs }
+		measured.captureCoverage shouldBe PortableCellCaptureCoverage.PARTIAL_RUN
+		measured.acquisitionCompleteness shouldBe PortableCellAcquisitionCompleteness.PARTIAL
+		database.sourceSessionDao().session(LOGICAL_TRACKING_ID)?.completedAtMs shouldBe null
+		database.sourceSessionDao().serviceRun(SERVICE_RUN_ID)?.completedAtMs shouldBe null
+		val merged = saved.mergeReadingSelection(original)
+		merged.runs.single().observations shouldBe original.runs.single().observations
+		merged.mergeReadingSelection(saved) shouldBe merged
 	}
 
 	private fun portableExporter() = RoomExportPortableCapturedCell(

@@ -27,6 +27,14 @@ class SessionBundleManifestV1Test {
 			SessionBundleManifestCodecV1.FORMAT
 	}
 
+    @Test fun `a point recording keeps its original timestamp without a fabricated duration`() {
+        val child = SessionBundleChildV1("sources/0/location.trackerlocation", "tracker-location", 1, 10,
+            "a".repeat(64), 100, 100, false)
+        val manifest = SessionBundleManifestV1("Point", null, 100, 100, "UTC", listOf("location"),
+            listOf(child), emptyList())
+        codec.decode(codec.encode(manifest)) shouldBe manifest
+    }
+
 	@Test
 	fun `purpose and origin descriptions reject duplicate or unknown values`() {
 		val base = SessionBundleManifestV1(null, null, 100, 200, "UTC", emptyList(),

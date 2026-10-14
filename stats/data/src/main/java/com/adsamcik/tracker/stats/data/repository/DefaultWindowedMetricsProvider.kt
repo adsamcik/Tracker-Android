@@ -38,6 +38,7 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 	private val exportLogDao: ExportLogDao,
 	private val dispatchers: DispatchersProvider,
 	private val savedTripDistanceReader: SavedTripDistanceReader,
+	private val savedLocationMetrics: SavedLocationMetricsReader,
 ) : WindowedMetricsProvider {
 
 	override suspend fun collect(metric: String, window: TimeWindow): Either<StatsError, Long> {
@@ -58,6 +59,34 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 		}
 		if (metric == MetricKeys.SEASONS_EXPLORED && window != TimeWindow.Cumulative) {
 			return StatsError.ValidationError("Seasonal visits are unavailable for this period").left()
+		}
+		if (metric in setOf(MetricKeys.DISTANCE_M, MetricKeys.DISTANCE_TOTAL_M, MetricKeys.DISTANCE_ON_FOOT_M)) {
+			if (window is TimeWindow.Interval && window.startMs > window.endMs) {
+				return StatsError.ValidationError("Metric interval cannot end before it starts").left()
+			}
+			if (window is TimeWindow.Rolling && window.durationMs < 0L) {
+				return StatsError.ValidationError("Rolling duration cannot be negative").left()
+			}
+			val now = System.currentTimeMillis()
+			val bounds = when (window) {
+				TimeWindow.Cumulative -> 0L to Long.MAX_VALUE
+				is TimeWindow.Interval -> window.startMs to window.endMs
+				is TimeWindow.Rolling -> (now - window.durationMs).coerceAtLeast(0L) to now
+			}
+			if (bounds.first < 0L || bounds.second < bounds.first ||
+				(window is TimeWindow.Rolling && window.durationMs < 0L)) {
+				return StatsError.ValidationError("Invalid measured distance interval").left()
+			}
+			return try {
+				val measured = savedLocationMetrics.read(bounds.first, bounds.second)
+				val value = if (metric == MetricKeys.DISTANCE_ON_FOOT_M) measured.onFootDistanceMeters
+					else measured.distanceMeters ?: 0.0
+				value.toLong().right()
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (error: Exception) {
+				StatsError.DatabaseError("Failed to load measured distance", error).left()
+			}
 		}
 		val value = when (window) {
 			TimeWindow.Cumulative -> collectCumulative(metric)

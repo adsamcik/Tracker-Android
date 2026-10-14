@@ -239,6 +239,7 @@ enum class ImportedWifiReexportBlockedReason {
 fun PortableCapturedWifiEntryV1.isReciprocalCorrectionOf(
 	previous: PortableCapturedWifiEntryV1,
 ): Boolean {
+	if (isAdditiveReadingSelectionOf(previous)) return true
 	if (!hasSameImportedWifiStructureAs(previous) || contentChecksum == previous.contentChecksum) {
 		return false
 	}

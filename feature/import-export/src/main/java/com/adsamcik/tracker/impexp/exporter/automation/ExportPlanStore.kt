@@ -1,12 +1,16 @@
 package com.adsamcik.tracker.impexp.exporter.automation
 
 import android.content.Context
+import android.net.Uri
 import androidx.annotation.Keep
+import androidx.datastore.core.CorruptionException
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
 import com.adsamcik.tracker.impexp.exporter.proto.ExportPlansProto
+import com.adsamcik.tracker.impexp.exporter.proto.UnfinishedExportFileProto
 import com.adsamcik.tracker.shared.base.time.Clock
+import com.google.protobuf.InvalidProtocolBufferException
 import java.io.InputStream
 import java.io.OutputStream
 import kotlinx.coroutines.CoroutineDispatcher
@@ -18,16 +22,15 @@ import kotlinx.coroutines.withContext
 // Contract:
 // Inputs: Proto DataStore backing file storing ExportPlansProto
 // Outputs: Flow of domain plans plus atomic create/update/delete operations
-// Failure: Data corruption falls back to the default value (empty list).
+// Failure: Unreadable storage is reported; existing bytes are never replaced with an empty list.
 
-private object ExportPlansSerializer : Serializer<ExportPlansProto> {
+internal object ExportPlansSerializer : Serializer<ExportPlansProto> {
     override val defaultValue: ExportPlansProto = ExportPlansProto.getDefaultInstance()
 
     override suspend fun readFrom(input: InputStream): ExportPlansProto = try {
         ExportPlansProto.parseFrom(input)
-    } catch (error: Exception) {
-        // Corruption fallback: return default to avoid crashing background workers.
-        defaultValue
+    } catch (error: InvalidProtocolBufferException) {
+        throw CorruptionException("Unable to read export storage", error)
     }
 
     override suspend fun writeTo(t: ExportPlansProto, output: OutputStream) {
@@ -39,6 +42,15 @@ private val Context.exportPlansDataStore: DataStore<ExportPlansProto> by dataSto
     fileName = "export_backup_plans.pb",
     serializer = ExportPlansSerializer
 )
+
+/** An external destination whose failed export could not be removed. */
+data class UnfinishedExportFile(val uri: String, val name: String) {
+    init {
+        val parsed = Uri.parse(uri)
+        require(parsed.scheme == "content" && !parsed.authority.isNullOrBlank())
+        require(name.isNotBlank())
+    }
+}
 
 /**
  * Repository managing persisted export backup plans and exposing reactive updates.
@@ -54,6 +66,32 @@ class ExportPlanStore(
     /** Flow emitting the latest list of plans, ordered by insertion order. */
     val plans: Flow<List<ExportBackupPlan>> = dataStore.data.map { proto ->
         proto.plansList.map { it.toDomain() }
+    }
+
+    val unfinishedFiles: Flow<List<UnfinishedExportFile>> = dataStore.data.map { proto ->
+        proto.unfinishedFilesList.map { UnfinishedExportFile(it.uri, it.name) }
+    }
+
+    /** The URI identifies one file, independent of its name or the export's date range. */
+    suspend fun rememberUnfinishedFile(file: UnfinishedExportFile) = withContext(ioDispatcher) {
+        dataStore.updateData { current ->
+            val builder = current.toBuilder()
+            val index = builder.unfinishedFilesList.indexOfFirst { it.uri == file.uri }
+            val saved = UnfinishedExportFileProto.newBuilder().setUri(file.uri).setName(file.name).build()
+            if (index < 0) builder.addUnfinishedFiles(saved) else builder.setUnfinishedFiles(index, saved)
+            builder.build()
+        }
+    }
+
+    /** Called only after that exact file has been removed. Clear-all deliberately keeps notices. */
+    suspend fun forgetUnfinishedFile(uri: String) = withContext(ioDispatcher) {
+        dataStore.updateData { current ->
+            val builder = current.toBuilder()
+            for (index in builder.unfinishedFilesCount - 1 downTo 0) {
+                if (builder.getUnfinishedFiles(index).uri == uri) builder.removeUnfinishedFiles(index)
+            }
+            builder.build()
+        }
     }
 
     /** Retrieve a single plan reactively. */
@@ -83,7 +121,14 @@ class ExportPlanStore(
             val builder = current.toBuilder()
             val index = builder.plansList.indexOfFirst { it.id == plan.id.value }
             if (index < 0) return@updateData current
-            val refreshed = plan.copy(updatedAtMillis = clock.currentTimeMillis())
+            val existing = builder.getPlans(index).toDomain()
+            val refreshed = plan.copy(
+                enabled = plan.enabled && !(existing.databaseScopeReviewRequired &&
+                    plan.format == ExportFormat.DATABASE),
+                databaseScopeReviewRequired = existing.databaseScopeReviewRequired &&
+                    plan.format == ExportFormat.DATABASE,
+                updatedAtMillis = clock.currentTimeMillis(),
+            )
             builder.setPlans(index, refreshed.toProto())
             builder.build()
         }
@@ -107,8 +152,29 @@ class ExportPlanStore(
             val builder = current.toBuilder()
             val index = builder.plansList.indexOfFirst { it.id == planId.value }
             if (index < 0) return@updateData current
-            val plan = builder.getPlans(index).toDomain().copy(enabled = enabled)
+            val existing = builder.getPlans(index).toDomain()
+            if (enabled && existing.databaseScopeReviewRequired) return@updateData current
+            val plan = existing.copy(enabled = enabled)
             builder.setPlans(index, plan.copy(updatedAtMillis = clock.currentTimeMillis()).toProto())
+            builder.build()
+        }
+    }
+
+    /** Only a deliberate scope-review action may resume a paused legacy Database plan. */
+    suspend fun reviewDatabaseScopeAndEnable(planId: ExportPlanId) = withContext(ioDispatcher) {
+        dataStore.updateData { current ->
+            val builder = current.toBuilder()
+            val index = builder.plansList.indexOfFirst { it.id == planId.value }
+            if (index < 0) return@updateData current
+            val plan = builder.getPlans(index).toDomain()
+            if (plan.format != ExportFormat.DATABASE || !plan.databaseScopeReviewRequired) {
+                return@updateData current
+            }
+            builder.setPlans(index, plan.copy(
+                enabled = true,
+                databaseScopeReviewRequired = false,
+                updatedAtMillis = clock.currentTimeMillis(),
+            ).toProto())
             builder.build()
         }
     }

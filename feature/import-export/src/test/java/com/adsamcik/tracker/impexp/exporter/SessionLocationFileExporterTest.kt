@@ -61,7 +61,7 @@ class SessionLocationFileExporterTest {
 	}
 	@After fun close() = database.close()
 
-	@Test fun `native selection includes every replacement run and excludes simultaneous unrelated sources`(): Unit = runBlocking {
+	@Test fun `native session organizes all independently saved points in its current interval`(): Unit = runBlocking {
 		logical("chosen", 1_000, 20_000)
 		val first = run("chosen", "first", 1_000, 10_000)
 		val second = run("chosen", "second", 10_000, 20_000)
@@ -71,25 +71,26 @@ class SessionLocationFileExporterTest {
 		nativePoint(run("other", "other-run", 1_000, 20_000), 2_000)
 		point(2_000) // unattributed saved data at exactly the same millisecond
 		val points = export(recording("logical:chosen"))
-		assertEquals(listOf(2_000L, 11_000L), points.map { it.measurement.timeMs })
-		assertEquals(listOf(LocationFileOrigin.SESSION, LocationFileOrigin.SESSION), points.map { it.origin })
-		assertEquals(2, points.map { it.pointId }.distinct().size)
+		assertEquals(listOf(2_000L, 2_000L, 2_000L, 11_000L), points.map { it.measurement.timeMs })
+		assertEquals(3, points.count { it.origin == LocationFileOrigin.SESSION })
+		assertEquals(1, points.count { it.origin == LocationFileOrigin.UNKNOWN })
+		assertEquals(4, points.map { it.pointId }.distinct().size)
 	}
 
-	@Test fun `display date edit cannot widen or trim original native membership`(): Unit = runBlocking {
+	@Test fun `editing session dates changes selected measured points without changing originals`(): Unit = runBlocking {
 		logical("chosen", 1_000, 20_000)
 		val original = run("chosen", "original", 1_000, 20_000)
 		nativePoint(original, 2_000); nativePoint(original, 18_000)
 		point(30_000)
 		annotation("override", 15_000, 40_000, "logical:chosen", revision = 3)
 		val request = recording("logical:chosen", revision = 3)
-		assertEquals(listOf(2_000L, 18_000L), export(request).map { it.measurement.timeMs })
+		assertEquals(listOf(18_000L, 30_000L), export(request).map { it.measurement.timeMs })
 		val staleOutput = ByteArrayOutputStream()
 		assertIs<ExportResult.Error>(write(request.copy(expectedOrganizationRevision = 2), staleOutput))
 		assertEquals(0, staleOutput.size())
 	}
 
-	@Test fun `genuine legacy recording uses original dates and excludes imported and native coincident points`(): Unit = runBlocking {
+	@Test fun `legacy session uses its edited interval over saved observations`(): Unit = runBlocking {
 		val legacy = segment(1_000, 10_000)
 		val local = point(2_000)
 		point(9_000)
@@ -102,16 +103,16 @@ class SessionLocationFileExporterTest {
 		annotation("override", 8_000, 30_000, "segment:${legacy.id}", revision = 1)
 		point(20_000)
 		val points = export(recording("segment:${legacy.id}", 1))
-		assertEquals(listOf(2_000L, 9_000L), points.map { it.measurement.timeMs })
+		assertEquals(listOf(9_000L, 20_000L), points.map { it.measurement.timeMs })
 		assertTrue(points.all { it.origin == LocationFileOrigin.UNKNOWN })
 	}
 
-	@Test fun `migrated logical members use original intervals without a native date fallback`(): Unit = runBlocking {
+	@Test fun `migrated logical session labels all saved observations in its current interval`(): Unit = runBlocking {
 		logical("migrated", 1_000, 20_000)
 		run("migrated", "old-first", 1_000, 9_000, legacy = true)
 		run("migrated", "old-second", 10_000, 20_000, legacy = true)
 		point(2_000); point(11_000); point(9_500)
-		assertEquals(listOf(2_000L, 11_000L), export(recording("logical:migrated")).map { it.measurement.timeMs })
+		assertEquals(listOf(2_000L, 9_500L, 11_000L), export(recording("logical:migrated")).map { it.measurement.timeMs })
 	}
 
 	@Test fun `single timestamp legacy recording keeps its actual point without inventing a duration`(): Unit = runBlocking {
@@ -134,7 +135,7 @@ class SessionLocationFileExporterTest {
 		assertEquals(3, points.size)
 	}
 
-	@Test fun `imported selection uses exact files even outside display dates and deduplicates overlapping membership`(): Unit = runBlocking {
+	@Test fun `imported selection intersects original files with edited dates without borrowing coincident points`(): Unit = runBlocking {
 		val first = point(2_000)
 		val second = point(30_000)
 		val third = point(40_000)
@@ -143,8 +144,8 @@ class SessionLocationFileExporterTest {
 		annotation("import", 1_000, 10_000, selection = listOf(a, b))
 		point(5_000) // a coincident nonmember cannot enter the exported child
 		val points = export(annotationRequest("import"))
-		assertEquals(listOf(2_000L, 30_000L, 40_000L), points.map { it.measurement.timeMs })
-		assertEquals(3, points.map { it.pointId }.distinct().size)
+		assertEquals(listOf(2_000L), points.map { it.measurement.timeMs })
+		assertEquals(1, points.map { it.pointId }.distinct().size)
 		assertTrue(points.all { it.origin == LocationFileOrigin.BACKGROUND })
 	}
 
@@ -191,41 +192,32 @@ class SessionLocationFileExporterTest {
 		assertEquals(2_000L + LocationFileExporter.PAGE_SIZE, points.last().measurement.timeMs)
 	}
 
-	@Test fun `missing and orphan physical membership stop native export rather than selecting by dates`(): Unit = runBlocking {
-		logical("missing", 1_000, 10_000)
-		val member = run("missing", "run", 1_000, 10_000)
-		nativePoint(member, 2_000)
-		database.sessionSegmentDao().deleteById(member.id)
-		point(2_000)
-		val output = ByteArrayOutputStream()
-		assertIs<ExportResult.Error>(write(recording("logical:missing"), output))
-		assertEquals(0, output.size())
-		logical("orphan", 1_000, 10_000)
-		val valid = run("orphan", "valid", 1_000, 10_000)
-		nativePoint(valid, 2_000)
-		segment(1_000, 10_000, "orphan", "absent-run")
-		assertIs<ExportResult.Error>(write(recording("logical:orphan"), output))
-		assertEquals(0, output.size())
-	}
+	@Test fun `missing segment ownership does not hide independently saved interval data`(): Unit = runBlocking {
+        logical("chosen", 1_000, 10_000)
+        val member = run("chosen", "run", 1_000, 10_000)
+        nativePoint(member, 2_000)
+        database.sessionSegmentDao().deleteById(member.id)
+        point(3_000)
+        assertEquals(listOf(2_000L, 3_000L), export(recording("logical:chosen")).map { it.measurement.timeMs })
+    }
 
-	@Test fun `erased native run is omitted without erasing its independent sibling`(): Unit = runBlocking {
+	@Test fun `deleted point is omitted without erasing its independent sibling`(): Unit = runBlocking {
 		logical("chosen", 1_000, 20_000)
-		nativePoint(run("chosen", "erased", 1_000, 10_000), 2_000)
+		val erased = nativePoint(run("chosen", "erased", 1_000, 10_000), 2_000)
 		nativePoint(run("chosen", "retained", 10_000, 20_000), 11_000)
 		database.sourceDeletionFenceDao().insertIfAbsent(SourceDeletionFenceEntity.createLogicalServiceRun(
 			1, SourceBrokerPurpose.SESSION_CAPTURE, "chosen", "erased", 1, 0, 20_000))
+		database.locationSampleDao().deleteExactIds(listOf(erased.id))
 		assertEquals(listOf(11_000L), export(recording("logical:chosen")).map { it.measurement.timeMs })
 	}
 
-	@Test fun `original open bounds cannot be made exportable by editing displayed dates`(): Unit = runBlocking {
+	@Test fun `closed session with repaired display bounds can organize saved points`(): Unit = runBlocking {
 		val original = logical("open", 1_000, 10_000)
 		val member = run("open", "run", 1_000, 10_000)
 		nativePoint(member, 2_000)
 		database.sourceSessionDao().updateSession(original.copy(cutoffAtMs = null))
 		annotation("display", 1_000, 10_000, "logical:open", revision = 1)
-		val output = ByteArrayOutputStream()
-		assertIs<ExportResult.Error>(write(recording("logical:open", 1), output))
-		assertEquals(0, output.size())
+		assertEquals(listOf(2_000L), export(recording("logical:open", 1)).map { it.measurement.timeMs })
 	}
 
 	@Test fun `original epoch change rejects stale selection before destination copy`(): Unit = runBlocking {

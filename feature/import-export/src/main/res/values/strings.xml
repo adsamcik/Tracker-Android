@@ -57,6 +57,11 @@
     <string name="format_database">Database backup (ZIP)</string>
     <string name="format_portable_wifi">Wi-Fi</string>
     <string name="format_portable_cell">Cell</string>
+    <string name="export_radio_sensitivity_title">Export network details?</string>
+    <string name="export_wifi_sensitivity_message">This file includes saved Wi-Fi names and access-point IDs.</string>
+    <string name="export_cell_sensitivity_message">This file includes saved tower IDs and signal measurements.</string>
+    <string name="export_radio_no_data">No saved data for this source</string>
+    <string name="export_include_complete_sessions">Include complete sessions</string>
     <string name="format_portable_location">Location</string>
     <string name="format_portable_steps">Portable Steps</string>
     <string name="format_portable_activity">Portable Activity</string>
@@ -64,4 +69,18 @@
 
     <string name="settings_import_summary">Import data from supported types (%1$s) and archives (%2$s). Database imports merge compatible rows; they do not replace existing data.</string>
     <string name="settings_import_title">Import</string>
+    <string name="import_location_conflict_title">Replace saved points?</string>
+    <string name="import_location_replace">Use file’s points</string>
+    <string name="import_location_keep">Keep saved points</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d point in this file differs from its saved copy. Choose which to keep. Other points will be imported normally.</item>
+        <item quantity="other">%d points in this file differ from their saved copies. Choose which to keep. Other points will be imported normally.</item>
+    </plurals>
+    <string name="export_backup_review_title">Review scheduled backups</string>
+    <string name="export_backup_review_summary">Paused until you review the updated data backup.</string>
+    <string name="export_backup_review_message">These schedules now back up all saved tracking data and the files needed to restore it. Settings are excluded. Resume these schedules?\n\n%1$s</string>
+    <string name="export_backup_review_resume">Resume backups</string>
+    <string name="import_backup_replace_title">Restore data backup?</string>
+    <string name="import_backup_replace_message">Replace saved data with this backup? Your settings stay the same. Tracking will be off until you resume it.</string>
+    <string name="import_backup_restore">Replace data</string>
 </resources>

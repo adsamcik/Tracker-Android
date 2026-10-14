@@ -11,7 +11,7 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryTechnology
 internal object RadioSourceFileV2 {
 	const val WIFI_FORMAT = "tracker-wifi"
 	const val CELL_FORMAT = "tracker-cell"
-	const val VERSION = 2
+	const val VERSION = 3
 	const val WIFI_EXTENSION = "trackerwifi"
 	const val CELL_EXTENSION = "trackercell"
 	const val WIFI_MIME = "application/vnd.adsamcik.tracker.wifi+json"
@@ -33,7 +33,7 @@ internal data class WifiSourceFileV2(
 	val backgroundChildren: List<WifiBackgroundChildV2>,
 ) {
 	init {
-		require(format == RadioSourceFileV2.WIFI_FORMAT && schemaVersion == RadioSourceFileV2.VERSION)
+		require(format == RadioSourceFileV2.WIFI_FORMAT && schemaVersion in 2..RadioSourceFileV2.VERSION)
 		require((selectedFromMs == null) == (selectedToExclusiveMs == null))
 		require(selectedFromMs?.let { it >= 0L && requireNotNull(selectedToExclusiveMs) > it } != false)
 		require(observationsOutsideDates >= 0 && sessions.size <= RadioSourceFileV2.MAX_SESSIONS)
@@ -70,7 +70,7 @@ internal data class CellSourceFileV2(
 	val backgroundChildren: List<CellBackgroundChildV2>,
 ) {
 	init {
-		require(format == RadioSourceFileV2.CELL_FORMAT && schemaVersion == RadioSourceFileV2.VERSION)
+		require(format == RadioSourceFileV2.CELL_FORMAT && schemaVersion in 2..RadioSourceFileV2.VERSION)
 		require((selectedFromMs == null) == (selectedToExclusiveMs == null))
 		require(selectedFromMs?.let { it >= 0L && requireNotNull(selectedToExclusiveMs) > it } != false)
 		require(observationsOutsideDates >= 0 && sessions.size <= RadioSourceFileV2.MAX_SESSIONS)

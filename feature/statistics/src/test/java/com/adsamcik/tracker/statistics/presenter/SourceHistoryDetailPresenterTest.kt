@@ -77,7 +77,7 @@ class SourceHistoryDetailPresenterTest {
 	private val dispatcher = StandardTestDispatcher()
 	private val wifiRepository = mockk<WifiHistoryRepository>()
 	private val cellRepository = mockk<CellHistoryRepository>()
-	private val presenter = SourceHistoryDetailPresenter(wifiRepository, cellRepository)
+	private val presenter = SourceHistoryDetailPresenter(wifiRepository, cellRepository, mockk())
 
 	@Before
 	fun setUp() {
@@ -88,6 +88,41 @@ class SourceHistoryDetailPresenterTest {
 	fun tearDown() {
 		Dispatchers.resetMain()
 	}
+
+	@Test fun `source Delete forwards the exact Wifi selection and data epoch`() = runTest {
+        val entry = localWifiEntry()
+        val selection = SourceHistoryDetailSelection(SourceAwareHistoryPageEntry.WifiOnly(entry), TrackingHistoryReadSnapshot(7, 11))
+        coEvery { wifiRepository.lookup(requireNotNull(entry.selection)) } returns WifiHistoryQuery.Found(entry)
+        val wifi = mockk<com.adsamcik.tracker.stats.api.repository.DeleteSelectedWifiHistory>()
+        coEvery { wifi.delete(any()) } returns com.adsamcik.tracker.stats.api.repository.DeleteSelectedWifiHistoryResult.AlreadyDeleted(WifiHistoryOrigin.LOCAL)
+        val clock = mockk<com.adsamcik.tracker.shared.base.time.Clock>()
+        io.mockk.every { clock.currentTimeMillis() } returns 9_000L
+        val actions = SourceHistoryDetailActions(mockk(), wifi, mockk(), mockk(), mockk(), mockk(), presenter, clock)
+        actions.delete(selection) shouldBe SourceHistoryActionResult.DELETED
+        coVerify(exactly = 1) { wifi.delete(com.adsamcik.tracker.stats.api.repository.DeleteSelectedWifiHistoryRequest(
+            requireNotNull(entry.selection), 7, 9_000)) }
+    }
+
+	@Test fun `one pending source export uses exact selection and cannot be replayed after leaving`() = runTest {
+        val entry = localWifiEntry()
+        val selection = SourceHistoryDetailSelection(SourceAwareHistoryPageEntry.WifiOnly(entry), TrackingHistoryReadSnapshot(7, 11))
+        coEvery { wifiRepository.lookup(requireNotNull(entry.selection)) } returns WifiHistoryQuery.Found(entry)
+        val file = mockk<com.adsamcik.tracker.feature.statistics.api.export.SourceHistoryFileExporter>()
+        val uri = android.net.Uri.parse("content://test/wifi")
+        coEvery { file.export(uri, selection) } returns com.adsamcik.tracker.feature.statistics.api.export.SourceHistoryFileExportResult.SAVED
+        val route = SourceHistoryDetailHandoff.register(selection)
+        val vm = SourceHistoryDetailViewModel(presenter, SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
+            mockk(relaxed = true), file)
+        runCurrent()
+        vm.prepareExport() shouldBe true
+        vm.exportTo(uri); runCurrent()
+        vm.actionResult.value shouldBe SourceHistoryActionResult.EXPORTED
+        vm.exportTo(uri); runCurrent()
+        coVerify(exactly = 1) { file.export(uri, selection) }
+        vm.prepareExport() shouldBe true
+        vm.close(); vm.exportTo(uri); runCurrent()
+        coVerify(exactly = 1) { file.export(any(), any()) }
+    }
 
 	@Test
 	fun `imported Wi-Fi selection round trips without local identity inference`() = runTest {
@@ -136,6 +171,7 @@ class SourceHistoryDetailPresenterTest {
 		} returns WifiHistoryQuery.Failed(WifiHistoryCause.STALE_SELECTION)
 		val route = SourceHistoryDetailHandoff.register(selection)
 		val viewModel = SourceHistoryDetailViewModel(
+			actions = mockk(relaxed = true), exporter = mockk(relaxed = true),
 			presenter = presenter,
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
@@ -253,6 +289,7 @@ class SourceHistoryDetailPresenterTest {
 		val selection = importedActivitySelection("activity-recreation")
 		val route = SourceHistoryDetailHandoff.register(selection)
 		val first = SourceHistoryDetailViewModel(
+			actions = mockk(relaxed = true), exporter = mockk(relaxed = true),
 			presenter = presenter,
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
@@ -260,6 +297,7 @@ class SourceHistoryDetailPresenterTest {
 		first.state.value.shouldBeInstanceOf<SourceHistoryDetailState.Loaded>()
 
 		val recreated = SourceHistoryDetailViewModel(
+			actions = mockk(relaxed = true), exporter = mockk(relaxed = true),
 			presenter = presenter,
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
@@ -270,20 +308,19 @@ class SourceHistoryDetailPresenterTest {
 			source = null,
 		)
 		first.retry()
-		first.state.value shouldBe SourceHistoryDetailState.Unavailable(
-			reason = SourceHistoryDetailUnavailableReason.SELECTION_EXPIRED,
-			source = com.adsamcik.tracker.stats.api.repository.HistorySource.ACTIVITY,
-		)
+		runCurrent()
+		first.state.value.shouldBeInstanceOf<SourceHistoryDetailState.Loaded>()
 		first.close()
 		recreated.close()
 	}
 
 	@Test
-	fun `destination-owned Activity selection expires without a permanent observer`() = runTest {
+	fun `open Activity detail remains usable while the user is reading`() = runTest {
 		val route = SourceHistoryDetailHandoff.register(
 			importedActivitySelection("activity-owner-expiry"),
 		)
 		val viewModel = SourceHistoryDetailViewModel(
+			actions = mockk(relaxed = true), exporter = mockk(relaxed = true),
 			presenter = presenter,
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
@@ -293,10 +330,7 @@ class SourceHistoryDetailPresenterTest {
 		advanceTimeBy(SourceHistoryDetailHandoff.DESTINATION_OWNERSHIP_TIMEOUT_MILLIS + 1L)
 		runCurrent()
 
-		viewModel.state.value shouldBe SourceHistoryDetailState.Unavailable(
-			reason = SourceHistoryDetailUnavailableReason.SELECTION_EXPIRED,
-			source = com.adsamcik.tracker.stats.api.repository.HistorySource.ACTIVITY,
-		)
+		viewModel.state.value.shouldBeInstanceOf<SourceHistoryDetailState.Loaded>()
 		viewModel.close()
 	}
 
@@ -319,6 +353,7 @@ class SourceHistoryDetailPresenterTest {
 		)
 		val route = SourceHistoryDetailHandoff.register(selection)
 		val viewModel = SourceHistoryDetailViewModel(
+			actions = mockk(relaxed = true), exporter = mockk(relaxed = true),
 			presenter = presenter,
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
@@ -347,6 +382,7 @@ class SourceHistoryDetailPresenterTest {
 		)
 		val route = SourceHistoryDetailHandoff.register(selection)
 		val viewModel = SourceHistoryDetailViewModel(
+			actions = mockk(relaxed = true), exporter = mockk(relaxed = true),
 			presenter = stalePresenter,
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
@@ -379,6 +415,7 @@ class SourceHistoryDetailPresenterTest {
 		}
 		val route = SourceHistoryDetailHandoff.register(selection)
 		val viewModel = SourceHistoryDetailViewModel(
+			actions = mockk(relaxed = true), exporter = mockk(relaxed = true),
 			presenter = retryingPresenter,
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
@@ -398,10 +435,7 @@ class SourceHistoryDetailPresenterTest {
 
 		advanceTimeBy(SourceHistoryDetailHandoff.DESTINATION_OWNERSHIP_TIMEOUT_MILLIS + 1L)
 		runCurrent()
-		viewModel.state.value shouldBe SourceHistoryDetailState.Unavailable(
-			reason = SourceHistoryDetailUnavailableReason.SELECTION_EXPIRED,
-			source = com.adsamcik.tracker.stats.api.repository.HistorySource.ACTIVITY,
-		)
+		viewModel.state.value shouldBe SourceHistoryDetailState.Loaded(selection)
 		viewModel.close()
 	}
 
@@ -418,6 +452,7 @@ class SourceHistoryDetailPresenterTest {
 			WifiHistoryQuery.Failed(WifiHistoryCause.MANIFEST_INTEGRITY_FAILED),
 		)
 		val viewModel = SourceHistoryDetailViewModel(
+			actions = mockk(relaxed = true), exporter = mockk(relaxed = true),
 			presenter = presenter,
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
@@ -456,6 +491,7 @@ class SourceHistoryDetailPresenterTest {
 			CellHistoryQuery.Found(conflict),
 		)
 		val viewModel = SourceHistoryDetailViewModel(
+			actions = mockk(relaxed = true), exporter = mockk(relaxed = true),
 			presenter = presenter,
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
@@ -493,7 +529,7 @@ class SourceHistoryDetailPresenterTest {
 	}
 
 	@Test
-	fun `late uncancellable lookup cannot overwrite expired retry state`() = runTest {
+	fun `late uncancellable lookup cannot overwrite explicitly closed detail`() = runTest {
 		val entry = localWifiEntry()
 		val gate = CompletableDeferred<Unit>()
 		val lateRepository = object : WifiHistoryRepository {
@@ -521,19 +557,20 @@ class SourceHistoryDetailPresenterTest {
 					continuation = null,
 				)
 		}
-		val latePresenter = SourceHistoryDetailPresenter(lateRepository, cellRepository)
+		val latePresenter = SourceHistoryDetailPresenter(lateRepository, cellRepository, mockk())
 		val selection = SourceHistoryDetailSelection(
 			entry = SourceAwareHistoryPageEntry.WifiOnly(entry),
 			readSnapshot = TrackingHistoryReadSnapshot(11L, 15L),
 		)
 		val route = SourceHistoryDetailHandoff.register(selection)
 		val viewModel = SourceHistoryDetailViewModel(
+			actions = mockk(relaxed = true), exporter = mockk(relaxed = true),
 			presenter = latePresenter,
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
 		runCurrent()
 
-		advanceTimeBy(SourceHistoryDetailHandoff.DESTINATION_OWNERSHIP_TIMEOUT_MILLIS + 1L)
+		viewModel.close()
 		runCurrent()
 		viewModel.state.value shouldBe SourceHistoryDetailState.Unavailable(
 			reason = SourceHistoryDetailUnavailableReason.SELECTION_EXPIRED,

@@ -423,6 +423,7 @@ data class ImportPortableCapturedCellRequest(
 	val entry: PortableCapturedCellEntryV1,
 	val receipt: PortableCellImportReceipt,
 	val expectedCollectedDataEpoch: Long,
+	val mergeSelectedReadings: Boolean = false,
 ) {
 	init {
 		require(expectedCollectedDataEpoch >= 0L)
@@ -793,11 +794,15 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 		"AUTOMATIC" -> PortableCellSessionMode.AUTOMATIC
 		else -> return result(unverifiableAttribution())
 	}
-	if (!session.hasPortableCellShape(runs)) return result(unverifiableAttribution())
-	val hierarchyMaterializing = session.completedAtMs == null || runs.any { run ->
+	val interrupted = session.state == "FAILED" && session.failureCode == "RESTORED_INTERRUPTED_SESSION"
+	val interruptedRunIds = runs.filter { it.state == "FAILED" &&
+		it.completionReason == "RESTORED_INTERRUPTED_SESSION" && it.completedAtMs == null }
+		.mapTo(mutableSetOf()) { it.serviceRunId }
+	if (!session.hasPortableCellShape(runs, interrupted)) return result(unverifiableAttribution())
+	val hierarchyMaterializing = !interrupted && (session.completedAtMs == null || runs.any { run ->
 		run.completedAtMs == null ||
 			run.presentationAcknowledgement == SourceServiceRunEntity.PRESENTATION_PENDING
-	}
+	})
 	if (runs.any { run ->
 		run.presentationAcknowledgement !in setOf(
 			SourceServiceRunEntity.PRESENTATION_PENDING,
@@ -933,9 +938,6 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 	if (!cellCompleteness.hasValidPortableCellShape(request.logicalTrackingId, runIds)) {
 		return result(unverifiableWriter())
 	}
-	if (selectedCapturedRunIds.any { runId ->
-		cellCompleteness.none { it.serviceRunId == runId }
-	}) return result(unverifiableWriter())
 	val activationFloorOrdinal = Math.subtractExact(lane.activationOrdinal, 1L)
 	val audit = auditPortableCapturedCellFacts(
 		evidence,
@@ -1003,12 +1005,16 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 		scope.logicalTrackingId != request.logicalTrackingId || scope.serviceRunId !in runIds ||
 			scope.serviceRunId !in selectedCapturedRunIds
 	}) return result(unverifiableFact())
-	val selectedDeleted = selectedCapturedRunIds.any { runId ->
+	val deletedRunIds = selectedCapturedRunIds.filterTo(mutableSetOf()) { runId ->
 		audit.generationByScope.containsKey(CellCapturedRunScope(request.logicalTrackingId, runId))
 	}
-	if (selectedDeleted) {
-		return result(if (selectedLineages.isEmpty()) ExportPortableCapturedCellResult.Deleted else unverifiableFact())
-	}
+	if (deletedRunIds == selectedCapturedRunIds) return result(ExportPortableCapturedCellResult.Deleted)
+	// Deletion is scoped to one physical run; surviving sibling readings remain exportable.
+	if (selectedLineages.any { it.scope.serviceRunId in deletedRunIds }) return result(unverifiableFact())
+	if (selectedCapturedRunIds.any { runId ->
+		runId !in interruptedRunIds && runId !in deletedRunIds &&
+			cellCompleteness.none { it.serviceRunId == runId }
+	}) return result(unverifiableWriter())
 	val retainedFloor = evidence.retainedFromMs
 	val retainedFactProofRunIds = mutableSetOf<String>()
 	if (retainedFloor != null) {
@@ -1082,6 +1088,7 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 	}
 	for (row in cellCompleteness) {
 		currentCoroutineContext().ensureActive()
+		if (row.serviceRunId in interruptedRunIds || row.serviceRunId in deletedRunIds) continue
 		if (row.registrationGeneration == 0L || PortableCellSettlementIdentity(
 				row.serviceRunId,
 				row.sourceInstanceId,
@@ -1122,7 +1129,7 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 	}
 	if (selectedLineages.any { lineage ->
 		val fact = lineage.revisions.last()
-		cellCompleteness.none { row ->
+		fact.serviceRunId !in interruptedRunIds && cellCompleteness.none { row ->
 			fact.serviceRunId == row.serviceRunId && fact.sourceInstanceId == row.sourceInstanceId &&
 				fact.registrationGeneration == row.registrationGeneration &&
 				(fact.payloadVersion == CELL_WAL_PAYLOAD_VERSION ||
@@ -1145,7 +1152,8 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 		(targetOrdinal != null && lane.contiguousAdmissionOrdinal < targetOrdinal)
 	) return result(ExportPortableCapturedCellResult.Materializing)
 	val factEventIds = selectedLineages.mapTo(mutableSetOf()) { it.revisions.last().sourceEventId }
-	if (retainedWal.any { it.eventId !in factEventIds }) return result(unverifiableWriter())
+	if (retainedWal.any { it.scope.serviceRunId !in interruptedRunIds &&
+		it.scope.serviceRunId !in deletedRunIds && it.eventId !in factEventIds }) return result(unverifiableWriter())
 
 	val timeRetainedLineages = selectedLineages.filter { lineage ->
 		retainedFloor == null || audit.canonicalRetentionLowerBoundById.getValue(lineage.logicalFactId) >= retainedFloor
@@ -1158,7 +1166,8 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 		lineage.aggregateOwnerLogicalFactId == null || lineage.aggregateOwnerLogicalFactId in timeRetainedIds
 	}
 	val retainedByRun = retainedLineages.groupBy { it.scope.serviceRunId }
-	val runsOut = runs.map { run ->
+	val runsOut = runs.mapNotNull { run ->
+		if (run.serviceRunId in deletedRunIds) return@mapNotNull null
 		val segment = requireNotNull(segmentsById[run.sessionSegmentId])
 		val runManifests = manifestsByRun.getValue(run.serviceRunId)
 		val bindings = captureByRun.getValue(run.serviceRunId)
@@ -1186,8 +1195,10 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 			observations.isNotEmpty() -> PortableCellRunAvailability.RETAINED
 			else -> PortableCellRunAvailability.NO_RETAINED_OBSERVATION
 		}
-		val acquisition = cellCompleteness.filter { it.serviceRunId == run.serviceRunId }
-			.toPortableAcquisitionCompleteness(captured)
+		val unfinished = run.serviceRunId in interruptedRunIds
+		if (unfinished && observations.isEmpty()) return@mapNotNull null
+		val acquisition = if (unfinished) PortableCellAcquisitionCompleteness.PARTIAL else
+			cellCompleteness.filter { it.serviceRunId == run.serviceRunId }.toPortableAcquisitionCompleteness(captured)
 		val payload = PortableCellRunPayload(
 			identity = PortableCellOpaqueIdentity.derive(
 				PortableCellIdentityKind.PHYSICAL_RUN,
@@ -1197,9 +1208,9 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 				request.logicalTrackingId,
 				run.serviceRunId,
 			),
-			startTimeMs = segment.startTimeMs,
-			endTimeMs = segment.endTimeMs,
-			captureCoverage = captureCoverage,
+			startTimeMs = if (unfinished) observations.minOf { it.coverageStartTimeMs } else segment.startTimeMs,
+			endTimeMs = if (unfinished) observations.maxOf { it.latestPossibleTimeMs } else segment.endTimeMs,
+			captureCoverage = if (unfinished) PortableCellCaptureCoverage.PARTIAL_RUN else captureCoverage,
 			availability = availability,
 			acquisitionCompleteness = acquisition,
 			retentionLoss = retentionLoss,
@@ -1208,6 +1219,7 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 		)
 		payload.toValue(CellCapturedPortableIntegrity.runChecksum(payload))
 	}.sortedWith(PORTABLE_CELL_RUN_ORDER)
+	if (runsOut.isEmpty()) return result(ExportPortableCapturedCellResult.Unavailable(PortableCellUnavailableReason.ENTRY_NOT_FOUND))
 	val entryPayload = PortableCellEntryPayload(
 		identity = PortableCellOpaqueIdentity.derive(
 			PortableCellIdentityKind.LOGICAL_ENTRY,
@@ -1500,9 +1512,9 @@ private fun SourceServiceRunEntity.hasExactPortableMembership(
 		presentationAcknowledgement != SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE
 }
 
-private fun LogicalTrackingSessionEntity.hasPortableCellShape(runs: List<SourceServiceRunEntity>): Boolean {
-	val terminal = state in TERMINAL_SESSION_STATES
-	if ((completedAtMs != null) != terminal || logicalTrackingId.isBlank() || lifecycleRevision <= 0L ||
+private fun LogicalTrackingSessionEntity.hasPortableCellShape(runs: List<SourceServiceRunEntity>, interrupted: Boolean): Boolean {
+	val terminal = state in TERMINAL_SESSION_STATES && !interrupted
+	if ((!interrupted && (completedAtMs != null) != terminal) || logicalTrackingId.isBlank() || lifecycleRevision <= 0L ||
 		desiredPlanRevision <= 0L || rolloutRevision <= 0L || startOrigin.isBlank() ||
 		clockDomainId.isBlank() || lifecycleBootId.isNullOrBlank() || lifecycleLeaseGeneration <= 0L ||
 		startedAtMs < 0L || startedElapsedNanos < 0L
@@ -1521,8 +1533,9 @@ private fun LogicalTrackingSessionEntity.hasPortableCellShape(runs: List<SourceS
 			run.preparedManifestRevision <= 0L || run.preparedIntentRevision <= 0L ||
 			run.runtimeAcknowledgement.isBlank() || run.androidDeliveryState.isBlank() ||
 			run.androidDeliveryUpdatedAtMs == null ||
-			(run.completedAtMs != null) != (run.state in TERMINAL_SESSION_STATES) ||
-			(run.completedAtMs != null) != !run.completionReason.isNullOrBlank() ||
+			(!interrupted || run.completionReason != "RESTORED_INTERRUPTED_SESSION") &&
+				((run.completedAtMs != null) != (run.state in TERMINAL_SESSION_STATES) ||
+					(run.completedAtMs != null) != !run.completionReason.isNullOrBlank()) ||
 			run.completedAtMs?.let { it < run.startedAtMs } == true
 	}) return false
 	return true
@@ -1829,7 +1842,7 @@ private fun ProviderRegistrationGenerationEntity.hasExactPortableCellSettlementS
 	val acceptedElapsedNanos = acceptedElapsedRealtimeNanos ?: return false
 	val exactAcceptedIdentity = sourceKind == CELL_SOURCE_KIND && registrationGeneration == row.registrationGeneration &&
 		sourceInstanceId == row.sourceInstanceId && ownerScope == "source-broker:$CELL_SOURCE_KIND" &&
-		clockDomainId == recordedBootId && collectedDataEpoch == evidenceState.collectedDataEpoch &&
+		clockDomainId == recordedBootId && evidenceState.acceptsRetainedEpoch(collectedDataEpoch) &&
 		providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
 		!providerProcessIncarnationId.isNullOrBlank() && reservedAtMs <= acceptedWallTimeMs &&
 		reservedElapsedRealtimeNanos <= acceptedElapsedNanos

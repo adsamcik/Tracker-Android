@@ -6,14 +6,14 @@ import kotlinx.coroutines.CancellationException
 /** Optional native recording metadata. Names never admit, discard, clip or change a reading. */
 internal class MeasuredNativeSessionNames private constructor(private val names: Map<String, Bounds>) {
     fun point(logicalId: String, timeMs: Long): String? = names[logicalId]?.takeIf {
-        timeMs >= it.fromMs && (it.toMs == null || timeMs < it.toMs)
+        if (it.toMs == it.fromMs) timeMs == it.fromMs else timeMs >= it.fromMs && (it.toMs == null || timeMs < it.toMs)
     }?.name
 
-    /** Keep the existing full-window interval rule; Pressure's original end must be strictly inside. */
-    fun window(logicalId: String, startMs: Long, endMs: Long, strictEnd: Boolean = false): String? =
+    /** A crossing measured window keeps its original bounds; a label never prorates its value. */
+    fun window(logicalId: String, startMs: Long, endMs: Long): String? =
         names[logicalId]?.takeIf {
-            startMs >= it.fromMs && endMs >= startMs && (it.toMs == null ||
-                if (strictEnd) endMs < it.toMs else endMs <= it.toMs && (endMs > startMs || startMs < it.toMs))
+            if (startMs == endMs) if (it.toMs == it.fromMs) startMs == it.fromMs else startMs >= it.fromMs && (it.toMs == null || startMs < it.toMs)
+            else maxOf(startMs, endMs) > it.fromMs && (it.toMs == null || minOf(startMs, endMs) < if (it.toMs == it.fromMs && it.toMs < Long.MAX_VALUE) it.toMs + 1L else it.toMs)
         }?.name
 
     private data class Bounds(val name: String, val fromMs: Long, val toMs: Long?)
@@ -35,7 +35,7 @@ internal class MeasuredNativeSessionNames private constructor(private val names:
                     val from = annotation.startTimeMs ?: session.startedAtMs
                     val to = annotation.endTimeMs ?: session.cutoffAtMs
                     val active = session.state !in setOf("FINALIZED", "CLOSED", "FAILED")
-                    if (from < 0L || to != null && to <= from || to == null && !active) return@mapNotNull null
+                    if (from < 0L || to != null && to < from || to == null && !active) return@mapNotNull null
                     session.logicalTrackingId to Bounds(name, from, to)
                 }.toMap()
                 MeasuredNativeSessionNames(names)

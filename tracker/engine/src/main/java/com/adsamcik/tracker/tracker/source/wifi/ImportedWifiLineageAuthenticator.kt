@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedWifiObservationEnt
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunZoneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.stats.api.repository.PORTABLE_WIFI_OBSERVATION_ORDER
 import com.adsamcik.tracker.stats.api.repository.PORTABLE_WIFI_RUN_ORDER
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
@@ -33,6 +34,7 @@ internal object ImportedWifiLineageAuthenticator {
 		runs: List<ImportedWifiRunEntity>,
 		zones: List<ImportedWifiRunZoneEntity>,
 		observations: List<ImportedWifiObservationEntity>,
+		retainedState: SourceEvidenceState? = null,
 	): AuthenticatedImportedWifiLineage {
 		if (headers.size > ImportedWifiDao.MAX_REVISIONS_PER_ENTRY) fail(Reason.REVISION_OVERFLOW)
 		if (receipts.size > ImportedWifiDao.MAX_RECEIPTS_PER_ENTRY) fail(Reason.DEPENDENCY_OVERFLOW)
@@ -41,14 +43,15 @@ internal object ImportedWifiLineageAuthenticator {
 		if (observations.size > ImportedWifiDao.MAX_TOTAL_OBSERVATIONS_PER_ENTRY_LINEAGE) {
 			fail(Reason.OBSERVATION_OVERFLOW)
 		}
-		if (headers.any { it.identity != identity || it.collectedDataEpoch != expectedCollectedDataEpoch } ||
+		fun retainedEpoch(epoch: Long) = retainedState?.acceptsRetainedEpoch(epoch) ?: (epoch == expectedCollectedDataEpoch)
+		if (headers.any { it.identity != identity || !retainedEpoch(it.collectedDataEpoch) } ||
 			headers.map { it.importRevision } != (1L..headers.size.toLong()).toList() ||
 			headers.any { header ->
 				header.supersedesImportRevision != header.importRevision.takeIf { it > 1L }?.minus(1L)
 			} || receipts.any {
-				it.entryIdentity != identity || it.collectedDataEpoch != expectedCollectedDataEpoch
+				it.entryIdentity != identity || !retainedEpoch(it.collectedDataEpoch)
 			} || receipts.distinctBy { it.importJobId to it.importEntryKey }.size != receipts.size ||
-			runs.any { it.entryIdentity != identity || it.collectedDataEpoch != expectedCollectedDataEpoch ||
+			runs.any { it.entryIdentity != identity || !retainedEpoch(it.collectedDataEpoch) ||
 				it.scopeDeletionGeneration != 0L } ||
 			zones.any { it.entryIdentity != identity } || observations.any { it.entryIdentity != identity }
 		) fail(Reason.STORED_EVIDENCE_UNVERIFIABLE)
@@ -65,6 +68,7 @@ internal object ImportedWifiLineageAuthenticator {
 
 		val authenticated = headers.map { header ->
 			val revisionRuns = runs.filter { it.entryImportRevision == header.importRevision }
+			if (revisionRuns.any { it.collectedDataEpoch != header.collectedDataEpoch }) fail(Reason.STORED_EVIDENCE_UNVERIFIABLE)
 			if (revisionRuns.size !in 1..ImportedWifiDao.MAX_RUNS_PER_ENTRY ||
 				revisionRuns.distinctBy { it.identity }.size != revisionRuns.size ||
 				revisionRuns.distinctBy { it.deletionScopeDigest }.size != revisionRuns.size

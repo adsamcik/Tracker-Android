@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_unfinished_remove">Rimuovi file incompleto</string>
+    <string name="export_unfinished_retry">Riprova</string>
+    <string name="export_unfinished_files_guidance">Tracker non può rimuovere questo file. Rimuovilo in File oppure ripristina l’accesso alla cartella e riprova.</string>
+    <string name="export_unfinished_notice_update_failed">File rimosso. Impossibile aggiornare questo avviso. Riprova.</string>
+    <string name="export_unfinished_startup_unavailable">Completa il recupero dei dati in Tracker, poi riprova.</string>
+    <string name="export_unfinished_load_failed">Impossibile caricare i file incompleti.</string>
+    <string name="export_unfinished_notice_save_failed">Impossibile ricordare un file incompleto. Rimuovilo in File.</string>
+    <string name="export_unfinished_not_remembered">Impossibile rimuovere o ricordare %s. Rimuovilo in File.</string>
+    <string name="export_unfinished_remove_accessibility">Rimuovi file incompleto: %s</string>
+</resources>

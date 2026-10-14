@@ -1,6 +1,6 @@
 # Tracking completion plan
 
-Updated: 2026-10-13. Initial inspected candidate: `5b19ca833596b602643e99d291c4ceae0d3b5cc6`.
+Updated: 2026-10-14. Initial inspected candidate: `5b19ca833596b602643e99d291c4ceae0d3b5cc6`.
 
 ## Outcome and current boundary
 
@@ -9,8 +9,7 @@ five quality/power positions and share physical providers. Sessions organize the
 same data and prefer higher quality for participating sources. Optional enrichment
 uses already authorized saved data and does not turn another source on.
 
-Complete tracking and its everyday data surfaces first. Keep the remaining file
-and data-backup work in this plan, but defer it until the tracking core is assembled.
+Complete tracking, its everyday data surfaces, source files and data-only backup/restore before freezing. The October 14 scope answer supersedes the earlier transfer deferral.
 
 **IMPLEMENTATION_ONLY / IMPLEMENTED_UNVALIDATED.** Author production and test source,
 perform static independent reviews and commit coherent selected changes. Tests are

@@ -21,11 +21,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
- * │ 28         │ 400         │ 🚧 UNRELEASED - current development    │
- * │            │             │    schema; migration may be refined     │
- * │ 27         │ 400         │ ✅ RELEASED - frozen stable active-file │
- * │            │             │    compatibility boundary               │
- * │ 26         │ 385         │ ✅ RELEASED - 2024.3.0 alpha 2          │
+ * │ 30         │ 400         │ UNRELEASED - current assembled schema    │
+ * │ 13-29      │ 385-400     │ UNRELEASED - preserved development inputs│
  * │ 12         │ 384         │ ✅ RELEASED - Last session-based schema  │
  * │ 11         │ 380-383     │ ✅ RELEASED                              │
  * │ 10         │ 370-379     │ ✅ RELEASED                              │
@@ -46,9 +43,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * 4. Include brief notes about what changed in the schema.
  *
  * Release-boundary workflow:
- * - Versions through 26 are frozen public migrations used only on a disposable legacy copy.
+ * - The released main branch uses v12. Versions 13-26 normalize its disposable legacy copy.
  * - V27 starts in a new stable active database file and imports the normalized v26 data.
- * - V27 is released and frozen; v28 is the current unreleased in-place migration target.
+ * - V27-29 remain readable development inputs; v30 is the in-place migration target.
  *
  * ============================================================================
  */

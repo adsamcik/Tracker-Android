@@ -48,6 +48,8 @@ internal class RoomActivitySelectionDeletion @Inject constructor(
 		request: ActivitySelectionDeletionRequest,
 	): ActivitySelectionDeletionResult = withContext(ioDispatcher) {
 		try {
+			if (request.expectedCollectedDataEpoch != null && database.sourceEvidenceStateDao().get()?.collectedDataEpoch != request.expectedCollectedDataEpoch)
+				return@withContext ActivitySelectionDeletionResult.Blocked(ActivitySelectionDeletionBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
 			when (val selection = request.selection) {
 				is ActivityHistorySelection.Local -> {
 					when (val resolved = database.withTransaction { resolveLocal(selection.key) }) {
@@ -55,7 +57,8 @@ internal class RoomActivitySelectionDeletion @Inject constructor(
 						is ResolvedActivitySelection.Unverifiable ->
 							ActivitySelectionDeletionResult.Unverifiable(resolved.reason)
 						is ResolvedActivitySelection.Local ->
-							localDeletion.deleteSelectedSession(resolved.segmentId).toActionResult()
+							(request.expectedCollectedDataEpoch?.let { localDeletion.deleteSelectedSession(resolved.segmentId, it) }
+								?: localDeletion.deleteSelectedSession(resolved.segmentId)).toActionResult()
 					}
 				}
 				is ActivityHistorySelection.Imported -> importedDeletion.delete(

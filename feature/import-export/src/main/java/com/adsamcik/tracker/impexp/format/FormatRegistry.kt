@@ -10,6 +10,8 @@ import com.adsamcik.tracker.impexp.exporter.PortableAmbientStepsExporter
 import com.adsamcik.tracker.impexp.exporter.PortableStepsExporter
 import com.adsamcik.tracker.impexp.exporter.PortableActivityExporter
 import com.adsamcik.tracker.impexp.exporter.PortablePressureExporter
+import com.adsamcik.tracker.impexp.exporter.PortableWifiSourceExporter
+import com.adsamcik.tracker.impexp.exporter.PortableCellSourceExporter
 import com.adsamcik.tracker.impexp.exporter.LocationFileExporter
 import com.adsamcik.tracker.impexp.portable.LocationFileJsonV1
 import com.adsamcik.tracker.impexp.importer.file.LocationFileImport
@@ -225,10 +227,11 @@ object FormatRegistry {
 				displayNameRes = R.string.format_portable_wifi,
 				mimeType = RadioSourceFileV2.WIFI_MIME,
 				extensions = setOf(RadioSourceFileV2.WIFI_EXTENSION),
-				supportsExport = false,
+				supportsExport = true,
 				supportsImport = true,
 				supportsDateRange = true,
 			),
+			exporter = PortableWifiSourceExporter(),
 			importer = PortableWifiSourceFileImport(),
 		)
 		register(
@@ -237,10 +240,11 @@ object FormatRegistry {
 				displayNameRes = R.string.format_portable_cell,
 				mimeType = RadioSourceFileV2.CELL_MIME,
 				extensions = setOf(RadioSourceFileV2.CELL_EXTENSION),
-				supportsExport = false,
+				supportsExport = true,
 				supportsImport = true,
 				supportsDateRange = true,
 			),
+			exporter = PortableCellSourceExporter(),
 			importer = PortableCellSourceFileImport(),
 		)
 		register(

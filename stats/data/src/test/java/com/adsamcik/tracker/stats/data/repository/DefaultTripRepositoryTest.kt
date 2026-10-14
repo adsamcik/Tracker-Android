@@ -22,7 +22,11 @@ import org.junit.jupiter.api.Test
 class DefaultTripRepositoryTest {
 
 	private val tripDao: TripDao = mockk()
-	private val repository = DefaultTripRepository(tripDao)
+	private val savedLocationMetrics = mockk<SavedLocationMetricsReader> {
+        coEvery { readTrip(any()) } returns com.adsamcik.tracker.stats.api.repository.SavedLocationSummary(0L, null, null, false)
+        io.mockk.every { observeChanges() } returns flowOf(Unit)
+    }
+    private val repository = DefaultTripRepository(tripDao, savedLocationMetrics)
 
 	@Test
 	fun `observeTrips maps non-Steps values and coerces invalid fields`() = runTest {
@@ -43,6 +47,7 @@ class DefaultTripRepositoryTest {
 
 		val trip = repository.observeTrips().first().single()
 		trip.distance.raw shouldBe 0f
+		trip.hasMeasuredDistance shouldBe false
 		trip.duration.raw shouldBe 0L
 		trip.primaryMode shouldBe TransportMode.TRANSIT
 	}
@@ -99,6 +104,7 @@ class DefaultTripRepositoryTest {
 			source = SegmentSource.PORTABLE_STEPS_IMPORT, createdAt = 3_000L,
 		)
 		val detail = repository.getTripDetail(10L).getOrNull()!!
+		detail.hasMeasuredDistance shouldBe false
 		detail.source shouldBe SegmentSource.PORTABLE_STEPS_IMPORT
 		detail.primaryMode shouldBe TransportMode.UNKNOWN
 		detail.sampleCount shouldBe 0
@@ -106,7 +112,42 @@ class DefaultTripRepositoryTest {
 		io.mockk.confirmVerified(tripDao)
 	}
 
+	@Test
+	fun `one failed Location read keeps both trips and a measured stationary zero`() = runTest {
+		val original = Trip(id = 21L, startTimeMs = 1_000L, endTimeMs = 2_000L, distanceM = 999f,
+			steps = null, primaryActivity = 7, activityConfidence = null, sampleCount = 2,
+			source = SegmentSource.USER_CREATED, createdAt = 2_000L)
+		everyRecentTripsFlow(original, original.copy(id = 22L))
+		coEvery { savedLocationMetrics.readTrip(21L) } throws IllegalStateException("Location unavailable")
+		coEvery { savedLocationMetrics.readTrip(22L) } returns mockk {
+			io.mockk.every { pointCount } returns 2L
+			io.mockk.every { distanceMeters } returns 0.0
+			io.mockk.every { partial } returns false
+		}
+		val trips = repository.observeTrips().first()
+		trips.map { it.id } shouldBe listOf(21L, 22L)
+		trips.first().hasMeasuredDistance shouldBe false
+		trips.first().distanceIsPartial shouldBe true
+		trips.last().hasMeasuredDistance shouldBe true
+		trips.last().distance.raw shouldBe 0f
+		trips.last().distanceIsPartial shouldBe false
+	}
+
 	private fun <T> resultError(result: arrow.core.Either<StatsError, T>): StatsError {
 		return result.fold({ it }, { error("Expected Left but was Right") })
+	}
+
+	@Test
+	fun `paging storage failures remain retryable page errors`() = runTest {
+		val failure = IllegalStateException("Page unavailable")
+		val delegate = mockk<androidx.paging.PagingSource<Int, Trip>> {
+			io.mockk.every { registerInvalidatedCallback(any()) } returns Unit
+			coEvery { load(any()) } throws failure
+		}
+		io.mockk.every { tripDao.getAllPaged() } returns delegate
+		io.mockk.every { savedLocationMetrics.onSavedDataChange(any()) } returns {}
+		val result = repository.getPagedTrips().load(androidx.paging.PagingSource.LoadParams.Refresh(
+			key = null, loadSize = 20, placeholdersEnabled = false))
+		(result as androidx.paging.PagingSource.LoadResult.Error<Int, com.adsamcik.tracker.shared.model.Trip>).throwable shouldBe failure
 	}
 }

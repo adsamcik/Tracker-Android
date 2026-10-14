@@ -142,16 +142,18 @@ internal object SessionBundleMetadataImport {
 						}
 					}
 					RadioSourceFileV2.WIFI_FORMAT -> {
-						version(RadioSourceFileV2.VERSION); source(HistorySource.WIFI)
+						source(HistorySource.WIFI)
 						val file = RadioSourceFileJsonV2Codec().readWifi(input)
+						version(file.schemaVersion)
 						file.sessions.forEach { session -> capture(HistorySource.WIFI, session.entry.identity.value,
 							session.entry.contentChecksum.value, radioEntryKey(child.receiptKey, session.entry.identity.value)) }
 						file.background?.let { archive -> add(SessionBundleSourceClaim.BackgroundRadio(HistorySource.WIFI,
 							archive.archiveId, archive.contentChecksum, radioEntryKey(child.receiptKey, archive.archiveId))) }
 					}
 					RadioSourceFileV2.CELL_FORMAT -> {
-						version(RadioSourceFileV2.VERSION); source(HistorySource.CELL)
+						source(HistorySource.CELL)
 						val file = RadioSourceFileJsonV2Codec().readCell(input)
+						version(file.schemaVersion)
 						file.sessions.forEach { session -> capture(HistorySource.CELL, session.entry.identity.value,
 							session.entry.contentChecksum.value, radioEntryKey(child.receiptKey, session.entry.identity.value)) }
 						file.background?.let { archive -> add(SessionBundleSourceClaim.BackgroundRadio(HistorySource.CELL,
@@ -204,6 +206,14 @@ internal object SessionBundleMetadataImport {
 			if (identity != expected.identity || checksum != expected.checksum || receivedEpoch != epoch)
 				throw InvalidSessionBundle("Session source receipt does not match its data")
 		}
+		suspend fun radioChecksum(source: Int, claim: SessionBundleSourceClaim.Captured, fallback: String): String {
+			val members = database.importedRadioFileMembershipDao().members(source, jobId, claim.receiptKey, 1_000_000)
+			if (members.isEmpty()) return fallback
+			val header = members.singleOrNull { it.memberKind == "ENTRY" } ?: missing()
+			if (members.any { it.entryIdentity != claim.identity || it.collectedDataEpoch != epoch ||
+				it.fileEntryChecksum != header.fileEntryChecksum }) throw InvalidSessionBundle("Session radio file membership is invalid")
+			return header.fileEntryChecksum
+		}
 		return when (claim) {
 			is SessionBundleSourceClaim.Location -> {
 				val archive = database.locationFileIdentityDao().archive(claim.identity) ?: missing()
@@ -224,12 +234,16 @@ internal object SessionBundleMetadataImport {
 					HistorySource.PRESSURE -> database.importedPressureDao().receipt(jobId, claim.receiptKey)?.let {
 						checkEntry(it.entryIdentity, it.entryContentChecksum, it.collectedDataEpoch, claim) } ?: missing()
 					HistorySource.WIFI -> database.importedWifiDao().receipt(jobId, claim.receiptKey)?.let {
-						checkEntry(it.entryIdentity, it.entryContentChecksum, it.collectedDataEpoch, claim) } ?: missing()
+						checkEntry(it.entryIdentity, radioChecksum(com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity.SOURCE_WIFI,
+							claim, it.entryContentChecksum), it.collectedDataEpoch, claim) } ?: missing()
 					HistorySource.CELL -> database.importedCellDao().receipt(jobId, claim.receiptKey)?.let {
-						checkEntry(it.entryIdentity, it.entryContentChecksum, it.collectedDataEpoch, claim) } ?: missing()
+						checkEntry(it.entryIdentity, radioChecksum(com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity.SOURCE_CELL,
+							claim, it.entryContentChecksum), it.collectedDataEpoch, claim) } ?: missing()
 					HistorySource.LOCATION -> throw InvalidSessionBundle("Unsupported session Location selector")
 				}
-				listOf(OrganizationSourceSelector.CapturedEntry(claim.source, claim.identity))
+				listOf(OrganizationSourceSelector.CapturedEntry(claim.source, claim.identity,
+					jobId.takeIf { claim.source == HistorySource.WIFI || claim.source == HistorySource.CELL },
+					claim.receiptKey.takeIf { claim.source == HistorySource.WIFI || claim.source == HistorySource.CELL }))
 			}
 			is SessionBundleSourceClaim.BackgroundRadio -> {
 				val matches = when (claim.source) {

@@ -79,6 +79,7 @@ class StepsGoalCoordinatorTest {
 			dispatchers,
 			dirtyTracker,
 			ReadyGate,
+			io.mockk.mockk(relaxed = true),
 		)
 		val coordinator = StepsGoalCoordinator(
 			database = appDatabase,

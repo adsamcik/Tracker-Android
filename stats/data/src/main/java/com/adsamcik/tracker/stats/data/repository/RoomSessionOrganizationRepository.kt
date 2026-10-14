@@ -66,6 +66,10 @@ class RoomSessionOrganizationRepository @Inject constructor(
 	override suspend fun find(id: OrganizationSessionId): SessionOrganizationRead =
 		readPage(null, null, 1, 0, id)
 
+	override fun observeSession(id: OrganizationSessionId): Flow<SessionOrganizationRead> =
+		database.invalidationTracker.createFlow(*metadataTables, emitInitialState = true)
+			.combine(lifecycle.snapshots) { _, _ -> find(id) }.distinctUntilChanged()
+
 	private suspend fun readPage(fromMs: Long?, toMs: Long?, limit: Int, offset: Int, selected: OrganizationSessionId? = null): SessionOrganizationRead = withContext(io) {
 		require(limit in 1..100)
 		require((fromMs == null && toMs == null) ||
@@ -92,7 +96,7 @@ class RoomSessionOrganizationRepository @Inject constructor(
 					NativeSessionActivity.entries.associate { it.id to context.getString(it.nameRes) }
 				SessionOrganizationRead.Content(rows.take(limit).map { row ->
 					val start = row.fromMs?.takeIf { it >= 0L }
-					val end = row.toMs?.takeIf { start != null && it > start }
+					val end = row.toMs?.takeIf { start != null && it >= start }
 					val importedSelection = row.importedSourceSelection?.let(OrganizationSourceSelectionCodec::decode)
 					check(importedSelection == null || row.adapterKey == null)
 					check(row.importedActivityLabel == null || importedSelection != null)
