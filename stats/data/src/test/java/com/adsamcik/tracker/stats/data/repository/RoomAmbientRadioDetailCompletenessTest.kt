@@ -114,7 +114,7 @@ class RoomAmbientRadioDetailCompletenessTest {
             child.observedWallTimeMs, child.wallTimeUncertaintyMs, child.bssid, name, child.frequencyMhz, child.signalDbm))
         database.openHelper.writableDatabase.execSQL(
             "UPDATE ambient_wifi_child SET ssid = ?, content_checksum = ? WHERE logical_fact_id = ? AND item_index = ?",
-            arrayOf(name, checksum, child.logicalFactId, child.itemIndex))
+            arrayOf<Any?>(name, checksum, child.logicalFactId, child.itemIndex))
         val range = measuredRadioRange(0L, 3_000L).copy(sources = setOf(HistorySource.WIFI),
             origins = setOf(HistoryOrigin.LOCAL), purposes = setOf(HistoryPurpose.BACKGROUND))
         database.withTransaction {
@@ -151,7 +151,7 @@ class RoomAmbientRadioDetailCompletenessTest {
         val old = insertCell(true)
         val newer = appendNewerCellGroup(old)
         database.openHelper.writableDatabase.execSQL(
-            "UPDATE ambient_cell_fact_revision SET source_event_id = '' WHERE logical_fact_id = ?", arrayOf(old.logicalFactId))
+            "UPDATE ambient_cell_fact_revision SET source_event_id = '' WHERE logical_fact_id = ?", arrayOf<Any?>(old.logicalFactId))
         val range = measuredRadioRange(0L, 4_000L).copy(sources = setOf(HistorySource.CELL),
             origins = setOf(HistoryOrigin.LOCAL), purposes = setOf(HistoryPurpose.BACKGROUND))
         database.withTransaction {
@@ -247,7 +247,7 @@ class RoomAmbientRadioDetailCompletenessTest {
 	private fun insertLegacyWifiForMeasuredHistory(id: Long, timeMs: Long) {
 		database.openHelper.writableDatabase.execSQL(
 			"INSERT INTO legacy_wifi_child (legacy_row_id,time_ms,bssid,ssid,capabilities,frequency,level,provenance,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-			arrayOf(id, timeMs, "aa:bb:cc:dd:ee:ff", "Saved network", "", 2_412, -55, "LEGACY_RELEASED", timeMs))
+			arrayOf<Any?>(id, timeMs, "aa:bb:cc:dd:ee:ff", "Saved network", "", 2_412, -55, "LEGACY_RELEASED", timeMs))
 	}
 
 	@Test fun `measured radio qualifier preserves each authorized overnight leaf on its actual day`() = runTest {
@@ -300,7 +300,7 @@ class RoomAmbientRadioDetailCompletenessTest {
 		val newer = appendNewerWifiGroup(wifi)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE ambient_wifi_child SET content_checksum = ? WHERE logical_fact_id = ? AND item_index = 0",
-			arrayOf("0".repeat(64), wifi.logicalFactId))
+			arrayOf<Any?>("0".repeat(64), wifi.logicalFactId))
 		val reader = measuredRadioReader()
 		val range = measuredRadioRange(0L, 4_000L)
 		database.withTransaction {
@@ -375,7 +375,7 @@ class RoomAmbientRadioDetailCompletenessTest {
 
 	@Test fun `unaccepted native radio rows cannot enter optional map context and other source survives`() = runTest {
 		insertWifi(true); val cell = insertCell(true)
-		database.openHelper.writableDatabase.execSQL("UPDATE ambient_wifi_fact_revision SET effect_checksum = ?", arrayOf("0".repeat(64)))
+		database.openHelper.writableDatabase.execSQL("UPDATE ambient_wifi_fact_revision SET effect_checksum = ?", arrayOf<Any?>("0".repeat(64)))
 		val wifiRead = database.withTransaction {
 			RoomAmbientWifiRepository(database, dispatcher).readQualifiedInTransaction(wifiWindow())
 		}
@@ -661,7 +661,8 @@ class RoomAmbientRadioDetailCompletenessTest {
 		}
 		val policyDao = database.sourcePolicyDao()
 		val current = policyDao.authority()
-		if (current == null) policyDao.ensureAuthority(SourcePolicyAuthorityEntity(SourcePolicyAuthorityEntity.STATE_ACTIVE, 2L, null, 3_300L))
+		if (current == null) policyDao.ensureAuthority(SourcePolicyAuthorityEntity(bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			currentPolicyRevision = 2L, legacySettingsFingerprint = null, updatedAtMs = 3_300L))
 		else assertEquals(1, policyDao.compareAndSetAuthority(current.bootstrapState, current.currentPolicyRevision,
 			SourcePolicyAuthorityEntity.STATE_ACTIVE, 2L, null, 3_300L))
 	}
@@ -677,7 +678,8 @@ class RoomAmbientRadioDetailCompletenessTest {
 		})
 		val authority = policyDao.authority()
 		if (authority == null) policyDao.ensureAuthority(SourcePolicyAuthorityEntity(
-			SourcePolicyAuthorityEntity.STATE_ACTIVE, 3L, null, 3_400L))
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE, currentPolicyRevision = 3L,
+			legacySettingsFingerprint = null, updatedAtMs = 3_400L))
 		else assertEquals(1, policyDao.compareAndSetAuthority(authority.bootstrapState, authority.currentPolicyRevision,
 			SourcePolicyAuthorityEntity.STATE_ACTIVE, 3L, null, 3_400L))
 		policyDao.insertConsentEpochs(listOf(SourceConsentEpochEntity(source, SourceBrokerPurpose.AMBIENT_PRODUCT,

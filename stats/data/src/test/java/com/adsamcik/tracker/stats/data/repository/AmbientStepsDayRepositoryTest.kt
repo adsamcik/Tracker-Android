@@ -265,7 +265,7 @@ class AmbientStepsDayRepositoryTest {
 		// Both are real stored keys for day zero; a display must not choose the fallback over either.
 		val base = fact(1L, 36_000_000L, 36_001_000L, authorizationFingerprint = fingerprint)
 		val id = AmbientStepsFactIntegrity.logicalFactId(PROVIDER, 1L, 1L, SOURCE_INSTANCE,
-			base.windowStartTimeMs, 0L, "Pacific/Honolulu", 7L)
+			requireNotNull(base.windowStartTimeMs), 0L, "Pacific/Honolulu", 7L)
 		database.ambientStepsFactRevisionDao().insert(signed(base.copy(logicalFactId = id,
 			mutationId = AmbientStepsFactIntegrity.mutationId(id, 1L, AmbientStepsFactRevisionEntity.OPERATION_UPSERT),
 			storedZoneId = "Pacific/Honolulu", structuralDayStartTimeMs = 36_000_000L,

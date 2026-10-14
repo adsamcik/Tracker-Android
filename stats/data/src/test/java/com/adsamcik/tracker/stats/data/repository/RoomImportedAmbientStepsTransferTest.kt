@@ -2817,7 +2817,7 @@ class RoomImportedAmbientStepsTransferTest {
 		seedSecondEligibleConsent(database)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_evidence_state SET collected_data_epoch=?, restored_data_epochs=? WHERE id=1",
-			arrayOf(EPOCH + 1L, EPOCH.toString()),
+			arrayOf<Any?>(EPOCH + 1L, EPOCH.toString()),
 		)
 
 		readReady(database, saved).archive shouldBe saved

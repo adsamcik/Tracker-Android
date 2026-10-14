@@ -360,7 +360,7 @@ class ManualExportTransferBoundaryTest {
         override val requiresLocationData = false
         override val containsSensitiveLocationData = false
         override val canSelectDateRange = false
-        override val mimeType = "application/octet-stream"
+        override val mimeType = "application/vnd.tracker.test"
         override val extension = "dat"
         override suspend fun export(context: Context, locationData: Sequence<LocationSample>,
             outputStream: OutputStream, dateRange: LongRange?) = write(outputStream)

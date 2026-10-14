@@ -25,7 +25,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class DataBackupArchiveRoundTripTest {
     @Test
-    fun `data backup keeps imported files and excludes settings schedules and diagnostics`() = runTest {
+    fun `data backup preserves files and excludes settings`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         context.deleteDatabase(ACTIVE_DATABASE_NAME)
         val settings = context.getDatabasePath("preference_database")

@@ -45,6 +45,7 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
 
+    testImplementation(libs.turbine)
     testImplementation(libs.androidx.work.testing)
     testImplementation(project(":core:testing"))
     // Test-only production-chain proof: stats-data Ambient reader -> tracker numeric repository.

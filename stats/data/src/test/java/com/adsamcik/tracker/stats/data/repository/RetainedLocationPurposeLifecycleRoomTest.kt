@@ -162,7 +162,7 @@ class RetainedLocationPurposeLifecycleRoomTest {
         database.openHelper.writableDatabase.execSQL(
             "UPDATE location_sample_purpose_authority SET retained_proof_checksum = ? " +
                 "WHERE sample_id = ? AND purpose = ?",
-            arrayOf("0".repeat(64), receipt.sampleId, SourceBrokerPurpose.SESSION_CAPTURE))
+            arrayOf<Any?>("0".repeat(64), receipt.sampleId, SourceBrokerPurpose.SESSION_CAPTURE))
 
         val read = read(receipt)
         assertEquals(listOf(ambientScope), read.points.map { it.scope })
@@ -304,7 +304,7 @@ class RetainedLocationPurposeLifecycleRoomTest {
         val receipt = installJoinedPoint()
         database.openHelper.writableDatabase.execSQL(
             "UPDATE location_sample_purpose_authority SET retained_proof_checksum = ? WHERE sample_id = ? AND purpose = ?",
-            arrayOf("0".repeat(64), receipt.sampleId, SourceBrokerPurpose.SESSION_CAPTURE))
+            arrayOf<Any?>("0".repeat(64), receipt.sampleId, SourceBrokerPurpose.SESSION_CAPTURE))
         assertEquals(HistoryPurpose.BACKGROUND, measured(HistoryPurpose.entries.toSet()).rows.single().purpose)
         assertTrue(measured(setOf(HistoryPurpose.CAPTURE, HistoryPurpose.UNKNOWN)).rows.isEmpty())
         assertTrue(measured(setOf(HistoryPurpose.UNKNOWN)).rows.isEmpty())

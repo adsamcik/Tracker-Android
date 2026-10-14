@@ -11,7 +11,8 @@ internal suspend fun AppDatabase.installOriginalStopFixture(
     session: LogicalTrackingSessionEntity,
     manifest: SessionManifestVersionEntity,
 ) {
-    if (session.cutoffElapsedNanos == null || session.cutoffAtMs == null) return
+    val cutoffElapsedNanos = session.cutoffElapsedNanos ?: return
+    val cutoffAtMs = session.cutoffAtMs ?: return
     val dao = sourceSessionDao()
     if (dao.firstStopIntent(session.logicalTrackingId) != null) return
     val active = SessionLifecycleIntentVersionEntity(session.logicalTrackingId, manifest.manifestRevision,
@@ -23,9 +24,9 @@ internal suspend fun AppDatabase.installOriginalStopFixture(
         active.requestBootId, active.requestedElapsedRealtimeNanos, active.requestedWallTimeMs,
         active.triggerId, active.automationEpoch, active.triggerCollectedDataEpoch, active.sourceCallerAuthorityReference))
     val stop = activeSealed.copy(intentRevision = active.intentRevision + 1L, desiredState = "FINALIZED",
-        startOrigin = "POLICY_RECONCILIATION", requestedElapsedRealtimeNanos = session.cutoffElapsedNanos,
-        requestedWallTimeMs = session.cutoffAtMs, stopReason = "USER_STOP", stopDeadlineBootId = active.requestBootId,
-        stopDeadlineElapsedRealtimeNanos = session.cutoffElapsedNanos)
+        startOrigin = "POLICY_RECONCILIATION", requestedElapsedRealtimeNanos = cutoffElapsedNanos,
+        requestedWallTimeMs = cutoffAtMs, stopReason = "USER_STOP", stopDeadlineBootId = active.requestBootId,
+        stopDeadlineElapsedRealtimeNanos = cutoffElapsedNanos)
     val stopSealed = stop.copy(intentChecksum = SessionLifecycleIntegrity.checksum(stop.logicalTrackingId,
         stop.intentRevision, stop.manifestRevision, stop.desiredState, stop.stopReason, stop.requestBootId,
         stop.requestedElapsedRealtimeNanos, stop.stopDeadlineElapsedRealtimeNanos))

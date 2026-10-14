@@ -201,7 +201,7 @@ class CellHistoryRepositoryRoomTest {
             original.providerTimestampNanos, original.observedWallTimeMs, original.wallTimeUncertaintyMs,
             changedIdentity, original.radioType, original.registered, original.signalDbm))
         database.openHelper.writableDatabase.execSQL("UPDATE ambient_cell_child SET tower_identity = ?, content_checksum = ? WHERE logical_fact_id = ?",
-            arrayOf(changedIdentity, checksum, original.logicalFactId))
+            arrayOf<Any?>(changedIdentity, checksum, original.logicalFactId))
         val range = canonicalCellRange(group)
         database.withTransaction {
             val reader = canonicalCellReader()
@@ -389,10 +389,10 @@ class CellHistoryRepositoryRoomTest {
 		val group = withWriterContract(perReadingGroup(buildGroup(995, 1, setOf(0))), 2L, "AUTOMATIC")
 		persist(listOf(group), writerBindingGeneration = 2L)
 		persistPerReadingChildren(group)
-		database.openHelper.writableDatabase.execSQL("UPDATE source_product_projection_lane SET capture_mode_mask = 1 WHERE source_kind = ? AND binding_generation = 2", arrayOf(CELL_SOURCE))
+		database.openHelper.writableDatabase.execSQL("UPDATE source_product_projection_lane SET capture_mode_mask = 1 WHERE source_kind = ? AND binding_generation = 2", arrayOf<Any?>(CELL_SOURCE))
 		val invalidMask = (repository { true }.session(group.runs.single().segment.id) as CellHistoryQuery.Found).entry
 		invalidMask.observations shouldBe emptyList()
-		database.openHelper.writableDatabase.execSQL("UPDATE source_product_projection_lane SET capture_mode_mask = 3 WHERE source_kind = ? AND binding_generation = 2", arrayOf(CELL_SOURCE))
+		database.openHelper.writableDatabase.execSQL("UPDATE source_product_projection_lane SET capture_mode_mask = 3 WHERE source_kind = ? AND binding_generation = 2", arrayOf<Any?>(CELL_SOURCE))
 		val fact = group.runs.single().facts.first()
 		val changed = fact.copy(writerBindingGeneration = 1L, writerOwnerGeneration = 2L)
 		val checksum = CellCapturedFactRevisionIntegrity.effectChecksum(changed)
@@ -495,7 +495,7 @@ class CellHistoryRepositoryRoomTest {
 		val aggregate = group.runs.single().facts.single { it.semanticRevision == 2L }
 		val dependent = group.runs.single().facts.single { it.factKind == CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY }
 		database.openHelper.writableDatabase.execSQL("UPDATE cell_captured_fact_revision SET effect_checksum = ? WHERE logical_fact_id = ?",
-			arrayOf("f".repeat(64), dependent.logicalFactId))
+			arrayOf<Any?>("f".repeat(64), dependent.logicalFactId))
 		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L, HistorySource.CELL)
 		val result = database.withTransaction {
 			val raw = database.radioObservationChildDao().cellMeasuredHistoryCandidates(range.fromInclusiveMs,
@@ -575,7 +575,7 @@ class CellHistoryRepositoryRoomTest {
 		val changed = importedChildren.first()
 		database.openHelper.writableDatabase.execSQL("UPDATE imported_cell_child SET tower_identity = ?, content_checksum = ? " +
 			"WHERE entry_identity = ? AND entry_import_revision = ? AND observation_identity = ? AND item_index = ?",
-			arrayOf("user-edited-tower", measuredCellChildChecksum(changed.copy(towerIdentity = "user-edited-tower"), 2L),
+			arrayOf<Any?>("user-edited-tower", measuredCellChildChecksum(changed.copy(towerIdentity = "user-edited-tower"), 2L),
 				changed.entryIdentity, changed.entryImportRevision, changed.observationIdentity, changed.itemIndex))
 		val edited = read(range)
 		edited.problems shouldBe emptySet()
@@ -635,7 +635,7 @@ class CellHistoryRepositoryRoomTest {
 		val changed = children.first().copy(towerIdentity = "LTE:user-edited")
 		database.openHelper.writableDatabase.execSQL("UPDATE imported_cell_child SET tower_identity = ?, content_checksum = ? " +
 			"WHERE entry_identity = ? AND entry_import_revision = ? AND observation_identity = ? AND item_index = ?",
-			arrayOf(changed.towerIdentity, measuredCellChildChecksum(changed, 2L), changed.entryIdentity,
+			arrayOf<Any?>(changed.towerIdentity, measuredCellChildChecksum(changed, 2L), changed.entryIdentity,
 				changed.entryImportRevision, changed.observationIdentity, changed.itemIndex))
 		val result = cellBundleNames(group)
 		result.rows.size shouldBe 3
@@ -696,7 +696,7 @@ class CellHistoryRepositoryRoomTest {
 		val bad = children.first()
 		database.openHelper.writableDatabase.execSQL("UPDATE imported_cell_child SET content_checksum = ? " +
 			"WHERE entry_identity = ? AND entry_import_revision = ? AND observation_identity = ? AND item_index = ?",
-			arrayOf("f".repeat(64), bad.entryIdentity, bad.entryImportRevision, bad.observationIdentity, bad.itemIndex))
+			arrayOf<Any?>("f".repeat(64), bad.entryIdentity, bad.entryImportRevision, bad.observationIdentity, bad.itemIndex))
 		val entry = database.withTransaction { repository { true }.measuredImportedEvaluationInTransaction(bad.entryIdentity) }
 		(entry is com.adsamcik.tracker.shared.base.database.ImportedCellProductEvaluation.Readable) shouldBe true
 		val result = cellBundleNames(group)
@@ -1045,7 +1045,7 @@ class CellHistoryRepositoryRoomTest {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE source_event_wal SET payload = ?, payload_checksum = ?, " +
 					"integrity_identity = ? WHERE event_id = ?",
-				arrayOf(
+				arrayOf<Any?>(
 					forgedWal.payload,
 					forgedWal.payloadChecksum,
 					forgedWal.integrityIdentity,
@@ -1594,7 +1594,7 @@ class CellHistoryRepositoryRoomTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE cell_captured_fact_revision SET logical_tracking_id = 'moved-logical' " +
 				"WHERE logical_fact_id = ?",
-			arrayOf(moved),
+			arrayOf<Any?>(moved),
 		)
 
 		repository { true }.recent(1) shouldBe
@@ -1613,7 +1613,7 @@ class CellHistoryRepositoryRoomTest {
 		)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_service_run SET session_segment_id = NULL WHERE service_run_id = ?",
-			arrayOf(second.runs.single().run.serviceRunId),
+			arrayOf<Any?>(second.runs.single().run.serviceRunId),
 		)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_service_run SET session_segment_id = ? WHERE service_run_id = ?",
@@ -1654,7 +1654,7 @@ class CellHistoryRepositoryRoomTest {
 			)
 			database.openHelper.writableDatabase.execSQL(
 				"DELETE FROM session_segment WHERE id = ?",
-				arrayOf(group.runs.single().segment.id),
+				arrayOf<Any?>(group.runs.single().segment.id),
 			)
 
 			assertInvalidLocalSelection(repository, selection)
@@ -1744,7 +1744,7 @@ class CellHistoryRepositoryRoomTest {
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE cell_capture_deletion_generation SET generation = 2 " +
 					"WHERE logical_tracking_id = ? AND service_run_id = ?",
-				arrayOf(group.session.logicalTrackingId, built.run.serviceRunId),
+				arrayOf<Any?>(group.session.logicalTrackingId, built.run.serviceRunId),
 			)
 			(repository.detail(selection) as CellHistoryQuery.Found).entry.let { corrupt ->
 				corrupt.state shouldBe CellHistoryProductState.FAILED
@@ -1925,7 +1925,7 @@ class CellHistoryRepositoryRoomTest {
 					"lifecycle_lease_generation = NULL, authorization_revision = ?, authorization_fingerprint = ?, " +
 					"authorization_purpose_eligibility_mask = 0, plan_attribution = 2, integrity_identity = ? " +
 					"WHERE event_id = ?",
-				arrayOf(raw.authorizationRevision, raw.authorizationFingerprint, raw.integrityIdentity, raw.eventId))
+				arrayOf<Any?>(raw.authorizationRevision, raw.authorizationFingerprint, raw.integrityIdentity, raw.eventId))
 		}
 
 		val entry = (repository { true }.recent(1) as CellHistoryPage.Available).entries.single()

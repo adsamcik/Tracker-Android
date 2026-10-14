@@ -33,3 +33,7 @@ All 30 pinned Tracebox Alpha 7 AAR/module/POM SHA-256 values are verified in `bu
 - Independent source review found no new concrete blocker. Execution results remain pending.
 
 The source checkpoint is `IMPLEMENTED_UNVALIDATED`; it is not a complete-feature freeze or local `dev/v10` integration.
+
+## Interrupted batch and repairs
+
+Batch 06 ran with the short test-JVM directory and verified local dependencies. It completed 2,084 core tests with one invalid Cell fixture failure (repaired), all 74 Activity import tests, the v29/v30 migration/reopen and radio schema checks, and all 493 preferences tests. It exposed stale app/statistics/game compile contracts, Dashboard test synchronization assumptions, export fixture mismatches, and the impossible nested Location bundle reservation; those inputs are repaired. A tool/host connection reset interrupted the batch during release compilation. The log has no final outcome and no complete gate is claimed. Process inventory afterward found no Java process, so the next full batch can run safely.

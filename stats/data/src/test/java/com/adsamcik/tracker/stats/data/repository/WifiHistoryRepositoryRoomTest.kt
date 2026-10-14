@@ -153,10 +153,10 @@ class WifiHistoryRepositoryRoomTest {
 		val group = withWriterContract(v6RotatedGroup(buildGroup(995, 1, setOf(0)), excludeFirst = false), 2L, "AUTOMATIC")
 		persist(listOf(group), writerBindingGeneration = 2L)
 		persistV6Children(group)
-		database.openHelper.writableDatabase.execSQL("UPDATE source_product_projection_lane SET capture_mode_mask = 1 WHERE source_kind = ? AND binding_generation = 2", arrayOf(WIFI_SOURCE))
+		database.openHelper.writableDatabase.execSQL("UPDATE source_product_projection_lane SET capture_mode_mask = 1 WHERE source_kind = ? AND binding_generation = 2", arrayOf<Any?>(WIFI_SOURCE))
 		val invalidMask = (repository { true }.session(group.runs.single().segment.id) as WifiHistoryQuery.Found).entry
 		invalidMask.observations shouldBe emptyList()
-		database.openHelper.writableDatabase.execSQL("UPDATE source_product_projection_lane SET capture_mode_mask = 3 WHERE source_kind = ? AND binding_generation = 2", arrayOf(WIFI_SOURCE))
+		database.openHelper.writableDatabase.execSQL("UPDATE source_product_projection_lane SET capture_mode_mask = 3 WHERE source_kind = ? AND binding_generation = 2", arrayOf<Any?>(WIFI_SOURCE))
 		val fact = group.runs.single().facts.first()
 		val changed = fact.copy(writerBindingGeneration = 1L, writerOwnerGeneration = 2L)
 		val checksum = WifiCapturedFactRevisionIntegrity.effectChecksum(changed)
@@ -196,7 +196,7 @@ class WifiHistoryRepositoryRoomTest {
 		val first = group.runs.first().facts.last()
 		val corrupt = group.runs.last().facts.last()
 		database.openHelper.writableDatabase.execSQL("UPDATE wifi_captured_fact_revision SET effect_checksum = ? WHERE logical_fact_id = ?",
-			arrayOf("f".repeat(64), corrupt.logicalFactId))
+			arrayOf<Any?>("f".repeat(64), corrupt.logicalFactId))
 		val range = measuredCaptureRange(group.session.startedAtMs, requireNotNull(group.session.completedAtMs) + 1L, HistorySource.WIFI)
 		val result = database.withTransaction {
 			val raw = database.radioObservationChildDao().wifiMeasuredHistoryCandidates(range.fromInclusiveMs,
@@ -247,7 +247,7 @@ class WifiHistoryRepositoryRoomTest {
 		database.withTransaction {
 			requireNotNull(repository { true }.measuredFactInTransaction(dependent.logicalFactId, dependent.semanticRevision))
 		}
-		database.openHelper.writableDatabase.execSQL("DELETE FROM source_event_wal WHERE event_id = ?", arrayOf(owner.sourceEventId))
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_event_wal WHERE event_id = ?", arrayOf<Any?>(owner.sourceEventId))
 		assertFailsWith<IllegalArgumentException> {
 			database.withTransaction { repository { true }.measuredFactInTransaction(dependent.logicalFactId, dependent.semanticRevision) }
 		}
@@ -278,7 +278,7 @@ class WifiHistoryRepositoryRoomTest {
 		val edited = child.copy(ssid = "Changed network")
 		database.openHelper.writableDatabase.execSQL("UPDATE imported_wifi_child SET ssid = ?, content_checksum = ? " +
 			"WHERE entry_identity = ? AND entry_import_revision = ? AND observation_identity = ? AND item_index = ?",
-			arrayOf(edited.ssid, wifiAliasChecksum(edited, observation.semanticRevision), edited.entryIdentity,
+			arrayOf<Any?>(edited.ssid, wifiAliasChecksum(edited, observation.semanticRevision), edited.entryIdentity,
 				edited.entryImportRevision, edited.observationIdentity, edited.itemIndex))
 		val after = read()
 		after.rows.size shouldBe 3
@@ -471,7 +471,7 @@ class WifiHistoryRepositoryRoomTest {
 		persist(listOf(old, current))
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE wifi_captured_fact_revision SET effect_checksum = ? WHERE logical_tracking_id = ?",
-			arrayOf("f".repeat(64), old.session.logicalTrackingId))
+			arrayOf<Any?>("f".repeat(64), old.session.logicalTrackingId))
 		val selected = database.wifiCapturedFactDao().completedExportCandidateIdsPage(
 			WIFI_SOURCE, current.runs.single().segment.startTimeMs,
 			current.runs.single().segment.endTimeMs, null, 100)
@@ -489,7 +489,7 @@ class WifiHistoryRepositoryRoomTest {
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE wifi_captured_fact_revision SET observed_wall_time_ms = ?, " +
 				"wall_time_uncertainty_ms = 2 WHERE logical_tracking_id = ?",
-			arrayOf(from - 1, group.session.logicalTrackingId))
+			arrayOf<Any?>(from - 1, group.session.logicalTrackingId))
 		database.wifiCapturedFactDao().completedExportCandidateIdsPage(
 			WIFI_SOURCE, from, from + 100, null, 100) shouldBe listOf(group.session.logicalTrackingId)
 	}
@@ -503,13 +503,13 @@ class WifiHistoryRepositoryRoomTest {
 			"UPDATE wifi_captured_fact_revision SET observed_wall_time_ms = ?, wall_time_uncertainty_ms = 0, " +
 				"coverage_interval_end_nanos = coverage_interval_start_nanos + 100000001 " +
 				"WHERE logical_tracking_id = ?",
-			arrayOf(from + 200, group.session.logicalTrackingId))
+			arrayOf<Any?>(from + 200, group.session.logicalTrackingId))
 		// Rounded coverage starts at from + 99, just before this exclusive end.
 		database.wifiCapturedFactDao().completedExportCandidateIdsPage(
 			WIFI_SOURCE, from, from + 100, null, 100) shouldBe listOf(group.session.logicalTrackingId)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE wifi_captured_fact_revision SET wall_time_uncertainty_ms = -1 WHERE logical_tracking_id = ?",
-			arrayOf(group.session.logicalTrackingId))
+			arrayOf<Any?>(group.session.logicalTrackingId))
 		database.wifiCapturedFactDao().completedExportCandidateIdsPage(
 			WIFI_SOURCE, from + 1_000, from + 2_000, null, 100) shouldBe listOf(group.session.logicalTrackingId)
 	}
@@ -525,17 +525,17 @@ class WifiHistoryRepositoryRoomTest {
 		// A valid earliest bound of exactly zero remains provably outside these future dates.
 		sqlite.execSQL("UPDATE wifi_captured_fact_revision SET observed_wall_time_ms = 2000, " +
 			"wall_time_uncertainty_ms = 1, coverage_interval_end_nanos = coverage_interval_start_nanos + 1999000000 " +
-			"WHERE logical_tracking_id = ?", arrayOf(group.session.logicalTrackingId))
+			"WHERE logical_tracking_id = ?", arrayOf<Any?>(group.session.logicalTrackingId))
 		dao.completedExportCandidateIdsPage(WIFI_SOURCE, from, from + 100, null, 100) shouldBe emptyList()
 		// One additional nanosecond rounds the span up and makes the canonical earliest bound negative.
 		sqlite.execSQL("UPDATE wifi_captured_fact_revision SET " +
 			"coverage_interval_end_nanos = coverage_interval_start_nanos + 1999000001 " +
-			"WHERE logical_tracking_id = ?", arrayOf(group.session.logicalTrackingId))
+			"WHERE logical_tracking_id = ?", arrayOf<Any?>(group.session.logicalTrackingId))
 		dao.completedExportCandidateIdsPage(WIFI_SOURCE, from, from + 100, null, 100) shouldBe
 			listOf(group.session.logicalTrackingId)
 		sqlite.execSQL("UPDATE wifi_captured_fact_revision SET " +
 			"coverage_interval_end_nanos = coverage_interval_start_nanos + 2000000000 " +
-			"WHERE logical_tracking_id = ?", arrayOf(group.session.logicalTrackingId))
+			"WHERE logical_tracking_id = ?", arrayOf<Any?>(group.session.logicalTrackingId))
 		dao.completedExportCandidateIdsPage(WIFI_SOURCE, from, from + 100, null, 100) shouldBe
 			listOf(group.session.logicalTrackingId)
 	}
@@ -998,13 +998,13 @@ class WifiHistoryRepositoryRoomTest {
 		val cursor = group.runs.single().cursors.single()
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE wifi_captured_fact_cursor SET latest_effect_checksum = ? WHERE logical_fact_id = ?",
-			arrayOf(sha256("corrupt-head"), cursor.logicalFactId),
+			arrayOf<Any?>(sha256("corrupt-head"), cursor.logicalFactId),
 		)
 		assertRecentFactFailure()
 
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE wifi_captured_fact_cursor SET latest_effect_checksum = ? WHERE logical_fact_id = ?",
-			arrayOf(cursor.latestEffectChecksum, cursor.logicalFactId),
+			arrayOf<Any?>(cursor.latestEffectChecksum, cursor.logicalFactId),
 		)
 		database.openHelper.writableDatabase.execSQL(
 			"DELETE FROM wifi_captured_fact_revision WHERE logical_fact_id = ? AND semantic_revision = ?",
@@ -1418,8 +1418,10 @@ class WifiHistoryRepositoryRoomTest {
 		val entry = (repository { true }.recent(1) as WifiHistoryPage.Available).entries.single()
 		val networks = entry.observations.single().networks
 		networks shouldHaveSize 2
-		networks.map { java.time.Instant.ofEpochMilli(it.observedTimeMs).atZone(java.time.ZoneId.of(ZONE_ID)).toLocalDate() }
-			shouldBe listOf(java.time.LocalDate.of(2026, 10, 3), java.time.LocalDate.of(2026, 10, 4))
+		val observedDates = networks.map {
+			java.time.Instant.ofEpochMilli(it.observedTimeMs).atZone(java.time.ZoneId.of(ZONE_ID)).toLocalDate()
+		}
+		observedDates shouldBe listOf(java.time.LocalDate.of(2026, 10, 3), java.time.LocalDate.of(2026, 10, 4))
 		val raw = group.runs.single().admissions.single()
 		kotlin.test.assertTrue(requireNotNull(raw.receivedWallTimeMs) > midnight)
 		kotlin.test.assertTrue(group.session.cutoffAtMs!! < requireNotNull(raw.receivedWallTimeMs))
@@ -1436,7 +1438,7 @@ class WifiHistoryRepositoryRoomTest {
 			it.semanticRevision == dependent.aggregateOwnerSemanticRevision }
 		val reader = RoomSourceFactLookupReader(database, UnconfinedTestDispatcher(), BootClockDomainProvider { BOOT_ID })
 		assertIs<SourceFactLookupResult.Found>(reader.lookup(wifiFactLookupRequest(dependent)))
-		database.openHelper.writableDatabase.execSQL("DELETE FROM source_event_wal WHERE event_id = ?", arrayOf(owner.sourceEventId))
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_event_wal WHERE event_id = ?", arrayOf<Any?>(owner.sourceEventId))
 		reader.lookup(wifiFactLookupRequest(dependent)) shouldBe
 			SourceFactLookupResult.Unavailable(SourceProofReason.IMMUTABLE_AUTHORITY_MISSING)
 		assertRecentWriterFailure()

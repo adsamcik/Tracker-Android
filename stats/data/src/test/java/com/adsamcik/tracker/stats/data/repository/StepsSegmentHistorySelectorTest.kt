@@ -4023,7 +4023,7 @@ class StepsSegmentHistorySelectorTest {
         }
         read.problems shouldBe emptySet()
         read.rows.values.flatMap { (it.measurement as HistoryMeasurement.Steps).history.causes }
-            .contains(StepsHistoryCause.RESET_GAP) shouldBe true
+            .contains(StepsHistoryCause.PROVIDER_GAP) shouldBe true
     }
 
     @Test fun `measured Steps retains a genuine window after a prefix was pruned while total stays unavailable`() = runTest {

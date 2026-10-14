@@ -12,7 +12,6 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
-import io.mockk.verify
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -62,7 +61,10 @@ class DashboardManualStartSetupEffectTest {
             state.pending = false
             state.generation = null
         }
-        composeRule.waitUntil(5_000) { changes.subscriptionCount.value == 0 }
+        // Apply the cancellation snapshot before sending another readiness notification.
+        composeRule.waitForIdle()
+        signal()
+        composeRule.runOnIdle { assertEquals(listOf(17L), state.requests.toList()) }
     }
 
     @Test fun `cancelled pending generation cannot retry a retained Ready signal after the request tail`() {
@@ -77,7 +79,7 @@ class DashboardManualStartSetupEffectTest {
             state.pending = false
             state.generation = null
         }
-        composeRule.waitUntil(5_000) { changes.subscriptionCount.value == 0 }
+        composeRule.waitForIdle()
         composeRule.runOnIdle { initialTail.complete(Unit) }
         signal()
         composeRule.runOnIdle { assertEquals(emptyList<Long>(), state.requests.toList()) }

@@ -99,10 +99,11 @@ internal class LocationFileExporter @JvmOverloads @Inject constructor(
 		outputStream: OutputStream,
 		database: AppDatabase,
 		verifyCollectedDataAccess: () -> Unit,
+		maximumBytes: Long = LocationFileJsonV1.MAX_FILE_BYTES,
 	): ExportResult = try {
 		withContext(dispatchers.io) {
 			val reader = SessionLocationFileReader(database)
-			FileBackedExportSpool(context, "portable-location-v1-", LocationFileJsonV1.MAX_FILE_BYTES).use { spool ->
+			FileBackedExportSpool(context, "portable-location-v1-", maximumBytes).use { spool ->
 				val (contents, snapshot) = spool.write { stagedOutput ->
 					database.withTransaction {
 						verifyCollectedDataAccess()

@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.OrganizationAnnotationEntity
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.stats.api.repository.*
+import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage as PublicStepsHistoryCoverage
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
@@ -85,7 +86,7 @@ class MeasuredSessionNamesRoomTest {
         annotation("part", 1_200, 1_800)
         val key = key("ambient_steps", "LOCAL", "BACKGROUND", "steps", 1_000, 1_500)
         val count = StepsHistory(42L, HistoryAvailability.AVAILABLE, HistoryEvidence.RECORDED,
-            HistoryProductState.READY, StepsHistoryCoverage.COMPLETE)
+            HistoryProductState.READY, PublicStepsHistoryCoverage.COMPLETE)
         val row = UnifiedHistoryRow(measuredHistoryPosition(key), 1_500, setOf(HistoryOrigin.LOCAL),
             HistoryPurpose.BACKGROUND, sections = emptyList(), measurement = HistoryMeasurement.Steps(count))
         val displayed = decorate(listOf(row), listOf(key)).rows.single()
@@ -162,7 +163,7 @@ class MeasuredSessionNamesRoomTest {
         database.organizationAnnotationDao().insert(OrganizationAnnotationEntity("unnamed", 1, 0, 0, null,
             1_100, 1_400, "UTC", null, null, false))
         val count = StepsHistory(42L, HistoryAvailability.AVAILABLE, HistoryEvidence.RECORDED,
-            HistoryProductState.READY, StepsHistoryCoverage.COMPLETE)
+            HistoryProductState.READY, PublicStepsHistoryCoverage.COMPLETE)
         val values = listOf<HistoryMeasurement>(
             HistoryMeasurement.Location(HistoryLocationPoint(1_200, 500_000_000, 140_000_000, null, null),
                 HistoryLocationCoverage.LEGACY_UNVERIFIABLE),

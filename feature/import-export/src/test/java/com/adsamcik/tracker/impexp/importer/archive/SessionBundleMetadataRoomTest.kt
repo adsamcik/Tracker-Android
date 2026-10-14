@@ -328,7 +328,7 @@ class SessionBundleMetadataRoomTest {
 			includeSessionsAcrossDates = true, observationsOutsideDates = 0, sessions = emptyList(),
 			background = archive, backgroundChildren = emptyList())
 		val bytes = ByteArrayOutputStream().also { RadioSourceFileJsonV2Codec().writeWifi(it, radio) }.toByteArray()
-		stage(listOf(child(0, RadioSourceFileV2.WIFI_FORMAT, 2, RadioSourceFileV2.WIFI_EXTENSION, bytes))).use { bundle ->
+		stage(listOf(child(0, RadioSourceFileV2.WIFI_FORMAT, RadioSourceFileV2.VERSION, RadioSourceFileV2.WIFI_EXTENSION, bytes))).use { bundle ->
 			runner.start("wifi", "wifi.trackersession", 100)
 			val key = radioEntryKey(bundle.children.single().receiptKey, archive.archiveId)
 			val receipt = ImportedAmbientWifiReceiptEntity("wifi", key, "wifi", "c".repeat(64), archive.contentChecksum, 0, 1_000)

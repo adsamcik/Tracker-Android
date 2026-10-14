@@ -94,7 +94,7 @@ class MeasuredLegacyWifiCountRoomTest {
         count(1, 2_000L, 9)
         database.openHelper.writableDatabase.execSQL(
             "INSERT INTO legacy_wifi_child (legacy_row_id,time_ms,bssid,ssid,capabilities,frequency,level,provenance,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-            arrayOf(1L, 2_000L, "aa:bb:cc:dd:ee:ff", "Saved AP", "", 2_412, -55, "LEGACY_RELEASED", 2_000L))
+            arrayOf<Any?>(1L, 2_000L, "aa:bb:cc:dd:ee:ff", "Saved AP", "", 2_412, -55, "LEGACY_RELEASED", 2_000L))
         val selected = range(0, 3_000L); val reader = radio()
         val read = database.withTransaction { reader.qualifyBackgroundAndLegacy(HistorySource.WIFI,
             reader.candidates(HistorySource.WIFI, selected, null), selected) }
@@ -119,7 +119,7 @@ class MeasuredLegacyWifiCountRoomTest {
         count(1, 2_000L, 9)
         database.openHelper.writableDatabase.execSQL(
             "INSERT INTO legacy_wifi_child (legacy_row_id,time_ms,bssid,ssid,capabilities,frequency,level,provenance,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-            arrayOf(1L, 2_000L, "aa:bb:cc:dd:ee:ff", "Saved AP", "", 2_412, -55, "LEGACY_RELEASED", 2_000L))
+            arrayOf<Any?>(1L, 2_000L, "aa:bb:cc:dd:ee:ff", "Saved AP", "", 2_412, -55, "LEGACY_RELEASED", 2_000L))
         val selected = range(0, 3_000L); val reader = radio()
         val keys = reader.candidates(HistorySource.WIFI, selected, null)
         database.openHelper.writableDatabase.execSQL("DROP TABLE legacy_wifi_child")
@@ -130,7 +130,7 @@ class MeasuredLegacyWifiCountRoomTest {
 
     private fun count(id: Long, time: Long, value: Int) = database.openHelper.writableDatabase.execSQL(
         "INSERT INTO legacy_location_wifi_count(id,time,count,lat,lon,alt) VALUES (?,?,?,?,?,?)",
-        arrayOf(id, time, value, 50.1, 14.2, 350.0))
+        arrayOf<Any?>(id, time, value, 50.1, 14.2, 350.0))
     private fun radio() = MeasuredRadioHistoryReader(database, RoomAmbientWifiRepository(database, Dispatchers.Unconfined),
         RoomAmbientCellRepository(database, Dispatchers.Unconfined))
     private fun range(from: Long, to: Long) = HistoryRange(from, to, "UTC", sources = setOf(HistorySource.WIFI),

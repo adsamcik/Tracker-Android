@@ -842,6 +842,8 @@ class DefaultTrackingStartupGate @Inject constructor(
 			TrackingDatabaseContainmentReason.STALE_DEVELOPMENT_V28
 		ActiveDatabaseBlockReason.UNSUPPORTED_DATABASE_VERSION ->
 			TrackingDatabaseContainmentReason.UNSUPPORTED_DATABASE_VERSION
+		ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA,
+		ActiveDatabaseBlockReason.FINAL_V29_OPEN_VALIDATION_FAILED,
 		ActiveDatabaseBlockReason.UNRECOGNIZED_DATABASE_SCHEMA ->
 			TrackingDatabaseContainmentReason.UNRECOGNIZED_DATABASE_SCHEMA
 		ActiveDatabaseBlockReason.INVALID_FINAL_V28_MARKER ->

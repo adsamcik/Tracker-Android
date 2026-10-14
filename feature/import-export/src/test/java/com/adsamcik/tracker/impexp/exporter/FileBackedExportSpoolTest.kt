@@ -210,13 +210,18 @@ class FileBackedExportSpoolTest {
 
     @Test fun `completed source children reserve actual bytes for the next child`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Application>()
-        val limits = FileBackedExportSpoolLimits(16, 128L, 10_000L)
+        val limits = FileBackedExportSpoolLimits(16, 256L, 10_000L)
         val children = mutableListOf<FileBackedExportSpool>()
         try {
             repeat(8) {
                 val child = FileBackedExportSpool(context, "session-child-", 64L, limits)
                 children += child
-                child.write { output -> output.write(byteArrayOf(1, 2, 3)) }
+                child.write { output ->
+                    FileBackedExportSpool(context, "portable-child-", 64L, limits).use { source ->
+                        source.write { it.write(byteArrayOf(1, 2, 3)) }
+                        source.copyTo(output)
+                    }
+                }
             }
             FileBackedExportSpool(context, "session-bundle-", 64L, limits).use { archive ->
                 archive.write { output -> children.forEach { it.copyTo(output) } }

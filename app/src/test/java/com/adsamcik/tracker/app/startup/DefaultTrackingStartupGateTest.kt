@@ -240,6 +240,29 @@ class DefaultTrackingStartupGateTest {
 	}
 
 	@Test
+	fun `invalid v29 remains preserved and blocks source consumers`() = runTest {
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		for (reason in listOf(
+			ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V29_SCHEMA,
+			ActiveDatabaseBlockReason.FINAL_V29_OPEN_VALIDATION_FAILED,
+		)) {
+			coEvery { storage.ensureReady(false) } returns
+				LegacyDatabaseStartupResult.ActiveDatabaseBlocked(reason)
+			val blockedGate = DefaultTrackingStartupGate(storage, collectedDataDeletionService,
+				resolver, lifecycleAuthority, inactiveStopHandler, Provider { sourceRecovery }, deletionBarrier)
+			blockedGate.reconcile() shouldBe TrackingStartupResult.Blocked(
+				TrackingStartupStage.STORAGE, reason.failureCode,
+				databaseContainment = TrackingDatabaseContainment(
+					TrackingDatabaseContainmentReason.UNRECOGNIZED_DATABASE_SCHEMA),
+			)
+			blockedGate.isReady shouldBe false
+		}
+		coVerify(exactly = 0) { resolver.apply(any(), any()) }
+		coVerify(exactly = 0) { inactiveStopHandler.finalizeStoredSession(any()) }
+		coVerify(exactly = 0) { sourceRecovery.recoverStartupAuthority() }
+	}
+
+	@Test
 	fun `database contention stays retryable and does not start consumers`() = runTest {
 		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
 		coEvery { storage.ensureReady(false) } returns

@@ -150,9 +150,9 @@ class SavedLocationLiveSummaryReaderRoomTest {
         var continuationPages = 0
         val counted = object : LocationPurposeDao by actual {
             override suspend fun savedLogicalTripPointPage(logicalId: String, serviceRunIds: List<String>,
-                afterTimeMs: Long?, afterId: Long?, limit: Int): List<com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow> {
+                afterTimeMs: Long?, afterId: Long?, limit: Int, fromMs: Long, toMs: Long): List<com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow> {
                 fullPages++
-                return actual.savedLogicalTripPointPage(logicalId, serviceRunIds, afterTimeMs, afterId, limit)
+                return actual.savedLogicalTripPointPage(logicalId, serviceRunIds, afterTimeMs, afterId, limit, fromMs, toMs)
             }
             override suspend fun savedSessionReceiptPageAfterId(logicalId: String, runId: String, segmentId: Long,
                 afterId: Long, throughId: Long, limit: Int): List<LocationAcceptedReceiptEntity> {
@@ -485,9 +485,9 @@ class SavedLocationLiveSummaryReaderRoomTest {
         val actual = database.locationPurposeDao()
         val counted = object : LocationPurposeDao by actual {
             override suspend fun savedLogicalTripPointPage(logicalId: String, serviceRunIds: List<String>,
-                afterTimeMs: Long?, afterId: Long?, limit: Int): List<com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow> {
+                afterTimeMs: Long?, afterId: Long?, limit: Int, fromMs: Long, toMs: Long): List<com.adsamcik.tracker.shared.base.database.dao.LocationPathSampleRow> {
                 fullPages++
-                return actual.savedLogicalTripPointPage(logicalId, serviceRunIds, afterTimeMs, afterId, limit)
+                return actual.savedLogicalTripPointPage(logicalId, serviceRunIds, afterTimeMs, afterId, limit, fromMs, toMs)
             }
         }
         val live = SavedLocationLiveSummaryReader(database, Dispatchers.Unconfined, hints,

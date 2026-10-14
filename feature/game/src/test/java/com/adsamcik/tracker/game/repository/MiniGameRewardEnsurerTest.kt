@@ -269,6 +269,14 @@ class MiniGameRewardEnsurerTest {
 		override fun countBetween(from: Long, to: Long): Double = 0.0
 		override fun countBetweenFlow(from: Long, to: Long): Flow<Double> = flowOf(0.0)
 		override fun hasAwardAt(time: Long, source: String): Boolean = time to source in existing
+		override suspend fun sessionEffectPage(afterId: Int, limit: Int): List<PointsAwarded> =
+			inserted.filter { it.source.value == "session" && it.effectKey != null && it.id > afterId }
+				.sortedBy { it.id }.take(limit)
+		override suspend fun sessionEffects(segmentId: Long): List<PointsAwarded> =
+			inserted.filter { it.source.value == "session" &&
+				it.effectKey?.let { key -> key.startsWith("recording:") && key.endsWith(":$segmentId") } == true }.sortedBy { it.id }.take(2)
+		override suspend fun hasLegacySessionAwardAt(time: Long): Boolean =
+			inserted.any { it.source.value == "session" && it.effectKey == null && it.time == time }
 		override suspend fun getRevisionedEffect(source: String, effectKey: String): PointsAwarded? =
 			inserted.firstOrNull { it.source.value == source && it.effectKey == effectKey }
 		override suspend fun updateRevisionedEffect(

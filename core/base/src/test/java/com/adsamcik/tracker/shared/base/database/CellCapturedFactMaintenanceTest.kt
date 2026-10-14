@@ -1903,6 +1903,7 @@ class CellCapturedFactMaintenanceTest {
 			val state = requireNotNull(database.sourceEvidenceStateDao().get())
 			val retention = database.auditCapturedCellFacts(state, CellCapturedMaintenanceLimits()) {}
 			retention.lineages.map { it.logicalFactId } shouldBe listOf(fact.logicalFactId)
+			retention.lineages.single().revisions.single() shouldBe fact
 			val exported = database.auditPortableCapturedCellFacts(state, LOGICAL_TRACKING_ID,
 				listOf(SERVICE_RUN_ID, REPLACEMENT_SERVICE_RUN_ID),
 				listOf(SERVICE_RUN_ID, REPLACEMENT_SERVICE_RUN_ID), 0L, fact.sourceAdmissionOrdinal,
@@ -1910,7 +1911,23 @@ class CellCapturedFactMaintenanceTest {
 			exported.lineages.map { it.logicalFactId } shouldBe listOf(fact.logicalFactId)
 			exported.generationByScope.values.single().collectedDataEpoch shouldBe 0L
 		}
-		database.openHelper.writableDatabase.execSQL("UPDATE source_deletion_fence SET collected_data_epoch = 1")
+		val originalFence = requireNotNull(database.sourceDeletionFenceDao().get(
+			CELL_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			SourceDeletionFenceEntity.logicalServiceRunIdentity(CELL_SOURCE,
+				SourceBrokerPurpose.SESSION_CAPTURE, LOGICAL_TRACKING_ID, REPLACEMENT_SERVICE_RUN_ID),
+		))
+		originalFence.collectedDataEpoch shouldBe 0L
+		// Keep the row internally valid so this exercises forbidden epoch rebinding,
+		// rather than failing earlier on a checksum damaged by a raw field update.
+		database.sourceDeletionFenceDao().upsert(SourceDeletionFenceEntity.createForOriginalRunDigest(
+			sourceKind = originalFence.sourceKind,
+			purpose = originalFence.purpose,
+			scopeIdentityDigest = originalFence.scopeIdentityDigest,
+			fenceGeneration = originalFence.fenceGeneration,
+			collectedDataEpoch = 1L,
+			deletedAtMs = originalFence.deletedAtMs,
+		))
 		database.withTransaction {
 			shouldThrow<CellCapturedRetentionBlockedException> {
 				database.auditCapturedCellFacts(requireNotNull(database.sourceEvidenceStateDao().get()),

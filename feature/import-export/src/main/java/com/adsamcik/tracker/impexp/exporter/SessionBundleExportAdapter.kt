@@ -204,7 +204,8 @@ internal class ImportExportSessionBundleExporter @Inject constructor(
             if (source in request.sources) plans += SessionChildPlan(source, name, exporter.extension, optional, write)
         }
         add(HistorySource.LOCATION, "location", LocationFileExporter()) { output ->
-            LocationFileExporter().exportSession(context, locationRequest, output, database, {}) }
+            LocationFileExporter().exportSession(context, locationRequest, output, database, {},
+                maximumBytes = SessionBundleManifestCodecV1.MAX_CHILD_BYTES) }
         for (source in listOf(HistorySource.STEPS, HistorySource.ACTIVITY, HistorySource.PRESSURE)) {
             if (source !in request.sources) continue
             val selected = exact?.filterIsInstance<OrganizationSourceSelector.CapturedEntry>()?.filter { it.source == source }

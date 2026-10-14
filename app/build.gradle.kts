@@ -198,6 +198,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.documentfile)
     implementation(libs.androidx.health.connect.client)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -246,6 +247,7 @@ dependencies {
     // proto-java is needed at compile time for debug TestDataSeeder which interacts with
     // OnboardingStateProto's GeneratedMessageV3 supertype. Release does not depend on this.
     debugImplementation(libs.protobuf.java)
+    debugImplementation(libs.androidx.datastore.core)
     // 1st party dependencies
     implementation(libs.component.slider)
     // Draggable overlay removed with legacy fallback

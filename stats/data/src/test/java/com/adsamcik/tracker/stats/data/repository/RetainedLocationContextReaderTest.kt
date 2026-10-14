@@ -64,7 +64,7 @@ class RetainedLocationContextReaderTest {
         val query = statusQuery()
         assertEquals("event", assertIs<AllDaySourceStatusRead.Location>(query.read(
             AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000)))).points.single().sourceEventId)
-        database.openHelper.writableDatabase.execSQL("UPDATE location_sample SET lat_e7 = 1 WHERE id = ?", arrayOf(receipt.sampleId))
+        database.openHelper.writableDatabase.execSQL("UPDATE location_sample SET lat_e7 = 1 WHERE id = ?", arrayOf<Any?>(receipt.sampleId))
         val changed = assertIs<AllDaySourceStatusRead.Location>(query.read(
             AllDaySourceStatusRequest.Location(HistoryObservationWindow(0, 2_000))))
         assertTrue(changed.points.isEmpty())
@@ -120,7 +120,7 @@ class RetainedLocationContextReaderTest {
             assertEquals(savedPoints, database.locationSampleDao().byIds(listOf(receipt.sampleId)))
             assertEquals(malformed, database.sourceEvidenceStateDao().get())
             database.openHelper.writableDatabase.execSQL(
-                "UPDATE source_evidence_state SET $column = ? WHERE id = 1", arrayOf(originalValue))
+                "UPDATE source_evidence_state SET $column = ? WHERE id = 1", arrayOf<Any?>(originalValue))
             assertEquals("event", assertIs<AllDaySourceStatusRead.Location>(query.read(request))
                 .points.single().sourceEventId)
         }
@@ -159,7 +159,7 @@ class RetainedLocationContextReaderTest {
     @Test fun `shared saved qualification does not relax original content or epoch authority`() = runBlocking {
         val receipt = installPoint(savedSample = sample().copy(hAccM = null))
         assertEquals(1, database.withTransaction { reader.qualifySavedInTransaction(listOf(receipt)) }.samples.size)
-        database.openHelper.writableDatabase.execSQL("UPDATE location_sample SET lon_e7 = 1 WHERE id = ?", arrayOf(receipt.sampleId))
+        database.openHelper.writableDatabase.execSQL("UPDATE location_sample SET lon_e7 = 1 WHERE id = ?", arrayOf<Any?>(receipt.sampleId))
         val changed = database.withTransaction { reader.qualifySavedInTransaction(listOf(receipt)) }
         assertTrue(changed.samples.isEmpty())
         assertTrue(RadioLocationContextGap.LOCATION_PROVENANCE_UNVERIFIABLE in changed.gaps)
@@ -186,7 +186,7 @@ class RetainedLocationContextReaderTest {
         database.sourcePolicyDao().insertPolicies(listOf(policy().copy(policyRevision = 2,
             ambientPersistenceEligible = false, enabled = false, ambientConsentEpoch = 1)))
         assertEquals(1, database.withTransaction { reader.readInTransaction(listOf(radio())) }.points.size)
-        database.openHelper.writableDatabase.execSQL("UPDATE location_sample SET lat_e7 = 1 WHERE id = ?", arrayOf(receipt.sampleId))
+        database.openHelper.writableDatabase.execSQL("UPDATE location_sample SET lat_e7 = 1 WHERE id = ?", arrayOf<Any?>(receipt.sampleId))
         val changed = database.withTransaction { reader.readInTransaction(listOf(radio())) }
         assertTrue(changed.points.isEmpty())
         assertTrue(RadioLocationContextGap.LOCATION_PROVENANCE_UNVERIFIABLE in changed.gaps)
@@ -270,16 +270,16 @@ class RetainedLocationContextReaderTest {
         database.sourceEvidenceStateDao().updateAfterFullDeletion(1, null, 1, 2_000)
         database.openHelper.writableDatabase.execSQL(
             "UPDATE location_accepted_receipt SET retained_proof_checksum = ? WHERE sample_id = ?",
-            arrayOf("0".repeat(64), original.sampleId))
+            arrayOf<Any?>("0".repeat(64), original.sampleId))
         val corrupt = requireNotNull(database.locationPurposeDao().receipt(original.sampleId))
         val corruptResult = database.withTransaction { reader.qualifyInTransaction(listOf(corrupt)) }
         assertEquals(setOf(RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT), corruptResult.gaps)
         assertTrue(corruptResult.erasedNativeSampleIds.isEmpty())
         database.openHelper.writableDatabase.execSQL(
             "UPDATE location_accepted_receipt SET retained_proof_checksum = ? WHERE sample_id = ?",
-            arrayOf(original.retainedProofChecksum, original.sampleId))
+            arrayOf<Any?>(original.retainedProofChecksum, original.sampleId))
         database.openHelper.writableDatabase.execSQL(
-            "UPDATE location_sample SET lat_e7 = ? WHERE id = ?", arrayOf(500_000_001, original.sampleId))
+            "UPDATE location_sample SET lat_e7 = ? WHERE id = ?", arrayOf<Any?>(500_000_001, original.sampleId))
         val mismatchedResult = database.withTransaction { reader.qualifyInTransaction(listOf(original)) }
         assertEquals(setOf(RadioLocationContextGap.LOCATION_DEPENDENCY_LIMIT), mismatchedResult.gaps)
         assertTrue(mismatchedResult.erasedNativeSampleIds.isEmpty())
@@ -305,7 +305,7 @@ class RetainedLocationContextReaderTest {
         // Room reads the existing purpose row through its validating constructor.
         database.openHelper.writableDatabase.execSQL(
             "UPDATE location_sample_purpose_authority SET effective_until_elapsed_nanos = effective_from_elapsed_nanos WHERE sample_id = ?",
-            arrayOf(receipt.sampleId))
+            arrayOf<Any?>(receipt.sampleId))
         val result = database.withTransaction { reader.qualifyInTransaction(listOf(receipt)) }
         assertTrue(result.points.isEmpty())
         assertEquals(setOf(receipt.sampleId), result.erasedNativeSampleIds)

@@ -250,7 +250,7 @@ class AmbientStepsPortableRoomReaderTest {
 		database.ambientStepsFactRevisionDao().insert(original)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_evidence_state SET collected_data_epoch=?, restored_data_epochs=? WHERE id=1",
-			arrayOf(EPOCH + 1L, EPOCH.toString()),
+			arrayOf<Any?>(EPOCH + 1L, EPOCH.toString()),
 		)
 
 		val day = AmbientStepsPortableRoomReader(database).read(
@@ -272,7 +272,7 @@ class AmbientStepsPortableRoomReaderTest {
 		database.ambientStepsFactRevisionDao().insert(fixture.fact(0L, DAY_END, 9L))
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_consent_epoch SET eligible=0, persistence_eligible=0 WHERE source_kind=? AND purpose=? AND epoch=?",
-			arrayOf(SourceDestinationOwnerEntity.SOURCE_STEPS, SourceBrokerPurpose.AMBIENT_PRODUCT, ACTIVE_CONSENT),
+			arrayOf<Any?>(SourceDestinationOwnerEntity.SOURCE_STEPS, SourceBrokerPurpose.AMBIENT_PRODUCT, ACTIVE_CONSENT),
 		)
 
 		AmbientStepsPortableRoomReader(database).read(
