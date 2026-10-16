@@ -1,5 +1,8 @@
 package com.adsamcik.tracker.statistics.ui.compose
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.view.View
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -24,6 +27,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -51,6 +55,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import java.io.File
 import java.time.LocalDate
 
 /**
@@ -64,6 +70,54 @@ class StatsScreenComposeTest {
 
 	@get:Rule
 	val composeTestRule = createComposeRule()
+
+	@Test
+	@GraphicsMode(GraphicsMode.Mode.NATIVE)
+	@Config(qualifiers = "w412dp-h892dp-xxhdpi")
+	fun `empty saved week is not busy and updates when steps arrive or are removed`() {
+		val today = LocalDate.now().toEpochDay()
+		val emptyWeek = StepsDailyDisplay.Snapshot(1L, (today - 6L..today).map {
+			StepsDailyDisplayDay(it, StepsDailyDisplayValue.Unavailable(StepsNumericUnverifiableReason.NOT_CAPTURED))
+		})
+		val summaries = MutableStateFlow<StepsDailyDisplay>(emptyWeek)
+		lateinit var renderedView: View
+		composeTestRule.setContent {
+			renderedView = LocalView.current
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				SessionlessStepsStatistics(summaries = summaries, stepsSelected = true)
+			}
+		}
+		composeTestRule.waitForIdle()
+		composeTestRule.onNode(hasText("Not captured") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
+			.assertIsDisplayed()
+		composeTestRule.onNodeWithText("Updating…").assertDoesNotExist()
+		composeTestRule.onAllNodesWithText("Not captured").fetchSemanticsNodes().size shouldBe 1
+		val todayLabel = LocalDate.ofEpochDay(today).format(java.time.format.DateTimeFormatter.ofPattern("EEE"))
+		composeTestRule.onNodeWithContentDescription("$todayLabel, Not captured").assertIsDisplayed()
+		if (System.getenv("TRACKER_CAPTURE_STATISTICS") == "true") {
+			composeTestRule.runOnIdle {
+				val image = Bitmap.createBitmap(renderedView.width, renderedView.height, Bitmap.Config.ARGB_8888)
+				renderedView.draw(Canvas(image))
+				val output = File("build/reports/statistics/empty-week.png")
+				checkNotNull(output.parentFile).mkdirs()
+				output.outputStream().use { check(image.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+			}
+		}
+		composeTestRule.runOnIdle {
+			summaries.value = emptyWeek.copy(sourceEvidenceRevision = 2L, days = emptyWeek.days.dropLast(1) +
+				StepsDailyDisplayDay(today, StepsDailyDisplayValue.Recorded(17L,
+					setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.PARTIAL_COVERAGE))))
+		}
+		composeTestRule.waitForIdle()
+		composeTestRule.onNode(hasText("17 recorded") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
+			.assertIsDisplayed()
+		composeTestRule.onNodeWithText("Updating…").assertDoesNotExist()
+		composeTestRule.runOnIdle { summaries.value = emptyWeek.copy(sourceEvidenceRevision = 3L) }
+		composeTestRule.waitForIdle()
+		composeTestRule.onNode(hasText("Not captured") and hasAnyAncestor(hasTestTag("stats_summary_steps")))
+			.assertIsDisplayed()
+		composeTestRule.onNodeWithText("17 recorded").assertDoesNotExist()
+	}
 
 	@Test
 	fun `daily display shows complete and recorded counts together with three sessions`() {
@@ -522,7 +576,7 @@ class StatsScreenComposeTest {
 	}
 
 	@Test
-	fun `sessionless retained Steps updates keep waiting partial and unavailable states nonnumeric`() {
+	fun `sessionless retained Steps updates keep initial partial and unavailable states nonnumeric`() {
 		val today = LocalDate.now().toEpochDay()
 		val summaries = MutableStateFlow<StepsDailyDisplay>(StepsDailyDisplay.Materializing)
 		composeTestRule.setContent {
@@ -534,7 +588,8 @@ class StatsScreenComposeTest {
 			}
 		}
 		composeTestRule.waitForIdle()
-		composeTestRule.onNodeWithText("Updating…").assertIsDisplayed()
+		composeTestRule.onNode(hasText("—") and hasAnyAncestor(hasTestTag("stats_summary_steps"))).assertIsDisplayed()
+		composeTestRule.onNodeWithText("Updating…").assertDoesNotExist()
 		composeTestRule.onNodeWithText("Start Tracking").assertDoesNotExist()
 		composeTestRule.onNode(hasText("N/A") and hasAnyAncestor(hasTestTag("stats_summary_active_days")))
 			.assertIsDisplayed()
@@ -877,7 +932,9 @@ class StatsScreenComposeTest {
 		}
 		val states = listOf(
 			testDisplayUnavailable(StepsNumericUnverifiableReason.NOT_CAPTURED) to "Not captured",
-			StepsDailyDisplay.Materializing to "Updating…",
+			StepsDailyDisplay.Materializing to "—",
+			StepsDailyDisplay.Snapshot(1L, listOf(StepsDailyDisplayDay(LocalDate.now().toEpochDay(),
+				StepsDailyDisplayValue.Materializing))) to "—",
 			testDisplayUnavailable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE) to "Incomplete",
 			testDisplayUnavailable(StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE) to "Unavailable",
 			testDisplayUnavailable(StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE) to "Unavailable",
@@ -1047,6 +1104,7 @@ class StatsScreenComposeTest {
 	private fun SessionlessStepsStatistics(
 		summaries: StateFlow<StepsDailyDisplay>,
 		weeklyBars: List<DayBar> = emptyList(),
+		stepsSelected: Boolean = false,
 		refreshState: RefreshUiState = RefreshUiState.Empty,
 		onRetry: () -> Unit = {},
 		onShowSummary: () -> Unit = {},
@@ -1070,6 +1128,7 @@ class StatsScreenComposeTest {
 			sessions = sessions,
 			weeklyBars = weeklyBars,
 			weeklyStepsSummary = summary,
+			stepsSelected = stepsSelected,
 		)
 	}
 

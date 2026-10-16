@@ -97,6 +97,72 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 	}
 
 	@Test
+	fun `display returns empty saved days while the provider has no observations`() = runBlocking<Unit> {
+		val pendingProvider = RoomStepsNumericSummaryRepository(database, Dispatchers.IO,
+			FakeAmbientStepsTransactionReader { range, revision ->
+				AmbientStepsNumericRangeRead.Snapshot(revision, range.days.map { day ->
+					AmbientStepsNumericHistoryDay(day, AmbientStepsHistoryValue.Unavailable(
+						setOf(AmbientStepsHistoryCause.MATERIALIZING)))
+				})
+			})
+		val display = pendingProvider.readDisplay(request(lastEpochDay = DAY + 6L)) as StepsDailyDisplay.Snapshot
+		display.days.map { it.value } shouldBe List(7) {
+			StepsDailyDisplayValue.Unavailable(StepsNumericUnverifiableReason.NOT_CAPTURED,
+				setOf(AmbientStepsHistoryCause.MATERIALIZING))
+		}
+	}
+
+	@Test
+	fun `display keeps a measured session zero while the all-day provider is pending`() = runBlocking<Unit> {
+		insertCoveredCandidate()
+		val pendingProvider = RoomStepsNumericSummaryRepository(database, Dispatchers.IO,
+			FakeAmbientStepsTransactionReader { range, revision ->
+				AmbientStepsNumericRangeRead.Snapshot(revision, range.days.map { day ->
+					AmbientStepsNumericHistoryDay(day, AmbientStepsHistoryValue.Unavailable(
+						setOf(AmbientStepsHistoryCause.MATERIALIZING)))
+				})
+			})
+		val display = pendingProvider.readDisplay(request()) as StepsDailyDisplay.Snapshot
+		display.days.single().value shouldBe StepsDailyDisplayValue.Recorded(0L,
+			setOf(AmbientStepsHistoryCause.MATERIALIZING))
+		pendingProvider.read(request()) shouldBe StepsNumericSummary.Materializing
+	}
+
+	@Test
+	fun `pending provider does not hide a damaged session behind an empty state`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 5L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET effect_checksum = ? WHERE service_run_id = ?",
+			arrayOf<Any>("malformed", RUN_ID),
+		)
+		val pendingProvider = RoomStepsNumericSummaryRepository(database, Dispatchers.IO,
+			FakeAmbientStepsTransactionReader { range, revision ->
+				AmbientStepsNumericRangeRead.Snapshot(revision, range.days.map { day ->
+					AmbientStepsNumericHistoryDay(day, AmbientStepsHistoryValue.Unavailable(
+						setOf(AmbientStepsHistoryCause.MATERIALIZING)))
+				})
+			})
+		val display = pendingProvider.readDisplay(request()) as StepsDailyDisplay.Snapshot
+		display.days.single().value shouldBe StepsDailyDisplayValue.Unavailable(
+			StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+	}
+
+	@Test
+	fun `unsafe ambient count is not replaced by a session count`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 5L)
+		val conflictingProvider = RoomStepsNumericSummaryRepository(database, Dispatchers.IO,
+			FakeAmbientStepsTransactionReader { range, revision ->
+				AmbientStepsNumericRangeRead.Snapshot(revision, range.days.map { day ->
+					AmbientStepsNumericHistoryDay(day, AmbientStepsHistoryValue.Partial(12L,
+						setOf(AmbientStepsHistoryCause.FACT_OVERLAP)))
+				})
+			})
+		val display = conflictingProvider.readDisplay(request()) as StepsDailyDisplay.Snapshot
+		display.days.single().value shouldBe StepsDailyDisplayValue.Unavailable(
+			StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE, setOf(AmbientStepsHistoryCause.FACT_OVERLAP))
+	}
+
+	@Test
 	fun `display recovers an independent native day beside a malformed recording`() = runBlocking<Unit> {
 		insertCoveredCandidate(stepsPerFact = 5L, laneThroughOrdinal = ADMISSION_ORDINAL + 1L)
 		val damagedDay = DAY + 3L
@@ -223,7 +289,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 	}
 
 	@Test
-	fun `display observation refreshes the same Room snapshot after source facts change`() = runBlocking<Unit> {
+	fun `display keeps saved session steps until provider observations arrive`() = runBlocking<Unit> {
 		insertCoveredCandidate(stepsPerFact = 5L)
 		val observed = RoomStepsNumericSummaryRepository(database, Dispatchers.IO,
 			FakeAmbientStepsTransactionReader { range, revision ->
@@ -232,11 +298,13 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 					DAY_START, DAY_START + 24L * HOUR_MS, 2).singleOrNull()
 				AmbientStepsNumericRangeRead.Snapshot(revision, range.days.map { day ->
 					AmbientStepsNumericHistoryDay(day, latest?.stepCount?.let(AmbientStepsHistoryValue::Exact)
-						?: AmbientStepsHistoryValue.Unavailable(setOf(AmbientStepsHistoryCause.NO_EVIDENCE)))
+						?: AmbientStepsHistoryValue.Unavailable(setOf(AmbientStepsHistoryCause.MATERIALIZING)))
 				})
 			})
 		observed.observeDisplay(request()).test {
-			(awaitItem() as StepsDailyDisplay.Snapshot).days.single().value shouldBe StepsDailyDisplayValue.Complete(5L)
+			(awaitItem() as StepsDailyDisplay.Snapshot).days.single().value shouldBe StepsDailyDisplayValue.Recorded(5L,
+				setOf(AmbientStepsHistoryCause.MATERIALIZING))
+			observed.read(request()) shouldBe StepsNumericSummary.Materializing
 			database.ambientStepsFactRevisionDao().insert(ambientFact(12L)) shouldBe 1L
 			(awaitItem() as StepsDailyDisplay.Snapshot).days.single().value shouldBe StepsDailyDisplayValue.Complete(12L)
 			cancelAndIgnoreRemainingEvents()

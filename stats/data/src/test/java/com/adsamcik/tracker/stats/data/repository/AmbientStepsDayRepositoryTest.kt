@@ -236,7 +236,9 @@ class AmbientStepsDayRepositoryTest {
 			StepsDailyDisplayValue.Recorded(25L, setOf(AmbientStepsHistoryCause.PARTIAL_COVERAGE))
 		database.ambientStepsFactRevisionDao().insert(retract(corrected))
 		(numeric.readDisplay(range) as StepsDailyDisplay.Snapshot).days.map { it.value } shouldBe listOf(
-			StepsDailyDisplayValue.Complete(10L), StepsDailyDisplayValue.Materializing,
+			StepsDailyDisplayValue.Complete(10L),
+			StepsDailyDisplayValue.Unavailable(StepsNumericUnverifiableReason.NOT_CAPTURED,
+				setOf(AmbientStepsHistoryCause.MATERIALIZING)),
 		)
 	}
 

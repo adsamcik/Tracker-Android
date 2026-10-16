@@ -815,22 +815,22 @@ private fun StepsDailyDisplay.summaryValueText(): String = when (this) {
         val counts = days.mapNotNull { it.value.savedCount() }
         val total = checkedStepsSummaryTotal(counts)
         when {
-            counts.isEmpty() || total == null -> {
+            total == null -> stringResource(R.string.history_value_unavailable)
+            counts.isEmpty() -> {
                 missingSummaryValueText()
             }
             days.all { it.value is StepsDailyDisplayValue.Complete } -> total.formatReadable()
             else -> stringResource(R.string.steps_daily_recorded_count, total.formatReadable())
         }
     }
-    StepsDailyDisplay.Materializing -> stringResource(R.string.history_value_materializing)
+    // No saved value yet is not evidence of an ongoing calculation or provider request.
+    StepsDailyDisplay.Materializing -> "—"
     StepsDailyDisplay.StorageUnavailable -> stringResource(R.string.history_value_unavailable)
 }
 
 @Composable
 private fun StepsDailyDisplay.Snapshot.missingSummaryValueText(): String =
-    if (days.any { it.value == StepsDailyDisplayValue.Materializing }) {
-        stringResource(R.string.history_value_materializing)
-    } else if (days.all {
+    if (days.all {
         (it.value as? StepsDailyDisplayValue.Unavailable)?.reason ==
             StepsNumericUnverifiableReason.NOT_CAPTURED
     }) stringResource(R.string.history_value_not_captured)
@@ -838,7 +838,13 @@ private fun StepsDailyDisplay.Snapshot.missingSummaryValueText(): String =
         (it.value as? StepsDailyDisplayValue.Unavailable)?.reason ==
             StepsNumericUnverifiableReason.PARTIAL_CAPTURE
     }) stringResource(R.string.history_value_partial)
-    else stringResource(R.string.history_value_unavailable)
+    else if (days.any {
+        (it.value as? StepsDailyDisplayValue.Unavailable)?.let { value ->
+            value.reason != StepsNumericUnverifiableReason.NOT_CAPTURED
+        } == true
+    }) {
+        stringResource(R.string.history_value_unavailable)
+    } else "—"
 
 private fun StepsDailyDisplayValue.savedCount(): Long? = when (this) {
     is StepsDailyDisplayValue.Complete -> count
@@ -850,7 +856,7 @@ private fun StepsDailyDisplayValue.savedCount(): Long? = when (this) {
 private fun StepsDailyDisplayValue.dayValueText(): String = when (this) {
     is StepsDailyDisplayValue.Complete -> count.formatReadable()
     is StepsDailyDisplayValue.Recorded -> stringResource(R.string.steps_daily_recorded_count, count.formatReadable())
-    StepsDailyDisplayValue.Materializing -> stringResource(R.string.history_value_materializing)
+    StepsDailyDisplayValue.Materializing -> "—"
     is StepsDailyDisplayValue.Unavailable -> when (reason) {
         StepsNumericUnverifiableReason.NOT_CAPTURED -> stringResource(R.string.history_value_not_captured)
         StepsNumericUnverifiableReason.PARTIAL_CAPTURE -> stringResource(R.string.history_value_partial)
@@ -900,6 +906,9 @@ private fun WeeklySummaryDayChip(
     } else remember(dayBar, settings.lengthSystem) {
         weeklySummaryDayValueText(dayBar, null, context, settings.lengthSystem)
     }
+    val visibleValueText = if (useSteps &&
+        (stepsDisplay as? StepsDailyDisplayValue.Unavailable)?.reason == StepsNumericUnverifiableReason.NOT_CAPTURED
+    ) "—" else valueText
     val hasActivity = dayBar.hasNonStepTrackedActivity || stepsDisplay?.savedCount()?.let { it > 0L } == true
     val containerColor = if (hasActivity) {
         MaterialTheme.colorScheme.primaryContainer
@@ -930,7 +939,7 @@ private fun WeeklySummaryDayChip(
             fontWeight = FontWeight.Medium,
         )
         Text(
-            text = valueText,
+            text = visibleValueText,
             style = MaterialTheme.typography.bodySmall,
             color = contentColor,
             maxLines = 2,

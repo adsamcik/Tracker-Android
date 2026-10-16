@@ -993,8 +993,26 @@ private fun displayDayValue(
 	session: StepsDayNumericComposition?,
 	base: StepsDayRepairPreflight?,
 	dayMaterializing: Boolean,
-): StepsDailyDisplayValue = ambientDisplayValue(ambient, ambientRead)
-	?: sessionDisplayValue(session, base, dayMaterializing)
+): StepsDailyDisplayValue {
+	val ambientValue = ambientDisplayValue(ambient, ambientRead)
+	if (ambientValue != StepsDailyDisplayValue.Materializing) {
+		return ambientValue ?: sessionDisplayValue(session, base, dayMaterializing)
+	}
+	// Waiting for future provider observations is not a pending saved-data query. Keep any
+	// independently saved session count, without claiming the unfinished all-day total is complete.
+	return when (val saved = sessionDisplayValue(session, base, dayMaterializing)) {
+		is StepsDailyDisplayValue.Complete -> StepsDailyDisplayValue.Recorded(
+			saved.count, setOf(AmbientStepsHistoryCause.MATERIALIZING),
+		)
+		is StepsDailyDisplayValue.Recorded -> saved.copy(causes = saved.causes + AmbientStepsHistoryCause.MATERIALIZING)
+		is StepsDailyDisplayValue.Unavailable -> if (saved.reason == StepsNumericUnverifiableReason.NOT_CAPTURED) {
+			saved.copy(causes = saved.causes + AmbientStepsHistoryCause.MATERIALIZING)
+		} else {
+			saved
+		}
+		StepsDailyDisplayValue.Materializing -> saved
+	}
+}
 
 private fun ambientDisplayValue(
 	ambient: AmbientStepsHistoryValue?,
