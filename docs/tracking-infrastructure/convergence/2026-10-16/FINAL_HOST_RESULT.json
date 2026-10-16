@@ -1,5 +1,5 @@
 {
-  "status": "HOST_VERIFIED_DEVICE_TESTING_DEFERRED",
+  "status": "INTEGRATED_LOCAL_DEV_V10_HOST_VERIFIED_DEVICE_TESTING_DEFERRED",
   "at": "2026-10-16T05:21:24.475Z",
   "frozenSource": {
     "path": "FINAL_SOURCE_INPUT.json",
@@ -246,8 +246,23 @@
   ],
   "integration": {
     "target": "local dev/v10",
-    "status": "REVIEWED_PENDING_AUTHORIZED_LOCAL_COMMIT_AND_INTEGRATION",
-    "remotePublication": false
+    "status": "INTEGRATED_AND_VERIFIED_LOCALLY",
+    "sourceCommit": "f294192264d6f8186ccc2b737fc4905cf61c174f",
+    "sourceTree": "82dd525817fa76eb0c9458dea2bf3d88797000bb",
+    "previousTarget": "13f1a99871b59d29b3d059f374fc415490da6943",
+    "method": "Rebase onto current local dev/v10 was a no-op; fast-forward merge from clean main checkout.",
+    "integratedSourceProof": {
+      "path": "build/verification-20261014/LOCAL_DEV_V10_SOURCE_PROOF.json",
+      "sha256": "01be3acc2881adb6af17c08cab718941dbfc435c01dbeb401c74fb73f205741d",
+      "gitTreeMatches": true,
+      "all1352SourceStatesMatchAfterExistingCheckoutEOLNormalization": true,
+      "implementationChangesAfterGate": 0,
+      "verificationReuse": "Passing host results reused because source tree/build inputs are unchanged."
+    },
+    "mainCleanAtVerification": true,
+    "remotePublication": false,
+    "evidenceWorktreeRetained": "Task worktree and original refs/drafts retained because ignored receipts, original drafts and verified APK have not been separately archived."
   },
-  "preservation": "Original refs, drafts, quarantine and ignored verification evidence retained."
+  "preservation": "Original refs, drafts, quarantine and ignored verification evidence retained.",
+  "receiptHashScope": "SHA-256 values pin original preserved receipt bytes. Existing Git text checkout line-ending conversion can change physical bytes of tracked text copies."
 }

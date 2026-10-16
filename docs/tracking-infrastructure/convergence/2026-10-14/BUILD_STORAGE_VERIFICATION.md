@@ -22,7 +22,7 @@ Two tests failed on stale generated delegates in full60 after the DAO gained opt
 - [x] Release lint, ciUnitTest and complete ciCheck.
 - [x] Exact source/input stability and all-report accounting.
 - [x] Fresh independent source/host result review: no remaining findings.
-- [ ] Authorized local commit/integration is being completed.
+- [x] Authorized local integration at `f294192264d6f8186ccc2b737fc4905cf61c174f`; integrated source matches the tested input.
 - [ ] Android provider/UI/lifecycle/battery acceptance is user-deferred: “We can test it later.”
 
 Receipts are preserved under `build/verification-20261014`: `BATCH_61_{INPUT,POST_INPUT,STABILITY,VERDICT}.json`, `BATCH_61_ALL_MODULE_JUNIT_WITH_REUSE.json`, `RECOMPILED_TEST_ABI_61.json` and `detekt-61.xml`. The actual pinned Tracebox Alpha 7 local publication is used; remote dependency consumption is a separate environmental limitation. No dependency version override or fabricated artifact was used.

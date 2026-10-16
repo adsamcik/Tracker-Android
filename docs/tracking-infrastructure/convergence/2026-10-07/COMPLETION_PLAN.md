@@ -5,9 +5,9 @@ Updated: 2026-10-14. Initial inspected candidate: `5b19ca833596b602643e99d291c4c
 
 ## Current execution status — 2026-10-16
 
-**T01–T26 are complete:** all 25 production/test-source chains are assembled and independently traced, and the full unfiltered host gate passes. See the [assembly freeze](../2026-10-16/ASSEMBLY_FREEZE.md) and [exact final result](../2026-10-16/FINAL_HOST_RESULT.json). There are 15,667 tests, zero failures/errors and seven existing skips; APK/Hilt, ciUnitTest, ciCheck, lint, schema/migrations and SQLite pass. The stale generated test delegates were rebuilt without a source or gate change.
+**T01–T26, T28 and T29 are complete:** all 25 production/test-source chains are assembled and independently traced, and the full unfiltered host gate passes. See the [assembly freeze](../2026-10-16/ASSEMBLY_FREEZE.md) and [exact final result](../2026-10-16/FINAL_HOST_RESULT.json). There are 15,667 tests, zero failures/errors and seven existing skips; APK/Hilt, ciUnitTest, ciCheck, lint, schema/migrations and SQLite pass. The stale generated test delegates were rebuilt without a source or gate change.
 
-**T27 is deferred by the user:** “We can test it later.” Real Android provider/UI/background/battery acceptance remains unverified. T28 independent source/host review is complete with no remaining findings. T29 authorized local integration is being completed. Historical sections below retain earlier inputs and results.
+**T27 is deferred by the user:** “We can test it later.” Real Android provider/UI/background/battery acceptance remains unverified. T28 independent source/host review has no remaining findings. T29 is complete: implementation `f294192264d6f8186ccc2b737fc4905cf61c174f` is integrated into local `dev/v10`, and the integrated source matches the tested input after existing checkout line-ending normalization. Historical sections below retain earlier inputs and results.
 
 ## Outcome and current boundary
 
@@ -299,7 +299,7 @@ Keep these obligations and existing approvals; begin after the tracking core.
   correctness, data-loss, usability and unnecessary-complexity findings; recheck affected
   areas. Do not treat an earlier slice review as the final full-effort review.
 
-- [ ] **T29 — Integrate into local dev/v10.** Preserve a clean main worktree, rebase
+- [x] **T29 — Integrate into local dev/v10.** Preserve a clean main worktree, rebase
   selected work onto latest local `dev/v10`, run required checks, merge locally and
   verify the integrated result. Record the final commit and update status. Clean up only
   safely merged worktrees/branches after preserving unrelated work. Do not push or deploy.

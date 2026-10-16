@@ -34,7 +34,7 @@ Seven existing skips remain explicit: two Windows FileProvider cases, one host s
 - [x] **T26:** Pass the full unfiltered build/Room/migration/quality gates on this combined input and repair concrete failures. ciCheck includes ciUnitTest. Reuse valid unchanged results.
 - [ ] **T27 (user-deferred):** Use the highest stable Android API already available in the existing configured environment. Obtain bounded activation authority and record actual provider → saved data → UI/file → Stop, permission/process/reboot/foreground-service, rendered accessibility and battery/quality behavior. Create no AVD, clone or older-API matrix.
 - [x] **T28:** Fresh independent final review of the combined code, actual host results and explicitly deferred device boundary; no remaining findings. See [final acceptance](FINAL_HOST_ACCEPTANCE.json).
-- [ ] **T29:** Rebase/merge the verified candidate into clean local dev/v10, check the integrated result and record its commit. No push or deployment. Preserve evidence and original refs/drafts.
+- [x] **T29:** Rebased and fast-forwarded into clean local dev/v10 at `f294192264d6f8186ccc2b737fc4905cf61c174f`; integrated source tree and all 1,352 source states match the tested input after existing checkout line-ending normalization. No push or deployment. Original refs/drafts and unique evidence are retained.
 
 No Android device or configured AVD was available at the final recheck. The user explicitly answered “We can test it later.” Device acceptance is deferred; no target was created or provider activated.
 
