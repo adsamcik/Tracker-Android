@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Überlappung unterschiedlicher WLAN-Zugangspunkte wird angezeigt</string>
     <string name="map_a11y_speed_heatmap">Geschwindigkeits-Heatmap wird angezeigt</string>
     <string name="map_a11y_saved_map_data">Gespeicherte Kartendaten werden angezeigt</string>
+    <string name="map_location_unavailable">Standort nicht verfügbar</string>
+    <string name="map_location_retry">Erneut versuchen</string>
     <string name="map_location_permission_opening_settings">Standortzugriff erforderlich. Einstellungen werden geöffnet…</string>
     <string name="map_permission_banner_dismiss">Meldung zur Standortberechtigung schließen</string>
     <string name="map_loading_layer">Kartenebene wird geladen</string>

@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Visualizzazione della sovrapposizione di access point Wi-Fi distinti</string>
     <string name="map_a11y_speed_heatmap">Visualizzazione di una mappa di calore della velocità</string>
     <string name="map_a11y_saved_map_data">Visualizzazione dei dati mappa salvati</string>
+    <string name="map_location_unavailable">Posizione non disponibile</string>
+    <string name="map_location_retry">Riprova</string>
     <string name="map_location_permission_opening_settings">Accesso alla posizione necessario. Apertura Impostazioni…</string>
     <string name="map_permission_banner_dismiss">Ignora messaggio sull\'autorizzazione alla posizione</string>
     <string name="map_loading_layer">Caricamento livello mappa</string>

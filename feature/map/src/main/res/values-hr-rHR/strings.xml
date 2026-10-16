@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Prikazuje se preklapanje različitih Wi-Fi pristupnih točaka</string>
     <string name="map_a11y_speed_heatmap">Prikazuje se toplinska karta brzine</string>
     <string name="map_a11y_saved_map_data">Prikazuju se spremljeni podaci karte</string>
+    <string name="map_location_unavailable">Lokacija nije dostupna</string>
+    <string name="map_location_retry">Pokušaj ponovno</string>
     <string name="map_location_permission_opening_settings">Potreban je pristup lokaciji. Otvaranje postavki…</string>
     <string name="map_permission_banner_dismiss">Odbaci poruku o dozvoli za lokaciju</string>
     <string name="map_loading_layer">Učitavanje sloja karte</string>

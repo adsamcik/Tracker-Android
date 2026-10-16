@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">個別のWi-Fiアクセスポイントの重なりを表示中</string>
     <string name="map_a11y_speed_heatmap">速度ヒートマップを表示中</string>
     <string name="map_a11y_saved_map_data">保存済み地図データを表示中</string>
+    <string name="map_location_unavailable">現在地を取得できません</string>
+    <string name="map_location_retry">再試行</string>
     <string name="map_location_permission_opening_settings">位置情報へのアクセスが必要です。設定を開いています…</string>
     <string name="map_permission_banner_dismiss">位置情報の権限メッセージを閉じる</string>
     <string name="map_loading_layer">地図レイヤーを読み込み中</string>

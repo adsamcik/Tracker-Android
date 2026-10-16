@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Qed tintwera s-sovrappożizzjoni ta’ punti ta’ aċċess Wi-Fi distinti</string>
     <string name="map_a11y_speed_heatmap">Qed tintwera mappa termika tal-veloċità</string>
     <string name="map_a11y_saved_map_data">Qed tintwera dejta tal-mappa salvata</string>
+    <string name="map_location_unavailable">Il-post mhuwiex disponibbli</string>
+    <string name="map_location_retry">Erġa’ pprova</string>
     <string name="map_location_permission_opening_settings">Aċċess għall-post meħtieġ. Qed jinfetaħ l-issettjar…</string>
     <string name="map_permission_banner_dismiss">Aħbi l-messaġġ tal-permess tal-post</string>
     <string name="map_loading_layer">Qed jitgħabba saff tal-mappa</string>

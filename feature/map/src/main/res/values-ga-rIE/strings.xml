@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Ag taispeáint forluí pointí rochtana Wi‑Fi ar leith</string>
     <string name="map_a11y_speed_heatmap">Ag taispeáint léarscáile teasa luais</string>
     <string name="map_a11y_saved_map_data">Ag taispeáint sonraí léarscáile sábháilte</string>
+    <string name="map_location_unavailable">Níl an suíomh ar fáil</string>
+    <string name="map_location_retry">Bain triail eile as</string>
     <string name="map_location_permission_opening_settings">Tá rochtain suímh riachtanach. Ag oscailt Socruithe…</string>
     <string name="map_permission_banner_dismiss">Dún teachtaireacht cheada suímh</string>
     <string name="map_loading_layer">Ag lódáil sraithe léarscáile</string>

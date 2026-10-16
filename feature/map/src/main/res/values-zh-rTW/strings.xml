@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">正在顯示不同 Wi-Fi 存取點重疊</string>
     <string name="map_a11y_speed_heatmap">正在顯示速度熱點圖</string>
     <string name="map_a11y_saved_map_data">正在顯示已儲存的地圖資料</string>
+    <string name="map_location_unavailable">無法取得位置</string>
+    <string name="map_location_retry">重試</string>
     <string name="map_location_permission_opening_settings">需要位置存取權。正在開啟設定…</string>
     <string name="map_permission_banner_dismiss">關閉位置權限訊息</string>
     <string name="map_loading_layer">正在載入地圖圖層</string>

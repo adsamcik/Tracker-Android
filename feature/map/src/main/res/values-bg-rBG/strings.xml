@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Показва се припокриване на различни Wi-Fi точки за достъп</string>
     <string name="map_a11y_speed_heatmap">Показва се топлинна карта на скоростта</string>
     <string name="map_a11y_saved_map_data">Показват се запазени данни за картата</string>
+    <string name="map_location_unavailable">Местоположението не е налично</string>
+    <string name="map_location_retry">Опитайте отново</string>
     <string name="map_location_permission_opening_settings">Необходим е достъп до местоположението. Отваряне на настройките…</string>
     <string name="map_permission_banner_dismiss">Скриване на съобщението за разрешение за местоположение</string>
     <string name="map_loading_layer">Зареждане на слой на картата</string>

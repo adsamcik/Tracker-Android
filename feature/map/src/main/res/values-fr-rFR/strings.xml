@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Affichage du chevauchement de points d’accès Wi‑Fi distincts</string>
     <string name="map_a11y_speed_heatmap">Affichage d’une carte thermique de vitesse</string>
     <string name="map_a11y_saved_map_data">Affichage des données cartographiques enregistrées</string>
+    <string name="map_location_unavailable">Position indisponible</string>
+    <string name="map_location_retry">Réessayer</string>
     <string name="map_location_permission_opening_settings">Accès à la localisation requis. Ouverture des paramètres…</string>
     <string name="map_permission_banner_dismiss">Fermer le message d’autorisation de localisation</string>
     <string name="map_loading_layer">Chargement de la couche de carte</string>

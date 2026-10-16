@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Visar överlappning av olika Wi-Fi-åtkomstpunkter</string>
     <string name="map_a11y_speed_heatmap">Visar en hastighetsvärmekarta</string>
     <string name="map_a11y_saved_map_data">Visar sparade kartdata</string>
+    <string name="map_location_unavailable">Platsen är inte tillgänglig</string>
+    <string name="map_location_retry">Försök igen</string>
     <string name="map_location_permission_opening_settings">Platsåtkomst krävs. Öppnar Inställningar…</string>
     <string name="map_permission_banner_dismiss">Stäng meddelandet om platsbehörighet</string>
     <string name="map_loading_layer">Läser in kartlager</string>

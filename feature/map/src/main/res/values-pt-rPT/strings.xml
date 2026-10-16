@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">A mostrar sobreposição de pontos de acesso Wi-Fi distintos</string>
     <string name="map_a11y_speed_heatmap">A mostrar um mapa de calor de velocidade</string>
     <string name="map_a11y_saved_map_data">A mostrar dados de mapa guardados</string>
+    <string name="map_location_unavailable">Localização indisponível</string>
+    <string name="map_location_retry">Tentar novamente</string>
     <string name="map_location_permission_opening_settings">É necessário acesso à localização. A abrir Definições…</string>
     <string name="map_permission_banner_dismiss">Dispensar mensagem de permissão de localização</string>
     <string name="map_loading_layer">A carregar camada de mapa</string>

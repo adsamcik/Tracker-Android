@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Prikazuje se prekrivanje različnih dostopnih točk Wi‑Fi</string>
     <string name="map_a11y_speed_heatmap">Prikazuje se toplotni zemljevid hitrosti</string>
     <string name="map_a11y_saved_map_data">Prikazujejo se shranjeni podatki zemljevida</string>
+    <string name="map_location_unavailable">Lokacija ni na voljo</string>
+    <string name="map_location_retry">Poskusi znova</string>
     <string name="map_location_permission_opening_settings">Potreben je dostop do lokacije. Odpiranje nastavitev …</string>
     <string name="map_permission_banner_dismiss">Opusti sporočilo o dovoljenju za lokacijo</string>
     <string name="map_loading_layer">Nalaganje plasti zemljevida</string>

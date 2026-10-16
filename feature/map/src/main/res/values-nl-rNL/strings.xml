@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Overlap van afzonderlijke wifi-toegangspunten wordt getoond</string>
     <string name="map_a11y_speed_heatmap">Snelheidswarmtekaart wordt getoond</string>
     <string name="map_a11y_saved_map_data">Opgeslagen kaartgegevens worden getoond</string>
+    <string name="map_location_unavailable">Locatie niet beschikbaar</string>
+    <string name="map_location_retry">Opnieuw proberen</string>
     <string name="map_location_permission_opening_settings">Locatietoegang vereist. Instellingen openen…</string>
     <string name="map_permission_banner_dismiss">Bericht over locatiemachtiging sluiten</string>
     <string name="map_loading_layer">Kaartlaag laden</string>

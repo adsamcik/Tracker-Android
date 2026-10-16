@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Näytetään erillisten Wi-Fi-tukiasemien päällekkäisyys</string>
     <string name="map_a11y_speed_heatmap">Näytetään nopeuslämpökartta</string>
     <string name="map_a11y_saved_map_data">Näytetään tallennetut karttatiedot</string>
+    <string name="map_location_unavailable">Sijainti ei ole saatavilla</string>
+    <string name="map_location_retry">Yritä uudelleen</string>
     <string name="map_location_permission_opening_settings">Sijainnin käyttöoikeus vaaditaan. Avataan asetukset…</string>
     <string name="map_permission_banner_dismiss">Sulje sijaintilupaviesti</string>
     <string name="map_loading_layer">Ladataan karttatasoa</string>

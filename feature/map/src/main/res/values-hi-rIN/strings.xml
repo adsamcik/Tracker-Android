@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">अलग Wi-Fi अभिगम-बिंदु ओवरलैप दिखाया जा रहा है</string>
     <string name="map_a11y_speed_heatmap">गति हीटमैप दिखाया जा रहा है</string>
     <string name="map_a11y_saved_map_data">सहेजा मानचित्र डेटा दिखाया जा रहा है</string>
+    <string name="map_location_unavailable">स्थान उपलब्ध नहीं है</string>
+    <string name="map_location_retry">फिर से कोशिश करें</string>
     <string name="map_location_permission_opening_settings">स्थान अनुमति चाहिए। सेटिंग खुल रही है…</string>
     <string name="map_permission_banner_dismiss">स्थान अनुमति संदेश हटाएँ</string>
     <string name="map_loading_layer">मानचित्र परत लोड हो रही है</string>

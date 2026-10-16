@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Viser overlap mellem forskellige Wi-Fi-adgangspunkter</string>
     <string name="map_a11y_speed_heatmap">Viser et hastighedsvarmekort</string>
     <string name="map_a11y_saved_map_data">Viser gemte kortdata</string>
+    <string name="map_location_unavailable">Placering er ikke tilgængelig</string>
+    <string name="map_location_retry">Prøv igen</string>
     <string name="map_location_permission_opening_settings">Adgang til placering kræves. Åbner Indstillinger…</string>
     <string name="map_permission_banner_dismiss">Afvis meddelelse om placeringstilladelse</string>
     <string name="map_loading_layer">Indlæser kortlag</string>

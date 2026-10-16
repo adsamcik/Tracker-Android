@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Se afișează suprapunerea punctelor de acces Wi-Fi distincte</string>
     <string name="map_a11y_speed_heatmap">Se afișează o hartă termică a vitezei</string>
     <string name="map_a11y_saved_map_data">Se afișează datele de hartă salvate</string>
+    <string name="map_location_unavailable">Locația nu este disponibilă</string>
+    <string name="map_location_retry">Reîncearcă</string>
     <string name="map_location_permission_opening_settings">Este necesar accesul la locație. Se deschid setările…</string>
     <string name="map_permission_banner_dismiss">Închide mesajul despre permisiunea de localizare</string>
     <string name="map_loading_layer">Se încarcă stratul hărții</string>

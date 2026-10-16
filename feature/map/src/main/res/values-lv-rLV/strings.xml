@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Rāda atšķirīgu Wi-Fi piekļuves punktu pārklāšanos</string>
     <string name="map_a11y_speed_heatmap">Rāda ātruma siltumkarti</string>
     <string name="map_a11y_saved_map_data">Rāda saglabātos kartes datus</string>
+    <string name="map_location_unavailable">Atrašanās vieta nav pieejama</string>
+    <string name="map_location_retry">Mēģināt vēlreiz</string>
     <string name="map_location_permission_opening_settings">Nepieciešama atrašanās vietas piekļuve. Atver iestatījumus…</string>
     <string name="map_permission_banner_dismiss">Noraidīt atrašanās vietas atļaujas ziņojumu</string>
     <string name="map_loading_layer">Notiek kartes slāņa ielāde</string>

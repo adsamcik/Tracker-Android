@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Εμφάνιση επικάλυψης διαφορετικών σημείων πρόσβασης Wi‑Fi</string>
     <string name="map_a11y_speed_heatmap">Εμφάνιση θερμικού χάρτη ταχύτητας</string>
     <string name="map_a11y_saved_map_data">Εμφάνιση αποθηκευμένων δεδομένων χάρτη</string>
+    <string name="map_location_unavailable">Η τοποθεσία δεν είναι διαθέσιμη</string>
+    <string name="map_location_retry">Δοκιμάστε ξανά</string>
     <string name="map_location_permission_opening_settings">Απαιτείται πρόσβαση στην τοποθεσία. Άνοιγμα ρυθμίσεων…</string>
     <string name="map_permission_banner_dismiss">Απόρριψη μηνύματος άδειας τοποθεσίας</string>
     <string name="map_loading_layer">Φόρτωση επιπέδου χάρτη</string>

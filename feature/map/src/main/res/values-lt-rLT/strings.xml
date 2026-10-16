@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Rodyti skirtingų Wi‑Fi prieigos taškų persidengimai</string>
     <string name="map_a11y_speed_heatmap">Rodomas greičio šilumos žemėlapis</string>
     <string name="map_a11y_saved_map_data">Rodyti išsaugoti žemėlapio duomenys</string>
+    <string name="map_location_unavailable">Vieta nepasiekiama</string>
+    <string name="map_location_retry">Bandyti dar kartą</string>
     <string name="map_location_permission_opening_settings">Būtina prieiga prie vietos. Atidaromi nustatymai…</string>
     <string name="map_permission_banner_dismiss">Atmesti pranešimą apie vietos leidimą</string>
     <string name="map_loading_layer">Įkeliamas žemėlapio sluoksnis</string>

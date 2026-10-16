@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">A különálló Wi-Fi-hozzáférési pontok átfedése látható</string>
     <string name="map_a11y_speed_heatmap">Sebesség-hőtérkép látható</string>
     <string name="map_a11y_saved_map_data">Mentett térképadatok láthatók</string>
+    <string name="map_location_unavailable">A hely nem érhető el</string>
+    <string name="map_location_retry">Újra</string>
     <string name="map_location_permission_opening_settings">Helyhozzáférés szükséges. Beállítások megnyitása…</string>
     <string name="map_permission_banner_dismiss">Helyengedély üzenet elvetése</string>
     <string name="map_loading_layer">Térképréteg betöltése</string>

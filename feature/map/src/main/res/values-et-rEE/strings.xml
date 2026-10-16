@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Kuvatakse erinevate Wi‑Fi pääsupunktide kattuvust</string>
     <string name="map_a11y_speed_heatmap">Kuvatakse kiiruse soojuskaarti</string>
     <string name="map_a11y_saved_map_data">Kuvatakse salvestatud kaardiandmeid</string>
+    <string name="map_location_unavailable">Asukoht pole saadaval</string>
+    <string name="map_location_retry">Proovi uuesti</string>
     <string name="map_location_permission_opening_settings">Asukohale juurdepääs on vajalik. Seadete avamine…</string>
     <string name="map_permission_banner_dismiss">Loobu asukohaloa teatest</string>
     <string name="map_loading_layer">Kaardikihi laadimine</string>

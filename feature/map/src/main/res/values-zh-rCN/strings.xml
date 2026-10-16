@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">正在显示不同 Wi-Fi 接入点重叠</string>
     <string name="map_a11y_speed_heatmap">正在显示速度热力图</string>
     <string name="map_a11y_saved_map_data">正在显示已保存的地图数据</string>
+    <string name="map_location_unavailable">位置信息不可用</string>
+    <string name="map_location_retry">重试</string>
     <string name="map_location_permission_opening_settings">需要位置访问权限。正在打开设置…</string>
     <string name="map_permission_banner_dismiss">关闭位置权限消息</string>
     <string name="map_loading_layer">正在加载地图图层</string>

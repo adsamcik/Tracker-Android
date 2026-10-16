@@ -181,6 +181,8 @@
     <string name="map_a11y_wifi_count_heatmap">Zobrazuje sa prekrytie jedinečných prístupových bodov Wi-Fi</string>
     <string name="map_a11y_speed_heatmap">Zobrazuje sa teplotná mapa rýchlosti</string>
     <string name="map_a11y_saved_map_data">Zobrazujú sa uložené mapové údaje</string>
+    <string name="map_location_unavailable">Poloha nie je dostupná</string>
+    <string name="map_location_retry">Skúsiť znova</string>
     <string name="map_location_permission_opening_settings">Vyžaduje sa prístup k polohe. Otvárajú sa Nastavenia…</string>
     <string name="map_permission_banner_dismiss">Skryť správu o povolení polohy</string>
     <string name="map_loading_layer">Načítava sa vrstva mapy</string>

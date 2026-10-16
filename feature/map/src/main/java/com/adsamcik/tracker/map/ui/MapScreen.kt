@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +36,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -98,6 +101,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.maplibre.compose.camera.CameraMoveReason
 import org.maplibre.compose.camera.CameraPosition
@@ -214,6 +218,7 @@ fun MapScreen(
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
     val appContext = context.applicationContext
+    val mapUiScope = rememberCoroutineScope()
     val locationPermissionFlow = rememberMapLocationPermissionFlow()
     val hasLocationPermission = isLocationPermissionGranted || locationPermissionFlow.isGranted
     var isPermissionBannerDismissed by rememberSaveable { mutableStateOf(false) }
@@ -915,6 +920,20 @@ fun MapScreen(
                 )
             }
         }.getOrNull()
+        // A failed or ended provider request must allow the next tap to retry. Cancellation
+        // from leaving the map or backgrounding still propagates above without showing an error.
+        store.dispatch(MapEvent.FollowCanceled)
+        mapUiScope.launch {
+            val result = snackbarHostState.showSnackbar(
+                message = context.getString(com.adsamcik.tracker.map.R.string.map_location_unavailable),
+                actionLabel = context.getString(com.adsamcik.tracker.map.R.string.map_location_retry),
+                withDismissAction = true,
+                duration = SnackbarDuration.Long,
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                store.dispatch(MapEvent.SetFollowing(true))
+            }
+        }
     }
 
     LaunchedEffect(locationManager, overlayMode, isMapVisible, state.isFollowing) {
@@ -972,9 +991,21 @@ fun MapScreen(
     // Consume one-off effects
     LaunchedEffect(isMapVisible) {
         if (!isMapVisible) return@LaunchedEffect
-        store.effects.collectLatest { effect ->
+        val cameraAnimations = MapCameraAnimations(
+            scope = this,
+            shouldRotate = { store.state.value.isFollowing },
+            onRotate = { bearing ->
+                runCatchingCancellable {
+                    cameraState.animateTo(
+                        finalPosition = cameraState.position.copy(bearing = bearing.toDouble()),
+                        duration = 500.milliseconds,
+                    )
+                }.getOrNull()
+            },
+        )
+        store.effects.collect { effect ->
             when (effect) {
-                is MapEffect.CenterCamera -> {
+                is MapEffect.CenterCamera -> cameraAnimations.move {
                     runCatchingCancellable {
                         val bounds = BoundingBox(
                             west = effect.bounds.left,
@@ -989,11 +1020,11 @@ fun MapScreen(
                         )
                     }.getOrNull()
                 }
-                is MapEffect.CenterOnUser -> {
+                is MapEffect.CenterOnUser -> cameraAnimations.center(effect.zoom) { requestedZoom ->
                     runCatchingCancellable {
                         // Preserve the current zoom when the effect carries none (continuous
                         // follow); otherwise snap to the requested comfortable zoom.
-                        val targetZoom = effect.zoom ?: cameraState.position.zoom
+                        val targetZoom = requestedZoom ?: cameraState.position.zoom
                         cameraState.animateTo(
                             finalPosition = cameraState.position.copy(
                                 target = Position(effect.lng, effect.lat),
@@ -1003,17 +1034,8 @@ fun MapScreen(
                         )
                     }.getOrNull()
                 }
-                is MapEffect.SetCameraBearing -> {
-                    runCatchingCancellable {
-                        cameraState.animateTo(
-                            finalPosition = cameraState.position.copy(
-                                bearing = effect.bearing.toDouble()
-                            ),
-                            duration = 500.milliseconds,
-                        )
-                    }.getOrNull()
-                }
-                is MapEffect.ZoomBy -> {
+                is MapEffect.SetCameraBearing -> cameraAnimations.rotate(effect.bearing)
+                is MapEffect.ZoomBy -> cameraAnimations.move {
                     runCatchingCancellable {
                         val current = cameraState.position.zoom
                         val target = (current + effect.delta)
@@ -1026,7 +1048,7 @@ fun MapScreen(
                         }
                     }.getOrNull()
                 }
-                is MapEffect.ShowSearchFormatHint -> {
+                is MapEffect.ShowSearchFormatHint -> launch {
                     runCatchingCancellable {
                         snackbarHostState.showSnackbar(
                             context.getString(com.adsamcik.tracker.map.R.string.map_search_invalid_format)

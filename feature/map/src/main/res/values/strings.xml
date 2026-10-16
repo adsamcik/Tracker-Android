@@ -200,6 +200,8 @@
     <string name="map_a11y_wifi_count_heatmap">Showing distinct Wi-Fi access-point overlap</string>
     <string name="map_a11y_speed_heatmap">Showing a speed heatmap</string>
     <string name="map_a11y_saved_map_data">Showing saved map data</string>
+    <string name="map_location_unavailable">Location unavailable</string>
+    <string name="map_location_retry">Retry</string>
     <string name="map_location_permission_opening_settings">Location access required. Opening Settings…</string>
     <string name="map_permission_banner_dismiss">Dismiss location permission message</string>
     <string name="map_loading_layer">Loading map layer</string>
