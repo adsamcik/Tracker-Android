@@ -292,6 +292,7 @@ internal suspend fun runPostDeletionRecovery(
 	// durable receipt proving which process-local callback completed. The writer owner uses unique
 	// work/update scheduling and consumes its restore flags on the first resume; the Activity arbiter
 	// mutex reconciles the same durable desired state without replacing an identical registration.
+	var stepsDebt = false
 	val controlRecovery = try {
 		withReadyGenerationOperation(startupGeneration) {
 			if (currentEpoch() != expectedEpoch || isDeletionClosed() ||
@@ -299,12 +300,9 @@ internal suspend fun runPostDeletionRecovery(
 			) {
 				null
 			} else {
-				val policyGeneration = reconcileSourcePolicyGeneration?.invoke(startupGeneration)
-				if (policyGeneration != null &&
-					policyGeneration !is SourcePolicyRevisionReconciliationResult.Complete
-				) {
-					throw PostDeletionSourcePolicyGenerationDebt
-				}
+				stepsDebt = postDeletionPolicyHasStepsDebt(
+					reconcileSourcePolicyGeneration?.invoke(startupGeneration),
+				)
 				resumeWriters()
 				// This reopens process-local deletion latches used by captured Activity as well as
 				// optional automatic control. Failure therefore retains durable retry ownership.
@@ -328,6 +326,7 @@ internal suspend fun runPostDeletionRecovery(
 	) {
 		return PostDeletionRecoveryOutcome.DURABLE_RETRY
 	}
+	if (stepsDebt) return PostDeletionRecoveryOutcome.DURABLE_RETRY
 	return when (controlRecovery) {
 		AutomaticControlRecoveryResult.ACCEPTED,
 		AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED ->
@@ -335,6 +334,17 @@ internal suspend fun runPostDeletionRecovery(
 		AutomaticControlRecoveryResult.RETRYABLE ->
 			PostDeletionRecoveryOutcome.OPTIONAL_CONTROL_RETRY
 	}
+}
+
+/** Resume independently authorized writers while retaining the existing retry for Steps repair. */
+private fun postDeletionPolicyHasStepsDebt(result: SourcePolicyRevisionReconciliationResult?): Boolean {
+	val debt = when (result) {
+		is SourcePolicyRevisionReconciliationResult.Retryable -> result.debt
+		is SourcePolicyRevisionReconciliationResult.Unverifiable -> result.debt
+		is SourcePolicyRevisionReconciliationResult.Complete, null -> null
+	} ?: return false
+	if (!debt.hasOnlyStepsFailures) throw PostDeletionSourcePolicyGenerationDebt
+	return true
 }
 
 private suspend fun runOptionalControlRecovery(

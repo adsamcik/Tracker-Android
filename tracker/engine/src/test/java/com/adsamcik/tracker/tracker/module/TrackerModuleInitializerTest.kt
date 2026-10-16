@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationDebt
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationFailure
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationResult
+import com.adsamcik.tracker.shared.preferences.tracking.AmbientStepsPolicyRevisionReconciliation
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailure
@@ -95,7 +96,68 @@ class TrackerModuleInitializerTest {
 		)
 
 		result shouldBe TrackerStartupAuthorityResult.SourcePolicyDebt(sourceDebt)
+		result.canInitializeHealthySources shouldBe false
 		purposeCalls shouldBe 0
+	}
+
+	@Test
+	fun `startup prepares healthy purposes while retaining independent Steps provider debt`() = runTest {
+		var purposeCalls = 0
+		val sourceDebt = SourcePolicyRevisionReconciliationResult.Retryable(
+			SourcePolicyRevisionReconciliationDebt(1L, listOf(
+				SourcePolicyRevisionReconciliationFailure.AmbientStepsLifecycle(
+					AmbientStepsPolicyRevisionReconciliation.Retryable("PROVIDER_ACTIVATION_FAILED")),
+			)),
+		)
+
+		val result = reconcileTrackerStartupAuthority(
+			reconcileSourcePolicy = { sourceDebt },
+			reconcilePurposes = {
+				purposeCalls += 1
+				TrackingPurposeSettingsReconciliationResult.Complete(setOf(AmbientTrackingSource.LOCATION))
+			},
+		)
+		result shouldBe TrackerStartupAuthorityResult.SourcePolicyDebt(sourceDebt)
+		result.canInitializeHealthySources shouldBe true
+		purposeCalls shouldBe 1
+	}
+
+	@Test
+	fun `Steps source and purpose repair still allow healthy automatic initialization`() = runTest {
+		val sourceDebt = SourcePolicyRevisionReconciliationResult.Retryable(
+			SourcePolicyRevisionReconciliationDebt(1L, listOf(
+				SourcePolicyRevisionReconciliationFailure.AmbientStepsLifecycle(
+					AmbientStepsPolicyRevisionReconciliation.Retryable("PROVIDER_ACTIVATION_FAILED")),
+			)),
+		)
+		val purposeDebt = TrackingPurposeSettingsReconciliationDebt(listOf(
+			TrackingPurposeSettingsReconciliationFailure(AmbientTrackingSource.STEPS,
+				TrackingPurposeSettingsReconciliationFailureReason.OWNER_RECONCILIATION_FAILED),
+		))
+		val result = reconcileTrackerStartupAuthority({ sourceDebt }, {
+			TrackingPurposeSettingsReconciliationResult.Debt(purposeDebt)
+		})
+		result shouldBe TrackerStartupAuthorityResult.PurposeDebt(purposeDebt)
+		result.canInitializeHealthySources shouldBe true
+	}
+
+	@Test
+	fun `unknown purpose failure takes priority over Steps repair and blocks initialization`() = runTest {
+		val sourceDebt = SourcePolicyRevisionReconciliationResult.Retryable(
+			SourcePolicyRevisionReconciliationDebt(1L, listOf(
+				SourcePolicyRevisionReconciliationFailure.AmbientStepsLifecycle(
+					AmbientStepsPolicyRevisionReconciliation.Retryable("PROVIDER_ACTIVATION_FAILED")),
+			)),
+		)
+		val purposeDebt = TrackingPurposeSettingsReconciliationDebt(listOf(
+			TrackingPurposeSettingsReconciliationFailure(null,
+				TrackingPurposeSettingsReconciliationFailureReason.OWNER_RECONCILIATION_FAILED),
+		))
+		val result = reconcileTrackerStartupAuthority({ sourceDebt }, {
+			TrackingPurposeSettingsReconciliationResult.Debt(purposeDebt)
+		})
+		result shouldBe TrackerStartupAuthorityResult.PurposeDebt(purposeDebt)
+		result.canInitializeHealthySources shouldBe false
 	}
 
 	@Test
@@ -478,6 +540,11 @@ class TrackerModuleInitializerTest {
 		gate.tryStart() shouldBe true
 		gate.tryStart() shouldBe false
 	}
+
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class ActivityAutomationEffectDrainTest {
 
 	@Test
 	fun `pending automation waits for coherent authority then retries to completion`() = runTest {

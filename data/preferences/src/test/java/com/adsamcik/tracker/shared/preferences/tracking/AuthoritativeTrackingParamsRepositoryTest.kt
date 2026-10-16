@@ -329,6 +329,11 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		val strandedRevision = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
 		strandedRevision[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe consentEpoch
 		legacy.current.wifiEnabled.shouldBeTrue()
+		val chosen = repository.data.first { it.sourcePolicyRevision == strandedRevision.revision }
+		chosen.locationEnabled.shouldBeTrue()
+		chosen.stepsEnabled.shouldBeTrue()
+		chosen.wifiEnabled.shouldBeTrue()
+		debt.hasOnlyStepsFailures.shouldBeTrue()
 
 		retention.overrideResults = null
 		ambientSteps.reset()
@@ -340,6 +345,236 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		recovered[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe consentEpoch
 		ambientSteps.events shouldBe listOf("reconcile")
 	}
+
+	@Test
+	fun `all day Steps provider debt preserves chosen sources and the accepted policy revision`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
+		val delayedSteps = RecordingAmbientStepsPolicyRevisionReconciler().apply {
+			result = AmbientStepsPolicyRevisionReconciliation.Retryable("PROVIDER_ACTIVATION_FAILED")
+		}
+		val isolated = AuthoritativeTrackingParamsRepository(legacy, policy, applicationScope, startupGate,
+			retention, delayedSteps)
+
+		val chosen = isolated.data.first { it.sourcePolicyRevision == 1L }
+		chosen.locationEnabled.shouldBeTrue()
+		chosen.stepsEnabled.shouldBeTrue()
+		chosen.ambientStepsEnabled.shouldBeTrue()
+		chosen.barometerEnabled.shouldBeTrue()
+		val debt = isolated.reconciliationState.value
+			.shouldBeInstanceOf<SourcePolicyRevisionReconciliationState.Debt>().debt
+		debt.hasOnlyStepsFailures.shouldBeTrue()
+		debt.failures.single() shouldBe SourcePolicyRevisionReconciliationFailure.AmbientStepsLifecycle(
+			AmbientStepsPolicyRevisionReconciliation.Retryable("PROVIDER_ACTIVATION_FAILED"))
+
+		delayedSteps.result = AmbientStepsPolicyRevisionReconciliation.Complete
+		isolated.reconcileCurrentPolicyRevision()
+			.shouldBeInstanceOf<SourcePolicyRevisionReconciliationResult.Complete>().snapshot.revision shouldBe 1L
+	}
+
+	@Test
+	fun `unknown retention result set still withholds the effective source projection`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
+		val unknownRetention = RecordingRetentionAuthorityProducer { true }.apply { overrideResults = emptyList() }
+		val isolated = AuthoritativeTrackingParamsRepository(legacy, policy, applicationScope, startupGate,
+			unknownRetention, RecordingAmbientStepsPolicyRevisionReconciler())
+
+		val unavailable = isolated.data.first()
+		unavailable.sourcePolicyRevision shouldBe null
+		TrackingSourceComponent.entries.forEach { unavailable[it].shouldBeFalse() }
+		val debt = isolated.reconciliationState.value
+			.shouldBeInstanceOf<SourcePolicyRevisionReconciliationState.Debt>().debt
+		debt.failures.single() shouldBe SourcePolicyRevisionReconciliationFailure.RetentionResultSetInvalid
+		debt.hasOnlyStepsFailures.shouldBeFalse()
+	}
+
+	@Test
+	fun `debt recovery publishes each change between global failure and independent Steps repair`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
+		val isolatedScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+		val changingRetention = RecordingRetentionAuthorityProducer { true }.apply { overrideResults = emptyList() }
+		val delayedSteps = RecordingAmbientStepsPolicyRevisionReconciler().apply {
+			result = AmbientStepsPolicyRevisionReconciliation.Retryable("PROVIDER_ACTIVATION_FAILED")
+		}
+		val isolated = AuthoritativeTrackingParamsRepository(legacy, policy, isolatedScope, startupGate,
+			changingRetention, delayedSteps)
+		try {
+			isolated.data.first { it.sourcePolicyRevision == null }.locationEnabled.shouldBeFalse()
+			changingRetention.overrideResults = null
+			val chosen = isolated.data.first { it.sourcePolicyRevision == 1L }
+			chosen.locationEnabled.shouldBeTrue()
+			chosen.stepsEnabled.shouldBeTrue()
+			changingRetention.overrideResults = emptyList()
+			val unavailable = isolated.data.first { it.sourcePolicyRevision == null }
+			TrackingSourceComponent.entries.forEach { unavailable[it].shouldBeFalse() }
+		} finally {
+			isolatedScope.cancel()
+		}
+	}
+
+	@Test
+	fun `closed startup gate rejects policy mutation without changing durable authority`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
+		val closedGate = object : TrackingStartupGate {
+			override val isReady: Boolean = false
+			override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+				TrackingStartupResult.RetryableFailure(
+					TrackingStartupStage.LEGACY_V27,
+					"TEST_GATE_CLOSED",
+				)
+		}
+		val isolated = AuthoritativeTrackingParamsRepository(
+			legacy,
+			policy,
+			applicationScope,
+			closedGate,
+			retentionAuthorityProducer = retention,
+			ambientStepsPolicyRevisionReconciler =
+				TestNoOpAmbientStepsPolicyRevisionReconciler,
+		)
+		val before = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
+
+		shouldThrow<IllegalStateException> { isolated.setStepsEnabled(false) }
+
+		(policy.currentState() as SourcePolicyAuthorityState.Active).snapshot shouldBe before
+		legacy.current.stepsEnabled.shouldBeTrue()
+	}
+
+	@Test
+	fun `bulk boolean-only update can re-enable a source without a conflicting frequency`() = runTest {
+		repository.data.first()
+		repository.setWifiEnabled(false)
+
+		repository.update { copy(wifiEnabled = true) }
+
+		val effective = repository.data.first()
+		effective.wifiEnabled.shouldBeTrue()
+		effective.sourceCollectionSettings.wifi shouldBe SourceCollectionFrequency.BALANCED
+		val active = policy.currentState() as SourcePolicyAuthorityState.Active
+		active.snapshot[TrackingSourceComponent.WIFI].enabled.shouldBeTrue()
+	}
+
+	@Test
+	fun `long lived collector bootstraps when legacy settings become verified`() = runTest {
+		val delayedLegacy = FakeTrackingParamsRepository(TrackingParamsState())
+		val delayedRepository = AuthoritativeTrackingParamsRepository(
+			delayedLegacy,
+			policy,
+			applicationScope,
+			startupGate,
+			retentionAuthorityProducer = retention,
+			ambientStepsPolicyRevisionReconciler =
+				TestNoOpAmbientStepsPolicyRevisionReconciler,
+		)
+		val activeProjection = async {
+			delayedRepository.data.first { it.sourcePolicyRevision != null }
+		}
+
+		delayedLegacy.force(TrackingParamsState(legacySettingsMigrationCompleted = true))
+
+		activeProjection.await().sourcePolicyRevision shouldBe 1L
+		(policy.currentState() as SourcePolicyAuthorityState.Active).snapshot.revision shouldBe 1L
+	}
+
+	@Test
+	fun `authoritative revision is published before a blocked compatibility mirror`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
+		val blockingLegacy = BlockingUpdateTrackingParamsRepository(legacy)
+		val isolated = AuthoritativeTrackingParamsRepository(
+			blockingLegacy,
+			policy,
+			applicationScope,
+			startupGate,
+			retentionAuthorityProducer = retention,
+			ambientStepsPolicyRevisionReconciler =
+				TestNoOpAmbientStepsPolicyRevisionReconciler,
+		)
+		isolated.data.first { it.sourcePolicyRevision == 1L }
+
+		val mutation = async {
+			isolated.update {
+				copy(
+					stepsEnabled = false,
+					sourceCollectionSettings = sourceCollectionSettings.copy(
+						steps = SourceCollectionFrequency.OFF,
+					),
+				)
+			}
+		}
+		blockingLegacy.updateEntered.await()
+
+		val effective = isolated.data.first { it.sourcePolicyRevision == 2L }
+		effective.stepsEnabled.shouldBeFalse()
+		blockingLegacy.releaseUpdate.complete(Unit)
+		mutation.await()
+	}
+
+	@Test
+	fun `upstream failure replaces an enabled replay with fail closed state`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
+		val failingLegacy = OneShotFailingTrackingParamsRepository(legacy)
+		val isolated = AuthoritativeTrackingParamsRepository(
+			failingLegacy,
+			policy,
+			applicationScope,
+			startupGate,
+			retentionAuthorityProducer = retention,
+			ambientStepsPolicyRevisionReconciler =
+				TestNoOpAmbientStepsPolicyRevisionReconciler,
+		)
+		isolated.data.first { it.sourcePolicyRevision == 1L }.locationEnabled.shouldBeTrue()
+
+		failingLegacy.fail.complete(Unit)
+		runCurrent()
+
+		val unavailable = isolated.data.first()
+		unavailable.sourcePolicyRevision shouldBe null
+		unavailable.locationEnabled.shouldBeFalse()
+	}
+
+	private operator fun TrackingParamsState.get(source: TrackingSourceComponent): Boolean = when (source) {
+		TrackingSourceComponent.LOCATION -> locationEnabled
+		TrackingSourceComponent.ACTIVITY -> activityEnabled
+		TrackingSourceComponent.STEPS -> stepsEnabled
+		TrackingSourceComponent.PRESSURE -> barometerEnabled
+		TrackingSourceComponent.WIFI -> wifiEnabled
+		TrackingSourceComponent.CELL -> cellEnabled
+	}
+
+	private suspend fun setAmbient(source: TrackingSourceComponent, enabled: Boolean) = when (source) {
+		TrackingSourceComponent.LOCATION -> repository.setAmbientLocationEnabled(enabled)
+		TrackingSourceComponent.STEPS -> repository.setAmbientStepsEnabled(enabled)
+		TrackingSourceComponent.WIFI -> repository.setAmbientWifiEnabled(enabled)
+		TrackingSourceComponent.CELL -> repository.setAmbientCellEnabled(enabled)
+		TrackingSourceComponent.ACTIVITY,
+		TrackingSourceComponent.PRESSURE,
+		-> error("$source is not an approved ambient source")
+	}
+
+	private fun TrackingParamsState.ambientEnabled(source: TrackingSourceComponent): Boolean = when (source) {
+		TrackingSourceComponent.LOCATION -> ambientLocationEnabled
+		TrackingSourceComponent.STEPS -> ambientStepsEnabled
+		TrackingSourceComponent.WIFI -> ambientWifiEnabled
+		TrackingSourceComponent.CELL -> ambientCellEnabled
+		TrackingSourceComponent.ACTIVITY,
+		TrackingSourceComponent.PRESSURE,
+		-> false
+	}
+}
+
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+class AuthoritativeTrackingParamsBootstrapTest {
+	private val startupGate = object : TrackingStartupGate {
+		override val isReady: Boolean = true
+		override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+			TrackingStartupResult.Ready(false, 0L)
+	}
+	private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+
+	@After
+	fun closeScope() { applicationScope.cancel() }
 
 	@Test
 	fun `legacy bootstrap reissues retention before publishing active source policy`() = runTest {
@@ -511,70 +746,6 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		}
 
 	@Test
-	fun `closed startup gate rejects policy mutation without changing durable authority`() = runTest {
-		repository.data.first { it.sourcePolicyRevision == 1L }
-		val closedGate = object : TrackingStartupGate {
-			override val isReady: Boolean = false
-			override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
-				TrackingStartupResult.RetryableFailure(
-					TrackingStartupStage.LEGACY_V27,
-					"TEST_GATE_CLOSED",
-				)
-		}
-		val isolated = AuthoritativeTrackingParamsRepository(
-			legacy,
-			policy,
-			applicationScope,
-			closedGate,
-			retentionAuthorityProducer = retention,
-			ambientStepsPolicyRevisionReconciler =
-				TestNoOpAmbientStepsPolicyRevisionReconciler,
-		)
-		val before = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
-
-		shouldThrow<IllegalStateException> { isolated.setStepsEnabled(false) }
-
-		(policy.currentState() as SourcePolicyAuthorityState.Active).snapshot shouldBe before
-		legacy.current.stepsEnabled.shouldBeTrue()
-	}
-
-	@Test
-	fun `bulk boolean-only update can re-enable a source without a conflicting frequency`() = runTest {
-		repository.data.first()
-		repository.setWifiEnabled(false)
-
-		repository.update { copy(wifiEnabled = true) }
-
-		val effective = repository.data.first()
-		effective.wifiEnabled.shouldBeTrue()
-		effective.sourceCollectionSettings.wifi shouldBe SourceCollectionFrequency.BALANCED
-		val active = policy.currentState() as SourcePolicyAuthorityState.Active
-		active.snapshot[TrackingSourceComponent.WIFI].enabled.shouldBeTrue()
-	}
-
-	@Test
-	fun `long lived collector bootstraps when legacy settings become verified`() = runTest {
-		val delayedLegacy = FakeTrackingParamsRepository(TrackingParamsState())
-		val delayedRepository = AuthoritativeTrackingParamsRepository(
-			delayedLegacy,
-			policy,
-			applicationScope,
-			startupGate,
-			retentionAuthorityProducer = retention,
-			ambientStepsPolicyRevisionReconciler =
-				TestNoOpAmbientStepsPolicyRevisionReconciler,
-		)
-		val activeProjection = async {
-			delayedRepository.data.first { it.sourcePolicyRevision != null }
-		}
-
-		delayedLegacy.force(TrackingParamsState(legacySettingsMigrationCompleted = true))
-
-		activeProjection.await().sourcePolicyRevision shouldBe 1L
-		(policy.currentState() as SourcePolicyAuthorityState.Active).snapshot.revision shouldBe 1L
-	}
-
-	@Test
 	fun `bootstrap storage failure emits fail closed and retries in application scope`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Application>()
 		val secondaryDatabase = AppDatabase.inMemoryBuilder(context)
@@ -610,90 +781,6 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		}
 	}
 
-	@Test
-	fun `authoritative revision is published before a blocked compatibility mirror`() = runTest {
-		repository.data.first { it.sourcePolicyRevision == 1L }
-		val blockingLegacy = BlockingUpdateTrackingParamsRepository(legacy)
-		val isolated = AuthoritativeTrackingParamsRepository(
-			blockingLegacy,
-			policy,
-			applicationScope,
-			startupGate,
-			retentionAuthorityProducer = retention,
-			ambientStepsPolicyRevisionReconciler =
-				TestNoOpAmbientStepsPolicyRevisionReconciler,
-		)
-		isolated.data.first { it.sourcePolicyRevision == 1L }
-
-		val mutation = async {
-			isolated.update {
-				copy(
-					stepsEnabled = false,
-					sourceCollectionSettings = sourceCollectionSettings.copy(
-						steps = SourceCollectionFrequency.OFF,
-					),
-				)
-			}
-		}
-		blockingLegacy.updateEntered.await()
-
-		val effective = isolated.data.first { it.sourcePolicyRevision == 2L }
-		effective.stepsEnabled.shouldBeFalse()
-		blockingLegacy.releaseUpdate.complete(Unit)
-		mutation.await()
-	}
-
-	@Test
-	fun `upstream failure replaces an enabled replay with fail closed state`() = runTest {
-		repository.data.first { it.sourcePolicyRevision == 1L }
-		val failingLegacy = OneShotFailingTrackingParamsRepository(legacy)
-		val isolated = AuthoritativeTrackingParamsRepository(
-			failingLegacy,
-			policy,
-			applicationScope,
-			startupGate,
-			retentionAuthorityProducer = retention,
-			ambientStepsPolicyRevisionReconciler =
-				TestNoOpAmbientStepsPolicyRevisionReconciler,
-		)
-		isolated.data.first { it.sourcePolicyRevision == 1L }.locationEnabled.shouldBeTrue()
-
-		failingLegacy.fail.complete(Unit)
-		runCurrent()
-
-		val unavailable = isolated.data.first()
-		unavailable.sourcePolicyRevision shouldBe null
-		unavailable.locationEnabled.shouldBeFalse()
-	}
-
-	private operator fun TrackingParamsState.get(source: TrackingSourceComponent): Boolean = when (source) {
-		TrackingSourceComponent.LOCATION -> locationEnabled
-		TrackingSourceComponent.ACTIVITY -> activityEnabled
-		TrackingSourceComponent.STEPS -> stepsEnabled
-		TrackingSourceComponent.PRESSURE -> barometerEnabled
-		TrackingSourceComponent.WIFI -> wifiEnabled
-		TrackingSourceComponent.CELL -> cellEnabled
-	}
-
-	private suspend fun setAmbient(source: TrackingSourceComponent, enabled: Boolean) = when (source) {
-		TrackingSourceComponent.LOCATION -> repository.setAmbientLocationEnabled(enabled)
-		TrackingSourceComponent.STEPS -> repository.setAmbientStepsEnabled(enabled)
-		TrackingSourceComponent.WIFI -> repository.setAmbientWifiEnabled(enabled)
-		TrackingSourceComponent.CELL -> repository.setAmbientCellEnabled(enabled)
-		TrackingSourceComponent.ACTIVITY,
-		TrackingSourceComponent.PRESSURE,
-		-> error("$source is not an approved ambient source")
-	}
-
-	private fun TrackingParamsState.ambientEnabled(source: TrackingSourceComponent): Boolean = when (source) {
-		TrackingSourceComponent.LOCATION -> ambientLocationEnabled
-		TrackingSourceComponent.STEPS -> ambientStepsEnabled
-		TrackingSourceComponent.WIFI -> ambientWifiEnabled
-		TrackingSourceComponent.CELL -> ambientCellEnabled
-		TrackingSourceComponent.ACTIVITY,
-		TrackingSourceComponent.PRESSURE,
-		-> false
-	}
 }
 
 private class MutableGenerationStartupGate : TrackingStartupGate {
@@ -903,13 +990,14 @@ private class RecordingRetentionAuthorityProducer(
 private class RecordingAmbientStepsPolicyRevisionReconciler :
 	AmbientStepsPolicyRevisionReconciler {
 	val events = mutableListOf<String>()
+	var result: AmbientStepsPolicyRevisionReconciliation = AmbientStepsPolicyRevisionReconciliation.Complete
 	val reconciliations: Int get() = events.count { it == "reconcile" }
 	val retirements: Int get() = events.count { it == "retire" }
 
 	override suspend fun reconcileAfterRetentionReissue():
 		AmbientStepsPolicyRevisionReconciliation {
 		events += "reconcile"
-		return AmbientStepsPolicyRevisionReconciliation.Complete
+		return result
 	}
 
 	override suspend fun retireAfterRetentionDebt():

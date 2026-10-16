@@ -23,6 +23,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReco
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationDebt
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationResult
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationState
+import com.adsamcik.tracker.shared.preferences.tracking.AmbientStepsPolicyRevisionReconciliation
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicySnapshot
 import com.adsamcik.tracker.shared.preferences.tracking.UnavailableSourcePolicyRevisionReconciliationCoordinator
 import com.adsamcik.tracker.tracker.source.battery.QualitativeBatteryImpactEstimator
@@ -1043,6 +1044,25 @@ class TrackingSettingsViewModelTest {
         advanceUntilIdle()
         prompts shouldBe 0
     }
+
+    @Test
+    fun `independent Steps provider debt does not suppress another chosen source permission repair`() =
+        runTest(testDispatcher) {
+            val debt = SourcePolicyRevisionReconciliationDebt(1L, listOf(
+                SourcePolicyRevisionReconciliationFailure.AmbientStepsLifecycle(
+                    AmbientStepsPolicyRevisionReconciliation.Retryable("PROVIDER_ACTIVATION_FAILED")),
+            ))
+            val coordinator = mockk<SourcePolicyRevisionReconciliationCoordinator>()
+            every { coordinator.reconciliationState } returns MutableStateFlow(
+                SourcePolicyRevisionReconciliationState.Debt(debt))
+            val vm = createViewModel(sourcePolicyReconciliationCoordinator = coordinator)
+            var prompts = 0
+            vm.setWifiEnabled(true) { prompts++ }
+            advanceUntilIdle()
+            prompts shouldBe 1
+            vm.uiState.value.wifiEnabled shouldBe true
+            vm.uiState.value.sourcePolicyReconciliationDebt shouldBe debt
+        }
 
     private fun publishStepsAvailability(availability: AmbientSourceOperationalAvailability) {
         purposeAvailabilityFlow.value = purposeAvailabilityFlow.value.copy(

@@ -598,8 +598,13 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 
 	/** Settings publication depends only on Steps, whose owner does not consume that publication. */
 	private suspend fun reconcileStepsPolicyRevision(): AmbientStepsPolicyRevisionReconciliation {
+		inProgressStepsOwnerFailure()?.let { return AmbientStepsPolicyRevisionReconciliation.Retryable(it.reason.name) }
 		return try {
 			withCurrentReadyGeneration { generation ->
+				// Another reconciliation may have started the owner while this call awaited Ready.
+				inProgressStepsOwnerFailure()?.let {
+					return@withCurrentReadyGeneration AmbientStepsPolicyRevisionReconciliation.Retryable(it.reason.name)
+				}
 				ensureBuiltInAmbientOwners(setOf(AmbientTrackingSource.STEPS))
 				reconcileAmbient(
 					AmbientTrackingSource.STEPS,
@@ -619,6 +624,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 	}
 
 	override suspend fun reconcileCurrentSettings(): TrackingPurposeSettingsReconciliationResult {
+		inProgressStepsOwnerFailure()?.let { return finishSettingsReconciliation(listOf(it), emptySet()) }
 		// Owners read the shared settings replay. Its producer may need the Ready operation first.
 		trackingParamsRepositoryProvider?.get()?.data?.first()
 		val failures = mutableListOf<TrackingPurposeSettingsReconciliationFailure>()
@@ -626,6 +632,10 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 
 		val reconciledSources = mutableSetOf<AmbientTrackingSource>()
 		val ready = withCurrentReadyGeneration { startupGeneration ->
+			inProgressStepsOwnerFailure()?.let {
+				failures += it
+				return@withCurrentReadyGeneration
+			}
 			ensureBuiltInAutomaticOwner()
 			ensureBuiltInAmbientOwners(AmbientTrackingSource.entries.toSet())
 			val automaticCompleted = try {
@@ -642,27 +652,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 						.AUTOMATIC_CONTROL_RECONCILIATION_FAILED,
 				)
 			}
-			AmbientTrackingSource.entries.forEach { source ->
-				val failure = try {
-					reconcileAmbient(
-						source,
-						expectedRetainedFromMs = null,
-						requireApproval = false,
-						requireOwner = false,
-						expectedStartupGeneration = startupGeneration,
-					)
-				} catch (cancelled: CancellationException) {
-					throw cancelled
-				} catch (_: Exception) {
-					TrackingRetentionFloorReconciliationFailureReason
-						.OWNER_RECONCILIATION_FAILED
-				}
-				if (failure == null) {
-					reconciledSources += source
-				} else {
-					failures += failure.toSettingsFailure(source)
-				}
-			}
+			reconcileAmbientSettingsOwners(startupGeneration, failures, reconciledSources)
 		}
 		if (ready == null) {
 			failures += TrackingPurposeSettingsReconciliationFailure(
@@ -673,6 +663,45 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		}
 		return finishSettingsReconciliation(failures, reconciledSources)
 	}
+
+	private suspend fun reconcileAmbientSettingsOwners(
+		startupGeneration: Long?,
+		failures: MutableList<TrackingPurposeSettingsReconciliationFailure>,
+		reconciledSources: MutableSet<AmbientTrackingSource>,
+	) {
+		for (source in AmbientTrackingSource.entries) {
+			val failure = try {
+				reconcileAmbient(source, expectedRetainedFromMs = null, requireApproval = false,
+					requireOwner = false, expectedStartupGeneration = startupGeneration)
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				TrackingRetentionFloorReconciliationFailureReason.OWNER_RECONCILIATION_FAILED
+			}
+			if (failure == null) {
+				reconciledSources += source
+			} else {
+				failures += failure.toSettingsFailure(source)
+				if (source == AmbientTrackingSource.STEPS && failure ==
+					TrackingRetentionFloorReconciliationFailureReason.OWNER_OPERATION_IN_PROGRESS) {
+					// The callback still owns its mutation lease; do not queue sibling lookups behind it.
+					return
+				}
+			}
+		}
+	}
+
+	/** A timed-out callback still owns its lease; retries must not wait on its mutation mutex. */
+	private suspend fun inProgressStepsOwnerFailure(): TrackingPurposeSettingsReconciliationFailure? =
+		ownerFlightMutex.withLock {
+			if (ambientOwnerFlights.any { (key, call) -> key.identity.source == AmbientTrackingSource.STEPS &&
+				!call.isCompleted }) {
+				TrackingPurposeSettingsReconciliationFailure(AmbientTrackingSource.STEPS,
+					TrackingPurposeSettingsReconciliationFailureReason.OWNER_OPERATION_IN_PROGRESS)
+			} else {
+				null
+			}
+		}
 
 	private suspend fun reconcileRetentionSettings(
 		failures: MutableList<TrackingPurposeSettingsReconciliationFailure>,

@@ -23,6 +23,8 @@ import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryScheduler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailureReason
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.tracker.controller.LockManager
@@ -145,7 +147,7 @@ class TrackerModuleInitializer @Inject constructor(
 
 	private suspend fun initializeAuthorizedTracking(authorization: TrackingAutoRecoveryAuthorization) {
 		val readyGeneration = trackingStartupGate.currentGeneration
-		when (val authority = reconcileTrackerStartupAuthority(
+		val authority = reconcileTrackerStartupAuthority(
 			reconcileSourcePolicy = {
 				sourcePolicyRevisionReconciliationCoordinator
 					.reconcileCurrentPolicyRevisionWithinReadyOperation(
@@ -157,9 +159,9 @@ class TrackerModuleInitializer @Inject constructor(
 				chosenSourceWriterSetup.ensureCurrentChosenSources()
 				trackingPurposeSettingsReconciler.reconcileCurrentSettings()
 			},
-		)) {
-			TrackerStartupAuthorityResult.Complete -> Unit
-			else -> throw TrackerStartupAuthorityPendingException(authority)
+		)
+		if (!authority.canInitializeHealthySources) {
+			throw TrackerStartupAuthorityPendingException(authority)
 		}
 		lockManager.initializeFromPersistence(context)
 		activityAutomationEpochAuthority
@@ -176,39 +178,59 @@ internal suspend fun reconcileTrackerStartupAuthority(
 	reconcilePurposes: suspend () -> TrackingPurposeSettingsReconciliationResult,
 ): TrackerStartupAuthorityResult {
 	val sourcePolicy = reconcileSourcePolicy()
-	when (sourcePolicy) {
-		is SourcePolicyRevisionReconciliationResult.Complete -> Unit
-		is SourcePolicyRevisionReconciliationResult.Retryable,
-		is SourcePolicyRevisionReconciliationResult.Unverifiable,
-		-> return TrackerStartupAuthorityResult.SourcePolicyDebt(sourcePolicy)
+	val sourceDebt = when (sourcePolicy) {
+		is SourcePolicyRevisionReconciliationResult.Complete -> null
+		is SourcePolicyRevisionReconciliationResult.Retryable -> sourcePolicy.debt
+		is SourcePolicyRevisionReconciliationResult.Unverifiable -> sourcePolicy.debt
 	}
-	return when (val purposes = try {
-		reconcilePurposes()
-	} catch (cancellation: CancellationException) {
-		throw cancellation
-	} catch (_: Exception) {
-		TrackingPurposeSettingsReconciliationResult.Debt(
-			TrackingPurposeSettingsReconciliationDebt(
-				listOf(
-					com.adsamcik.tracker.tracker.api
-						.TrackingPurposeSettingsReconciliationFailure(
-							source = null,
-							reason = com.adsamcik.tracker.tracker.api
-								.TrackingPurposeSettingsReconciliationFailureReason
-								.OWNER_RECONCILIATION_FAILED,
-						),
-				),
-			),
-		)
-	}) {
+	if (sourceDebt != null && !sourceDebt.hasOnlyStepsFailures) {
+		return TrackerStartupAuthorityResult.SourcePolicyDebt(sourcePolicy)
+	}
+	return when (val purposes = reconcileStartupPurposes(reconcilePurposes)) {
 		is TrackingPurposeSettingsReconciliationResult.Complete ->
-			TrackerStartupAuthorityResult.Complete
+			if (sourceDebt == null) {
+				TrackerStartupAuthorityResult.Complete
+			} else {
+				TrackerStartupAuthorityResult.SourcePolicyDebt(sourcePolicy)
+			}
 		is TrackingPurposeSettingsReconciliationResult.Debt ->
 			TrackerStartupAuthorityResult.PurposeDebt(purposes.debt)
 	}
 }
 
+private suspend fun reconcileStartupPurposes(
+	reconcilePurposes: suspend () -> TrackingPurposeSettingsReconciliationResult,
+): TrackingPurposeSettingsReconciliationResult = try {
+	reconcilePurposes()
+} catch (cancellation: CancellationException) {
+	throw cancellation
+} catch (_: Exception) {
+	TrackingPurposeSettingsReconciliationResult.Debt(
+		TrackingPurposeSettingsReconciliationDebt(listOf(
+			com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailure(
+				source = null,
+				reason = TrackingPurposeSettingsReconciliationFailureReason.OWNER_RECONCILIATION_FAILED,
+			),
+		)),
+	)
+}
+
 internal sealed interface TrackerStartupAuthorityResult {
+	/** Independent Steps repair keeps its existing retry without holding healthy initialization. */
+	val canInitializeHealthySources: Boolean
+		get() = when (this) {
+			Complete -> true
+			is SourcePolicyDebt -> hasOnlyStepsFailures
+			is PurposeDebt -> debt.failures.all { failure ->
+				failure.source == AmbientTrackingSource.STEPS && failure.reason !in setOf(
+					TrackingPurposeSettingsReconciliationFailureReason.RETENTION_RESULT_SET_INVALID,
+					TrackingPurposeSettingsReconciliationFailureReason.STARTUP_GENERATION_CHANGED,
+					TrackingPurposeSettingsReconciliationFailureReason.AUTOMATIC_CONTROL_RECONCILIATION_FAILED,
+					TrackingPurposeSettingsReconciliationFailureReason.RETRY_SCHEDULING_FAILED,
+				)
+			}
+		}
+
 	data object Complete : TrackerStartupAuthorityResult
 
 	data class SourcePolicyDebt(
@@ -217,6 +239,13 @@ internal sealed interface TrackerStartupAuthorityResult {
 		init {
 			require(reconciliation !is SourcePolicyRevisionReconciliationResult.Complete)
 		}
+
+		val hasOnlyStepsFailures: Boolean
+			get() = when (val result = reconciliation) {
+				is SourcePolicyRevisionReconciliationResult.Retryable -> result.debt.hasOnlyStepsFailures
+				is SourcePolicyRevisionReconciliationResult.Unverifiable -> result.debt.hasOnlyStepsFailures
+				is SourcePolicyRevisionReconciliationResult.Complete -> false
+			}
 	}
 
 	data class PurposeDebt(

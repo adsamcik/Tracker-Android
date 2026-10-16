@@ -8,6 +8,7 @@ import android.os.Build
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -108,6 +109,7 @@ fun DashboardRoute(
 	var pendingLocationServicesRepair by remember { mutableStateOf(false) }
 	var pendingManualStartGeneration by rememberSaveable { mutableStateOf<Long?>(null) }
 	var pendingManualStartSetup by remember { mutableStateOf(false) }
+	var manualStartInFlight by remember { mutableStateOf(false) }
 	val restoredManualStartGeneration = remember { pendingManualStartGeneration }
 	var manualStartRequestVersion by remember { mutableStateOf(0L) }
 	val manualStartRequests = remember { mutableSetOf<Job>() }
@@ -117,6 +119,7 @@ fun DashboardRoute(
 			manualStartRequestVersion++
 			pendingManualStartGeneration = null
 			pendingManualStartSetup = false
+			manualStartInFlight = false
 		}
 		if (generation != null) coroutineScope.launch {
 			TrackerServiceApi.cancelManualTrackingStart(context, generation)
@@ -196,10 +199,47 @@ fun DashboardRoute(
 		)
 	}
 
+	suspend fun offerManualStartRepair(result: ManualTrackingStartResult.RepairRequired, requestVersion: Long) {
+		pendingManualStartGeneration = result.continuationGeneration
+		when (result.prerequisite) {
+			ManualTrackingStartPrerequisite.LOCATION_SERVICES -> {
+				val action = snackbarHostState.showSnackbar(
+					message = context.getString(
+						com.adsamcik.tracker.tracker.R.string.manual_tracking_location_services_required,
+					),
+					actionLabel = context.getString(
+						com.adsamcik.tracker.shared.utils.R.string.permission_denied_settings_action,
+					),
+				)
+				if (requestVersion != manualStartRequestVersion) {
+					cancelPendingManualStart(result.continuationGeneration)
+					return
+				}
+				if (action == SnackbarResult.ActionPerformed) {
+					pendingLocationServicesRepair = true
+					if (!ManualTrackingStartRepairNavigation.openLocationServicesSettings(context)) {
+						pendingLocationServicesRepair = false
+						cancelPendingManualStart(result.continuationGeneration)
+						showTrackingUnavailable()
+					}
+				} else cancelPendingManualStart(result.continuationGeneration)
+			}
+			else -> manualStartPermissionRequest = result.prerequisite
+		}
+	}
+
 	fun requestManualStart(continuationGeneration: Long? = null): Job {
+		if (manualStartInFlight) {
+			manualStartRequests.lastOrNull { it.isActive }?.let { return it }
+		}
 		val requestVersion = ++manualStartRequestVersion
+		manualStartInFlight = true
 		val request = coroutineScope.launch {
-			val result = TrackerServiceApi.requestManualTrackingStart(context, continuationGeneration)
+			val result = try {
+				TrackerServiceApi.requestManualTrackingStart(context, continuationGeneration)
+			} finally {
+				if (requestVersion == manualStartRequestVersion) manualStartInFlight = false
+			}
 			if (requestVersion != manualStartRequestVersion) return@launch
 			pendingManualStartSetup = false
 			when (result) {
@@ -208,38 +248,7 @@ fun DashboardRoute(
 					pendingManualStartGeneration = result.continuationGeneration
 					pendingManualStartSetup = true
 				}
-				is ManualTrackingStartResult.RepairRequired -> {
-					pendingManualStartGeneration = result.continuationGeneration
-					when (result.prerequisite) {
-						ManualTrackingStartPrerequisite.LOCATION_SERVICES -> {
-							val action = snackbarHostState.showSnackbar(
-								message = context.getString(
-									com.adsamcik.tracker.tracker.R.string
-										.manual_tracking_location_services_required,
-								),
-								actionLabel = context.getString(
-									com.adsamcik.tracker.shared.utils.R.string
-										.permission_denied_settings_action,
-								),
-							)
-							if (requestVersion != manualStartRequestVersion) {
-								cancelPendingManualStart(result.continuationGeneration)
-								return@launch
-							}
-							if (action == SnackbarResult.ActionPerformed) {
-								pendingLocationServicesRepair = true
-								if (!ManualTrackingStartRepairNavigation
-										.openLocationServicesSettings(context)
-								) {
-									pendingLocationServicesRepair = false
-									cancelPendingManualStart(result.continuationGeneration)
-									showTrackingUnavailable()
-								}
-							} else cancelPendingManualStart(result.continuationGeneration)
-						}
-						else -> manualStartPermissionRequest = result.prerequisite
-					}
-				}
+				is ManualTrackingStartResult.RepairRequired -> offerManualStartRepair(result, requestVersion)
 				ManualTrackingStartResult.TRACKING_UNAVAILABLE -> {
 					pendingManualStartGeneration = null
 					showTrackingUnavailable()
@@ -249,6 +258,7 @@ fun DashboardRoute(
 					showNoAvailableCaptureSource()
 				}
 			}
+			if (requestVersion != manualStartRequestVersion) return@launch
 			manualStartReadiness = TrackerServiceApi.readManualTrackingStartReadiness(context)
 		}
 		manualStartRequests += request
@@ -262,6 +272,14 @@ fun DashboardRoute(
 		pendingGeneration = pendingManualStartGeneration,
 		awaitRequests = { manualStartRequests.toList().forEach { it.join() } },
 		onContinue = { requestManualStart(it) },
+	)
+	DashboardManualStartFeedbackEffect(
+		pending = (manualStartInFlight || pendingManualStartSetup) && !isTracking,
+		snackbarHostState = snackbarHostState,
+		onCancel = {
+			userRequestedStop = true
+			endTracking()
+		},
 	)
 
 	val manualStartPermissionSatisfied =
@@ -640,6 +658,24 @@ internal fun ManualTrackingStartPrerequisite.toDashboardPermissionRequest(
 			requiredPermissions = setOf(Manifest.permission.READ_PHONE_STATE),
 		)
 	ManualTrackingStartPrerequisite.LOCATION_SERVICES -> null
+}
+
+/** Keeps explicit preparation visible and cancellable through the existing End boundary. */
+@Composable
+internal fun DashboardManualStartFeedbackEffect(
+	pending: Boolean,
+	snackbarHostState: SnackbarHostState,
+	onCancel: () -> Unit,
+) {
+	val message = stringResource(com.adsamcik.tracker.tracker.R.string.notification_tracking_restoring_title)
+	val cancelLabel = stringResource(com.adsamcik.tracker.shared.base.R.string.generic_cancel)
+	val currentOnCancel by rememberUpdatedState(onCancel)
+	LaunchedEffect(pending, snackbarHostState) {
+		if (pending && snackbarHostState.showSnackbar(message, actionLabel = cancelLabel,
+				duration = SnackbarDuration.Indefinite) == SnackbarResult.ActionPerformed) {
+			currentOnCancel()
+		}
+	}
 }
 
 /** Continues only the unchanged explicit Start; observation never reserves a new Start. */

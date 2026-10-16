@@ -1026,10 +1026,11 @@ class TrackingSettingsViewModel internal constructor(
 	}
 
 	private suspend fun runCommittedSettingsEffects(edit: PendingSettingsEdit) {
+		val debt = (sourcePolicyReconciliationCoordinator.reconciliationState.value as?
+			SourcePolicyRevisionReconciliationState.Debt)?.debt
+		val blocksIndependentChoices = debt?.let { !it.hasOnlyStepsFailures } ?: edit.reconciliationDebt
 		if (
-			!edit.runAfterCommittedWhenDebt && (edit.reconciliationDebt ||
-				sourcePolicyReconciliationCoordinator.reconciliationState.value is
-				SourcePolicyRevisionReconciliationState.Debt)
+			!edit.runAfterCommittedWhenDebt && blocksIndependentChoices
 		) {
 			return
 		}

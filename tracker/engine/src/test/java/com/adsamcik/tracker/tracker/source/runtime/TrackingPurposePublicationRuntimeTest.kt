@@ -1345,6 +1345,67 @@ class TrackingPurposePublicationRuntimeTest {
 	}
 
 	@Test
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	fun `Steps callback holding the real mutation lease cannot stall retries or the shared Ready boundary`() = runTest {
+		val readyMutex = Mutex()
+		var ready = false
+		val gate = object : TrackingStartupGate {
+			override val isReady: Boolean get() = ready
+			override val currentGeneration: Long = 7L
+			override suspend fun reconcile(retryFailedStorage: Boolean) = TrackingStartupResult.Ready(false, 0L)
+			override suspend fun <T> withReadyGenerationOperation(
+				expectedGeneration: Long, operation: suspend () -> T,
+			): T? = readyMutex.withLock { if (ready && expectedGeneration == 7L) { operation() } else { null } }
+		}
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val stepsAuthority = authority(TrackingSource.STEPS, TrackingPurpose.AMBIENT_PRODUCT, 7L)
+		val issuer = SerializedTrackingPurposeLeaseIssuer(TrackingPurposeAuthorityReader { source, execution ->
+			stepsAuthority.takeIf { it.sourcePurpose == source }?.copy(executionRevision = execution)
+		}, store, TrackingPurposeOwnerCasTokenFactory { "held-steps-owner" })
+		val scheduled = mutableListOf<TrackingPurposeSettingsReconciliationDebt>()
+		val runtime = DefaultTrackingPurposePublicationRuntime(issuer, store,
+			TrackingPurposeExecutionRevisionRegistry(), AlwaysApprovedRetentionAuthorityProducer,
+			trackingStartupGateProvider = Provider { gate }, ownerCallbackScope = backgroundScope,
+			ownerCallbackTimeoutMillis = 10L,
+			retryScheduler = TrackingPurposeReconciliationRetryScheduler { scheduled += it; true })
+		val release = CompletableDeferred<Unit>()
+		var calls = 0
+		runtime.registerAmbientSourceOwner(AmbientTrackingSource.STEPS, 7L) { lease ->
+			when (val guarded = issuer.mutateAmbientIfCurrent(lease.identity) {
+				calls++
+				release.await()
+				AmbientSourceOperationalAvailability.ready(AmbientTrackingSource.STEPS,
+					AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS, lease.purposeLeaseIdentity)
+			}) {
+				is AmbientRadioLeaseMutation.Applied -> guarded.value
+				AmbientRadioLeaseMutation.Stale -> error("Exact owner lease must remain current")
+			}
+		}
+		ready = true
+		val pending = AmbientStepsPolicyRevisionReconciliation.Retryable("OWNER_OPERATION_IN_PROGRESS")
+		val firstDebt = withTimeout(100L) { runtime.reconcileCurrentSettings() }
+			.shouldBeInstanceOf<TrackingPurposeSettingsReconciliationResult.Debt>().debt
+		firstDebt.failures.single().source shouldBe AmbientTrackingSource.STEPS
+
+		withTimeout(100L) { runtime.reconcileAfterRetentionReissue() } shouldBe pending
+		val debt = withTimeout(100L) { runtime.reconcileCurrentSettings() }
+			.shouldBeInstanceOf<TrackingPurposeSettingsReconciliationResult.Debt>().debt
+		debt.failures.single().source shouldBe AmbientTrackingSource.STEPS
+		debt.failures.single().reason shouldBe TrackingPurposeSettingsReconciliationFailureReason.OWNER_OPERATION_IN_PROGRESS
+		scheduled shouldBe listOf(firstDebt, debt)
+		withTimeout(100L) { gate.withReadyGenerationOperation(7L) { "healthy-start" } } shouldBe "healthy-start"
+		calls shouldBe 1
+		release.isCompleted shouldBe false
+
+		release.complete(Unit)
+		runCurrent()
+		withTimeout(100L) { runtime.reconcileAfterRetentionReissue() } shouldBe
+			AmbientStepsPolicyRevisionReconciliation.Complete
+		calls shouldBe 1
+		store.availability.value.ambientSources.getValue(AmbientTrackingSource.STEPS).isOperational shouldBe true
+	}
+
+	@Test
 	fun `source mismatch cannot publish another ambient owners status`() = runTest {
 		val fixture = fixture(
 			authority(

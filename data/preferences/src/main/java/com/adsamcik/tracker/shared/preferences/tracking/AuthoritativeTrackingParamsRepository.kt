@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -76,11 +77,11 @@ class AuthoritativeTrackingParamsRepository(
 			authority == SourcePolicyAuthorityState.Uninitialized &&
 			legacyState.legacySettingsMigrationCompleted
 		) {
-			var failurePublished = false
 			while (true) {
 				try {
 					val snapshot = sourcePolicyRepository.bootstrapFromLegacy(legacyState)
-					when (reconcilePolicyRevision(snapshot)) {
+					val startupGeneration = trackingStartupGate.currentGeneration
+					when (val result = reconcilePolicyRevision(snapshot)) {
 						is SourcePolicyRevisionReconciliationResult.Complete -> {
 							emit(legacyState.withPolicy(snapshot))
 							return@transformLatest
@@ -88,41 +89,32 @@ class AuthoritativeTrackingParamsRepository(
 						is SourcePolicyRevisionReconciliationResult.Retryable,
 						is SourcePolicyRevisionReconciliationResult.Unverifiable,
 						-> {
-							if (!failurePublished) {
-								emit(legacyState.withSourcesFailClosed())
-								failurePublished = true
-							}
+							emit(reconciliationDebtProjection(legacyState, snapshot, result, startupGeneration))
 							delay(BOOTSTRAP_RETRY_DELAY_MS)
 						}
 					}
 				} catch (_: Exception) {
 					currentCoroutineContext().ensureActive()
-					if (!failurePublished) {
-						emit(legacyState.withSourcesFailClosed())
-						failurePublished = true
-					}
+					emit(legacyState.withSourcesFailClosed())
 					delay(BOOTSTRAP_RETRY_DELAY_MS)
 				}
 			}
 		}
 		when (authority) {
 			is SourcePolicyAuthorityState.Active -> {
-				var failurePublished = false
 				var effectiveSnapshot = authority.snapshot
 				while (true) {
 					try {
 						effectiveSnapshot = convergeSetupChoices(effectiveSnapshot, legacyState, isSetupComplete)
 					} catch (_: Exception) {
 						currentCoroutineContext().ensureActive()
-						if (!failurePublished) {
-							emit(legacyState.withSourcesFailClosed())
-							failurePublished = true
-						}
+						emit(legacyState.withSourcesFailClosed())
 						delay(AUTHORITY_RETRY_DELAY_MS)
 						continue
 					}
 					// A mutation may have reconciled this revision before its legacy mirror completes.
 					// Publish that exact revision without waiting for the mirror's mutation lock.
+					val startupGeneration = trackingStartupGate.currentGeneration
 					val alreadyReconciled = isReconciledAtReadyGeneration(effectiveSnapshot)
 					val result = if (alreadyReconciled) {
 						SourcePolicyRevisionReconciliationResult.Complete(effectiveSnapshot)
@@ -150,10 +142,8 @@ class AuthoritativeTrackingParamsRepository(
 						is SourcePolicyRevisionReconciliationResult.Retryable,
 						is SourcePolicyRevisionReconciliationResult.Unverifiable,
 						-> {
-							if (!failurePublished) {
-								emit(legacyState.withSourcesFailClosed())
-								failurePublished = true
-							}
+							emit(reconciliationDebtProjection(legacyState, effectiveSnapshot, result,
+								startupGeneration))
 							delay(AUTHORITY_RETRY_DELAY_MS)
 						}
 					}
@@ -168,7 +158,7 @@ class AuthoritativeTrackingParamsRepository(
 		emit(TrackingParamsState().withSourcesFailClosed())
 		delay(AUTHORITY_RETRY_DELAY_MS)
 		true
-	}
+	}.distinctUntilChanged()
 
 	private val authoritativeData: Flow<TrackingParamsState> = flow {
 		if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) {
@@ -458,6 +448,26 @@ class AuthoritativeTrackingParamsRepository(
 				failures = listOf(SourcePolicyRevisionReconciliationFailure.SourcePolicyUnavailable),
 			),
 		).also(::publishReconciliationResult)
+
+	/** Saved choices remain authoritative when only the independent all-day Steps owner needs repair. */
+	private fun reconciliationDebtProjection(
+		legacyState: TrackingParamsState,
+		snapshot: SourcePolicySnapshot,
+		result: SourcePolicyRevisionReconciliationResult,
+		startupGeneration: Long,
+	): TrackingParamsState {
+		val debt = when (result) {
+			is SourcePolicyRevisionReconciliationResult.Retryable -> result.debt
+			is SourcePolicyRevisionReconciliationResult.Unverifiable -> result.debt
+			is SourcePolicyRevisionReconciliationResult.Complete -> null
+		}
+		return if (debt?.hasOnlyStepsFailures == true && debt.policyRevision == snapshot.revision &&
+			trackingStartupGate.isReadyGeneration(startupGeneration)) {
+			legacyState.withPolicy(snapshot)
+		} else {
+			legacyState.withSourcesFailClosed()
+		}
+	}
 
 	private suspend fun reconcilePolicyRevision(
 		effective: SourcePolicySnapshot,
@@ -768,6 +778,19 @@ data class SourcePolicyRevisionReconciliationDebt(
 
 	val retryable: Boolean
 		get() = failures.all { it.retryable }
+
+	/** A source-local Steps failure cannot invalidate another source's accepted recording choices. */
+	val hasOnlyStepsFailures: Boolean
+		get() = policyRevision != null && failures.all { failure ->
+			when (failure) {
+				is SourcePolicyRevisionReconciliationFailure.RetentionAuthority ->
+					failure.failure.source == TrackingSourceComponent.STEPS
+				is SourcePolicyRevisionReconciliationFailure.RetentionStateMismatch ->
+					failure.result.source == TrackingSourceComponent.STEPS
+				is SourcePolicyRevisionReconciliationFailure.AmbientStepsLifecycle -> true
+				else -> false
+			}
+		}
 }
 
 /** Result of reusing the all-day Steps owner under the reconciled policy. */

@@ -14,6 +14,7 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationDebt
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationFailure
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationResult
+import com.adsamcik.tracker.shared.preferences.tracking.AmbientStepsPolicyRevisionReconciliation
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryResult
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import io.kotest.matchers.shouldBe
@@ -173,6 +174,27 @@ class PostDeletionAutomaticControlRestorerTest {
 
 			operations shouldBe listOf("policy")
 		}
+
+	@Test
+	fun `post deletion Steps provider debt resumes healthy writers and keeps its durable retry`() = runTest {
+		val operations = mutableListOf<String>()
+		val debt = SourcePolicyRevisionReconciliationDebt(1L, listOf(
+			SourcePolicyRevisionReconciliationFailure.AmbientStepsLifecycle(
+				AmbientStepsPolicyRevisionReconciliation.Retryable("PROVIDER_ACTIVATION_FAILED")),
+		))
+		runPostDeletionRecovery(
+			expectedEpoch = 8L, currentEpoch = { 8L }, startupGeneration = 2L,
+			currentStartupGeneration = { 2L }, isDeletionClosed = { false }, isStartupReady = { true },
+			reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+			reconcileSourcePolicyGeneration = {
+				operations += "policy"
+				SourcePolicyRevisionReconciliationResult.Retryable(debt)
+			},
+			resumeWriters = { operations += "writers" }, resumeActivityArbiter = { operations += "arbiter" },
+			reconcileAutomaticControl = { operations += "control"; AutomaticControlRecoveryResult.ACCEPTED },
+		) shouldBe PostDeletionRecoveryOutcome.DURABLE_RETRY
+		operations shouldBe listOf("policy", "writers", "arbiter", "control")
+	}
 
 	@Test
 	fun `generation change after reconciliation leaves every writer paused`() = runTest {

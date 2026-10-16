@@ -743,14 +743,16 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			return false
 		}
 		trackingParamsRepository.data.first()
-		return trackingStartupGate.withReadyGenerationOperation(prepared.startupGeneration) {
+		// The shared Start dispatcher already owns the durable command lock. Keep deletion
+		// excluded without trying to acquire that same lock through a serialized Ready operation.
+		return trackingStartupGate.withReadyGenerationWork(prepared.startupGeneration) {
 			val policy = sourcePolicyRepository.currentState() as? SourcePolicyAuthorityState.Active
-				?: return@withReadyGenerationOperation false
+				?: return@withReadyGenerationWork false
 			val settings = trackingParamsRepository.data.first()
 			if (settings.sourcePolicyRevision != policy.snapshot.revision ||
 				(request.manualSourceSelection != null && policy.snapshot.manualStartSelection() !=
 					request.manualSourceSelection)) {
-				return@withReadyGenerationOperation false
+				return@withReadyGenerationWork false
 			}
 			providerStepsSessions?.accept(prepared.token, request.command.generation) == true
 		} == true
