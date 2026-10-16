@@ -3,5 +3,6 @@
     <string name="automatic_control_enable_transitions">गति पहचान चालू करें</string>
     <string name="automatic_control_enable_transitions_summary">अपने आप शुरू करने के लिए गति पहचान ज़रूरी है।</string>
     <string name="automatic_control_provider_unavailable_summary">अपने आप शुरू करने के लिए समर्थित गतिविधि पहचान सेवा ज़रूरी है।</string>
-    <string name="automatic_control_pending_summary">अपने आप शुरू करना अभी तैयार नहीं है। ट्रैकिंग विकल्प और अनुमतियाँ जाँचें।</string>
+    <string name="automatic_control_pending_summary">गति पहचान तैयार नहीं है। फिर से कोशिश करें।</string>
+    <string name="automatic_control_setup_failed_summary">Tracker अपने-आप ट्रैकिंग की तैयारी नहीं कर सका। फिर से कोशिश करें।</string>
 </resources>

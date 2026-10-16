@@ -3,5 +3,6 @@
     <string name="automatic_control_enable_transitions">Uključi prepoznavanje kretanja</string>
     <string name="automatic_control_enable_transitions_summary">Automatsko pokretanje zahtijeva prepoznavanje kretanja.</string>
     <string name="automatic_control_provider_unavailable_summary">Automatsko pokretanje zahtijeva podržanu uslugu prepoznavanja aktivnosti.</string>
-    <string name="automatic_control_pending_summary">Automatsko pokretanje nije spremno. Provjerite odabire praćenja i dopuštenja.</string>
+    <string name="automatic_control_pending_summary">Prepoznavanje kretanja nije spremno. Pokušajte ponovno.</string>
+    <string name="automatic_control_setup_failed_summary">Tracker nije mogao pripremiti automatsko praćenje. Pokušajte ponovno.</string>
 </resources>

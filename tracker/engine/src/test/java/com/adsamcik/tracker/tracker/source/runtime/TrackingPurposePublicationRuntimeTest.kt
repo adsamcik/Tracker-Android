@@ -12,9 +12,13 @@ import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthori
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigurationApprovalResult
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicy
+import com.adsamcik.tracker.shared.preferences.tracking.AuthoritativeTrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.AmbientStepsPolicyRevisionReconciliation
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
@@ -58,6 +62,13 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
@@ -1414,6 +1425,159 @@ class TrackingPurposePublicationRuntimeTest {
 			availability.reason shouldBe AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE
 			availability.isOperational shouldBe false
 		}
+	}
+
+	@Test
+	fun `cold settings publish before automatic owner reads them and unrelated sources cannot block Steps`() = runTest {
+		val original = policySnapshot(revision = 12L)
+		val policy = FixedSourcePolicyRepository(original.copy(policies = original.policies +
+			(TrackingSource.STEPS to original[TrackingSource.STEPS].copy(
+				enabled = true, qos = SourceQos.BALANCED, captureConsentEpoch = 5L,
+				capturePersistenceEligible = true))))
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val authorityReader = CurrentTrackingPurposeAuthorityReader(policy,
+			MutableLifecycleStore(CollectedDataLifecycleSnapshot(3L, null)),
+			FixedRolloutStateStore(controlRollout(9L)), AlwaysApprovedRetentionAuthorityProducer)
+		var token = 0
+		val issuer = SerializedTrackingPurposeLeaseIssuer(authorityReader, store,
+			TrackingPurposeOwnerCasTokenFactory { "bootstrap-${++token}" })
+		val steps = mockk<AmbientStepsPurposeOwner>()
+		coEvery { steps.reconcile(any()) } coAnswers {
+			AmbientSourceOperationalAvailability.ready(AmbientTrackingSource.STEPS,
+				AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+				firstArg<com.adsamcik.tracker.tracker.api.AmbientReconciliationLease>().purposeLeaseIdentity)
+		}
+		lateinit var settings: AuthoritativeTrackingParamsRepository
+		val automatic = mockk<DefaultAutomaticControlPurposeOwner>()
+		coEvery { automatic.reconcile(any()) } coAnswers {
+			settings.data.first { it.sourcePolicyRevision == 12L }
+			AutomaticTrackingOperationalAvailability.Ready(firstArg<com.adsamcik.tracker.tracker.api
+				.AutomaticControlReconciliationLease>().identity)
+		}
+		val runtime = DefaultTrackingPurposePublicationRuntime(issuer, store,
+			TrackingPurposeExecutionRevisionRegistry(), AlwaysApprovedRetentionAuthorityProducer,
+			ambientStepsPurposeOwnerProvider = Provider { steps }, ownerCallbackScope = backgroundScope,
+			automaticControlPurposeOwnerProvider = Provider { automatic })
+		val legacy = mockk<TrackingParamsRepository>()
+		every { legacy.data } returns MutableStateFlow(TrackingParamsState(
+			autoTrackingMode = 2, stepsEnabled = true, ambientStepsEnabled = true,
+			legacySettingsMigrationCompleted = true))
+		val gate = object : TrackingStartupGate {
+			override val isReady: Boolean = true
+			override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+				TrackingStartupResult.Ready(false, 0L)
+		}
+		settings = AuthoritativeTrackingParamsRepository(legacy, policy, backgroundScope, gate,
+			AlwaysApprovedRetentionAuthorityProducer, runtime)
+
+		withTimeout(1_000L) { settings.data.first { it.sourcePolicyRevision == 12L } }
+		store.availability.value.ambientSources.getValue(AmbientTrackingSource.STEPS).isOperational shouldBe true
+		coVerify(exactly = 0) { automatic.reconcile(any()) }
+
+		runtime.reconcileCurrentSettings()
+		coVerify(exactly = 1) { automatic.reconcile(any()) }
+		store.availability.value.automaticControl.isOperational shouldBe true
+	}
+
+	@Test
+	fun `cold full reconciliation lets settings acquire serialized startup before owner callbacks`() = runTest {
+		val operationMutex = Mutex()
+		val gate = object : TrackingStartupGate {
+			override val isReady: Boolean = true
+			override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+				TrackingStartupResult.Ready(false, 0L)
+			override suspend fun <T> withReadyGenerationOperation(
+				expectedGeneration: Long,
+				operation: suspend () -> T,
+			): T? = operationMutex.withLock { operation() }
+		}
+		var settingsPublished = false
+		val settings = mockk<TrackingParamsRepository>()
+		every { settings.data } returns flow {
+			gate.withReadyGenerationOperation(0L) {
+				settingsPublished = true
+				emit(TrackingParamsState(autoTrackingMode = 2, sourcePolicyRevision = 12L))
+			}
+		}.shareIn(backgroundScope, SharingStarted.Eagerly, replay = 1)
+		val automatic = mockk<DefaultAutomaticControlPurposeOwner>()
+		coEvery { automatic.reconcile(any()) } coAnswers {
+			settingsPublished shouldBe true
+			settings.data.first().sourcePolicyRevision shouldBe 12L
+			AutomaticTrackingOperationalAvailability.Ready(firstArg<com.adsamcik.tracker.tracker.api
+				.AutomaticControlReconciliationLease>().identity)
+		}
+		val control = authority(TrackingSource.ACTIVITY, TrackingPurpose.CONTROL, 1L)
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		var token = 0
+		val issuer = SerializedTrackingPurposeLeaseIssuer(TrackingPurposeAuthorityReader { source, execution ->
+			control.takeIf { source == it.sourcePurpose }?.copy(executionRevision = execution)
+		}, store, TrackingPurposeOwnerCasTokenFactory { "cold-owner-${++token}" })
+		val runtime = DefaultTrackingPurposePublicationRuntime(issuer, store,
+			TrackingPurposeExecutionRevisionRegistry(), AlwaysApprovedRetentionAuthorityProducer,
+			trackingStartupGateProvider = Provider { gate }, ownerCallbackScope = backgroundScope,
+			automaticControlPurposeOwnerProvider = Provider { automatic },
+			trackingParamsRepositoryProvider = Provider { settings })
+
+		withTimeout(1_000L) { runtime.reconcileCurrentSettings() }
+
+		coVerify(exactly = 1) { automatic.reconcile(any()) }
+		store.availability.value.automaticControl.isOperational shouldBe true
+	}
+
+	@Test
+	fun `Steps retention debt and deselection retire the same owner and retain failed cleanup for retry`() = runTest {
+		var approved = true
+		var deselected = false
+		val retention = object : RetentionAuthorityProducer by AlwaysApprovedRetentionAuthorityProducer {
+			override suspend fun reconcileLiveAmbient(source: TrackingSource): RetentionAuthorityResult =
+				when {
+					deselected -> RetentionAuthorityResult.Unchanged(source, RetentionAuthorityScope.LIVE_AMBIENT,
+						RetentionAuthorityState.REVOKED, 2L)
+					approved -> activeResult(source, RetentionAuthorityScope.LIVE_AMBIENT)
+					else -> unavailableResult(source)
+				}
+		}
+		val sourceAuthority = authority(TrackingSource.STEPS, TrackingPurpose.AMBIENT_PRODUCT, 1L)
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		var token = 0
+		val issuer = SerializedTrackingPurposeLeaseIssuer(TrackingPurposeAuthorityReader { source, execution ->
+			sourceAuthority.takeIf { source == it.sourcePurpose }?.copy(executionRevision = execution)
+		}, store, TrackingPurposeOwnerCasTokenFactory { "retire-${++token}" })
+		val runtime = DefaultTrackingPurposePublicationRuntime(issuer, store,
+			TrackingPurposeExecutionRevisionRegistry(), retention, ownerCallbackScope = backgroundScope)
+		var retirementComplete = false
+		var retirementCount = 0
+		runtime.registerAmbientSourceOwner(AmbientTrackingSource.STEPS, 1L,
+			object : AmbientSourceReconciliationCallback {
+				override suspend fun reconcile(lease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease) =
+					AmbientSourceOperationalAvailability.ready(AmbientTrackingSource.STEPS,
+						AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS, lease.purposeLeaseIdentity)
+				override suspend fun retireAfterRetentionAuthorityFailure(
+					previousLease: com.adsamcik.tracker.tracker.api.AmbientReconciliationLease?,
+				): Boolean {
+					retirementCount++
+					previousLease?.identity?.source shouldBe AmbientTrackingSource.STEPS
+					return retirementComplete
+				}
+			})
+		runtime.reconcileAfterRetentionReissue() shouldBe AmbientStepsPolicyRevisionReconciliation.Complete
+		approved = false
+
+		runtime.retireAfterRetentionDebt().shouldBeInstanceOf<AmbientStepsPolicyRevisionReconciliation.Retryable>()
+		issuer.currentAmbientLease(AmbientTrackingSource.STEPS)?.identity?.source shouldBe AmbientTrackingSource.STEPS
+		store.availability.value.ambientSources.getValue(AmbientTrackingSource.STEPS).isOperational shouldBe false
+		retirementComplete = true
+		runtime.retireAfterRetentionDebt() shouldBe AmbientStepsPolicyRevisionReconciliation.Complete
+		issuer.currentAmbientLease(AmbientTrackingSource.STEPS) shouldBe null
+		retirementCount shouldBe 2
+
+		approved = true
+		runtime.reconcileAfterRetentionReissue() shouldBe AmbientStepsPolicyRevisionReconciliation.Complete
+		deselected = true
+		runtime.reconcileAfterRetentionReissue() shouldBe AmbientStepsPolicyRevisionReconciliation.Complete
+		issuer.currentAmbientLease(AmbientTrackingSource.STEPS) shouldBe null
+		store.availability.value.ambientSources.getValue(AmbientTrackingSource.STEPS).isOperational shouldBe false
+		retirementCount shouldBe 3
 	}
 
 	@Test

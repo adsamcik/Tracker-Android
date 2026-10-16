@@ -46,6 +46,7 @@ internal fun AutomaticTrackingAvailabilityCard(
 	modifier: Modifier = Modifier,
 	onEnableTransitions: () -> Unit = {},
 	onPermission: () -> Unit = {},
+	onRetry: () -> Unit = {},
 ) {
 	if (!uiState.autoTrackingEnabled || uiState.automaticTrackingOperational) {
 		return
@@ -59,12 +60,7 @@ internal fun AutomaticTrackingAvailabilityCard(
 		uiState.automaticTrackingPermissionRequired -> stringResource(
 			com.adsamcik.tracker.R.string.settings_automatic_permission_required_summary,
 		)
-		unavailable?.reason == AutomaticTrackingUnavailableReason.PROVIDER_UNAVAILABLE -> stringResource(
-			com.adsamcik.tracker.R.string.automatic_control_provider_unavailable_summary,
-		)
-		else -> stringResource(
-			com.adsamcik.tracker.R.string.automatic_control_pending_summary,
-		)
+		else -> stringResource(automaticUnavailableSummaryResource(unavailable?.reason))
 	}
 	Card(
 		modifier = modifier
@@ -100,9 +96,28 @@ internal fun AutomaticTrackingAvailabilityCard(
 						Text(stringResource(com.adsamcik.tracker.R.string.settings_location_allow_access))
 					}
 				}
+				if (uiState.transitionDetectionEnabled && !uiState.automaticTrackingPermissionRequired) {
+					TextButton(onClick = onRetry, modifier = Modifier.testTag("automaticTrackingRetry")) {
+						Text(stringResource(com.adsamcik.tracker.R.string.settings_save_retry))
+					}
+				}
 			}
 		}
 	}
+}
+
+private fun automaticUnavailableSummaryResource(reason: AutomaticTrackingUnavailableReason?): Int = when (reason) {
+	AutomaticTrackingUnavailableReason.PROVIDER_UNAVAILABLE ->
+		com.adsamcik.tracker.R.string.automatic_control_provider_unavailable_summary
+	AutomaticTrackingUnavailableReason.REGISTRATION_PENDING,
+	AutomaticTrackingUnavailableReason.PERMISSION_REQUIRED,
+	AutomaticTrackingUnavailableReason.TRANSITION_DETECTION_DISABLED,
+	-> com.adsamcik.tracker.R.string.automatic_control_pending_summary
+	AutomaticTrackingUnavailableReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
+	AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+	AutomaticTrackingUnavailableReason.AUTHORITY_UNAVAILABLE,
+	null,
+	-> com.adsamcik.tracker.R.string.automatic_control_setup_failed_summary
 }
 
 @Composable

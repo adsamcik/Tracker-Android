@@ -49,6 +49,9 @@ import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationDebt
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailure
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailureReason
 import com.adsamcik.tracker.tracker.api.TrackingSource
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.api.TrackingTurnOffResult
@@ -612,6 +615,92 @@ class TrackingSettingsViewModelTest {
 				unmockkObject(TrackerServiceApi)
 			}
 		}
+
+	@Test
+	fun `resume queues changed permissions behind one repair and preserves Turn off`() = runTest(testDispatcher) {
+		permissionsGranted = false
+		val release = CompletableDeferred<Unit>()
+		val ownerPermissions = mutableListOf<Boolean>()
+		val saved = paramsFlow.value
+		val lifecycle = mockk<TrackingLifecycleCommandAuthority>(relaxed = true)
+		every { lifecycle.pendingCollectionResumeExitId } returns "turn-off:settings-recovery"
+		val vm = TrackingSettingsViewModel(
+			context, trackingParamsRepository, trackingStatusProvider,
+			activityWatcherController, purposeAvailabilityReader,
+			lifecycleCommandAuthority = lifecycle,
+			purposeSettingsReconciler = TrackingPurposeSettingsReconciler {
+				ownerPermissions += permissionsGranted
+				release.await()
+				TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
+			},
+			activityPermissionProbe = { permissionsGranted },
+		)
+		vm.onSettingsResumed()
+		ownerPermissions shouldBe listOf(false)
+		permissionsGranted = true
+		vm.refreshPermissionState()
+		vm.onSettingsResumed()
+		vm.uiState.value.activityPermissionGranted shouldBe true
+		vm.retrySourcePolicyReconciliation()
+		vm.refreshStepsProviderPermissionState()
+		ownerPermissions shouldBe listOf(false)
+		release.complete(Unit)
+		advanceUntilIdle()
+		ownerPermissions shouldBe listOf(false, true)
+		vm.onSettingsResumed()
+		advanceUntilIdle()
+		ownerPermissions shouldBe listOf(false, true)
+		vm.retrySourcePolicyReconciliation()
+		advanceUntilIdle()
+		ownerPermissions shouldBe listOf(false, true, true)
+		paramsFlow.value shouldBe saved
+		vm.uiState.value.trackingTurnedOff shouldBe true
+		coVerify(exactly = 0) { lifecycle.resumeCollectionAfterUserExit(any()) }
+		coVerify(exactly = 0) { trackingParamsRepository.update(any()) }
+	}
+
+	@Test
+	fun `resume before settings load waits then repairs the saved choices`() = runTest(testDispatcher) {
+		val loaded = CompletableDeferred<Unit>()
+		every { trackingParamsRepository.data } returns flow {
+			loaded.await()
+			emit(paramsFlow.value)
+		}
+		var attempts = 0
+		val vm = TrackingSettingsViewModel(
+			context, trackingParamsRepository, trackingStatusProvider,
+			activityWatcherController, purposeAvailabilityReader,
+			purposeSettingsReconciler = TrackingPurposeSettingsReconciler {
+				attempts++
+				TrackingPurposeSettingsReconciliationResult.Complete(emptySet())
+			},
+			activityPermissionProbe = { permissionsGranted },
+		)
+		vm.onSettingsResumed()
+		attempts shouldBe 0
+		loaded.complete(Unit)
+		advanceUntilIdle()
+		vm.uiState.value.isLoaded shouldBe true
+		attempts shouldBe 1
+	}
+
+	@Test
+	fun `automatic repair failure does not label healthy Steps as failed`() = runTest(testDispatcher) {
+		val vm = TrackingSettingsViewModel(
+			context, trackingParamsRepository, trackingStatusProvider,
+			activityWatcherController, purposeAvailabilityReader,
+			purposeSettingsReconciler = TrackingPurposeSettingsReconciler {
+				TrackingPurposeSettingsReconciliationResult.Debt(TrackingPurposeSettingsReconciliationDebt(
+					listOf(TrackingPurposeSettingsReconciliationFailure(null,
+						TrackingPurposeSettingsReconciliationFailureReason.AUTOMATIC_CONTROL_RECONCILIATION_FAILED)),
+				))
+			},
+			activityPermissionProbe = { permissionsGranted },
+		)
+		vm.retrySourcePolicyReconciliation()
+		advanceUntilIdle()
+		vm.uiState.value.stepsProviderRepairFailed shouldBe false
+	}
 
 	@Test
 	fun `Health Connect repair rechecks the shared Steps owner without changing selection`() =

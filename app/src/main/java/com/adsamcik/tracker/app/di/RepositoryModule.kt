@@ -23,7 +23,6 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.DefaultCollectedDataLif
 import com.adsamcik.tracker.shared.preferences.settings.DefaultTrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.DefaultTrackingParamsRepository
-import com.adsamcik.tracker.shared.preferences.tracking.AmbientStepsPolicyRevisionReconciliation
 import com.adsamcik.tracker.shared.preferences.tracking.AmbientStepsPolicyRevisionReconciler
 import com.adsamcik.tracker.shared.preferences.tracking.AndroidSourcePolicyEffectiveTimeProvider
 import com.adsamcik.tracker.shared.preferences.tracking.AuthoritativeTrackingParamsRepository
@@ -36,15 +35,12 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
-import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
-import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import javax.inject.Provider
 import kotlinx.coroutines.flow.first
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -135,7 +131,7 @@ abstract class RepositoryModule {
 			trackingStartupGate: TrackingStartupGate,
 			onboardingRepository: OnboardingRepository,
 			retentionAuthorityProducer: RetentionAuthorityProducer,
-			purposeSettingsReconciler: Provider<TrackingPurposeSettingsReconciler>,
+			ambientStepsPolicyRevisionReconciler: AmbientStepsPolicyRevisionReconciler,
 		): AuthoritativeTrackingParamsRepository = AuthoritativeTrackingParamsRepository(
 			legacy = DefaultTrackingParamsRepository(
 				context = context,
@@ -146,18 +142,7 @@ abstract class RepositoryModule {
 			trackingStartupGate = trackingStartupGate,
 			setupCompleted = onboardingRepository.isCompleted,
 			retentionAuthorityProducer = retentionAuthorityProducer,
-			ambientStepsPolicyRevisionReconciler =
-				object : AmbientStepsPolicyRevisionReconciler {
-					override suspend fun reconcileAfterRetentionReissue() =
-						purposeSettingsReconciler.get()
-							.reconcileCurrentSettings()
-							.toPolicyRevisionReconciliation()
-
-					override suspend fun retireAfterRetentionDebt() =
-						purposeSettingsReconciler.get()
-							.reconcileCurrentSettings()
-							.toPolicyRevisionReconciliation()
-				},
+			ambientStepsPolicyRevisionReconciler = ambientStepsPolicyRevisionReconciler,
 		)
 
 		@Provides
@@ -261,16 +246,4 @@ abstract class RepositoryModule {
 			io = dispatchers.io,
 		)
 	}
-}
-
-private fun TrackingPurposeSettingsReconciliationResult.toPolicyRevisionReconciliation():
-	AmbientStepsPolicyRevisionReconciliation = when (this) {
-	is TrackingPurposeSettingsReconciliationResult.Complete ->
-		AmbientStepsPolicyRevisionReconciliation.Complete
-	is TrackingPurposeSettingsReconciliationResult.Debt ->
-		AmbientStepsPolicyRevisionReconciliation.Retryable(
-			debt.failures.joinToString(separator = ",") { failure ->
-				"${failure.source?.name ?: "GLOBAL"}:${failure.reason.name}"
-			},
-		)
 }

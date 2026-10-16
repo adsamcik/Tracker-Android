@@ -165,7 +165,7 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
     DisposableEffect(lifecycleOwner, trackingVm) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                trackingVm.refreshPermissionState()
+                trackingVm.onSettingsResumed()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -252,7 +252,7 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
             trackingVm.setAutoTrackingMode(mode) {
                 val current = trackingVm.uiState.value
                 val needsActivityPermission = mode > 0 &&
-                    current.automaticControlAvailability.isOperational && !current.activityPermissionGranted
+                    !current.activityPermissionGranted
                 if (needsActivityPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
                     lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
                 ) {
@@ -574,7 +574,8 @@ internal fun TrackingSettingsContent(
             )
         }
 		item {
-			AutomaticTrackingAvailabilityCard(uiState, onPermission = onAutomaticPermission, onEnableTransitions = {
+			AutomaticTrackingAvailabilityCard(uiState, onPermission = onAutomaticPermission,
+				onRetry = onRetrySourceRecovery, onEnableTransitions = {
 				onTransitionDetectionChanged(true)
 			})
 		}

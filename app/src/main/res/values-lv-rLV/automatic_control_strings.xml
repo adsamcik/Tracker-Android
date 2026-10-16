@@ -3,5 +3,6 @@
     <string name="automatic_control_enable_transitions">Ieslēgt kustības noteikšanu</string>
     <string name="automatic_control_enable_transitions_summary">Automātiskai sākšanai vajadzīga kustības noteikšana.</string>
     <string name="automatic_control_provider_unavailable_summary">Automātiskai sākšanai vajadzīgs atbalstīts aktivitātes atpazīšanas pakalpojums.</string>
-    <string name="automatic_control_pending_summary">Automātiskā sākšana nav gatava. Pārbaudiet izsekošanas izvēles un atļaujas.</string>
+    <string name="automatic_control_pending_summary">Kustības noteikšana nav gatava. Mēģiniet vēlreiz.</string>
+    <string name="automatic_control_setup_failed_summary">Tracker nevarēja sagatavot automātisko izsekošanu. Mēģiniet vēlreiz.</string>
 </resources>

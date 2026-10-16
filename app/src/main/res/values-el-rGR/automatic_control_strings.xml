@@ -3,5 +3,6 @@
     <string name="automatic_control_enable_transitions">Ενεργοποίηση ανίχνευσης κίνησης</string>
     <string name="automatic_control_enable_transitions_summary">Η αυτόματη έναρξη απαιτεί ανίχνευση κίνησης.</string>
     <string name="automatic_control_provider_unavailable_summary">Η αυτόματη έναρξη απαιτεί υποστηριζόμενη υπηρεσία αναγνώρισης δραστηριότητας.</string>
-    <string name="automatic_control_pending_summary">Η αυτόματη έναρξη δεν είναι έτοιμη. Ελέγξτε τις επιλογές καταγραφής και τις άδειες.</string>
+    <string name="automatic_control_pending_summary">Η ανίχνευση κίνησης δεν είναι έτοιμη. Δοκιμάστε ξανά.</string>
+    <string name="automatic_control_setup_failed_summary">Το Tracker δεν μπόρεσε να προετοιμάσει την αυτόματη καταγραφή. Δοκιμάστε ξανά.</string>
 </resources>

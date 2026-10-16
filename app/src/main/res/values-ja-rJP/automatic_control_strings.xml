@@ -3,5 +3,6 @@
     <string name="automatic_control_enable_transitions">動きの検出を有効にする</string>
     <string name="automatic_control_enable_transitions_summary">自動開始には動きの検出が必要です。</string>
     <string name="automatic_control_provider_unavailable_summary">自動開始には対応するアクティビティ認識サービスが必要です。</string>
-    <string name="automatic_control_pending_summary">自動開始の準備ができていません。記録の設定と権限を確認してください。</string>
+    <string name="automatic_control_pending_summary">動作検出の準備ができていません。もう一度お試しください。</string>
+    <string name="automatic_control_setup_failed_summary">自動記録を準備できませんでした。もう一度お試しください。</string>
 </resources>

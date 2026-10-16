@@ -51,6 +51,7 @@ import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailability
 import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationResult
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciliationFailureReason
 import com.adsamcik.tracker.tracker.api.TRACKING_TURN_OFF_EXIT_PREFIX
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.api.TrackingTurnOffResult
@@ -202,6 +203,10 @@ class TrackingSettingsViewModel internal constructor(
 	private var automaticIntentGeneration = 0L
 	private val sourceIntentGenerations = mutableMapOf<TrackingSourceComponent, Long>()
 	private var stepsPermissionOpportunity: Job? = null
+	private var sourceRecovery: Job? = null
+	private var sourceRecoveryQueued = false
+	private var lastResumeState: TrackingSettingsUiState? = null
+	private var resumeWhenLoaded = false
 	private val pendingSettingsEdits = linkedMapOf<String, PendingSettingsEdit>()
 	private val settingsSaves = Channel<Unit>(Channel.CONFLATED)
 	private val locationPermissionRequests = Channel<LocationSettingsPermissionRequest>(Channel.BUFFERED)
@@ -237,6 +242,10 @@ class TrackingSettingsViewModel internal constructor(
 					trackingStatusProvider.telemetry.value,
 					purposeAvailability,
 				)
+				if (resumeWhenLoaded) {
+					resumeWhenLoaded = false
+					onSettingsResumed()
+				}
             }
         }
         viewModelScope.launch {
@@ -268,6 +277,44 @@ class TrackingSettingsViewModel internal constructor(
         }
     }
 
+	/** Returning from Android settings repairs changed capabilities without changing saved choices. */
+	fun onSettingsResumed() {
+		if (!_uiState.value.isLoaded) {
+			resumeWhenLoaded = true
+			return
+		}
+		val before = lastResumeState ?: _uiState.value
+		refreshPermissionState()
+		val current = _uiState.value
+		val initialRecovery = lastResumeState == null && hasUnresolvedCollection(current)
+		lastResumeState = current
+		if (collectionCapabilitiesChanged(before, current) || initialRecovery) {
+			retrySourcePolicyReconciliation()
+		}
+	}
+
+	private fun collectionCapabilitiesChanged(
+		before: TrackingSettingsUiState,
+		current: TrackingSettingsUiState,
+	): Boolean =
+		before.permissionCapabilities != current.permissionCapabilities ||
+			before.activityPermissionGranted != current.activityPermissionGranted ||
+			before.cellPermissionGranted != current.cellPermissionGranted ||
+			before.stepCounterAvailable != current.stepCounterAvailable ||
+			before.barometerAvailable != current.barometerAvailable
+
+	private fun hasUnresolvedCollection(state: TrackingSettingsUiState): Boolean =
+		(state.autoTrackingEnabled && !state.automaticTrackingOperational) ||
+			state.ambientSourceAvailability.any { (source, availability) ->
+				val selected = when (source) {
+					AmbientTrackingSource.LOCATION -> state.ambientLocationEnabled
+					AmbientTrackingSource.STEPS -> state.stepsEnabled
+					AmbientTrackingSource.WIFI -> state.ambientWifiEnabled
+					AmbientTrackingSource.CELL -> state.ambientCellEnabled
+				}
+				selected && !availability.isOperational
+			}
+
 	/** Stops collection through the shared control, retaining choices and history and exposing cleanup failure. */
 	fun turnOffTracking() {
 		if (_uiState.value.turnOffTrackingInProgress) {
@@ -296,28 +343,7 @@ class TrackingSettingsViewModel internal constructor(
 
 	/** Re-probe the existing Steps owner after the Health Connect permission screen closes. */
 	fun refreshStepsProviderPermissionState() {
-		viewModelScope.launch {
-			val failed = try {
-				val result = purposeSettingsReconciler.reconcileCurrentSettings()
-				result is TrackingPurposeSettingsReconciliationResult.Debt &&
-					result.debt.failures.any {
-						it.source == null || it.source == AmbientTrackingSource.STEPS
-					}
-			} catch (cancelled: kotlinx.coroutines.CancellationException) {
-				throw cancelled
-			} catch (_: Exception) {
-				true
-			} catch (_: LinkageError) {
-				true
-			}
-			_uiState.update { it.copy(stepsProviderRepairFailed = failed) }
-			try {
-				TrackerServiceApi.reconcileProviderStepsSession(context)
-			} catch (_: Exception) {
-				// The existing foreground/permission opportunity retries without changing choices.
-			}
-			refreshPermissionState()
-		}
+		retrySourcePolicyReconciliation()
 	}
 
     fun setLocationEnabled(enabled: Boolean) {
@@ -631,9 +657,6 @@ class TrackingSettingsViewModel internal constructor(
 
     fun onActivityPermissionResult(@Suppress("UNUSED_PARAMETER") granted: Boolean) {
         refreshSourcePermissions()
-        // A permission change leaves the policy revision unchanged; its cached reconciliation
-        // cannot rearm the system Steps provider or restore its import work.
-        refreshStepsProviderPermissionState()
     }
 
     fun onStepsPermissionResult(granted: Boolean) = onActivityPermissionResult(granted)
@@ -749,17 +772,52 @@ class TrackingSettingsViewModel internal constructor(
 
 	/** Retries current choices through existing source and Steps reconciliation, preserving visible failures. */
 	fun retrySourcePolicyReconciliation() {
-		viewModelScope.launch {
-			try {
-				sourcePolicyReconciliationCoordinator.reconcileCurrentPolicyRevision()
-				TrackerServiceApi.reconcileProviderStepsSession(context)
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (_: Exception) {
-				// The existing failure stays visible. Retrying does not rewrite source choices.
-			}
-			refreshPermissionState()
+		sourceRecoveryQueued = true
+		if (sourceRecovery?.isActive == true) {
+			return
 		}
+		sourceRecovery = viewModelScope.launch {
+			do {
+				sourceRecoveryQueued = false
+				reconcileSourceRecovery()
+			} while (sourceRecoveryQueued)
+		}
+	}
+
+	private suspend fun reconcileSourceRecovery() {
+		try {
+			sourcePolicyReconciliationCoordinator.reconcileCurrentPolicyRevision()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			// The existing failure stays visible. Retrying does not rewrite source choices.
+		}
+		val stepsRepairFailed = reconcilePurposeSettingsForSteps()
+		_uiState.update { it.copy(stepsProviderRepairFailed = stepsRepairFailed) }
+		try {
+			TrackerServiceApi.reconcileProviderStepsSession(context)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			// Keep accepted owners and their published repair state usable independently.
+		}
+		refreshPermissionState()
+	}
+
+	private suspend fun reconcilePurposeSettingsForSteps(): Boolean = try {
+		val result = purposeSettingsReconciler.reconcileCurrentSettings()
+		result is TrackingPurposeSettingsReconciliationResult.Debt &&
+			result.debt.failures.any {
+				it.source == AmbientTrackingSource.STEPS || (it.source == null &&
+					it.reason != TrackingPurposeSettingsReconciliationFailureReason
+						.AUTOMATIC_CONTROL_RECONCILIATION_FAILED)
+			}
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		true
+	} catch (_: LinkageError) {
+		true
 	}
 
     // Publish one complete settings-screen snapshot while preserving pending edits.

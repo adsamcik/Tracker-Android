@@ -4,12 +4,17 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
 import android.os.LocaleList
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.view.View
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.test.core.app.ApplicationProvider
 import java.util.Locale
+import java.io.File
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertContentDescriptionEquals
@@ -65,6 +70,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * Tests for the real [TrackingSettingsContent] composable.
@@ -313,11 +319,16 @@ class TrackingSettingsScreenTest {
     }
 
 	@Test
-	fun automaticIntentShowsPlainUnavailableStatusWithoutInternalCodes() {
+	@GraphicsMode(GraphicsMode.Mode.NATIVE)
+	fun automaticSetupFailureOffersRetryWithoutBlamingGrantedPermissions() {
+		var retries = 0
+		lateinit var renderedView: View
 		composeTestRule.setContent {
+			renderedView = LocalView.current
 			AppTheme {
 				TrackingSettingsContent(
 					uiState = defaultUiState.copy(
+						activityPermissionGranted = true,
 						automaticTrackingOperational = false,
 						automaticControlAvailability =
 							AutomaticTrackingOperationalAvailability.Unavailable(
@@ -325,20 +336,55 @@ class TrackingSettingsScreenTest {
 									.CONTROL_RETENTION_POLICY_UNAVAILABLE,
 							),
 					),
+					onRetrySourceRecovery = { retries++ },
 				)
 			}
 		}
 
-		scrollTo("Automatic tracking isn’t available")
+		scrollToTag("automaticTrackingUnavailable")
 		composeTestRule.onNodeWithTag("automaticTrackingUnavailable").assertIsDisplayed()
 		composeTestRule.onNodeWithText(
 			"CONTROL_RETENTION_POLICY_UNAVAILABLE",
 			substring = true,
 		).assertDoesNotExist()
-		composeTestRule.onNodeWithText("Automatic starts are not ready. Check your tracking choices and permissions.")
+		composeTestRule.onNodeWithText("Tracker couldn’t prepare automatic tracking. Try again.")
 			.assertIsDisplayed()
+		composeTestRule.onNodeWithTag("automaticAllowAccess").assertDoesNotExist()
+		composeTestRule.onNodeWithTag("automaticTrackingRetry").performClick()
+		retries shouldBe 1
 		composeTestRule.onNodeWithText("Battery-efficient motion detection", substring = true)
 			.assertDoesNotExist()
+		if (System.getenv("TRACKER_CAPTURE_SETTINGS") == "true") {
+			val bounds = composeTestRule.onNodeWithTag("automaticTrackingUnavailable")
+				.fetchSemanticsNode().boundsInRoot
+			val image = Bitmap.createBitmap(bounds.width.toInt(), bounds.height.toInt(), Bitmap.Config.ARGB_8888)
+			composeTestRule.runOnIdle {
+				val canvas = Canvas(image)
+				canvas.translate(-bounds.left, -bounds.top)
+				renderedView.draw(canvas)
+			}
+			val output = File("build/reports/tracking-settings/automatic-tracking-recovery.png")
+			checkNotNull(output.parentFile).mkdirs()
+			output.outputStream().use { check(image.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+		}
+	}
+
+	@Test
+	fun unfinishedRegistrationOffersRetryWithoutClaimingPermissionIsMissing() {
+		var retries = 0
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(uiState = defaultUiState.copy(
+					activityPermissionGranted = true, automaticTrackingOperational = false,
+					automaticControlAvailability = AutomaticTrackingOperationalAvailability.Unavailable(
+						AutomaticTrackingUnavailableReason.REGISTRATION_PENDING)),
+					onRetrySourceRecovery = { retries++ })
+			}
+		}
+		scrollTo("Motion detection isn’t ready. Try again.")
+		composeTestRule.onNodeWithTag("automaticAllowAccess").assertDoesNotExist()
+		composeTestRule.onNodeWithTag("automaticTrackingRetry").performClick()
+		retries shouldBe 1
 	}
 
 	@Test

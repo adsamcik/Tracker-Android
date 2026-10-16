@@ -15,6 +15,7 @@ import com.adsamcik.tracker.tracker.api.TrackingTurnOffController
 import com.adsamcik.tracker.tracker.source.runtime.AmbientStepsPurposeOwner
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityReader
+import com.adsamcik.tracker.shared.preferences.tracking.AmbientStepsPolicyRevisionReconciler
 import com.adsamcik.tracker.tracker.source.runtime.CurrentTrackingPurposeAuthorityReader
 import com.adsamcik.tracker.tracker.source.runtime.CurrentTrackingPurposeAvailabilityProjection
 import com.adsamcik.tracker.tracker.source.runtime.CurrentSourceCallerAuthorityReader
@@ -124,6 +125,11 @@ internal abstract class TrackingPurposePublicationModule {
 	): SourceCallerDemandDispatcher
 
 	companion object {
+		@Provides
+		internal fun provideStepsPolicyReconciler(
+			impl: DefaultTrackingPurposePublicationRuntime,
+		): AmbientStepsPolicyRevisionReconciler = impl
+
 		@Provides
 		@Singleton
 		fun provideAvailabilityStore(): AtomicTrackingPurposeAvailabilityStore =

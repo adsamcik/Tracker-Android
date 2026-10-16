@@ -3,5 +3,6 @@
     <string name="automatic_control_enable_transitions">Mozgásérzékelés bekapcsolása</string>
     <string name="automatic_control_enable_transitions_summary">Az automatikus indításhoz mozgásérzékelés szükséges.</string>
     <string name="automatic_control_provider_unavailable_summary">Az automatikus indításhoz támogatott tevékenységfelismerő szolgáltatás szükséges.</string>
-    <string name="automatic_control_pending_summary">Az automatikus indítás nem áll készen. Ellenőrizd a követési beállításokat és engedélyeket.</string>
+    <string name="automatic_control_pending_summary">A mozgásfelismerés nem áll készen. Próbáld újra.</string>
+    <string name="automatic_control_setup_failed_summary">A Tracker nem tudta előkészíteni az automatikus követést. Próbáld újra.</string>
 </resources>

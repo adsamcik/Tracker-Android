@@ -3,5 +3,6 @@
     <string name="automatic_control_enable_transitions">Activar detección de movimiento</string>
     <string name="automatic_control_enable_transitions_summary">El inicio automático requiere detectar movimiento.</string>
     <string name="automatic_control_provider_unavailable_summary">El inicio automático requiere un servicio compatible de reconocimiento de actividad.</string>
-    <string name="automatic_control_pending_summary">El inicio automático no está listo. Revisa tus opciones de seguimiento y permisos.</string>
+    <string name="automatic_control_pending_summary">La detección de movimiento no está lista. Inténtalo de nuevo.</string>
+    <string name="automatic_control_setup_failed_summary">Tracker no pudo preparar el seguimiento automático. Inténtalo de nuevo.</string>
 </resources>

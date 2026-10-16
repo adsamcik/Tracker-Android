@@ -3,5 +3,6 @@
     <string name="automatic_control_enable_transitions">Aktivér bevægelsesregistrering</string>
     <string name="automatic_control_enable_transitions_summary">Automatisk start kræver bevægelsesregistrering.</string>
     <string name="automatic_control_provider_unavailable_summary">Automatisk start kræver en understøttet tjeneste til aktivitetsregistrering.</string>
-    <string name="automatic_control_pending_summary">Automatisk start er ikke klar. Kontrollér dine sporingsvalg og tilladelser.</string>
+    <string name="automatic_control_pending_summary">Bevægelsesregistrering er ikke klar. Prøv igen.</string>
+    <string name="automatic_control_setup_failed_summary">Tracker kunne ikke klargøre automatisk sporing. Prøv igen.</string>
 </resources>

@@ -3,5 +3,6 @@
     <string name="automatic_control_enable_transitions">Povoliť rozpoznávanie pohybu</string>
     <string name="automatic_control_enable_transitions_summary">Automatické spustenie vyžaduje rozpoznávanie pohybu.</string>
     <string name="automatic_control_provider_unavailable_summary">Automatické spustenie vyžaduje podporovanú službu rozpoznávania aktivity.</string>
-    <string name="automatic_control_pending_summary">Automatické spustenie nie je pripravené. Skontrolujte voľby sledovania a oprávnenia.</string>
+    <string name="automatic_control_pending_summary">Rozpoznávanie pohybu nie je pripravené. Skúste to znova.</string>
+    <string name="automatic_control_setup_failed_summary">Tracker nemohol pripraviť automatické sledovanie. Skúste to znova.</string>
 </resources>

@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationCoordinator
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRevisionReconciliationResult
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryScheduler
@@ -40,6 +41,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
@@ -60,6 +62,7 @@ class TrackerModuleInitializer @Inject constructor(
 	private val activityAutomationEpochAuthority: ActivityAutomationEpochAuthority,
 	private val automaticControlRecoveryScheduler: AutomaticControlRecoveryScheduler,
 	private val trackingPurposeSettingsReconciler: TrackingPurposeSettingsReconciler,
+	private val trackingParamsRepository: TrackingParamsRepository,
 	private val sourcePolicyRevisionReconciliationCoordinator:
 		SourcePolicyRevisionReconciliationCoordinator,
 	private val ambientStepsImportScheduler: AmbientStepsImportWorkScheduler,
@@ -99,6 +102,7 @@ class TrackerModuleInitializer @Inject constructor(
 						handoff = { handoffAuthorization ->
 							initializeAuthorizedTracking(handoffAuthorization)
 						},
+						awaitSettingsPublication = { trackingParamsRepository.data.first() },
 					) ?: return@launch
 					break
 				} catch (cancelled: CancellationException) {
@@ -313,6 +317,7 @@ internal suspend fun handoffTrackerInitializationAfterAuthorization(
 	) -> Unit?,
 	releaseForReadyGeneration: () -> Boolean,
 	handoff: suspend (TrackingAutoRecoveryAuthorization) -> Unit,
+	awaitSettingsPublication: suspend () -> Unit = {},
 ): TrackingAutoRecoveryAuthorization? {
 	if (reconcileStartup() !is TrackingStartupResult.Ready) {
 		// The app owns the durable reconcile/backoff loop. Keep this one process-owned initializer
@@ -321,6 +326,9 @@ internal suspend fun handoffTrackerInitializationAfterAuthorization(
 	}
 	var readyGeneration = currentReadyGeneration()
 	val authorization = awaitAuthorizationAfterReady()
+	// Its independent producer reconciles through the same startup boundary. Let it publish
+	// before taking that boundary for owner setup; exact generation/Stop checks remain below.
+	awaitSettingsPublication()
 	while (true) {
 		val completed = withReadyGenerationOperation(readyGeneration) {
 			// Keep release last. BackgroundTrackingApi's Room/params flows do not filter on this

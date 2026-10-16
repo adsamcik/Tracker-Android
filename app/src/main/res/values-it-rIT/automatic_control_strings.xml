@@ -3,5 +3,6 @@
     <string name="automatic_control_enable_transitions">Attiva rilevamento movimento</string>
     <string name="automatic_control_enable_transitions_summary">Gli avvii automatici richiedono il rilevamento del movimento.</string>
     <string name="automatic_control_provider_unavailable_summary">Gli avvii automatici richiedono un servizio di riconoscimento attività supportato.</string>
-    <string name="automatic_control_pending_summary">Gli avvii automatici non sono pronti. Controlla le scelte di tracciamento e le autorizzazioni.</string>
+    <string name="automatic_control_pending_summary">Il rilevamento del movimento non è pronto. Riprova.</string>
+    <string name="automatic_control_setup_failed_summary">Tracker non ha potuto preparare il tracciamento automatico. Riprova.</string>
 </resources>

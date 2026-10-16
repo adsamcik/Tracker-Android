@@ -3,5 +3,6 @@
     <string name="automatic_control_enable_transitions">Luba liikumise tuvastamine</string>
     <string name="automatic_control_enable_transitions_summary">Automaatne käivitamine vajab liikumise tuvastamist.</string>
     <string name="automatic_control_provider_unavailable_summary">Automaatne käivitamine vajab toetatud tegevuse tuvastamise teenust.</string>
-    <string name="automatic_control_pending_summary">Automaatne käivitamine pole valmis. Kontrolli jälgimisvalikuid ja õigusi.</string>
+    <string name="automatic_control_pending_summary">Liikumistuvastus pole valmis. Proovi uuesti.</string>
+    <string name="automatic_control_setup_failed_summary">Tracker ei saanud automaatset jälgimist ette valmistada. Proovi uuesti.</string>
 </resources>

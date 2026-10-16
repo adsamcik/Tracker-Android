@@ -14,7 +14,10 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResul
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
 import com.adsamcik.tracker.shared.preferences.retention.isActiveApproval
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
+import com.adsamcik.tracker.shared.preferences.tracking.AmbientStepsPolicyRevisionReconciler
+import com.adsamcik.tracker.shared.preferences.tracking.AmbientStepsPolicyRevisionReconciliation
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.tracker.api.AmbientPublicationAcceptance
@@ -70,6 +73,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -519,7 +523,9 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 	private val retryScheduler: TrackingPurposeReconciliationRetryScheduler? = null,
 	private val ambientLocationPurposeOwnerProvider: Provider<AmbientLocationPurposeOwner>? = null,
 	private val automaticControlPurposeOwnerProvider: Provider<DefaultAutomaticControlPurposeOwner>? = null,
+	private val trackingParamsRepositoryProvider: Provider<TrackingParamsRepository>? = null,
 ) : TrackingPurposeSettingsReconciler,
+	AmbientStepsPolicyRevisionReconciler,
 	TrackingPurposeSourceOwnerRegistrar,
 	TrackingRetentionFloorReconciler,
 	TrackingPurposeDeletionFencer,
@@ -538,6 +544,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		retryScheduler: TrackingPurposeReconciliationRetryScheduler,
 		ambientLocationPurposeOwnerProvider: Provider<AmbientLocationPurposeOwner>,
 		automaticControlPurposeOwnerProvider: Provider<DefaultAutomaticControlPurposeOwner>,
+		trackingParamsRepositoryProvider: Provider<TrackingParamsRepository>,
 	) : this(
 		leaseIssuer,
 		reporter,
@@ -552,6 +559,7 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		retryScheduler,
 		ambientLocationPurposeOwnerProvider,
 		automaticControlPurposeOwnerProvider,
+		trackingParamsRepositoryProvider,
 	)
 
 	private val ownerMutex = Mutex()
@@ -582,7 +590,37 @@ internal class DefaultTrackingPurposePublicationRuntime internal constructor(
 		require(ownerCallbackTimeoutMillis > 0L)
 	}
 
+	override suspend fun reconcileAfterRetentionReissue(): AmbientStepsPolicyRevisionReconciliation =
+		reconcileStepsPolicyRevision()
+
+	override suspend fun retireAfterRetentionDebt(): AmbientStepsPolicyRevisionReconciliation =
+		reconcileStepsPolicyRevision()
+
+	/** Settings publication depends only on Steps, whose owner does not consume that publication. */
+	private suspend fun reconcileStepsPolicyRevision(): AmbientStepsPolicyRevisionReconciliation {
+		return try {
+			withCurrentReadyGeneration { generation ->
+				ensureBuiltInAmbientOwners(setOf(AmbientTrackingSource.STEPS))
+				reconcileAmbient(
+					AmbientTrackingSource.STEPS,
+					expectedRetainedFromMs = null,
+					requireApproval = false,
+					requireOwner = false,
+					expectedStartupGeneration = generation,
+				)?.let { failure ->
+					AmbientStepsPolicyRevisionReconciliation.Retryable(failure.name)
+				} ?: AmbientStepsPolicyRevisionReconciliation.Complete
+			} ?: AmbientStepsPolicyRevisionReconciliation.Retryable("STARTUP_GENERATION_CHANGED")
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			AmbientStepsPolicyRevisionReconciliation.Retryable("OWNER_RECONCILIATION_FAILED")
+		}
+	}
+
 	override suspend fun reconcileCurrentSettings(): TrackingPurposeSettingsReconciliationResult {
+		// Owners read the shared settings replay. Its producer may need the Ready operation first.
+		trackingParamsRepositoryProvider?.get()?.data?.first()
 		val failures = mutableListOf<TrackingPurposeSettingsReconciliationFailure>()
 		reconcileRetentionSettings(failures)
 

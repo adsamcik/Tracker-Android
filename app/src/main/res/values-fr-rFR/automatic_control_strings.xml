@@ -3,5 +3,6 @@
     <string name="automatic_control_enable_transitions">Activer la détection de mouvement</string>
     <string name="automatic_control_enable_transitions_summary">Le démarrage automatique nécessite la détection de mouvement.</string>
     <string name="automatic_control_provider_unavailable_summary">Le démarrage automatique nécessite un service de reconnaissance d’activité compatible.</string>
-    <string name="automatic_control_pending_summary">Le démarrage automatique est indisponible. Vérifiez vos choix de suivi et les autorisations.</string>
+    <string name="automatic_control_pending_summary">La détection de mouvement n’est pas prête. Réessayez.</string>
+    <string name="automatic_control_setup_failed_summary">Tracker n’a pas pu préparer le suivi automatique. Réessayez.</string>
 </resources>

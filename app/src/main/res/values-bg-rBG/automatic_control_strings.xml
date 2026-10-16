@@ -3,5 +3,6 @@
     <string name="automatic_control_enable_transitions">Включване на разпознаването на движение</string>
     <string name="automatic_control_enable_transitions_summary">Автоматичното стартиране изисква разпознаване на движение.</string>
     <string name="automatic_control_provider_unavailable_summary">Автоматичното стартиране изисква поддържана услуга за разпознаване на активност.</string>
-    <string name="automatic_control_pending_summary">Автоматичното стартиране не е готово. Проверете избора си и разрешенията.</string>
+    <string name="automatic_control_pending_summary">Разпознаването на движение не е готово. Опитайте отново.</string>
+    <string name="automatic_control_setup_failed_summary">Tracker не успя да подготви автоматичното проследяване. Опитайте отново.</string>
 </resources>

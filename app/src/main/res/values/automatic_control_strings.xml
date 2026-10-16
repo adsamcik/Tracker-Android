@@ -3,5 +3,6 @@
     <string name="automatic_control_enable_transitions">Enable motion detection</string>
     <string name="automatic_control_enable_transitions_summary">Automatic starts need motion detection.</string>
     <string name="automatic_control_provider_unavailable_summary">Automatic starts need a supported activity-recognition service.</string>
-    <string name="automatic_control_pending_summary">Automatic starts are not ready. Check your tracking choices and permissions.</string>
+    <string name="automatic_control_pending_summary">Motion detection isn’t ready. Try again.</string>
+    <string name="automatic_control_setup_failed_summary">Tracker couldn’t prepare automatic tracking. Try again.</string>
 </resources>

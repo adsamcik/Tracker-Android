@@ -26,7 +26,14 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
@@ -174,6 +181,61 @@ class TrackerModuleInitializerTest {
 				onFailure = { error("Cancellation must not be reported as provider failure") },
 			)
 		}
+	}
+
+	@Test
+	fun `cold settings publish outside the startup handoff lock after authorization`() = runTest {
+		val startupMutex = Mutex()
+		var authorized = false
+		var controlInitializations = 0
+		val settings = flow {
+			authorized shouldBe true
+			startupMutex.withLock { emit(Unit) }
+		}.shareIn(backgroundScope, SharingStarted.Lazily, replay = 1)
+
+		withTimeout(1_000L) {
+			handoffTrackerInitializationAfterAuthorization(
+				reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+				currentReadyGeneration = { 4L },
+				awaitAuthorizationAfterReady = {
+					authorized = true
+					TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP
+				},
+				awaitNextReady = { error("No generation race expected") },
+				withReadyGenerationOperation = { _, operation -> startupMutex.withLock { operation() } },
+				releaseForReadyGeneration = { true },
+				handoff = { settings.first(); controlInitializations++ },
+				awaitSettingsPublication = { settings.first() },
+			)
+		}
+		controlInitializations shouldBe 1
+	}
+
+	@Test
+	fun `startup generation changed during settings load rejects the old handoff`() = runTest {
+		var generation = 4L
+		val attemptedGenerations = mutableListOf<Long>()
+		val initializedGenerations = mutableListOf<Long>()
+		handoffTrackerInitializationAfterAuthorization(
+			reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+			currentReadyGeneration = { generation },
+			awaitAuthorizationAfterReady = { TrackingAutoRecoveryAuthorization.ORDINARY_START },
+			awaitNextReady = { TrackingStartupResult.Ready(false, 0L) },
+			withReadyGenerationOperation = { expected, operation ->
+				attemptedGenerations += expected
+				if (expected == generation) {
+					operation()
+				} else {
+					null
+				}
+			},
+			releaseForReadyGeneration = { error("Ordinary startup has no suppression release") },
+			handoff = { initializedGenerations += generation },
+			awaitSettingsPublication = { generation = 5L },
+		)
+
+		attemptedGenerations shouldBe listOf(4L, 5L)
+		initializedGenerations shouldBe listOf(5L)
 	}
 
 	@Test

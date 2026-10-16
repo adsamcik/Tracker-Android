@@ -3,5 +3,6 @@
     <string name="automatic_control_enable_transitions">Activează detectarea mișcării</string>
     <string name="automatic_control_enable_transitions_summary">Pornirea automată necesită detectarea mișcării.</string>
     <string name="automatic_control_provider_unavailable_summary">Pornirea automată necesită un serviciu compatibil de recunoaștere a activității.</string>
-    <string name="automatic_control_pending_summary">Pornirea automată nu este pregătită. Verifică opțiunile de urmărire și permisiunile.</string>
+    <string name="automatic_control_pending_summary">Detectarea mișcării nu este pregătită. Încercați din nou.</string>
+    <string name="automatic_control_setup_failed_summary">Tracker nu a putut pregăti urmărirea automată. Încercați din nou.</string>
 </resources>
