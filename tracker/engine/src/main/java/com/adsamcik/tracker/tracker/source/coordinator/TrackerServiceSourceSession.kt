@@ -23,6 +23,7 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceCallerAuthorityRetireme
 import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Provider
+import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -142,6 +143,7 @@ internal data class SourceSessionStopCutoff(
  * serializes settings/policy revisions, and delegates durable lifecycle fencing to the
  * authoritative coordinator.
  */
+@Singleton
 class TrackerServiceSourceSession @Inject constructor(
 	internal val database: AppDatabase,
 	internal val coordinator: AuthoritativeSessionCoordinator,

@@ -53,8 +53,11 @@ class ProviderStepsSessionLifecycle @Inject constructor(
 ) {
 	private val startup: TrackingStartupGate get() = startupProvider.get()
 	internal suspend fun isAvailable(): Boolean {
+		if (context.hasStepCounterSensor) {
+			return false
+		}
 		val chosen = settings.data.first()
-		return !context.hasStepCounterSensor && chosen.stepsEnabled && chosen.ambientStepsEnabled &&
+		return chosen.stepsEnabled && chosen.ambientStepsEnabled &&
 			capabilities.resolve() is AmbientStepsCapability.ReadyForRegistration
 	}
 

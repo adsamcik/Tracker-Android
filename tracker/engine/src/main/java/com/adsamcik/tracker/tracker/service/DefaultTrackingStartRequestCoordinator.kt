@@ -144,7 +144,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) {
 			return retryableStartRejection("TRACKING_STARTUP_NOT_READY")
 		}
-		// Reserve the exact manual exception before the non-reentrant startup/lifecycle lease.
+		// Reserve the exact manual exception before entering the serialized startup/lifecycle boundary.
 		val exitId = trackingLifecycleCommandAuthority.pendingCollectionResumeExitId
 		val pendingResume = exitId != null
 		if (exitId != null && (!isFreshManualStart(request) ||
@@ -154,6 +154,9 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		var prepared: TrackingStartPreparationResult? = null
 		try {
 			val startupGeneration = trackingStartupGate.currentGeneration
+			// The shared settings producer may itself need the startup lease before its first
+			// publication. Await it here; the serialized block still reads and checks current settings.
+			trackingParamsRepository.data.first()
 			prepared = trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
 				prepareUnderReadyGeneration(request, exactContinuationAuthority, startupGeneration)
 			} ?: retryableStartRejection("TRACKING_STARTUP_GENERATION_CLOSED")
@@ -245,8 +248,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 
 	/**
 	 * Performs the complete Room/descriptor preparation while deletion is excluded for one exact
-	 * startup generation. Callers already holding that lease use this directly to avoid nesting the
-	 * non-reentrant startup mutex.
+	 * startup generation. Callers use this only within their exact ready-generation boundary.
 	 */
 	private suspend fun prepareUnderReadyGeneration(
 		request: TrackingStartRequest,
@@ -532,6 +534,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			return AndroidRedeliveryStartResolution.Deferred
 		}
 		val startupGeneration = trackingStartupGate.currentGeneration
+		trackingParamsRepository.data.first()
 		return trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
 			resolveAndroidRedeliveryUnderReadyGeneration(
 				redeliveredToken = redeliveredToken,
@@ -739,6 +742,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 		if (prepared.requiresForegroundService || !isFreshManualStart(request)) {
 			return false
 		}
+		trackingParamsRepository.data.first()
 		return trackingStartupGate.withReadyGenerationOperation(prepared.startupGeneration) {
 			val policy = sourcePolicyRepository.currentState() as? SourcePolicyAuthorityState.Active
 				?: return@withReadyGenerationOperation false
@@ -792,6 +796,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject internal construct
 			return TrackingServicePreparedStartClaim.Deferred
 		}
 		val startupGeneration = trackingStartupGate.currentGeneration
+		trackingParamsRepository.data.first()
 		return trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
 			claimForServiceUnderReadyGeneration(token, commandGeneration, startupGeneration)
 		} ?: TrackingServicePreparedStartClaim.Deferred

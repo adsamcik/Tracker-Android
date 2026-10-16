@@ -6,6 +6,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.ManualTrackingStartSelection
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
@@ -30,6 +32,7 @@ import io.mockk.every
 import io.mockk.mockk
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -223,7 +226,9 @@ class PreparedManualStartPurposeRepairTest {
         coEvery { retry.schedule(any()) } returns true
         return DefaultTrackingStartRequestCoordinator(
             context = ApplicationProvider.getApplicationContext<Context>(), database = database,
-            trackingStartupGate = gate, trackingParamsRepository = mockk(), activeTrackingSessionStore = store,
+            trackingStartupGate = gate, trackingParamsRepository = mockk<TrackingParamsRepository> {
+                every { data } returns MutableStateFlow(TrackingParamsState())
+            }, activeTrackingSessionStore = store,
             sourceSession = mockk(), authoritativeSessionCoordinator = sessionCoordinator, trackingRolloutStateStore = mockk(),
             chosenSourceWriterSetup = mockk {
                 coEvery { ensure(any()) } coAnswers {

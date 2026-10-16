@@ -56,6 +56,12 @@ class DefaultManualTrackingStartReadinessReader @Inject constructor(
 	override suspend fun readPreflight(): ManualTrackingStartPreflight {
 		val startupGate = startupGateProvider.get()
 		val startupGeneration = startupGate.currentGeneration
+		if (!startupGate.isReadyGeneration(startupGeneration)) {
+			return ManualTrackingStartPreflight(ManualTrackingStartReadiness.TrackingUnavailable, null)
+		}
+		// Initial settings publication may need the same serialized startup boundary. Await it
+		// before entering that boundary; current policy and generation are still checked inside.
+		val providerStepsAvailable = providerStepsSessions?.isAvailable() == true
 		return startupGate.withReadyGenerationOperation(startupGeneration) {
 			val policyState = sourcePolicyRepositoryProvider.get().currentState()
 			if (policyState !is SourcePolicyAuthorityState.Active) {
@@ -78,7 +84,7 @@ class DefaultManualTrackingStartReadinessReader @Inject constructor(
 			// READY already proves the exact canonical binding, both prospective capture modes and owner in that snapshot.
 			val reachableSources = setup.readySources
 			val capabilities = context.manualTrackingSourceCapabilities()
-			val providerSources = availableProviderSources(enabledSources)
+			val providerSources = availableProviderSources(enabledSources, providerStepsAvailable)
 			val available = capabilities.availableSources + providerSources
 			val supported = capabilities.supportedSources + providerSources
 			val reachable = reachableSources + providerSources
@@ -96,12 +102,15 @@ class DefaultManualTrackingStartReadinessReader @Inject constructor(
 				policyState.snapshot.manualStartSelection())
 		} ?: ManualTrackingStartPreflight(ManualTrackingStartReadiness.TrackingUnavailable, null)
 	}
-	private suspend fun availableProviderSources(enabledSources: Set<SourceKind>): Set<SourceKind> =
-		if (SourceKind.STEPS in enabledSources && providerStepsSessions?.isAvailable() == true) {
-			setOf(SourceKind.STEPS)
-		} else {
-			emptySet()
-		}
+
+	private fun availableProviderSources(
+		enabledSources: Set<SourceKind>,
+		providerStepsAvailable: Boolean,
+	): Set<SourceKind> = if (providerStepsAvailable && SourceKind.STEPS in enabledSources) {
+		setOf(SourceKind.STEPS)
+	} else {
+		emptySet()
+	}
 
 	private fun resolveReadiness(
 		rolloutRevision: Long,

@@ -5,6 +5,10 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartSelection
+import com.adsamcik.tracker.tracker.api.TrackingCaptureSource
 import com.adsamcik.tracker.tracker.api.TrackingStartFailureDisposition
 import com.adsamcik.tracker.tracker.api.TrackingStartPreparationResult
 import com.adsamcik.tracker.tracker.api.TrackingStartRequest
@@ -15,8 +19,17 @@ import com.adsamcik.tracker.tracker.resilience.SharedPreferencesTrackingLifecycl
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Before
@@ -33,6 +46,7 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
     private lateinit var authority: SharedPreferencesTrackingLifecycleCommandAuthority
     private var beforeLease: suspend () -> Unit = {}
     private var enteredLease = false
+    private var parameterStates: Flow<TrackingParamsState> = MutableStateFlow(TrackingParamsState())
 
     @Before
     fun setUp() {
@@ -100,6 +114,44 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
         authority.pendingCollectionResumeExitId shouldBe "exit-1"
     }
 
+    @Test
+    fun `cold shared settings publication completes before PREPARE takes the command mutex`(): Unit = runBlocking {
+        val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            parameterStates = flow {
+                authority.runWithHandledStopGeneration(0L) { emit(TrackingParamsState()) } shouldBe true
+            }.shareIn(applicationScope, SharingStarted.Lazily, replay = 1)
+            coEvery { store.read() } returns ActiveTrackingSessionStoreResult.Success(null)
+            val request = TrackingStartRequest(requireNotNull(authority.reserveStart()), true, false,
+                manualSourceSelection = ManualTrackingStartSelection(mapOf(TrackingCaptureSource.STEPS to 1L)))
+
+            withTimeout(2_000L) {
+                coordinator().prepare(request)
+            } shouldBe TrackingStartPreparationResult.Rejected("MANUAL_START_SELECTION_CHANGED")
+            enteredLease shouldBe true
+            coVerify(exactly = 1) { store.read() }
+        } finally {
+            applicationScope.cancel()
+        }
+    }
+
+    @Test
+    fun `cancelled initial settings wait revokes pending Start and keeps durable Off`(): Unit = runBlocking {
+        authority.recordUserRequestedExit("exit-1") shouldBe true
+        val request = TrackingStartRequest(requireNotNull(authority.reserveStart()), true, false)
+        val cancelled = kotlinx.coroutines.CancellationException("initial settings cancelled")
+        parameterStates = flow { throw cancelled }
+
+        val failure = try { coordinator().prepare(request); error("Cancellation must escape") }
+            catch (caught: kotlinx.coroutines.CancellationException) { caught }
+
+        (failure === cancelled) shouldBe true
+        enteredLease shouldBe false
+        authority.isPendingCollectionStart(request.command) shouldBe false
+        authority.pendingCollectionResumeExitId shouldBe "exit-1"
+        coVerify(exactly = 0) { store.read() }
+    }
+
     private fun coordinator(): DefaultTrackingStartRequestCoordinator {
         val gate = object : TrackingStartupGate {
             override val isReady = true
@@ -121,7 +173,7 @@ class DefaultTrackingStartRequestCoordinatorResumeTest {
             context = context,
             database = mockk(),
             trackingStartupGate = gate,
-            trackingParamsRepository = mockk(),
+            trackingParamsRepository = mockk<TrackingParamsRepository> { every { data } returns parameterStates },
             activeTrackingSessionStore = store,
             sourceSession = mockk(),
             authoritativeSessionCoordinator = mockk(),
